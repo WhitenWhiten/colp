@@ -1,3 +1,5 @@
+import { cloneAndFreezeJsonData } from './json.js';
+
 import { isHttpsNamespaceUri } from './uri.js';
 
 export type ExtensionMap = Readonly<Record<string, unknown>>;
@@ -61,78 +63,23 @@ export interface PreservedExtensionCarrier<Value extends object> {
 
 const forbiddenObjectKeys = new Set(['__proto__', 'constructor', 'prototype']);
 
-function cloneExtensionValue(value: unknown, ancestors = new WeakSet<object>()): unknown {
-  if (
-    value === null
-    || typeof value === 'string'
-    || typeof value === 'boolean'
-  ) {
-    return value;
-  }
-  if (typeof value === 'number') {
-    if (!Number.isFinite(value)) {
-      throw new TypeError('Extension numbers must be finite.');
-    }
-    if (Number.isInteger(value) && !Number.isSafeInteger(value)) {
-      throw new TypeError('Extension integers must be within the I-JSON safe integer range.');
-    }
-    return value;
-  }
-  if (typeof value !== 'object') {
-    throw new TypeError('Extension values must be JSON values.');
-  }
-  if (ancestors.has(value)) {
-    throw new TypeError('Extension values must not contain cycles.');
-  }
+const EXTENSION_JSON_LIMITS = Object.freeze({ maxDepth: 64, maxMembers: 10_000, maxBytes: 1024 * 1024 });
 
-  ancestors.add(value);
+function cloneExtensionValue(value: unknown): unknown {
   try {
-    if (Array.isArray(value)) {
-      const keys = Reflect.ownKeys(value);
-      if (keys.some((key) => typeof key === 'symbol')) {
-        throw new TypeError('Extension arrays must not have symbol members.');
-      }
-      for (let index = 0; index < value.length; index += 1) {
-        if (!Object.hasOwn(value, index)) {
-          throw new TypeError('Extension arrays must not be sparse.');
-        }
-      }
-      if (keys.some((key) => key !== 'length' && !/^(?:0|[1-9][0-9]*)$/u.test(key as string))) {
-        throw new TypeError('Extension arrays must not have named members.');
-      }
-      const clone: unknown[] = [];
-      for (let index = 0; index < value.length; index += 1) {
-        const descriptor = Object.getOwnPropertyDescriptor(value, String(index))!;
-        if (!descriptor.enumerable || !('value' in descriptor)) {
-          throw new TypeError('Extension array items must be enumerable data properties.');
-        }
-        clone.push(cloneExtensionValue(descriptor.value, ancestors));
-      }
-      return clone;
+    return cloneAndFreezeJsonData(value, EXTENSION_JSON_LIMITS);
+  } catch (error) {
+    // Keep the long-standing extension error vocabulary while using the
+    // shared bounded clone as the single traversal and accounting engine.
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes('cyclic references are not JSON data')) {
+      throw new TypeError('Extension values must not contain cycles.');
     }
-
-    const prototype = Object.getPrototypeOf(value) as unknown;
-    if (prototype !== Object.prototype && prototype !== null) {
-      throw new TypeError('Extension objects must have a plain or null prototype.');
+    const prohibited = /prohibited member name: (__proto__|constructor|prototype)/u.exec(message);
+    if (prohibited !== null) {
+      throw new TypeError(`Extension object member is not allowed: ${prohibited[1]}`);
     }
-
-    const clone: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
-    for (const key of Reflect.ownKeys(value)) {
-      if (typeof key === 'symbol') {
-        throw new TypeError('Extension objects must not have symbol members.');
-      }
-      if (forbiddenObjectKeys.has(key)) {
-        throw new TypeError(`Extension object member is not allowed: ${key}`);
-      }
-      const descriptor = Object.getOwnPropertyDescriptor(value, key)!;
-      if (!descriptor.enumerable || !('value' in descriptor)) {
-        throw new TypeError('Extension object members must be enumerable data properties.');
-      }
-      clone[key] = cloneExtensionValue(descriptor.value, ancestors);
-    }
-    return clone;
-  } finally {
-    ancestors.delete(value);
+    throw error;
   }
 }
 
@@ -154,6 +101,8 @@ function assertExtensionNamespace(namespace: string): void {
 }
 
 function assertExtensionMap(extensions: ExtensionMap): void {
+  // Charge all namespaces together before any per-namespace cloning or policy.
+  cloneExtensionValue(extensions);
   if (typeof extensions !== 'object' || extensions === null || Array.isArray(extensions)) {
     throw new TypeError('Extensions must be a namespace-keyed object.');
   }
@@ -231,6 +180,8 @@ export function placeExtension<Value extends object>(
     extensions[existingNamespace] = freezeExtensionValue(cloneExtensionValue(existingPayload));
   }
   extensions[namespace] = freezeExtensionValue(cloneExtensionValue(payload));
+  // Existing data plus the new payload must fit the same aggregate budget.
+  cloneExtensionValue(extensions);
 
   return Object.freeze({
     ...core,

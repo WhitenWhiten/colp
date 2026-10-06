@@ -1,3 +1,4 @@
+import { assertRequestTargetBudget } from './request-target-budget.js';
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { types as nodeTypes } from 'node:util';
 
@@ -739,6 +740,7 @@ function canonicalizeStaticProfile(
 }
 
 function inspectRequestTarget(requestTarget: string, bearerToken: string, authorizationValues: readonly string[]): OAuth21ProfileDenialReason | undefined {
+  try { assertRequestTargetBudget(requestTarget); } catch { return 'invalid_input'; }
   if (requestTarget.includes('\\') || requestTarget.includes(' ') || requestTarget.includes('#')) {
     return 'invalid_input';
   }
@@ -767,7 +769,9 @@ function inspectRequestTarget(requestTarget: string, bearerToken: string, author
   if (queryIndex === -1) return undefined;
   const entries = Array.from(new URLSearchParams(requestTarget.slice(queryIndex + 1)));
   if (entries.length > MAX_QUERY_ENTRIES) return 'invalid_input';
-  return credentialQueryDenial(entries, bearerToken, authorizationValues);
+  const plusPreservingEntries = Array.from(new URLSearchParams(requestTarget.slice(queryIndex + 1).replaceAll('+', '%2B')));
+  return credentialQueryDenial(entries, bearerToken, authorizationValues)
+    ?? credentialQueryDenial(plusPreservingEntries, bearerToken, authorizationValues);
 }
 
 function secretEqual(left: string, right: string): boolean {

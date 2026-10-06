@@ -26,6 +26,8 @@ export default {
     'src/mcp/2026-07-28/resources.ts',
     'src/mcp/2026-07-28/tools.ts',
     'src/mcp/2026-07-28/schema-budget.ts',
+    'src/mcp/2026-07-28/subscription-authority.ts',
+    'src/mcp/2026-07-28/subscription-filter.ts',
     'src/mcp/shared/change-signal.ts',
     'src/mcp/2026-07-28/subscriptions.ts',
   ],

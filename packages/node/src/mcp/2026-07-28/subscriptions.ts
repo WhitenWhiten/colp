@@ -1,3 +1,6 @@
+import { isListenAuthorized } from './subscription-authority.js';
+import { validateMcp20260728ListenParams } from './subscription-filter.js';
+
 /**
  * Modern MCP 2026-07-28 subscriptions/listen adapter.
  *
@@ -21,7 +24,6 @@ import { snapshotMcpData } from '../safe-data.js';
 import type { McpChangeSignal, McpChangeSignalSourcePort, McpChangeSignalSubscription } from '../shared/change-signal.js';
 import { snapshotMcpChangeSignal } from '../shared/change-signal.js';
 import {
-  Mcp20260728RequestError,
   requireMcp20260728RequestContext,
   type Mcp20260728RequestContext,
 } from './request-context.js';
@@ -33,7 +35,6 @@ import {
   ResourceUpdatedNotificationSchema,
   SERVER_INFO_META_KEY,
   SubscriptionsAcknowledgedNotificationSchema,
-  SubscriptionFilterSchema,
   SUBSCRIPTION_ID_META_KEY,
   SubscriptionsListenResultMetaSchema,
   SubscriptionsListenResultSchema,
@@ -115,6 +116,8 @@ export interface Mcp20260728SubscriptionsListenSession {
  */
 export interface Mcp20260728AuthorizationRecheckPort {
   readonly isAuthorized: (context: Mcp20260728RequestContext) => boolean;
+  /** Required for nonempty resource subscriptions. Rechecked before every send. */
+  readonly isResourceAuthorized?: (context: Mcp20260728RequestContext, resourceUri: string) => boolean;
 }
 
 export interface Mcp20260728SubscriptionsListenAdapterOptions {
@@ -222,15 +225,17 @@ export function createMcp20260728SubscriptionsListenAdapter(
   ): Mcp20260728SubscriptionsListenSession => {
     const ctx = requireMcp20260728RequestContext(context);
     const subscriptionId = requireRequestId(requestId);
-    const filter = validateListenParams(input, capabilities);
-    if (!authorization.isAuthorized(ctx)) {
+    const filter = validateMcp20260728ListenParams(input, capabilities, isMcp20260728ListenTypeSupported);
+    const authorized = (candidate: Mcp20260728RequestContext): boolean =>
+      isListenAuthorized(candidate, filter.resourceSubscriptions, authorization);
+    if (!authorized(ctx)) {
       throw new TypeError('MCP listen authorization recheck denied the request at listen start.');
     }
     const stream = new Mcp20260728ListenStream({
       context: ctx,
       subscriptionId,
       filter,
-      isAuthorized: (candidate) => authorization.isAuthorized(candidate),
+      isAuthorized: authorized,
       maxQueueSize,
       maxRatePerWindow,
       rateWindowMs,
@@ -259,44 +264,6 @@ export function createMcp20260728SubscriptionsListenAdapter(
   };
 
   return Object.freeze({ listen });
-}
-
-function validateListenParams(
-  input: unknown,
-  capabilities: Readonly<Record<string, unknown>>,
-): Mcp20260728SubscriptionFilter {
-  if (typeof input !== 'object' || input === null || Array.isArray(input) || nodeTypes.isProxy(input)) {
-    throw invalidParams('subscriptions/listen params');
-  }
-  const prototype = Object.getPrototypeOf(input);
-  if (prototype !== Object.prototype && prototype !== null) throw invalidParams('subscriptions/listen params');
-  const notifications = readOwnValue(input, 'notifications', () => invalidParams('subscriptions/listen params'));
-  if (notifications === undefined) throw invalidParams('subscriptions/listen notifications');
-  const parsed = SubscriptionFilterSchema.safeParse(notifications);
-  if (!parsed.success) throw invalidParams('subscriptions/listen notifications');
-  const data = parsed.data as Mcp20260728SubscriptionFilter;
-  const requested: Array<[Mcp20260728ListenOptInType, string]> = [];
-  if (data.toolsListChanged === true) requested.push(['toolsListChanged', 'tools.listChanged']);
-  if (data.promptsListChanged === true) requested.push(['promptsListChanged', 'prompts.listChanged']);
-  if (data.resourcesListChanged === true) requested.push(['resourcesListChanged', 'resources.listChanged']);
-  if (data.resourceSubscriptions !== undefined) requested.push(['resourceSubscriptions', 'resources.subscribe']);
-  for (const [type, capabilityPath] of requested) {
-    if (!isMcp20260728ListenTypeSupported(capabilities, type)) {
-      throw invalidParams(`subscriptions/listen notification type ${type} is not supported by the server capabilities (${capabilityPath})`);
-    }
-  }
-  const resourceSubscriptions = data.resourceSubscriptions;
-  if (resourceSubscriptions !== undefined) {
-    for (const uri of resourceSubscriptions) {
-      if (typeof uri !== 'string' || uri.length === 0) throw invalidParams('subscriptions/listen resourceSubscriptions');
-    }
-  }
-  return Object.freeze({
-    ...(data.toolsListChanged !== undefined ? { toolsListChanged: data.toolsListChanged } : {}),
-    ...(data.promptsListChanged !== undefined ? { promptsListChanged: data.promptsListChanged } : {}),
-    ...(data.resourcesListChanged !== undefined ? { resourcesListChanged: data.resourcesListChanged } : {}),
-    ...(resourceSubscriptions !== undefined ? { resourceSubscriptions: Object.freeze([...resourceSubscriptions]) } : {}),
-  });
 }
 
 function requireRequestId(value: unknown): string | number {
@@ -372,6 +339,7 @@ class Mcp20260728ListenStream {
   private readonly context: Mcp20260728RequestContext;
   private readonly subscriptionId: string | number;
   private readonly filter: Mcp20260728SubscriptionFilter;
+  private readonly resourceUris: ReadonlySet<string>;
   private readonly isAuthorized: (context: Mcp20260728RequestContext) => boolean;
   private readonly maxQueueSize: number;
   private readonly maxRatePerWindow: number;
@@ -399,6 +367,7 @@ class Mcp20260728ListenStream {
     this.context = options.context;
     this.subscriptionId = options.subscriptionId;
     this.filter = options.filter;
+    this.resourceUris = new Set(options.filter.resourceSubscriptions ?? []);
     this.isAuthorized = options.isAuthorized;
     this.maxQueueSize = options.maxQueueSize;
     this.maxRatePerWindow = options.maxRatePerWindow;
@@ -495,8 +464,7 @@ class Mcp20260728ListenStream {
   ): { readonly method: Mcp20260728ListenNotificationMethod; readonly params: Readonly<Record<string, unknown>> } | undefined {
     switch (signal.type) {
       case 'resource-updated': {
-        const subscriptions = this.filter.resourceSubscriptions;
-        if (subscriptions === undefined || !subscriptions.includes(signal.resourceUri as string)) return undefined;
+        if (!this.resourceUris.has(signal.resourceUri as string)) return undefined;
         return { method: 'notifications/resources/updated', params: { uri: signal.resourceUri as string } };
       }
       case 'resource-list-changed':
@@ -565,7 +533,15 @@ function readAuthorization(options: Mcp20260728SubscriptionsListenAdapterOptions
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw) || nodeTypes.isProxy(raw)) throw configError();
   const isAuthorized = readOwnData(raw as object, 'isAuthorized', configError);
   if (typeof isAuthorized !== 'function') throw configError();
-  return Object.freeze<Mcp20260728AuthorizationRecheckPort>({ isAuthorized: context => Reflect.apply(isAuthorized, raw, [context]) });
+  const resourceCheck = readOptionalOwnData(raw, 'isResourceAuthorized');
+  if (resourceCheck !== undefined && (typeof resourceCheck !== 'function' || nodeTypes.isProxy(resourceCheck))) throw configError();
+  return Object.freeze<Mcp20260728AuthorizationRecheckPort>({
+    isAuthorized: context => Reflect.apply(isAuthorized, raw, [context]) === true,
+    ...(resourceCheck === undefined ? {} : {
+      isResourceAuthorized: (context: Mcp20260728RequestContext, uri: string) =>
+        Reflect.apply(resourceCheck as Function, raw, [context, uri]) === true,
+    }),
+  });
 }
 
 function readServerInfo(options: Mcp20260728SubscriptionsListenAdapterOptions): Mcp20260728ServerInfo | undefined {
@@ -585,10 +561,6 @@ function readLimit(
   if (raw === undefined) return fallback;
   if (typeof raw !== 'number' || !Number.isSafeInteger(raw) || raw < 1) throw configError();
   return raw;
-}
-
-function invalidParams(message: string): Mcp20260728RequestError {
-  return new Mcp20260728RequestError('invalid_params', `Invalid ${message}.`);
 }
 
 function configError(): TypeError {

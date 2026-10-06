@@ -656,7 +656,7 @@ export class ColpClient {
   readonly #credentialProvider: CredentialProvider | undefined;
   readonly #requestIdentityProvider: ClientRequestIdentityProvider | undefined;
   readonly #egressPolicy: ClientEgressPolicy | undefined;
-  readonly #jsonLimits: ResolvedIJsonParseLimits;
+  readonly #jsonLimits: ResolvedIJsonParseLimits & { readonly maxBytes?: number };
   readonly #cachePartition: string | CachePartitionProvider | undefined;
   readonly #mountId: string | undefined;
   readonly #mountSelector: MountSelector | undefined;
@@ -701,7 +701,11 @@ export class ColpClient {
       throw new TypeError('egressPolicy must be a function when provided.');
     }
     this.#egressPolicy = options.egressPolicy;
-    this.#jsonLimits = resolveIJsonParseLimits(options.jsonLimits);
+    const jsonLimits = { ...options.jsonLimits };
+    this.#jsonLimits = Object.freeze({
+      ...resolveIJsonParseLimits(jsonLimits),
+      ...(jsonLimits.maxBytes === undefined ? {} : { maxBytes: jsonLimits.maxBytes }),
+    });
     if (typeof options.cachePartition === 'string' && options.cachePartition.length === 0) {
       throw new RangeError('cachePartition must not be empty.');
     }

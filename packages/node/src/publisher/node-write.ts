@@ -1,3 +1,5 @@
+import { authorizeNodeWriteIdentities } from './node-write-identity.js';
+
 import { types as nodeTypes } from 'node:util';
 
 import { assertPlainStructuredData, assertPlainStructuredSource } from '../shared/plain-structured-data.js';
@@ -39,6 +41,7 @@ export type PublisherNodeWriteConcealmentDecision =
 
 export type PublisherNodeWriteAuthorizationSubject =
   | { readonly kind: 'request-target' }
+  | { readonly kind: 'node-identity'; readonly nodeId: string }
   | {
       readonly kind: 'affected-node';
       readonly nodeId: string;
@@ -73,6 +76,18 @@ export interface PublisherGuardedNodeWritePorts<
     candidate: Readonly<Candidate>,
     mutation: GuardedNodeWriteMutation,
     subject: PublisherNodeWriteAuthorizationSubject,
+  ): Promise<PublisherNodeWriteAuthorizationDecision>;
+  /**
+   * Authorize a literal Node identity before resolving it or expanding ancestry.
+   * Required for Create/Move/Reparent/Restore; absence fails closed. Decisions
+   * must cover proposed IDs too, using the mutation/collection security scope.
+   */
+  authorizeNodeIdentity?(
+    context: Context,
+    identities: readonly PrincipalRef[],
+    candidate: Readonly<Candidate>,
+    mutation: GuardedNodeWriteMutation,
+    nodeId: string,
   ): Promise<PublisherNodeWriteAuthorizationDecision>;
   /**
    * Select visibility after each authorization decision. It may conceal an
@@ -264,7 +279,25 @@ async function executeInContext<Candidate, Context extends NodeWriteResolver, Re
           ),
           'validation',
         ),
-        preAuthorize: async () => Object.freeze({ allowed: true as const }),
+        preAuthorize: async (guardContext, guardCandidate, guardMutation) => {
+          const check = ports.authorizeNodeIdentity;
+          const allowed = await authorizeNodeWriteIdentities(guardMutation, check === undefined ? undefined : async nodeId => {
+            const subject = Object.freeze({ kind: 'node-identity' as const, nodeId });
+            const authorization = inspectAuthorization(await requirePromise(
+              check(guardContext, identities, guardCandidate, guardMutation, nodeId),
+              'Publisher Node identity authorization port',
+            ));
+            const concealed = await applyConcealment(ports, guardContext, identities,
+              guardCandidate, guardMutation, subject, authorization);
+            if (concealed !== undefined) concealedAffectedProblem = concealed;
+            return concealed === undefined;
+          });
+          if (!allowed) {
+            concealedAffectedProblem ??= problem('resource_not_found');
+            return Object.freeze({ allowed: false as const, reason: 'Publisher identity gate denied.' });
+          }
+          return Object.freeze({ allowed: true as const });
+        },
         authorize: async (guardContext, guardCandidate, guardMutation, nodeId, plan) => {
           const subject = Object.freeze({ kind: 'affected-node' as const, nodeId, plan });
           const authorization = inspectAuthorization(await requirePromise(
@@ -357,28 +390,57 @@ interface SnapshottedPorts<Context extends NodeWriteResolver, Candidate, Result>
   runUnitOfWork<WorkResult>(work: (context: Context) => Promise<WorkResult>): Promise<WorkResult>;
 }
 
+export type PublisherNodeWriteGuardPortInput<Context extends NodeWriteResolver, Candidate, Result> = Pick<
+  PublisherGuardedNodeWritePorts<Context, Candidate, Result>,
+  'unitOfWork' | 'authenticate' | 'authorize' | 'authorizeNodeIdentity' | 'conceal' | 'validate' | 'evaluatePolicy'
+>;
+
+/** Snapshot the common guard ports once so endpoint adapters cannot drift. */
+export function snapshotPublisherNodeWriteGuardPorts<
+  Context extends NodeWriteResolver,
+  Candidate,
+  Result,
+>(
+  ports: PublisherNodeWriteGuardPortInput<Context, Candidate, Result>,
+  label = 'Publisher Node write',
+): PublisherNodeWriteGuardPortInput<Context, Candidate, Result> {
+  if (ports === null || typeof ports !== 'object' || nodeTypes.isProxy(ports)) {
+    throw new TypeError(`${label} ports are required and cannot be a Proxy.`);
+  }
+  const unitOfWork = findDataProperty(ports, 'unitOfWork')?.value;
+  if (unitOfWork === null || typeof unitOfWork !== 'object' || nodeTypes.isProxy(unitOfWork)) {
+    throw new TypeError(`${label} unit of work is required and cannot be a Proxy.`);
+  }
+  const authorizeNodeIdentity = snapshotOptionalMethod<typeof ports.authorizeNodeIdentity>(ports, 'authorizeNodeIdentity');
+  return Object.freeze({
+    unitOfWork: Object.freeze({
+      run: snapshotMethod<PublisherNodeWriteUnitOfWork<Context>['run']>(unitOfWork, 'run'),
+    }),
+    authenticate: snapshotMethod<typeof ports.authenticate>(ports, 'authenticate'),
+    authorize: snapshotMethod<typeof ports.authorize>(ports, 'authorize'),
+    ...(authorizeNodeIdentity === undefined ? {} : { authorizeNodeIdentity }),
+    conceal: snapshotMethod<typeof ports.conceal>(ports, 'conceal'),
+    validate: snapshotMethod<typeof ports.validate>(ports, 'validate'),
+    evaluatePolicy: snapshotMethod<typeof ports.evaluatePolicy>(ports, 'evaluatePolicy'),
+  });
+}
+
 function snapshotPorts<Context extends NodeWriteResolver, Candidate, Result>(
   ports: PublisherGuardedNodeWritePorts<Context, Candidate, Result>,
 ): SnapshottedPorts<Context, Candidate, Result> {
-  if (ports === null || typeof ports !== 'object' || nodeTypes.isProxy(ports)) {
-    throw new TypeError('Publisher Node write ports are required and cannot be a Proxy.');
-  }
-  const unitDescriptor = findDataProperty(ports, 'unitOfWork');
-  const unitOfWork = unitDescriptor?.value;
-  if (unitOfWork === null || typeof unitOfWork !== 'object' || nodeTypes.isProxy(unitOfWork)) {
-    throw new TypeError('Publisher Node write unit of work is required and cannot be a Proxy.');
-  }
+  const guard = snapshotPublisherNodeWriteGuardPorts(ports);
   const beforeBusinessConflict = snapshotOptionalMethod<
     typeof ports.beforeBusinessConflict
   >(ports, 'beforeBusinessConflict');
   return Object.freeze({
-    runUnitOfWork: snapshotMethod<PublisherNodeWriteUnitOfWork<Context>['run']>(unitOfWork, 'run'),
-    authenticate: snapshotMethod<typeof ports.authenticate>(ports, 'authenticate'),
-    authorize: snapshotMethod<typeof ports.authorize>(ports, 'authorize'),
-    conceal: snapshotMethod<typeof ports.conceal>(ports, 'conceal'),
+    runUnitOfWork: guard.unitOfWork.run,
+    authenticate: guard.authenticate,
+    authorize: guard.authorize,
+    ...(guard.authorizeNodeIdentity === undefined ? {} : { authorizeNodeIdentity: guard.authorizeNodeIdentity }),
+    conceal: guard.conceal,
     ...(beforeBusinessConflict === undefined ? {} : { beforeBusinessConflict }),
-    validate: snapshotMethod<typeof ports.validate>(ports, 'validate'),
-    evaluatePolicy: snapshotMethod<typeof ports.evaluatePolicy>(ports, 'evaluatePolicy'),
+    validate: guard.validate,
+    evaluatePolicy: guard.evaluatePolicy,
     write: snapshotMethod<typeof ports.write>(ports, 'write'),
   });
 }

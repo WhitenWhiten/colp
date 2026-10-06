@@ -109,9 +109,17 @@ export function harness(
   overrides: Readonly<Partial<Mcp20260728SubscriptionsListenAdapterOptions>> = {},
 ): ListenHarness {
   const memory = createInMemorySignalSource();
+  // Resource subscriptions have a distinct authorization surface. The
+  // default fixture explicitly authorizes every test resource; omitting this
+  // port would exercise the production fail-closed path in mapping tests.
+  const authorization = overrides.authorization ?? {
+    isAuthorized: () => true,
+    isResourceAuthorized: () => true,
+  };
   const adapter = createMcp20260728SubscriptionsListenAdapter({
     signalSource: memory.source,
     capabilities,
+    authorization,
     ...overrides,
   });
   return { memory, adapter };

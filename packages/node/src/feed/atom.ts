@@ -1,3 +1,5 @@
+import { serializeBoundedAtom } from './atom-serializer.js';
+
 import { isProxy } from 'node:util/types';
 
 import { isHttpUrl } from '../schema/uri.js';
@@ -103,7 +105,7 @@ export function mapFeedToAtom(
 ): AtomMapResult {
   let feedSnapshot: DeepReadonly<unknown>;
   try {
-    feedSnapshot = immutableJsonSnapshot(feed, 'Atom source Feed');
+    feedSnapshot = immutableJsonSnapshot(feed, 'Atom source Feed', { maxBytes: 1024 * 1024 });
   } catch {
     return fail('malformed_feed');
   }
@@ -194,11 +196,12 @@ export function mapFeedToAtom(
     return fail('invalid_xml');
   }
 
-  return Object.freeze({
-    ok: true,
-    document,
-    xml: serializeAtom(document),
-  });
+  try {
+    return Object.freeze({ ok: true, document, xml: serializeBoundedAtom(document) });
+  } catch (error) {
+    if (error instanceof RangeError) return fail('malformed_feed');
+    throw error;
+  }
 }
 
 function mapEventToAtomEntry(
@@ -395,49 +398,6 @@ function isXml10String(value: string): boolean {
     }
   }
   return true;
-}
-
-function serializeAtom(document: AtomFeedDocument): string {
-  const lines = [
-    '<?xml version="1.0" encoding="utf-8"?>',
-    '<feed xmlns="http://www.w3.org/2005/Atom">',
-    `  <id>${escapeXml(document.id)}</id>`,
-    `  <title>${escapeXml(document.title)}</title>`,
-    `  <updated>${escapeXml(document.updated)}</updated>`,
-  ];
-  for (const link of document.links) {
-    lines.push(serializeLink(link, 2));
-  }
-  for (const entry of document.entries) {
-    lines.push('  <entry>');
-    lines.push(`    <id>${escapeXml(entry.id)}</id>`);
-    lines.push(`    <title>${escapeXml(entry.title)}</title>`);
-    lines.push(`    <updated>${escapeXml(entry.updated)}</updated>`);
-    for (const link of entry.links) {
-      lines.push(serializeLink(link, 4));
-    }
-    if (entry.summary !== undefined) {
-      lines.push(`    <summary>${escapeXml(entry.summary)}</summary>`);
-    }
-    lines.push('  </entry>');
-  }
-  lines.push('</feed>');
-  return lines.join('\n');
-}
-
-function serializeLink(link: AtomLink, indent: number): string {
-  const pad = ' '.repeat(indent);
-  const type = link.type === undefined ? '' : ` type="${escapeXml(link.type)}"`;
-  return `${pad}<link rel="${escapeXml(link.rel)}" href="${escapeXml(link.href)}"${type}/>`;
-}
-
-function escapeXml(value: string): string {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&apos;');
 }
 
 function fail(code: AtomMapErrorCode): AtomMapResult {

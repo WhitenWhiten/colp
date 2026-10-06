@@ -1,10 +1,12 @@
+import { cloneAndFreezeJsonData } from '../schema/json.js';
+import { snapshotBoundedStrings } from './bounded-string-array.js';
+
 /** RFC 8414 / RFC 9207 discovery and exact issuer identity (SEC-0019). */
 import {
   assertPlainRecord,
   exactOwnStringKeys,
   readOwnDataProperty,
   requireOwnDataProperty,
-  snapshotDenseArray,
 } from './input-snapshot.js';
 
 // =====================================================================
@@ -285,26 +287,42 @@ interface MetadataSnapshot {
 }
 
 function snapshotMetadata(input: unknown): MetadataSnapshot {
+  // Older callers commonly spell an absent optional metadata member as
+  // `undefined`. Treat that representation as absent before the strict JSON
+  // clone, while still rejecting accessors, symbols, proxies, and custom
+  // prototypes without reading untrusted getters.
   assertPlainRecord(input, 'authorization server metadata');
-  const keys = Reflect.ownKeys(input);
+  const inputKeys = Reflect.ownKeys(input);
+  if (inputKeys.length > MAX_METADATA_MEMBERS) throw new TypeError('authorization server metadata is too large');
+  const jsonInput: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
+  for (const key of inputKeys) {
+    if (typeof key !== 'string') throw new TypeError('authorization server metadata has an invalid member');
+    const descriptor = Object.getOwnPropertyDescriptor(input, key);
+    if (descriptor === undefined || !descriptor.enumerable || !('value' in descriptor)) {
+      throw new TypeError('authorization server metadata must contain own enumerable data properties');
+    }
+    if (descriptor.value !== undefined) jsonInput[key] = descriptor.value;
+  }
+  const cloned = cloneAndFreezeJsonData(jsonInput, { maxDepth: 16, maxMembers: 2048, maxBytes: 64 * 1024 });
+  const keys = Reflect.ownKeys(cloned);
   if (keys.length > MAX_METADATA_MEMBERS) throw new TypeError('authorization server metadata is too large');
   for (const key of keys) {
     if (typeof key !== 'string' || key === '__proto__' || key === 'constructor' || key === 'prototype') {
       throw new TypeError('authorization server metadata has an invalid member');
     }
-    const descriptor = Object.getOwnPropertyDescriptor(input, key);
+    const descriptor = Object.getOwnPropertyDescriptor(cloned, key);
     if (descriptor === undefined || !descriptor.enumerable || !('value' in descriptor)) {
       throw new TypeError('authorization server metadata must contain own enumerable data properties');
     }
   }
-  const issuer = readOwnDataProperty(input, 'issuer');
-  const authorizationEndpoint = readOwnDataProperty(input, 'authorization_endpoint');
-  const tokenEndpoint = readOwnDataProperty(input, 'token_endpoint');
-  const registrationEndpoint = readOwnDataProperty(input, 'registration_endpoint');
-  const codeChallengeMethods = readOwnDataProperty(input, 'code_challenge_methods_supported');
-  const issParameterSupported = readOwnDataProperty(input, 'authorization_response_iss_parameter_supported');
-  const grantTypes = readOwnDataProperty(input, 'grant_types_supported');
-  const responseTypes = readOwnDataProperty(input, 'response_types_supported');
+  const issuer = readOwnDataProperty(cloned, 'issuer');
+  const authorizationEndpoint = readOwnDataProperty(cloned, 'authorization_endpoint');
+  const tokenEndpoint = readOwnDataProperty(cloned, 'token_endpoint');
+  const registrationEndpoint = readOwnDataProperty(cloned, 'registration_endpoint');
+  const codeChallengeMethods = readOwnDataProperty(cloned, 'code_challenge_methods_supported');
+  const issParameterSupported = readOwnDataProperty(cloned, 'authorization_response_iss_parameter_supported');
+  const grantTypes = readOwnDataProperty(cloned, 'grant_types_supported');
+  const responseTypes = readOwnDataProperty(cloned, 'response_types_supported');
   return Object.freeze({
     issuer: issuer.found && issuer.value !== undefined ? issuer.value : undefined,
     authorizationEndpoint:
@@ -363,7 +381,7 @@ function issuerMetadataReason(issuer: unknown): OAuthAuthorizationServerMetadata
 
 function snapshotOptionalStringArray(value: unknown, name: string): readonly string[] | undefined {
   if (value === undefined) return undefined;
-  const entries = snapshotDenseArray(value, name) as readonly unknown[];
+  const entries = snapshotBoundedStrings(value, name, { maxEntries: 256, maxStringBytes: 4096, maxTotalBytes: 64 * 1024, allowEmpty: true });
   if (!entries.every((entry) => typeof entry === 'string')) {
     throw new TypeError(`${name} entries must be strings`);
   }

@@ -1,3 +1,5 @@
+import { TextByteBudget } from '../shared/text-budget.js';
+
 /**
  * Browser-safe I-JSON snapshot + RFC 8785 canonical JSON.
  *
@@ -11,6 +13,7 @@ import canonicalize from 'canonicalize';
 
 export const CANONICAL_JSON_MAX_DEPTH = 32;
 export const CANONICAL_JSON_MAX_MEMBERS = 10_000;
+export const CANONICAL_JSON_MAX_BYTES = 8 * 1024 * 1024;
 
 interface SnapshotState {
   readonly label: string;
@@ -18,6 +21,7 @@ interface SnapshotState {
   readonly maxDepth: number;
   readonly maxMembers: number;
   members: number;
+  readonly bytes: TextByteBudget;
 }
 
 export function isCanonicalJsonSafeNumber(value: number): boolean {
@@ -31,6 +35,7 @@ export function canonicalJsonSnapshot(value: unknown, label: string): unknown {
     maxDepth: CANONICAL_JSON_MAX_DEPTH,
     maxMembers: CANONICAL_JSON_MAX_MEMBERS,
     members: 0,
+    bytes: new TextByteBudget(CANONICAL_JSON_MAX_BYTES, label),
   }, 0);
 }
 
@@ -47,13 +52,19 @@ function snapshotJsonValue(value: unknown, state: SnapshotState, depth: number):
   if (depth > state.maxDepth) {
     throw new TypeError(`${state.label} exceeds the maximum JSON depth.`);
   }
-  if (value === null || typeof value === 'string' || typeof value === 'boolean') {
+  if (value === null || typeof value === 'boolean') {
+    state.bytes.charge(value === null || value === true ? 4 : 5);
+    return value;
+  }
+  if (typeof value === 'string') {
+    state.bytes.jsonString(value);
     return value;
   }
   if (typeof value === 'number') {
     if (!isCanonicalJsonSafeNumber(value)) {
       throw new TypeError(`${state.label} contains a number that is not a JSON-safe number.`);
     }
+    state.bytes.charge(JSON.stringify(value).length);
     return value;
   }
   if (typeof value !== 'object') {
@@ -98,6 +109,7 @@ function snapshotArray(value: unknown[], state: SnapshotState, depth: number): r
   // is metadata, not a JSON member.  Counting it made an exactly 10,000-item
   // authoritative effect exceed the advertised 10,000-member bound.
   reserveMembers(state, length);
+  state.bytes.charge(2 + Math.max(0, length - 1));
   const clone = new Array<unknown>(length);
   for (let index = 0; index < length; index += 1) {
     const key = String(index);
@@ -126,11 +138,14 @@ function snapshotObject(
   }
   const keys = Reflect.ownKeys(value);
   reserveMembers(state, keys.length);
+  state.bytes.charge(2 + Math.max(0, keys.length - 1));
   const clone = Object.create(null) as Record<string, unknown>;
   for (const key of keys) {
     if (typeof key !== 'string') {
       throw new TypeError(`${state.label} must not contain symbol keys.`);
     }
+    state.bytes.jsonString(key);
+    state.bytes.charge(1); // Object-member colon.
     const descriptor = Object.getOwnPropertyDescriptor(value, key);
     if (descriptor === undefined || !descriptor.enumerable || !('value' in descriptor)) {
       throw new TypeError(`${state.label} members must be enumerable data properties.`);

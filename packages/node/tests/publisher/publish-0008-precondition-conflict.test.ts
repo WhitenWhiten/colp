@@ -153,6 +153,7 @@ function movePorts(
       value.events.push(`authorize:${subject.kind}`);
       return { authorized: true };
     },
+    authorizeNodeIdentity: async () => ({ authorized: true }),
     conceal: async (_context, _identities, _request, _mutation, input) => {
       value.events.push(`conceal:${input.subject.kind}`);
       return { allowed: true };
