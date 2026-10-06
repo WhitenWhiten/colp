@@ -29,6 +29,7 @@ import {
 import { notifyPublisherInternalFailureFromPorts } from './internal-failure.js';
 import {
   executePublisherGuardedNodeWrite,
+  snapshotPublisherNodeWriteGuardPorts,
   type PublisherGuardedNodeWritePorts,
   type PublisherGuardedNodeWriteResult,
 } from './node-write.js';
@@ -123,6 +124,8 @@ export async function executePublisherNodeMove<Context extends PublisherNodeMove
       unitOfWork: checkedPorts.unitOfWork,
       authenticate: checkedPorts.authenticate,
       authorize: checkedPorts.authorize,
+      ...(checkedPorts.authorizeNodeIdentity === undefined
+        ? {} : { authorizeNodeIdentity: checkedPorts.authorizeNodeIdentity }),
       conceal: checkedPorts.conceal,
       validate: checkedPorts.validate,
       evaluatePolicy: checkedPorts.evaluatePolicy,
@@ -361,20 +364,11 @@ interface SnapshottedPorts<Context extends PublisherNodeMoveTransaction> extends
 function snapshotPorts<Context extends PublisherNodeMoveTransaction>(
   ports: PublisherNodeMovePorts<Context>,
 ): SnapshottedPorts<Context> {
-  assertPortObject(ports, 'Publisher Node Move ports');
-  const unitOfWork = dataValue(ports, 'unitOfWork');
   const application = dataValue(ports, 'application');
-  assertPortObject(unitOfWork, 'Publisher Node Move unit of work');
   assertPortObject(application, 'Publisher Node Move application');
-  const run = bindMethod<GuardPorts<Context>['unitOfWork']['run']>(unitOfWork, 'run');
   const applyOperations = bindMethod<PublisherOperationApplicationPort<Context>['applyOperations']>(application, 'applyOperations');
   return Object.freeze({
-    unitOfWork: Object.freeze({ run }),
-    authenticate: bindMethod(ports, 'authenticate'),
-    authorize: bindMethod(ports, 'authorize'),
-    conceal: bindMethod(ports, 'conceal'),
-    validate: bindMethod(ports, 'validate'),
-    evaluatePolicy: bindMethod(ports, 'evaluatePolicy'),
+    ...snapshotPublisherNodeWriteGuardPorts(ports, 'Publisher Node Move'),
     application: Object.freeze({
       applyOperations(batch: PublisherOperationBatch, context: Context) {
         return requirePromise(applyOperations(batch, context), 'Publisher Node Move application');

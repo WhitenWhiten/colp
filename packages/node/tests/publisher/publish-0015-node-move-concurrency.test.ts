@@ -74,6 +74,13 @@ interface Ports {
       readonly plan?: Readonly<Record<string, unknown>>;
     },
   ): Promise<{ readonly authorized: true } | { readonly authorized: false; readonly reason: string }>;
+  authorizeNodeIdentity?(
+    context: Context,
+    identities: readonly PrincipalRef[],
+    request: Readonly<Request>,
+    mutation: Readonly<Record<string, unknown>>,
+    nodeId: string,
+  ): Promise<{ readonly authorized: true } | { readonly authorized: false; readonly reason: string }>;
   conceal(
     context: Context,
     identities: readonly PrincipalRef[],
@@ -213,6 +220,7 @@ class AtomicMoveAdapter {
         adapter.events.push(`authorize:${subject.kind}:${subject.nodeId ?? '-'}`);
         return { authorized: true };
       },
+      authorizeNodeIdentity: async () => ({ authorized: true }),
       conceal: async (_context, _identities, _request, _mutation, input) => {
         adapter.events.push(`conceal:${input.subject.kind}:${input.subject.nodeId ?? '-'}`);
         return { allowed: true };
@@ -538,6 +546,74 @@ describe('PUBLISH-0015 Node Move concurrency boundary [evidence:publisher.node-m
     expect(inspected).toContain(`conceal:affected-node:${deniedId}`);
     expect(JSON.stringify(result)).not.toMatch(/anchor|revision|classified|\bsource\b|\btarget\b|participant/iu);
     expect(adapter.snapshot().operations).toEqual([]);
+  });
+
+  it.each([
+    ['source', nodeId],
+    ['target Parent', targetId],
+    ['after anchor', 'anchor-after'],
+    ['before anchor', 'anchor-before'],
+  ] as const)('conceals an unauthorized %s before graph reads [evidence:publisher.node-move-concurrency]', async (_label, deniedId) => {
+    for (const exists of [true, false]) {
+      const state = initialState();
+      if (!exists) state.nodes.delete(deniedId);
+      const adapter = new AtomicMoveAdapter(state);
+      const identityChecks: string[] = [];
+      const ports = adapter.ports({
+        authorizeNodeIdentity: async (_context, _identities, _request, _mutation, id) => {
+          identityChecks.push(id);
+          return id === deniedId ? { authorized: false, reason: 'private identity' } : { authorized: true };
+        },
+        conceal: async (_context, _identities, _request, _mutation, input) => {
+          if (input.authorized) return { allowed: true as const };
+          expect(input.subject).toMatchObject({ kind: 'node-identity', nodeId: deniedId });
+          return { allowed: false as const, problem: 'resource_not_found' as const };
+        },
+      });
+      const result = await executePublisherNodeMove(request(), ports);
+      expect(result).toEqual(rejected('resource_not_found'));
+      expect(identityChecks).toContain(deniedId);
+      expect(adapter.events.some((event) => /^(node|children|position|collection):/u.test(event))).toBe(false);
+      expect(adapter.snapshot().operations).toEqual([]);
+    }
+  });
+
+  it.each([
+    ['missing', undefined],
+    ['throws', async () => { throw new Error('private identity state'); }],
+    ['non-boolean', async () => ({ authorized: 'yes' } as never)],
+  ] as const)('fails closed and conceals when the identity port is %s [evidence:publisher.node-move-concurrency]', async (_label, identityPort) => {
+    const adapter = new AtomicMoveAdapter();
+    const ports = adapter.ports({
+      conceal: async (_context, _identities, _request, _mutation, input) => (
+        input.authorized ? { allowed: true } : { allowed: false, problem: 'resource_not_found' }
+      ),
+    });
+    if (identityPort === undefined) {
+      delete (ports as { authorizeNodeIdentity?: Ports['authorizeNodeIdentity'] }).authorizeNodeIdentity;
+    } else if (typeof identityPort === 'function') {
+      ports.authorizeNodeIdentity = identityPort;
+    }
+    const result = await executePublisherNodeMove(request(), ports);
+    expect(result).toEqual(rejected('resource_not_found'));
+    expect(adapter.events.some((event) => /^(node|children|position|collection):/u.test(event))).toBe(false);
+  });
+
+  it('captures the identity method and invokes it with the host receiver [evidence:publisher.node-move-concurrency]', async () => {
+    const adapter = new AtomicMoveAdapter();
+    const ports = adapter.ports() as Ports & { identityAllowed?: boolean };
+    ports.identityAllowed = true;
+    const seen: string[] = [];
+    ports.authorizeNodeIdentity = async function (this: Ports & { identityAllowed?: boolean }, _context, _identities, _request, _mutation, id) {
+      seen.push(id);
+      return this.identityAllowed === true
+        ? { authorized: true as const }
+        : { authorized: false as const, reason: 'identity gate' };
+    };
+    const pending = executePublisherNodeMove(request(), ports);
+    ports.authorizeNodeIdentity = async () => ({ authorized: false, reason: 'replacement must not run' });
+    await expect(pending).resolves.toMatchObject({ state: 'committed' });
+    expect(seen).toEqual([nodeId, targetId, 'anchor-after', 'anchor-before']);
   });
 
   it('checks authorization and concealment before preconditions, graph details, read-only state, and position context [evidence:publisher.node-move-concurrency]', async () => {

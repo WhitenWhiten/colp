@@ -823,8 +823,9 @@ export function formatOAuthLogContext(context: OAuthLogSafeContext): string {
   if (typeof issuer !== 'string' || issuer.length === 0) {
     throw new TypeError('log issuer must be a non-empty string');
   }
-  if (typeof clientId !== 'string' || clientId.length === 0) {
-    throw new TypeError('log clientId must be a non-empty string');
+  if (typeof clientId !== 'string' || clientId.length === 0 || clientId.length > 256
+    || Buffer.byteLength(clientId, 'utf8') > 256 || /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/u.test(clientId)) {
+    throw new TypeError('log clientId must be a non-empty, control-free identifier of at most 256 UTF-8 bytes');
   }
   if (typeof operation !== 'string' || !OAUTH_LOG_OPERATIONS.has(operation as OAuthLogOperation)) {
     throw new TypeError('log operation is not supported');

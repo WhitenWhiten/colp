@@ -268,6 +268,7 @@ function makePorts(adapter: AtomicNodeCreateAdapter, change: Partial<Ports> = {}
       },
     }),
     authorize: async () => ({ authorized: true }),
+    authorizeNodeIdentity: async () => ({ authorized: true }),
     conceal: async (_context, _identities, _candidate, _mutation, input) => (
       input.authorized ? { allowed: true } : { allowed: false, problem: 'insufficient_scope' }
     ),
@@ -480,6 +481,70 @@ describe(`PUBLISH-0014 ordinary Node create Parent boundary [evidence:publisher.
       .resolves.toEqual(rejected(code));
     expect(resolveSpy).not.toHaveBeenCalled();
     expectNoCreate(adapter.snapshot());
+  });
+
+  it.each([
+    ['missing identity port', 'missing'],
+    ['identity exception', 'throws'],
+    ['non-boolean identity decision', 'non-boolean'],
+  ] as const)(`conceals %s before reading an existing or missing Parent [evidence:publisher.node-create-parent]`, async (_label, mode) => {
+    const runCase = async (parentExists: boolean) => {
+      const parent = folder('private-parent');
+      const adapter = new AtomicNodeCreateAdapter(emptyState(parentExists ? [root(), parent] : [root()]));
+      const base = adapter.unitOfWork();
+      const resolveNode = vi.fn(async () => { throw new Error('Parent existence must remain concealed'); });
+      const resolveCollection = vi.fn(async () => { throw new Error('Collection existence must remain concealed'); });
+      const unitOfWork: Ports['unitOfWork'] = {
+        run: (work) => base.run((context) => work({ ...context, resolveNode, resolveCollection })),
+      };
+      const ports = makePorts(adapter, {
+        unitOfWork,
+        conceal: async (_context, _identities, _candidate, _mutation, input) => {
+          if (input.authorized) return { allowed: true as const };
+          expect(input.subject).toMatchObject({ kind: 'node-identity', nodeId: parent.id });
+          return { allowed: false as const, problem: 'resource_not_found' as const };
+        },
+      });
+      if (mode === 'missing') {
+        delete (ports as { authorizeNodeIdentity?: Ports['authorizeNodeIdentity'] }).authorizeNodeIdentity;
+      } else if (mode === 'throws') {
+        ports.authorizeNodeIdentity = async () => { throw new Error('private identity state'); };
+      } else {
+        ports.authorizeNodeIdentity = async () => ({ authorized: 'yes' } as never);
+      }
+      const result = await executePublisherOrdinaryNodeCreate(candidate(payload(parent.id)), ports);
+      expect(resolveNode).not.toHaveBeenCalled();
+      expect(resolveCollection).not.toHaveBeenCalled();
+      expect(adapter.snapshot().operations).toEqual([]);
+      return result;
+    };
+
+    await expect(runCase(true)).resolves.toEqual(rejected('resource_not_found'));
+    await expect(runCase(false)).resolves.toEqual(rejected('resource_not_found'));
+  });
+
+  it(`snapshots the identity method while preserving its receiver and captures the proposed ID [evidence:publisher.node-create-parent]`, async () => {
+    const adapter = new AtomicNodeCreateAdapter();
+    const ports = makePorts(adapter) as Ports & { identityAllowed?: boolean };
+    ports.identityAllowed = true;
+    const seen: string[] = [];
+    ports.authorizeNodeIdentity = async function (this: Ports & { identityAllowed?: boolean }, _context, _identities, _candidate, _mutation, id) {
+      seen.push(id);
+      return this.identityAllowed === true
+        ? { authorized: true as const }
+        : { authorized: false as const, reason: 'identity gate' };
+    };
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    ports.authenticate = async () => { await gate; return {
+      authenticated: true,
+      identityResolution: { status: 'authenticated', identities: [{ type: 'user', id: 'publisher-alice' }] },
+    }; };
+    const pending = executePublisherOrdinaryNodeCreate(candidate(), ports);
+    ports.authorizeNodeIdentity = async () => ({ authorized: false, reason: 'replacement must not run' });
+    release();
+    await expect(pending).resolves.toMatchObject({ state: 'committed', value: { id: nodeId } });
+    expect(seen).toEqual([rootId, nodeId]);
   });
 
   it(`preserves PUBLISH-0013 read-only precedence after authorization and concealment [evidence:publisher.node-create-parent]`, async () => {

@@ -1,3 +1,5 @@
+import { assertRequestTargetBudget, RequestTargetBudgetError } from './request-target-budget.js';
+
 import { types as nodeTypes } from 'node:util';
 
 import { CREDENTIAL_QUERY_PARAMETER_NAMES } from './credential-query-names.js';
@@ -153,6 +155,7 @@ function snapshotClassifier(value: unknown): ApiKeyClassifier | undefined {
 
 function snapshotInput(input: ApiKeyTransportInput): InputSnapshot {
   const requestTarget = ownData(input, 'requestTarget');
+  if (typeof requestTarget === 'string') assertRequestTargetBudget(requestTarget);
   if (typeof requestTarget !== 'string' || requestTarget.length === 0 || controlCharacters.test(requestTarget)) {
     throw new TypeError('requestTarget must be a non-empty string without control characters');
   }
@@ -178,6 +181,7 @@ function queryEntries(query: string): readonly (readonly [string, string])[] {
 }
 
 function parseQuery(requestTarget: string): QueryViews {
+  assertRequestTargetBudget(requestTarget);
   if (requestTarget.includes('\\') || requestTarget.includes(' ')) {
     throw new TypeError('requestTarget contains characters that are not valid in raw HTTP targets');
   }
@@ -314,8 +318,8 @@ export function enforceApiKeyTransport(input: ApiKeyTransportInput): ApiKeyTrans
   let snapshot: InputSnapshot;
   try {
     snapshot = snapshotInput(input);
-  } catch {
-    return denied('invalid_input');
+  } catch (error) {
+    return denied(error instanceof RequestTargetBudgetError ? 'query_limit_exceeded' : 'invalid_input');
   }
 
   let query: QueryViews;

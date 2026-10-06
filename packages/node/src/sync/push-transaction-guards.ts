@@ -1,3 +1,7 @@
+import { isProxy } from 'node:util/types';
+import { cloneAndFreezeJsonData } from '../schema/json.js';
+import { requireOwnDataProperty } from '../security/input-snapshot.js';
+
 /**
  * Validation and normalization guards for the Push transaction coordinator.
  * Internal module — re-imported by `push-transaction.ts`; not on a barrel.
@@ -85,7 +89,19 @@ function immutableOperationItem(candidate: PushTransactionOperation): PushTransa
   return Object.freeze({ operation, sequenceScope: candidate.sequenceScope, digest: candidate.digest });
 }
 
+export const MAX_PUSH_BATCH_OPERATIONS = 1000;
+export const MAX_PUSH_BATCH_BYTES = 8 * 1024 * 1024;
+
 export function immutableRequest(candidate: PushTransactionRequest): PushTransactionRequest {
+  const operations = requireOwnDataProperty(candidate, 'operations', 'Push operations');
+  if (!Array.isArray(operations) || isProxy(operations)
+    || operations.length === 0 || operations.length > MAX_PUSH_BATCH_OPERATIONS) {
+    throw new RangeError('Push operations exceed the batch count budget.');
+  }
+  // Aggregate, not per-operation: rejects before validators, preflight or writes.
+  candidate = cloneAndFreezeJsonData(candidate, {
+    maxDepth: 64, maxMembers: 100_000, maxBytes: MAX_PUSH_BATCH_BYTES,
+  }) as PushTransactionRequest;
   if (typeof candidate !== 'object' || candidate === null) {
     throw new TypeError('Push transaction request must be an object.');
   }

@@ -25,6 +25,7 @@ import {
 import { notifyPublisherInternalFailureFromPorts } from './internal-failure.js';
 import {
   executePublisherGuardedNodeWrite,
+  snapshotPublisherNodeWriteGuardPorts,
   type PublisherGuardedNodeWritePorts,
   type PublisherGuardedNodeWriteResult,
 } from './node-write.js';
@@ -117,6 +118,8 @@ async function executeOrdinaryNodeCreate<Context extends PublisherOrdinaryNodeCr
     unitOfWork: checkedPorts.unitOfWork,
     authenticate: checkedPorts.authenticate,
     authorize: checkedPorts.authorize,
+    ...(checkedPorts.authorizeNodeIdentity === undefined
+      ? {} : { authorizeNodeIdentity: checkedPorts.authorizeNodeIdentity }),
     conceal: checkedPorts.conceal,
     validate: checkedPorts.validate,
     evaluatePolicy: checkedPorts.evaluatePolicy,
@@ -216,23 +219,14 @@ interface SnapshottedPorts<Context extends PublisherOrdinaryNodeCreateTransactio
 function snapshotPorts<Context extends PublisherOrdinaryNodeCreateTransaction>(
   ports: PublisherOrdinaryNodeCreatePorts<Context>,
 ): SnapshottedPorts<Context> {
-  assertPortObject(ports, 'Publisher ordinary Node create ports');
-  const unitOfWork = dataValue(ports, 'unitOfWork');
   const application = dataValue(ports, 'application');
-  assertPortObject(unitOfWork, 'Publisher ordinary Node create unit of work');
   assertPortObject(application, 'Publisher ordinary Node create application');
-  const run = bindMethod<GuardPorts<Context>['unitOfWork']['run']>(unitOfWork, 'run');
   const applyOperations = bindMethod<PublisherOperationApplicationPort<Context>['applyOperations']>(
     application,
     'applyOperations',
   );
   return Object.freeze({
-    unitOfWork: Object.freeze({ run }),
-    authenticate: bindMethod(ports, 'authenticate'),
-    authorize: bindMethod(ports, 'authorize'),
-    conceal: bindMethod(ports, 'conceal'),
-    validate: bindMethod(ports, 'validate'),
-    evaluatePolicy: bindMethod(ports, 'evaluatePolicy'),
+    ...snapshotPublisherNodeWriteGuardPorts(ports, 'Publisher ordinary Node create'),
     application: Object.freeze({
       applyOperations(batch: PublisherOperationBatch, context: Context) {
         return requirePromise(applyOperations(batch, context), 'Publisher ordinary Node create application');

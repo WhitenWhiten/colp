@@ -7,7 +7,7 @@ const presentedBearerPattern = /^Bearer ([A-Za-z0-9\-._~+/]+={0,})$/iu;
 const token68Pattern = /^[A-Za-z0-9\-._~+/]+={0,}$/u;
 
 /**
- * Denylisted query names, or a decoded value equal to the current bearer or
+ * Denylisted query names, or a decoded name/value equal to the current bearer or
  * its standard single-space Bearer form (scheme case-insensitive).
  * Returns a reason code only — never the credential.
  */
@@ -19,7 +19,7 @@ export function credentialQueryDenial(
   const materials = bearerMaterials(bearerToken, authorizationValues);
   for (const [name, value] of entries) {
     if (CREDENTIAL_QUERY_PARAMETER_NAME_SET.has(name.toLowerCase())) return 'credential_in_query';
-    if (materials.some((material) => valueCarriesBearer(value, material))) return 'credential_in_query';
+    if (materials.some((material) => valueCarriesBearer(name, material) || valueCarriesBearer(value, material))) return 'credential_in_query';
   }
   return undefined;
 }

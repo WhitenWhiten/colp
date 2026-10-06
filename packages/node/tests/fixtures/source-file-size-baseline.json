@@ -4,7 +4,6 @@
     "src/client/index.ts": 1511,
     "src/conformance/deployment.ts": 1037,
     "src/mcp/2026-07-28/request-context.ts": 1120,
-    "src/mcp/2026-07-28/subscriptions.ts": 614,
     "src/mcp/2026-07-28/write.ts": 1114,
     "src/mcp/change-plan.ts": 2340,
     "src/mcp/shared/resources.ts": 606,

@@ -210,7 +210,12 @@ export function cloneAndFreezeJsonData<Value>(value: Value, limits: IJsonParseLi
       const result: Record<string, unknown> = {};
       for (const key of keys) {
         if (typeof key !== 'string') throw jsonDataError(path, 'object contains a symbol property');
-        if (prototypeKeys.has(key)) throw jsonDataError(path, 'object contains a prohibited member name');
+        if (prototypeKeys.has(key)) {
+          // The key is one of the three fixed prototype-pollution spellings;
+          // including it lets specialized callers preserve their historical
+          // diagnostics without inspecting the object a second time.
+          throw jsonDataError(path, `object contains a prohibited member name: ${key}`);
+        }
         chargeString(key); charge(1);
         const descriptor = Object.getOwnPropertyDescriptor(current, key)!;
         if (!descriptor.enumerable || !('value' in descriptor)) {
@@ -345,5 +350,11 @@ function arrayIndex(key: string): boolean {
 }
 
 function jsonDataError(path: string, reason: string): TypeError {
+  // Keep the public rejection surface explicit for callers that distinguish
+  // unsafe numeric input from other non-JSON values. The path and structural
+  // detail remain available for diagnostics without exposing any member value.
+  if (reason.includes('safe range')) {
+    reason = `number is not a JSON-safe number; ${reason}`;
+  }
   return new TypeError(`Value at ${path === '' ? '/' : path} is not strict JSON data: ${reason}.`);
 }

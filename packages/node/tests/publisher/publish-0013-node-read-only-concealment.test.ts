@@ -113,6 +113,7 @@ function makePorts(
       },
     }),
     authorize: async () => ({ authorized: true }),
+    authorizeNodeIdentity: async () => ({ authorized: true }),
     conceal: async (_context, _identities, _candidate, _mutation, input) => (
       input.authorized
         ? { allowed: true }
