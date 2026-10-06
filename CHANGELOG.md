@@ -23,6 +23,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Node.js package
 
+- Upgraded the MCP SDK packages (`@modelcontextprotocol/core`, `client`, `server`) from 2.0.0 to 2.3.1 to clear GHSA-6qxp-vccf-f47h in the dev-only SDK OAuth client. COLP's own OAuth client was reviewed and is not affected.
+- OAuth safe log lines now keep the `issuer_mismatch` and `expected_issuer_required` denial reasons instead of dropping them.
 - Simplified the conformance evidence workflow. `npm run refresh:evidence` runs the suite once and records each requirement whose tagged tests all passed; `npm run check:evidence` verifies the committed result. This replaces the source-revision-bound certificate, release gate, MCP candidate, and SDK acceptance scripts.
 - The evidence artifact (schema version 2) contains `protocolVersion`, `packageVersion`, `requirementsDigest`, and `passedRequirementIds`. The digest covers requirement IDs, levels, profiles, and test IDs, so editing requirement wording does not invalidate evidence.
 - MCP deployment conformance scopes take `mcpConformance: { packageVersion, requirementsDigest }` from `bundledConformanceEvidence`.

@@ -7,7 +7,7 @@
  * `changes.plan` / `changes.commit` / `changes.cancel` onto Modern results
  * and never re-implements execution, approval or idempotency semantics.
  *
- * MRTR mapping (pinned SDK `@modelcontextprotocol/core`/server 2.0.0 wire
+ * MRTR mapping (pinned SDK `@modelcontextprotocol/core`/server 2.3.1 wire
  * shape, migration decision §3/§5/§6):
  * - normal results are fixed `complete`;
  * - waiting for out-of-band approval returns `resultType: 'input_required'`

@@ -88,9 +88,9 @@ describe('MCP 2026-07-28 versioned conformance model (COLP-MCP-14)', () => {
 
   it('locks the upstream MCP SDK and the reference-client/fixture-host topology', () => {
     expect(srcSdkLock).toEqual({
-      '@modelcontextprotocol/core': '2.0.0',
-      '@modelcontextprotocol/client': '2.0.0',
-      '@modelcontextprotocol/server': '2.0.0',
+      '@modelcontextprotocol/core': '2.3.1',
+      '@modelcontextprotocol/client': '2.3.1',
+      '@modelcontextprotocol/server': '2.3.1',
     });
     expect(srcTopologyDigest).toMatch(/^sha256:[0-9a-f]{64}$/u);
   });
@@ -142,9 +142,9 @@ describe('MCP 2026-07-28 versioned conformance model (COLP-MCP-14)', () => {
       ['attested package version', { packageVersion: '9.9.9' }, /packageVersion/u],
       ['attested SDK lock', {
         sdkLock: {
-          '@modelcontextprotocol/core': '2.0.1',
-          '@modelcontextprotocol/client': '2.0.0',
-          '@modelcontextprotocol/server': '2.0.0',
+          '@modelcontextprotocol/core': '2.3.2',
+          '@modelcontextprotocol/client': '2.3.1',
+          '@modelcontextprotocol/server': '2.3.1',
         },
       }, /SDK lock/i],
       ['attested fixture topology', { fixtureTopologyDigest: `sha256:${'0'.repeat(64)}` }, /fixture topology/i],
@@ -224,13 +224,13 @@ describe('MCP 2026-07-28 versioned conformance model (COLP-MCP-14)', () => {
       return tampered;
     }, /packageVersion/u],
     ['SDK lock drift', (c: Record<string, unknown>) => withLayer(c, 'sdkLock', {
-      '@modelcontextprotocol/core': '2.0.1',
-      '@modelcontextprotocol/client': '2.0.0',
-      '@modelcontextprotocol/server': '2.0.0',
+      '@modelcontextprotocol/core': '2.3.2',
+      '@modelcontextprotocol/client': '2.3.1',
+      '@modelcontextprotocol/server': '2.3.1',
     }), /SDK lock/i],
     ['missing SDK lock entry', (c: Record<string, unknown>) => withLayer(c, 'sdkLock', {
-      '@modelcontextprotocol/core': '2.0.0',
-      '@modelcontextprotocol/server': '2.0.0',
+      '@modelcontextprotocol/core': '2.3.1',
+      '@modelcontextprotocol/server': '2.3.1',
     }), /SDK lock/i],
     ['fixture topology drift', (c: Record<string, unknown>) => withLayer(c, 'fixtureTopologyDigest', `sha256:${'0'.repeat(64)}`), /fixture topology/i],
     ['missing fixture topology', (c: Record<string, unknown>) => {
@@ -270,9 +270,9 @@ describe('MCP 2026-07-28 versioned conformance model (COLP-MCP-14)', () => {
       ['attested package version', { packageVersion: '9.9.9' }, /packageVersion/u],
       ['attested SDK lock', {
         sdkLock: {
-          '@modelcontextprotocol/core': '2.0.1',
-          '@modelcontextprotocol/client': '2.0.0',
-          '@modelcontextprotocol/server': '2.0.0',
+          '@modelcontextprotocol/core': '2.3.2',
+          '@modelcontextprotocol/client': '2.3.1',
+          '@modelcontextprotocol/server': '2.3.1',
         },
       }, /SDK lock/i],
       ['attested fixture topology', { fixtureTopologyDigest: `sha256:${'0'.repeat(64)}` }, /fixture topology/i],

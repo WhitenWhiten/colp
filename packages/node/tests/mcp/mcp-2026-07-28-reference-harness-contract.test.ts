@@ -49,6 +49,7 @@ function modernPost(
     headers: {
       'content-type': 'application/json',
       'mcp-method': method,
+      'mcp-protocol-version': '2026-07-28',
       ...(init.headers as Record<string, string> | undefined),
     },
   });

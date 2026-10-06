@@ -14,13 +14,13 @@ It is the policy companion of the source-bound boundary module
 
 | Package | Role | Locked version | Lockfile |
 |---|---|---|---|
-| `@modelcontextprotocol/core` | `dependencies` | `2.0.0` (exact) | `package-lock.json` pins `2.0.0` |
-| `@modelcontextprotocol/client` | `devDependencies` | `2.0.0` (exact) | `package-lock.json` pins `2.0.0` |
-| `@modelcontextprotocol/server` | `devDependencies` | `2.0.0` (exact) | `package-lock.json` pins `2.0.0` |
+| `@modelcontextprotocol/core` | `dependencies` | `2.3.1` (exact) | `package-lock.json` pins `2.3.1` |
+| `@modelcontextprotocol/client` | `devDependencies` | `2.3.1` (exact) | `package-lock.json` pins `2.3.1` |
+| `@modelcontextprotocol/server` | `devDependencies` | `2.3.1` (exact) | `package-lock.json` pins `2.3.1` |
 
 All three are pinned exactly (no `^`/`~`) so a dependency bump is always an
 explicit, reviewed change. The `package-lock.json` entries resolve to the
-`*-2.0.0.tgz` registry artifacts.
+`*-2.3.1.tgz` registry artifacts.
 
 ## 2. Dependency decision: core as a production dependency, client/server as dev-only
 
@@ -108,7 +108,7 @@ Rules:
 
 ## 5. N/N-1 contract
 
-- **N** = `@modelcontextprotocol/core@2.0.0` (and client/server `2.0.0`),
+- **N** = `@modelcontextprotocol/core@2.3.1` (and client/server `2.3.1`),
   which implement the `2026-07-28` modern era (`server/discover`,
   `subscriptions/listen`, per-request `_meta` envelopes).
 - **N-1** = the legacy monolithic `@modelcontextprotocol/sdk@1.30.0`
@@ -117,7 +117,7 @@ Rules:
   added to the lockfile. The lock contract test asserts the lockfile and every
   `src/` / `tests/` file never reference `@modelcontextprotocol/sdk`.
 - The SDK's own `LATEST_PROTOCOL_VERSION = '2025-11-25'` constant is legacy
-  interop vocabulary inside the supported `2.0.0` packages; COLP does not
+  interop vocabulary inside the supported `2.3.1` packages; COLP does not
   treat it as a supported wire version.
 - Major-version auto-upgrades are impossible by construction (exact pins +
   frozen lockfile), so an N→N+1 move is always a deliberate, documented step
@@ -147,6 +147,23 @@ patched 4.1 line, pins `fast-uri` to 3.1.8, requires `qs` >=6.16.0, and refreshe
 `brace-expansion` and `source-map-js` in the lockfile. Production and full-tree
 npm audits both report zero vulnerabilities. The three MCP SDK packages remain
 locked at exactly 2.0.0; existing coverage thresholds remain unchanged.
+
+### Upgrade to 2.3.1 (2026-10-06)
+
+All three packages moved from 2.0.0 to 2.3.1 together to clear
+GHSA-6qxp-vccf-f47h (High): the SDK's OAuth client in `@modelcontextprotocol/client`
+2.0.0–2.1.0 could send stored credentials to an authorization server chosen
+by the MCP server. The client is dev-only here and never ships, and COLP's
+own OAuth client (`src/security/mcp-oauth-client.ts`) does not use it: it
+keys credentials and refresh state by exact issuer, requires an issuer on
+every pre-registered credential, and denies authorization-server metadata
+without a trusted `expectedIssuer` that matches it exactly.
+
+Behavior change observed: the 2.3 server rejects a `2026-07-28` request
+without an `MCP-Protocol-Version` header (400, -32020). COLP already
+requires that header (`protocol/docs/05-mcp-profile.md`); only test helpers
+that built raw fixture-host requests needed it added. Production and full
+tree audits report zero vulnerabilities after the upgrade.
 
 ## 7. Fixture host boundary
 

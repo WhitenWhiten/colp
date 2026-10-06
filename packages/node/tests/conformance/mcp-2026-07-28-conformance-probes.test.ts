@@ -98,9 +98,9 @@ describe('MCP 2026-07-28 deployment probe families (COLP-MCP-14)', () => {
       mcpVersion: '2026-07-28',
       packageVersion,
       sdkLock: {
-        '@modelcontextprotocol/core': '2.0.0',
-        '@modelcontextprotocol/client': '2.0.0',
-        '@modelcontextprotocol/server': '2.0.0',
+        '@modelcontextprotocol/core': '2.3.1',
+        '@modelcontextprotocol/client': '2.3.1',
+        '@modelcontextprotocol/server': '2.3.1',
       },
       fixtureTopologyDigest: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
       requirementsDigest,

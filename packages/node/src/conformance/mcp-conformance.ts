@@ -47,9 +47,9 @@ export type LegacyMcpConformanceProbeId = (typeof legacyMcpConformanceProbeIds)[
 
 /** Locked upstream MCP SDK versions (MCP_TRANSPORT.md). */
 export const mcpSdkLock = Object.freeze({
-  '@modelcontextprotocol/core': '2.0.0',
-  '@modelcontextprotocol/client': '2.0.0',
-  '@modelcontextprotocol/server': '2.0.0',
+  '@modelcontextprotocol/core': '2.3.1',
+  '@modelcontextprotocol/client': '2.3.1',
+  '@modelcontextprotocol/server': '2.3.1',
 } as const);
 
 /**

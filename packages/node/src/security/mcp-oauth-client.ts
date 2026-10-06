@@ -774,6 +774,8 @@ export const OAUTH_CLIENT_SECURITY_REASON_CODES = Object.freeze([
   'invalid_issuer',
   'insecure_issuer',
   'issuer_has_query_or_fragment',
+  'expected_issuer_required',
+  'issuer_mismatch',
   'missing_authorization_endpoint',
   'invalid_authorization_endpoint',
   'insecure_authorization_endpoint',

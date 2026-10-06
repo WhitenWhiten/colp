@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { formatOAuthLogContext } from '../../src/security/mcp-oauth-client.js';
 import { enforceOAuthAuthorizationServerMetadata as validate } from '../../src/security/mcp-oauth-discovery.js';
 
 const expectedIssuer = 'https://auth.example.test';
@@ -30,6 +31,12 @@ describe('OAuth discovery authority binding', () => {
   it.each(['https://attacker.example.test', 'https://auth.example.test/',
     'https://auth.example.test:443', 'HTTPS://AUTH.EXAMPLE.TEST'])('rejects substituted or differently spelled issuer %s', issuer => {
     expect(validate({ ...metadata(), issuer }, { expectedIssuer })).toEqual({ allowed: false, reason: 'issuer_mismatch' });
+  });
+
+  it.each(['expected_issuer_required', 'issuer_mismatch'] as const)('keeps the %s denial in safe log lines', reason => {
+    expect(formatOAuthLogContext({
+      issuer: expectedIssuer, clientId: 'client-1', operation: 'authorization-request', outcome: 'denied', reason,
+    })).toContain(` reason=${reason}`);
   });
 
   it('rejects invalid trusted issuer configuration', () => {

@@ -13,7 +13,7 @@
  * when it is a known adapter/SDK-shaped error, and otherwise returns a
  * low-sensitivity `-32603` (Internal Error) — no internal detail leaks.
  *
- * Vocabulary alignment (SDK pinned 2.0.0):
+ * Vocabulary alignment (SDK pinned 2.3.1):
  * - `resultType` is `'complete' | 'input_required'`; `input_required` is only
  *   legal on `tools/call`, `prompts/get` and `resources/read`
  *   (`EXTENDED_RESULT_TYPE_METHODS`).

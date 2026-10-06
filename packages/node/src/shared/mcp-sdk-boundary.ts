@@ -115,7 +115,7 @@ import {
 } from '@modelcontextprotocol/core/internal';
 
 /** Exact pinned `@modelcontextprotocol/core` version (package.json dependency). */
-export const MCP_SDK_CORE_VERSION = '2.0.0' as const;
+export const MCP_SDK_CORE_VERSION = '2.3.1' as const;
 
 /** The only MCP protocol revision COLP accepts; mirrors `MCP_PROTOCOL_VERSION`. */
 export const MCP_SDK_PROTOCOL_VERSION = '2026-07-28' as const;

@@ -29,7 +29,7 @@
  * validation below mirror `@modelcontextprotocol/client`'s
  * `encodeMcpParamValue`/`buildMcpParamHeaders` and `@modelcontextprotocol/server`'s
  * `decodeMcpParamValue`/`validateStandardRequestHeaders`/`validateMcpParamHeaders`
- * /`scanXMcpHeaderDeclarations` (pinned 2.0.0). The core production dependency
+ * /`scanXMcpHeaderDeclarations` (pinned 2.3.1). The core production dependency
  * does NOT export those contract helpers (they live in the dev-only
  * client/server packages), so COLP implements the header codec itself — this
  * is a contract-layer codec, not a hand-written JSON-RPC/SSE engine.
@@ -134,7 +134,7 @@ export function isMcp20260728Rfc9110Token(value: string): boolean {
  * unchanged; anything else (non-ASCII, leading/trailing whitespace, empty, or
  * already sentinel-shaped) is wrapped as `=?base64?{b64-of-utf8}?=` — the
  * spec's "to avoid ambiguity" rule. Mirrors the SDK client/server codec
- * (`encodeMcpParamValue` / `decodeMcpParamValue`) at the pinned 2.0.0.
+ * (`encodeMcpParamValue` / `decodeMcpParamValue`) at the pinned 2.3.1.
  */
 export const MCP_PARAM_BASE64_SENTINEL_PREFIX = '=?base64?' as const;
 export const MCP_PARAM_BASE64_SENTINEL_SUFFIX = '?=' as const;
@@ -960,7 +960,7 @@ function pathName(path: readonly string[]): string {
  * validates every spec constraint: non-empty RFC 9110 token name, permitted
  * primitive `type`, case-insensitive uniqueness, and static reachability via
  * a chain of `properties` keys only. Mirrors the SDK server's
- * `scanXMcpHeaderDeclarations` (pinned 2.0.0).
+ * `scanXMcpHeaderDeclarations` (pinned 2.3.1).
  */
 export function scanMcp20260728XMcpHeaderDeclarations(
   inputSchema: unknown,

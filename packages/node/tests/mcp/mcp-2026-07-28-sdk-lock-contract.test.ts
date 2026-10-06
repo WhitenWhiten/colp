@@ -52,9 +52,9 @@ describe('MCP 2026-07-28 SDK lock contract (COLP-MCP-03)', () => {
   it('pins the exact upstream MCP SDK versions with core as the only production MCP dependency', async () => {
     const pkg = await readJson<PackageJson>(resolve(packageRoot, 'package.json'));
 
-    expect(pkg.dependencies?.['@modelcontextprotocol/core']).toBe('2.0.0');
-    expect(pkg.devDependencies?.['@modelcontextprotocol/client']).toBe('2.0.0');
-    expect(pkg.devDependencies?.['@modelcontextprotocol/server']).toBe('2.0.0');
+    expect(pkg.dependencies?.['@modelcontextprotocol/core']).toBe('2.3.1');
+    expect(pkg.devDependencies?.['@modelcontextprotocol/client']).toBe('2.3.1');
+    expect(pkg.devDependencies?.['@modelcontextprotocol/server']).toBe('2.3.1');
     expect(pkg.dependencies?.['@modelcontextprotocol/client']).toBeUndefined();
     expect(pkg.dependencies?.['@modelcontextprotocol/server']).toBeUndefined();
     expect(pkg.devDependencies?.['@modelcontextprotocol/core']).toBeUndefined();
@@ -69,7 +69,7 @@ describe('MCP 2026-07-28 SDK lock contract (COLP-MCP-03)', () => {
     }
   });
 
-  it('locks the SDK in the package lockfile at exact 2.0.0 and never depends on the legacy monolith', async () => {
+  it('locks the SDK in the package lockfile at exact 2.3.1 and never depends on the legacy monolith', async () => {
     const lockText = await readFile(resolve(packageRoot, 'package-lock.json'), 'utf8');
     const lock = JSON.parse(lockText) as {
       readonly packages?: Readonly<Record<string, { version?: string }>>;
@@ -84,13 +84,13 @@ describe('MCP 2026-07-28 SDK lock contract (COLP-MCP-03)', () => {
       'node_modules/@modelcontextprotocol/client',
       'node_modules/@modelcontextprotocol/server',
     ] as const) {
-      expect(lock.packages?.[name]?.version, name).toBe('2.0.0');
+      expect(lock.packages?.[name]?.version, name).toBe('2.3.1');
     }
     expect(lock.packages?.['node_modules/@modelcontextprotocol/sdk']).toBeUndefined();
     expect(lockText).not.toContain('@modelcontextprotocol/sdk');
-    expect(lockText).toContain('core-2.0.0.tgz');
-    expect(lockText).toContain('client-2.0.0.tgz');
-    expect(lockText).toContain('server-2.0.0.tgz');
+    expect(lockText).toContain('core-2.3.1.tgz');
+    expect(lockText).toContain('client-2.3.1.tgz');
+    expect(lockText).toContain('server-2.3.1.tgz');
   });
 
   it('resolves the modern core schema vocabulary in both ESM and CJS', async () => {
@@ -179,7 +179,7 @@ describe('MCP 2026-07-28 SDK lock contract (COLP-MCP-03)', () => {
     expect(coreInternal.LATEST_PROTOCOL_VERSION).toBe('2025-11-25');
 
     expect(sdkBoundary.MCP_SDK_PROTOCOL_VERSION).toBe(MCP_PROTOCOL_VERSION);
-    expect(sdkBoundary.MCP_SDK_CORE_VERSION).toBe('2.0.0');
+    expect(sdkBoundary.MCP_SDK_CORE_VERSION).toBe('2.3.1');
     expect('SUPPORTED_PROTOCOL_VERSIONS' in sdkBoundary).toBe(false);
     expect('LATEST_PROTOCOL_VERSION' in sdkBoundary).toBe(false);
   });

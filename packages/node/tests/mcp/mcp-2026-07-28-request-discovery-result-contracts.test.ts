@@ -110,7 +110,11 @@ describe('MCP 2026-07-28 discovery contracts [evidence:mcp.discovery-contract]',
     try {
       const response = await host.fetch(new Request(endpoint, {
         method: 'POST',
-        headers: { 'content-type': 'application/json', 'mcp-method': 'server/discover' },
+        headers: {
+          'content-type': 'application/json',
+          'mcp-method': 'server/discover',
+          'mcp-protocol-version': '2026-07-28',
+        },
         body: JSON.stringify({
           jsonrpc: '2.0',
           id: 1,
