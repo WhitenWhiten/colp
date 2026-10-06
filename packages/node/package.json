@@ -239,7 +239,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/core": "2.3.1",
-    "@noble/hashes": "2.0.1",
+    "@noble/hashes": "2.4.0",
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
     "canonicalize": "^3.0.0",
