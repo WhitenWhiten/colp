@@ -277,6 +277,8 @@ describe('Sync production export surface', () => {
       expect(canonicalEsm.canonicalOperationDigest).toBe(esm.canonicalOperationDigest);
       expect(distGraphContainsNodeBuiltin(join(distSyncDir, 'canonical.js'))).toBe(false);
     },
+    // Import the complete built graph in both module formats under coverage.
+    30_000,
   );
 });
 

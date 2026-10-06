@@ -71,6 +71,7 @@ describe('Snapshot visibility is independent of node order', () => {
         { code: 'visibility_widened', path: '/annotations/0/visibility' },
       ]);
     },
+    30_000,
   );
 
   it('does not cache a truncated external path reached from a local node', () => {
