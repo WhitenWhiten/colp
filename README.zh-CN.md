@@ -179,7 +179,7 @@ npm run conformance -- https://your-server.example
 
 ## 参与贡献
 
-欢迎提交 Issue 与 Pull Request；问题与早期想法请发到 [Discussions](https://github.com/WhitenWhiten/colp/discussions)。请先阅读 [CONTRIBUTING.md](CONTRIBUTING.md)；协议变更需要同时更新规范、Schema、示例与需求注册表。[GOVERNANCE.md](GOVERNANCE.md) 说明了变更如何决定。安全漏洞请按 [SECURITY.md](SECURITY.md) 私下报告。所有参与者都应遵守 [行为准则](CODE_OF_CONDUCT.md)。
+欢迎提交 Issue 与 Pull Request；问题与早期想法请发到 [Discussions](https://github.com/WhitenWhiten/colp/discussions)。请先阅读 [CONTRIBUTING.md](CONTRIBUTING.md)；协议变更需要同时更新规范、Schema、示例与需求注册表。[GOVERNANCE.md](GOVERNANCE.md) 说明了变更如何决定，[ROADMAP.md](ROADMAP.md) 列出了接下来的计划。安全漏洞请按 [SECURITY.md](SECURITY.md) 私下报告。所有参与者都应遵守 [行为准则](CODE_OF_CONDUCT.md)。
 
 ## 许可证
 

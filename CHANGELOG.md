@@ -35,7 +35,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Added `packages/conformance`, a black-box conformance runner (`colp-conformance`, `npm run conformance`) that checks a live server against 21 anonymous `core + publication` requirements and cites each by ID. CI runs its tests against the example server and a deliberately misbehaving proxy.
 - The example server now answers unknown routes and methods with Problem Details (PUB-0008) and serves the Manifest with `Cache-Control: public, max-age=300`.
 - Added a runnable example server, `packages/node/examples/publication-server.mjs` (`npm run example:publication`), which serves the `core + publication` profiles over `node:http`. CI runs its self-test after the build.
-- Added `GOVERNANCE.md`, `CODEOWNERS`, Dependabot configuration for npm, pip, and GitHub Actions, `.editorconfig`, and `.nvmrc`.
+- Added `ROADMAP.md`, `GOVERNANCE.md`, `CODEOWNERS`, Dependabot configuration for npm, pip, and GitHub Actions, `.editorconfig`, and `.nvmrc`.
 - The CI workflow now runs on every pull request so that `ci-gate` can be a required check; the `changes` job still skips the expensive jobs when no relevant paths changed.
 - Added repository, homepage, bug tracker, and keyword metadata to `packages/node/package.json`.
 - Moved the MCP host examples into `packages/node/docs/MCP_HOST_GUIDE.md` and removed the internal development logs (`docs/progress/`, `IMPLEMENTATION_PROGRESS.md`, and the `P1_*_MIGRATION.md` notes).
