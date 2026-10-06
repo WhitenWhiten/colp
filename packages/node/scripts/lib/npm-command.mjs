@@ -15,7 +15,12 @@ export async function runNpm(args, cwd, options = {}) {
     try { await access(candidate); cli = candidate; break; } catch { /* try the next standard location */ }
   }
   if (cli === undefined) throw new Error('Cannot locate npm-cli.js; invoke this script through npm exec.');
-  return exec(process.execPath, [cli, ...args], { cwd, env: options.env ?? isolatedProcessEnvironment(),
+  // Trusted repository commands include authenticated publication. Only
+  // caller-selected artifact installs use the strict allowlisted environment.
+  const environment = { ...process.env, npm_config_ignore_scripts: 'true', npm_config_global: 'false' };
+  delete environment.NODE_PATH;
+  delete environment.NODE_OPTIONS;
+  return exec(process.execPath, [cli, ...args], { cwd, env: options.env ?? environment,
     timeout: options.timeoutMs ?? 600_000, maxBuffer: 16 * 1024 * 1024 });
 }
 

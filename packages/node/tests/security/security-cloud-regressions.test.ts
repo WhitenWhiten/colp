@@ -70,6 +70,10 @@ describe('Security Cloud finding 3: metadata budgets', () => {
   it('keeps valid issuer-pinned metadata working', () => {
     expect(enforceOAuthAuthorizationServerMetadata(metadata, metadataOptions).allowed).toBe(true);
   });
+  it('bounds metadata members before discarding undefined optional values', () => {
+    const oversized = Object.fromEntries(Array.from({ length: 257 }, (_, index) => [`optional${index}`, undefined]));
+    expect(enforceOAuthAuthorizationServerMetadata({ ...metadata, ...oversized }, metadataOptions).allowed).toBe(false);
+  });
   it.each(['response_types_supported', 'grant_types_supported', 'code_challenge_methods_supported'])('bounds %s', key => {
     const result = enforceOAuthAuthorizationServerMetadata({ ...metadata, [key]: Array(257).fill('code') }, metadataOptions);
     expect(result.allowed).toBe(false);

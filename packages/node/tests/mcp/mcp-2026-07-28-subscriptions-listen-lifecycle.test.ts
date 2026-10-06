@@ -24,6 +24,34 @@ import {
 } from './subscriptions-listen-harness.js';
 
 describe('MCP 2026-07-28 subscriptions/listen: authorization recheck', () => {
+  it('denies resource subscriptions without an ACL or with a mixed unauthorized resource list', () => {
+    for (const authorization of [
+      { isAuthorized: () => true },
+      { isAuthorized: () => true, isResourceAuthorized: (_context: unknown, uri: string) => uri === 'urn:res:a' },
+    ]) {
+      const { adapter, memory } = harness({ authorization });
+      expect(() => openSession(adapter, { resourceSubscriptions: ['urn:res:a', 'urn:res:private'] })).toThrow(TypeError);
+      expect(memory.listenerCount()).toBe(0);
+    }
+  });
+
+  it.each(['signal', 'delivery'] as const)('discards queued data after resource ACL revocation at %s', async trigger => {
+    let resourceAllowed = true;
+    const { adapter, memory } = harness({ authorization: {
+      isAuthorized: () => true,
+      isResourceAuthorized: () => resourceAllowed,
+    } });
+    const session = openSession(adapter, { resourceSubscriptions: ['urn:res:a'] });
+    try {
+      memory.publish({ type: 'resource-updated', resourceUri: 'urn:res:a' });
+      resourceAllowed = false;
+      if (trigger === 'signal') memory.publish({ type: 'resource-updated', resourceUri: 'urn:res:a' });
+      expect(await readAll(session)).toEqual([]);
+      expect(await session.closed).toMatchObject({ reason: 'unauthorized', graceful: false });
+      expect(memory.listenerCount()).toBe(0);
+    } finally { session.close(); }
+  });
+
   it('ends the stream without delivering when authorization is revoked', async () => {
     let authorized = true;
     const { adapter, memory } = harness({ authorization: { isAuthorized: () => authorized } });

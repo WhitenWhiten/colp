@@ -292,8 +292,10 @@ function snapshotMetadata(input: unknown): MetadataSnapshot {
   // clone, while still rejecting accessors, symbols, proxies, and custom
   // prototypes without reading untrusted getters.
   assertPlainRecord(input, 'authorization server metadata');
+  const inputKeys = Reflect.ownKeys(input);
+  if (inputKeys.length > MAX_METADATA_MEMBERS) throw new TypeError('authorization server metadata is too large');
   const jsonInput: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
-  for (const key of Reflect.ownKeys(input)) {
+  for (const key of inputKeys) {
     if (typeof key !== 'string') throw new TypeError('authorization server metadata has an invalid member');
     const descriptor = Object.getOwnPropertyDescriptor(input, key);
     if (descriptor === undefined || !descriptor.enumerable || !('value' in descriptor)) {

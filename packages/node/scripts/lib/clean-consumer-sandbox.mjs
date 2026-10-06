@@ -15,20 +15,24 @@ export function cleanConsumerImage() {
   return `node:${process.versions.node}-bookworm-slim`;
 }
 
-export function cleanConsumerSandboxArguments(consumer, args, name) {
+export function cleanConsumerSandboxArguments(consumer, args, name, options = {}) {
   assert.ok(isAbsolute(consumer) && !/[,\r\n]/u.test(consumer), 'Invalid sandbox mount path.');
   assert.ok(/^colp-clean-[a-f0-9-]+$/u.test(name), 'Invalid sandbox name.');
   assert.ok(Array.isArray(args) && args.every(arg => typeof arg === 'string'));
+  // Checking all public declarations with skipLibCheck=false needs more heap
+  // than import probes. Both profiles retain fixed container/Node limits.
+  const memory = options.compiler === true ? '1g' : '512m';
+  const heap = options.compiler === true ? '768' : '256';
   return [
     'run', '--rm', '--name', name,
     '--network=none', '--read-only', '--cap-drop=ALL',
     '--security-opt=no-new-privileges', '--user=65534:65534',
-    '--pids-limit=64', '--memory=512m', '--memory-swap=512m', '--cpus=1',
+    '--pids-limit=64', `--memory=${memory}`, `--memory-swap=${memory}`, '--cpus=1',
     '--ipc=none',
     '--tmpfs', '/tmp:rw,noexec,nosuid,nodev,size=67108864,mode=1777',
     '--mount', `type=bind,source=${consumer},target=/work,readonly`,
     '--workdir=/work', '--env=HOME=/tmp', '--env=NODE_ENV=production',
-    '--entrypoint=node', cleanConsumerImage(), '--max-old-space-size=256', ...args,
+    '--entrypoint=node', cleanConsumerImage(), `--max-old-space-size=${heap}`, ...args,
   ];
 }
 
@@ -43,7 +47,7 @@ export async function runCleanConsumerNode(consumer, args, options = {}) {
     await mkdir(join(configuration, 'npm-tmp'), { mode: 0o700 });
     await writeFile(join(configuration, 'config.json'), '{}', { mode: 0o600 });
     return await exec('docker', ['--config', configuration,
-      ...cleanConsumerSandboxArguments(consumer, args, name)], {
+      ...cleanConsumerSandboxArguments(consumer, args, name, options)], {
       cwd: consumer, env: environment,
       timeout: options.timeoutMs ?? 120_000, maxBuffer: 16 * 1024 * 1024,
     });

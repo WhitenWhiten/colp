@@ -197,6 +197,18 @@ jobs:
       - name: Build and validate package shape
         run: npm run build && npm run pack:check
         working-directory: packages/node
+      - name: Verify clean-consumer Docker isolation
+        run: |
+          node --test scripts/tests/clean-consumer-sandbox.test.mjs
+          artifact_dir=$(mktemp -d)
+          trap 'rm -rf "$artifact_dir"' EXIT
+          npm pack --ignore-scripts --pack-destination "$artifact_dir" > /dev/null
+          for tarball in "$artifact_dir"/*.tgz; do
+            node scripts/clean-tarball-consumer.mjs "$tarball"
+          done
+        env:
+          COLP_TEST_DOCKER_SANDBOX: '1'
+        working-directory: packages/node
       - name: Example publication server self-test
         run: node examples/publication-server.mjs --self-test
         working-directory: packages/node

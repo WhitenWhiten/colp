@@ -184,7 +184,9 @@ export async function verifyCleanTarball(tarballPath, options = {}) {
       moduleResolution: 'NodeNext', lib: ['ES2023'], types: ['node'], strict: true,
       skipLibCheck: false, noEmit: true }, files }));
     await makeConsumerTreeReadable(consumer);
-    await runCleanConsumerNode(consumer, ['node_modules/typescript/bin/tsc', '-p', 'tsconfig.json'], { timeoutMs: 300_000 });
+    await runCleanConsumerNode(consumer, ['node_modules/typescript/bin/tsc', '-p', 'tsconfig.json'], {
+      timeoutMs: 300_000, compiler: true,
+    });
     assert.equal(createHash('sha256').update(await readFile(tarballPath)).digest('hex'), sha256,
       'The source tarball changed while it was being validated.');
     return { formatVersion: 1, packageName: manifest.name, packageVersion: manifest.version,

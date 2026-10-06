@@ -26,6 +26,10 @@ memory and PID limits. Docker is required; if its CLI or daemon is unavailable,
 the check fails closed instead of running the candidate under the host Node.
 The host-side npm install uses ignored lifecycle scripts, an allowlisted
 environment, and disposable npmrc, cache and temporary directories.
+Runtime probes use a 512 MiB container with a 256 MiB Node heap; strict
+TypeScript compilation uses a 1 GiB container with a 768 MiB heap. Both keep
+the same network, filesystem, privilege, CPU and PID restrictions. The package
+CI job runs both the isolation regression and the complete tarball verifier.
 
 Network access to the configured npm registry is required. Failures are release
 failures to investigate, not a reason to turn skipLibCheck back on. Run this on

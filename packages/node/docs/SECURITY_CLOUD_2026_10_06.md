@@ -3,8 +3,8 @@
 This change set integrates the candidate hardening into the full `packages/node`
 checkout. It addresses the input-boundary, authorization, and clean-tarball
 issues described below. It does not claim that the upstream Security Cloud
-findings are closed: a new scan and the opt-in Docker isolation run still need
-to be performed in the release environment.
+findings are closed: a new scan still needs to be performed, and release
+infrastructure must pin and review its sandbox image digest.
 
 ## Publisher identity authorization
 
@@ -67,7 +67,7 @@ should pin and review the approved image digest before relying on this check.
 
 ## Validation
 
-The following checks passed in this workspace:
+The following checks passed in the initial preparation workspace:
 
 - `npm --prefix packages/node run typecheck`;
 - `npm --prefix packages/node run check:source-size`;
@@ -83,6 +83,20 @@ The following checks passed in this workspace:
 The unexcluded suite has one known environment failure in
 `tests/client/publication-snapshot-read-only.test.ts`: this runner reports
 `ENOENT: uv_resident_set_memory` from `process.memoryUsage()`. That failure is
-outside the remediation code and must be rerun on a normal Node runtime. A
-Security Cloud rescan and the Docker-only candidate regression remain release
+outside the remediation code.
+
+Merge review on a normal Node 24.14.0 runtime reran that memory test successfully
+and passed 483 relevant Vitest tests, typecheck, source-size checks, and build.
+All seven sandbox helper tests passed with `COLP_TEST_DOCKER_SANDBOX=1`, including
+the actual Docker isolation probe. The tested official Node image resolved to
+`node@sha256:d8e448a56fc63242f70026718378bd4b00f8c82e78d20eefb199224a4d8e33d8`.
+The package CI job now enables the Docker test so this boundary is checked on
+future changes. The complete clean-tarball verifier also passed all 19 ESM/CJS
+runtime entries and strict TypeScript compilation with `skipLibCheck=false`.
+Compilation now has a bounded 1 GiB container / 768 MiB heap profile after the
+original 256 MiB heap was shown to exhaust memory on the real package. CI runs
+this complete verifier as well. Review also restored trusted npm commands' authentication
+environment, kept artifact installs isolated, enforced the metadata member
+limit before copying optional values, and added resource ACL revocation tests.
+A Security Cloud rescan and release image digest pinning remain release
 acceptance steps.

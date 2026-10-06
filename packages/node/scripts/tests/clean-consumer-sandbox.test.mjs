@@ -2,11 +2,31 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { chmod, link, lstat, mkdtemp, mkdir, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { makeConsumerTreeReadable } from '../clean-tarball-consumer.mjs';
 import { cleanConsumerSandboxArguments, runCleanConsumerNode } from '../lib/clean-consumer-sandbox.mjs';
-import { isolatedProcessEnvironment } from '../lib/npm-command.mjs';
+import { isolatedProcessEnvironment, runNpm } from '../lib/npm-command.mjs';
 
 const testRoot = process.env.TMPDIR ?? process.cwd();
+
+test('trusted npm commands retain authentication while artifact installs use an isolated environment', async () => {
+  const root = await mkdtemp(join(testRoot, '.colp-npm-environment-'));
+  const names = ['npm_execpath', 'COLP_TEST_SECRET'];
+  const previous = names.map(name => [name, process.env[name]]);
+  try {
+    const cli = join(root, 'npm-cli.js');
+    await writeFile(cli, 'process.stdout.write(process.env.COLP_TEST_SECRET ?? "absent")');
+    process.env.npm_execpath = cli;
+    process.env.COLP_TEST_SECRET = 'synthetic-authentication';
+    assert.equal((await runNpm(['publish'], root)).stdout, 'synthetic-authentication');
+    assert.equal((await runNpm(['install'], root, { env: isolatedProcessEnvironment() })).stdout, 'absent');
+  } finally {
+    for (const [name, value] of previous) {
+      if (value === undefined) delete process.env[name]; else process.env[name] = value;
+    }
+    await rm(root, { recursive: true, force: true });
+  }
+});
 
 test('sandbox command has no network, writable checkout, host env, or daemon socket mount', () => {
   const args = cleanConsumerSandboxArguments('/tmp/consumer', ['probe.mjs'], 'colp-clean-1234');
@@ -17,6 +37,10 @@ test('sandbox command has no network, writable checkout, host env, or daemon soc
   assert.ok(!args.includes('--privileged'));
   assert.ok(!args.some(arg => arg.includes('docker.sock')));
   assert.throws(() => cleanConsumerSandboxArguments('/tmp/a,b', [], 'colp-clean-1234'));
+  const compiler = cleanConsumerSandboxArguments('/tmp/consumer', ['node_modules/typescript/bin/tsc'], 'colp-clean-1234', { compiler: true });
+  for (const required of ['--memory=1g', '--memory-swap=1g', '--max-old-space-size=768', '--network=none', '--read-only']) {
+    assert.ok(compiler.includes(required), required);
+  }
 });
 
 test('child environment drops synthetic credentials, hooks, and Docker remote settings', () => {
