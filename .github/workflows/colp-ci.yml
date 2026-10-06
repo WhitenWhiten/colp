@@ -1,19 +1,11 @@
 name: colp-ci
 
+# No trigger-level path filters: ci-gate is a required status check, so it must
+# report on every pull request. The changes job decides which jobs actually run.
 on:
   pull_request:
-    paths:
-      - "packages/node/**"
-      - "scripts/**"
-      - "protocol/**"
-      - ".github/workflows/colp-ci.yml"
   push:
     branches: [main]
-    paths:
-      - "packages/node/**"
-      - "scripts/**"
-      - "protocol/**"
-      - ".github/workflows/colp-ci.yml"
   workflow_dispatch:
 
 permissions:
@@ -201,6 +193,9 @@ jobs:
         working-directory: packages/node
       - name: Build and validate package shape
         run: npm run build && npm run pack:check
+        working-directory: packages/node
+      - name: Example publication server self-test
+        run: node examples/publication-server.mjs --self-test
         working-directory: packages/node
       - name: Packed surface contracts after dist/
         run: |

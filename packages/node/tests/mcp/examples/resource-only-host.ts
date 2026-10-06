@@ -1,7 +1,7 @@
 /**
  * COLP-MCP-12: minimal Resource-only MCP host example (type-checked).
  *
- * Mirrors the fenced example in `docs/progress/MCP_READ.md`. The docs version
+ * Mirrors the fenced example in `docs/MCP_HOST_GUIDE.md`. The docs version
  * imports from `@collection-protocol/node/mcp`; this compilable copy uses the
  * internal relative entry so `npm run typecheck` can prove the example
  * surface compiles without a prior `npm run build`.

@@ -7,11 +7,14 @@ Thank you for helping improve the Collection Protocol. This repository holds two
 - **Report a bug** in the package or an inconsistency in the specification with a [bug report](https://github.com/WhitenWhiten/colp/issues/new?template=bug_report.yml).
 - **Propose a protocol change** with a [protocol change proposal](https://github.com/WhitenWhiten/colp/issues/new?template=protocol_change.yml). Please open the issue before writing a large pull request, so the design can be agreed first.
 - **Improve documentation**, examples, and diagrams.
+- **Ask a question or float an idea** in [Discussions](https://github.com/WhitenWhiten/colp/discussions).
 - **Report a security vulnerability** privately as described in [SECURITY.md](SECURITY.md). Never in a public issue.
+
+How changes are decided, including the comment period for protocol changes, is described in [GOVERNANCE.md](GOVERNANCE.md).
 
 ## Development setup
 
-You need Node.js 22 or later, npm, and Python 3 for the example validator.
+You need Node.js 22 or later (see `.nvmrc`), npm, and Python 3 for the example validator. The repository's `.editorconfig` sets the basic formatting.
 
 ```bash
 git clone https://github.com/WhitenWhiten/colp.git
@@ -32,6 +35,7 @@ Common commands, run inside `packages/node`:
 | `npm run generate:traceability` | Validates the requirement registries and regenerates `docs/TRACEABILITY.md` |
 | `npm run refresh:evidence` | Runs the full suite and records which requirements passed in `src/conformance/generated/evidence.json` |
 | `npm run check` | The full local gate: everything above plus coverage floors, the build, and `pack:check` |
+| `node examples/publication-server.mjs --self-test` | Runs the example server against `ColpClient` (needs a build first) |
 
 Validate the protocol examples from `protocol/`:
 

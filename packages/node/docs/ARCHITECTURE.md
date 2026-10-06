@@ -43,8 +43,8 @@ session, the handshake method, old subscription methods, Legacy transport
 types or pre-Modern adapter/factory signatures. The pre-Modern helper modules
 under `src/mcp/` (read mount/read client/collections tools/change plan/write
 tools/etc.) remain internal implementation and are not part of any public
-entry. Minimal host examples (Resource-only and Read Tools) live in
-`docs/progress/MCP_READ.md` with type-checked mirrors under
+entry. Minimal host examples (Resource-only, Read Tools, and Write) live in
+[`MCP_HOST_GUIDE.md`](MCP_HOST_GUIDE.md) with type-checked mirrors under
 `tests/mcp/examples/`.
 
 A host may add a product compatibility surface outside the Profile endpoint.

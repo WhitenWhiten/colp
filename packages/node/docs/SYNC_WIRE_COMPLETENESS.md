@@ -71,7 +71,5 @@ may publish a Sync Manifest claim.
 ## Related docs
 
 - [`HOST_INTEGRATION_BOUNDARY.md`](HOST_INTEGRATION_BOUNDARY.md) - package/host ownership
-- [`SYNC.md`](progress/SYNC.md) - requirement progress and evidence notes
 - [`SYNC_HOST_COMPOSITION.md`](SYNC_HOST_COMPOSITION.md) - recommended integration order
 - `packages/node/src/sync/composition.ts` - `SYNC_HOST_COMPOSITION_NOTES`
-- [`SYNC_MODULE_STATIC_REVIEW_VERIFICATION.md`](../../docs/audits/colp/2026-07-18-module-reviews/SYNC_MODULE_STATIC_REVIEW_VERIFICATION.md) - historical SYNC-V-010 review

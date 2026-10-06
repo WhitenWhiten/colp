@@ -1,0 +1,36 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /packages/node
+    schedule:
+      interval: weekly
+    # Let new releases age before they are proposed (supply-chain hygiene).
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    groups:
+      # The MCP SDK packages are locked together; see packages/node/docs/MCP_SDK_POLICY.md.
+      # A bump also needs the lock contract test and the policy table updated.
+      mcp-sdk:
+        patterns:
+          - "@modelcontextprotocol/*"
+      dev-dependencies:
+        dependency-type: development
+        update-types: [minor, patch]
+        exclude-patterns:
+          - "@modelcontextprotocol/*"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: pip
+    directory: /protocol
+    schedule:
+      interval: monthly

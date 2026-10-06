@@ -1,7 +1,7 @@
 /**
  * COLP-MCP-13: minimal MCP Write host example (type-checked).
  *
- * Mirrors the fenced example in `docs/progress/MCP_WRITE.md`. The Modern
+ * Mirrors the fenced example in `docs/MCP_HOST_GUIDE.md`. The Modern
  * `2026-07-28` Write adapter (`createMcp20260728WriteToolAdapter`) is the
  * public `/mcp` surface; the host wires the protocol-neutral change-plan
  * options (stores, impact/revision/scope/authorization/rate-limit ports and

@@ -61,7 +61,6 @@ Guidance:
 
 # Sync Core-used coverage manifest (U-3)
 
-Owner (this worktree): developer subagent on `known-p5` at commit `41ad711363eb79c87d9a76968407621fcdb64ee1`.
 Decision rule when contested: **can the release-profile write state machine (Session → Sequence/Push/Pull → Replica lifecycle → tombstone purge) still complete without the file?** If yes and the file is adapter/composition/legacy, classify B or C. Tier C high coverage must never offset Tier A gaps.
 
 Import-graph / export basis: package root re-exports Sync from `src/sync/index.js` (`src/index.ts`), and `./sync` is a first-class package export of that same barrel. Tier A is the durable coordinator + production dependency closure under `src/sync/` required for Core Sync write/read state machines. Stryker sync mutate list is a Tier A signal, not the sole definition.

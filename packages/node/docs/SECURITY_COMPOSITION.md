@@ -2,7 +2,6 @@
 
 Practical wiring guide for integrators who compose COLP Security guards at a request boundary. This is **not** a Profile claim, a full HTTP middleware stack, or a conformance suite.
 
-**Related progress:** `docs/progress/SECURITY.md` (repository-only progress record)
 **Ownership boundary:** [`docs/HOST_INTEGRATION_BOUNDARY.md`](HOST_INTEGRATION_BOUNDARY.md)
 
 **Public export:** `@collection-protocol/node/security` (`package.json` → `./security`)

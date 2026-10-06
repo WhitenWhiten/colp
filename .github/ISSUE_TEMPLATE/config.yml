@@ -1,5 +1,8 @@
 blank_issues_enabled: true
 contact_links:
+  - name: Ask a question or discuss an idea
+    url: https://github.com/WhitenWhiten/colp/discussions
+    about: Questions about the protocol or the package, and early design ideas.
   - name: Report a security vulnerability
     url: https://github.com/WhitenWhiten/colp/security/advisories/new
     about: Report vulnerabilities privately, never in a public issue.

@@ -126,6 +126,7 @@ The full example is [`protocol/examples/public-manifest.json`](protocol/examples
 |---|---|
 | [`protocol/`](protocol/README.md) | The specification, JSON Schemas, executable examples, and the requirement registry |
 | [`packages/node/`](packages/node/README.md) | `@collection-protocol/node`, the reference implementation in TypeScript, with its tests and integration guides |
+| [`packages/node/examples/`](packages/node/examples/publication-server.mjs) | A minimal read-only server you can run locally |
 | [`docs/assets/`](docs/assets) | Banner and diagrams used by the READMEs |
 | [`.github/workflows/colp-ci.yml`](.github/workflows/colp-ci.yml) | CI: protocol checks, example validation, type checks, tests, and the evidence check |
 
@@ -150,17 +151,24 @@ npm run build
 npm test
 ```
 
+**Run the example server.** After the build, [`publication-server.mjs`](packages/node/examples/publication-server.mjs) serves one Collection with the `core + publication` profiles on `http://127.0.0.1:8080`, using nothing but `node:http`:
+
+```bash
+npm run example:publication                 # then: curl -i http://127.0.0.1:8080/.well-known/collection-protocol
+npm run example:publication -- --self-test  # start, read everything back with ColpClient, exit
+```
+
 The package is protocol logic without a server: it validates wire documents, decides what each request may do, and coordinates durable writes and sync exchanges, while your application supplies HTTP routes, authentication, and storage through small port interfaces. Start with the [package README](packages/node/README.md), the [Publication quickstart](packages/node/docs/PUBLICATION_QUICKSTART.md), and the [Publisher quickstart](packages/node/docs/PUBLISHER_QUICKSTART.md).
 
 ## Project status
 
 - **Specification:** `0.1-draft`. The 0.1 wire contract is closed: every DTO has a stable `$defs` name. Version 0.2 adds authoritative pull effects to Sync.
 - **Node.js package:** implements all seven profiles. Every MUST and MUST NOT requirement maps to tests, as listed in [TRACEABILITY.md](packages/node/docs/TRACEABILITY.md). It is not yet published to npm.
-- **Not included:** a ready-to-run server, a database adapter, or browser extensions. These belong to applications built on the package.
+- **Not included:** a production server, a database adapter, or browser extensions. These belong to applications built on the package; the example server above shows the shape of one.
 
 ## Contributing
 
-Issues and pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) first; protocol changes should update the spec, schema, examples, and requirement registry together. Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md). Everyone taking part is expected to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
+Issues and pull requests are welcome, and questions and early ideas go to [Discussions](https://github.com/WhitenWhiten/colp/discussions). Read [CONTRIBUTING.md](CONTRIBUTING.md) first; protocol changes should update the spec, schema, examples, and requirement registry together. [GOVERNANCE.md](GOVERNANCE.md) explains how changes are decided. Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md). Everyone taking part is expected to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## License
 
