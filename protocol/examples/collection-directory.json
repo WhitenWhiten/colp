@@ -1,0 +1,32 @@
+{
+  "protocolVersion": "0.1",
+  "collections": [
+    {
+      "id": "collection-1",
+      "canonicalUrl": "https://alice.example/collections/interface-systems",
+      "title": "Interface Systems",
+      "summary": "A curated path into design engineering.",
+      "kind": "knowledge_collection",
+      "tags": ["design", "engineering"],
+      "language": "en",
+      "creators": [
+        {
+          "id": "https://alice.example/about",
+          "name": "Alice",
+          "url": "https://alice.example/"
+        }
+      ],
+      "nodeCount": 48,
+      "updatedAt": "2026-07-16T06:30:00Z",
+      "visibility": "public",
+      "links": {
+        "self": "https://alice.example/collections/c/collection-1",
+        "canonical": "https://alice.example/collections/interface-systems",
+        "snapshot": "https://alice.example/collections/c/collection-1/snapshot",
+        "feed": "https://alice.example/collections/c/collection-1/feed"
+      },
+      "extensions": {}
+    }
+  ],
+  "nextCursor": null
+}

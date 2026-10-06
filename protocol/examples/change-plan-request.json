@@ -1,0 +1,14 @@
+{
+  "operations": [
+    {
+      "type": "set_visibility",
+      "collectionId": "collection-1",
+      "baseRevision": "acl_17",
+      "input": {
+        "visibility": "public"
+      }
+    }
+  ],
+  "reason": "User asked to publish the collection",
+  "dryRun": true
+}

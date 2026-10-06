@@ -1,0 +1,22 @@
+{
+  "planId": "plan_01JZ",
+  "expiresAt": "2026-07-16T07:20:00Z",
+  "risk": "high",
+  "requiresApproval": true,
+  "approvalMethod": "out_of_band",
+  "approvalUri": "https://alice.example/collections/approvals/plan_01JZ",
+  "summary": "Make Interface Systems publicly listed and readable without a key.",
+  "impact": {
+    "collections": 1,
+    "nodes": 48,
+    "annotations": 6,
+    "attachments": 0,
+    "relations": 12,
+    "privateFieldsExcluded": ["sourceRefs", "private annotations", "ACL principals"]
+  },
+  "requiredScopes": ["access:write"],
+  "baseRevisions": {
+    "collection-1": "r_1042",
+    "access.collection-1": "acl_17"
+  }
+}

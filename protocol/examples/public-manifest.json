@@ -1,0 +1,72 @@
+{
+  "protocol": "https://collectionprotocol.org/spec/0.1",
+  "protocolVersions": ["0.1"],
+  "serverId": "https://alice.example/",
+  "serverUuid": "019b3c67-a03c-7f02-9c7e-1ee8d50a77de",
+  "title": "Alice's Collections",
+  "mounts": [
+    {
+      "id": "default",
+      "baseUrl": "https://alice.example/collections/",
+      "profiles": ["core", "publication", "publisher", "sync", "mcp-read", "mcp-write"],
+      "endpoints": {
+        "directory": "https://alice.example/collections",
+        "collection": "https://alice.example/collections/c/{collectionId}",
+        "snapshot": "https://alice.example/collections/c/{collectionId}/snapshot",
+        "node": "https://alice.example/collections/c/{collectionId}/nodes/{nodeId}",
+        "nodes": "https://alice.example/collections/c/{collectionId}/nodes",
+        "nodeMove": "https://alice.example/collections/c/{collectionId}/nodes/{nodeId}/move",
+        "annotations": "https://alice.example/collections/c/{collectionId}/annotations",
+        "annotation": "https://alice.example/collections/c/{collectionId}/annotations/{annotationId}",
+        "attachments": "https://alice.example/collections/c/{collectionId}/attachments",
+        "attachment": "https://alice.example/collections/c/{collectionId}/attachments/{attachmentId}",
+        "relations": "https://alice.example/collections/c/{collectionId}/relations",
+        "relation": "https://alice.example/collections/c/{collectionId}/relations/{relationId}",
+        "release": "https://alice.example/collections/c/{collectionId}/release",
+        "releases": "https://alice.example/collections/c/{collectionId}/releases",
+        "releaseItem": "https://alice.example/collections/c/{collectionId}/releases/{releaseId}",
+        "releaseSnapshot": "https://alice.example/collections/c/{collectionId}/releases/{releaseId}/snapshot",
+        "collectionAccess": "https://alice.example/collections/c/{collectionId}/access",
+        "syncSessions": "https://alice.example/collections/-/sync/sessions",
+        "syncSnapshot": "https://alice.example/collections/-/sync/snapshot",
+        "syncPush": "https://alice.example/collections/-/sync/push",
+        "syncPull": "https://alice.example/collections/-/sync/pull",
+        "syncAck": "https://alice.example/collections/-/sync/ack",
+        "syncConflict": "https://alice.example/collections/-/sync/conflicts/{conflictId}/resolve",
+        "mcp": "https://alice.example/collections/-/mcp",
+        "adminAccess": "https://alice.example/collections/-/admin/access",
+        "adminKeys": "https://alice.example/collections/-/admin/keys",
+        "adminKey": "https://alice.example/collections/-/admin/keys/{keyId}",
+        "adminKeyRotate": "https://alice.example/collections/-/admin/keys/{keyId}/rotate",
+        "adminRateLimits": "https://alice.example/collections/-/admin/rate-limits",
+        "adminAudit": "https://alice.example/collections/-/admin/audit"
+      },
+      "features": {
+        "patch": { "mediaTypes": ["application/merge-patch+json"] },
+        "bookmarkUrls": { "acceptedSchemes": ["http", "https", "file"] },
+        "sync": { "multiCollectionSessions": false },
+        "mcp": { "protocolVersion": "2026-07-28", "resources": true, "tools": true },
+        "admin": { "access": true, "keys": true, "rateLimits": true, "audit": true }
+      },
+      "auth": {
+        "anonymousRead": true,
+        "apiKeys": true,
+        "oauth": true,
+        "protectedResourceMetadata": "https://alice.example/.well-known/oauth-protected-resource/collections/-/mcp"
+      },
+      "limits": {
+        "maxPageSize": 200,
+        "maxSnapshotNodes": 10000,
+        "minPollIntervalSeconds": 60,
+        "recommendedPollIntervalSeconds": 300,
+        "maxSyncBatchOperations": 500,
+        "idempotencyRetentionSeconds": 86400,
+        "syncCursorRetentionSeconds": 2592000
+      }
+    }
+  ],
+  "signing": {
+    "httpMessageSignatures": true,
+    "jwksUrl": "https://alice.example/.well-known/jwks.json"
+  }
+}

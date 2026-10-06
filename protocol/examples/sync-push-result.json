@@ -1,0 +1,18 @@
+{
+  "batchId": "batch_01JZ",
+  "results": [
+    {
+      "opId": "op-1",
+      "sequence": 1842,
+      "status": "rebased",
+      "targetId": "node-9",
+      "revision": "r_1043",
+      "cursor": "sync_01K0",
+      "transform": {
+        "position": "a0W"
+      },
+      "warnings": []
+    }
+  ],
+  "serverCursor": "sync_01K0"
+}

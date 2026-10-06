@@ -1,0 +1,14 @@
+{
+  "type": "https://collectionprotocol.org/problems/precondition-failed",
+  "title": "Precondition failed",
+  "status": 412,
+  "code": "precondition_failed",
+  "detail": "The resource changed after the supplied ETag.",
+  "instance": "/collections/c/collection-1",
+  "currentRevision": "r_18",
+  "currentEtag": "collection-r_18",
+  "retryable": true,
+  "links": {
+    "current": "https://alice.example/collections/c/collection-1"
+  }
+}

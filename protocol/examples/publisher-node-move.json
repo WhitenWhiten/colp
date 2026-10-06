@@ -1,0 +1,7 @@
+{
+  "newParentId": "folder-b",
+  "afterId": "node-x",
+  "beforeId": "node-y",
+  "baseSourceParentRevision": "children_r_8",
+  "baseTargetParentRevision": "children_r_9"
+}

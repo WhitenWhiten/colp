@@ -1,0 +1,27 @@
+{
+  "visibility": "protected",
+  "entries": [
+    {
+      "principal": {
+        "type": "public",
+        "id": "public"
+      },
+      "effect": "deny",
+      "scopes": ["collections:read", "nodes:read"]
+    },
+    {
+      "principal": {
+        "type": "api_key",
+        "id": "key_reader_1"
+      },
+      "effect": "allow",
+      "scopes": ["collections:read", "nodes:read", "feed:read"]
+    }
+  ],
+  "publication": {
+    "listInDirectory": false,
+    "allowSearchIndexing": false,
+    "allowEmbedding": false
+  },
+  "revision": "acl_17"
+}

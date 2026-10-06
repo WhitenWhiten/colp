@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "suite": "publication snapshot delivery baseline",
+  "benchmark": "plans a complete dynamic snapshot",
+  "compareMode": "relative",
+  "reference": {
+    "hz": 12008.9,
+    "meanMilliseconds": 0.0833,
+    "sampleCount": 6005,
+    "capturedAt": "2026-07-22",
+    "sourceCommit": "624d58e403cedf90e7e01f53836594ce774db791",
+    "environment": {
+      "platform": "win32",
+      "node": "24.9.0"
+    }
+  },
+  "policy": {
+    "minimumThroughputRatio": 0.6,
+    "maximumRelativeMarginOfErrorPercent": 10
+  }
+}

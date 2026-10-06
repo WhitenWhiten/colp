@@ -1,0 +1,26 @@
+# Clean tarball acceptance
+
+Keep `npm run pack:check`: its publint, attw, ESM/CJS, JSON Schema and documented
+consumer checks remain useful fast gates. The following is an additional release
+check, not a replacement or a claim that the existing checks provide no protection.
+
+Build and pack a candidate, then pass that **existing** artifact to:
+
+```sh
+node scripts/clean-tarball-consumer.mjs /absolute/path/collection-protocol-node-version.tgz
+```
+
+The script copies the exact tarball bytes into an isolated temporary consumer,
+performs a real npm install with lifecycle scripts disabled, loads every runtime
+ESM/CJS entry and the JSON Schema, and installs exact compiler/Node type versions
+from the repository lockfile. It then compiles consumers with `strict: true`,
+`skipLibCheck: false`, NodeNext resolution and Node-only library declarations.
+It never links the checkout's production dependencies or compiler into the
+consumer, and removes ambient NODE_PATH/NODE_OPTIONS. It checks that the source
+tarball has not changed before returning its SHA-256 and toolchain record.
+
+Network access to the configured npm registry is required. Failures are release
+failures to investigate, not a reason to turn skipLibCheck back on. Run this on
+the existing local Node/OS release matrix. An installation failure or an unrun
+matrix is not successful acceptance. The final release procedure must publish
+the same artifact digest; it must not run npm pack again after this check.

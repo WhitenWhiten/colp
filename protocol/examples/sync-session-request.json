@@ -1,0 +1,36 @@
+{
+  "protocolVersion": "0.1",
+  "replica": {
+    "replicaId": "replica-chrome-1",
+    "name": "Chrome on Alice laptop",
+    "kind": "browser_extension",
+    "adapter": {
+      "profile": "chromium-bookmarks-v1",
+      "version": "1.0.0"
+    },
+    "capabilities": {
+      "read": true,
+      "write": true,
+      "events": true,
+      "separator": false,
+      "alias": false,
+      "annotations": "sidecar",
+      "maxBatchOperations": 200
+    },
+    "binding": {
+      "browserProfileId": "profile-hmac-1",
+      "mountMode": "mounted-folder",
+      "mountNativeId": "431",
+      "generation": "generation-7"
+    },
+    "extensions": {}
+  },
+  "scope": "collection",
+  "collection": {
+    "collectionId": "collection-1",
+    "lastCursor": "sync_01JZ",
+    "lastRevision": "r_1020",
+    "bootstrapMode": "merge"
+  },
+  "clientTime": "2026-07-16T07:00:00Z"
+}

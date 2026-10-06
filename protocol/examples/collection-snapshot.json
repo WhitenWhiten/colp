@@ -1,0 +1,117 @@
+{
+  "protocolVersion": "0.1",
+  "snapshotId": "snap_public_1042",
+  "mode": "publication",
+  "complete": true,
+  "collection": {
+    "schemaVersion": "0.1",
+    "id": "019b3ca2-8424-7cc2-9a61-4bf44c23f07a",
+    "canonicalUrl": "https://alice.example/collections/interface-systems",
+    "slug": "interface-systems",
+    "kind": "knowledge_collection",
+    "title": "Interface Systems",
+    "summary": "A curated path into design engineering.",
+    "description": {
+      "format": "markdown",
+      "value": "Start with layout primitives, then inspect implementation systems."
+    },
+    "language": "en",
+    "tags": ["design", "engineering"],
+    "creators": [
+      {
+        "id": "https://alice.example/about",
+        "name": "Alice",
+        "url": "https://alice.example/",
+        "avatar": "https://alice.example/avatar.png"
+      }
+    ],
+    "rootNodeId": "019b3ca2-9a3f-7e07-8f18-cc4f2cb4bca8",
+    "visibility": "public",
+    "publication": {
+      "feedMode": "release",
+      "includeNodeContent": "summary",
+      "includeRelations": true
+    },
+    "createdAt": "2026-07-01T09:00:00Z",
+    "updatedAt": "2026-07-16T06:30:00Z",
+    "revision": "r_1042",
+    "eventCursor": "feed_01JZ9",
+    "extensions": {}
+  },
+  "nodes": [
+    {
+      "id": "019b3ca2-9a3f-7e07-8f18-cc4f2cb4bca8",
+      "collectionId": "019b3ca2-8424-7cc2-9a61-4bf44c23f07a",
+      "kind": "root",
+      "parentId": null,
+      "position": null,
+      "folderRole": "root",
+      "title": "Interface Systems",
+      "createdAt": "2026-07-01T09:00:00Z",
+      "updatedAt": "2026-07-16T06:30:00Z",
+      "revision": "r_1042",
+      "constraints": {
+        "readOnly": false,
+        "reason": null
+      },
+      "extensions": {}
+    },
+    {
+      "id": "019b3ca4-cb18-7a4f-b8c5-76fa50fd0ea2",
+      "collectionId": "019b3ca2-8424-7cc2-9a61-4bf44c23f07a",
+      "kind": "bookmark",
+      "parentId": "019b3ca2-9a3f-7e07-8f18-cc4f2cb4bca8",
+      "position": "a0V",
+      "title": "Radix Primitives",
+      "url": "https://github.com/radix-ui/primitives",
+      "canonicalUrl": "https://github.com/radix-ui/primitives",
+      "description": "Accessible UI primitives.",
+      "tags": ["components", "accessibility"],
+      "createdAt": "2026-07-01T09:20:00Z",
+      "updatedAt": "2026-07-15T10:00:00Z",
+      "lastUsedAt": "2026-07-16T05:02:00Z",
+      "revision": "r_1041",
+      "constraints": {
+        "readOnly": false,
+        "reason": null
+      },
+      "extensions": {}
+    }
+  ],
+  "annotations": [
+    {
+      "id": "019b3ca6-0f4e-7a28-a141-013e05048ff4",
+      "collectionId": "019b3ca2-8424-7cc2-9a61-4bf44c23f07a",
+      "subject": {
+        "type": "node",
+        "id": "019b3ca4-cb18-7a4f-b8c5-76fa50fd0ea2"
+      },
+      "type": "summary",
+      "format": "plain",
+      "value": "A low-level component primitive library.",
+      "visibility": "public",
+      "creator": {
+        "id": "https://alice.example/about",
+        "name": "Alice"
+      },
+      "createdAt": "2026-07-15T02:00:00Z",
+      "updatedAt": "2026-07-15T02:00:00Z",
+      "revision": "r_909",
+      "provenance": {
+        "kind": "human"
+      },
+      "extensions": {}
+    }
+  ],
+  "attachments": [],
+  "relations": [],
+  "tombstones": [],
+  "revision": "r_1042",
+  "generatedAt": "2026-07-16T06:30:00Z",
+  "page": {
+    "nextCursor": null,
+    "hasMore": false,
+    "sequence": 1
+  },
+  "warnings": []
+}

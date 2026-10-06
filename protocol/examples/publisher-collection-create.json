@@ -1,0 +1,19 @@
+{
+  "collection": {
+    "kind": "knowledge_collection",
+    "title": "Interface Systems",
+    "summary": "A curated path into design engineering.",
+    "visibility": "private",
+    "publication": {
+      "feedMode": "release",
+      "includeNodeContent": "summary",
+      "includeRelations": true
+    },
+    "extensions": {}
+  },
+  "root": {
+    "title": "Interface Systems",
+    "folderRole": "root",
+    "extensions": {}
+  }
+}

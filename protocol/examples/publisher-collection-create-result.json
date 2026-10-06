@@ -1,0 +1,34 @@
+{
+  "collection": {
+    "schemaVersion": "0.1",
+    "id": "collection-1",
+    "canonicalUrl": "https://alice.example/collections/interface-systems",
+    "kind": "knowledge_collection",
+    "title": "Interface Systems",
+    "rootNodeId": "root-1",
+    "visibility": "private",
+    "createdAt": "2026-07-16T07:00:00Z",
+    "updatedAt": "2026-07-16T07:00:00Z",
+    "revision": "r_1",
+    "extensions": {}
+  },
+  "root": {
+    "id": "root-1",
+    "collectionId": "collection-1",
+    "kind": "root",
+    "parentId": null,
+    "position": null,
+    "folderRole": "root",
+    "title": "Interface Systems",
+    "createdAt": "2026-07-16T07:00:00Z",
+    "updatedAt": "2026-07-16T07:00:00Z",
+    "revision": "r_1",
+    "extensions": {}
+  },
+  "links": {
+    "self": "https://alice.example/collections/c/collection-1",
+    "canonical": "https://alice.example/collections/interface-systems",
+    "snapshot": "https://alice.example/collections/c/collection-1/snapshot",
+    "nodes": "https://alice.example/collections/c/collection-1/nodes"
+  }
+}

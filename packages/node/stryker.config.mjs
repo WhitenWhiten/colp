@@ -1,0 +1,33 @@
+/** @type {import('@stryker-mutator/api/core').PartialStrykerOptions} */
+export default {
+  mutate: [
+    'src/semantic/snapshot.ts',
+    'src/semantic/snapshot-visibility.ts',
+    'src/shared/query.ts',
+    'src/publisher/index.ts',
+  ],
+  testFiles: [
+    'tests/semantic/**/*.test.ts',
+    'tests/core/core-0025-position-ascii-octet-order-contract.test.ts',
+    'tests/core/core-0027-snapshot-derived-index-contract.test.ts',
+    'tests/core/optional-canonical-url-contract.test.ts',
+    'tests/core/sensitive-url-preservation-contract.test.ts',
+    'tests/core/url-hash-dedup-hint-contract.test.ts',
+    'tests/core/url-hash-matches-preserved-url-contract.test.ts',
+    'tests/schema/bookmark-url-contract.test.ts',
+    'tests/schema/core-extension-namespace-uri-contract.test.ts',
+    'tests/server/contracts.test.ts',
+    'tests/server/pub-0018-endpoint-dto.test.ts',
+    'tests/property/core-state-properties.test.ts',
+    'tests/publisher/**/*.test.ts',
+  ],
+  testRunner: 'vitest',
+  coverageAnalysis: 'perTest',
+  reporters: ['clear-text', 'progress', 'html', 'json'],
+  thresholds: { high: 80, low: 65, break: 65 },
+  incremental: true,
+  incrementalFile: 'reports/stryker-incremental.json',
+  htmlReporter: { fileName: 'reports/mutation/core/index.html' },
+  jsonReporter: { fileName: 'reports/mutation/core/mutation.json' },
+  vitest: { configFile: 'vitest.mutation.config.ts' },
+};

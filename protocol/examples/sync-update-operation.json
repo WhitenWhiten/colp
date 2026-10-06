@@ -1,0 +1,21 @@
+{
+  "opId": "019b3de2-7f76-7b8b-8ffc-941d6e6318de",
+  "replicaId": "019b3dd0-7636-770a-a789-bf62d3eb91cc",
+  "sequence": 1843,
+  "collectionId": "019b3ca2-8424-7cc2-9a61-4bf44c23f07a",
+  "type": "update_node_content",
+  "targetId": "019b3ca4-cb18-7a4f-b8c5-76fa50fd0ea2",
+  "baseRevision": "r_1041",
+  "occurredAt": "2026-07-16T07:06:00Z",
+  "dependencies": [],
+  "payload": {
+    "base": {
+      "title": "Radix Primitives",
+      "tags": ["components", "accessibility"]
+    },
+    "value": {
+      "title": "Radix UI Primitives",
+      "tags": ["components", "design-systems"]
+    }
+  }
+}

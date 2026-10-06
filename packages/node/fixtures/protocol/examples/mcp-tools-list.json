@@ -1,0 +1,135 @@
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "resultType": "complete",
+    "ttlMs": 3600000,
+    "cacheScope": "public",
+    "tools": [
+      {
+        "name": "nodes.create",
+        "title": "Create bookmark node",
+        "description": "Create a bookmark, folder, separator, or alias in a collection. The server enforces the existing publication policy and does not expose private annotations.",
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "collectionId": { "type": "string" },
+            "parentId": { "type": "string" },
+            "afterId": { "type": ["string", "null"] },
+            "node": {
+              "type": "object",
+              "properties": {
+                "kind": { "type": "string", "enum": ["folder", "bookmark", "separator", "alias"] },
+                "title": { "type": "string" },
+                "url": { "type": "string" },
+                "targetNodeId": { "type": "string" }
+              },
+              "required": ["kind"],
+              "allOf": [
+                {
+                  "if": { "properties": { "kind": { "const": "bookmark" } }, "required": ["kind"] },
+                  "then": { "required": ["title", "url"] }
+                },
+                {
+                  "if": { "properties": { "kind": { "const": "folder" } }, "required": ["kind"] },
+                  "then": { "required": ["title"] }
+                },
+                {
+                  "if": { "properties": { "kind": { "const": "alias" } }, "required": ["kind"] },
+                  "then": { "required": ["targetNodeId"] }
+                }
+              ],
+              "additionalProperties": false
+            },
+            "dryRun": { "type": "boolean", "default": false }
+          },
+          "required": ["collectionId", "parentId", "node"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "nodeId": { "type": "string" },
+            "revision": { "type": "string" },
+            "warnings": { "type": "array", "items": { "type": "object" } }
+          },
+          "required": ["nodeId", "revision", "warnings"],
+          "additionalProperties": false
+        },
+        "_meta": {
+          "collection-protocol/risk": "low",
+          "collection-protocol/confirmation": "policy"
+        }
+      },
+      {
+        "name": "changes.plan",
+        "title": "Preview sensitive collection changes",
+        "description": "Create a reviewable, non-executing plan for deletion, public exposure, access policy, key, rate-limit, release, or mirror operations.",
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "operations": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/changePlanOperation"
+              }
+            },
+            "reason": { "type": "string" },
+            "dryRun": { "const": true }
+          },
+          "required": ["operations", "reason", "dryRun"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "planId": { "type": "string" },
+            "expiresAt": { "type": "string", "format": "date-time" },
+            "risk": { "enum": ["low", "medium", "high"] },
+            "requiresApproval": { "type": "boolean" },
+            "approvalUri": { "type": ["string", "null"] },
+            "summary": { "type": "string" },
+            "impact": { "type": "object" }
+          },
+          "required": ["planId", "expiresAt", "risk", "requiresApproval", "summary", "impact"],
+          "additionalProperties": false
+        },
+        "_meta": {
+          "collection-protocol/risk": "none",
+          "collection-protocol/confirmation": "not_required"
+        }
+      },
+      {
+        "name": "changes.commit",
+        "title": "Commit an approved change plan",
+        "description": "Commit a previously planned change. High-risk plans require an out-of-band user approval recorded by the server.",
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "planId": { "type": "string" }
+          },
+          "required": ["planId"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "status": { "enum": ["committed", "approval_required", "expired", "stale", "rejected"] },
+            "auditId": { "type": ["string", "null"] },
+            "resourceLinks": { "type": "array", "items": { "type": "string" } }
+          },
+          "required": ["status", "resourceLinks"],
+          "additionalProperties": false
+        },
+        "_meta": {
+          "collection-protocol/risk": "inherits_plan",
+          "collection-protocol/confirmation": "server_enforced"
+        }
+      }
+    ]
+  }
+}

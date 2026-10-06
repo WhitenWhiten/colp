@@ -1,0 +1,27 @@
+{
+  "events": [
+    {
+      "cursor": "sync_01K1",
+      "kind": "conflict",
+      "conflict": {
+        "id": "conflict_01JZ",
+        "collectionId": "collection-1",
+        "targetId": "node-9",
+        "type": "concurrent_field_update",
+        "field": "/title",
+        "base": "Old title",
+        "server": "Server title",
+        "incoming": "Laptop title",
+        "incomingOpId": "op-1",
+        "createdAt": "2026-07-16T07:05:01Z",
+        "status": "open",
+        "allowedResolutions": ["server", "incoming", "custom", "both"],
+        "revision": "cr_2"
+      }
+    }
+  ],
+  "nextCursor": "sync_01K1",
+  "hasMore": false,
+  "collectionRevision": "r_1050",
+  "recommendedPullAfterSeconds": 30
+}

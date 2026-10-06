@@ -1,0 +1,41 @@
+{
+  "collection": {
+    "schemaVersion": "0.1",
+    "id": "collection-1",
+    "canonicalUrl": "https://alice.example/collections/interface-systems",
+    "slug": "interface-systems",
+    "kind": "knowledge_collection",
+    "title": "Interface Systems",
+    "summary": "A curated path into design engineering.",
+    "language": "en",
+    "tags": ["design", "engineering"],
+    "creators": [
+      {
+        "id": "https://alice.example/about",
+        "name": "Alice",
+        "url": "https://alice.example/"
+      }
+    ],
+    "rootNodeId": "root-1",
+    "visibility": "public",
+    "publication": {
+      "feedMode": "release",
+      "includeNodeContent": "summary",
+      "includeRelations": true
+    },
+    "createdAt": "2026-07-01T09:00:00Z",
+    "updatedAt": "2026-07-16T06:30:00Z",
+    "revision": "r_1042",
+    "extensions": {}
+  },
+  "links": {
+    "self": "https://alice.example/collections/c/collection-1",
+    "canonical": "https://alice.example/collections/interface-systems",
+    "snapshot": "https://alice.example/collections/c/collection-1/snapshot",
+    "nodes": "https://alice.example/collections/c/collection-1/nodes",
+    "annotations": "https://alice.example/collections/c/collection-1/annotations",
+    "relations": "https://alice.example/collections/c/collection-1/relations",
+    "feed": "https://alice.example/collections/c/collection-1/feed",
+    "releases": "https://alice.example/collections/c/collection-1/releases"
+  }
+}

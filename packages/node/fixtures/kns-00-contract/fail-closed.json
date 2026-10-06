@@ -1,0 +1,56 @@
+[
+  {
+    "fixtureId": "kns-00-fail-closed-missing-fields",
+    "scenario": "missing-fields",
+    "operations": [
+      {
+        "opId": "op-bad",
+        "type": "restore_node"
+      }
+    ],
+    "terminal": { "liveNodes": [], "tombstones": [], "problemCode": "invalid_document" },
+    "expectedOperationKinds": ["restore_node"],
+    "expectedIdentities": [],
+    "invariants": ["fail-closed"]
+  },
+  {
+    "fixtureId": "kns-00-fail-closed-unknown-kind",
+    "scenario": "unknown-kind",
+    "operations": [
+      {
+        "opId": "op-unknown", "replicaId": "replica-local", "sequence": 1, "collectionId": "collection-1",
+        "type": "invented_kind", "targetId": "node-1", "baseRevision": "r-1",
+        "occurredAt": "2026-07-27T00:00:00Z", "payload": {}
+      }
+    ],
+    "terminal": { "liveNodes": [], "tombstones": [], "problemCode": "unsupported_operation" },
+    "expectedOperationKinds": ["invented_kind"],
+    "expectedIdentities": [],
+    "invariants": ["fail-closed"]
+  },
+  {
+    "fixtureId": "kns-00-fail-closed-bad-cursor",
+    "scenario": "bad-cursor",
+    "input": { "cursor": "not-a-cursor" },
+    "operations": [],
+    "terminal": { "liveNodes": [], "tombstones": [], "problemCode": "sync_cursor_expired" },
+    "expectedOperationKinds": [],
+    "expectedIdentities": [],
+    "invariants": ["fail-closed"]
+  },
+  {
+    "fixtureId": "kns-00-fail-closed-unauthorized-replica",
+    "scenario": "unauthorized-replica",
+    "operations": [
+      {
+        "opId": "op-foreign", "replicaId": "replica-other", "sequence": 1, "collectionId": "collection-1",
+        "type": "create_node", "baseRevision": null, "occurredAt": "2026-07-27T00:00:00Z",
+        "payload": { "parentId": "folder-root", "afterId": null, "beforeId": null, "node": { "kind": "bookmark", "title": "Nope", "url": "https://example.com/nope" } }
+      }
+    ],
+    "terminal": { "liveNodes": [], "tombstones": [], "problemCode": "stale_replica" },
+    "expectedOperationKinds": ["create_node"],
+    "expectedIdentities": [],
+    "invariants": ["fail-closed"]
+  }
+]

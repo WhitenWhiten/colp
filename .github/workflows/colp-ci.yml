@@ -1,0 +1,300 @@
+name: colp-ci
+
+on:
+  pull_request:
+    paths:
+      - "packages/node/**"
+      - "scripts/**"
+      - "protocol/**"
+      - ".github/workflows/colp-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "packages/node/**"
+      - "scripts/**"
+      - "protocol/**"
+      - ".github/workflows/colp-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: colp-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    permissions:
+      contents: read
+      pull-requests: read
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      full: ${{ steps.scope.outputs.full }}
+      quality: ${{ steps.filter.outputs.quality }}
+      evidence: ${{ steps.filter.outputs.evidence }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - id: filter
+        if: github.event_name != 'workflow_dispatch'
+        # Reviewed: dorny/paths-filter is used only to map PR paths to job outputs.
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          filters: |
+            workflow:
+              - '.github/workflows/colp-ci.yml'
+            quality:
+              - 'packages/node/**'
+              - 'scripts/**'
+              - 'protocol/**'
+              - '.github/workflows/colp-ci.yml'
+              - '!packages/node/docs/TRACEABILITY.md'
+              - '!packages/node/src/conformance/generated/evidence.json'
+              - '!packages/node/src/conformance/generated/mcp-conformance-candidate.json'
+              - '!packages/node/src/conformance/generated/mcp-2026-07-28-sdk-accepted.json'
+            evidence:
+              - 'packages/node/docs/TRACEABILITY.md'
+              - 'packages/node/src/conformance/generated/evidence.json'
+              - 'packages/node/src/conformance/generated/mcp-conformance-candidate.json'
+              - 'packages/node/src/conformance/generated/mcp-2026-07-28-sdk-accepted.json'
+              - '.github/workflows/colp-ci.yml'
+      - id: scope
+        name: Select full verification scope
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" || "${{ steps.filter.outputs.workflow }}" == "true" ]]; then
+            full=true
+          else
+            full=false
+          fi
+          echo "full=$full" >> "$GITHUB_OUTPUT"
+
+  static:
+    needs: changes
+    if: needs.changes.outputs.full == 'true' || needs.changes.outputs.quality == 'true' || needs.changes.outputs.evidence == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: packages/node/package-lock.json
+      - name: Frozen package install
+        run: npm ci
+        working-directory: packages/node
+      - name: Ensure generation tools are installed
+        run: |
+          if test ! -f node_modules/json-schema-to-typescript/package.json; then
+            npm ci
+          fi
+        working-directory: packages/node
+      - name: Rebuild allowlisted esbuild
+        run: test ! -d node_modules/esbuild || npm rebuild esbuild --ignore-scripts=false
+        working-directory: packages/node
+      - name: Protocol, generated assets, traceability and types
+        run: npm run check:protocol && npm run check:types && npm run check:requirements && npm run check:traceability && npm run typecheck && npm run check:source-size
+        working-directory: packages/node
+      - name: Process-owned release contracts
+        if: needs.changes.outputs.full == 'true' || needs.changes.outputs.quality == 'true' || needs.changes.outputs.evidence == 'true'
+        run: npm run test:process-contracts
+        working-directory: packages/node
+
+  release-evidence:
+    needs: changes
+    if: needs.changes.outputs.full == 'true' || needs.changes.outputs.quality == 'true' || needs.changes.outputs.evidence == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: packages/node/package-lock.json
+      - name: Frozen package install
+        run: npm ci
+        working-directory: packages/node
+      - name: Ensure release evidence tools are installed
+        run: |
+          if test ! -f node_modules/yaml/package.json; then
+            npm ci
+          fi
+        working-directory: packages/node
+      - name: Rebuild allowlisted esbuild
+        run: test ! -d node_modules/esbuild || npm rebuild esbuild --ignore-scripts=false
+        working-directory: packages/node
+      - name: Main coverage and repository-tracked release evidence
+        if: needs.changes.outputs.full == 'true' || needs.changes.outputs.quality == 'true'
+        run: npm run check:release-evidence:coverage
+        working-directory: packages/node
+      - name: Repository-tracked release evidence without coverage
+        if: needs.changes.outputs.full != 'true' && needs.changes.outputs.quality != 'true'
+        run: npm run check:release-evidence
+        working-directory: packages/node
+
+  publisher-coverage:
+    needs: changes
+    if: needs.changes.outputs.full == 'true' || needs.changes.outputs.quality == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: packages/node/package-lock.json
+      - name: Frozen package install
+        run: npm ci
+        working-directory: packages/node
+      - name: Rebuild allowlisted esbuild
+        run: test ! -d node_modules/esbuild || npm rebuild esbuild --ignore-scripts=false
+        working-directory: packages/node
+      - name: Publisher coverage
+        run: npm run test:coverage:publisher
+        working-directory: packages/node
+
+  security-coverage:
+    needs: changes
+    if: needs.changes.outputs.full == 'true' || needs.changes.outputs.quality == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: packages/node/package-lock.json
+      - name: Frozen package install
+        run: npm ci
+        working-directory: packages/node
+      - name: Rebuild allowlisted esbuild
+        run: test ! -d node_modules/esbuild || npm rebuild esbuild --ignore-scripts=false
+        working-directory: packages/node
+      - name: Security coverage
+        run: npm run test:coverage:security
+        working-directory: packages/node
+
+  sync-core-coverage:
+    needs: changes
+    if: needs.changes.outputs.full == 'true' || needs.changes.outputs.quality == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: packages/node/package-lock.json
+      - name: Frozen package install
+        run: npm ci
+        working-directory: packages/node
+      - name: Rebuild allowlisted esbuild
+        run: test ! -d node_modules/esbuild || npm rebuild esbuild --ignore-scripts=false
+        working-directory: packages/node
+      - name: Sync Core-used coverage
+        run: npm run test:coverage:sync-core
+        working-directory: packages/node
+
+  package:
+    needs: changes
+    if: needs.changes.outputs.full == 'true' || needs.changes.outputs.quality == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: packages/node/package-lock.json
+      - name: Frozen package install
+        run: npm ci
+        working-directory: packages/node
+      - name: Rebuild allowlisted esbuild
+        run: test ! -d node_modules/esbuild || npm rebuild esbuild --ignore-scripts=false
+        working-directory: packages/node
+      - name: Build and validate package shape
+        run: npm run build && npm run pack:check
+        working-directory: packages/node
+      - name: Packed surface contracts after dist/
+        run: |
+          npx vitest run \
+            tests/mcp/mcp-2026-07-28-sdk-acceptance-e2e.test.ts \
+            tests/mcp/mcp-2026-07-28-read-package-surface-contract.test.ts \
+            tests/mcp/mcp-2026-07-28-write-package-surface-contract.test.ts \
+            tests/mcp/mcp-2026-07-28-sdk-lock-contract.test.ts \
+            tests/security/package-export.pr8.test.ts \
+            tests/sync/production-export-surface.test.ts
+        working-directory: packages/node
+      - name: Scan COLP dist before packaging evidence
+        run: node scripts/scan-tracked-secrets.mjs --artifact packages/node/dist
+      - name: Legacy MCP absence (source, declarations, tarball)
+        run: npm run check:mcp-legacy-absence
+        working-directory: packages/node
+
+  dependency-audit:
+    needs: changes
+    if: needs.changes.outputs.full == 'true' || needs.changes.outputs.quality == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: packages/node/package-lock.json
+      - name: Frozen package install
+        run: npm ci
+        working-directory: packages/node
+      - name: Rebuild allowlisted esbuild
+        run: test ! -d node_modules/esbuild || npm rebuild esbuild --ignore-scripts=false
+        working-directory: packages/node
+      - name: Production and High dependency audit
+        run: npm run scan:dependencies
+        working-directory: packages/node
+
+  ci-gate:
+    if: always()
+    needs:
+      - changes
+      - static
+      - release-evidence
+      - publisher-coverage
+      - security-coverage
+      - sync-core-coverage
+      - package
+      - dependency-audit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require every selected job to pass
+        shell: bash
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          STATIC_RESULT: ${{ needs.static.result }}
+          RELEASE_RESULT: ${{ needs.release-evidence.result }}
+          PUBLISHER_RESULT: ${{ needs.publisher-coverage.result }}
+          SECURITY_RESULT: ${{ needs.security-coverage.result }}
+          SYNC_CORE_RESULT: ${{ needs.sync-core-coverage.result }}
+          PACKAGE_RESULT: ${{ needs.package.result }}
+          DEPENDENCY_AUDIT_RESULT: ${{ needs.dependency-audit.result }}
+        run: |
+          for result in "$CHANGES_RESULT" "$STATIC_RESULT" "$RELEASE_RESULT" "$PUBLISHER_RESULT" "$SECURITY_RESULT" "$SYNC_CORE_RESULT" "$PACKAGE_RESULT" "$DEPENDENCY_AUDIT_RESULT"; do
+            if [[ "$result" != "success" && "$result" != "skipped" ]]; then
+              echo "A selected colp-ci job did not pass: $result" >&2
+              exit 1
+            fi
+          done

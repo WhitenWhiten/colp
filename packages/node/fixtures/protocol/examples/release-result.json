@@ -1,0 +1,24 @@
+{
+  "release": {
+    "id": "release-18",
+    "collectionId": "collection-1",
+    "revision": "r_1042",
+    "title": "Version 18",
+    "summary": "Reordered the second stage and added one case study.",
+    "publishedAt": "2026-07-16T06:30:00Z",
+    "snapshotUrl": "https://alice.example/collections/c/collection-1/releases/release-18/snapshot",
+    "contentDigest": "sha-256=:ZmFrZS1kaWdlc3Q=:",
+    "changes": {
+      "created": 1,
+      "updated": 2,
+      "moved": 2,
+      "deleted": 0
+    },
+    "extensions": {}
+  },
+  "links": {
+    "self": "https://alice.example/collections/c/collection-1/releases/release-18",
+    "snapshot": "https://alice.example/collections/c/collection-1/releases/release-18/snapshot",
+    "collection": "https://alice.example/collections/c/collection-1"
+  }
+}

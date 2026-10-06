@@ -1,0 +1,62 @@
+{
+  "protocolVersion": "0.1",
+  "snapshotId": "snap_protected_7",
+  "mode": "publication",
+  "complete": true,
+  "collection": {
+    "schemaVersion": "0.1",
+    "id": "collection-protected-1",
+    "canonicalUrl": "https://alice.example/collections/protected-path",
+    "kind": "reading_path",
+    "title": "Protected Path",
+    "rootNodeId": "root-protected-1",
+    "visibility": "protected",
+    "createdAt": "2026-07-01T09:00:00Z",
+    "updatedAt": "2026-07-16T06:30:00Z",
+    "revision": "r_7",
+    "extensions": {}
+  },
+  "nodes": [
+    {
+      "id": "root-protected-1",
+      "collectionId": "collection-protected-1",
+      "kind": "root",
+      "parentId": null,
+      "position": null,
+      "folderRole": "root",
+      "title": "Protected Path",
+      "createdAt": "2026-07-01T09:00:00Z",
+      "updatedAt": "2026-07-16T06:30:00Z",
+      "revision": "r_7",
+      "extensions": {}
+    },
+    {
+      "id": "node-locked-1",
+      "collectionId": "collection-protected-1",
+      "kind": "bookmark",
+      "parentId": "root-protected-1",
+      "position": "a0V",
+      "title": "Restricted interview",
+      "description": "A curator interview available after authorization.",
+      "visibility": "protected",
+      "redacted": true,
+      "accessUrl": "https://alice.example/access/protected-path",
+      "createdAt": "2026-07-10T09:00:00Z",
+      "updatedAt": "2026-07-16T06:00:00Z",
+      "revision": "r_6",
+      "extensions": {}
+    }
+  ],
+  "annotations": [],
+  "attachments": [],
+  "relations": [],
+  "tombstones": [],
+  "revision": "r_7",
+  "generatedAt": "2026-07-16T06:30:00Z",
+  "page": {
+    "nextCursor": null,
+    "hasMore": false,
+    "sequence": 1
+  },
+  "warnings": []
+}

@@ -1,0 +1,15 @@
+**/node_modules/
+**/dist/
+**/coverage/
+**/reports/
+**/.stryker-tmp/
+**/.vite/
+**/__pycache__/
+*.py[cod]
+*.tgz
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+.DS_Store
+Thumbs.db

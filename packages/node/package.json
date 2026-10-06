@@ -1,0 +1,261 @@
+{
+  "name": "@collection-protocol/node",
+  "version": "0.0.0-development",
+  "license": "Apache-2.0",
+  "private": true,
+  "description": "Node.js implementation of The Collection Protocol (COLP)",
+  "type": "module",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=22"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "docs/HOST_INTEGRATION_BOUNDARY.md",
+    "docs/PUBLICATION_QUICKSTART.md",
+    "docs/PUBLISHER_QUICKSTART.md",
+    "docs/SECURITY_COMPOSITION.md",
+    "docs/SYNC_HOST_COMPOSITION.md"
+  ],
+  "exports": {
+    ".": {
+      "types": {
+        "import": "./dist/index.d.ts",
+        "require": "./dist/index.d.cts"
+      },
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./schema": {
+      "types": {
+        "import": "./dist/schema/index.d.ts",
+        "require": "./dist/schema/index.d.cts"
+      },
+      "import": "./dist/schema/index.js",
+      "require": "./dist/schema/index.cjs"
+    },
+    "./schema/collection-protocol.schema.json": "./dist/schema/collection-protocol.schema.json",
+    "./types": {
+      "types": {
+        "import": "./dist/types/index.d.ts",
+        "require": "./dist/types/index.d.cts"
+      },
+      "import": "./dist/types/index.js",
+      "require": "./dist/types/index.cjs"
+    },
+    "./semantic": {
+      "types": {
+        "import": "./dist/semantic/index.d.ts",
+        "require": "./dist/semantic/index.d.cts"
+      },
+      "import": "./dist/semantic/index.js",
+      "require": "./dist/semantic/index.cjs"
+    },
+    "./client": {
+      "types": {
+        "import": "./dist/client/index.d.ts",
+        "require": "./dist/client/index.d.cts"
+      },
+      "import": "./dist/client/index.js",
+      "require": "./dist/client/index.cjs"
+    },
+    "./server": {
+      "types": {
+        "import": "./dist/server/index.d.ts",
+        "require": "./dist/server/index.d.cts"
+      },
+      "import": "./dist/server/index.js",
+      "require": "./dist/server/index.cjs"
+    },
+    "./publisher": {
+      "types": {
+        "import": "./dist/publisher/index.d.ts",
+        "require": "./dist/publisher/index.d.cts"
+      },
+      "import": "./dist/publisher/index.js",
+      "require": "./dist/publisher/index.cjs"
+    },
+    "./adapters": {
+      "types": {
+        "import": "./dist/adapters/index.d.ts",
+        "require": "./dist/adapters/index.d.cts"
+      },
+      "import": "./dist/adapters/index.js",
+      "require": "./dist/adapters/index.cjs"
+    },
+    "./feed": {
+      "types": {
+        "import": "./dist/feed/index.d.ts",
+        "require": "./dist/feed/index.d.cts"
+      },
+      "import": "./dist/feed/index.js",
+      "require": "./dist/feed/index.cjs"
+    },
+    "./sync": {
+      "types": {
+        "import": "./dist/sync/index.d.ts",
+        "require": "./dist/sync/index.d.cts"
+      },
+      "import": "./dist/sync/index.js",
+      "require": "./dist/sync/index.cjs"
+    },
+    "./sync/unsafe": {
+      "types": {
+        "import": "./dist/sync/unsafe.d.ts",
+        "require": "./dist/sync/unsafe.d.cts"
+      },
+      "import": "./dist/sync/unsafe.js",
+      "require": "./dist/sync/unsafe.cjs"
+    },
+    "./testing": {
+      "types": {
+        "import": "./dist/testing/index.d.ts",
+        "require": "./dist/testing/index.d.cts"
+      },
+      "import": "./dist/testing/index.js",
+      "require": "./dist/testing/index.cjs"
+    },
+    "./sync/canonical": {
+      "types": {
+        "import": "./dist/sync/canonical.d.ts",
+        "require": "./dist/sync/canonical.d.cts"
+      },
+      "import": "./dist/sync/canonical.js",
+      "require": "./dist/sync/canonical.cjs"
+    },
+    "./sync/browser": {
+      "types": {
+        "import": "./dist/sync/browser.d.ts",
+        "require": "./dist/sync/browser.d.cts"
+      },
+      "import": "./dist/sync/browser.js",
+      "require": "./dist/sync/browser.cjs"
+    },
+    "./delivery": {
+      "types": {
+        "import": "./dist/delivery/index.d.ts",
+        "require": "./dist/delivery/index.d.cts"
+      },
+      "import": "./dist/delivery/index.js",
+      "require": "./dist/delivery/index.cjs"
+    },
+    "./conformance": {
+      "types": {
+        "import": "./dist/conformance/index.d.ts",
+        "require": "./dist/conformance/index.d.cts"
+      },
+      "import": "./dist/conformance/index.js",
+      "require": "./dist/conformance/index.cjs"
+    },
+    "./security": {
+      "types": {
+        "import": "./dist/security/index.d.ts",
+        "require": "./dist/security/index.d.cts"
+      },
+      "import": "./dist/security/index.js",
+      "require": "./dist/security/index.cjs"
+    },
+    "./mcp": {
+      "types": {
+        "import": "./dist/mcp/index.d.ts",
+        "require": "./dist/mcp/index.d.cts"
+      },
+      "import": "./dist/mcp/index.js",
+      "require": "./dist/mcp/index.cjs"
+    },
+    "./mcp/2026-07-28": {
+      "types": {
+        "import": "./dist/mcp/2026-07-28/index.d.ts",
+        "require": "./dist/mcp/2026-07-28/index.d.cts"
+      },
+      "import": "./dist/mcp/2026-07-28/index.js",
+      "require": "./dist/mcp/2026-07-28/index.cjs"
+    }
+  },
+  "scripts": {
+    "sync:protocol": "node scripts/sync-protocol-assets.mjs",
+    "check:protocol": "node scripts/sync-protocol-assets.mjs --check",
+    "generate:types": "node scripts/generate-types.mjs",
+    "check:types": "node scripts/generate-types.mjs --check",
+    "generate:traceability": "node scripts/generate-traceability.mjs",
+    "check:traceability": "node scripts/generate-traceability.mjs --check",
+    "check:requirements": "node scripts/check-requirement-coverage.mjs",
+    "update:requirements": "node scripts/update-requirement-registry.mjs",
+    "generate:evidence": "node scripts/generate-conformance-evidence.mjs",
+    "generate:mcp-conformance-candidate": "node scripts/generate-mcp-conformance-candidate.mjs",
+    "check:mcp-legacy-absence": "node scripts/check-mcp-legacy-absence.mjs",
+    "accept:mcp-2026-07-28-sdk": "node scripts/accept-mcp-2026-07-28-sdk.mjs",
+    "refresh:evidence": "npm run generate:evidence && npm run generate:traceability",
+    "check:release-evidence": "node scripts/release-evidence-gate.mjs --all-supported",
+    "check:release-evidence:coverage": "node scripts/release-evidence-gate.mjs --all-supported --coverage",
+    "refresh:protocol": "npm run sync:protocol && npm run generate:types",
+    "typecheck": "tsc --noEmit",
+    "check:source-size": "node scripts/check-source-file-sizes.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "benchmark:publication-snapshot-delivery": "vitest bench tests/performance/publication-snapshot-delivery.bench.ts --run --outputJson reports/publication-snapshot-delivery-current.json",
+    "check:benchmark:publication-snapshot-delivery": "npm run benchmark:publication-snapshot-delivery && node scripts/check-publication-snapshot-delivery-baseline.mjs",
+    "test:coverage": "vitest run --coverage",
+    "test:coverage:publisher": "vitest run --config vitest.publisher.config.ts --coverage",
+    "test:coverage:security": "vitest run --config vitest.security.config.ts --coverage",
+    "test:coverage:sync-core": "vitest run --config vitest.sync-core.config.ts --coverage",
+    "test:process-contracts": "vitest run tests/conformance/r01-bundled-evidence-revision-contract.test.ts tests/conformance/r02-mcp-write-progress-boundary-contract.test.ts",
+    "test:mutation": "npm run test:mutation:critical",
+    "test:mutation:core": "stryker run",
+    "test:mutation:mcp": "stryker run stryker.mcp.config.mjs",
+    "test:mutation:mcp-change-plan": "stryker run stryker.mcp.change-plan.config.mjs",
+    "test:mutation:mcp-write": "stryker run stryker.mcp.write.config.mjs",
+    "test:mutation:mcp-read": "stryker run stryker.mcp.read.config.mjs",
+    "test:mutation:security": "stryker run stryker.security.config.mjs",
+    "test:mutation:sync": "stryker run stryker.sync.config.mjs",
+    "test:mutation:feed": "stryker run stryker.feed.config.mjs",
+    "test:mutation:schema": "stryker run stryker.schema.config.mjs",
+    "test:mutation:critical": "npm run test:mutation:core && npm run test:mutation:mcp && npm run test:mutation:security && npm run test:mutation:sync && npm run test:mutation:feed && npm run test:mutation:schema",
+    "test:mutation:release": "npm run test:mutation:critical && npm run test:mutation:publisher && npm run test:mutation:publication",
+    "test:mutation:publisher": "stryker run stryker.publisher.config.mjs",
+    "test:mutation:publication": "stryker run stryker.publication.config.mjs",
+    "build": "tsup && tsup --config tsup.unsafe-dts.config.ts && node scripts/copy-build-assets.mjs && node scripts/check-build-entry-identity.mjs",
+    "check": "npm run check:protocol && npm run check:types && npm run check:requirements && npm run check:traceability && npm run typecheck && npm run check:source-size && npm run test:process-contracts && npm run test:coverage:publisher && npm run test:coverage:security && npm run test:coverage:sync-core && npm run build && npm run check:release-evidence:coverage && npm run pack:check && npm run check:mcp-legacy-absence",
+    "scan:dependencies": "npm audit --omit=dev --audit-level=high && npm audit --audit-level=high",
+    "pack:consumer-smoke": "node scripts/packed-consumer-smoke.mjs",
+    "pack:check": "npm pack --dry-run && publint && attw --pack . --ignore-rules no-resolution && npm run pack:consumer-smoke"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/core": "2.0.0",
+    "@noble/hashes": "2.0.1",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
+    "canonicalize": "^3.0.0",
+    "entities": "6.0.1",
+    "http-link-header": "^1.1.4",
+    "lossless-json": "^4.3.0",
+    "url-template": "^3.1.1"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.5",
+    "@modelcontextprotocol/client": "2.0.0",
+    "@modelcontextprotocol/server": "2.0.0",
+    "@stryker-mutator/core": "^9.6.1",
+    "@stryker-mutator/vitest-runner": "^9.6.1",
+    "@types/http-link-header": "^1.0.7",
+    "@types/node": "^22.13.4",
+    "@vitest/coverage-v8": "^3.2.7",
+    "fast-check": "^4.9.0",
+    "json-schema-to-typescript": "^15.0.4",
+    "publint": "^0.3.21",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.7",
+    "yaml": "^2.9.0"
+  },
+  "overrides": {
+    "esbuild": "^0.28.1",
+    "qs": "^6.15.3",
+    "fast-uri": "3.1.6",
+    "js-yaml": "4.3.2",
+    "nanoid": "3.3.18",
+    "browserslist": "^4.28.8",
+    "postcss": "^8.5.26"
+  }
+}

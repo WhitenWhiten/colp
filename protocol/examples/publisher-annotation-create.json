@@ -1,0 +1,18 @@
+{
+  "subject": {
+    "type": "node",
+    "id": "node-1"
+  },
+  "type": "tldr",
+  "format": "markdown",
+  "value": "Start with layout primitives, then compare implementation systems.",
+  "visibility": "public",
+  "provenance": {
+    "kind": "ai",
+    "provider": "user-configured",
+    "generatedAt": "2026-07-16T07:00:00Z",
+    "editedByHuman": true,
+    "sourceNodeIds": ["node-1"]
+  },
+  "extensions": {}
+}

@@ -1,0 +1,12 @@
+{
+  "name": "colp-repository",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "install:package": "npm --prefix packages/node ci",
+    "build": "npm --prefix packages/node run build",
+    "test": "npm --prefix packages/node test",
+    "check": "npm --prefix packages/node run check",
+    "scan:secrets": "node scripts/scan-tracked-secrets.mjs"
+  }
+}

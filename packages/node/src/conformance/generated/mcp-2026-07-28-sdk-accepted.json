@@ -1,0 +1,30 @@
+{
+  "candidate": "mcp-2026-07-28-sdk-accepted",
+  "schemaVersion": 1,
+  "mcpVersion": "2026-07-28",
+  "sourceRevision": "f0490fbeb92845a46da8ea78f49717cf6db6dd4d",
+  "sdkLock": {
+    "@modelcontextprotocol/core": "2.0.0",
+    "@modelcontextprotocol/client": "2.0.0",
+    "@modelcontextprotocol/server": "2.0.0"
+  },
+  "fixtureTopologyDigest": "sha256:926b07777344de57ee6584562c0012a34576040e069f466e4cab8ef48c485809",
+  "requirementsDigest": "sha256:a69b648e6a2c2d8e38dba91642da2d3b46b3d39228fd02ac293953e53753979b",
+  "reportDigest": "sha256:8c3129317546afdbcbbc1011c6d2cc97bd7a045d4a54cdef015c9d75942850f3",
+  "probeFamilyIds": [
+    "mcp-2026-07-28.transport-header-contracts",
+    "mcp-2026-07-28.discovery-contracts",
+    "mcp-2026-07-28.subscription-contracts",
+    "mcp-2026-07-28.read-schema-contracts",
+    "mcp-2026-07-28.write-mrtr-contracts",
+    "mcp-2026-07-28.oauth-client-contracts"
+  ],
+  "conformanceCandidateDigest": "sha256:e8e48091bfae0e51672439debe78ac6e93b33e3f67da446571c786a874cf57de",
+  "legacyAbsence": {
+    "sourceFiles": 230,
+    "declarationFiles": 62,
+    "tarballFiles": 173,
+    "findings": []
+  },
+  "evidenceDigest": "sha256:372c91dbc56ea300e3b72f85377d74ac3f251422eee277d7fdb92757475af3b1"
+}

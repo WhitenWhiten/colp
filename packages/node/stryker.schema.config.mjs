@@ -1,0 +1,25 @@
+/** @type {import('@stryker-mutator/api/core').PartialStrykerOptions} */
+export default {
+  plugins: ['@stryker-mutator/vitest-runner'],
+  ignorePatterns: ['reports/**'],
+  mutate: ['src/schema/**/*.ts'],
+  testFiles: [
+    'tests/schema/**/*.test.ts',
+    'tests/core/**/*.test.ts',
+    'tests/semantic/**/*.test.ts',
+    'tests/server/contracts.test.ts',
+  ],
+  testRunner: 'vitest',
+  coverageAnalysis: 'perTest',
+  reporters: ['clear-text', 'progress', 'html', 'json'],
+  thresholds: { high: 80, low: 65, break: 65 },
+  concurrency: '100%',
+  timeoutFactor: 2,
+  timeoutMS: 10_000,
+  dryRunTimeoutMinutes: 5,
+  incremental: true,
+  incrementalFile: 'reports/stryker-schema-incremental.json',
+  htmlReporter: { fileName: 'reports/mutation/schema/index.html' },
+  jsonReporter: { fileName: 'reports/mutation/schema/mutation.json' },
+  vitest: { configFile: 'vitest.mutation.config.ts' },
+};

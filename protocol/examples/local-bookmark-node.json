@@ -1,0 +1,13 @@
+{
+  "id": "local-bookmark-1",
+  "collectionId": "collection-1",
+  "kind": "bookmark",
+  "parentId": "root-1",
+  "position": "local1",
+  "title": "Local guide",
+  "url": "file:///C:/Docs/guide.html",
+  "createdAt": "2026-07-16T00:00:00Z",
+  "updatedAt": "2026-07-16T00:00:00Z",
+  "revision": "r-local-1",
+  "extensions": {}
+}

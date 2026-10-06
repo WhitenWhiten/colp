@@ -1,0 +1,32 @@
+/** Runtime Sync dependencies; coverage and mutation configs consume this one manifest. */
+export const syncCriticalManifest = Object.freeze([
+  Object.freeze({ path: 'src/sync/session.ts', mutate: true }),
+  Object.freeze({ path: 'src/sync/session-bootstrap.ts', mutate: false }),
+  Object.freeze({ path: 'src/sync/session-bootstrap-guards.ts', mutate: false }),
+  Object.freeze({ path: 'src/sync/session-bootstrap-state.ts', mutate: false }),
+  Object.freeze({ path: 'src/sync/sequence.ts', mutate: true }),
+  Object.freeze({ path: 'src/sync/sequence-validation.ts', mutate: false }),
+  Object.freeze({ path: 'src/sync/push-transaction.ts', mutate: true }),
+  Object.freeze({ path: 'src/sync/push-transaction-guards.ts', mutate: false }),
+  Object.freeze({ path: 'src/sync/push-unit-of-work.ts', mutate: true }),
+  Object.freeze({ path: 'src/sync/pull.ts', mutate: true }),
+  Object.freeze({ path: 'src/sync/pull-cursor-lifecycle.ts', mutate: true }),
+  Object.freeze({ path: 'src/sync/canonical.ts', mutate: false }),
+  Object.freeze({ path: 'src/sync/canonical-json.ts', mutate: false }),
+  Object.freeze({ path: 'src/sync/replica-lifecycle.ts', mutate: true }),
+  Object.freeze({ path: 'src/sync/replica-lifecycle-transitions.ts', mutate: true }),
+  Object.freeze({ path: 'src/sync/replica-lifecycle-parsing.ts', mutate: false }),
+  Object.freeze({ path: 'src/sync/operation-reuse.ts', mutate: false }),
+  Object.freeze({ path: 'src/sync/tombstone-purge.ts', mutate: false }),
+  Object.freeze({ path: 'src/sync/tombstone.ts', mutate: false }),
+  Object.freeze({ path: 'src/sync/typed-operations.ts', mutate: false }),
+  Object.freeze({ path: 'src/sync/typed-update-merge.ts', mutate: true }),
+  Object.freeze({ path: 'src/shared/immutable-json.ts', mutate: false }),
+  Object.freeze({ path: 'src/sync/internal-guards.ts', mutate: false }),
+  Object.freeze({ path: 'src/sync/authoritative-effect-kind.ts', mutate: true }),
+  Object.freeze({ path: 'src/sync/host-composition-recipe.ts', mutate: true }),
+  Object.freeze({ path: 'src/sync/subtree-observation.ts', mutate: false }),
+  Object.freeze({ path: 'src/sync/pull-page-budget.ts', mutate: false }),
+]);
+export const syncCoreCoverageFiles = Object.freeze(syncCriticalManifest.map(entry => entry.path));
+export const syncMutationFiles = Object.freeze(syncCriticalManifest.filter(entry => entry.mutate).map(entry => entry.path));

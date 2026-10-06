@@ -1,0 +1,37 @@
+{
+  "events": [
+    {
+      "cursor": "sync_receiver_01",
+      "kind": "operation",
+      "operation": {
+        "opId": "op_create_01",
+        "replicaId": "replica_source",
+        "sequence": 1,
+        "collectionId": "collection-1",
+        "type": "create_node",
+        "baseRevision": null,
+        "occurredAt": "2026-07-27T00:00:00Z",
+        "payload": { "parentId": "root-1", "afterId": null, "beforeId": null, "node": { "kind": "folder", "title": "Created" } }
+      },
+      "effect": {
+        "effectId": "effect-01",
+        "status": "applied",
+        "opId": "op_create_01",
+        "replicaId": "replica_source",
+        "sequence": 1,
+        "collectionId": "collection-1",
+        "operationDigest": "sha-256=:xvL3ZCj3doGUIUT+ywd8+IjltBzngdaldNmyaXAhYEI=:",
+        "effectDigest": "sha-256=:FXDhFjqwxmGgaWZzJsqAyPt7sQMVnVMrG4jQAIjbULM=:",
+        "kind": "node_created",
+        "node": { "id": "node-server-1", "collectionId": "collection-1", "kind": "folder", "parentId": "root-1", "position": "a", "title": "Created", "createdAt": "2026-07-27T00:00:00Z", "updatedAt": "2026-07-27T00:00:00Z", "revision": "r-1" },
+        "placement": { "parentId": "root-1", "afterId": null, "beforeId": null, "position": "a" },
+        "parentRevision": { "parentId": "root-1", "childrenRevision": "children-r-2" },
+        "nodeChildrenRevision": "children-node-r-1"
+      }
+    }
+  ],
+  "nextCursor": "sync_receiver_01",
+  "hasMore": false,
+  "collectionRevision": "collection-r-2",
+  "recommendedPullAfterSeconds": 30
+}

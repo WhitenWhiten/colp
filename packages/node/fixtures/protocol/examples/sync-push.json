@@ -1,0 +1,29 @@
+{
+  "sessionId": "syncsess_01JZ9",
+  "batchId": "batch_01JZA",
+  "atomic": false,
+  "operations": [
+    {
+      "opId": "019b3de2-7f76-7b8b-8ffc-941d6e6318dd",
+      "replicaId": "019b3dd0-7636-770a-a789-bf62d3eb91cc",
+      "sequence": 1842,
+      "collectionId": "019b3ca2-8424-7cc2-9a61-4bf44c23f07a",
+      "type": "move_node",
+      "targetId": "019b3ca4-cb18-7a4f-b8c5-76fa50fd0ea2",
+      "baseRevision": "r_1041",
+      "occurredAt": "2026-07-16T07:05:00Z",
+      "dependencies": [],
+      "payload": {
+        "newParentId": "019b3ca2-9a3f-7e07-8f18-cc4f2cb4bca8",
+        "afterId": null,
+        "beforeId": null,
+        "baseSourceParentRevision": "children_r_8",
+        "baseTargetParentRevision": "children_r_9"
+      },
+      "source": {
+        "adapterProfile": "chromium-bookmarks-v1",
+        "nativeEvent": "onMoved"
+      }
+    }
+  ]
+}

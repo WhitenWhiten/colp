@@ -1,0 +1,35 @@
+import baseConfig from './stryker.mcp.config.mjs';
+
+/** @type {import('@stryker-mutator/api/core').PartialStrykerOptions} */
+export default {
+  ...baseConfig,
+  mutate: [
+    'src/mcp/protocol-version.ts',
+    'src/mcp/read-mount.ts',
+    'src/mcp/read-client.ts',
+    'src/mcp/index.ts',
+    'src/mcp/collections-get.ts',
+    'src/mcp/collections-get-snapshot.ts',
+    'src/mcp/safe-data.ts',
+    'src/mcp/resource-uri.ts',
+    'src/mcp/http-uri-policy.ts',
+    'src/mcp/resource-templates.ts',
+    'src/mcp/2026-07-28/sdk-boundary.ts',
+    'src/mcp/shared/authorization.ts',
+    'src/mcp/shared/resources.ts',
+    'src/mcp/shared/tools.ts',
+    'src/mcp/2026-07-28/request-context.ts',
+    'src/mcp/2026-07-28/request-state-binding.ts',
+    'src/mcp/2026-07-28/index.ts',
+    'src/mcp/2026-07-28/discovery.ts',
+    'src/mcp/2026-07-28/results.ts',
+    'src/mcp/2026-07-28/resources.ts',
+    'src/mcp/2026-07-28/tools.ts',
+    'src/mcp/2026-07-28/schema-budget.ts',
+    'src/mcp/shared/change-signal.ts',
+    'src/mcp/2026-07-28/subscriptions.ts',
+  ],
+  incrementalFile: 'reports/stryker-mcp-read-incremental.json',
+  htmlReporter: { fileName: 'reports/mutation/mcp-read/index.html' },
+  jsonReporter: { fileName: 'reports/mutation/mcp-read/mutation.json' },
+};

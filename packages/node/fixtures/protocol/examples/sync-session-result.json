@@ -1,0 +1,29 @@
+{
+  "sessionId": "syncsess_01JZ",
+  "expiresAt": "2026-07-16T08:00:00Z",
+  "serverTime": "2026-07-16T07:00:01Z",
+  "clockSkewMilliseconds": 1000,
+  "acceptedProtocolVersion": "0.1",
+  "scope": "collection",
+  "maxBatchOperations": 200,
+  "tombstoneRetentionSeconds": 2592000,
+  "replicaLease": {
+    "leaseId": "lease-1",
+    "generation": "lease-generation-7",
+    "state": "active",
+    "lastSeenAt": "2026-07-16T07:00:01Z",
+    "expiresAt": "2026-08-15T07:00:01Z",
+    "acknowledgedCursor": "sync_01JZ"
+  },
+  "collection": {
+    "collectionId": "collection-1",
+    "snapshotRequired": false,
+    "serverCursor": "sync_01K0",
+    "serverRevision": "r_1042"
+  },
+  "conversionPolicy": {
+    "alias": "duplicate",
+    "separator": "preserve_remote",
+    "unknownExtensions": "preserve_remote"
+  }
+}
