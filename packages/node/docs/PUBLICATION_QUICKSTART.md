@@ -207,11 +207,16 @@ are an adapter reference: framework adapters should preserve the same status,
 header, Link, ETag, 304, HEAD, and Problem behavior.
 
 `ColpClient` follows declared endpoints, `Link` targets, and HTTP redirects.
-When `egressPolicy` is omitted, it refuses GET/HEAD redirects to private,
-loopback, or link-local **literal** hosts (the same default direction as
-session-bound Pull). Pass `egressPolicy` to allowlist destinations or to
-permit those literals. The check does not resolve DNS; the fetching party
-still owns resolved-address SSRF.
+When `egressPolicy` is omitted, it refuses private, loopback, or link-local
+literal targets, except for directly requested URLs on the caller-selected
+local Manifest origin. The default Node fetch path also checks every DNS answer
+before each request and redirect, rejecting failed/empty resolutions and any
+private or local address. Custom fetch implementations can supply `resolveHost`
+for the same preflight check. Pass `egressPolicy` to allowlist destinations or
+permit local targets; an explicit policy replaces the default checks.
+DNS preflight does not pin the subsequent connection's address: the fetching
+transport still owns protection against DNS rebinding and should enforce an
+allowlist or validate the address used to connect.
 
 ## Cursor keys
 

@@ -47,7 +47,14 @@ export function resolveManifestUrl(target) {
 export async function runConformance(target, options = {}) {
   const manifestUrl = resolveManifestUrl(target);
   const report = new Report(manifestUrl);
-  const http = createHttpClient(options);
+  // Bind every request in this run to the operator-selected Manifest origin
+  // and let the HTTP transport re-check each server-controlled destination.
+  // `initialOrigin` is derived here rather than accepted from options so a
+  // caller cannot widen the run's egress boundary accidentally.
+  const http = createHttpClient({
+    ...options,
+    initialOrigin: new URL(manifestUrl).origin,
+  });
   const probe = new Probe(report, http, options);
   try {
     await probe.run(manifestUrl);

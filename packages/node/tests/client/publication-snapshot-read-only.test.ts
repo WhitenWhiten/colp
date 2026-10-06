@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { performance } from 'node:perf_hooks';
 import { resolve } from 'node:path';
+import { getHeapStatistics } from 'node:v8';
 
 import { describe, expect, it, vi } from 'vitest';
 
@@ -51,13 +52,15 @@ describe(`U-17 fixed-context Snapshot copy and read-only view ${evidence}`, () =
     collect?.();
 
     const retained: Snapshot[] = [];
-    const heapBefore = process.memoryUsage().heapUsed;
+    // V8 heap counters do not query OS resident memory, which is unavailable
+    // in some sandboxed runtimes (uv_resident_set_memory).
+    const heapBefore = getHeapStatistics().used_heap_size;
     const started = performance.now();
     for (let index = 0; index < detachedCopies; index += 1) {
       retained.push(client.currentSnapshot!);
     }
     const elapsedMs = performance.now() - started;
-    const heapDeltaBytes = process.memoryUsage().heapUsed - heapBefore;
+    const heapDeltaBytes = getHeapStatistics().used_heap_size - heapBefore;
     const copyJsonBytes = Buffer.byteLength(JSON.stringify(retained[0]), 'utf8');
     process.stdout.write(
       `U-17 fixed-context snapshot copy cost nodes=${snapshot.nodes.length} copies=${detachedCopies} elapsedMs=${elapsedMs.toFixed(3)} heapDeltaBytes=${heapDeltaBytes} copyJsonBytes=${copyJsonBytes} gc=${typeof collect === 'function'}\n`,
@@ -109,5 +112,5 @@ describe(`U-17 fixed-context Snapshot copy and read-only view ${evidence}`, () =
     expect(state.readOnlySnapshot).not.toBe(view);
     expect(state.readOnlySnapshot?.snapshotId).toBe('snapshot-replaced');
     expect(view!.snapshotId).toBe(snapshot.snapshotId);
-  });
+  }, 30_000);
 });

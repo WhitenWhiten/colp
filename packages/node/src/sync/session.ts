@@ -535,7 +535,13 @@ export async function verifySyncSessionContext(
     }
     return Object.freeze({ state: 'terminated' as const, session: terminated });
   }
-  return Object.freeze({ state: 'active' as const, session });
+  // Keep provenance on the exact result object.  The result is the output of
+  // the durable verification gate, so an assertion may only mint the stronger
+  // runtime Session brand from this identity.  A structurally compatible object
+  // supplied by a host or an untrusted adapter must fail closed.
+  const verified = Object.freeze({ state: 'active' as const, session });
+  verifiedVerificationResults.add(verified);
+  return verified;
 }
 
 /**
@@ -552,6 +558,8 @@ declare const verifiedSyncSessionBrand: unique symbol;
  * active records, and `status === 'active'` lookalikes are not members.
  */
 const verifiedSessions = new WeakSet<object>();
+/** Results emitted by verifySyncSessionContext (the only minting provenance). */
+const verifiedVerificationResults = new WeakSet<object>();
 
 /**
  * Branded active Session produced only from a successful
@@ -625,6 +633,9 @@ export function assertVerifiedSyncSession(
       throw new SyncSessionGateDeniedError({ state: 'terminated', session: result.session });
     }
     throw new SyncSessionGateDeniedError({ state: result.state });
+  }
+  if (typeof result !== 'object' || result === null || !verifiedVerificationResults.has(result)) {
+    throw new SyncSessionGateDeniedError({ state: 'context_mismatch' });
   }
   return mintVerifiedSyncSession(result.session);
 }

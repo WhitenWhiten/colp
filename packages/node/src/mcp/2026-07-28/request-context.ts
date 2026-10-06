@@ -47,6 +47,16 @@ import { types as nodeTypes } from 'node:util';
 import { MCP_PROTOCOL_VERSION, supportedMcpProtocolVersions } from '../protocol-version.js';
 import { snapshotMcpData } from '../safe-data.js';
 import { assertMcpSchemaWithinBudget } from './schema-budget.js';
+import {
+  DEFAULT_HEADER_BUDGET,
+  parseMcp20260728RequestHeaders,
+  resolveHeaderBudget,
+  type Mcp20260728HeaderBudget,
+  type Mcp20260728HeaderField,
+  type Mcp20260728RequestHeaders,
+} from './request-headers.js';
+export { parseMcp20260728RequestHeaders } from './request-headers.js';
+export type { Mcp20260728HeaderBudget, Mcp20260728HeaderField, Mcp20260728RequestHeaders } from './request-headers.js';
 import type { McpAuthorizationBinding } from '../shared/authorization.js';
 import type { McpResourceReadBudget } from '../shared/resources.js';
 import {
@@ -199,30 +209,7 @@ export function decodeMcp20260728ParamValue(value: string): string | undefined {
   }
 }
 
-/** One raw HTTP header field (host-extracted; duplicates are preserved). */
-export interface Mcp20260728HeaderField {
-  readonly name: string;
-  readonly value: string;
-}
-
-/**
- * Normalised Modern MCP headers. `params` keys are lower-cased `Mcp-Param-*`
- * suffixes; standard headers are exposed individually.
- */
-export interface Mcp20260728RequestHeaders {
-  readonly protocolVersion?: string;
-  readonly method?: string;
-  readonly name?: string;
-  readonly params: ReadonlyMap<string, string>;
-}
-
-const MCP_METHOD_HEADER = 'mcp-method';
-const MCP_NAME_HEADER = 'mcp-name';
-const MCP_PROTOCOL_VERSION_HEADER = 'mcp-protocol-version';
-const MCP_PARAM_HEADER_PREFIX = 'mcp-param-';
-const LEGACY_MCP_HEADERS = Object.freeze(['mcp-session-id', 'last-event-id']);
-
-function headerMismatch(
+export function headerMismatch(
   message: string,
   data?: Readonly<Record<string, unknown>>,
 ): Mcp20260728RequestError {
@@ -250,52 +237,6 @@ export const MCP_20260728_REQUIRED_HEADERS_HINT = Object.freeze([
   'Mcp-Name: <params.name | params.uri> (tools/call, resources/read, prompts/get only)',
   'Accept: application/json, text/event-stream',
 ]);
-
-/**
- * Parses raw header fields into {@link Mcp20260728RequestHeaders}, rejecting
- * legacy session headers (-32022), duplicate/conflicting standard or
- * `Mcp-Param-*` headers, and empty param suffixes (-32020). Field names are
- * matched case-insensitively.
- */
-export function parseMcp20260728RequestHeaders(
-  fields: readonly Mcp20260728HeaderField[],
-): Mcp20260728RequestHeaders {
-  let protocolVersion: string | undefined;
-  let method: string | undefined;
-  let name: string | undefined;
-  const params = new Map<string, string>();
-  for (const field of fields) {
-    const key = field.name.toLowerCase();
-    if (LEGACY_MCP_HEADERS.includes(key as 'mcp-session-id' | 'last-event-id')) {
-      throw new Mcp20260728RequestError(
-        'unsupported_protocol_version',
-        `Legacy MCP header '${field.name}' is not supported by protocol version 2026-07-28.`,
-        { supported: supportedMcpProtocolVersions, header: field.name },
-      );
-    }
-    if (key === MCP_PROTOCOL_VERSION_HEADER) {
-      if (protocolVersion !== undefined) throw headerMismatch(`duplicate MCP-Protocol-Version header`);
-      protocolVersion = field.value;
-    } else if (key === MCP_METHOD_HEADER) {
-      if (method !== undefined) throw headerMismatch(`duplicate Mcp-Method header`);
-      method = field.value;
-    } else if (key === MCP_NAME_HEADER) {
-      if (name !== undefined) throw headerMismatch(`duplicate Mcp-Name header`);
-      name = field.value;
-    } else if (key.startsWith(MCP_PARAM_HEADER_PREFIX)) {
-      const suffix = key.slice(MCP_PARAM_HEADER_PREFIX.length);
-      if (suffix.length === 0) throw headerMismatch(`empty Mcp-Param- header name`);
-      if (params.has(suffix)) throw headerMismatch(`duplicate Mcp-Param-${suffix} header`);
-      params.set(suffix, field.value);
-    }
-  }
-  return Object.freeze({
-    ...(protocolVersion !== undefined ? { protocolVersion } : {}),
-    ...(method !== undefined ? { method } : {}),
-    ...(name !== undefined ? { name } : {}),
-    params,
-  }) as Mcp20260728RequestHeaders;
-}
 
 /** Validated client implementation info (exact `Implementation` shape). */
 export interface Mcp20260728ClientInfo {
@@ -392,6 +333,7 @@ export interface Mcp20260728RequestContextInput {
   readonly forwardedFor?: readonly string[];
   /** `x-mcp-header` declarations for `Mcp-Param-*` validation (tools/call etc.). */
   readonly paramDeclarations?: readonly Mcp20260728XMcpHeaderDeclaration[];
+  readonly headerBudget?: Mcp20260728HeaderBudget;
   readonly traceBudget?: Mcp20260728TraceBudget;
   readonly extensionBudget?: Mcp20260728ExtensionBudget;
 }
@@ -688,7 +630,11 @@ export function createMcp20260728RequestContext(
   if (typeof input !== 'object' || input === null || Array.isArray(input) || nodeTypes.isProxy(input)) {
     throw new TypeError('MCP 2026-07-28 request context input must be an own-data object.');
   }
-  const headers = parseMcp20260728RequestHeaders(readHeaderFields(input));
+  const rawHeaderBudget = readOptional(input, 'headerBudget');
+  const headerBudget = resolveHeaderBudget(
+    rawHeaderBudget === undefined ? DEFAULT_HEADER_BUDGET : rawHeaderBudget as Mcp20260728HeaderBudget,
+  );
+  const headers = parseMcp20260728RequestHeaders(readHeaderFields(input), headerBudget);
   const body = readBodyFacts(input);
   const readBudget = resolveMcpResourceReadBudget(readOptional(input, 'budget') as McpResourceReadBudget | undefined);
   const traceBudget = resolveTraceBudget(readOptional(input, 'traceBudget'));
@@ -703,7 +649,9 @@ export function createMcp20260728RequestContext(
     if (!Array.isArray(declarations)) throw new TypeError('paramDeclarations must be an array.');
     validateMcp20260728ParamHeaders(
       declarations as readonly Mcp20260728XMcpHeaderDeclaration[],
-      body.params ?? {},
+      body.method === 'tools/call'
+        ? readToolsCallArguments(body.params)
+        : body.params ?? {},
       headers.params,
     );
   }
@@ -733,8 +681,30 @@ export function createMcp20260728RequestContext(
 
 function readHeaderFields(input: object): readonly Mcp20260728HeaderField[] {
   const fields = readOwnValue(input, 'headers');
-  if (!Array.isArray(fields)) throw new TypeError('MCP request context input requires a headers array.');
+  if (!Array.isArray(fields) || nodeTypes.isProxy(fields)) throw new TypeError('MCP request context input requires a headers array.');
   return fields as readonly Mcp20260728HeaderField[];
+}
+
+function readToolsCallArguments(
+  params: Readonly<Record<string, unknown>> | undefined,
+): Readonly<Record<string, unknown>> {
+  const argumentsValue = params === undefined ? undefined : readOwnValue(params, 'arguments');
+  if (!isPlainDataObject(argumentsValue)) {
+    throw new Mcp20260728RequestError(
+      'invalid_request',
+      'The tools/call request params.arguments field must be an object when x-mcp-header declarations are present.',
+    );
+  }
+  return argumentsValue;
+}
+
+function isPlainDataObject(value: unknown): value is Readonly<Record<string, unknown>> {
+  if (!isPlainObject(value)) return false;
+  return Reflect.ownKeys(value).every((key) => {
+    if (typeof key !== 'string') return false;
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    return descriptor !== undefined && descriptor.enumerable && 'value' in descriptor;
+  });
 }
 
 function readBodyFacts(input: object): Readonly<{ method: string; params?: Readonly<Record<string, unknown>> }> {

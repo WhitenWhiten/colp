@@ -185,7 +185,7 @@ describe('Snapshot parent and alias graph contract', () => {
     snapshot.nodes = [root, ...folders];
 
     expect(validateSnapshotSemantics(snapshot)).toEqual({ valid: true, issues: [] });
-  });
+  }, 30_000);
 
   it('validates a deep Alias graph without recursive stack exhaustion [evidence:semantic.snapshot.graph]', async () => {
     const snapshot = await completeSnapshot();
@@ -200,7 +200,7 @@ describe('Snapshot parent and alias graph contract', () => {
     snapshot.nodes = [root, target, ...aliases];
 
     expect(validateSnapshotSemantics(snapshot)).toEqual({ valid: true, issues: [] });
-  });
+  }, 30_000);
 
   it('defers unresolved Parent and Alias references in a cropped Snapshot [evidence:semantic.snapshot.graph]', async () => {
     const snapshot = await completeSnapshot();

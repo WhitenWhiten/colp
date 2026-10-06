@@ -1,5 +1,8 @@
 /**
- * literal hosts only; fetching party still owns resolved-address SSRF.
+ * Hostname/IP-literal classification for local/private destinations. Callers
+ * that perform DNS resolution should also pass each resulting address through
+ * {@link isPrivateOrLocalAddress}; the classifier is deliberately free of
+ * network I/O so it remains usable in browser and custom-fetch builds.
  *
  * Pure hostname / IP-literal classification for localhost, RFC1918, CGNAT,
  * link-local, unspecified, and common IPv6 private/local forms. No DNS or
@@ -135,12 +138,11 @@ function isPrivateOrLocalIPv6(hextets: Uint16Array): boolean {
 }
 
 /**
- * literal hosts only; fetching party still owns resolved-address SSRF.
- *
  * True for `localhost` / `*.localhost`, RFC1918, CGNAT `100.64.0.0/10`,
  * link-local (including `169.254.169.254`), unspecified, decimal/`0x`-hex
  * single-number IPv4 forms of those ranges, IPv6 loopback/ULA/link-local, and
- * IPv4-mapped equivalents. Non-literal hostnames are not classified here.
+ * IPv4-mapped equivalents. Non-literal hostnames are not classified here;
+ * callers that resolve DNS answers should use {@link isPrivateOrLocalAddress}.
  */
 export function isPrivateOrLocalLiteralHostname(hostname: string): boolean {
   // WHATWG hostnames are already ASCII-lowercased for domain names; normalize
@@ -163,4 +165,13 @@ export function isPrivateOrLocalLiteralHostname(hostname: string): boolean {
   }
 
   return false;
+}
+
+/**
+ * Classifies one address returned by a DNS resolver (or an address literal).
+ * DNS answers are represented without URL brackets, while callers may also
+ * pass a URL hostname with brackets, so use the same literal parser for both.
+ */
+export function isPrivateOrLocalAddress(address: string): boolean {
+  return isPrivateOrLocalLiteralHostname(address);
 }

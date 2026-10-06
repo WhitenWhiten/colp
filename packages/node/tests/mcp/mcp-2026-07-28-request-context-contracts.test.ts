@@ -20,7 +20,7 @@
  * - per-request log level opt-in (no opt-in -> no log notifications)
  * - -32020/-32021/-32022 stable wire codes, proxy/mutation rejection
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { createAnonymousPublicBinding } from '../../src/mcp/shared/authorization.js';
 import type { McpAuthorizationBinding } from '../../src/mcp/shared/authorization.js';
@@ -97,7 +97,7 @@ function createContext(
  * `string | RegExp | Error | Constructable`, so returning `unknown` does not
  * type-check.
  */
-function expectWire(kind: 'header_mismatch' | 'unsupported_protocol_version' | 'invalid_params' | 'missing_required_client_capability', code: number): Error {
+function expectWire(kind: 'header_mismatch' | 'unsupported_protocol_version' | 'invalid_params' | 'invalid_request' | 'missing_required_client_capability', code: number): Error {
   return expect.objectContaining({ kind, wireCode: code }) as unknown as Error;
 }
 
@@ -167,6 +167,50 @@ describe('MCP 2026-07-28 request context: header parsing [evidence:mcp.headers-c
         header(name, 's'),
       ])).toThrowError(expectWire('unsupported_protocol_version', -32022));
     }
+  });
+
+  it('enforces raw field, aggregate, and decoded sentinel budgets before normalization', () => {
+    expect(() => parseMcp20260728RequestHeaders(
+      [header('x-one', '1'), header('x-two', '2')],
+      { maxFields: 1 },
+    )).toThrowError(expectWire('header_mismatch', -32020));
+    expect(() => parseMcp20260728RequestHeaders(
+      [header('x', '12345')],
+      { maxValueBytes: 4 },
+    )).toThrowError(expectWire('header_mismatch', -32020));
+    expect(() => parseMcp20260728RequestHeaders(
+      [header('mcp-param-x', encodeMcp20260728ParamValue('12345'))],
+      { maxDecodedValueBytes: 4 },
+    )).toThrowError(expectWire('header_mismatch', -32020));
+  });
+
+  it('enforces aggregate, Unicode, name, and parameter-count budgets', () => {
+    for (const [fields, budget] of [
+      [[header('x', '1234'), header('y', '5678')], { maxTotalBytes: 9 }],
+      [[header('long-name', '1')], { maxNameBytes: 4 }],
+      [[header('éé', '1')], { maxNameBytes: 3 }],
+      [[header('x', 'éé')], { maxValueBytes: 3 }],
+      [[header('mcp-param-one', '1'), header('mcp-param-two', '2')], { maxParamFields: 1 }],
+      [[header('mcp-name', '12345')], { maxDecodedValueBytes: 4 }],
+    ] as const) {
+      expect(() => parseMcp20260728RequestHeaders(fields, budget))
+        .toThrowError(expectWire('header_mismatch', -32020));
+    }
+  });
+
+  it('bounds array traversal without invoking caller iterators or index accessors', () => {
+    const iterator = vi.fn(() => { throw new Error('custom iterator must not run'); });
+    const fields = [header('mcp-method', 'tools/call')];
+    Object.defineProperty(fields, Symbol.iterator, { value: iterator });
+    expect(parseMcp20260728RequestHeaders(fields).method).toBe('tools/call');
+    expect(iterator).not.toHaveBeenCalled();
+    const getter = vi.fn(() => header('mcp-method', 'tools/call'));
+    Object.defineProperty(fields, '0', { get: getter });
+    expect(() => parseMcp20260728RequestHeaders(fields))
+      .toThrowError(expectWire('header_mismatch', -32020));
+    expect(getter).not.toHaveBeenCalled();
+    expect(() => parseMcp20260728RequestHeaders(new Array(1)))
+      .toThrowError(expectWire('header_mismatch', -32020));
   });
 });
 
@@ -506,6 +550,36 @@ describe('MCP 2026-07-28 request context: x-mcp-header and Mcp-Param-* [evidence
       {},
       new Map([['x-undeclared', 'value']]),
     )).toThrowError(expectWire('header_mismatch', -32020));
+  });
+
+  it('validates tool declarations against the JSON-RPC params.arguments root', () => {
+    expect(() => createContext({
+      headers: [
+        header('mcp-protocol-version', '2026-07-28'),
+        header('mcp-method', 'tools/call'),
+        header('mcp-name', 'fixture.tool'),
+        header('mcp-param-x-request-id', 'abc'),
+      ],
+      body: {
+        method: 'tools/call',
+        params: { name: 'fixture.tool', arguments: { requestId: 'abc' }, _meta: meta() },
+      },
+      paramDeclarations: [{ path: ['requestId'], headerName: 'X-Request-Id', type: 'string' }],
+    })).not.toThrow();
+
+    expect(() => createContext({
+      headers: [
+        header('mcp-protocol-version', '2026-07-28'),
+        header('mcp-method', 'tools/call'),
+        header('mcp-name', 'fixture.tool'),
+        header('mcp-param-x-request-id', 'abc'),
+      ],
+      body: {
+        method: 'tools/call',
+        params: { name: 'fixture.tool', requestId: 'abc', _meta: meta() },
+      },
+      paramDeclarations: [{ path: ['requestId'], headerName: 'X-Request-Id', type: 'string' }],
+    })).toThrowError(expectWire('invalid_request', -32600));
   });
 });
 

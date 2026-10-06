@@ -252,6 +252,54 @@ function directoryRedirectFetch(
 describe('ColpClient default literal-host egress on GET redirects', () => {
   const legalLocation = 'https://cdn.example/directory';
 
+  it('rejects a DNS answer in a private range before credentials or fetch', async () => {
+    const resolveHost = vi.fn(async () => ['10.0.0.7']);
+    const credentials = vi.fn(() => ({ Authorization: 'Bearer test' }));
+    const fetch = vi.fn();
+    const client = new ColpClient({
+      manifestUrl: 'https://public.example/.well-known/collection-protocol',
+      fetch: fetch as typeof globalThis.fetch,
+      resolveHost,
+      credentialProvider: credentials,
+    });
+
+    await expect(client.discover()).rejects.toMatchObject({
+      name: 'TypeError',
+      message: 'Egress policy denied manifest request URL: DNS resolved to a private or local address.',
+    });
+    expect(resolveHost).toHaveBeenCalledWith('public.example', expect.any(AbortSignal));
+    expect(credentials).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('checks DNS answers again before a redirect target is fetched', async () => {
+    const manifest = await fixture('public-manifest.json');
+    const directory = await fixture('collection-directory.json');
+    const fetch = directoryRedirectFetch(manifest, directory, 'https://cdn.example/directory');
+    const resolveHost = vi.fn(async (hostname: string) => (
+      hostname === 'cdn.example' ? ['192.168.1.5'] : ['198.51.100.7']
+    ));
+    const client = new ColpClient({
+      manifestUrl,
+      fetch: fetch as typeof globalThis.fetch,
+      resolveHost,
+    });
+
+    await expect(client.getDirectory()).rejects.toMatchObject({
+      name: 'TypeError',
+      message: 'Egress policy denied publication-read request URL: DNS resolved to a private or local address.',
+    });
+    expect(requestedHrefs(fetch)).toEqual([
+      manifestUrl,
+      'https://alice.example/collections',
+    ]);
+    expect(resolveHost.mock.calls.map(([hostname]) => hostname)).toEqual([
+      'alice.example',
+      'alice.example',
+      'cdn.example',
+    ]);
+  });
+
   it('follows a public https Location when egressPolicy is omitted', async () => {
     const manifest = await fixture('public-manifest.json');
     const directory = await fixture('collection-directory.json');

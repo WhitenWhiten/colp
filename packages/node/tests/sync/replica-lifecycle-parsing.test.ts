@@ -5,6 +5,7 @@ import {
   lifecycleInstant,
   lifecycleNonEmpty,
   lifecycleOrdinal,
+  MAX_LIFECYCLE_ORDINAL_DIGITS,
 } from '../../src/sync/replica-lifecycle-parsing.js';
 
 describe('replica lifecycle shared parsing', () => {
@@ -30,6 +31,8 @@ describe('replica lifecycle shared parsing', () => {
   it('rejects unknown offsets, non-canonical ordinals, and empty text', () => {
     expect(() => lifecycleInstant('2026-07-22T00:00:00-00:00', 'Instant')).toThrow(/known offset/u);
     expect(() => lifecycleOrdinal('01', 'Ordinal')).toThrow(/canonical/u);
+    expect(() => lifecycleOrdinal('1'.repeat(MAX_LIFECYCLE_ORDINAL_DIGITS + 1), 'Ordinal'))
+      .toThrow(/at most/u);
     expect(() => lifecycleNonEmpty('   ', 'Replica ID')).toThrow(/non-empty/u);
   });
 });
