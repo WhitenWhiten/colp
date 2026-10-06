@@ -8,6 +8,13 @@ updates:
     cooldown:
       default-days: 7
     open-pull-requests-limit: 5
+    ignore:
+      # Node types must match the oldest supported runtime (engines: >=22).
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+      # TypeScript majors (7.x is the native compiler) need tsup/attw support first.
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
     groups:
       # The MCP SDK packages are locked together; see packages/node/docs/MCP_SDK_POLICY.md.
       # A bump also needs the lock contract test and the policy table updated.
