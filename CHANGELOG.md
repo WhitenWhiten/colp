@@ -23,6 +23,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Node.js package
 
+- The default Node client checks DNS answers for private/local addresses before requests and redirects; custom transports can provide `resolveHost`. Public IPv6 URL hosts are normalized for DNS lookup.
+- Publisher idempotency digests include `If-Match` preconditions and preserve opaque ETag contents while normalizing header list separators.
+- Sync session verification rejects forged result objects; replica lifecycle ordinals are capped at 256 digits, and cross-Collection checkpoints are rejected before disclosure.
+- Write candidates use bounded immutable JSON snapshots. MCP tool parameter headers are checked against `params.arguments`, and raw/decoded headers have size and count limits with bounded own-data traversal.
 - Upgraded the MCP SDK packages (`@modelcontextprotocol/core`, `client`, `server`) from 2.0.0 to 2.3.1 to clear GHSA-6qxp-vccf-f47h in the dev-only SDK OAuth client. COLP's own OAuth client was reviewed and is not affected.
 - OAuth safe log lines now keep the `issuer_mismatch` and `expected_issuer_required` denial reasons instead of dropping them.
 - Simplified the conformance evidence workflow. `npm run refresh:evidence` runs the suite once and records each requirement whose tagged tests all passed; `npm run check:evidence` verifies the committed result. This replaces the source-revision-bound certificate, release gate, MCP candidate, and SDK acceptance scripts.
@@ -32,6 +36,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Repository
 
+- Conformance requests follow redirects manually with per-hop egress validation and a redirect limit.
+- Heap-copy measurements use V8 counters for sandbox compatibility; heavy snapshot and built export tests have local 30-second deadlines.
 - Added `packages/conformance`, a black-box conformance runner (`colp-conformance`, `npm run conformance`) that checks a live server against 21 anonymous `core + publication` requirements and cites each by ID. CI runs its tests against the example server and a deliberately misbehaving proxy.
 - The example server now answers unknown routes and methods with Problem Details (PUB-0008) and serves the Manifest with `Cache-Control: public, max-age=300`.
 - Added a runnable example server, `packages/node/examples/publication-server.mjs` (`npm run example:publication`), which serves the `core + publication` profiles over `node:http`. CI runs its self-test after the build.
