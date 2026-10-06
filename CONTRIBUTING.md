@@ -37,6 +37,15 @@ Common commands, run inside `packages/node`:
 | `npm run check` | The full local gate: everything above plus coverage floors, the build, and `pack:check` |
 | `node examples/publication-server.mjs --self-test` | Runs the example server against `ColpClient` (needs a build first) |
 
+The black-box conformance runner in `packages/conformance` has its own tests, which need the reference package built first:
+
+```bash
+npm --prefix packages/conformance ci
+npm --prefix packages/conformance test
+```
+
+When you add a requirement that a client can observe over HTTP, consider adding a check for it to `packages/conformance/src/runner.mjs`.
+
 Validate the protocol examples from `protocol/`:
 
 ```bash

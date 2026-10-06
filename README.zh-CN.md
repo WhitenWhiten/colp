@@ -129,6 +129,7 @@ console.log(manifest.title, snapshot.nodes.length);
 | [`protocol/`](protocol/README.zh-CN.md) | 规范、JSON Schema、可执行示例与需求注册表 |
 | [`packages/node/`](packages/node/README.md) | `@collection-protocol/node`：TypeScript 参考实现，以及测试与集成指南 |
 | [`packages/node/examples/`](packages/node/examples/publication-server.mjs) | 可在本地运行的最小只读服务器 |
+| [`packages/conformance/`](packages/conformance/README.md) | `colp-conformance`：适用于任何 COLP 服务器的黑盒测试工具 |
 | [`docs/assets/`](docs/assets) | README 使用的横幅与示意图 |
 | [`.github/workflows/colp-ci.yml`](.github/workflows/colp-ci.yml) | CI：协议检查、示例校验、类型检查、测试与证据检查 |
 
@@ -160,12 +161,20 @@ npm run example:publication                 # 然后：curl -i http://127.0.0.1:
 npm run example:publication -- --self-test  # 启动后用 ColpClient 读取全部内容，然后退出
 ```
 
+**测试任意服务器。** [`colp-conformance`](packages/conformance/README.md) 会按照 `core + publication` 的需求检查一个在线服务器（可以用任何语言实现），并用需求 ID 标注每一项结果：
+
+```bash
+npm --prefix packages/conformance ci
+npm run conformance -- https://your-server.example
+```
+
 这个包是不含服务器的协议逻辑：它校验 Wire 文档、判断每个请求能做什么，并协调持久化写入与同步交换；HTTP 路由、认证与存储由你的应用通过少量端口接口提供。建议从 [包 README](packages/node/README.md)、[Publication 快速上手](packages/node/docs/PUBLICATION_QUICKSTART.md) 与 [Publisher 快速上手](packages/node/docs/PUBLISHER_QUICKSTART.md) 开始。
 
 ## 项目状态
 
 - **规范**：`0.1-draft`。0.1 的 Wire Contract 已收口，每个 DTO 都有稳定的 `$defs` 名称；0.2 为 Sync 增加了权威 Pull Effect。
 - **Node.js 包**：实现了全部七个 Profile，每条 MUST 与 MUST NOT 需求都对应到测试，见 [TRACEABILITY.md](packages/node/docs/TRACEABILITY.md)。尚未发布到 npm。
+- **一致性测试工具**：目前覆盖匿名的 `core + publication` 读取；带认证的读取与其他 Profile 将在后续加入。
 - **不包含**：生产级服务器、数据库适配器或浏览器扩展。这些属于基于本包构建的应用；上面的示例服务器展示了这类应用的基本结构。
 
 ## 参与贡献

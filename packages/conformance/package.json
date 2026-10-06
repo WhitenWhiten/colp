@@ -1,0 +1,44 @@
+{
+  "name": "@collection-protocol/conformance",
+  "version": "0.0.0-development",
+  "license": "Apache-2.0",
+  "private": true,
+  "description": "Black-box conformance runner for servers implementing The Collection Protocol (COLP)",
+  "keywords": [
+    "collection-protocol",
+    "colp",
+    "conformance",
+    "test-suite",
+    "bookmarks"
+  ],
+  "homepage": "https://github.com/WhitenWhiten/colp/tree/main/packages/conformance#readme",
+  "bugs": {
+    "url": "https://github.com/WhitenWhiten/colp/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/WhitenWhiten/colp.git",
+    "directory": "packages/conformance"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "bin": {
+    "colp-conformance": "./bin/colp-conformance.mjs"
+  },
+  "exports": {
+    ".": "./src/index.mjs"
+  },
+  "files": [
+    "bin",
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "@collection-protocol/node": "file:../node"
+  }
+}

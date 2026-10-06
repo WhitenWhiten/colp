@@ -25,6 +25,7 @@ import { ColpClient } from '@collection-protocol/node/client';
 import { createValidatorRegistry } from '@collection-protocol/node/schema';
 import {
   composePublicationHttpRead,
+  createPublicationProblemResponse,
   mergePublicationCollectionMetadataLinkHeaders,
 } from '@collection-protocol/node/server';
 
@@ -103,7 +104,7 @@ function pick(source, keys) {
 const validators = createValidatorRegistry();
 
 /** Wraps a stored document as the public representation the package serializes. */
-function representation(value, revision, mediaType) {
+function representation(value, revision, mediaType, cacheControl = 'public, max-age=60') {
   return {
     value,
     revision,
@@ -111,7 +112,7 @@ function representation(value, revision, mediaType) {
     protocolVersion: '0.1',
     lastModified,
     negotiatedMediaType: mediaType,
-    cacheControl: 'public, max-age=60',
+    cacheControl,
   };
 }
 
@@ -119,7 +120,9 @@ function representation(value, revision, mediaType) {
 async function handle(request, store) {
   const url = new URL(request.url);
   if (request.method !== 'GET' && request.method !== 'HEAD') {
-    return new Response(null, { status: 405, headers: { Allow: 'GET, HEAD' } });
+    const response = createPublicationProblemResponse({ code: 'method_not_allowed' });
+    response.headers.set('Allow', 'GET, HEAD');
+    return response;
   }
   const read = {
     method: request.method,
@@ -135,7 +138,7 @@ async function handle(request, store) {
       return composePublicationHttpRead({
         ...read,
         endpoint: 'manifest',
-        resolveRepresentation: () => representation(store.manifest, 'manifest-r1', media.manifest),
+        resolveRepresentation: () => representation(store.manifest, 'manifest-r1', media.manifest, 'public, max-age=300'),
       });
     case '/collections':
       return composePublicationHttpRead({
@@ -163,7 +166,8 @@ async function handle(request, store) {
         }),
       });
     default:
-      return new Response(null, { status: 404 });
+      // Errors are RFC 9457 Problem Details with a registered code (PUB-0008).
+      return createPublicationProblemResponse({ code: 'resource_not_found' });
   }
 }
 

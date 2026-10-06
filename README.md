@@ -127,6 +127,7 @@ The full example is [`protocol/examples/public-manifest.json`](protocol/examples
 | [`protocol/`](protocol/README.md) | The specification, JSON Schemas, executable examples, and the requirement registry |
 | [`packages/node/`](packages/node/README.md) | `@collection-protocol/node`, the reference implementation in TypeScript, with its tests and integration guides |
 | [`packages/node/examples/`](packages/node/examples/publication-server.mjs) | A minimal read-only server you can run locally |
+| [`packages/conformance/`](packages/conformance/README.md) | `colp-conformance`, a black-box test runner for any COLP server |
 | [`docs/assets/`](docs/assets) | Banner and diagrams used by the READMEs |
 | [`.github/workflows/colp-ci.yml`](.github/workflows/colp-ci.yml) | CI: protocol checks, example validation, type checks, tests, and the evidence check |
 
@@ -158,12 +159,20 @@ npm run example:publication                 # then: curl -i http://127.0.0.1:808
 npm run example:publication -- --self-test  # start, read everything back with ColpClient, exit
 ```
 
+**Test any server.** [`colp-conformance`](packages/conformance/README.md) checks a live server, written in any language, against the `core + publication` requirements and cites each result by requirement ID:
+
+```bash
+npm --prefix packages/conformance ci
+npm run conformance -- https://your-server.example
+```
+
 The package is protocol logic without a server: it validates wire documents, decides what each request may do, and coordinates durable writes and sync exchanges, while your application supplies HTTP routes, authentication, and storage through small port interfaces. Start with the [package README](packages/node/README.md), the [Publication quickstart](packages/node/docs/PUBLICATION_QUICKSTART.md), and the [Publisher quickstart](packages/node/docs/PUBLISHER_QUICKSTART.md).
 
 ## Project status
 
 - **Specification:** `0.1-draft`. The 0.1 wire contract is closed: every DTO has a stable `$defs` name. Version 0.2 adds authoritative pull effects to Sync.
 - **Node.js package:** implements all seven profiles. Every MUST and MUST NOT requirement maps to tests, as listed in [TRACEABILITY.md](packages/node/docs/TRACEABILITY.md). It is not yet published to npm.
+- **Conformance runner:** covers anonymous `core + publication` reads. Authenticated reads and the other profiles are next.
 - **Not included:** a production server, a database adapter, or browser extensions. These belong to applications built on the package; the example server above shows the shape of one.
 
 ## Contributing

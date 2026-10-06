@@ -8,6 +8,7 @@
     "test": "npm --prefix packages/node test",
     "check": "npm --prefix packages/node run check",
     "scan:secrets": "node scripts/scan-tracked-secrets.mjs",
-    "example:publication": "node packages/node/examples/publication-server.mjs"
+    "example:publication": "node packages/node/examples/publication-server.mjs",
+    "conformance": "node packages/conformance/bin/colp-conformance.mjs"
   }
 }
