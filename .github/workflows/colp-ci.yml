@@ -11,9 +11,11 @@ on:
 permissions:
   contents: read
 
+# Superseded pull request runs are cancelled. Pushes to main are not: a later
+# docs-only push would otherwise cancel the run that verifies earlier code.
 concurrency:
   group: colp-ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   changes:
