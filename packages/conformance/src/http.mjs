@@ -47,7 +47,10 @@ export function createHttpClient(options = {}) {
   // bypass the runner's egress boundary. Tests and host integrations may
   // inject a deterministic resolver for an intentionally simulated transport.
   const resolveHost = options.resolveHost
-    ?? (async (hostname) => (await lookup(hostname, { all: true, verbatim: true })).map(({ address }) => address));
+    ?? (async (hostname) => {
+      const host = hostname.startsWith('[') && hostname.endsWith(']') ? hostname.slice(1, -1) : hostname;
+      return (await lookup(host, { all: true, verbatim: true })).map(({ address }) => address);
+    });
   let used = 0;
 
   /**

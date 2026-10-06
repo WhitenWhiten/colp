@@ -20,7 +20,7 @@
  * - per-request log level opt-in (no opt-in -> no log notifications)
  * - -32020/-32021/-32022 stable wire codes, proxy/mutation rejection
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { createAnonymousPublicBinding } from '../../src/mcp/shared/authorization.js';
 import type { McpAuthorizationBinding } from '../../src/mcp/shared/authorization.js';
@@ -182,6 +182,35 @@ describe('MCP 2026-07-28 request context: header parsing [evidence:mcp.headers-c
       [header('mcp-param-x', encodeMcp20260728ParamValue('12345'))],
       { maxDecodedValueBytes: 4 },
     )).toThrowError(expectWire('header_mismatch', -32020));
+  });
+
+  it('enforces aggregate, Unicode, name, and parameter-count budgets', () => {
+    for (const [fields, budget] of [
+      [[header('x', '1234'), header('y', '5678')], { maxTotalBytes: 9 }],
+      [[header('long-name', '1')], { maxNameBytes: 4 }],
+      [[header('éé', '1')], { maxNameBytes: 3 }],
+      [[header('x', 'éé')], { maxValueBytes: 3 }],
+      [[header('mcp-param-one', '1'), header('mcp-param-two', '2')], { maxParamFields: 1 }],
+      [[header('mcp-name', '12345')], { maxDecodedValueBytes: 4 }],
+    ] as const) {
+      expect(() => parseMcp20260728RequestHeaders(fields, budget))
+        .toThrowError(expectWire('header_mismatch', -32020));
+    }
+  });
+
+  it('bounds array traversal without invoking caller iterators or index accessors', () => {
+    const iterator = vi.fn(() => { throw new Error('custom iterator must not run'); });
+    const fields = [header('mcp-method', 'tools/call')];
+    Object.defineProperty(fields, Symbol.iterator, { value: iterator });
+    expect(parseMcp20260728RequestHeaders(fields).method).toBe('tools/call');
+    expect(iterator).not.toHaveBeenCalled();
+    const getter = vi.fn(() => header('mcp-method', 'tools/call'));
+    Object.defineProperty(fields, '0', { get: getter });
+    expect(() => parseMcp20260728RequestHeaders(fields))
+      .toThrowError(expectWire('header_mismatch', -32020));
+    expect(getter).not.toHaveBeenCalled();
+    expect(() => parseMcp20260728RequestHeaders(new Array(1)))
+      .toThrowError(expectWire('header_mismatch', -32020));
   });
 });
 

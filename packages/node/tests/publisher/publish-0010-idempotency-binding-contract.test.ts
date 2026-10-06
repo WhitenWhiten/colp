@@ -253,6 +253,16 @@ describe(`PUBLISH-0010 canonical request digest [evidence:${evidence}]`, () => {
     expect(digest({ ifMatch: null })).toBe(digest());
   });
 
+  it(`normalizes only list separators outside opaque ETags [evidence:${evidence}]`, () => {
+    expect(digest({ ifMatch: ' "first,tag" \t,\t "second" ' }))
+      .toBe(digest({ ifMatch: ['"first,tag"', '"second"'] }));
+    // Invalid whitespace inside a tag must not replay a successful request
+    // with a different, valid precondition.
+    expect(digest({ ifMatch: '"first, tag"' })).not.toBe(digest({ ifMatch: '"first,tag"' }));
+    expect(digest({ ifMatch: '"first\t,tag"' })).not.toBe(digest({ ifMatch: '"first,tag"' }));
+    expect(digest({ ifMatch: '"unterminated, tag' })).not.toBe(digest({ ifMatch: '"unterminated,tag' }));
+  });
+
   it.each([
     ['raw query string', 'search=hello%20world'],
     ['URLSearchParams', new URLSearchParams('search=hello%20world')],

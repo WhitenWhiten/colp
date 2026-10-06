@@ -184,6 +184,19 @@ test('checks a DNS answer before the first conformance request', async () => {
   assert.deepEqual(calls, []);
 });
 
+test('the default resolver accepts a public IPv6 URL hostname', async () => {
+  const calls = [];
+  const http = createHttpClient({
+    fetch: async (url) => {
+      calls.push(String(url));
+      return new Response('{}');
+    },
+  });
+  const url = 'https://[2606:4700:4700::1111]/manifest';
+  assert.equal((await http.request(url)).status, 200);
+  assert.deepEqual(calls, [url]);
+});
+
 test('uses manual redirects and rejects a private Location before the next request', async () => {
   const calls = [];
   const http = createHttpClient({

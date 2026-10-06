@@ -44,6 +44,11 @@ export function normalizeIfMatchForDigest(
   }
   const combined = values.join(',')
     .replace(/^[\t ]+|[\t ]+$/gu, '')
-    .replace(/[\t ]*,[\t ]*/gu, ',');
+    // Quotes delimit opaque ETags; backslashes are literal tag characters,
+    // not quote escapes. Preserve even malformed tag contents so a rejected
+    // precondition cannot collide with a successful request's digest.
+    .split('"')
+    .map((part, index) => index % 2 === 1 ? part : part.replace(/[\t ]*,[\t ]*/gu, ','))
+    .join('"');
   return combined.length === 0 ? null : combined;
 }

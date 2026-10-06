@@ -68,7 +68,12 @@ export function parseMcp20260728RequestHeaders(
   let name: string | undefined;
   const params = new Map<string, string>();
   let totalBytes = 0;
-  for (const field of fields) {
+  for (let index = 0; index < fields.length; index += 1) {
+    const descriptor = Object.getOwnPropertyDescriptor(fields, String(index));
+    if (descriptor === undefined || !('value' in descriptor)) {
+      throw headerMismatch('header fields must be dense own-data entries');
+    }
+    const field: unknown = descriptor.value;
     if (typeof field !== 'object' || field === null || nodeTypes.isProxy(field)) {
       throw headerMismatch('a header field is not an own-data object');
     }
@@ -83,6 +88,11 @@ export function parseMcp20260728RequestHeaders(
     }
     const fieldName = nameDescriptor.value;
     const fieldValue = valueDescriptor.value;
+    // UTF-8 is at least as long as the UTF-16 code-unit count. Reject large
+    // strings before scanning them, and count bytes without allocating a copy.
+    if (fieldName.length > limits.maxNameBytes || fieldValue.length > limits.maxValueBytes) {
+      throw headerMismatch('a header name or value exceeds its byte limit');
+    }
     const nameBytes = utf8ByteLength(fieldName);
     const valueBytes = utf8ByteLength(fieldValue);
     if (nameBytes > limits.maxNameBytes) {
@@ -159,7 +169,7 @@ function assertDecodedHeaderBudget(
 }
 
 function utf8ByteLength(value: string): number {
-  return new TextEncoder().encode(value).byteLength;
+  return Buffer.byteLength(value, 'utf8');
 }
 
 function stripHttpOws(value: string): string {

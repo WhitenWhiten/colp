@@ -37,8 +37,11 @@ export function defaultClientHostResolver(): ClientHostResolver | undefined {
   const dns = runtime.process.getBuiltinModule('node:dns/promises') as NodeDnsPromises | undefined;
   if (dns?.lookup === undefined) return undefined;
   return async (hostname, signal) => {
+    // WHATWG URL.hostname retains IPv6 brackets; Node lookup expects the
+    // unbracketed address literal.
+    const host = hostname.startsWith('[') && hostname.endsWith(']') ? hostname.slice(1, -1) : hostname;
     const result = await abortable(
-      Promise.resolve(dns.lookup!(hostname, { all: true, verbatim: true })),
+      Promise.resolve(dns.lookup!(host, { all: true, verbatim: true })),
       signal,
     );
     if (!Array.isArray(result)) throw new TypeError('DNS resolver returned an invalid address list.');
