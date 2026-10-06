@@ -26,8 +26,8 @@ describe('COLP dependency audit gate [SYNC-Q-005]', () => {
     );
   });
 
-  it('pins fast-uri past GHSA-7p8r-x3mc-p8w7 until AJV declares the patched range', () => {
-    expect(packageJson.overrides?.['fast-uri']).toBe('3.1.6');
+  it('pins fast-uri past the authority and host-normalization advisories', () => {
+    expect(packageJson.overrides?.['fast-uri']).toBe('3.1.8');
     expect(packageJson.overrides?.['js-yaml']).toBe('4.3.2');
     expect(packageJson.overrides?.['nanoid']).toBe('3.3.18');
   });

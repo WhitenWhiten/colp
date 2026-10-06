@@ -132,13 +132,21 @@ Rules:
   (GHSA-fxqj-rqcc-2cmp), a **dev-only transitive** of the existing `tsup` /
   `vitest` / `vite` toolchain, unrelated to the MCP SDK packages and absent
   from the production tree.
-- Production `fast-uri` is pinned to `3.1.6` (GHSA-7p8r-x3mc-p8w7; drop the
-  override after AJV declares `>=3.1.5`). Dev Highs `js-yaml@4.3.2` and
+- Production `fast-uri` is pinned to `3.1.8` (GHSA-qw65-cvwx-89v3, GHSA-58mr-gqgx-xq4g, GHSA-hrr3-gc8f-f4qj; drop the
+  override after AJV declares `>=3.1.8`). Dev Highs `js-yaml@4.3.2` and
   `nanoid@3.3.18` stay overridden until those parents declare patched ranges.
 - Rule: no high/critical vulnerability may be introduced by an MCP SDK
   dependency change; moderate findings that are dev-only are tracked in this
   section and re-audited on each upgrade. `npm audit fix` must not be applied
   blindly to the MCP SDK pins (it would break the exact-pin policy).
+
+### Standalone dependency refresh (2026-10-06)
+
+The standalone repository updates Vitest and its V8 coverage provider to the
+patched 4.1 line, pins `fast-uri` to 3.1.8, requires `qs` >=6.16.0, and refreshes
+`brace-expansion` and `source-map-js` in the lockfile. Production and full-tree
+npm audits both report zero vulnerabilities. The three MCP SDK packages remain
+locked at exactly 2.0.0; existing coverage thresholds remain unchanged.
 
 ## 7. Fixture host boundary
 

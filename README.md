@@ -10,6 +10,6 @@ npm run install:package
 npm run build
 ```
 
-Development snapshot; npm publication and standalone release evidence are pending.
+Development snapshot; npm publication is pending.
 
 License: [Apache-2.0](LICENSE).
