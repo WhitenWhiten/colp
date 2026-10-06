@@ -148,6 +148,13 @@ describe(`PUBLISH-0010 complete idempotency binding [evidence:${evidence}]`, () 
     expect(lower.method).toBe('POST');
   });
 
+  it(`binds an authenticated If-Match value when a conditional operation supplies one [evidence:${evidence}]`, () => {
+    const first = createPublisherIdempotencyBinding({ ...request, ifMatch: '"revision-one"' });
+    const second = createPublisherIdempotencyBinding({ ...request, ifMatch: '"revision-two"' });
+
+    expect(first.requestDigest).not.toBe(second.requestDigest);
+  });
+
   it.each(['not-an-endpoint', 'Nodes', '/collections/c/one/nodes'])(
     `rejects non-Manifest Endpoint Key %s [evidence:${evidence}]`,
     (endpointKey) => {
@@ -238,6 +245,12 @@ describe(`PUBLISH-0010 canonical request digest [evidence:${evidence}]`, () => {
     expect(digest({ query: { ...fromPlusDecoding, tags: ['b', 'a'] } })).not.toBe(
       digest({ query: fromPlusDecoding }),
     );
+  });
+
+  it(`binds If-Match preconditions into the canonical digest [evidence:${evidence}]`, () => {
+    expect(digest({ ifMatch: '"revision-one"' })).not.toBe(digest({ ifMatch: '"revision-two"' }));
+    expect(digest({ ifMatch: '  "revision-one"  ' })).toBe(digest({ ifMatch: ['"revision-one"'] }));
+    expect(digest({ ifMatch: null })).toBe(digest());
   });
 
   it.each([

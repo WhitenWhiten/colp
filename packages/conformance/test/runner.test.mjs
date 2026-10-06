@@ -7,6 +7,7 @@ import { promisify } from 'node:util';
 
 import { startPublicationServer } from '../../node/examples/publication-server.mjs';
 import { CHECKS, formatReport, resolveManifestUrl, runConformance } from '../src/index.mjs';
+import { createHttpClient } from '../src/http.mjs';
 
 const exec = promisify(execFile);
 const cli = new URL('../bin/colp-conformance.mjs', import.meta.url);
@@ -163,4 +164,43 @@ test('the CLI exits 1 on a failing server and 2 on a usage error', async () => {
   await assert.rejects(exec(process.execPath, [cli.pathname, '--timeout', '2000', 'http://127.0.0.1:9']), { code: 1 });
   await assert.rejects(exec(process.execPath, [cli.pathname]), { code: 2 });
   await assert.rejects(exec(process.execPath, [cli.pathname, '--max-pages', '0', 'http://127.0.0.1:9']), { code: 2 });
+});
+
+test('checks a DNS answer before the first conformance request', async () => {
+  const calls = [];
+  const http = createHttpClient({
+    initialOrigin: 'https://public.example',
+    resolveHost: async () => ['10.0.0.7'],
+    fetch: async (url) => {
+      calls.push(String(url));
+      return new Response('{}');
+    },
+  });
+
+  await assert.rejects(
+    http.request('https://public.example/.well-known/collection-protocol'),
+    /DNS-resolved private or local target/u,
+  );
+  assert.deepEqual(calls, []);
+});
+
+test('uses manual redirects and rejects a private Location before the next request', async () => {
+  const calls = [];
+  const http = createHttpClient({
+    initialOrigin: 'https://public.example',
+    resolveHost: async () => ['198.51.100.7'],
+    fetch: async (url, init) => {
+      calls.push({ url: String(url), redirect: init.redirect });
+      return new Response(null, {
+        status: 302,
+        headers: { Location: 'http://127.0.0.1:9/internal' },
+      });
+    },
+  });
+
+  await assert.rejects(
+    http.request('https://public.example/start'),
+    /private or local target/u,
+  );
+  assert.deepEqual(calls, [{ url: 'https://public.example/start', redirect: 'manual' }]);
 });

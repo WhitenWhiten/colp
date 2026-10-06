@@ -442,9 +442,7 @@ describe(`SYNC-0009 durable Replica lifecycle coordinator ${evidence}`, () => {
     await expect(coordinate(handle, {
       type: 'register', collectionId: 'collection-2', leaseId: 'lease-new', generation: 'generation-new',
       leaseExpiresAt: future, succeeded: true,
-    }, { replicaId: 'replica-1', collectionId: 'collection-2' })).resolves.toMatchObject({
-      state: 'denied', code: 'replica_retired', checkpoint: { collectionId: 'collection-1', lifecycle: 'retired' },
-    });
+    }, { replicaId: 'replica-1', collectionId: 'collection-2' })).rejects.toThrow(/mismatched Collection ID/i);
     expect(handle.replicas.size).toBe(1);
 
     await expect(coordinate(handle, {
@@ -461,9 +459,7 @@ describe(`SYNC-0009 durable Replica lifecycle coordinator ${evidence}`, () => {
     await expect(coordinate(handle, {
       type: 'register', collectionId: 'collection-2', leaseId: 'lease-new', generation: 'generation-new',
       leaseExpiresAt: future, succeeded: true,
-    }, { replicaId: 'replica-1', collectionId: 'collection-2' })).resolves.toMatchObject({
-      state: 'denied', code: 'replica_exists', checkpoint: { collectionId: 'collection-1', lifecycle: 'active' },
-    });
+    }, { replicaId: 'replica-1', collectionId: 'collection-2' })).rejects.toThrow(/mismatched Collection ID/i);
     expect(handle.replicas.size).toBe(1);
   });
 

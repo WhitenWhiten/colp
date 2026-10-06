@@ -10,6 +10,10 @@ export { ColpClientLimitError, defaultClientRequestLimits, type ClientRequestLim
 
 import canonicalize from 'canonicalize';
 import { parseTemplate } from 'url-template';
+import {
+  defaultClientHostResolver,
+  type ClientHostResolver,
+} from './host-resolution.js';
 
 import {
   createValidatorRegistry,
@@ -36,7 +40,14 @@ import {
   validateSnapshotSemantics,
 } from '../semantic/index.js';
 export * from '../shared/url-hash.js';
-import { isPrivateOrLocalLiteralHostname } from '../shared/private-or-local-literal-host.js';
+import {
+  isPrivateOrLocalAddress,
+  isPrivateOrLocalLiteralHostname,
+} from '../shared/private-or-local-literal-host.js';
+export {
+  isPrivateOrLocalAddress,
+  isPrivateOrLocalLiteralHostname,
+} from '../shared/private-or-local-literal-host.js';
 import type {
   CollectionDirectory,
   CollectionMetadata,
@@ -153,6 +164,7 @@ export {
 } from '../shared/resource-identity.js';
 
 export type FetchImplementation = typeof globalThis.fetch;
+export type { ClientHostResolver } from './host-resolution.js';
 
 export const supportedClientProtocolVersions = ['0.1'] as const;
 export type SupportedClientProtocolVersion = (typeof supportedClientProtocolVersions)[number];
@@ -217,6 +229,8 @@ export type MountSelector = (
 export interface ColpClientOptions {
   readonly manifestUrl: string | URL;
   readonly fetch?: FetchImplementation;
+  /** Optional transport resolver used to reject DNS answers in private ranges. */
+  readonly resolveHost?: ClientHostResolver;
   readonly protocolVersion?: SupportedClientProtocolVersion;
   /** Static caller headers are scoped to the Manifest or selected Mount Origin. */
   readonly headers?: Readonly<Record<string, string>>;
@@ -225,7 +239,9 @@ export interface ColpClientOptions {
   /** Captures principal and destination-specific credentials once for the entire public invocation. */
   readonly requestIdentityProvider?: ClientRequestIdentityProvider;
   /**
-   * Literal hosts only; the fetching party still owns resolved-address SSRF.
+   * The default Node fetch path also rejects DNS answers in private/local
+   * ranges before connecting. Browser and custom-fetch transports can provide
+   * `resolveHost` when they expose an equivalent resolver.
    *
    * Called before credentials and fetch for every target and redirect. Without
    * a custom policy, private/local literals are denied except for initial
@@ -649,6 +665,7 @@ function detachedSnapshot<Value>(value: Readonly<Value>): Value {
 
 export class ColpClient {
   readonly #fetch: FetchImplementation;
+  readonly #hostResolver: ClientHostResolver | undefined;
   readonly #manifestUrl: URL;
   readonly #protocolVersion: SupportedClientProtocolVersion;
   readonly #headers: Headers;
@@ -672,6 +689,11 @@ export class ColpClient {
 
   constructor(options: ColpClientOptions) {
     this.#fetch = options.fetch ?? globalThis.fetch;
+    // A supplied fetch implementation owns its own DNS/connection policy. Use
+    // the built-in resolver only for the default Node fetch path, while still
+    // allowing custom transports to opt into the same check explicitly.
+    this.#hostResolver = options.resolveHost
+      ?? (options.fetch === undefined ? defaultClientHostResolver() : undefined);
     this.#manifestUrl = normalizeUrl(new URL(options.manifestUrl));
     validateRequestUrl(this.#manifestUrl);
 
@@ -1112,12 +1134,35 @@ export class ColpClient {
       // initial local-development exception, never redirects or response Links.
       const responseLink = policy.publicationNavigation !== undefined
         && publicationNavigationSource(policy.publicationNavigation).kind === 'response-link';
-      const callerSelectedOrigin = redirectCount === 0 && !responseLink
-        && url.origin === this.#manifestUrl.origin;
-      if (!callerSelectedOrigin && isPrivateOrLocalLiteralHostname(url.hostname)) {
+      const privateLiteral = isPrivateOrLocalLiteralHostname(url.hostname);
+      const callerSelectedLocalOrigin = redirectCount === 0 && !responseLink
+        && url.origin === this.#manifestUrl.origin && privateLiteral;
+      if (!callerSelectedLocalOrigin && privateLiteral) {
         throw new TypeError(
           `Egress policy denied ${policy.purpose} request URL: literal private or local host.`,
         );
+      }
+      if (!callerSelectedLocalOrigin && !privateLiteral && this.#hostResolver !== undefined) {
+        let addresses: readonly string[];
+        try {
+          addresses = await abortable(
+            Promise.resolve(this.#hostResolver(url.hostname, policy.signal)),
+            policy.signal,
+          );
+        } catch (error) {
+          throw new TypeError(
+            `Egress policy denied ${policy.purpose} request URL: DNS resolution failed.`,
+            { cause: error },
+          );
+        }
+        if (
+          addresses.length === 0
+          || addresses.some((address) => isPrivateOrLocalAddress(address))
+        ) {
+          throw new TypeError(
+            `Egress policy denied ${policy.purpose} request URL: DNS resolved to a private or local address.`,
+          );
+        }
       }
       return;
     }

@@ -474,15 +474,13 @@ describe(`SYNC-0006 durable Tombstone purge coordinator ${evidence}`, () => {
     });
   });
 
-  it(`does not impose an arbitrary digit limit on canonical decimal ordinals ${evidence}`, async () => {
+  it(`rejects unbounded decimal ordinals before BigInt conversion ${evidence}`, async () => {
     const deletion = `1${'0'.repeat(1_024)}`;
     const stored = candidate({ deleteCommitOrdinal: deletion });
     const handle = new DurablePurgeHandle(new SharedDurablePurgeBackend(initialState({ candidate: stored })));
     handle.backend.replicas = [replica('replica-huge', { acknowledgedCommitOrdinal: deletion })];
 
-    await expect(purge(handle)).resolves.toMatchObject({
-      state: 'purged', purgeBoundary: { commitOrdinal: deletion },
-    });
+    await expect(purge(handle)).rejects.toThrow(/at most/u);
   });
 
   it(`fails closed if a scoped Replica query returns a foreign Collection row ${evidence}`, async () => {

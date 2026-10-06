@@ -316,6 +316,12 @@ function immutableCheckpoint(value: unknown, key: ReplicaLifecycleKey): DurableR
     'acknowledgedCursor', 'acknowledgedCommitOrdinal', 'lifecycle',
   ]), 'Replica checkpoint');
   if (candidate.replicaId !== key.replicaId) throw new TypeError('Replica store returned a mismatched Replica ID.');
+  // Collection identity is part of the durable key.  Validate it before any
+  // lifecycle branch can return a denial carrying the loaded checkpoint (for
+  // example `replica_exists` or `replica_retired`).
+  if (candidate.collectionId !== key.collectionId) {
+    throw new TypeError('Replica store returned a mismatched Collection ID.');
+  }
   if (!lifecycleValues.has(candidate.lifecycle)) throw new TypeError('Replica checkpoint lifecycle is invalid.');
   const acknowledgedCursor = candidate.acknowledgedCursor === null
     ? null
@@ -367,7 +373,18 @@ async function saveAndVerify(transaction: ReplicaLifecycleTransaction, key: Repl
   await requirePromise(transaction.saveReplica(structuredClone(checkpoint)), 'Replica checkpoint save');
   const reloaded = await requirePromise(transaction.loadReplica(key.replicaId), 'Replica checkpoint transaction-local read-back');
   if (reloaded === undefined) throw new TypeError('Replica checkpoint was not persisted by the adapter.');
-  const verified = immutableCheckpoint(reloaded, key);
+  let verified: DurableReplicaCheckpoint;
+  try {
+    verified = immutableCheckpoint(reloaded, key);
+  } catch (error) {
+    // A transaction-local read-back with a forged Collection identity is a
+    // write/read-back mismatch. Keep the generic durable-write error so the
+    // adapter cannot use this path to disclose a checkpoint from another key.
+    if (error instanceof TypeError && /mismatched Collection ID/u.test(error.message)) {
+      throw new TypeError('Replica checkpoint read-back differs from the requested write.');
+    }
+    throw error;
+  }
   if (!sameCheckpoint(checkpoint, verified)) throw new TypeError('Replica checkpoint read-back differs from the requested write.');
   return verified;
 }

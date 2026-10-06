@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import * as publicSyncApi from '../../src/sync/index.js';
 import {
   SyncSessionAlreadyExistsError,
+  SyncSessionGateDeniedError,
   assertVerifiedSyncSession,
   createSyncSession,
   isVerifiedSyncSession,
@@ -409,6 +410,13 @@ describe('SYNC-0001 Sync Session binding', () => {
     // Durable verify success is not itself the runtime brand.
     expect(isVerifiedSyncSession(checked.session)).toBe(false);
     expect(isVerifiedSyncSession({ ...checked.session, status: 'active' })).toBe(false);
+
+    // A host-reachable object that only matches the public result shape must
+    // not be able to mint the package's stronger runtime Session brand.
+    expect(() => assertVerifiedSyncSession({
+      state: 'active',
+      session: checked.session,
+    })).toThrow(SyncSessionGateDeniedError);
 
     const verified = assertVerifiedSyncSession(checked);
     expect(isVerifiedSyncSession(verified)).toBe(true);

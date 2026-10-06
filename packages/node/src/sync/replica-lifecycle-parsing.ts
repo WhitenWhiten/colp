@@ -1,6 +1,14 @@
 import { isRfc3339DateTime } from '../shared/date-time.js';
 import type { ReplicaLifecycleSystemCommand } from './replica-lifecycle.js';
 
+/**
+ * Hard protocol bound for decimal commit ordinals.  Ordinals are persisted and
+ * compared as arbitrary precision integers, so syntax alone must not permit an
+ * attacker to force unbounded BigInt parsing or allocation.  256 ASCII digits
+ * is ample for a monotonic log while keeping every parser in this package on a
+ * fixed resource budget.
+ */
+export const MAX_LIFECYCLE_ORDINAL_DIGITS = 256;
 const ordinalPattern = /^(?:0|[1-9][0-9]*)$/u;
 
 export function exactLifecycleObject(
@@ -51,7 +59,10 @@ export function lifecycleOrdinal(
   value: unknown,
   label: string,
 ): { readonly wire: string; readonly order: bigint } {
-  if (typeof value !== 'string' || !ordinalPattern.test(value)) {
+  if (typeof value !== 'string' || value.length > MAX_LIFECYCLE_ORDINAL_DIGITS) {
+    throw new TypeError(`${label} must contain at most ${MAX_LIFECYCLE_ORDINAL_DIGITS} decimal digits.`);
+  }
+  if (!ordinalPattern.test(value)) {
     throw new TypeError(`${label} must be a canonical non-negative decimal string.`);
   }
   return Object.freeze({ wire: value, order: BigInt(value) });

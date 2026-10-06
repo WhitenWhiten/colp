@@ -5,7 +5,7 @@ import {
   type ValidatorRegistry,
   type WireDocumentValidationResult,
 } from '../schema/index.js';
-import { deepFreeze } from './deep-freeze.js';
+import { immutableJsonData } from '../shared/immutable-json.js';
 
 export type ValidatedWriteResult<Value, Issue, Result> =
   | Exclude<WireDocumentValidationResult<Value, Issue>, { readonly valid: true }>
@@ -19,55 +19,28 @@ export type PersistenceWriter<Value, Result> = (value: Readonly<Value>) => Promi
 
 const prototypeKeys = new Set(['__proto__', 'constructor', 'prototype']);
 
-function assertJsonData(value: unknown, ancestors = new WeakSet<object>()): void {
-  if (value === null || typeof value === 'string' || typeof value === 'boolean') return;
-  if (typeof value === 'number') {
-    if (!Number.isFinite(value)) throw new TypeError('Write candidate numbers must be finite JSON numbers.');
-    if (Number.isInteger(value) && !Number.isSafeInteger(value)) {
-      throw new TypeError('Write candidate integers must be within the I-JSON safe range.');
-    }
-    return;
-  }
-  if (typeof value !== 'object') throw new TypeError('Write candidate must contain only JSON values.');
-  if (ancestors.has(value)) throw new TypeError('Write candidate must not contain cycles.');
-
-  const prototype = Object.getPrototypeOf(value) as unknown;
-  if (!Array.isArray(value) && prototype !== Object.prototype && prototype !== null) {
-    throw new TypeError('Write candidate objects must have a plain or null prototype.');
-  }
-  const keys = Reflect.ownKeys(value);
-  if (keys.some((key) => typeof key !== 'string')) {
-    throw new TypeError('Write candidate must not contain symbol properties.');
-  }
-  if (keys.some((key) => typeof key === 'string' && prototypeKeys.has(key))) {
-    throw new TypeError('Write candidate must not contain prototype-polluting member names.');
-  }
-  if (Array.isArray(value)) {
-    const expected = new Set([...value.keys()].map(String).concat('length'));
-    const hasHole = [...value.keys()].some((index) => !(index in value));
-    if (keys.some((key) => !expected.has(key as string)) || hasHole) {
-      throw new TypeError('Write candidate arrays must be dense JSON arrays without extra properties.');
-    }
-  }
-
-  ancestors.add(value);
-  for (const key of keys) {
-    if (key === 'length' && Array.isArray(value)) continue;
-    const descriptor = Object.getOwnPropertyDescriptor(value, key);
-    if (descriptor === undefined || !descriptor.enumerable || !('value' in descriptor)) {
-      throw new TypeError('Write candidate members must be enumerable data properties.');
-    }
-    assertJsonData(descriptor.value, ancestors);
-  }
-  ancestors.delete(value);
-}
-
 function immutableCandidate<Value>(value: unknown): Readonly<Value> {
-  // Input is already constrained to the JSON-data subset; structuredClone of that
-  // subset cannot introduce non-JSON values, so a second assert is redundant.
-  assertJsonData(value);
-  const candidate = structuredClone(value) as Value;
-  return deepFreeze(candidate);
+  // immutableJsonData performs the same plain JSON checks and creates a detached
+  // frozen snapshot with hard depth/member/byte budgets. Keeping the budget at
+  // this boundary prevents an attacker-controlled object from being recursively
+  // walked without a resource limit before schema validation runs.
+  const candidate = immutableJsonData(value, 'Write candidate') as Readonly<Value>;
+  // Preserve the write boundary's prototype-pollution policy while walking
+  // only the already bounded detached snapshot. This second pass cannot be
+  // driven into unbounded recursion by the caller.
+  const pending: unknown[] = [candidate];
+  while (pending.length > 0) {
+    const current = pending.pop();
+    if (current === null || typeof current !== 'object') continue;
+    for (const key of Reflect.ownKeys(current)) {
+      if (typeof key === 'string' && prototypeKeys.has(key)) {
+        throw new TypeError('Write candidate must not contain prototype-polluting member names.');
+      }
+      const descriptor = Object.getOwnPropertyDescriptor(current, key);
+      if (descriptor !== undefined && 'value' in descriptor) pending.push(descriptor.value);
+    }
+  }
+  return candidate;
 }
 
 function normalizeSemanticResult<Issue>(
@@ -137,7 +110,6 @@ export async function executeValidatedWrite<Value, Issue, Result>(
     definition,
     candidate,
     (validated) => {
-      assertJsonData(validated);
       const result: unknown = validateSemantics(validated);
       return normalizeSemanticResult<Issue>(result);
     },

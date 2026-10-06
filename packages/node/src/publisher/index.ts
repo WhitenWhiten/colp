@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { types as nodeTypes } from 'node:util';
 
 import canonicalize from 'canonicalize';
+import { normalizeIfMatchForDigest } from './idempotency-digest.js';
 import { normalizePublisherMediaType } from './media-type.js';
 export { normalizePublisherMediaType } from './media-type.js';
 
@@ -156,6 +157,8 @@ export interface CanonicalRequestDigestInput {
   readonly query: Readonly<Record<string, unknown>>;
   readonly mediaType: string;
   readonly body: unknown;
+  /** Normalized HTTP If-Match precondition, when the operation uses one. */
+  readonly ifMatch?: string | null | readonly string[];
 }
 
 
@@ -174,6 +177,7 @@ export function createCanonicalRequestDigest(input: CanonicalRequestDigestInput)
   if (input.body === undefined || !isJsonValue(input.body)) {
     throw new TypeError('Canonical request body must be an I-JSON value.');
   }
+  const ifMatch = normalizeIfMatchForDigest(input.ifMatch) ?? null;
   const canonicalInput = {
     ...(input.principalId === undefined ? {} : { principalId: input.principalId }),
     protocolVersion: input.protocolVersion,
@@ -183,6 +187,7 @@ export function createCanonicalRequestDigest(input: CanonicalRequestDigestInput)
     query: input.query,
     mediaType: normalizePublisherMediaType(input.mediaType),
     body: input.body,
+    ...(ifMatch === undefined ? {} : { ifMatch }),
   };
   const canonical = canonicalize(canonicalInput);
   if (canonical === undefined) {
@@ -203,6 +208,8 @@ export interface PublisherIdempotencyRequest {
   readonly mediaType: string;
   /** Parsed I-JSON body; RFC 8785 serialization is applied by this boundary. */
   readonly body: unknown;
+  /** Raw If-Match field used by conditional Publisher mutations. */
+  readonly ifMatch?: string | null | readonly string[];
 }
 
 function assertNonEmptyString(value: unknown, name: string): asserts value is string {
@@ -334,6 +341,7 @@ export function createPublisherIdempotencyBinding(input: PublisherIdempotencyReq
       throw new TypeError('Publisher idempotency request decodedQuery does not satisfy the Endpoint contract.');
     }
   }
+  const ifMatch = normalizeIfMatchForDigest(input.ifMatch) ?? null;
   const binding: IdempotencyBinding = {
     principalId: input.principalId,
     protocolVersion: input.protocolVersion,
@@ -350,6 +358,7 @@ export function createPublisherIdempotencyBinding(input: PublisherIdempotencyReq
       query: input.decodedQuery,
       mediaType: input.mediaType,
       body: input.body,
+      ifMatch,
     }),
   };
   validateIdempotencyBinding(binding);
