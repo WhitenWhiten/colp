@@ -238,7 +238,7 @@
     "pack:check": "npm pack --dry-run && publint && attw --pack . --ignore-rules no-resolution && npm run pack:consumer-smoke"
   },
   "dependencies": {
-    "@modelcontextprotocol/core": "2.0.0",
+    "@modelcontextprotocol/core": "2.2.0",
     "@noble/hashes": "2.0.1",
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
@@ -250,8 +250,8 @@
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.5",
-    "@modelcontextprotocol/client": "2.0.0",
-    "@modelcontextprotocol/server": "2.0.0",
+    "@modelcontextprotocol/client": "2.2.0",
+    "@modelcontextprotocol/server": "2.2.0",
     "@stryker-mutator/core": "^9.6.1",
     "@stryker-mutator/vitest-runner": "^9.6.1",
     "@types/http-link-header": "^1.0.7",
