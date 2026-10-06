@@ -7,11 +7,6 @@ import {
   type SyncTypedUpdateOperation,
 } from '../../src/sync/index.js';
 import { createValidatorRegistry } from '../../src/schema/index.js';
-import {
-  SyncTypedUpdateSemanticError as SyncModuleTypedUpdateSemanticError,
-  assertSyncTypedUpdateOperationPayload as assertFromSyncModule,
-  validateSyncTypedUpdateOperationPayload as validateFromSyncModule,
-} from '../../src/sync/index.js';
 import type {
   AnnotationUpdateOperationPayload,
   AttachmentUpdateOperationPayload,
@@ -407,9 +402,4 @@ describe('SYNC-0003 typed update operations', () => {
     expect(Object.getOwnPropertyDescriptors(value)).toEqual(before.value);
   });
 
-  it('[evidence:sync.typed-operations] the Sync entry preserves module API identity', () => {
-    expect(validateSyncTypedUpdateOperationPayload).toBe(validateFromSyncModule);
-    expect(assertSyncTypedUpdateOperationPayload).toBe(assertFromSyncModule);
-    expect(SyncTypedUpdateSemanticError).toBe(SyncModuleTypedUpdateSemanticError);
-  });
 });

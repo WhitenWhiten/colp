@@ -10,7 +10,6 @@ import {
 } from '../../src/sync/index.js';
 import {
   coordinatePushTransaction,
-  coordinatePushTransaction as syncCoordinatePushTransaction,
 } from '../../src/sync/unsafe.js';
 import {
   DurableContractHandle,
@@ -329,10 +328,6 @@ describe(`SYNC-0004 Push batch transaction contract ${evidence}`, () => {
     expect(() => ((output.results[0] as unknown as { status: string }).status = 'rejected')).toThrow();
     expect(adapter.backend.state.operations[0]!.targetId).toBe('node-1');
     expect(adapter.backend.state.receipts[0]!.result).toMatchObject({ transform: { nested: 'original' } });
-  });
-
-  it(`exports the coordinator from the explicit unsafe Sync entry ${evidence}`, () => {
-    expect(coordinatePushTransaction).toBe(syncCoordinatePushTransaction);
   });
 
   it.each([

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 
-import { coordinateTombstonePurge as coordinateFromSyncEntry } from '../../src/sync/index.js';
 import {
   coordinateTombstonePurge,
   type DeletionWatermark,
@@ -790,7 +789,4 @@ describe(`SYNC-0006 durable Tombstone purge coordinator ${evidence}`, () => {
     expect(handle.backend.snapshot().boundary.commitOrdinal).toBe('10');
   });
 
-  it(`exposes the coordinator from the Sync public entry ${evidence}`, () => {
-    expect(coordinateFromSyncEntry).toBe(coordinateTombstonePurge);
-  });
 });

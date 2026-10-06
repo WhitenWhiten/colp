@@ -108,16 +108,6 @@ const completeProbes: DeploymentRuntimeProbes = {
 };
 
 describe(`CORE-0037 profile delivery order contract ${evidence}`, () => {
-  it('keeps the expanded case matrix explicit', () => {
-    expect(expectedStages).toHaveLength(5);
-    expect(expectedStages.flatMap(({ components }) => components)).toHaveLength(7);
-    expect(validProgressCases).toHaveLength(10);
-    expect(skippedStageCases).toHaveLength(6);
-    expect(outOfOrderCases).toHaveLength(3);
-    expect(invalidClaimCases).toHaveLength(16);
-    expect(nonArrayCases).toHaveLength(4);
-  });
-
   it('publishes exactly the five ordered stages and both required grouped boundaries', () => {
     expect(deliveryBoundary.deliveryStages).toEqual(expectedStages);
     expect(deliveryBoundary.deliveryStages.map(({ ordinal }) => ordinal)).toEqual([1, 2, 3, 4, 5]);

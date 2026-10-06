@@ -57,6 +57,7 @@ Guidance:
 - The default `npm run check` includes `check:mcp-legacy-absence` after `pack:check`, so the local command scans the packed tarball for Legacy MCP wire symbols.
 - `npm run pack:check` also extracts the actual tarball into a temporary consumer without running lifecycle scripts, links only the production dependencies already installed from the lockfile, then requires/imports every declared runtime subpath and the packaged JSON Schema.
 - Before the first stable release, complete `RELEASE_CHECKLIST.md` and record whether any stable `0.1` validator or Wire implementation existed outside this repository. A private development package and an untagged Draft do not establish that baseline by themselves.
+- The Vitest suite is capped at two workers in `vitest.config.ts`. The protocol schema and conformance fixtures are large enough that the host CPU default can exhaust memory before all tests run; this cap keeps the required full suite runnable on developer and CI machines.
 - Keep the package HMAC golden vector stable. A deployment claiming Core must also prove that public key-version labels are never reassigned, old active mappings survive restart, stored IDs remain resolvable across rotation, and keys remain absent from diagnostics and logs.
 
 # Sync Core-used coverage manifest (U-3)

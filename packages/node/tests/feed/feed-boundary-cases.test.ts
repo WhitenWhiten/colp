@@ -53,18 +53,58 @@ describe('Feed coverage boundary cases', () => {
       feedUrl: 'https://example.com/feed', collectionUrl: 'https://example.com/c', title: 'T',
     };
     expect(mapFeedToAtom(feed)).toMatchObject({ ok: false, code: 'malformed_feed' });
-    expect(mapFeedToAtom({ ...feed, events: [null] })).toMatchObject({ ok: false });
-    expect(mapFeedToAtom({ ...feed, events: [{ id: '', time: 'x', data: {} }] })).toMatchObject({ ok: false });
-    expect(mapFeedToAtom({ ...feed, events: [{ id: 'e', time: 1, data: {} }] })).toMatchObject({ ok: false });
-    const result = mapFeedToAtom({
+    expect(mapFeedToAtom({ ...feed, events: [null] })).toEqual({ ok: false, code: 'malformed_feed' });
+    expect(mapFeedToAtom({ ...feed, events: [{ id: '', time: 'x', data: {} }] })).toEqual({ ok: false, code: 'malformed_feed' });
+    expect(mapFeedToAtom({ ...feed, events: [{ id: 'e', time: 1, data: {} }] })).toEqual({ ok: false, code: 'malformed_feed' });
+    expect(mapFeedToAtom({
       ...feed,
-      events: [
-        { id: 'e', type: '', time: '2026-01-01T00:00:00Z', data: {} },
-        { id: 'b', type: 'x', time: '2026-01-02T00:00:00Z', data: { node: { kind: 'bookmark', redacted: true } } },
-      ],
-    });
-    expect(result.ok).toBe(true);
-    expect(mapFeedToAtom({ ...feed, events: 'bad' })).toMatchObject({ ok: false });
+      events: [{
+        specversion: '1.0',
+        id: 'e',
+        source: 'https://example.com/collections',
+        type: 'org.collectionprotocol.collection.updated.v1',
+        subject: 'collections/c/c1',
+        time: '2026-01-01T00:00:00Z',
+        datacontenttype: 'application/json',
+        collectionprotocolversion: '0.1',
+        data: { collectionId: 'c1', revision: 'r1' },
+      }],
+    }).ok).toBe(true);
+    expect(mapFeedToAtom({
+      ...feed,
+      events: [{
+        specversion: '1.0',
+        id: 'e',
+        source: 'https://example.com/collections',
+        type: '',
+        subject: 'collections/c/c1',
+        time: '2026-01-01T00:00:00Z',
+        datacontenttype: 'application/json',
+        collectionprotocolversion: '0.1',
+        data: { collectionId: 'c1', revision: 'r1' },
+      }],
+    })).toEqual({ ok: false, code: 'malformed_feed' });
+    expect(mapFeedToAtom({ ...feed, events: 'bad' })).toEqual({ ok: false, code: 'malformed_feed' });
+  });
+
+  it('rejects an unknown Atom event type instead of mapping it optimistically', () => {
+    const feed = {
+      feedUrl: 'https://example.com/feed', collectionUrl: 'https://example.com/c', title: 'T',
+    };
+    expect(mapFeedToAtom({
+      ...feed,
+      events: [{
+        specversion: '1.0',
+        id: 'e-unknown',
+        source: 'https://example.com/collections',
+        type: 'org.collectionprotocol.future.v1',
+        subject: 'collections/c/c1',
+        time: '2026-01-01T00:00:00Z',
+        datacontenttype: 'application/json',
+        collectionprotocolversion: '0.1',
+        data: { collectionId: 'c1', revision: 'r1' },
+      }],
+    })).toEqual({ ok: false, code: 'malformed_feed' });
   });
 
   it('covers bookmark projection guards and assertion no-op paths', () => {

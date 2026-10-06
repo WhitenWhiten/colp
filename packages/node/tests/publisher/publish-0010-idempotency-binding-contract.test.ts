@@ -87,6 +87,28 @@ describe(`PUBLISH-0010 complete idempotency binding [evidence:${evidence}]`, () 
     expect(Object.isFrozen(binding)).toBe(true);
   });
 
+  it(`snapshots the request before reading fields and rejects Proxy/accessor/extra-field inputs [evidence:${evidence}]`, () => {
+    let methodReads = 0;
+    const accessor = Object.defineProperty({ ...request }, 'method', {
+      configurable: true,
+      enumerable: true,
+      get: () => {
+        methodReads += 1;
+        return request.method;
+      },
+    });
+    expect(() => createPublisherIdempotencyBinding(accessor as PublisherIdempotencyRequest))
+      .toThrow(/members must be enumerable data properties/u);
+    expect(methodReads).toBe(0);
+
+    const proxy = new Proxy({ ...request }, {});
+    expect(() => createPublisherIdempotencyBinding(proxy as PublisherIdempotencyRequest))
+      .toThrow(/must not contain Proxy objects/u);
+
+    expect(() => createPublisherIdempotencyBinding({ ...request, unbound: true } as never))
+      .toThrow(/unknown or missing fields/u);
+  });
+
   it.each([
     ['principalId', 'principal-bob'],
     ['protocolVersion', '0.2'],

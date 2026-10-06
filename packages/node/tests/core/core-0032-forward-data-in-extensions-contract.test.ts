@@ -3,7 +3,6 @@ import { resolve } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { placeExtension as placeExtensionFromSchema } from '../../src/schema/index.js';
 import type { ColpContract } from '../../src/types/index.js';
 import {
   collectionProtocolSchema,
@@ -420,7 +419,6 @@ describe(`CORE-0032 forward data belongs in extensions ${evidence}`, () => {
     expect(validators.definitionNames).toContain('extensions');
     expect(collectionProtocolSchema.$defs.extensions).toBeDefined();
     expect(carrier.extensions).toBe(map);
-    expect(placeExtensionFromSchema).toBe(placeExtension);
 
     type ExportedCarriers = Collection | Node | Annotation | Attachment | Relation | Release | Replica;
     type ExportedDtos = CollectionCreate | RootCreate | NodeCreate | AnnotationCreate | AttachmentCreate
@@ -444,11 +442,4 @@ describe(`CORE-0032 forward data belongs in extensions ${evidence}`, () => {
     expect(expected).toHaveLength(22);
   });
 
-  it('expands a fixed authoritative number of inherited-evidence cases', () => {
-    const expanded = carrierCases.length + jsonPayloads.length + validNamespaces.length
-      + invalidNamespaces.length + 9 + 1 + 12 + 7 + 1 + 1 + 1 + 1 + 1 + 3 + 1 + 7 + 1 + 1
-      + 1 + 1 + 1 + 1 + 1 + 1 + 1;
-    expect(carrierCases).toHaveLength(29);
-    expect(expanded).toBe(102);
-  });
 });

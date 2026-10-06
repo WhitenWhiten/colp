@@ -211,7 +211,15 @@ describe('security public surface (PR8 package-export smoke)', () => {
 
   it('exposes exactly seven canonical RATE_LIMIT_BUCKET_IDS', () => {
     expect(RATE_LIMIT_BUCKET_IDS).toBeInstanceOf(Set);
-    expect(RATE_LIMIT_BUCKET_IDS.size).toBe(7);
+    expect([...RATE_LIMIT_BUCKET_IDS].sort()).toEqual([
+      'publisher:admin-key-management',
+      'publisher:anonymous-feed-read',
+      'publisher:authenticated-read',
+      'publisher:general-write',
+      'publisher:mcp-tool-call',
+      'publisher:sync-pull',
+      'publisher:sync-push',
+    ]);
   });
 
   it.skipIf(!distPresent)(

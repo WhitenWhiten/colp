@@ -53,13 +53,20 @@ describe(`PUB-0003 publication endpoint variable semantic contract [evidence:${e
     expect(validateManifestSemantics(manifest)).toEqual({ valid: true, issues: [] });
   });
 
-  it(`treats repeated occurrences as one variable-set member [evidence:${evidence}]`, async () => {
+  it(`rejects repeated variable occurrences before endpoint expansion [evidence:${evidence}]`, async () => {
     const manifest = await publicationManifest();
     manifest.mounts[0]!.endpoints.snapshot =
       'https://api.example.test/c/{collectionId}/copies/{collectionId}/snapshot.json' as never;
 
     expect(registry.validate('manifest', manifest)).toEqual({ valid: true, errors: [] });
-    expect(validateManifestSemantics(manifest)).toEqual({ valid: true, issues: [] });
+    expect(validateManifestSemantics(manifest)).toEqual({
+      valid: false,
+      issues: [{
+        code: 'invalid_endpoint_template',
+        path: '/mounts/0/endpoints/snapshot',
+        message: 'Endpoint snapshot repeats a URI-template variable; each variable must occur once.',
+      }],
+    });
   });
 
   it.each(missingEndpoints)(

@@ -23,6 +23,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Node.js package
 
+- Publisher idempotency and request-digest boundaries now snapshot caller-owned inputs as plain own-data records and fail closed on Proxy/accessor inputs before they can affect an identity or key decision.
+- Manifest semantics reject repeated URI-template variables, snapshot continuation links enforce the safe transport policy used by initial links, and ETag serialization rejects Proxy-backed values before inspection.
+- Atom output includes entry content and validates every mapped event against the Feed event discriminator while preserving the documented omission of unsafe Bookmark targets.
+- Removed tautological, fixture-count-only, and pseudo-negative tests, replaced export smoke checks with behavioral assertions, and capped Vitest at two workers so the full suite stays within ordinary CI memory limits.
 - The default Node client checks DNS answers for private/local addresses before requests and redirects; custom transports can provide `resolveHost`. Public IPv6 URL hosts are normalized for DNS lookup.
 - Publisher idempotency digests include `If-Match` preconditions and preserve opaque ETag contents while normalizing header list separators.
 - Sync session verification rejects forged result objects; replica lifecycle ordinals are capped at 256 digits, and cross-Collection checkpoints are rejected before disclosure.

@@ -72,6 +72,44 @@ describe(`PUBLISH-0009 retryable POST Idempotency-Key gate [evidence:${evidence}
     });
   });
 
+  it(`snapshots the key gate envelope and binding without invoking getters or Proxy traps [evidence:${evidence}]`, () => {
+    let methodReads = 0;
+    const accessor = Object.defineProperty({
+      method: 'POST',
+      retryable: true,
+      idempotencyKey: 'publish-0009-safe',
+      binding,
+    }, 'method', {
+      configurable: true,
+      enumerable: true,
+      get: () => {
+        methodReads += 1;
+        return 'POST';
+      },
+    });
+    expect(() => evaluatePublisherIdempotencyKeyRequirement(accessor as never)).toThrow(/data properties/u);
+    expect(methodReads).toBe(0);
+
+    expect(() => evaluatePublisherIdempotencyKeyRequirement(new Proxy({
+      method: 'POST',
+      retryable: true,
+      idempotencyKey: 'publish-0009-safe',
+      binding,
+    }, {}))).toThrow(/plain object|evaluation input/u);
+
+    const bindingAccessor = Object.defineProperty({ ...binding }, 'requestDigest', {
+      configurable: true,
+      enumerable: true,
+      get: () => binding.requestDigest,
+    });
+    expect(() => evaluatePublisherIdempotencyKeyRequirement({
+      method: 'POST',
+      retryable: true,
+      idempotencyKey: 'publish-0009-safe',
+      binding: bindingAccessor as never,
+    })).toThrow(/members must be enumerable data properties/u);
+  });
+
   it(`accepts a visible-ASCII Idempotency-Key at the length boundary [evidence:${evidence}]`, () => {
     const key = 'k'.repeat(255);
     expect(evaluatePublisherIdempotencyKeyRequirement({

@@ -14,12 +14,39 @@ import {
   serializeRateLimitFields,
 } from '../../src/security/index.js';
 
-describe('security entrypoint export smoke', () => {
-  it('re-exports core authorization and rate-limit helpers as functions', () => {
-    expect(typeof evaluateEffectiveScopes).toBe('function');
-    expect(typeof resolveRequestIdentities).toBe('function');
-    expect(typeof hasEffectiveScope).toBe('function');
-    expect(typeof serializeRateLimitFields).toBe('function');
+const publicPolicy = {
+  visibility: 'public' as const,
+  entries: [],
+  publication: { listInDirectory: false, allowSearchIndexing: false, allowEmbedding: false },
+  revision: 'entrypoint-test',
+};
+
+describe('security entrypoint public contracts', () => {
+  it('runs the re-exported authorization and rate-limit helpers through their public contracts', () => {
+    const input = {
+      grantedScopes: new Set(['collections:read' as const]),
+      identities: [],
+      policyChain: {
+        serverDefault: publicPolicy,
+        collection: publicPolicy,
+        ancestors: [],
+        object: publicPolicy,
+      },
+    };
+    const evaluated = evaluateEffectiveScopes(input);
+    expect([...evaluated]).toEqual(['collections:read']);
+    expect(hasEffectiveScope(input, 'collections:read')).toBe(true);
+
+    expect(serializeRateLimitFields({
+      policy: 'publisher:read',
+      limit: 10,
+      remaining: 9,
+      resetSeconds: 30,
+      windowSeconds: 60,
+    })).toEqual({
+      RateLimit: '"publisher:read";r=9;t=30',
+      'RateLimit-Policy': '"publisher:read";q=10;w=60',
+    });
   });
 
   it('resolveRequestIdentities yields the canonical public anonymous shape', () => {

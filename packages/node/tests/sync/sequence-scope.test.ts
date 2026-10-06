@@ -2,12 +2,6 @@ import { isDeepStrictEqual } from 'node:util';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
-  coordinateSessionBootstrap as coordinateBootstrapFromSyncEntry,
-} from '../../src/sync/index.js';
-import {
-  coordinateSequenceOperation as coordinateSequenceFromSyncEntry,
-} from '../../src/sync/unsafe.js';
-import {
   coordinateSequenceOperation,
 } from '../../src/sync/unsafe.js';
 import type { Collection, Node, Operation, SyncInstanceCreatePush } from '../../src/types/index.js';
@@ -391,9 +385,6 @@ describe(`SYNC-0011 exact durable Sequence scope ${evidence}`, () => {
     expect(Object.isFrozen(result.kind === 'executed' ? result.receipt : undefined)).toBe(true);
   });
 
-  it(`exports the Sequence coordinator from the explicit unsafe Sync entry ${evidence}`, () => {
-    expect(coordinateSequenceFromSyncEntry).toBe(coordinateSequenceOperation);
-  });
 });
 
 type Audit = { readonly id: string };
@@ -696,7 +687,4 @@ describe(`SYNC-0011 Instance bootstrap Sequence scope transition ${evidence}`, (
     await expect(bootstrap(handle)).rejects.toThrow('another lane');
   });
 
-  it(`exports the bootstrap coordinator from the Sync public API ${evidence}`, () => {
-    expect(coordinateBootstrapFromSyncEntry).toBe(coordinateSessionBootstrap);
-  });
 });

@@ -2,12 +2,6 @@ import { isDeepStrictEqual } from 'node:util';
 import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 
 import {
-  coordinateSessionBootstrap as coordinateBootstrapFromSyncEntry,
-} from '../../src/sync/index.js';
-import {
-  coordinatePushTransaction as coordinatePushFromSyncEntry,
-} from '../../src/sync/unsafe.js';
-import {
   coordinatePushTransaction,
   coordinateSequenceOperation,
   type PushPreflightContext,
@@ -1062,11 +1056,6 @@ describe(`SYNC-0012 server-lifetime Operation IDs ${evidence}`, () => {
     const transaction = { idReservations: reservationStore(backend, draft) };
     await expect(reserveServerIds(transaction, [{ resourceType: 'operation', id: 'shared-helper' }]))
       .rejects.toBeInstanceOf(ServerIdAlreadyReservedError);
-  });
-
-  it(`reuses the same coordinators from the Sync public API ${evidence}`, () => {
-    expect(coordinatePushFromSyncEntry).toBe(coordinatePushTransaction);
-    expect(coordinateBootstrapFromSyncEntry).toBe(coordinateSessionBootstrap);
   });
 
   it(`types Push Sequence and bootstrap as alternative operation-id ownership boundaries ${evidence}`, () => {

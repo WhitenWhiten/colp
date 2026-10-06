@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 
-import { coordinateReplicaLifecycle as coordinateFromSyncEntry } from '../../src/sync/index.js';
 import {
   transitionReplicaLifecycle,
 } from '../../src/sync/legacy.js';
@@ -813,10 +812,6 @@ describe(`SYNC-0009 durable Replica lifecycle coordinator ${evidence}`, () => {
     const backend = new SharedDurableBackend(checkpoint());
     await coordinate(new DurableLifecycleHandle(backend), { type: 'require_recovery', succeeded: true });
     await expect(coordinate(new DurableLifecycleHandle(backend), { type: 'expire' })).resolves.toMatchObject({ state: 'denied', code: 'invalid_replica_state', checkpoint: { lifecycle: 'recovery_required' } });
-  });
-
-  it(`exports the coordinator from the Sync entry point ${evidence}`, () => {
-    expect(coordinateFromSyncEntry).toBe(coordinateReplicaLifecycle);
   });
 
   it(`preserves the legacy transitionReplicaLifecycle reducer regression surface ${evidence}`, () => {

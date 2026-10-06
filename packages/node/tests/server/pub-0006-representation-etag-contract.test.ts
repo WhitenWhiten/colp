@@ -244,6 +244,23 @@ describe(`PUB-0006 Publication representation ETags [evidence:${evidence}]`, () 
     expect(() => etag({ query: query as never })).toThrow(/query|JSON|numbers/u);
   });
 
+  it(`rejects Proxy input before any Proxy trap can observe ETag material [evidence:${evidence}]`, () => {
+    let trapInvoked = false;
+    const proxiedQuery = new Proxy({ root: 'secret-root' }, {
+      ownKeys: () => {
+        trapInvoked = true;
+        return ['root'];
+      },
+      getOwnPropertyDescriptor: () => {
+        trapInvoked = true;
+        return { enumerable: true, configurable: true, value: 'secret-root' };
+      },
+    });
+
+    expect(() => etag({ query: proxiedQuery as never })).toThrow(/query|object/u);
+    expect(trapInvoked).toBe(false);
+  });
+
   it.each([
     ['null', null],
     ['plain object', {}],

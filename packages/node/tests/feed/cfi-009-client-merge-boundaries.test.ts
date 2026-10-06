@@ -534,11 +534,12 @@ describe(`CFI-009 filter-bound fan-out [evidence:${evidence}]`, () => {
   it('rejects a same-id and same-filter group for the wrong Collection scope', async () => {
     const event = await publicFeedEvent();
     const item = subscription('sub', event.data.collectionId, 'shared-filter');
-    const request = mergedRequests([item])[0]!;
-    const wrongCollection = {
-      ...request,
-      collectionIds: ['another-collection'],
-    };
+    // Obtain a genuinely issued capability for the same subscription id and
+    // filter, but a different collection. A field-mutated clone would fail at
+    // capability identity before exercising the scope binding itself.
+    const wrongCollection = mergedRequests([
+      subscription('sub', 'another-collection', 'shared-filter'),
+    ])[0]!;
 
     expect(() => routeMergedFeedEvents([event], item, wrongCollection)).toThrow(TypeError);
   });

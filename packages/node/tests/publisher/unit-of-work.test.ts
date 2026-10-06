@@ -468,6 +468,32 @@ describe('PublisherUnitOfWork contract', () => {
 });
 
 describe('Publisher idempotency input guards', () => {
+  it('snapshots the canonical digest envelope without invoking getters or Proxy traps [evidence:publisher.idempotency]', () => {
+    const valid = {
+      protocolVersion: '0.1',
+      endpointKey: 'nodes',
+      resourceIdentity: 'collection-1',
+      method: 'POST',
+      query: {},
+      mediaType: 'application/json',
+      body: { title: 'safe' },
+    };
+    let methodReads = 0;
+    const accessor = Object.defineProperty({ ...valid }, 'method', {
+      configurable: true,
+      enumerable: true,
+      get: () => {
+        methodReads += 1;
+        return 'POST';
+      },
+    });
+    expect(() => createCanonicalRequestDigest(accessor as never)).toThrow(/data properties/u);
+    expect(methodReads).toBe(0);
+    expect(() => createCanonicalRequestDigest(new Proxy(valid, {}))).toThrow(/plain object/u);
+    expect(() => createCanonicalRequestDigest({ ...valid, extra: true } as never))
+      .toThrow(/unknown or missing fields/u);
+  });
+
   it('rejects non-JSON bodies instead of creating an ambiguous digest [evidence:publisher.idempotency]', () => {
     expect(() => createCanonicalRequestDigest({
       protocolVersion: '0.1', endpointKey: 'nodes', resourceIdentity: 'collection-1', method: 'POST',
