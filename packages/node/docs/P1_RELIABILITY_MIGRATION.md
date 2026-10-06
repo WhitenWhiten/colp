@@ -100,13 +100,10 @@ npm run test:coverage:publisher
 npm run test:coverage:sync-core
 ```
 
-These are verification instructions. Results and remaining host limitations are
-recorded in the [PR #26 validation report](../../../docs/history/pr26-reliability-validation.md).
+These are verification instructions.
 The in-memory test adapters implement the expected-state write condition; this
 does not attest an external database adapter or cross-process Session lock.
 
-Do not hand-edit the bundled certificate or weaken the release gate. After
-source/test changes are committed, use the repository-owned evidence generation
-and traceability workflow against that committed revision, then run the release
-checks. Until those checks and adapter migration are complete, keep the PR in
+Do not hand-edit the bundled evidence. After source or test changes, run
+`npm run refresh:evidence` and then the release checks. Until those checks and adapter migration are complete, keep the PR in
 draft and do not merge or advertise new deployment claims.

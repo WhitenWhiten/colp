@@ -20,17 +20,16 @@ for each decision. See
 - [ ] Confirm the intended package Profiles and their transitive dependencies exactly match `supportedProfiles`.
 - [ ] Remove `private` and replace `0.0.0-development` only when the package is intended for registry publication; these fields do not determine whether a host has mounted HTTP routes.
 - [ ] Record the owner-approved license and include its LICENSE file. Set the final repository and issue-reporting metadata; missing repository/bugs metadata is a readiness warning, not the same technical block as private:true.
-- [ ] From a clean protected source commit, run `npm run refresh:evidence`, review the tracked certificate and traceability changes, and commit those two generated files.
-- [ ] Run `npm run check` from the exact clean Git HEAD that will be released. Its all-supported-Profile release gate must prove that the certificate's source revision is an ancestor and that only the tracked certificate and traceability changed in the protected release scope. That local `check` also scans the packed tarball for Legacy MCP wire symbols via `check:mcp-legacy-absence` after `pack:check`.
-- [ ] Confirm the tracked certificate binds the tested source revision, current Requirements Digest, owned full Vitest report digest, and every required dependency-closure MUST / MUST_NOT record.
+- [ ] Run `npm run refresh:evidence`, review the `evidence.json` and traceability changes, and commit them.
+- [ ] Run `npm run check` from the exact clean Git HEAD that will be released. It fails if the committed evidence no longer matches a fresh run, and it also scans the packed tarball for Legacy MCP wire symbols via `check:mcp-legacy-absence` after `pack:check`.
+- [ ] Confirm that `docs/TRACEABILITY.md` reports every exported Profile as Complete.
 - [ ] When mutation evidence is required, run `npm run test:mutation:release` explicitly from a clean local checkout and retain the local reports. Do not add mutation testing to GitHub Actions.
 - [ ] Local only: run `npm run check:benchmark:publication-snapshot-delivery` on a machine whose OS and Node major match `packages/node/tests/performance/baselines/publication-snapshot-delivery.json` `reference.environment`, or compare against a same-host artifact at `packages/node/reports/publication-snapshot-delivery-host-baseline.json`. A platform or Node-major mismatch must skip the absolute-Hz floor (exit 0) and must not use the win32 12008 plans/s figure as a Linux or CI gate. GitHub Actions must not run this script.
 - [ ] For Publication hotspot changes, retain local scale/pipeline reports as described in [`LOCAL_PERFORMANCE_REVIEW.md`](LOCAL_PERFORMANCE_REVIEW.md). Do not convert this local measurement into an Actions or npm run check gate.
 - [ ] Local / release ceremony: exercise Node 22 and Node 24 on Linux, Windows, and macOS before release. GitHub Actions (`.github/workflows/colp-ci.yml`) proves **ubuntu-24.04 + Node 22** only; do not treat the three-OS × Node 24 matrix as a CI Baseline gate.
 - [ ] Run `npm run pack:check` and inspect the exported subpaths, types, ESM/CJS entry points, and packaged assets.
 - [ ] Prepare the final artifact using [`RELEASE_ARTIFACT.md`](RELEASE_ARTIFACT.md). Run the additional [`clean tarball acceptance`](CLEAN_TARBALL_ACCEPTANCE.md) on the same tarball in every local matrix environment, retain its SHA-256/SHA-512 and exact source revision, and publish those accepted bytes without repacking.
-- [ ] Record the package version, certificate commit, attested source revision, report digest, protocol version, and Requirements Digest. The certificate location is `src/conformance/generated/evidence.json`.
-- [ ] For a standalone repository, complete [`STANDALONE_EXPORT.md`](STANDALONE_EXPORT.md) and regenerate evidence against its fresh history; verify it without the old parent checkout present.
+- [ ] Record the package version, release commit, protocol version, and Requirements Digest from `src/conformance/generated/evidence.json`.
 
 An npm package release does not require this repository to ship a ready-to-run
 HTTP application. Real routes, middleware, databases, identity providers, and

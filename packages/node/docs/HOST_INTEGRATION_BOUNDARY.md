@@ -69,7 +69,7 @@ Before publishing a Profile in a Manifest, the host must:
    required dependencies;
 2. mount every required endpoint and provide every required runtime port;
 3. call `createDeploymentConformancePlan` with the exact explicit Profile list and enabled generic capabilities, and inspect the immutable plan;
-4. run `runDeploymentConformanceProbes` with the same scope against the real deployment; any MCP Profile also requires the `mcpConformance` source binding shown below;
+4. run `runDeploymentConformanceProbes` with the same scope against the real deployment; any MCP Profile also requires the `mcpConformance` binding shown below;
 5. pass the opaque scope-bound evidence and the exact requested Profile list to
    `assertProfileClaims`; and
 6. serialize the immutable assertion result, not a configuration list or an
@@ -79,19 +79,17 @@ Test fixtures that return cooperative adapter observations are not a real
 deployment. They must not be copied into production probes or used to publish
 a Manifest.
 
-### MCP source binding
+### MCP binding
 
 Scopes containing `mcp-read` or `mcp-write` must provide
-`mcpConformance: { sourceRevision, requirementsDigest, reportDigest }`.
-Use the installed package's `bundledConformanceEvidence` export from
-`@collection-protocol/node/conformance`: it exposes the tracked release
-certificate included in that exact package version. Do not copy test-fixture
-hashes or read unrelated internal files from another checkout.
+`mcpConformance: { packageVersion, requirementsDigest }`.
+Take both values from the installed package's `bundledConformanceEvidence`
+export in `@collection-protocol/node/conformance`: it is the evidence shipped
+with that exact package version. Do not copy test-fixture values or read
+internal files from another checkout.
 
-The source revision is a full lowercase hexadecimal commit ID (40–64 characters);
-both digests are `sha256:` followed by 64 lowercase hexadecimal characters.
-An older artifact without `reportDigest` cannot supply this binding.
-The runner validates and snapshots it before invoking any target operation.
+`requirementsDigest` is `sha256:` followed by 64 lowercase hexadecimal characters.
+The runner validates and snapshots the binding before invoking any target operation.
 The planner alone can inspect a Profile scope without this binding, but cannot
 issue publishable evidence.
 
@@ -106,12 +104,11 @@ import {
 } from '@collection-protocol/node/conformance';
 
 export function mcpReadScopeFromInstalledPackage(): DeploymentConformanceScope {
-  const { sourceRevision, requirementsDigest, reportDigest } = bundledConformanceEvidence;
-  if (reportDigest === undefined) throw new Error('This package has no report-bound certificate.');
+  const { packageVersion, requirementsDigest } = bundledConformanceEvidence;
   return {
     profiles: ['core', 'mcp-read'],
     capabilities: [],
-    mcpConformance: { sourceRevision, requirementsDigest, reportDigest },
+    mcpConformance: { packageVersion, requirementsDigest },
   };
 }
 
@@ -125,7 +122,7 @@ export async function checkMcpReadDeployment(target: DeploymentConformanceTarget
 
 Supply the real deployment adapter as `target`, inspect the plan, and pass
 the returned evidence to `assertProfileClaims` with the matching runtime
-ports, endpoints and exact Profile list. The bundled source certificate does
+ports, endpoints and exact Profile list. The bundled package evidence does
 not prove the deployment has mounted or implemented those endpoints.
 For MCP Write, the explicit closure is `['core', 'publication', 'publisher', 'mcp-read', 'mcp-write']`;
 include any additional deployment capabilities before planning and execution.

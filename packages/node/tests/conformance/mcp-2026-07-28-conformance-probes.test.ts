@@ -11,16 +11,14 @@ import {
   type DeploymentConformanceTarget,
 } from '../../src/conformance/index.js';
 import {
-  createMcpConformanceCandidate,
-  evaluateMcpConformanceProbeCoverage,
+  createVersionedMcpEvidenceBinding,
   legacyMcpConformanceProbeIds,
   mcpConformanceProbeFamilies,
 } from '../../src/conformance/mcp-conformance.js';
 import { createPassingDeploymentTarget } from './deployment-evidence.js';
 
-const sourceRevision = 'a'.repeat(40);
+const packageVersion = '1.2.3';
 const requirementsDigest = `sha256:${'b'.repeat(64)}`;
-const reportDigest = `sha256:${'c'.repeat(64)}`;
 
 const readFamilies = [
   'mcp-2026-07-28.transport-header-contracts',
@@ -33,7 +31,7 @@ const readFamilies = [
 const mcpScope = (profiles: readonly string[]): DeploymentConformanceScope => ({
   profiles: profiles as DeploymentConformanceScope['profiles'],
   capabilities: [],
-  mcpConformance: { sourceRevision, requirementsDigest, reportDigest },
+  mcpConformance: { packageVersion, requirementsDigest },
 });
 
 
@@ -98,7 +96,7 @@ describe('MCP 2026-07-28 deployment probe families (COLP-MCP-14)', () => {
     expect(evidence.mcpBinding).toMatchObject({
       schemaVersion: 1,
       mcpVersion: '2026-07-28',
-      sourceRevision,
+      packageVersion,
       sdkLock: {
         '@modelcontextprotocol/core': '2.0.0',
         '@modelcontextprotocol/client': '2.0.0',
@@ -106,7 +104,6 @@ describe('MCP 2026-07-28 deployment probe families (COLP-MCP-14)', () => {
       },
       fixtureTopologyDigest: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
       requirementsDigest,
-      reportDigest,
       probeFamilyIds: [...readFamilies],
     });
     expect(evidence.mcpBinding?.evidenceDigest).toMatch(/^sha256:[0-9a-f]{64}$/u);
@@ -114,7 +111,7 @@ describe('MCP 2026-07-28 deployment probe families (COLP-MCP-14)', () => {
     expect(Object.isFrozen(evidence.mcpBinding)).toBe(true);
   });
 
-  it('fails closed when an MCP scope omits the source-bound target evidence input', async () => {
+  it('fails closed when an MCP scope omits the mcpConformance binding', async () => {
     const target = createPassingDeploymentTarget();
     const execute = vi.spyOn(target, 'execute');
     const restart = vi.spyOn(target, 'restart');
@@ -122,40 +119,39 @@ describe('MCP 2026-07-28 deployment probe families (COLP-MCP-14)', () => {
     await expect(runDeploymentConformanceProbes(
       target,
       { profiles: ['core', 'mcp-read'], capabilities: [] },
-    )).rejects.toThrow(/mcpConformance|source binding/i);
+    )).rejects.toThrow(/mcpConformance/u);
     expect(execute).not.toHaveBeenCalled();
     expect(restart).not.toHaveBeenCalled();
     expect(readDiagnostics).not.toHaveBeenCalled();
   });
 
-  it('keeps the preflight source binding when caller state changes during probe I/O', async () => {
-    const mcpConformance = { sourceRevision, requirementsDigest, reportDigest };
+  it('keeps the preflight MCP binding when caller state changes during probe I/O', async () => {
+    const mcpConformance = { packageVersion, requirementsDigest };
     const target = createPassingDeploymentTarget();
     const execute = target.execute.bind(target);
     target.execute = async (command) => {
-      mcpConformance.sourceRevision = 'd'.repeat(40);
-      mcpConformance.reportDigest = `sha256:${'e'.repeat(64)}`;
+      mcpConformance.packageVersion = '9.9.9';
+      mcpConformance.requirementsDigest = `sha256:${'e'.repeat(64)}`;
       return execute(command);
     };
     const evidence = await runDeploymentConformanceProbes(target, {
       profiles: ['core', 'mcp-read'], capabilities: [], mcpConformance,
     });
-    expect(evidence.mcpBinding).toMatchObject({ sourceRevision, requirementsDigest, reportDigest });
+    expect(evidence.mcpBinding).toMatchObject({ packageVersion: '1.2.3', requirementsDigest: `sha256:${'b'.repeat(64)}` });
   });
 
   it.each([
-    ['non-hex source revision', { sourceRevision: 'not-a-revision' }, /sourceRevision/u],
-    ['short source revision', { sourceRevision: 'abc1234' }, /sourceRevision/u],
-    ['malformed report digest', { reportDigest: 'md5:abc' }, /reportDigest/u],
+    ['empty package version', { packageVersion: '' }, /packageVersion/u],
+    ['non-string package version', { packageVersion: 1 }, /packageVersion/u],
     ['malformed requirements digest', { requirementsDigest: 'nope' }, /requirementsDigest/u],
-    ['extra mcpConformance member', { extra: true }, /only sourceRevision, requirementsDigest, and reportDigest/u],
+    ['extra mcpConformance member', { extra: true }, /only packageVersion and requirementsDigest/u],
   ] as const)('rejects a malformed %s in the MCP deployment scope', async (_label, partial, expected) => {
     await expect(runDeploymentConformanceProbes(
       createPassingDeploymentTarget(),
       {
         profiles: ['core', 'mcp-read'],
         capabilities: [],
-        mcpConformance: { sourceRevision, requirementsDigest, reportDigest, ...partial },
+        mcpConformance: { packageVersion, requirementsDigest, ...partial } as never,
       },
     )).rejects.toThrow(expected);
   });
@@ -285,57 +281,27 @@ describe('MCP 2026-07-28 family probe fault injection (COLP-MCP-14)', () => {
   });
 });
 
-describe('MCP 2026-07-28 target-evidence runner verdict (COLP-MCP-14)', () => {
-  it('accepts a candidate when the deployment target evidence carries the identical binding', async () => {
-    const candidate = createMcpConformanceCandidate({
-      sourceRevision,
-      requirementsDigest,
-      reportDigest,
-    });
+describe('MCP 2026-07-28 target evidence binding (COLP-MCP-14)', () => {
+  it('stamps the binding derived from the scope and the exercised families', async () => {
+    const evidence = await runDeploymentConformanceProbes(
+      createPassingDeploymentTarget(),
+      mcpScope(['core', 'publication', 'publisher', 'mcp-read', 'mcp-write']),
+    );
+    const expected = createVersionedMcpEvidenceBinding({ packageVersion, requirementsDigest });
+    expect(evidence.mcpBinding?.evidenceDigest).toBe(expected.evidenceDigest);
+    expect(evidence.passedProbeIds).toEqual(expect.arrayContaining([...mcpConformanceProbeFamilies]));
+  });
+
+  it('changes the binding digest when the package version differs', async () => {
     const evidence = await runDeploymentConformanceProbes(
       createPassingDeploymentTarget(),
       {
         profiles: ['core', 'publication', 'publisher', 'mcp-read', 'mcp-write'],
         capabilities: [],
-        mcpConformance: { sourceRevision, requirementsDigest, reportDigest },
+        mcpConformance: { packageVersion: '2.0.0', requirementsDigest },
       },
     );
-    expect(evidence.mcpBinding?.evidenceDigest).toBe(candidate.evidenceDigest);
-    expect(evaluateMcpConformanceProbeCoverage(candidate, evidence)).toBe(true);
-  });
-
-  it('rejects the verdict when the target source revision differs from the candidate', async () => {
-    const candidate = createMcpConformanceCandidate({
-      sourceRevision,
-      requirementsDigest,
-      reportDigest,
-    });
-    const evidence = await runDeploymentConformanceProbes(
-      createPassingDeploymentTarget(),
-      {
-        profiles: ['core', 'mcp-read'],
-        capabilities: [],
-        mcpConformance: {
-          sourceRevision: 'b'.repeat(40),
-          requirementsDigest,
-          reportDigest,
-        },
-      },
-    );
-    expect(evaluateMcpConformanceProbeCoverage(candidate, evidence)).toBe(false);
-  });
-
-  it('rejects the verdict when the deployment never exercised the full family set', async () => {
-    const candidate = createMcpConformanceCandidate({
-      sourceRevision,
-      requirementsDigest,
-      reportDigest,
-    });
-    const partial = await runDeploymentConformanceProbes(
-      createPassingDeploymentTarget(),
-      mcpScope(['core', 'mcp-read']),
-    );
-    expect(partial.passedProbeIds).not.toContain('mcp-2026-07-28.write-mrtr-contracts');
-    expect(evaluateMcpConformanceProbeCoverage(candidate, partial)).toBe(false);
+    const expected = createVersionedMcpEvidenceBinding({ packageVersion, requirementsDigest });
+    expect(evidence.mcpBinding?.evidenceDigest).not.toBe(expected.evidenceDigest);
   });
 });

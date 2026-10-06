@@ -1,0 +1,34 @@
+# Changelog
+
+All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The specification and the Node.js package are versioned separately; until the first release, both are tracked under "Unreleased".
+
+## [Unreleased]
+
+### Specification
+
+- The whole specification (`SPECIFICATION.md` and `docs/00`–`10`) is now in English. Normative keywords follow BCP 14 (RFC 2119 and RFC 8174), and every numbered section has a stable `colp-section-N` anchor.
+- Aligned the prose with the schema and the reference implementation:
+  - The MCP endpoint is stateless and POST-only; GET and DELETE are rejected.
+  - The Manifest example declares `features.mcp.protocolVersion: "2026-07-28"`.
+  - Tombstone retention is advertised as `tombstoneRetentionSeconds` in the Sync session result, and purge eligibility is driven by `purgeAfter`.
+  - Effect page references document `firstPageDigest`.
+  - The browser mapping lists the `lossy_conversion` warning code.
+  - MCP risk levels and the high-risk tool list match the implementation, including `release.publish`, and servers advertise only the resource templates they implement.
+  - Snapshot import is not part of 0.1, so the write API no longer refers to a `snapshotImport` endpoint key.
+  - The NestJS guide is marked as illustrative and uses the real package subpaths.
+  - The implementation contract lists the package's actual export subpaths.
+- Removed product-specific notes that came from the project COLP was extracted from.
+- The example validator now also validates the COLP 0.2 example (`sync-pull-v02.json`) against the 0.2 schema.
+- Requirement records carry only `id`, `level`, `profile`, `source`, `requirement`, `implementation`, and `tests`; all requirement texts are in English.
+
+### Node.js package
+
+- Simplified the conformance evidence workflow. `npm run refresh:evidence` runs the suite once and records each requirement whose tagged tests all passed; `npm run check:evidence` verifies the committed result. This replaces the source-revision-bound certificate, release gate, MCP candidate, and SDK acceptance scripts.
+- The evidence artifact (schema version 2) contains `protocolVersion`, `packageVersion`, `requirementsDigest`, and `passedRequirementIds`. The digest covers requirement IDs, levels, profiles, and test IDs, so editing requirement wording does not invalidate evidence.
+- MCP deployment conformance scopes take `mcpConformance: { packageVersion, requirementsDigest }` from `bundledConformanceEvidence`.
+- Sync pull problem `type` URIs use the same `https://collectionprotocol.org/problems/` base as all other problems.
+
+### Repository
+
+- Added English and Chinese READMEs with a banner and diagrams, plus contributing guidelines, a security policy, a code of conduct, and issue and pull request templates.
+- CI validates the protocol examples and checks the committed evidence.

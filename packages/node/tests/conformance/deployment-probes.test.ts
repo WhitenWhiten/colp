@@ -39,7 +39,6 @@ const requirements = [
     profile: 'core' as const,
     source: 'test',
     requirement: 'Core deployment scope passes.',
-    selector: { marker: 'TEST-core-deployment' },
     implementation: ['test'],
     tests: ['test.core.deployment'],
   },
@@ -49,7 +48,6 @@ const requirements = [
     profile: 'publication' as const,
     source: 'test',
     requirement: 'Publication deployment scope passes.',
-    selector: { marker: 'TEST-publication-deployment' },
     implementation: ['test'],
     tests: ['test.publication.deployment'],
   },
@@ -60,10 +58,8 @@ const metadata = {
   requirementsDigest: `sha256:${'1'.repeat(64)}`,
 };
 const evidence = {
-  schemaVersion: 1 as const,
+  schemaVersion: 2 as const,
   ...metadata,
-  sourceRevision: '0123456789abcdef',
-  reportDigest: `sha256:${'2'.repeat(64)}`,
   passedRequirementIds: ['TEST-core-deployment', 'TEST-publication-deployment'],
 };
 const runtime = (deploymentEvidence: DeploymentRuntimeProbes['deploymentEvidence']): DeploymentRuntimeProbes => ({

@@ -42,7 +42,6 @@ const requirements: readonly ConformanceRequirement[] = profiles.flatMap((profil
     profile,
     source: 'CORE-0023 synthetic registry',
     requirement: `${profile} required behavior`,
-    selector: { marker: `${profile}-must` },
     implementation: ['test'],
     tests: [`core-0023.${profile}.must`],
   },
@@ -52,7 +51,6 @@ const requirements: readonly ConformanceRequirement[] = profiles.flatMap((profil
     profile,
     source: 'CORE-0023 synthetic registry',
     requirement: `${profile} prohibited behavior`,
-    selector: { marker: `${profile}-must-not` },
     implementation: ['test'],
     tests: [`core-0023.${profile}.must-not`],
   },
@@ -76,10 +74,8 @@ function artifact(
   passedRequirementIds: readonly string[] = requirements.map(({ id }) => id),
 ): ConformanceEvidenceArtifact {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     ...metadata,
-    sourceRevision: '0123456789abcdef',
-    reportDigest: `sha256:${'4'.repeat(64)}`,
     passedRequirementIds,
   };
 }
@@ -202,8 +198,7 @@ describe('CORE-0023 rejects invalid proof artifacts [evidence:core.unverified-pr
       { ...artifact(), requirementsDigest: `sha256:${'9'.repeat(64)}` },
       /requirementsDigest/u,
     ],
-    ['forged revision', { ...artifact(), sourceRevision: 'not-a-revision' }, /hexadecimal/u],
-    ['forged report', { ...artifact(), reportDigest: `sha256:${'z'.repeat(64)}` }, /reportDigest/u],
+    ['retired source binding', { ...artifact(), sourceRevision: 'not-a-revision' }, /Unknown conformance evidence fields/u],
     ['unknown evidence', artifact(['CORE-0023-UNKNOWN']), /Unknown passed Requirement ID/u],
     [
       'duplicate evidence IDs',
@@ -223,7 +218,7 @@ describe('CORE-0023 rejects invalid proof artifacts [evidence:core.unverified-pr
   ] as const;
 
   it('keeps the invalid-proof matrix explicit and static', () => {
-    expect(invalidEvidenceCases).toHaveLength(9);
+    expect(invalidEvidenceCases).toHaveLength(8);
   });
 
   it.each(invalidEvidenceCases)('rejects %s evidence', (_label, evidence, error) => {

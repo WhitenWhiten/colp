@@ -1,18 +1,14 @@
 {
   "protocolVersion": "0.1",
   "packageVersion": "0.0.0-development",
-  "requirementsDigest": "sha256:a69b648e6a2c2d8e38dba91642da2d3b46b3d39228fd02ac293953e53753979b",
+  "requirementsDigest": "sha256:bded8bcb9dbb0dfae8cc799867a0d44d68f1cd722b0fd23cf0bdcbd610a0be18",
   "requirements": [
     {
       "id": "CORE-0001",
       "level": "MUST",
       "profile": "core",
-      "source": "docs/00-practical-profile.md#7-two-stage-validation",
+      "source": "docs/00-practical-profile.md#colp-section-7",
       "requirement": "Validate every wire document structurally and then semantically.",
-      "selector": {
-        "marker": "CORE-0001",
-        "section": "7"
-      },
       "implementation": [
         "schema",
         "semantic",
@@ -26,12 +22,8 @@
       "id": "CORE-0002",
       "level": "MUST",
       "profile": "core",
-      "source": "docs/00-practical-profile.md#7-two-stage-validation",
+      "source": "docs/00-practical-profile.md#colp-section-7",
       "requirement": "Assert RFC 3339, URI, and URI Template formats.",
-      "selector": {
-        "marker": "CORE-0002",
-        "section": "7"
-      },
       "implementation": [
         "schema"
       ],
@@ -43,12 +35,8 @@
       "id": "CORE-0003",
       "level": "MUST",
       "profile": "core",
-      "source": "docs/01-core-data-model.md#11-data-validation",
+      "source": "docs/01-core-data-model.md#colp-section-11",
       "requirement": "A complete Snapshot has exactly one root identified by collection.rootNodeId.",
-      "selector": {
-        "marker": "CORE-0003",
-        "section": "11"
-      },
       "implementation": [
         "semantic"
       ],
@@ -60,12 +48,8 @@
       "id": "CORE-0004",
       "level": "MUST",
       "profile": "core",
-      "source": "docs/01-core-data-model.md#11-data-validation",
+      "source": "docs/01-core-data-model.md#colp-section-11",
       "requirement": "Live IDs are unique and do not overlap Tombstone target IDs.",
-      "selector": {
-        "marker": "CORE-0004",
-        "section": "11"
-      },
       "implementation": [
         "semantic"
       ],
@@ -77,12 +61,8 @@
       "id": "CORE-0005",
       "level": "MUST",
       "profile": "core",
-      "source": "docs/01-core-data-model.md#11-data-validation",
+      "source": "docs/01-core-data-model.md#colp-section-11",
       "requirement": "Parent and Alias graphs are acyclic and every parent has a structural kind.",
-      "selector": {
-        "marker": "CORE-0005",
-        "section": "11"
-      },
       "implementation": [
         "semantic"
       ],
@@ -94,12 +74,8 @@
       "id": "CORE-0006",
       "level": "MUST",
       "profile": "core",
-      "source": "docs/01-core-data-model.md#3-2-order",
+      "source": "docs/01-core-data-model.md#colp-section-3-2",
       "requirement": "Sibling positions are non-empty, unique, and compared as ASCII tokens.",
-      "selector": {
-        "marker": "CORE-0006",
-        "section": "3.2"
-      },
       "implementation": [
         "schema",
         "semantic",
@@ -113,12 +89,8 @@
       "id": "CORE-0007",
       "level": "MUST",
       "profile": "core",
-      "source": "docs/01-core-data-model.md#11-data-validation",
+      "source": "docs/01-core-data-model.md#colp-section-11",
       "requirement": "Subject, Relation, Alias, Parent, and Provenance references resolve in collection scope.",
-      "selector": {
-        "marker": "CORE-0007",
-        "section": "11"
-      },
       "implementation": [
         "semantic",
         "client"
@@ -131,12 +103,8 @@
       "id": "CORE-0008",
       "level": "MUST",
       "profile": "core",
-      "source": "docs/01-core-data-model.md#10-unknown-fields-and-round-trip",
+      "source": "docs/01-core-data-model.md#colp-section-10",
       "requirement": "Unknown core fields are rejected and extension data uses HTTPS namespace keys.",
-      "selector": {
-        "marker": "CORE-0008",
-        "section": "10"
-      },
       "implementation": [
         "schema",
         "semantic"
@@ -150,12 +118,8 @@
       "id": "CORE-0009",
       "level": "MUST",
       "profile": "core",
-      "source": "docs/01-core-data-model.md#11-data-validation",
+      "source": "docs/01-core-data-model.md#colp-section-11",
       "requirement": "Unsafe executable Bookmark URL schemes are rejected.",
-      "selector": {
-        "marker": "CORE-0009",
-        "section": "11"
-      },
       "implementation": [
         "schema",
         "semantic"
@@ -168,12 +132,8 @@
       "id": "PUB-0001",
       "level": "MUST",
       "profile": "publication",
-      "source": "docs/00-practical-profile.md#4-minimum-interoperable-publisher",
+      "source": "docs/00-practical-profile.md#colp-section-4",
       "requirement": "A publication Mount declares directory, collection, and snapshot endpoints.",
-      "selector": {
-        "marker": "PUB-0001",
-        "section": "4"
-      },
       "implementation": [
         "schema",
         "semantic"
@@ -186,12 +146,8 @@
       "id": "PUB-0002",
       "level": "MUST",
       "profile": "publication",
-      "source": "docs/00-practical-profile.md#5-endpoint-driven",
+      "source": "docs/00-practical-profile.md#colp-section-5",
       "requirement": "Clients follow declared endpoints and never infer object paths.",
-      "selector": {
-        "marker": "PUB-0002",
-        "section": "5"
-      },
       "implementation": [
         "client",
         "server"
@@ -204,12 +160,8 @@
       "id": "PUB-0003",
       "level": "MUST",
       "profile": "publication",
-      "source": "docs/00-practical-profile.md#5-endpoint-driven",
+      "source": "docs/00-practical-profile.md#colp-section-5",
       "requirement": "Endpoint templates are absolute Level 1 templates with exact registered variables.",
-      "selector": {
-        "marker": "PUB-0003",
-        "section": "5"
-      },
       "implementation": [
         "schema",
         "semantic"
@@ -222,12 +174,8 @@
       "id": "PUB-0004",
       "level": "MUST",
       "profile": "publication",
-      "source": "docs/02-http-publication-feed.md#5-1-consistency",
+      "source": "docs/02-http-publication-feed.md#colp-section-5-1",
       "requirement": "Snapshot page cursors bind revision, principal, query scope, and page size.",
-      "selector": {
-        "marker": "PUB-0004",
-        "section": "5.1"
-      },
       "implementation": [
         "client",
         "server"
@@ -240,12 +188,8 @@
       "id": "PUB-0005",
       "level": "MUST",
       "profile": "publication",
-      "source": "docs/10-implementation-contract.md#6-snapshot-assembly",
+      "source": "docs/10-implementation-contract.md#colp-section-6",
       "requirement": "Clients atomically replace state only after complete ordered Snapshot assembly.",
-      "selector": {
-        "marker": "PUB-0005",
-        "section": "6"
-      },
       "implementation": [
         "semantic",
         "client"
@@ -258,12 +202,8 @@
       "id": "PUB-0006",
       "level": "MUST",
       "profile": "publication",
-      "source": "SPECIFICATION.md#9-http-baseline",
+      "source": "SPECIFICATION.md#colp-section-9",
       "requirement": "Representation ETags include projection, query, content negotiation, and page identity.",
-      "selector": {
-        "marker": "PUB-0006",
-        "section": "9"
-      },
       "implementation": [
         "server"
       ],
@@ -275,12 +215,8 @@
       "id": "PUB-0007",
       "level": "MUST",
       "profile": "publication",
-      "source": "SPECIFICATION.md#9-http-baseline",
+      "source": "SPECIFICATION.md#colp-section-9",
       "requirement": "Authorization-varying responses are private no-store and vary by Authorization.",
-      "selector": {
-        "marker": "PUB-0007",
-        "section": "9"
-      },
       "implementation": [
         "server"
       ],
@@ -292,12 +228,8 @@
       "id": "PUB-0008",
       "level": "MUST",
       "profile": "publication",
-      "source": "docs/09-problem-registry.md#1-common-format",
+      "source": "docs/09-problem-registry.md#colp-section-1",
       "requirement": "Errors use RFC 9457 Problem Details with a stable machine code.",
-      "selector": {
-        "marker": "PUB-0008",
-        "section": "1"
-      },
       "implementation": [
         "server",
         "client"
@@ -310,12 +242,8 @@
       "id": "PUB-0009",
       "level": "MUST",
       "profile": "publication",
-      "source": "docs/02-http-publication-feed.md#3-collection-directory",
+      "source": "docs/02-http-publication-feed.md#colp-section-3",
       "requirement": "Anonymous discovery excludes unlisted collections.",
-      "selector": {
-        "marker": "PUB-0009",
-        "section": "3"
-      },
       "implementation": [
         "server"
       ],
@@ -327,12 +255,8 @@
       "id": "PUB-0010",
       "level": "MUST",
       "profile": "publication",
-      "source": "docs/10-implementation-contract.md#3-http-contract-index",
+      "source": "docs/10-implementation-contract.md#colp-section-3",
       "requirement": "Query parameters use registered decoding and reject unknown or duplicate scalar parameters.",
-      "selector": {
-        "marker": "PUB-0010",
-        "section": "3"
-      },
       "implementation": [
         "server",
         "client"
@@ -345,12 +269,8 @@
       "id": "FEED-0001",
       "level": "MUST",
       "profile": "feed",
-      "source": "docs/02-http-publication-feed.md#6-feed-event-model",
+      "source": "docs/02-http-publication-feed.md#colp-section-6",
       "requirement": "Core Feed event types use exact discriminated data contracts.",
-      "selector": {
-        "marker": "FEED-0001",
-        "section": "6"
-      },
       "implementation": [
         "feed",
         "schema"
@@ -364,12 +284,8 @@
       "id": "FEED-0002",
       "level": "MUST",
       "profile": "feed",
-      "source": "docs/02-http-publication-feed.md#7-1-cursor",
+      "source": "docs/02-http-publication-feed.md#colp-section-7-1",
       "requirement": "Feed cursors are scoped, exclusive, opaque, and separate from Sync cursors.",
-      "selector": {
-        "marker": "FEED-0002",
-        "section": "7.1"
-      },
       "implementation": [
         "feed"
       ],
@@ -381,12 +297,8 @@
       "id": "FEED-0003",
       "level": "MUST_NOT",
       "profile": "feed",
-      "source": "SPECIFICATION.md#3-3-feed",
+      "source": "SPECIFICATION.md#colp-section-3-3",
       "requirement": "Feed projections never expose private sidecars, credentials, native IDs, or unsafe extensions.",
-      "selector": {
-        "marker": "FEED-0003",
-        "section": "3.3"
-      },
       "implementation": [
         "feed",
         "semantic"
@@ -399,12 +311,8 @@
       "id": "PUBLISH-0001",
       "level": "MUST",
       "profile": "publisher",
-      "source": "docs/08-write-api.md#2-common-rules",
+      "source": "docs/08-write-api.md#colp-section-2",
       "requirement": "Existing-resource writes require If-Match and return 428 or 412 on precondition failure.",
-      "selector": {
-        "marker": "PUBLISH-0001",
-        "section": "2"
-      },
       "implementation": [
         "publisher",
         "server"
@@ -417,12 +325,8 @@
       "id": "PUBLISH-0002",
       "level": "MUST",
       "profile": "publisher",
-      "source": "docs/08-write-api.md#12-idempotent-replay",
+      "source": "docs/08-write-api.md#colp-section-12",
       "requirement": "Retryable POST operations bind idempotency keys to principal, endpoint, and canonical request digest.",
-      "selector": {
-        "marker": "PUBLISH-0002",
-        "section": "12"
-      },
       "implementation": [
         "publisher"
       ],
@@ -434,12 +338,8 @@
       "id": "PUBLISH-0003",
       "level": "MUST",
       "profile": "publisher",
-      "source": "docs/08-write-api.md#3-atomic-collection-and-root-create",
+      "source": "docs/08-write-api.md#colp-section-3",
       "requirement": "Collection and root creation commit atomically.",
-      "selector": {
-        "marker": "PUBLISH-0003",
-        "section": "3"
-      },
       "implementation": [
         "publisher",
         "server"
@@ -452,12 +352,8 @@
       "id": "PUBLISH-0004",
       "level": "MUST",
       "profile": "publisher",
-      "source": "docs/08-write-api.md#10-sidecars",
+      "source": "docs/08-write-api.md#colp-section-10",
       "requirement": "Annotation, Attachment, and Relation CRUD map to complete canonical Operations.",
-      "selector": {
-        "marker": "PUBLISH-0004",
-        "section": "10"
-      },
       "implementation": [
         "publisher",
         "sync"
@@ -470,12 +366,8 @@
       "id": "PUBLISH-0005",
       "level": "MUST",
       "profile": "publisher",
-      "source": "docs/08-write-api.md#5-delete-collection",
+      "source": "docs/08-write-api.md#colp-section-5",
       "requirement": "Publisher DELETE responses use Deletion Receipts that do not require or fabricate Sync cursors.",
-      "selector": {
-        "marker": "PUBLISH-0005",
-        "section": "5"
-      },
       "implementation": [
         "schema",
         "publisher"
@@ -488,12 +380,8 @@
       "id": "SYNC-0001",
       "level": "MUST",
       "profile": "sync",
-      "source": "docs/03-sync.md#4-session-negotiation",
+      "source": "docs/03-sync.md#colp-section-4",
       "requirement": "A Sync Session binds one Principal to one Collection, except for the constrained instance-scoped create_collection bootstrap.",
-      "selector": {
-        "marker": "SYNC-0001",
-        "section": "4"
-      },
       "implementation": [
         "sync"
       ],
@@ -505,12 +393,8 @@
       "id": "SYNC-0002",
       "level": "MUST",
       "profile": "sync",
-      "source": "docs/03-sync.md#6-1-idempotency",
+      "source": "docs/03-sync.md#colp-section-6-1",
       "requirement": "Terminal results consume continuous Replica sequences, deferred results block the current sequence, and exact retries return the persisted original result.",
-      "selector": {
-        "marker": "SYNC-0002",
-        "section": "6.1"
-      },
       "implementation": [
         "sync"
       ],
@@ -522,12 +406,8 @@
       "id": "SYNC-0003",
       "level": "MUST",
       "profile": "sync",
-      "source": "docs/03-sync.md#6-3-payload-and-concurrency",
+      "source": "docs/03-sync.md#colp-section-6-3",
       "requirement": "Resource-specific typed updates carry base and incoming values and cannot address fields outside the corresponding HTTP write DTO.",
-      "selector": {
-        "marker": "SYNC-0003",
-        "section": "6.3"
-      },
       "implementation": [
         "sync"
       ],
@@ -539,12 +419,8 @@
       "id": "SYNC-0004",
       "level": "MUST",
       "profile": "sync",
-      "source": "docs/03-sync.md#7-push",
+      "source": "docs/03-sync.md#colp-section-7",
       "requirement": "Business state, Operation, Sequence Receipt, Conflict, Cursor, Audit, and Outbox commit or roll back in one transaction.",
-      "selector": {
-        "marker": "SYNC-0004",
-        "section": "7"
-      },
       "implementation": [
         "sync"
       ],
@@ -556,12 +432,8 @@
       "id": "SYNC-0005",
       "level": "MUST",
       "profile": "sync",
-      "source": "docs/03-sync.md#8-pull",
+      "source": "docs/03-sync.md#colp-section-8",
       "requirement": "Pull returns Operation and Conflict events in authoritative commit order.",
-      "selector": {
-        "marker": "SYNC-0005",
-        "section": "8"
-      },
       "implementation": [
         "sync"
       ],
@@ -573,12 +445,8 @@
       "id": "SYNC-0006",
       "level": "MUST",
       "profile": "sync",
-      "source": "docs/03-sync.md#9-ack",
+      "source": "docs/03-sync.md#colp-section-9",
       "requirement": "Sync Tombstones purge only after retention, active Replica acknowledgement, purge-boundary advancement, and durable deletion watermarks.",
-      "selector": {
-        "marker": "SYNC-0006",
-        "section": "9"
-      },
       "implementation": [
         "sync"
       ],
@@ -590,12 +458,8 @@
       "id": "SYNC-0007",
       "level": "MUST",
       "profile": "sync",
-      "source": "docs/03-sync.md#4-session-negotiation",
+      "source": "docs/03-sync.md#colp-section-4",
       "requirement": "Instance-scoped bootstrap accepts only one atomic create_collection operation and binds the successful Session to the generated Collection.",
-      "selector": {
-        "marker": "SYNC-0007",
-        "section": "4"
-      },
       "implementation": [
         "schema",
         "sync"
@@ -608,12 +472,8 @@
       "id": "SYNC-0008",
       "level": "MUST",
       "profile": "sync",
-      "source": "docs/03-sync.md#13-delete",
+      "source": "docs/03-sync.md#colp-section-13",
       "requirement": "Every Sync Tombstone contains a deleteCursor while Publisher Deletion Receipts remain cursor-independent.",
-      "selector": {
-        "marker": "SYNC-0008",
-        "section": "13"
-      },
       "implementation": [
         "schema",
         "sync"
@@ -626,12 +486,8 @@
       "id": "SYNC-0009",
       "level": "MUST",
       "profile": "sync",
-      "source": "docs/03-sync.md#9-ack",
+      "source": "docs/03-sync.md#colp-section-9",
       "requirement": "Replica leases follow the active, expired, recovery_required, and retired state machine and retired Replica IDs never reactivate.",
-      "selector": {
-        "marker": "SYNC-0009",
-        "section": "9"
-      },
       "implementation": [
         "sync"
       ],
@@ -644,12 +500,8 @@
       "id": "SEC-0001",
       "level": "MUST",
       "profile": "publisher",
-      "source": "docs/04-auth-security-rate-limit.md#3-scope",
+      "source": "docs/04-auth-security-rate-limit.md#colp-section-3",
       "requirement": "Effective authorization intersects credential scopes, object policy, and ancestor policies.",
-      "selector": {
-        "marker": "SEC-0001",
-        "section": "3"
-      },
       "implementation": [
         "security"
       ],
@@ -661,12 +513,8 @@
       "id": "SEC-0002",
       "level": "MUST",
       "profile": "publisher",
-      "source": "docs/04-auth-security-rate-limit.md#7-access-policy",
+      "source": "docs/04-auth-security-rate-limit.md#colp-section-7",
       "requirement": "Server, Collection, ancestor, and object policies are always intersected in order without an inheritance bypass; explicit deny takes precedence and descendants cannot widen access.",
-      "selector": {
-        "marker": "SEC-0002",
-        "section": "7"
-      },
       "implementation": [
         "security"
       ],
@@ -678,12 +526,8 @@
       "id": "SEC-0003",
       "level": "MUST",
       "profile": "publisher",
-      "source": "SPECIFICATION.md#9-http-baseline",
+      "source": "SPECIFICATION.md#colp-section-9",
       "requirement": "JSON parsing rejects duplicate members, unsafe integers, and prototype-polluting keys.",
-      "selector": {
-        "marker": "SEC-0003",
-        "section": "9"
-      },
       "implementation": [
         "server"
       ],
@@ -695,12 +539,8 @@
       "id": "SEC-0004",
       "level": "MUST",
       "profile": "publisher",
-      "source": "docs/04-auth-security-rate-limit.md#8-rate-limit",
+      "source": "docs/04-auth-security-rate-limit.md#colp-section-8",
       "requirement": "Rate limits combine credential, IP, and instance ceilings and expose RFC 9651 fields.",
-      "selector": {
-        "marker": "SEC-0004",
-        "section": "8"
-      },
       "implementation": [
         "security",
         "server"
@@ -722,12 +562,8 @@
       "id": "SEC-0005",
       "level": "MUST",
       "profile": "publisher",
-      "source": "docs/04-auth-security-rate-limit.md#2-principal",
+      "source": "docs/04-auth-security-rate-limit.md#colp-section-2",
       "requirement": "The synthetic public principal matches only anonymous requests and is never added to an authenticated identity set.",
-      "selector": {
-        "marker": "SEC-0005",
-        "section": "2"
-      },
       "implementation": [
         "security"
       ],
@@ -739,12 +575,8 @@
       "id": "MCP-0001",
       "level": "MUST",
       "profile": "mcp-read",
-      "source": "docs/05-mcp-profile.md#5-resource-uri",
+      "source": "docs/05-mcp-profile.md#colp-section-5",
       "requirement": "Logical Resource URIs use the stable server UUID and unique metadata, Snapshot, and Node paths.",
-      "selector": {
-        "marker": "MCP-0001",
-        "section": "5"
-      },
       "implementation": [
         "mcp"
       ],
@@ -756,12 +588,8 @@
       "id": "MCP-0002",
       "level": "MUST",
       "profile": "mcp-read",
-      "source": "docs/05-mcp-profile.md#9-tool-naming",
+      "source": "docs/05-mcp-profile.md#colp-section-9",
       "requirement": "Every Tool has a validated input schema and write Tools return structured output.",
-      "selector": {
-        "marker": "MCP-0002",
-        "section": "9"
-      },
       "implementation": [
         "mcp"
       ],
@@ -773,12 +601,8 @@
       "id": "MCP-0003",
       "level": "MUST",
       "profile": "mcp-write",
-      "source": "docs/05-mcp-profile.md#12-high-risk-tools",
+      "source": "docs/05-mcp-profile.md#colp-section-12",
       "requirement": "Nested generic operations are assessed at their highest expanded risk.",
-      "selector": {
-        "marker": "MCP-0003",
-        "section": "12"
-      },
       "implementation": [
         "mcp",
         "security"
@@ -791,12 +615,8 @@
       "id": "MCP-0004",
       "level": "MUST",
       "profile": "mcp-write",
-      "source": "docs/05-mcp-profile.md#13-change-plan",
+      "source": "docs/05-mcp-profile.md#colp-section-13",
       "requirement": "High-risk actions use typed Plan operations and server-bound out-of-band approval.",
-      "selector": {
-        "marker": "MCP-0004",
-        "section": "13"
-      },
       "implementation": [
         "mcp",
         "security"
@@ -810,12 +630,8 @@
       "id": "MCP-0005",
       "level": "MUST_NOT",
       "profile": "mcp-write",
-      "source": "docs/05-mcp-profile.md#14-api-key-secret-handling",
+      "source": "docs/05-mcp-profile.md#colp-section-14",
       "requirement": "MCP Tool results never return API key secrets to model context.",
-      "selector": {
-        "marker": "MCP-0005",
-        "section": "14"
-      },
       "implementation": [
         "mcp",
         "security"
@@ -828,12 +644,8 @@
       "id": "MCP-0006",
       "level": "MUST",
       "profile": "mcp-read",
-      "source": "docs/05-mcp-profile.md#4-capabilities",
+      "source": "docs/05-mcp-profile.md#colp-section-4",
       "requirement": "MCP read mounts expose the MCP endpoint and Resources capability, while read-only Tools remain optional.",
-      "selector": {
-        "marker": "MCP-0006",
-        "section": "4"
-      },
       "implementation": [
         "schema",
         "semantic",
@@ -847,12 +659,8 @@
       "id": "MCP-0007",
       "level": "MUST",
       "profile": "mcp-write",
-      "source": "docs/05-mcp-profile.md#4-capabilities",
+      "source": "docs/05-mcp-profile.md#colp-section-4",
       "requirement": "MCP write mounts expose Tools and retain their mcp-read and publisher profile dependencies.",
-      "selector": {
-        "marker": "MCP-0007",
-        "section": "4"
-      },
       "implementation": [
         "schema",
         "semantic",
@@ -867,15 +675,8 @@
       "id": "CORE-0010",
       "level": "MUST",
       "profile": "core",
-      "classification": "auto",
       "source": "SPECIFICATION.md#colp-section-3-1",
-      "requirement": "- Snapshot MUST 带 `snapshotId`、`mode`、`complete`、`revision`、`generatedAt`、分页状态和内容摘要策略。`complete` 表示查询选择的是完整逻辑 Snapshot，而不是当前 HTTP 页面是否为最后一页。",
-      "selector": {
-        "section": "3.1",
-        "quote": "- Snapshot MUST 带 `snapshotId`、`mode`、`complete`、`revision`、`generatedAt`、分页状态和内容摘要策略。`complete` 表示查询选择的是完整逻辑 Snapshot，而不是当前 HTTP 页面是否为最后一页。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "A Snapshot MUST carry `snapshotId`, `mode`, `complete`, `revision`, `generatedAt`, pagination state, and a content digest policy; `complete` describes the selected logical Snapshot, not whether the current page is the last one.",
       "implementation": [
         "schema",
         "semantic",
@@ -889,15 +690,8 @@
       "id": "CORE-0011",
       "level": "MUST",
       "profile": "core",
-      "classification": "auto",
       "source": "SPECIFICATION.md#colp-section-4-4",
-      "requirement": "扩展键 MUST 是没有 Userinfo、且任何显式端口均为非空十进制数字的 HTTPS Namespace URI；Namespace key 按原始字符串逐 Code Point 精确比较，不执行大小写折叠、默认端口消除或 Percent-Encoding 规范化。中间节点、同步服务器和导出工具对未知扩展 MUST 原样保留，除非安全策略明确移除。",
-      "selector": {
-        "section": "4.4",
-        "quote": "扩展键 MUST 是没有 Userinfo、且任何显式端口均为非空十进制数字的 HTTPS Namespace URI；Namespace key 按原始字符串逐 Code Point 精确比较，不执行大小写折叠、默认端口消除或 Percent-Encoding 规范化。中间节点、同步服务器和导出工具对未知扩展 MUST 原样保留，除非安全策略明确移除。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Extension keys MUST be HTTPS namespace URIs without userinfo, where any explicit port is a non-empty decimal number; keys are compared as exact code point strings without case folding, default port removal, or percent-encoding normalization.",
       "implementation": [
         "schema",
         "semantic",
@@ -911,15 +705,8 @@
       "id": "CORE-0012",
       "level": "MUST",
       "profile": "core",
-      "classification": "auto",
       "source": "SPECIFICATION.md#colp-section-4-4",
-      "requirement": "扩展键 MUST 是没有 Userinfo、且任何显式端口均为非空十进制数字的 HTTPS Namespace URI；Namespace key 按原始字符串逐 Code Point 精确比较，不执行大小写折叠、默认端口消除或 Percent-Encoding 规范化。中间节点、同步服务器和导出工具对未知扩展 MUST 原样保留，除非安全策略明确移除。",
-      "selector": {
-        "section": "4.4",
-        "quote": "扩展键 MUST 是没有 Userinfo、且任何显式端口均为非空十进制数字的 HTTPS Namespace URI；Namespace key 按原始字符串逐 Code Point 精确比较，不执行大小写折叠、默认端口消除或 Percent-Encoding 规范化。中间节点、同步服务器和导出工具对未知扩展 MUST 原样保留，除非安全策略明确移除。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 2
-      },
+      "requirement": "Intermediaries, sync servers, and export tools MUST preserve unknown extensions verbatim unless a security policy explicitly removes them.",
       "implementation": [
         "schema",
         "semantic",
@@ -936,15 +723,8 @@
       "id": "CORE-0013",
       "level": "MUST",
       "profile": "core",
-      "classification": "auto",
       "source": "SPECIFICATION.md#colp-section-4-4",
-      "requirement": "同一精确协议版本内，新增数据 MUST 放入 `extensions`。新增核心字段需要新的 Schema / 协议版本，不能依赖旧版本 `additionalProperties` 行为偷偷扩展。",
-      "selector": {
-        "section": "4.4",
-        "quote": "同一精确协议版本内，新增数据 MUST 放入 `extensions`。新增核心字段需要新的 Schema / 协议版本，不能依赖旧版本 `additionalProperties` 行为偷偷扩展。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Within one exact protocol version, new data MUST go into `extensions`; a new core field requires a new schema and protocol version.",
       "implementation": [
         "schema",
         "client",
@@ -960,15 +740,8 @@
       "id": "CORE-0014",
       "level": "SHOULD",
       "profile": "core",
-      "classification": "auto",
       "source": "SPECIFICATION.md#colp-section-5-1",
-      "requirement": "- 新建对象 SHOULD 使用 UUIDv7。",
-      "selector": {
-        "section": "5.1",
-        "quote": "- 新建对象 SHOULD 使用 UUIDv7。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "New objects SHOULD use UUIDv7 IDs.",
       "implementation": [
         "server"
       ],
@@ -980,15 +753,8 @@
       "id": "CORE-0015",
       "level": "MUST",
       "profile": "core",
-      "classification": "auto",
       "source": "SPECIFICATION.md#colp-section-5-1",
-      "requirement": "- Wire ID MUST 为 1 到 128 个 URI Unreserved ASCII 字符：`ALPHA / DIGIT / \"-\" / \".\" / \"_\" / \"~\"`。",
-      "selector": {
-        "section": "5.1",
-        "quote": "- Wire ID MUST 为 1 到 128 个 URI Unreserved ASCII 字符：`ALPHA / DIGIT / \"-\" / \".\" / \"_\" / \"~\"`。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Wire IDs MUST be 1 to 128 URI unreserved ASCII characters: `ALPHA / DIGIT / \"-\" / \".\" / \"_\" / \"~\"`.",
       "implementation": [
         "schema",
         "semantic",
@@ -1003,15 +769,8 @@
       "id": "CORE-0016",
       "level": "MUST",
       "profile": "core",
-      "classification": "auto",
       "source": "SPECIFICATION.md#colp-section-5-1",
-      "requirement": "- Collection、Node、Annotation、Attachment、Relation、Operation 和 Event 的 ID 在其服务器内 MUST 唯一且永不复用。",
-      "selector": {
-        "section": "5.1",
-        "quote": "- Collection、Node、Annotation、Attachment、Relation、Operation 和 Event 的 ID 在其服务器内 MUST 唯一且永不复用。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Collection, Node, Annotation, Attachment, Relation, Operation, and Event IDs MUST be unique within their server and never reused.",
       "implementation": [
         "server",
         "publisher",
@@ -1025,15 +784,8 @@
       "id": "CORE-0017",
       "level": "MUST",
       "profile": "core",
-      "classification": "auto",
       "source": "SPECIFICATION.md#colp-section-5-1",
-      "requirement": "- 全局资源身份是 `(serverUuid, resourceType, id)`。跨服务器引用 MUST 使用 Canonical URI，不能只发送裸 ID。",
-      "selector": {
-        "section": "5.1",
-        "quote": "- 全局资源身份是 `(serverUuid, resourceType, id)`。跨服务器引用 MUST 使用 Canonical URI，不能只发送裸 ID。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Cross-server references MUST use the canonical URI of the global identity `(serverUuid, resourceType, id)`, not a bare ID.",
       "implementation": [
         "schema",
         "semantic",
@@ -1048,15 +800,8 @@
       "id": "CORE-0018",
       "level": "SHOULD",
       "profile": "core",
-      "classification": "auto",
       "source": "SPECIFICATION.md#colp-section-5-2",
-      "requirement": "- 规范写入 SHOULD 使用 UTC 和 `Z`。",
-      "selector": {
-        "section": "5.2",
-        "quote": "- 规范写入 SHOULD 使用 UTC 和 `Z`。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Canonical writes SHOULD use UTC with the `Z` suffix.",
       "implementation": [
         "schema"
       ],
@@ -1068,15 +813,8 @@
       "id": "CORE-0019",
       "level": "MAY",
       "profile": "core",
-      "classification": "auto",
       "source": "SPECIFICATION.md#colp-section-6",
-      "requirement": "- `canonicalUrl` MAY 保存经明确规则计算或页面声明的 Canonical URL。",
-      "selector": {
-        "section": "6",
-        "quote": "- `canonicalUrl` MAY 保存经明确规则计算或页面声明的 Canonical URL。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "`canonicalUrl` MAY store a canonical URL computed by an explicit rule or declared by the page.",
       "implementation": [
         "schema",
         "semantic"
@@ -1089,15 +827,8 @@
       "id": "CORE-0020",
       "level": "MAY",
       "profile": "core",
-      "classification": "auto",
       "source": "SPECIFICATION.md#colp-section-6",
-      "requirement": "- `urlHash` MAY 用于查重，但不得作为对象 ID。",
-      "selector": {
-        "section": "6",
-        "quote": "- `urlHash` MAY 用于查重，但不得作为对象 ID。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "`urlHash` MAY be used for duplicate detection, but must not be used as an object ID.",
       "implementation": [
         "schema",
         "semantic"
@@ -1110,15 +841,8 @@
       "id": "CORE-0021",
       "level": "MUST",
       "profile": "core",
-      "classification": "auto",
       "source": "SPECIFICATION.md#colp-section-6",
-      "requirement": "- 带签名、临时令牌或顺序敏感 Query 的 URL MUST 保留原值。",
-      "selector": {
-        "section": "6",
-        "quote": "- 带签名、临时令牌或顺序敏感 Query 的 URL MUST 保留原值。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "URLs with signatures, temporary tokens, or order-sensitive queries MUST keep their original value.",
       "implementation": [
         "schema",
         "semantic",
@@ -1132,15 +856,8 @@
       "id": "PUB-0011",
       "level": "MUST",
       "profile": "publication",
-      "classification": "auto",
       "source": "SPECIFICATION.md#colp-section-7",
-      "requirement": "服务器 MUST 在以下位置之一提供 Manifest：",
-      "selector": {
-        "section": "7",
-        "quote": "服务器 MUST 在以下位置之一提供 Manifest：",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "A server MUST provide its Manifest at `/.well-known/collection-protocol`.",
       "implementation": [
         "server"
       ],
@@ -1152,15 +869,8 @@
       "id": "PUB-0012",
       "level": "MUST",
       "profile": "publication",
-      "classification": "auto",
       "source": "SPECIFICATION.md#colp-section-7",
-      "requirement": "若协议挂载在子路径，Manifest 中的 `mounts[].baseUrl` 指向真实基地址。每个 Mount MUST 独立声明 `profiles`、`endpoints`、认证和限制；客户端 MUST 跟随 Endpoint / Link，MUST NOT 从 `baseUrl` 猜测路径。Endpoint Template 使用 RFC 6570 Level 1。",
-      "selector": {
-        "section": "7",
-        "quote": "若协议挂载在子路径，Manifest 中的 `mounts[].baseUrl` 指向真实基地址。每个 Mount MUST 独立声明 `profiles`、`endpoints`、认证和限制；客户端 MUST 跟随 Endpoint / Link，MUST NOT 从 `baseUrl` 猜测路径。Endpoint Template 使用 RFC 6570 Level 1。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Each Manifest mount MUST declare its own `profiles`, `endpoints`, authentication, and limits.",
       "implementation": [
         "server"
       ],
@@ -1172,15 +882,8 @@
       "id": "PUB-0013",
       "level": "MUST",
       "profile": "publication",
-      "classification": "auto",
       "source": "SPECIFICATION.md#colp-section-7",
-      "requirement": "若协议挂载在子路径，Manifest 中的 `mounts[].baseUrl` 指向真实基地址。每个 Mount MUST 独立声明 `profiles`、`endpoints`、认证和限制；客户端 MUST 跟随 Endpoint / Link，MUST NOT 从 `baseUrl` 猜测路径。Endpoint Template 使用 RFC 6570 Level 1。",
-      "selector": {
-        "section": "7",
-        "quote": "若协议挂载在子路径，Manifest 中的 `mounts[].baseUrl` 指向真实基地址。每个 Mount MUST 独立声明 `profiles`、`endpoints`、认证和限制；客户端 MUST 跟随 Endpoint / Link，MUST NOT 从 `baseUrl` 猜测路径。Endpoint Template 使用 RFC 6570 Level 1。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 2
-      },
+      "requirement": "Clients MUST follow the endpoints and links the server declares.",
       "implementation": [
         "client"
       ],
@@ -1192,15 +895,8 @@
       "id": "PUB-0014",
       "level": "MUST_NOT",
       "profile": "publication",
-      "classification": "auto",
       "source": "SPECIFICATION.md#colp-section-7",
-      "requirement": "若协议挂载在子路径，Manifest 中的 `mounts[].baseUrl` 指向真实基地址。每个 Mount MUST 独立声明 `profiles`、`endpoints`、认证和限制；客户端 MUST 跟随 Endpoint / Link，MUST NOT 从 `baseUrl` 猜测路径。Endpoint Template 使用 RFC 6570 Level 1。",
-      "selector": {
-        "section": "7",
-        "quote": "若协议挂载在子路径，Manifest 中的 `mounts[].baseUrl` 指向真实基地址。每个 Mount MUST 独立声明 `profiles`、`endpoints`、认证和限制；客户端 MUST 跟随 Endpoint / Link，MUST NOT 从 `baseUrl` 猜测路径。Endpoint Template 使用 RFC 6570 Level 1。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 3
-      },
+      "requirement": "Clients MUST NOT guess paths from `baseUrl`.",
       "implementation": [
         "client"
       ],
@@ -1212,15 +908,8 @@
       "id": "PUB-0015",
       "level": "SHOULD",
       "profile": "publication",
-      "classification": "auto",
       "source": "SPECIFICATION.md#colp-section-7",
-      "requirement": "HTML 页面和 HTTP 响应 SHOULD 额外提供：",
-      "selector": {
-        "section": "7",
-        "quote": "HTML 页面和 HTTP 响应 SHOULD 额外提供：",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "HTML pages and HTTP responses SHOULD advertise the Manifest with `<link rel=\"collection-protocol\">` and a `Link` header.",
       "implementation": [
         "server"
       ],
@@ -1232,15 +921,8 @@
       "id": "PUB-0016",
       "level": "MUST",
       "profile": "publication",
-      "classification": "auto",
       "source": "SPECIFICATION.md#colp-section-9",
-      "requirement": "- 请求与响应 MUST 使用 UTF-8。",
-      "selector": {
-        "section": "9",
-        "quote": "- 请求与响应 MUST 使用 UTF-8。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Requests and responses MUST use UTF-8.",
       "implementation": [
         "client",
         "server"
@@ -1253,15 +935,8 @@
       "id": "PUB-0017",
       "level": "MUST",
       "profile": "publication",
-      "classification": "auto",
       "source": "SPECIFICATION.md#colp-section-9",
-      "requirement": "- JSON MUST 遵循 I-JSON 互操作约束：不得有重复成员名，协议整数不得超出 IEEE 754 binary64 可精确表示范围，非有限数字不得出现。",
-      "selector": {
-        "section": "9",
-        "quote": "- JSON MUST 遵循 I-JSON 互操作约束：不得有重复成员名，协议整数不得超出 IEEE 754 binary64 可精确表示范围，非有限数字不得出现。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "JSON MUST follow I-JSON: no duplicate member names, protocol integers within the exactly representable IEEE 754 binary64 range, and no non-finite numbers.",
       "implementation": [
         "server"
       ],
@@ -1273,15 +948,8 @@
       "id": "PUB-0018",
       "level": "MUST",
       "profile": "publication",
-      "classification": "auto",
       "source": "SPECIFICATION.md#colp-section-9",
-      "requirement": "- 每个 Endpoint 的 Query、请求 Body 和响应 Body MUST 使用 `docs/10-implementation-contract.md` 指定的命名 `$defs` 校验。Schema 根部 `anyOf` 只用于可独立识别的资源 / 响应表示，不得代替端点级 DTO 校验。",
-      "selector": {
-        "section": "9",
-        "quote": "- 每个 Endpoint 的 Query、请求 Body 和响应 Body MUST 使用 `docs/10-implementation-contract.md` 指定的命名 `$defs` 校验。Schema 根部 `anyOf` 只用于可独立识别的资源 / 响应表示，不得代替端点级 DTO 校验。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "The query, request body, and response body of every endpoint MUST be validated with the named `$defs` given in `docs/10-implementation-contract.md`; the schema root `anyOf` must not replace endpoint-level DTO validation.",
       "implementation": [
         "client",
         "server"
@@ -1294,15 +962,8 @@
       "id": "PUB-0019",
       "level": "MUST",
       "profile": "publication",
-      "classification": "auto",
       "source": "SPECIFICATION.md#colp-section-9",
-      "requirement": "- 客户端 MUST 支持 `application/json`。",
-      "selector": {
-        "section": "9",
-        "quote": "- 客户端 MUST 支持 `application/json`。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Clients MUST support `application/json`.",
       "implementation": [
         "client"
       ],
@@ -1315,15 +976,8 @@
       "id": "PUB-0020",
       "level": "SHOULD",
       "profile": "publication",
-      "classification": "auto",
       "source": "SPECIFICATION.md#colp-section-9",
-      "requirement": "- 实现 SHOULD 支持 `application/vnd.collection-protocol.*+json;version=0.1`。",
-      "selector": {
-        "section": "9",
-        "quote": "- 实现 SHOULD 支持 `application/vnd.collection-protocol.*+json;version=0.1`。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Implementations SHOULD support `application/vnd.collection-protocol.*+json;version=0.1`.",
       "implementation": [
         "client",
         "server"
@@ -1337,15 +991,8 @@
       "id": "PUB-0021",
       "level": "SHOULD",
       "profile": "publication",
-      "classification": "auto",
       "source": "SPECIFICATION.md#colp-section-9",
-      "requirement": "- GET 响应 SHOULD 返回 `ETag` 和 `Last-Modified`。ETag 标识具体表示，必须包含投影、查询、分页和内容协商差异；不得只用 Collection Revision 生成所有页面共用的 ETag。",
-      "selector": {
-        "section": "9",
-        "quote": "- GET 响应 SHOULD 返回 `ETag` 和 `Last-Modified`。ETag 标识具体表示，必须包含投影、查询、分页和内容协商差异；不得只用 Collection Revision 生成所有页面共用的 ETag。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "GET responses SHOULD return `ETag` and `Last-Modified`; an ETag identifies one concrete representation, including projection, query, pagination, and content negotiation differences.",
       "implementation": [
         "server"
       ],
@@ -1357,15 +1004,8 @@
       "id": "PUB-0022",
       "level": "SHOULD",
       "profile": "publication",
-      "classification": "auto",
       "source": "SPECIFICATION.md#colp-section-9",
-      "requirement": "- 客户端 SHOULD 使用 `If-None-Match`，服务器可返回 `304 Not Modified`。",
-      "selector": {
-        "section": "9",
-        "quote": "- 客户端 SHOULD 使用 `If-None-Match`，服务器可返回 `304 Not Modified`。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Clients SHOULD send `If-None-Match`, and servers can answer `304 Not Modified`.",
       "implementation": [
         "client"
       ],
@@ -1377,15 +1017,8 @@
       "id": "PUBLISH-0006",
       "level": "MUST",
       "profile": "publisher",
-      "classification": "auto",
       "source": "SPECIFICATION.md#colp-section-9",
-      "requirement": "- 修改已有资源 MUST 使用 `If-Match`，避免静默覆盖。",
-      "selector": {
-        "section": "9",
-        "quote": "- 修改已有资源 MUST 使用 `If-Match`，避免静默覆盖。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Modifying an existing resource MUST use `If-Match`, to avoid silent overwrites.",
       "implementation": [
         "publisher"
       ],
@@ -1397,15 +1030,8 @@
       "id": "PUBLISH-0007",
       "level": "MUST",
       "profile": "publisher",
-      "classification": "auto",
       "source": "SPECIFICATION.md#colp-section-9",
-      "requirement": "- 缺少必需 Precondition 时服务器 MUST 返回 `428 Precondition Required`。",
-      "selector": {
-        "section": "9",
-        "quote": "- 缺少必需 Precondition 时服务器 MUST 返回 `428 Precondition Required`。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "When a required precondition is missing, the server MUST return `428 Precondition Required`.",
       "implementation": [
         "publisher",
         "server"
@@ -1418,15 +1044,8 @@
       "id": "PUBLISH-0008",
       "level": "MUST",
       "profile": "publisher",
-      "classification": "auto",
       "source": "SPECIFICATION.md#colp-section-9",
-      "requirement": "- `If-Match` 不匹配时 MUST 返回 `412 Precondition Failed`，并附当前 Revision / ETag。`409 Conflict` 只用于请求满足 HTTP Precondition 后仍存在的业务冲突。",
-      "selector": {
-        "section": "9",
-        "quote": "- `If-Match` 不匹配时 MUST 返回 `412 Precondition Failed`，并附当前 Revision / ETag。`409 Conflict` 只用于请求满足 HTTP Precondition 后仍存在的业务冲突。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "When `If-Match` does not match, the server MUST return `412 Precondition Failed` with the current revision / ETag; `409 Conflict` is only for business conflicts after the HTTP precondition is satisfied.",
       "implementation": [
         "publisher",
         "server"
@@ -1439,15 +1058,8 @@
       "id": "PUBLISH-0009",
       "level": "MUST",
       "profile": "publisher",
-      "classification": "auto",
       "source": "SPECIFICATION.md#colp-section-9",
-      "requirement": "- 重试型 POST MUST 带 `Idempotency-Key`。",
-      "selector": {
-        "section": "9",
-        "quote": "- 重试型 POST MUST 带 `Idempotency-Key`。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Retryable POST requests MUST carry `Idempotency-Key`.",
       "implementation": [
         "publisher"
       ],
@@ -1459,15 +1071,8 @@
       "id": "PUBLISH-0010",
       "level": "MUST",
       "profile": "publisher",
-      "classification": "auto",
       "source": "SPECIFICATION.md#colp-section-9",
-      "requirement": "- Idempotency Key 必须绑定 Principal、Method、Endpoint Key、资源身份、协议版本和 Canonical Request Digest；同 Key 不同请求 MUST 返回 `409 idempotency_key_reused`。JSON Body 使用 RFC 8785，Query 使用已解码 DTO 的 Canonical JSON，Media Type 小写并移除可忽略空白。服务端必须在 Manifest 声明最短去重保留期。",
-      "selector": {
-        "section": "9",
-        "quote": "- Idempotency Key 必须绑定 Principal、Method、Endpoint Key、资源身份、协议版本和 Canonical Request Digest；同 Key 不同请求 MUST 返回 `409 idempotency_key_reused`。JSON Body 使用 RFC 8785，Query 使用已解码 DTO 的 Canonical JSON，Media Type 小写并移除可忽略空白。服务端必须在 Manifest 声明最短去重保留期。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "An idempotency key is bound to the principal, method, endpoint key, resource identity, protocol version, and canonical request digest; reusing a key with a different request MUST return `409 idempotency_key_reused`.",
       "implementation": [
         "publisher"
       ],
@@ -1479,15 +1084,8 @@
       "id": "PUB-0023",
       "level": "MUST",
       "profile": "publication",
-      "classification": "auto",
       "source": "SPECIFICATION.md#colp-section-9",
-      "requirement": "- 任何因 Authorization 而改变内容的响应 MUST 使用 `Cache-Control: private, no-store` 与 `Vary: Authorization`。匿名公开表示才可以使用 Shared Cache。",
-      "selector": {
-        "section": "9",
-        "quote": "- 任何因 Authorization 而改变内容的响应 MUST 使用 `Cache-Control: private, no-store` 与 `Vary: Authorization`。匿名公开表示才可以使用 Shared Cache。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Any response whose content depends on authorization MUST use `Cache-Control: private, no-store` and `Vary: Authorization`; only anonymous public representations may use a shared cache.",
       "implementation": [
         "server"
       ],
@@ -1499,15 +1097,8 @@
       "id": "PUB-0024",
       "level": "MUST",
       "profile": "publication",
-      "classification": "auto",
       "source": "SPECIFICATION.md#colp-section-9",
-      "requirement": "- 使用媒体类型或版本内容协商的响应 MUST 正确合并 `Vary: Accept, Collection-Protocol-Version`；不得覆盖已有 `Vary: Authorization` / `Origin`。",
-      "selector": {
-        "section": "9",
-        "quote": "- 使用媒体类型或版本内容协商的响应 MUST 正确合并 `Vary: Accept, Collection-Protocol-Version`；不得覆盖已有 `Vary: Authorization` / `Origin`。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Responses that use media type or version content negotiation MUST merge `Vary: Accept, Collection-Protocol-Version` without overwriting an existing `Vary: Authorization` / `Origin`.",
       "implementation": [
         "server"
       ],
@@ -1519,15 +1110,8 @@
       "id": "PUB-0025",
       "level": "MUST",
       "profile": "publication",
-      "classification": "auto",
       "source": "SPECIFICATION.md#colp-section-10",
-      "requirement": "公开投影 MUST 移除：",
-      "selector": {
-        "section": "10",
-        "quote": "公开投影 MUST 移除：",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "A public projection MUST remove source references, private annotations, internal principals, secrets, private conflict content, non-public attachments, and extensions that are not on the public-safe allowlist.",
       "implementation": [
         "server"
       ],
@@ -1539,15 +1123,8 @@
       "id": "CORE-0022",
       "level": "MUST",
       "profile": "core",
-      "classification": "auto",
       "source": "SPECIFICATION.md#colp-section-11",
-      "requirement": "依赖关系和最小能力见 `docs/00-practical-profile.md`。若实现声明某 Profile，其对应的必需端点和语义 MUST 全部通过 Conformance Test。旧草案 Bundle 名称 `reader`、`sync-server`、`mcp-server` 不再用于新 Manifest。",
-      "selector": {
-        "section": "11",
-        "quote": "依赖关系和最小能力见 `docs/00-practical-profile.md`。若实现声明某 Profile，其对应的必需端点和语义 MUST 全部通过 Conformance Test。旧草案 Bundle 名称 `reader`、`sync-server`、`mcp-server` 不再用于新 Manifest。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "An implementation that declares a profile MUST pass the conformance tests for every required endpoint and semantic of that profile.",
       "implementation": [
         "schema",
         "semantic",
@@ -1573,15 +1150,8 @@
       "id": "PUB-0026",
       "level": "SHOULD",
       "profile": "publication",
-      "classification": "auto",
       "source": "SPECIFICATION.md#colp-section-12",
-      "requirement": "- HTTP 客户端 SHOULD 发送：",
-      "selector": {
-        "section": "12",
-        "quote": "- HTTP 客户端 SHOULD 发送：",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "HTTP clients SHOULD send the `Collection-Protocol-Version` header.",
       "implementation": [
         "client"
       ],
@@ -1593,15 +1163,8 @@
       "id": "CORE-0023",
       "level": "MUST_NOT",
       "profile": "core",
-      "classification": "auto",
       "source": "docs/00-practical-profile.md#colp-section-3",
-      "requirement": "Profile 是能力声明，不是营销级别。实现 MUST NOT 声明尚未通过对应 Conformance Test 的 Profile。",
-      "selector": {
-        "section": "3",
-        "quote": "Profile 是能力声明，不是营销级别。实现 MUST NOT 声明尚未通过对应 Conformance Test 的 Profile。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Implementations MUST NOT declare a profile that has not passed its conformance tests.",
       "implementation": [
         "conformance"
       ],
@@ -1613,15 +1176,8 @@
       "id": "CORE-0024",
       "level": "MUST",
       "profile": "core",
-      "classification": "auto",
       "source": "docs/00-practical-profile.md#colp-section-7",
-      "requirement": "JSON Schema 负责结构与 Format 校验。实现必须启用 Draft 2020-12 Format Assertion 或执行等价的 RFC 3339 / URI 校验；仅把 `format` 当注释不符合本 Profile。结构校验通过后，接收方 MUST 执行语义校验：",
-      "selector": {
-        "section": "7",
-        "quote": "JSON Schema 负责结构与 Format 校验。实现必须启用 Draft 2020-12 Format Assertion 或执行等价的 RFC 3339 / URI 校验；仅把 `format` 当注释不符合本 Profile。结构校验通过后，接收方 MUST 执行语义校验：",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Receivers MUST assert Draft 2020-12 formats (or equivalent RFC 3339 / URI checks) and, after structural validation passes, run the semantic checks.",
       "implementation": [
         "schema",
         "semantic",
@@ -1636,15 +1192,8 @@
       "id": "CORE-0025",
       "level": "MUST",
       "profile": "core",
-      "classification": "auto",
       "source": "docs/01-core-data-model.md#colp-section-3-2",
-      "requirement": "- 客户端 MUST 按无符号 ASCII Octet 顺序比较，但不得自行解释其结构。限制字符集可避免 JavaScript UTF-16 与其他语言 Unicode 排序不一致。",
-      "selector": {
-        "section": "3.2",
-        "quote": "- 客户端 MUST 按无符号 ASCII Octet 顺序比较，但不得自行解释其结构。限制字符集可避免 JavaScript UTF-16 与其他语言 Unicode 排序不一致。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Clients MUST compare positions by unsigned ASCII octet order and must not interpret their structure.",
       "implementation": [
         "schema",
         "semantic",
@@ -1658,15 +1207,8 @@
       "id": "CORE-0026",
       "level": "SHOULD",
       "profile": "core",
-      "classification": "auto",
       "source": "docs/01-core-data-model.md#colp-section-3-2",
-      "requirement": "- 客户端创建或移动 Node 时 SHOULD 提交 `afterId` / `beforeId`，由服务器分配 Position。",
-      "selector": {
-        "section": "3.2",
-        "quote": "- 客户端创建或移动 Node 时 SHOULD 提交 `afterId` / `beforeId`，由服务器分配 Position。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Clients creating or moving a Node SHOULD send `afterId` / `beforeId` and let the server assign the position.",
       "implementation": [
         "client"
       ],
@@ -1678,15 +1220,8 @@
       "id": "CORE-0027",
       "level": "MAY",
       "profile": "core",
-      "classification": "auto",
       "source": "docs/01-core-data-model.md#colp-section-3-2",
-      "requirement": "- Snapshot MAY 提供派生的 `index`，但 Sync 不得依赖 Index，因为并发插入会使其漂移。",
-      "selector": {
-        "section": "3.2",
-        "quote": "- Snapshot MAY 提供派生的 `index`，但 Sync 不得依赖 Index，因为并发插入会使其漂移。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "A Snapshot MAY provide a derived `index`, but Sync must not depend on it.",
       "implementation": [
         "schema",
         "semantic"
@@ -1699,15 +1234,8 @@
       "id": "CORE-0028",
       "level": "MUST",
       "profile": "core",
-      "classification": "auto",
       "source": "docs/01-core-data-model.md#colp-section-3-3",
-      "requirement": "`managed-bookmarks` MUST 默认为只读。",
-      "selector": {
-        "section": "3.3",
-        "quote": "`managed-bookmarks` MUST 默认为只读。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "`managed-bookmarks` MUST be read-only by default.",
       "implementation": [
         "server"
       ],
@@ -1719,15 +1247,8 @@
       "id": "CORE-0029",
       "level": "SHOULD",
       "profile": "core",
-      "classification": "auto",
       "source": "docs/01-core-data-model.md#colp-section-4",
-      "requirement": "- `profileId` SHOULD 使用随机标识或服务端带密钥 HMAC；低熵本地标识不得直接使用裸 Hash。",
-      "selector": {
-        "section": "4",
-        "quote": "- `profileId` SHOULD 使用随机标识或服务端带密钥 HMAC；低熵本地标识不得直接使用裸 Hash。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "`profileId` SHOULD be a random identifier or a server-side keyed HMAC; a low-entropy local identifier must not be hashed directly.",
       "implementation": [
         "server",
         "adapters"
@@ -1740,15 +1261,8 @@
       "id": "CORE-0030",
       "level": "MUST",
       "profile": "core",
-      "classification": "auto",
       "source": "docs/01-core-data-model.md#colp-section-5-1",
-      "requirement": "AI 生成内容 MUST 带 Provenance：",
-      "selector": {
-        "section": "5.1",
-        "quote": "AI 生成内容 MUST 带 Provenance：",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "AI-generated content MUST carry provenance (`kind`, `provider`, `model`, `generatedAt`, `sourceNodeIds`).",
       "implementation": [
         "schema",
         "semantic",
@@ -1762,15 +1276,8 @@
       "id": "CORE-0031",
       "level": "MUST",
       "profile": "core",
-      "classification": "auto",
       "source": "docs/01-core-data-model.md#colp-section-10",
-      "requirement": "- 同一精确协议版本的核心对象顶层未知字段 MUST 被严格校验器拒绝。",
-      "selector": {
-        "section": "10",
-        "quote": "- 同一精确协议版本的核心对象顶层未知字段 MUST 被严格校验器拒绝。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Strict validators MUST reject unknown top-level fields in core objects of the same exact protocol version.",
       "implementation": [
         "schema"
       ],
@@ -1782,15 +1289,8 @@
       "id": "CORE-0032",
       "level": "MUST",
       "profile": "core",
-      "classification": "auto",
       "source": "docs/01-core-data-model.md#colp-section-10",
-      "requirement": "- 需要向前扩展和往返保留的数据 MUST 放入 `extensions`。",
-      "selector": {
-        "section": "10",
-        "quote": "- 需要向前扩展和往返保留的数据 MUST 放入 `extensions`。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Data that needs forward extension and round-trip preservation MUST go into `extensions`.",
       "implementation": [
         "schema"
       ],
@@ -1802,15 +1302,8 @@
       "id": "CORE-0033",
       "level": "MUST",
       "profile": "core",
-      "classification": "auto",
       "source": "docs/01-core-data-model.md#colp-section-10",
-      "requirement": "- Sync Server 不理解的 Extension MUST 原样存储和转发。",
-      "selector": {
-        "section": "10",
-        "quote": "- Sync Server 不理解的 Extension MUST 原样存储和转发。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "A sync server MUST store and forward extensions it does not understand verbatim.",
       "implementation": [
         "sync"
       ],
@@ -1822,15 +1315,8 @@
       "id": "CORE-0034",
       "level": "MUST",
       "profile": "core",
-      "classification": "auto",
       "source": "docs/01-core-data-model.md#colp-section-10",
-      "requirement": "- Adapter 删除或降级 Extension 时 MUST 产生 `lossy_conversion` Warning。",
-      "selector": {
-        "section": "10",
-        "quote": "- Adapter 删除或降级 Extension 时 MUST 产生 `lossy_conversion` Warning。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "An adapter that removes or downgrades an extension MUST produce a `lossy_conversion` warning.",
       "implementation": [
         "adapters"
       ],
@@ -1842,15 +1328,8 @@
       "id": "CORE-0035",
       "level": "MUST",
       "profile": "core",
-      "classification": "auto",
       "source": "docs/01-core-data-model.md#colp-section-11",
-      "requirement": "- 所有对象在写入前 MUST 先通过 JSON Schema 结构校验，再通过语义校验。",
-      "selector": {
-        "section": "11",
-        "quote": "- 所有对象在写入前 MUST 先通过 JSON Schema 结构校验，再通过语义校验。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Every object MUST pass JSON Schema structural validation and then semantic validation before it is written.",
       "implementation": [
         "schema",
         "server"
@@ -1863,15 +1342,8 @@
       "id": "CORE-0036",
       "level": "MUST",
       "profile": "core",
-      "classification": "auto",
       "source": "docs/01-core-data-model.md#colp-section-11",
-      "requirement": "- 服务器 MUST 防止 Parent Cycle。",
-      "selector": {
-        "section": "11",
-        "quote": "- 服务器 MUST 防止 Parent Cycle。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Servers MUST prevent parent cycles.",
       "implementation": [
         "server"
       ],
@@ -1883,15 +1355,8 @@
       "id": "PUB-0027",
       "level": "SHOULD",
       "profile": "publication",
-      "classification": "auto",
       "source": "docs/02-http-publication-feed.md#colp-section-2",
-      "requirement": "Manifest 响应 SHOULD：",
-      "selector": {
-        "section": "2",
-        "quote": "Manifest 响应 SHOULD：",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "The Manifest response SHOULD use `Cache-Control: public, max-age=300`, an `ETag`, and the Manifest media type.",
       "implementation": [
         "server"
       ],
@@ -1903,15 +1368,8 @@
       "id": "PUB-0028",
       "level": "MUST",
       "profile": "publication",
-      "classification": "auto",
       "source": "docs/02-http-publication-feed.md#colp-section-2",
-      "requirement": "- `baseUrl` 只用于展示与同源判断，MUST 以 `/` 结尾；客户端不得用字符串拼接或 URL 相对解析猜测端点。",
-      "selector": {
-        "section": "2",
-        "quote": "- `baseUrl` 只用于展示与同源判断，MUST 以 `/` 结尾；客户端不得用字符串拼接或 URL 相对解析猜测端点。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "A mount `baseUrl` is only for display and same-origin checks and MUST end with `/`; clients must not guess endpoints by string concatenation or relative URL resolution.",
       "implementation": [
         "client"
       ],
@@ -1923,15 +1381,8 @@
       "id": "PUB-0029",
       "level": "MAY",
       "profile": "publication",
-      "classification": "auto",
       "source": "docs/02-http-publication-feed.md#colp-section-2",
-      "requirement": "- Endpoint 必须是绝对 HTTPS URI 或 RFC 6570 Level 1 Template。开发环境 MAY 使用 `http://localhost`、`http://127.0.0.1` 或 `http://[::1]`，不得把该例外用于非 Loopback 主机。",
-      "selector": {
-        "section": "2",
-        "quote": "- Endpoint 必须是绝对 HTTPS URI 或 RFC 6570 Level 1 Template。开发环境 MAY 使用 `http://localhost`、`http://127.0.0.1` 或 `http://[::1]`，不得把该例外用于非 Loopback 主机。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Development environments MAY use `http://localhost`, `http://127.0.0.1`, or `http://[::1]` endpoints; this exception must not be used for non-loopback hosts.",
       "implementation": [
         "client",
         "semantic"
@@ -1944,15 +1395,8 @@
       "id": "PUB-0030",
       "level": "SHOULD",
       "profile": "publication",
-      "classification": "auto",
       "source": "docs/02-http-publication-feed.md#colp-section-3",
-      "requirement": "- Anonymous Directory、Search、实例 Feed、Sitemap 和 MCP List 均不得重新发现 `unlisted`。其 HTML / HTTP 响应 SHOULD 使用 `X-Robots-Tag: noindex, nofollow` 与 `Referrer-Policy: no-referrer`。",
-      "selector": {
-        "section": "3",
-        "quote": "- Anonymous Directory、Search、实例 Feed、Sitemap 和 MCP List 均不得重新发现 `unlisted`。其 HTML / HTTP 响应 SHOULD 使用 `X-Robots-Tag: noindex, nofollow` 与 `Referrer-Policy: no-referrer`。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Anonymous directory, search, instance feed, sitemap, and MCP list responses must not rediscover `unlisted` Collections, and their HTML / HTTP responses SHOULD use `X-Robots-Tag: noindex, nofollow` and `Referrer-Policy: no-referrer`.",
       "implementation": [
         "server"
       ],
@@ -1964,15 +1408,8 @@
       "id": "PUB-0031",
       "level": "MAY",
       "profile": "publication",
-      "classification": "auto",
       "source": "docs/02-http-publication-feed.md#colp-section-3",
-      "requirement": "- `protected` MAY 仅在授权后出现在 Directory。",
-      "selector": {
-        "section": "3",
-        "quote": "- `protected` MAY 仅在授权后出现在 Directory。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "`protected` Collections MAY appear in the Directory only after authorization.",
       "implementation": [
         "server"
       ],
@@ -1984,15 +1421,8 @@
       "id": "PUB-0032",
       "level": "SHOULD",
       "profile": "publication",
-      "classification": "auto",
       "source": "docs/02-http-publication-feed.md#colp-section-4",
-      "requirement": "服务器 SHOULD 同时发送 Link Header：",
-      "selector": {
-        "section": "4",
-        "quote": "服务器 SHOULD 同时发送 Link Header：",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Servers SHOULD also send `Link` headers for `self`, `canonical`, the Snapshot, and the Feed.",
       "implementation": [
         "server"
       ],
@@ -2004,15 +1434,8 @@
       "id": "PUB-0033",
       "level": "MUST",
       "profile": "publication",
-      "classification": "auto",
       "source": "docs/02-http-publication-feed.md#colp-section-5-1",
-      "requirement": "- 分页 Snapshot 的所有页面 MUST 对应同一个 `snapshotId`、`revision`、`mode`、Principal 和查询作用域。",
-      "selector": {
-        "section": "5.1",
-        "quote": "- 分页 Snapshot 的所有页面 MUST 对应同一个 `snapshotId`、`revision`、`mode`、Principal 和查询作用域。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "All pages of a paginated Snapshot MUST share the same `snapshotId`, `revision`, `mode`, principal, and query scope.",
       "implementation": [
         "server"
       ],
@@ -2024,15 +1447,8 @@
       "id": "PUB-0034",
       "level": "SHOULD",
       "profile": "publication",
-      "classification": "auto",
       "source": "docs/02-http-publication-feed.md#colp-section-5-1",
-      "requirement": "- 有下一页时响应 SHOULD 同时发送 `Link: <...pageCursor=...>; rel=\"next\"`；URL 必须来自服务器，不得由客户端拼接 Cursor。",
-      "selector": {
-        "section": "5.1",
-        "quote": "- 有下一页时响应 SHOULD 同时发送 `Link: <...pageCursor=...>; rel=\"next\"`；URL 必须来自服务器，不得由客户端拼接 Cursor。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "When there is a next page, the response SHOULD also send `Link: <...pageCursor=...>; rel=\"next\"`; the URL comes from the server and clients must not build cursors.",
       "implementation": [
         "server",
         "client"
@@ -2045,15 +1461,8 @@
       "id": "PUB-0035",
       "level": "SHOULD",
       "profile": "publication",
-      "classification": "auto",
       "source": "docs/02-http-publication-feed.md#colp-section-5-1",
-      "requirement": "- 对静态或较小 Collection，服务器 SHOULD 返回单页完整 Snapshot。",
-      "selector": {
-        "section": "5.1",
-        "quote": "- 对静态或较小 Collection，服务器 SHOULD 返回单页完整 Snapshot。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "For static or small Collections, servers SHOULD return a complete single-page Snapshot.",
       "implementation": [
         "server"
       ],
@@ -2065,15 +1474,8 @@
       "id": "FEED-0004",
       "level": "MUST",
       "profile": "feed",
-      "classification": "auto",
       "source": "docs/02-http-publication-feed.md#colp-section-7-2",
-      "requirement": "- Release Snapshot URL MUST 指向不可变资源，例如 `/c/{collectionId}/releases/{releaseId}/snapshot`，并提供 Digest。不得只指向会随最新状态变化的 `/snapshot`。",
-      "selector": {
-        "section": "7.2",
-        "quote": "- Release Snapshot URL MUST 指向不可变资源，例如 `/c/{collectionId}/releases/{releaseId}/snapshot`，并提供 Digest。不得只指向会随最新状态变化的 `/snapshot`。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "A release Snapshot URL MUST point to an immutable resource such as `/c/{collectionId}/releases/{releaseId}/snapshot` and provide a digest, not to the changing `/snapshot`.",
       "implementation": [
         "feed"
       ],
@@ -2085,15 +1487,8 @@
       "id": "FEED-0005",
       "level": "MAY",
       "profile": "feed",
-      "classification": "auto",
       "source": "docs/02-http-publication-feed.md#colp-section-8",
-      "requirement": "实现 MAY 提供：",
-      "selector": {
-        "section": "8",
-        "quote": "实现 MAY 提供：",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Implementations MAY provide JSON Feed 1.1 at `/collections/-/feed.json` and `/collections/c/{id}/feed.json`.",
       "implementation": [
         "feed"
       ],
@@ -2105,15 +1500,8 @@
       "id": "FEED-0006",
       "level": "MAY",
       "profile": "feed",
-      "classification": "auto",
       "source": "docs/02-http-publication-feed.md#colp-section-9",
-      "requirement": "实现 MAY 提供 Atom 1.0。Atom Entry ID 必须稳定，Bookmark 外部 URL 使用 `rel=related`，事件或 Collection 页面使用 `rel=alternate`。",
-      "selector": {
-        "section": "9",
-        "quote": "实现 MAY 提供 Atom 1.0。Atom Entry ID 必须稳定，Bookmark 外部 URL 使用 `rel=related`，事件或 Collection 页面使用 `rel=alternate`。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Implementations MAY provide Atom 1.0 with stable entry IDs.",
       "implementation": [
         "feed"
       ],
@@ -2125,15 +1513,8 @@
       "id": "FEED-0007",
       "level": "MAY",
       "profile": "feed",
-      "classification": "auto",
       "source": "docs/02-http-publication-feed.md#colp-section-10",
-      "requirement": "实现 MAY 在 Feed 中声明 WebSub Hub：",
-      "selector": {
-        "section": "10",
-        "quote": "实现 MAY 在 Feed 中声明 WebSub Hub：",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Implementations MAY declare WebSub hubs in a Feed.",
       "implementation": [
         "feed"
       ],
@@ -2145,15 +1526,8 @@
       "id": "FEED-0008",
       "level": "MUST",
       "profile": "feed",
-      "classification": "auto",
       "source": "docs/02-http-publication-feed.md#colp-section-11",
-      "requirement": "客户端 MUST：",
-      "selector": {
-        "section": "11",
-        "quote": "客户端 MUST：",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Feed clients MUST respect `minPollIntervalSeconds`, prefer ETags and `If-None-Match`, honor `Retry-After` on `429`, and back off exponentially with jitter on `5xx`.",
       "implementation": [
         "feed"
       ],
@@ -2166,15 +1540,8 @@
       "id": "FEED-0009",
       "level": "SHOULD",
       "profile": "feed",
-      "classification": "auto",
       "source": "docs/02-http-publication-feed.md#colp-section-11",
-      "requirement": "- 多个本地订阅 SHOULD 合并为单次实例级请求，避免 N+1 轮询。",
-      "selector": {
-        "section": "11",
-        "quote": "- 多个本地订阅 SHOULD 合并为单次实例级请求，避免 N+1 轮询。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Clients SHOULD combine multiple local subscriptions into a single instance-level request, to avoid N+1 polling.",
       "implementation": [
         "feed"
       ],
@@ -2186,15 +1553,8 @@
       "id": "PUB-0036",
       "level": "MUST",
       "profile": "publication",
-      "classification": "auto",
       "source": "docs/02-http-publication-feed.md#colp-section-12",
-      "requirement": "- MUST 声明 `profiles=[\"core\", \"publication\"]`，提供 Feed 时额外声明 `feed`。",
-      "selector": {
-        "section": "12",
-        "quote": "- MUST 声明 `profiles=[\"core\", \"publication\"]`，提供 Feed 时额外声明 `feed`。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "A static deployment MUST declare `profiles=[\"core\", \"publication\"]`, plus `feed` when it serves a Feed.",
       "implementation": [
         "server"
       ],
@@ -2206,15 +1566,8 @@
       "id": "PUB-0037",
       "level": "MUST",
       "profile": "publication",
-      "classification": "auto",
       "source": "docs/02-http-publication-feed.md#colp-section-12",
-      "requirement": "- MUST 在 Manifest `endpoints` 中声明上述真实绝对文件 URL / Template；客户端不执行路径推断。",
-      "selector": {
-        "section": "12",
-        "quote": "- MUST 在 Manifest `endpoints` 中声明上述真实绝对文件 URL / Template；客户端不执行路径推断。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "A static deployment MUST declare its real absolute file URLs / templates in the Manifest `endpoints`.",
       "implementation": [
         "server"
       ],
@@ -2226,15 +1579,8 @@
       "id": "PUB-0038",
       "level": "SHOULD",
       "profile": "publication",
-      "classification": "auto",
       "source": "docs/02-http-publication-feed.md#colp-section-13",
-      "requirement": "- 服务器 SHOULD 在原 Canonical URL 返回 `410 Gone`，并保留最少 30 天。",
-      "selector": {
-        "section": "13",
-        "quote": "- 服务器 SHOULD 在原 Canonical URL 返回 `410 Gone`，并保留最少 30 天。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Servers SHOULD return `410 Gone` at the original canonical URL of a deleted Collection for at least 30 days.",
       "implementation": [
         "server"
       ],
@@ -2246,15 +1592,8 @@
       "id": "PUB-0039",
       "level": "SHOULD",
       "profile": "publication",
-      "classification": "auto",
       "source": "docs/02-http-publication-feed.md#colp-section-13",
-      "requirement": "- `410` 响应 SHOULD 指向归档、迁移地址或 Owner 页面。",
-      "selector": {
-        "section": "13",
-        "quote": "- `410` 响应 SHOULD 指向归档、迁移地址或 Owner 页面。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "A `410` response SHOULD point to an archive, a new location, or the owner page.",
       "implementation": [
         "server"
       ],
@@ -2266,15 +1605,8 @@
       "id": "SYNC-0010",
       "level": "MAY",
       "profile": "sync",
-      "classification": "auto",
       "source": "docs/03-sync.md#colp-section-1-1",
-      "requirement": "实现内部 MAY 使用 CRDT，但 Wire 行为必须符合本文的 Operation、Revision、Conflict 和 Tombstone 语义。",
-      "selector": {
-        "section": "1.1",
-        "quote": "实现内部 MAY 使用 CRDT，但 Wire 行为必须符合本文的 Operation、Revision、Conflict 和 Tombstone 语义。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Implementations MAY use CRDTs internally, but wire behavior must follow the operation, revision, conflict, and tombstone semantics of this document.",
       "implementation": [
         "sync"
       ],
@@ -2286,15 +1618,8 @@
       "id": "SYNC-0011",
       "level": "MUST",
       "profile": "sync",
-      "classification": "auto",
       "source": "docs/03-sync.md#colp-section-6-1",
-      "requirement": "- `(replicaId, sequenceScope, sequence)` MUST 唯一。普通 Session 的 `sequenceScope` 是 `collectionId`；尚未绑定的 Instance Session 使用 `sessionId` 作为临时 Sequence Scope。",
-      "selector": {
-        "section": "6.1",
-        "quote": "- `(replicaId, sequenceScope, sequence)` MUST 唯一。普通 Session 的 `sequenceScope` 是 `collectionId`；尚未绑定的 Instance Session 使用 `sessionId` 作为临时 Sequence Scope。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "`(replicaId, sequenceScope, sequence)` MUST be unique.",
       "implementation": [
         "sync"
       ],
@@ -2306,15 +1631,8 @@
       "id": "SYNC-0012",
       "level": "SHOULD",
       "profile": "sync",
-      "classification": "auto",
       "source": "docs/03-sync.md#colp-section-6-1",
-      "requirement": "- `opId` 在 `serverUuid` 生命周期内唯一；客户端 SHOULD 使用 UUIDv7 以降低跨服务器迁移碰撞风险。",
-      "selector": {
-        "section": "6.1",
-        "quote": "- `opId` 在 `serverUuid` 生命周期内唯一；客户端 SHOULD 使用 UUIDv7 以降低跨服务器迁移碰撞风险。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Clients SHOULD use UUIDv7 `opId` values, which are unique for the lifetime of the `serverUuid`.",
       "implementation": [
         "sync"
       ],
@@ -2326,15 +1644,8 @@
       "id": "SYNC-0013",
       "level": "MUST",
       "profile": "sync",
-      "classification": "auto",
       "source": "docs/03-sync.md#colp-section-6-1",
-      "requirement": "- 同一 `(replicaId, sequenceScope, sequence)` 或 `opId` 携带不同 Canonical Request Digest 时，服务器 MUST 返回 `409 sequence_reuse` / `op_id_reused` 并审计。",
-      "selector": {
-        "section": "6.1",
-        "quote": "- 同一 `(replicaId, sequenceScope, sequence)` 或 `opId` 携带不同 Canonical Request Digest 时，服务器 MUST 返回 `409 sequence_reuse` / `op_id_reused` 并审计。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "When the same `(replicaId, sequenceScope, sequence)` or `opId` arrives with a different canonical request digest, the server MUST return `409 sequence_reuse` / `op_id_reused` and audit it.",
       "implementation": [
         "sync"
       ],
@@ -2346,15 +1657,8 @@
       "id": "SYNC-0014",
       "level": "MAY",
       "profile": "sync",
-      "classification": "auto",
       "source": "docs/03-sync.md#colp-section-6-1",
-      "requirement": "只有 `rejected` 与 `deferred` Result 携带必需的机器可读 `code`；只有 `deferred` MAY 携带 `retryAfterSeconds`。`applied` / `rebased` 不得携带 `conflictId`，`conflicted` 必须携带持久化的 `conflictId` 与 Cursor。相同 Sequence 重试时这些字段也必须逐字段保持不变。",
-      "selector": {
-        "section": "6.1",
-        "quote": "只有 `rejected` 与 `deferred` Result 携带必需的机器可读 `code`；只有 `deferred` MAY 携带 `retryAfterSeconds`。`applied` / `rebased` 不得携带 `conflictId`，`conflicted` 必须携带持久化的 `conflictId` 与 Cursor。相同 Sequence 重试时这些字段也必须逐字段保持不变。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Only `deferred` push results MAY carry `retryAfterSeconds`; `rejected` and `deferred` results carry a `code`, `conflicted` results carry a persisted `conflictId` and cursor, and retries return identical fields.",
       "implementation": [
         "sync"
       ],
@@ -2366,15 +1670,8 @@
       "id": "SYNC-0015",
       "level": "MUST",
       "profile": "sync",
-      "classification": "auto",
       "source": "docs/03-sync.md#colp-section-6-3",
-      "requirement": "- 修改已有对象的 Operation MUST 提供 `targetId` 与 `baseRevision`。",
-      "selector": {
-        "section": "6.3",
-        "quote": "- 修改已有对象的 Operation MUST 提供 `targetId` 与 `baseRevision`。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Operations that modify an existing object MUST provide `targetId` and `baseRevision`.",
       "implementation": [
         "sync"
       ],
@@ -2386,15 +1683,8 @@
       "id": "SYNC-0016",
       "level": "MUST",
       "profile": "sync",
-      "classification": "auto",
       "source": "docs/03-sync.md#colp-section-6-3",
-      "requirement": "- Update Operation 使用资源专用 Payload，包含客户端观察到的 `base` 与期望的 `value`。服务器在 Schema 校验后 MUST 确认 `base` 与 `value` 包含完全相同的自有字段集合并执行跨对象键集合语义检查，不相等时返回 `422 invalid_document`；JSON Schema 负责限制可用字段名。",
-      "selector": {
-        "section": "6.3",
-        "quote": "- Update Operation 使用资源专用 Payload，包含客户端观察到的 `base` 与期望的 `value`。服务器在 Schema 校验后 MUST 确认 `base` 与 `value` 包含完全相同的自有字段集合并执行跨对象键集合语义检查，不相等时返回 `422 invalid_document`；JSON Schema 负责限制可用字段名。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "After schema validation, the server MUST confirm that an update payload's `base` and `value` have exactly the same set of own fields, and return `422 invalid_document` otherwise.",
       "implementation": [
         "sync"
       ],
@@ -2407,15 +1697,8 @@
       "id": "SYNC-0017",
       "level": "MUST",
       "profile": "sync",
-      "classification": "auto",
       "source": "docs/03-sync.md#colp-section-6-3",
-      "requirement": "- 服务器 MUST 以 Base / Current / Incoming 执行确定性三方合并，因此不能通过 JSON Pointer 修改服务器管理字段、原型属性或绕过 Move / Reorder 并发边界。",
-      "selector": {
-        "section": "6.3",
-        "quote": "- 服务器 MUST 以 Base / Current / Incoming 执行确定性三方合并，因此不能通过 JSON Pointer 修改服务器管理字段、原型属性或绕过 Move / Reorder 并发边界。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Servers MUST run a deterministic three-way merge of base, current, and incoming values.",
       "implementation": [
         "sync"
       ],
@@ -2428,15 +1711,8 @@
       "id": "SYNC-0018",
       "level": "SHOULD",
       "profile": "sync",
-      "classification": "auto",
       "source": "docs/03-sync.md#colp-section-15",
-      "requirement": "- 如果先 Push 会导致明显冲突，客户端 SHOULD 先执行轻量 Pull。",
-      "selector": {
-        "section": "15",
-        "quote": "- 如果先 Push 会导致明显冲突，客户端 SHOULD 先执行轻量 Pull。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "If pushing first would cause an obvious conflict, clients SHOULD run a light pull first.",
       "implementation": [
         "sync"
       ],
@@ -2448,15 +1724,8 @@
       "id": "SEC-0006",
       "level": "MUST_NOT",
       "profile": "publisher",
-      "classification": "auto",
       "source": "docs/04-auth-security-rate-limit.md#colp-section-2",
-      "requirement": "`public` 是服务器合成的匿名 Principal，不是“所有请求”或“所有已认证 Principal”的通配符。只有请求未通过任何 Credential 建立身份时，身份集合才包含唯一的 `{ \"type\": \"public\", \"id\": \"public\" }`；实现 MUST NOT 把 `public` 加入已包含 User、Group、OAuth Client、API Key、Service 或 AI Agent 的身份集合。调用方提交的 `public` 身份不得使已认证请求同时按匿名请求求值。",
-      "selector": {
-        "section": "2",
-        "quote": "`public` 是服务器合成的匿名 Principal，不是“所有请求”或“所有已认证 Principal”的通配符。只有请求未通过任何 Credential 建立身份时，身份集合才包含唯一的 `{ \"type\": \"public\", \"id\": \"public\" }`；实现 MUST NOT 把 `public` 加入已包含 User、Group、OAuth Client、API Key、Service 或 AI Agent 的身份集合。调用方提交的 `public` 身份不得使已认证请求同时按匿名请求求值。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Implementations MUST NOT add the synthesized `public` principal to an identity set that already contains an authenticated identity.",
       "implementation": [
         "security"
       ],
@@ -2468,15 +1737,8 @@
       "id": "SEC-0007",
       "level": "SHOULD",
       "profile": "publisher",
-      "classification": "auto",
       "source": "docs/04-auth-security-rate-limit.md#colp-section-3-4",
-      "requirement": "Token / Key SHOULD 进一步限制：",
-      "selector": {
-        "section": "3.4",
-        "quote": "Token / Key SHOULD 进一步限制：",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Tokens and keys SHOULD be further restricted by Collection allowlist, Node subtree, IP or origin, operation count, validity period, and whether public exposure is allowed.",
       "implementation": [
         "security"
       ],
@@ -2488,15 +1750,8 @@
       "id": "SEC-0008",
       "level": "MUST_NOT",
       "profile": "publisher",
-      "classification": "auto",
       "source": "docs/04-auth-security-rate-limit.md#colp-section-5-2",
-      "requirement": "API Key MUST NOT 放入 Query String。原因包括浏览器历史、Referer、代理日志和截图泄漏。",
-      "selector": {
-        "section": "5.2",
-        "quote": "API Key MUST NOT 放入 Query String。原因包括浏览器历史、Referer、代理日志和截图泄漏。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "An API key MUST NOT be placed in a query string.",
       "implementation": [
         "security"
       ],
@@ -2508,15 +1763,8 @@
       "id": "SEC-0009",
       "level": "SHOULD",
       "profile": "publisher",
-      "classification": "auto",
       "source": "docs/04-auth-security-rate-limit.md#colp-section-6",
-      "requirement": "远程 MCP 和第三方应用 SHOULD 使用 OAuth 2.1 Profile：",
-      "selector": {
-        "section": "6",
-        "quote": "远程 MCP 和第三方应用 SHOULD 使用 OAuth 2.1 Profile：",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Remote MCP and third-party applications SHOULD use the OAuth 2.1 profile.",
       "implementation": [
         "security"
       ],
@@ -2528,15 +1776,8 @@
       "id": "SEC-0010",
       "level": "SHOULD",
       "profile": "publisher",
-      "classification": "auto",
       "source": "docs/04-auth-security-rate-limit.md#colp-section-6",
-      "requirement": "- Key / ACL / Public Exposure / Purge 等高风险远程管理 SHOULD 使用 DPoP（RFC 9449）或 mTLS Sender-constrained Access Token，降低 Bearer Token 重放风险。",
-      "selector": {
-        "section": "6",
-        "quote": "- Key / ACL / Public Exposure / Purge 等高风险远程管理 SHOULD 使用 DPoP（RFC 9449）或 mTLS Sender-constrained Access Token，降低 Bearer Token 重放风险。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "High-risk remote management such as keys, ACLs, public exposure, and purge SHOULD use DPoP (RFC 9449) or mTLS sender-constrained access tokens.",
       "implementation": [
         "security"
       ],
@@ -2548,15 +1789,8 @@
       "id": "SEC-0011",
       "level": "MUST_NOT",
       "profile": "publisher",
-      "classification": "auto",
       "source": "docs/04-auth-security-rate-limit.md#colp-section-7",
-      "requirement": "2. 从 Credential / Grant Scope 开始，固定依次处理服务器默认策略、Collection、全部祖先 Node 与对象策略；实现 MUST NOT 省略、重排或短路这条链。",
-      "selector": {
-        "section": "7",
-        "quote": "2. 从 Credential / Grant Scope 开始，固定依次处理服务器默认策略、Collection、全部祖先 Node 与对象策略；实现 MUST NOT 省略、重排或短路这条链。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Authorization evaluation MUST NOT skip, reorder, or short-circuit the fixed chain of server default policy, Collection, every ancestor Node, and object policy.",
       "implementation": [
         "security"
       ],
@@ -2568,15 +1802,8 @@
       "id": "SEC-0012",
       "level": "SHOULD",
       "profile": "publisher",
-      "classification": "auto",
       "source": "docs/04-auth-security-rate-limit.md#colp-section-8-1",
-      "requirement": "服务器 SHOULD 至少区分：",
-      "selector": {
-        "section": "8.1",
-        "quote": "服务器 SHOULD 至少区分：",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Servers SHOULD distinguish rate-limit buckets for anonymous feed reads, authenticated reads, sync pulls, sync pushes, general writes, MCP tool calls, and administration.",
       "implementation": [
         "security"
       ],
@@ -2588,15 +1815,8 @@
       "id": "SEC-0013",
       "level": "MUST",
       "profile": "publisher",
-      "classification": "auto",
       "source": "docs/04-auth-security-rate-limit.md#colp-section-8-1",
-      "requirement": "实现 MUST 同时具备 Subject / Credential、IP 和实例级上限，不能只选择其中一个维度。Batch、Sync Push 和 MCP Tool 按展开后的 Operation Cost 与受影响对象数计费；拆成并行小请求不得降低总 Cost。SSE / Subscription 另行限制连接数、订阅资源数、队列字节、事件速率、Idle Timeout 和最大生命周期。Grant `maxWrites` 与限流计数必须原子扣减。",
-      "selector": {
-        "section": "8.1",
-        "quote": "实现 MUST 同时具备 Subject / Credential、IP 和实例级上限，不能只选择其中一个维度。Batch、Sync Push 和 MCP Tool 按展开后的 Operation Cost 与受影响对象数计费；拆成并行小请求不得降低总 Cost。SSE / Subscription 另行限制连接数、订阅资源数、队列字节、事件速率、Idle Timeout 和最大生命周期。Grant `maxWrites` 与限流计数必须原子扣减。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Implementations MUST enforce subject or credential, IP, and instance-level limits together, and charge batches, Sync pushes, and MCP tools by expanded operation cost.",
       "implementation": [
         "security"
       ],
@@ -2608,15 +1828,8 @@
       "id": "SEC-0014",
       "level": "SHOULD",
       "profile": "publisher",
-      "classification": "auto",
       "source": "docs/04-auth-security-rate-limit.md#colp-section-8-2",
-      "requirement": "成功和限流响应 SHOULD 使用 RFC 9651：",
-      "selector": {
-        "section": "8.2",
-        "quote": "成功和限流响应 SHOULD 使用 RFC 9651：",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Successful and rate-limited responses SHOULD use the RFC 9651 `RateLimit` and `RateLimit-Policy` structured fields.",
       "implementation": [
         "security"
       ],
@@ -2628,15 +1841,8 @@
       "id": "SEC-0015",
       "level": "MUST",
       "profile": "publisher",
-      "classification": "auto",
       "source": "docs/04-auth-security-rate-limit.md#colp-section-9",
-      "requirement": "- 全部远程端点 MUST 使用 HTTPS。",
-      "selector": {
-        "section": "9",
-        "quote": "- 全部远程端点 MUST 使用 HTTPS。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Every remote endpoint MUST use HTTPS.",
       "implementation": [
         "security"
       ],
@@ -2649,15 +1855,8 @@
       "id": "SEC-0016",
       "level": "MUST",
       "profile": "publisher",
-      "classification": "auto",
       "source": "docs/04-auth-security-rate-limit.md#colp-section-9",
-      "requirement": "- Streamable HTTP MCP MUST 校验 Origin，防止 DNS Rebinding。",
-      "selector": {
-        "section": "9",
-        "quote": "- Streamable HTTP MCP MUST 校验 Origin，防止 DNS Rebinding。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Streamable HTTP MCP MUST validate the origin, to prevent DNS rebinding.",
       "implementation": [
         "security"
       ],
@@ -2670,15 +1869,8 @@
       "id": "SEC-0017",
       "level": "SHOULD",
       "profile": "publisher",
-      "classification": "auto",
       "source": "docs/04-auth-security-rate-limit.md#colp-section-10",
-      "requirement": "公开 Snapshot 和 Feed SHOULD 提供：",
-      "selector": {
-        "section": "10",
-        "quote": "公开 Snapshot 和 Feed SHOULD 提供：",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Public Snapshots and Feeds SHOULD provide `Content-Digest` and HTTP message signatures.",
       "implementation": [
         "security"
       ],
@@ -2690,15 +1882,8 @@
       "id": "SEC-0018",
       "level": "SHOULD",
       "profile": "publisher",
-      "classification": "auto",
       "source": "docs/04-auth-security-rate-limit.md#colp-section-10",
-      "requirement": "- 可变资源的签名输入 SHOULD 覆盖 `@status`、`created`、`expires`、`etag` 和协议版本，客户端必须限制最大陈旧期。历史 Release 使用带 Release ID / Revision 的不可变 URI。",
-      "selector": {
-        "section": "10",
-        "quote": "- 可变资源的签名输入 SHOULD 覆盖 `@status`、`created`、`expires`、`etag` 和协议版本，客户端必须限制最大陈旧期。历史 Release 使用带 Release ID / Revision 的不可变 URI。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "The signature input for mutable resources SHOULD cover `@status`, `created`, `expires`, `etag`, and the protocol version.",
       "implementation": [
         "security"
       ],
@@ -2710,12 +1895,8 @@
       "id": "SEC-0019",
       "level": "MUST",
       "profile": "publisher",
-      "source": "docs/04-auth-security-rate-limit.md#6-1-oauth-client-issuer-binding",
-      "requirement": "MCP OAuth 客户端必须校验授权响应中的 `iss`（RFC 9207）与发起授权时记录的 issuer 一致，DCR 必须声明 `application_type`，客户端凭据必须按 issuer 隔离并重新注册。",
-      "selector": {
-        "marker": "SEC-0019",
-        "section": "6.1"
-      },
+      "source": "docs/04-auth-security-rate-limit.md#colp-section-6-1",
+      "requirement": "An MCP OAuth client MUST check that the authorization response `iss` (RFC 9207) matches the issuer recorded when authorization started, declare `application_type` in dynamic client registration, and keep client credentials per issuer.",
       "implementation": [
         "security"
       ],
@@ -2727,15 +1908,8 @@
       "id": "MCP-0008",
       "level": "MAY",
       "profile": "mcp-read",
-      "classification": "auto",
       "source": "docs/05-mcp-profile.md#colp-section-2",
-      "requirement": "本地集成 MAY 使用 stdio。stdio 凭据从环境或本地 Secret Store 获取，不使用远程 OAuth Flow。",
-      "selector": {
-        "section": "2",
-        "quote": "本地集成 MAY 使用 stdio。stdio 凭据从环境或本地 Secret Store 获取，不使用远程 OAuth Flow。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Local integrations MAY use stdio, with credentials from the environment or a local secret store instead of a remote OAuth flow.",
       "implementation": [
         "mcp"
       ],
@@ -2747,15 +1921,8 @@
       "id": "MCP-0009",
       "level": "MAY",
       "profile": "mcp-read",
-      "classification": "auto",
       "source": "docs/05-mcp-profile.md#colp-section-3",
-      "requirement": "匿名 MCP MAY 只暴露公开 Resources，不暴露 Tools。",
-      "selector": {
-        "section": "3",
-        "quote": "匿名 MCP MAY 只暴露公开 Resources，不暴露 Tools。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Anonymous MCP MAY expose only public resources and no tools.",
       "implementation": [
         "mcp"
       ],
@@ -2767,15 +1934,8 @@
       "id": "MCP-0010",
       "level": "SHOULD",
       "profile": "mcp-read",
-      "classification": "auto",
       "source": "docs/05-mcp-profile.md#colp-section-6",
-      "requirement": "服务器 SHOULD 暴露以下模板。Authority 必须直接使用本服务器的实际 `serverUuid`，它不是让客户端填写的模板变量：",
-      "selector": {
-        "section": "6",
-        "quote": "服务器 SHOULD 暴露以下模板。Authority 必须直接使用本服务器的实际 `serverUuid`，它不是让客户端填写的模板变量：",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Servers SHOULD expose the `colp://{serverUuid}/...` resource templates for the resource kinds they implement, with the actual `serverUuid` written into the authority.",
       "implementation": [
         "mcp"
       ],
@@ -2787,15 +1947,8 @@
       "id": "MCP-0011",
       "level": "SHOULD",
       "profile": "mcp-read",
-      "classification": "auto",
       "source": "docs/05-mcp-profile.md#colp-section-9",
-      "requirement": "所有 Tool 必须提供 JSON Schema `inputSchema`，写工具 SHOULD 提供 `outputSchema` 和 `structuredContent`。",
-      "selector": {
-        "section": "9",
-        "quote": "所有 Tool 必须提供 JSON Schema `inputSchema`，写工具 SHOULD 提供 `outputSchema` 和 `structuredContent`。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Every tool must provide a JSON Schema `inputSchema`, and write tools SHOULD provide `outputSchema` and `structuredContent`.",
       "implementation": [
         "mcp"
       ],
@@ -2807,15 +1960,8 @@
       "id": "MCP-0012",
       "level": "SHOULD",
       "profile": "mcp-read",
-      "classification": "auto",
       "source": "docs/05-mcp-profile.md#colp-section-17",
-      "requirement": "Tool 结果 SHOULD 返回 Resource Link，而不是把巨大 Snapshot 全部塞进模型上下文：",
-      "selector": {
-        "section": "17",
-        "quote": "Tool 结果 SHOULD 返回 Resource Link，而不是把巨大 Snapshot 全部塞进模型上下文：",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Tool results SHOULD return resource links instead of putting a large Snapshot into the model context.",
       "implementation": [
         "mcp"
       ],
@@ -2827,15 +1973,8 @@
       "id": "MCP-0013",
       "level": "MUST",
       "profile": "mcp-read",
-      "classification": "auto",
       "source": "docs/05-mcp-profile.md#colp-section-20",
-      "requirement": "MCP Server MUST：",
-      "selector": {
-        "section": "20",
-        "quote": "MCP Server MUST：",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "The MCP server MUST treat external content as data, sanitize tool output, mark the provenance of fetched content, and run permission tools only on the user's request, scopes, and an approval plan.",
       "implementation": [
         "mcp"
       ],
@@ -2847,15 +1986,8 @@
       "id": "MCP-0014",
       "level": "SHOULD",
       "profile": "mcp-read",
-      "classification": "auto",
       "source": "docs/05-mcp-profile.md#colp-section-20",
-      "requirement": "MCP Client SHOULD：",
-      "selector": {
-        "section": "20",
-        "quote": "MCP Client SHOULD：",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "The MCP client SHOULD show tool input and the target Collection, show a diff for high-risk operations, record tool calls, validate results against their schema, and set timeouts and a maximum result size.",
       "implementation": [
         "mcp"
       ],
@@ -2867,15 +1999,8 @@
       "id": "SYNC-0019",
       "level": "MUST",
       "profile": "sync",
-      "classification": "auto",
       "source": "docs/06-browser-mapping.md#colp-section-3",
-      "requirement": "Firefox 批量异步 Create / Move 可能导致 Index 在操作完成前变化。Adapter MUST 按顺序等待写入完成，或在批次结束后重新读取整个受影响 Folder。",
-      "selector": {
-        "section": "3",
-        "quote": "Firefox 批量异步 Create / Move 可能导致 Index 在操作完成前变化。Adapter MUST 按顺序等待写入完成，或在批次结束后重新读取整个受影响 Folder。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Firefox adapters MUST await each create / move in order, or re-read every affected folder after the batch.",
       "implementation": [
         "sync"
       ],
@@ -2887,15 +2012,8 @@
       "id": "SYNC-0020",
       "level": "SHOULD",
       "profile": "sync",
-      "classification": "auto",
       "source": "docs/06-browser-mapping.md#colp-section-4",
-      "requirement": "协议 SHOULD 支持常见的 `NETSCAPE-Bookmark-file-1`：",
-      "selector": {
-        "section": "4",
-        "quote": "协议 SHOULD 支持常见的 `NETSCAPE-Bookmark-file-1`：",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "The protocol SHOULD support importing and exporting the common `NETSCAPE-Bookmark-file-1` format.",
       "implementation": [
         "sync"
       ],
@@ -2907,15 +2025,8 @@
       "id": "SYNC-0021",
       "level": "MUST",
       "profile": "sync",
-      "classification": "auto",
       "source": "docs/06-browser-mapping.md#colp-section-5",
-      "requirement": "Safari Adapter MUST 在 Sync Session 的 Replica Capability 中声明；公共 HTTP Manifest 只声明服务器 Profile，不承载本地 Adapter 状态：",
-      "selector": {
-        "section": "5",
-        "quote": "Safari Adapter MUST 在 Sync Session 的 Replica Capability 中声明；公共 HTTP Manifest 只声明服务器 Profile，不承载本地 Adapter 状态：",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "A Safari adapter MUST declare itself in the replica capabilities of the Sync session, not in the public Manifest.",
       "implementation": [
         "sync"
       ],
@@ -2927,15 +2038,8 @@
       "id": "SYNC-0022",
       "level": "MUST",
       "profile": "sync",
-      "classification": "auto",
       "source": "docs/06-browser-mapping.md#colp-section-6",
-      "requirement": "适配器 MUST 建立 Root Mapping，不得依赖浏览器 ID 固定值：",
-      "selector": {
-        "section": "6",
-        "quote": "适配器 MUST 建立 Root Mapping，不得依赖浏览器 ID 固定值：",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Adapters MUST build a root mapping and must not rely on fixed browser ID values.",
       "implementation": [
         "sync"
       ],
@@ -2947,15 +2051,8 @@
       "id": "SYNC-0023",
       "level": "MAY",
       "profile": "sync",
-      "classification": "auto",
       "source": "docs/06-browser-mapping.md#colp-section-9",
-      "requirement": "- 客户端 UI MAY 用视觉分隔线显示服务器 Separator，即使浏览器管理器中不可见。",
-      "selector": {
-        "section": "9",
-        "quote": "- 客户端 UI MAY 用视觉分隔线显示服务器 Separator，即使浏览器管理器中不可见。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Client UIs MAY render server separators as visual dividers even when the browser manager cannot show them.",
       "implementation": [
         "sync"
       ],
@@ -2967,15 +2064,8 @@
       "id": "SYNC-0024",
       "level": "MUST",
       "profile": "sync",
-      "classification": "auto",
       "source": "docs/06-browser-mapping.md#colp-section-10",
-      "requirement": "- Adapter MUST 写入本地 Sidecar。",
-      "selector": {
-        "section": "10",
-        "quote": "- Adapter MUST 写入本地 Sidecar。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Adapters MUST write a local sidecar.",
       "implementation": [
         "sync"
       ],
@@ -2994,15 +2084,8 @@
       "id": "SYNC-0025",
       "level": "SHOULD",
       "profile": "sync",
-      "classification": "auto",
       "source": "docs/06-browser-mapping.md#colp-section-10",
-      "requirement": "- 用户卸载扩展前 SHOULD 提供导出 Sidecar 的入口。",
-      "selector": {
-        "section": "10",
-        "quote": "- 用户卸载扩展前 SHOULD 提供导出 Sidecar 的入口。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Clients SHOULD offer a way to export the sidecar before the user uninstalls the extension.",
       "implementation": [
         "sync"
       ],
@@ -3014,15 +2097,8 @@
       "id": "SYNC-0026",
       "level": "MUST",
       "profile": "sync",
-      "classification": "auto",
       "source": "docs/06-browser-mapping.md#colp-section-11",
-      "requirement": "递归删除 Folder 时，某些浏览器只发 Folder 删除事件。Adapter MUST 将该事件转换为 `delete_subtree`，不得假设会收到每个 Child 的删除事件。",
-      "selector": {
-        "section": "11",
-        "quote": "递归删除 Folder 时，某些浏览器只发 Folder 删除事件。Adapter MUST 将该事件转换为 `delete_subtree`，不得假设会收到每个 Child 的删除事件。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "When a browser reports only the folder deletion of a recursive delete, the adapter MUST convert it to `delete_subtree`.",
       "implementation": [
         "sync"
       ],
@@ -3034,15 +2110,8 @@
       "id": "PUBLISH-0011",
       "level": "SHOULD",
       "profile": "publisher",
-      "classification": "auto",
       "source": "docs/07-nestjs-integration.md#colp-section-3",
-      "requirement": "除 Collection + Root 的原子创建和不可变 Release 发布外，Node 与 Sidecar 写入 SHOULD 统一转换为核心 Operation 后交给 `applyOperations`。这样 HTTP、Sync 与 MCP 复用同一授权、冲突、审计和 Outbox 路径；Adapter 不维护第二套写入语义。",
-      "selector": {
-        "section": "3",
-        "quote": "除 Collection + Root 的原子创建和不可变 Release 发布外，Node 与 Sidecar 写入 SHOULD 统一转换为核心 Operation 后交给 `applyOperations`。这样 HTTP、Sync 与 MCP 复用同一授权、冲突、审计和 Outbox 路径；Adapter 不维护第二套写入语义。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Apart from the atomic Collection + root creation and immutable release publication, Node and sidecar writes SHOULD be converted to core operations and passed to `applyOperations`.",
       "implementation": [
         "publisher"
       ],
@@ -3054,15 +2123,8 @@
       "id": "PUBLISH-0012",
       "level": "MUST",
       "profile": "publisher",
-      "classification": "auto",
       "source": "docs/08-write-api.md#colp-section-3",
-      "requirement": "Collection 表示强制 `rootNodeId`，因此创建端点 MUST 在一个事务内同时创建 Collection 和唯一 Root。请求不得先创建悬空 Collection，也不得先创建无 Collection 的 Root。",
-      "selector": {
-        "section": "3",
-        "quote": "Collection 表示强制 `rootNodeId`，因此创建端点 MUST 在一个事务内同时创建 Collection 和唯一 Root。请求不得先创建悬空 Collection，也不得先创建无 Collection 的 Root。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "The create endpoint MUST create the Collection and its single root in one transaction.",
       "implementation": [
         "publisher"
       ],
@@ -3074,15 +2136,8 @@
       "id": "CORE-0037",
       "level": "SHOULD",
       "profile": "core",
-      "classification": "auto",
       "source": "docs/10-implementation-contract.md#colp-section-2",
-      "requirement": "首个服务和 Node 包 SHOULD 按顺序交付：",
-      "selector": {
-        "section": "2",
-        "quote": "首个服务和 Node 包 SHOULD 按顺序交付：",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "The first service and Node package SHOULD deliver profiles in the order core + publication, publisher, feed (release mode first), sync, then mcp-read / mcp-write.",
       "implementation": [
         "delivery"
       ],
@@ -3094,15 +2149,8 @@
       "id": "MCP-0015",
       "level": "SHOULD",
       "profile": "mcp-read",
-      "classification": "auto",
       "source": "docs/10-implementation-contract.md#colp-section-5",
-      "requirement": "MCP Tool 的 Input / Output Schema SHOULD 直接引用上述 `$defs`，不得复制出含义不同的第二套 DTO。",
-      "selector": {
-        "section": "5",
-        "quote": "MCP Tool 的 Input / Output Schema SHOULD 直接引用上述 `$defs`，不得复制出含义不同的第二套 DTO。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "MCP tool input / output schemas SHOULD reference the core `$defs` directly instead of copying them into a second set of DTOs.",
       "implementation": [
         "mcp"
       ],
@@ -3114,12 +2162,8 @@
       "id": "MCP-0016",
       "level": "MUST",
       "profile": "mcp-read",
-      "source": "docs/05-mcp-profile.md#2-transport",
-      "requirement": "MCP 端点只接受 POST；每次请求必须携带 `MCP-Protocol-Version: 2026-07-28`，且与请求 `_meta.io.modelcontextprotocol/protocolVersion` 一致。携带不支持的版本值返回 `UnsupportedProtocolVersionError (-32022)`；缺失 `_meta` 信封或其中必填字段返回 `-32602`；缺失该 Header 或 Header 与 body 冲突返回 `HeaderMismatchError (-32020)`。",
-      "selector": {
-        "marker": "MCP-0016",
-        "section": "2"
-      },
+      "source": "docs/05-mcp-profile.md#colp-section-2",
+      "requirement": "The MCP endpoint MUST accept only POST, and every request MUST carry `MCP-Protocol-Version: 2026-07-28` matching `_meta.io.modelcontextprotocol/protocolVersion`; unsupported versions return `-32022`, a missing envelope field returns `-32602`, and a missing or conflicting header returns `-32020`.",
       "implementation": [
         "mcp"
       ],
@@ -3133,12 +2177,8 @@
       "id": "MCP-0017",
       "level": "MUST",
       "profile": "mcp-read",
-      "source": "docs/05-mcp-profile.md#2-transport",
-      "requirement": "每个请求的 `_meta` 必须携带 `io.modelcontextprotocol/protocolVersion`、`io.modelcontextprotocol/clientCapabilities`，并推荐携带 clientInfo；结果 `_meta` 携带 serverInfo。",
-      "selector": {
-        "marker": "MCP-0017",
-        "section": "2"
-      },
+      "source": "docs/05-mcp-profile.md#colp-section-2",
+      "requirement": "Every request `_meta` MUST carry `io.modelcontextprotocol/protocolVersion` and `io.modelcontextprotocol/clientCapabilities`; result `_meta` carries serverInfo.",
       "implementation": [
         "mcp"
       ],
@@ -3150,12 +2190,8 @@
       "id": "MCP-0018",
       "level": "MUST",
       "profile": "mcp-read",
-      "source": "docs/05-mcp-profile.md#22-standard-custom-request-headers",
-      "requirement": "标准请求必须携带 `Mcp-Method`，适用时携带 `Mcp-Name`；Tool inputSchema 可用 `x-mcp-header` 声明 `Mcp-Param-*` 自定义 Header。",
-      "selector": {
-        "marker": "MCP-0018",
-        "section": "22"
-      },
+      "source": "docs/05-mcp-profile.md#colp-section-22",
+      "requirement": "Standard requests MUST carry `Mcp-Method`, and `Mcp-Name` where applicable; a tool `inputSchema` can declare `Mcp-Param-*` headers with `x-mcp-header`.",
       "implementation": [
         "mcp"
       ],
@@ -3167,47 +2203,35 @@
       "id": "MCP-0019",
       "level": "MUST",
       "profile": "mcp-read",
-      "source": "docs/05-mcp-profile.md#23-server-discovery",
-      "requirement": "服务器必须实现 `server/discover`，结果包含 `resultType: complete`、`supportedVersions` 与 `capabilities`，并推荐携带 serverInfo。",
-      "selector": {
-        "marker": "MCP-0019",
-        "section": "23"
-      },
+      "source": "docs/05-mcp-profile.md#colp-section-23",
+      "requirement": "Servers MUST implement `server/discover`, returning `resultType: complete`, `supportedVersions`, and `capabilities`.",
       "implementation": [
         "mcp"
       ],
       "tests": [
-        "mcp.normative-modern-links",
-        "mcp.registry-modern-baseline"
+        "mcp.discovery-contract"
       ]
     },
     {
       "id": "MCP-0020",
       "level": "MUST",
       "profile": "mcp-read",
-      "source": "docs/05-mcp-profile.md#24-results-and-cache",
-      "requirement": "方法结果必须声明 `resultType: complete | input_required`；可缓存 list / read 结果必须携带 `ttlMs` 与 `cacheScope: public | private`。",
-      "selector": {
-        "marker": "MCP-0020",
-        "section": "24"
-      },
+      "source": "docs/05-mcp-profile.md#colp-section-24",
+      "requirement": "Method results MUST declare `resultType: complete | input_required`, and cacheable list / read results MUST carry `ttlMs` and `cacheScope: public | private`.",
       "implementation": [
         "mcp"
       ],
       "tests": [
-        "mcp.modern-examples"
+        "mcp.modern-examples",
+        "mcp.result-contract"
       ]
     },
     {
       "id": "MCP-0021",
       "level": "MUST",
       "profile": "mcp-read",
-      "source": "docs/05-mcp-profile.md#8-resource-change-subscription",
-      "requirement": "资源与列表变更订阅使用 POST `subscriptions/listen` 长连接，首条消息必须是 `notifications/subscriptions/acknowledged` 并携带 subscription ID；不使用旧订阅或事件 ID 恢复。",
-      "selector": {
-        "marker": "MCP-0021",
-        "section": "8"
-      },
+      "source": "docs/05-mcp-profile.md#colp-section-8",
+      "requirement": "Subscriptions MUST use a POST `subscriptions/listen` stream whose first message is `notifications/subscriptions/acknowledged` with the subscription ID.",
       "implementation": [
         "mcp"
       ],
@@ -3219,12 +2243,8 @@
       "id": "MCP-0022",
       "level": "MUST",
       "profile": "mcp-write",
-      "source": "docs/05-mcp-profile.md#25-mrtr-supplementary-input",
-      "requirement": "需要补充输入或确认的 Tool 返回 `resultType: input_required`，携带 `inputRequests` 与不透明 `requestState`；客户端重试时必须原样回传 `requestState`。",
-      "selector": {
-        "marker": "MCP-0022",
-        "section": "25"
-      },
+      "source": "docs/05-mcp-profile.md#colp-section-25",
+      "requirement": "A tool that needs more input or confirmation MUST return `resultType: input_required` with `inputRequests` and an opaque `requestState`, which the client returns unchanged on retry.",
       "implementation": [
         "mcp"
       ],
@@ -3236,12 +2256,8 @@
       "id": "MCP-0023",
       "level": "MUST",
       "profile": "mcp-read",
-      "source": "docs/05-mcp-profile.md#26-tool-schema-budget",
-      "requirement": "Tool `inputSchema` / `outputSchema` 使用 JSON Schema 2020-12，`$ref` 解析与组合关键字的资源使用必须满足硬预算，`structuredContent` 可为任意 JSON 值。",
-      "selector": {
-        "marker": "MCP-0023",
-        "section": "26"
-      },
+      "source": "docs/05-mcp-profile.md#colp-section-26",
+      "requirement": "Tool `inputSchema` / `outputSchema` use JSON Schema 2020-12, and `$ref` resolution and combinator resource use MUST stay within hard budgets.",
       "implementation": [
         "mcp"
       ],
@@ -3253,32 +2269,21 @@
       "id": "MCP-0024",
       "level": "MUST",
       "profile": "mcp-read",
-      "source": "docs/05-mcp-profile.md#27-migration-rejection-samples",
-      "requirement": "MCP 端点必须拒绝旧版 method、Header 与动词（initialize、Mcp-Session-Id、GET/DELETE、旧订阅、Last-Event-ID、logging/setLevel、ping），不得忽略后继续执行或尝试恢复。",
-      "selector": {
-        "marker": "MCP-0024",
-        "section": "27"
-      },
+      "source": "docs/05-mcp-profile.md#colp-section-27",
+      "requirement": "The MCP endpoint MUST reject legacy methods, headers, and verbs (`initialize`, `Mcp-Session-Id`, GET / DELETE, legacy subscriptions, `Last-Event-ID`, `logging/setLevel`, `ping`) instead of ignoring them or attempting recovery.",
       "implementation": [
         "mcp"
       ],
       "tests": [
-        "mcp.normative-old-semantics-rejected"
+        "mcp.legacy-semantics-rejected"
       ]
     },
     {
       "id": "CORE-0038",
       "level": "MUST",
       "profile": "core",
-      "classification": "auto",
       "source": "SPECIFICATION.md#colp-section-6",
-      "requirement": "Bookmark 的可选 `urlHash` Wire Syntax MUST 是 `sha-256=:<base64>:`，其中 Base64 MUST 使用",
-      "selector": {
-        "section": "6",
-        "quote": "Bookmark 的可选 `urlHash` Wire Syntax MUST 是 `sha-256=:<base64>:`，其中 Base64 MUST 使用",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "The wire syntax of a Bookmark `urlHash` MUST be `sha-256=:<base64>:`.",
       "implementation": [
         "schema",
         "semantic"
@@ -3291,15 +2296,8 @@
       "id": "CORE-0039",
       "level": "MUST",
       "profile": "core",
-      "classification": "auto",
       "source": "SPECIFICATION.md#colp-section-6",
-      "requirement": "Bookmark 的可选 `urlHash` Wire Syntax MUST 是 `sha-256=:<base64>:`，其中 Base64 MUST 使用",
-      "selector": {
-        "section": "6",
-        "quote": "Bookmark 的可选 `urlHash` Wire Syntax MUST 是 `sha-256=:<base64>:`，其中 Base64 MUST 使用",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 2
-      },
+      "requirement": "The `urlHash` Base64 MUST use canonical padded encoding and decode to exactly 32 octets.",
       "implementation": [
         "schema",
         "semantic"
@@ -3312,15 +2310,8 @@
       "id": "CORE-0040",
       "level": "MUST",
       "profile": "core",
-      "classification": "auto",
       "source": "SPECIFICATION.md#colp-section-6",
-      "requirement": "Canonical Padded Encoding，解码后恰为 32 Octets。Digest 输入 MUST 是 `url` 原始字符串的 UTF-8",
-      "selector": {
-        "section": "6",
-        "quote": "Canonical Padded Encoding，解码后恰为 32 Octets。Digest 输入 MUST 是 `url` 原始字符串的 UTF-8",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "The `urlHash` digest input MUST be the UTF-8 octets of the original `url` string, without URL parsing, normalization, or rewriting.",
       "implementation": [
         "semantic"
       ],
@@ -3332,15 +2323,8 @@
       "id": "CORE-0041",
       "level": "MUST",
       "profile": "core",
-      "classification": "auto",
       "source": "SPECIFICATION.md#colp-section-6",
-      "requirement": "Octets，不执行 URL 解析、规范化或重写。`urlHash` 缺失是合法的；出现时 MUST 与同一对象中保留",
-      "selector": {
-        "section": "6",
-        "quote": "Octets，不执行 URL 解析、规范化或重写。`urlHash` 缺失是合法的；出现时 MUST 与同一对象中保留",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "When present, `urlHash` MUST match the original `url` preserved in the same object.",
       "implementation": [
         "semantic",
         "server",
@@ -3354,15 +2338,8 @@
       "id": "CORE-0042",
       "level": "MUST",
       "profile": "core",
-      "classification": "auto",
       "source": "SPECIFICATION.md#colp-section-6",
-      "requirement": "的原始 `url` 匹配。相等 Hash MUST 只选择待进一步比较的重复候选，MUST NOT 证明两个对象相同；",
-      "selector": {
-        "section": "6",
-        "quote": "的原始 `url` 匹配。相等 Hash MUST 只选择待进一步比较的重复候选，MUST NOT 证明两个对象相同；",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Equal `urlHash` values MUST only select duplicate candidates for further comparison.",
       "implementation": [
         "semantic"
       ],
@@ -3374,15 +2351,8 @@
       "id": "CORE-0043",
       "level": "MUST_NOT",
       "profile": "core",
-      "classification": "auto",
       "source": "SPECIFICATION.md#colp-section-6",
-      "requirement": "的原始 `url` 匹配。相等 Hash MUST 只选择待进一步比较的重复候选，MUST NOT 证明两个对象相同；",
-      "selector": {
-        "section": "6",
-        "quote": "的原始 `url` 匹配。相等 Hash MUST 只选择待进一步比较的重复候选，MUST NOT 证明两个对象相同；",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 2
-      },
+      "requirement": "Equal `urlHash` values MUST NOT prove that two objects are the same.",
       "implementation": [
         "semantic"
       ],
@@ -3394,15 +2364,8 @@
       "id": "CORE-0044",
       "level": "MUST_NOT",
       "profile": "core",
-      "classification": "auto",
       "source": "SPECIFICATION.md#colp-section-6",
-      "requirement": "最终判断比较适用的 URL、内容和 Collection 语义。`urlHash` MUST NOT 写入或替代 `id`、",
-      "selector": {
-        "section": "6",
-        "quote": "最终判断比较适用的 URL、内容和 Collection 语义。`urlHash` MUST NOT 写入或替代 `id`、",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "`urlHash` MUST NOT be written into or substitute for `id`, `collectionId`, Node references, or any other object ID field.",
       "implementation": [
         "schema",
         "semantic",
@@ -3416,15 +2379,8 @@
       "id": "CORE-0045",
       "level": "MUST",
       "profile": "core",
-      "classification": "auto",
       "source": "docs/01-core-data-model.md#colp-section-4",
-      "requirement": "- 随机标识 MUST 使用 CSPRNG 一次生成并随本地 Profile 持久化。",
-      "selector": {
-        "section": "4",
-        "quote": "- 随机标识 MUST 使用 CSPRNG 一次生成并随本地 Profile 持久化。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "A random profile identifier MUST be generated once with a CSPRNG and persisted with the local profile.",
       "implementation": [
         "server",
         "adapters"
@@ -3437,15 +2393,8 @@
       "id": "CORE-0046",
       "level": "MUST",
       "profile": "core",
-      "classification": "auto",
       "source": "docs/01-core-data-model.md#colp-section-4",
-      "requirement": "- HMAC 输入 MUST 使用无歧义的确定性字节编码；服务端密钥 MUST NOT 发送给客户端或写入日志。密钥轮换使用版本到密钥的受控映射。",
-      "selector": {
-        "section": "4",
-        "quote": "- HMAC 输入 MUST 使用无歧义的确定性字节编码；服务端密钥 MUST NOT 发送给客户端或写入日志。密钥轮换使用版本到密钥的受控映射。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Profile ID HMAC input MUST use an unambiguous, deterministic byte encoding.",
       "implementation": [
         "server"
       ],
@@ -3457,15 +2406,8 @@
       "id": "CORE-0047",
       "level": "MUST_NOT",
       "profile": "core",
-      "classification": "auto",
       "source": "docs/01-core-data-model.md#colp-section-4",
-      "requirement": "- HMAC 输入 MUST 使用无歧义的确定性字节编码；服务端密钥 MUST NOT 发送给客户端或写入日志。密钥轮换使用版本到密钥的受控映射。",
-      "selector": {
-        "section": "4",
-        "quote": "- HMAC 输入 MUST 使用无歧义的确定性字节编码；服务端密钥 MUST NOT 发送给客户端或写入日志。密钥轮换使用版本到密钥的受控映射。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 2
-      },
+      "requirement": "The server-side profile ID HMAC key MUST NOT be sent to clients or written to logs.",
       "implementation": [
         "server"
       ],
@@ -3477,15 +2419,8 @@
       "id": "CORE-0048",
       "level": "MUST",
       "profile": "core",
-      "classification": "auto",
       "source": "docs/01-core-data-model.md#colp-section-5-1",
-      "requirement": "- 对既有 `kind=ai` Annotation 执行 Human、Imported 或 Derived 来源的写入时，接收方 MUST 从当前权威资源原样保留 `kind`、`provider`、`model`、`generatedAt` 和 `sourceNodeIds`；请求中的同名字段不能覆盖、删除或补写这些值。",
-      "selector": {
-        "section": "5.1",
-        "quote": "- 对既有 `kind=ai` Annotation 执行 Human、Imported 或 Derived 来源的写入时，接收方 MUST 从当前权威资源原样保留 `kind`、`provider`、`model`、`generatedAt` 和 `sourceNodeIds`；请求中的同名字段不能覆盖、删除或补写这些值。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "For human, imported, or derived writes to an existing `kind=ai` Annotation, the receiver MUST keep `kind`, `provider`, `model`, `generatedAt`, and `sourceNodeIds` from the current authoritative resource.",
       "implementation": [
         "server"
       ],
@@ -3497,15 +2432,8 @@
       "id": "CORE-0049",
       "level": "MUST_NOT",
       "profile": "core",
-      "classification": "auto",
       "source": "docs/01-core-data-model.md#colp-section-5-1",
-      "requirement": "- 服务端 MUST NOT 把反序列化请求体、调用方构造的普通 Validation Context 或 caller-provided Provenance 当作可信 AI generation context。只有服务端可信 AI 执行边界创建的 context 可以替换上述 AI 身份字段。",
-      "selector": {
-        "section": "5.1",
-        "quote": "- 服务端 MUST NOT 把反序列化请求体、调用方构造的普通 Validation Context 或 caller-provided Provenance 当作可信 AI generation context。只有服务端可信 AI 执行边界创建的 context 可以替换上述 AI 身份字段。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Servers MUST NOT treat a deserialized request body, a caller-built validation context, or caller-provided provenance as a trusted AI generation context.",
       "implementation": [
         "server"
       ],
@@ -3517,15 +2445,8 @@
       "id": "CORE-0050",
       "level": "MUST",
       "profile": "core",
-      "classification": "auto",
       "source": "docs/01-core-data-model.md#colp-section-5-1",
-      "requirement": "- 当可信 Human 写入改变 Annotation 的 `format` 或 `value` 时，服务端 MUST 将 `editedByHuman` 设为 `true`；后续非 AI 写入不能把已经为 `true` 的值清除或降为 `false`。",
-      "selector": {
-        "section": "5.1",
-        "quote": "- 当可信 Human 写入改变 Annotation 的 `format` 或 `value` 时，服务端 MUST 将 `editedByHuman` 设为 `true`；后续非 AI 写入不能把已经为 `true` 的值清除或降为 `false`。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "When a trusted human write changes an Annotation's `format` or `value`, the server MUST set `editedByHuman` to `true`, and later non-AI writes cannot clear it.",
       "implementation": [
         "server"
       ],
@@ -3537,15 +2458,8 @@
       "id": "CORE-0051",
       "level": "MUST",
       "profile": "core",
-      "classification": "auto",
       "source": "docs/01-core-data-model.md#colp-section-11",
-      "requirement": "- 任何创建或改变 Parent Edge 的权威 Node 写入 MUST 在与持久化相同的事务或锁定快照中解析受影响 Node 与目标 Parent，并验证二者属于同一 Collection 且目标 Parent 的 `kind` 是 `root` 或 `folder`。",
-      "selector": {
-        "section": "11",
-        "quote": "- 任何创建或改变 Parent Edge 的权威 Node 写入 MUST 在与持久化相同的事务或锁定快照中解析受影响 Node 与目标 Parent，并验证二者属于同一 Collection 且目标 Parent 的 `kind` 是 `root` 或 `folder`。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Every authoritative Node write that creates or changes a parent edge MUST resolve the Node and the target parent in the same transaction or locked snapshot as persistence, and verify that both are in the same Collection and the parent is a `root` or `folder`.",
       "implementation": [
         "server"
       ],
@@ -3557,15 +2471,8 @@
       "id": "CORE-0052",
       "level": "MUST_NOT",
       "profile": "core",
-      "classification": "auto",
       "source": "docs/01-core-data-model.md#colp-section-11",
-      "requirement": "- 普通 Node 创建、移动、重挂载或恢复操作 MUST NOT 创建新的 `root`、改变现有 Root 的 Parent，或使非 Root Node 的 `parentId` 变为 `null`；唯一 Root 只能随 Collection 原子创建。",
-      "selector": {
-        "section": "11",
-        "quote": "- 普通 Node 创建、移动、重挂载或恢复操作 MUST NOT 创建新的 `root`、改变现有 Root 的 Parent，或使非 Root Node 的 `parentId` 变为 `null`；唯一 Root 只能随 Collection 原子创建。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Ordinary Node create, move, remount, or restore operations MUST NOT create a new `root`, change the parent of the existing root, or set a non-root Node's `parentId` to `null`.",
       "implementation": [
         "server"
       ],
@@ -3577,15 +2484,8 @@
       "id": "CORE-0053",
       "level": "MUST",
       "profile": "core",
-      "classification": "auto",
       "source": "docs/01-core-data-model.md#colp-section-11",
-      "requirement": "- `delete_subtree` MUST 在与删除相同的事务或锁定快照中从权威 Parent/Child 关系导出完整成员集合，对集合中的每个 Node 执行授权、只读约束和删除策略，并使用同一集合持久化删除及 `affectedCount`；调用方或适配器提供的不完整 descendants 列表不是权威删除计划。",
-      "selector": {
-        "section": "11",
-        "quote": "- `delete_subtree` MUST 在与删除相同的事务或锁定快照中从权威 Parent/Child 关系导出完整成员集合，对集合中的每个 Node 执行授权、只读约束和删除策略，并使用同一集合持久化删除及 `affectedCount`；调用方或适配器提供的不完整 descendants 列表不是权威删除计划。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "`delete_subtree` MUST derive the complete member set from authoritative parent / child relationships in the same transaction or locked snapshot as the deletion, and use that set for authorization, read-only checks, deletion, and `affectedCount`.",
       "implementation": [
         "server"
       ],
@@ -3597,15 +2497,8 @@
       "id": "CORE-0054",
       "level": "MUST",
       "profile": "core",
-      "classification": "auto",
       "source": "docs/01-core-data-model.md#colp-section-11",
-      "requirement": "- I-JSON 接收边界 MUST 在构造业务对象之前执行确定的最大嵌套深度与成员/数组项预算；依赖 JavaScript 调用栈自然溢出不构成深度控制。",
-      "selector": {
-        "section": "11",
-        "quote": "- I-JSON 接收边界 MUST 在构造业务对象之前执行确定的最大嵌套深度与成员/数组项预算；依赖 JavaScript 调用栈自然溢出不构成深度控制。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "The I-JSON receiving boundary MUST enforce deterministic maximum nesting depth and member / array item budgets before building business objects.",
       "implementation": [
         "schema",
         "server",
@@ -3619,15 +2512,8 @@
       "id": "CORE-0055",
       "level": "MUST",
       "profile": "core",
-      "classification": "auto",
       "source": "docs/01-core-data-model.md#colp-section-11",
-      "requirement": "- Parent Ancestry 与 Subtree 遍历 MUST 执行确定的最大深度和最大访问 Node 数预算，并在超限时于任何持久化前失败关闭。",
-      "selector": {
-        "section": "11",
-        "quote": "- Parent Ancestry 与 Subtree 遍历 MUST 执行确定的最大深度和最大访问 Node 数预算，并在超限时于任何持久化前失败关闭。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Parent ancestry and subtree traversals MUST enforce deterministic maximum depth and visited Node budgets, and fail closed before any persistence when exceeded.",
       "implementation": [
         "server"
       ],
@@ -3639,15 +2525,8 @@
       "id": "CORE-0056",
       "level": "MUST_NOT",
       "profile": "core",
-      "classification": "auto",
       "source": "docs/01-core-data-model.md#colp-section-11",
-      "requirement": "- 远端输入 MUST NOT 提高实现或部署配置的解析、Ancestry 或 Subtree Hard Limit。具体数值由部署在实现上限内选择；HTTP 超限使用 `413 payload_too_large`，非 HTTP 边界返回稳定的 limit denial。",
-      "selector": {
-        "section": "11",
-        "quote": "- 远端输入 MUST NOT 提高实现或部署配置的解析、Ancestry 或 Subtree Hard Limit。具体数值由部署在实现上限内选择；HTTP 超限使用 `413 payload_too_large`，非 HTTP 边界返回稳定的 limit denial。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Remote input MUST NOT raise the parse, ancestry, or subtree hard limits configured by the implementation or deployment.",
       "implementation": [
         "schema",
         "server"
@@ -3663,15 +2542,8 @@
       "id": "PUB-0040",
       "level": "MUST",
       "profile": "publication",
-      "classification": "auto",
       "source": "docs/02-http-publication-feed.md#colp-section-5",
-      "requirement": "`mode=publication` 中未使用 `redacted=true` 的 Bookmark `url` MUST 是 Authority 不含 Userinfo 的绝对 HTTP(S) URL。该限制同样适用于授权后的 Protected / Private Publication；授权可以决定是否返回目标 URL，但不能使 `user:password@host` 成为可发布 URL。权威 / Sync 表示仍按 `$defs.bookmarkUrl` 保留协商允许的原始 URI。",
-      "selector": {
-        "section": "5",
-        "quote": "`mode=publication` 中未使用 `redacted=true` 的 Bookmark `url` MUST 是 Authority 不含 Userinfo 的绝对 HTTP(S) URL。该限制同样适用于授权后的 Protected / Private Publication；授权可以决定是否返回目标 URL，但不能使 `user:password@host` 成为可发布 URL。权威 / Sync 表示仍按 `$defs.bookmarkUrl` 保留协商允许的原始 URI。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "In `mode=publication`, a Bookmark `url` without `redacted=true` MUST be an absolute HTTP(S) URL whose authority has no userinfo, including in authorized protected / private publication.",
       "implementation": [
         "schema",
         "semantic",
@@ -3691,15 +2563,8 @@
       "id": "FEED-0010",
       "level": "MUST",
       "profile": "feed",
-      "classification": "auto",
       "source": "docs/02-http-publication-feed.md#colp-section-6",
-      "requirement": "Feed 中出现的 Bookmark 导航 URL MUST 是 Authority 不含 Userinfo 的绝对 HTTP(S) URL；不能安全投影的目标必须省略或使用不含目标 URL 的 Redacted 摘要。",
-      "selector": {
-        "section": "6",
-        "quote": "Feed 中出现的 Bookmark 导航 URL MUST 是 Authority 不含 Userinfo 的绝对 HTTP(S) URL；不能安全投影的目标必须省略或使用不含目标 URL 的 Redacted 摘要。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Bookmark navigation URLs in a Feed MUST be absolute HTTP(S) URLs whose authority has no userinfo; targets that cannot be projected safely are omitted or redacted.",
       "implementation": [
         "feed",
         "schema"
@@ -3712,15 +2577,8 @@
       "id": "PUBLISH-0013",
       "level": "MUST",
       "profile": "publisher",
-      "classification": "auto",
       "source": "docs/08-write-api.md#colp-section-2",
-      "requirement": "- 仅当请求已通过 Authentication、Authorization 和 Concealment Policy，且 Node 自身或任一权威祖先的只读约束是实际拒绝原因时，Publisher MUST 返回 `403 node_read_only`；未授权或隐藏资源继续使用 Concealment Policy 选定的 403/404，不能暴露只读状态，也不能把真实的只读拒绝折叠为 `insufficient_scope` 或未注册短码。",
-      "selector": {
-        "section": "2",
-        "quote": "- 仅当请求已通过 Authentication、Authorization 和 Concealment Policy，且 Node 自身或任一权威祖先的只读约束是实际拒绝原因时，Publisher MUST 返回 `403 node_read_only`；未授权或隐藏资源继续使用 Concealment Policy 选定的 403/404，不能暴露只读状态，也不能把真实的只读拒绝折叠为 `insufficient_scope` 或未注册短码。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "Only after authentication, authorization, and the concealment policy pass, and a read-only constraint of the Node or an authoritative ancestor is the actual reason, the publisher MUST return `403 node_read_only`.",
       "implementation": [
         "publisher",
         "server",
@@ -3734,15 +2592,8 @@
       "id": "PUBLISH-0014",
       "level": "MUST",
       "profile": "publisher",
-      "classification": "auto",
       "source": "docs/08-write-api.md#colp-section-6",
-      "requirement": "- `parentId` MUST 在与创建相同的事务中解析为同 Collection 的 Root 或 Folder；普通 Node 创建端点不得接受 `null`，也不得创建 Root。",
-      "selector": {
-        "section": "6",
-        "quote": "- `parentId` MUST 在与创建相同的事务中解析为同 Collection 的 Root 或 Folder；普通 Node 创建端点不得接受 `null`，也不得创建 Root。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "`parentId` MUST resolve, in the same transaction as the creation, to a root or folder of the same Collection.",
       "implementation": [
         "publisher",
         "server"
@@ -3755,15 +2606,8 @@
       "id": "PUBLISH-0015",
       "level": "MUST",
       "profile": "publisher",
-      "classification": "auto",
       "source": "docs/08-write-api.md#colp-section-8",
-      "requirement": "请求必须同时发送 Node 的 `If-Match`。即使源和目标是同一 Parent，也必须同时发送 Source / Target Children Revision，此时两值相同。服务器 MUST 在与 Move 相同的事务中验证源 Node、两个 Parent、目标 Parent 的 Root/Folder kind、同 Collection 约束和位置上下文授权，不能只检查 Node 本身；Root 不得通过本端点移动。成功返回更新后的 Node、源 Parent Revision、目标 Parent Revision和 Transform 后的 Position。",
-      "selector": {
-        "section": "8",
-        "quote": "请求必须同时发送 Node 的 `If-Match`。即使源和目标是同一 Parent，也必须同时发送 Source / Target Children Revision，此时两值相同。服务器 MUST 在与 Move 相同的事务中验证源 Node、两个 Parent、目标 Parent 的 Root/Folder kind、同 Collection 约束和位置上下文授权，不能只检查 Node 本身；Root 不得通过本端点移动。成功返回更新后的 Node、源 Parent Revision、目标 Parent Revision和 Transform 后的 Position。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "The server MUST verify the source Node, both parents, the target parent kind, the same-Collection constraint, and position context authorization in the same transaction as the move.",
       "implementation": [
         "publisher",
         "server"
@@ -3776,15 +2620,8 @@
       "id": "PUBLISH-0016",
       "level": "MUST",
       "profile": "publisher",
-      "classification": "auto",
       "source": "docs/08-write-api.md#colp-section-9",
-      "requirement": "- `recursive=true` 表示 `delete_subtree`，需要 `nodes:delete`。服务器 MUST 在与删除相同的事务中从权威 Parent/Child 关系导出完整子树，对每个成员执行授权与只读检查，并以同一成员集合执行删除、内部 Watermark 和 `affectedCount`；请求或适配器提交的 descendants 列表不能替代该遍历。",
-      "selector": {
-        "section": "9",
-        "quote": "- `recursive=true` 表示 `delete_subtree`，需要 `nodes:delete`。服务器 MUST 在与删除相同的事务中从权威 Parent/Child 关系导出完整子树，对每个成员执行授权与只读检查，并以同一成员集合执行删除、内部 Watermark 和 `affectedCount`；请求或适配器提交的 descendants 列表不能替代该遍历。",
-        "quoteOrdinal": 1,
-        "keywordOrdinal": 1
-      },
+      "requirement": "For `recursive=true`, the server MUST derive the complete subtree from authoritative parent / child relationships in the same transaction as the deletion, and check every member.",
       "implementation": [
         "publisher",
         "server"

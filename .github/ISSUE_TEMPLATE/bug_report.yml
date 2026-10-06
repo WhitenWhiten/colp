@@ -1,0 +1,43 @@
+name: Bug report
+description: Something in the Node.js package is broken, or the specification contradicts itself.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. For security problems, do not use this form; follow [SECURITY.md](https://github.com/WhitenWhiten/colp/blob/main/SECURITY.md) instead.
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      options:
+        - Node.js package (packages/node)
+        - Specification (protocol/)
+        - JSON Schema or examples
+        - Documentation
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the problem. For a specification issue, link the section anchors involved.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce
+      description: A minimal code sample, request, or wire document. Remove any secrets.
+      render: ts
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      placeholder: e.g. main @ 1a2b3c4, Node.js 22.11

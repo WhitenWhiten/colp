@@ -1,19 +1,21 @@
 # 05. Native MCP Profile
 
-## 1. 设计目标
+<a id="colp-section-1"></a>
 
-Collection Protocol MCP Profile 让 AI 能够：
+## 1. Design Goals
 
-- 读取 Collection、Node、Feed、同步状态和公开策略。
-- 搜索、创建、修改、移动和删除收藏内容。
-- 管理公开性、访问密钥、ACL、限流和同步副本。
-- 在高风险操作前展示影响范围并获得用户确认。
+The Collection Protocol MCP Profile lets AI assistants:
 
-MCP 只是 Core HTTP API 的适配层。权限、Revision、审计、限流和冲突规则不能在 MCP 中另起一套。
+- Read Collections, Nodes, Feeds, sync status, and publication policy.
+- Search, create, modify, move, and delete bookmarked content.
+- Manage publication, access keys, ACLs, rate limits, and sync replicas.
+- Show the impact of high-risk operations and obtain user confirmation before running them.
 
-基线：MCP Specification `2026-07-28`（无状态、POST-only）。
+MCP is only an adapter over the core HTTP API. Permissions, revisions, audit, rate limits, and conflict rules cannot be redefined separately for MCP.
 
-官方规范链接：
+Baseline: MCP Specification `2026-07-28` (stateless, POST-only).
+
+Official specification links:
 
 - [MCP 2026-07-28 Changelog](https://modelcontextprotocol.io/specification/2026-07-28/changelog)
 - [MCP 2026-07-28 Streamable HTTP](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http)
@@ -24,63 +26,57 @@ MCP 只是 Core HTTP API 的适配层。权限、Revision、审计、限流和�
 
 <a id="colp-section-2"></a>
 
-## 2. 传输
+## 2. Transport
 
-<!-- COLP-REQ MCP-0017 -->
-
-<!-- COLP-REQ MCP-0016 -->
-
-远程端点（POST-only）：
+Remote endpoint (POST-only):
 
 ```text
 POST /collections/-/mcp
 ```
 
-使用 MCP Streamable HTTP（`2026-07-28`）：
+It uses MCP Streamable HTTP (`2026-07-28`):
 
-- JSON-RPC 2.0，UTF-8。
-- 端点只接受 POST；GET 和 DELETE 不属于 MCP 合同，作为负控拒绝，不创建 SSE 也不执行清理逻辑。
-- 每次 POST 的 Accept 必须同时包含 `application/json` 与 `text/event-stream`。
-- 请求必须携带 `MCP-Protocol-Version: 2026-07-28`，且与请求 `_meta.io.modelcontextprotocol/protocolVersion` 一致；携带不支持的版本值时返回 `UnsupportedProtocolVersionError (-32022)`，缺失 `_meta` 信封或缺失其中必填字段时返回 `-32602` Invalid Params，缺失该 Header 或 Header 与 body 冲突时返回 `HeaderMismatchError (-32020)`（对齐上游 `_meta` 合同；2026-08-27 修订）。
-- 服务器必须校验 Origin。
-- 协议不提供 Session：携带 Session 标识 Header 时直接拒绝，不忽略后继续执行；旧 Session 语义见 §27 拒绝样例。
-- 客户端在每次请求携带 `_meta.io.modelcontextprotocol/protocolVersion`、`io.modelcontextprotocol/clientCapabilities`，并推荐携带 clientInfo；结果 `_meta` 携带 serverInfo。
+- JSON-RPC 2.0 over UTF-8.
+- The endpoint accepts only POST. GET and DELETE are not part of the MCP contract; they are rejected as negative cases, never open an SSE stream, and never run cleanup logic.
+- The `Accept` header of every POST must include both `application/json` and `text/event-stream`.
+- Requests must carry `MCP-Protocol-Version: 2026-07-28`, and it must match the request's `_meta.io.modelcontextprotocol/protocolVersion`. An unsupported version value returns `UnsupportedProtocolVersionError (-32022)`; a missing `_meta` envelope or a missing required field inside it returns `-32602` Invalid Params; a missing header, or a header that conflicts with the body, returns `HeaderMismatchError (-32020)` (aligned with the upstream `_meta` contract; revised 2026-08-27).
+- The server must validate the origin.
+- The protocol has no session: a request that carries a session identifier header is rejected outright, never ignored and then executed. The legacy session semantics are listed in the rejection examples of Section 27.
+- On every request the client carries `_meta.io.modelcontextprotocol/protocolVersion` and `io.modelcontextprotocol/clientCapabilities`, and is recommended to carry clientInfo; the result `_meta` carries serverInfo.
 
-本地集成 MAY 使用 stdio。stdio 凭据从环境或本地 Secret Store 获取，不使用远程 OAuth Flow。
+Local integrations MAY use stdio. Over stdio, credentials come from the environment or a local secret store, not from a remote OAuth flow.
 
-协议错误使用稳定编号：Header 不匹配返回 `HeaderMismatchError (-32020)`，缺 required client capability 返回 `-32021`，不支持版本返回 `-32022`；应用自定义错误只使用 `-32000..-32019`。每次请求都不依赖先前协商状态；listen 长连接状态只存在于该 POST 请求生命周期，断线后客户端重新 listen 并重新读取 Resource，不基于事件 ID 补发；旧恢复语义见 §27 拒绝样例。
+Protocol errors use stable numbers: a header mismatch returns `HeaderMismatchError (-32020)`, a missing required client capability returns `-32021`, and an unsupported version returns `-32022`; application-defined errors use only `-32000..-32019`. No request depends on previously negotiated state. The state of a long-lived listen connection exists only for the lifetime of that POST request; after a disconnect the client listens again and re-reads resources, and there is no redelivery based on event IDs. The legacy resumption semantics are listed in the rejection examples of Section 27.
 
 <a id="colp-section-3"></a>
 
 ## 3. MCP Authorization
 
-远程写入必须使用 OAuth 2.1 Profile：
+Remote writes must use the OAuth 2.1 profile:
 
-- Protected Resource Metadata。
-- Authorization Server Discovery。
-- PKCE S256。
-- `resource=https://alice.example/collections/-/mcp`。
-- Audience Validation。
-- 不允许 Token Passthrough。
-- Scope Upgrade 使用 403 `insufficient_scope`。
+- Protected resource metadata.
+- Authorization server discovery.
+- PKCE S256.
+- `resource=https://alice.example/collections/-/mcp`.
+- Audience validation.
+- No token passthrough.
+- Scope upgrades use 403 `insufficient_scope`.
 
-OAuth client issuer 绑定见 `docs/04-auth-security-rate-limit.md` 的 6.1：授权响应 `iss`、DCR `application_type` 与按 issuer 隔离的凭据是 MCP OAuth client 的必要合同。
+For OAuth client issuer binding, see Section 6.1 of `docs/04-auth-security-rate-limit.md`: the authorization response `iss`, the DCR `application_type`, and per-issuer isolated credentials are a required contract for MCP OAuth clients.
 
-匿名 MCP MAY 只暴露公开 Resources，不暴露 Tools。
+Anonymous MCP MAY expose only public resources and no tools.
+
+<a id="colp-section-4"></a>
 
 ## 4. Capabilities
 
-<!-- COLP-REQ MCP-0007 -->
+A mount that declares `mcp-read` or `mcp-write` in the Manifest must also declare the `mcp` endpoint and set `features.mcp.resources` to `true`. `mcp-read` may set `features.mcp.tools` to `false`; a resource-only server is still a valid `mcp-read` implementation. If `mcp-read` sets it to `true`, every exposed tool must be read-only.
 
-<!-- COLP-REQ MCP-0006 -->
+A mount that declares `mcp-write` must set `features.mcp.tools` to `true` and also declare the `mcp-read` and `publisher` profiles it depends on.
 
-Manifest 中声明 `mcp-read` 或 `mcp-write` 的 Mount 必须同时声明 `mcp` Endpoint，并将 `features.mcp.resources` 设为 `true`。`mcp-read` 可以将 `features.mcp.tools` 设为 `false`；Resource-only Server 仍是合法的 `mcp-read` 实现。若 `mcp-read` 将其设为 `true`，暴露的 Tool 必须全部为只读 Tool。
+`features.mcp.protocolVersion` in the Manifest is always `2026-07-28`; the only MCP baseline of `mcp-read` and `mcp-write` is `2026-07-28`, and arbitrary versions or arrays of supported versions are not accepted.
 
-声明 `mcp-write` 的 Mount 必须将 `features.mcp.tools` 设为 `true`，并同时声明它依赖的 `mcp-read` 与 `publisher` Profile。
-
-Manifest 的 `features.mcp.protocolVersion` 固定为 `2026-07-28`；`mcp-read` / `mcp-write` 的唯一 MCP 基线是 `2026-07-28`，不接受任意版本或 supported-version 数组。
-
-只读服务器：
+Read-only server:
 
 ```json
 {
@@ -92,7 +88,7 @@ Manifest 的 `features.mcp.protocolVersion` 固定为 `2026-07-28`；`mcp-read` 
 }
 ```
 
-可写服务器：
+Writable server:
 
 ```json
 {
@@ -107,22 +103,26 @@ Manifest 的 `features.mcp.protocolVersion` 固定为 `2026-07-28`；`mcp-read` 
 }
 ```
 
-当 Scope 或用户授权改变可见 Tool 集合时，服务器通过 `subscriptions/listen` 连接发送 `notifications/tools/list_changed`。
+When a change in scopes or user authorization changes the set of visible tools, the server sends `notifications/tools/list_changed` over a `subscriptions/listen` connection.
 
-## 5. Resource URI
+<a id="colp-section-5"></a>
 
-<!-- COLP-REQ MCP-0001 -->
+## 5. Resource URIs
 
-### 5.1 Public Resource
+<a id="colp-section-5-1"></a>
 
-如果 MCP Client 可直接访问公开 URL，使用 HTTPS：
+### 5.1 Public Resources
+
+If the MCP client can access the public URL directly, use HTTPS:
 
 ```text
 https://alice.example/collections/c/collection-1
 https://alice.example/collections/c/collection-1/snapshot
 ```
 
-### 5.2 Logical / Protected Resource
+<a id="colp-section-5-2"></a>
+
+### 5.2 Logical and Protected Resources
 
 ```text
 colp://{serverUuid}/collections/{collectionId}
@@ -134,13 +134,13 @@ colp://{serverUuid}/sync/status
 colp://{serverUuid}/audit/{auditId}
 ```
 
-`colp` 是自定义 URI Scheme。Authority 使用 Manifest 中稳定的 `serverUuid`，不得使用会改变的展示名。
+`colp` is a custom URI scheme. The authority is the stable `serverUuid` from the Manifest, never a display name that can change.
 
 <a id="colp-section-6"></a>
 
 ## 6. Resource Templates
 
-服务器 SHOULD 暴露以下模板。Authority 必须直接使用本服务器的实际 `serverUuid`，它不是让客户端填写的模板变量：
+A server SHOULD expose the following templates for the resources it serves; it advertises only templates for resource kinds it actually implements. The authority is this server's actual `serverUuid`, written directly into the template; it is not a template variable for the client to fill in:
 
 ```json
 [
@@ -165,46 +165,60 @@ colp://{serverUuid}/audit/{auditId}
 ]
 ```
 
+<a id="colp-section-7"></a>
+
 ## 7. Resources
+
+<a id="colp-section-7-1"></a>
 
 ### 7.1 Collection Directory
 
-- URI：`colp://{serverUuid}/collections`
-- 只返回当前 Principal 可见 Collection。
-- 匿名 List / Search 必须排除 `unlisted` Collection；知道精确 URI 后的读取与“可发现”是两种权限。
-- Resource Annotation：`audience=["user","assistant"]`。
+- URI: `colp://{serverUuid}/collections`
+- Returns only the Collections visible to the current principal.
+- Anonymous lists and searches must exclude `unlisted` Collections; reading a known exact URI and being able to discover it are two different permissions.
+- Resource annotation: `audience=["user","assistant"]`.
+
+<a id="colp-section-7-2"></a>
 
 ### 7.2 Collection Snapshot
 
-- URI：`colp://{serverUuid}/collections/{id}/snapshot`。Collection Metadata 使用不带 `/snapshot` 的 URI，两者不得复用。
-- 大 Collection 可只返回摘要和 Resource Link 到 Snapshot Page。
-- `annotations.lastModified` 对应 Collection UpdatedAt。
+- URI: `colp://{serverUuid}/collections/{id}/snapshot`. Collection metadata uses the URI without `/snapshot`; the two must not be shared.
+- A large Collection may return only a summary and a resource link to a Snapshot page.
+- `annotations.lastModified` corresponds to the Collection's `updatedAt`.
+
+<a id="colp-section-7-3"></a>
 
 ### 7.3 Node
 
-- URI：`colp://{serverUuid}/collections/{id}/nodes/{nodeId}`。
-- 私人 Annotation 只有在 Scope 允许时出现。
+- URI: `colp://{serverUuid}/collections/{id}/nodes/{nodeId}`.
+- Private annotations appear only when the scopes allow them.
+
+<a id="colp-section-7-4"></a>
 
 ### 7.4 Access Summary
 
-- URI：`colp://{serverUuid}/collections/{id}/access`。
-- 返回人类可读摘要与机器结构，不返回 Secret。
+- URI: `colp://{serverUuid}/collections/{id}/access`.
+- Returns a human-readable summary and a machine structure, never secrets.
+
+<a id="colp-section-7-5"></a>
 
 ### 7.5 Sync Status
 
-- 当前 Replica、Last Cursor、Pending Operations、Open Conflicts 和 Conversion Warnings。
+- The current replica, last cursor, pending operations, open conflicts, and conversion warnings.
+
+<a id="colp-section-7-6"></a>
 
 ### 7.6 Audit
 
-- 仅 `audit:read`。
-- 默认按时间倒序分页。
-- 敏感字段 Redact。
+- Only with `audit:read`.
+- Paginated in reverse chronological order by default.
+- Sensitive fields are redacted.
 
-## 8. 资源变更订阅（subscriptions/listen）
+<a id="colp-section-8"></a>
 
-<!-- COLP-REQ MCP-0021 -->
+## 8. Resource Change Subscriptions (subscriptions/listen)
 
-服务器通过单条长连接的 POST `subscriptions/listen` 提供变更通知：
+The server provides change notifications through a single long-lived POST `subscriptions/listen` connection:
 
 ```text
 subscriptions/listen
@@ -213,31 +227,29 @@ notifications/resources/updated
 notifications/resources/list_changed
 ```
 
-过滤字段：
+Filter fields:
 
-- `toolsListChanged`。
-- `promptsListChanged`。
-- `resourcesListChanged`。
-- `resourceSubscriptions`（Resource URI 数组）。
+- `toolsListChanged`.
+- `promptsListChanged`.
+- `resourcesListChanged`.
+- `resourceSubscriptions` (an array of resource URIs).
 
-第一条消息必须是 `notifications/subscriptions/acknowledged`，其 `_meta.io.modelcontextprotocol/subscriptionId` 等于发起请求的 JSON-RPC id；后续通知都携带该 subscription ID。`notifications/progress` 与 `notifications/message` 等 request-scoped 通知只留在各自请求的流上。连接不提供恢复；服务器不得在客户端未订阅的类型上发送通知。
+The first message must be `notifications/subscriptions/acknowledged`, whose `_meta.io.modelcontextprotocol/subscriptionId` equals the JSON-RPC id of the opening request; every later notification carries that subscription ID. Request-scoped notifications such as `notifications/progress` and `notifications/message` stay on the stream of their own request. The connection offers no resumption; the server must not send notifications of a type the client did not subscribe to.
 
-适合订阅：
+Good candidates for subscription:
 
-- Collection Metadata。
-- Feed Cursor。
-- Sync Status。
-- Approval Plan Status。
+- Collection metadata.
+- The Feed cursor.
+- Sync status.
+- Approval plan status.
 
-通知只表示资源已变更。客户端必须重新 Read Resource，不能把通知当完整状态。
+A notification only means that a resource has changed. The client must read the resource again and must not treat the notification as complete state.
 
 <a id="colp-section-9"></a>
 
 ## 9. Tool Naming
 
-<!-- COLP-REQ MCP-0002 -->
-
-工具名使用小写点分命名：
+Tool names use lowercase dot-separated names:
 
 ```text
 collections.list
@@ -246,33 +258,37 @@ nodes.create
 access.plan_change
 ```
 
-名称限制在 ASCII 字母、数字、下划线、连字符和点，长度不超过 128。
+Names are limited to ASCII letters, digits, underscores, hyphens, and dots, and are at most 128 characters long.
 
-所有 Tool 必须提供 JSON Schema `inputSchema`，写工具 SHOULD 提供 `outputSchema` 和 `structuredContent`。
+Every tool must provide a JSON Schema `inputSchema`; write tools SHOULD provide `outputSchema` and `structuredContent`.
 
-## 10. 只读 Tools
+<a id="colp-section-10"></a>
 
-| Tool | Scope | 说明 |
+## 10. Read-only Tools
+
+| Tool | Scope | Description |
 |---|---|---|
-| `collections.list` | collections:list | 分页列出 Collection |
-| `collections.get` | collections:read | 获取元信息 |
-| `collections.search` | collections:read | 搜索标题、Tag、Creator |
-| `collections.get_snapshot` | nodes:read | 默认只取 Node 核心字段；包含 Sidecar 时还需要对应 read Scope |
-| `nodes.get` | nodes:read | 获取单个 Node |
-| `nodes.search` | nodes:read | 搜索 URL、Title、Tag；搜索 Annotation 另需 annotations:read |
-| `feed.get_changes` | feed:read | 拉取公共或授权 Feed |
-| `sync.get_status` | sync:pull | 查看 Cursor、Queue 和 Conflict |
-| `access.get` | access:read | 查看公开性和 Effective Policy |
-| `keys.list` | keys:read | 仅 Key Metadata |
-| `rate_limits.get` | rate_limits:read | 查看限流策略 |
-| `audit.list` | audit:read | 查看审计记录 |
+| `collections.list` | collections:list | List Collections, paginated |
+| `collections.get` | collections:read | Get metadata |
+| `collections.search` | collections:read | Search titles, tags, and creators |
+| `collections.get_snapshot` | nodes:read | Core Node fields only by default; including sidecars also requires the corresponding read scopes |
+| `nodes.get` | nodes:read | Get a single Node |
+| `nodes.search` | nodes:read | Search URLs, titles, and tags; searching annotations also requires annotations:read |
+| `feed.get_changes` | feed:read | Pull a public or authorized Feed |
+| `sync.get_status` | sync:pull | View cursors, queues, and conflicts |
+| `access.get` | access:read | View publication state and the effective policy |
+| `keys.list` | keys:read | Key metadata only |
+| `rate_limits.get` | rate_limits:read | View rate-limit policies |
+| `audit.list` | audit:read | View audit records |
 
-## 11. 普通写 Tools
+<a id="colp-section-11"></a>
 
-| Tool | Scope | 风险 |
+## 11. Ordinary Write Tools
+
+| Tool | Scope | Risk |
 |---|---|---|
-| `collections.create` | collections:create | medium |
-| `collections.update` | collections:write | low / medium |
+| `collections.create` | collections:create | low |
+| `collections.update` | collections:write | low |
 | `nodes.create` | nodes:write | low |
 | `nodes.update` | nodes:write | low |
 | `nodes.move` | nodes:write | medium |
@@ -283,33 +299,35 @@ access.plan_change
 | `relations.create` | relations:write | low |
 | `relations.update` | relations:write | low |
 | `release.preview` | release:publish | low |
-| `release.publish` | release:publish | high |
 | `sync.preview` | sync:pull | low |
 | `sync.push` | sync:push | medium |
 | `sync.resolve_conflict` | sync:resolve | medium |
 
-修改、移动、重排、删除和冲突解决 Tool 必须要求目标 `baseRevision`；跨 Parent Move 还必须带源 / 目标 Children Revision。`dryRun` 可以附加，但不能替代并发 Precondition。Create Tool 使用 Idempotency Key，不要求不存在对象的 Revision。
+The listed risk is the tool's own risk; the risk of a call is the highest risk of the operations it expands to (Section 12). For example, a `collections.update` that makes a Collection `public` or `unlisted` is high risk.
 
-## 12. 高风险 Tools
+Modify, move, reorder, delete, and conflict resolution tools must require the target's `baseRevision`; a move across parents must also carry the source and target children revisions. `dryRun` may be added, but cannot replace the concurrency precondition. Create tools use an idempotency key and do not require the revision of an object that does not exist yet.
 
-<!-- COLP-REQ MCP-0003 -->
+<a id="colp-section-12"></a>
 
-以下操作不得设计成一步完成：
+## 12. High-Risk Tools
+
+The following operations must not be designed as a single step:
 
 - `collections.delete`
-- `nodes.delete_subtree`，超过安全阈值时
-- `access.visibility` 变为 public / unlisted
+- `nodes.delete_subtree`, when above a safety threshold
+- `access.visibility` changing to public or unlisted
 - `access.set_policy`
 - `keys.create`
 - `keys.rotate`
 - `keys.revoke`
 - `rate_limits.set`
+- `release.publish`
 - `sync.mirror`
-- 大批量覆盖、删除或公开 Annotation / Attachment
+- Large-scale overwrite, deletion, or publication of annotations or attachments
 
-风险按展开后的实际 Operation 聚合，而不是按外层 Tool 名判断。通用 `sync.push`、批量 Tool 或自定义 Tool 内含任一高风险 Operation 时，整个调用必须走 Plan / Commit；不得用 Generic Batch 绕过确认。
+Risk is aggregated over the actual operations after expansion, not judged by the outer tool name. When a generic `sync.push`, a batch tool, or a custom tool contains any high-risk operation, the whole call must go through plan / commit; a generic batch must not be used to bypass confirmation.
 
-统一使用 Plan / Commit：
+Plan / commit uses these tools:
 
 ```text
 changes.plan
@@ -317,9 +335,11 @@ changes.commit
 changes.cancel
 ```
 
+<a id="colp-section-13"></a>
+
 ## 13. Change Plan
 
-<!-- COLP-REQ MCP-0004 -->
+<a id="colp-section-13-1"></a>
 
 ### 13.1 Plan
 
@@ -340,7 +360,7 @@ changes.cancel
 }
 ```
 
-结果：
+Result:
 
 ```json
 {
@@ -367,49 +387,55 @@ changes.cancel
 }
 ```
 
-`operations[]` 必须通过 `$defs.changePlanOperation` 的判别联合，不能使用开放 `payload` 猜测命令。Plan 必须绑定最终用户 Subject、OAuth Client、请求上下文、Canonical Operations Digest 和 Base Revisions。知道 `planId` 不得让另一个 Principal、Client 或请求上下文提交该 Plan。
+`operations[]` must validate against the discriminated union `$defs.changePlanOperation`; an open `payload` must not be used to guess a command. A plan must be bound to the end-user subject, the OAuth client, the request context, the canonical operations digest, and the base revisions. Knowing a `planId` must not let another principal, client, or request context commit that plan.
+
+<a id="colp-section-13-2"></a>
 
 ### 13.2 Approval
 
-高风险 Plan 的批准必须来自用户可见界面或受信任宿主，而不是模型自己生成一个布尔值。
+Approval of a high-risk plan must come from a user-visible interface or a trusted host, not from a boolean the model generates itself.
 
-推荐流程：
+Recommended flow:
 
-1. MCP Tool 返回 `approvalUri`。
-2. Host 向用户展示 Summary、Diff、影响范围和权限。
-3. 用户在服务器页面批准。
-4. 服务器将 Plan 标记为 approved，并把批准状态绑定同一 Subject、OAuth Client 与请求上下文。
-5. AI 调用 `changes.commit(planId)`；服务器依据请求的认证身份与已批准状态提交，不要求模型持有 Secret。跨 Host 回调若必须使用一次性 Token，该 Token 只能由 Host 在传输层附加，不进入 Tool Input 或模型文本。
+1. The MCP tool returns `approvalUri`.
+2. The host shows the user the summary, the diff, the impact, and the permissions.
+3. The user approves on the server's page.
+4. The server marks the plan as approved and binds the approval to the same subject, OAuth client, and request context.
+5. The AI calls `changes.commit(planId)`; the server commits based on the request's authenticated identity and the approved state, and does not require the model to hold a secret. If a cross-host callback must use a one-time token, only the host may attach that token at the transport layer; it never enters the tool input or the model's text.
 
-如果宿主支持可信确认回调，可以替代 Approval URI，但必须记录 Audit。
+If a host supports a trusted confirmation callback, it can replace the approval URI, but must be audited.
 
-Approval Token 必须短期、单次、哈希存储，并绑定同一 Plan / Subject / Client。Approval 页面必须重新认证并实施 CSRF 防护；Summary、Diff 和影响范围由服务器根据存储的 Canonical Plan 重新生成，不能信任模型提供的描述。
+Approval tokens must be short-lived, single-use, stored hashed, and bound to the same plan, subject, and client. The approval page must re-authenticate and enforce CSRF protection; the summary, diff, and impact are regenerated by the server from the stored canonical plan, and model-provided descriptions are not trusted.
+
+<a id="colp-section-13-3"></a>
 
 ### 13.3 Commit
 
-Commit 必须重新验证：
+A commit must revalidate that:
 
-- Plan 未过期。
-- 用户批准存在。
-- Base Revision 未变化。
-- Scope 仍有效。
-- Rate Limit 允许。
-- 操作影响未超出 Plan。
-- Approval 尚未被消费，且 Commit 的 Canonical Operation Digest 与 Plan 完全一致。
+- The plan has not expired.
+- A user approval exists.
+- The base revisions have not changed.
+- The scopes are still valid.
+- The rate limit allows it.
+- The impact of the operations does not exceed the plan.
+- The approval has not been consumed yet, and the canonical operation digest of the commit matches the plan exactly.
 
-任一条件失败则 Commit 不执行，要求重新 Plan。
+If any condition fails, the commit is not executed and a new plan is required.
 
-Commit 必须在单一事务中 compare-and-consume Approval，并使用 Idempotency Key。并发 Commit 只能有一个执行；重试返回首次 Commit 的原结果，不能二次执行。
+A commit must compare-and-consume the approval in a single transaction and use an idempotency key. Of concurrent commits only one may execute; a retry returns the original result of the first commit and never executes twice.
 
-## 14. API Key Tools 的秘密处理
+<a id="colp-section-14"></a>
 
-<!-- COLP-REQ MCP-0005 -->
+## 14. Secret Handling in API Key Tools
 
-### 14.1 禁止返回 Secret 给模型
+<a id="colp-section-14-1"></a>
 
-`keys.create` / `keys.rotate` 的 MCP Structured Content 不得包含明文 Secret。
+### 14.1 Never Return Secrets to the Model
 
-返回：
+The MCP structured content of `keys.create` and `keys.rotate` must not contain the plaintext secret.
+
+Return instead:
 
 ```json
 {
@@ -422,12 +448,14 @@ Commit 必须在单一事务中 compare-and-consume Approval，并使用 Idempot
 }
 ```
 
-- Reveal URI 需要当前用户重新认证。
-- Secret 只显示一次。
-- Reveal 页面使用 `Cache-Control: no-store`。
-- 页面不应把 Secret 发送回 MCP Client 或模型上下文。
+- The reveal URI requires the current user to authenticate again.
+- The secret is shown only once.
+- The reveal page uses `Cache-Control: no-store`.
+- The page should not send the secret back to the MCP client or the model context.
 
-## 15. Tool Schema 示例
+<a id="colp-section-15"></a>
+
+## 15. Tool Schema Example
 
 ```json
 {
@@ -465,9 +493,11 @@ Commit 必须在单一事务中 compare-and-consume Approval，并使用 Idempot
 }
 ```
 
-## 16. Tool Error
+<a id="colp-section-16"></a>
 
-业务错误作为 Tool Result：
+## 16. Tool Errors
+
+Business errors are returned as a tool result:
 
 ```json
 {
@@ -486,18 +516,18 @@ Commit 必须在单一事务中 compare-and-consume Approval，并使用 Idempot
 }
 ```
 
-未知 Tool、无效 JSON-RPC 或不满足 Tool Schema 使用 Protocol Error。
+Unknown tools, invalid JSON-RPC, or input that does not satisfy the tool schema use protocol errors.
 
 <a id="colp-section-17"></a>
 
-## 17. Resource Link
+## 17. Resource Links
 
-Tool 结果 SHOULD 返回 Resource Link，而不是把巨大 Snapshot 全部塞进模型上下文：
+Tool results SHOULD return resource links instead of stuffing an entire large Snapshot into the model context:
 
 ```json
 {
   "type": "resource_link",
-    "uri": "colp://019b3c67-a03c-7f02-9c7e-1ee8d50a77de/collections/collection-1/snapshot",
+  "uri": "colp://019b3c67-a03c-7f02-9c7e-1ee8d50a77de/collections/collection-1/snapshot",
   "name": "Interface Systems",
   "mimeType": "application/vnd.collection-protocol.snapshot+json",
   "annotations": {
@@ -508,9 +538,11 @@ Tool 结果 SHOULD 返回 Resource Link，而不是把巨大 Snapshot 全部塞�
 }
 ```
 
+<a id="colp-section-18"></a>
+
 ## 18. AI Delegation Grant
 
-用户可以创建短期 AI Grant：
+A user can create a short-lived AI grant:
 
 ```json
 {
@@ -529,43 +561,47 @@ Tool 结果 SHOULD 返回 Resource Link，而不是把巨大 Snapshot 全部塞�
 }
 ```
 
-Grant 到期或达到 Max Writes 后必须重新授权。
+When a grant expires or reaches its maximum writes, authorization must be obtained again.
 
-Wire Grant 应使用服务端 Opaque Handle 或签名令牌，而不是信任客户端可编辑 JSON。签名形式至少绑定 `iss`、`aud`、`sub`、`client_id`、`jti`、`iat`、`nbf`、`exp` 和可选 `cnf`；必须支持撤销。`maxWrites` 在与业务写入同一事务中原子扣减，不能被并发 Tool Call 绕过。
+A wire grant should use a server-side opaque handle or a signed token rather than trusting client-editable JSON. A signed form binds at least `iss`, `aud`, `sub`, `client_id`, `jti`, `iat`, `nbf`, `exp`, and an optional `cnf`, and must support revocation. `maxWrites` is decremented atomically in the same transaction as the business write and cannot be bypassed with concurrent tool calls.
 
-## 19. MCP Rate Limit
+<a id="colp-section-19"></a>
 
-- `resources/read` 与 `tools/call` 使用不同 Bucket。
-- 只读 Resource 可有较高额度。
-- 搜索、全量 Snapshot、批量 Node 写入和 Sync Tool 按 Cost Unit 计费。
-- Tool Result 可返回 Remaining Cost Budget。
-- 高风险操作不能通过并行小调用绕过影响阈值。
+## 19. MCP Rate Limits
+
+- `resources/read` and `tools/call` use different buckets.
+- Read-only resources may have a higher quota.
+- Search, full Snapshots, bulk Node writes, and sync tools are charged in cost units.
+- A tool result may return the remaining cost budget.
+- High-risk operations cannot bypass impact thresholds through parallel small calls.
 
 <a id="colp-section-20"></a>
 
-## 20. Prompt Injection 与不可信内容
+## 20. Prompt Injection and Untrusted Content
 
-Bookmark 标题、网页摘要、Annotation 和外部 Feed 都是不可信输入。
+Bookmark titles, web page summaries, annotations, and external feeds are all untrusted input.
 
-MCP Server MUST：
+The MCP server MUST:
 
-- 把外部内容作为数据，不将其中的指令拼接进 Tool Description。
-- Sanitization Tool Output。
-- 标记外部抓取内容的 Provenance。
-- 不因 Bookmark 内容声称“公开此集合”而执行权限工具。
-- Key、ACL、Rate Limit、Delete 等 Tool 只根据用户请求、Scope 和 Approval Plan 执行。
+- Treat external content as data, and never splice instructions from it into tool descriptions.
+- Sanitize tool output.
+- Mark the provenance of externally fetched content.
+- Never run a permission tool because bookmark content claims "publish this collection".
+- Run key, ACL, rate-limit, delete, and similar tools only on the basis of the user's request, scopes, and an approval plan.
 
-MCP Client SHOULD：
+The MCP client SHOULD:
 
-- 显示 Tool Input 与目标 Collection。
-- 对高风险操作展示 Diff。
-- 记录 Tool 调用。
-- 对 Tool Result 进行 Schema Validation。
-- 设置超时和最大返回大小。
+- Show the tool input and the target Collection.
+- Show a diff for high-risk operations.
+- Record tool calls.
+- Validate tool results against their schema.
+- Set timeouts and a maximum result size.
+
+<a id="colp-section-21"></a>
 
 ## 21. Recommended Tool Set
 
-最小只读 MCP：
+Minimal read-only MCP:
 
 ```text
 collections.list
@@ -576,7 +612,7 @@ feed.get_changes
 access.get
 ```
 
-完整管理 MCP：
+Full management MCP:
 
 ```text
 collections.*
@@ -596,86 +632,86 @@ changes.commit
 changes.cancel
 ```
 
-服务器只能列出当前 Token Scope 实际允许调用的 Tools，避免向模型暗示不可用能力。
+The server lists only the tools that the current token's scopes actually allow it to call, so that the model is not led to believe in capabilities it does not have.
 
-## 22. 标准与自定义请求 Header
+<a id="colp-section-22"></a>
 
-<!-- COLP-REQ MCP-0018 -->
+## 22. Standard and Custom Request Headers
 
-MCP `2026-07-28` 的请求 Header 由标准与自定义两类组成：
+The request headers of MCP `2026-07-28` fall into two groups, standard and custom.
 
-标准 Header：
+Standard headers:
 
-- `Mcp-Method`：所有请求必须携带，值为请求 method；缺失、重复或与 body 不一致时返回 `HeaderMismatchError (-32020)`。
-- `Mcp-Name`：`tools/call` 使用 `params.name`，`resources/read` 使用 `params.uri`，`prompts/get` 使用 `params.name`；适用时缺失或重复同样按 `-32020` 拒绝。
-- `MCP-Protocol-Version`：必须为 `2026-07-28`。
+- `Mcp-Method`: required on every request, with the request method as its value; when it is missing, duplicated, or inconsistent with the body, the server returns `HeaderMismatchError (-32020)`.
+- `Mcp-Name`: `tools/call` uses `params.name`, `resources/read` uses `params.uri`, and `prompts/get` uses `params.name`; where it applies, a missing or duplicated header is likewise rejected with `-32020`.
+- `MCP-Protocol-Version`: must be `2026-07-28`.
 
-自定义 Header：
+Custom headers:
 
-- Tool `inputSchema` 可用 `x-mcp-header` 声明字段映射到 `Mcp-Param-{Name}`。
-- 值编码必须使用大小写敏感的 Base64 sentinel `=?base64?...?=`。
-- 只支持原始 integer / string / boolean，不支持 number、对象或数组。
-- `x-mcp-header` 只能通过 `properties` 链静态可达，不能出现在 `items`、组合关键字、条件或 `$ref` 内。
-- Header 名必须符合 RFC 9110 token 规则且大小写不敏感唯一。
-- 非法编码、错误 sentinel、Schema 未声明或值与 body 不一致的 `Mcp-Name` / `Mcp-Param-*` 一律拒绝。
+- A tool's `inputSchema` may use `x-mcp-header` to declare that a field maps to `Mcp-Param-{Name}`.
+- Value encoding must use the case-sensitive Base64 sentinel `=?base64?...?=`.
+- Only primitive integer, string, and boolean values are supported, not numbers, objects, or arrays.
+- `x-mcp-header` may only be reachable statically through a chain of `properties`; it cannot appear inside `items`, composition keywords, conditionals, or `$ref`.
+- Header names must follow the RFC 9110 token rule and be unique case-insensitively.
+- An `Mcp-Name` or `Mcp-Param-*` header with an invalid encoding, a wrong sentinel, no schema declaration, or a value inconsistent with the body is always rejected.
+
+<a id="colp-section-23"></a>
 
 ## 23. Server Discovery
 
-<!-- COLP-REQ MCP-0019 -->
+The server must implement `server/discover`:
 
-服务器必须实现 `server/discover`：
+- The request contains only `_meta`.
+- The result must contain `resultType: "complete"`, `supportedVersions`, and `capabilities`, and is recommended to contain serverInfo (see the official specification for semantics).
+- The result may carry `instructions`, `ttlMs`, and `cacheScope`.
+- Discovery is optional for clients; stdio compatibility probing also uses the same discovery method.
+- `serverInfo` is self-reported by the server and is not a security boundary.
 
-- 请求只包含 `_meta`。
-- 结果必须包含 `resultType: "complete"`、`supportedVersions` 与 `capabilities`，并推荐包含 serverInfo（语义见官方规范）。
-- 结果可携带 `instructions`、`ttlMs` 与 `cacheScope`。
-- discovery 对客户端可选；stdio 兼容探测也使用同一 discovery 方法。
-- `serverInfo` 是服务器自报信息，不构成安全边界。
+Discovery and the `mcp-read` / `mcp-write` capability lists describe only `2026-07-28` and the server's real current capabilities.
 
-发现与 `mcp-read` / `mcp-write` 能力清单只描述 `2026-07-28` 及服务器当前真实能力。
+<a id="colp-section-24"></a>
 
-## 24. 结果与缓存
+## 24. Results and Caching
 
-<!-- COLP-REQ MCP-0020 -->
+Every method result must declare `resultType`: `complete` or `input_required`. A legacy result without a declaration is treated as `complete` for compatibility, but new implementations must declare it explicitly.
 
-所有方法结果必须声明 `resultType`：`complete` 或 `input_required`；未声明的旧式结果按 `complete` 兼容处理，但新实现必须显式声明。
+Cacheable results must carry cache metadata:
 
-可缓存的结果必须携带缓存元数据：
+- `ttlMs`: a non-negative integer lifetime in milliseconds.
+- `cacheScope`: `public` or `private`.
 
-- `ttlMs`：非负整数的有效时间（毫秒）。
-- `cacheScope`：`public` 或 `private`。
+The list and read results that cache metadata applies to are `tools/list`, `prompts/list`, `resources/list`, `resources/read`, `resources/templates/list`, and `server/discover`. The result `_meta` is recommended to carry `io.modelcontextprotocol/serverInfo`; a per-request `io.modelcontextprotocol/logLevel` can opt in to `notifications/message`.
 
-适用缓存元数据的 list / read 结果包括 `tools/list`、`prompts/list`、`resources/list`、`resources/read`、`resources/templates/list` 与 `server/discover`。结果 `_meta` 推荐携带 `io.modelcontextprotocol/serverInfo`；per-request `io.modelcontextprotocol/logLevel` 可 opt-in `notifications/message`。
+<a id="colp-section-25"></a>
 
-## 25. MRTR 补充输入与确认
+## 25. MRTR: Additional Input and Confirmation
 
-<!-- COLP-REQ MCP-0022 -->
+A tool that needs additional input or user confirmation returns `resultType: "input_required"`:
 
-需要补充输入或用户确认的 Tool 返回 `resultType: "input_required"`：
+- It may carry `inputRequests`: a map from server-assigned string keys to ElicitRequest, CreateMessageRequest, or ListRootsRequest.
+- It may carry an opaque `requestState`; when the client retries it must echo `requestState` unchanged and must not inspect its content.
+- The client retry uses a new JSON-RPC id.
+- At least one of `inputRequests` and `requestState` is provided; `inputRequests` the client did not declare must not be sent.
+- The server must protect the integrity of any `requestState` that affects authorization or business logic (principal, TTL, and a digest of the originating request) and reject a tampered `requestState`; binding the principal, TTL, request method, and key parameters is recommended.
+- High-risk plans and approvals use `input_required` to wait for user confirmation, without requiring the model to hold a secret.
 
-- 可携带 `inputRequests`：服务器分配字符串键到 ElicitRequest / CreateMessageRequest / ListRootsRequest 的映射。
-- 可携带不透明 `requestState`；客户端重试时必须原样回传 `requestState`，不得检查其内容。
-- 客户端重试使用新的 JSON-RPC id。
-- `inputRequests` 与 `requestState` 至少提供其一；不得发送客户端未声明的 `inputRequests`。
-- 服务器必须对影响授权或业务逻辑的 `requestState` 做完整性保护（Principal、TTL 与发起请求摘要），并拒绝被篡改的 `requestState`；推荐绑定 Principal、TTL 与请求 method 及关键参数。
-- 高风险 Plan / Approval 使用 `input_required` 等待用户确认，不要求模型持有 Secret。
+<a id="colp-section-26"></a>
 
-## 26. Tool Schema 预算（JSON Schema 2020-12）
+## 26. Tool Schema Budgets (JSON Schema 2020-12)
 
-<!-- COLP-REQ MCP-0023 -->
+Tool `inputSchema` and `outputSchema` use JSON Schema 2020-12:
 
-Tool `inputSchema` / `outputSchema` 使用 JSON Schema 2020-12：
+- 2020-12 keywords are allowed; `$ref` resolution and resource use by composition keywords must stay within hard budgets (reference resolution, composition depth, node count, and byte size).
+- `structuredContent` may be any JSON value.
+- `tools/list` must return tools in a deterministic order (see the official specification for semantics).
 
-- 允许 2020-12 关键字；`$ref` 解析与组合关键字的资源使用必须满足硬预算（引用解析、组合深度、节点数与字节数）。
-- `structuredContent` 可为任意 JSON 值。
-- `tools/list` 返回顺序必须确定性排序（语义见官方规范）。
+<a id="colp-section-27"></a>
 
-## 27. 迁移说明与拒绝样例
+## 27. Migration Notes and Rejection Examples
 
-<!-- COLP-REQ MCP-0024 -->
+This document describes only the stateless MCP `2026-07-28` baseline. The legacy semantics below are listed only as examples of what is rejected; they are not part of this version's contract. COLP provides no `2025-11-25` compatibility layer, no version fallback switch, and no session store.
 
-本文档只描述 MCP `2026-07-28` 无状态基线。以下旧语义仅作为拒绝样例，不是本版本合同；COLP 不提供 `2025-11-25` 兼容层、版本回退开关或 Session Store。
-
-旧启动生命周期与 Session：
+Legacy startup lifecycle and sessions:
 
 ```text
 initialize
@@ -683,7 +719,7 @@ notifications/initialized
 Mcp-Session-Id
 ```
 
-旧传输动词与恢复：
+Legacy transport verbs and resumption:
 
 ```text
 GET  /collections/-/mcp
@@ -691,7 +727,7 @@ DELETE /collections/-/mcp
 Last-Event-ID
 ```
 
-旧订阅、日志与辅助方法：
+Legacy subscription, logging, and helper methods:
 
 ```text
 resources/subscribe
@@ -701,4 +737,4 @@ logging/setLevel
 ping
 ```
 
-服务器遇到上述 method、Header 或动词时，直接返回对应拒绝错误（不支持 method / version），不忽略后继续执行，也不尝试恢复旧事件流。
+When the server meets any of the methods, headers, or verbs above, it returns the corresponding rejection error (unsupported method or version) directly; it never ignores them and continues, and never tries to resume a legacy event stream.

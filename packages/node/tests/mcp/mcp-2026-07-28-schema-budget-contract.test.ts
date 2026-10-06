@@ -41,7 +41,7 @@ function deepObjectSchema(depth: number): Record<string, unknown> {
 
 const serverInfo = Object.freeze({ name: 'colp-test-server', version: '0.0.0' });
 
-describe('MCP 2026-07-28 schema budget: defaults and resolution', () => {
+describe('MCP 2026-07-28 schema budget: defaults and resolution [evidence:mcp.schema-budget]', () => {
   it('pins safe default limits', () => {
     expect(DEFAULT_MCP_SCHEMA_BUDGET.maxDepth).toBe(32);
     expect(DEFAULT_MCP_SCHEMA_BUDGET.maxNodes).toBe(10_000);
@@ -67,7 +67,7 @@ describe('MCP 2026-07-28 schema budget: defaults and resolution', () => {
   });
 });
 
-describe('MCP 2026-07-28 schema budget: bounded walk', () => {
+describe('MCP 2026-07-28 schema budget: bounded walk [evidence:mcp.schema-budget]', () => {
   it('accepts a plain 2020-12 schema with $ref and composition keywords', () => {
     const schema = {
       type: 'object',
@@ -151,7 +151,7 @@ describe('MCP 2026-07-28 schema budget: bounded walk', () => {
   });
 });
 
-describe('MCP 2026-07-28 schema budget: applied by the Read Tool adapter', () => {
+describe('MCP 2026-07-28 schema budget: applied by the Read Tool adapter [evidence:mcp.schema-budget]', () => {
   it('rejects an over-depth tool schema at factory time', () => {
     const toolCore = createMcpStatelessToolCore({
       tools: [{

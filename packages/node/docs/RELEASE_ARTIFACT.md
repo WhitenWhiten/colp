@@ -1,6 +1,6 @@
 # Release the accepted tarball, not a rebuilt directory
 
-The existing release checklist, source-bound certificate, coverage gates,
+The existing release checklist, conformance evidence, coverage gates,
 publint/attw, packed examples, and local Node/OS matrix remain required. This
 procedure closes artifact identity; it does not replace those safeguards.
 

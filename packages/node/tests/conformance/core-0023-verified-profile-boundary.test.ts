@@ -9,7 +9,6 @@ vi.mock('../../src/conformance/generated/requirements.json', () => {
       profile,
       source: 'CORE-0023 synthetic registry',
       requirement: `${profile} required behavior`,
-      selector: { marker: `${profile}-must` },
       implementation: ['test'],
       tests: [`core-0023.${profile}.must`],
     },
@@ -19,7 +18,6 @@ vi.mock('../../src/conformance/generated/requirements.json', () => {
       profile,
       source: 'CORE-0023 synthetic registry',
       requirement: `${profile} prohibited behavior`,
-      selector: { marker: `${profile}-must-not` },
       implementation: ['test'],
       tests: [`core-0023.${profile}.must-not`],
     },
@@ -38,12 +36,10 @@ vi.mock('../../src/conformance/generated/evidence.json', () => {
   const profiles = ['core', 'publication', 'feed', 'publisher', 'sync', 'mcp-read', 'mcp-write'];
   return {
     default: {
-      schemaVersion: 1,
+      schemaVersion: 2,
       protocolVersion: '0.1',
       packageVersion: 'core-0023-test',
-      sourceRevision: '0123456789abcdef',
       requirementsDigest: `sha256:${'3'.repeat(64)}`,
-      reportDigest: `sha256:${'4'.repeat(64)}`,
       passedRequirementIds: profiles.flatMap((profile) => [
         `CORE-0023-${profile}-MUST`,
         `CORE-0023-${profile}-MUST-NOT`,

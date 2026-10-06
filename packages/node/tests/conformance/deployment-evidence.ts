@@ -298,9 +298,8 @@ export const completeDeploymentEvidence = await runDeploymentConformanceProbes(
     profiles: ['core', 'publication', 'feed', 'publisher', 'sync', 'mcp-read', 'mcp-write'],
     capabilities: deploymentConformanceCapabilityIds,
     mcpConformance: {
-      sourceRevision: '0123456789abcdef0123456789abcdef01234567',
+      packageVersion: '0.0.0-test',
       requirementsDigest: `sha256:${'0'.repeat(64)}`,
-      reportDigest: `sha256:${'1'.repeat(64)}`,
     },
   },
 );

@@ -204,7 +204,7 @@ describe('Legacy MCP absence scanner (COLP-MCP-15)', () => {
   });
 
   it('treats a line listing two or more distinct wire tokens as a rejection catalog', () => {
-    const catalog = 'requirement: "must reject initialize、Mcp-Session-Id、Last-Event-ID、GET/DELETE、旧订阅、logging/setLevel、ping，不得忽略。"';
+    const catalog = 'requirement: "must reject initialize, Mcp-Session-Id, Last-Event-ID, GET/DELETE, old subscriptions, logging/setLevel, ping instead of ignoring them."';
     expect(scanTextForLegacyMcpSymbols(catalog, { stripComments: true })).toEqual([]);
     // A single wire token on an ordinary line is still a finding.
     expect(scanTextForLegacyMcpSymbols('const header = "Mcp-Session-Id";'))

@@ -100,14 +100,14 @@ export interface DeploymentConformanceScope {
   readonly profiles: readonly ProtocolProfile[];
   readonly capabilities: readonly DeploymentConformanceCapabilityId[];
   /**
-   * Source-bound facts required whenever the scope exercises any versioned
-   * MCP probe family. The issued target evidence then carries the exact
-   * versioned binding (version/source/SDK lock/fixture topology/digests).
+   * Package evidence facts required whenever the scope exercises any versioned
+   * MCP probe family; take them from `bundledConformanceEvidence`. The issued
+   * target evidence then carries the exact versioned binding (MCP version,
+   * package version, SDK lock, fixture topology, requirements digest).
    */
   readonly mcpConformance?: {
-    readonly sourceRevision: string;
+    readonly packageVersion: string;
     readonly requirementsDigest: string;
-    readonly reportDigest: string;
   };
 }
 
@@ -151,26 +151,21 @@ function assertScope(value: unknown): asserts value is DeploymentConformanceScop
       throw new TypeError('Deployment conformance scope mcpConformance must be an object.');
     }
     const mcpKeys = Reflect.ownKeys(mcpConformance);
-    if (mcpKeys.length !== 3
-      || !mcpKeys.includes('sourceRevision')
+    if (mcpKeys.length !== 2
+      || !mcpKeys.includes('packageVersion')
       || !mcpKeys.includes('requirementsDigest')
-      || !mcpKeys.includes('reportDigest')
       || mcpKeys.some((key) => typeof key !== 'string')) {
       throw new TypeError(
-        'Deployment conformance scope mcpConformance must contain only sourceRevision, requirementsDigest, and reportDigest.',
+        'Deployment conformance scope mcpConformance must contain only packageVersion and requirementsDigest.',
       );
     }
-    const sourceRevision = (mcpConformance as { sourceRevision?: unknown }).sourceRevision;
+    const packageVersion = (mcpConformance as { packageVersion?: unknown }).packageVersion;
     const requirementsDigest = (mcpConformance as { requirementsDigest?: unknown }).requirementsDigest;
-    const reportDigest = (mcpConformance as { reportDigest?: unknown }).reportDigest;
-    if (typeof sourceRevision !== 'string' || !/^[0-9a-f]{40,64}$/u.test(sourceRevision)) {
-      throw new TypeError('Deployment conformance scope mcpConformance.sourceRevision must be a full hexadecimal commit ID.');
+    if (typeof packageVersion !== 'string' || packageVersion.length === 0) {
+      throw new TypeError('Deployment conformance scope mcpConformance.packageVersion must be a non-empty string.');
     }
     if (typeof requirementsDigest !== 'string' || !/^sha256:[0-9a-f]{64}$/u.test(requirementsDigest)) {
       throw new TypeError('Deployment conformance scope mcpConformance.requirementsDigest must be a SHA-256 digest.');
-    }
-    if (typeof reportDigest !== 'string' || !/^sha256:[0-9a-f]{64}$/u.test(reportDigest)) {
-      throw new TypeError('Deployment conformance scope mcpConformance.reportDigest must be a SHA-256 digest.');
     }
   }
 }
@@ -978,23 +973,22 @@ export async function runDeploymentConformanceProbes(
 ): Promise<VerifiedDeploymentConformanceEvidence> {
   assertTarget(target);
   const plan = createDeploymentConformancePlan(scope);
-  // Validate and snapshot the source binding before any target side effects.
+  // Validate and snapshot the MCP binding before any target side effects.
   const exercisesMcpFamilies = plan.probeIds.some((probeId) => isMcpConformanceProbeId(probeId));
   let mcpBinding: McpVersionedEvidenceBinding | undefined;
   if (exercisesMcpFamilies) {
     if (scope.mcpConformance === undefined) {
       throw new TypeError(
-        'MCP deployment conformance probes require an mcpConformance source binding '
-        + '(sourceRevision, requirementsDigest, reportDigest).',
+        'MCP deployment conformance probes require an mcpConformance binding '
+        + '(packageVersion, requirementsDigest).',
       );
     }
     const exercisedMcpFamilyIds = mcpConformanceProbeFamilies.filter(
       (family) => plan.probeIds.includes(family),
     );
     mcpBinding = createVersionedMcpEvidenceBinding({
-      sourceRevision: scope.mcpConformance.sourceRevision,
+      packageVersion: scope.mcpConformance.packageVersion,
       requirementsDigest: scope.mcpConformance.requirementsDigest,
-      reportDigest: scope.mcpConformance.reportDigest,
       probeFamilyIds: exercisedMcpFamilyIds,
     });
   }

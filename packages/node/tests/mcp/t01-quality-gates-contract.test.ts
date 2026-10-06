@@ -210,8 +210,6 @@ describe('MCP quality gate configuration', () => {
       fileName: 'reports/mutation/schema/mutation.json',
     });
     expect(mutationSandboxExcludes).toEqual([
-      'tests/conformance/cfi-010-release-evidence-gate.test.ts',
-      'tests/conformance/r02-mcp-write-progress-boundary-contract.test.ts',
       'tests/mcp/t01-quality-gates-contract.test.ts',
       'tests/sync/sync-core-quality-gates-contract.test.ts',
     ]);

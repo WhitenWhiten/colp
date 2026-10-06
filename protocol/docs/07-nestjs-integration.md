@@ -1,11 +1,15 @@
 # 07. NestJS Integration Profile
 
-## 1. 目标形态
+This chapter describes how a host application, using NestJS as the example framework, embeds the protocol. The module shape, option names, and routes below are illustrative. The reference package `@collection-protocol/node` is framework-neutral: it provides the protocol logic and port interfaces, and does not publish a NestJS module.
 
-用户可以把协议作为 NestJS Module 加载到现有博客：
+<a id="colp-section-1"></a>
+
+## 1. Target Shape
+
+A user can load the protocol into an existing blog as a NestJS module:
 
 ```ts
-import { CollectionProtocolModule } from '@collection-protocol/node/nestjs'
+import { CollectionProtocolModule } from './collection-protocol.module'
 
 @Module({
   imports: [
@@ -34,11 +38,13 @@ import { CollectionProtocolModule } from '@collection-protocol/node/nestjs'
 export class AppModule {}
 ```
 
-协议包不应强制博客使用特定 ORM、身份系统或队列。
+The protocol package should not force the blog to use a particular ORM, identity system, or queue.
 
-## 2. 推荐包结构
+<a id="colp-section-2"></a>
 
-0.1 首发使用单包和 Subpath Export；Foundation Milestone 只公开合同工具链，后续入口只有在对应 Profile 实现并通过测试后才公开：
+## 2. Package Structure
+
+The reference implementation is a single package with subpath exports. A subpath is exported only after the corresponding profile is implemented and tested:
 
 ```text
 @collection-protocol/node/schema
@@ -46,24 +52,21 @@ export class AppModule {}
 @collection-protocol/node/semantic
 @collection-protocol/node/client
 @collection-protocol/node/server
-@collection-protocol/node/conformance
-
-# 后续 Profile 入口
 @collection-protocol/node/publisher
 @collection-protocol/node/feed
 @collection-protocol/node/sync
 @collection-protocol/node/security
 @collection-protocol/node/mcp
-@collection-protocol/node/nestjs
+@collection-protocol/node/conformance
 ```
 
-NestJS 使用可选 Peer Dependency；Chromium / Firefox 等浏览器运行时 Adapter 成熟后独立发布，不并入 Node target。入口为空或尚未通过对应 Profile 测试时不得提前 Export。
+Framework modules such as NestJS live in the host, or in a separate package with NestJS as an optional peer dependency. Browser runtime adapters for Chromium, Firefox, and others are published separately when they mature and are not merged into the Node target. An entry point that is empty or has not yet passed its profile tests must not be exported early.
 
 <a id="colp-section-3"></a>
 
-## 3. 可组合 Ports
+## 3. Composable Ports
 
-Storage 不得用一个巨型接口强制所有 Adapter 实现未启用的 Profile。NestJS Module 接收按能力组合的 Ports；每个可选 Port 只在对应 Profile 启用时需要：
+Storage must not force every adapter to implement profiles it has not enabled through one giant interface. The module receives ports composed by capability; each optional port is needed only when its profile is enabled:
 
 ```ts
 export interface CoreReadPort {
@@ -119,7 +122,7 @@ export interface FeedProjectionPort {
 }
 
 export interface SyncStateStore {
-  // Session、Replica、Sequence Receipt、Cursor、Conflict 与 Ack 持久化命令。
+  // Persistence commands for sessions, replicas, sequence receipts, cursors, conflicts, and acks.
 }
 
 export interface SyncTransaction extends PublisherTransaction {
@@ -150,15 +153,17 @@ export interface CollectionProtocolPorts {
 }
 ```
 
-`McpPort` 只是 Transport Adapter，必须绑定同一组 Application Services；`mcp-read` 复用 Core 读取服务，在具体 Resource 表示与 Publication 合同相同时可以复用其投影服务，但这不会形成 `publication` Profile 依赖。`mcp-write` 复用 Publisher Service，不得直接取得数据库连接。Sync 写入也复用 Publisher Operation 路径，但 `SyncTransaction` 额外包含 Sequence Receipt、Cursor 和 Conflict 状态，因此这些状态可与业务变更一起提交。
+`McpPort` is only a transport adapter and must be bound to the same set of application services. `mcp-read` reuses the core read services, and may reuse the projection services of Publication where a resource representation is the same as the Publication contract, but this does not create a dependency on the `publication` profile. `mcp-write` reuses the publisher service and must not obtain database connections directly. Sync writes also reuse the publisher operation path, but `SyncTransaction` additionally contains the sequence receipt, cursor, and conflict state, so that state can be committed together with the business change.
 
-除 Collection + Root 的原子创建和不可变 Release 发布外，Node 与 Sidecar 写入 SHOULD 统一转换为核心 Operation 后交给 `applyOperations`。这样 HTTP、Sync 与 MCP 复用同一授权、冲突、审计和 Outbox 路径；Adapter 不维护第二套写入语义。
+Except for the atomic creation of a Collection with its root and for publishing an immutable Release, Node and sidecar writes SHOULD be converted into core operations and handed to `applyOperations`. HTTP, Sync, and MCP then share the same authorization, conflict, audit, and outbox path, and adapters do not maintain a second set of write semantics.
 
-所有 Publisher 写路径必须在一个 `PublisherUnitOfWork.execute()` 回调内完成：抢占 Idempotency Key、检查前置条件、修改资源、追加 Operation / Audit / Outbox，并保存第一次请求的完整 `status`、`headers` 与 `body`。任一步失败必须回滚全部子 Store，子 Store 不得独立提交或逃逸事务回调。
+Every publisher write path must complete inside one `PublisherUnitOfWork.execute()` callback: claiming the idempotency key, checking preconditions, modifying resources, appending the operation, audit, and outbox entries, and saving the complete `status`, `headers`, and `body` of the first request. If any step fails, every sub-store must roll back; sub-stores must not commit independently or escape the transaction callback.
 
-`IdempotencyStore` 必须在数据库层对 `(principalId, protocolVersion, method, endpointKey, resourceIdentity, key)` 实施唯一约束；`requestDigest` 不属于唯一键，同一键的不同摘要返回 `409 idempotency_key_reused`。并发相同请求由 Adapter 的事务隔离与唯一约束串行化：等待首次结果并重放，或返回可重试的 `409 idempotency_in_progress`。进程内锁不能代替这个约束。
+`IdempotencyStore` must enforce a database-level unique constraint on `(principalId, protocolVersion, method, endpointKey, resourceIdentity, key)`. `requestDigest` is not part of the unique key; a different digest for the same key returns `409 idempotency_key_reused`. Concurrent identical requests are serialized by the adapter's transaction isolation and the unique constraint: they wait for the first result and replay it, or return a retryable `409 idempotency_in_progress`. An in-process lock cannot replace this constraint.
 
-安全审计可以有独立的非事务写入 Port，但只用于认证失败、限流等没有业务状态变更的事件，不能用于需要和资源修改原子一致的审计。
+Security auditing may have a separate non-transactional write port, but only for events without business state changes, such as failed authentication or rate limiting; it cannot be used for audits that must be atomically consistent with resource changes.
+
+<a id="colp-section-4"></a>
 
 ## 4. Auth Port
 
@@ -170,11 +175,13 @@ export interface CollectionAuthAdapter {
 }
 ```
 
-Blog 可以复用现有 Session Cookie 管理 Web Admin，同时为远程 API 和 MCP 提供 OAuth / API Key。
+A blog can keep using its existing session cookies for its web admin, while offering OAuth and API keys for the remote API and MCP.
 
-Cookie 认证的写请求仍必须实施 CSRF 防护。
+Cookie-authenticated write requests must still enforce CSRF protection.
 
-Browser CORS Allowlist 需要允许 `If-Match`、`If-None-Match`、`Idempotency-Key`、`Collection-Protocol-Version` 和 `Content-Type`，并暴露 `ETag`、`Link`、`Location`、`Retry-After`、`Content-Digest`、`RateLimit`、`RateLimit-Policy` 与 `WWW-Authenticate`。CORS 不是认证或授权替代品。
+The browser CORS allowlist needs to allow `If-Match`, `If-None-Match`, `Idempotency-Key`, `Collection-Protocol-Version`, and `Content-Type`, and to expose `ETag`, `Link`, `Location`, `Retry-After`, `Content-Digest`, `RateLimit`, `RateLimit-Policy`, and `WWW-Authenticate`. CORS is not a substitute for authentication or authorization.
+
+<a id="colp-section-5"></a>
 
 ## 5. Module Configuration
 
@@ -218,23 +225,25 @@ type CollectionProtocolOptions = {
 }
 ```
 
-Module 必须按 Profile 依赖检查 `ports`，不能因为 `features` 中的布尔值为真就宣称能力：
+The module must check `ports` against the profile dependencies; it cannot claim a capability just because a boolean in `features` is true:
 
-| Profile | 必需 Port |
+| Profile | Required ports |
 |---|---|
 | `core` | `core` |
-| `publication` | `core`、`publication` |
-| `publisher` | 已合规的 `publication`、`publisher.reads`、`publisher.unitOfWork`、Auth |
-| `feed` | 已合规的 `publication`、`feed`；会产生事件的写入还要求 Publisher Transactional Outbox |
-| `sync` | `core`、`sync.unitOfWork`，其 Transaction 必须包含完整 Publisher Transaction |
-| `mcp-read` | `core`、`mcp` |
-| `mcp-write` | 已合规的 `mcp-read`、`publisher`，以及高风险操作所需的 Approval Provider |
+| `publication` | `core`, `publication` |
+| `publisher` | A conforming `publication`, `publisher.reads`, `publisher.unitOfWork`, auth |
+| `feed` | A conforming `publication`, `feed`; writes that produce events also require the publisher transactional outbox |
+| `sync` | `core`, `sync.unitOfWork`, whose transaction must contain the complete publisher transaction |
+| `mcp-read` | `core`, `mcp` |
+| `mcp-write` | A conforming `mcp-read`, `publisher`, and the approval provider needed for high-risk operations |
 
-`queue` 只是消费已提交 Outbox 的执行方式，不能代替 `PublisherTransaction.outbox`。生产集成还应提供 `forRootAsync()` 与稳定 Provider Token，以便从 Nest DI 分别注入 Ports、Auth、Signer 和 Approval Provider。未启用 Profile 的 Port 可以完全不提供。
+`queue` is only a way to consume the committed outbox; it cannot replace `PublisherTransaction.outbox`. A production integration should also provide `forRootAsync()` and stable provider tokens, so that ports, auth, the signer, and the approval provider can be injected separately through Nest DI. Ports of profiles that are not enabled can be left out entirely.
+
+<a id="colp-section-6"></a>
 
 ## 6. Generated Routes
 
-模块按 Feature 注册端点：
+The module registers endpoints by feature:
 
 ```text
 GET  /.well-known/collection-protocol
@@ -283,39 +292,45 @@ GET/PATCH /collections/-/admin/rate-limits
 GET       /collections/-/admin/audit
 ```
 
-## 7. Middleware 顺序
+<a id="colp-section-7"></a>
 
-推荐：
+## 7. Middleware Order
+
+Recommended:
 
 ```text
 Request ID
-→ Trusted Proxy / Client IP
-→ Body Size Limit
+→ Trusted proxy / client IP
+→ Body size limit
 → Origin / CORS / CSRF
 → Authentication
-→ Rate Limit
+→ Rate limit
 → Authorization
-→ Schema Validation
-→ Revision / Idempotency
+→ Schema validation
+→ Revision / idempotency
 → Controller
 → Audit
 → Signature / Content-Digest
 → Response
 ```
 
-认证失败和限流失败也应产生轻量安全审计，但要采样，防止攻击制造无限日志。
+Failed authentication and rate limiting should also produce lightweight security audit events, but sampled, so that attackers cannot generate unlimited logs.
 
-## 8. Controller 与 Service 边界
+<a id="colp-section-8"></a>
 
-- Controller 只处理 HTTP、Header、Status Code 和 DTO。
-- Application Service 执行协议语义。
-- Storage Adapter 只负责持久化。
-- Feed Projection Service 负责脱敏，不能直接返回内部实体。
-- MCP Adapter 调用同一 Application Service，禁止绕过 Authorization Guard。
+## 8. Controller and Service Boundaries
 
-## 9. 数据库建议
+- Controllers handle only HTTP, headers, status codes, and DTOs.
+- Application services carry out protocol semantics.
+- Storage adapters only handle persistence.
+- The feed projection service is responsible for redaction and must not return internal entities directly.
+- The MCP adapter calls the same application services and must not bypass the authorization guard.
 
-关系数据库示例：
+<a id="colp-section-9"></a>
+
+## 9. Database Suggestions
+
+Example relational tables:
 
 ```text
 collections
@@ -339,45 +354,49 @@ outbox_events
 feed_events
 ```
 
-关键索引：
+Key indexes:
 
-- `(collection_id, parent_id, position)`。
-- `(replica_id, collection_id, sequence)` 唯一。
-- `op_id` 唯一。
-- Idempotency `(principal_id, protocol_version, method, endpoint_key, resource_identity, key)` 唯一，记录请求摘要与首次完整响应。
-- `outbox_event_id` 唯一，并为未投递事件建立提交顺序索引。
-- `(collection_id, canonical_url_hash)` 非唯一候选索引。
-- Feed / Sync Cursor 提交顺序索引。
-- Active Key ID。
-- Tombstone PurgeAfter。
+- `(collection_id, parent_id, position)`.
+- Unique `(replica_id, collection_id, sequence)`.
+- Unique `op_id`.
+- Unique idempotency key `(principal_id, protocol_version, method, endpoint_key, resource_identity, key)`, recording the request digest and the complete first response.
+- Unique `outbox_event_id`, with a commit-order index over undelivered events.
+- A non-unique candidate index on `(collection_id, canonical_url_hash)`.
+- Commit-order indexes for Feed and Sync cursors.
+- Active key IDs.
+- Tombstone `purgeAfter`.
+
+<a id="colp-section-10"></a>
 
 ## 10. Event Outbox
 
-写操作和 Feed / WebSub / Search Index 更新必须使用 Transactional Outbox：
+Writes and the updates of Feed, WebSub, and search indexes must use a transactional outbox:
 
 ```text
-数据库事务：
-  抢占 Idempotency Key
-  更新 Collection / Node
-  写 Operation Log
-  写 Audit Event
-  写 Outbox Event
-  保存首次完整 HTTP Response
-提交
+Database transaction:
+  Claim the idempotency key
+  Update the Collection / Node
+  Write the operation log
+  Write the audit event
+  Write the outbox event
+  Save the complete first HTTP response
+Commit
 
-后台 Worker：
-  公共投影
-  Feed Event
-  WebSub Ping
-  Search Index
-  Cache Invalidation
+Background worker:
+  Public projection
+  Feed event
+  WebSub ping
+  Search index
+  Cache invalidation
 ```
 
-不得在数据库提交前发送 Feed，否则消费者可能看到不存在的 Revision。
+A Feed must not be sent before the database commits, or consumers may see a revision that does not exist.
 
-事务回调抛出异常时，上述六项必须全部回滚。Adapter Contract Test 应在 Resource、Operation、Audit、Outbox 和 Idempotency Result 每个边界注入失败，并验证重试只产生一份业务状态和事件；并发 Contract Test 应验证同一唯一键只有一个事务执行，其余请求重放首次响应或取得 `idempotency_in_progress`。
+When the transaction callback throws, all six steps above must roll back. Adapter contract tests should inject failures at each boundary (resource, operation, audit, outbox, and idempotency result) and verify that a retry produces only one copy of the business state and events; concurrency contract tests should verify that only one transaction executes for the same unique key, while the other requests replay the first response or receive `idempotency_in_progress`.
 
-Module 启动时必须根据实际注册的 Route、Profile-specific Ports、Publisher Unit of Work、Auth 和 Outbox 能力计算 Mount `profiles`。依赖不完整时应拒绝启动相应 Feature 或降低 Manifest 声明，不能继续宣称完整 Profile。
+When the module starts, it must compute the mount `profiles` from the routes, profile-specific ports, publisher unit of work, auth, and outbox capabilities that are actually registered. When dependencies are incomplete, it should refuse to start the affected feature or lower the Manifest claim; it cannot keep claiming a complete profile.
+
+<a id="colp-section-11"></a>
 
 ## 11. Approval Provider
 
@@ -390,7 +409,9 @@ export interface ApprovalProvider {
 }
 ```
 
-MCP 高风险 Tool 和 Web Admin 使用同一 Approval Plan。
+High-risk MCP tools and the web admin use the same approval plan.
+
+<a id="colp-section-12"></a>
 
 ## 12. MCP Adapter
 
@@ -408,33 +429,39 @@ CollectionProtocolModule.forRoot({
 })
 ```
 
-MCP Server 在每次请求根据 Principal Scope 动态列出 Tools，请求携带 `_meta.io.modelcontextprotocol/protocolVersion: 2026-07-28` 与 client capabilities。Scope 变化时通过 `subscriptions/listen` 连接发送 `notifications/tools/list_changed`；不维护 MCP Session，不使用旧版 Session Header。
+The MCP server lists tools dynamically on every request according to the principal's scopes; requests carry `_meta.io.modelcontextprotocol/protocolVersion: 2026-07-28` and the client capabilities. When scopes change, the server sends `notifications/tools/list_changed` over a `subscriptions/listen` connection; it keeps no MCP session state and uses no legacy session header.
 
-## 13. 公共博客集成
+<a id="colp-section-13"></a>
 
-HTML 页面可以加入：
+## 13. Public Blog Integration
+
+HTML pages can add:
 
 ```html
 <link rel="collection-protocol" href="/.well-known/collection-protocol">
 <link rel="alternate" type="application/feed+json" href="/collections/-/feed.json">
 ```
 
-Collection 详情页可以由博客模板渲染，但 JSON Canonical Endpoint 保持稳定。
+A Collection detail page may be rendered by the blog's templates, while the JSON canonical endpoint stays stable.
 
-## 14. 反向代理
+<a id="colp-section-14"></a>
 
-部署在 Nginx、Caddy、Cloudflare 后：
+## 14. Reverse Proxies
 
-- 配置可信代理列表，禁止伪造 `X-Forwarded-For`。
-- Streamable HTTP SSE 关闭不必要缓冲。
-- 保留并转发 `MCP-Protocol-Version`、`Mcp-Method`、`Mcp-Name`、`Mcp-Param-*`、`X-Accel-Buffering`、`ETag`、`If-Match`；不保留旧版 Session / SSE 恢复 Header（MCP 2026-07-28 不使用 Session 或 SSE 恢复）。
-- 不缓存带 Authorization 的响应，除非有明确私有缓存策略。
-- Sync、Admin、MCP 和任何因 Authorization 改变的响应使用 `Cache-Control: no-store`；SSE 还应限制连接数、队列字节、Idle Timeout 和最大生命周期。
-- 对 `.well-known`、Manifest 和 Public Feed 可启用 CDN。
+When deployed behind Nginx, Caddy, or Cloudflare:
+
+- Configure the list of trusted proxies and do not allow `X-Forwarded-For` to be forged.
+- Turn off unnecessary buffering for Streamable HTTP SSE.
+- Keep and forward `MCP-Protocol-Version`, `Mcp-Method`, `Mcp-Name`, `Mcp-Param-*`, `X-Accel-Buffering`, `ETag`, and `If-Match`; do not keep legacy session or SSE resumption headers (MCP 2026-07-28 uses neither sessions nor SSE resumption).
+- Do not cache responses that carry `Authorization` unless there is an explicit private caching policy.
+- Sync, admin, MCP, and any response that changes with authorization use `Cache-Control: no-store`; SSE should also limit the number of connections, queued bytes, idle timeout, and maximum lifetime.
+- A CDN can be enabled for `.well-known`, the Manifest, and public Feeds.
+
+<a id="colp-section-15"></a>
 
 ## 15. Static Reader Export
 
-NestJS Publisher 可以生成静态 Bundle：
+A NestJS publisher can generate a static bundle:
 
 ```ts
 await protocol.exportStatic({
@@ -445,33 +472,37 @@ await protocol.exportStatic({
 })
 ```
 
-静态 Bundle 适合 GitHub Pages、对象存储或 CDN，不包含 Admin、Sync 和写 MCP。
+A static bundle suits GitHub Pages, object storage, or a CDN, and contains no admin, Sync, or writable MCP.
+
+<a id="colp-section-16"></a>
 
 ## 16. Conformance
 
-`@collection-protocol/conformance` 应测试：
+`@collection-protocol/node/conformance` and the deployment's own tests should cover:
 
-- Discovery 与 Link。
-- Schema 与未知 Extension 保留。
-- ETag、If-Match、412 / 428。
-- Cursor Pagination。
-- Feed 脱敏。
-- 429 与 Retry-After。
-- API Key Scope。
-- OAuth Audience。
-- Sync 幂等、Tombstone、Move、Conflict。
-- MCP Tool Schema、Structured Content、Scope Filtering。
-- 高风险操作必须 Plan / Approval / Commit。
-- Key Secret 不进入 MCP Result。
+- Discovery and links.
+- Schema and unknown extension preservation.
+- ETag, If-Match, 412 / 428.
+- Cursor pagination.
+- Feed redaction.
+- 429 and Retry-After.
+- API key scopes.
+- OAuth audience.
+- Sync idempotency, tombstones, moves, and conflicts.
+- MCP tool schemas, structured content, and scope filtering.
+- Plan / approval / commit for high-risk operations.
+- Key secrets never entering MCP results.
 
-## 17. Profile 交付顺序
+<a id="colp-section-17"></a>
 
-本节使用“Profile 交付里程碑”，不使用 `Phase 1` 表示包脚手架或浏览器产品路线。Node 包的 Foundation Milestone 是 Schema、Types、Semantic、Client、Server 与 Conformance 工具链，不代表任何 Profile 已合规；Profile 的实现顺序与 `docs/10-implementation-contract.md` 一致：
+## 17. Profile Delivery Order
 
-1. `core + publication`：Manifest、Directory、Collection、Snapshot 与 Publication 安全投影。
-2. `publisher`：条件写入、幂等、Publisher Unit of Work、Operation、Audit 与 Transactional Outbox。
-3. `feed`：先完成 `release` 模式和 JSON Feed，再扩展 Live Feed / WebSub。
-4. `sync`：Session、Snapshot、Push / Pull / Ack、Replica、Tombstone 与 Conflict 状态机。
-5. `mcp-read` / `mcp-write`：Resources / Tools、OAuth 2.1、高风险 Approval Plan 与 Scope Filtering。
+This section speaks of "profile delivery milestones" and does not use `Phase 1` for package scaffolding or a browser product roadmap. The foundation milestone of the Node package is the schema, types, semantic, client, server, and conformance tooling, and does not mean that any profile conforms. Profiles are implemented in the same order as in `docs/10-implementation-contract.md`:
 
-浏览器 Adapter、Admin UI、HTTP Signatures、公共 Conformance Registry 与 Server Directory 是独立产品轨道。它们可以按依赖成熟度并行推进，但不能改变上述 Profile 依赖，也不能用产品轨道完成度替代 Profile Conformance Evidence。
+1. `core + publication`: Manifest, directory, Collection, Snapshot, and the safe Publication projection.
+2. `publisher`: conditional writes, idempotency, the publisher unit of work, operations, audit, and the transactional outbox.
+3. `feed`: first `release` mode and JSON Feed, then live feeds and WebSub.
+4. `sync`: the session, Snapshot, push / pull / ack, replica, tombstone, and conflict state machines.
+5. `mcp-read` / `mcp-write`: resources and tools, OAuth 2.1, high-risk approval plans, and scope filtering.
+
+Browser adapters, an admin UI, HTTP signatures, a public conformance registry, and a server directory are separate product tracks. They can progress in parallel as their dependencies mature, but cannot change the profile dependencies above, and the completion of a product track cannot replace profile conformance evidence.

@@ -118,7 +118,7 @@ describe('MCP 2026-07-28 request context: wire error codes', () => {
   });
 });
 
-describe('MCP 2026-07-28 request context: header parsing', () => {
+describe('MCP 2026-07-28 request context: header parsing [evidence:mcp.headers-contract]', () => {
   it('parses standard headers and Mcp-Param-* fields case-insensitively', () => {
     const parsed = parseMcp20260728RequestHeaders([
       header('MCP-Protocol-Version', '2026-07-28'),
@@ -160,7 +160,7 @@ describe('MCP 2026-07-28 request context: header parsing', () => {
       .toThrowError(expectWire('header_mismatch', -32020));
   });
 
-  it('rejects legacy Mcp-Session-Id and Last-Event-ID headers as -32022', () => {
+  it('rejects legacy Mcp-Session-Id and Last-Event-ID headers as -32022 [evidence:mcp.legacy-semantics-rejected]', () => {
     for (const name of ['mcp-session-id', 'last-event-id']) {
       expect(() => parseMcp20260728RequestHeaders([
         header('mcp-method', 'server/discover'),
@@ -170,7 +170,7 @@ describe('MCP 2026-07-28 request context: header parsing', () => {
   });
 });
 
-describe('MCP 2026-07-28 request context: envelope version', () => {
+describe('MCP 2026-07-28 request context: envelope version [evidence:mcp.request-context-meta]', () => {
   it('accepts a valid 2026-07-28 envelope and exposes protocol facts', () => {
     const context = createContext({
       headers: [header('mcp-method', 'server/discover'), header('mcp-protocol-version', '2026-07-28')],
@@ -268,7 +268,7 @@ describe('MCP 2026-07-28 request context: envelope version', () => {
   });
 });
 
-describe('MCP 2026-07-28 request context: Mcp-Method / Mcp-Name', () => {
+describe('MCP 2026-07-28 request context: Mcp-Method / Mcp-Name [evidence:mcp.headers-contract]', () => {
   it('rejects a missing Mcp-Method header as -32020', () => {
     expect(() => createContext({ headers: [header('mcp-protocol-version', '2026-07-28')] }))
       .toThrowError(expectWire('header_mismatch', -32020));
@@ -381,7 +381,7 @@ describe('MCP 2026-07-28 request context: Base64 sentinel codec', () => {
   });
 });
 
-describe('MCP 2026-07-28 request context: x-mcp-header and Mcp-Param-*', () => {
+describe('MCP 2026-07-28 request context: x-mcp-header and Mcp-Param-* [evidence:mcp.headers-contract]', () => {
   const declarations: readonly Mcp20260728XMcpHeaderDeclaration[] = [
     { path: ['requestId'], headerName: 'X-Request-Id', type: 'string' },
     { path: ['retryCount'], headerName: 'X-Retry-Count', type: 'integer' },

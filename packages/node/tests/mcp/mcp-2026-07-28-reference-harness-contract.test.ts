@@ -138,7 +138,7 @@ describe('MCP 2026-07-28 reference harness contract (COLP-MCP-03)', () => {
     { label: 'GET', request: () => new Request(endpoint, { method: 'GET' }), status: 405 },
     { label: 'DELETE', request: () => new Request(endpoint, { method: 'DELETE' }), status: 405 },
   ])(
-    'rejects the legacy $label HTTP verb with 405 (Legacy-negative)',
+    'rejects the legacy $label HTTP verb with 405 (Legacy-negative) [evidence:mcp.legacy-semantics-rejected]',
     async ({ request, status }) => {
       const host = createFixtureHost();
       try {
@@ -150,7 +150,7 @@ describe('MCP 2026-07-28 reference harness contract (COLP-MCP-03)', () => {
     },
   );
 
-  it('rejects a legacy initialize POST without a modern envelope (Legacy-negative)', async () => {
+  it('rejects a legacy initialize POST without a modern envelope (Legacy-negative) [evidence:mcp.legacy-semantics-rejected]', async () => {
     const host = createFixtureHost();
     try {
       const response = await host.fetch(
@@ -197,7 +197,7 @@ describe('MCP 2026-07-28 reference harness contract (COLP-MCP-03)', () => {
   });
 
   it.each(['mcp-session-id', 'last-event-id'] as const)(
-    'rejects the legacy %s header with unsupported_protocol_version (Legacy-negative)',
+    'rejects the legacy %s header with unsupported_protocol_version (Legacy-negative) [evidence:mcp.legacy-semantics-rejected]',
     async (header) => {
       const host = createFixtureHost();
       try {
@@ -226,7 +226,7 @@ describe('MCP 2026-07-28 reference harness contract (COLP-MCP-03)', () => {
     'logging/setLevel',
     'initialize',
   ] as const)(
-    'rejects the deleted legacy method %s with method-not-found (Legacy-negative)',
+    'rejects the deleted legacy method %s with method-not-found (Legacy-negative) [evidence:mcp.legacy-semantics-rejected]',
     async (method) => {
       const host = createFixtureHost();
       try {

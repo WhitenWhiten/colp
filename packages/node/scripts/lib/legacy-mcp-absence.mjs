@@ -76,7 +76,7 @@ export function isMcpScopedPath(path) {
 }
 
 const documentedRejectionMarker =
-  /reject|refus|deny|remov|legacy|absence|absent|not\s+supported|unsupported|not\s+ignored|no\s+.{0,24}backfill|never|quarantin|migrat|revoked|deleted|deprecat|must\s+not|should\s+not|not\s+allowed|forbidden|prohibited|不受支持|不支持|不提供|不得|不允许|禁用|禁止|拒绝|移除|旧版|不再|已删除|被拒绝/iu;
+  /reject|refus|deny|remov|legacy|absence|absent|not\s+supported|unsupported|not\s+ignored|no\s+.{0,24}backfill|never|quarantin|migrat|revoked|deleted|deprecat|must\s+not|should\s+not|not\s+allowed|forbidden|prohibited/iu;
 
 /** True when a source line documents a Legacy MCP wire token as rejected. */
 export function isDocumentedRejectionLine(line) {

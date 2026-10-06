@@ -239,7 +239,7 @@ results:
   method and input digest) and resumes the SAME plan business state. A fresh
   call without `requestState` always creates new business state. `elicitationId`
   and the completion-notification channel are never used (migration decision
-  §3 "服务端发起请求" row).
+  §3 "server-initiated requests" row).
 - `inputResponses` is structurally validated per the SDK `inputResponse()`
   union (elicit/roots/sampling); well-formed entries for requests this server
   never issued are ignored, malformed entries are rejected with Invalid
@@ -258,7 +258,7 @@ Migration table (old wire concept -> Modern Write surface):
 | `createMcpWriteExposure` / `createMcpWriteMountAdapter` | `createMcp20260728WriteToolAdapter` (one frozen instance, per-request contexts) |
 | server-initiated request + `elicitationId` / completion notification | MRTR `input_required` + server-minted `requestState` + client retry |
 | Session demux / hidden per-client instances | stateless adapter; host owns durable plan/approval storage and approval UI |
-| 无判别 result | required `resultType: 'complete' \| 'input_required'` |
+| Result without a discriminator | required `resultType: 'complete' \| 'input_required'` |
 
 The Modern Write API is additive on the `/mcp` and `/mcp/2026-07-28` entries:
 `createMcp20260728WriteToolAdapter`, `Mcp20260728WriteToolAdapter(Options)`,

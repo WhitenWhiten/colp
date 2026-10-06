@@ -70,36 +70,36 @@ Import-graph / export basis: package root re-exports Sync from `src/sync/index.j
 
 ## Tier A — core (`sync-core` gate)
 
-| 文件 | Tier | 纳入理由 | 对外入口 | 负责门禁 | 变更规则 |
+| File | Tier | Why included | Public entry | Gate | Change rule |
 | --- | --- | --- | --- | --- | --- |
-| `src/sync/session.ts` | A 核心 | Durable Session create/verify/terminate; credential/scope/lease binding | `createSyncSession`, `verifySyncSessionContext`, `requireVerifiedSyncSession` (root + sync barrel) | `sync-core` | New Session binding dimension → update row + tests |
-| `src/sync/session-bootstrap.ts` | A 核心 | Collection bootstrap coordinator on Session write path | `coordinateSessionBootstrap` | `sync-core` | New bootstrap port → Tier A dep review |
-| `src/sync/session-bootstrap-guards.ts` | A 核心 | Production dependency of bootstrap shape and stored-state equality validation | (internal to bootstrap) | `sync-core` | Follows bootstrap imports |
-| `src/sync/session-bootstrap-state.ts` | A 核心 | Production dependency of `session-bootstrap.ts` (lane/aggregate state) | (internal to bootstrap; types via barrel) | `sync-core` | Follows bootstrap imports |
-| `src/sync/sequence.ts` | A 核心 | Sequence lane ownership, replay, gap/block, safe-integer advance | `coordinateSequenceOperation` | `sync-core` | New Sequence decision kind → update |
-| `src/sync/sequence-validation.ts` | A 核心 | Production dependency of `sequence.ts` (lane/request/receipt/evaluation normalization and equality) | (internal; types via barrel) | `sync-core` | Follows Sequence imports |
-| `src/sync/push-transaction.ts` | A 核心 | Atomic Push commit/rollback, receipt/conflict/cursor/audit/outbox matrix, `reevaluateDeferred` opt-in | `coordinatePushTransaction` | `sync-core` | New Push artifact → update |
-| `src/sync/push-transaction-guards.ts` | A 核心 | Production dependency of `push-transaction.ts` (request/plan/result/receipt normalization) | (internal; types via barrel) | `sync-core` | Follows push-transaction imports |
-| `src/sync/push-unit-of-work.ts` | A 核心 | Push adapter contract and execution scope (Collection + Sequence lanes in lock order) | `SyncUnitOfWork`, `PushExecutionScope` (types via barrel) | `sync-core` | Scope/lock-order change → update |
-| `src/sync/pull.ts` | A 核心 | Pull cursor order, event/cursor consistency, receiver-bound scope | `coordinateSyncPull` | `sync-core` | New Pull event kind → update |
-| `src/sync/pull-cursor-lifecycle.ts` | A 核心 | Pull start cursor: initial issuance, same-Session continuation, adapter-verified cross-Session handoff | via `coordinateSyncPull` / `host.pull` | `sync-core` | New cursor transition → update |
-| `src/sync/canonical.ts` | A 核心 | Browser-safe protocol digest + effect-page URL expansion; production `./sync` re-exports the same functions | `@collection-protocol/node/sync/canonical` | `sync-core` | Digest framing change → update corpus |
-| `src/sync/canonical-json.ts` | A 核心 | Production dependency of canonical digest (I-JSON snapshot + RFC 8785) | (internal; `encodeCanonicalJson` via canonical) | `sync-core` | Follows canonical imports |
-| `src/sync/replica-lifecycle.ts` | A 核心 | Replica active/expired/recovery/retired coordinator + VerifiedSession auth proof; system-initiated due expiry | `coordinateReplicaLifecycle`, `coordinateReplicaDueExpiry`, `createReplicaAuthProofFromVerifiedSession` | `sync-core` | New lifecycle command → update |
-| `src/sync/replica-lifecycle-transitions.ts` | A 核心 | Production dependency of replica-lifecycle transitions | (internal; `transitionReplicaLifecycle` re-export) | `sync-core` | Follows lifecycle imports |
-| `src/sync/replica-lifecycle-parsing.ts` | A 核心 | Production dependency of lifecycle parse/validate | (internal) | `sync-core` | Follows lifecycle imports |
-| `src/sync/operation-reuse.ts` | A 核心 | Lifetime op-id claim + reuse audit for Push/Sequence/Bootstrap | `claimSyncOperation`, `appendSyncOperationReuseAudit` | `sync-core` | New reuse code → update |
-| `src/sync/tombstone-purge.ts` | A 核心 | Durable tombstone purge coordinator (retention / ack / watermark) | `coordinateTombstonePurge` | `sync-core` | New purge reason → update |
-| `src/sync/tombstone.ts` | A 核心 | Sync Tombstone construction from Deletion Receipt + cursor | `createSyncTombstone` | `sync-core` | Receipt field change → update |
-| `src/sync/typed-operations.ts` | A 核心 | Production dependency of Push typed-update payload assert (SYNC-0016) | `assertSyncTypedUpdateOperationPayload` | `sync-core` | Follows Push typed-update imports |
-| `src/sync/typed-update-merge.ts` | A 核心 | Core Sync typed-update merge semantics for write planning (SYNC-0016); root-exported; without it hosts still push, but Core merge evidence lives here—not adapter | `mergeSyncTypedUpdate`, `mergeTypedUpdate` | `sync-core` | Merge rule change → update; do not demote to hide gaps |
-| `src/shared/immutable-json.ts` | A 核心 | Production dependency of Session/Sequence/Push/Pull/Bootstrap/tombstone immutability | `immutableJsonData` (also tested directly) | `sync-core` | Follows Tier A imports |
-| `src/sync/internal-guards.ts` | A 核心 | Production dependency of Tier A Promise/plain-object guards | (internal) | `sync-core` | Follows Tier A imports |
+| `src/sync/session.ts` | A core | Durable Session create/verify/terminate; credential/scope/lease binding | `createSyncSession`, `verifySyncSessionContext`, `requireVerifiedSyncSession` (root + sync barrel) | `sync-core` | New Session binding dimension → update row + tests |
+| `src/sync/session-bootstrap.ts` | A core | Collection bootstrap coordinator on Session write path | `coordinateSessionBootstrap` | `sync-core` | New bootstrap port → Tier A dep review |
+| `src/sync/session-bootstrap-guards.ts` | A core | Production dependency of bootstrap shape and stored-state equality validation | (internal to bootstrap) | `sync-core` | Follows bootstrap imports |
+| `src/sync/session-bootstrap-state.ts` | A core | Production dependency of `session-bootstrap.ts` (lane/aggregate state) | (internal to bootstrap; types via barrel) | `sync-core` | Follows bootstrap imports |
+| `src/sync/sequence.ts` | A core | Sequence lane ownership, replay, gap/block, safe-integer advance | `coordinateSequenceOperation` | `sync-core` | New Sequence decision kind → update |
+| `src/sync/sequence-validation.ts` | A core | Production dependency of `sequence.ts` (lane/request/receipt/evaluation normalization and equality) | (internal; types via barrel) | `sync-core` | Follows Sequence imports |
+| `src/sync/push-transaction.ts` | A core | Atomic Push commit/rollback, receipt/conflict/cursor/audit/outbox matrix, `reevaluateDeferred` opt-in | `coordinatePushTransaction` | `sync-core` | New Push artifact → update |
+| `src/sync/push-transaction-guards.ts` | A core | Production dependency of `push-transaction.ts` (request/plan/result/receipt normalization) | (internal; types via barrel) | `sync-core` | Follows push-transaction imports |
+| `src/sync/push-unit-of-work.ts` | A core | Push adapter contract and execution scope (Collection + Sequence lanes in lock order) | `SyncUnitOfWork`, `PushExecutionScope` (types via barrel) | `sync-core` | Scope/lock-order change → update |
+| `src/sync/pull.ts` | A core | Pull cursor order, event/cursor consistency, receiver-bound scope | `coordinateSyncPull` | `sync-core` | New Pull event kind → update |
+| `src/sync/pull-cursor-lifecycle.ts` | A core | Pull start cursor: initial issuance, same-Session continuation, adapter-verified cross-Session handoff | via `coordinateSyncPull` / `host.pull` | `sync-core` | New cursor transition → update |
+| `src/sync/canonical.ts` | A core | Browser-safe protocol digest + effect-page URL expansion; production `./sync` re-exports the same functions | `@collection-protocol/node/sync/canonical` | `sync-core` | Digest framing change → update corpus |
+| `src/sync/canonical-json.ts` | A core | Production dependency of canonical digest (I-JSON snapshot + RFC 8785) | (internal; `encodeCanonicalJson` via canonical) | `sync-core` | Follows canonical imports |
+| `src/sync/replica-lifecycle.ts` | A core | Replica active/expired/recovery/retired coordinator + VerifiedSession auth proof; system-initiated due expiry | `coordinateReplicaLifecycle`, `coordinateReplicaDueExpiry`, `createReplicaAuthProofFromVerifiedSession` | `sync-core` | New lifecycle command → update |
+| `src/sync/replica-lifecycle-transitions.ts` | A core | Production dependency of replica-lifecycle transitions | (internal; `transitionReplicaLifecycle` re-export) | `sync-core` | Follows lifecycle imports |
+| `src/sync/replica-lifecycle-parsing.ts` | A core | Production dependency of lifecycle parse/validate | (internal) | `sync-core` | Follows lifecycle imports |
+| `src/sync/operation-reuse.ts` | A core | Lifetime op-id claim + reuse audit for Push/Sequence/Bootstrap | `claimSyncOperation`, `appendSyncOperationReuseAudit` | `sync-core` | New reuse code → update |
+| `src/sync/tombstone-purge.ts` | A core | Durable tombstone purge coordinator (retention / ack / watermark) | `coordinateTombstonePurge` | `sync-core` | New purge reason → update |
+| `src/sync/tombstone.ts` | A core | Sync Tombstone construction from Deletion Receipt + cursor | `createSyncTombstone` | `sync-core` | Receipt field change → update |
+| `src/sync/typed-operations.ts` | A core | Production dependency of Push typed-update payload assert (SYNC-0016) | `assertSyncTypedUpdateOperationPayload` | `sync-core` | Follows Push typed-update imports |
+| `src/sync/typed-update-merge.ts` | A core | Core Sync typed-update merge semantics for write planning (SYNC-0016); root-exported; without it hosts still push, but Core merge evidence lives here—not adapter | `mergeSyncTypedUpdate`, `mergeTypedUpdate` | `sync-core` | Merge rule change → update; do not demote to hide gaps |
+| `src/shared/immutable-json.ts` | A core | Production dependency of Session/Sequence/Push/Pull/Bootstrap/tombstone immutability | `immutableJsonData` (also tested directly) | `sync-core` | Follows Tier A imports |
+| `src/sync/internal-guards.ts` | A core | Production dependency of Tier A Promise/plain-object guards | (internal) | `sync-core` | Follows Tier A imports |
 
-| `src/sync/authoritative-effect-kind.ts` | A 核心 | Runtime Pull effect domain/binding validation extracted from pull.ts | assertEffectBinding via authoritative Pull | sync-core | Follow runtime imports; semantic negatives must recompute digests |
-| `src/sync/host-composition-recipe.ts` | A 核心 | Required typed-update merge and atomic same-target projections on the recommended production Push path | createTypedUpdateMergePushPreflight | sync-core | Runtime planning is not documentation-only composition |
-| `src/sync/subtree-observation.ts` | A 核心 | Runtime subtree observation export used by canonical Sync operations | subtreeDeleteSource | sync-core | Follows canonical runtime exports |
-| `src/sync/pull-page-budget.ts` | A 核心 | Whole-page member/byte budget and same-cut prefix selection for Pull event-store pages | via `coordinateSyncPull` | sync-core | Follows Pull runtime imports |
+| `src/sync/authoritative-effect-kind.ts` | A core | Runtime Pull effect domain/binding validation extracted from pull.ts | assertEffectBinding via authoritative Pull | sync-core | Follow runtime imports; semantic negatives must recompute digests |
+| `src/sync/host-composition-recipe.ts` | A core | Required typed-update merge and atomic same-target projections on the recommended production Push path | createTypedUpdateMergePushPreflight | sync-core | Runtime planning is not documentation-only composition |
+| `src/sync/subtree-observation.ts` | A core | Runtime subtree observation export used by canonical Sync operations | subtreeDeleteSource | sync-core | Follows canonical runtime exports |
+| `src/sync/pull-page-budget.ts` | A core | Whole-page member/byte budget and same-cut prefix selection for Pull event-store pages | via `coordinateSyncPull` | sync-core | Follows Pull runtime imports |
 
 ### Sync Stryker mutate list (local critical mutation)
 
@@ -139,7 +139,7 @@ The executable gate also walks value imports and exports inside src/sync, exclud
 
 ### Contested Tier A decisions
 
-| 文件 | Decision | Reason |
+| File | Decision | Reason |
 | --- | --- | --- |
 | `src/sync/replica-capability.ts` | **Tier B** (not A) | Safari adapter capability / public HTTP Manifest boundary (SYNC-0021). Core write SM (Session/Sequence/Push/Pull/Replica lifecycle/tombstone) completes without it. |
 | `src/sync/typed-update-merge.ts` | **Tier A** | Not imported by Push today, but it is Core Sync write-semantics (root export) rather than host composition. Keeping it in Tier A prevents treating merge as optional adapter coverage. |
@@ -150,7 +150,7 @@ The executable gate also walks value imports and exports inside src/sync, exclud
 
 ## Tier B — adapter / composition (not `sync-core`)
 
-| 文件 | Tier | 纳入理由 | 对外入口 | 负责门禁 | 变更规则 |
+| File | Tier | Why included | Public entry | Gate | Change rule |
 | --- | --- | --- | --- | --- | --- |
 | `src/sync/composition.ts` | B adapter-composition | Session-bound Push/Pull/Sequence host helpers | `coordinateSessionBound*` | adapter / aggregate Sync | Stay out of `sync-core` include |
 | `src/sync/host.ts` | B adapter-composition | Typed exclusive `createSyncHost` production façade | `createSyncHost` | adapter / aggregate Sync | Stay out of `sync-core` include |
@@ -170,7 +170,7 @@ Tier B retains the aggregate `src/sync/**` non-regression floor only; no separat
 
 ## Tier C — legacy / compatibility (not `sync-core`)
 
-| 文件 | Tier | 纳入理由 | 对外入口 | 负责门禁 | 变更规则 |
+| File | Tier | Why included | Public entry | Gate | Change rule |
 | --- | --- | --- | --- | --- | --- |
 | `src/sync/legacy.ts` | C legacy-compatibility | Internal pure Sequence/tombstone/typed-update reducers for property tests; not exported from any package entry | (internal) | legacy / aggregate Sync | Never add to `sync-core` |
 | `src/sync/index.ts` | C legacy-compatibility | Public barrel and shared receipt types | sync barrel | legacy / aggregate Sync | A new Tier A export must also list the implementing module under A |

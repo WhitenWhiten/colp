@@ -1,64 +1,39 @@
+# COLP 0.2 additions to the requirement registry. Same format as requirements.yaml.
+
 version: 0.2
 requirements:
   - id: SYNC-0027
     level: MUST
     profile: sync
-    source: "docs/03-sync.md#8-1-colp-0-2-authoritative-pull-effect"
-    requirement: "COLP 0.2 operation Pull events carry a closed, source-bound authoritative effect while COLP 0.1 remains exact and effect-free."
-    selector:
-      marker: SYNC-0027
-      section: "8.1"
-    implementation: ["schema", "sync"]
-    tests: ["sync.authoritative-pull-effects", "sync.canonical-subpath"]
+    source: docs/03-sync.md#colp-section-8-1
+    requirement: COLP 0.2 operation Pull events carry a closed, source-bound authoritative effect while COLP 0.1 remains exact and effect-free.
+    implementation: [schema, sync]
+    tests: [sync.authoritative-pull-effects, sync.canonical-subpath]
   - id: SYNC-0028
     level: MUST
     profile: sync
-    classification: auto
-    source: "docs/03-sync.md#colp-section-8-1"
-    requirement: "COLP 0.2 的 operation event MUST 同时携带原始 Operation 和不可变 `effect`。effect 必须绑定"
-    selector:
-      section: "8.1"
-      quote: "COLP 0.2 的 operation event MUST 同时携带原始 Operation 和不可变 `effect`。effect 必须绑定"
-      quoteOrdinal: 1
-      keywordOrdinal: 1
-    implementation: ["schema", "sync"]
-    tests: ["sync.authoritative-pull-effects"]
+    source: docs/03-sync.md#colp-section-8-1
+    requirement: In COLP 0.2, an operation event MUST carry both the original operation and an immutable `effect` bound to the operation's `opId`, `replicaId`, `sequence`, `collectionId`, and canonical operation digest.
+    implementation: [schema, sync]
+    tests: [sync.authoritative-pull-effects]
   - id: SYNC-0029
     level: MUST_NOT
     profile: sync
-    classification: auto
-    source: "docs/03-sync.md#colp-section-8-1"
+    source: docs/03-sync.md#colp-section-8-1
     requirement: "`restore_node` already exists as a Sync Operation name. COLP 0.2 Pull now includes the matching `node_restored` effect so receivers apply restore from closed-union authority instead of guessing a `create_node`. After `node_restored`, Live Node and Tombstone for that ID are mutually exclusive. A purged Tombstone is `resource_purged` and is not restoreable. If the original Parent is gone, placement is the originating mount's `recovered` Folder (unique per parent). If that mount is gone, placement is the Collection-root `recovered` fallback. Receivers MUST NOT guess `bookmarks-bar`."
-    selector:
-      section: "8.1"
-      quote: "`restore_node` already exists as a Sync Operation name. COLP 0.2 Pull now includes the matching `node_restored` effect so receivers apply restore from closed-union authority instead of guessing a `create_node`. After `node_restored`, Live Node and Tombstone for that ID are mutually exclusive. A purged Tombstone is `resource_purged` and is not restoreable. If the original Parent is gone, placement is the originating mount's `recovered` Folder (unique per parent). If that mount is gone, placement is the Collection-root `recovered` fallback. Receivers MUST NOT guess `bookmarks-bar`."
-      quoteOrdinal: 1
-      keywordOrdinal: 1
-    implementation: ["schema", "sync"]
-    tests: ["sync.restore-recovered-placement"]
+    implementation: [schema, sync]
+    tests: [sync.restore-recovered-placement]
   - id: SYNC-0030
     level: MUST
     profile: sync
-    classification: auto
-    source: "docs/06-browser-mapping.md#colp-section-6-1"
-    requirement: "`recovered` is unique per live parent: at most one live `folderRole=recovered` Folder under a given parent (the owning mount, or the Collection root fallback when that mount is gone). A second concurrent create under the same parent is `rebased` with `invalid_node_constraints`. Recovered Folders created for different mounts MUST remain distinct. Clients MUST NOT guess `bookmarks-bar` when the owning mount cannot be confirmed."
-    selector:
-      section: "6.1"
-      quote: "`recovered` is unique per live parent: at most one live `folderRole=recovered` Folder under a given parent (the owning mount, or the Collection root fallback when that mount is gone). A second concurrent create under the same parent is `rebased` with `invalid_node_constraints`. Recovered Folders created for different mounts MUST remain distinct. Clients MUST NOT guess `bookmarks-bar` when the owning mount cannot be confirmed."
-      quoteOrdinal: 1
-      keywordOrdinal: 1
-    implementation: ["sync"]
-    tests: ["sync.recovered-unique-per-parent"]
+    source: docs/06-browser-mapping.md#colp-section-6-1-2
+    requirement: There MUST be at most one live `folderRole=recovered` Folder under a given parent, and recovered Folders created for different mounts MUST remain distinct.
+    implementation: [sync]
+    tests: [sync.recovered-unique-per-parent]
   - id: SYNC-0031
     level: MUST_NOT
     profile: sync
-    classification: auto
-    source: "docs/06-browser-mapping.md#colp-section-6-1"
-    requirement: "`recovered` is unique per live parent: at most one live `folderRole=recovered` Folder under a given parent (the owning mount, or the Collection root fallback when that mount is gone). A second concurrent create under the same parent is `rebased` with `invalid_node_constraints`. Recovered Folders created for different mounts MUST remain distinct. Clients MUST NOT guess `bookmarks-bar` when the owning mount cannot be confirmed."
-    selector:
-      section: "6.1"
-      quote: "`recovered` is unique per live parent: at most one live `folderRole=recovered` Folder under a given parent (the owning mount, or the Collection root fallback when that mount is gone). A second concurrent create under the same parent is `rebased` with `invalid_node_constraints`. Recovered Folders created for different mounts MUST remain distinct. Clients MUST NOT guess `bookmarks-bar` when the owning mount cannot be confirmed."
-      quoteOrdinal: 1
-      keywordOrdinal: 2
-    implementation: ["sync"]
-    tests: ["sync.recovered-unique-per-parent"]
+    source: docs/06-browser-mapping.md#colp-section-6-1-2
+    requirement: Clients MUST NOT guess `bookmarks-bar` when the owning mount of a recovered Node cannot be confirmed.
+    implementation: [sync]
+    tests: [sync.recovered-unique-per-parent]

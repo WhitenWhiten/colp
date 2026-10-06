@@ -1,19 +1,23 @@
 # 06. Browser Bookmark Compatibility and Mapping
 
-## 1. 兼容目标
+<a id="colp-section-1"></a>
 
-首版必须覆盖：
+## 1. Compatibility Targets
 
-- Chrome、Edge、Brave、Opera 等 Chromium 系浏览器。
-- Firefox WebExtensions Bookmarks API。
-- Netscape Bookmark HTML 导入导出格式。
-- Safari 通过 Import / Export 或平台 Native Bridge 的适配。
+The first version must cover:
 
-浏览器收藏夹模型是协议的最低公共能力，不是协议能力上限。
+- Chromium-based browsers such as Chrome, Edge, Brave, and Opera.
+- The Firefox WebExtensions bookmarks API.
+- The Netscape Bookmark HTML import and export format.
+- Safari, through import / export or a platform native bridge adapter.
 
-## 2. Chromium 映射
+The browser bookmark model is the protocol's lowest common denominator, not its upper limit.
 
-Chromium BookmarkTreeNode 的真实核心字段包括：
+<a id="colp-section-2"></a>
+
+## 2. Chromium Mapping
+
+The actual core fields of a Chromium `BookmarkTreeNode` include:
 
 - `id`
 - `parentId`
@@ -28,67 +32,69 @@ Chromium BookmarkTreeNode 的真实核心字段包括：
 - `syncing`
 - `unmodifiable`
 
-映射表：
+Mapping table:
 
-| Chromium | Collection Protocol | 说明 |
+| Chromium | Collection Protocol | Notes |
 |---|---|---|
-| `id` | `sourceRefs.nativeId` | 不作为协议主 ID |
-| `parentId` | `sourceRefs.nativeParentId` + 映射后的 `parentId` | 需要本地 ID Map |
-| `index` | `sourceRefs.nativeIndex` | 协议顺序以 `position` 为准 |
-| `title` | `title` | 原样保留 |
-| `url` | `url` | 原样保留 |
-| `children` | 扁平 Node + `parentId` | 导入时展开 |
-| `dateAdded` | `createdAt` | 毫秒转 RFC 3339，原值仍保留 |
-| `dateGroupModified` | `childrenModifiedAt` | 仅 Folder |
+| `id` | `sourceRefs.nativeId` | Not used as the primary protocol ID |
+| `parentId` | `sourceRefs.nativeParentId` + the mapped `parentId` | Requires a local ID map |
+| `index` | `sourceRefs.nativeIndex` | Protocol order follows `position` |
+| `title` | `title` | Kept as is |
+| `url` | `url` | Kept as is |
+| `children` | Flat Nodes + `parentId` | Expanded on import |
+| `dateAdded` | `createdAt` | Milliseconds converted to RFC 3339; the original value is still kept |
+| `dateGroupModified` | `childrenModifiedAt` | Folders only |
 | `dateLastUsed` | `lastUsedAt` | Chrome 114+ |
 | `folderType` | `folderRole` | bookmarks-bar / other / mobile / managed |
-| `syncing` | `sourceRefs.syncing` | 只表示浏览器内建账号同步 |
-| `unmodifiable=managed` | `constraints.readOnly=true` | 禁止向浏览器写回 |
+| `syncing` | `sourceRefs.syncing` | Only describes the browser's built-in account sync |
+| `unmodifiable=managed` | `constraints.readOnly=true` | Write-back to the browser is forbidden |
 
-### 2.1 Chromium 限制
+<a id="colp-section-2-1"></a>
 
-- 扩展不能在根节点直接创建或删除条目。
-- 书签栏、其他书签等特殊根目录不能重命名、移动或删除。
-- `update()` 通常只支持 `title` 和 `url`。
-- Chromium API 不支持 Separator。
-- 浏览器原生模型不支持 Tag、Note、Annotation、Relation、Alias 和附件。
+### 2.1 Chromium Limitations
 
-因此 Chromium Adapter 必须维护 Sidecar Store：
+- Extensions cannot create or delete entries directly at the root.
+- Special root folders such as the bookmarks bar and other bookmarks cannot be renamed, moved, or deleted.
+- `update()` usually supports only `title` and `url`.
+- The Chromium API does not support separators.
+- The native browser model does not support tags, notes, annotations, relations, aliases, or attachments.
+
+A Chromium adapter must therefore maintain a sidecar store:
 
 ```text
-native bookmark tree        浏览器权威字段
-local adapter database      协议 ID、SourceRef、Note、Tag、同步游标
-remote Collection server    完整扩展字段和公共策略
+native bookmark tree        authoritative browser fields
+local adapter database      protocol IDs, source references, notes, tags, sync cursors
+remote Collection server    complete extension fields and publication policy
 ```
 
-浏览器中合法但不可公开的 `file:`、`about:`、`chrome:`、`edge:`、`moz-extension:` 等 URL 使用 `$defs.bookmarkUrl` 原样进入权威 / Sync 表示；只有 Mount `acceptedSchemes` 允许时才可写入目标浏览器，且不得进入 Publication / Feed。
+URLs such as `file:`, `about:`, `chrome:`, `edge:`, and `moz-extension:` that are legal in a browser but cannot be published enter the authoritative and Sync representations unchanged through `$defs.bookmarkUrl`. They may be written to a target browser only when the mount's `acceptedSchemes` allows them, and must not enter Publication or Feed.
 
 <a id="colp-section-3"></a>
 
-## 3. Firefox 映射
+## 3. Firefox Mapping
 
-Firefox BookmarkTreeNode 与 Chromium 接近，但显式支持：
+A Firefox `BookmarkTreeNode` is close to Chromium's, but explicitly supports:
 
 - `type=bookmark`
 - `type=folder`
 - `type=separator`
 
-映射表：
+Mapping table:
 
 | Firefox | Collection Protocol |
 |---|---|
 | `type=bookmark` | `kind=bookmark` |
 | `type=folder` | `kind=folder` |
 | `type=separator` | `kind=separator` |
-| 其余树字段 | 与 Chromium 相同 |
+| Other tree fields | Same as Chromium |
 
-Firefox 批量异步 Create / Move 可能导致 Index 在操作完成前变化。Adapter MUST 按顺序等待写入完成，或在批次结束后重新读取整个受影响 Folder。
+Firefox batched asynchronous creates and moves can change indexes before the operations finish. An adapter MUST wait for writes to complete in order, or re-read the entire affected folder at the end of the batch.
 
 <a id="colp-section-4"></a>
 
 ## 4. Netscape Bookmark HTML
 
-协议 SHOULD 支持常见的 `NETSCAPE-Bookmark-file-1`：
+The protocol SHOULD support the common `NETSCAPE-Bookmark-file-1`:
 
 ```html
 <DL><p>
@@ -99,22 +105,22 @@ Firefox 批量异步 Create / Move 可能导致 Index 在操作完成前变化�
 </DL><p>
 ```
 
-映射：
+Mapping:
 
 | HTML | Protocol |
 |---|---|
 | `<H3>` | Folder Node |
 | `<A HREF>` | Bookmark Node |
-| 嵌套 `<DL>` | Parent / Child |
-| 文档顺序 | Position |
-| `ADD_DATE` | CreatedAt |
-| `LAST_MODIFIED` | UpdatedAt / ChildrenModifiedAt |
-| `ICON_URI` | HTTP(S) Favicon Attachment |
-| `ICON=data:` | 解码并物化到受控 Blob / 对象存储；否则保留在来源 Extension |
+| Nested `<DL>` | Parent / child |
+| Document order | Position |
+| `ADD_DATE` | createdAt |
+| `LAST_MODIFIED` | updatedAt / childrenModifiedAt |
+| `ICON_URI` | HTTP(S) favicon Attachment |
+| `ICON=data:` | Decoded and materialized into controlled blob or object storage; otherwise kept in the source extension |
 | `PERSONAL_TOOLBAR_FOLDER` | folderRole=bookmarks-bar |
-| 未知属性 | Netscape Extension Namespace |
+| Unknown attributes | Netscape extension namespace |
 
-未知属性示例：
+Example of unknown attributes:
 
 ```json
 {
@@ -128,22 +134,22 @@ Firefox 批量异步 Create / Move 可能导致 Index 在操作完成前变化�
 }
 ```
 
-导出时，如果目标格式不支持 Note 或 Annotation，适配器不得擅自拼接到标题。可以：
+On export, if the target format does not support notes or annotations, an adapter must not concatenate them into the title on its own. It can:
 
-1. 生成并列 Sidecar JSON。
-2. 使用明确启用的 HTML Extension Attribute。
-3. 返回有损转换报告。
+1. Generate a sidecar JSON file alongside.
+2. Use an explicitly enabled HTML extension attribute.
+3. Return a lossy conversion report.
 
 <a id="colp-section-5"></a>
 
 ## 5. Safari
 
-Safari 没有与 WebExtensions bookmarks API 完全等价的跨平台实时接口。首版定义两种适配级别：
+Safari has no cross-platform real-time interface fully equivalent to the WebExtensions bookmarks API. The first version defines two adapter levels:
 
-- `safari-import-export`：通过 Safari 导出的书签文件或可读数据文件导入。
-- `safari-native-bridge`：由 macOS 原生 Helper 在用户授权范围内读取与写入。
+- `safari-import-export`: import from a bookmark file exported by Safari or from a readable data file.
+- `safari-native-bridge`: a macOS native helper reads and writes within the scope the user authorized.
 
-Safari Adapter MUST 在 Sync Session 的 Replica Capability 中声明；公共 HTTP Manifest 只声明服务器 Profile，不承载本地 Adapter 状态：
+A Safari adapter MUST declare itself in the replica capabilities of the Sync session; the public HTTP Manifest only declares server profiles and does not carry local adapter state:
 
 ```json
 {
@@ -157,13 +163,13 @@ Safari Adapter MUST 在 Sync Session 的 Replica Capability 中声明；公共 H
 }
 ```
 
-没有实时事件能力时，适配器使用定期 Snapshot Diff，但必须遵守服务端与本地配置的最小扫描间隔。
+Without real-time events, the adapter uses periodic Snapshot diffs, but must respect the minimum scan interval configured by the server and locally.
 
 <a id="colp-section-6"></a>
 
-## 6. 特殊根目录
+## 6. Special Root Folders
 
-适配器 MUST 建立 Root Mapping，不得依赖浏览器 ID 固定值：
+Adapters MUST build a root mapping and must not rely on fixed browser ID values:
 
 | Browser role | Protocol role |
 |---|---|
@@ -173,50 +179,36 @@ Safari Adapter MUST 在 Sync Session 的 Replica Capability 中声明；公共 H
 | Mobile Bookmarks | mobile-bookmarks |
 | Managed Bookmarks | managed-bookmarks |
 
-若目标浏览器没有某个 Root Role：
+If a target browser lacks a root role:
 
-- 默认映射到 `other-bookmarks` 下的同名 Folder。
-- 产生 `root_role_materialized` Warning。
-- 不得将 Managed 内容写入可编辑目录，除非用户显式选择“复制为普通书签”。
+- It is mapped by default to a folder of the same name under `other-bookmarks`.
+- A `root_role_materialized` warning is produced.
+- Managed content must not be written into an editable folder unless the user explicitly chooses "copy as ordinary bookmarks".
 
 <a id="colp-section-6-1"></a>
 
-### 6.1 Collection 所有权边界
+### 6.1 Collection Ownership Boundary
 
-浏览器 Profile 通常只有一棵全局书签树。Adapter 必须选择并持久化以下模式之一：
+A browser profile usually has a single global bookmark tree. An adapter must choose and persist one of these modes:
 
-- `whole-profile`：一个 Collection 独占整个浏览器 Profile；其他 Collection 不得绑定同一 Profile。
-- `mounted-folder`：每个 Collection 绑定到一个明确 Native Folder，读取、写入、Reconcile 和 Delete 不得越过该 Folder 边界。
+- `whole-profile`: one Collection owns the entire browser profile exclusively; no other Collection may bind the same profile.
+- `mounted-folder`: each Collection is bound to one explicit native folder, and reads, writes, reconciliation, and deletes must not cross that folder's boundary.
 
-Sync Session 必须携带 Browser Profile、Mount Mode、Mount Native ID 和 Generation。未建立所有权边界时不得开始双向同步。
+A Sync session must carry the browser profile, mount mode, mount native ID, and generation. Two-way sync must not start before an ownership boundary has been established.
 
-<a id="p0-whole-profile-mount-mode"></a>
+<a id="colp-section-6-1-1"></a>
 
-#### Know-N P0 whole-profile Mount Mode
+#### 6.1.1 Whole-profile Binding
 
-Know-N P0 Session `replica.binding` uses `mountMode = 'whole-profile'` and `mountNativeId = null`.
+In `whole-profile` mode, the browser's special roots map to mount folders under the one Collection, so no single native ID names the mount. Such a replica's `replica.binding` uses `mountMode = 'whole-profile'` and may send `mountNativeId = null`. The 0.1 `replicaBinding` schema does not require `null` here; a host may still send `whole-profile` with a non-null `mountNativeId`.
 
-Reasons:
+A replica that changes its mount mode or mount folder is not rewritten in place: it drains its queue, is retired, and registers a new generation.
 
-1. One browser Profile binds one Collection, matching this section's `whole-profile` definition.
-2. Multiple browser special roots map to mount Folders under that Collection; a single `mountNativeId` cannot name them.
-3. Backend does not persist `mountNativeId`, so `mounted-folder` plus a sentinel native id gives no server-side boundary.
+<a id="colp-section-6-1-2"></a>
 
-The rejected alternative (`mounted-folder` plus Chrome root `'0'`) stays unused unless a later KNS-00 review explicitly rejects this choice. Already-registered `mounted-folder` Replicas are not rewritten in place; remount uses drain then retire/archive then a new generation (KNS-01).
+#### 6.1.2 Folder Roles Created Through Sync
 
-This note does not tighten the 0.1 `replicaBinding` schema: other hosts may still send `whole-profile` with a non-null `mountNativeId`. Know-N P0 sends `null`.
-
-<a id="p0-kns-06-restore-and-create-collection-schedule"></a>
-
-#### Know-N W0 restore and collection-create schedule
-
-Canonical `restore_node` mutation and `POST /colp/v0.1/sync/collections` landed in KNS-06. This W0 gate originally recorded that schedule; this document still does not add those Backend routes.
-
-<a id="p0-sync-create-folder-role-allow-list"></a>
-
-#### Know-N P0 Sync create folderRole allow-list
-
-Sync `create_node` of a Collection-root **direct child Folder** may use:
+A Sync `create_node` of a folder that is a direct child of the Collection root may use these folder roles:
 
 - `bookmarks-bar`
 - `other-bookmarks`
@@ -224,17 +216,19 @@ Sync `create_node` of a Collection-root **direct child Folder** may use:
 - `custom`
 - `recovered`
 
-`managed-bookmarks` keeps the existing capability gate and stays read-only by default. Clients do not create `root`, `archive`, or `inbox`.
+`managed-bookmarks` keeps its capability gate and stays read-only by default. Clients do not create `root`, `archive`, or `inbox` through Sync.
 
-Each Collection has at most one live Folder per special root role (`bookmarks-bar`, `other-bookmarks`, `mobile-bookmarks`). A second concurrent create for the same root role leaves exactly one live mount; the later receipt is `rebased`, carries the existing mount `nodeId`, and surfaces existing registry code `invalid_node_constraints`. `custom` mounts are distinguished by `extensions.customSourceKey` and do not use that root-role uniqueness rule.
+Each Collection has at most one live folder per special root role (`bookmarks-bar`, `other-bookmarks`, `mobile-bookmarks`). When a second concurrent create for the same root role arrives, exactly one live mount remains; the later receipt is `rebased`, carries the `nodeId` of the existing mount, and reports the registry code `invalid_node_constraints`. `custom` mounts are told apart by `extensions.customSourceKey` and do not follow the root-role uniqueness rule.
 
 `recovered` is unique per live parent: at most one live `folderRole=recovered` Folder under a given parent (the owning mount, or the Collection root fallback when that mount is gone). A second concurrent create under the same parent is `rebased` with `invalid_node_constraints`. Recovered Folders created for different mounts MUST remain distinct. Clients MUST NOT guess `bookmarks-bar` when the owning mount cannot be confirmed.
 
-KNS-06 implements the Backend constraint; KNS-00 locks the wire/semantic with fixtures.
+The reference package exports these lists as `SYNC_CREATE_FOLDER_ROLE_ALLOW_LIST`, `SYNC_CREATE_FOLDER_ROLE_UNIQUE_LIVE`, and related constants; the server enforces uniqueness inside the write transaction.
 
-## 7. 有损转换规则
+<a id="colp-section-7"></a>
 
-每次转换返回：
+## 7. Lossy Conversion Rules
+
+Every conversion returns:
 
 ```json
 {
@@ -250,7 +244,7 @@ KNS-06 implements the Backend constraint; KNS-00 locks the wire/semantic with fi
 }
 ```
 
-标准 Warning Code：
+Standard warning codes:
 
 - `separator_omitted`
 - `alias_materialized`
@@ -262,83 +256,77 @@ KNS-06 implements the Backend constraint; KNS-00 locks the wire/semantic with fi
 - `timestamp_precision_changed`
 - `unknown_extension_preserved_remote_only`
 - `favicon_sidecar_only`
+- `lossy_conversion` (an extension was removed or degraded, see `docs/01-core-data-model.md` Section 10)
+
+<a id="colp-section-8"></a>
 
 ## 8. Alias
 
-浏览器原生书签树不支持 Alias。适配策略：
+The native browser bookmark tree does not support aliases. Adaptation strategies:
 
-- `duplicate`：在每个位置创建独立原生 Bookmark，多个 SourceRef 指向各自 Native ID。
-- `skip`：只保留服务器 Alias，客户端不显示。
-- `reject`：阻止该 Collection 同步到此浏览器。
+- `duplicate`: create an independent native bookmark at each location, with one source reference per native ID.
+- `skip`: keep only the server alias; the client does not show it.
+- `reject`: stop this Collection from syncing to this browser.
 
-默认使用 `duplicate`，并在回传时通过 Sidecar 或命名空间 Extension 中的 `aliasGroupId` 避免误判为普通重复项。`aliasGroupId` 不是核心 Node 字段。用户编辑物化副本时，Adapter 默认将该副本显式 Detach 为普通 Bookmark；不得静默修改全部 Alias。
+`duplicate` is the default, and on the way back an `aliasGroupId` in a sidecar or namespaced extension keeps the copies from being mistaken for ordinary duplicates. `aliasGroupId` is not a core Node field. When the user edits a materialized copy, the adapter by default detaches that copy explicitly into an ordinary bookmark; it must not silently change every alias.
 
 <a id="colp-section-9"></a>
 
 ## 9. Separator
 
-- Firefox 可原生往返。
-- Netscape HTML 可使用 `<HR>` 或来源扩展规则。
-- Chromium 默认不物化，但保留服务器对象。
-- 客户端 UI MAY 用视觉分隔线显示服务器 Separator，即使浏览器管理器中不可见。
+- Firefox can round-trip separators natively.
+- Netscape HTML can use `<HR>` or a source extension rule.
+- Chromium does not materialize them by default, but keeps the server object.
+- A client UI MAY show a server separator as a visual divider, even though it is invisible in the browser's bookmark manager.
 
 <a id="colp-section-10"></a>
 
-## 10. Note、Tag 与其他附加信息
+## 10. Notes, Tags, and Other Sidecar Data
 
-浏览器原生 API 不提供这些字段时：
+When the native browser API does not provide these fields:
 
-- Adapter MUST 写入本地 Sidecar。
-- Sidecar 使用协议 Node ID 作为主键，Native ID 只作索引。
-- 浏览器 Node 被删除后，Sidecar 记录进入与 Tombstone 相同的保留流程。
-- 用户卸载扩展前 SHOULD 提供导出 Sidecar 的入口。
+- The adapter MUST write them to a local sidecar.
+- The sidecar uses the protocol Node ID as its primary key; the native ID is only an index.
+- After a browser Node is deleted, its sidecar record enters the same retention flow as the tombstone.
+- Before the user uninstalls the extension, the adapter SHOULD offer a way to export the sidecar.
 
-Sidecar 还必须具备故障安全合同：
+The sidecar must also have a fail-safe contract:
 
-- 持久化 `(browser, profile, collectionId, nodeId, nativeId, generation)`。
-- 执行 Native Mutation 前先写 Mutation Journal，成功后再提交 Mapping / Cursor。
-- 启动、事件缺口或异常终止后执行 Reconcile。
-- Sidecar 丢失、Generation 不匹配或 Native ID 大量重用时进入 Safe Mode，禁止上传 Delete / Move，直到全量 Diff 被确认并重新建立 Mapping。
-- 提供自动备份与恢复；“卸载前手动导出”不能是唯一恢复方式。
+- Persist `(browser, profile, collectionId, nodeId, nativeId, generation)`.
+- Write a mutation journal before executing a native mutation, and commit the mapping and cursor only after it succeeds.
+- Reconcile after startup, after an event gap, and after abnormal termination.
+- When the sidecar is lost, the generation does not match, or native IDs are reused on a large scale, enter safe mode: uploading deletes and moves is forbidden until a full diff has been confirmed and the mapping rebuilt.
+- Provide automatic backup and restore; "export manually before uninstalling" cannot be the only way to recover.
 
 <a id="colp-section-11"></a>
 
-## 11. 事件转换
+## 11. Event Conversion
 
-浏览器事件映射：
+Browser event mapping:
 
-| Browser event | Sync Operation |
+| Browser event | Sync operation |
 |---|---|
 | onCreated | create_node |
 | onChanged | update_node_content |
 | onMoved | move_node |
 | onChildrenReordered | reorder_children |
 | onRemoved | delete_node |
-| onImportBegan | Adapter 本地开始 Mutation Journal，不上传协议 Operation |
-| onImportEnded | Adapter 本地 Reconcile，随后只上传标准 Operation Batch |
+| onImportBegan | The adapter starts a local mutation journal and uploads no protocol operation |
+| onImportEnded | The adapter reconciles locally, then uploads only a standard operation batch |
 
-递归删除 Folder 时，某些浏览器只发 Folder 删除事件。Adapter MUST 将该事件转换为 `delete_subtree`，不得假设会收到每个 Child 的删除事件。
+When a folder is deleted recursively, some browsers emit only the folder deletion event. The adapter MUST convert that event into `delete_subtree` and must not assume it will receive a deletion event for every child.
 
-## 12. 回环防止
+<a id="colp-section-11-1"></a>
 
-- Adapter 对远端 Operation 应记录 `opId → nativeMutation`。
-- 随后收到对应浏览器事件时，将其标记为 `echo`，不得重新上传为新 Operation。
-- 无法直接关联时，使用短期 Fingerprint：Node ID Map、字段摘要、Parent、Index 和时间窗口。
-- Fingerprint 只能用于回环检测，不得作为长期身份。
+### 11.1 Hosts Without `reorder_children`
 
-<a id="p0-reorder-children-handling"></a>
+A host that has not implemented `reorder_children` rejects it with the non-retryable `422 unsupported_operation` (see `docs/03-sync.md` Section 6.3). An adapter that syncs with such a host does not upload `onChildrenReordered`: it updates its local projection and records a diagnostic, and it does not expand a reorder into a series of `move_node` operations. The authoritative sibling order stays the server `position` and children revision from pull.
 
-#### Know-N P0 reorder_children handling
+<a id="colp-section-11-2"></a>
 
-P0 does **not** upload `onChildrenReordered` as a `reorder_children` Operation. The adapter updates the local projection and records a diagnostic. It does not expand reorder into a series of `move_node` Operations. Authoritative sibling order remains the server `position` / children revision from Pull.
+### 11.2 Sync Scenarios and Problem Codes
 
-Backend still treats `reorder_children` as `unsupported_operation` until a later protocol host implements it. KNS-00 fixtures lock “unselected range / local-only reorder → no operations”.
-
-<a id="p0-scenario-problem-code-map"></a>
-
-#### Know-N P0 scenario to problem-code map
-
-UI and workers key off these existing `09-problem-registry.md` codes (and receipt reasons). They do not parse English `title` / `detail` / exception text. New codes go through the registry; this table does not invent codes.
+UIs and workers key off the codes in `09-problem-registry.md` and receipt reasons; they do not parse the English `title` or `detail` or exception text. New codes go through the registry; this table does not invent codes.
 
 | Scenario | Code |
 |---|---|
@@ -350,8 +338,17 @@ UI and workers key off these existing `09-problem-registry.md` codes (and receip
 | Purged | `resource_purged` |
 | Read-only | `node_read_only` |
 
-Parent-not-ready on the Wire is also a `deferred` receipt reason `dependency_pending` (`03-sync.md` §6). That reason is not a new registry code.
+On the wire, "parent not ready" is also the `deferred` receipt reason `dependency_pending` (`03-sync.md` Section 6); that reason is not a registry code.
 
-`node_ancestry_unresolved` and `invalid_node_constraints` are helper denials in the registry notes; Know-N still uses those spellings for mount-role uniqueness and ancestry preflight so consumers share one code table.
+`node_ancestry_unresolved` and `invalid_node_constraints` are the helper denials described in the registry notes; hosts use those spellings for mount-role uniqueness and ancestry preflight so that every consumer shares one code table.
 
-Local-only (not Wire codes): permission loss, `root_role_materialized` warning, duplicate candidates / match-report, extension `rootStatus` values `permission_required`, `root_missing`, `nested_normalized`, `tree_unavailable`, `corrupt`.
+Local-only signals (not wire codes): permission loss, the `root_role_materialized` warning, duplicate candidates and match reports, and the extension `rootStatus` values `permission_required`, `root_missing`, `nested_normalized`, `tree_unavailable`, and `corrupt`.
+
+<a id="colp-section-12"></a>
+
+## 12. Loop Prevention
+
+- For remote operations, the adapter should record `opId → nativeMutation`.
+- When the corresponding browser event arrives later, it is marked as an `echo` and must not be uploaded again as a new operation.
+- When no direct association is possible, use a short-lived fingerprint: the Node ID map, a field digest, the parent, the index, and a time window.
+- A fingerprint can only be used for loop detection, never as a long-term identity.

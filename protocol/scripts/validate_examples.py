@@ -13,10 +13,12 @@ from typing import Any, Iterable
 
 from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema.exceptions import SchemaError, ValidationError
+from referencing import Registry, Resource
 
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_PATH = ROOT / "schemas" / "collection-protocol.schema.json"
+SCHEMA_V02_PATH = ROOT / "schemas" / "collection-protocol-0.2.schema.json"
 EXAMPLES_DIR = ROOT / "examples"
 EXAMPLE_CONTRACTS = {
     "access-policy.json": "accessPolicy",
@@ -47,7 +49,10 @@ EXAMPLE_CONTRACTS = {
     "sync-snapshot.json": "snapshot",
     "sync-update-operation.json": "operation",
 }
-EXPECTED_EXAMPLES = frozenset(EXAMPLE_CONTRACTS)
+EXAMPLE_CONTRACTS_V02 = {
+    "sync-pull-v02.json": "syncPullV02",
+}
+EXPECTED_EXAMPLES = frozenset(EXAMPLE_CONTRACTS) | frozenset(EXAMPLE_CONTRACTS_V02)
 DEFAULT_PUBLIC_SAFE_EXTENSIONS: frozenset[str] = frozenset()
 REQUIRED_CONTRACT_DEFS = frozenset(
     {
@@ -191,6 +196,23 @@ def validator_for_definition(
             "$defs": schema["$defs"],
             "$ref": f"#/$defs/{definition_name}",
         },
+        format_checker=FormatChecker(),
+    )
+
+
+def validator_for_v02_definition(
+    schema: dict[str, Any], schema_v02: dict[str, Any], definition_name: str
+) -> Draft202012Validator:
+    registry = Registry().with_resources(
+        (document["$id"], Resource.from_contents(document))
+        for document in (schema, schema_v02)
+    )
+    return Draft202012Validator(
+        {
+            "$schema": schema_v02["$schema"],
+            "$ref": f"{schema_v02['$id']}#/$defs/{definition_name}",
+        },
+        registry=registry,
         format_checker=FormatChecker(),
     )
 
@@ -811,6 +833,8 @@ def main() -> int:
     try:
         schema = load_json(SCHEMA_PATH)
         Draft202012Validator.check_schema(schema)
+        schema_v02 = load_json(SCHEMA_V02_PATH)
+        Draft202012Validator.check_schema(schema_v02)
         missing_contract_defs = REQUIRED_CONTRACT_DEFS - set(schema.get("$defs", {}))
         if missing_contract_defs:
             raise ValueError(
@@ -825,6 +849,13 @@ def main() -> int:
     contract_validators = {
         definition_name: validator_for_definition(schema, definition_name)
         for definition_name in set(EXAMPLE_CONTRACTS.values())
+    }
+    example_validators = {
+        name: contract_validators[definition_name]
+        for name, definition_name in EXAMPLE_CONTRACTS.items()
+    } | {
+        name: validator_for_v02_definition(schema, schema_v02, definition_name)
+        for name, definition_name in EXAMPLE_CONTRACTS_V02.items()
     }
     example_paths = sorted(EXAMPLES_DIR.glob("*.json"))
     example_names = {path.name for path in example_paths}
@@ -841,12 +872,12 @@ def main() -> int:
             failures.append(f"{path.name}: cannot read JSON: {error}")
             continue
         examples[path.name] = instance
-        contract_name = EXAMPLE_CONTRACTS.get(path.name)
-        if contract_name is None:
+        example_validator = example_validators.get(path.name)
+        if example_validator is None:
             failures.append(f"{path.name}: example has no explicit contract mapping")
             continue
         structural_errors = sorted(
-            contract_validators[contract_name].iter_errors(instance),
+            example_validator.iter_errors(instance),
             key=lambda error: tuple(str(item) for item in error.absolute_path),
         )
         failures.extend(

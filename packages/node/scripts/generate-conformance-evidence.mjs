@@ -1,94 +1,70 @@
+// Runs the whole Vitest suite once and records which registered requirements
+// have every tagged test passing. The result is bundled with the package and
+// read by `@collection-protocol/node/conformance`.
+//
+//   node scripts/generate-conformance-evidence.mjs            write evidence.json
+//   node scripts/generate-conformance-evidence.mjs --check    fail if it would change
+//   add --coverage to collect coverage during the same run
+import { spawn } from 'node:child_process';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
-import { execFile } from 'node:child_process';
-import { parse } from 'yaml';
 
-import {
-  generateVerifiedEvidence,
-  requirementsDigest,
-  validateEvidenceArtifact,
-  validateRequirementRegistry,
-} from './lib/conformance-evidence.mjs';
-import { evidenceVitestArguments } from './lib/evidence-test-suite.mjs';
-import { readEvidenceReportRegistry } from './lib/evidence-report-registry.mjs';
+import { collectPassingTestIds, createEvidence, readRegistry, registryFiles } from './lib/requirements.mjs';
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const repositoryRoot = resolve(packageRoot, '..', '..');
-const execFileAsync = promisify(execFile);
-
-function assertKnownArguments() {
-  for (const argument of process.argv.slice(2)) {
-    throw new Error(`Unknown evidence generator argument: ${argument}`);
-  }
+const protocolRoot = resolve(packageRoot, '..', '..', 'protocol');
+const evidencePath = resolve(packageRoot, 'src/conformance/generated/evidence.json');
+const options = new Set(process.argv.slice(2));
+for (const option of options) {
+  if (option !== '--check' && option !== '--coverage') throw new Error(`Unknown option: ${option}`);
 }
 
-assertKnownArguments();
-
-const canonicalRegistryPath = resolve(repositoryRoot, 'protocol/requirements.yaml');
-const registryPath = resolve(packageRoot, 'fixtures/protocol/requirements.yaml');
-const packagePath = resolve(packageRoot, 'package.json');
-const outputPath = resolve(packageRoot, 'src/conformance/generated/evidence.json');
-const [canonicalRegistrySource, registrySource, packageSource] = await Promise.all([
-  readFile(canonicalRegistryPath, 'utf8'),
-  readFile(registryPath, 'utf8'),
-  readFile(packagePath, 'utf8'),
-]);
-if (canonicalRegistrySource !== registrySource) {
-  throw new Error('Canonical and package Requirement Registries differ.');
-}
-const registry = parse(registrySource);
-const registryErrors = validateRequirementRegistry(registry);
-if (registryErrors.length > 0) {
-  throw new Error(`Invalid Requirement Registry:\n- ${registryErrors.join('\n- ')}`);
-}
-const packageJson = JSON.parse(packageSource);
-const context = {
-  protocolVersion: String(registry.version),
-  packageVersion: packageJson.version,
-  requirementsDigest: requirementsDigest(registry),
-  requirements: registry.requirements,
-};
-
-const runGit = async (arguments_, cwd) => {
-  const { stdout } = await execFileAsync('git', arguments_, { cwd, encoding: 'utf8' });
-  return stdout;
-};
-const sourceRevision = (await runGit(
-  ['rev-parse', '--verify', 'HEAD^{commit}'],
-  repositoryRoot,
-)).trim();
-const artifact = await generateVerifiedEvidence({
-  registry,
-  reportRegistry: await readEvidenceReportRegistry(packageRoot),
-  context,
-  sourceRevision,
-  repositoryRoot,
-  runGit,
-  runTests: async () => {
-    const temporaryDirectory = await mkdtemp(join(tmpdir(), 'colp-evidence-'));
-    const reportPath = join(temporaryDirectory, 'vitest-report.json');
-    const vitestPath = resolve(packageRoot, 'node_modules', 'vitest', 'vitest.mjs');
-    try {
-      await execFileAsync(process.execPath, [
-        vitestPath,
-        ...evidenceVitestArguments(reportPath),
-      ], { cwd: packageRoot, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
-      return readFile(reportPath, 'utf8');
-    } finally {
-      await rm(temporaryDirectory, { recursive: true, force: true });
-    }
-  },
-});
-
-const errors = validateEvidenceArtifact(artifact, context);
-if (errors.length > 0) {
-  throw new Error(`Invalid conformance evidence:\n- ${errors.join('\n- ')}`);
-}
-
-await writeFile(outputPath, `${JSON.stringify(artifact, null, 2)}\n`, 'utf8');
-console.log(
-  `Generated evidence for ${artifact.passedRequirementIds.length} requirements at ${outputPath}.`,
+const [registry, ...laterRegistries] = await Promise.all(
+  registryFiles.map((name) => readRegistry(protocolRoot, name)),
 );
+const knownTestIds = new Set(
+  [registry, ...laterRegistries].flatMap((item) => item.requirements.flatMap((requirement) => requirement.tests)),
+);
+const packageJson = JSON.parse(await readFile(resolve(packageRoot, 'package.json'), 'utf8'));
+
+const directory = await mkdtemp(join(tmpdir(), 'colp-evidence-'));
+const reportPath = join(directory, 'report.json');
+try {
+  const exitCode = await new Promise((resolveExit, reject) => {
+    spawn(
+      process.execPath,
+      [
+        resolve(packageRoot, 'node_modules/vitest/vitest.mjs'),
+        'run',
+        ...(options.has('--coverage') ? ['--coverage'] : []),
+        '--reporter=default',
+        '--reporter=json',
+        '--outputFile',
+        reportPath,
+      ],
+      { cwd: packageRoot, stdio: 'inherit' },
+    ).on('error', reject).on('exit', resolveExit);
+  });
+  if (exitCode !== 0) throw new Error('The test suite failed; evidence was not generated.');
+  const report = JSON.parse(await readFile(reportPath, 'utf8'));
+  const evidence = createEvidence({
+    registry,
+    packageVersion: packageJson.version,
+    passingTestIds: collectPassingTestIds(report, knownTestIds),
+  });
+  const source = `${JSON.stringify(evidence, null, 2)}\n`;
+
+  if (options.has('--check')) {
+    if ((await readFile(evidencePath, 'utf8')) !== source) {
+      throw new Error('evidence.json is out of date. Run npm run refresh:evidence and commit the result.');
+    }
+    console.log(`Evidence is current: ${evidence.passedRequirementIds.length} requirements verified.`);
+  } else {
+    await writeFile(evidencePath, source, 'utf8');
+    console.log(`Wrote evidence for ${evidence.passedRequirementIds.length} requirements.`);
+  }
+} finally {
+  await rm(directory, { recursive: true, force: true });
+}

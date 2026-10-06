@@ -479,7 +479,7 @@ describe(`PUB-0036 static Manifest profile declaration ${evidence}`, () => {
       'mcp-read',
       'mcp-write',
     ]);
-    expect(typeof bundled.sourceRevision).toBe('string');
+    expect(bundled.schemaVersion).toBe(2);
     expect(Array.isArray(bundled.passedRequirementIds)).toBe(true);
   });
 });

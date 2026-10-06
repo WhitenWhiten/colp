@@ -10,22 +10,12 @@ import {
   type VerifiedDeploymentConformanceEvidence,
 } from './deployment.js';
 
-export interface ConformanceRequirementSelector {
-  readonly marker?: string;
-  readonly section?: string;
-  readonly quote?: string;
-  readonly quoteOrdinal?: number;
-  readonly keywordOrdinal?: number;
-}
-
 export interface ConformanceRequirement {
   readonly id: string;
   readonly level: 'MUST' | 'MUST_NOT' | 'SHOULD' | 'SHOULD_NOT' | 'MAY';
   readonly profile: ProtocolProfile;
-  readonly classification?: 'auto' | 'manual';
   readonly source: string;
   readonly requirement: string;
-  readonly selector: ConformanceRequirementSelector;
   readonly implementation: readonly string[];
   readonly tests: readonly string[];
 }
@@ -51,13 +41,15 @@ export interface DeploymentRuntimeProbes {
   readonly deploymentEvidence?: VerifiedDeploymentConformanceEvidence;
 }
 
+/**
+ * Requirements whose tagged tests all passed in the package's own test suite,
+ * as recorded by `npm run refresh:evidence`.
+ */
 export interface ConformanceEvidenceArtifact {
-  readonly schemaVersion: 1;
+  readonly schemaVersion: 2;
   readonly protocolVersion: string;
   readonly packageVersion: string;
-  readonly sourceRevision: string;
   readonly requirementsDigest: string;
-  readonly reportDigest?: string;
   readonly passedRequirementIds: readonly string[];
 }
 
@@ -112,23 +104,18 @@ export function assertValidEvidenceArtifact(
     'schemaVersion',
     'protocolVersion',
     'packageVersion',
-    'sourceRevision',
     'requirementsDigest',
-    'reportDigest',
     'passedRequirementIds',
   ]);
   const unknownKeys = Object.keys(value).filter((key) => !allowedKeys.has(key));
   if (unknownKeys.length > 0) {
     throw new TypeError(`Unknown conformance evidence fields: ${unknownKeys.join(', ')}`);
   }
-  if (value.schemaVersion !== 1) throw new TypeError('Unsupported evidence schemaVersion.');
+  if (value.schemaVersion !== 2) throw new TypeError('Unsupported evidence schemaVersion.');
   for (const key of ['protocolVersion', 'packageVersion', 'requirementsDigest'] as const) {
     if (value[key] !== metadata[key]) {
       throw new TypeError(`Evidence ${key} does not match this package.`);
     }
-  }
-  if (typeof value.sourceRevision !== 'string' || value.sourceRevision.length === 0) {
-    throw new TypeError('Evidence sourceRevision must be a non-empty string.');
   }
   if (!Array.isArray(value.passedRequirementIds)) {
     throw new TypeError('Evidence passedRequirementIds must be an array.');
@@ -145,20 +132,6 @@ export function assertValidEvidenceArtifact(
     if (requirement.tests.length === 0) {
       throw new TypeError(`Requirement ${id} has no named tests and cannot be verified.`);
     }
-  }
-
-  if (value.passedRequirementIds.length > 0) {
-    if (!/^[0-9a-f]{7,64}$/u.test(value.sourceRevision)) {
-      throw new TypeError('Verified evidence sourceRevision must be hexadecimal.');
-    }
-    if (typeof value.reportDigest !== 'string' || !/^sha256:[0-9a-f]{64}$/u.test(value.reportDigest)) {
-      throw new TypeError('Verified evidence must bind a SHA-256 reportDigest.');
-    }
-  } else if (
-    value.reportDigest !== undefined &&
-    (typeof value.reportDigest !== 'string' || !/^sha256:[0-9a-f]{64}$/u.test(value.reportDigest))
-  ) {
-    throw new TypeError('Evidence reportDigest must be a SHA-256 digest.');
   }
 }
 

@@ -1,10 +1,8 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "protocolVersion": "0.1",
   "packageVersion": "0.0.0-development",
-  "sourceRevision": "d376c6a56976990e1b4ac548d12644f1cc5793dc",
-  "requirementsDigest": "sha256:a69b648e6a2c2d8e38dba91642da2d3b46b3d39228fd02ac293953e53753979b",
-  "reportDigest": "sha256:9ef035773878f82f08cd9388f1893fccd2cbf271139fda466397fc58204058af",
+  "requirementsDigest": "sha256:bded8bcb9dbb0dfae8cc799867a0d44d68f1cd722b0fd23cf0bdcbd610a0be18",
   "passedRequirementIds": [
     "CORE-0001",
     "CORE-0002",

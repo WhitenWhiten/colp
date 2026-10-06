@@ -1,24 +1,24 @@
 # 04. Authorization, Security and Rate Limits
 
-## 1. 安全边界
+<a id="colp-section-1"></a>
 
-协议把身份、权限、公开策略和限流分开：
+## 1. Security Boundaries
 
-- Authentication：请求者是谁。
-- Authorization：请求者能做什么。
-- Publication：哪些数据可对公网投影。
-- Rate Limit：在多长时间内能做多少次。
-- Audit：谁在何时做了什么。
+The protocol keeps identity, permissions, publication policy, and rate limits separate:
 
-“拥有读取权限”不代表“可以把内容公开”；“拥有写入权限”也不代表“可以管理 Key 或 ACL”。
+- Authentication: who the requester is.
+- Authorization: what the requester may do.
+- Publication: which data may be projected to the public internet.
+- Rate limit: how much the requester may do within a period of time.
+- Audit: who did what, and when.
+
+"Having read permission" does not mean "may make the content public"; "having write permission" does not mean "may manage keys or ACLs".
 
 <a id="colp-section-2"></a>
 
 ## 2. Principal
 
-<!-- COLP-REQ SEC-0005 -->
-
-Principal Type：
+Principal types:
 
 - `user`
 - `group`
@@ -28,21 +28,23 @@ Principal Type：
 - `ai_agent`
 - `public`
 
-`public` 是服务器合成的匿名 Principal，不是“所有请求”或“所有已认证 Principal”的通配符。只有请求未通过任何 Credential 建立身份时，身份集合才包含唯一的 `{ "type": "public", "id": "public" }`；实现 MUST NOT 把 `public` 加入已包含 User、Group、OAuth Client、API Key、Service 或 AI Agent 的身份集合。调用方提交的 `public` 身份不得使已认证请求同时按匿名请求求值。
+`public` is an anonymous principal synthesized by the server. It is not a wildcard for "every request" or "every authenticated principal". The identity set contains the single `{ "type": "public", "id": "public" }` only when a request did not establish an identity through any credential; implementations MUST NOT add `public` to an identity set that already contains a user, group, OAuth client, API key, service, or AI agent. A `public` identity submitted by the caller must not make an authenticated request also be evaluated as an anonymous one.
 
-AI Agent 必须同时记录：
+An AI agent must record all of the following:
 
-- 最终用户 Subject。
-- OAuth Client ID 或 API Key ID。
-- MCP 请求上下文（协议版本与 clientInfo）。
-- Agent / Host 名称。
-- 是否由用户确认。
+- The end-user subject.
+- The OAuth client ID or API key ID.
+- The MCP request context (protocol version and clientInfo).
+- The agent or host name.
+- Whether the user confirmed the action.
+
+<a id="colp-section-3"></a>
 
 ## 3. Scope
 
-<!-- COLP-REQ SEC-0001 -->
+Core scopes:
 
-核心 Scope：
+<a id="colp-section-3-1"></a>
 
 ### 3.1 Read
 
@@ -56,6 +58,8 @@ AI Agent 必须同时记录：
 - `feed:read`
 - `audit:read`
 
+<a id="colp-section-3-2"></a>
+
 ### 3.2 Write
 
 - `collections:create`
@@ -67,6 +71,8 @@ AI Agent 必须同时记录：
 - `attachments:write`
 - `relations:write`
 - `release:publish`
+
+<a id="colp-section-3-3"></a>
 
 ### 3.3 Sync
 
@@ -87,68 +93,76 @@ AI Agent 必须同时记录：
 - `rate_limits:write`
 - `server:admin`
 
-Token / Key SHOULD 进一步限制：
+Tokens and keys SHOULD be further restricted by:
 
-- Collection ID Allowlist。
-- Node Subtree。
-- IP / Origin 条件。
-- 最大操作数。
-- 有效时间。
-- 是否允许 Public Exposure。
+- A Collection ID allowlist.
+- A Node subtree.
+- IP or origin conditions.
+- A maximum number of operations.
+- A validity period.
+- Whether public exposure is allowed.
 
-读取 Scope 采用字段投影：`nodes:read` 不隐含 `annotations:read`、`attachments:read`、`relations:read` 或 `source_refs:read`。Snapshot、搜索、MCP Resource 和 Tool 必须分别检查所请求的 Included 数据；默认只返回 Node 核心字段。
+Read scopes are field projections: `nodes:read` does not imply `annotations:read`, `attachments:read`, `relations:read`, or `source_refs:read`. Snapshots, search, MCP resources, and tools must check each kind of included data they return; by default only core Node fields are returned.
+
+<a id="colp-section-4"></a>
 
 ## 4. Role
 
-Role 是 Scope Bundle，不是协议判断的最终依据：
+A role is a bundle of scopes, not the final basis of a protocol decision:
 
-| Role | 默认 Scope |
+| Role | Default scopes |
 |---|---|
 | Reader | collections:read, nodes:read, feed:read |
 | Editor | Reader + collections:write, nodes:write, annotations:write, attachments:write, relations:write |
 | Publisher | Editor + release:publish |
 | Sync Client | sync:bootstrap, sync:pull, sync:push + limited node scopes |
 | Admin | access / keys / rate limits / audit |
-| Owner | 全部 Collection 级 Scope |
+| Owner | Every Collection-level scope |
 
-服务器必须按 Effective Scope 校验，而不是只检查 Role 名称。
+The server must check effective scopes, not just role names.
 
-## 5. API Key
+<a id="colp-section-5"></a>
 
-### 5.1 Key 格式
+## 5. API Keys
 
-建议：
+<a id="colp-section-5-1"></a>
+
+### 5.1 Key Format
+
+Recommended:
 
 ```text
 colp_live_<keyId>_<secret>
 colp_test_<keyId>_<secret>
 ```
 
-- Secret 至少 256 bit 随机熵。
-- `keyId` 可公开，用于查找和审计。
-- Secret 只在创建时显示一次。
-- 服务端只存储 Keyed Digest，不存明文。
-- 日志最多记录前缀和 Key ID，不记录 Secret。
+- The secret has at least 256 bits of random entropy.
+- `keyId` can be public and is used for lookup and audit.
+- The secret is shown only once, at creation.
+- The server stores only a keyed digest, never the plaintext.
+- Logs record at most the prefix and the key ID, never the secret.
 
 <a id="colp-section-5-2"></a>
 
-### 5.2 使用
+### 5.2 Usage
 
 ```http
 Authorization: Bearer colp_live_...
 ```
 
-API Key MUST NOT 放入 Query String。原因包括浏览器历史、Referer、代理日志和截图泄漏。
+An API key MUST NOT be placed in a query string, because of leaks through browser history, `Referer`, proxy logs, and screenshots.
 
-### 5.3 Key 类型
+<a id="colp-section-5-3"></a>
 
-- `read_key`：读取指定 Protected Collection / Feed。
-- `sync_key`：浏览器插件或服务副本同步。
-- `publisher_key`：写 Collection 与 Release。
-- `admin_key`：管理 Access、Key 和 Rate Limit。
-- `one_time_key`：一次性导入、迁移或配对。
+### 5.3 Key Types
 
-每个 Key 必须包含：
+- `read_key`: reads specified protected Collections or Feeds.
+- `sync_key`: browser extension or service replica synchronization.
+- `publisher_key`: writes Collections and Releases.
+- `admin_key`: manages access, keys, and rate limits.
+- `one_time_key`: one-time import, migration, or pairing.
+
+Every key must contain:
 
 ```json
 {
@@ -165,33 +179,35 @@ API Key MUST NOT 放入 Query String。原因包括浏览器历史、Referer、�
 }
 ```
 
-Key List API 永不返回 Secret。
+The key list API never returns secrets.
 
-### 5.4 轮换
+<a id="colp-section-5-4"></a>
 
-- Rotate 创建新 Secret，Key ID 可以保留或生成新 ID。
-- 允许配置短暂 Overlap Window。
-- 旧 Secret 到期后立即拒绝。
-- 轮换和撤销产生高优先级 Audit Event。
+### 5.4 Rotation
+
+- Rotation creates a new secret; the key ID may stay the same or a new ID may be generated.
+- A short overlap window may be configured.
+- The old secret is rejected as soon as it expires.
+- Rotation and revocation produce high-priority audit events.
 
 <a id="colp-section-6"></a>
 
 ## 6. OAuth 2.1
 
-远程 MCP 和第三方应用 SHOULD 使用 OAuth 2.1 Profile：
+Remote MCP and third-party applications SHOULD use the OAuth 2.1 profile:
 
-- MCP Server 作为 Resource Server。
-- 必须提供 RFC 9728 Protected Resource Metadata。
-- 客户端必须使用 Authorization Server Metadata 或 OIDC Discovery。
-- Authorization 和 Token 请求必须使用 RFC 8707 `resource` 参数。
-- Access Token 必须绑定目标 Collection Protocol Resource Audience。
-- 必须使用 Authorization Header，禁止 Query Token。
-- 公共客户端必须使用 PKCE S256。
-- Access Token 应短期有效，Refresh Token 应轮换。
-- 服务器禁止 Token Passthrough。
-- Key / ACL / Public Exposure / Purge 等高风险远程管理 SHOULD 使用 DPoP（RFC 9449）或 mTLS Sender-constrained Access Token，降低 Bearer Token 重放风险。
+- The MCP server acts as a resource server.
+- RFC 9728 protected resource metadata must be provided.
+- Clients must use authorization server metadata or OIDC discovery.
+- Authorization and token requests must use the RFC 8707 `resource` parameter.
+- Access tokens must be bound to the target Collection Protocol resource audience.
+- The `Authorization` header must be used; query tokens are forbidden.
+- Public clients must use PKCE S256.
+- Access tokens should be short-lived, and refresh tokens should be rotated.
+- Token passthrough is forbidden on the server.
+- High-risk remote management such as keys, ACLs, public exposure, and purge SHOULD use DPoP (RFC 9449) or mTLS sender-constrained access tokens, to reduce the risk of bearer token replay.
 
-示例 Protected Resource Metadata：
+Example protected resource metadata:
 
 ```json
 {
@@ -207,7 +223,7 @@ Key List API 永不返回 Secret。
 }
 ```
 
-Scope 不足：
+Insufficient scope:
 
 ```http
 HTTP/1.1 403 Forbidden
@@ -216,17 +232,15 @@ WWW-Authenticate: Bearer error="insufficient_scope",
   resource_metadata="https://alice.example/.well-known/oauth-protected-resource/collections/-/mcp"
 ```
 
-### 6.1 OAuth client issuer 绑定（MCP 2026-07-28）
+<a id="colp-section-6-1"></a>
 
-<!-- COLP-REQ SEC-0019 -->
+### 6.1 OAuth Client Issuer Binding (MCP 2026-07-28)
 
-MCP OAuth 客户端必须把授权响应中的 `iss`（RFC 9207）与发起授权时记录的 Authorization Server Issuer 精确比对；缺失或不一致时必须中止 code 交换，不携带客户端凭据继续。动态客户端注册（RFC 7591）必须声明 `application_type`。客户端凭据必须按 issuer 隔离：同一 client_id / client_secret 不得跨 Authorization Server 复用；issuer 变更时客户端必须重新注册。资源服务器仍逐请求验证 Access Token，issuer 绑定不替代 Token 校验。
+An MCP OAuth client must compare the `iss` in the authorization response (RFC 9207) exactly with the authorization server issuer it recorded when it started the authorization; when it is missing or different, the client must abort the code exchange and must not continue with client credentials. Dynamic client registration (RFC 7591) must declare `application_type`. Client credentials must be isolated per issuer: the same client_id / client_secret must not be reused across authorization servers, and when the issuer changes the client must register again. The resource server still validates the access token on every request; issuer binding does not replace token validation.
 
 <a id="colp-section-7"></a>
 
 ## 7. Access Policy
-
-<!-- COLP-REQ SEC-0002 -->
 
 ```json
 {
@@ -252,60 +266,60 @@ MCP OAuth 客户端必须把授权响应中的 `iss`（RFC 9207）与发起授�
 }
 ```
 
-规则：
+Rules:
 
-- Explicit Deny 优先于 Allow。
-- 所有 Policy 层都强制继承：服务器必须依次求值 Server Default、Collection、全部祖先 Node 与对象 Policy。`AccessPolicy` 和 `AccessPolicyPatch` 不提供 `inherit` 布尔值或任何跳过祖先的开关。
-- Node Policy 只能收紧父 Collection / Node Policy，不能恢复任何上层已移除的 Scope。
-- ACL 写入必须使用 `If-Match`。
-- ACL 变化不得使用一般 Node Write Scope。
-- 将 `private` 或 `protected` 改为 `public` 属于高风险操作。
-- 从公开状态收紧为 `protected` / `private` 或删除时，服务器必须清理自己控制的 CDN / Shared Cache、撤销当前可变 URL 的发布索引，并停止签发新的公共响应。规范无法召回已被第三方下载的数据，确认界面必须明确说明公开可能不可逆。
+- An explicit deny takes precedence over an allow.
+- Inheritance is mandatory for every policy layer: the server must evaluate the server default, the Collection, every ancestor Node, and the object policy in turn. `AccessPolicy` and `AccessPolicyPatch` provide no `inherit` boolean or any other switch to skip ancestors.
+- A Node policy can only tighten the parent Collection or Node policy and cannot restore a scope that any upper layer removed.
+- ACL writes must use `If-Match`.
+- ACL changes must not use the general Node write scope.
+- Changing `private` or `protected` to `public` is a high-risk operation.
+- When tightening from public to `protected` or `private`, or deleting, the server must purge the CDNs and shared caches it controls, withdraw the publication index of the current mutable URL, and stop issuing new public responses. The protocol cannot recall data that third parties already downloaded, and the confirmation UI must state clearly that publication may be irreversible.
 
-Effective Policy 按以下顺序求值：
+The effective policy is evaluated in this order:
 
-1. 构造请求身份集合：已认证请求包含最终用户、Group、OAuth Client、API Key / Service 等已验证身份，但不包含 `public`；仅当不存在任何已认证身份时，使用唯一的合成 `public` 身份。`public` ACL Entry 只匹配匿名请求，不是 Principal 通配符。
-2. 从 Credential / Grant Scope 开始，固定依次处理服务器默认策略、Collection、全部祖先 Node 与对象策略；实现 MUST NOT 省略、重排或短路这条链。
-3. 每一层把当前 Scope 与该层匹配的 Allow Scope 取交集，再移除全部匹配 Deny。`public` / `unlisted` Visibility 是独立于 Principal ACL 的公开读取授权来源，可供匿名或已认证请求使用；`public` ACL Entry 仍只匹配匿名请求。
-4. 子层只能继续取交集，不能恢复父层已移除的 Scope。任意层 Explicit Deny 都优先。
-5. 默认决策为 Deny。资源是否用 `403` 还是隐藏为 `404` 由 Endpoint 的 Concealment Policy 决定，但同一资源类型必须一致，且不得通过响应差异泄漏 private / unlisted 资源存在性。
+1. Build the request identity set: an authenticated request contains the end user, groups, OAuth client, API key or service, and other verified identities, but never `public`; only when there is no authenticated identity at all is the single synthesized `public` identity used. A `public` ACL entry matches only anonymous requests and is not a principal wildcard.
+2. Start from the credential or grant scopes and process the server default policy, the Collection, every ancestor Node, and the object policy in this fixed order; implementations MUST NOT skip, reorder, or short-circuit this chain.
+3. At each layer, intersect the current scopes with the allow scopes that match at that layer, then remove every matching deny. `public` and `unlisted` visibility is a source of public read authorization that is independent of principal ACLs and can be used by anonymous or authenticated requests; a `public` ACL entry still matches only anonymous requests.
+4. Lower layers can only keep intersecting and cannot restore a scope removed by a parent layer. An explicit deny at any layer wins.
+5. The default decision is deny. Whether a resource answers `403` or hides itself as `404` is decided by the endpoint's concealment policy, but it must be consistent for the same resource type, and response differences must not leak the existence of private or unlisted resources.
+
+<a id="colp-section-8"></a>
 
 ## 8. Rate Limit
 
-<!-- COLP-REQ SEC-0004 -->
-
 <a id="colp-section-8-1"></a>
 
-### 8.1 Bucket
+### 8.1 Buckets
 
-服务器 SHOULD 至少区分：
+A server SHOULD distinguish at least:
 
-- Anonymous Feed Read。
-- Authenticated Read。
-- Sync Pull。
-- Sync Push。
-- General Write。
-- MCP Tool Call。
-- Admin / Key Management。
+- Anonymous feed reads.
+- Authenticated reads.
+- Sync pulls.
+- Sync pushes.
+- General writes.
+- MCP tool calls.
+- Administration and key management.
 
-Bucket Key 可包含 Principal、IP、Collection、Endpoint Class。
+A bucket key may include the principal, IP, Collection, and endpoint class.
 
-实现 MUST 同时具备 Subject / Credential、IP 和实例级上限，不能只选择其中一个维度。Batch、Sync Push 和 MCP Tool 按展开后的 Operation Cost 与受影响对象数计费；拆成并行小请求不得降低总 Cost。SSE / Subscription 另行限制连接数、订阅资源数、队列字节、事件速率、Idle Timeout 和最大生命周期。Grant `maxWrites` 与限流计数必须原子扣减。
+Implementations MUST have subject or credential, IP, and instance-level limits at the same time; choosing only one of these dimensions is not enough. Batches, Sync pushes, and MCP tools are charged by the operation cost after expansion and the number of affected objects; splitting work into parallel small requests must not lower the total cost. SSE and subscriptions are separately limited in number of connections, number of subscribed resources, queued bytes, event rate, idle timeout, and maximum lifetime. A grant's `maxWrites` and the rate-limit counter must be decremented atomically.
 
 <a id="colp-section-8-2"></a>
 
-### 8.2 响应头
+### 8.2 Response Headers
 
-成功和限流响应 SHOULD 使用 RFC 9651：
+Successful and rate-limited responses SHOULD use the RFC 9651 structured fields:
 
 ```http
 RateLimit: "feed:anonymous";r=83;t=27
 RateLimit-Policy: "feed:anonymous";q=120;w=60
 ```
 
-旧 `RateLimit-Limit` / `RateLimit-Remaining` / `RateLimit-Reset` 只能作为显式兼容扩展，不属于 0.1 核心合同。
+The legacy `RateLimit-Limit`, `RateLimit-Remaining`, and `RateLimit-Reset` headers may only be used as an explicit compatibility extension and are not part of the 0.1 core contract.
 
-限流时：
+When rate limited:
 
 ```http
 HTTP/1.1 429 Too Many Requests
@@ -324,7 +338,9 @@ Content-Type: application/problem+json
 }
 ```
 
-### 8.3 配置模型
+<a id="colp-section-8-3"></a>
+
+### 8.3 Configuration Model
 
 ```json
 {
@@ -343,33 +359,35 @@ Content-Type: application/problem+json
 }
 ```
 
-### 8.4 安全下限
+<a id="colp-section-8-4"></a>
 
-远程管理 API 不得允许把管理和认证端点设为无限制。实现必须提供硬编码或部署级 Minimum Safety Policy，应用级配置不能降低该下限。
+### 8.4 Safety Floor
+
+The remote management API must not allow management and authentication endpoints to be configured as unlimited. Implementations must provide a hard-coded or deployment-level minimum safety policy that application-level configuration cannot lower.
 
 <a id="colp-section-9"></a>
 
-## 9. 请求安全
+## 9. Request Security
 
-- 全部远程端点 MUST 使用 HTTPS。
-- Streamable HTTP MCP MUST 校验 Origin，防止 DNS Rebinding。
-- CORS 默认关闭，按明确 Origin Allowlist 开启。
-- 服务器必须限制请求体、批次、解析成员数、图遍历 Node 数、深度、URL 长度和附件大小；远端请求不能放宽部署 Hard Limit。
-- JSON Parser 必须在构造业务对象前执行确定的嵌套深度与成员/数组项预算，防止原型污染与超深嵌套；捕获运行时调用栈溢出不能替代显式预算。
-- I-JSON Parser 必须在构造业务对象前拒绝重复成员、超出安全范围的协议整数、非有限数字和 `__proto__` / `constructor` / `prototype` 等原型污染键；先用普通 `JSON.parse` 再检查重复键不符合要求。
-- URL 抓取功能必须防止 SSRF。每个 Redirect Hop 都要重新解析和校验 DNS / IP，拒绝 Loopback、Link-local、Private、ULA、CGNAT、Multicast、Unspecified 和云 Metadata 地址；连接到已验证 IP，同时保留正确 TLS SNI。
-- 抓取器禁止 URL Userinfo，限制 Redirect 次数、响应字节、解压比、总时长和并发。Authorization、Cookie 和 Collection Protocol 凭据不得转发到抓取目标或跨 Origin Redirect。
-- 推荐通过隔离的 Egress Proxy 执行抓取；只检查第一次 DNS 解析不符合 SSRF 防护要求。
-- HTML / Markdown 输出必须按目标上下文 Sanitization。
-- Attachment 下载应进行 MIME Sniffing 防护、Content-Disposition 和大小限制。
-- 日志必须 Redact Authorization、Cookie、Secret、Sync Session ID 和私人 Note。
-- Bookmark、Attachment、Approval 等 URL 的 Query / Fragment 视为潜在 Secret。日志和 Problem Details 默认只保留 Scheme、Host 与 Path Hash，不回显完整 URL。
+- Every remote endpoint MUST use HTTPS.
+- Streamable HTTP MCP MUST validate the origin, to prevent DNS rebinding.
+- CORS is off by default and is enabled by an explicit origin allowlist.
+- The server must limit the request body, batches, number of parsed members, number of Nodes visited in graph traversal, depth, URL length, and attachment size; remote requests cannot relax the deployment's hard limits.
+- The JSON parser must enforce a deterministic nesting depth and member and array-item budgets before constructing business objects, to prevent prototype pollution and excessively deep nesting; catching a runtime call stack overflow cannot replace an explicit budget.
+- The I-JSON parser must reject duplicate members, protocol integers outside the safe range, non-finite numbers, and prototype pollution keys such as `__proto__`, `constructor`, and `prototype` before constructing business objects; running an ordinary `JSON.parse` first and checking for duplicate keys afterwards does not satisfy this requirement.
+- URL fetching must prevent SSRF. Every redirect hop must re-resolve and re-check DNS and IP, rejecting loopback, link-local, private, ULA, CGNAT, multicast, unspecified, and cloud metadata addresses; connect to the verified IP while keeping the correct TLS SNI.
+- Fetchers forbid URL userinfo and limit the number of redirects, response bytes, decompression ratio, total duration, and concurrency. `Authorization`, cookies, and Collection Protocol credentials must not be forwarded to the fetch target or across origins on redirects.
+- Fetching through an isolated egress proxy is recommended; checking only the first DNS resolution does not satisfy SSRF protection.
+- HTML and Markdown output must be sanitized for its target context.
+- Attachment downloads should be protected against MIME sniffing and use `Content-Disposition` and size limits.
+- Logs must redact `Authorization`, cookies, secrets, Sync session IDs, and private notes.
+- The query and fragment of bookmark, attachment, approval, and similar URLs are treated as potential secrets. Logs and Problem Details keep only the scheme, host, and a hash of the path by default, and do not echo the full URL.
 
 <a id="colp-section-10"></a>
 
 ## 10. Content Integrity
 
-公开 Snapshot 和 Feed SHOULD 提供：
+Public Snapshots and Feeds SHOULD provide:
 
 ```http
 Content-Digest: sha-256=:...:
@@ -377,26 +395,28 @@ Signature-Input: sig1=("@method" "@target-uri" "content-digest" "content-type");
 Signature: sig1=:...:
 ```
 
-- 使用 RFC 9530 Content-Digest。
-- 使用 RFC 9421 HTTP Message Signatures。
-- 推荐 Ed25519。
-- Public Key 通过 JWKS 或 Manifest 声明。
-- Key Rotation 必须保留足够时间的旧公钥用于验证历史 Release。
-- 可变资源的签名输入 SHOULD 覆盖 `@status`、`created`、`expires`、`etag` 和协议版本，客户端必须限制最大陈旧期。历史 Release 使用带 Release ID / Revision 的不可变 URI。
+- Use RFC 9530 Content-Digest.
+- Use RFC 9421 HTTP Message Signatures.
+- Ed25519 is recommended.
+- Public keys are declared through JWKS or the Manifest.
+- Key rotation must keep old public keys long enough to verify historical Releases.
+- The signature input of a mutable resource SHOULD cover `@status`, `created`, `expires`, `etag`, and the protocol version, and clients must limit the maximum staleness. Historical Releases use immutable URIs that include the release ID or revision.
 
-签名证明内容来自某个服务器，不自动证明 Bookmark 指向的外部网页真实、安全或未变化。
+A signature proves that the content came from a particular server; it does not automatically prove that the external page a bookmark points to is authentic, safe, or unchanged.
+
+<a id="colp-section-11"></a>
 
 ## 11. Audit Log
 
-高价值操作必须审计：
+High-value operations must be audited:
 
-- 登录、授权和 Scope Upgrade。
-- Key 创建、显示、轮换、撤销。
-- ACL 与公开性变化。
-- Rate Limit 变化。
-- Collection 删除、Restore、Release。
-- 大批量 Sync、冲突解决。
-- MCP 高风险工具调用。
+- Sign-in, authorization, and scope upgrades.
+- Key creation, display, rotation, and revocation.
+- ACL and publication changes.
+- Rate-limit changes.
+- Collection deletion, restore, and release.
+- Large sync batches and conflict resolution.
+- High-risk MCP tool calls.
 
 ```json
 {
@@ -423,36 +443,40 @@ Signature: sig1=:...:
 }
 ```
 
-Audit Log 不应记录 Bookmark 私人正文、Token 或完整 Key。
+The audit log should not record private bookmark bodies, tokens, or complete keys.
 
-## 12. 默认安全策略
+<a id="colp-section-12"></a>
 
-新服务器推荐默认值：
+## 12. Default Security Policy
 
-- 新 Collection：`private`。
-- 新 Annotation：`private`。
-- 新 API Key：90 天有效、限定 Collection、最小 Scope。
-- 匿名 Directory：60 秒最小轮询。
-- MCP 写工具：OAuth 必需。
-- Public Exposure、Delete、Key、ACL、Rate Limit：二阶段确认。
-- Feed：默认 `release` 而不是 `live`。
-- Public Snapshot：不包含 SourceRef、私人 Annotation、抓取正文和本地附件。
-- 未知 Extension：权威 / Sync 存储保留，公共、Feed 和 Assistant 投影默认排除；只有显式 Allowlist 且具有发布 Schema 的 Namespace 可公开。
+Recommended defaults for a new server:
+
+- New Collection: `private`.
+- New Annotation: `private`.
+- New API key: valid for 90 days, limited to specific Collections, minimal scopes.
+- Anonymous directory: a minimum polling interval of 60 seconds.
+- MCP write tools: OAuth required.
+- Public exposure, delete, keys, ACLs, rate limits: two-phase confirmation.
+- Feed: `release` by default rather than `live`.
+- Public Snapshot: no source references, private annotations, captured page bodies, or local attachments.
+- Unknown extensions: kept in authoritative and Sync storage and excluded from public, Feed, and assistant projections by default; only namespaces that are explicitly allowlisted and have a publication schema may be published.
+
+<a id="colp-section-13"></a>
 
 ## 13. Threat Matrix
 
-| 威胁 | 主要防护 |
+| Threat | Main mitigations |
 |---|---|
-| API Key 泄漏 | Header 传输、只显示一次、Digest 存储、Scope / Collection / Expiry 限制、轮换 |
-| Token 被错误服务接收 | RFC 8707 Resource、Audience Validation、禁止 Token Passthrough |
-| DNS Rebinding 到本地 MCP | Origin Validation、本地只绑定 127.0.0.1、认证 |
-| SSRF 抓取内网 URL | Scheme Allowlist、DNS / IP 校验、禁止 Metadata 与私网、响应大小限制 |
-| Prompt Injection 触发管理操作 | 外部内容视为数据、Tool Scope、Change Plan、Out-of-band Approval |
-| AI 读取明文 Key | MCP Result 不返回 Secret，只提供 Reveal URI |
-| 公开 Collection 意外泄漏私人 Note | 独立 Visibility、Public Projection Allowlist、Release Preview |
-| 并发覆盖 | ETag、If-Match、Base Revision、Conflict |
-| 旧副本复活已删除节点 | Tombstone、Delete Dominates、显式 Restore |
-| 轮询或 Tool 滥用 | 独立 Bucket、429、Retry-After、Cost Unit、并发限制 |
-| 审计日志泄密 | Redaction、最小 Metadata、访问 Scope、保留策略 |
-| 恶意扩展字段 | Namespace、Schema / Size Limit、输出 Sanitization、未知字段不执行 |
-| 大树 / 深层 JSON DoS | Body、Depth、Node、Batch、Pagination 与执行时间限制 |
+| API key leak | Header transport, shown only once, digest storage, scope / Collection / expiry limits, rotation |
+| Token accepted by the wrong service | RFC 8707 resource, audience validation, no token passthrough |
+| DNS rebinding against a local MCP server | Origin validation, binding local servers only to 127.0.0.1, authentication |
+| SSRF fetching internal URLs | Scheme allowlist, DNS / IP checks, blocking metadata and private networks, response size limits |
+| Prompt injection triggering management operations | Treating external content as data, tool scopes, change plans, out-of-band approval |
+| AI reading plaintext keys | MCP results never return secrets; only a reveal URI is provided |
+| A public Collection accidentally leaking private notes | Independent visibility, public projection allowlist, release preview |
+| Concurrent overwrites | ETag, If-Match, base revision, conflicts |
+| Old replicas resurrecting deleted nodes | Tombstones, delete dominates, explicit restore |
+| Polling or tool abuse | Separate buckets, 429, Retry-After, cost units, concurrency limits |
+| Secrets leaking through audit logs | Redaction, minimal metadata, access scopes, retention policy |
+| Malicious extension fields | Namespaces, schema and size limits, output sanitization, unknown fields never executed |
+| DoS through large trees or deep JSON | Body, depth, Node, batch, pagination, and execution time limits |

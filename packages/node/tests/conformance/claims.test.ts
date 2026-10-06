@@ -37,7 +37,6 @@ const syntheticRequirements: readonly ConformanceRequirement[] = profiles.map((p
   profile,
   source: 'test',
   requirement: `${profile} requirement`,
-  selector: { marker: `TEST-${profile}` },
   implementation: ['test'],
   tests: [`test.${profile}`],
 }));
@@ -72,10 +71,8 @@ const allProbes: DeploymentRuntimeProbes = {
 
 function evidence(passedRequirementIds = syntheticRequirements.map((item) => item.id)) {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     ...metadata,
-    sourceRevision: '0123456789abcdef',
-    reportDigest: `sha256:${'2'.repeat(64)}`,
     passedRequirementIds,
   } as const satisfies ConformanceEvidenceArtifact;
 }
@@ -243,21 +240,14 @@ describe('evidence validation', () => {
     ).toThrow(/Unknown conformance evidence fields/u);
     expect(() =>
       assertValidEvidenceArtifact(
-        { ...evidence(), schemaVersion: 2 },
+        { ...evidence(), schemaVersion: 1 },
         metadata,
         syntheticRequirements,
       ),
     ).toThrow(/schemaVersion/u);
   });
 
-  it('validates the source revision and passed ID array types', () => {
-    expect(() =>
-      assertValidEvidenceArtifact(
-        { ...evidence(), sourceRevision: '' },
-        metadata,
-        syntheticRequirements,
-      ),
-    ).toThrow(/sourceRevision must be a non-empty string/u);
+  it('validates the passed ID array types', () => {
     expect(() =>
       assertValidEvidenceArtifact(
         { ...evidence(), passedRequirementIds: 'TEST-core' },
@@ -274,35 +264,14 @@ describe('evidence validation', () => {
     ).toThrow(/must be strings/u);
   });
 
-  it('requires verified evidence to bind a hexadecimal revision and report digest', () => {
+  it('rejects fields outside the evidence format', () => {
     expect(() =>
       assertValidEvidenceArtifact(
-        { ...evidence(['TEST-core']), sourceRevision: 'working-tree' },
+        { ...evidence(['TEST-core']), sourceRevision: '0123456789abcdef' },
         metadata,
         syntheticRequirements,
       ),
-    ).toThrow(/sourceRevision must be hexadecimal/u);
-    expect(() =>
-      assertValidEvidenceArtifact(
-        { ...evidence(['TEST-core']), reportDigest: undefined },
-        metadata,
-        syntheticRequirements,
-      ),
-    ).toThrow(/bind a SHA-256 reportDigest/u);
-  });
-
-  it('rejects malformed optional report digests on empty evidence', () => {
-    expect(() =>
-      assertValidEvidenceArtifact(
-        {
-          ...evidence([]),
-          sourceRevision: 'unverified',
-          reportDigest: 'not-a-digest',
-        },
-        metadata,
-        syntheticRequirements,
-      ),
-    ).toThrow(/reportDigest must be a SHA-256 digest/u);
+    ).toThrow(/Unknown conformance evidence fields: sourceRevision/u);
   });
 
   it('rejects malformed runtime probe containers', () => {

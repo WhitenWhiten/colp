@@ -1,41 +1,43 @@
 # 10. Implementation Contract and Node Package Guide
 
-## 1. 实现依据
+<a id="colp-section-1"></a>
 
-实现者按以下顺序读取规范：
+## 1. Implementation Basis
 
-1. `docs/00-practical-profile.md`：Profile 依赖与首个实现范围。
-2. `schemas/collection-protocol.schema.json`：所有核心 Wire DTO 的机器合同。
-3. 对应分主题文档：HTTP 行为、同步算法、安全或 MCP 适配规则。
-4. `examples/*.json` 与 `scripts/validate_examples.py`：正例、语义校验和负例。
+Implementers read the specification in this order:
 
-若说明文字与 Schema 不一致，Draft 阶段必须把不一致作为规范 Bug 修复，不能由实现者任选其一。Profile Conformance 同时要求结构 Schema、语义规则和 HTTP 行为通过。
+1. `docs/00-practical-profile.md`: profile dependencies and the scope of a first implementation.
+2. `schemas/collection-protocol.schema.json`: the machine contract for every core wire DTO.
+3. The topic documents: HTTP behavior, the sync algorithm, and security or MCP adapter rules.
+4. `examples/*.json` and `scripts/validate_examples.py`: positive examples, semantic checks, and negative examples.
 
-Schema 根部的 `anyOf` 只覆盖可独立识别的资源与响应表示。请求、Query 和 Merge Patch 必须按本表指定的 `$defs` 名称编译 Validator；不得用根 Schema 代替端点级校验，否则不完整资源可能被误当成另一个 DTO。
+If the prose and the schema disagree, the draft must fix the disagreement as a specification bug; implementers cannot pick one side. Profile conformance requires the structural schema, the semantic rules, and the HTTP behavior to pass together.
+
+The `anyOf` at the schema root covers only resource and response representations that can be identified on their own. Requests, queries, and merge patches must compile validators from the `$defs` names given in the table below; the root schema must not replace endpoint-level validation, or an incomplete resource could be mistaken for another DTO.
 
 <a id="colp-section-2"></a>
 
-## 2. 0.1 推荐交付边界
+## 2. Recommended 0.1 Delivery Order
 
-首个服务和 Node 包 SHOULD 按顺序交付：
+The first service and Node package SHOULD deliver in this order:
 
 1. `core + publication`
 2. `publisher`
-3. `feed`，先实现 `release` 模式
+3. `feed`, implementing `release` mode first
 4. `sync`
 5. `mcp-read` / `mcp-write`
 
-Sync、MCP、OAuth、管理 API 不阻塞第一阶段，但包可以提前导出它们的类型和 Schema。不得在运行时声明尚未通过测试的 Profile。
+Sync, MCP, OAuth, and the administration API do not block the first phase, but a package can export their types and schemas early. A runtime must not declare a profile that has not passed its tests.
 
-Profile 依赖用于组合数据模型和 Wire / Endpoint 合同，不会自动启用依赖章节中的所有部署角色。部署一致性计划应把 Profile 固有 HTTP / Transport 合同与条件角色分开：普通权威写入与可选的 Managed Bookmark 写入边界是不同角色；Publisher 和 Sync 因其通用 Node 变更面可能遇到 Managed Nodes，其部署一致性范围同时包含两者，Sync 还要求未知 Extension 存储；AI 内容写入、本地 Profile ID Store、服务端 Profile ID HMAC 仅在部署实际启用相应角色时要求。未声明 Publisher 或 Sync、且不接受或存储 `managed-bookmarks` 的权威写入部署，不得为通过 Managed Bookmark 测试而伪造该角色。纯 `core + publication` 只读部署不得被迫实现这些角色。
+Profile dependencies combine the data model and the wire / endpoint contracts; they do not automatically enable every deployment role in the dependent sections. A deployment conformance plan should separate a profile's inherent HTTP / transport contract from its conditional roles. Ordinary authoritative writes and the optional managed bookmark write boundary are different roles. Publisher and Sync can meet managed Nodes through their generic Node mutation surface, so their deployment conformance scope includes both, and Sync also requires unknown extension storage. AI content writes, a local profile ID store, and a server-side profile ID HMAC are required only when a deployment actually enables the corresponding role. An authoritative write deployment that declares neither Publisher nor Sync, and does not accept or store `managed-bookmarks`, must not fake that role to pass the managed bookmark tests. A read-only `core + publication` deployment must not be forced to implement these roles.
 
-## 3. HTTP 合同索引
+<a id="colp-section-3"></a>
 
-<!-- COLP-REQ PUB-0010 -->
+## 3. HTTP Contract Index
 
-| 能力 | Endpoint Key | Request `$defs` | Response `$defs` |
+| Capability | Endpoint key | Request `$defs` | Response `$defs` |
 |---|---|---|---|
-| Manifest | well-known 固定位置 | — | `manifest` |
+| Manifest | Fixed well-known location | — | `manifest` |
 | Directory | `directory` | `directoryQuery` | `collectionDirectory` |
 | Collection Metadata | `collection` | — | `collectionMetadata` |
 | Snapshot | `snapshot` | `snapshotQuery` | `snapshot` |
@@ -46,7 +48,7 @@ Profile 依赖用于组合数据模型和 Wire / Endpoint 合同，不会自动�
 | Patch Node | `node` PATCH | `nodeMergePatch` | `node` |
 | Move Node | `nodeMove` | `nodeMoveRequest` | `nodeMoveResult` |
 | Delete Node / Subtree | `node` DELETE | `nodeDeleteQuery` | `deleteResult` |
-| Delete Other Resource | 对应 Item Endpoint | — | `deleteResult` |
+| Delete Other Resource | The corresponding item endpoint | — | `deleteResult` |
 | Create Annotation | `annotations` | `annotationCreate` | `annotation` |
 | Patch Annotation | `annotation` PATCH | `annotationMergePatch` | `annotation` |
 | Create Attachment | `attachments` | `attachmentCreate` | `attachment` |
@@ -63,100 +65,118 @@ Profile 依赖用于组合数据模型和 Wire / Endpoint 合同，不会自动�
 | Admin Key Rotate / Revoke | `adminKeyRotate` / `adminKey` | `apiKeyRotateRequest` / — | `apiKeyRotateResult` / `apiKeyRevokeResult` |
 | Admin Rate Limit | `adminRateLimits` | `cursorPageQuery` / `rateLimitPolicyUpdateRequest` | `rateLimitDirectory` / `rateLimitPolicy` |
 | Admin Audit | `adminAudit` | `auditQuery` | `auditDirectory` |
-| Error | 任意 | — | `problem` |
+| Error | Any | — | `problem` |
 
-写入必须把 HTTP Header 合同与 Body DTO 一起实现：`If-Match`、`Idempotency-Key`、`Location`、`ETag` 和状态码都不是可选的 SDK 细节。
+Writes must implement the HTTP header contract together with the body DTO: `If-Match`, `Idempotency-Key`, `Location`, `ETag`, and status codes are not optional SDK details.
 
-## 4. Sync 合同索引
+<a id="colp-section-4"></a>
 
-| 阶段 | Request `$defs` | Response `$defs` |
+## 4. Sync Contract Index
+
+| Phase | Request `$defs` | Response `$defs` |
 |---|---|---|
 | Session | `syncSessionRequest` | `syncSessionResult` |
-| Snapshot | `syncSnapshotQuery` | `snapshot`，`mode=sync` |
+| Snapshot | `syncSnapshotQuery` | `snapshot`, `mode=sync` |
 | Push | `syncPush` | `syncPushResult` |
 | Pull | `syncPullQuery` | `syncPull` |
 | Ack | `syncAckRequest` | `syncAckResult` |
 | Conflict Resolve | `conflictResolutionRequest` | `conflictResolutionResult` |
 | Conversion Preview | Adapter-specific input | `conversionPreview` |
 
-浏览器 Replica 必须提供 `replica.binding`，明确 `whole-profile` 或 `mounted-folder` 边界。没有 Binding、Generation 或持久化 Sidecar 时不得启用双向 Sync。
+A browser replica must provide `replica.binding`, stating an explicit `whole-profile` or `mounted-folder` boundary. Two-way Sync must not be enabled without a binding, a generation, or a persistent sidecar.
 
 <a id="colp-section-5"></a>
 
-## 5. 安全与 MCP 合同索引
+## 5. Security and MCP Contract Index
 
-- Access：`accessPolicy`、`accessPolicyPatch`
-- API Key：`apiKeyMetadata`、`apiKeyCreateRequest`、`apiKeyCreateResult`、`apiKeyRotateRequest`、`apiKeyRotateResult`、`apiKeyDirectory`
-- Rate Limit：`rateLimitPolicy`、`rateLimitPolicyPatch`、`rateLimitDirectory`
-- Audit：`auditEvent`、`auditDirectory`
-- 高风险计划：`changePlanRequest`、`changePlan`、`changeCommitRequest`、`changeCommitResult`
-- MCP Tool Discovery：`mcpToolsList`
-- MCP 请求上下文：每请求 `_meta.io.modelcontextprotocol/protocolVersion`、`clientCapabilities` 与 clientInfo；结果 `_meta` 携带 serverInfo。
-- MCP 发现：`server/discover` 返回 `supportedVersions` 与 `capabilities`，结果声明 `resultType`。
-- MCP 结果与缓存：结果声明 `resultType: complete | input_required`；可缓存 list / read 结果携带 `ttlMs` 与 `cacheScope: public | private`。
-- MCP 订阅：`subscriptions/listen` 长连接，`notifications/subscriptions/acknowledged` 携带 subscription ID。
+- Access: `accessPolicy`, `accessPolicyPatch`
+- API keys: `apiKeyMetadata`, `apiKeyCreateRequest`, `apiKeyCreateResult`, `apiKeyRotateRequest`, `apiKeyRotateResult`, `apiKeyDirectory`
+- Rate limits: `rateLimitPolicy`, `rateLimitPolicyPatch`, `rateLimitDirectory`
+- Audit: `auditEvent`, `auditDirectory`
+- High-risk plans: `changePlanRequest`, `changePlan`, `changeCommitRequest`, `changeCommitResult`
+- MCP tool discovery: `mcpToolsList`
+- MCP request context: every request carries `_meta.io.modelcontextprotocol/protocolVersion`, `clientCapabilities`, and clientInfo; the result `_meta` carries serverInfo.
+- MCP discovery: `server/discover` returns `supportedVersions` and `capabilities`, and the result declares `resultType`.
+- MCP results and caching: results declare `resultType: complete | input_required`; cacheable list / read results carry `ttlMs` and `cacheScope: public | private`.
+- MCP subscriptions: `subscriptions/listen` is a long-lived stream, and `notifications/subscriptions/acknowledged` carries the subscription ID.
 
-MCP Tool 的 Input / Output Schema SHOULD 直接引用上述 `$defs`，不得复制出含义不同的第二套 DTO。
+MCP tool input / output schemas SHOULD reference the `$defs` above directly and must not copy them into a second set of DTOs with different meanings.
 
-## 6. Snapshot 组装算法
+<a id="colp-section-6"></a>
 
-<!-- COLP-REQ PUB-0005 -->
+## 6. Snapshot Assembly Algorithm
 
-客户端处理完整分页 Snapshot：
+A client processes a complete paginated Snapshot as follows:
 
-1. 请求第一页并记录 `snapshotId`、`revision`、`mode` 和查询参数。
-2. Schema 与当前页语义校验通过后持久化到临时区。
-3. 只跟随服务器返回的 `rel=next` URL。
-4. 验证后续页的固定字段完全一致，`page.sequence` 连续且对象 ID 不重复。
-5. 收到 `page.hasMore=false` 后对组合图执行一次完整语义校验。
-6. 仅当所有页 `complete=true` 时原子替换本地状态。
+1. Request the first page and record `snapshotId`, `revision`, `mode`, and the query parameters.
+2. Persist each page to a staging area after the schema and the current page's semantic checks pass.
+3. Follow only the `rel=next` URL returned by the server.
+4. Verify that the pinned fields of later pages are identical, that `page.sequence` is contiguous, and that object IDs are not repeated.
+5. After receiving `page.hasMore=false`, run one complete semantic check on the combined graph.
+6. Replace the local state atomically only when every page has `complete=true`.
 
-任何失败都丢弃临时组装，不把未出现对象解释为删除。
+Any failure discards the staged assembly; an object that did not appear is not interpreted as deleted.
+
+<a id="colp-section-7"></a>
 
 ## 7. Publication Projection
 
-`mode=publication` 表示已经过发布脱敏的表示，不等于匿名可见：
+`mode=publication` means a representation that has gone through publication redaction; it does not mean anonymously visible:
 
-- Public / Unlisted 可以匿名读取。
-- Protected / Private 可以在授权后返回 publication 投影。
-- SourceRef、Tombstone、内部 Principal 和未 Allowlist 的 Extension 始终移除。
-- `redacted=true` 的 Bookmark 是安全占位：保留标题、树位置、Revision 和可选 `accessUrl`，必须移除目标 URL。
-- 未 Redact 的 Bookmark 只保留 Authority 不含 Userinfo 的 HTTP(S) `url`；授权不能使含 Userinfo 或非 HTTP(S) 的目标进入 publication 投影。
+- Public / unlisted Collections can be read anonymously.
+- Protected / private Collections can return the publication projection after authorization.
+- SourceRefs, tombstones, internal principals, and extensions that are not on the allowlist are always removed.
+- A bookmark with `redacted=true` is a safe placeholder: it keeps the title, tree position, revision, and optional `accessUrl`, and must remove the target URL.
+- An unredacted bookmark keeps only an HTTP(S) `url` whose authority has no userinfo; authorization cannot let a target with userinfo, or a non-HTTP(S) target, enter the publication projection.
 
-这样公共页面可以安全展示受限条目的存在，而不会泄漏实际资源地址。
+This lets a public page safely show that a restricted entry exists without leaking the actual resource address.
 
-## 8. 推荐 Node 包形态
+<a id="colp-section-8"></a>
 
-首个包不需要拆成十个发布物。先发布一个包，并只 Export 已完成的第一阶段入口：
+## 8. Node Package Shape
+
+The reference implementation ships as one package, `@collection-protocol/node`. Splitting it into several published packages too early would add version negotiation and circular dependency costs, so splitting is evaluated only after the API is stable. Each subpath is exported only once it is implemented and tested; empty placeholder subpaths are not published.
 
 ```text
 @collection-protocol/node
-├── schema            JSON Schema 与按 $defs 编译的 Validator
-├── types             从 Schema 生成的 TypeScript 类型
-├── semantic          Snapshot、Manifest、URI Template 与图校验
-├── client            Manifest 驱动的 Publication / Publisher Fetch Client
-├── server            框架无关的 DTO、错误和 Header 辅助函数
-└── conformance       运行仓库示例与负例
+├── schema            JSON Schema and validators compiled by $defs name
+├── types             TypeScript types generated from the schema
+├── semantic          Snapshot, Manifest, URI Template, and graph checks
+├── client            Manifest-driven publication / publisher fetch client
+├── server            Framework-agnostic DTOs, problems, and header helpers
+├── publisher         Publisher write services and HTTP boundary
+├── adapters          Browser binding, conversion, and profile ID helpers
+├── feed              Feed events, cursors, and publication filtering
+├── sync              Sync host: session, push, pull, ack, snapshot
+├── sync/canonical    Canonical JSON and operation canonicalization
+├── sync/browser      Browser bookmark mapping and replica sidecar helpers
+├── sync/unsafe       Composition-free coordinators for tests and adapters only
+├── delivery          Staged profile delivery plan (section 2)
+├── security          Auth, scopes, origin, rate-limit, and audit helpers
+├── mcp               MCP read / write tools over the core services
+├── mcp/2026-07-28    MCP 2026-07-28 wire contract
+├── testing           Fixtures and in-memory adapters for tests
+└── conformance       Profile claims, evidence, and repository example runner
 ```
 
-`Node`、`NodeCreate`、`Operation`、`FeedEvent` 必须是严格判别联合；Schema 条件经通用生成器丢失时，生成链必须注入受测试的严格 TypeScript Override。空的 `publisher`、`sync`、`mcp`、`nestjs` 等 Subpath 不得提前发布。NestJS 使用可选 Peer Dependency；浏览器 Adapter 后续独立发布。
+`Node`, `NodeCreate`, `Operation`, and `FeedEvent` must be strict discriminated unions; when a generic generator loses schema conditions, the generation chain must inject a tested strict TypeScript override. Production Sync hosts use `createSyncHost` from `sync`; `sync/unsafe` skips session, scope, and batch binding checks and must not be used in production. NestJS integration has no exported subpath; see [07](07-nestjs-integration.md) for an illustrative module.
 
-确认 API 稳定后再评估拆包。首版过早拆包会增加版本协商和循环依赖成本。
+<a id="colp-section-9"></a>
 
-## 9. 最小验收条件
+## 9. Minimum Acceptance Criteria
 
-一个可用的 Node 实现至少必须：
+A usable Node implementation must at least:
 
-- 使用 Draft 2020-12 Format Assertion 校验日期、URI 和 URI Template。
-- 使用同一个 RFC 6570 Parser 验证和展开 Endpoint，并检查 Endpoint Key 的精确变量集合。
-- 使用严格 I-JSON Parser，在对象构造阶段拒绝重复成员、危险键、不安全协议整数，并执行确定的嵌套深度与成员/数组项预算。
-- 提供按 `$defs` 名称取得 Validator 的 API。
-- 提供机器可读 Endpoint Contract Registry 与统一 Query Codec；数组使用重复参数，未知参数与重复标量失败。
-- Manifest 驱动 URL，不拼接对象路径。
-- 对 Snapshot 执行结构校验、分页组装和完整图语义校验。
-- 自动处理 ETag / If-None-Match，并要求写入方提供 If-Match。
-- 自动生成或接收 Idempotency Key，但不在失败后更换同一逻辑操作的 Key。
-- 按 RFC 8785 和规范化 Endpoint / Query / Media Type 计算 Canonical Request Digest。
-- 将 `application/problem+json` 解码为稳定 `code`，不解析错误文案。
-- 默认移除未 Allowlist 的 publication Extension。
-- 运行 `scripts/validate_examples.py` 并通过全部正例与负例。
+- Validate dates, URIs, and URI Templates with Draft 2020-12 format assertions.
+- Validate and expand endpoints with the same RFC 6570 parser, and check the exact variable set of each endpoint key.
+- Use a strict I-JSON parser that rejects duplicate members, dangerous keys, and unsafe protocol integers while constructing objects, and enforces deterministic nesting depth and member / array item budgets.
+- Provide an API that returns a validator by `$defs` name.
+- Provide a machine-readable endpoint contract registry and a unified query codec; arrays use repeated parameters, and unknown parameters and repeated scalars fail.
+- Build URLs from the Manifest instead of concatenating object paths.
+- Run structural validation, paginated assembly, and complete graph semantic checks on Snapshots.
+- Handle ETag / If-None-Match automatically, and require writers to provide If-Match.
+- Generate or accept an idempotency key automatically, without changing the key of the same logical operation after a failure.
+- Compute the canonical request digest from RFC 8785 and the normalized endpoint / query / media type.
+- Decode `application/problem+json` to its stable `code` without parsing the error text.
+- Remove publication extensions that are not on the allowlist by default.
+- Run `scripts/validate_examples.py` and pass every positive and negative example.

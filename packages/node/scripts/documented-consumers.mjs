@@ -85,9 +85,9 @@ const examples = [
     check: async (example, assert) => {
       const scope = example.mcpReadScopeFromInstalledPackage();
       assert.deepEqual(scope.profiles, ['core', 'mcp-read']);
-      assert.match(scope.mcpConformance.sourceRevision, /^[0-9a-f]{40,64}$/);
+      assert.equal(typeof scope.mcpConformance.packageVersion, 'string');
+      assert.notEqual(scope.mcpConformance.packageVersion, '');
       assert.match(scope.mcpConformance.requirementsDigest, /^sha256:[0-9a-f]{64}$/);
-      assert.match(scope.mcpConformance.reportDigest, /^sha256:[0-9a-f]{64}$/);
       let calls = 0;
       const target = {
         async execute() { calls++; throw new Error('controlled test target'); },

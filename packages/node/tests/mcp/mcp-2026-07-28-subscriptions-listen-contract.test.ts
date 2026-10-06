@@ -49,7 +49,7 @@ import {
   take,
 } from './subscriptions-listen-harness.js';
 
-describe('MCP 2026-07-28 subscriptions/listen: request validation', () => {
+describe('MCP 2026-07-28 subscriptions/listen: request validation [evidence:mcp.listen-contract]', () => {
   it('accepts supported opt-in types and opens a self-contained session', () => {
     const { adapter, memory } = harness();
     const session = openSession(adapter, { toolsListChanged: true, resourcesListChanged: true });
@@ -114,7 +114,7 @@ describe('MCP 2026-07-28 subscriptions/listen: request validation', () => {
   });
 });
 
-describe('MCP 2026-07-28 subscriptions/listen: notification mapping and subscription id', () => {
+describe('MCP 2026-07-28 subscriptions/listen: notification mapping and subscription id [evidence:mcp.listen-contract]', () => {
   it('maps resource-updated signals to notifications/resources/updated without a body', async () => {
     const { adapter, memory } = harness();
     const session = openSession(adapter, { resourceSubscriptions: ['urn:res:1'] }, {}, 'listen-42');
@@ -205,7 +205,7 @@ describe('MCP 2026-07-28 subscriptions/listen: notification mapping and subscrip
   });
 });
 
-describe('MCP 2026-07-28 subscriptions/listen: principal and request isolation', () => {
+describe('MCP 2026-07-28 subscriptions/listen: principal and request isolation [evidence:mcp.listen-contract]', () => {
   it('keeps concurrent sessions isolated by principal, filter and subscription id', async () => {
     const { adapter, memory } = harness();
     const sessionA = openSession(

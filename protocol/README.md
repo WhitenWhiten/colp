@@ -1,136 +1,136 @@
 # The Collection Protocol
 
-The Collection Protocol 是一个面向收藏夹、公共知识集合和 AI 管理工具的开放协议草案。
+[English](README.md) | [简体中文](README.zh-CN.md)
 
-协议目标：
+The Collection Protocol (COLP) is an open draft protocol for bookmarks, public knowledge collections, and AI-managed curation tools.
 
-1. 标准化浏览器收藏夹、知识集合、层级、顺序、元信息和附加信息。
-2. 标准化浏览器、客户端、个人服务器和托管服务之间的双向同步。
-3. 提供类似 RSS、Atom、JSON Feed 的公共传播能力。
-4. 支持公开、非公开链接、密钥访问、OAuth、权限、限流、签名和审计。
-5. 原生映射为 MCP Resources 与 Tools，让 AI 在用户控制下管理收藏夹及其开放策略。
+Goals:
 
-## 状态
+1. Standardize browser bookmarks and knowledge collections: hierarchy, order, metadata, and attached information.
+2. Standardize two-way sync between browsers, clients, personal servers, and hosted services.
+3. Provide public distribution comparable to RSS, Atom, and JSON Feed.
+4. Support public and unlisted links, key-based access, OAuth, permissions, rate limits, signatures, and audit.
+5. Map natively to MCP resources and tools, so AI can manage collections and their sharing policy under the user's control.
 
-- 规范版本：`0.1-draft`
-- 文档日期：2026-07-16
-- MCP 对齐版本：`2026-07-28`（无状态、POST-only）
-- JSON Schema：2020-12
-- 兼容目标：Chromium Bookmarks API、Firefox WebExtensions Bookmarks API、Netscape Bookmark HTML，以及可通过适配器读取的 Safari 书签数据。
-- Wire Contract 状态：0.1 Draft 已收口；Publication、Publisher、Feed、Sync、安全管理和 MCP 所引用的核心 DTO 均有稳定 `$defs` 名称。
-- 实现状态：仓库提供 Schema、26 个正例、机器可读 Requirement Registry、语义校验和负例；`../packages/node` 是尚未声明一致性 Profile 的 Node 包实现工作区。
+## Status
 
-不建议使用缩写 `TCP`，以免与 Transmission Control Protocol 冲突。推荐使用：
+| | |
+|---|---|
+| Specification version | `0.1-draft`, plus the `0.2` authoritative pull effects |
+| Document date | 2026-07-16 |
+| MCP baseline | `2026-07-28` (stateless, POST-only) |
+| JSON Schema | Draft 2020-12 |
+| Compatibility targets | Chromium Bookmarks API, Firefox WebExtensions Bookmarks API, Netscape Bookmark HTML, and Safari bookmark data read through an adapter |
+| Wire contract | 0.1 is closed: every core DTO referenced by Publication, Publisher, Feed, Sync, security administration, and MCP has a stable `$defs` name |
+| Reference implementation | [`../packages/node`](../packages/node) (`@collection-protocol/node`), with requirement-to-test traceability in [`TRACEABILITY.md`](../packages/node/docs/TRACEABILITY.md) |
 
-- 人类简称：`Collection Protocol`
-- 技术简称：`COLP`
-- URL / 包名标识：`collection-protocol`
-- API Key 前缀：`colp_`
+The repository provides the schemas, 28 executable examples, a machine-readable requirement registry, semantic checks, and negative assertions.
 
-## 文档
+Avoid the abbreviation `TCP`, which collides with the Transmission Control Protocol. Use:
 
-- [docs/00-practical-profile.md](docs/00-practical-profile.md)：建议首先实现的最小互操作面、Profile 依赖和兼容边界。
-- [SPECIFICATION.md](SPECIFICATION.md)：协议总体架构、版本、对象与端点总表。
-- [docs/01-core-data-model.md](docs/01-core-data-model.md)：核心数据模型与扩展机制。
-- [docs/02-http-publication-feed.md](docs/02-http-publication-feed.md)：发现、HTTP API、公共 Feed 与缓存。
-- [docs/03-sync.md](docs/03-sync.md)：副本、操作日志、游标、冲突与转换语义。
-- [docs/04-auth-security-rate-limit.md](docs/04-auth-security-rate-limit.md)：密钥、OAuth、ACL、限流、签名与审计。
-- [docs/05-mcp-profile.md](docs/05-mcp-profile.md)：MCP Resources、Tools 与高风险操作确认。
-- [docs/06-browser-mapping.md](docs/06-browser-mapping.md)：浏览器收藏夹字段映射与有损转换。
-- [docs/07-nestjs-integration.md](docs/07-nestjs-integration.md)：NestJS 模组形态与部署建议。
-- [docs/08-write-api.md](docs/08-write-api.md)：Publisher HTTP 写入请求、响应、状态码与幂等合同。
-- [docs/09-problem-registry.md](docs/09-problem-registry.md)：稳定错误码、HTTP 状态与客户端恢复动作。
-- [docs/10-implementation-contract.md](docs/10-implementation-contract.md)：机器合同索引、分页组装和 Node 包落地指南。
-- [schemas/collection-protocol.schema.json](schemas/collection-protocol.schema.json)：首版核心 JSON Schema。
-- [requirements.yaml](requirements.yaml)：稳定 Requirement ID、Profile、实现模块与测试证据索引。
-- [examples/public-manifest.json](examples/public-manifest.json)：协议发现文档示例。
-- [examples/collection-directory.json](examples/collection-directory.json)：Collection Directory 响应示例。
-- [examples/collection-metadata.json](examples/collection-metadata.json)：Collection Metadata 与 Link 示例。
-- [examples/collection-snapshot.json](examples/collection-snapshot.json)：Collection Snapshot 示例。
-- [examples/protected-publication-snapshot.json](examples/protected-publication-snapshot.json)：受保护 Collection 与 redacted 受限条目示例。
-- [examples/node-detail.json](examples/node-detail.json)：带 Included Sidecar 的 Node Detail 示例。
-- [examples/publisher-collection-create.json](examples/publisher-collection-create.json)：Collection + Root 原子创建 DTO。
-- [examples/publisher-collection-create-result.json](examples/publisher-collection-create-result.json)：Collection + Root 原子创建结果。
-- [examples/publisher-annotation-create.json](examples/publisher-annotation-create.json)：Annotation Create DTO。
-- [examples/publisher-node-move.json](examples/publisher-node-move.json)：带双 Parent Revision 的 Move DTO。
-- [examples/release-directory.json](examples/release-directory.json)：不可变 Release 历史示例。
-- [examples/release-result.json](examples/release-result.json)：Release 元数据与 Link 示例。
-- [examples/sync-snapshot.json](examples/sync-snapshot.json)：带私有映射与 Sync Cursor 的授权 Snapshot 示例。
-- [examples/sync-session-request.json](examples/sync-session-request.json) / [sync-session-result.json](examples/sync-session-result.json)：Sync Session 协商示例。
-- [examples/sync-push.json](examples/sync-push.json)：同步 Push 示例。
-- [examples/sync-push-result.json](examples/sync-push-result.json)：同步 Push Result 示例。
-- [examples/sync-pull.json](examples/sync-pull.json)：Operation / Conflict 统一 Pull 流示例。
-- [examples/public-feed.json](examples/public-feed.json)：公共 Feed Event 示例。
-- [examples/problem.json](examples/problem.json)：可恢复 Problem Details 示例。
-- [examples/access-policy.json](examples/access-policy.json)：Access Policy 示例。
-- [examples/change-plan.json](examples/change-plan.json)：高风险 Change Plan 示例。
-- [examples/change-plan-request.json](examples/change-plan-request.json)：严格判别的高风险 Change Plan 请求示例。
-- [examples/local-bookmark-node.json](examples/local-bookmark-node.json)：保留 `file:` URL 的权威 Bookmark 示例。
-- [examples/sync-update-operation.json](examples/sync-update-operation.json)：带 Base / Incoming Value 的字段级同步更新示例。
-- [examples/mcp-tools-list.json](examples/mcp-tools-list.json)：MCP Tool 定义示例。
+- Human name: `Collection Protocol`
+- Technical abbreviation: `COLP`
+- URL / package identifier: `collection-protocol`
+- API key prefix: `colp_`
 
-## 建议从哪里开始
+## Documents
 
-首个可互操作实现只需要完成 `core + publication`：
+| Document | Contents |
+|---|---|
+| [SPECIFICATION.md](SPECIFICATION.md) | Overall architecture, versioning, objects, and the endpoint table |
+| [00 Practical profile](docs/00-practical-profile.md) | The minimum interoperable surface to implement first, profile dependencies, and compatibility boundaries |
+| [01 Core data model](docs/01-core-data-model.md) | Core data model and extension mechanism |
+| [02 HTTP, publication, and feed](docs/02-http-publication-feed.md) | Discovery, HTTP API, public Feed, and caching |
+| [03 Sync](docs/03-sync.md) | Replicas, operation log, cursors, conflicts, and conversion semantics |
+| [04 Auth, security, and rate limits](docs/04-auth-security-rate-limit.md) | Keys, OAuth, ACLs, rate limits, signatures, and audit |
+| [05 MCP profile](docs/05-mcp-profile.md) | MCP resources, tools, and confirmation of high-risk operations |
+| [06 Browser mapping](docs/06-browser-mapping.md) | Browser bookmark field mapping and lossy conversion |
+| [07 NestJS integration](docs/07-nestjs-integration.md) | An illustrative NestJS module shape and deployment advice |
+| [08 Write API](docs/08-write-api.md) | Publisher HTTP write requests, responses, status codes, and idempotency |
+| [09 Problem registry](docs/09-problem-registry.md) | Stable error codes, HTTP statuses, and client recovery actions |
+| [10 Implementation contract](docs/10-implementation-contract.md) | Machine contract index, pagination assembly, and the Node package guide |
 
-1. 在 Manifest 中声明绝对端点或 URI Template，客户端不得猜路径；声明某个 Profile 时必须同时声明该 Profile 的全部必需端点。
-2. 提供 Collection Directory、Collection Metadata 和完整单页 Snapshot。
-3. 对每个实际 HTTP 表示返回独立 `ETag`，并使用可校验的 Problem Details 报错。
-4. 使用核心 Schema 做结构校验，再执行树、引用、唯一性和可见性的语义校验。
+Machine-readable contracts:
 
-Feed、写入、Sync 和 MCP 都是可组合 Profile，不是首个实现的前置条件。推荐实现顺序见 [docs/00-practical-profile.md](docs/00-practical-profile.md)，机器合同索引与 Node 包实现顺序见 [docs/10-implementation-contract.md](docs/10-implementation-contract.md)。
+- [schemas/collection-protocol.schema.json](schemas/collection-protocol.schema.json): the 0.1 core JSON Schema.
+- [schemas/collection-protocol-0.2.schema.json](schemas/collection-protocol-0.2.schema.json): the 0.2 authoritative pull effect additions.
+- [requirements.yaml](requirements.yaml) and [requirements-0.2.yaml](requirements-0.2.yaml): stable requirement IDs, profiles, implementing modules, and test IDs.
 
-本仓库的示例可执行校验：
+## Examples
+
+Every file in [`examples/`](examples) is validated against a named `$defs` contract by `scripts/validate_examples.py`.
+
+| Area | Examples |
+|---|---|
+| Discovery and reading | [public-manifest](examples/public-manifest.json), [collection-directory](examples/collection-directory.json), [collection-metadata](examples/collection-metadata.json), [collection-snapshot](examples/collection-snapshot.json), [protected-publication-snapshot](examples/protected-publication-snapshot.json), [node-detail](examples/node-detail.json), [local-bookmark-node](examples/local-bookmark-node.json), [global-resource-identity](examples/global-resource-identity.json) |
+| Publisher writes | [publisher-collection-create](examples/publisher-collection-create.json), [publisher-collection-create-result](examples/publisher-collection-create-result.json), [publisher-annotation-create](examples/publisher-annotation-create.json), [publisher-node-move](examples/publisher-node-move.json) |
+| Releases and Feed | [release-directory](examples/release-directory.json), [release-result](examples/release-result.json), [public-feed](examples/public-feed.json) |
+| Sync | [sync-session-request](examples/sync-session-request.json), [sync-session-result](examples/sync-session-result.json), [sync-snapshot](examples/sync-snapshot.json), [sync-push](examples/sync-push.json), [sync-push-result](examples/sync-push-result.json), [sync-pull](examples/sync-pull.json), [sync-pull-v02](examples/sync-pull-v02.json), [sync-update-operation](examples/sync-update-operation.json) |
+| Security and MCP | [access-policy](examples/access-policy.json), [change-plan-request](examples/change-plan-request.json), [change-plan](examples/change-plan.json), [mcp-tools-list](examples/mcp-tools-list.json), [problem](examples/problem.json) |
+
+Run the validator:
 
 ```bash
+python -m venv .venv && . .venv/bin/activate
 python -m pip install -r requirements-dev.txt
 python scripts/validate_examples.py
 ```
 
-## 设计原则
+## Where to Start
 
-- 浏览器优先：核心模型必须能无损表达浏览器真实书签树。
-- 扩展而不污染：浏览器不能表达的能力进入标准附加字段或命名空间扩展。
-- 默认不公开：同步进入服务器不等于对公网发布。
-- Feed 不等于 Sync：Feed 是公开投影，Sync 是可信副本的一致性协议。
-- 离线优先：所有写操作可进入本地队列，网络恢复后幂等重放。
-- 不静默丢失：任何有损转换必须返回机器可读警告。
-- 最小权限：令牌、密钥和 AI 授权必须限定作用域、对象和有效期。
-- AI 可操作但不可越权：MCP 复用同一权限模型，高风险操作使用预览和二阶段确认。
-- HTTP 原生：缓存、ETag、条件请求、状态码和 Problem Details 都是协议的一部分。
-- 可独立部署：个人博客、Web 应用或静态托管均可只实现需要的 Profile。
+A first interoperable implementation only needs `core + publication`:
 
-## 可组合一致性 Profile
+1. Declare absolute endpoints or URI Templates in the Manifest; clients must not guess paths. A Manifest that declares a profile must declare every endpoint that profile requires.
+2. Serve the Collection Directory, Collection Metadata, and a complete single-page Snapshot.
+3. Return an independent `ETag` for every actual HTTP representation, and report errors with Problem Details that validate.
+4. Validate structure with the core schema, then run semantic checks for the tree, references, uniqueness, and visibility.
 
-| Profile | 必须实现 |
+Feed, writes, Sync, and MCP are composable profiles, not prerequisites of a first implementation. See [00 Practical profile](docs/00-practical-profile.md) for the recommended order, and [10 Implementation contract](docs/10-implementation-contract.md) for the machine contract index and the Node package delivery order.
+
+## Design Principles
+
+- **Browser first.** The core model must express a real browser bookmark tree without loss.
+- **Extend without polluting.** What browsers cannot express goes into standard sidecar fields or namespaced extensions.
+- **Private by default.** Syncing to a server is not publishing to the internet.
+- **Feed is not Sync.** A Feed is a public projection; Sync is a consistency protocol between trusted replicas.
+- **Offline first.** Every write can enter a local queue and replay idempotently when the network returns.
+- **No silent loss.** Every lossy conversion returns a machine-readable warning.
+- **Least privilege.** Tokens, keys, and AI grants are limited by scope, object, and lifetime.
+- **AI can act, but not beyond its grant.** MCP reuses the same permission model; high-risk operations use a preview and two-phase confirmation.
+- **HTTP native.** Caching, ETags, conditional requests, status codes, and Problem Details are part of the protocol.
+- **Independently deployable.** A personal blog, a web app, or static hosting can implement only the profiles it needs.
+
+## Composable Conformance Profiles
+
+| Profile | Must implement |
 |---|---|
-| `core` | 核心对象、严格 Schema、语义校验、完整 Snapshot |
-| `publication` | Discovery、Directory、Metadata、Snapshot、链接、ETag、Problem Details |
-| `feed` | 公共事件流、Cursor、缓存与脱敏；依赖 `publication` |
-| `publisher` | Collection、Node、Annotation、Attachment、Relation 与 Release 写入、条件请求、幂等；依赖 `publication` |
-| `sync` | 单 Collection Session、Push、Pull、Ack、Conflict、Tombstone；依赖 `core` |
-| `mcp-read` | 只读 Resources / Tools；依赖 `core` |
-| `mcp-write` | 写 Tools、Scope、审计和高风险 Plan / Commit；依赖 `mcp-read` + `publisher` |
+| `core` | Core objects, strict schema, semantic checks, complete Snapshot |
+| `publication` | Discovery, Directory, Metadata, Snapshot, links, ETag, Problem Details |
+| `feed` | Public event stream, cursors, caching, and redaction; depends on `publication` |
+| `publisher` | Writes for Collection, Node, Annotation, Attachment, Relation, and Release, with conditional requests and idempotency; depends on `publication` |
+| `sync` | Single-Collection session, Push, Pull, Ack, Conflict, Tombstone; depends on `core` |
+| `mcp-read` | Read-only resources / tools; depends on `core` |
+| `mcp-write` | Write tools, scopes, audit, and high-risk plan / commit; depends on `mcp-read` + `publisher` |
 
-实现只声明自己完整通过的 Profile。`reader`、`sync-server`、`mcp-server` 等旧草案 Bundle 名称不再用于新 Manifest。
+An implementation declares only the profiles it fully passes. Bundle names from earlier drafts, such as `reader`, `sync-server`, and `mcp-server`, are no longer used in new Manifests.
 
-## 示例部署
+## Example Deployment
 
 ```text
 https://alice.example/
 ├── .well-known/collection-protocol
 └── collections/
-    ├──                       GET Collection 列表
-    ├── c/{collectionId}      GET Collection 元信息
+    ├──                       GET Collection list
+    ├── c/{collectionId}      GET Collection metadata
     ├── c/{collectionId}/snapshot
     ├── c/{collectionId}/feed
     └── -/
-        ├── feed              GET 实例公共变更流
-        ├── sync/*            双向同步
-        ├── admin/*           密钥、权限、限流与审计
-        └── mcp               MCP Streamable HTTP 端点
+        ├── feed              GET instance public change stream
+        ├── sync/*            two-way sync
+        ├── admin/*           keys, permissions, rate limits, and audit
+        └── mcp               MCP Streamable HTTP endpoint
 ```
 
-`c/` 和 `-/` 是保留路由段，避免不透明 Collection ID 与 `feed`、`sync`、`admin`、`mcp` 冲突。真实路径仍由 Manifest 的 `endpoints` 声明，客户端不得按上图硬编码。
+`c/` and `-/` are reserved route segments, so opaque Collection IDs cannot collide with `feed`, `sync`, `admin`, or `mcp`. The real paths are still declared by the Manifest's `endpoints`; clients must not hard-code the layout above.
 
-用户可以只实现公开读取，也可以逐步增加 Feed、写入、同步和 MCP，不要求一次实现全部功能。
+A deployment can implement only public reading, then add Feed, writes, Sync, and MCP step by step. Nothing requires implementing everything at once.

@@ -1,10 +1,10 @@
 # 09. Problem Code Registry
 
-## 1. 通用格式
+<a id="colp-section-1"></a>
 
-<!-- COLP-REQ PUB-0008 -->
+## 1. General Format
 
-错误响应使用 RFC 9457 `application/problem+json`，并包含稳定的 ASCII `code`。客户端根据 `status`、`code` 和机器可读恢复字段处理；不得解析 `title` 或 `detail` 文本。
+Error responses use RFC 9457 `application/problem+json` and include a stable ASCII `code`. Clients act on `status`, `code`, and the machine-readable recovery fields; they must not parse the `title` or `detail` text.
 
 ```json
 {
@@ -20,59 +20,63 @@
 }
 ```
 
-`detail` 不得回显 Secret、完整签名 URL、私人 Note、内部 Principal 或其他未授权数据。
+`detail` must not echo secrets, complete signed URLs, private notes, internal principals, or other unauthorized data.
 
-## 2. 核心注册表
+<a id="colp-section-2"></a>
 
-| HTTP | `code` | 含义 | 客户端恢复 |
+## 2. Core Registry
+
+| HTTP | `code` | Meaning | Client recovery |
 |---|---|---|---|
-| 400 | `invalid_json` | JSON 语法、重复成员、数字范围或安全键不符合 I-JSON | 修正文档，不自动重试 |
-| 400 | `invalid_query` | Query 包含未知参数、重复标量、空值或非法编码 | 按 Endpoint Query `$defs` 重建请求 |
-| 400 | `invalid_cursor_scope` | Cursor 用于错误 Principal、Endpoint、Collection、Filter 或版本 | 丢弃 Cursor，从对应资源重新开始 |
-| 401 | `authentication_required` | 缺少、过期或无效 Credential | 按 `WWW-Authenticate` 重新认证 |
-| 406 | `unsupported_version` | 读取请求的 Header / Accept 版本不受支持 | 从 `supportedVersions` 重新协商 |
-| 415 | `unsupported_media_type` | 写入媒体类型或其版本不受支持 | 使用 Manifest 声明的请求媒体类型 |
-| 422 | `unsupported_operation` | Operation 合法但当前宿主尚未实现 | 不要重试；等待能力协商或升级宿主 |
-| 403 | `insufficient_scope` | Principal 有效但 Scope / 对象授权不足 | 不重试；可启动显式授权升级 |
-| 403 | `node_read_only` | Node 自身或权威祖先的只读约束拒绝本次写入 | 不自动重试；等待约束或受管策略改变 |
-| 403 | `origin_not_allowed` | MCP / Browser Origin 不在 Allowlist | 停止请求并检查部署 Origin 配置 |
-| 403 | `csrf_failed` | Cookie 写请求缺少有效 CSRF 证明 | 重新加载可信页面并取得新 CSRF Token |
-| 404 | `resource_not_found` | 资源不存在或 Concealment Policy 隐藏其存在 | 不猜测 ID；根据上级资源重新发现 |
-| 405 | `method_not_allowed` | Endpoint 不支持该 Method | 使用 `Allow` 与 Endpoint Contract Registry |
-| 409 | `revision_conflict` | HTTP Precondition 已满足，但发生领域冲突 | 读取 Conflict / 当前资源并让用户选择 |
-| 409 | `position_context_stale` | after / before 邻接关系已改变 | 重新读取 Parent Children 后重试 |
-| 409 | `snapshot_expired` | 分页期间固定 Revision 已不可用 | 从第一页重新获取 Snapshot |
-| 409 | `idempotency_key_reused` | 同 Key 携带不同请求摘要 | 生成新 Key；原请求不得执行 |
-| 409 | `idempotency_in_progress` | 同 Key 的首次请求仍在执行 | 按 Retry-After 重试同一请求 |
-| 409 | `sequence_gap` | Replica Sequence 跳号 | 从 `expectedSequence` 补齐或 Bootstrap |
-| 409 | `sequence_blocked` | Expected Sequence 存在 deferred receipt | 先解除并重试被阻塞的 Expected Sequence |
-| 409 | `sequence_reuse` | 同 Sequence 携带不同 Operation | 停止同步并人工检查本地状态 |
-| 409 | `op_id_reused` | 同 Op ID 携带不同 Operation | 停止同步并检查本地幂等状态 |
-| 409 | `dependency_failed` | Batch 中依赖的 Operation 未成功 | 修复或重新提交依赖后重试 |
-| 409 | `folder_not_empty` | 删除非空 Folder 但未明确递归 | 提示用户选择非递归取消或确认子树删除 |
-| 410 | `feed_cursor_expired` | Feed 历史已压缩 | 跟随 Snapshot Link，重建公开状态 |
-| 410 | `sync_cursor_expired` | Sync Log 已压缩 | 下载权威 Sync Snapshot 并 Bootstrap |
-| 410 | `stale_replica` | Replica 超过 Lease / Tombstone Window | 丢弃旧基线，完成权威 Bootstrap 后再 Push |
-| 410 | `replica_retired` | Replica 已显式退役 | 创建新 Replica，不得复用旧 Queue |
-| 410 | `resource_purged` | Tombstone 和 Prior Representation 已清理 | 不可恢复；创建新对象需新 ID |
-| 412 | `precondition_failed` | `If-Match` 不成立 | 读取当前 ETag / Revision 后重做用户操作 |
-| 413 | `payload_too_large` | Body、批次、深度或附件超过限制 | 缩小请求，不得拆分绕过总 Cost 限制 |
-| 422 | `invalid_document` | JSON 形状、Format 或语义图校验失败 | 修正文档；使用 `errors[]` 定位 JSON Pointer |
-| 428 | `precondition_required` | 缺少必需 `If-Match` | 读取资源并带 ETag 重试 |
-| 429 | `rate_limited` | Bucket / Cost Budget 耗尽 | 遵守 `Retry-After`，不得拆单绕过 |
-| 500 | `internal_error` | 未分类的服务器故障 | 使用同一 Idempotency Key 谨慎重试可重试操作 |
-| 503 | `service_unavailable` | 临时维护、依赖或容量不可用 | 遵守 `Retry-After` 并指数退避 |
+| 400 | `invalid_json` | JSON syntax, duplicate members, number range, or unsafe keys do not conform to I-JSON | Fix the document; do not retry automatically |
+| 400 | `invalid_query` | The query contains unknown parameters, repeated scalars, empty values, or invalid encoding | Rebuild the request from the endpoint's query `$defs` |
+| 400 | `invalid_cursor_scope` | The cursor is used with the wrong principal, endpoint, Collection, filter, or version | Discard the cursor and restart from the corresponding resource |
+| 401 | `authentication_required` | The credential is missing, expired, or invalid | Re-authenticate according to `WWW-Authenticate` |
+| 406 | `unsupported_version` | The header / Accept version of a read request is not supported | Renegotiate from `supportedVersions` |
+| 415 | `unsupported_media_type` | The write media type or its version is not supported | Use the request media type declared by the Manifest |
+| 422 | `unsupported_operation` | The operation is valid but the current host has not implemented it | Do not retry; wait for capability negotiation or a host upgrade |
+| 403 | `insufficient_scope` | The principal is valid but its scope / object authorization is insufficient | Do not retry; an explicit authorization upgrade may be started |
+| 403 | `node_read_only` | A read-only constraint of the Node itself or of an authoritative ancestor rejects this write | Do not retry automatically; wait for the constraint or managed policy to change |
+| 403 | `origin_not_allowed` | The MCP / browser origin is not in the allowlist | Stop the requests and check the deployment's origin configuration |
+| 403 | `csrf_failed` | A cookie-authenticated write request lacks a valid CSRF proof | Reload a trusted page and obtain a new CSRF token |
+| 404 | `resource_not_found` | The resource does not exist, or the concealment policy hides its existence | Do not guess IDs; rediscover from the parent resource |
+| 405 | `method_not_allowed` | The endpoint does not support the method | Use `Allow` and the endpoint contract registry |
+| 409 | `revision_conflict` | The HTTP precondition was satisfied, but a domain conflict occurred | Read the conflict / current resource and let the user choose |
+| 409 | `position_context_stale` | The after / before adjacency has changed | Re-read the parent's children and retry |
+| 409 | `snapshot_expired` | The revision pinned during pagination is no longer available | Fetch the Snapshot again from the first page |
+| 409 | `idempotency_key_reused` | The same key was sent with a different request digest | Generate a new key; the original request must not be executed |
+| 409 | `idempotency_in_progress` | The first request with the same key is still executing | Retry the same request after `Retry-After` |
+| 409 | `sequence_gap` | The replica sequence skipped a number | Fill in from `expectedSequence`, or bootstrap |
+| 409 | `sequence_blocked` | The expected sequence has a deferred receipt | First unblock and retry the blocked expected sequence |
+| 409 | `sequence_reuse` | The same sequence was sent with a different operation | Stop syncing and inspect the local state manually |
+| 409 | `op_id_reused` | The same op ID was sent with a different operation | Stop syncing and inspect the local idempotency state |
+| 409 | `dependency_failed` | An operation this one depends on in the batch did not succeed | Fix or resubmit the dependency, then retry |
+| 409 | `folder_not_empty` | A non-empty folder was deleted without explicit recursion | Let the user cancel the non-recursive delete or confirm the subtree deletion |
+| 410 | `feed_cursor_expired` | The Feed history has been compacted | Follow the Snapshot link and rebuild the public state |
+| 410 | `sync_cursor_expired` | The Sync log has been compacted | Download the authoritative Sync Snapshot and bootstrap |
+| 410 | `stale_replica` | The replica exceeded its lease / tombstone window | Discard the old baseline and complete an authoritative bootstrap before pushing |
+| 410 | `replica_retired` | The replica was explicitly retired | Create a new replica; the old queue must not be reused |
+| 410 | `resource_purged` | The tombstone and prior representation have been purged | Not recoverable; creating a new object requires a new ID |
+| 412 | `precondition_failed` | `If-Match` does not hold | Read the current ETag / revision, then redo the user's operation |
+| 413 | `payload_too_large` | The body, batch, depth, or attachment exceeds a limit | Shrink the request; do not split it to bypass the total cost limit |
+| 422 | `invalid_document` | JSON shape, format, or semantic graph validation failed | Fix the document; use `errors[]` to locate the JSON Pointer |
+| 428 | `precondition_required` | A required `If-Match` is missing | Read the resource and retry with its ETag |
+| 429 | `rate_limited` | A bucket / cost budget is exhausted | Honor `Retry-After`; do not split requests to bypass it |
+| 500 | `internal_error` | Unclassified server failure | Retry retryable operations cautiously with the same idempotency key |
+| 503 | `service_unavailable` | Temporary maintenance, or a dependency or capacity is unavailable | Honor `Retry-After` and back off exponentially |
 
-Node Guard 的内部 denial 与 HTTP Problem 映射如下：
+Internal Node guard denials map to HTTP problems as follows:
 
-- 候选 Parent 不是 Root/Folder、普通 Node 产生 `parentId=null`、Root invariant 被破坏或候选图形成 Cycle，使用 `422 invalid_document`，并在 `errors[]` 中给出稳定 path/keyword。
-- Parent Ancestry、Subtree、解析深度或成员预算超过部署 Hard Limit，使用 `413 payload_too_large`。
-- 请求指向不存在或被 Concealment Policy 隐藏的资源，使用 `404 resource_not_found`。
-- 权威存储中的 Ancestry 无法解析、约束已损坏或事务无法建立一致快照，使用 `500 internal_error` 或在可恢复依赖故障时使用 `503 service_unavailable`；`node_ancestry_unresolved`、`invalid_node_constraints` 等 helper denial 不是可直接上 Wire 的 Core Problem Code。
+- A candidate parent that is not a root/folder, an ordinary Node producing `parentId=null`, a broken root invariant, or a candidate graph that forms a cycle uses `422 invalid_document`, with a stable path/keyword in `errors[]`.
+- Parent ancestry, subtree, resolution depth, or member budget exceeding the deployment's hard limit uses `413 payload_too_large`.
+- A request that targets a resource that does not exist or is hidden by the concealment policy uses `404 resource_not_found`.
+- Ancestry in authoritative storage that cannot be resolved, corrupted constraints, or a transaction that cannot establish a consistent snapshot uses `500 internal_error`, or `503 service_unavailable` for a recoverable dependency failure. Helper denials such as `node_ancestry_unresolved` and `invalid_node_constraints` are not core problem codes and cannot be put on the wire directly.
 
-## 3. 恢复字段
+<a id="colp-section-3"></a>
 
-错误按需提供：
+## 3. Recovery Fields
+
+Errors provide, as needed:
 
 - `currentRevision`
 - `currentEtag`
@@ -81,7 +85,7 @@ Node Guard 的内部 denial 与 HTTP Problem 映射如下：
 - `retryAfterSeconds`
 - `snapshotUrl`
 - `conflictId`
-- `errors[]`，每项包含 `path`、`keyword`、`message`
-- `links`，例如 `current`、`snapshot`、`authorization`
+- `errors[]`, each item containing `path`, `keyword`, and `message`
+- `links`, for example `current`, `snapshot`, `authorization`
 
-扩展错误码使用 HTTPS Namespace URI，不得占用未注册的短 ASCII Core Code。
+Extension error codes use an HTTPS namespace URI and must not occupy an unregistered short ASCII core code.

@@ -1,40 +1,38 @@
 # 08. Publisher HTTP Write API
 
-## 1. 适用范围
+<a id="colp-section-1"></a>
 
-本文件定义 `publisher` Profile 的最小 Wire Contract。资源表示 Schema 与写入 DTO 必须分离：客户端不得伪造服务器管理的 `id`、Root、时间、Revision、Cursor 或审计字段。全部请求与响应 DTO 都在核心 Schema `$defs` 中具有稳定名称。
+## 1. Scope
 
-所有示例路径均为推荐动态路由；客户端实际使用 Manifest `endpoints` 和响应 Link。声明 `publisher` 却缺少任一必需写端点的 Manifest 无效。
+This document defines the minimum wire contract of the `publisher` profile. Resource representation schemas and write DTOs must be separate: clients must not forge server-managed `id`, root, time, revision, cursor, or audit fields. Every request and response DTO has a stable name in the core schema `$defs`.
+
+All example paths are recommended dynamic routes; clients actually use the Manifest `endpoints` and response links. A Manifest that declares `publisher` but lacks any required write endpoint is invalid.
 
 <a id="colp-section-2"></a>
 
-## 2. 通用规则
+## 2. General Rules
 
-<!-- COLP-REQ PUBLISH-0001 -->
-
-- 请求使用 UTF-8。
-- 创建使用 `application/json`。
-- PATCH 默认使用 `application/merge-patch+json`。
-- 修改和删除已有资源必须发送该资源最后一次响应的 `If-Match`。
-- 所有可重试 POST 必须发送 `Idempotency-Key`。
-- Idempotency Key 绑定 Principal、Method、Endpoint Key、资源身份、协议版本和 Canonical Request Digest；JSON 使用 RFC 8785，已解码 Query 使用 Canonical JSON，Media Type 规范化为小写且移除可忽略空白。同 Key 不同请求返回 `409 idempotency_key_reused`。
-- 成功创建返回 `201 Created`、`Location`、`ETag` 和完整创建结果。
-- 成功修改返回 `200 OK`、新 `ETag` 和完整资源；不使用无法让客户端更新 Revision 的空 `204`。
-- Schema 或候选图语义错误返回 `422 invalid_document`，授权范围错误返回 `403 insufficient_scope`，缺 `If-Match` 返回 `428`，ETag 不匹配返回 `412`，语义冲突返回 `409`。
-- 仅当请求已通过 Authentication、Authorization 和 Concealment Policy，且 Node 自身或任一权威祖先的只读约束是实际拒绝原因时，Publisher MUST 返回 `403 node_read_only`；未授权或隐藏资源继续使用 Concealment Policy 选定的 403/404，不能暴露只读状态，也不能把真实的只读拒绝折叠为 `insufficient_scope` 或未注册短码。
-- Publisher 的通用 Node 写入面可能遇到 `managed-bookmarks` Folder 或其后代，因此该 Profile 的写入边界包含该角色的默认只读规则；这一义务不表示仅提供其他权威写入能力的非 Publisher 部署接受或存储该可选角色。
-- Parent/Subtree 遍历超过部署 Hard Limit 时返回 `413 payload_too_large`。权威 Ancestry 无法解析或已损坏属于服务端状态错误，不得把内部 Guard Denial Code 作为未注册的 Wire `code` 返回。
-- 写入响应和错误响应使用 `Cache-Control: no-store`。
+- Requests use UTF-8.
+- Creation uses `application/json`.
+- PATCH uses `application/merge-patch+json` by default.
+- Modifying and deleting an existing resource must send the `If-Match` of the resource's latest response.
+- Every retryable POST must send `Idempotency-Key`.
+- An idempotency key is bound to the principal, method, endpoint key, resource identity, protocol version, and canonical request digest: JSON uses RFC 8785, the decoded query uses canonical JSON, and the media type is normalized to lowercase with ignorable whitespace removed. The same key with a different request returns `409 idempotency_key_reused`.
+- A successful create returns `201 Created`, `Location`, `ETag`, and the complete create result.
+- A successful modification returns `200 OK`, the new `ETag`, and the complete resource; an empty `204`, which would not let the client update its revision, is not used.
+- A schema or candidate-graph semantic error returns `422 invalid_document`, an authorization scope error returns `403 insufficient_scope`, a missing `If-Match` returns `428`, an ETag mismatch returns `412`, and a semantic conflict returns `409`.
+- Only when the request has passed authentication, authorization, and the concealment policy, and the read-only constraint of the Node itself or of any authoritative ancestor is the actual reason for rejection, the publisher MUST return `403 node_read_only`. Unauthorized or hidden resources keep using the 403 / 404 chosen by the concealment policy and must not expose the read-only state, and a genuine read-only rejection must not be folded into `insufficient_scope` or an unregistered short code.
+- The generic Node write surface of a publisher may meet a `managed-bookmarks` folder or its descendants, so this profile's write boundary includes the default read-only rule of that role; this obligation does not mean that a non-publisher deployment that only offers other authoritative write capabilities accepts or stores this optional role.
+- A parent or subtree traversal that exceeds the deployment's hard limit returns `413 payload_too_large`. Unresolvable or corrupted authoritative ancestry is a server state error, and an internal guard denial code must not be returned as an unregistered wire `code`.
+- Write responses and error responses use `Cache-Control: no-store`.
 
 <a id="colp-section-3"></a>
 
-## 3. 原子创建 Collection 与 Root
-
-<!-- COLP-REQ PUBLISH-0003 -->
+## 3. Atomically Create a Collection and Its Root
 
 `POST /collections`
 
-Collection 表示强制 `rootNodeId`，因此创建端点 MUST 在一个事务内同时创建 Collection 和唯一 Root。请求不得先创建悬空 Collection，也不得先创建无 Collection 的 Root。
+The Collection representation requires `rootNodeId`, so the create endpoint MUST create the Collection and its single root in one transaction. A request must not first create a dangling Collection, or first create a root without a Collection.
 
 ```http
 POST /collections HTTP/1.1
@@ -71,11 +69,13 @@ Content-Type: application/vnd.collection-protocol.collection-create-result+json;
 Cache-Control: no-store
 ```
 
-响应 Body 必须通过 `collectionCreateResult`，包含完整 Collection、完整 Root 和 Link。可执行示例见 `examples/publisher-collection-create-result.json`；不得用空对象或只返回新 ID 代替完整结果。
+The response body must validate against `collectionCreateResult` and contain the complete Collection, the complete root, and links. See `examples/publisher-collection-create-result.json` for an executable example; an empty object, or returning only the new ID, must not replace the complete result.
 
-Snapshot Import 是独立的高成本操作，不复用本端点。支持时由 Manifest 显式声明 `snapshotImport` Endpoint 与限制。
+Snapshot import is a separate, expensive operation and does not reuse this endpoint. COLP 0.1 defines no Snapshot import endpoint; a future version may add one with its own Manifest endpoint key and limits.
 
-## 4. 更新 Collection
+<a id="colp-section-4"></a>
+
+## 4. Update a Collection
 
 `PATCH /collections/c/{collectionId}`
 
@@ -92,19 +92,19 @@ If-Match: "collection-r_17"
 }
 ```
 
-客户端不得 PATCH：`id`、`rootNodeId`、`createdAt`、`updatedAt`、`revision`、`eventCursor`。把 `visibility` 改为 `public` / `unlisted` 仍需 Access Scope；经 MCP 发起时必须走 Plan / Commit。
+Clients must not PATCH `id`, `rootNodeId`, `createdAt`, `updatedAt`, `revision`, or `eventCursor`. Changing `visibility` to `public` or `unlisted` still requires an access scope, and when initiated through MCP must go through plan / commit.
 
-Application Service 必须把成功 PATCH 规范化为 `update_collection_metadata` Canonical Operation，并保存 Typed `base` / `value` Payload。
+The application service must normalize a successful PATCH into an `update_collection_metadata` canonical operation and store the typed `base` / `value` payload.
 
-## 5. 删除 Collection
+<a id="colp-section-5"></a>
 
-<!-- COLP-REQ PUBLISH-0005 -->
+## 5. Delete a Collection
 
 `DELETE /collections/c/{collectionId}`
 
-本端点只执行可恢复的逻辑删除并创建 Deletion Receipt，不执行物理 Purge。物理 Purge 是部署级管理操作，不属于 `publisher` Profile。
+This endpoint only performs a recoverable logical deletion and creates a deletion receipt; it does not perform a physical purge. A physical purge is a deployment-level administrative operation and is not part of the `publisher` profile.
 
-成功返回 `200 OK` 和 `deletionReceipt`。Publisher 不依赖 Sync，因此响应不得要求或伪造 Sync Cursor：
+A success returns `200 OK` and a `deletionReceipt`. The publisher does not depend on Sync, so the response must not require or invent a sync cursor:
 
 ```json
 {
@@ -122,11 +122,11 @@ Application Service 必须把成功 PATCH 规范化为 `update_collection_metada
 }
 ```
 
-此操作属于高风险操作，必须审计；MCP 调用必须走 Plan / Commit。
+This is a high-risk operation and must be audited; an MCP call must go through plan / commit.
 
 <a id="colp-section-6"></a>
 
-## 6. 创建 Node
+## 6. Create a Node
 
 `POST /collections/c/{collectionId}/nodes`
 
@@ -145,24 +145,26 @@ Application Service 必须把成功 PATCH 规范化为 `update_collection_metada
 }
 ```
 
-- `parentId` MUST 在与创建相同的事务中解析为同 Collection 的 Root 或 Folder；普通 Node 创建端点不得接受 `null`，也不得创建 Root。
-- `afterId` / `beforeId` 是语义位置，服务器生成 Position。
-- 两者同时存在时必须相邻，否则返回 `409 position_context_stale`。
-- Bookmark URL 必须通过 `$defs.bookmarkUrl`。默认接受 HTTP(S)；`file`、`about`、浏览器内部 Scheme 等需要 `features.bookmarkUrls.acceptedSchemes` 与部署策略同时允许，并且不得进入 Publication / Feed。
+- `parentId` MUST be resolved, in the same transaction as the creation, to a root or folder of the same Collection; the ordinary Node create endpoint must not accept `null` and must not create a root.
+- `afterId` / `beforeId` are a semantic position; the server generates the position.
+- When both are present they must be adjacent; otherwise the server returns `409 position_context_stale`.
+- The bookmark URL must validate against `$defs.bookmarkUrl`. HTTP(S) is accepted by default; `file`, `about`, internal browser schemes, and so on require both `features.bookmarkUrls.acceptedSchemes` and the deployment policy to allow them, and must not enter Publication or Feed.
 
-成功返回 `201 Created`、Node `Location`、Node `ETag` 和完整 Node。
+A success returns `201 Created`, the Node `Location`, the Node `ETag`, and the complete Node.
 
-## 7. 更新 Node
+<a id="colp-section-7"></a>
+
+## 7. Update a Node
 
 `PATCH /collections/c/{collectionId}/nodes/{nodeId}`
 
-PATCH 只修改内容字段。移动与重排必须使用 Move 端点，避免 Parent / Position 在普通 Patch 中出现两套并发语义。
+PATCH modifies only content fields. Moves and reorders must use the move endpoint, so that parent and position do not have two concurrent semantics in an ordinary patch.
 
-客户端不得 PATCH：`id`、`collectionId`、`kind`、`parentId`、`position`、`sourceRefs`、`createdAt`、`updatedAt`、`revision`、`deletedAt`。
+Clients must not PATCH `id`, `collectionId`, `kind`, `parentId`, `position`, `sourceRefs`, `createdAt`, `updatedAt`, `revision`, or `deletedAt`.
 
-把某字段设为 JSON `null` 按 RFC 7396 表示删除可选字段；不可为空的字段会返回 `422`。
+Setting a field to JSON `null` deletes an optional field per RFC 7396; a non-nullable field returns `422`.
 
-Application Service 必须把成功 PATCH 规范化为 `update_node_content` Canonical Operation；不能转换成包含任意 JSON Pointer 的通用 Patch Operation。
+The application service must normalize a successful PATCH into an `update_node_content` canonical operation; it cannot convert it into a generic patch operation containing arbitrary JSON Pointers.
 
 <a id="colp-section-8"></a>
 
@@ -180,28 +182,28 @@ Application Service 必须把成功 PATCH 规范化为 `update_node_content` Can
 }
 ```
 
-请求必须同时发送 Node 的 `If-Match`。即使源和目标是同一 Parent，也必须同时发送 Source / Target Children Revision，此时两值相同。服务器 MUST 在与 Move 相同的事务中验证源 Node、两个 Parent、目标 Parent 的 Root/Folder kind、同 Collection 约束和位置上下文授权，不能只检查 Node 本身；Root 不得通过本端点移动。成功返回更新后的 Node、源 Parent Revision、目标 Parent Revision和 Transform 后的 Position。
+The request must also send the Node's `If-Match`. Even when the source and the target are the same parent, both the source and target children revisions must be sent; in that case the two values are equal. The server MUST verify, in the same transaction as the move, the source Node, both parents, that the target parent's kind is root or folder, the same-Collection constraint, and the authorization of the position context, rather than checking only the Node itself; the root must not be moved through this endpoint. A success returns the updated Node, the source parent revision, the target parent revision, and the position after transformation.
 
 <a id="colp-section-9"></a>
 
-## 9. 删除 Node / Subtree
+## 9. Delete a Node or Subtree
 
 `DELETE /collections/c/{collectionId}/nodes/{nodeId}`
 
-Query 必须通过 `$defs.nodeDeleteQuery`。Boolean 只接受 `true` / `false`，未知参数和重复标量返回 `400 invalid_query`。
+The query must validate against `$defs.nodeDeleteQuery`. Booleans accept only `true` / `false`; unknown parameters and repeated scalars return `400 invalid_query`.
 
-- Bookmark、Separator、Alias 或空 Folder 可以直接删除。
-- 非空 Folder 若没有 `recursive=true`，返回 `409 folder_not_empty`。
-- `recursive=true` 表示 `delete_subtree`，需要 `nodes:delete`。服务器 MUST 在与删除相同的事务中从权威 Parent/Child 关系导出完整子树，对每个成员执行授权与只读检查，并以同一成员集合执行删除、内部 Watermark 和 `affectedCount`；请求或适配器提交的 descendants 列表不能替代该遍历。
-- 服务端必须保留每个已删除 ID 的内部删除成员关系，不能只保留根 ID 后允许旧副本更新子项。
+- Bookmarks, separators, aliases, and empty folders can be deleted directly.
+- A non-empty folder without `recursive=true` returns `409 folder_not_empty`.
+- `recursive=true` means `delete_subtree` and requires `nodes:delete`. The server MUST derive the complete subtree from the authoritative parent/child relationships in the same transaction as the deletion, perform authorization and read-only checks on every member, and execute the deletion, the internal watermark, and `affectedCount` from the same member set; a descendants list submitted by the request or an adapter cannot replace this traversal.
+- The server must keep the internal deletion membership of every deleted ID; it cannot keep only the root ID and then let old replicas update the children.
 
-成功返回 `200 OK` 和 Deletion Receipt；`receipt.affectedCount` 表示删除范围。超过部署安全阈值时，普通 HTTP 管理界面需要额外确认；MCP 必须走 Plan / Commit。
+A success returns `200 OK` and a deletion receipt; `receipt.affectedCount` describes the size of the deletion. Above the deployment's safety threshold, an ordinary HTTP management UI needs additional confirmation; MCP must go through plan / commit.
 
-## 10. Annotation、Attachment 与 Relation
+<a id="colp-section-10"></a>
 
-<!-- COLP-REQ PUBLISH-0004 -->
+## 10. Annotation, Attachment, and Relation
 
-`publisher` 必须提供这些 Sidecar 的最小 CRUD：
+`publisher` must provide minimal CRUD for these sidecars:
 
 ```text
 POST         /collections/c/{collectionId}/annotations
@@ -212,32 +214,34 @@ POST         /collections/c/{collectionId}/relations
 PATCH/DELETE /collections/c/{collectionId}/relations/{relationId}
 ```
 
-Create 使用 `annotationCreate`、`attachmentCreate`、`relationCreate` DTO；不得提交服务器管理字段。PATCH 使用对应 Merge Patch DTO，并遵守 `If-Match`。删除返回 Deletion Receipt。Attachment 端点只管理协议元数据；二进制上传、抓取或对象存储签名 URL 不是本 Profile 的必需能力。
+Creation uses the `annotationCreate`, `attachmentCreate`, and `relationCreate` DTOs and must not submit server-managed fields. PATCH uses the corresponding merge patch DTO and follows `If-Match`. Deletion returns a deletion receipt. The attachment endpoints manage only protocol metadata; binary upload, fetching, and signed object storage URLs are not required capabilities of this profile.
 
-Application Service 必须把这些写入转换为 `create_*` / `update_*` / `delete_*` Canonical Operation。Attachment 使用 `create_attachment`、`update_attachment`、`delete_attachment`；Relation 使用 `create_relation`、`update_relation`、`delete_relation`。HTTP、Sync 和 MCP 不得维护第二套变更语义。
+The application service must convert these writes into `create_*` / `update_*` / `delete_*` canonical operations. Attachments use `create_attachment`, `update_attachment`, and `delete_attachment`; relations use `create_relation`, `update_relation`, and `delete_relation`. HTTP, Sync, and MCP must not maintain a second set of change semantics.
+
+<a id="colp-section-11"></a>
 
 ## 11. Release
 
 `POST /collections/c/{collectionId}/release`
 
-请求包含 Release 摘要和 Collection `If-Match`。成功返回 `201 Created`，`Location` 指向不可变 Release：
+The request contains a release summary and the Collection's `If-Match`. A success returns `201 Created`, with `Location` pointing to the immutable release:
 
 ```text
 /collections/c/{collectionId}/releases/{releaseId}
 /collections/c/{collectionId}/releases/{releaseId}/snapshot
 ```
 
-Release Snapshot 必须绑定 Release Revision，并提供 ETag / Content-Digest。历史 Feed Event 不得指向会变化的最新 `/snapshot`。
+A release Snapshot must be bound to the release revision and provide an ETag and Content-Digest. Historical Feed events must not point to the latest `/snapshot`, which changes.
 
-`GET /collections/c/{collectionId}/releases` 返回 `releaseDirectory`；`GET /collections/c/{collectionId}/releases/{releaseId}` 返回 `releaseResult`。Release 资源不可修改，恢复历史版本必须生成新的 Draft / Operation，不能覆盖历史 Release。
+`GET /collections/c/{collectionId}/releases` returns a `releaseDirectory`; `GET /collections/c/{collectionId}/releases/{releaseId}` returns a `releaseResult`. Release resources cannot be modified; restoring a historical version must produce a new draft or operation, never overwrite a historical release.
 
-## 12. 幂等重放
+<a id="colp-section-12"></a>
 
-<!-- COLP-REQ PUBLISH-0002 -->
+## 12. Idempotent Replay
 
-服务器对 Idempotency Key 的记录至少保存 Manifest `limits.idempotencyRetentionSeconds`：
+The server keeps idempotency key records for at least the Manifest's `limits.idempotencyRetentionSeconds`:
 
-- 相同 Principal、Method、Endpoint、Key 和请求摘要：返回第一次请求的相同状态码、Location 和业务结果。
-- 相同绑定但请求摘要不同：`409 idempotency_key_reused`，不得执行。
-- 正在并发处理同一 Key：只允许一个执行；其他请求等待原结果或返回可重试的 `409 idempotency_in_progress`。
-- 去重记录和业务事务必须原子提交，不能出现资源已创建但 Key 记录丢失的窗口。
+- Same principal, method, endpoint, key, and request digest: return the same status code, `Location`, and business result as the first request.
+- Same binding but a different request digest: `409 idempotency_key_reused`, and the request must not be executed.
+- The same key being processed concurrently: only one execution is allowed; other requests wait for the original result or return a retryable `409 idempotency_in_progress`.
+- The deduplication record and the business transaction must commit atomically; there can be no window in which the resource has been created but the key record is lost.

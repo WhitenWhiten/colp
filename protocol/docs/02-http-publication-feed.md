@@ -1,14 +1,16 @@
 # 02. HTTP Publication and Feed Protocol
 
-## 1. 目标
+<a id="colp-section-1"></a>
 
-HTTP 层允许任何站点在一个普通路径下公开 Collection。例如：
+## 1. Goals
+
+The HTTP layer lets any site publish Collections under an ordinary path, for example:
 
 ```text
 https://alice.example/collections
 ```
 
-消费者不需要协议提供方的专用账号，也不需要安装特定客户端。浏览器、Feed Reader、搜索服务、命令行工具和 AI 都可以使用同一组资源。
+Consumers do not need an account with the publisher, and do not need to install a particular client. Browsers, feed readers, search services, command-line tools, and AI assistants can all use the same set of resources.
 
 <a id="colp-section-2"></a>
 
@@ -54,7 +56,7 @@ https://alice.example/collections
         "feed": { "modes": ["live", "release"] },
         "patch": { "mediaTypes": ["application/merge-patch+json"] },
         "bookmarkUrls": { "acceptedSchemes": ["http", "https", "file"] },
-        "mcp": { "resources": true, "tools": true }
+        "mcp": { "protocolVersion": "2026-07-28", "resources": true, "tools": true }
       },
       "auth": {
         "anonymousRead": true,
@@ -78,32 +80,31 @@ https://alice.example/collections
 }
 ```
 
-Manifest 响应 SHOULD：
+The Manifest response SHOULD use:
 
 - `Cache-Control: public, max-age=300`
 - `ETag`
 - `Content-Type: application/vnd.collection-protocol.manifest+json;version=0.1`
 
-规则：
+Rules:
 
-- `serverUuid` 在服务器迁移和重启后保持稳定。
-- `baseUrl` 只用于展示与同源判断，MUST 以 `/` 结尾；客户端不得用字符串拼接或 URL 相对解析猜测端点。
-- `profiles`、`endpoints`、`features`、`auth` 和 `limits` 均以 Mount 为作用域。
-- Endpoint 必须是绝对 HTTPS URI 或 RFC 6570 Level 1 Template。开发环境 MAY 使用 `http://localhost`、`http://127.0.0.1` 或 `http://[::1]`，不得把该例外用于非 Loopback 主机。
-- Endpoint Key 的变量集合必须与 Registry 完全一致；例如 `node` 必须恰好使用 `collectionId` 与 `nodeId`。实现使用同一个 RFC 6570 Parser 做验证和展开。
-- 客户端必须跟随 `endpoints` 和资源响应中的 `links`。
-- `publisher` Profile 必须声明 `nodes`、`node`、`nodeMove`、`annotations`、`annotation`、`attachments`、`attachment`、`relations`、`relation`、`release`、`releases`、`releaseItem` 和 `releaseSnapshot`。
-- 支持 HTTP 管理 API 时才声明 `features.admin`，并同时声明 `adminAccess`、`adminKeys`、`adminKey`、`adminKeyRotate`、`adminRateLimits` 和 `adminAudit`；全为 `false` 时应省略整个 Feature。
+- `serverUuid` stays stable across server migrations and restarts.
+- `baseUrl` is only for display and same-origin checks and MUST end with `/`; clients must not guess endpoints by string concatenation or relative URL resolution.
+- `profiles`, `endpoints`, `features`, `auth`, and `limits` are all scoped to the mount.
+- An endpoint must be an absolute HTTPS URI or an RFC 6570 Level 1 template. Development environments MAY use `http://localhost`, `http://127.0.0.1`, or `http://[::1]`; this exception must not be used for non-loopback hosts.
+- The variable set of an endpoint key must exactly match the registry; for example, `node` must use exactly `collectionId` and `nodeId`. Implementations use the same RFC 6570 parser for validation and expansion.
+- Clients must follow `endpoints` and the `links` in resource responses.
+- The `publisher` profile must declare `nodes`, `node`, `nodeMove`, `annotations`, `annotation`, `attachments`, `attachment`, `relations`, `relation`, `release`, `releases`, `releaseItem`, and `releaseSnapshot`.
+- `features.admin` is declared only when the HTTP management API is supported, together with the `adminAccess`, `adminKeys`, `adminKey`, `adminKeyRotate`, `adminRateLimits`, and `adminAudit` endpoints; when every flag would be `false`, the whole feature should be omitted.
+- `features.mcp.protocolVersion` is always `2026-07-28` (see `docs/05-mcp-profile.md`).
 
 <a id="colp-section-3"></a>
 
 ## 3. Collection Directory
 
-<!-- COLP-REQ PUB-0009 -->
-
 `GET /collections`
 
-查询参数：
+Query parameters:
 
 - `cursor`
 - `limit`
@@ -113,7 +114,7 @@ Manifest 响应 SHOULD：
 - `updatedSince`
 - `q`
 
-响应：
+Response:
 
 ```json
 {
@@ -150,25 +151,25 @@ Manifest 响应 SHOULD：
 }
 ```
 
-规则：
+Rules:
 
-- 只列出 `public` Collection。
-- `unlisted` 不得出现在 Directory，但知道 Canonical URL 的客户端可以读取。
-- Anonymous Directory、Search、实例 Feed、Sitemap 和 MCP List 均不得重新发现 `unlisted`。其 HTML / HTTP 响应 SHOULD 使用 `X-Robots-Tag: noindex, nofollow` 与 `Referrer-Policy: no-referrer`。
-- `protected` MAY 仅在授权后出现在 Directory。
-- Directory 不返回完整 ACL。
-- 默认排序为 `updatedAt DESC, id ASC`；Cursor 指向最后一项之后的排他位置，并绑定 Principal、过滤器、排序、Limit 和协议版本。
-- `nextCursor=null` 表示当前结果集已排空。响应因授权而与匿名结果不同时必须 `private, no-store`，不能进入 Shared Cache。
+- Only `public` Collections are listed.
+- `unlisted` must not appear in the directory, but a client that knows the canonical URL can read it.
+- The anonymous directory, search, instance feed, sitemap, and MCP lists must never rediscover `unlisted` Collections. Their HTML and HTTP responses SHOULD use `X-Robots-Tag: noindex, nofollow` and `Referrer-Policy: no-referrer`.
+- `protected` MAY appear in the directory, but only after authorization.
+- The directory never returns the full ACL.
+- The default order is `updatedAt DESC, id ASC`. The cursor points to the exclusive position after the last item and is bound to the principal, filters, order, limit, and protocol version.
+- `nextCursor=null` means the current result set is exhausted. When a response differs from the anonymous result because of authorization, it must be `private, no-store` and cannot enter a shared cache.
 
 <a id="colp-section-4"></a>
 
 ## 4. Collection Metadata
 
-`GET /collections/c/{collectionId}` 返回 Collection 公共投影与链接。`canonicalUrl` 是面向人的页面，API `self` 是独立 JSON 资源：
+`GET /collections/c/{collectionId}` returns the public projection of a Collection and its links. `canonicalUrl` is the human-facing page; the API `self` link is a separate JSON resource.
 
-响应必须通过 `collectionMetadata`，包含完整 Collection 和 Link，不使用空对象占位。可执行示例见 `examples/collection-metadata.json`。
+The response must validate against `collectionMetadata` and contain the complete Collection and its links, with no empty-object placeholders. See `examples/collection-metadata.json` for an executable example.
 
-服务器 SHOULD 同时发送 Link Header：
+The server SHOULD also send Link headers:
 
 ```http
 Link: </collections/c/collection-1>; rel="self"; type="application/vnd.collection-protocol.collection+json"
@@ -184,34 +185,34 @@ Link: </collections/c/collection-1/feed.json>; rel="alternate"; type="applicatio
 
 `GET /collections/c/{collectionId}/snapshot`
 
-查询参数：
+Query parameters:
 
-- `pageCursor`：超大树分页。
-- `limit`：节点页大小。
-- `include=annotations&include=attachments&include=relations`。数组使用重复参数，不使用逗号分隔。
-- `depth`：可选的最大层级。
-- `root`：只取某个子树。
+- `pageCursor`: pagination for very large trees.
+- `limit`: Node page size.
+- `include=annotations&include=attachments&include=relations`. Arrays use repeated parameters, not comma separation.
+- `depth`: optional maximum depth.
+- `root`: fetch only one subtree.
 
-所有 Query 先按 `snapshotQuery` 解码再做 Schema 校验。未知参数、重复标量、空值或非法 Boolean / Integer 返回 `400 invalid_query`。
+Every query is first decoded according to `snapshotQuery` and then validated against the schema. Unknown parameters, repeated scalars, empty values, or invalid booleans or integers return `400 invalid_query`.
 
-`mode=publication` 中未使用 `redacted=true` 的 Bookmark `url` MUST 是 Authority 不含 Userinfo 的绝对 HTTP(S) URL。该限制同样适用于授权后的 Protected / Private Publication；授权可以决定是否返回目标 URL，但不能使 `user:password@host` 成为可发布 URL。权威 / Sync 表示仍按 `$defs.bookmarkUrl` 保留协商允许的原始 URI。
+In `mode=publication`, the `url` of a Bookmark that does not use `redacted=true` MUST be an absolute HTTP(S) URL whose authority has no userinfo. The same restriction applies to authorized protected or private Publication: authorization can decide whether the target URL is returned, but cannot turn `user:password@host` into a publishable URL. Authoritative and Sync representations still keep the negotiated original URI under `$defs.bookmarkUrl`.
 
 <a id="colp-section-5-1"></a>
 
-### 5.1 一致性
+### 5.1 Consistency
 
-<!-- COLP-REQ PUB-0004 -->
+- All pages of a paginated Snapshot MUST belong to the same `snapshotId`, `revision`, `mode`, principal, and query scope.
+- `page.sequence` starts at 1 and increases by one. Clients can only follow the `rel=next` URL provided in the response and cannot construct later cursors in parallel.
+- `page.nextCursor` must be bound to the revision, principal, `root`, `depth`, `include`, and page size, and is the exclusive position of the next page.
+- When there is a next page, the response SHOULD also send `Link: <...pageCursor=...>; rel="next"`. The URL must come from the server; clients must not build it by appending a cursor.
+- If the revision expires during pagination, the server returns `409 snapshot_expired` and the client starts over.
+- For static or small Collections, the server SHOULD return a complete single-page Snapshot.
+- `syncCursor` must not be used for pagination, and a public Snapshot must not return a sync cursor.
+- A logical Snapshot without `root` or `depth` cropping, and either without `include` or with an `include` that explicitly lists all of the authoritative arrays (annotations, attachments, relations), uses `complete=true`, whether or not it is paginated. Clients must still not perform a destructive replace or mirror before they have every page. A cropped response that omits any authoritative array uses `complete=false`.
 
-- 分页 Snapshot 的所有页面 MUST 对应同一个 `snapshotId`、`revision`、`mode`、Principal 和查询作用域。
-- `page.sequence` 从 1 连续递增；客户端只能跟随响应提供的 `rel=next` URL，不能并行构造后续 Cursor。
-- `page.nextCursor` 必须绑定该 Revision、Principal、`root`、`depth`、`include` 和页面大小，且为排他的下一页位置。
-- 有下一页时响应 SHOULD 同时发送 `Link: <...pageCursor=...>; rel="next"`；URL 必须来自服务器，不得由客户端拼接 Cursor。
-- 若 Revision 在分页期间过期，服务器返回 `409 snapshot_expired`，客户端重新开始。
-- 对静态或较小 Collection，服务器 SHOULD 返回单页完整 Snapshot。
-- `syncCursor` 不得用于分页；公共 Snapshot 不得返回 Sync Cursor。
-- 没有 `root`、`depth` 裁剪，且未使用 `include` 或 `include` 明确覆盖 annotations、attachments、relations 全部权威数组的逻辑 Snapshot 使用 `complete=true`，无论是否分页。客户端取得全部页面前仍不得执行 destructive replace / mirror。省略任一权威数组的裁剪响应使用 `complete=false`。
+<a id="colp-section-5-2"></a>
 
-### 5.2 缓存
+### 5.2 Caching
 
 ```http
 ETag: "snapshot-public-r_1042-p1-7f2c"
@@ -219,26 +220,24 @@ Cache-Control: public, max-age=60
 Content-Digest: sha-256=:...:
 ```
 
-对于 Protected Collection，默认：
+For a protected Collection, the default is:
 
 ```http
 Cache-Control: private, no-store
 Vary: Authorization
 ```
 
-ETag 标识实际表示和页面。不同 `include`、`depth`、`root`、Principal、媒体类型或分页位置不得复用同一 ETag。
+An ETag identifies the actual representation and page. Different `include`, `depth`, `root`, principal, media type, or page position must not reuse the same ETag.
 
-访问策略可能收紧的可变 Snapshot 不应使用 `stale-while-revalidate`。长期公共缓存应优先使用不可变 Release Snapshot URL；Public → Private / Delete 时服务端必须清理自己控制的 CDN 与 Shared Cache。
+A mutable Snapshot whose access policy might tighten should not use `stale-while-revalidate`. Long-lived public caching should prefer immutable Release Snapshot URLs. When a Collection goes from public to private or is deleted, the server must purge the CDNs and shared caches it controls.
 
 <a id="colp-section-6"></a>
 
 ## 6. Feed Event Model
 
-<!-- COLP-REQ FEED-0001 -->
+Feed events are compatible with CloudEvents 1.0.
 
-Feed Event 与 CloudEvents 1.0 兼容：
-
-Feed 中出现的 Bookmark 导航 URL MUST 是 Authority 不含 Userinfo 的绝对 HTTP(S) URL；不能安全投影的目标必须省略或使用不含目标 URL 的 Redacted 摘要。
+A Bookmark navigation URL that appears in a Feed MUST be an absolute HTTP(S) URL whose authority has no userinfo; a target that cannot be safely projected must be omitted or represented by a redacted summary without the target URL.
 
 ```json
 {
@@ -262,7 +261,7 @@ Feed 中出现的 Bookmark 导航 URL MUST 是 Authority 不含 Userinfo 的绝�
 }
 ```
 
-标准 Event Type：
+Standard event types:
 
 - `org.collectionprotocol.collection.created.v1`
 - `org.collectionprotocol.collection.updated.v1`
@@ -275,15 +274,17 @@ Feed 中出现的 Bookmark 导航 URL MUST 是 Authority 不含 Userinfo 的绝�
 - `org.collectionprotocol.annotation.published.v1`
 - `org.collectionprotocol.access.publication_changed.v1`
 
-Access Event 只能说明公开状态发生变化，不得携带 Key、内部 Principal 或私人规则。
+An access event may only say that the publication state changed; it must not carry keys, internal principals, or private rules.
 
-每个标准 Event Type 的 `data` 使用精确判别合同：Release 必须带 `releaseId`、不可变 Snapshot URL、Digest 与 Change Counts；Node 事件只使用脱敏的 `feedNode`；Delete 只携带 Node ID 和必要摘要。核心事件不允许任意额外字段。扩展事件的 `type` 必须是 HTTPS URI，数据只能进入命名空间 `extensions`。
+The `data` of each standard event type uses an exact discriminated contract: a release must carry `releaseId`, the immutable Snapshot URL, a digest, and change counts; Node events use only the redacted `feedNode`; a delete carries only the Node ID and a necessary summary. Core events do not allow arbitrary extra fields. The `type` of an extension event must be an HTTPS URI, and its data can only go into namespaced `extensions`.
+
+<a id="colp-section-7"></a>
 
 ## 7. Feed Response
 
 `GET /collections/c/{collectionId}/feed?cursor=...&limit=50`
 
-首次请求省略 Cursor 时默认返回“保留窗口内最新一页”，事件仍按提交顺序升序排列。客户端可显式使用 `from=now` 只取得当前 Checkpoint，或在服务器允许时使用 `from=beginning` 从最早保留事件开始；`from` 与 `cursor` 不得同时出现。
+When the first request omits the cursor, the default response is "the newest page within the retention window", with events still in ascending commit order. A client may explicitly use `from=now` to get only the current checkpoint, or, where the server allows it, `from=beginning` to start from the oldest retained event; `from` and `cursor` must not appear together.
 
 ```json
 {
@@ -302,82 +303,82 @@ Access Event 只能说明公开状态发生变化，不得携带 Key、内部 Pr
 }
 ```
 
+<a id="colp-section-7-1"></a>
+
 ### 7.1 Cursor
 
-<!-- COLP-REQ FEED-0002 -->
-
-- Feed Cursor 与 Sync Cursor 不是同一个命名空间。
-- Feed Cursor 是不透明字符串。
-- 请求 Cursor 表示“从该 Checkpoint 之后开始”，边界是排他的。响应事件按服务器提交顺序升序排列。
-- `nextCursor` 是处理完本响应后的新 Checkpoint，即使 `events` 为空也可以前进。`hasMore=true` 时客户端应立即继续拉取，否则按 Poll Hint 等待。
-- Cursor 必须绑定 Principal、Feed、过滤器和协议版本，跨上下文复用必须拒绝。
-- 客户端应该只在全部事件持久化后保存 `nextCursor`。
-- Feed 投递语义是至少一次。Event ID 在服务器内稳定且不复用；客户端必须按 Event ID 幂等去重。
-- 服务端可压缩旧 Feed；Cursor 过期时返回 `410 feed_cursor_expired`，并提供最新 Snapshot URL。
+- Feed cursors and sync cursors are not in the same namespace.
+- A Feed cursor is an opaque string.
+- A request cursor means "start after this checkpoint"; the boundary is exclusive. Response events are in ascending server commit order.
+- `nextCursor` is the new checkpoint after this response has been processed; it may advance even when `events` is empty. When `hasMore=true` the client should continue pulling immediately; otherwise it waits according to the poll hint.
+- A cursor must be bound to the principal, feed, filters, and protocol version, and reuse across contexts must be rejected.
+- A client should save `nextCursor` only after every event has been persisted.
+- Feed delivery is at-least-once. Event IDs are stable within the server and never reused, and clients must deduplicate idempotently by event ID.
+- A server may compact old Feed history. When a cursor has expired it returns `410 feed_cursor_expired` with the latest Snapshot URL.
 
 <a id="colp-section-7-2"></a>
 
 ### 7.2 Feed Mode
 
-`live` 模式：
+`live` mode:
 
-- 允许公开 Node Create / Update / Move / Delete。
-- 服务器可以在短时间窗口合并连续 Update。
+- Public Node create, update, move, and delete events are allowed.
+- The server may merge consecutive updates within a short time window.
 
-`release` 模式：
+`release` mode:
 
-- 内部编辑不产生公共事件。
-- `POST /release` 生成 `release.published`。
-- Event Data 包含 Release 摘要、Change Count、Snapshot URL 和 Release Revision。
-- Release Snapshot URL MUST 指向不可变资源，例如 `/c/{collectionId}/releases/{releaseId}/snapshot`，并提供 Digest。不得只指向会随最新状态变化的 `/snapshot`。
+- Internal edits do not produce public events.
+- `POST /release` produces `release.published`.
+- The event data contains the release summary, change counts, Snapshot URL, and release revision.
+- The release Snapshot URL MUST point to an immutable resource, such as `/c/{collectionId}/releases/{releaseId}/snapshot`, and provide a digest. It must not point only to the `/snapshot` that changes with the latest state.
 
-对个人策展人，`release` 是默认推荐模式，可以避免关注者被拖拽、改标题等细小操作刷屏。
+For individual curators, `release` is the recommended default mode, because it keeps followers from being flooded with small operations such as drags and title edits.
 
 <a id="colp-section-8"></a>
 
-## 8. JSON Feed 1.1 表示
+## 8. JSON Feed 1.1 Representation
 
-实现 MAY 提供：
+Implementations MAY provide:
 
 ```text
 /collections/-/feed.json
 /collections/c/{id}/feed.json
 ```
 
-Content-Type：`application/feed+json`
+Content-Type: `application/feed+json`
 
-映射：
+Mapping:
 
 | Collection Protocol | JSON Feed 1.1 |
 |---|---|
 | Feed URL | `feed_url` |
-| Collection Canonical URL | `home_page_url` |
+| Collection canonical URL | `home_page_url` |
 | Creator | `authors` |
 | Event ID | `items[].id` |
-| Event Time | `date_published` |
-| Event Subject URL | `url` |
+| Event time | `date_published` |
+| Event subject URL | `url` |
 | Bookmark URL | `external_url` |
-| Event Summary | `content_text` / `summary` |
-| Collection Tags | `tags` |
+| Event summary | `content_text` / `summary` |
+| Collection tags | `tags` |
 | Attachment | `attachments` |
 
-核心 Feed Event 不包含 Attachment Payload。JSON Feed 表示层从发布者显式提供、按 Event ID 关联的 Attachment 投影元数据生成 `items[].attachments`，不从 Event 的未知字段推断 Attachment，也不为此扩展当前 Event Schema。每项投影元数据包含 JSON Feed 1.1 要求的绝对 HTTP(S) `url` 和 `mime_type`；未知 Event ID 或非法元数据使该次映射失败，输出不保留调用方可变引用。
+Core feed events contain no attachment payload. The JSON Feed representation layer generates `items[].attachments` from attachment projection metadata that the publisher provides explicitly and associates by event ID; it does not infer attachments from unknown event fields and does not extend the current event schema for this purpose. Each projected entry contains the absolute HTTP(S) `url` and the `mime_type` that JSON Feed 1.1 requires. An unknown event ID or invalid metadata fails that mapping, and the output keeps no caller-mutable references.
 
-协议专有数据放入 `_collection_protocol` Extension。
+Protocol-specific data goes into the `_collection_protocol` extension.
 
-JSON Feed 是传播兼容层，不得用于双向同步。
+JSON Feed is a distribution compatibility layer and must not be used for two-way synchronization.
 
 <a id="colp-section-9"></a>
 
-## 9. Atom 表示
+## 9. Atom Representation
 
-实现 MAY 提供 Atom 1.0。Atom Entry ID 必须稳定，Bookmark 外部 URL 使用 `rel=related`，事件或 Collection 页面使用 `rel=alternate`。
+Implementations MAY provide Atom 1.0. Atom entry IDs must be stable; external bookmark URLs use `rel=related`, and event or Collection pages use `rel=alternate`.
 
 <a id="colp-section-10"></a>
 
 ## 10. WebSub
 
-实现 MAY 在 Feed 中声明 WebSub Hub：
+Implementations MAY declare WebSub hubs in a Feed:
 
 ```json
 {
@@ -390,34 +391,35 @@ JSON Feed 是传播兼容层，不得用于双向同步。
 }
 ```
 
-WebSub 通知只表示“Feed 已变化”。订阅者收到通知后仍应使用条件 GET 拉取 Feed，不应把通知正文作为权威数据。
+A WebSub notification only means "the feed has changed". After a notification, a subscriber should still pull the feed with a conditional GET and should not treat the notification body as authoritative data.
 
 <a id="colp-section-11"></a>
 
-## 11. 轮询与缓存行为
+## 11. Polling and Caching Behavior
 
-客户端 MUST：
+Clients MUST:
 
-- 遵守 Manifest 的 `minPollIntervalSeconds`。
-- 优先使用 ETag 与 `If-None-Match`。
-- 遇到 `429` 使用 `Retry-After`。
-- 对 `5xx` 使用指数退避与随机抖动。
-- 不因用户打开页面而绕过后台轮询限制。
-- 多个本地订阅 SHOULD 合并为单次实例级请求，避免 N+1 轮询。
+- Respect `minPollIntervalSeconds` from the Manifest.
+- Prefer ETags and `If-None-Match`.
+- Use `Retry-After` when they receive `429`.
+- Use exponential backoff with random jitter for `5xx`.
+- Not bypass background polling limits just because the user opened a page.
 
-建议退避：
+Clients SHOULD combine multiple local subscriptions into a single instance-level request, to avoid N+1 polling.
+
+Recommended backoff:
 
 ```text
 delay = min(serverMax, base * 2^attempt) + random(0, jitter)
 ```
 
-成功响应后使用服务器推荐间隔重置退避。
+After a successful response, reset the backoff using the interval recommended by the server.
 
 <a id="colp-section-12"></a>
 
-## 12. 静态托管模式
+## 12. Static Hosting Mode
 
-只读 Publisher 可以把以下文件部署为静态 JSON：
+A read-only publisher can deploy the following files as static JSON:
 
 ```text
 /.well-known/collection-protocol
@@ -427,29 +429,31 @@ delay = min(serverMax, base * 2^attempt) + random(0, jitter)
 /collections/items/{id}/feed.json
 ```
 
-静态模式：
+Static mode:
 
-- MUST 声明 `profiles=["core", "publication"]`，提供 Feed 时额外声明 `feed`。
-- MUST 在 Manifest `endpoints` 中声明上述真实绝对文件 URL / Template；客户端不执行路径推断。
-- 不提供写入、Sync 或远程 MCP Tools。
-- 可以提供只读 MCP Server 作为独立进程读取这些文件。
-- 使用 CDN ETag、Cache-Control 和可选 HTTP Signature。
+- MUST declare `profiles=["core", "publication"]`, and additionally `feed` when a feed is provided.
+- MUST declare the real absolute file URLs or templates listed above in the Manifest `endpoints`; clients do not infer paths.
+- Provides no writes, Sync, or remote MCP tools.
+- May provide a read-only MCP server as a separate process that reads these files.
+- Uses CDN ETags, `Cache-Control`, and optional HTTP signatures.
 
 <a id="colp-section-13"></a>
 
-## 13. 删除与消失
+## 13. Deletion and Removal
 
-- Collection 删除时 Feed 发布 `collection.deleted`。
-- 服务器 SHOULD 在原 Canonical URL 返回 `410 Gone`，并保留最少 30 天。
-- `410` 响应 SHOULD 指向归档、迁移地址或 Owner 页面。
-- Node 删除事件只公开 Node ID 和必要摘要，不公开私人删除原因。
+- When a Collection is deleted, the Feed publishes `collection.deleted`.
+- The server SHOULD return `410 Gone` at the original canonical URL and keep doing so for at least 30 days.
+- The `410` response SHOULD point to an archive, a new location, or the owner's page.
+- A Node deletion event only exposes the Node ID and a necessary summary, not a private reason for deletion.
 
-## 14. 迁移
+<a id="colp-section-14"></a>
 
-Collection 迁移到新服务器时：
+## 14. Migration
 
-- 原地址返回 `308 Permanent Redirect` 或 `410` + `movedTo`。
-- Manifest 或 Collection Metadata 提供新的 Canonical URL。
-- 新服务器保留 Collection ID 或提供 `formerIds`。
-- Feed 发布 `collection.moved` Extension Event。
-- 消费者必须防止无限重定向和跨域凭据泄漏，Authorization Header 不得自动转发给未信任的新 Origin。
+When a Collection moves to a new server:
+
+- The old address returns `308 Permanent Redirect`, or `410` with `movedTo`.
+- The Manifest or the Collection metadata provides the new canonical URL.
+- The new server keeps the Collection ID or provides `formerIds`.
+- The Feed publishes a `collection.moved` extension event.
+- Consumers must guard against infinite redirects and cross-origin credential leaks; the `Authorization` header must not be forwarded automatically to an untrusted new origin.

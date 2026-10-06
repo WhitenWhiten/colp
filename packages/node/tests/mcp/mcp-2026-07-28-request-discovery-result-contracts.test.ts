@@ -47,7 +47,7 @@ const capabilities = Object.freeze({
   resources: Object.freeze({ subscribe: false, listChanged: false }),
 });
 
-describe('MCP 2026-07-28 discovery contracts', () => {
+describe('MCP 2026-07-28 discovery contracts [evidence:mcp.discovery-contract]', () => {
   it('advertises exactly the pinned protocol version and real capabilities', () => {
     const result = createMcp20260728DiscoverResult({
       serverInfo,
@@ -137,7 +137,7 @@ describe('MCP 2026-07-28 discovery contracts', () => {
   });
 });
 
-describe('MCP 2026-07-28 result contracts', () => {
+describe('MCP 2026-07-28 result contracts [evidence:mcp.result-contract]', () => {
   it('stamps resultType complete by default', () => {
     const result = createMcp20260728Result({
       method: 'server/discover',

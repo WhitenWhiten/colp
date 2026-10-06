@@ -74,7 +74,6 @@ const requirements: readonly ConformanceRequirement[] = profiles.flatMap((profil
     profile,
     source: 'CORE-0022 synthetic registry',
     requirement: `${profile} ${level} requirement`,
-    selector: { marker: `${profile}-${suffix}` },
     implementation: ['test'],
     tests: [`test.${profile}.${suffix}`],
   })),
@@ -98,10 +97,8 @@ function artifact(
   passedRequirementIds: readonly string[] = requirements.map((requirement) => requirement.id),
 ): ConformanceEvidenceArtifact {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     ...metadata,
-    sourceRevision: '0123456789abcdef',
-    reportDigest: `sha256:${'2'.repeat(64)}`,
     passedRequirementIds,
   };
 }
@@ -261,9 +258,7 @@ describe('CORE-0022 evidence and runtime input validation', () => {
       { ...artifact(), requirementsDigest: `sha256:${'9'.repeat(64)}` },
       /requirementsDigest/u,
     ],
-    ['source revision', { ...artifact(), sourceRevision: 'working-tree' }, /hexadecimal/u],
-    ['missing report digest', { ...artifact(), reportDigest: undefined }, /reportDigest/u],
-    ['malformed report digest', { ...artifact(), reportDigest: 'sha256:nope' }, /reportDigest/u],
+    ['schema version', { ...artifact(), schemaVersion: 1 }, /schemaVersion/u],
     ['unknown field', { ...artifact(), passingTests: [] }, /Unknown conformance/u],
     ['unknown requirement', artifact(['TEST-core-must', 'UNKNOWN']), /Unknown passed/u],
     [
@@ -273,7 +268,7 @@ describe('CORE-0022 evidence and runtime input validation', () => {
     ],
   ];
 
-  it('binds verified evidence to package, protocol, registry, source, and report [evidence:core.profile-claims-evidence-artifact]', () => {
+  it('binds bundled evidence to the package, protocol and registry [evidence:core.profile-claims-evidence-artifact]', () => {
     expect(() => assertValidEvidenceArtifact(artifact(), metadata, requirements)).not.toThrow();
   });
 

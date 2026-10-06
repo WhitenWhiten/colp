@@ -33,11 +33,8 @@ jobs:
     outputs:
       full: ${{ steps.scope.outputs.full }}
       quality: ${{ steps.filter.outputs.quality }}
-      evidence: ${{ steps.filter.outputs.evidence }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
       - id: filter
         if: github.event_name != 'workflow_dispatch'
         # Reviewed: dorny/paths-filter is used only to map PR paths to job outputs.
@@ -50,16 +47,6 @@ jobs:
               - 'packages/node/**'
               - 'scripts/**'
               - 'protocol/**'
-              - '.github/workflows/colp-ci.yml'
-              - '!packages/node/docs/TRACEABILITY.md'
-              - '!packages/node/src/conformance/generated/evidence.json'
-              - '!packages/node/src/conformance/generated/mcp-conformance-candidate.json'
-              - '!packages/node/src/conformance/generated/mcp-2026-07-28-sdk-accepted.json'
-            evidence:
-              - 'packages/node/docs/TRACEABILITY.md'
-              - 'packages/node/src/conformance/generated/evidence.json'
-              - 'packages/node/src/conformance/generated/mcp-conformance-candidate.json'
-              - 'packages/node/src/conformance/generated/mcp-2026-07-28-sdk-accepted.json'
               - '.github/workflows/colp-ci.yml'
       - id: scope
         name: Select full verification scope
@@ -74,13 +61,17 @@ jobs:
 
   static:
     needs: changes
-    if: needs.changes.outputs.full == 'true' || needs.changes.outputs.quality == 'true' || needs.changes.outputs.evidence == 'true'
+    if: needs.changes.outputs.full == 'true' || needs.changes.outputs.quality == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
+      - name: Validate protocol examples
+        run: |
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --quiet -r requirements-dev.txt
+          "$RUNNER_TEMP/venv/bin/python" scripts/validate_examples.py
+        working-directory: protocol
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
@@ -98,23 +89,17 @@ jobs:
       - name: Rebuild allowlisted esbuild
         run: test ! -d node_modules/esbuild || npm rebuild esbuild --ignore-scripts=false
         working-directory: packages/node
-      - name: Protocol, generated assets, traceability and types
-        run: npm run check:protocol && npm run check:types && npm run check:requirements && npm run check:traceability && npm run typecheck && npm run check:source-size
-        working-directory: packages/node
-      - name: Process-owned release contracts
-        if: needs.changes.outputs.full == 'true' || needs.changes.outputs.quality == 'true' || needs.changes.outputs.evidence == 'true'
-        run: npm run test:process-contracts
+      - name: Protocol assets, generated types, traceability and typecheck
+        run: npm run check:protocol && npm run check:types && npm run check:traceability && npm run typecheck && npm run check:source-size
         working-directory: packages/node
 
-  release-evidence:
+  test:
     needs: changes
-    if: needs.changes.outputs.full == 'true' || needs.changes.outputs.quality == 'true' || needs.changes.outputs.evidence == 'true'
+    if: needs.changes.outputs.full == 'true' || needs.changes.outputs.quality == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
@@ -123,22 +108,11 @@ jobs:
       - name: Frozen package install
         run: npm ci
         working-directory: packages/node
-      - name: Ensure release evidence tools are installed
-        run: |
-          if test ! -f node_modules/yaml/package.json; then
-            npm ci
-          fi
-        working-directory: packages/node
       - name: Rebuild allowlisted esbuild
         run: test ! -d node_modules/esbuild || npm rebuild esbuild --ignore-scripts=false
         working-directory: packages/node
-      - name: Main coverage and repository-tracked release evidence
-        if: needs.changes.outputs.full == 'true' || needs.changes.outputs.quality == 'true'
-        run: npm run check:release-evidence:coverage
-        working-directory: packages/node
-      - name: Repository-tracked release evidence without coverage
-        if: needs.changes.outputs.full != 'true' && needs.changes.outputs.quality != 'true'
-        run: npm run check:release-evidence
+      - name: Full test suite with coverage; fail if evidence.json is stale
+        run: node scripts/generate-conformance-evidence.mjs --check --coverage
         working-directory: packages/node
 
   publisher-coverage:
@@ -271,7 +245,7 @@ jobs:
     needs:
       - changes
       - static
-      - release-evidence
+      - test
       - publisher-coverage
       - security-coverage
       - sync-core-coverage
@@ -285,14 +259,14 @@ jobs:
         env:
           CHANGES_RESULT: ${{ needs.changes.result }}
           STATIC_RESULT: ${{ needs.static.result }}
-          RELEASE_RESULT: ${{ needs.release-evidence.result }}
+          TEST_RESULT: ${{ needs.test.result }}
           PUBLISHER_RESULT: ${{ needs.publisher-coverage.result }}
           SECURITY_RESULT: ${{ needs.security-coverage.result }}
           SYNC_CORE_RESULT: ${{ needs.sync-core-coverage.result }}
           PACKAGE_RESULT: ${{ needs.package.result }}
           DEPENDENCY_AUDIT_RESULT: ${{ needs.dependency-audit.result }}
         run: |
-          for result in "$CHANGES_RESULT" "$STATIC_RESULT" "$RELEASE_RESULT" "$PUBLISHER_RESULT" "$SECURITY_RESULT" "$SYNC_CORE_RESULT" "$PACKAGE_RESULT" "$DEPENDENCY_AUDIT_RESULT"; do
+          for result in "$CHANGES_RESULT" "$STATIC_RESULT" "$TEST_RESULT" "$PUBLISHER_RESULT" "$SECURITY_RESULT" "$SYNC_CORE_RESULT" "$PACKAGE_RESULT" "$DEPENDENCY_AUDIT_RESULT"; do
             if [[ "$result" != "success" && "$result" != "skipped" ]]; then
               echo "A selected colp-ci job did not pass: $result" >&2
               exit 1

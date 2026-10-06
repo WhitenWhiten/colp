@@ -1,84 +1,98 @@
 # The Collection Protocol Specification 0.1-draft
 
-## 1. 规范语言
+<a id="colp-section-1"></a>
 
-本文中的 `MUST`、`MUST NOT`、`SHOULD`、`SHOULD NOT` 和 `MAY` 按 BCP 14 的含义解释。
+## 1. Conventions
 
-Wire 格式中的字段、端点、错误码和 Scope 使用英文；说明文档使用中文。
+The key words `MUST`, `MUST NOT`, `SHOULD`, `SHOULD NOT`, and `MAY` in this document are to be interpreted as described in BCP 14 (RFC 2119 and RFC 8174) when, and only when, they appear in all capitals.
 
-本规范仍处于 `0.1-draft`。Draft 期间允许修正不一致的 Wire Contract；实现不得把 Draft 当作稳定发布版。未发布 tag、未对外承诺稳定性的私有 development 包不建立 `0.1` 兼容性基线。首次稳定发布必须在发布记录中确认此前是否存在对外稳定的 `0.1` Validator 或 Wire 实现：若不存在，可以把修正后的 Draft 冻结为初始基线；若存在，则按第 12 节选择新的 Minor 或 Major 版本，不能继续复用 `0.1`。首个实现应遵循 [Practical Interoperability Profile](docs/00-practical-profile.md)。
+Field names, endpoint keys, problem codes, and scope names on the wire are ASCII identifiers. They are case-sensitive and are never translated.
 
-## 2. 协议范围
+This specification is at `0.1-draft`. While it is a draft, inconsistent wire contracts may still be corrected, and implementations must not treat the draft as a stable release. Unpublished tags and private development packages that have not promised stability do not establish a `0.1` compatibility baseline. The first stable release must state in its release notes whether any publicly stable `0.1` validator or wire implementation existed before it: if none existed, the corrected draft may be frozen as the initial baseline; if one existed, the release must choose a new minor or major version under Section 12 and must not keep reusing `0.1`. A first implementation should follow the [Practical Interoperability Profile](docs/00-practical-profile.md).
 
-The Collection Protocol 定义五个相互独立但可组合的层：
+<a id="colp-section-2"></a>
 
-1. **Core Data Model**：Collection、Node、Annotation、Attachment、Relation、Access Policy。
-2. **Publication Protocol**：通过 HTTP 发现、读取、缓存和传播 Collection。
-3. **Synchronization Protocol**：可信副本之间推送、拉取、转换、冲突处理和删除传播。
-4. **Security Profile**：API Key、OAuth、ACL、Rate Limit、签名和审计。
-5. **MCP Profile**：把前四层映射为 MCP Resources、Tools 和订阅通知。
+## 2. Scope
 
-实现可以只支持 Core 与 Publication。实现声称支持 Sync 或 MCP 时，必须满足对应文档中的完整 Profile。
+The Collection Protocol defines five layers that are independent but composable:
 
-本协议不定义网页抓取、全文归档、搜索排名、推荐算法、支付、DRM 或跨服务器分布式事务。这些能力必须作为独立扩展，不得改变核心交换语义。
+1. **Core Data Model**: Collection, Node, Annotation, Attachment, Relation, and Access Policy.
+2. **Publication Protocol**: discovering, reading, caching, and distributing Collections over HTTP.
+3. **Synchronization Protocol**: push, pull, conversion, conflict handling, and deletion propagation between trusted replicas.
+4. **Security Profile**: API keys, OAuth, ACLs, rate limits, signatures, and audit.
+5. **MCP Profile**: a mapping of the first four layers onto MCP resources, tools, and subscription notifications.
 
-## 3. 三类数据语义
+An implementation may support only Core and Publication. An implementation that claims Sync or MCP support must satisfy the complete profile defined in the corresponding document.
+
+This protocol does not define web crawling, full-text archiving, search ranking, recommendation algorithms, payment, DRM, or distributed transactions across servers. Such capabilities must be separate extensions and must not change the core exchange semantics.
+
+<a id="colp-section-3"></a>
+
+## 3. Three Kinds of Data
 
 <a id="colp-section-3-1"></a>
 
 ### 3.1 Snapshot
 
-Snapshot 是某个 Collection 在一个确定 Revision 上的完整规范化状态。
+A Snapshot is the complete, normalized state of one Collection at one specific revision.
 
-- 用于首次导入、灾难恢复、静态托管和校验。
-- Snapshot MUST 带 `snapshotId`、`mode`、`complete`、`revision`、`generatedAt`、分页状态和内容摘要策略。`complete` 表示查询选择的是完整逻辑 Snapshot，而不是当前 HTTP 页面是否为最后一页。
-- 完整逻辑 Snapshot 可以分页。接收方只有在持久化同一 `snapshotId`、`revision` 和查询作用域的全部页面，并收到 `page.hasMore=false` 后，才可原子替换本地状态。
-- Snapshot 中的 Node 采用扁平数组，通过 `parentId` 与 `position` 表达层级和顺序。
-- Annotation、Attachment 和 Relation 只在 Snapshot 顶层数组中出现一次；Node 不内嵌第二份权威副本。
-- `page.nextCursor` 只用于 Snapshot 分页；`syncCursor` 只用于同步进度；Feed Cursor 使用独立命名空间。分页页必须按 `page.sequence` 从 1 连续递增，客户端不得跳页或并行猜测 Cursor。
+- It is used for first import, disaster recovery, static hosting, and validation.
+- A Snapshot MUST carry `snapshotId`, `mode`, `complete`, `revision`, `generatedAt`, the pagination state, and the content digest policy. `complete` states that the query selected the complete logical Snapshot; it does not say whether the current HTTP page is the last page.
+- A complete logical Snapshot may be paginated. A receiver may atomically replace local state only after it has persisted every page for the same `snapshotId`, `revision`, and query scope and has received `page.hasMore=false`.
+- Nodes in a Snapshot form a flat array; `parentId` and `position` express hierarchy and order.
+- Annotations, Attachments, and Relations appear exactly once, in top-level Snapshot arrays. A Node does not embed a second authoritative copy of them.
+- `page.nextCursor` is used only for Snapshot pagination, `syncCursor` only for synchronization progress, and Feed cursors use their own namespace. Pages must be numbered by `page.sequence`, starting at 1 and increasing by one. Clients must not skip pages or guess cursors in parallel.
+
+<a id="colp-section-3-2"></a>
 
 ### 3.2 Sync
 
-Sync 是受信任副本之间的双向状态复制。
+Sync is two-way state replication between trusted replicas.
 
-- 必须支持幂等操作、离线队列、Tombstone、冲突与游标续传。
-- 必须保留浏览器来源映射和转换警告。
-- Sync 数据不自动成为公开数据。
+- It must support idempotent operations, offline queues, tombstones, conflicts, and resumable cursors.
+- It must preserve browser source mappings and conversion warnings.
+- Sync data does not automatically become public data.
+
+<a id="colp-section-3-3"></a>
 
 ### 3.3 Feed
 
-<!-- COLP-REQ FEED-0003 -->
+A Feed is a distribution view for followers, aggregators, and search engines.
 
-Feed 是面向关注者、聚合器和搜索引擎的传播视图。
+- A Feed may publish only Collection Releases instead of every internal edit.
+- A Feed may compact, redact, or merge events.
+- A Feed must not contain private notes, browser profile IDs, native node IDs, secrets, internal ACL identifiers, or attachments that were not explicitly made public.
+- The completeness of Feed history must not be the only basis for recovering synchronization state.
 
-- Feed 可以只发布 Collection Release，而不发布每次内部编辑。
-- Feed 可以压缩、脱敏或合并事件。
-- Feed 不得包含私人 Note、浏览器 Profile ID、原生节点 ID、密钥、ACL 内部标识或未明确公开的附件。
-- Feed 历史的完整性不得作为恢复同步状态的唯一依据。
+<a id="colp-section-4"></a>
 
-## 4. 资源模型
+## 4. Resource Model
+
+<a id="colp-section-4-1"></a>
 
 ### 4.1 Collection
 
-Collection 是一个独立的版本、访问和传播边界。它拥有：
+A Collection is an independent boundary for versioning, access, and distribution. It has:
 
-- 稳定 ID 与 Canonical URL。
-- 一个 Root Node。
-- Collection 级元信息。
-- 公开策略和访问策略。
-- Revision、事件游标和可选 Release。
-- 一个或多个 Creator / Maintainer。
+- A stable ID and a canonical URL.
+- One Root Node.
+- Collection-level metadata.
+- A publication policy and an access policy.
+- A revision, an event cursor, and optional Releases.
+- One or more creators or maintainers.
 
-Collection 的 `kind`：
+Collection `kind`:
 
-- `bookmarks`：传统收藏夹树。
-- `reading_path`：强调顺序和学习路径。
-- `knowledge_collection`：包含注释、关系和来源引用信息。
-- `mixed`：上述能力混用。
+- `bookmarks`: a traditional bookmark tree.
+- `reading_path`: emphasizes order and learning paths.
+- `knowledge_collection`: includes annotations, relations, and source references.
+- `mixed`: a combination of the above.
+
+<a id="colp-section-4-2"></a>
 
 ### 4.2 Node
 
-Node 是树中的最小结构单位：
+A Node is the smallest structural unit of the tree:
 
 - `root`
 - `folder`
@@ -86,11 +100,13 @@ Node 是树中的最小结构单位：
 - `separator`
 - `alias`
 
-`alias` 指向同一 Collection 内的另一个 Node。向不支持 Alias 的浏览器同步时，适配器必须将其物化为重复 Bookmark，或明确拒绝。
+An `alias` points to another Node in the same Collection. When syncing to a browser that does not support aliases, an adapter must either materialize the alias as a duplicate bookmark or explicitly refuse.
+
+<a id="colp-section-4-3"></a>
 
 ### 4.3 Annotation
 
-Annotation 表达附加在 Collection 或 Node 上的内容：
+An Annotation is content attached to a Collection or a Node:
 
 - `note`
 - `summary`
@@ -100,16 +116,15 @@ Annotation 表达附加在 Collection 或 Node 上的内容：
 - `rating`
 - `custom`
 
-每条 Annotation 都有独立 `visibility`。私人 Annotation 即使其父 Node 公开，也不得进入公共投影。
+Every Annotation has its own `visibility`. A private Annotation must not enter a public projection, even if its parent Node is public.
 
-AI Provenance 的身份字段由服务端可信生成边界建立。后续 Human、Imported 或 Derived 写入可以编辑内容，
-但不能依据请求体中的 Provenance 改写既有 AI 的生成来源；完整规则见 `docs/01-core-data-model.md`。
+The identity fields of AI provenance are established by the server's trusted generation boundary. Later human, imported, or derived writes may edit the content, but cannot rewrite the generation source of existing AI content based on the provenance in a request body. See `docs/01-core-data-model.md` for the complete rules.
 
 <a id="colp-section-4-4"></a>
 
 ### 4.4 Extension
 
-无法进入核心模型的来源专有数据必须放入 `extensions`：
+Source-specific data that does not fit the core model must be placed in `extensions`:
 
 ```json
 {
@@ -122,86 +137,94 @@ AI Provenance 的身份字段由服务端可信生成边界建立。后续 Human
 }
 ```
 
-扩展键 MUST 是没有 Userinfo、且任何显式端口均为非空十进制数字的 HTTPS Namespace URI；Namespace key 按原始字符串逐 Code Point 精确比较，不执行大小写折叠、默认端口消除或 Percent-Encoding 规范化。中间节点、同步服务器和导出工具对未知扩展 MUST 原样保留，除非安全策略明确移除。
+An extension key MUST be an HTTPS namespace URI without userinfo, in which any explicit port is a non-empty decimal number. Namespace keys are compared exactly, code point by code point, with no case folding, default-port removal, or percent-encoding normalization. Intermediaries, sync servers, and export tools MUST preserve unknown extensions unchanged unless a security policy explicitly removes them.
 
-同一精确协议版本内，新增数据 MUST 放入 `extensions`。新增核心字段需要新的 Schema / 协议版本，不能依赖旧版本 `additionalProperties` 行为偷偷扩展。
+Within one exact protocol version, new data MUST be placed in `extensions`. A new core field requires a new schema and protocol version; it cannot rely on the `additionalProperties` behavior of an older version to slip in.
 
-## 5. ID、时间和版本
+<a id="colp-section-5"></a>
+
+## 5. IDs, Time, and Versions
 
 <a id="colp-section-5-1"></a>
 
-### 5.1 ID
+### 5.1 IDs
 
-- 新建对象 SHOULD 使用 UUIDv7。
-- Wire ID 是不透明字符串，客户端不得从 ID 推断时间、所有者或 URL。
-- Wire ID MUST 为 1 到 128 个 URI Unreserved ASCII 字符：`ALPHA / DIGIT / "-" / "." / "_" / "~"`。
-- Collection、Node、Annotation、Attachment、Relation、Operation 和 Event 的 ID 在其服务器内 MUST 唯一且永不复用。
-- 原生浏览器 ID 不得作为协议主 ID，应进入 `sourceRefs`。
-- 全局资源身份是 `(serverUuid, resourceType, id)`。跨服务器引用 MUST 使用 Canonical URI，不能只发送裸 ID。
+- New objects SHOULD use UUIDv7.
+- Wire IDs are opaque strings. Clients must not infer time, ownership, or URLs from an ID.
+- A wire ID MUST consist of 1 to 128 URI unreserved ASCII characters: `ALPHA / DIGIT / "-" / "." / "_" / "~"`.
+- Collection, Node, Annotation, Attachment, Relation, Operation, and Event IDs MUST be unique within their server and are never reused.
+- Native browser IDs must not be used as primary protocol IDs; they belong in `sourceRefs`.
+- The global identity of a resource is `(serverUuid, resourceType, id)`. A cross-server reference MUST use the canonical URI and cannot send a bare ID alone.
 
-Canonical URI 的唯一串行化形式是
-`colp:/resources/~{serverUuid}/{resourceType}/~{id}`。`serverUuid` 与 `id` 是解码后的 Wire ID；由于
-Wire ID 仅包含 URI Unreserved ASCII 字符，其 Canonical URI 不含 Percent Encoding。
-`resourceType` 固定为 `collection`、`node`、`annotation`、`attachment`、`relation`、`operation`
-或 `event`。该形式没有 Authority、Userinfo、Port、Query 或 Fragment；`~` 前缀使值为 `.` 或 `..`
-的合法 Wire ID 也不会被 URI Parser 当作路径遍历段归一化。
+The only serialization of the canonical URI is
+`colp:/resources/~{serverUuid}/{resourceType}/~{id}`. `serverUuid` and `id` are decoded wire IDs.
+Because wire IDs contain only URI unreserved ASCII characters, the canonical URI contains no
+percent-encoding. `resourceType` is one of `collection`, `node`, `annotation`, `attachment`,
+`relation`, `operation`, or `event`. The form has no authority, userinfo, port, query, or fragment.
+The `~` prefix ensures that legal wire IDs whose value is `.` or `..` are not normalized away by a
+URI parser as path-traversal segments.
 
-Canonical URI 按完整解码后的三元组逐字段、区分大小写比较，而不是按展示 URL 或 URI Parser
-归一化后的字符串比较。裸 Wire ID 只在调用方同时提供同一服务器的 `serverUuid` 和预期
-`resourceType` 的显式本地解析上下文时表示引用；没有该上下文的引用使用 Canonical URI。
-这里的全局身份 URI 与 MCP Profile 的 `colp://{serverUuid}/...` Resource Locator 是两个不同的
-URI 命名空间：前者无 Authority 且只编码资源身份三元组，后者有 Authority 并定位特定 MCP 表示或操作；
-两者之间不存在隐式别名或通用字符串转换规则。
-- URI Template 展开时必须对 ID 做 UTF-8 Percent Encoding；服务器按解码后的原始字节值比较，不执行大小写折叠。
+Canonical URIs are compared field by field, case-sensitively, on the fully decoded triple, not as
+display URLs or as strings normalized by a URI parser. A bare wire ID denotes a reference only
+when the caller also supplies an explicit local resolution context with the `serverUuid` of the
+same server and the expected `resourceType`; without that context, references use the canonical
+URI. This global identity URI and the MCP Profile's `colp://{serverUuid}/...` resource locator
+are two different URI namespaces: the former has no authority and encodes only the resource
+identity triple, while the latter has an authority and locates a specific MCP representation or
+operation. There is no implicit alias or general string conversion between them.
+
+- When a URI template is expanded, IDs must be UTF-8 percent-encoded. Servers compare the decoded raw byte values and do not fold case.
 
 <a id="colp-section-5-2"></a>
 
-### 5.2 时间
+### 5.2 Time
 
-- 时间使用 RFC 3339 字符串。
-- 规范写入 SHOULD 使用 UTC 和 `Z`。
-- 浏览器毫秒时间戳转换时必须保留原始值于 Source Reference，避免精度或时区误判。
+- Times are RFC 3339 strings.
+- Canonical writes SHOULD use UTC with `Z`.
+- When converting browser millisecond timestamps, the original value must be kept in the source reference, to avoid precision and time zone mistakes.
 
-### 5.3 Revision 与 Cursor
+<a id="colp-section-5-3"></a>
 
-- `revision` 表示可进行条件写入的对象版本。
-- `cursor` 表示事件日志位置。
-- 两者均为服务器生成的不透明字符串。
-- 客户端不得将 Cursor 当时间戳比较，不得自行递增。
+### 5.3 Revisions and Cursors
+
+- `revision` identifies an object version that can be used for conditional writes.
+- `cursor` identifies a position in an event log.
+- Both are opaque strings generated by the server.
+- Clients must not compare cursors as timestamps and must not increment them.
 
 <a id="colp-section-6"></a>
 
-## 6. URL 与重复检测
+## 6. URLs and Duplicate Detection
 
-- `url` 保存用户实际收藏的 URL，不进行破坏性重写。
-- Bookmark 的权威 / Sync 表示使用 `$defs.bookmarkUrl`：结构上允许绝对本地 URI，但禁止 `javascript:`、`vbscript:`、`data:` 和控制字符。Mount 通过 `features.bookmarkUrls.acceptedSchemes` 声明实际接受的 Scheme，且至少包含 `http`、`https`。
-- Publication、Feed 与面向 Assistant 的可导航 URL 只允许 Authority 不含 Userinfo 的 HTTP(S)。其他 Scheme 或含 Userinfo 的 URL 必须省略、Redact 或留在授权 Sync 表示中，不得直接公开。
-- `canonicalUrl` MAY 保存经明确规则计算或页面声明的 Canonical URL。
-- `urlHash` MAY 用于查重，但不得作为对象 ID。
+- `url` stores the URL the user actually bookmarked, without destructive rewriting.
+- The authoritative and Sync representations of a Bookmark use `$defs.bookmarkUrl`: it structurally allows absolute local URIs, but forbids `javascript:`, `vbscript:`, `data:`, and control characters. A mount declares the schemes it actually accepts in `features.bookmarkUrls.acceptedSchemes`, which includes at least `http` and `https`.
+- Navigable URLs in Publication, Feed, and assistant-facing output allow only HTTP(S) whose authority has no userinfo. URLs with other schemes or with userinfo must be omitted, redacted, or kept in the authorized Sync representation; they must not be published directly.
+- `canonicalUrl` MAY store a canonical URL that was computed by an explicit rule or declared by the page.
+- `urlHash` MAY be used for duplicate detection, but must not be used as an object ID.
 
-Bookmark 的可选 `urlHash` Wire Syntax MUST 是 `sha-256=:<base64>:`，其中 Base64 MUST 使用
-Canonical Padded Encoding，解码后恰为 32 Octets。Digest 输入 MUST 是 `url` 原始字符串的 UTF-8
-Octets，不执行 URL 解析、规范化或重写。`urlHash` 缺失是合法的；出现时 MUST 与同一对象中保留
-的原始 `url` 匹配。相等 Hash MUST 只选择待进一步比较的重复候选，MUST NOT 证明两个对象相同；
-最终判断比较适用的 URL、内容和 Collection 语义。`urlHash` MUST NOT 写入或替代 `id`、
-`collectionId`、Node 引用或任何其他对象 ID 字段。
-- 默认规范化只能执行无争议操作，例如 scheme / host 大小写归一化、移除默认端口。
-- 移除追踪参数、展开短链、删除 Fragment 等操作必须由命名的 `normalizationProfile` 控制。
-- 带签名、临时令牌或顺序敏感 Query 的 URL MUST 保留原值。
+The wire syntax of the optional Bookmark `urlHash` MUST be `sha-256=:<base64>:`, where the Base64 MUST use
+canonical padded encoding and decode to exactly 32 octets. The digest input MUST be the UTF-8
+octets of the original `url` string, without URL parsing, normalization, or rewriting. A missing `urlHash` is legal; when present it MUST match the original
+`url` preserved in the same object. Equal hashes MUST only select duplicate candidates for further comparison and MUST NOT prove that two objects are the same;
+the final decision compares the applicable URL, content, and Collection semantics. `urlHash` MUST NOT be written into or substitute for `id`,
+`collectionId`, Node references, or any other object ID field.
+- Default normalization may perform only uncontroversial operations, such as lowercasing the scheme and host and removing a default port.
+- Removing tracking parameters, expanding short links, deleting fragments, and similar operations must be controlled by a named `normalizationProfile`.
+- URLs with signatures, temporary tokens, or order-sensitive queries MUST keep their original value.
 
 <a id="colp-section-7"></a>
 
-## 7. 协议发现
+## 7. Discovery
 
-服务器 MUST 在以下位置之一提供 Manifest：
+A server MUST provide a Manifest at the following location:
 
 ```text
 /.well-known/collection-protocol
 ```
 
-若协议挂载在子路径，Manifest 中的 `mounts[].baseUrl` 指向真实基地址。每个 Mount MUST 独立声明 `profiles`、`endpoints`、认证和限制；客户端 MUST 跟随 Endpoint / Link，MUST NOT 从 `baseUrl` 猜测路径。Endpoint Template 使用 RFC 6570 Level 1。
+If the protocol is mounted under a sub-path, `mounts[].baseUrl` in the Manifest points to the real base address. Each mount MUST declare its own `profiles`, `endpoints`, authentication, and limits; clients MUST follow endpoints and links and MUST NOT guess paths from `baseUrl`. Endpoint templates use RFC 6570 Level 1.
 
-HTML 页面和 HTTP 响应 SHOULD 额外提供：
+HTML pages and HTTP responses SHOULD additionally provide:
 
 ```html
 <link rel="collection-protocol" href="/.well-known/collection-protocol">
@@ -211,99 +234,103 @@ HTML 页面和 HTTP 响应 SHOULD 额外提供：
 Link: </.well-known/collection-protocol>; rel="collection-protocol"
 ```
 
-Manifest 必须声明 `serverUuid`、版本、Mount、端点、Profile、认证方式、页面限制和推荐轮询间隔。Profile 的端点依赖是 Wire Contract：例如 `publisher` 必须声明 Collection、Node、Annotation、Attachment、Relation 和 Release 的读写模板，不能只声明能力名称。
+The Manifest must declare the `serverUuid`, versions, mounts, endpoints, profiles, authentication methods, page limits, and recommended polling interval. A profile's endpoint dependencies are part of the wire contract: for example, `publisher` must declare the read and write templates for Collection, Node, Annotation, Attachment, Relation, and Release, not just a capability name.
 
-## 8. 端点总表
+<a id="colp-section-8"></a>
 
-以下路径是推荐动态路由。Manifest 可以声明其他绝对路径，例如静态 `.json` 文件；客户端不得硬编码本表。`c/` 是对象路由保留段，`-/` 是实例服务保留段。
+## 8. Endpoint Overview
 
-### 8.1 公共读取
+The paths below are recommended dynamic routes. A Manifest may declare other absolute paths, such as static `.json` files; clients must not hard-code this table. `c/` is the reserved route segment for objects and `-/` is the reserved segment for instance services.
 
-| Method | Path | 含义 |
+<a id="colp-section-8-1"></a>
+
+### 8.1 Public Reads
+
+| Method | Path | Meaning |
 |---|---|---|
-| GET | `/` | 可发现的 Collection 列表 |
-| GET | `/-/feed` | 实例级公共事件流 |
-| GET | `/c/{collectionId}` | Collection 元信息 |
-| GET | `/c/{collectionId}/snapshot` | 完整或分页 Snapshot |
-| GET | `/c/{collectionId}/nodes/{nodeId}` | 单个公开 Node |
-| GET | `/c/{collectionId}/feed` | Collection 公开事件流 |
+| GET | `/` | Discoverable Collection list |
+| GET | `/-/feed` | Instance-wide public event stream |
+| GET | `/c/{collectionId}` | Collection metadata |
+| GET | `/c/{collectionId}/snapshot` | Complete or paginated Snapshot |
+| GET | `/c/{collectionId}/nodes/{nodeId}` | A single public Node |
+| GET | `/c/{collectionId}/feed` | Public event stream of one Collection |
 
-### 8.2 管理写入
+<a id="colp-section-8-2"></a>
 
-| Method | Path | 含义 |
+### 8.2 Authoring Writes
+
+| Method | Path | Meaning |
 |---|---|---|
-| POST | `/` | 创建 Collection |
-| PATCH | `/c/{collectionId}` | 更新 Collection 元信息 |
-| DELETE | `/c/{collectionId}` | 删除或归档 Collection |
-| POST | `/c/{collectionId}/nodes` | 创建 Node |
-| PATCH | `/c/{collectionId}/nodes/{nodeId}` | 更新 Node |
-| DELETE | `/c/{collectionId}/nodes/{nodeId}` | 删除 Node / 子树 |
-| POST | `/c/{collectionId}/nodes/{nodeId}/move` | 移动或重排 Node |
-| POST | `/c/{collectionId}/annotations` | 创建 Annotation |
-| PATCH/DELETE | `/c/{collectionId}/annotations/{annotationId}` | 更新或删除 Annotation |
-| POST | `/c/{collectionId}/attachments` | 创建 Attachment 元数据 |
-| PATCH/DELETE | `/c/{collectionId}/attachments/{attachmentId}` | 更新或删除 Attachment 元数据 |
-| POST | `/c/{collectionId}/relations` | 创建 Relation |
-| PATCH/DELETE | `/c/{collectionId}/relations/{relationId}` | 更新或删除 Relation |
-| POST | `/c/{collectionId}/release` | 发布一次不可变公开 Release |
-| GET | `/c/{collectionId}/releases` | 列出不可变 Release |
-| GET | `/c/{collectionId}/releases/{releaseId}` | 获取 Release 元数据 |
-| GET | `/c/{collectionId}/releases/{releaseId}/snapshot` | 获取不可变 Release Snapshot |
+| POST | `/` | Create a Collection |
+| PATCH | `/c/{collectionId}` | Update Collection metadata |
+| DELETE | `/c/{collectionId}` | Delete or archive a Collection |
+| POST | `/c/{collectionId}/nodes` | Create a Node |
+| PATCH | `/c/{collectionId}/nodes/{nodeId}` | Update a Node |
+| DELETE | `/c/{collectionId}/nodes/{nodeId}` | Delete a Node or subtree |
+| POST | `/c/{collectionId}/nodes/{nodeId}/move` | Move or reorder a Node |
+| POST | `/c/{collectionId}/annotations` | Create an Annotation |
+| PATCH/DELETE | `/c/{collectionId}/annotations/{annotationId}` | Update or delete an Annotation |
+| POST | `/c/{collectionId}/attachments` | Create Attachment metadata |
+| PATCH/DELETE | `/c/{collectionId}/attachments/{attachmentId}` | Update or delete Attachment metadata |
+| POST | `/c/{collectionId}/relations` | Create a Relation |
+| PATCH/DELETE | `/c/{collectionId}/relations/{relationId}` | Update or delete a Relation |
+| POST | `/c/{collectionId}/release` | Publish an immutable public Release |
+| GET | `/c/{collectionId}/releases` | List immutable Releases |
+| GET | `/c/{collectionId}/releases/{releaseId}` | Get Release metadata |
+| GET | `/c/{collectionId}/releases/{releaseId}/snapshot` | Get an immutable Release Snapshot |
 
-### 8.3 同步
+<a id="colp-section-8-3"></a>
 
-| Method | Path | 含义 |
+### 8.3 Synchronization
+
+| Method | Path | Meaning |
 |---|---|---|
-| POST | `/-/sync/sessions` | 协商副本、能力和 Bootstrap 模式 |
-| GET | `/-/sync/snapshot` | 获取同步 Snapshot |
-| POST | `/-/sync/push` | 幂等推送 Operation Batch |
-| GET | `/-/sync/pull` | 按 Cursor 拉取 Operation / Conflict |
-| POST | `/-/sync/ack` | 确认已持久化到本地 |
-| POST | `/-/sync/conflicts/{id}/resolve` | 显式解决冲突 |
+| POST | `/-/sync/sessions` | Negotiate replica, capabilities, and bootstrap mode |
+| GET | `/-/sync/snapshot` | Get a Sync Snapshot |
+| POST | `/-/sync/push` | Push an operation batch idempotently |
+| GET | `/-/sync/pull` | Pull operations and conflicts by cursor |
+| POST | `/-/sync/ack` | Acknowledge what has been persisted locally |
+| POST | `/-/sync/conflicts/{id}/resolve` | Resolve a conflict explicitly |
 
-### 8.4 管理与安全
+<a id="colp-section-8-4"></a>
 
-| Method | Path | 含义 |
+### 8.4 Administration and Security
+
+| Method | Path | Meaning |
 |---|---|---|
-| GET/PATCH | `/-/admin/access` | 默认访问策略 |
-| GET/PATCH | `/c/{collectionId}/access` | Collection ACL / 发布策略 |
-| GET/POST | `/-/admin/keys` | 列出或创建 Key 元信息 |
-| POST | `/-/admin/keys/{keyId}/rotate` | 轮换 Key |
-| DELETE | `/-/admin/keys/{keyId}` | 撤销 Key |
-| GET/PATCH | `/-/admin/rate-limits` | 限流策略 |
-| GET | `/-/admin/audit` | 审计日志 |
-| POST/GET/DELETE | `/-/mcp` | MCP Streamable HTTP 与可选 Session 终止 |
+| GET/PATCH | `/-/admin/access` | Default access policy |
+| GET/PATCH | `/c/{collectionId}/access` | Collection ACL and publication policy |
+| GET/POST | `/-/admin/keys` | List or create key metadata |
+| POST | `/-/admin/keys/{keyId}/rotate` | Rotate a key |
+| DELETE | `/-/admin/keys/{keyId}` | Revoke a key |
+| GET/PATCH | `/-/admin/rate-limits` | Rate-limit policies |
+| GET | `/-/admin/audit` | Audit log |
+| POST | `/-/mcp` | MCP Streamable HTTP endpoint (stateless and POST-only; `GET` and `DELETE` are rejected, see `docs/05-mcp-profile.md`) |
 
 <a id="colp-section-9"></a>
 
-## 9. HTTP 基础规则
+## 9. HTTP Rules
 
-<!-- COLP-REQ SEC-0003 -->
+- Requests and responses MUST use UTF-8.
+- JSON MUST follow the I-JSON interoperability constraints: no duplicate member names, no protocol integer outside the range that IEEE 754 binary64 represents exactly, and no non-finite numbers.
+- The query, request body, and response body of every endpoint MUST be validated with the named `$defs` listed in `docs/10-implementation-contract.md`. The root `anyOf` of the schema is only for independently recognizable resource and response representations and must not replace endpoint-level DTO validation.
+- Query arrays use repeated parameters, for example `include=annotations&include=attachments`. A repeated scalar parameter, an empty value, or an unknown parameter returns `400 invalid_query`. Clients and servers must encode and decode with the same endpoint contract registry.
+- Clients MUST support `application/json`.
+- Implementations SHOULD support `application/vnd.collection-protocol.*+json;version=0.1`.
+- GET responses SHOULD return `ETag` and `Last-Modified`. An ETag identifies a specific representation and must reflect differences in projection, query, page, and content negotiation; one ETag derived only from the Collection revision must not be shared by every page.
+- Clients SHOULD use `If-None-Match`; servers may answer `304 Not Modified`.
+- Modifying an existing resource MUST use `If-Match`, to avoid silent overwrites.
+- When a required precondition is missing, the server MUST return `428 Precondition Required`.
+- When `If-Match` does not match, the server MUST return `412 Precondition Failed` with the current revision or ETag. `409 Conflict` is only for business conflicts that remain after the HTTP precondition has been satisfied.
+- `PATCH` uses `application/merge-patch+json` by default. Support for `application/json-patch+json` must be declared explicitly in the Manifest.
+- A retried POST MUST carry `Idempotency-Key`.
+- An idempotency key must be bound to the principal, method, endpoint key, resource identity, protocol version, and canonical request digest; the same key with a different request MUST return `409 idempotency_key_reused`. JSON bodies use RFC 8785, queries use the canonical JSON of the decoded DTO, and media types are lowercased with ignorable whitespace removed. Servers must declare the minimum deduplication retention in the Manifest.
+- Pagination uses an opaque `cursor`; drifting page numbers must not be the only mechanism.
+- Error responses use `application/problem+json` with an added stable `code`.
+- Any response whose content changes with authorization MUST use `Cache-Control: private, no-store` and `Vary: Authorization`. Only anonymous public representations may use shared caches.
+- A response that uses media type or version content negotiation MUST correctly merge `Vary: Accept, Collection-Protocol-Version`, without overwriting an existing `Vary: Authorization` or `Origin`.
 
-<!-- COLP-REQ PUB-0007 -->
-
-<!-- COLP-REQ PUB-0006 -->
-
-- 请求与响应 MUST 使用 UTF-8。
-- JSON MUST 遵循 I-JSON 互操作约束：不得有重复成员名，协议整数不得超出 IEEE 754 binary64 可精确表示范围，非有限数字不得出现。
-- 每个 Endpoint 的 Query、请求 Body 和响应 Body MUST 使用 `docs/10-implementation-contract.md` 指定的命名 `$defs` 校验。Schema 根部 `anyOf` 只用于可独立识别的资源 / 响应表示，不得代替端点级 DTO 校验。
-- Query 数组使用重复参数，例如 `include=annotations&include=attachments`。标量参数重复、空值和未知参数返回 `400 invalid_query`；客户端和服务器必须使用相同的 Endpoint Contract Registry 编解码。
-- 客户端 MUST 支持 `application/json`。
-- 实现 SHOULD 支持 `application/vnd.collection-protocol.*+json;version=0.1`。
-- GET 响应 SHOULD 返回 `ETag` 和 `Last-Modified`。ETag 标识具体表示，必须包含投影、查询、分页和内容协商差异；不得只用 Collection Revision 生成所有页面共用的 ETag。
-- 客户端 SHOULD 使用 `If-None-Match`，服务器可返回 `304 Not Modified`。
-- 修改已有资源 MUST 使用 `If-Match`，避免静默覆盖。
-- 缺少必需 Precondition 时服务器 MUST 返回 `428 Precondition Required`。
-- `If-Match` 不匹配时 MUST 返回 `412 Precondition Failed`，并附当前 Revision / ETag。`409 Conflict` 只用于请求满足 HTTP Precondition 后仍存在的业务冲突。
-- `PATCH` 默认使用 `application/merge-patch+json`。支持 `application/json-patch+json` 时必须在 Manifest 明确声明。
-- 重试型 POST MUST 带 `Idempotency-Key`。
-- Idempotency Key 必须绑定 Principal、Method、Endpoint Key、资源身份、协议版本和 Canonical Request Digest；同 Key 不同请求 MUST 返回 `409 idempotency_key_reused`。JSON Body 使用 RFC 8785，Query 使用已解码 DTO 的 Canonical JSON，Media Type 小写并移除可忽略空白。服务端必须在 Manifest 声明最短去重保留期。
-- 分页使用不透明 `cursor`，不得使用易漂移的页码作为唯一机制。
-- 错误响应使用 `application/problem+json`，并增加稳定的 `code`。
-- 任何因 Authorization 而改变内容的响应 MUST 使用 `Cache-Control: private, no-store` 与 `Vary: Authorization`。匿名公开表示才可以使用 Shared Cache。
-- 使用媒体类型或版本内容协商的响应 MUST 正确合并 `Vary: Accept, Collection-Protocol-Version`；不得覆盖已有 `Vary: Authorization` / `Origin`。
-
-错误示例：
+Example error:
 
 ```json
 {
@@ -320,32 +347,32 @@ Manifest 必须声明 `serverUuid`、版本、Mount、端点、Profile、认证�
 
 <a id="colp-section-10"></a>
 
-## 10. 可见性
+## 10. Visibility
 
-Collection 的 `visibility`：
+Collection `visibility`:
 
-- `public`：进入 Collection 列表，可匿名读取。
-- `unlisted`：访问语义等同匿名可读的 `public`，只是不进入 Directory。它不是认证或保密机制。
-- `protected`：需要 API Key 或 OAuth Token。
-- `private`：只允许显式 Principal。
+- `public`: listed in the Collection directory and readable anonymously.
+- `unlisted`: same access semantics as anonymously readable `public`, but not listed in the directory. It is not an authentication or secrecy mechanism.
+- `protected`: requires an API key or OAuth token.
+- `private`: only explicitly granted principals.
 
-Node、Annotation 和 Attachment 可以进一步收紧可见性，但不得放宽父级限制。Node 未声明 `visibility` 时继承；有效访问权限是 Collection、全部祖先 Node 与对象自身规则的交集。
+Nodes, Annotations, and Attachments may tighten visibility further, but must not loosen a parent's restriction. A Node without a declared `visibility` inherits it; the effective access is the intersection of the rules of the Collection, every ancestor Node, and the object itself.
 
-公开投影 MUST 移除：
+A public projection MUST remove:
 
-- `sourceRefs.nativeId`、`profileId`、本地路径。
-- 私人 Annotation。
-- ACL Principal 内部 ID。
-- API Key、Token、Key Hint 之外的密钥信息。
-- 同步 Conflict 的私人版本内容。
-- 未明确公开的附件和抓取正文。
-- 未经 Namespace Allowlist 明确标记为 Public-safe 的 Extension。未知 Extension 只在权威 / Sync 存储中保留，默认不进入 Public、Feed 或 Assistant 投影。
+- `sourceRefs.nativeId`, `profileId`, and local paths.
+- Private Annotations.
+- Internal IDs of ACL principals.
+- API keys, tokens, and any secret information beyond a key hint.
+- Private versions of the content of Sync conflicts.
+- Attachments and captured page bodies that were not explicitly made public.
+- Extensions that a namespace allowlist has not explicitly marked as public-safe. Unknown extensions are kept only in authoritative and Sync storage and by default do not enter public, Feed, or assistant projections.
 
 <a id="colp-section-11"></a>
 
-## 11. 一致性 Profile
+## 11. Conformance Profiles
 
-实现按 Mount 通过 Manifest 声明可组合 Profile：
+Implementations declare composable profiles per mount in the Manifest:
 
 ```json
 {
@@ -361,43 +388,46 @@ Node、Annotation 和 Attachment 可以进一步收紧可见性，但不得放�
 }
 ```
 
-依赖关系和最小能力见 `docs/00-practical-profile.md`。若实现声明某 Profile，其对应的必需端点和语义 MUST 全部通过 Conformance Test。旧草案 Bundle 名称 `reader`、`sync-server`、`mcp-server` 不再用于新 Manifest。
+Dependencies and minimum capabilities are listed in `docs/00-practical-profile.md`. If an implementation declares a profile, all required endpoints and semantics of that profile MUST pass the conformance tests. The legacy draft bundle names `reader`, `sync-server`, and `mcp-server` are no longer used in new Manifests.
 
-稳定 Requirement ID、实现模块和测试证据记录在 `requirements.yaml`。Profile 声明必须同时满足：包级必需测试通过、部署已注册全部 Endpoint、事务 / 鉴权 / Outbox 等必需 Port 可用；配置布尔值本身不是一致性证据。
+Stable requirement IDs, implementing modules, and test evidence are recorded in `requirements.yaml`. A profile claim must satisfy all of the following: the package-level required tests pass, the deployment has registered every endpoint, and the required ports (transactions, authorization, outbox, and so on) are available. A configuration boolean is not conformance evidence by itself.
 
 <a id="colp-section-12"></a>
 
-## 12. 版本协商
+## 12. Version Negotiation
 
-- Manifest 提供 `protocolVersions`，按新到旧排列。
-- HTTP 客户端 SHOULD 发送：
+- The Manifest provides `protocolVersions`, ordered from newest to oldest.
+- HTTP clients SHOULD send:
 
 ```http
 Collection-Protocol-Version: 0.1
 ```
 
-- 读取请求的 Header / Accept 版本不支持时返回 `406 unsupported_version`；写入请求的 Content-Type 版本不支持时返回 `415 unsupported_media_type`。响应列出 `supportedVersions`。
-- 同一精确版本内只能通过 HTTPS Namespace `extensions` 新增数据。
-- 新增核心可选字段、事件或能力需要发布新的 Minor Schema，并经过版本协商。
-- 删除字段、改变默认含义或改变冲突规则必须升级 Major。
-- 客户端不得执行未知核心字段或未知 Operation Type；应拒绝、协商版本或保留原始表示后透明转发，不得猜测执行。
+- When the header or `Accept` version of a read request is not supported, the server returns `406 unsupported_version`; when the `Content-Type` version of a write request is not supported, it returns `415 unsupported_media_type`. The response lists `supportedVersions`.
+- Within one exact version, new data can be added only through HTTPS-namespaced `extensions`.
+- New optional core fields, events, or capabilities require a new minor schema and version negotiation.
+- Removing a field, changing a default meaning, or changing conflict rules requires a new major version.
+- Clients must not execute unknown core fields or unknown operation types. They should reject them, negotiate a version, or keep the original representation and forward it transparently; they must not guess how to execute them.
 
-## 13. 参考标准
+<a id="colp-section-13"></a>
 
-- BCP 14 / RFC 2119 / RFC 8174：规范关键词。
-- RFC 3339：日期时间。
-- RFC 3986：URI。
-- RFC 9110：HTTP Semantics。
-- RFC 8288：Web Linking。
-- RFC 6902：JSON Patch。
-- RFC 7396：JSON Merge Patch。
-- RFC 7493：I-JSON。
-- RFC 6570：URI Template。
-- RFC 9457：Problem Details for HTTP APIs。
-- RFC 9421：HTTP Message Signatures。
-- RFC 9530：HTTP Content-Digest。
-- RFC 8785：JSON Canonicalization Scheme（仅用于可选逻辑摘要）。
-- OAuth 2.1、RFC 8707、RFC 9449、RFC 9728：授权、Sender Constraint 与资源绑定。
-- JSON Feed 1.1：可选公共 Feed 表示。
-- CloudEvents 1.0：事件信封兼容目标。
-- MCP Specification 2026-07-28：MCP Profile 基线（无状态、POST-only）。
+## 13. References
+
+- BCP 14 / RFC 2119 / RFC 8174: requirement key words.
+- RFC 3339: date and time.
+- RFC 3986: URI.
+- RFC 9110: HTTP semantics.
+- RFC 8288: Web Linking.
+- RFC 6902: JSON Patch.
+- RFC 7396: JSON Merge Patch.
+- RFC 7493: I-JSON.
+- RFC 6570: URI Template.
+- RFC 9457: Problem Details for HTTP APIs.
+- RFC 9421: HTTP Message Signatures.
+- RFC 9530: HTTP Content-Digest.
+- RFC 9651: Structured Field Values for HTTP (used by the `RateLimit` header fields).
+- RFC 8785: JSON Canonicalization Scheme (for canonical digests).
+- OAuth 2.1, RFC 7591, RFC 8707, RFC 9207, RFC 9449, RFC 9728: authorization, dynamic client registration, resource indicators, issuer identification, sender constraints, and protected resource metadata.
+- JSON Feed 1.1: optional public feed representation.
+- CloudEvents 1.0: event envelope compatibility target.
+- MCP Specification 2026-07-28: MCP Profile baseline (stateless, POST-only).

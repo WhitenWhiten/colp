@@ -99,7 +99,7 @@ Rules:
    line). No caret/tilde ranges.
 2. After any upgrade, re-run: `npm run typecheck`, `npm run build`,
    `npm run pack:check`, `npm run check:protocol`, `npm run check:types`,
-   `npm run check:requirements`, `npm run check:test-granularity`, the
+   `npm run check:traceability`, the
    `mcp-2026-07-28-*-contract.test.ts` suites, and update the locked version in
    this document and in `src/shared/mcp-sdk-boundary.ts`.
 3. The `MCP_SDK_PUBLIC_TYPE_ALLOWLIST` / `MCP_SDK_SCHEMA_ALLOWLIST` /
@@ -175,5 +175,5 @@ A host may add a product compatibility surface outside the Profile endpoint.
 That surface must not enter Manifest, Profile claims, or conformance evidence.
 COLP MCP entries remain `2026-07-28` only.
 
-`protocol/docs/05-mcp-profile.md` was reviewed 2026-08-28:
-已检查、无需改. The Profile modern-only conclusion remains correct.
+`protocol/docs/05-mcp-profile.md` was reviewed on 2026-08-28 and again during its English
+translation. The Profile modern-only conclusion remains correct.

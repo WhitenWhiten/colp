@@ -15,7 +15,7 @@ Practical wiring guide for integrators who compose COLP Security guards at a req
 |---|---|
 | What this package surface is | A **library / port layer**: fail-closed decision functions, request-boundary composition helpers, and typed ports (rate limit, credential restrictions, OAuth provenance, DPoP/mTLS, publisher admission). |
 | What it is **not** | A framework middleware stack, HTTP server, or standalone Security Profile. Exporting `./security` alone does not create a deployment Publisher claim. |
-| Conformance | Package Profile evidence is a **verified repository-tracked certificate** for an earlier clean source revision; each deployment must separately pass its black-box probes. |
+| Conformance | Package Profile evidence is **repository-tracked and checked against a fresh test run in CI**; each deployment must separately pass its black-box probes. |
 | Package status | Package is **`private: true`**, version `0.0.0-development`. These are publication-maturity fields. Framework route/middleware ownership remains with the host and is not a package-completeness criterion. |
 | Residual trust | Misclassified *deployment evidence* (wrong `networkExposure`, untrusted “TLS terminated” signals) can still under-enforce. That residual is deployment trust, not a free caller flag on composition APIs. |
 
@@ -311,7 +311,7 @@ async function handlePublisherStreamableHttp(ctx: {
 ## Residuals (do not over-claim)
 
 - Full end-to-end HTTP route attachment and framework middleware stack are **host-owned**, not promised by this package surface.
-- The repository-tracked conformance certificate covers package source; deployment probe evidence has a separate lifecycle and remains host-owned.
+- The repository-tracked conformance evidence covers package source; deployment probe evidence has a separate lifecycle and remains host-owned.
 - `./security` alone does not add a Profile or authorize a deployment claim. The package-level Profile set remains the exact exported `supportedProfiles` list.
 - Atomic ports (`AtomicRateLimitPort`, admission, subscription, DPoP verify, etc.) require real deployment adapters.
 - Historical-release path in SEC-0018 is **shape/URI validation only** (`shape_validated`), not crypto verify.

@@ -94,12 +94,10 @@ npm run check
 npm run pack:check
 ```
 
-- `npm run refresh:protocol` synchronizes canonical assets and regenerates types. Commit those source changes before running `npm run refresh:evidence`, because a certificate must attest an already committed source revision.
-- `npm run check:protocol` fails when committed generated assets drift from the protocol source.
-- `npm run check:requirements` scans every BCP14 occurrence and fails on missing, duplicate, or stale Requirement selectors. `npm run update:requirements` appends stable IDs for newly discovered occurrences; stale selectors require an intentional Registry edit so IDs are preserved.
-- `npm run check:types` and `npm run check:traceability` fail when generated TypeScript, Registry digests, bundled evidence, or traceability records drift.
-- `npm run generate:evidence` verifies a clean protected COLP scope at exact `HEAD`, runs the complete evidence-bearing Vitest suite itself, rechecks that state, and writes the verified certificate to `src/conformance/generated/evidence.json`. Then `npm run generate:traceability` updates the certificate-derived documentation; `npm run refresh:evidence` runs both commands. Marker-free process-boundary contracts are excluded from evidence generation and remain mandatory in `npm run check`. External reports, caller-supplied revisions, and alternate output paths are rejected.
-- `npm run check:release-evidence` is the release gate for every Profile exported in `supportedProfiles`. It reads the tracked certificate, requires its tested source revision to be an ancestor of the current `HEAD`, and permits only the certificate and generated traceability document to differ inside the protected release scope. It reruns the owned evidence suite, requires the current passed Requirement IDs to equal the certificate, and validates every selected Profile's transitive MUST / MUST_NOT closure. The default `--all-supported` selection is derived from the canonical release dependency registry.
+- `npm run refresh:protocol` synchronizes the canonical protocol assets into `fixtures/protocol` and regenerates types.
+- `npm run check:protocol` and `npm run check:types` fail when committed generated assets or types drift from the protocol source.
+- `npm run check:traceability` validates `protocol/requirements.yaml` and `requirements-0.2.yaml` (fields, unique IDs, and that every `source` anchor exists) and fails when `docs/TRACEABILITY.md` or `src/conformance/generated/requirements.json` is stale.
+- `npm run refresh:evidence` runs the full Vitest suite, records every requirement whose tagged tests all passed in `src/conformance/generated/evidence.json`, and regenerates the traceability files. Run it after changing a requirement's ID, level, profile, or tests, or after adding `[evidence:<test-id>]` tags, and commit the result. `npm run check:evidence` reruns the suite and fails if the committed evidence is out of date.
 
 Coverage command ownership — `npm test` and `npm run test:coverage` do **not** mean the package has passed the Security or Publisher floors:
 
@@ -107,11 +105,11 @@ Coverage command ownership — `npm test` and `npm run test:coverage` do **not**
 | --- | --- |
 | `npm test` | Discovery run with no coverage collection or thresholds |
 | `npm run test:coverage` | Aggregate universe in `vitest.config.ts`; does **not** include `src/security` or `src/publisher` |
-| `npm run check` | Release entry: `test:coverage:publisher`, `test:coverage:security`, `test:coverage:sync-core`, and release-evidence |
+| `npm run check` | Release entry: protocol, type, and traceability checks, `test:coverage:publisher`, `test:coverage:security`, `test:coverage:sync-core`, the coverage evidence check, and `pack:check` |
 
 - `npm run test:coverage:publisher` is the dedicated Publisher source coverage gate invoked by `npm run check`; `npm run test:mutation:publisher` runs its slower semantic mutation gate (local only).
 - `npm run pack:check` validates package metadata, creates the actual npm tarball, extracts it into an isolated consumer using only lockfile-installed dependencies, and loads every public ESM/CJS entry point plus the JSON Schema export. It also compiles and runs the packaged Publisher quickstart import as ESM and CommonJS against the package declarations. The gate also checks that local Markdown links resolve inside the tarball. The tarball includes `docs/HOST_INTEGRATION_BOUNDARY.md`, `docs/PUBLICATION_QUICKSTART.md`, `docs/PUBLISHER_QUICKSTART.md`, `docs/SECURITY_COMPOSITION.md`, and `docs/SYNC_HOST_COMPOSITION.md` alongside `dist` and `README.md`.
-- The repository-only `.github/workflows/colp-ci.yml` owns package CI and validates the repository-tracked release certificate. Embedding applications keep separate integration and deployment workflows.
+- The repository-only `.github/workflows/colp-ci.yml` owns package CI, including the evidence check. Embedding applications keep separate integration and deployment workflows.
 
 ## Public entry points
 

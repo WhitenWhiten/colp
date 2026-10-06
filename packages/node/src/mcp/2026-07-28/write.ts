@@ -26,7 +26,7 @@
  *   rejected with Invalid Params;
  * - `elicitationId`, the completion notification channel, roots/sampling/
  *   elicitation requests and any other server-initiated request are never
- *   used (migration decision §3 "服务端发起请求" row).
+ *   used (migration decision §3 "server-initiated requests" row).
  *
  * The host owns the plan-status resolver (`resolvePlan`) that backs
  * `requestState` retries: it returns the current plan status plus a

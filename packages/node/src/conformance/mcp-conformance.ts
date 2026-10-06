@@ -85,46 +85,32 @@ export const mcpFixtureTopologyDigest = sha256Digest(canonicalJson(mcpFixtureTop
 
 export interface McpVersionedEvidenceBindingFields {
   readonly mcpVersion: string;
-  readonly sourceRevision: string;
+  readonly packageVersion: string;
   readonly sdkLock: Readonly<Record<string, string>>;
   readonly fixtureTopologyDigest: string;
   readonly requirementsDigest: string;
-  readonly reportDigest: string;
   readonly probeFamilyIds: readonly string[];
 }
 
-/** Exact versioned binding shared by certificate, target evidence, and verdict. */
+/** Exact versioned binding stamped on deployment target evidence. */
 export interface McpVersionedEvidenceBinding extends McpVersionedEvidenceBindingFields {
   readonly schemaVersion: 1;
   readonly evidenceDigest: string;
 }
 
-/** Source-bound `mcp-conformance-candidate` produced by the versioned runner. */
-export interface McpConformanceCandidate extends McpVersionedEvidenceBinding {
-  readonly candidate: 'mcp-conformance-candidate';
-}
-
 export interface McpConformanceEvidenceContext {
   readonly mcpVersion?: string;
-  readonly sourceRevision?: string;
+  readonly packageVersion?: string;
   readonly sdkLock?: Readonly<Record<string, string>>;
   readonly fixtureTopologyDigest?: string;
   readonly requirementsDigest?: string;
-  readonly reportDigest?: string;
   /** Exact 2026-07-28 families a deployment evidence binding must carry. */
   readonly probeFamilyIds?: readonly string[];
 }
 
-/** Facts a deployment target runner must expose for the versioned verdict. */
-export interface McpDeploymentEvidenceFacts {
-  readonly passedProbeIds: readonly string[];
-  readonly mcpBinding?: McpVersionedEvidenceBinding;
-}
-
 export interface CreateVersionedMcpEvidenceBindingInput {
-  readonly sourceRevision: string;
+  readonly packageVersion: string;
   readonly requirementsDigest: string;
-  readonly reportDigest: string;
   readonly probeFamilyIds?: readonly string[];
 }
 
@@ -208,17 +194,16 @@ export function mcpConformanceProbeFamilyIdsForProfile(
 
 /**
  * SHA-256 digest over the canonical versioned binding fields. Tampering any
- * field (version, source, SDK lock, fixture topology, requirement/report
+ * field (version, package version, SDK lock, fixture topology, requirements
  * digest, probe families) invalidates the recomputed evidenceDigest.
  */
 export function versionedMcpEvidenceDigest(fields: McpVersionedEvidenceBindingFields): string {
   const selected = {
     mcpVersion: fields.mcpVersion,
-    sourceRevision: fields.sourceRevision,
+    packageVersion: fields.packageVersion,
     sdkLock: fields.sdkLock,
     fixtureTopologyDigest: fields.fixtureTopologyDigest,
     requirementsDigest: fields.requirementsDigest,
-    reportDigest: fields.reportDigest,
     probeFamilyIds: fields.probeFamilyIds,
   };
   return sha256Digest(canonicalJson(selected));
@@ -230,23 +215,20 @@ function deepEqual(left: unknown, right: unknown): boolean {
 
 /**
  * Creates the exact versioned MCP conformance binding stamped on target
- * evidence and the runner verdict: precise MCP version, source revision, SDK
- * lock, fixture topology digest, requirement/report digests, the fixed probe
- * families, and a self-referential evidenceDigest.
+ * evidence: precise MCP version, package version, SDK lock, fixture topology
+ * digest, requirements digest, the fixed probe families, and a
+ * self-referential evidenceDigest.
  */
 export function createVersionedMcpEvidenceBinding(
   input: CreateVersionedMcpEvidenceBindingInput,
 ): McpVersionedEvidenceBinding {
   const probeFamilyIds = input.probeFamilyIds ?? mcpConformanceProbeFamilies;
   const errors: string[] = [
-    ...(typeof input.sourceRevision !== 'string' || !/^[0-9a-f]{40,64}$/u.test(input.sourceRevision)
-      ? ['MCP conformance binding sourceRevision must be a full hexadecimal commit ID.']
+    ...(typeof input.packageVersion !== 'string' || input.packageVersion.length === 0
+      ? ['MCP conformance binding packageVersion must be a non-empty string.']
       : []),
     ...(typeof input.requirementsDigest !== 'string' || !/^sha256:[0-9a-f]{64}$/u.test(input.requirementsDigest)
       ? ['MCP conformance binding requirementsDigest must be a SHA-256 digest.']
-      : []),
-    ...(typeof input.reportDigest !== 'string' || !/^sha256:[0-9a-f]{64}$/u.test(input.reportDigest)
-      ? ['MCP conformance binding reportDigest must be a SHA-256 digest.']
       : []),
     ...validateMcpConformanceProbeIds(probeFamilyIds),
   ];
@@ -256,29 +238,20 @@ export function createVersionedMcpEvidenceBinding(
   const binding: McpVersionedEvidenceBinding = {
     schemaVersion: 1,
     mcpVersion: mcpConformanceProtocolVersion,
-    sourceRevision: input.sourceRevision,
+    packageVersion: input.packageVersion,
     sdkLock: mcpSdkLock,
     fixtureTopologyDigest: mcpFixtureTopologyDigest,
     requirementsDigest: input.requirementsDigest,
-    reportDigest: input.reportDigest,
     probeFamilyIds: Object.freeze([...probeFamilyIds]),
     evidenceDigest: '',
   };
   return Object.freeze({ ...binding, evidenceDigest: versionedMcpEvidenceDigest(binding) });
 }
 
-/** Builds and wraps a versioned binding as the source-bound mcp-conformance-candidate. */
-export function createMcpConformanceCandidate(
-  input: CreateVersionedMcpEvidenceBindingInput,
-): McpConformanceCandidate {
-  const binding = createVersionedMcpEvidenceBinding(input);
-  return Object.freeze({ candidate: 'mcp-conformance-candidate', ...binding });
-}
-
 /**
  * Validates a versioned binding layer by layer: schema version, exact MCP
- * version, source revision, SDK lock, fixture topology digest, requirement
- * and report digests, probe families, and the recomputed evidenceDigest.
+ * version, package version, SDK lock, fixture topology digest, requirements
+ * digest, probe families, and the recomputed evidenceDigest.
  */
 export function validateVersionedMcpEvidenceBindingErrors(
   binding: unknown,
@@ -301,10 +274,10 @@ export function validateVersionedMcpEvidenceBindingErrors(
       `MCP conformance evidence must bind the exact MCP version ${expectedVersion}, received ${String(value.mcpVersion)}.`,
     );
   }
-  if (typeof value.sourceRevision !== 'string' || !/^[0-9a-f]{40,64}$/u.test(value.sourceRevision)) {
-    errors.push('MCP conformance evidence sourceRevision must be a full hexadecimal commit ID.');
-  } else if (context.sourceRevision !== undefined && value.sourceRevision !== context.sourceRevision) {
-    errors.push('MCP conformance evidence sourceRevision does not match the attested source revision.');
+  if (typeof value.packageVersion !== 'string' || value.packageVersion.length === 0) {
+    errors.push('MCP conformance evidence packageVersion must be a non-empty string.');
+  } else if (context.packageVersion !== undefined && value.packageVersion !== context.packageVersion) {
+    errors.push('MCP conformance evidence packageVersion does not match the package version.');
   }
   if (!deepEqual(value.sdkLock, expectedSdkLock)) {
     errors.push('MCP conformance evidence SDK lock does not match the locked @modelcontextprotocol versions.');
@@ -324,11 +297,6 @@ export function validateVersionedMcpEvidenceBindingErrors(
     && value.requirementsDigest !== context.requirementsDigest
   ) {
     errors.push('MCP conformance evidence requirementsDigest does not match the registry digest.');
-  }
-  if (typeof value.reportDigest !== 'string' || !/^sha256:[0-9a-f]{64}$/u.test(value.reportDigest)) {
-    errors.push('MCP conformance evidence reportDigest must be a SHA-256 digest.');
-  } else if (context.reportDigest !== undefined && value.reportDigest !== context.reportDigest) {
-    errors.push('MCP conformance evidence reportDigest does not match the owned test report digest.');
   }
   const probeErrors = validateMcpConformanceProbeIds(value.probeFamilyIds);
   errors.push(...probeErrors.map((error) => `Probe family: ${error}`));
@@ -359,56 +327,4 @@ export function assertVersionedMcpEvidenceBinding(
   if (errors.length > 0) {
     throw new TypeError(`Invalid MCP conformance evidence:\n- ${errors.join('\n- ')}`);
   }
-}
-
-/**
- * Validates the source-bound mcp-conformance-candidate: the artifact name
- * plus the full layer-by-layer versioned binding validation.
- */
-export function validateMcpConformanceCandidateErrors(
-  candidate: unknown,
-  context: McpConformanceEvidenceContext = {},
-): string[] {
-  if (candidate === null || typeof candidate !== 'object' || Array.isArray(candidate)) {
-    return ['MCP conformance candidate must be an object.'];
-  }
-  const value = candidate as { readonly candidate?: unknown };
-  const errors: string[] = [];
-  if (value.candidate !== 'mcp-conformance-candidate') {
-    errors.push(
-      `MCP conformance candidate must be named mcp-conformance-candidate, received ${String(value.candidate)}.`,
-    );
-  }
-  errors.push(...validateVersionedMcpEvidenceBindingErrors(candidate, context));
-  return errors;
-}
-
-/** Throws when a value is not a source-bound mcp-conformance-candidate. */
-export function assertMcpConformanceCandidate(
-  value: unknown,
-  context?: McpConformanceEvidenceContext,
-): asserts value is McpConformanceCandidate {
-  const errors = validateMcpConformanceCandidateErrors(value, context);
-  if (errors.length > 0) {
-    throw new TypeError(`Invalid MCP conformance candidate:\n- ${errors.join('\n- ')}`);
-  }
-}
-
-/**
- * Source-bound runner verdict: a candidate is accepted only when the
- * deployment target evidence carries the identical versioned binding digest
- * and every fixed probe family was actually passed. This is the gate that
- * lets only the current Modern evidence restore a claim later.
- */
-export function evaluateMcpConformanceProbeCoverage(
-  candidate: unknown,
-  deploymentEvidence: McpDeploymentEvidenceFacts,
-): boolean {
-  assertMcpConformanceCandidate(candidate);
-  const binding = candidate as McpConformanceCandidate;
-  const targetBinding = deploymentEvidence.mcpBinding;
-  if (targetBinding === undefined) return false;
-  if (targetBinding.evidenceDigest !== binding.evidenceDigest) return false;
-  const passed = new Set(deploymentEvidence.passedProbeIds);
-  return binding.probeFamilyIds.every((family) => passed.has(family));
 }
