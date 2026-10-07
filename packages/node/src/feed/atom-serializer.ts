@@ -36,6 +36,7 @@ export function serializeBoundedAtom(document: AtomFeedDocument, maxBytes = MAX_
     element('updated', entry.updated, 4);
     for (const value of entry.links) link(value, 4);
     if (entry.summary !== undefined) element('summary', entry.summary, 4);
+    if (entry.content !== undefined) element('content', entry.content, 4);
     literal('  </entry>\n');
   }
   literal('</feed>');

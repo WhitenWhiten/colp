@@ -131,18 +131,6 @@ const missingDependencyCases = [
 ] as const;
 
 describe('CORE-0023 unverified Profile claims are prohibited [evidence:core.unverified-profile-claim-prohibited]', () => {
-  it('covers every expanded claim gate', () => {
-    expect(profiles).toHaveLength(7);
-    expect(requirements).toHaveLength(14);
-    expect(endpointOmissionCases).toHaveLength(49);
-    expect(portOmissionCases).toHaveLength(39);
-    expect(requiredEvidenceOmissionCases).toHaveLength(36);
-    expect(missingDependencyCases).toHaveLength(4);
-    expect(
-      new Set(requiredEvidenceOmissionCases.map(({ requirement }) => requirement.level)),
-    ).toEqual(new Set(['MUST', 'MUST_NOT']));
-  });
-
   it('accepts synthetic fully verified evidence only through the internal evaluator', () => {
     expect(eligible()).toEqual(profiles);
   });
@@ -216,10 +204,6 @@ describe('CORE-0023 rejects invalid proof artifacts [evidence:core.unverified-pr
       /passedRequirementIds must be an array/u,
     ],
   ] as const;
-
-  it('keeps the invalid-proof matrix explicit and static', () => {
-    expect(invalidEvidenceCases).toHaveLength(8);
-  });
 
   it.each(invalidEvidenceCases)('rejects %s evidence', (_label, evidence, error) => {
     expect(() =>

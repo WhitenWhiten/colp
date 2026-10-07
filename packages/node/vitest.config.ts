@@ -51,5 +51,12 @@ export default defineConfig({
     },
     include: ['tests/**/*.test.ts'],
     pool: 'threads',
+    // The schema and conformance fixtures are intentionally large. Vitest's
+    // default worker count follows the host's CPU count and starts one copy
+    // of that graph per worker; on ordinary developer/CI machines this can
+    // exhaust memory before the suite completes. Keep the full suite
+    // deterministic and runnable while still allowing two independent files
+    // to make progress.
+    maxWorkers: 2,
   },
 });

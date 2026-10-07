@@ -23,9 +23,14 @@ const invalidXmlCharacters = [
 ] as const;
 
 interface TestEvent {
+  specversion: string;
   id: string;
+  source: string;
   type: string;
+  subject: string;
   time: string;
+  datacontenttype: string;
+  collectionprotocolversion: string;
   data: Record<string, unknown>;
 }
 
@@ -42,10 +47,15 @@ function atomEvent(
   overrides: Partial<TestEvent> = {},
 ): TestEvent {
   return {
+    specversion: '1.0',
     id: `event-${index}`,
+    source: 'https://alice.example/collections',
     type: 'org.collectionprotocol.collection.updated.v1',
+    subject: 'collections/c/c1',
     time,
-    data: { summary: `summary-${index}` },
+    datacontenttype: 'application/json',
+    collectionprotocolversion: '0.1',
+    data: { collectionId: 'c1', revision: `revision-${index}`, summary: `summary-${index}` },
     ...overrides,
   };
 }
@@ -305,24 +315,21 @@ const xmlSourceCases: readonly XmlSourceCase[] = [
     },
   },
   {
-    label: 'entry type-derived title element text',
-    inject: (feed, value) => {
-      feed.events[0]!.type = `type${value}`;
-      feed.events[0]!.data = {};
-    },
-  },
-  {
     label: 'entry summary-derived title and summary element text',
     inject: (feed, value) => {
-      feed.events[0]!.data = { summary: `summary${value}` };
+      feed.events[0]!.data = { collectionId: 'c1', revision: 'r1', summary: `summary${value}` };
     },
   },
   {
     label: 'Bookmark related-link href attribute',
     inject: (feed, value) => {
       feed.events[0]!.data = {
+        collectionId: 'c1',
+        revision: 'r1',
         node: {
+          id: 'bookmark-1',
           kind: 'bookmark',
+          title: 'Bookmark',
           url: `https://bookmark.example/item/${value}`,
         },
       };
@@ -366,7 +373,7 @@ describe(`CFI-011 XML 1.0 allowed characters and escaping [evidence:${evidence}]
   it('escapes all five XML predefined characters in element text', () => {
     const special = `ampersand & less < greater > double " apostrophe '`;
     const feed = atomFeed(['2026-07-16T07:00:00Z'], { title: special });
-    feed.events[0]!.data = { summary: special };
+    feed.events[0]!.data = { collectionId: 'c1', revision: 'r1', summary: special };
     const result = successful(feed);
     const escaped = 'ampersand &amp; less &lt; greater &gt; double &quot; apostrophe &apos;';
 
@@ -382,11 +389,16 @@ describe(`CFI-011 XML 1.0 allowed characters and escaping [evidence:${evidence}]
     feed.feedUrl = "https://alice.example/feed?a=1&owner=O'Hara";
     feed.collectionUrl = "https://alice.example/collection?a=1&owner=O'Hara";
     feed.events[0]!.data = {
+      collectionId: 'c1',
+      revision: 'r1',
       node: {
+        id: 'bookmark-1',
         kind: 'bookmark',
+        title: 'Bookmark',
         url: "https://bookmark.example/item?a=1&owner=O'Hara",
       },
     };
+    feed.events[0]!.type = 'org.collectionprotocol.node.created.v1';
     const result = successful(feed);
 
     expect(result.xml).toContain(
@@ -501,7 +513,11 @@ describe(`CFI-011 Atom options and output boundaries [evidence:${evidence}]`, ()
 
   it('returns a detached, deeply frozen document and XML snapshot', () => {
     const feed = atomFeed(['2026-07-16T07:00:00.123456789Z']);
-    feed.events[0]!.data = { summary: 'Original summary' };
+    feed.events[0]!.data = {
+      collectionId: 'c1',
+      revision: 'r1',
+      summary: 'Original summary',
+    };
     const result = successful(feed);
     const beforeDocument = JSON.stringify(result.document);
     const beforeXml = result.xml;

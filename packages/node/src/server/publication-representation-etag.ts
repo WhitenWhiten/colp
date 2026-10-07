@@ -1,4 +1,5 @@
 import { createHash, type Hash } from 'node:crypto';
+import { isProxy } from 'node:util/types';
 import canonicalize from 'canonicalize';
 
 import { hasWellFormedUtf16 } from '../shared/utf16.js';
@@ -234,6 +235,7 @@ function normalizeJsonValue(
     return value;
   }
   if (typeof value !== 'object') throw new TypeError(`${path} must contain only JSON values.`);
+  if (isProxy(value)) throw new TypeError(`${path} must be plain JSON data.`);
   if (state.ancestors.has(value)) throw new TypeError('query must not contain cycles.');
   state.ancestors.add(value);
   try {
@@ -363,7 +365,7 @@ function updateField(hash: Hash, discriminator: number, value: Uint8Array): void
 }
 
 function assertRecord(value: unknown, name: string): void {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+  if (typeof value !== 'object' || value === null || Array.isArray(value) || isProxy(value)) {
     throw new TypeError(`${name} must be an object.`);
   }
   const prototype = Object.getPrototypeOf(value);

@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Operation, OperationResult } from '../../src/types/index.js';
-import * as publicSyncApi from '../../src/sync/index.js';
 import * as compositionApi from '../../src/sync/composition.js';
 import * as legacyApi from '../../src/sync/legacy.js';
 import * as sessionApi from '../../src/sync/session.js';
@@ -506,22 +505,6 @@ describe(`Sync composition & export layering ${evidence}`, () => {
       expect(syncApi.bindSyncPushBatchId).toBe(compositionApi.bindSyncPushBatchId);
       expect(syncApi.SYNC_HOST_COMPOSITION_NOTES).toBe(compositionApi.SYNC_HOST_COMPOSITION_NOTES);
       expect(typeof syncApi.createSyncHost).toBe('function');
-      expect(publicSyncApi.createSyncHost).toBe(syncApi.createSyncHost);
-
-      // The public Sync entry keeps the same function identities.
-      expect(publicSyncApi.coordinateSessionBoundPush).toBe(syncApi.coordinateSessionBoundPush);
-      expect(publicSyncApi.coordinateSessionBoundPull).toBe(syncApi.coordinateSessionBoundPull);
-      expect(publicSyncApi.coordinateSessionBoundReplicaLifecycle).toBe(
-        syncApi.coordinateSessionBoundReplicaLifecycle,
-      );
-      expect(publicSyncApi.assertSyncPushBatchBoundToSession).toBe(syncApi.assertSyncPushBatchBoundToSession);
-      expect(publicSyncApi.bindSyncPushBatchId).toBe(syncApi.bindSyncPushBatchId);
-      expect(publicSyncApi.requireVerifiedSyncSession).toBe(syncApi.requireVerifiedSyncSession);
-      expect(publicSyncApi.createReplicaAuthProofFromVerifiedSession).toBe(
-        syncApi.createReplicaAuthProofFromVerifiedSession,
-      );
-      expect(publicSyncApi.asReplicaAuthenticatedCommand).toBe(syncApi.asReplicaAuthenticatedCommand);
-      expect(publicSyncApi.SYNC_HOST_COMPOSITION_NOTES).toBe(syncApi.SYNC_HOST_COMPOSITION_NOTES);
     });
 
     it(`keeps the pure reducers internal and off the public Sync entry ${evidence}`, () => {

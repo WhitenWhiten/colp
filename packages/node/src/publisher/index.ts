@@ -4,11 +4,19 @@ import { types as nodeTypes } from 'node:util';
 import canonicalize from 'canonicalize';
 import { normalizeIfMatchForDigest } from './idempotency-digest.js';
 import { normalizePublisherMediaType } from './media-type.js';
+import {
+  assertNonEmptyString,
+  isJsonValue,
+  isPlainJsonObject,
+  snapshotCanonicalRequestDigestInput,
+  snapshotPublisherIdempotencyBindingBase,
+  snapshotPublisherIdempotencyKeyInput,
+  snapshotPublisherIdempotencyRequest,
+} from './input-snapshots.js';
 export { normalizePublisherMediaType } from './media-type.js';
 
 import {
   createValidatorRegistry,
-  DEFAULT_I_JSON_PARSE_LIMITS,
   validateWireDocument,
   type DefinitionName,
 } from '../schema/index.js';
@@ -161,32 +169,32 @@ export interface CanonicalRequestDigestInput {
   readonly ifMatch?: string | null | readonly string[];
 }
 
-
 export function createCanonicalRequestDigest(input: CanonicalRequestDigestInput): string {
-  assertNonEmptyString(input.protocolVersion, 'protocolVersion');
-  assertNonEmptyString(input.endpointKey, 'endpointKey');
-  assertNonEmptyString(input.resourceIdentity, 'resourceIdentity');
-  assertNonEmptyString(input.method, 'method');
-  if (typeof input.mediaType !== 'string' || input.mediaType.trim().length === 0) {
+  const request = snapshotCanonicalRequestDigestInput(input);
+  assertNonEmptyString(request.protocolVersion, 'protocolVersion');
+  assertNonEmptyString(request.endpointKey, 'endpointKey');
+  assertNonEmptyString(request.resourceIdentity, 'resourceIdentity');
+  assertNonEmptyString(request.method, 'method');
+  if (typeof request.mediaType !== 'string' || request.mediaType.trim().length === 0) {
     throw new TypeError('Canonical request mediaType must be a non-empty string.');
   }
-  if (input.principalId !== undefined) assertNonEmptyString(input.principalId, 'principalId');
-  if (!isPlainJsonObject(input.query)) {
+  if (request.principalId !== undefined) assertNonEmptyString(request.principalId, 'principalId');
+  if (!isPlainJsonObject(request.query)) {
     throw new TypeError('Canonical request query must be a decoded I-JSON object.');
   }
-  if (input.body === undefined || !isJsonValue(input.body)) {
+  if (request.body === undefined || !isJsonValue(request.body)) {
     throw new TypeError('Canonical request body must be an I-JSON value.');
   }
-  const ifMatch = normalizeIfMatchForDigest(input.ifMatch) ?? null;
+  const ifMatch = normalizeIfMatchForDigest(request.ifMatch) ?? null;
   const canonicalInput = {
-    ...(input.principalId === undefined ? {} : { principalId: input.principalId }),
-    protocolVersion: input.protocolVersion,
-    endpointKey: input.endpointKey,
-    resourceIdentity: input.resourceIdentity,
-    method: input.method.toUpperCase(),
-    query: input.query,
-    mediaType: normalizePublisherMediaType(input.mediaType),
-    body: input.body,
+    ...(request.principalId === undefined ? {} : { principalId: request.principalId }),
+    protocolVersion: request.protocolVersion,
+    endpointKey: request.endpointKey,
+    resourceIdentity: request.resourceIdentity,
+    method: request.method.toUpperCase(),
+    query: request.query,
+    mediaType: normalizePublisherMediaType(request.mediaType),
+    body: request.body,
     ...(ifMatch === undefined ? {} : { ifMatch }),
   };
   const canonical = canonicalize(canonicalInput);
@@ -212,81 +220,6 @@ export interface PublisherIdempotencyRequest {
   readonly ifMatch?: string | null | readonly string[];
 }
 
-function assertNonEmptyString(value: unknown, name: string): asserts value is string {
-  if (typeof value !== 'string' || value.length === 0 || value.trim() !== value) {
-    throw new TypeError(`Canonical request ${name} must be a non-empty string.`);
-  }
-}
-
-function isPlainJsonObject(value: unknown): value is Readonly<Record<string, unknown>> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    && !nodeTypes.isProxy(value)
-    && (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null)
-    && isJsonValue(value);
-}
-
-function hasOnlyUnicodeScalarValues(value: string): boolean {
-  for (let index = 0; index < value.length; index += 1) {
-    const codeUnit = value.charCodeAt(index);
-    if (codeUnit >= 0xd800 && codeUnit <= 0xdbff) {
-      if (index + 1 >= value.length) return false;
-      const trailing = value.charCodeAt(index + 1);
-      if (trailing < 0xdc00 || trailing > 0xdfff) return false;
-      index += 1;
-    } else if (codeUnit >= 0xdc00 && codeUnit <= 0xdfff) {
-      return false;
-    }
-  }
-  return true;
-}
-
-const prototypePollutionKeys = new Set(['__proto__', 'constructor', 'prototype']);
-
-interface JsonValidationState {
-  members: number;
-}
-
-function isJsonValue(
-  value: unknown,
-  ancestors = new WeakSet<object>(),
-  depth = 0,
-  state: JsonValidationState = { members: 0 },
-): boolean {
-  if (value === null || typeof value === 'boolean') return true;
-  if (typeof value === 'string') return hasOnlyUnicodeScalarValues(value);
-  if (typeof value === 'number') {
-    return Number.isFinite(value) && Math.abs(value) <= Number.MAX_SAFE_INTEGER;
-  }
-  if (typeof value !== 'object' || ancestors.has(value) || nodeTypes.isProxy(value)
-    || depth > DEFAULT_I_JSON_PARSE_LIMITS.maxDepth) return false;
-  const prototype = Object.getPrototypeOf(value);
-  if (Array.isArray(value)) {
-    const keys = Reflect.ownKeys(value);
-    if (keys.length !== value.length + 1 || keys.at(-1) !== 'length'
-      || !Object.keys(value).every((key, index) => key === String(index))) return false;
-    state.members += value.length;
-    if (state.members > DEFAULT_I_JSON_PARSE_LIMITS.maxMembers) return false;
-    ancestors.add(value);
-    const valid = value.every((item) => isJsonValue(item, ancestors, depth + 1, state));
-    ancestors.delete(value);
-    return valid;
-  } else if (prototype !== Object.prototype && prototype !== null) {
-    return false;
-  }
-  const keys = Reflect.ownKeys(value);
-  state.members += keys.length;
-  if (state.members > DEFAULT_I_JSON_PARSE_LIMITS.maxMembers) return false;
-  ancestors.add(value);
-  const valid = keys.every((key) => {
-    if (typeof key !== 'string' || prototypePollutionKeys.has(key)) return false;
-    const descriptor = Object.getOwnPropertyDescriptor(value, key);
-    return descriptor !== undefined && descriptor.enumerable && 'value' in descriptor
-      && isJsonValue(descriptor.value, ancestors, depth + 1, state);
-  });
-  ancestors.delete(value);
-  return valid;
-}
-
 export interface IdempotencyBinding {
   /** Stable authenticated principal identifier. */
   readonly principalId: string;
@@ -307,57 +240,55 @@ export interface IdempotencyBinding {
 
 /** Builds the complete uniqueness tuple and digest from one request view. */
 export function createPublisherIdempotencyBinding(input: PublisherIdempotencyRequest): IdempotencyBinding {
-  if (input === null || typeof input !== 'object') {
-    throw new TypeError('Publisher idempotency request is required.');
-  }
-  if (!/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/u.test(input.method)) {
+  const request = snapshotPublisherIdempotencyRequest(input);
+  if (typeof request.method !== 'string' || !/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/u.test(request.method)) {
     throw new TypeError('Publisher idempotency request method is invalid.');
   }
-  if (typeof input.endpointKey !== 'string'
-    || !Object.prototype.hasOwnProperty.call(endpointContracts, input.endpointKey)) {
+  if (typeof request.endpointKey !== 'string'
+    || !Object.prototype.hasOwnProperty.call(endpointContracts, request.endpointKey)) {
     throw new TypeError('Publisher idempotency request endpointKey is not a Manifest Endpoint key.');
   }
-  const method = input.method.toUpperCase();
-  const operation = endpointContracts[input.endpointKey].operations.find(
+  const method = request.method.toUpperCase();
+  const operation = endpointContracts[request.endpointKey].operations.find(
     (candidate) => candidate.method === method && candidate.profile === 'publisher',
   );
   if (operation === undefined) {
     throw new TypeError('Publisher idempotency request method is not a Publisher operation for endpointKey.');
   }
-  if (!isPlainJsonObject(input.decodedQuery)) {
+  if (!isPlainJsonObject(request.decodedQuery)) {
     throw new TypeError('Publisher idempotency request decodedQuery must be a decoded I-JSON object.');
   }
   const queryDefinition = 'query' in operation ? operation.query : undefined;
   if (queryDefinition === undefined) {
-    if (Object.keys(input.decodedQuery).length !== 0) {
+    if (Object.keys(request.decodedQuery).length !== 0) {
       throw new TypeError('Publisher endpoint does not accept query parameters in decodedQuery.');
     }
   } else {
     const queryValidation = publisherRequestValidators.validate(
       queryDefinition as DefinitionName,
-      input.decodedQuery,
+      request.decodedQuery,
     );
     if (!queryValidation.valid) {
       throw new TypeError('Publisher idempotency request decodedQuery does not satisfy the Endpoint contract.');
     }
   }
-  const ifMatch = normalizeIfMatchForDigest(input.ifMatch) ?? null;
+  const ifMatch = normalizeIfMatchForDigest(request.ifMatch) ?? null;
   const binding: IdempotencyBinding = {
-    principalId: input.principalId,
-    protocolVersion: input.protocolVersion,
+    principalId: request.principalId,
+    protocolVersion: request.protocolVersion,
     method,
-    endpointKey: input.endpointKey,
-    resourceIdentity: input.resourceIdentity,
-    key: input.idempotencyKey,
+    endpointKey: request.endpointKey,
+    resourceIdentity: request.resourceIdentity,
+    key: request.idempotencyKey,
     requestDigest: createCanonicalRequestDigest({
-      principalId: input.principalId,
-      protocolVersion: input.protocolVersion,
+      principalId: request.principalId,
+      protocolVersion: request.protocolVersion,
       method,
-      endpointKey: input.endpointKey,
-      resourceIdentity: input.resourceIdentity,
-      query: input.decodedQuery,
-      mediaType: input.mediaType,
-      body: input.body,
+      endpointKey: request.endpointKey,
+      resourceIdentity: request.resourceIdentity,
+      query: request.decodedQuery,
+      mediaType: request.mediaType,
+      body: request.body,
       ifMatch,
     }),
   };
@@ -420,21 +351,19 @@ const IDEMPOTENCY_KEY_PATTERN = /^[\x21-\x2B\x2D-\x7E]+$/u;
 export function evaluatePublisherIdempotencyKeyRequirement(
   input: PublisherIdempotencyKeyRequirementInput,
 ): PublisherIdempotencyKeyRequirementResult {
-  if (input === null || typeof input !== 'object') {
-    throw new TypeError('Publisher idempotency-key evaluation input is required.');
-  }
-  if (typeof input.method !== 'string' || !/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/u.test(input.method)) {
+  const request = snapshotPublisherIdempotencyKeyInput(input);
+  if (typeof request.method !== 'string' || !/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/u.test(request.method)) {
     throw new TypeError('Publisher idempotency-key evaluation requires a valid HTTP method.');
   }
-  if (typeof input.retryable !== 'boolean') {
+  if (typeof request.retryable !== 'boolean') {
     throw new TypeError('Publisher idempotency-key evaluation requires a retryable boolean.');
   }
 
-  const method = input.method.toUpperCase();
+  const method = request.method.toUpperCase();
   if (method !== 'POST') {
     return Object.freeze({ state: 'not-required', required: false, reason: 'not-post' });
   }
-  if (!input.retryable) {
+  if (!request.retryable) {
     return Object.freeze({ state: 'not-required', required: false, reason: 'not-retryable' });
   }
 
@@ -449,28 +378,41 @@ export function evaluatePublisherIdempotencyKeyRequirement(
       retryable: problem.retryable,
     });
   };
-  const raw = input.idempotencyKey;
+  const raw = request.idempotencyKey;
   if (raw === undefined || raw === null) return reject('missing');
   if (Array.isArray(raw)) {
-    if (raw.length === 0) return reject('missing');
-    if (raw.length !== 1) return reject('multiple');
+    const values = immutableJsonData(raw, 'Publisher Idempotency-Key field') as readonly unknown[];
+    if (values.length === 0) return reject('missing');
+    if (values.length !== 1) return reject('multiple');
+    const key: unknown = values[0];
+    if (typeof key !== 'string') return reject('invalid');
+    return finishPublisherIdempotencyKey(request.binding, method, key, reject);
   }
-  const key: unknown = Array.isArray(raw) ? raw[0] : raw;
+  const key: unknown = raw;
   if (typeof key !== 'string') return reject('invalid');
+  return finishPublisherIdempotencyKey(request.binding, method, key, reject);
+}
+
+function finishPublisherIdempotencyKey(
+  rawBinding: unknown,
+  method: string,
+  key: string,
+  reject: (reason: PublisherIdempotencyKeyRejected['reason']) => PublisherIdempotencyKeyRejected,
+): PublisherIdempotencyKeyRequirementResult {
   if (key.trim().length === 0) return reject('blank');
   if (key.length > IDEMPOTENCY_KEY_MAX_LENGTH || !IDEMPOTENCY_KEY_PATTERN.test(key)) {
     return reject(key.includes(',') ? 'multiple' : 'invalid');
   }
+  const sourceBinding = snapshotPublisherIdempotencyBindingBase(rawBinding);
 
-  const sourceBinding = input.binding as Partial<IdempotencyBinding> | null | undefined;
   const binding = Object.freeze({
-    principalId: sourceBinding?.principalId,
-    protocolVersion: sourceBinding?.protocolVersion,
+    principalId: sourceBinding.principalId,
+    protocolVersion: sourceBinding.protocolVersion,
     method,
-    endpointKey: sourceBinding?.endpointKey,
-    resourceIdentity: sourceBinding?.resourceIdentity,
+    endpointKey: sourceBinding.endpointKey,
+    resourceIdentity: sourceBinding.resourceIdentity,
     key,
-    requestDigest: sourceBinding?.requestDigest,
+    requestDigest: sourceBinding.requestDigest,
   }) as IdempotencyBinding;
   validateIdempotencyBinding(binding);
   return Object.freeze({ state: 'satisfied', required: true, key, binding });

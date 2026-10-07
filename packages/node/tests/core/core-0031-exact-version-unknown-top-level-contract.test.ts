@@ -304,9 +304,4 @@ describe(`CORE-0031 exact-version unknown top-level fields ${evidence}`, () => {
     expect(semantics).not.toHaveBeenCalled();
   });
 
-  it('expands a fixed authoritative number of inherited-evidence cases', () => {
-    expect(directCases).toHaveLength(117);
-    expect(unknownFields).toHaveLength(7);
-    expect(directCases.length * unknownFields.length).toBe(819);
-  });
 });

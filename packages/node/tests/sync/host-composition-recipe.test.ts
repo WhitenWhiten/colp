@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Operation, OperationResult } from '../../src/types/index.js';
-import * as publicSyncApi from '../../src/sync/index.js';
 import * as recipeModule from '../../src/sync/host-composition-recipe.js';
 import {
   SYNC_HOST_COMPOSITION_NOTES,
@@ -501,17 +500,6 @@ describe(`Sync host composition recipe ${evidence}`, () => {
       expect(syncApi.isSyncTypedUpdateOperationType).toBe(
         recipeModule.isSyncTypedUpdateOperationType,
       );
-
-      // The public Sync entry keeps the same function / constant identities.
-      expect(publicSyncApi.createTypedUpdateMergePushPreflight).toBe(
-        syncApi.createTypedUpdateMergePushPreflight,
-      );
-      expect(publicSyncApi.SYNC_HOST_COMPOSITION_RECIPE).toBe(syncApi.SYNC_HOST_COMPOSITION_RECIPE);
-      expect(publicSyncApi.SYNC_HOST_RECOMMENDED_WRITE_PATHS).toBe(
-        syncApi.SYNC_HOST_RECOMMENDED_WRITE_PATHS,
-      );
-      expect(publicSyncApi.isSyncTypedUpdateOperation).toBe(syncApi.isSyncTypedUpdateOperation);
-      expect(publicSyncApi.isSyncTypedUpdateOperationType).toBe(syncApi.isSyncTypedUpdateOperationType);
 
       expect(typeof createTypedUpdateMergePushPreflight).toBe('function');
       expect(typeof isSyncTypedUpdateOperation).toBe('function');

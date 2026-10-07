@@ -2,14 +2,6 @@ import { isDeepStrictEqual } from 'node:util';
 import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 
 import {
-  SyncOperationReuseError as ReuseErrorFromSyncEntry,
-  coordinateSessionBootstrap as bootstrapFromSyncEntry,
-} from '../../src/sync/index.js';
-import {
-  coordinatePushTransaction as pushFromSyncEntry,
-  coordinateSequenceOperation as sequenceFromSyncEntry,
-} from '../../src/sync/unsafe.js';
-import {
   coordinatePushTransaction,
   coordinateSequenceOperation,
 } from '../../src/sync/unsafe.js';
@@ -966,10 +958,6 @@ describe(`SYNC-0013 strict reuse evidence boundary ${evidence}`, () => {
   });
 
   it(`exports coordinators typed denial owner literals and registered Problem mappings ${evidence}`, () => {
-    expect(sequenceFromSyncEntry).toBe(coordinateSequenceOperation);
-    expect(pushFromSyncEntry).toBe(coordinatePushTransaction);
-    expect(bootstrapFromSyncEntry).toBe(coordinateSessionBootstrap);
-    expect(ReuseErrorFromSyncEntry).toBe(SyncOperationReuseError);
     expect(getProblemDefinition('sequence_reuse')).toEqual({ status: 409, retryable: false });
     expect(getProblemDefinition('op_id_reused')).toEqual({ status: 409, retryable: false });
     expectTypeOf<SequenceHandle['operationIdReservationOwner']>().toEqualTypeOf<'sequence'>();

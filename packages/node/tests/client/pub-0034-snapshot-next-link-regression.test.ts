@@ -3,7 +3,13 @@ import { resolve } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { ColpClient, type ClientCache, type ClientCacheEntry } from '../../src/client/index.js';
+import {
+  ColpClient,
+  publicationSnapshotNextUrl,
+  type ClientCache,
+  type ClientCacheEntry,
+} from '../../src/client/index.js';
+import { createValidatorRegistry } from '../../src/schema/index.js';
 import type { Snapshot } from '../../src/types/index.js';
 
 const evidence = '[evidence:http.snapshot.next-link]';
@@ -59,6 +65,26 @@ function memoryCache(): { readonly cache: ClientCache; readonly entries: Map<str
 }
 
 describe(`PUB-0034 opaque server-provided Snapshot continuation regression ${evidence}`, () => {
+  it(`rejects unsafe transport schemes at the exported continuation parser boundary ${evidence}`, () => {
+    const base = new URL('https://pages.example/one?limit=2');
+    const unsafeTargets = [
+      'ftp://pages.example/two?limit=2&pageCursor=c-2',
+      'https://user:secret@pages.example/two?limit=2&pageCursor=c-2',
+      'http://pages.example/two?limit=2&pageCursor=c-2',
+    ];
+
+    for (const target of unsafeTargets) {
+      expect(() => publicationSnapshotNextUrl({
+        currentUrl: base,
+        initialUrl: base,
+        linkHeader: `<${target}>; rel="next"`,
+        hasMore: true,
+        nextCursor: 'c-2',
+        validators: createValidatorRegistry(),
+      })).toThrow(TypeError);
+    }
+  });
+
   it(`follows the exact cross-Origin URL without guessing or reusing the first-page cache validator ${evidence}`, async () => {
     const initial = `https://archive.example/custom/${collectionId}.json?include=annotations&include=attachments&include=relations`;
     const next = 'https://edge.other.example:9443/opaque/batch%2Fseven.json?include=relations&include=annotations&include=attachments&pageCursor=c%2D2';

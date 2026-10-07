@@ -2,17 +2,24 @@ import { describe, expect, it } from 'vitest';
 
 import {
   collectionProtocolSchema,
+  collectionProtocolSchemaV02,
   createValidatorRegistry,
   isLevelOneUriTemplate,
 } from '../../src/schema/index.js';
+
+function expectDeeplyFrozen(value: unknown, seen = new WeakSet<object>()): void {
+  if (value === null || typeof value !== 'object' || seen.has(value)) return;
+  seen.add(value);
+  expect(Object.isFrozen(value)).toBe(true);
+  for (const child of Object.values(value)) expectDeeplyFrozen(child, seen);
+}
 
 describe('schema validator registry', () => {
   const registry = createValidatorRegistry();
 
   it('keeps the canonical schema deeply immutable', () => {
-    expect(Object.isFrozen(collectionProtocolSchema)).toBe(true);
-    expect(Object.isFrozen(collectionProtocolSchema.$defs)).toBe(true);
-    expect(Object.isFrozen(collectionProtocolSchema.$defs.opaqueId)).toBe(true);
+    expectDeeplyFrozen(collectionProtocolSchema);
+    expectDeeplyFrozen(collectionProtocolSchemaV02);
     expect(() => {
       (collectionProtocolSchema.$defs.opaqueId as { pattern?: string }).pattern = '.*';
     }).toThrow(TypeError);
@@ -20,15 +27,12 @@ describe('schema validator registry', () => {
   });
 
   it('exposes every named schema definition', () => {
-    expect(registry.definitionNames).toEqual(
-      expect.arrayContaining([
-        'bookmarkUrl',
-        'changePlanOperation',
-        'nodeDeleteQuery',
-        'nodeDetailQuery',
-        'syncSnapshotQuery',
-      ]),
-    );
+    const expected = [
+      ...Object.keys(collectionProtocolSchema.$defs),
+      ...Object.keys(collectionProtocolSchemaV02.$defs),
+    ];
+    expect(registry.definitionNames).toEqual(expected);
+    expect(new Set(registry.definitionNames).size).toBe(expected.length);
   });
 
   it('validates by definition name with format assertions enabled', () => {

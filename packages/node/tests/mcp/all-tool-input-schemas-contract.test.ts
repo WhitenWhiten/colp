@@ -233,9 +233,12 @@ async function rejection(operation: () => unknown | PromiseLike<unknown>): Promi
 }
 
 describe(`MCP-0011 all Tool input schemas ${evidence}`, () => {
-  it(`keeps the root and MCP gateway exports identical ${evidence}`, () => {
-    expect(createMcpReadToolGateway).toBe(createMcpReadToolGateway);
-    expect(collectionsGetToolDefinition).toBeDefined();
+  it(`publishes the concrete read Tool gateway contract ${evidence}`, () => {
+    expect(collectionsGetToolDefinition).toMatchObject({
+      name: 'collections.get',
+      inputSchema: expect.objectContaining({ type: 'object' }),
+    });
+    expect(typeof createMcpReadToolGateway).toBe('function');
     expect(typeof createMcpToolInputValidator).toBe('function');
   });
 

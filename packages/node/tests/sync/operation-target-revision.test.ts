@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 
-import * as syncEntryApi from '../../src/sync/index.js';
 import * as sync from '../../src/sync/index.js';
 import { collectionProtocolSchema, createValidatorRegistry } from '../../src/schema/index.js';
 
@@ -91,11 +90,6 @@ describe('SYNC-0015 operation target and revision contract', () => {
     const value = operation('delete_node', { targetId: opaque, baseRevision: '999999999999999999999999999999999999999999999999' });
     expect(validators.validate('operation', value).valid).toBe(true);
     expect(value.targetId).toBe(opaque);
-  });
-
-  it(`${evidence} root and sync exports preserve typed validator identity`, () => {
-    expect(syncEntryApi.validateSyncTypedUpdateOperationPayload).toBe(sync.validateSyncTypedUpdateOperationPayload);
-    expect(syncEntryApi.assertSyncTypedUpdateOperationPayload).toBe(sync.assertSyncTypedUpdateOperationPayload);
   });
 
   it(`${evidence} schema exposes operation target and revision constraints`, () => {

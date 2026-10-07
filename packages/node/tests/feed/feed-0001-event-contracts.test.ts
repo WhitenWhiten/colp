@@ -274,27 +274,6 @@ describe(`FEED-0001 event type/data discrimination [evidence:${evidence}]`, () =
     }
   });
 
-  it(`[negative] rejects access events with nested private objects [evidence:${evidence}]`, () => {
-    // Schema rejects unknown keys; nested payload via object-valued extension of allowed fields is impossible
-    // for access data (visibility is scalar). Force via symbol-free extra after schema skip path.
-    const event = baseEnvelope('org.collectionprotocol.access.publication_changed.v1', {
-      collectionId: 'collection-1',
-      revision: 'r_1',
-      visibility: 'public',
-    });
-    // Pass schema then inject nested object under a cloned visibility-like abuse is not possible;
-    // instead verify valid access is accepted and keys are only public fields.
-    const ok = discriminateFeedEvent(event, validators);
-    expect(ok.valid).toBe(true);
-    if (ok.valid) {
-      expect(Object.keys(ok.event.data as object).sort()).toEqual([
-        'collectionId',
-        'revision',
-        'visibility',
-      ]);
-    }
-  });
-
   it(`[boundary] rejects Proxy / non-object inputs fail closed [evidence:${evidence}]`, () => {
     expect(discriminateFeedEvent(null, validators).valid).toBe(false);
     expect(discriminateFeedEvent(undefined, validators).valid).toBe(false);

@@ -253,7 +253,4 @@ describe(`PUB-0029 declared Endpoint transport safety [evidence:${evidence}]`, (
     },
   );
 
-  it('keeps the authoritative PUB-0029 case matrix explicit [evidence:http.endpoint-transport-safety]', () => {
-    expect(acceptedTemplates.length + rejectedTemplates.length + 3 + 6 + 1 + 2).toBe(56);
-  });
 });

@@ -10,6 +10,8 @@ import {
 } from './endpoint-contracts.js';
 import type { SemanticIssue, SemanticValidationResult } from './index.js';
 
+const levelOneExpression = /\{([^{}]+)\}/gu;
+
 function issue(code: string, path: string, message: string): SemanticIssue {
   return { code, path, message };
 }
@@ -51,6 +53,16 @@ export function validateManifestSemantics(manifest: Manifest): SemanticValidatio
             'invalid_endpoint_template',
             `${mountPath}/endpoints/${endpointKey}`,
             `Endpoint ${endpointKey} is not an absolute RFC 6570 Level 1 service template.`,
+          ),
+        );
+        continue;
+      }
+      if (!hasUniqueTemplateVariables(template)) {
+        issues.push(
+          issue(
+            'invalid_endpoint_template',
+            `${mountPath}/endpoints/${endpointKey}`,
+            `Endpoint ${endpointKey} repeats a URI-template variable; each variable must occur once.`,
           ),
         );
         continue;
@@ -126,4 +138,23 @@ export function validateManifestSemantics(manifest: Manifest): SemanticValidatio
   return issues.length === 0
     ? { valid: true, issues: [] }
     : { valid: false, issues: Object.freeze(issues) };
+}
+
+/**
+ * Keep semantic Manifest admission aligned with the concrete endpoint
+ * expansion boundary.  `getLevelOneUriTemplateVariables()` intentionally
+ * returns a set, so a template that repeats a registered variable would look
+ * valid here but be rejected later by endpoint expansion.  Repeated
+ * occurrences also make a declared route ambiguous when a caller supplies a
+ * single value, therefore reject them before a Manifest can be published.
+ */
+function hasUniqueTemplateVariables(template: string): boolean {
+  const seen = new Set<string>();
+  for (const match of template.matchAll(levelOneExpression)) {
+    for (const variable of (match[1] ?? '').split(',')) {
+      if (seen.has(variable)) return false;
+      seen.add(variable);
+    }
+  }
+  return true;
 }

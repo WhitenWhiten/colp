@@ -192,11 +192,11 @@ function expectInvalidHelperCall(args: readonly unknown[]): void {
 describe(`MCP-0015 canonical MCP Tool schema references ${evidence}`, () => {
   it(`publishes one helper and the exact current read Tool definitions at both boundaries ${evidence}`, () => {
     const helper = createCanonicalMcpSchemaReference;
-    expect(createCanonicalMcpSchemaReference).toBe(helper);
-    expect(collectionsGetToolDefinition).toBe(collectionsGetToolDefinition);
-    expect(collectionsGetSnapshotToolDefinition).toBe(
-      collectionsGetSnapshotToolDefinition,
-    );
+    expect(typeof helper).toBe('function');
+    expect(collectionsGetToolDefinition).toMatchObject({ name: 'collections.get' });
+    expect(collectionsGetSnapshotToolDefinition).toMatchObject({
+      name: 'collections.get_snapshot',
+    });
 
     const gatewayDefinitions = createGateway().listTools();
     expect(gatewayDefinitions.map(({ name }) => name)).toEqual(['collections.get']);

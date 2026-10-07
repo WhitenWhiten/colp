@@ -104,7 +104,6 @@ describe(`exact-version extensibility ${evidence}`, () => {
     // CORE-0027 adds one closed Snapshot-only Node projection without opening core fields.
     expect(paths.closed).toHaveLength(164);
     expect(paths.open).toHaveLength(13);
-    expect(paths.closed.length + paths.open.length).toBe(177);
     expect(paths.open.sort()).toEqual(Object.keys(reviewedOpenObjects).sort());
   });
 

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 
-import * as publicSyncApi from '../../src/sync/index.js';
 import {
   loadSyncExtensionCarrier,
   relaySyncExtensionCarrier,
@@ -10,7 +9,6 @@ import {
   type SyncExtensionResourceKey,
   type SyncExtensionUnitOfWork,
 } from '../../src/sync/index.js';
-import * as syncApi from '../../src/sync/index.js';
 
 const evidence = '[evidence:sync.extension-relay-export]';
 const namespace = 'https://vendor.example/extensions/opaque/v1';
@@ -130,16 +128,7 @@ function memoryRelayUnitOfWork(options: {
   };
 }
 
-describe(`public Sync extension relay surface ${evidence}`, () => {
-  it(`re-exports the relay and load entry points from the Sync public entry ${evidence}`, () => {
-    expect(publicSyncApi.relaySyncExtensionCarrier).toBe(relaySyncExtensionCarrier);
-    expect(publicSyncApi.loadSyncExtensionCarrier).toBe(loadSyncExtensionCarrier);
-    expect(syncApi.relaySyncExtensionCarrier).toBe(relaySyncExtensionCarrier);
-    expect(syncApi.loadSyncExtensionCarrier).toBe(loadSyncExtensionCarrier);
-    expect(publicSyncApi.relaySyncExtensionCarrier).toBe(syncApi.relaySyncExtensionCarrier);
-    expect(publicSyncApi.loadSyncExtensionCarrier).toBe(syncApi.loadSyncExtensionCarrier);
-  });
-
+describe(`Sync extension relay behavior ${evidence}`, () => {
   it(`rejects a receipt whose transaction-local read-back diverges from the requested replacement ${evidence}`, async () => {
     const unitOfWork = memoryRelayUnitOfWork({ corruptSavedReceipt: true });
 

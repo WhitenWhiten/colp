@@ -58,18 +58,13 @@ async function fixture(): Promise<Manifest> {
   return JSON.parse(await readFile(fixturePath, 'utf8')) as Manifest;
 }
 
-function requireTemplateFactory(): typeof createMcpResourceTemplates {
-  expect(typeof createMcpResourceTemplates, 'MCP-0010 needs a Manifest-bound Resource Template factory').toBe('function');
-  return createMcpResourceTemplates;
-}
-
 function requireUriCodec(): typeof createMcpResourceUriCodec {
   expect(typeof createMcpResourceUriCodec).toBe('function');
   return createMcpResourceUriCodec;
 }
 
 function createTemplates(actualServerUuid = serverUuid): McpResourceTemplates {
-  return requireTemplateFactory()({ serverUuid: actualServerUuid });
+  return createMcpResourceTemplates({ serverUuid: actualServerUuid });
 }
 
 function variables(template: string): readonly string[] {
@@ -85,10 +80,6 @@ function expand(template: string, values: Readonly<Record<string, string>>): str
 }
 
 describe('MCP-0010 Resource Templates [evidence:mcp.resource-templates]', () => {
-  it('exports the same factory from both public boundaries [evidence:mcp.resource-templates]', () => {
-    expect(requireTemplateFactory()).toBe(createMcpResourceTemplates);
-  });
-
   it('returns exactly two implemented descriptors in the specified order [evidence:mcp.resource-templates]', () => {
     expect(createTemplates()).toEqual(expectedTemplates);
   });
@@ -128,7 +119,7 @@ describe('MCP-0010 Resource Templates [evidence:mcp.resource-templates]', () => 
   it('accepts the complete protocol Manifest fixture [evidence:mcp.resource-templates]', async () => {
     const manifest = await fixture();
 
-    expect(requireTemplateFactory()(manifest)).toEqual(expectedTemplates);
+    expect(createMcpResourceTemplates(manifest)).toEqual(expectedTemplates);
   });
 
   it('binds different server identities to stable isolated template sets [evidence:mcp.resource-templates]', () => {
@@ -165,7 +156,7 @@ describe('MCP-0010 Resource Templates [evidence:mcp.resource-templates]', () => 
   it('does not mutate the supplied Manifest identity [evidence:mcp.resource-templates]', () => {
     const manifest = Object.freeze({ serverUuid });
 
-    requireTemplateFactory()(manifest);
+    createMcpResourceTemplates(manifest);
 
     expect(manifest).toEqual({ serverUuid });
   });
@@ -173,7 +164,7 @@ describe('MCP-0010 Resource Templates [evidence:mcp.resource-templates]', () => 
   it('does not copy secrets or unrelated Manifest fields into output [evidence:mcp.resource-templates]', () => {
     const secret = 'mcp-api-key-secret';
     const manifest = { serverUuid, title: 'Private title', apiKey: secret, opaqueExtra: { secret } };
-    const output = requireTemplateFactory()(manifest);
+    const output = createMcpResourceTemplates(manifest);
     const serialized = JSON.stringify(output);
 
     expect(serialized).not.toContain(secret);
@@ -186,7 +177,7 @@ describe('MCP-0010 Resource Templates [evidence:mcp.resource-templates]', () => 
     const manifest = { serverUuid } as Pick<Manifest, 'serverUuid'> & { readonly extensions?: unknown };
     Object.defineProperty(manifest, 'extensions', { enumerable: true, get: extraGetter });
 
-    expect(requireTemplateFactory()(manifest)).toEqual(expectedTemplates);
+    expect(createMcpResourceTemplates(manifest)).toEqual(expectedTemplates);
     expect(extraGetter).not.toHaveBeenCalled();
   });
 
@@ -219,7 +210,7 @@ describe('MCP-0010 Resource Templates [evidence:mcp.resource-templates]', () => 
     const manifest = { serverUuid } as Pick<Manifest, 'serverUuid'> & { readonly feed?: unknown };
     Object.defineProperty(manifest, 'feed', { enumerable: true, get: feedGetter });
 
-    expect(requireTemplateFactory()(manifest)).toEqual(expectedTemplates);
+    expect(createMcpResourceTemplates(manifest)).toEqual(expectedTemplates);
     expect(feedGetter).not.toHaveBeenCalled();
   });
 
@@ -243,7 +234,7 @@ describe('MCP-0010 Resource Templates [evidence:mcp.resource-templates]', () => 
   ] as const)(
     'fails closed for %s [evidence:mcp.resource-templates]',
     (_label, manifest) => {
-      expect(() => requireTemplateFactory()(
+      expect(() => createMcpResourceTemplates(
         manifest as unknown as Pick<Manifest, 'serverUuid'>,
       )).toThrow();
     },
@@ -252,7 +243,7 @@ describe('MCP-0010 Resource Templates [evidence:mcp.resource-templates]', () => 
   it('rejects an inherited serverUuid [evidence:mcp.resource-templates]', () => {
     const inherited = Object.create({ serverUuid }) as Pick<Manifest, 'serverUuid'>;
 
-    expect(() => requireTemplateFactory()(inherited)).toThrow();
+    expect(() => createMcpResourceTemplates(inherited)).toThrow();
   });
 
   it('rejects a serverUuid getter without invoking it [evidence:mcp.resource-templates]', () => {
@@ -260,12 +251,12 @@ describe('MCP-0010 Resource Templates [evidence:mcp.resource-templates]', () => 
     const manifest = {} as Pick<Manifest, 'serverUuid'>;
     Object.defineProperty(manifest, 'serverUuid', { enumerable: true, get: getter });
 
-    expect(() => requireTemplateFactory()(manifest)).toThrow();
+    expect(() => createMcpResourceTemplates(manifest)).toThrow();
     expect(getter).not.toHaveBeenCalled();
   });
 
   it('rejects missing and extra factory arguments [evidence:mcp.resource-templates]', () => {
-    const factory = requireTemplateFactory() as (...args: unknown[]) => McpResourceTemplates;
+    const factory = createMcpResourceTemplates as (...args: unknown[]) => McpResourceTemplates;
 
     expect(() => factory()).toThrow();
     expect(() => factory({ serverUuid }, { serverUuid: otherServerUuid })).toThrow();

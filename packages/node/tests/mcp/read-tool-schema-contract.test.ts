@@ -91,7 +91,7 @@ describe('MCP-0002 read Tool public contract [evidence:mcp.tool-schema]', () => 
     const { gateway } = createGateway();
     const definitions = gateway.listTools();
 
-    expect(createMcpReadToolGateway).toBe(createMcpReadToolGateway);
+    expect(typeof createMcpReadToolGateway).toBe('function');
     expect(Object.keys(gateway).sort()).toEqual(['callTool', 'listTools']);
     expect(Object.isFrozen(gateway)).toBe(true);
     expect(definitions).toHaveLength(1);

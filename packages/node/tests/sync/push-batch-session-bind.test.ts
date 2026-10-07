@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Operation, OperationResult } from '../../src/types/index.js';
-import * as publicSyncApi from '../../src/sync/index.js';
 import {
   coordinatePushTransaction,
 } from '../../src/sync/unsafe.js';
@@ -30,7 +29,6 @@ import {
   type SyncUnitOfWork,
   type VerifySyncSessionContextInput,
 } from '../../src/sync/index.js';
-import * as syncApi from '../../src/sync/index.js';
 
 /**
  * Evidence for Push batchId ↔ Session binding on the session-bound Push path.
@@ -343,22 +341,10 @@ async function openVerifiedSession(
 // ---------------------------------------------------------------------------
 
 describe(`Push batchId ↔ Session binding (session-bound path) ${evidence}`, () => {
-  describe('export surface identity', () => {
-    it(`exports assertSyncPushBatchBoundToSession and bindSyncPushBatchId with stable identities ${evidence}`, () => {
+  describe('composition surface', () => {
+    it(`exposes composition helpers and migration notes ${evidence}`, () => {
       expect(typeof compositionApi.assertSyncPushBatchBoundToSession).toBe('function');
       expect(typeof compositionApi.bindSyncPushBatchId).toBe('function');
-
-      expect(syncApi.assertSyncPushBatchBoundToSession).toBe(
-        compositionApi.assertSyncPushBatchBoundToSession,
-      );
-      expect(syncApi.bindSyncPushBatchId).toBe(compositionApi.bindSyncPushBatchId);
-      expect(syncApi.coordinateSessionBoundPush).toBe(compositionApi.coordinateSessionBoundPush);
-
-      expect(publicSyncApi.assertSyncPushBatchBoundToSession).toBe(
-        syncApi.assertSyncPushBatchBoundToSession,
-      );
-      expect(publicSyncApi.bindSyncPushBatchId).toBe(syncApi.bindSyncPushBatchId);
-      expect(publicSyncApi.coordinateSessionBoundPush).toBe(syncApi.coordinateSessionBoundPush);
 
       expect(SYNC_HOST_COMPOSITION_NOTES.migration).toMatch(
         /coordinateSessionBoundPush|batchId|sessionId|unsafe/i,

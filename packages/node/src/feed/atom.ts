@@ -2,6 +2,7 @@ import { serializeBoundedAtom } from './atom-serializer.js';
 
 import { isProxy } from 'node:util/types';
 
+import { createValidatorRegistry, type ValidatorRegistry } from '../schema/index.js';
 import { isHttpUrl } from '../schema/uri.js';
 import { isRfc3339DateTime } from '../shared/date-time.js';
 import { hasWellFormedUtf16 } from '../shared/utf16.js';
@@ -10,6 +11,7 @@ import {
   type DeepReadonly,
 } from '../shared/immutable-json.js';
 import { projectFeedBookmarkUrl } from './bookmark-url.js';
+import { discriminateFeedEvent } from './event-contracts.js';
 
 const ATOM_OPTION_KEYS = new Set(['emptyFeedUpdated']);
 const COMPARABLE_RFC3339 =
@@ -18,6 +20,13 @@ const UNKNOWN_LOCAL_OFFSET = /-00:00$/u;
 const DAYS_BEFORE_MONTH = Object.freeze([
   0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334,
 ]);
+
+let defaultValidators: ValidatorRegistry | undefined;
+
+function validators(): ValidatorRegistry {
+  defaultValidators ??= createValidatorRegistry();
+  return defaultValidators;
+}
 
 export interface AtomLink {
   readonly rel: 'alternate' | 'related' | 'self' | 'hub';
@@ -160,6 +169,13 @@ export function mapFeedToAtom(
     if (!mapped.ok) {
       return fail(mapped.code);
     }
+    // Atom is a representation of a COLP Feed, so each source event must
+    // cross the same strict CloudEvent/data discriminator as other Feed
+    // adapters. Unsafe Bookmark targets are deliberately sanitized only for
+    // validation: Atom mapping omits their related link per FEED-0010.
+    if (!validateAtomEvent(event, validators())) {
+      return fail('malformed_feed');
+    }
     entries.push(mapped.entry);
     if (latest === undefined || compareInstants(mapped.instant, latest.instant) > 0) {
       latest = { updated: mapped.entry.updated, instant: mapped.instant };
@@ -202,6 +218,40 @@ export function mapFeedToAtom(
     if (error instanceof RangeError) return fail('malformed_feed');
     throw error;
   }
+}
+
+function validateAtomEvent(event: Readonly<Record<string, unknown>>, registry: ValidatorRegistry): boolean {
+  const candidate = sanitizeUnsafeBookmarkTarget(event);
+  const result = discriminateFeedEvent(candidate, registry);
+  return result.valid;
+}
+
+function sanitizeUnsafeBookmarkTarget(
+  event: Readonly<Record<string, unknown>>,
+): Readonly<Record<string, unknown>> {
+  const data = event.data;
+  if (!isPlainObject(data)) return event;
+  const node = data.node;
+  if (
+    !isPlainObject(node)
+    || node.kind !== 'bookmark'
+    || node.redacted === true
+    || typeof node.url !== 'string'
+    || isHttpUrl(node.url)
+  ) {
+    return event;
+  }
+
+  // FeedNode's redacted form must not retain target-derived fields. Keep the
+  // original event for Atom mapping so the unsafe target is simply omitted.
+  const { url: _url, canonicalUrl: _canonicalUrl, urlHash: _urlHash, ...safeNode } = node;
+  return {
+    ...event,
+    data: {
+      ...data,
+      node: { ...safeNode, redacted: true },
+    },
+  };
 }
 
 function mapEventToAtomEntry(

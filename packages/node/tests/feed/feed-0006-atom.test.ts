@@ -32,12 +32,18 @@ describe(`FEED-0006 Atom 1.0 mapping [evidence:${evidence}]`, () => {
       title: 'T',
       events: [
         {
+          specversion: '1.0',
           id: 'e1',
+          source: 'https://alice.example/collections',
           type: 'org.collectionprotocol.node.created.v1',
+          subject: 'collections/c/c1/nodes/n1',
           time: '2026-07-16T06:30:00Z',
+          datacontenttype: 'application/json',
+          collectionprotocolversion: '0.1',
           data: {
-            summary: 'bookmark',
-            node: { kind: 'bookmark', url: 'https://example.com/a' },
+            collectionId: 'c1',
+            revision: 'r1',
+            node: { id: 'n1', kind: 'bookmark', title: 'bookmark', url: 'https://example.com/a' },
           },
         },
       ],
@@ -59,11 +65,18 @@ describe(`FEED-0006 Atom 1.0 mapping [evidence:${evidence}]`, () => {
       title: 'T',
       events: [
         {
+          specversion: '1.0',
           id: 'e1',
+          source: 'https://alice.example/collections',
           type: 'org.collectionprotocol.node.created.v1',
+          subject: 'collections/c/c1/nodes/n1',
           time: '2026-07-16T06:30:00Z',
+          datacontenttype: 'application/json',
+          collectionprotocolversion: '0.1',
           data: {
-            node: { kind: 'bookmark', url: 'https://user:x@example.com/a' },
+            collectionId: 'c1',
+            revision: 'r1',
+            node: { id: 'n1', kind: 'bookmark', title: 'bookmark', url: 'https://user:x@example.com/a' },
           },
         },
       ],
@@ -95,10 +108,15 @@ describe(`FEED-0006 Atom 1.0 mapping [evidence:${evidence}]`, () => {
       title: 'A & B <C>',
       events: [
         {
+          specversion: '1.0',
           id: 'e1',
-          type: 't',
+          source: 'https://alice.example/collections',
+          type: 'org.collectionprotocol.collection.updated.v1',
+          subject: 'collections/c/c1',
           time: '2026-07-16T06:30:00Z',
-          data: { summary: 'x < y & z' },
+          datacontenttype: 'application/json',
+          collectionprotocolversion: '0.1',
+          data: { collectionId: 'c1', revision: 'r1', summary: 'x < y & z' },
         },
       ],
     };
@@ -107,6 +125,7 @@ describe(`FEED-0006 Atom 1.0 mapping [evidence:${evidence}]`, () => {
     if (result.ok) {
       expect(result.xml).toContain('A &amp; B &lt;C&gt;');
       expect(result.xml).toContain('x &lt; y &amp; z');
+      expect(result.xml).toContain('<content>x &lt; y &amp; z</content>');
     }
   });
 });

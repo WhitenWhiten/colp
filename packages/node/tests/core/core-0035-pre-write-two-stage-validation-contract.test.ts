@@ -4,7 +4,6 @@ import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 import { executeValidatedWrite } from '../../src/server/index.js';
-import { executeValidatedWrite as executeServerValidatedWrite } from '../../src/server/index.js';
 import {
   createValidatorRegistry,
   validateWireDocument,
@@ -52,10 +51,6 @@ const validObjectFamilies = [
 ] as const satisfies readonly (readonly [string, DefinitionName, string])[];
 
 describe(`CORE-0035 pre-write two-stage validation contract ${evidence}`, () => {
-  it('publishes one production gate from the server surface', () => {
-    expect(executeServerValidatedWrite).toBe(executeValidatedWrite);
-  });
-
   it.each(validObjectFamilies)(
     'structurally and semantically validates a %s exactly once before its write',
     async (_label, definition, fixtureName) => {

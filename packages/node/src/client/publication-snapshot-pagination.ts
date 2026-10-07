@@ -25,6 +25,7 @@ export function publicationSnapshotNextUrl(input: PublicationSnapshotNextLinkInp
 
   const next = new URL(nextLinks[0].uri, input.currentUrl);
   if (next.hash !== '') throw new TypeError('Snapshot rel=next URL must not contain a fragment.');
+  assertPublicationContinuationTransport(next);
 
   const cursors = next.searchParams.getAll('pageCursor');
   if (cursors.length !== 1 || cursors[0] !== input.nextCursor) {
@@ -45,6 +46,23 @@ export function publicationSnapshotNextUrl(input: PublicationSnapshotNextLinkInp
   assertSameScalar(initialQuery.value, nextQuery.value, 'limit');
   assertSameIncludeSet(initialQuery.value.include, nextQuery.value.include);
   return next;
+}
+
+/**
+ * Keep the exported Link parser safe on its own. ColpClient applies the same
+ * check again immediately before fetch, but callers may use this helper to
+ * inspect a server response without going through the client transport layer.
+ */
+function assertPublicationContinuationTransport(url: URL): void {
+  if (url.username !== '' || url.password !== '') {
+    throw new TypeError('Snapshot rel=next URL must not contain user information.');
+  }
+  if (url.protocol === 'https:') return;
+  if (
+    url.protocol === 'http:'
+    && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname.toLowerCase())
+  ) return;
+  throw new TypeError('Snapshot rel=next URL violates the Publication transport policy.');
 }
 
 function assertSameScalar(
