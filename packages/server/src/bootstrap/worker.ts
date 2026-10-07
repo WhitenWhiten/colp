@@ -884,6 +884,7 @@ export function buildWorker(
           || readiness.acknowledgesTransientSideEffects
           || readiness.routeCount < 1
           || (config.nodeEnv === 'production'
+            && process.env.KNOWN_EDITION !== 'self-hosted'
             && (!readiness.publicationCachePurge.configured
               || !readiness.publicationCachePurge.allDurable))
         ) {
