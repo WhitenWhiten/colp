@@ -1,0 +1,13 @@
+/* Import — the extension hand-off panel. Route-owned: imported by
+   pages/Import.tsx only. */
+
+@layer pages {
+.import-handoff { max-width: 46rem; }
+.import-handoff .lede { max-width: 42rem; margin-top: var(--hair-65); }
+/* R10-18: the hand-off steps ride the shared .stepper primitive — this host
+   keeps the measure and the airier prose leading. */
+.import-handoff-steps { max-width: 42rem; margin: var(--hair-125) 0 0; }
+.import-handoff-steps .stepper-text { line-height: var(--leading-relaxed); }
+.import-handoff-actions { display: flex; flex-wrap: wrap; gap: var(--hair-65); margin-top: var(--space-5); }
+.import-handoff-note { max-width: 38rem; margin-top: var(--space-4); line-height: var(--leading-prose); }
+}

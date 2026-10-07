@@ -1,0 +1,792 @@
+/* Reader — in-app reading page: sticky toolbar, the article column (source
+   line, serif title, body, replica states, prev/next) and the context rail
+   (contents, private note, source). Route-owned: imported by pages/Reader.tsx
+   only, which stays the single owner of every reader-* rule. */
+
+@layer pages {
+.reader-page {
+  position: relative;
+  min-height: 100dvh; /* R7-15 */
+  background: var(--paper);
+}
+
+/* Pre-resolve shells (loading / unavailable) wrap their EmptyState in the
+   shared PageShell — same padding every PageShell route gets. */
+
+.reader-article ::selection {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--ink);
+}
+
+/* ——— Toolbar: sticky hairline bar pinned under the topnav ——— */
+.reader-toolbar {
+  position: sticky;
+  top: var(--header-h);
+  z-index: var(--z-sticky);
+  min-height: 3.5rem;
+  padding: var(--hair-45) var(--gutter);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--space-4);
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--paper) var(--frost-bg-mix), transparent);
+  backdrop-filter: blur(var(--frost-blur)) saturate(var(--frost-saturate));
+}
+
+.reader-back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hair-45);
+  min-width: 0;
+  max-width: 100%;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+}
+
+.reader-back svg {
+  flex-shrink: 0;
+}
+
+.reader-back-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reader-back:hover {
+  color: var(--ink);
+}
+
+/* Percentage + save/progress status. Hidden on phones; the status sentence
+   only joins from 900px so it can never squeeze the back label to nothing. */
+.reader-toolbar-meta {
+  display: none;
+  min-width: 0;
+  margin: 0;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--faint);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.reader-toolbar-progress {
+  color: var(--ink-2);
+  font-weight: var(--weight-semibold);
+}
+
+.reader-toolbar-status {
+  display: none;
+  min-width: 0;
+  max-width: 18rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Save failures surface at every width: this sentence is the only place
+   they are reported and it used to stay hidden below 900px, so a phone
+   showed a live progress bar over a silently failing save. */
+.reader-toolbar-meta:has(.reader-toolbar-status[data-save-state='error']),
+.reader-toolbar-meta:has(.reader-toolbar-status[data-save-state='unknown']) {
+  display: flex;
+}
+
+.reader-toolbar-status[data-save-state='error'],
+.reader-toolbar-status[data-save-state='unknown'] {
+  display: inline-block;
+  color: var(--danger);
+}
+
+.reader-toolbar-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--hair-35);
+}
+
+.reader-complete {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* Reading progress rides the toolbar's bottom hairline. Rendered only once
+   the replica is on screen — a percentage of nothing is noise. */
+.reader-progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 0.15rem;
+  overflow: hidden;
+  background: transparent;
+}
+
+.reader-progress span {
+  display: block;
+  height: 100%;
+  width: 100%;
+  background: var(--accent);
+  transform: scaleX(var(--progress, 0));
+  transform-origin: left center;
+  will-change: transform;
+  transition: transform var(--duration-state) var(--ease-out);
+}
+
+/* ——— Layout: article column, context rail after it ———
+   The grid rides a PageShell section: the shell pads and bounds the page,
+   .reader-layout only caps the two-column board inside it. */
+.reader-layout {
+  width: min(100%, 72rem);
+  margin-inline: auto;
+  display: grid;
+  gap: var(--space-10);
+}
+
+.reader-article {
+  min-width: 0;
+  max-width: 47rem;
+}
+
+/* ——— Article head ——— */
+.reader-article-head {
+  padding-bottom: var(--hair-150);
+  background-image: var(--hairline-fade);
+  background-size: 100% 1px;
+  background-repeat: no-repeat;
+  background-position: bottom left;
+}
+
+/* Source line = .reading-meta type (reading.css) on a flex row; the page
+   only owns the row geometry and the middot separators below. */
+.reader-source-line {
+  min-width: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--hair-35) var(--hair-45);
+  font-weight: var(--weight-medium);
+}
+
+.reader-source-host {
+  color: var(--ink-2);
+  font-weight: var(--weight-semibold);
+}
+
+.reader-byline,
+.reader-read-time {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.reader-byline::before,
+.reader-read-time::before {
+  content: '·';
+  margin-inline-end: var(--hair-45);
+  color: var(--ghost);
+}
+
+/* Article head type: PageHead editorial display (R10-03) on the reading
+   measure. The page keeps only the head's rhythm. */
+.reader-article h1 {
+  margin: var(--hair-110) 0 0;
+  max-width: 22ch;
+}
+
+.reader-article-head.page-head {
+  padding-bottom: var(--hair-150);
+  max-width: none;
+}
+
+.reader-article-head .page-head-copy {
+  grid-column: 1 / -1;
+}
+
+.reader-article-head .eyebrow {
+  margin: 0;
+}
+
+.reader-standfirst {
+  max-width: 40rem;
+  margin: var(--hair-85) 0 0;
+  color: var(--ink-2);
+  text-wrap: pretty;
+}
+
+/* ——— Body: .reading-body type (reading.css) at the reader's own measure ———
+   The right padding is a rail for the per-paragraph highlight control on
+   touch and narrow screens; wide fine-pointer layouts drop it and hang the
+   control in the column gap instead (see .reader-mark). */
+.reader-body {
+  max-width: calc(68ch + var(--space-8));
+  margin-top: var(--space-6);
+  padding-inline-end: var(--space-8);
+  color: var(--ink-2);
+}
+
+.reader-section {
+  margin-top: var(--space-8);
+  scroll-margin-top: calc(var(--header-h) + var(--space-12));
+}
+
+.reader-section:first-of-type {
+  margin-top: 0;
+}
+
+.reader-section-title {
+  margin: 0 0 var(--space-3);
+  color: var(--ink);
+  font-family: var(--font-serif);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-serif-display);
+  line-height: var(--leading-clamp);
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.reader-paragraph {
+  position: relative;
+  margin: 0 0 var(--hair-125);
+  border-radius: var(--radius-sm);
+  transition: background var(--duration-fast) var(--ease-quart);
+}
+
+.reader-paragraph p {
+  margin: 0;
+  hanging-punctuation: first allow-end;
+  text-wrap: pretty;
+  overflow-wrap: anywhere;
+}
+
+/* Negative margins cancel the padding, so toggling a highlight never moves
+   the text — only the tinted backdrop fades in. */
+.reader-paragraph.is-highlighted {
+  margin: calc(-1 * var(--hair-30)) calc(-1 * var(--hair-45)) calc(var(--hair-125) - var(--hair-30));
+  padding: var(--hair-30) var(--hair-45);
+  background: color-mix(in srgb, var(--hl-mark) 18%, var(--surface));
+  color: var(--ink);
+}
+
+/* Per-paragraph highlight control: a marker stroke in the margin. Mobile
+   first means touch: always visible, parked in the rail beside the text.
+   Fine pointers hide it until the paragraph is hovered or focused, or the
+   paragraph is already highlighted. */
+.reader-mark {
+  position: absolute;
+  top: calc(-1 * var(--hair-20));
+  inset-inline-end: calc(-1 * var(--space-8));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--faint);
+  cursor: pointer;
+  transition:
+    opacity var(--duration-fast) var(--ease-quart),
+    color var(--duration-fast) var(--ease-quart),
+    background var(--duration-fast) var(--ease-quart);
+}
+
+.reader-mark:hover,
+.reader-mark:focus-visible {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--ink) 4%, transparent);
+}
+
+.reader-mark-glyph {
+  display: block;
+  width: 1rem;
+  height: 0.45rem;
+  border: 1px solid currentColor;
+  border-radius: var(--radius-2xs);
+  background: transparent;
+  transform: rotate(-12deg);
+  transition:
+    background var(--duration-fast) var(--ease-quart),
+    border-color var(--duration-fast) var(--ease-quart);
+}
+
+.reader-mark[aria-pressed='true'] {
+  color: color-mix(in srgb, var(--hl-mark) 55%, var(--ink));
+}
+
+.reader-mark[aria-pressed='true'] .reader-mark-glyph {
+  background: var(--hl-mark);
+  border-color: color-mix(in srgb, var(--hl-mark) 70%, var(--ink));
+}
+
+/* Stale copy: the bookmark URL moved after this replica was extracted. */
+.reader-notice {
+  margin-bottom: var(--space-5);
+  padding: var(--hair-65) 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--hair-45) var(--space-3);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+}
+
+.reader-notice-text {
+  min-width: 0;
+  flex: 1 1 14rem;
+  overflow-wrap: anywhere;
+}
+
+/* ——— Replica states: fetching / stalled / failed / unsupported / unavailable
+   A quiet, left-aligned block in the article column that ends on a fading
+   hairline — never a card, never a centred medallion. */
+.reader-state {
+  margin-top: var(--space-6);
+  padding: var(--space-6) 0;
+  background-image: var(--hairline-fade);
+  background-size: 100% 1px;
+  background-repeat: no-repeat;
+  background-position: bottom left;
+}
+
+.reader-state--loading {
+  padding-top: var(--space-4);
+}
+
+.reader-state-title {
+  margin: 0;
+  max-width: 32rem;
+  color: var(--ink);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+  line-height: var(--leading-snug);
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.reader-state-text {
+  margin: var(--hair-55) 0 0;
+  max-width: var(--measure);
+  color: var(--muted);
+  font-size: var(--text-md);
+  line-height: var(--leading-normal);
+  text-wrap: pretty;
+  overflow-wrap: anywhere;
+}
+
+.reader-state-actions {
+  margin-top: var(--space-4);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* Fetching: text bones stand in for the body while the extractor works (the
+   shimmer, radius and reduced-motion stop come from .skeleton-block). */
+.reader-skeleton {
+  max-width: 68ch;
+  margin-bottom: var(--space-6);
+  display: grid;
+  gap: var(--hair-85);
+  font-family: var(--font-serif);
+  font-size: var(--text-lg);
+}
+
+.reader-skeleton-line {
+  width: 100%;
+  height: 0.8rem;
+}
+
+.reader-skeleton-line:nth-child(2) {
+  width: 94%;
+}
+
+.reader-skeleton-line:nth-child(4) {
+  width: 97%;
+}
+
+.reader-skeleton-line:nth-child(5) {
+  width: 58%;
+}
+
+/* ——— Previous / next bookmark ——— */
+.reader-next {
+  margin-top: var(--space-10);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.reader-next a {
+  min-width: 0;
+  padding: var(--space-4) 0;
+  display: grid;
+  gap: var(--space-1);
+  border-top: 1px solid var(--line-strong);
+  color: var(--ink-2);
+}
+
+.reader-next a:hover {
+  color: var(--ink);
+}
+
+/* The second cell is always "Next" (a spacer span holds the first cell
+   when there is no previous bookmark). */
+.reader-next a:nth-child(2) {
+  text-align: right;
+}
+
+.reader-next span {
+  color: var(--faint);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-ui);
+}
+
+.reader-next strong {
+  overflow: hidden;
+  font-size: var(--text-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ——— Context rail: contents, private note, source ——— */
+.reader-context {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.reader-panel {
+  padding: var(--space-4) 0;
+  border-top: 1px solid var(--line-strong);
+}
+
+.reader-panel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.reader-panel-status {
+  min-width: 0;
+  max-width: 12rem;
+  color: var(--faint);
+  font-size: var(--text-xs);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+/* The same slot carries save failures; danger so an error is not quiet text. */
+.reader-panel-status[data-save-state='error'] {
+  color: var(--danger);
+}
+
+.reader-outline-list {
+  margin: 0;
+  padding: 0;
+  display: grid;
+  list-style: none;
+}
+
+.reader-outline-link {
+  display: block;
+  min-height: 2rem;
+  padding: var(--hair-30) 0;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  overflow-wrap: anywhere;
+}
+
+.reader-outline-list li:last-child .reader-outline-link {
+  border-bottom: 0;
+}
+
+.reader-outline-link:hover {
+  color: var(--ink);
+}
+
+/* Below the two-column split the rail (and its Contents panel) renders
+   after the whole article, so the outline doubles as a disclosure at the
+   head of the column. The rail copy retires at the same widths to keep a
+   single table of contents. */
+.reader-contents-inline {
+  margin-top: var(--space-4);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--line-strong);
+}
+
+.reader-contents-inline > summary {
+  cursor: pointer;
+}
+
+@media (max-width: 899px) {
+  .reader-panel--contents {
+    display: none;
+  }
+}
+
+@media (min-width: 900px) {
+  .reader-contents-inline {
+    display: none;
+  }
+}
+
+/* Focus mode drops the rail; the inline copy follows the same rule. */
+.reader-page.is-focus .reader-contents-inline {
+  display: none;
+}
+
+.reader-note-panel textarea {
+  width: 100%;
+  margin-top: var(--space-2);
+  padding: var(--space-3);
+  resize: vertical;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+}
+
+.reader-note-panel textarea:focus {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.reader-note-panel textarea:disabled {
+  opacity: 0.72;
+  cursor: not-allowed;
+}
+
+.annotation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--hair-40);
+  margin-top: var(--hair-65);
+}
+
+.annotation-actions .btn {
+  max-width: 100%;
+}
+
+.annotation-inline-error {
+  margin-top: var(--space-2);
+  color: var(--danger);
+  font-size: var(--text-xs);
+  overflow-wrap: anywhere;
+}
+
+.reader-citation-origin {
+  min-width: 0;
+  margin: 0 0 var(--hair-45);
+  display: flex;
+  align-items: center;
+  gap: var(--hair-45);
+}
+
+.reader-citation-host {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reader-citation-title {
+  display: block;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  overflow-wrap: anywhere;
+}
+
+.reader-citation-actions {
+  margin-top: var(--space-3);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hair-35);
+}
+
+/* Focus mode: the article alone, centred (the rail hides at every width). */
+.reader-page.is-focus .reader-context {
+  display: none;
+}
+
+@media (min-width: 640px) {
+  .reader-toolbar {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+
+  .reader-toolbar-meta {
+    display: flex;
+  }
+}
+
+@media (min-width: 900px) {
+  .reader-toolbar-status {
+    display: inline-block;
+  }
+
+  .reader-layout {
+    grid-template-columns: minmax(0, 47rem) 18rem;
+    gap: clamp(var(--space-8), 5vw, var(--space-12));
+  }
+
+  .reader-context {
+    position: sticky;
+    top: calc(var(--header-h) + var(--space-12));
+    align-self: start;
+    max-height: calc(100dvh - var(--header-h) - var(--space-12));
+    overflow-y: auto;
+    gap: var(--space-3);
+  }
+
+  .reader-page.is-focus .reader-layout {
+    grid-template-columns: minmax(0, 47rem);
+    justify-content: center;
+  }
+}
+
+@media (min-width: 1100px) {
+  .reader-layout {
+    grid-template-columns: minmax(0, 47rem) 20rem;
+  }
+}
+
+@media (max-width: 639px) {
+  /* Keep back + Save + the primary progress action; Focus mode waits for
+     a screen wide enough to have context worth hiding. */
+  .reader-focus-toggle {
+    display: none;
+  }
+
+  /* A failing save drops the status sentence to its own toolbar row so it
+     never crowds the back link or the action cluster. Explicit grid-row:
+     auto-placement would otherwise put the column-locked meta on row 1. */
+  .reader-toolbar-meta:has(.reader-toolbar-status[data-save-state='error']),
+  .reader-toolbar-meta:has(.reader-toolbar-status[data-save-state='unknown']) {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .reader-article h1 {
+    font-size: var(--text-2xl);
+  }
+
+  /* Library save stays visible as an icon button — do not display:none it. */
+  .reader-toolbar-actions > .saved-resource-control {
+    width: auto;
+    min-width: 0;
+    flex: none;
+  }
+
+  .reader-toolbar-actions > .saved-resource-control > .btn.btn-secondary {
+    min-width: 0;
+    width: auto;
+    flex: none;
+    aspect-ratio: 1;
+    padding-inline: var(--space-2);
+  }
+
+  .reader-toolbar-actions .saved-resource-label {
+    display: none;
+  }
+}
+
+/* Touch: the control grows to the 44px target inside the same rail. */
+@media (pointer: coarse) {
+  .reader-mark {
+    top: calc(-1 * var(--hair-45));
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .reader-mark {
+    width: 2rem;
+    height: 2rem;
+    opacity: 0;
+  }
+
+  .reader-paragraph:hover .reader-mark,
+  .reader-paragraph:focus-within .reader-mark,
+  .reader-mark[aria-pressed='true'] {
+    opacity: 1;
+  }
+}
+
+/* Wide fine-pointer layouts: no rail — the control hangs in the gap between
+   the article and the rail (the gap is at least --space-8 from 900px). */
+@media (hover: hover) and (pointer: fine) and (min-width: 900px) {
+  .reader-body {
+    max-width: 68ch;
+    padding-inline-end: 0;
+  }
+
+  .reader-mark {
+    inset-inline-end: calc(-1 * (2rem + var(--hair-55)));
+  }
+}
+
+.reader-details {
+  display: grid;
+  gap: var(--space-4);
+  margin: 0 0 var(--space-4);
+}
+
+.reader-details dt {
+  color: var(--faint);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+
+.reader-details dd {
+  margin: var(--hair-20) 0 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reader-progress span,
+  .reader-paragraph,
+  .reader-mark,
+  .reader-mark-glyph {
+    transition: none;
+  }
+}
+
+  /* ——— Rehomed from page-layouts.css (R9-12) ——— */
+.reader-page .breadcrumb {
+    padding: var(--space-3) var(--gutter) 0;
+  }
+
+/* R15-18: short viewports unstick the page toolbar (see nav.css). */
+@media (max-height: 26rem) {
+  .reader-toolbar {
+    position: relative;
+    top: auto;
+  }
+}
+}

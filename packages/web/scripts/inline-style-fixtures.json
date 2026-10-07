@@ -1,0 +1,365 @@
+{
+  "allowed": [
+    {
+      "file": "components/bookmark-subscriptions/SubscriptionFollowButton.tsx",
+      "style": "style={popoverStyle(menu.anchorPos)}",
+      "count": 1,
+      "reason": "portal menu coordinates"
+    },
+    {
+      "file": "components/canvas-board/CanvasBoard.tsx",
+      "style": "style={ { ...background.canvasBackgroundStyle, ...(canEditLayout ? { '--board-grid': `${BOARD_GRID}px` } : null), } as CSSProperties }",
+      "count": 1,
+      "reason": "canvas background spread + board-grid custom property"
+    },
+    {
+      "file": "components/canvas-board/CanvasToolbar.tsx",
+      "style": "style={{ ['--swatch' as string]: color.value }}",
+      "count": 1,
+      "reason": "theme swatch custom property"
+    },
+    {
+      "file": "components/canvas-board/metrics.ts",
+      "style": "board.style.width = `${w}px`",
+      "count": 1,
+      "reason": "canvas geometry sizing write"
+    },
+    {
+      "file": "components/canvas-board/metrics.ts",
+      "style": "board.style.maxWidth = 'none'",
+      "count": 1,
+      "reason": "canvas geometry sizing write"
+    },
+    {
+      "file": "components/canvas-board/metrics.ts",
+      "style": "board.style.height = `${h}px`",
+      "count": 1,
+      "reason": "canvas geometry sizing write"
+    },
+    {
+      "file": "components/canvas-board/metrics.ts",
+      "style": "board.style.setProperty('--canvas-height', `${h}px`)",
+      "count": 1,
+      "reason": "canvas height custom property"
+    },
+    {
+      "file": "components/canvas-board/metrics.ts",
+      "style": "board.style.setProperty('--canvas-height', `max(${contentH}px, var(--canvas-min-height))`)",
+      "count": 1,
+      "reason": "canvas height custom property"
+    },
+    {
+      "file": "components/canvas-board/useCanvasBoard.ts",
+      "style": "shell.style.setProperty('--canvas-shell-port', `${shell.clientWidth}px`)",
+      "count": 1,
+      "reason": "canvas shell viewport-width custom property"
+    },
+    {
+      "file": "components/CollectionCard.tsx",
+      "style": "style={namedTransition ? ({ viewTransitionName: `collection-${c.id}` } as CSSProperties) : undefined}",
+      "count": 1,
+      "reason": "view transition name"
+    },
+    {
+      "file": "components/CollectionDestinationPicker.tsx",
+      "style": "style={{ marginInlineStart: `${folder.depth * 0.85}rem` }}",
+      "count": 1,
+      "reason": "data-driven depth indent"
+    },
+    {
+      "file": "components/CollectionListEmbed.tsx",
+      "style": "style={{ top: menuPos.y, left: menuPos.x }}",
+      "count": 1,
+      "reason": "menu coordinates"
+    },
+    {
+      "file": "components/EmptyState.tsx",
+      "style": "style={style}",
+      "count": 1,
+      "reason": "caller-supplied style passthrough"
+    },
+    {
+      "file": "components/Modal.tsx",
+      "style": "panel.style.setProperty('--modal-sheet-drag', `${deltaY}px`)",
+      "count": 1,
+      "reason": "mobile default-chrome sheet follow-the-finger translate"
+    },
+    {
+      "file": "components/PageHead.tsx",
+      "style": "style={style}",
+      "count": 1,
+      "reason": "caller-supplied style passthrough"
+    },
+    {
+      "file": "components/ProfileHoverCard.tsx",
+      "style": "style={popoverStyle(pos)}",
+      "count": 1,
+      "reason": "portal popover coordinates"
+    },
+    {
+      "file": "components/ProgressBar.tsx",
+      "style": "style={{ ['--progress' as string]: String(pct / 100) }}",
+      "count": 1,
+      "reason": "percentage progress custom property"
+    },
+    {
+      "file": "components/ReorderableNavList.tsx",
+      "style": "style={draggingId === id ? { transform: `translateY(${dragOffset}px)` } : undefined}",
+      "count": 1,
+      "reason": "drag translateY (dynamic geometry)"
+    },
+    {
+      "file": "components/ResourceMarkActions.tsx",
+      "style": "style={pickerStyle}",
+      "count": 1,
+      "reason": "portal picker coordinates"
+    },
+    {
+      "file": "components/ScrollProgress.tsx",
+      "style": "style={{ ['--progress' as string]: `${p / 100}` }}",
+      "count": 1,
+      "reason": "percentage progress custom property"
+    },
+    {
+      "file": "components/SourceCard.tsx",
+      "style": "style={style}",
+      "count": 1,
+      "reason": "card geometry custom properties + zIndex"
+    },
+    {
+      "file": "components/VirtualList.tsx",
+      "style": "style={{ ['--vl-top' as string]: `${index * itemHeight}px`, ['--vl-item-h' as string]: `${itemHeight}px` }}",
+      "count": 1,
+      "reason": "virtual list geometry custom property"
+    },
+    {
+      "file": "components/VirtualList.tsx",
+      "style": "style={{ ['--vl-total' as string]: `${totalHeight}px` }}",
+      "count": 1,
+      "reason": "virtual list geometry custom property"
+    },
+    {
+      "file": "components/resource-card/CardShell.tsx",
+      "style": "style={style}",
+      "count": 1,
+      "reason": "caller-supplied style passthrough (card geometry custom properties)"
+    },
+    {
+      "file": "components/resource-card/source-bodies/github.tsx",
+      "style": "style={{ ['--lang-color' as string]: String(resource.meta.langColor ?? '#888'), }}",
+      "count": 1,
+      "reason": "data-driven language color custom property"
+    },
+    {
+      "file": "components/resource-card/source-bodies/media.tsx",
+      "style": "style={{ width: String(resource.meta?.progress ?? '30%') }}",
+      "count": 1,
+      "reason": "data-driven progress width"
+    },
+    {
+      "file": "components/resource-card/CardThemeMenu.tsx",
+      "style": "style={{ ['--swatch' as string]: c }}",
+      "count": 1,
+      "reason": "theme swatch custom property"
+    },
+    {
+      "file": "components/resource-card/CardThemeMenu.tsx",
+      "style": "style={{ top: y, left: x }}",
+      "count": 1,
+      "reason": "menu coordinates"
+    },
+    {
+      "file": "components/widgets/GithubHeatmapWidget.tsx",
+      "style": "style={{ ['--gh-col' as string]: m.week + 2 }}",
+      "count": 1,
+      "reason": "heatmap cell coordinate custom property"
+    },
+    {
+      "file": "components/widgets/HabitTrackerWidget.tsx",
+      "style": "style={{ ['--progress' as string]: String(progress / 100) }}",
+      "count": 1,
+      "reason": "progress custom property (scaleX fill)"
+    },
+    {
+      "file": "lib/clipboard.ts",
+      "style": "textarea.style.position = 'fixed'",
+      "count": 1,
+      "reason": "off-screen textarea helper (not rendered UI)"
+    },
+    {
+      "file": "lib/clipboard.ts",
+      "style": "textarea.style.top = '0'",
+      "count": 1,
+      "reason": "off-screen textarea helper (not rendered UI)"
+    },
+    {
+      "file": "lib/clipboard.ts",
+      "style": "textarea.style.left = '0'",
+      "count": 1,
+      "reason": "off-screen textarea helper (not rendered UI)"
+    },
+    {
+      "file": "lib/clipboard.ts",
+      "style": "textarea.style.width = '1px'",
+      "count": 1,
+      "reason": "off-screen textarea helper (not rendered UI)"
+    },
+    {
+      "file": "lib/clipboard.ts",
+      "style": "textarea.style.height = '1px'",
+      "count": 1,
+      "reason": "off-screen textarea helper (not rendered UI)"
+    },
+    {
+      "file": "lib/clipboard.ts",
+      "style": "textarea.style.padding = '0'",
+      "count": 1,
+      "reason": "off-screen textarea helper (not rendered UI)"
+    },
+    {
+      "file": "lib/clipboard.ts",
+      "style": "textarea.style.border = '0'",
+      "count": 1,
+      "reason": "off-screen textarea helper (not rendered UI)"
+    },
+    {
+      "file": "lib/clipboard.ts",
+      "style": "textarea.style.opacity = '0'",
+      "count": 1,
+      "reason": "off-screen textarea helper (not rendered UI)"
+    },
+    {
+      "file": "lib/dither.ts",
+      "style": "el.style.setProperty('--band-texture', `url(${canvas.toDataURL()})`)",
+      "count": 1,
+      "reason": "dither texture custom property"
+    },
+    {
+      "file": "lib/useBodyScrollLock.ts",
+      "style": "root.style.overflow = 'hidden'",
+      "count": 1,
+      "reason": "root scroller scroll-lock overflow write"
+    },
+    {
+      "file": "lib/useBodyScrollLock.ts",
+      "style": "root.style.overflow = previousOverflow",
+      "count": 1,
+      "reason": "root scroller scroll-lock overflow restore"
+    },
+    {
+      "file": "lib/useBookmarkDrag.ts",
+      "style": "ghostElement.style.transform = `translate3d(${session.lastX + 14}px, ${session.lastY + 10}px, 0)`",
+      "count": 1,
+      "reason": "drag ghost translate3d (dynamic geometry)"
+    },
+    {
+      "file": "pages/Collection.tsx",
+      "style": "style={{ viewTransitionName: `collection-${collection.id}` }}",
+      "count": 1,
+      "reason": "view transition name"
+    },
+    {
+      "file": "pages/dashboard/ModuleCatalogModal.tsx",
+      "style": "style={{ background: c }}",
+      "count": 1,
+      "reason": "data-driven theme swatch color"
+    },
+    {
+      "file": "pages/graph/canvas.tsx",
+      "style": "style={{ left: tooltipStyle.left, top: tooltipStyle.top }}",
+      "count": 1,
+      "reason": "tooltip coordinates"
+    },
+    {
+      "file": "pages/library-desk/BulkActionBar.tsx",
+      "style": "style={{ ['--library-bulkbar-h' as string]: closing ? '0px' : `${barHeight}px` }}",
+      "count": 1,
+      "reason": "measured bulkbar height custom property"
+    },
+    {
+      "file": "pages/library-desk/menus.tsx",
+      "style": "style={popoverStyle(anchorPos)}",
+      "count": 2,
+      "reason": "portal menu coordinates"
+    },
+    {
+      "file": "pages/library-desk/ReorderableLayerList.tsx",
+      "style": "style={draggingId === id ? { transform: `translateY(${dragOffset}px)` } : undefined}",
+      "count": 1,
+      "reason": "drag translateY (dynamic geometry)"
+    },
+    {
+      "file": "pages/library-desk/view.tsx",
+      "style": "style={split.style}",
+      "count": 1,
+      "reason": "sidebar split-width custom property"
+    },
+    {
+      "file": "pages/share/CollectionShare.tsx",
+      "style": "style={{ animationDelay: `${i * 40}ms` }}",
+      "count": 1,
+      "reason": "controlled animation delay"
+    },
+    {
+      "file": "components/MeasuredList.tsx",
+      "style": "style={{ ['--vl-total' as string]: `${totalHeight}px` }}",
+      "count": 1,
+      "reason": "virtual-list spacer height: the measured total of every row"
+    },
+    {
+      "file": "components/MeasuredList.tsx",
+      "style": "style={{ ['--vl-top' as string]: `${offsets[index]}px`, // Only a floor for the first paint, before the measurement lands. ['--vl-item-h' as string]: `${measured.get(index) ?? estimate}px`, }}",
+      "count": 1,
+      "reason": "measured row offset and height as CSS custom properties"
+    },
+    {
+      "file": "pages/NotFound.tsx",
+      "style": "stage.style.setProperty('--nf-x', x.toFixed(3))",
+      "count": 1,
+      "reason": "pointer-parallax custom property"
+    },
+    {
+      "file": "pages/NotFound.tsx",
+      "style": "stage.style.setProperty('--nf-y', y.toFixed(3))",
+      "count": 1,
+      "reason": "pointer-parallax custom property"
+    },
+    {
+      "file": "pages/share/EmbedAppearanceControls.tsx",
+      "style": "style={{ ['--swatch' as string]: swatch }}",
+      "count": 1,
+      "reason": "theme swatch custom property (validated #RRGGBB only)"
+    },
+    {
+      "file": "pages/share/EmbedCard.tsx",
+      "style": "style={appearanceStyle}",
+      "count": 1,
+      "reason": "Validated public embed appearance custom properties, scoped to frame root"
+    },
+    {
+      "file": "pages/share/EmbedComposer.tsx",
+      "style": "style={embedFrameStyle(embedAppearance)}",
+      "count": 1,
+      "reason": "Validated user-selected iframe border and radius, matching copied snippet"
+    },
+    {
+      "file": "pages/share/EmbedComposer.tsx",
+      "style": "style={embedIframeStyle}",
+      "count": 1,
+      "reason": "Chrome-free iframe fill identical to the copied snippet's embedIframeCss"
+    },
+    {
+      "file": "components/TooltipHost.tsx",
+      "style": "tip.style.translate = `${pos.left}px ${pos.top}px`",
+      "count": 1,
+      "reason": "tooltip viewport coordinates (dynamic geometry)"
+    },
+    {
+      "file": "lib/useGalleryMasonry.ts",
+      "style": "card.style.setProperty('--gallery-span', String(rows))",
+      "count": 1,
+      "reason": "LP-06 Gallery masonry row span custom property (measured card height)"
+    }
+  ],
+  "debt": []
+}

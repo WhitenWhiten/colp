@@ -1,0 +1,67 @@
+@layer pages {
+  .classification-batch,
+  .classification-batch-review,
+  .classification-batch-items,
+  .classification-batch-items > li {
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .classification-batch {
+    margin-top: var(--space-5);
+  }
+
+  .classification-batch-items {
+    padding: 0;
+    margin: 0;
+    list-style: none;
+  }
+
+  .classification-batch-items > li {
+    padding-block: var(--space-4);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .classification-batch-page .classification-credit-consent {
+    display: grid;
+    gap: var(--space-2);
+  }
+
+  .classification-batch-page select,
+  .classification-batch-page input[type="number"] {
+    width: 100%;
+    max-width: 32rem;
+  }
+
+  .classification-batch > .btn,
+  .classification-batch-review > .btn {
+    justify-self: start;
+  }
+
+  .classification-batch p,
+  .classification-batch h2 {
+    margin: 0;
+  }
+
+  .classification-credit-summary {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .classification-batch-page input[type="number"] {
+    max-width: 8rem;
+  }
+
+  .classification-batch-page fieldset {
+    min-width: 0;
+    padding: 0;
+    margin: 0;
+    border: 0;
+  }
+
+  .classification-batch-items > li > label:first-child,
+  .classification-batch-page fieldset label {
+    display: inline-flex;
+    align-items: center;
+    margin-right: var(--space-3);
+  }
+}

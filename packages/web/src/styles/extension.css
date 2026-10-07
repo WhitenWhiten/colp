@@ -1,0 +1,188 @@
+/* Extension popup product page */
+
+@layer pages {
+.ext-popup-page {
+  min-height: calc(100dvh - var(--header-h)); /* R7-15 */
+  display: grid;
+  place-items: center;
+  padding: var(--hair-200) var(--gutter) 3rem;
+  background:
+    var(--wash-hero),
+    var(--paper);
+}
+
+.ext-popup-stage {
+  display: grid;
+  gap: var(--hair-150);
+  width: min(100%, 52rem);
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 900px) {
+  .ext-popup-stage {
+    grid-template-columns: 1fr 1.1fr;
+    align-items: start;
+  }
+}
+
+.ext-popup-chrome {
+  width: min(100%, 22.5rem);
+  margin-inline: auto;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line-heavy);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-float);
+  overflow: hidden;
+}
+
+.ext-popup-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--hair-55) var(--space-3);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-sunken);
+  font-size: var(--text-caption);
+  color: var(--muted);
+}
+
+.ext-popup-bar strong {
+  color: var(--ink);
+  font-weight: var(--weight-semibold);
+}
+
+.ext-popup-body {
+  padding: var(--hair-85) var(--hair-90) var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.ext-tab-preview {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: var(--space-3);
+  row-gap: var(--space-1);
+  align-items: center;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  padding: var(--hair-65) var(--space-3);
+  background: var(--paper);
+}
+
+.ext-tab-preview > svg {
+  grid-row: 1 / span 2;
+  color: var(--muted);
+}
+
+.ext-tab-preview > strong,
+.ext-tab-preview > .meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ext-tab-preview > strong {
+  font-size: var(--text-sm);
+}
+
+.ext-popup-permission {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--hair-45) var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--warning) 35%, var(--line-strong));
+  border-radius: var(--radius-sm);
+  background: var(--warning-soft);
+  color: var(--ink-2);
+  font-size: var(--text-xs);
+  line-height: var(--leading-meta);
+}
+
+.ext-popup-permission span {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.ext-popup-permission .btn {
+  flex: 0 0 auto;
+}
+
+.ext-popup-dest {
+  display: flex;
+  align-items: center;
+  gap: var(--hair-45);
+  min-width: 0;
+  flex-wrap: wrap;
+  color: var(--ink-2);
+  font-size: var(--text-xs);
+}
+
+.ext-popup-local {
+  color: var(--muted);
+}
+
+.ext-popup-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hair-40);
+  align-items: center;
+}
+
+.ext-popup-links {
+  margin-top: var(--space-4);
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.ext-popup-user {
+  margin-left: auto;
+}
+
+.ext-popup-save {
+  flex: 1;
+}
+
+.ext-popup-more {
+  margin-left: auto;
+}
+
+  /* ——— Rehomed from page-layouts.css (R9-12) ——— */
+/* Benefit list: checkmarked selling points on the Extension page. */
+  .benefit-list {
+    list-style: none;
+    margin: var(--hair-150) 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--hair-65);
+  }
+
+  .benefit-list li {
+    display: flex;
+    gap: var(--hair-55);
+    align-items: flex-start;
+    font-size: var(--text-md);
+    color: var(--ink-2);
+  }
+
+  .benefit-list li svg {
+    margin-top: var(--hair-15);
+    color: var(--ink);
+    flex-shrink: 0;
+  }
+
+  .extension-actions {
+    margin-top: var(--space-4);
+    flex-wrap: wrap;
+  }
+
+  /* Linear setup list so four steps stay in reading order. R10-18: the
+     steps ride the shared .stepper primitive (stepper.css) — this host keeps
+     the panel padding, the section rhythm .stepper's margin reset eats, and
+     a wider inline inset so the serif index does not hug the panel edge. */
+  .extension-steps {
+    --stepper-step-pad: var(--space-5) var(--space-6);
+    margin-top: var(--space-6);
+  }
+}

@@ -1,0 +1,191 @@
+/* Library health — overview KPIs, filter toolbar and the link-check table.
+   Route-owned: imported by pages/LibraryHealth.tsx only. */
+
+@layer pages {
+.health-overview {
+  margin-top: var(--hair-150);
+  padding: var(--hair-110) 0;
+  display: grid;
+  gap: var(--space-4);
+  border-bottom: 1px solid var(--line-strong);
+}
+
+.health-overview > div:first-child {
+  display: grid;
+  gap: var(--hair-15);
+}
+
+.health-overview > div:first-child strong {
+  font-size: var(--text-sm);
+}
+
+.health-overview > div:first-child span {
+  color: var(--faint);
+  font-size: var(--text-xs);
+}
+
+.health-overview dl {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--hair-150);
+}
+
+.health-overview dl div {
+  display: flex;
+  align-items: baseline;
+  gap: var(--hair-35);
+}
+
+.health-overview dt {
+  color: var(--faint);
+  font-size: var(--text-xs);
+}
+
+.health-overview dd {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+}
+
+.health-directory {
+  margin-top: var(--space-8);
+}
+
+.health-toolbar {
+  padding-bottom: var(--space-3);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--line-strong);
+}
+
+/* R10-18: the health table rides the shared .data-table primitive — this
+   host class only supplies the column template (the phantom icon column is
+   gone: four columns, all labelled). Head/row chrome lives in
+   data-table.css. */
+.health-table {
+  --data-table-cols: minmax(13rem, 1.1fr) minmax(14rem, 1fr) 7rem minmax(7rem, 9rem);
+  min-width: 0;
+}
+
+.health-row {
+  min-height: 5.4rem;
+}
+
+.health-resource,
+.health-issue {
+  min-width: 0;
+}
+
+.health-resource strong,
+.health-resource span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.health-resource strong {
+  font-size: var(--text-sm);
+}
+
+.health-resource span,
+.health-checked {
+  color: var(--faint);
+  font-size: var(--text-xs);
+}
+
+.health-resource span {
+  margin-top: var(--hair-20);
+}
+
+.health-issue p {
+  margin: var(--space-1) 0 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.health-action {
+  text-align: right;
+}
+
+.health-action:empty {
+  display: none;
+}
+
+.health-checked-label {
+  color: var(--muted);
+}
+
+@media (min-width: 900px) {
+  .health-checked-label {
+    display: none;
+  }
+}
+
+.health-action > span {
+  color: var(--faint);
+  font-size: var(--text-xs);
+}
+
+.health-empty {
+  width: 100%;
+  border-top: 1px solid var(--line);
+}
+
+/* Inside the table the body row already carries the hairline. */
+.health-table .health-empty {
+  border-top: 0;
+}
+
+@media (min-width: 720px) {
+  .health-overview {
+    grid-template-columns: minmax(14rem, auto) minmax(12rem, 1fr) auto;
+    align-items: center;
+    gap: var(--hair-150);
+  }
+}
+
+/* ≤899px the base layer hides the columnheader row; here the row re-grids
+   to two columns — resource + action on the first line, issue and checked
+   date stacking under it. */
+@media (max-width: 899px) {
+  .health-table .health-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+  }
+
+  .health-table .health-resource { grid-column: 1; }
+  .health-table .health-issue { grid-column: 1 / -1; }
+  .health-table .health-checked { grid-column: 1; }
+  .health-table .health-action { grid-column: 2; grid-row: 1 / span 2; }
+}
+
+@media (max-width: 639px) {
+  .health-toolbar {
+    align-items: stretch;
+  }
+
+  .health-table .health-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .health-table .health-resource,
+  .health-table .health-issue,
+  .health-table .health-checked,
+  .health-table .health-action {
+    grid-column: 1;
+  }
+
+  .health-table .health-action {
+    grid-row: auto;
+    text-align: left;
+  }
+}
+}

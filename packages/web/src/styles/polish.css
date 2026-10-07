@@ -1,0 +1,230 @@
+/* ——— Global polish: motion & density patterns ———
+   page-enter entrances,
+   scroll progress, scroll-to-top button, cross-route view transitions,
+   and the reduced-motion owner block. Page-owned chrome that once drifted
+   here went home (R9-27): .collection-toolbar.is-sticky → collection.css,
+   .auth-* → auth.css,
+   .stat-chip → profile.css, .graph-canvas → graph.css, .site-footer a →
+   global.css. Search palette/product styles live in search.css; nav shell
+   (burger, drawer) and the account menu live in global.css. */
+
+
+@layer patterns {
+@media (prefers-reduced-motion: no-preference) {
+  /* Fill-mode is `backwards`, never `both`/`forwards`: an animation that
+     keeps filling `transform` (even to `none`) leaves <main> the containing
+     block for every position: fixed descendant — modal veils, drawers and
+     menus rendered in the page then sized/placed against the whole page
+     instead of the viewport (off-screen under the scroll lock). */
+  .page-enter {
+    animation: page-in var(--duration-enter) var(--ease-out) backwards;
+  }
+
+  /* Direction-aware entrances (Layout computes forward/back): forward pages
+     rise in from below, Back settles down from above — the drift stays on
+     the Y axis so the page transform can never spawn a horizontal
+     scrollbar mid-animation. */
+  .page-enter-forward {
+    animation: page-in-forward var(--duration-enter) var(--ease-out) backwards;
+  }
+
+  .page-enter-back {
+    animation: page-in-back var(--duration-enter) var(--ease-out) backwards;
+  }
+
+  @keyframes page-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes page-in-forward {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes page-in-back {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+}
+
+/* Buttons — the disabled state (chrome + motion reset) lives in global.css so
+   page files can tune it. */
+
+/* Collection cards — hover elevation is owned by cards-ui.css.
+   Title underline on hover lives in interactions.css. */
+
+/* Feature card motion is owned by cards-ui.css */
+
+/* Scroll progress on long pages — transform-driven (composited), never width.
+   No transition: a duration on a scroll-driven scaleX reads as rubber-banding. */
+.scroll-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: var(--z-overlay);
+  height: 2px;
+  width: 100%;
+  background: var(--ink);
+  pointer-events: none;
+  transform: scaleX(var(--progress, 0));
+  transform-origin: 0 50%;
+}
+
+/* ——— Scroll-to-top button ——— */
+.scroll-to-top-btn {
+  position: fixed;
+  bottom: 5.75rem; /* off-scale: fixed overlay position tuned to clear the bottom chrome zone */
+  right: var(--hair-110);
+  z-index: var(--z-overlay);
+  width: 2.75rem;
+  height: 2.75rem;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line-heavy);
+  border-radius: 50%;
+  background: var(--surface-raised);
+  color: var(--ink-2);
+  box-shadow: var(--shadow-md);
+  cursor: pointer;
+  animation: scroll-top-in var(--duration-enter) var(--ease-out) both;
+  transition:
+    background var(--duration-fast) var(--ease-quart),
+    border-color var(--duration-fast) var(--ease-quart),
+    color var(--duration-fast) var(--ease-quart),
+    transform var(--duration-fast) var(--ease-quart),
+    box-shadow var(--duration-state) var(--ease-quart);
+}
+
+.scroll-to-top-btn svg {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+/* Fine-pointer only: the lift must not stick after a touch tap. */
+@media (hover: hover) and (pointer: fine) {
+  .scroll-to-top-btn:hover {
+    background: var(--surface);
+    border-color: var(--ink);
+    color: var(--ink);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-float);
+  }
+}
+
+.scroll-to-top-btn:active {
+  transform: translateY(0) scale(0.97);
+  box-shadow: var(--shadow-sm);
+}
+
+@media (max-width: 719px) {
+  .app-shell--tabs .scroll-to-top-btn {
+    bottom: calc(var(--bottom-nav-h) + var(--space-3));
+  }
+}
+
+@keyframes scroll-top-in {
+  from { opacity: 0; transform: translateY(12px) scale(0.9); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Exit phase (useExitAnimation): sink back below the 400px threshold. */
+@keyframes scroll-top-out {
+  to { opacity: 0; transform: translateY(12px) scale(0.9); }
+}
+
+.scroll-to-top-btn.is-closing {
+  animation: scroll-top-out var(--duration-state) var(--ease-quart) forwards;
+  pointer-events: none;
+}
+
+/* Owner file hides its own floating chrome in print (style-drift gate:
+   one stylesheet per selector — print.css must not restate it). */
+@media print {
+  .scroll-to-top-btn {
+    display: none;
+  }
+}
+
+/* ——— Cross-route view transitions ———
+   The root snapshot is only a crossfade. The movement belongs to <main>'s
+   own direction-aware page-enter, which starts behind this fade once
+   vt-active lifts (viewTransitions.ts). The root used to rise 8px as well,
+   so every link navigation stacked two entrances — the content rose twice
+   (and always upward, even on Back), and the fixed nav and footer, which
+   are part of the root snapshot, slid 8px with it. */
+@keyframes vt-page-out {
+  to { opacity: 0; }
+}
+
+@keyframes vt-page-in {
+  from { opacity: 0; }
+}
+
+::view-transition-old(root) {
+  animation: vt-page-out var(--duration-state) var(--ease-quart) both;
+}
+
+::view-transition-new(root) {
+  animation: vt-page-in var(--duration-spatial) var(--ease-out) both;
+}
+
+/* Suppress per-page entrance animations only while the view-transition
+   snapshot is captured. vt-active is lifted on `transition.ready` (see
+   viewTransitions.ts), so the new page starts its entrance animations
+   behind the root crossfade instead of never playing them. */
+.vt-active .page-enter,
+.vt-active .rise {
+  animation: none !important;
+}
+
+/* ——— Reduced motion (single owner, M01) ——— */
+/* The universal rule completes animations instantly (0.01ms, one iteration)
+   instead of killing them, so fill-mode both/forwards entrances settle
+   VISIBLE; transitions are instant; scroll
+   containers stop smooth-scrolling. Loop animations get an explicit kill
+   where their end state would otherwise linger. Hover-transform
+   suppression for micro-interactions lives in interactions.css. */
+/* motion-exempt: reduced-motion instantiation — 0.01ms/0ms are
+   intentionally non-token (WCAG 2.3.3); the animation still completes to
+   its end state, only its duration is neutralized. */
+@media (prefers-reduced-motion: reduce) {
+  html *,
+  html *::before,
+  html *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* No hover lift */
+  a.result-card--collection:hover,
+  .library-bookmark-list > div[role='listitem']:hover,
+  .library-bookmark-list .virtual-list-item > div[role='listitem']:hover,
+  .scroll-to-top-btn:hover {
+    transform: none !important;
+    translate: none !important;
+  }
+
+  /* Cross-route view transitions — no crossfade */
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none !important;
+  }
+}
+}

@@ -1,0 +1,246 @@
+/* Dashboard canvas widget — SSH terminal widget (demo shell) (R8-01 chapter split).
+   Owns only this widget's .desk-X content rules — shared chrome (fill
+   padding, card-head tint, .desk-widget-head/-title) lives in
+   dashboard-desk.css; tile base in cards.css; color themes + the
+   widget-intrinsic skins (wash / terminal) in desk-themes.css (R10-26).
+   Route-owned: imported by pages/Dashboard.tsx after dashboard-desk.css. */
+
+@layer components {
+/* ═══════════════════════════════════════════
+   SSH terminal widget (demo shell)
+   ═══════════════════════════════════════════ */
+
+/* SSH terminal skin = .tile-theme-terminal (desk-themes.css, R10-26) — the
+   widget's default theme, not a hard override. Every --ssh-* var is defined
+   there; the rules below reference them bare (no fallbacks), so picking a
+   paper/ink/mist theme dissolves the terminal chrome into that palette. */
+
+/* The terminal card-head / source-name / mark skin lives on
+   .tile-theme-terminal in desk-themes.css — scoped to the theme so a
+   picked palette isn't shadowed by unresolvable --ssh-* declarations. */
+
+.tile-ssh .tile-content--fill {
+  padding-bottom: 0;
+}
+
+.tile-ssh:not(.is-editable) .tile-content--fill {
+  padding-bottom: 0;
+}
+
+.desk-mark-ssh {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+}
+
+.desk-ssh {
+  padding: 0;
+  gap: 0;
+  background: var(--ssh-bg);
+  color: var(--ssh-fg);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: var(--leading-body);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  overflow: hidden;
+  min-height: 0;
+  cursor: text;
+  user-select: text;
+}
+
+.desk-ssh-titlebar {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: var(--hair-55);
+  padding: var(--hair-40) var(--hair-65);
+  background: var(--ssh-titlebar);
+  border-bottom: 1px solid color-mix(in srgb, var(--ssh-edge) 45%, transparent);
+  flex-shrink: 0;
+  cursor: default;
+}
+
+.desk-ssh-dots {
+  display: inline-flex;
+  gap: var(--hair-30);
+  align-items: center;
+}
+
+.desk-ssh-dots span {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: var(--ssh-dot);
+}
+
+.desk-ssh-dots span:nth-child(1) {
+  background: var(--danger);
+}
+
+.desk-ssh-dots span:nth-child(2) {
+  background: var(--warning);
+}
+
+.desk-ssh-dots span:nth-child(3) {
+  background: var(--success);
+}
+
+.desk-ssh-title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hair-40);
+  min-width: 0;
+  justify-self: center;
+}
+
+.desk-ssh-dot {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 50%;
+  background: var(--ssh-dot);
+  flex-shrink: 0;
+}
+
+.desk-ssh-dot.is-on {
+  background: var(--success);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--success) 20%, transparent);
+}
+
+.desk-ssh-host {
+  font-size: var(--text-caption);
+  font-weight: var(--weight-semibold);
+  color: var(--ssh-host);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desk-ssh-port {
+  color: var(--ssh-port);
+  font-weight: var(--weight-medium);
+}
+
+.desk-ssh-badge {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--ssh-badge);
+  border: 1px solid var(--ssh-badge-edge);
+  border-radius: var(--radius-pill);
+  padding: var(--hair-15) var(--hair-40);
+}
+
+.desk-ssh-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--hair-55) var(--hair-70) var(--hair-45);
+  overscroll-behavior: contain;
+}
+
+.desk-ssh-line {
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--ssh-fg);
+}
+
+.desk-ssh-line--sys {
+  color: var(--ssh-sys);
+}
+
+.desk-ssh-line--err {
+  color: var(--ssh-err);
+}
+
+.desk-ssh-line--cmd {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hair-35);
+  margin-top: var(--hair-15);
+}
+
+.desk-ssh-prompt {
+  color: var(--ssh-prompt);
+  font-weight: var(--weight-semibold);
+  flex-shrink: 0;
+}
+
+.desk-ssh-cmd {
+  color: var(--ssh-cmd);
+}
+
+.desk-ssh-input-row {
+  display: flex;
+  align-items: center;
+  gap: var(--hair-35);
+  margin-top: var(--hair-15);
+  min-width: 0;
+}
+
+.desk-ssh-input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ssh-cmd);
+  font: inherit;
+  padding: 0;
+  outline: none;
+  caret-color: transparent;
+}
+
+.desk-ssh-input:disabled {
+  opacity: 0.7;
+}
+
+/* motion-exempt: step-end blink is a deliberate terminal cadence */
+.desk-ssh-caret {
+  width: 0.5rem;
+  height: 1em;
+  background: var(--ssh-caret);
+  flex-shrink: 0;
+  animation: desk-ssh-blink var(--duration-loop) step-end infinite;
+}
+
+.desk-ssh-caret.is-busy {
+  opacity: 0.35;
+  animation: none;
+}
+
+@keyframes desk-ssh-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+.desk-ssh-statusbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hair-35) var(--space-3);
+  padding: var(--hair-30) var(--hair-65);
+  border-top: 1px solid color-mix(in srgb, var(--ssh-edge) 40%, transparent);
+  background: var(--ssh-statusbar);
+  color: var(--ssh-statusbar-fg);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-ui);
+  flex-shrink: 0;
+  cursor: default;
+}
+
+.desk-ssh-hint {
+  margin-left: auto;
+  color: var(--ssh-hint);
+}
+
+.tile:not(.is-editable) .desk-ssh {
+  border-radius: var(--radius-lg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .desk-ssh-caret {
+    animation: none;
+  }
+}
+}

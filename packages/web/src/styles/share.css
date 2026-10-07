@@ -1,0 +1,1237 @@
+/* ——— Share / promo pages ——— */
+
+
+@layer pages {
+.share-page {
+  overflow-x: hidden;
+}
+
+/* Share: iPhone — stack hero, tighter spacing */
+@media (max-width: 639px) {
+  .share-hero {
+    padding: var(--hair-200) var(--space-4) var(--space-6);
+  }
+
+  .share-hero .display {
+    font-size: clamp(1.5rem, 7vw, 2.2rem); /* off-scale: share hero mobile display, below the --display-lg floor */
+  }
+
+  .share-hero .display--long {
+    font-size: var(--text-xl);
+  }
+
+  .share-cta {
+    flex-direction: column;
+  }
+
+  .share-cta .btn {
+    width: 100%;
+  }
+}
+
+.share-hero {
+  position: relative;
+  padding: clamp(2.5rem, 6vw, 4.75rem) var(--gutter) clamp(2.25rem, 4vw, 3.25rem);
+  border-bottom: 1px solid var(--line);
+  overflow: clip;
+}
+
+.share-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--wash-hero);
+  pointer-events: none;
+}
+
+.share-hero-inner {
+  position: relative;
+  width: var(--shell);
+  margin-inline: auto;
+  display: grid;
+  gap: 2.5rem;
+  align-items: start;
+}
+
+@media (min-width: 900px) {
+  .share-hero-inner {
+    grid-template-columns: 1.05fr 0.95fr;
+    gap: 3rem;
+    align-items: start;
+  }
+
+  .share-hero-inner--product {
+    align-items: center;
+  }
+}
+
+.share-hero-copy .display {
+  max-width: 14ch;
+  font-family: var(--font-serif);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-serif-display);
+  overflow-wrap: anywhere;
+}
+
+.share-hero--collection .share-hero-copy .display {
+  max-width: 16ch;
+}
+
+/* Long titles (R12-04): the 16ch cap is tuned for a short Latin title at
+   --display-lg; a long or CJK title stacked seven lines deep. Step down a
+   rung and let it use the column. */
+.share-hero-copy .display--long,
+.share-hero--collection .share-hero-copy .display--long {
+  max-width: none;
+  font-size: var(--display-md);
+}
+
+/* Hero summary clamps to two lines, same as the collection masthead;
+   ClampedText reveals the toggle only when the summary actually truncates,
+   and [data-expanded] lifts the clamp. */
+.share-hero-lede {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.share-hero-summary[data-expanded] .share-hero-lede {
+  display: block;
+  overflow: visible;
+  -webkit-line-clamp: unset;
+  line-clamp: unset;
+}
+
+.share-summary-toggle {
+  display: inline-block;
+  margin-top: var(--space-1);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-normal);
+  color: var(--muted);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  transition: color var(--duration-fast) var(--ease-quart);
+}
+
+.share-summary-toggle:hover {
+  color: var(--ink);
+}
+
+@media (pointer: coarse) {
+  .share-summary-toggle {
+    min-height: 2.75rem;
+  }
+}
+
+.share-tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hair-35);
+  margin-bottom: var(--hair-85);
+}
+
+.share-cta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--hair-150);
+}
+
+.share-url {
+  margin: var(--hair-85) 0 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+}
+
+.share-curator-card {
+  margin-top: var(--hair-125);
+  padding: var(--hair-90) var(--space-4);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-xs);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.share-curator-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hair-65);
+  min-width: 0;
+}
+
+.share-curator-link strong {
+  display: block;
+  font-size: var(--text-md);
+  letter-spacing: var(--tracking-tight);
+}
+
+.share-curator-link .meta {
+  display: block;
+  margin-top: var(--hair-15);
+}
+
+.share-stats {
+  padding-top: var(--hair-65);
+  border-top: 1px solid var(--line);
+}
+
+/* Preview panel */
+.share-preview {
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 22rem;
+}
+
+.share-preview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--paper) 45%, var(--surface));
+}
+
+.share-preview-list {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.share-preview-row {
+  display: grid;
+  grid-template-columns: 5.5rem minmax(0, 1fr);
+  gap: var(--hair-65);
+  align-items: start;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--line);
+  animation: rise var(--duration-enter) var(--ease-out) both;
+}
+
+.share-preview-row:last-child {
+  border-bottom: 0;
+}
+
+.share-preview-row:hover {
+  background: color-mix(in srgb, var(--ink) 3%, transparent);
+}
+
+.share-preview-kind {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  color: var(--muted);
+  padding-top: var(--hair-15);
+}
+
+.share-preview-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--hair-20);
+}
+
+/* Plain links render no kind label; without this the body fell into the
+   5.5rem kind column and clipped hosts mid-word ("www.jiqizhixin.c"). */
+.share-preview-body:only-child {
+  grid-column: 1 / -1;
+}
+
+.share-preview-body strong {
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+  font-size: var(--text-md);
+  line-height: var(--leading-clamp);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.share-preview-body .meta {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  /* A long host is one unbreakable word; let it wrap inside the clamp
+     instead of being cut off at the column edge. */
+  overflow-wrap: anywhere;
+  line-height: var(--leading-copy);
+}
+
+.share-preview-empty {
+  padding: 2.5rem var(--hair-125);
+  text-align: center;
+  color: var(--muted);
+}
+
+.share-type-mix {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hair-30);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--line);
+  background: color-mix(in srgb, var(--paper) 40%, var(--surface));
+}
+
+/* Product promo stage */
+.share-promo-stage {
+  position: relative;
+  min-height: 20rem;
+  padding: var(--hair-125);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background:
+    var(--dot-grid),
+    var(--paper-2);
+  background-size: var(--dot-grid-cell) var(--dot-grid-cell), auto;
+  box-shadow: var(--shadow-md);
+}
+
+.share-promo-card {
+  border: 1px solid var(--line-heavy);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  padding: var(--hair-110) var(--hair-110);
+}
+
+.share-promo-card--main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hair-40);
+  max-width: 22rem;
+}
+
+.share-promo-card--main > strong {
+  font-size: var(--text-xl);
+  letter-spacing: var(--tracking-display);
+  line-height: var(--leading-snug);
+}
+
+.share-promo-mini-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hair-35);
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+  font-size: var(--text-caption);
+  color: var(--ink-2);
+}
+
+.share-promo-mini-rows span {
+  padding: var(--hair-45) var(--hair-55);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--ink) 3.5%, transparent);
+  letter-spacing: var(--tracking-tight);
+}
+
+.share-promo-card--float {
+  position: absolute;
+  right: var(--space-4);
+  bottom: var(--hair-110);
+  width: min(14.5rem, calc(100% - 2rem));
+  display: flex;
+  flex-direction: column;
+  gap: var(--hair-45);
+  box-shadow: var(--shadow-float);
+}
+
+.share-promo-card--float code {
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  color: var(--ink-2);
+  letter-spacing: var(--tracking-tight);
+}
+
+.share-signal-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--hair-65);
+  margin-top: var(--space-6);
+  max-width: 32rem;
+}
+
+.share-signal-row > div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hair-15);
+  padding: var(--hair-70) var(--space-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-xs);
+}
+
+.share-signal-row strong {
+  font-size: var(--text-sm);
+  letter-spacing: var(--tracking-tight);
+  line-height: var(--leading-heading);
+}
+
+.share-signal-row span {
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+@media (max-width: 639px) {
+  .share-signal-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Sections */
+.share-section {
+  padding: clamp(2.5rem, 5vw, 3.75rem) var(--gutter);
+}
+
+.share-section--muted {
+  background: color-mix(in srgb, var(--paper-2) 55%, var(--surface));
+  border-block: 1px solid var(--line);
+}
+
+.share-section-inner {
+  width: var(--shell);
+  margin-inline: auto;
+}
+
+.share-beats {
+  display: grid;
+  gap: 1px;
+  background: var(--line-strong);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-xs);
+}
+
+@media (min-width: 900px) {
+  .share-beats {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.share-beat {
+  background: var(--surface);
+  padding: var(--space-5) var(--hair-125) var(--hair-150);
+}
+
+.share-beat-n {
+  display: inline-flex;
+  margin-bottom: var(--hair-65);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-caps);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.share-beat h3 {
+  margin: 0 0 var(--hair-40);
+  font-size: var(--text-base);
+  letter-spacing: var(--tracking-display);
+}
+
+.share-beat p {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--ink-2);
+  max-width: 32ch;
+}
+
+.share-reasons {
+  display: grid;
+  gap: var(--hair-85);
+}
+
+@media (min-width: 900px) {
+  .share-reasons {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.share-reason {
+  padding: var(--hair-125) var(--hair-125);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-xs);
+}
+
+.share-reason h3 {
+  margin: 0 0 var(--hair-40);
+  font-size: var(--text-base);
+  letter-spacing: var(--tracking-display);
+}
+
+.share-reason p {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--ink-2);
+}
+
+.share-spotlight-grid {
+  display: grid;
+  gap: var(--hair-85);
+}
+
+@media (min-width: 900px) {
+  .share-spotlight-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.share-spotlight-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hair-45);
+  padding: var(--hair-110) var(--hair-110) var(--hair-110);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-xs);
+  transition:
+    border-color var(--duration-state) var(--ease-quart),
+    box-shadow var(--duration-spatial) var(--ease-out);
+}
+
+/* Fine-pointer only: a tapped card must not stay floated (sticky :hover). */
+@media (hover: hover) and (pointer: fine) {
+  .share-spotlight-card:hover {
+    border-color: var(--line-heavy);
+    box-shadow: var(--shadow-md);
+  }
+}
+
+.share-spotlight-card h3 {
+  margin: var(--hair-15) 0 0;
+  font-size: var(--text-lg);
+  letter-spacing: var(--tracking-display);
+  line-height: var(--leading-heading);
+}
+
+.share-spotlight-card p {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-body);
+  color: var(--ink-2);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  flex: 1;
+}
+
+.share-spotlight-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--hair-45);
+  margin-top: var(--hair-55);
+  padding-top: var(--hair-70);
+  border-top: 1px solid var(--line);
+}
+
+.share-spotlight-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hair-30);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+  color: var(--ink);
+}
+
+.share-spotlight-cta svg {
+  width: 0.9em;
+  height: 0.9em;
+}
+
+/* Distribute section: OG preview + embed snippet side by side */
+.share-distribute-grid {
+  display: grid;
+  gap: var(--hair-150);
+  align-items: start;
+}
+
+@media (min-width: 900px) {
+  .share-distribute-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: clamp(2rem, 4vw, 3.5rem);
+  }
+}
+
+.share-distribute-grid .share-og-card {
+  max-width: none;
+}
+
+/* Embed editor: preview first, then theme/size, the collapsed style panel,
+   the two copy actions and the raw code behind a disclosure. One column so
+   it reads the same inline on the share page and inside the digest dialog. */
+.share-embed-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.share-embed-block > .eyebrow {
+  margin: 0;
+}
+
+.share-embed-options,
+.share-embed-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.share-embed-hint {
+  margin: calc(-1 * var(--space-1)) 0 0;
+}
+
+/* Both editor disclosures draw their own chevron (flipped while open) in
+   place of the UA marker, which flex summaries drop in some engines. */
+.share-embed-code-toggle summary,
+.share-appearance summary {
+  list-style: none;
+}
+
+.share-embed-code-toggle summary::-webkit-details-marker,
+.share-appearance summary::-webkit-details-marker {
+  display: none;
+}
+
+.share-embed-code-toggle summary svg,
+.share-appearance summary svg {
+  width: 0.875rem;
+  height: 0.875rem;
+  transition: rotate var(--duration-fast) var(--ease-quart);
+}
+
+.share-embed-code-toggle[open] summary svg,
+.share-appearance[open] summary svg {
+  rotate: 180deg;
+}
+
+.share-appearance summary svg {
+  margin-inline-start: auto;
+  color: var(--muted);
+}
+
+.share-embed-code-toggle summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  width: fit-content;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+.share-embed-code-toggle summary:hover {
+  color: var(--ink);
+}
+
+/* Live preview wrapper: border/radius come from embedFrameStyle inline (same
+   as the generated snippet) so the preview never lies about host chrome. */
+.share-embed-live {
+  display: block;
+  width: 100%;
+  background: var(--paper);
+}
+
+/* ——— Embed card (`/share/:slug?embed=1`, rendered chrome-less in iframes) ——— */
+.share-embed-page {
+  /* The iframe's height is the whole viewport: clip the column to it instead
+     of letting content scroll, so the footer CTA stays visible at any embed
+     height (a scrolling card inside a page reads as a broken frame). */
+  --embed-body-size: var(--text-sm);
+  --embed-title-size: var(--text-xl);
+  --embed-font: var(--font-sans);
+  /* Know-N's editorial voice: the title sets in Newsreader, like the share
+     and discovery mastheads. A chosen `font` replaces it (embedAppearance). */
+  --embed-title-font: var(--font-serif);
+  --embed-meta-font: var(--embed-font);
+  --embed-padding: var(--space-4);
+  --embed-row-padding: var(--hair-45);
+  --embed-divider: solid;
+  --embed-brand-ink: rgb(26 26 26); /* local-palette */ /* Attribution contrast, independent of custom text. */
+  height: 100dvh;
+  overflow: hidden;
+  display: flex;
+  background: var(--paper);
+}
+
+.share-embed-card {
+  font-family: var(--embed-font, inherit);
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  color: var(--ink);
+  overflow: hidden;
+}
+
+.share-embed-card--state {
+  align-items: center;
+  justify-content: center;
+  gap: var(--hair-65);
+  padding: var(--space-5) var(--gutter);
+  text-align: center;
+}
+
+.share-embed-main {
+  padding: var(--space-3) var(--embed-padding, var(--space-4)) var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--hair-45);
+  /* Squeezed frames clip the meta block bottom-up (curator, then summary)
+     rather than pushing the footer out. */
+  min-height: 0;
+  overflow: hidden;
+}
+
+.share-embed-title-row {
+  display: flex;
+  /* Very narrow frames wrap the kind chip under the title instead of
+     squeezing a two-line title against it. */
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--hair-30) var(--space-3);
+}
+
+/* The title's 13rem basis (not its max-content width) decides the wrap, so a
+   long title keeps the chip beside it down to a ~350px frame and drops it
+   underneath below that; the chip never shrinks, so it is always one line
+   and fully visible (R12-16). */
+.share-embed-title-row .chip {
+  flex: none;
+  white-space: nowrap;
+  /* The outlined look is .chip--outline (global.css owns chip chrome); the
+     nudge centres it on the serif title's first line. */
+  margin-top: var(--hair-15);
+}
+
+.share-embed-title {
+  flex: 1 1 13rem;
+  min-width: 0;
+  margin: 0;
+  font-family: var(--embed-title-font, inherit);
+  font-size: var(--embed-title-size);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-serif-display);
+  line-height: var(--leading-heading);
+  text-wrap: balance;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.share-embed-summary {
+  margin: 0;
+  font-size: var(--embed-body-size);
+  line-height: var(--leading-body);
+  color: var(--ink-2);
+  text-wrap: pretty;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.share-embed-curator {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hair-45);
+  min-width: 0;
+  margin-top: var(--hair-15);
+}
+
+.share-embed-curator-name {
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  color: var(--ink-2);
+  letter-spacing: var(--tracking-tight);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The row area is the card's shock absorber: it takes whatever height the
+   frame leaves, the list scrolls inside it, and the "+N more" row stays pinned
+   beneath the list instead of scrolling off with the overflow. */
+.share-embed-rows {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-top: 1px var(--embed-divider, solid) var(--line);
+}
+
+/* The list still scrolls (wheel, touch, focus-into-view on each row link),
+   but paints no scrollbar: the card lives inside other people's pages, whose
+   authors cannot restyle our frame's bar. The bottom fade and the pinned
+   "+N more" row already say there is more below. */
+.share-embed-list {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Pre-`scrollbar-width` WebKit (Safari < 18.2) only honours the pseudo. */
+.share-embed-list::-webkit-scrollbar {
+  display: none;
+}
+
+/* Scrollable lists fade at the bottom edge so unseen rows read as
+   "more below" rather than a hard cut. Fixed-length tail: a fully visible
+   list only kisses its last row, while a truncated one still dissolves. */
+.share-embed-list--truncated {
+  -webkit-mask-image: linear-gradient(to bottom, var(--ink) calc(100% - var(--hair-150)), transparent 100%);
+  mask-image: linear-gradient(to bottom, var(--ink) calc(100% - var(--hair-150)), transparent 100%);
+}
+
+/* The mask also dims a focused row's focus ring (masks apply to the whole
+   element, ring included), so keyboard navigation lifts the fade entirely —
+   a hard cut is the lesser evil against an invisible focus indicator. */
+.share-embed-list--truncated:focus-within {
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+.share-embed-row {
+  display: grid;
+  grid-template-columns: 1rem minmax(0, 1fr) auto;
+  gap: var(--hair-65);
+  align-items: center;
+  padding: var(--embed-row-padding, var(--hair-45)) var(--embed-padding, var(--space-4));
+  border-bottom: 1px var(--embed-divider, solid) var(--line);
+  color: inherit;
+  text-decoration: none;
+  transition:
+    background var(--duration-fast) var(--ease-quart),
+    color var(--duration-fast) var(--ease-quart);
+}
+
+.share-embed-row-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1rem;
+}
+
+.share-embed-row-host {
+  max-width: 9rem;
+  color: var(--faint);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Hover tints with the accent (a custom `accent` follows) at a strength
+   that reads on light, dark and custom grounds alike. */
+a.share-embed-row:hover {
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+  color: var(--accent-ink);
+}
+
+/* Lives outside the (masked) list so the truncation cue never fades. The
+   -1px pull lands its top border on the last row's bottom border when the
+   list ends cleanly, and still draws a separator when the list clips. */
+.share-embed-row--more {
+  border-top: 1px var(--embed-divider, solid) var(--line);
+  border-bottom: none;
+  margin-top: -1px;
+}
+
+.share-embed-row--more .share-embed-row-title {
+  grid-column: 2 / -1;
+  color: var(--accent-ink);
+  font-weight: var(--weight-medium);
+}
+
+.share-embed-empty {
+  margin: auto;
+  padding: var(--space-4);
+  text-align: center;
+}
+
+.share-embed-row-title {
+  font-size: var(--embed-body-size);
+  line-height: var(--leading-ui);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.share-embed-foot {
+  flex-shrink: 0;
+  font-family: var(--embed-meta-font, inherit);
+  color: var(--embed-brand-ink);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--embed-padding, var(--space-4));
+  border-top: 1px var(--embed-divider, solid) var(--line);
+  /* A paper band under the card's surface grounds the attribution; with a
+     custom `bg` both tokens match and the band simply disappears. */
+  background: var(--paper);
+  font-size: var(--text-xs);
+}
+
+.share-embed-foot-brand {
+  display: inline-flex;
+  color: inherit;
+}
+
+.share-embed-foot-brand img {
+  display: block;
+  width: auto;
+  height: 0.875rem;
+}
+
+.share-embed-foot-open {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: inherit;
+  font-weight: var(--weight-medium);
+  text-decoration: none;
+}
+
+.share-embed-foot-open:hover {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+/* Sidebar-width iframes: the host column yields so titles keep readable
+   characters instead of truncating after a word. */
+@media (max-width: 540px) {
+  .share-embed-row-host {
+    display: none;
+  }
+}
+
+/* ——— Embed dark theme (`?theme=dark`, or ?theme=auto resolved in JS against
+   the viewer's OS palette — the iframe cannot see the host page's colors, so
+   there is one source of truth here and no CSS media-query twin). Values
+   mirror .tile-theme-ink in desk-themes.css, with one deliberate exception:
+   --faint is raised to rgb(128 131 136) (~4.9:1 on --surface) so .meta text
+   keeps its AA promise — the desk tile theme still carries the older, weaker
+   value. The app itself stays light-only; this palette exists so the card can
+   sit on a dark host page without glaring. ——— */
+.share-embed-page--dark {
+  --embed-brand-ink: rgb(255 255 255); /* local-palette */ /* Attribution contrast, independent of custom text. */
+  color-scheme: dark;
+  --paper: rgb(8 9 12); /* local-palette */
+  --paper-2: rgb(5 6 8); /* local-palette */
+  --surface: rgb(12 13 16); /* local-palette */
+  --surface-raised: rgb(20 22 25); /* local-palette */
+  --ink: rgb(233 235 238); /* local-palette */
+  --ink-2: rgb(187 190 194); /* local-palette */
+  --muted: rgb(137 140 145); /* local-palette */
+  --faint: rgb(128 131 136); /* local-palette */
+  --line: rgb(233 235 238 / 0.1); /* local-palette */
+  --line-strong: rgb(233 235 238 / 0.16); /* local-palette */
+  --line-heavy: rgb(233 235 238 / 0.28); /* local-palette */
+  --accent: rgb(109 157 206); /* local-palette */
+  --accent-ink: rgb(174 206 241); /* local-palette */
+  --accent-soft: rgb(16 32 49); /* local-palette */
+  --domain-mark-a: color-mix(in srgb, var(--accent) 85%, var(--ink));
+  --domain-mark-b: color-mix(in srgb, var(--success) 55%, var(--ink));
+  --domain-mark-c: color-mix(in srgb, var(--warning) 55%, var(--ink));
+}
+
+/* Strip + footer CTA */
+.share-strip {
+  position: relative;
+  padding: var(--space-6) var(--gutter);
+  border-block: 1px solid var(--line);
+  background: var(--ink);
+  color: var(--paper);
+  overflow: hidden;
+}
+
+.share-strip-inner {
+  position: relative;
+  width: var(--shell);
+  margin-inline: auto;
+}
+
+.share-strip .eyebrow {
+  color: color-mix(in srgb, var(--paper) 55%, transparent);
+}
+
+.share-strip-line {
+  margin: var(--hair-35) 0 0;
+  max-width: 40rem;
+  font-size: clamp(1.15rem, 2.2vw, 1.45rem); /* off-scale: promo strip tagline, between --text-xl and --display-sm */
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-display);
+  line-height: var(--leading-ui);
+}
+
+.share-strip-points {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hair-45) var(--hair-65);
+  margin-top: var(--space-4);
+}
+
+.share-strip-points span {
+  font-size: var(--text-caption);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+  padding: var(--hair-30) var(--hair-55);
+  border-radius: var(--radius-pill);
+  border: 1px solid color-mix(in srgb, var(--paper) 22%, transparent);
+  color: color-mix(in srgb, var(--paper) 82%, transparent);
+}
+
+.share-footer-cta {
+  padding: clamp(2.75rem, 5vw, 4rem) var(--gutter);
+}
+
+.share-footer-cta-inner {
+  width: var(--shell);
+  margin-inline: auto;
+  display: grid;
+  gap: var(--hair-125);
+  align-items: end;
+}
+
+@media (min-width: 900px) {
+  .share-footer-cta-inner {
+    grid-template-columns: 1.2fr auto;
+  }
+
+  .share-footer-cta-inner .share-cta {
+    margin-top: 0;
+    justify-content: flex-end;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .share-preview-row,
+  .share-spotlight-card:hover {
+    animation: none;
+    transform: none;
+  }
+}
+
+/* —— Share embed / OG —— */
+.share-og-card {
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  max-width: 28rem;
+}
+
+.share-og-art {
+  display: block;
+  width: 100%;
+  height: 8.5rem;
+  object-fit: cover;
+  background: var(--surface-sunken);
+}
+
+.share-og-body {
+  padding: var(--hair-85) var(--space-4) var(--space-4);
+}
+
+.share-og-body strong {
+  display: block;
+  font-size: var(--text-base);
+  line-height: var(--leading-ui);
+}
+
+.share-embed-code {
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  line-height: var(--leading-body);
+  padding: var(--space-3) var(--hair-85);
+  border-radius: var(--radius);
+  border: 1px solid var(--line-strong);
+  background: var(--surface-sunken);
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--ink-2);
+  margin: var(--hair-65) 0 0;
+}
+
+  /* ——— Rehomed from page-layouts.css (R9-12) ——— */
+.share-page .breadcrumb {
+    padding: var(--space-3) var(--gutter) 0;
+  }
+  .share-og-desc {
+    margin: var(--hair-35) 0 0;
+  }
+
+  .share-og-site {
+    margin: var(--space-2) 0 0;
+  }
+  .section-head--flush {
+    width: 100%;
+    margin-inline: 0;
+  }
+
+/* Public embed appearance: validated values are scoped to the frame root. */
+.share-embed-row-host,
+.share-embed-curator-name {
+  font-family: var(--embed-meta-font, inherit);
+}
+
+.share-embed-page[data-decoration="checker"] .share-embed-main {
+  background-image: conic-gradient(var(--line) 25%, transparent 0 50%, var(--line) 0 75%, transparent 0);
+  background-size: 4px 4px;
+}
+
+.share-embed-page a:focus-visible {
+  outline: 2px solid var(--embed-brand-ink);
+  outline-offset: -2px;
+}
+
+/* Style panel: one bordered disclosure; open, it lists three labelled
+   groups (Colors / Type / Layout) and a foot with the note and Reset. */
+.share-appearance {
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.share-appearance summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--hair-65) var(--space-3);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+.share-appearance[open] summary {
+  border-bottom: 1px solid var(--line);
+}
+
+.share-appearance-group {
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-4) var(--space-3) 0;
+  border: 0;
+}
+
+/* Floated so the legend joins the group's flow: a legend otherwise sits in
+   the fieldset's border band, above its padding, and floats loose of its
+   fields. Quieter than the field labels it heads. */
+.share-appearance-group legend {
+  float: left;
+  width: 100%;
+  margin: 0 0 var(--space-2);
+  padding: 0;
+  color: var(--faint);
+  font-size: var(--text-xs);
+}
+
+.share-appearance-group legend + * {
+  clear: both;
+}
+
+/* Controls ride on the shared .field recipe (radius, --line-strong, focus
+   ring, select chevron); this grid only lays them out (R12-18). */
+.share-appearance-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+  gap: var(--space-3);
+}
+
+.share-appearance-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-3);
+}
+
+.share-appearance-foot .meta {
+  margin: 0;
+}
+
+/* An editor dense with fields: one step smaller than the form recipe. */
+.share-appearance-fields .field input,
+.share-appearance-fields .field select {
+  min-width: 0;
+  width: 100%;
+  min-height: 2.25rem;
+  font-size: var(--text-sm);
+}
+
+/* Hex fields: a live swatch of the valid color sits inside the input's end. */
+.share-appearance-hex {
+  position: relative;
+}
+
+.share-appearance-hex input {
+  padding-inline-end: var(--space-8);
+}
+
+.share-appearance-swatch {
+  position: absolute;
+  inset-inline-end: var(--hair-85);
+  top: 50%;
+  width: 1rem;
+  height: 1rem;
+  translate: 0 -50%;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-xs);
+  background: var(--swatch);
+  pointer-events: none;
+}
+
+.share-embed-detail {
+  margin: 0;
+  font-family: var(--embed-meta-font);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+}

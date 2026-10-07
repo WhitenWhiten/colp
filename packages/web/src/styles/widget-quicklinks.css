@@ -1,0 +1,132 @@
+/* Dashboard canvas widget — Quick links (R8-01 chapter split).
+   Owns only this widget's .desk-X content rules — shared chrome (fill
+   padding, card-head tint, .desk-widget-head/-title) lives in
+   dashboard-desk.css; tile base in cards.css; color themes + the
+   widget-intrinsic skins (wash / terminal) in desk-themes.css (R10-26).
+   Route-owned: imported by pages/Dashboard.tsx after dashboard-desk.css. */
+
+@layer components {
+/* ═══════════════════════════════════════════
+   Quick links
+   ═══════════════════════════════════════════ */
+.desk-mark-links {
+  font-size: var(--text-caption);
+}
+
+.desk-quicklinks {
+  gap: var(--hair-55);
+}
+
+.desk-ql-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hair-35);
+  align-content: flex-start;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.desk-ql-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  max-width: 100%;
+  padding: var(--hair-40) var(--hair-65);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--ink) 3%, var(--surface));
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+  text-decoration: none;
+  transition:
+    border-color var(--duration-fast) var(--ease-quart),
+    background var(--duration-fast) var(--ease-quart);
+}
+
+.desk-ql-chip:hover {
+  border-color: var(--line-heavy);
+  background: color-mix(in srgb, var(--ink) 6%, var(--surface));
+}
+
+.desk-ql-chip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desk-ql-remove {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--faint);
+  font-size: var(--text-md);
+  line-height: var(--leading-none);
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 50%;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.desk-ql-remove:hover {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+}
+
+.desk-ql-add {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr auto;
+  gap: var(--hair-35);
+  margin-top: auto;
+  padding-top: var(--hair-45);
+  border-top: 1px solid var(--line);
+}
+
+.desk-ql-add input {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-sm);
+  padding: var(--hair-35) var(--space-2);
+  outline: none;
+}
+
+.desk-ql-add input:focus {
+  border-color: var(--ink);
+  box-shadow: var(--shadow-ring);
+}
+
+@container tile (max-width: 20rem) {
+  .desk-ql-add {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* fix quicklink item layout */
+.desk-ql-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hair-15);
+  max-width: 100%;
+}
+
+/* R7-17: micro controls ride into the phone dashboard stack unchanged — on
+   touch they need the shared 44px target (the glyph keeps its size; the hit
+   area grows). */
+@media (pointer: coarse) {
+  .desk-ql-remove {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+
+  .desk-ql-chip {
+    min-height: 2.75rem;
+  }
+}
+}

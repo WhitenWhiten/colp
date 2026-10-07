@@ -1,0 +1,365 @@
+
+@layer components {
+.board--custom-background {
+  background: var(--canvas-bg-color, color-mix(in srgb, var(--paper) 70%, var(--surface)));
+}
+
+.board-background {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.board-background-image,
+.board-background-veil {
+  position: absolute;
+  inset: 0;
+}
+
+.board-background-image {
+  inset: -24px;
+  background-image: var(--canvas-bg-image, none);
+  background-position: center;
+  background-repeat: var(--canvas-bg-repeat, no-repeat);
+  background-size: var(--canvas-bg-size, cover);
+  filter: blur(var(--canvas-bg-blur, 0px)) saturate(var(--canvas-bg-saturation, 1));
+  opacity: 0;
+  transition: opacity var(--duration-state) var(--ease-quart), filter var(--duration-state) var(--ease-quart);
+}
+
+.board.bg-fit-contain .board-background-image,
+.board.bg-fit-original .board-background-image,
+.board.bg-fit-tile .board-background-image {
+  inset: 0;
+}
+
+.board.has-image-background .board-background-image {
+  opacity: 1;
+}
+
+.board-background-veil {
+  background: var(--canvas-bg-veil, transparent);
+  transition: background var(--duration-state) var(--ease-quart);
+}
+
+.canvas-background-panel {
+  width: var(--board-width);
+  max-width: 100%;
+  margin: var(--hair-65) auto 0;
+  padding: var(--hair-85);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  box-sizing: border-box;
+  animation: canvas-background-panel-in var(--duration-state) var(--ease-out);
+}
+
+@keyframes canvas-background-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(-0.25rem);
+  }
+}
+
+/* Exit phase (useExitAnimation). */
+@keyframes canvas-background-panel-out {
+  to {
+    opacity: 0;
+    transform: translateY(-0.25rem);
+  }
+}
+
+.canvas-background-panel.is-closing {
+  animation: canvas-background-panel-out var(--duration-state) var(--ease-quart) forwards;
+  pointer-events: none;
+}
+
+.canvas-background-panel-head,
+.canvas-background-section-head,
+.canvas-bg-file-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--hair-65);
+}
+
+.canvas-background-panel-head {
+  padding-bottom: var(--hair-70);
+  border-bottom: 1px solid var(--line);
+}
+
+.canvas-background-panel-head > div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hair-15);
+}
+
+.canvas-background-panel-head strong {
+  color: var(--ink);
+  font-size: var(--text-md);
+  font-weight: var(--weight-bold);
+}
+
+.canvas-background-panel-head span {
+  color: var(--faint);
+  font-size: var(--text-xs);
+}
+
+.canvas-background-layout {
+  display: grid;
+  grid-template-columns: minmax(15rem, 1.1fr) minmax(16rem, 1fr) minmax(16rem, 1fr);
+  gap: 0;
+}
+
+.canvas-background-section {
+  min-width: 0;
+  padding: var(--space-3) var(--hair-85) var(--hair-15);
+}
+
+.canvas-background-section:first-child {
+  padding-left: 0;
+}
+
+.canvas-background-section + .canvas-background-section {
+  border-left: 1px solid var(--line);
+}
+
+.canvas-background-section-head {
+  min-height: 1.9rem;
+  margin-bottom: var(--hair-55);
+}
+
+.canvas-background-section-head > span {
+  color: var(--faint);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+
+.canvas-bg-color-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(2.8rem, 1fr));
+  gap: var(--hair-35);
+}
+
+.canvas-bg-color-grid button {
+  appearance: none;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--text-xs);
+  padding: var(--hair-30) var(--hair-20);
+  cursor: pointer;
+}
+
+.canvas-bg-color-grid button:hover {
+  color: var(--ink);
+  background: var(--surface-sunken);
+}
+
+.canvas-bg-color-grid button[aria-pressed='true'] {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+.canvas-bg-color-grid i {
+  width: 100%;
+  height: 1.55rem;
+  border: 1px solid color-mix(in srgb, var(--ink) 13%, transparent);
+  border-radius: var(--radius-xs);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--surface) 28%, transparent);
+}
+
+.canvas-bg-color-grid span {
+  overflow: hidden;
+  width: 100%;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.canvas-bg-upload-area {
+  padding: var(--space-2) var(--hair-55);
+  border: 1px dashed var(--line-heavy);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--ink) 2%, var(--surface));
+}
+
+.canvas-bg-file-row {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+.canvas-bg-upload-area input[type='file'] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.canvas-bg-upload {
+  cursor: pointer;
+}
+
+.canvas-bg-file-name {
+  overflow: hidden;
+  margin: var(--hair-45) 0 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.canvas-bg-option-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--hair-35);
+}
+
+.canvas-bg-option-grid button {
+  appearance: none;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr);
+  align-items: center;
+  gap: var(--hair-45);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-2);
+  font: inherit;
+  padding: var(--hair-40);
+  text-align: left;
+  cursor: pointer;
+}
+
+.canvas-bg-option-grid button:hover {
+  border-color: var(--line-heavy);
+  background: color-mix(in srgb, var(--ink) 2.5%, var(--surface));
+}
+
+.canvas-bg-option-grid button[aria-pressed='true'] {
+  border-color: var(--ink);
+  background: color-mix(in srgb, var(--ink) 4%, var(--surface));
+}
+
+.canvas-bg-option-grid button > span {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--hair-15);
+}
+
+.canvas-bg-option-grid strong,
+.canvas-bg-option-grid small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.canvas-bg-option-grid strong {
+  color: var(--ink);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+}
+
+.canvas-bg-option-grid small {
+  color: var(--faint);
+  font-size: var(--text-xs);
+}
+
+.canvas-bg-fit-icon {
+  width: 2rem;
+  height: 2rem;
+  color: var(--ink-2);
+}
+
+.canvas-bg-finish-icon {
+  position: relative;
+  width: 2rem;
+  height: 1.5rem;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-xs);
+  background: var(--surface-sunken);
+  background-image: linear-gradient(135deg, color-mix(in srgb, var(--ink) 30%, var(--surface)), var(--surface-sunken));
+}
+
+.canvas-bg-finish-icon::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--paper) var(--finish-veil, 0%), transparent);
+  backdrop-filter: blur(var(--finish-blur, 0));
+}
+
+.canvas-bg-finish-icon.is-soft { --finish-veil: 10%; --finish-blur: 1px; }
+.canvas-bg-finish-icon.is-frosted { --finish-veil: 28%; --finish-blur: 3px; }
+.canvas-bg-finish-icon.is-deep { --finish-veil: 48%; --finish-blur: 5px; }
+
+@media (max-width: 1099px) {
+  .canvas-background-layout {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .canvas-background-section:first-child {
+    grid-column: 1 / -1;
+    padding-right: 0;
+    padding-bottom: var(--space-3);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .canvas-background-section:nth-child(2) {
+    padding-left: 0;
+    border-left: 0;
+  }
+}
+
+@media (max-width: 639px) {
+  .canvas-background-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .canvas-background-section,
+  .canvas-background-section:first-child,
+  .canvas-background-section:nth-child(2) {
+    grid-column: auto;
+    padding: var(--space-3) 0;
+    border-left: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .canvas-background-section:last-child {
+    border-bottom: 0;
+    padding-bottom: 0;
+  }
+
+  .canvas-bg-color-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board-background-image,
+  .board-background-veil {
+    transition: none;
+  }
+}
+
+  /* ——— Rehomed from page-layouts.css (R9-12) ——— */
+.canvas-bg-swatch {
+  background: var(--swatch);
+}
+}

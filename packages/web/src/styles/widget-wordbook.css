@@ -1,0 +1,347 @@
+/* Dashboard canvas widget — Word book (R8-01 chapter split).
+   Owns only this widget's .desk-X content rules — shared chrome (fill
+   padding, card-head tint, .desk-widget-head/-title) lives in
+   dashboard-desk.css; tile base in cards.css; color themes + the
+   widget-intrinsic skins (wash / terminal) in desk-themes.css (R10-26).
+   Route-owned: imported by pages/Dashboard.tsx after dashboard-desk.css. */
+
+@layer components {
+/* ═══════════════════════════════════════════
+   Word book
+   ═══════════════════════════════════════════ */
+.desk-mark-wordbook {
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-tight);
+}
+
+.desk-wordbook {
+  gap: var(--hair-55);
+  padding-bottom: var(--hair-65);
+}
+
+.desk-wordbook-head > div:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hair-15);
+}
+
+.desk-wordbook-head strong {
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+}
+
+.desk-wordbook-head span {
+  color: var(--faint);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.desk-wordbook-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.desk-wordbook-tabs button {
+  appearance: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--ink) 4%, var(--paper));
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  padding: var(--space-1) var(--space-2);
+  cursor: pointer;
+}
+
+.desk-wordbook-tabs button:hover {
+  color: var(--ink);
+}
+
+.desk-wordbook-tabs button[aria-pressed='true'] {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.desk-word-review,
+.desk-word-list-view {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.desk-word-card {
+  appearance: none;
+  flex: 1;
+  min-height: 8rem;
+  width: 100%;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  color: var(--ink);
+  padding: var(--hair-90) var(--space-4);
+  text-align: center;
+  cursor: pointer;
+  transition: border-color var(--duration-state) var(--ease-quart), transform var(--duration-state) var(--ease-quart);
+}
+
+.desk-word-card:hover {
+  border-color: var(--line-heavy);
+}
+
+.desk-word-card:active {
+  transform: scale(0.995);
+}
+
+.desk-word-kicker {
+  display: block;
+  color: var(--faint);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+
+.desk-word-card strong {
+  display: block;
+  margin-top: var(--hair-35);
+  font-family: var(--font-serif);
+  font-size: clamp(1.45rem, 7cqi, 2rem); /* off-scale: container-query word card, not viewport display */
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-display);
+}
+
+.desk-word-card p {
+  min-height: 1.35rem;
+  margin: var(--hair-55) 0 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-body);
+}
+
+.desk-word-card:not(.is-revealed) p {
+  letter-spacing: var(--tracking-caps);
+  color: var(--faint);
+}
+
+.desk-word-ratings {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--hair-35);
+  margin-top: var(--space-2);
+}
+
+.desk-word-ratings button {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  padding: var(--hair-40) var(--hair-40);
+  cursor: pointer;
+}
+
+.desk-word-ratings button:hover {
+  border-color: var(--line-heavy);
+  background: color-mix(in srgb, var(--ink) 3%, transparent);
+  color: var(--ink);
+}
+
+.desk-word-ratings i,
+.desk-word-open > i {
+  display: inline-block;
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 50%;
+  margin-right: var(--space-1);
+  background: var(--faint);
+}
+
+.desk-word-ratings .is-new,
+.desk-word-open > .mastery-0 { background: var(--danger); }
+.desk-word-ratings .is-learning,
+.desk-word-open > .mastery-1 { background: var(--warning); }
+.desk-word-ratings .is-known,
+.desk-word-open > .mastery-2 { background: var(--success); }
+
+.desk-word-add {
+  display: grid;
+  grid-template-columns: minmax(6rem, 0.8fr) minmax(8rem, 1.4fr) auto;
+  gap: var(--hair-40);
+  align-items: end;
+  margin-bottom: var(--space-2);
+}
+
+.desk-word-add label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hair-20);
+  color: var(--faint);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+
+.desk-word-add input {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-caption);
+  padding: var(--hair-40) var(--space-2);
+  outline: none;
+}
+
+.desk-word-add input:focus-visible {
+  border-color: var(--ink);
+  box-shadow: var(--shadow-ring);
+}
+
+.desk-word-add > button {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 2rem;
+  height: 2rem;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--ink);
+  color: var(--paper);
+  cursor: pointer;
+}
+
+.desk-word-add > button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.desk-word-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.desk-word-list li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  border-top: 1px solid var(--line);
+}
+
+.desk-word-open {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  padding: var(--hair-40) var(--hair-20);
+  text-align: left;
+  cursor: pointer;
+}
+
+.desk-word-open > span {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: var(--hair-55);
+}
+
+.desk-word-open strong {
+  flex: 0 0 7rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-sm);
+}
+
+.desk-word-open small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.desk-word-remove {
+  width: 1.55rem;
+  height: 1.55rem;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--faint);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.desk-word-remove svg {
+  width: 0.85em;
+  height: 0.85em;
+}
+
+.desk-word-remove:hover {
+  background: color-mix(in srgb, var(--danger) 9%, transparent);
+  color: var(--danger);
+}
+
+.desk-word-empty {
+  margin: auto;
+  text-align: center;
+}
+
+.desk-word-empty strong {
+  color: var(--ink);
+  font-size: var(--text-md);
+}
+
+.desk-word-empty p {
+  margin: var(--hair-30) 0 var(--hair-65);
+  color: var(--muted);
+  font-size: var(--text-caption);
+}
+
+@container tile (max-width: 25rem) {
+  .desk-wordbook-head span {
+    display: none;
+  }
+
+  .desk-word-add {
+    grid-template-columns: 1fr auto;
+  }
+
+  .desk-word-add label:first-child {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Touch targets: 2.75rem (44px) — owner file carries the coarse override
+   (style-drift gate: one stylesheet per selector). Glyphs stay visually
+   small; the hit box grows. */
+@media (pointer: coarse) {
+  .desk-wordbook-tabs button,
+  .desk-word-ratings button,
+  .desk-word-open {
+    min-height: 2.75rem;
+  }
+
+  .desk-word-add > button,
+  .desk-word-remove {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+}
+}

@@ -1,0 +1,569 @@
+/* News Digest reports — deltas only on top of CollectionCard (cards-ui.css),
+   .section-head / .section-head--split, .page-head--editorial and the public
+   collection .resource-stream. Single owner of every `report-*` rule.
+   Shared route stylesheet imported by pages/Reports.tsx, pages/ReportSeries.tsx,
+   pages/ReportIssue.tsx and pages/Explore.tsx (pinned in
+   styles/css-layers.contract.test.ts). Breakpoints follow the Explore
+   content track: <640 phone, 640–899 tablet, ≥900 desktop. */
+
+@layer pages {
+/* Digest series cards share the CollectionCard anatomy (rss mark + Digest
+   chip, stats line, curator row) — no card deltas live here. */
+
+/* ——— /reports directory ——— */
+.report-directory-count {
+  margin-bottom: var(--space-4);
+}
+
+.report-more-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+}
+
+/* ——— Issue archive: dated hairline list ———
+   Rows are one link each; the title underline and arrow nudge are the hover
+   cue. The section head sits a step below the masthead with its h2 margins
+   zeroed: the UA 0.83em h2 margin plus the shared .section-head bottom
+   margin left a ~90px hole between "Issues" and its own list. */
+.report-archive {
+  margin-top: var(--space-6);
+}
+
+.report-archive > .section-head {
+  margin-bottom: 0;
+}
+
+.report-archive > .section-head h2 {
+  margin: 0;
+}
+
+.report-issue-list {
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.report-issue-list > li + li {
+  border-top: 1px solid var(--line);
+}
+
+.report-issue-row {
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr) auto;
+  gap: var(--space-2) var(--space-4);
+  align-items: start;
+  padding: var(--space-4);
+  color: inherit;
+}
+
+/* R15-47: the list clips to its rounded frame (overflow: hidden), which cut
+   off each row's outside focus ring — a one-issue digest showed none. The
+   ring sits inside the row instead (the inset pattern in share.css). */
+.report-issue-row:focus-visible {
+  outline-offset: -2px;
+  box-shadow: none;
+}
+
+.report-issue-date {
+  padding-top: var(--hair-15);
+  color: var(--faint);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.report-issue-copy {
+  min-width: 0;
+}
+
+.report-issue-title {
+  display: block;
+  color: var(--ink);
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-meta);
+  letter-spacing: var(--tracking-tight);
+  overflow-wrap: anywhere;
+  text-decoration-line: underline;
+  text-decoration-color: transparent;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.15em;
+  transition: text-decoration-color var(--duration-state) var(--ease-quart);
+}
+
+.report-issue-row:hover .report-issue-title {
+  text-decoration-color: var(--line-heavy);
+}
+
+/* #21: a moderation-hidden edition keeps its archive slot as a position
+   fact (date + edition chip); the placeholder title reads like the comment
+   tombstone (.community-comment-text--tombstone in page-layouts.css) and
+   the inert row shows no hover underline. */
+.report-issue-row--tombstone .report-issue-title {
+  color: var(--muted);
+  text-decoration-line: none;
+}
+
+.report-issue-summary {
+  margin: var(--space-1) 0 0;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  overflow-wrap: anywhere;
+}
+
+.report-issue-arrow {
+  display: inline-flex;
+  align-self: center;
+  flex-shrink: 0;
+  color: var(--faint);
+  font-size: var(--text-sm);
+  transition:
+    transform var(--duration-state) var(--ease-quart),
+    color var(--duration-state) var(--ease-quart);
+}
+
+.report-issue-arrow svg {
+  display: block;
+  width: 1em;
+  height: 1em;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .report-issue-row:hover .report-issue-arrow {
+    transform: translateX(2px);
+    color: var(--ink);
+  }
+}
+
+/* Empty archive: full-width hairline under the section head, then the
+   frameless message. */
+.report-archive-empty {
+  width: 100%;
+  margin-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+
+/* ——— /reports/:slug/issues/:editionId — edition reader (R10-07) ———
+   The eyebrow slot carries the .meta-row edition line (No. · date · Covers);
+   the eyebrow's own caps register is neutralised on the inner row. */
+.report-issue-meta {
+  text-transform: none;
+  letter-spacing: var(--tracking-ui);
+}
+
+/* Summary band: the digest / issue description and its byline share one
+   masthead band under the title instead of floating as bare copy. A
+   neutral sunken fill with no border reads as part of the masthead rather
+   than as a white content card, and it spans the column like the issue
+   list below it. */
+.report-summary {
+  margin-top: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-lg);
+  background: var(--paper-2);
+}
+
+/* A byline-only band (no summary) starts flush with the padding. */
+.report-summary > :first-child {
+  margin-top: 0;
+}
+
+/* (0,3,1) beats .page-head p:not(.eyebrow). */
+.report-layout .report-summary p.lede {
+  margin: 0;
+  line-height: var(--leading-prose);
+}
+
+.report-layout .report-summary p.lede + p.report-series-byline {
+  max-width: none;
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+
+/* ——— Publication layout ——— */
+.report-layout {
+  max-width: var(--measure-wide);
+  margin-inline: auto;
+}
+
+/* The column is already a reading measure: the title runs its full width,
+   edge to edge with the summary band and issue list, instead of stopping
+   at the shared 38rem page-head cap. */
+.report-layout .page-head .display {
+  max-width: none;
+}
+
+/* Byline meta-row in the masthead copy, under the lede (curator · issues ·
+   source). The curator trigger mirrors the collection byline: name first,
+   then the caption-sized .collection-curator-avatar. p.report-series-byline
+   (0,1,1) in this later layer restores the caption register that
+   .page-head p:not(.eyebrow) gives body copy. */
+p.report-series-byline {
+  margin: var(--space-3) 0 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+}
+
+/* The curator name keeps the ink register it has in the collection stats. */
+.report-series-byline .profile-hover-trigger strong {
+  color: var(--ink);
+}
+
+/* The trailing source link rides the meta row like the neighbour/back
+   links: middot, label and arrow share one centre line, and the arrow
+   drops to mark size (same register as .digest-entry-title marks). */
+.report-series-byline .report-byline-source {
+  display: inline-flex;
+  align-items: center;
+}
+
+.report-series-byline .report-byline-source svg {
+  width: 0.8rem;
+  height: 0.8rem;
+  margin-left: var(--hair-30);
+}
+
+.report-edition {
+  min-width: 0;
+}
+
+/* ——— Folder-derived sections ———
+   Top-level sections read as numbered chapters (I. Models): a strong
+   hairline and a wide gap mark each new section after the highlights card
+   (R10-38); nested folders keep the quieter indented register. */
+.report-section {
+  margin-top: var(--space-8);
+}
+
+.report-section--nested {
+  margin-top: var(--space-4);
+  padding-left: var(--space-4);
+  border-left: 1px solid var(--line);
+}
+
+.report-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-1);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--line);
+}
+
+.report-section--nested .report-section-head {
+  padding-top: 0;
+  border-top: none;
+}
+
+.report-section-ordinal {
+  margin-right: var(--hair-35);
+  color: var(--faint);
+  font-weight: var(--weight-medium);
+}
+
+.report-section-head h2,
+.report-section-head h3 {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+}
+
+.report-section-head h3 {
+  font-size: var(--text-sm);
+}
+
+.report-section-count {
+  color: var(--faint);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The newest edition rides in the archive like any row, marked by a Latest
+   chip instead of hiding in a featured card. */
+
+/* Issue rows: the edition chip rides inside the title line. */
+.report-issue-title .chip {
+  margin-right: var(--hair-35);
+  vertical-align: baseline;
+}
+
+/* ——— Edition entries ———
+   A digest entry is not a library row: the headline that links out, the
+   host on the same line, and the curator's note set off with a rule
+   (R10-07). The lead stream's top hairline opens the edition under the
+   masthead; section entries sit under their own headed hairline instead. */
+.digest-entry-list {
+  margin-top: var(--space-5);
+  border-top: 1px solid var(--line);
+}
+
+/* Inside a chapter the section head already draws the opening hairline. */
+.report-section .digest-entry-list {
+  margin-top: 0;
+  border-top: 0;
+}
+
+/* The first chapter follows the toolbar, not another chapter. */
+.report-entries > .report-section:first-child {
+  margin-top: var(--space-5);
+}
+
+.digest-entry {
+  display: block;
+  padding: var(--space-4) 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.digest-entry-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--hair-30) var(--space-3);
+}
+
+.digest-entry-title {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--hair-30);
+  min-width: 0;
+  color: var(--ink);
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+  line-height: var(--leading-meta);
+  overflow-wrap: anywhere;
+}
+
+.digest-entry-title svg {
+  align-self: center;
+  width: 0.8rem;
+  height: 0.8rem;
+  flex-shrink: 0;
+  color: var(--faint);
+}
+
+a.digest-entry-title:hover {
+  color: var(--accent-ink);
+}
+
+.digest-entry-title.is-unavailable {
+  color: var(--muted);
+}
+
+.digest-entry-host {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hair-30);
+  margin-left: auto;
+  min-width: 0;
+  color: var(--faint);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.digest-entry-host-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.digest-entry-desc {
+  margin: var(--space-1) 0 0;
+  max-inline-size: var(--measure);
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading-copy);
+  overflow-wrap: anywhere;
+}
+
+/* The curator's voice — the soul of the edition. No cards: a rule, a
+   coloured label and the type do the separating. TL;DR takes the accent
+   rule and full ink (the takeaway); the curator's note takes a neutral rule
+   and the serif face (a person talking). */
+.digest-entry-notes {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.digest-entry-note {
+  margin: 0;
+  max-inline-size: var(--measure);
+  padding-left: var(--space-3);
+  border-left: 2px solid var(--line-heavy);
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading-copy);
+  overflow-wrap: anywhere;
+}
+
+/* Member digests render notes without the .digest-entry-notes stack. */
+.digest-entry > .digest-entry-note {
+  margin-top: var(--space-2);
+}
+
+.digest-entry-note--tldr {
+  border-left-color: color-mix(in srgb, var(--accent) 70%, transparent);
+  color: var(--ink);
+}
+
+.digest-entry-note-label {
+  margin-inline-end: var(--hair-30);
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+}
+
+.digest-entry-note--tldr .digest-entry-note-label {
+  color: var(--accent-ink);
+}
+
+.digest-entry-note--note .digest-entry-note-body {
+  font-family: var(--font-serif);
+  font-size: var(--text-md);
+}
+
+/* ——— Footer actions ———
+   The edition's page-level controls sit below the entry stream: Save all
+   and the source collection link. The coverage period is in the eyebrow.
+   (Votes live in the masthead cluster next to Follow — see SocialActions.) */
+.report-issue-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  margin-top: var(--space-6);
+}
+
+/* ——— Older / newer issue pair ———
+   Quiet footer navigation through the series archive (newest-first), same
+   idiom as the resource-detail neighbours: direction caps, title, date. */
+.report-issue-neighbors {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin-top: var(--space-6);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+
+.report-issue-neighbor {
+  display: grid;
+  gap: var(--hair-20);
+  min-width: 0;
+  padding: var(--space-3) var(--hair-85);
+  border-radius: var(--radius);
+  color: inherit;
+  transition: background var(--duration-fast) var(--ease-quart);
+}
+
+.report-issue-neighbor:hover {
+  background: color-mix(in srgb, var(--ink) 4%, transparent);
+}
+
+.report-issue-neighbor.is-next {
+  text-align: right;
+}
+
+.report-issue-neighbor-dir {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hair-30);
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+}
+
+.report-issue-neighbor.is-next .report-issue-neighbor-dir {
+  justify-content: flex-end;
+}
+
+.report-issue-neighbor-dir svg {
+  width: 0.85rem;
+  height: 0.85rem;
+}
+
+.report-issue-neighbor-title {
+  color: var(--ink);
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+  line-height: var(--leading-meta);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.report-issue-neighbor-date {
+  color: var(--faint);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Touch targets: 2.75rem (44px) for the small text links. */
+@media (pointer: coarse) {
+  .report-issue-neighbor {
+    min-height: 2.75rem;
+  }
+}
+
+/* ——— Phones: date on top of each archive row; neighbours stack ——— */
+@media (max-width: 639px) {
+  /* The title is the thing being read: the shared two-line phone clamp cut
+     digest titles mid-phrase ("…the live reading list…"), so the digest
+     family allows four lines before it truncates. */
+  .report-layout .page-head .display {
+    font-size: var(--text-xl);
+    -webkit-line-clamp: 4;
+    line-clamp: 4;
+  }
+
+  .report-issue-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--space-1) var(--space-3);
+    padding: var(--space-3);
+  }
+
+  .report-summary {
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .report-issue-date {
+    grid-column: 1 / -1;
+    padding-top: 0;
+  }
+
+  .report-issue-neighbors {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-1);
+  }
+
+  .report-issue-neighbor.is-next {
+    text-align: left;
+  }
+
+  .report-issue-neighbor.is-next .report-issue-neighbor-dir {
+    justify-content: flex-start;
+  }
+}
+}

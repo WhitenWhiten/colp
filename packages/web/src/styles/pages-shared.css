@@ -1,0 +1,219 @@
+/* ——— Shared page chrome (breadcrumb + folder trail) ———
+ *
+ * Multi-page navigation chrome only. Single-page rules live with their page
+ * file (or in page-layouts.css when the page has no dedicated file);
+ * site-wide primitives (.avatar, .view-switch, .lib-snippet) live in
+ * shared-chrome.css (base layer).
+ */
+
+@layer pages {
+  .classification-credit-consent {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+    max-width: 42rem;
+    color: var(--muted);
+    font-size: var(--text-caption);
+  }
+
+/* ——— Page header shared ———
+   .page-head rules are owned by global.css. */
+
+.breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hair-30);
+  align-items: center;
+  font-size: var(--text-xs);
+  color: var(--faint);
+  margin-bottom: var(--hair-85);
+  letter-spacing: var(--tracking-ui);
+  font-weight: var(--weight-medium);
+}
+
+/* One line (R12-04): a long current or parent title used to wrap onto
+   its own row (three rows on phones) and run past the gutter. Grid tracks
+   sized minmax(0, max-content) let short crumbs keep their full width
+   while the long one ellipsizes. FolderTrail keeps its own anatomy. */
+.breadcrumb:not(.folder-trail) {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, max-content);
+  justify-content: start;
+  /* The crumb pills' optical outdent moves here: a negative margin on a
+     grid item drops out of its track's max-content size and clips it. */
+  margin-inline-start: calc(-1 * var(--hair-20));
+}
+
+.breadcrumb:not(.folder-trail) a {
+  margin-inline: 0;
+}
+
+.breadcrumb a {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--muted);
+  padding: var(--hair-15) var(--hair-20);
+  margin: calc(-1 * var(--hair-15)) calc(-1 * var(--hair-20));
+  border-radius: var(--radius-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition:
+    color var(--duration-fast) var(--ease-quart),
+    background var(--duration-fast) var(--ease-quart);
+}
+
+/* Current-page crumb (plain span) gets the same single-line treatment;
+   separators (span[aria-hidden]) stay untouched. */
+.breadcrumb span:not([aria-hidden]) {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.breadcrumb a:hover {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--ink) 4%, transparent);
+}
+
+/* Touch rows center the label in the 2.75rem hit row with block-level
+   align-content, not inline-flex: text-overflow never applies to a flex
+   container's anonymous text, so a long crumb was sliced mid-glyph
+   instead of ending in "…". */
+@media (pointer: coarse) {
+  .breadcrumb a {
+    display: inline-block;
+    align-content: center;
+    min-height: 2.75rem;
+    padding-inline: var(--space-2);
+    margin: 0;
+  }
+}
+
+.breadcrumb span[aria-hidden] {
+  opacity: 0.4;
+  font-weight: var(--weight-regular);
+}
+
+/* Back-one-level button leading a drill-down trail (public collection and
+   library desk folder layers). Doubled with `a` to outrank `.breadcrumb a`.
+   Sized as a real nav control (2rem, 2.75rem on touch) — an icon-only
+   0.85rem glyph in fine print was below usable hit areas. */
+.breadcrumb a.trail-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-width: 2rem;
+  min-height: 2rem;
+  padding: var(--space-1);
+  margin: 0 var(--hair-30) 0 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.breadcrumb a.trail-back svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+@media (pointer: coarse) {
+  .breadcrumb a.trail-back {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+}
+
+.breadcrumb a.trail-back:hover {
+  border-color: var(--line-strong);
+  color: var(--ink);
+  background: var(--surface-raised);
+}
+
+/* ——— Drill-down folder trail (library desk + public collection) ———
+   One nav cluster: the back button and a soft path strip read as a single
+   control instead of fine print with a floating box. The current folder
+   carries a glyph and ink weight so the place the visitor stands in is
+   legible at a glance. */
+.folder-trail {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: var(--space-2);
+  min-width: 0;
+  font-size: var(--text-sm);
+}
+
+.folder-trail a.trail-back {
+  margin: 0;
+  border-radius: var(--radius-pill);
+}
+
+.folder-trail .folder-trail-path {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--hair-15) var(--hair-20);
+  min-width: 0;
+  padding: var(--hair-30) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--ink) 3%, var(--surface));
+}
+
+/* Crumbs truncate to a stable width; the full title stays on title=. */
+.folder-trail a:not(.trail-back) {
+  max-width: 12ch;
+}
+
+/* Chevron separators replace the slash: outranks the generic
+   `span[aria-hidden]` opacity so the glyphs stay legible. */
+.folder-trail span.folder-trail-sep {
+  display: inline-flex;
+  flex-shrink: 0;
+  opacity: 1;
+  color: var(--faint);
+}
+
+.folder-trail span.folder-trail-sep svg {
+  width: 0.8em;
+  height: 0.8em;
+}
+
+.folder-trail span.folder-trail-current {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hair-30);
+  min-width: 0;
+  max-width: 18ch;
+  color: var(--ink);
+  font-weight: var(--weight-semibold);
+}
+
+.folder-trail span.folder-trail-current svg {
+  width: 0.95em;
+  height: 0.95em;
+  flex-shrink: 0;
+  color: var(--muted);
+}
+
+.folder-trail .folder-trail-current-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Touch: crumbs grow to a full-height target without changing type size. */
+@media (pointer: coarse) {
+  .folder-trail a:not(.trail-back) {
+    padding-block: var(--space-3);
+    margin-block: calc(-1 * var(--space-3));
+  }
+}
+}

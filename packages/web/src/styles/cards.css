@@ -1,0 +1,1230 @@
+/* ——— Freeform board ——— */
+
+@layer components {
+.canvas-shell {
+  /* Do NOT set overflow-y: auto here — a non-constrained auto box eats wheel events
+     without scrolling the document (page appears stuck). Let the document scroll. */
+  padding: var(--hair-85) var(--gutter) max(3rem, var(--safe-bottom));
+  background-image: var(--dot-grid);
+  background-size: var(--dot-grid-cell) var(--dot-grid-cell);
+  background-position: -2px -2px;
+  overflow-x: hidden;
+  overflow-y: visible;
+  touch-action: pan-y;
+}
+
+.board {
+  --canvas-min-height: max(48rem, calc(100dvh - var(--header-h) - var(--page-pad-y) - var(--page-pad-bottom)));
+  --canvas-height: var(--canvas-min-height);
+  --board-grid: 20px;
+  position: relative;
+  width: var(--board-width);
+  max-width: 100%;
+  min-height: var(--canvas-min-height);
+  height: var(--canvas-height);
+  margin-inline: auto;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--paper) 70%, var(--surface));
+}
+
+.board--custom-size {
+  max-width: none;
+  flex: 0 0 auto;
+  min-height: 0;
+  /* width/height and --canvas-height set inline from CanvasBoard */
+}
+
+/* Strict snap grid layer — sits above canvas background, under cards (z ≥ 1) */
+.board-grid {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background-image:
+    linear-gradient(
+      to right,
+      color-mix(in srgb, var(--ink) 9%, transparent) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--ink) 9%, transparent) 1px,
+      transparent 1px
+    );
+  background-size: var(--board-grid) var(--board-grid);
+  background-position: 0 0;
+  opacity: 1;
+}
+
+/* Stronger major lines every 5 cells for spatial orientation */
+.board-grid::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background-image:
+    linear-gradient(
+      to right,
+      color-mix(in srgb, var(--ink) 14%, transparent) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--ink) 14%, transparent) 1px,
+      transparent 1px
+    );
+  background-size: calc(var(--board-grid) * 5) calc(var(--board-grid) * 5);
+  background-position: 0 0;
+}
+
+.board.has-image-background .board-grid {
+  opacity: 0.55;
+  mix-blend-mode: soft-light;
+}
+
+.canvas-shell--custom {
+  overflow-x: auto;
+  overflow-y: visible;
+  padding-inline: 0;
+  padding-bottom: 2.5rem;
+  overscroll-behavior-inline: contain;
+}
+
+/* Same end-fade language as .explore-filters. Applied only while the
+   custom board is wider than the shell (see canvasShellOverflows). */
+.canvas-shell--custom.canvas-shell--overflow-end {
+  mask-image: linear-gradient(to right, var(--ink) 0, var(--ink) calc(100% - 1.75rem), transparent);
+  -webkit-mask-image: linear-gradient(to right, var(--ink) 0, var(--ink) calc(100% - 1.75rem), transparent);
+}
+
+.canvas-shell--custom.canvas-shell--overflow-start:not(.canvas-shell--overflow-end) {
+  mask-image: linear-gradient(to left, var(--ink) 0, var(--ink) calc(100% - 1.75rem), transparent);
+  -webkit-mask-image: linear-gradient(to left, var(--ink) 0, var(--ink) calc(100% - 1.75rem), transparent);
+}
+
+.canvas-shell--custom.canvas-shell--overflow-start.canvas-shell--overflow-end {
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    var(--ink) 1.75rem,
+    var(--ink) calc(100% - 1.75rem),
+    transparent
+  );
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent,
+    var(--ink) 1.75rem,
+    var(--ink) calc(100% - 1.75rem),
+    transparent
+  );
+}
+
+.canvas-scroll-hint {
+  position: sticky;
+  left: 0;
+  z-index: 4;
+  box-sizing: border-box;
+  width: var(--canvas-shell-port, 100%);
+  margin: var(--space-2) 0 0;
+  padding-inline: var(--gutter);
+  pointer-events: none;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-caps);
+  line-height: var(--leading-normal);
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* Intentional canvas bleed, not a layout bug: the custom board is a fixed-pixel
+   canvas (dashboard default 1400px, grows to fit content via applyBoardMetrics)
+   and this align box adds --gutter on both sides, so at viewports ≤ ~1475px the
+   box is wider than the shell by design. The shell contains the overflow with
+   overflow-x: auto (+ end-fade masks and the scroll hint via canvasShellOverflows),
+   so the document itself never scrolls horizontally and every board pixel stays
+   reachable. Tiles are clamped to the board rect (snapRect limits), never to the
+   viewport. Do not "fix" the overhang by shrinking the board or dropping the
+   padding — centering on wide viewports and gutter breathing room while scrolled
+   both depend on it. */
+.canvas-shell--custom .canvas-shell-align {
+  display: flex;
+  justify-content: center;
+  box-sizing: border-box;
+  width: max-content;
+  min-width: 100%;
+  padding-inline: var(--gutter);
+}
+
+.canvas-resize-handle {
+  position: absolute;
+  z-index: 20;
+  right: 0;
+  bottom: 0;
+  width: 2.75rem;
+  height: 2.75rem;
+  display: grid;
+  place-items: end;
+  padding: 0 var(--hair-40) var(--hair-40) 0;
+  border: 0;
+  background: transparent;
+  cursor: nwse-resize;
+  touch-action: none;
+  color: var(--ink);
+}
+
+.canvas-resize-handle svg {
+  width: 1.1rem;
+  height: 1.1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-width: 1.5;
+  opacity: 0.45;
+  transition: opacity var(--duration-fast) var(--ease-quart), transform var(--duration-fast) var(--ease-quart);
+}
+
+.canvas-resize-handle:hover svg,
+.canvas-resize-handle:focus-visible svg {
+  opacity: 1;
+  transform: translate(-1px, -1px);
+}
+
+.canvas-resize-handle::before {
+  content: '';
+  position: absolute;
+  right: var(--hair-15);
+  bottom: var(--hair-15);
+  width: 1.1rem;
+  height: 1.1rem;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.board--custom-size:hover .canvas-resize-handle::before {
+  opacity: 0.7;
+}
+
+.canvas-toolbar-inner--wrap {
+  flex-wrap: wrap;
+  gap: var(--hair-65) var(--space-4);
+}
+
+.canvas-size-fields {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hair-35);
+  flex-wrap: wrap;
+}
+
+.canvas-size-fields label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hair-30);
+  min-height: 2.1rem;
+  padding: 0 var(--hair-45) 0 var(--hair-55);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-semibold);
+  color: var(--muted);
+}
+
+.canvas-size-fields input {
+  width: 4.25rem;
+  min-height: 1.8rem;
+  border: 0;
+  background: transparent;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.canvas-size-readout {
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--weight-semibold);
+  color: var(--ink-2);
+}
+
+.canvas-size-hint {
+  width: var(--board-width);
+  max-width: 100%;
+  margin: var(--hair-35) auto 0;
+  padding: 0 var(--hair-15) var(--hair-15);
+}
+
+.canvas-presets {
+  flex-shrink: 0;
+}
+
+body.is-manipulating {
+  cursor: grabbing;
+  user-select: none;
+  /* Keep document scrollable; only suppress text selection during drag */
+}
+
+body.is-manipulating a {
+  pointer-events: none;
+}
+
+body.is-manipulating .canvas-shell {
+  touch-action: none;
+}
+
+/* ——— Tile shell ——— */
+/* Merged tile base (R8-01): canvas geometry + chrome in a single block. The
+   geometry/chrome split across cards.css/cards-ui.css is retired — the merged
+   block stays here, before source-skins.css, so per-source --source-accent
+   assignments keep winning at equal specificity. */
+.tile {
+  --x: 0px;
+  --y: 0px;
+  --w: 20rem;
+  --h: 16rem;
+  --source-accent: var(--ink);
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--w);
+  height: var(--h);
+  min-width: 0;
+  min-height: 0;
+  transform: translate3d(var(--x), var(--y), 0);
+  overflow: hidden;
+  background: var(--surface);
+  color: var(--ink);
+  container: tile / size;
+  isolation: isolate;
+  border: 1px solid var(--line-strong);
+  border-color: var(--line-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
+  transition:
+    border-color var(--duration-state) var(--ease-quart),
+    box-shadow var(--duration-state) var(--ease-quart),
+    opacity var(--duration-fast) var(--ease-quart);
+}
+
+.tile::after {
+  content: '';
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  border: 2px solid transparent;
+  border-radius: inherit;
+  pointer-events: none;
+  transition: border-color var(--duration-state) var(--ease-quart);
+}
+
+.tile.is-selected::after,
+.tile.is-resizing::after {
+  border-color: var(--ink);
+}
+
+.tile.is-moving,
+.tile.is-resizing {
+  /* Registered z-contract exception (tokens.css --z-* block): tiles carry an
+     unbounded inline z-index (layout.z bring-to-front) that only !important
+     outranks; 150 stays below --z-overlay so chrome keeps winning. */
+  z-index: 150 !important;
+  box-shadow: var(--shadow-float);
+  will-change: transform, width, height;
+}
+
+
+
+.tile.is-moving {
+  cursor: grabbing;
+}
+
+/* Hover / selected follow .tile.is-moving so a selected tile keeps its own
+   shadow while another tile is being dragged (source-order tie-break). */
+.tile:hover {
+  border-color: var(--line-heavy);
+  box-shadow: var(--shadow-raised), var(--inset-highlight);
+}
+
+.tile.is-selected {
+  box-shadow: var(--shadow-sm);
+}
+
+/*
+ * Head chrome must use only tile-local tokens.
+ * Never mix root --paper into themed cards (GitHub/TED/etc.) — it washes out
+ * the bar and makes lock / save / read icons disappear.
+ */
+.card-head {
+  height: var(--card-chrome-h, 40px);
+  max-height: var(--card-chrome-h, 40px);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--hair-20);
+  flex-shrink: 0;
+  min-height: 2.45rem;
+  padding: var(--hair-20) var(--space-1) var(--hair-20) var(--hair-40);
+  background: color-mix(in srgb, var(--ink) 5%, var(--surface));
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+}
+
+.drag-handle {
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  flex: 1;
+  border: 0;
+  background: transparent;
+  cursor: grab;
+  touch-action: none;
+  text-align: left;
+  -webkit-user-select: none;
+  user-select: none;
+  min-height: 2.2rem;
+  gap: var(--hair-40);
+  padding: 0 var(--hair-30);
+  color: inherit;
+}
+
+.source-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1 1 auto;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+  text-transform: none;
+  color: var(--muted);
+}
+
+.source-name--plain {
+  color: var(--ink-2);
+}
+
+.card-actions-secondary {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: var(--hair-15);
+}
+
+@container tile (max-width: 20rem) {
+  .card-actions-secondary,
+  .card-head .stack-lock-badge,
+  .card-head .grip {
+    display: none;
+  }
+
+  .card-head .card-action {
+    width: 1.85rem;
+    height: 1.85rem;
+  }
+}
+
+.tile.is-read .source-name::after {
+  content: ' · read';
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: var(--weight-medium);
+  opacity: 0.75;
+  color: var(--muted);
+}
+
+/* ——— Tile content ——— */
+.tile-content {
+  min-height: 0;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  padding: var(--hair-85) var(--hair-90) 2.1rem; /* off-scale: 2.1rem bottom pad clears the tile's absolutely-positioned chrome */
+  gap: var(--hair-15);
+  color: var(--ink);
+}
+
+.tile-content--fill {
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+/* Focus / locked layout: no drag bar — content uses full card */
+.tile-content--no-head.tile-content--fill {
+  padding-bottom: 0;
+}
+
+.tile:not(.is-editable) .tile-content:not(.tile-content--fill) {
+  padding-top: var(--hair-90);
+  padding-bottom: var(--space-4);
+}
+
+.tile:not(.is-editable) {
+  /* Quieter frame when not rearranging */
+  cursor: default;
+}
+
+/* Read state: do not fade whole card (kills action contrast) */
+.tile.is-read .card-shell {
+  opacity: 1;
+}
+
+.tile.is-read .card-title,
+.tile.is-read .repo-name {
+  color: var(--ink-2);
+  font-weight: var(--weight-semibold);
+}
+
+.tile.is-read .tile-content {
+  opacity: 0.88;
+}
+
+/*
+ * Card actions (lock / save / read) — must stay readable on every source skin.
+ * Use ink-2 (overridden per tile), never root --faint.
+ */
+.card-action,
+.stack-lock-btn,
+.resource-mark-actions .mark-action {
+  color: var(--ink-2);
+  opacity: 1;
+}
+
+.card-action:hover,
+.stack-lock-btn:hover,
+.resource-mark-actions .mark-action:hover {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--ink) 10%, transparent);
+}
+
+.stack-lock-btn.is-active {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--ink) 12%, transparent);
+}
+
+.resource-mark-actions .mark-action.is-active,
+.resource-mark-actions .mark-action[aria-pressed='true'] {
+  color: var(--ink);
+}
+
+/* Read checkmark: idle still visible; active clearly on */
+.resource-mark-actions .mark-action--read .read-check {
+  opacity: 0.72;
+}
+
+.resource-mark-actions .mark-action--read.is-active {
+  color: var(--success);
+}
+
+.resource-mark-actions .mark-action--read.is-active .read-check {
+  opacity: 1;
+}
+
+/* Dark / inverted source skins: green needs a lighter stop */
+.tile-github .mark-action--read.is-active,
+.tile-spotify .mark-action--read.is-active,
+.tile-nature .mark-action--read.is-active,
+.tile-ted .mark-action--read.is-active {
+  color: color-mix(in srgb, var(--success) 55%, var(--surface-raised));
+  background: color-mix(in srgb, var(--success) 18%, transparent);
+}
+
+.resource-mark-actions .mark-action--save.is-active .bookmark-fill {
+  fill: currentColor;
+}
+
+.resource-mark-actions .mark-action svg,
+.card-action svg {
+  stroke: currentColor;
+}
+
+.grip {
+  width: 0.72rem;
+  height: 0.95rem;
+  flex: 0 0 auto;
+  background-image: radial-gradient(circle, currentColor 1.1px, transparent 1.2px);
+  background-size: 0.34rem 0.34rem;
+  transition: opacity var(--duration-fast) var(--ease-quart);
+  opacity: 0.55;
+}
+
+.drag-handle:hover .grip,
+.drag-handle:focus-visible .grip {
+  opacity: 0.95;
+}
+
+/* Merged card-action base (R8-01): hit-box geometry + chrome in one block. */
+.card-action {
+  width: 2.45rem;
+  height: 2.45rem;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  cursor: pointer;
+  color: inherit;
+  transition: background var(--duration-fast) var(--ease-quart), transform var(--duration-fast) var(--ease-quart),
+    color var(--duration-fast) var(--ease-quart);
+}
+
+.card-action:active {
+  transform: scale(0.92);
+}
+
+.card-action:hover {
+  background: color-mix(in srgb, currentColor 7%, transparent);
+}
+
+.card-remove-btn {
+  color: var(--muted);
+}
+
+.card-remove-btn:hover {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+
+.card-remove-btn:focus-visible {
+  outline: 2px solid var(--danger);
+  outline-offset: 1px;
+}
+
+.stack-lock-badge {
+  flex-shrink: 0;
+  margin-left: var(--hair-15);
+  padding: var(--hair-15) var(--hair-35);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line-strong);
+  background: var(--surface-sunken);
+  color: var(--muted);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+
+.card-action svg {
+  width: 1rem;
+  height: 1rem;
+  fill: transparent;
+  stroke: currentColor;
+  stroke-width: 1.5;
+}
+
+.card-action[aria-pressed='true'] {
+  background: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+.card-action[aria-pressed='true'] .bookmark-fill {
+  fill: currentColor;
+}
+
+/* Stack-locked state follows the grip hover so the dimmed grip wins the
+   source-order tie-break at equal specificity. */
+.tile.is-stack-locked .drag-handle {
+  cursor: default;
+}
+
+.tile.is-stack-locked .drag-handle:active {
+  cursor: default;
+}
+
+.tile.is-stack-locked .grip {
+  opacity: 0.22;
+}
+
+.tile.is-stack-locked {
+  box-shadow: var(--shadow-sm), 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+/* ——— Read / save mark actions (board · list · compact) ——— */
+.resource-mark-actions {
+  position: relative;
+  flex: 0 0 auto;
+  z-index: 4;
+}
+
+.resource-mark-btns {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.05rem; /* off-scale: optical hairline between icon buttons, below the scale floor */
+}
+
+.mark-action {
+  width: 2.45rem;
+  height: 2.45rem;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  cursor: pointer;
+  color: inherit;
+  transition:
+    background var(--duration-fast) var(--ease-quart),
+    color var(--duration-fast) var(--ease-quart),
+    transform var(--duration-fast) var(--ease-quart);
+}
+
+.mark-action:active {
+  transform: scale(0.92);
+}
+
+.mark-action svg {
+  width: 1.05rem;
+  height: 1.05rem;
+  fill: transparent;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.mark-action--save .bookmark-fill {
+  fill: transparent;
+}
+
+.mark-action.is-active {
+  background: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+.mark-action--read.is-active {
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 14%, transparent);
+}
+
+.mark-action--read.is-active .read-ring {
+  fill: color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.mark-action--read .read-check {
+  opacity: 0.7;
+  transition: opacity var(--duration-fast) var(--ease-quart);
+}
+
+.mark-action--read.is-active .read-check {
+  opacity: 1;
+  stroke: currentColor;
+  stroke-width: 1.5;
+}
+
+.mark-action--save.is-active .bookmark-fill {
+  fill: currentColor;
+}
+
+.mark-action--save.is-open {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+}
+
+/* Card density: sit in card-head like the old bookmark */
+.resource-mark-actions--card .mark-action {
+  width: 2.35rem;
+  height: 2.35rem;
+}
+
+/* List density */
+.resource-mark-actions--list .mark-action {
+  width: 2rem;
+  height: 2rem;
+}
+
+.resource-mark-actions--list .mark-action svg {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
+/* Compact density */
+.resource-mark-actions--compact {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  align-self: stretch;
+  justify-content: center;
+}
+
+.resource-mark-actions--compact .mark-action {
+  width: 1.85rem;
+  height: 1.85rem;
+}
+
+.resource-mark-actions--compact .mark-action svg {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
+/* Portaled folder picker — escapes card overflow / stacking contexts */
+.save-folder-picker-portal {
+  position: fixed;
+  z-index: var(--z-toast);
+  pointer-events: auto;
+}
+
+.save-folder-picker-portal .save-folder-picker {
+  width: 100%;
+  max-height: inherit;
+  overflow: auto;
+  box-sizing: border-box;
+}
+
+/* Folder picker surface */
+.save-folder-picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hair-35);
+  padding: var(--hair-55) var(--space-2) var(--hair-45);
+  border: 1px solid var(--line-heavy);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-popover);
+  animation: popover-in var(--duration-fast) var(--ease-quart);
+}
+
+/* Anchored popovers — one motion for the whole family: the save picker,
+   the tile theme menu, the collection-list popover, the profile hover card,
+   the nav/account dropdowns, the context menu and the graph / dashboard
+   overflow menus all drop 0.2rem out of their trigger and lift back into it.
+   (Menus used to rise 10px from below while pickers dropped from above, so
+   neighbouring popovers moved in opposite directions.) */
+@keyframes popover-in {
+  from {
+    opacity: 0;
+    transform: translateY(-0.2rem);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Exit phase (useExitAnimation): the reverse of popover-in. */
+@keyframes popover-out {
+  to {
+    opacity: 0;
+    transform: translateY(-0.2rem);
+  }
+}
+
+.save-folder-picker-portal.is-closing {
+  pointer-events: none;
+}
+
+.save-folder-picker-portal.is-closing .save-folder-picker {
+  animation: popover-out var(--duration-fast) var(--ease-quart) forwards;
+}
+
+.save-folder-picker-head {
+  padding: var(--hair-15) var(--hair-40) var(--space-1);
+}
+
+.save-folder-picker-title {
+  margin: 0;
+  font-size: var(--text-caption);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-ui);
+}
+
+.save-folder-picker-sub {
+  margin: var(--hair-15) 0 0;
+  font-size: var(--text-xs);
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.save-folder-picker-hint {
+  margin: var(--hair-15) 0 0;
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+.save-folder-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--hair-15);
+  max-height: 12rem;
+  overflow: auto;
+}
+
+.save-folder-item {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--hair-45);
+  padding: var(--hair-45) var(--space-2);
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  transition: background var(--duration-fast) var(--ease-quart);
+}
+
+.save-folder-item:hover,
+.save-folder-item:focus-visible {
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+}
+
+.save-folder-item.is-active {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.save-folder-item.is-active .save-folder-count,
+.save-folder-item.is-active .save-folder-check {
+  color: color-mix(in srgb, var(--paper) 78%, transparent);
+}
+
+.save-folder-name {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.save-folder-count {
+  font-size: var(--text-xs);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.save-folder-check {
+  display: inline-flex;
+  font-size: var(--text-caption);
+  color: var(--accent);
+}
+
+.save-folder-picker-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-1);
+  padding: var(--hair-15) var(--hair-15) 0;
+  border-top: 1px solid var(--line);
+  margin-top: var(--hair-15);
+  padding-top: var(--hair-35);
+}
+
+/* R7-25: the foot buttons are plain .btn-ghost / .btn-danger-ghost now;
+   only the leading slot's layout stays local. */
+.save-folder-foot-start {
+  margin-right: auto;
+}
+
+/* Context menu for collection list density */
+.ctx-menu {
+  position: fixed;
+  z-index: var(--z-toast);
+  min-width: 11.5rem;
+  padding: var(--hair-35);
+  border: 1px solid var(--line-heavy);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-float);
+  animation: popover-in var(--duration-fast) var(--ease-quart);
+}
+
+/* Exit phase (useExitAnimation): shared popover-out. */
+.ctx-menu.is-closing {
+  animation: popover-out var(--duration-fast) var(--ease-quart) forwards;
+  pointer-events: none;
+}
+
+.ctx-menu-label {
+  margin: 0;
+  padding: var(--hair-35) var(--hair-55) var(--space-1);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.ctx-menu button,
+.ctx-menu-link {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--hair-15);
+  width: 100%;
+  padding: var(--space-2) var(--hair-55);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  text-align: left;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+  color: var(--ink);
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-quart);
+}
+
+.ctx-menu button .meta,
+.ctx-menu-link .meta {
+  font-weight: var(--weight-medium);
+}
+
+.ctx-menu button:hover,
+.ctx-menu-link:hover,
+.ctx-menu button.is-active {
+  background: color-mix(in srgb, var(--ink) 5.5%, transparent);
+}
+
+.ctx-menu button.is-active {
+  box-shadow: inset 2px 0 0 var(--ink);
+}
+
+.ctx-menu-sep {
+  height: 1px;
+  margin: var(--hair-30) var(--hair-35);
+  background: var(--line);
+}
+
+.ctx-menu-link {
+  font-size: var(--text-sm);
+  color: var(--ink-2);
+}
+
+/* Card-body density base rules (.summary / .standard-only / .wide-only /
+   .tall-only) live in source-skins.css with the container queries that
+   reveal them — base and override must stay in one file so the drift
+   gate does not read the shadowed base as dead cross-file drift. */
+
+.size-badge {
+  position: absolute;
+  z-index: 5;
+  right: 2.4rem; /* off-scale: badge parks left of the resize handle, tuned optically */
+  bottom: var(--hair-55);
+  padding: var(--hair-20) var(--hair-35);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-xs);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--tracking-ui);
+  color: var(--muted);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.tile.is-moving .size-badge,
+.tile.is-resizing .size-badge,
+.tile.is-selected .size-badge {
+  opacity: 0.9;
+}
+
+.size-badge--locked {
+  letter-spacing: var(--tracking-ui);
+  text-transform: uppercase;
+  font-size: var(--text-2xs);
+}
+
+.resize-handle {
+  position: absolute;
+  z-index: 8;
+  right: 0;
+  bottom: 0;
+  width: 2.85rem;
+  height: 2.85rem;
+  display: grid;
+  place-items: end;
+  padding: 0 var(--hair-40) var(--hair-40) 0;
+  border: 0;
+  background: transparent;
+  cursor: nwse-resize;
+  touch-action: none;
+  color: inherit;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Hit area affordance */
+.tile.is-editable .resize-handle::before {
+  content: '';
+  position: absolute;
+  right: var(--hair-20);
+  bottom: var(--hair-20);
+  width: 0.85rem;
+  height: 0.85rem;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  opacity: 0.28;
+  pointer-events: none;
+}
+
+.tile.is-editable:hover .resize-handle::before,
+.tile.is-resizing .resize-handle::before {
+  opacity: 0.7;
+}
+
+.resize-handle svg {
+  width: 1rem;
+  height: 1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-width: 1.5;
+  opacity: 0.5;
+  transition: opacity var(--duration-fast) var(--ease-quart), transform var(--duration-fast) var(--ease-quart);
+}
+
+.resize-handle:hover svg,
+.resize-handle:focus-visible svg,
+.tile.is-resizing .resize-handle svg {
+  opacity: 1;
+  transform: translate(-1px, -1px);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .video:hover .video-media img {
+    transform: scale(1.025);
+  }
+  .video:hover .play {
+    transform: translate(-50%, -50%) scale(1.05);
+  }
+  .mark-action:hover {
+    background: color-mix(in srgb, currentColor 8%, transparent);
+  }
+}
+
+@media (pointer: coarse) {
+  .drag-handle,
+  .card-action,
+  .mark-action,
+  .resize-handle {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+  .size-badge {
+    opacity: 0.7;
+  }
+}
+
+.canvas-toast {
+  position: fixed;
+  z-index: var(--z-toast);
+  left: 50%;
+  bottom: max(var(--space-4), var(--safe-bottom));
+  transform: translate(-50%, 0);
+  max-width: calc(100vw - 2 * var(--gutter));
+  padding: var(--hair-55) var(--space-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  color: var(--ink);
+  box-shadow: var(--shadow-float);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-ui);
+  overflow-wrap: anywhere;
+  pointer-events: none;
+  animation: canvas-toast-enter var(--duration-enter) var(--ease-out);
+}
+
+@keyframes canvas-toast-enter {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 0.7rem);
+  }
+}
+
+/* Exit phase (useExitAnimation): fade back down along the entrance path. */
+@keyframes canvas-toast-exit {
+  to {
+    opacity: 0;
+    transform: translate(-50%, 0.7rem);
+  }
+}
+
+.canvas-toast.is-closing {
+  animation: canvas-toast-exit var(--duration-state) var(--ease-quart) forwards;
+}
+
+@media (max-width: 719px) {
+  .app-shell--tabs .canvas-toast {
+    bottom: max(var(--space-4), var(--bottom-nav-h));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .canvas-toast {
+    animation: none;
+  }
+}
+
+.save-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hair-40);
+  color: var(--muted);
+  font-size: var(--text-caption);
+}
+
+.save-status::before {
+  content: '';
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 50%;
+  background: var(--success);
+  transition: background var(--duration-fast) var(--ease-quart), transform var(--duration-fast) var(--ease-quart);
+}
+
+.save-status.is-editing::before {
+  transform: scale(0.75);
+  background: var(--warning);
+}
+
+/* Collection-card chrome is owned by cards-ui.css. */
+.collection-card-arrow {
+  margin-left: auto;
+  font-size: var(--text-sm);
+  color: var(--faint);
+  opacity: 0;
+  transform: translateX(-6px);
+  transition:
+    opacity var(--duration-state) var(--ease-quart),
+    transform var(--duration-state) var(--ease-quart),
+    color var(--duration-state) var(--ease-quart);
+}
+
+.collection-card-arrow svg {
+  display: block;
+  width: 1em;
+  height: 1em;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .result-card--collection:hover .collection-card-arrow,
+  .folder-gallery-card:hover .collection-card-arrow {
+    opacity: 1;
+    transform: translateX(0);
+    color: var(--ink);
+  }
+}
+
+.collection-card-foot .meta {
+  margin-left: auto;
+}
+
+.collection-card-title {
+  transition: color var(--duration-fast) var(--ease-quart);
+}
+}

@@ -1,0 +1,73 @@
+/* Moderation lists — my reports, my appeals, admin cases and admin appeals.
+   Shared route stylesheet: the four moderation pages import it; the row
+   anatomy (components/ModerationTable.tsx) follows Link health. */
+
+@layer pages {
+.moderation-toolbar {
+  padding-bottom: var(--space-3);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--line-strong);
+}
+
+.moderation-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hair-20);
+  /* .filter-btn lifts -1px on hover and needs top headroom. */
+  padding-top: var(--hair-15);
+}
+
+.moderation-table {
+  --data-table-cols: minmax(11rem, 1fr) minmax(13rem, 1.4fr) minmax(8rem, 13rem);
+  min-width: 0;
+}
+
+.moderation-table--actions {
+  --data-table-cols: minmax(11rem, 1fr) minmax(13rem, 1.4fr) minmax(8rem, 12rem) minmax(9rem, 11rem);
+}
+
+.moderation-row {
+  min-height: 4.6rem;
+}
+
+.moderation-subject,
+.moderation-reason,
+.moderation-status {
+  display: grid;
+  justify-items: start;
+  align-content: center;
+  gap: var(--hair-20);
+}
+
+.moderation-subject strong,
+.moderation-reason strong {
+  font-size: var(--text-sm);
+}
+
+.moderation-subject span {
+  color: var(--faint);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.moderation-reason p,
+.moderation-status p {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-copy);
+}
+
+.moderation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hair-35);
+}
+
+.moderation-more {
+  margin-top: var(--space-4);
+}
+}
