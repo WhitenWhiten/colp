@@ -10,7 +10,9 @@ import { createHash, generateKeyPairSync, hkdfSync } from 'node:crypto';
  * Rules relaxed when KNOWN_EDITION is self-hosted, verified by loadConfig()
  * with NODE_ENV=production:
  * - PUBLICATION_CACHE_PURGE_ENDPOINT stays unset. loadConfig already treats a
- *   missing endpoint as "no purge", so production does not require one.
+ *   missing endpoint as "no purge". Worker start skips the production
+ *   cache-purge durability refusal when KNOWN_EDITION is self-hosted
+ *   (bootstrap/worker.ts). Every other edition still refuses.
  * - KNOWN_CACHE_REQUIRED is forced false and KNOWN_CACHE_MODE is off, so the
  *   cache readiness probe does not require Redis.
  * - Object storage is not configured. Flag-off features that would require a
