@@ -757,7 +757,7 @@ export interface AppConfig {
    */
   readonly testAuthMailboxHttp: Readonly<{ enabled: boolean; token: string }>;
   readonly oidcTransactionSecrets: OidcTransactionSecretsConfig;
-  readonly sessionCookieName: '__Host-known_session';
+  readonly sessionCookieName: '__Host-known_session' | 'known_session';
   readonly productEditorCursor: ProductEditorCursorConfig;
   readonly productOwnedCollectionsCursor: ProductOwnedCollectionsCursorConfig;
   readonly linkHealth: LinkHealthFeatureConfig;
@@ -1347,8 +1347,11 @@ export interface BetterAuthFeatureConfig {
    * opts into these Extension origins; do not add them to ALLOWED_ORIGINS.
    */
   readonly trustedOrigins: readonly string[];
-  /** Frozen single-cookie name; any other value fails startup (G1 §4). */
-  readonly cookieName: '__Host-known_session';
+  /**
+   * Session cookie. TLS is frozen to `__Host-known_session`.
+   * `COLP_INSECURE_HTTP=true` selects `known_session` (G3).
+   */
+  readonly cookieName: '__Host-known_session' | 'known_session';
   /** BA sliding session expiry in seconds (default 86_400 = idle TTL 24h, G1 §7 P1). */
   readonly sessionExpiresInSeconds: number;
   /** BA refresh window in seconds; must be < sessionExpiresInSeconds. */

@@ -213,12 +213,14 @@ export function buildBetterAuthOptions<DB>(input: BetterAuthRuntimeInput<DB>): B
           name: config.cookieName,
           attributes: {
             httpOnly: true,
-            secure: true,
+            // `__Host-known_session` requires Secure. `known_session` (G3
+            // insecure HTTP) must not be Secure or browsers drop it.
+            secure: config.cookieName !== 'known_session',
             sameSite: 'Lax',
           },
         },
       },
-      defaultCookieAttributes: { secure: true },
+      defaultCookieAttributes: { secure: config.cookieName !== 'known_session' },
       // G1 §9: trustedOrigins validation must be active in EVERY environment.
       // better-auth 1.7.1 defaults skipOriginCheck=true under NODE_ENV=test;
       // the explicit override keeps the production CSRF/origin contract in

@@ -160,7 +160,7 @@ export interface BetterAuthRuntimeConfig {
     readonly legacyPlaintextReadUntil: Date | null;
   };
   readonly trustedOrigins: readonly string[];
-  readonly cookieName: '__Host-known_session';
+  readonly cookieName: '__Host-known_session' | 'known_session';
   readonly sessionExpiresInSeconds: number;
   readonly sessionUpdateAgeSeconds: number;
   readonly bodyLimitBytes: number;

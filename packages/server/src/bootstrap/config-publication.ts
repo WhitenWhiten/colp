@@ -74,8 +74,10 @@ export function loadPublicationCore(
   } catch {
     throw new Error('PUBLICATION_ORIGIN must be an exact absolute origin URL without userinfo');
   }
+  const insecureHttp = env.COLP_INSECURE_HTTP === 'true';
   if (publicationOriginUrl.protocol !== 'https:'
-    && !(publicationOriginUrl.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(publicationOriginUrl.hostname))) {
+    && !(publicationOriginUrl.protocol === 'http:' && (insecureHttp
+      || ['localhost', '127.0.0.1', '[::1]'].includes(publicationOriginUrl.hostname)))) {
     throw new Error('PUBLICATION_ORIGIN must use https (http is allowed only for loopback)');
   }
   const publicationServerUuid = requireNonEmpty(

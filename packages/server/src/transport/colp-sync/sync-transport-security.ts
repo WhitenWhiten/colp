@@ -10,6 +10,43 @@ export interface SyncTransportSecurityOptions {
   readonly trustedIngress?: readonly string[];
 }
 
+/** TLS is the default. `insecure-http` is only `COLP_INSECURE_HTTP=true`. */
+export type SyncTransportMode = 'tls' | 'insecure-http';
+
+/**
+ * Evidence a Sync request can present. `insecure-acknowledged` is plaintext
+ * that is neither socket TLS, opted-in loopback, nor trusted forwarded https.
+ */
+export type SyncTransportEvidenceKind =
+  | 'tls'
+  | 'loopback'
+  | 'trusted-forwarded-https'
+  | 'insecure-acknowledged';
+
+export function syncTransportMode(env: NodeJS.ProcessEnv = process.env): SyncTransportMode {
+  return env.COLP_INSECURE_HTTP === 'true' ? 'insecure-http' : 'tls';
+}
+
+/**
+ * `tls` accepts socket TLS, opted-in loopback, and trusted forwarded https.
+ * `insecure-acknowledged` is accepted only in `insecure-http` mode.
+ */
+export function acceptSyncTransportEvidence(
+  mode: SyncTransportMode,
+  kind: SyncTransportEvidenceKind,
+): boolean {
+  switch (kind) {
+    case 'tls':
+    case 'loopback':
+    case 'trusted-forwarded-https':
+      return true;
+    case 'insecure-acknowledged':
+      return mode === 'insecure-http';
+    default:
+      return false;
+  }
+}
+
 export interface SyncTransportSecurity {
   /**
    * FIX-M-008: true only when the request carries acceptable TLS evidence —
@@ -40,15 +77,32 @@ export function createSyncTransportSecurity(
       ? undefined : createTrustedIngressMatcher(options.trustedIngress);
   return Object.freeze({
     isSecure(request: FastifyRequest) {
-      // `encrypted` exists at runtime on TLS sockets only; narrow the net.Socket
-      // type to the TLS marker (same cast the evidence harness uses).
-      const socket = request.raw.socket as unknown as { readonly encrypted?: boolean };
-      if (socket.encrypted === true) return true;
-      const peer = request.raw.socket.remoteAddress?.toLowerCase();
-      if (options.allowInsecureLoopback && isLoopbackPeer(peer)) return true;
-      return trustedPeer !== undefined && trustedPeer(peer) && forwardedProtoIsHttps(request);
+      return acceptSyncTransportEvidence(
+        syncTransportMode(),
+        classifySyncTransportEvidence(request, options, trustedPeer),
+      );
     },
   });
+}
+
+export function classifySyncTransportEvidence(
+  request: FastifyRequest,
+  options: SyncTransportSecurityOptions,
+  trustedPeer: TrustedIngressPeerMatcher | undefined = options.trustedIngress === undefined
+    || options.trustedIngress.length === 0
+    ? undefined
+    : createTrustedIngressMatcher(options.trustedIngress),
+): SyncTransportEvidenceKind {
+  // `encrypted` exists at runtime on TLS sockets only; narrow the net.Socket
+  // type to the TLS marker (same cast the evidence harness uses).
+  const socket = request.raw.socket as unknown as { readonly encrypted?: boolean };
+  if (socket.encrypted === true) return 'tls';
+  const peer = request.raw.socket.remoteAddress?.toLowerCase();
+  if (options.allowInsecureLoopback && isLoopbackPeer(peer)) return 'loopback';
+  if (trustedPeer !== undefined && trustedPeer(peer) && forwardedProtoIsHttps(request)) {
+    return 'trusted-forwarded-https';
+  }
+  return 'insecure-acknowledged';
 }
 
 function isLoopbackPeer(peer: string | undefined): boolean {

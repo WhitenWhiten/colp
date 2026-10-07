@@ -1,21 +1,33 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 
 export const SESSION_COOKIE_NAME = '__Host-known_session';
+export const INSECURE_SESSION_COOKIE_NAME = 'known_session';
 
-/** Build Set-Cookie for production Session cookie (never sets Domain). */
+function insecureHttp(): boolean {
+  return process.env.COLP_INSECURE_HTTP === 'true';
+}
+
+/** TLS writes `__Host-known_session` with Secure. Plain HTTP writes `known_session` without Secure. */
+export function writtenSessionCookieName(): string {
+  return insecureHttp() ? INSECURE_SESSION_COOKIE_NAME : SESSION_COOKIE_NAME;
+}
+
+/** Build Set-Cookie for the product session cookie (never sets Domain). */
 export function buildSessionSetCookie(
   rawToken: string,
   options: { readonly maxAgeSeconds: number; readonly clear?: boolean } = { maxAgeSeconds: 0 },
 ): string {
+  const name = writtenSessionCookieName();
+  const secure = name === SESSION_COOKIE_NAME ? 'Secure; ' : '';
   if (options.clear) {
-    return `${SESSION_COOKIE_NAME}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`;
+    return `${name}=; Path=/; HttpOnly; ${secure}SameSite=Lax; Max-Age=0`;
   }
-  // __Host- prefix requires Secure, Path=/, no Domain.
+  // __Host- prefix requires Secure, Path=/, no Domain. known_session omits Secure.
   return [
-    `${SESSION_COOKIE_NAME}=${encodeURIComponent(rawToken)}`,
+    `${name}=${encodeURIComponent(rawToken)}`,
     'Path=/',
     'HttpOnly',
-    'Secure',
+    ...(name === SESSION_COOKIE_NAME ? ['Secure'] : []),
     'SameSite=Lax',
     `Max-Age=${Math.max(0, Math.floor(options.maxAgeSeconds))}`,
   ].join('; ');
@@ -33,14 +45,23 @@ export type SessionCookieParseResult =
  * which product admission maps to 400 so ambiguous cookies fail closed.
  * Manual parse: only our cookie name; avoid depending on @fastify/cookie.
  */
+/** TLS reads only `__Host-known_session`. Insecure HTTP also accepts `known_session`. */
+function acceptedSessionCookieNames(): ReadonlySet<string> {
+  if (process.env.COLP_INSECURE_HTTP === 'true') {
+    return new Set([SESSION_COOKIE_NAME, 'known_session']);
+  }
+  return new Set([SESSION_COOKIE_NAME]);
+}
+
 export function parseSessionCookieField(header: string): SessionCookieParseResult {
+  const accepted = acceptedSessionCookieNames();
   let raw: string | null = null;
   for (const part of header.split(';')) {
     const trimmed = part.trim();
     const eq = trimmed.indexOf('=');
     if (eq === -1) continue;
     const name = trimmed.slice(0, eq).trim();
-    if (name !== SESSION_COOKIE_NAME) continue;
+    if (!accepted.has(name)) continue;
     if (raw !== null) return { kind: 'parse-error' };
     try {
       raw = decodeURIComponent(trimmed.slice(eq + 1));

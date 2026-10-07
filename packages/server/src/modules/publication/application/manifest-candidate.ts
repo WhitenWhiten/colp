@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createValidatorRegistry, validateWireDocument } from '@know-n/colp/schema';
 import { validateManifestSemantics } from '@know-n/colp/semantic';
 import type { Manifest, ManifestEndpoints, ManifestV02, ServiceUrl } from '@know-n/colp/types';
@@ -12,6 +15,88 @@ import {
 } from '../../sync/index.js';
 
 const KNOWN_SYNC_RETIRE_MANIFEST_EXTENSION = 'https://known.example/extensions/sync-retire';
+
+const SELF_HOSTED_EDITION_FEATURE_KEYS = ['transport', 'cloud', 'edition'] as const;
+
+export interface SelfHostedManifestFeatures {
+  readonly transport: 'https' | 'insecure-http';
+  readonly cloud: false;
+  readonly edition: { readonly name: 'colp-server'; readonly version: string };
+}
+
+let cachedServerVersion: string | undefined;
+
+/** `package.json` version until H1's generated `src/version.ts` exists. */
+export function colpServerPackageVersion(): string {
+  if (cachedServerVersion !== undefined) return cachedServerVersion;
+  let directory = dirname(fileURLToPath(import.meta.url));
+  for (let depth = 0; depth < 8; depth += 1) {
+    try {
+      const parsed = JSON.parse(readFileSync(resolve(directory, 'package.json'), 'utf8')) as {
+        name?: string;
+        version?: string;
+      };
+      if (parsed.name === '@know-n/colp-server' && typeof parsed.version === 'string' && parsed.version.length > 0) {
+        cachedServerVersion = parsed.version;
+        return cachedServerVersion;
+      }
+    } catch {
+      // Keep walking toward the server package root.
+    }
+    const parent = dirname(directory);
+    if (parent === directory) break;
+    directory = parent;
+  }
+  throw new Error('colp-server package.json version is unavailable');
+}
+
+/**
+ * Edition keys for `KNOWN_EDITION=self-hosted` only. Absent means the hosted
+ * manifest stays on the protocol feature set.
+ */
+export function selfHostedManifestFeatures(
+  env: NodeJS.ProcessEnv = process.env,
+): SelfHostedManifestFeatures | null {
+  if (env.KNOWN_EDITION !== 'self-hosted') return null;
+  return {
+    transport: env.COLP_INSECURE_HTTP === 'true' ? 'insecure-http' : 'https',
+    cloud: false,
+    edition: { name: 'colp-server', version: colpServerPackageVersion() },
+  };
+}
+
+/** Drops G3 edition keys so COLP schema validation still sees a protocol manifest. */
+export function manifestWithoutSelfHostedEditionFeatures<T>(manifest: T): T {
+  const mounts = (manifest as { mounts?: ReadonlyArray<{ features?: object }> }).mounts;
+  if (!mounts?.some((mount) => mountHasEditionFeatures(mount.features))) return manifest;
+  const copy = structuredClone(manifest) as T & {
+    mounts: Array<{ features?: Record<string, unknown> }>;
+  };
+  for (const mount of copy.mounts) {
+    if (mount.features === undefined) continue;
+    for (const key of SELF_HOSTED_EDITION_FEATURE_KEYS) delete mount.features[key];
+  }
+  return copy;
+}
+
+/** Writes edition keys onto the publication mount when `KNOWN_EDITION=self-hosted`. */
+export function applySelfHostedManifestFeatures<T>(manifest: T): T {
+  const features = selfHostedManifestFeatures();
+  if (features === null) return manifest;
+  const copy = structuredClone(manifest) as T & {
+    mounts: Array<{ features: Record<string, unknown> }>;
+  };
+  const mount = copy.mounts[0];
+  if (mount === undefined) return manifest;
+  mount.features = { ...mount.features, ...features };
+  return copy;
+}
+
+function mountHasEditionFeatures(features: object | undefined): boolean {
+  if (features === undefined) return false;
+  const record = features as Record<string, unknown>;
+  return SELF_HOSTED_EDITION_FEATURE_KEYS.some((key) => Object.hasOwn(record, key));
+}
 
 export const PUBLICATION_MEDIA_TYPES = Object.freeze({
   manifest: 'application/vnd.collection-protocol.manifest+json;version=0.1',
@@ -161,7 +246,7 @@ export function createPublicationManifestCandidate(
     throw new Error(`Publication Manifest candidate failed COLP ${validation.stage} validation`);
   }
   return deepFreeze({
-    manifest: validation.value,
+    manifest: applySelfHostedManifestFeatures(validation.value),
     claimedProfiles: deriveClaimedProfiles(profiles),
     mediaTypes: PUBLICATION_MEDIA_TYPES,
     endpointTemplates: { ...config.endpoints },
@@ -181,8 +266,9 @@ export function createPublicationManifestCandidateV02(
   const base = createPublicationManifestCandidate(
     config, implementedEndpoints, profileClaims, syncProfileClaims,
   );
+  const protocolManifest = manifestWithoutSelfHostedEditionFeatures(base.manifest);
   const manifest: ManifestV02 = {
-    ...base.manifest,
+    ...protocolManifest,
     protocol: 'https://know-n.com/colp/spec/0.2',
     protocolVersions: ['0.1', '0.2'],
     syncEffectPages: config.endpoints.syncEffectPages as unknown as ManifestV02['syncEffectPages'],
@@ -191,7 +277,7 @@ export function createPublicationManifestCandidateV02(
   if (!validation.valid) {
     throw new Error('Publication Manifest 0.2 candidate failed COLP structural validation');
   }
-  return deepFreeze({ ...base, manifest });
+  return deepFreeze({ ...base, manifest: applySelfHostedManifestFeatures(manifest) });
 }
 
 function assertConfig(config: PublicationManifestConfig): void {

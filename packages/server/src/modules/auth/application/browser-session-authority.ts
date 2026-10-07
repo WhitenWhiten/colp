@@ -158,15 +158,23 @@ export type BrowserSessionCookieParseResult =
  * its value is a parse error. BA 1.7.1 is first-wins on duplicates (spike
  * §3.2/R3), so the authority MUST reject them itself.
  */
+function acceptedBrowserSessionCookieNames(): ReadonlySet<string> {
+  if (process.env.COLP_INSECURE_HTTP === 'true') {
+    return new Set([BROWSER_SESSION_COOKIE_NAME, 'known_session']);
+  }
+  return new Set([BROWSER_SESSION_COOKIE_NAME]);
+}
+
 export function parseBrowserSessionCookie(cookieHeader: string | undefined): BrowserSessionCookieParseResult {
   if (cookieHeader === undefined) return { kind: 'absent' };
+  const accepted = acceptedBrowserSessionCookieNames();
   let value: string | null = null;
   for (const part of cookieHeader.split(';')) {
     const trimmed = part.trim();
     const eq = trimmed.indexOf('=');
     if (eq === -1) continue;
     const name = trimmed.slice(0, eq).trim();
-    if (name !== BROWSER_SESSION_COOKIE_NAME) continue;
+    if (!accepted.has(name)) continue;
     if (value !== null) return { kind: 'parse-error' };
     try {
       value = decodeURIComponent(trimmed.slice(eq + 1));
@@ -203,7 +211,8 @@ export function browserSessionTokenHash(sessionToken: string): string {
  * whose name never matches the session cookie name (silently absent).
  */
 export function browserSessionCookieHeader(cookieValue: string): string {
-  return `${BROWSER_SESSION_COOKIE_NAME}=${encodeURIComponent(cookieValue)}`;
+  const name = process.env.COLP_INSECURE_HTTP === 'true' ? 'known_session' : BROWSER_SESSION_COOKIE_NAME;
+  return `${name}=${encodeURIComponent(cookieValue)}`;
 }
 
 /**
