@@ -2,7 +2,7 @@
  * Non-atomic Push keeps its committed prefix visible when a later operation is
  * denied for reuse; atomic batches expose no newly committed prefix.
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { Operation } from '../../src/types/index.js';
 import {
@@ -75,6 +75,47 @@ async function denial(promise: Promise<unknown>): Promise<unknown> {
 }
 
 describe('non-atomic Push reuse denial after progress', () => {
+  it.each(['wide', 'deep', 'bytes'] as const)('preserves 409 and replayable progress for individually valid results (%s)', async (shape) => {
+    const session = await verifiedSession('session-1', { authorizationScopes: ['sync:push'] });
+    const db = new LaneSerializedDatabase();
+    const host = createSyncHost({ owner: 'push', session, pushOwnershipVerifier: () => true });
+    const prefix = Array.from({ length: 20 }, (_, index) => item(`op-${index + 1}`, index + 1));
+    const transform = shape === 'wide'
+      ? Object.fromEntries(Array.from({ length: 600 }, (_, key) => [`k${key}`, key]))
+      : shape === 'bytes' ? { value: 'x'.repeat(500_000) }
+        : Array.from({ length: 60 }).reduce<Record<string, unknown>>((value) => ({ nested: value }), { leaf: 1 });
+    const preflight = async ({ operation }: PushTransactionOperation): Promise<Plan> => ({
+      status: 'rebased',
+      apply: async (transaction) => {
+        await transaction.putBusiness(`business-${operation.opId}`);
+        return { opId: operation.opId, sequence: operation.sequence, status: 'rebased',
+          revision: 'r2', warnings: [], transform };
+      },
+      audit: async () => ({ id: `audit-${operation.opId}` }),
+      outbox: async ({ cursor }) => ({ id: `outbox-${operation.opId}`, cursor: cursor! }),
+    });
+    const error = await denial(host.push(new LaneSerializedUnitOfWork(db),
+      batch(session.sessionId, false, [...prefix, item('denied', 1)]), preflight));
+    expect(error).toBeInstanceOf(PushOperationReuseError);
+    const reuse = error as PushOperationReuseError;
+    expect(reuse).toMatchObject({ status: 409, code: 'sequence_reuse', progress: {
+      results: expect.any(Array), failed: { index: 20, opId: 'denied' }, serverCursor: 'cursor-20',
+    } });
+    expect(reuse.progress.results).toHaveLength(20);
+    expect(Object.isFrozen(reuse.progress)).toBe(true);
+    const first = reuse.progress.results[0];
+    if (first?.status !== 'rebased') throw new Error('Expected rebased prefix result');
+    expect(Object.isFrozen(first.transform)).toBe(true);
+    expect(db.state.business).toHaveLength(20);
+    expect(db.state.receipts).toHaveLength(20);
+    expect(db.state.reuseAudits.get(reuse.auditKey)).toEqual(reuse.audit);
+    const replay = vi.fn(async (): Promise<Plan> => { throw new Error('prefix must replay without preflight'); });
+    const retried = await host.push(new LaneSerializedUnitOfWork(db), batch(session.sessionId, false, prefix), replay);
+    expect(retried.result.results).toEqual(reuse.progress.results);
+    expect(replay).not.toHaveBeenCalled();
+    expect(db.state.business).toHaveLength(20);
+  });
+
   it('exposes the committed prefix, failed identity, latest cursor and persisted audit', async () => {
     const { db, push, sessionId } = await setup();
     const error = await denial(push(batch(sessionId, false, [item('op-1', 1), item('op-2', 1)])));

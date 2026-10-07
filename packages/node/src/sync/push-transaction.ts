@@ -5,6 +5,7 @@ import type {
   SyncUnitOfWork,
 } from './index.js';
 import { immutableJsonData } from '../shared/immutable-json.js';
+import { snapshotPushPartialProgress } from './push-partial-progress.js';
 import {
   pushExecutionScope,
   type PushExecutionScope,
@@ -226,7 +227,7 @@ export class PushOperationReuseError extends SyncOperationReuseError {
   constructor(auditKey: string, audit: SyncOperationReuseAudit, progress: PushPartialProgress) {
     super(auditKey, audit);
     this.name = 'PushOperationReuseError';
-    this.progress = immutableData(progress, 'Push partial progress');
+    this.progress = snapshotPushPartialProgress(progress);
   }
 }
 

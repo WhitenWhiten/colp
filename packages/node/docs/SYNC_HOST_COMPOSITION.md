@@ -235,6 +235,10 @@ persisted audit, and may additionally surface `error.progress`:
 - `serverCursor` — the latest cursor committed by this invocation, else the
   request's `serverCursor`.
 
+The prefix snapshots each result under the same individual JSON budgets as a
+successful Push, with the normal batch-count bound. It does not impose a
+single-result member, depth or byte budget on the combined committed prefix.
+
 Clients should persist the prefix results, then inspect local state for the
 denied operation (the registry says to stop and check). Resending the
 committed operations replays their stored results without new business
