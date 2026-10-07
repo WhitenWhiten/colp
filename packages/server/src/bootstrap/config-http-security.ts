@@ -6,7 +6,10 @@ import {
   requireNonEmpty,
 } from './config-parse-helpers.js';
 import { resolveLimiterRedisUrl } from './config-redis-roles.js';
-import { BETTER_AUTH_OAUTH_ACCESS_TOKEN_EXPIRES_IN_SECONDS } from '../modules/auth/better-auth-config.js';
+import {
+  BETTER_AUTH_OAUTH_ACCESS_TOKEN_EXPIRES_IN_SECONDS,
+  resolveBetterAuthCookieName,
+} from '../modules/auth/better-auth-config.js';
 import type {
   BetterAuthCutoverMode,
   BetterAuthFeatureConfig,
@@ -102,12 +105,13 @@ export function loadBetterAuthConfig(
   if (!basePath.startsWith('/') || basePath.endsWith('/') || basePath.includes('?')) {
     throw new Error('BETTER_AUTH_BASE_PATH must be an absolute path without a trailing slash');
   }
-  // G1 §4: the single browser session cookie name is frozen.
-  const rawCookieName = env.BETTER_AUTH_COOKIE_NAME?.trim() || '__Host-known_session';
-  if (rawCookieName !== '__Host-known_session') {
-    throw new Error('BETTER_AUTH_COOKIE_NAME is frozen to __Host-known_session (single browser session cookie contract)');
-  }
-  const cookieName = rawCookieName as '__Host-known_session';
+  // G1 §4 / G3: TLS stays frozen to `__Host-known_session`. Insecure HTTP
+  // allows that name or `known_session` and emits `known_session`.
+  const cookieName = resolveBetterAuthCookieName(
+    env.BETTER_AUTH_COOKIE_NAME?.trim()
+      || (env.COLP_INSECURE_HTTP === 'true' ? 'known_session' : '__Host-known_session'),
+    env,
+  );
   const sessionExpiresInSeconds = parsePositiveInt(
     env.BETTER_AUTH_SESSION_EXPIRES_IN_SECONDS,
     86_400,
@@ -584,6 +588,6 @@ export function loadHttpSecurity(env: NodeJS.ProcessEnv, nodeEnv: string): HttpS
       }),
     },
     authApiReplicas,
-    enableHsts: nodeEnv === 'production',
+    enableHsts: nodeEnv === 'production' && env.COLP_INSECURE_HTTP !== 'true',
   };
 }

@@ -32,8 +32,50 @@ import {
  * without dependency-graph changes.
  */
 
-/** Frozen single browser session cookie (G1 §4; spike §4.1). */
+/** Frozen HTTPS browser session cookie (G1 §4; spike §4.1). */
 export const BETTER_AUTH_COOKIE_NAME = '__Host-known_session' as const;
+
+/**
+ * Insecure-HTTP session cookie (G3). Not a `__Host-` name: that prefix
+ * requires Secure, which browsers will not store on `http://`.
+ */
+export const INSECURE_HTTP_COOKIE_NAME = 'known_session' as const;
+
+export type BetterAuthSessionCookieName =
+  | typeof BETTER_AUTH_COOKIE_NAME
+  | typeof INSECURE_HTTP_COOKIE_NAME;
+
+/** True only for the explicit insecure-HTTP opt-in. Any other value stays TLS. */
+export function colpInsecureHttpEnabled(
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  return env.COLP_INSECURE_HTTP === 'true';
+}
+
+/**
+ * Mode chooses the cookie. TLS stays frozen to `__Host-known_session`.
+ * `COLP_INSECURE_HTTP=true` allows that name or `known_session` as input and
+ * emits `known_session`. Any other name fails startup.
+ */
+export function resolveBetterAuthCookieName(
+  inputName: string,
+  env: NodeJS.ProcessEnv = process.env,
+): BetterAuthSessionCookieName {
+  if (colpInsecureHttpEnabled(env)) {
+    if (inputName !== BETTER_AUTH_COOKIE_NAME && inputName !== INSECURE_HTTP_COOKIE_NAME) {
+      throw new Error(
+        'BETTER_AUTH_COOKIE_NAME is frozen to known_session when COLP_INSECURE_HTTP=true',
+      );
+    }
+    return INSECURE_HTTP_COOKIE_NAME;
+  }
+  if (inputName !== BETTER_AUTH_COOKIE_NAME) {
+    throw new Error(
+      'BETTER_AUTH_COOKIE_NAME is frozen to __Host-known_session (single browser session cookie contract)',
+    );
+  }
+  return BETTER_AUTH_COOKIE_NAME;
+}
 
 /** Default Better Auth base path (G1 §10). */
 export const BETTER_AUTH_DEFAULT_BASE_PATH = '/api/v1/auth' as const;
@@ -236,7 +278,7 @@ export interface BetterAuthConfig {
   readonly secret: string;
   readonly sessionTokenProtection: BetterAuthSessionTokenProtectionConfig;
   readonly trustedOrigins: readonly string[];
-  readonly cookieName: '__Host-known_session';
+  readonly cookieName: BetterAuthSessionCookieName;
   readonly sessionExpiresInSeconds: number;
   readonly sessionUpdateAgeSeconds: number;
   readonly bodyLimitBytes: number;
@@ -292,9 +334,7 @@ export interface BetterAuthOauthIssuerConfig {
  */
 export function buildBetterAuthConfig(input: BetterAuthConfigInput): BetterAuthConfig | null {
   if (!input.enabled) return null;
-  if (input.cookieName !== BETTER_AUTH_COOKIE_NAME) {
-    throw new Error('BETTER_AUTH_COOKIE_NAME is frozen to __Host-known_session (single browser session cookie contract)');
-  }
+  const cookieName = resolveBetterAuthCookieName(input.cookieName);
   if (input.secret === null || input.secret.length < 32) {
     throw new Error('BETTER_AUTH_SECRET must be at least 32 characters');
   }
@@ -340,7 +380,7 @@ export function buildBetterAuthConfig(input: BetterAuthConfigInput): BetterAuthC
         : new Date(input.sessionTokenProtection.legacyPlaintextReadUntil),
     }),
     trustedOrigins: Object.freeze([...input.trustedOrigins]),
-    cookieName: BETTER_AUTH_COOKIE_NAME,
+    cookieName,
     sessionExpiresInSeconds: input.sessionExpiresInSeconds,
     sessionUpdateAgeSeconds: input.sessionUpdateAgeSeconds,
     bodyLimitBytes: input.bodyLimitBytes,

@@ -259,7 +259,7 @@ export function createPkceAuthorizationFlow(config: ExtensionAuthConfig): PkceAu
 }
 
 const BEARER_CREDENTIAL = /^[A-Za-z0-9\-._~+/]+=*$/;
-const SESSION_COOKIE_PREFIX = /^__Host-known_session=/u;
+const SESSION_COOKIE_PREFIX = /^(?:__Host-known_session|known_session)=/u;
 const MAX_BEARER_CREDENTIAL_CHARS = 4_096;
 
 export function parseSingleBearerAuthorization(header: string | readonly string[] | undefined): string {
@@ -410,7 +410,8 @@ export function createCompositeExtensionCredentialVerifier(
 }
 
 function browserSessionCookieHeader(cookieValue: string): string {
-  return `__Host-known_session=${encodeURIComponent(cookieValue)}`;
+  const name = process.env.COLP_INSECURE_HTTP === 'true' ? 'known_session' : '__Host-known_session';
+  return `${name}=${encodeURIComponent(cookieValue)}`;
 }
 
 export interface ExtensionJwksProvider {

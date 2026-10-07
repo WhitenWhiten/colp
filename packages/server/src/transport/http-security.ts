@@ -676,6 +676,19 @@ export interface SecurityHeaderWriter {
   header(name: string, value: string): unknown;
 }
 
+/** Exact startup line when insecure HTTP is opted in (G3). */
+export const INSECURE_HTTP_TRANSPORT_WARNING =
+  'COLP_INSECURE_HTTP=true: credentials and bookmarks travel unencrypted';
+
+/** Logs the insecure-HTTP warning. No-op unless `COLP_INSECURE_HTTP=true`. */
+export function warnInsecureHttpTransport(
+  log: { warn(message: string): void } = console,
+): void {
+  if (process.env.COLP_INSECURE_HTTP !== 'true') return;
+  log.warn(INSECURE_HTTP_TRANSPORT_WARNING);
+  if (log !== console) console.warn(INSECURE_HTTP_TRANSPORT_WARNING);
+}
+
 /** Security headers appropriate for API + browser-auth JSON/redirect responses. */
 export function applySecurityHeaders(
   reply: SecurityHeaderWriter,
@@ -734,7 +747,10 @@ export function installHttpSecurity(
     }
     limiter = createMemoryAuthRateLimiter({ maxRequests, windowMs });
   }
-  const enableHsts = options.security.enableHsts;
+  // HSTS on an acknowledged-insecure origin would pin browsers to HTTPS
+  // they do not have. The warning is once per app start.
+  const enableHsts = options.security.enableHsts && process.env.COLP_INSECURE_HTTP !== 'true';
+  warnInsecureHttpTransport(app.log);
   const metrics = options.metrics;
   // F2: BA mode derives the family map from the manifest WITHOUT the legacy
   // OIDC entries (see InstallHttpSecurityOptions.excludeLegacyOidcFamilies).

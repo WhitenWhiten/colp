@@ -178,8 +178,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   } catch {
     throw new Error('PRODUCT_ORIGIN must be a valid absolute origin URL');
   }
-  // __Host- session cookies require Secure over HTTPS at the browser edge.
-  if (nodeEnv === 'production' && productOriginUrl.protocol !== 'https:') {
+  // `__Host-` cookies require Secure over HTTPS. Insecure HTTP opts into
+  // `known_session` instead, so an http origin is then allowed.
+  if (nodeEnv === 'production' && productOriginUrl.protocol !== 'https:' && env.COLP_INSECURE_HTTP !== 'true') {
     throw new Error('PRODUCT_ORIGIN must use https in production (__Host- session cookie contract)');
   }
   const allowedOrigins = parseOrigins(env.ALLOWED_ORIGINS, productOrigin);
@@ -570,7 +571,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     testIdentityProviderEnabled: oidcRuntime.testIdentityProviderEnabled,
     testAuthMailboxHttp: oidcRuntime.testAuthMailboxHttp,
     oidcTransactionSecrets,
-    sessionCookieName: '__Host-known_session',
+    sessionCookieName: betterAuth.cookieName,
     productEditorCursor,
     productOwnedCollectionsCursor,
     linkHealth,

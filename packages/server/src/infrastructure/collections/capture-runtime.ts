@@ -163,7 +163,15 @@ export function createCaptureRuntime(db: Kysely<DatabaseSchema>, preview: Captur
           .where('id', '=', row.id).returningAll().executeTakeFirstOrThrow());
       });
     },
-    capabilities: () => ({ policyVersion: CAPTURE_POLICY_VERSION, automaticFolderAvailable: available(), automaticTagsAvailable: tagsAvailable() }),
+    capabilities: () => {
+      // Self-hosted reports cloud classification off even if a flag is forced on.
+      const cloudOff = process.env.KNOWN_EDITION === 'self-hosted';
+      return {
+        policyVersion: CAPTURE_POLICY_VERSION,
+        automaticFolderAvailable: cloudOff ? false : available(),
+        automaticTagsAvailable: cloudOff ? false : tagsAvailable(),
+      };
+    },
     async get(actor, collectionId, decisionId) {
       return viewStored(await owned(actor, collectionId, decisionId));
     },

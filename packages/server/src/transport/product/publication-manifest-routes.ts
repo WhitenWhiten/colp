@@ -13,6 +13,8 @@ import type { PublicationConfig } from '../../bootstrap/config.js';
 import {
   createPublicationManifestCandidate,
   createPublicationManifestCandidateV02,
+  applySelfHostedManifestFeatures,
+  manifestWithoutSelfHostedEditionFeatures,
   assertPhase2PublicationProfileClaimController,
   deriveClaimedProfiles,
   type Phase2PublicationProfileClaimController,
@@ -163,9 +165,10 @@ function createManifestRepresentation(
       mcpWriteProfileClaims,
       mcpAssertOptions,
     );
+    const protocolManifest = manifestWithoutSelfHostedEditionFeatures(manifest);
     const combined = {
-      ...manifest,
-      mounts: [...manifest.mounts, mcpCandidate.manifest.mounts[0]],
+      ...protocolManifest,
+      mounts: [...protocolManifest.mounts, mcpCandidate.manifest.mounts[0]],
     } as Manifest;
     const validation = version === '0.2'
       ? createValidatorRegistry().validate('manifestV02', combined)
@@ -178,7 +181,7 @@ function createManifestRepresentation(
     if (!validation.valid) {
       throw new Error('Combined Publication/MCP Manifest failed COLP validation');
     }
-    manifest = combined;
+    manifest = applySelfHostedManifestFeatures(combined);
     const allProfiles = [...new Set(combined.mounts.flatMap((mount) => mount.profiles))];
     claimedProfiles = deriveClaimedProfiles(allProfiles);
   }
