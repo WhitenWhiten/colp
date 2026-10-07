@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 4,
+  "providerErrorSamples": {
+    "precondition": ["PreconditionFailed", "412"],
+    "not_found": ["NoSuchKey", "NotFound", "404"],
+    "denied": ["AccessDenied", "InvalidAccessKeyId", "SignatureDoesNotMatch", "401", "403"],
+    "retryable": ["SlowDown", "RequestTimeout", "ServiceUnavailable", "429", "500", "503"],
+    "unknown": ["connection_closed_after_request", "malformed_response"]
+  },
+  "scannerScenarios": [
+    { "name": "clean", "fixture": "clean.txt", "expectedExitCode": 0, "expectedVerdict": "clean" },
+    { "name": "malicious", "fixture": "eicar.fixture.json", "fixtureEncoding": "generator-spec-json", "expectedExitCode": 1, "expectedVerdict": "malicious" },
+    { "name": "timeout", "fault": "real-container-sleep-exceeds-5-second-harness-deadline", "minimumObservedMilliseconds": 5000, "expectedExitCode": 2, "expectedVerdict": "timeout" },
+    { "name": "unavailable", "fault": "real-container-empty-read-only-signature-database", "expectedExitCode": 3, "expectedVerdict": "unavailable" }
+  ]
+}

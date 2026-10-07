@@ -1,0 +1,789 @@
+{
+  "schemaVersion": 1,
+  "strategy": "per-module-counter-ratchet",
+  "sourceRoot": "src",
+  "fileMinimums": {
+    "lines": 1,
+    "branches": 0,
+    "functions": 0,
+    "statements": 1
+  },
+  "newFileMinimums": {
+    "lines": 40,
+    "branches": 15,
+    "functions": 25,
+    "statements": 40
+  },
+  "fileMinimumsRationale": "Two tripwires, not a quality bar. Grandfathered inventory files keep the 1/0/0/1 floor so a zero-coverage file cannot hide behind a green module total. Files added to the Phase 1-3 inventory after BT-07 must meet focused-style newFileMinimums (40/15/25/40). Module floors remain the ratchet. Phase 4/5 social, notifications, MCP, and attachments stay outside this gate.",
+  "recalibration": {
+    "measuredAt": "2026-09-01",
+    "runtime": "Node 24.14.0 on Linux with PostgreSQL 16.4 and real Redis coverage suites",
+    "command": "npm run test:unit:coverage",
+    "gatedFileCount": 630,
+    "marginPercentagePoints": 2,
+    "rationale": "Full merged unit/PostgreSQL measurement after promoting six shared infrastructure modules. The inventory now also includes the bounded report transport split introduced after that measurement; only metrics below their stale historical floor and the newly owned modules are recalibrated, while new files still receive 40/15/25/40 independently.",
+    "adjustedMetrics": {
+      "src/bootstrap": {
+        "lines": {
+          "measured": 76.88,
+          "minimum": 74.88
+        },
+        "functions": {
+          "measured": 88.43,
+          "minimum": 86.43
+        },
+        "statements": {
+          "measured": 76.88,
+          "minimum": 74.88
+        }
+      },
+      "src/infrastructure/cache": {
+        "lines": {
+          "measured": 94.42,
+          "minimum": 92.42
+        },
+        "branches": {
+          "measured": 90.15,
+          "minimum": 88.15
+        },
+        "functions": {
+          "measured": 97.45,
+          "minimum": 95.45
+        },
+        "statements": {
+          "measured": 94.42,
+          "minimum": 92.42
+        }
+      },
+      "src/infrastructure/config": {
+        "lines": {
+          "measured": 100,
+          "minimum": 97.5
+        },
+        "branches": {
+          "measured": 100,
+          "minimum": 97.5
+        },
+        "functions": {
+          "measured": 100,
+          "minimum": 97.5
+        },
+        "statements": {
+          "measured": 100,
+          "minimum": 97.5
+        }
+      },
+      "src/infrastructure/database": {
+        "lines": {
+          "measured": 88.89,
+          "minimum": 86.89
+        },
+        "branches": {
+          "measured": 79.29,
+          "minimum": 77.29
+        },
+        "functions": {
+          "measured": 94.05,
+          "minimum": 92.05
+        },
+        "statements": {
+          "measured": 88.89,
+          "minimum": 86.89
+        }
+      },
+      "src/infrastructure/http": {
+        "lines": {
+          "measured": 95.79,
+          "minimum": 93.79
+        },
+        "branches": {
+          "measured": 84.04,
+          "minimum": 82.04
+        },
+        "functions": {
+          "measured": 100,
+          "minimum": 97.5
+        },
+        "statements": {
+          "measured": 95.79,
+          "minimum": 93.79
+        }
+      },
+      "src/infrastructure/ledger-archive": {
+        "lines": {
+          "measured": 86.73,
+          "minimum": 84.73
+        },
+        "branches": {
+          "measured": 72.88,
+          "minimum": 70.88
+        },
+        "functions": {
+          "measured": 94.73,
+          "minimum": 92.73
+        },
+        "statements": {
+          "measured": 86.73,
+          "minimum": 84.73
+        }
+      },
+      "src/infrastructure/publication": {
+        "functions": {
+          "measured": 96.66,
+          "minimum": 94.66
+        }
+      },
+      "src/infrastructure/publisher": {
+        "lines": {
+          "measured": 53.43,
+          "minimum": 51.43
+        },
+        "statements": {
+          "measured": 53.43,
+          "minimum": 51.43
+        }
+      },
+      "src/infrastructure/rate-limit": {
+        "lines": {
+          "measured": 84.78,
+          "minimum": 82.78
+        },
+        "branches": {
+          "measured": 80.61,
+          "minimum": 78.61
+        },
+        "functions": {
+          "measured": 87.07,
+          "minimum": 85.07
+        },
+        "statements": {
+          "measured": 84.78,
+          "minimum": 82.78
+        }
+      },
+      "src/infrastructure/seed": {
+        "lines": {
+          "measured": 90.12,
+          "minimum": 88.12
+        },
+        "branches": {
+          "measured": 78.13,
+          "minimum": 76.13
+        },
+        "functions": {
+          "measured": 94.11,
+          "minimum": 92.11
+        },
+        "statements": {
+          "measured": 90.12,
+          "minimum": 88.12
+        }
+      },
+      "src/infrastructure/telemetry": {
+        "branches": {
+          "measured": 79.83,
+          "minimum": 77.83
+        }
+      },
+      "src/modules/access-policy": {
+        "lines": {
+          "measured": 92.3,
+          "minimum": 90.3
+        },
+        "branches": {
+          "measured": 77.69,
+          "minimum": 75.69
+        },
+        "statements": {
+          "measured": 92.3,
+          "minimum": 90.3
+        }
+      },
+      "src/modules/collections": {
+        "functions": {
+          "measured": 94.49,
+          "minimum": 92.49
+        }
+      },
+      "src/modules/commands": {
+        "lines": {
+          "measured": 92.14,
+          "minimum": 90.14
+        },
+        "branches": {
+          "measured": 84.07,
+          "minimum": 82.07
+        },
+        "functions": {
+          "measured": 87.09,
+          "minimum": 85.09
+        },
+        "statements": {
+          "measured": 92.14,
+          "minimum": 90.14
+        }
+      },
+      "src/infrastructure/security": {
+        "lines": {
+          "measured": 100,
+          "minimum": 98
+        },
+        "branches": {
+          "measured": 78.78,
+          "minimum": 76.78
+        },
+        "functions": {
+          "measured": 100,
+          "minimum": 98
+        },
+        "statements": {
+          "measured": 100,
+          "minimum": 98
+        }
+      }
+    },
+    "securityPromotion": {
+      "measuredAt": "2026-09-19",
+      "command": "vitest run --project unit tests/unit/security/classification-secret-envelope.test.ts --coverage --coverage.include=src/infrastructure/security/classification-secret-envelope.ts",
+      "rationale": "Measured the new secret-envelope source root with its runtime tests; retain the existing two-point module margin and new-file floors."
+    }
+  },
+  "modules": {
+    "src/bootstrap": {
+      "lines": 74.88,
+      "branches": 82.38,
+      "functions": 86.43,
+      "statements": 74.88
+    },
+    "src/infrastructure/access-policy": {
+      "lines": 89.17,
+      "branches": 83.21,
+      "functions": 97.5,
+      "statements": 89.17
+    },
+    "src/infrastructure/async": {
+      "lines": 97.5,
+      "branches": 97.5,
+      "functions": 97.5,
+      "statements": 97.5
+    },
+    "src/infrastructure/auth": {
+      "lines": 60.05,
+      "branches": 55.41,
+      "functions": 63.01,
+      "statements": 60.05
+    },
+    "src/infrastructure/cache": {
+      "lines": 92.42,
+      "branches": 88.15,
+      "functions": 95.45,
+      "statements": 92.42
+    },
+    "src/infrastructure/collaboration": {
+      "lines": 1,
+      "branches": 0,
+      "functions": 0,
+      "statements": 1
+    },
+    "src/infrastructure/collections": {
+      "lines": 81.82,
+      "branches": 75.84,
+      "functions": 84.17,
+      "statements": 81.82
+    },
+    "src/infrastructure/colp": {
+      "lines": 97.5,
+      "branches": 97.5,
+      "functions": 97.5,
+      "statements": 97.5
+    },
+    "src/infrastructure/config": {
+      "lines": 97.5,
+      "branches": 97.5,
+      "functions": 97.5,
+      "statements": 97.5
+    },
+    "src/infrastructure/database": {
+      "lines": 86.89,
+      "branches": 77.29,
+      "functions": 92.05,
+      "statements": 86.89
+    },
+    "src/infrastructure/health.ts": {
+      "lines": 97.5,
+      "branches": 97.5,
+      "functions": 97.5,
+      "statements": 97.5
+    },
+    "src/infrastructure/http": {
+      "lines": 93.79,
+      "branches": 82.04,
+      "functions": 97.5,
+      "statements": 93.79
+    },
+    "src/infrastructure/identity": {
+      "lines": 85.51,
+      "branches": 74.62,
+      "functions": 91.05,
+      "statements": 85.51
+    },
+    "src/infrastructure/ledger-archive": {
+      "lines": 84.73,
+      "branches": 70.88,
+      "functions": 92.73,
+      "statements": 84.73
+    },
+    "src/infrastructure/outbox": {
+      "lines": 89.2,
+      "branches": 80.7,
+      "functions": 94.27,
+      "statements": 89.2
+    },
+    "src/infrastructure/publication": {
+      "lines": 87.49,
+      "branches": 72.96,
+      "functions": 94.66,
+      "statements": 87.49
+    },
+    "src/infrastructure/publisher": {
+      "lines": 51.43,
+      "branches": 49.67,
+      "functions": 67.5,
+      "statements": 51.43
+    },
+    "src/infrastructure/rate-limit": {
+      "lines": 82.78,
+      "branches": 78.61,
+      "functions": 85.07,
+      "statements": 82.78
+    },
+    "src/infrastructure/reading-progress": {
+      "lines": 96.35,
+      "branches": 91.53,
+      "functions": 97.5,
+      "statements": 96.35
+    },
+    "src/infrastructure/search": {
+      "lines": 86.93,
+      "branches": 76.94,
+      "functions": 89.81,
+      "statements": 86.93
+    },
+    "src/infrastructure/seed": {
+      "lines": 88.12,
+      "branches": 76.13,
+      "functions": 92.11,
+      "statements": 88.12
+    },
+    "src/infrastructure/sync": {
+      "lines": 90.63,
+      "branches": 73.79,
+      "functions": 88.94,
+      "statements": 90.63
+    },
+    "src/infrastructure/telemetry": {
+      "lines": 94.68,
+      "branches": 77.83,
+      "functions": 91.25,
+      "statements": 94.68
+    },
+    "src/modules/access-policy": {
+      "lines": 90.3,
+      "branches": 75.69,
+      "functions": 72.5,
+      "statements": 90.3
+    },
+    "src/modules/auth": {
+      "lines": 92.5,
+      "branches": 86.43,
+      "functions": 97.5,
+      "statements": 92.5
+    },
+    "src/modules/collections": {
+      "lines": 86.92,
+      "branches": 81.13,
+      "functions": 92.49,
+      "statements": 86.92
+    },
+    "src/modules/commands": {
+      "lines": 90.14,
+      "branches": 82.07,
+      "functions": 85.09,
+      "statements": 90.14
+    },
+    "src/modules/identity": {
+      "lines": 82.76,
+      "branches": 75.84,
+      "functions": 87.84,
+      "statements": 82.76
+    },
+    "src/modules/publication": {
+      "lines": 87.18,
+      "branches": 79.92,
+      "functions": 92.62,
+      "statements": 87.18
+    },
+    "src/modules/publisher": {
+      "lines": 84.75,
+      "branches": 56.49,
+      "functions": 91.05,
+      "statements": 84.75
+    },
+    "src/modules/reading-progress": {
+      "lines": 91.77,
+      "branches": 81.8,
+      "functions": 97.5,
+      "statements": 91.77
+    },
+    "src/modules/search": {
+      "lines": 92.69,
+      "branches": 87.34,
+      "functions": 97.5,
+      "statements": 92.69
+    },
+    "src/modules/sync": {
+      "lines": 85.08,
+      "branches": 80.83,
+      "functions": 89.17,
+      "statements": 85.08
+    },
+    "src/transport": {
+      "lines": 86.58,
+      "branches": 78.77,
+      "functions": 90.5,
+      "statements": 86.58
+    },
+    "src/infrastructure/security": {
+      "lines": 98,
+      "branches": 76.78,
+      "functions": 98,
+      "statements": 98
+    }
+  },
+  "fileOverrides": {
+    "src/bootstrap/api-account-services.ts": {
+      "lines": 91.38,
+      "branches": 73,
+      "functions": 97.5,
+      "statements": 91.38
+    },
+    "src/bootstrap/api-attachments-composition.ts": {
+      "lines": 65.28,
+      "branches": 68.83,
+      "functions": 33.71,
+      "statements": 65.28
+    },
+    "src/bootstrap/api-auth-mailbox.ts": {
+      "lines": 97.5,
+      "branches": 91.75,
+      "functions": 97.5,
+      "statements": 97.5
+    },
+    "src/bootstrap/api-email-composition.ts": {
+      "lines": 67.52,
+      "branches": 43.45,
+      "functions": 31.33,
+      "statements": 67.52
+    },
+    "src/bootstrap/api-lifecycle.ts": {
+      "lines": 90.3,
+      "branches": 90.1,
+      "functions": 97.5,
+      "statements": 90.3
+    },
+    "src/bootstrap/api-mcp-oauth-composition.ts": {
+      "lines": 95.46,
+      "branches": 93.45,
+      "functions": 97.5,
+      "statements": 95.46
+    },
+    "src/bootstrap/api-mcp-surface-composition.ts": {
+      "lines": 76.53,
+      "branches": 66.88,
+      "functions": 26.57,
+      "statements": 76.53
+    },
+    "src/bootstrap/api-postgres-ports.ts": {
+      "lines": 51.6,
+      "branches": 82.61,
+      "functions": 73,
+      "statements": 51.6
+    },
+    "src/bootstrap/api-rate-limit-composition.ts": {
+      "lines": 44.55,
+      "branches": 21.8,
+      "functions": 97.5,
+      "statements": 44.55
+    },
+    "src/bootstrap/delivery-main.ts": {
+      "lines": 48.86,
+      "branches": 50.23,
+      "functions": 75.77,
+      "statements": 48.86
+    },
+    "src/bootstrap/sync-session-runtime.ts": {
+      "lines": 76.33,
+      "branches": 51.84,
+      "functions": 48,
+      "statements": 76.33
+    },
+    "src/bootstrap/attachments-delivery-composition.ts": {
+      "lines": 94.42,
+      "branches": 41.75,
+      "functions": 97.5,
+      "statements": 94.42
+    },
+    "src/bootstrap/attachments-object-storage-composition.ts": {
+      "lines": 97.5,
+      "branches": 97.5,
+      "functions": 97.5,
+      "statements": 97.5
+    },
+    "src/bootstrap/attachments-rate-limit-composition.ts": {
+      "lines": 78.43,
+      "branches": 65.85,
+      "functions": 83.71,
+      "statements": 78.43
+    },
+    "src/bootstrap/attachments-worker-composition.ts": {
+      "lines": 92.17,
+      "branches": 78.48,
+      "functions": 92.11,
+      "statements": 92.17
+    },
+    "src/bootstrap/cache-composition.ts": {
+      "lines": 88.24,
+      "branches": 81.54,
+      "functions": 97.5,
+      "statements": 88.24
+    },
+    "src/bootstrap/composition.ts": {
+      "lines": 90.95,
+      "branches": 84.36,
+      "functions": 97.5,
+      "statements": 90.95
+    },
+    "src/bootstrap/delivery.ts": {
+      "lines": 84.89,
+      "branches": 69.42,
+      "functions": 88.9,
+      "statements": 84.89
+    },
+    "src/bootstrap/mcp-write-composition.ts": {
+      "lines": 91.38,
+      "branches": 86.54,
+      "functions": 76.72,
+      "statements": 91.38
+    },
+    "src/bootstrap/public-profile-projection.ts": {
+      "lines": 89.37,
+      "branches": 80.35,
+      "functions": 97.5,
+      "statements": 89.37
+    },
+    "src/infrastructure/database/product-command-receipt.ts": {
+      "lines": 97.5,
+      "branches": 95,
+      "functions": 97.5,
+      "statements": 97.5
+    },
+    "src/modules/commands/application/receipt.ts": {
+      "lines": 96.4,
+      "branches": 86.02,
+      "functions": 97.5,
+      "statements": 96.4
+    },
+    "src/transport/product/collection-route-helpers.ts": {
+      "lines": 97.5,
+      "branches": 97.5,
+      "functions": 97.5,
+      "statements": 97.5
+    },
+    "src/transport/auth/origin-csrf.ts": {
+      "lines": 97.5,
+      "branches": 85.37,
+      "functions": 97.5,
+      "statements": 97.5
+    },
+    "src/transport/product-admission.ts": {
+      "lines": 89.36,
+      "branches": 85.27,
+      "functions": 97.5,
+      "statements": 89.36
+    },
+    "src/transport/product-command-mapping.ts": {
+      "lines": 87.53,
+      "branches": 81.96,
+      "functions": 97.5,
+      "statements": 87.53
+    },
+    "src/infrastructure/publisher/postgres-idempotency.ts": {
+      "lines": 70.3,
+      "branches": 50.17,
+      "functions": 85.5,
+      "statements": 70.3
+    },
+    "src/infrastructure/publisher/canonical-unit-of-work.ts": {
+      "lines": 97.5,
+      "branches": 97.5,
+      "functions": 97.5,
+      "statements": 97.5
+    },
+    "src/infrastructure/sync/managed-ancestry-policy.ts": {
+      "lines": 97.5,
+      "branches": 83.71,
+      "functions": 97.5,
+      "statements": 97.5
+    },
+    "src/infrastructure/sync/postgres/sync-ack-postgres.ts": {
+      "lines": 95.86,
+      "branches": 79.76,
+      "functions": 97.5,
+      "statements": 95.86
+    },
+    "src/infrastructure/sync/postgres/sync-evidence-maintenance-postgres.ts": {
+      "lines": 88.19,
+      "branches": 90.18,
+      "functions": 97.5,
+      "statements": 88.19
+    },
+    "src/infrastructure/sync/postgres/sync-pull-postgres.ts": {
+      "lines": 89.39,
+      "branches": 78.95,
+      "functions": 82.61,
+      "statements": 89.39
+    },
+    "src/infrastructure/sync/postgres/sync-recovery-postgres.ts": {
+      "lines": 93.95,
+      "branches": 79.63,
+      "functions": 97.5,
+      "statements": 93.95
+    },
+    "src/infrastructure/sync/product-sync-center-postgres.ts": {
+      "lines": 92.61,
+      "branches": 74.92,
+      "functions": 83.71,
+      "statements": 92.61
+    },
+    "src/infrastructure/sync/replica-lifecycle-postgres.ts": {
+      "lines": 89.34,
+      "branches": 78.7,
+      "functions": 84.66,
+      "statements": 89.34
+    },
+    "src/infrastructure/sync/replica-postgres.ts": {
+      "lines": 95.9,
+      "branches": 83.91,
+      "functions": 83,
+      "statements": 95.9
+    },
+    "src/infrastructure/sync/sync-bootstrap-snapshot-postgres.ts": {
+      "lines": 86.33,
+      "branches": 67.64,
+      "functions": 88.47,
+      "statements": 86.33
+    },
+    "src/infrastructure/sync/sync-conflict-postgres.ts": {
+      "lines": 91.53,
+      "branches": 78.62,
+      "functions": 83,
+      "statements": 91.53
+    },
+    "src/infrastructure/sync/sync-conflict-resolution-postgres.ts": {
+      "lines": 94.86,
+      "branches": 71.33,
+      "functions": 94.15,
+      "statements": 94.86
+    },
+    "src/infrastructure/sync/sync-effect-page-postgres.ts": {
+      "lines": 91.65,
+      "branches": 85.09,
+      "functions": 97.5,
+      "statements": 91.65
+    },
+    "src/infrastructure/sync/sync-node-tombstone-postgres.ts": {
+      "lines": 93.55,
+      "branches": 88,
+      "functions": 97.5,
+      "statements": 93.55
+    },
+    "src/infrastructure/sync/sync-operation-effects-postgres.ts": {
+      "lines": 88.64,
+      "branches": 75.57,
+      "functions": 97.5,
+      "statements": 88.64
+    },
+    "src/infrastructure/sync/sync-operations-telemetry-postgres.ts": {
+      "lines": 96.19,
+      "branches": 88.62,
+      "functions": 97.5,
+      "statements": 96.19
+    },
+    "src/infrastructure/sync/sync-push-postgres.ts": {
+      "lines": 97.5,
+      "branches": 93.65,
+      "functions": 97.5,
+      "statements": 97.5
+    },
+    "src/infrastructure/sync/sync-retire-postgres.ts": {
+      "lines": 92.7,
+      "branches": 85.34,
+      "functions": 97.5,
+      "statements": 92.7
+    },
+    "src/infrastructure/sync/sync-sequence-postgres.ts": {
+      "lines": 94.26,
+      "branches": 77.88,
+      "functions": 97.5,
+      "statements": 94.26
+    },
+    "src/infrastructure/sync/sync-session-postgres.ts": {
+      "lines": 97.5,
+      "branches": 97.5,
+      "functions": 97.5,
+      "statements": 97.5
+    },
+    "src/infrastructure/sync/sync-session-http-postgres.ts": {
+      "lines": 93.02,
+      "branches": 68.12,
+      "functions": 97.5,
+      "statements": 93.02
+    },
+    "src/infrastructure/sync/sync-tombstone-purge-postgres.ts": {
+      "lines": 90.98,
+      "branches": 69.95,
+      "functions": 84.66,
+      "statements": 90.98
+    },
+    "src/modules/sync/sync-conflict-resolution.ts": {
+      "lines": 96.29,
+      "branches": 87.28,
+      "functions": 97.5,
+      "statements": 96.29
+    },
+    "src/modules/sync/sync-route-authority.ts": {
+      "lines": 88.47,
+      "branches": 88,
+      "functions": 97.5,
+      "statements": 88.47
+    },
+    "src/modules/sync/sync-sequence.ts": {
+      "lines": 95.36,
+      "branches": 84.66,
+      "functions": 97.5,
+      "statements": 95.36
+    },
+    "src/modules/sync/sync-session.ts": {
+      "lines": 89.94,
+      "branches": 78.26,
+      "functions": 91.75,
+      "statements": 89.94
+    }
+  },
+  "deferredFloorReviews": {
+    "issue": "docs/audits/known-backend/2026-08-20/tests-quality-audit.md#T-04",
+    "expires": "2026-11-30",
+    "modules": {},
+    "fileOverrides": {}
+  }
+}

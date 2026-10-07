@@ -1,0 +1,15 @@
+{
+  "issuer": "https://issuer.example.test/",
+  "clientId": "known-chromium-extension",
+  "audience": "known-sync-api",
+  "authorizationEndpoint": "https://issuer.example.test/oauth2/authorize",
+  "tokenEndpoint": "https://issuer.example.test/oauth2/token",
+  "jwksUri": "https://issuer.example.test/.well-known/jwks.json",
+  "redirectUri": "https://pplpnpegpnghcddhmpgkbfkdfadjiaen.chromiumapp.org/oauth2",
+  "extensionIds": ["pplpnpegpnghcddhmpgkbfkdfadjiaen"],
+  "redirectOrigins": ["https://pplpnpegpnghcddhmpgkbfkdfadjiaen.chromiumapp.org"],
+  "scopes": ["openid", "profile", "offline_access", "known.sync"],
+  "algorithms": ["RS256"],
+  "clockSkewSeconds": 30,
+  "evidenceTtlSeconds": 60
+}

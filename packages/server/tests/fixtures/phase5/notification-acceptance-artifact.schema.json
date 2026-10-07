@@ -1,0 +1,218 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://known.local/schemas/phase5/notification-acceptance-artifact.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "accepted", "completedAt", "bindingMode", "evidenceBundle", "remediation", "source", "contracts", "migration", "worker", "api", "featureFlag", "browser", "environment", "chain", "proofs", "negativeControls", "gates", "gateDigest", "claims", "evidenceDigest"],
+  "properties": {
+    "schemaVersion": { "const": "known.phase5.notification-acceptance.v1" },
+    "accepted": { "const": true },
+    "completedAt": { "type": "string", "format": "date-time" },
+    "bindingMode": { "const": "exact-commit" },
+    "evidenceBundle": {
+      "type": "object", "additionalProperties": false,
+      "required": ["relativePath", "runtimeRootEnv"],
+      "properties": {
+        "relativePath": { "const": "p5-23/phase5-notification-acceptance.json" },
+        "runtimeRootEnv": { "const": "KNOWN_PHASE5_EVIDENCE_ROOT" }
+      }
+    },
+    "remediation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["realFollowFeedIntents", "dualHandlerIsolation", "batchIntentExactOnce", "databaseClock", "negativeControlMode"],
+      "properties": {
+        "realFollowFeedIntents": { "const": true },
+        "dualHandlerIsolation": { "const": true },
+        "batchIntentExactOnce": { "const": true },
+        "databaseClock": { "const": "postgresql-current_timestamp" },
+        "negativeControlMode": { "const": "real-temporary-source-corruption" }
+      }
+    },
+    "source": { "$ref": "#/$defs/source" },
+    "contracts": { "$ref": "#/$defs/contracts" },
+    "migration": { "$ref": "#/$defs/migration" },
+    "worker": { "$ref": "#/$defs/worker" },
+    "api": { "$ref": "#/$defs/api" },
+    "featureFlag": { "$ref": "#/$defs/featureFlag" },
+    "browser": { "$ref": "#/$defs/browser" },
+    "environment": { "$ref": "#/$defs/environment" },
+    "chain": { "$ref": "#/$defs/chain" },
+    "proofs": { "$ref": "#/$defs/proofs" },
+    "negativeControls": { "$ref": "#/$defs/negativeControls" },
+    "gates": { "$ref": "#/$defs/gates" },
+    "gateDigest": { "$ref": "#/$defs/digest" },
+    "claims": { "$ref": "#/$defs/claims" },
+    "evidenceDigest": { "$ref": "#/$defs/digest" }
+  },
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "source": {
+      "type": "object", "additionalProperties": false,
+      "required": ["expectedCommit", "checkoutCommit", "backendCommit", "frontendCommit", "colpCommit", "sourceTreeDigestStart", "sourceTreeDigestEnd", "sourceFileCount", "cleanStart", "cleanEnd"],
+      "properties": {
+        "expectedCommit": { "$ref": "#/$defs/commit" }, "checkoutCommit": { "$ref": "#/$defs/commit" },
+        "backendCommit": { "$ref": "#/$defs/commit" }, "frontendCommit": { "$ref": "#/$defs/commit" }, "colpCommit": { "$ref": "#/$defs/commit" },
+        "sourceTreeDigestStart": { "$ref": "#/$defs/digest" }, "sourceTreeDigestEnd": { "$ref": "#/$defs/digest" },
+        "sourceFileCount": { "type": "integer", "minimum": 1 }, "cleanStart": { "const": true }, "cleanEnd": { "const": true }
+      }
+    },
+    "contracts": {
+      "type": "object", "additionalProperties": false,
+      "required": ["eventTypes", "eventVersions", "producerVersions", "consumerVersions", "eventContractDigest", "producerDigest", "consumerDigest", "artifactSchemaDigest"],
+      "properties": {
+        "eventTypes": { "type": "array", "prefixItems": [{ "const": "social.follow-created" }, { "const": "social.feed-item-published" }], "items": false, "minItems": 2, "maxItems": 2 },
+        "eventVersions": { "type": "array", "prefixItems": [{ "const": 1 }, { "const": 1 }], "items": false, "minItems": 2, "maxItems": 2 },
+        "producerVersions": { "type": "array", "prefixItems": [{ "const": 1 }, { "const": 1 }], "items": false, "minItems": 2, "maxItems": 2 },
+        "consumerVersions": { "type": "array", "prefixItems": [{ "const": 1 }, { "const": 1 }], "items": false, "minItems": 2, "maxItems": 2 },
+        "eventContractDigest": { "$ref": "#/$defs/digest" }, "producerDigest": { "$ref": "#/$defs/digest" },
+        "consumerDigest": { "$ref": "#/$defs/digest" }, "artifactSchemaDigest": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "migration": {
+      "type": "object", "additionalProperties": false,
+      "required": ["migrationFile", "migrationHead", "migrationDigest", "allMigrationsDigest"],
+      "properties": {
+        "migrationFile": { "const": "202607290200_notification_authority.ts" },
+        "migrationHead": { "type": "string", "pattern": "^[0-9]{12}_[a-z0-9_-]+$" },
+        "migrationDigest": { "$ref": "#/$defs/digest" }, "allMigrationsDigest": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "worker": {
+      "type": "object", "additionalProperties": false,
+      "required": ["workerRegistryDigest", "workerRouteDigest", "dedupeKeyDigest", "handlerNames", "leaseFenceDigest"],
+      "properties": {
+        "workerRegistryDigest": { "$ref": "#/$defs/digest" }, "workerRouteDigest": { "$ref": "#/$defs/digest" },
+        "dedupeKeyDigest": { "$ref": "#/$defs/digest" }, "leaseFenceDigest": { "$ref": "#/$defs/digest" },
+        "handlerNames": { "type": "array", "prefixItems": [{ "const": "social_follow_activity" }, { "const": "social_feed_item_notification" }], "items": false, "minItems": 2, "maxItems": 2 }
+      }
+    },
+    "api": {
+      "type": "object", "additionalProperties": false,
+      "required": ["openapiVersion", "openapiDigest", "generatedClientDigest", "applicationDigest", "httpRouteDigest"],
+      "properties": {
+        "openapiVersion": { "type": "string", "minLength": 1 }, "openapiDigest": { "$ref": "#/$defs/digest" },
+        "generatedClientDigest": { "$ref": "#/$defs/digest" }, "applicationDigest": { "$ref": "#/$defs/digest" }, "httpRouteDigest": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "featureFlag": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "productionDefault", "offAndOnExercised", "featureConfigDigest", "featureSourceDigest"],
+      "properties": {
+        "name": { "const": "notifications" }, "productionDefault": { "const": false }, "offAndOnExercised": { "const": true },
+        "featureConfigDigest": { "$ref": "#/$defs/digest" }, "featureSourceDigest": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "browser": {
+      "type": "object", "additionalProperties": false,
+      "required": ["spec", "project", "browserSpecDigest", "browserConfigDigest", "browserArtifactDigest", "playwrightVersion", "chromiumVersion"],
+      "properties": {
+        "spec": { "const": "notification-acceptance.spec.ts" }, "project": { "const": "real-stack-chromium" },
+        "browserSpecDigest": { "$ref": "#/$defs/digest" }, "browserConfigDigest": { "$ref": "#/$defs/digest" }, "browserArtifactDigest": { "$ref": "#/$defs/digest" },
+        "playwrightVersion": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+" }, "chromiumVersion": { "type": "string", "pattern": "^[0-9]+(?:\\.[0-9]+){2,3}$" }
+      }
+    },
+    "environment": {
+      "type": "object", "additionalProperties": false, "required": ["postgresVersion", "nodeVersion", "os"],
+      "properties": {
+        "postgresVersion": { "type": "string", "pattern": "^PostgreSQL\\s" },
+        "nodeVersion": { "type": "string", "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+" },
+        "os": { "type": "string", "minLength": 3 }
+      }
+    },
+    "chain": {
+      "type": "object", "additionalProperties": false,
+      "required": ["oracle", "eventFactDigest", "recipientFactDigest", "sourceFactDigest", "outboxFactDigest", "workerFactDigest", "authorityFactDigest", "applicationFactDigest", "httpFactDigest", "clientFactDigest", "browserFactDigest", "chainDigest"],
+      "properties": {
+        "oracle": { "const": "database_read_only" },
+        "eventFactDigest": { "$ref": "#/$defs/digest" }, "recipientFactDigest": { "$ref": "#/$defs/digest" }, "sourceFactDigest": { "$ref": "#/$defs/digest" },
+        "outboxFactDigest": { "$ref": "#/$defs/digest" }, "workerFactDigest": { "$ref": "#/$defs/digest" }, "authorityFactDigest": { "$ref": "#/$defs/digest" },
+        "applicationFactDigest": { "$ref": "#/$defs/digest" }, "httpFactDigest": { "$ref": "#/$defs/digest" }, "clientFactDigest": { "$ref": "#/$defs/digest" },
+        "browserFactDigest": { "$ref": "#/$defs/digest" }, "chainDigest": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "proof": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status", "gateId", "gateOutputDigest", "evidenceDigest", "evidenceClass"],
+      "properties": {
+        "status": { "const": "proved" }, "gateId": { "type": "string", "minLength": 1 },
+        "gateOutputDigest": { "$ref": "#/$defs/digest" }, "evidenceDigest": { "$ref": "#/$defs/digest" },
+        "evidenceClass": { "const": "verified" }
+      }
+    },
+    "proofs": {
+      "type": "object", "additionalProperties": false,
+      "required": ["authority", "preferenceDisabled", "preferenceRestored", "duplicate", "crashRollback", "retry", "leaseTakeover", "bulkBoundary", "crossAccount", "secretScan", "rawPayloadAbsent", "providerFactsAbsent", "deliveryFactsAbsent", "emailFactsAbsent"],
+      "properties": {
+        "authority": { "$ref": "#/$defs/proof" }, "preferenceDisabled": { "$ref": "#/$defs/proof" }, "preferenceRestored": { "$ref": "#/$defs/proof" },
+        "duplicate": { "$ref": "#/$defs/proof" }, "crashRollback": { "$ref": "#/$defs/proof" }, "retry": { "$ref": "#/$defs/proof" }, "leaseTakeover": { "$ref": "#/$defs/proof" },
+        "bulkBoundary": { "$ref": "#/$defs/proof" }, "crossAccount": { "$ref": "#/$defs/proof" }, "secretScan": { "$ref": "#/$defs/proof" },
+        "rawPayloadAbsent": { "$ref": "#/$defs/proof" }, "providerFactsAbsent": { "$ref": "#/$defs/proof" }, "deliveryFactsAbsent": { "$ref": "#/$defs/proof" }, "emailFactsAbsent": { "$ref": "#/$defs/proof" }
+      }
+    },
+    "negativeControl": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "injection", "outcome", "observationDigest"],
+      "properties": { "id": { "type": "string", "minLength": 1 }, "injection": { "type": "string", "minLength": 1 }, "outcome": { "const": "failed_closed" }, "observationDigest": { "$ref": "#/$defs/digest" } }
+    },
+    "negativeControls": {
+      "type": "array", "minItems": 17, "maxItems": 17,
+      "prefixItems": [
+        { "$ref": "#/$defs/negativeControl", "type": "object", "properties": { "id": { "const": "missing-migration" } } },
+        { "$ref": "#/$defs/negativeControl", "type": "object", "properties": { "id": { "const": "missing-handler-registration" } } },
+        { "$ref": "#/$defs/negativeControl", "type": "object", "properties": { "id": { "const": "missing-dedupe-key" } } },
+        { "$ref": "#/$defs/negativeControl", "type": "object", "properties": { "id": { "const": "missing-production-route" } } },
+        { "$ref": "#/$defs/negativeControl", "type": "object", "properties": { "id": { "const": "generated-client-drift" } } },
+        { "$ref": "#/$defs/negativeControl", "type": "object", "properties": { "id": { "const": "feature-flag-not-exercised" } } },
+        { "$ref": "#/$defs/negativeControl", "type": "object", "properties": { "id": { "const": "browser-source-mismatch" } } },
+        { "$ref": "#/$defs/negativeControl", "type": "object", "properties": { "id": { "const": "missing-authority-proof" } } },
+        { "$ref": "#/$defs/negativeControl", "type": "object", "properties": { "id": { "const": "missing-retry-proof" } } },
+        { "$ref": "#/$defs/negativeControl", "type": "object", "properties": { "id": { "const": "preference-bypass" } } },
+        { "$ref": "#/$defs/negativeControl", "type": "object", "properties": { "id": { "const": "duplicate-side-effect" } } },
+        { "$ref": "#/$defs/negativeControl", "type": "object", "properties": { "id": { "const": "missing-bulk-boundary-proof" } } },
+        { "$ref": "#/$defs/negativeControl", "type": "object", "properties": { "id": { "const": "missing-cross-account-proof" } } },
+        { "$ref": "#/$defs/negativeControl", "type": "object", "properties": { "id": { "const": "missing-real-follow-feed-intents" } } },
+        { "$ref": "#/$defs/negativeControl", "type": "object", "properties": { "id": { "const": "missing-dual-handler-isolation" } } },
+        { "$ref": "#/$defs/negativeControl", "type": "object", "properties": { "id": { "const": "missing-batch-intent-exact-once" } } },
+        { "$ref": "#/$defs/negativeControl", "type": "object", "properties": { "id": { "const": "missing-database-clock" } } }
+      ], "items": false
+    },
+    "evidenceClass": { "type": "string", "enum": ["supporting", "verified"] },
+    "gate": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "status", "command", "startedAt", "completedAt", "durationMs", "exitCode", "resultSummary", "outputDigest", "evidenceClass"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 }, "status": { "const": "passed" }, "command": { "type": "string", "minLength": 1 },
+        "startedAt": { "type": "string", "format": "date-time" }, "completedAt": { "type": "string", "format": "date-time" },
+        "durationMs": { "type": "number", "minimum": 0 }, "exitCode": { "const": 0 }, "resultSummary": { "type": "string", "minLength": 1 }, "outputDigest": { "$ref": "#/$defs/digest" },
+        "evidenceClass": { "$ref": "#/$defs/evidenceClass" }
+      }
+    },
+    "gates": {
+      "type": "array", "minItems": 12, "maxItems": 12,
+      "prefixItems": [
+        { "$ref": "#/$defs/gate", "type": "object", "properties": { "id": { "const": "event-contract" } } },
+        { "$ref": "#/$defs/gate", "type": "object", "properties": { "id": { "const": "authority" } } },
+        { "$ref": "#/$defs/gate", "type": "object", "properties": { "id": { "const": "worker" } } },
+        { "$ref": "#/$defs/gate", "type": "object", "properties": { "id": { "const": "query" } } },
+        { "$ref": "#/$defs/gate", "type": "object", "properties": { "id": { "const": "read-command" } } },
+        { "$ref": "#/$defs/gate", "type": "object", "properties": { "id": { "const": "preference-command" } } },
+        { "$ref": "#/$defs/gate", "type": "object", "properties": { "id": { "const": "http-client" } } },
+        { "$ref": "#/$defs/gate", "type": "object", "properties": { "id": { "const": "openapi" } } },
+        { "$ref": "#/$defs/gate", "type": "object", "properties": { "id": { "const": "frontend" } } },
+        { "$ref": "#/$defs/gate", "type": "object", "properties": { "id": { "const": "frontend-build" } } },
+        { "$ref": "#/$defs/gate", "type": "object", "properties": { "id": { "const": "browser" } } },
+        { "$ref": "#/$defs/gate", "type": "object", "properties": { "id": { "const": "secret-privacy" } } }
+      ], "items": false
+    },
+    "claims": {
+      "type": "object", "additionalProperties": false,
+      "required": ["notificationEligible", "followEligible", "feedEligible", "phase5Verified", "deployment", "deploymentProven", "emailDelivery", "mcpWrite", "colpFeedProfile", "colpProfile"],
+      "properties": {
+        "notificationEligible": { "const": true }, "followEligible": { "const": false }, "feedEligible": { "const": false },
+        "phase5Verified": { "const": false }, "deployment": { "const": false }, "deploymentProven": { "const": false },
+        "emailDelivery": { "const": false }, "mcpWrite": { "const": false }, "colpFeedProfile": { "const": false }, "colpProfile": { "const": false }
+      }
+    }
+  }
+}

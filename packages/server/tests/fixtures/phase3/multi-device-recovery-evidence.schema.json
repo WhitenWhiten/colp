@@ -1,0 +1,179 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://known.example/schemas/evidence/phase3-multi-device-recovery-v1.json",
+  "title": "Known Phase 3 real extension multi-device recovery evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format", "schemaVersion", "accepted", "mode", "stage", "recoveryWaitMs", "profileClaimed", "deploymentProven",
+    "startedAt", "finishedAt", "scenarioSeed", "source", "runtime", "artifact",
+    "preflight", "scenarios", "faults", "counts", "replicas", "durableClients", "managedPolicy", "redaction",
+    "evidenceDigest"
+  ],
+  "properties": {
+    "format": { "const": "known.phase3.multi-device-recovery.v1" },
+    "schemaVersion": { "const": 1 },
+    "accepted": { "const": true },
+    "mode": { "const": "acceptance" },
+    "stage": { "const": "full" },
+    "recoveryWaitMs": { "const": 601000 },
+    "profileClaimed": { "const": false },
+    "deploymentProven": { "const": false },
+    "startedAt": { "type": "string", "format": "date-time" },
+    "finishedAt": { "type": "string", "format": "date-time" },
+    "scenarioSeed": { "type": "string", "minLength": 16, "maxLength": 128 },
+    "source": {
+      "type": "object", "additionalProperties": false,
+      "required": ["backend", "frontend", "extension", "colp", "dirtyStateAllowed", "dirtyFiles", "dirtyManifestDigest"],
+      "properties": {
+        "backend": { "$ref": "#/$defs/repository" },
+        "frontend": { "$ref": "#/$defs/repository" },
+        "extension": { "$ref": "#/$defs/repository" },
+        "colp": { "$ref": "#/$defs/repository" },
+        "dirtyStateAllowed": { "const": true },
+        "dirtyFiles": { "type": "array", "items": { "$ref": "#/$defs/dirtyFile" } },
+        "dirtyManifestDigest": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "runtime": {
+      "type": "object", "additionalProperties": false,
+      "required": ["node", "npm", "postgres", "browser", "protocolVersion"],
+      "properties": {
+        "node": { "type": "string", "minLength": 1 },
+        "npm": { "type": "string", "minLength": 1 },
+        "postgres": { "type": "string", "minLength": 1 },
+        "browser": { "type": "string", "minLength": 1 },
+        "protocolVersion": { "const": "0.2" }
+      }
+    },
+    "artifact": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "environment", "sha256", "manifestDigest", "configDigest", "migrationDigest"],
+      "properties": {
+        "path": { "type": "string", "pattern": "dist[/\\\\]production$" },
+        "environment": { "const": "production" },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "manifestDigest": { "$ref": "#/$defs/sha256" },
+        "configDigest": { "$ref": "#/$defs/sha256" },
+        "migrationDigest": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "preflight": { "type": "array", "minItems": 12, "items": { "$ref": "#/$defs/gate" } },
+    "scenarios": { "type": "array", "minItems": 18, "items": { "$ref": "#/$defs/gate" } },
+    "faults": {
+      "type": "object", "additionalProperties": false,
+      "required": ["seededCrashSequence", "requiredBoundaries", "boundaryEvidence"],
+      "properties": {
+        "seededCrashSequence": { "type": "array", "minItems": 11, "uniqueItems": true, "items": { "type": "string" } },
+        "requiredBoundaries": { "type": "array", "minItems": 11, "uniqueItems": true, "items": { "type": "string" } },
+        "boundaryEvidence": { "type": "object", "minProperties": 11, "maxProperties": 11,
+          "additionalProperties": { "$ref": "#/$defs/boundaryEvidence" } }
+      }
+    },
+    "counts": {
+      "type": "object", "additionalProperties": false,
+      "required": ["operations", "sequenceReceipts", "productReceipts", "tombstones", "purgeWatermark"],
+      "properties": {
+        "operations": { "type": "integer", "minimum": 1 },
+        "sequenceReceipts": { "type": "integer", "minimum": 1 },
+        "productReceipts": { "type": "integer", "minimum": 1 },
+        "tombstones": { "type": "integer", "minimum": 0 },
+        "purgeWatermark": { "type": "string", "minLength": 1 }
+      }
+    },
+    "replicas": { "type": "array", "minItems": 3, "items": { "$ref": "#/$defs/replica" } },
+    "durableClients": { "type": "array", "minItems": 2, "items": { "$ref": "#/$defs/durableClient" } },
+    "managedPolicy": {
+      "type": "object", "additionalProperties": false,
+      "required": ["provider", "isolatedProfile", "sameArtifact", "policySourceDigest", "containerImageId",
+        "containerImageDigest", "browserVersion", "artifactSha256", "extensionIdDigest", "managedStorageDigest",
+        "managedTreeDigest", "managedNodeCount", "serviceWorkerObserved", "writeRejected", "writeRejectionCode",
+        "containerRemoved", "profileRemoved"],
+      "properties": {
+        "provider": { "enum": ["windows-hkcu-policy", "linux-container-policy"] },
+        "isolatedProfile": { "const": true }, "sameArtifact": { "const": true },
+        "policySourceDigest": { "$ref": "#/$defs/sha256" },
+        "containerImageId": { "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] },
+        "containerImageDigest": { "oneOf": [{ "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }, { "type": "null" }] },
+        "browserVersion": { "type": "string", "minLength": 1 }, "artifactSha256": { "$ref": "#/$defs/sha256" },
+        "extensionIdDigest": { "$ref": "#/$defs/sha256" }, "managedStorageDigest": { "$ref": "#/$defs/sha256" },
+        "managedTreeDigest": { "$ref": "#/$defs/sha256" }, "managedNodeCount": { "type": "integer", "minimum": 1 },
+        "serviceWorkerObserved": { "const": true }, "writeRejected": { "const": true },
+        "writeRejectionCode": { "const": "chrome.bookmarks.update-rejected" },
+        "containerRemoved": { "const": true }, "profileRemoved": { "const": true }
+      }
+    },
+    "redaction": {
+      "type": "object", "additionalProperties": false,
+      "required": ["surfaces", "markerDigest", "scannedBytes", "leaks"],
+      "properties": {
+        "surfaces": { "type": "array", "minItems": 7, "uniqueItems": true, "items": { "type": "string" } },
+        "markerDigest": { "$ref": "#/$defs/sha256" },
+        "scannedBytes": { "type": "integer", "minimum": 1 },
+        "leaks": { "const": 0 }
+      }
+    },
+    "evidenceDigest": { "$ref": "#/$defs/sha256" }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "repository": {
+      "type": "object", "additionalProperties": false,
+      "required": ["commit", "tree", "dirty"],
+      "properties": {
+        "commit": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+        "tree": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+        "dirty": { "type": "boolean" }
+      }
+    },
+    "dirtyFile": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "status", "digest"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "status": { "type": "string", "pattern": "^[ MADRCU?!]{2}$" },
+        "digest": { "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] }
+      }
+    },
+    "gate": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "outcome", "observationDigest"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "outcome": { "const": "passed" },
+        "observationDigest": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "replica": {
+      "type": "object", "additionalProperties": false,
+      "required": ["identityDigest", "generation", "status", "oldIdentityRejected"],
+      "properties": {
+        "identityDigest": { "$ref": "#/$defs/sha256" },
+        "generation": { "type": "integer", "minimum": 1 },
+        "status": { "enum": ["active", "expired", "recovery_required", "retired"] },
+        "oldIdentityRejected": { "type": "boolean" }
+      }
+    },
+    "durableClient": {
+      "type": "object", "additionalProperties": false,
+      "required": ["profileDigest", "treeDigest", "cursorDigest", "ackDigest", "indexedDbDigest", "checkpointOrdinal"],
+      "properties": {
+        "profileDigest": { "$ref": "#/$defs/sha256" },
+        "treeDigest": { "$ref": "#/$defs/sha256" },
+        "cursorDigest": { "$ref": "#/$defs/sha256" },
+        "ackDigest": { "$ref": "#/$defs/sha256" },
+        "indexedDbDigest": { "$ref": "#/$defs/sha256" },
+        "checkpointOrdinal": { "type": "string", "pattern": "^[1-9][0-9]{0,19}$" }
+      }
+    },
+    "surfaceDigest": { "type": "object", "additionalProperties": false,
+      "required": ["surface", "digest"], "properties": {
+        "surface": { "type": "string", "minLength": 3 }, "digest": { "$ref": "#/$defs/sha256" } } },
+    "boundaryEvidence": { "type": "object", "additionalProperties": false,
+      "required": ["point", "triggerEvidence", "observationEvidence", "recoveryEvidence"], "properties": {
+        "point": { "type": "string", "minLength": 3 },
+        "triggerEvidence": { "$ref": "#/$defs/surfaceDigest" },
+        "observationEvidence": { "type": "array", "minItems": 2, "items": { "$ref": "#/$defs/surfaceDigest" } },
+        "recoveryEvidence": { "$ref": "#/$defs/surfaceDigest" } } }
+  }
+}

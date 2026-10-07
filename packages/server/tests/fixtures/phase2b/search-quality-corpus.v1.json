@@ -1,0 +1,27 @@
+{
+  "$schema": "./search-quality-corpus.schema.json",
+  "version": "phase2b-search-quality-v1",
+  "documents": [
+    { "resourceType": "collection", "resourceId": "c-typescript", "collectionId": "c-typescript", "title": "TypeScript Engineering Handbook", "description": "Practical typed JavaScript patterns", "url": null },
+    { "resourceType": "node", "resourceId": "n-typescript", "collectionId": "c-typescript", "title": "Advanced TypeScript Types", "description": "Generics and conditional type examples", "url": "https://docs.typescriptlang.org/handbook/advanced-types.html" },
+    { "resourceType": "node", "resourceId": "n-running", "collectionId": "c-typescript", "title": "Running Reliable Services", "description": "A service runbook for production", "url": "https://ops.example.test/runbook" },
+    { "resourceType": "collection", "resourceId": "c-chinese", "collectionId": "c-chinese", "title": "中文数据库检索指南", "description": "PostgreSQL 模糊搜索实践", "url": null },
+    { "resourceType": "node", "resourceId": "n-chinese-compact", "collectionId": "c-chinese", "title": "高性能中文搜索", "description": "无空格中文召回质量", "url": "https://search.example.cn/zh/quality" },
+    { "resourceType": "node", "resourceId": "n-chinese-spaced", "collectionId": "c-chinese", "title": "中文 搜索 入门", "description": "使用 三元组 进行 检索", "url": "https://guide.example.cn/search" },
+    { "resourceType": "node", "resourceId": "n-unicode", "collectionId": "c-chinese", "title": "Cafe\u0301 Unicode Normalization", "description": "Canonical equivalent text", "url": "https://unicode.example.test/cafe" },
+    { "resourceType": "node", "resourceId": "n-host", "collectionId": "c-typescript", "title": "Reference Portal", "description": "Official language documentation", "url": "https://API.Example.COM:8443/reference?q=private" },
+    { "resourceType": "node", "resourceId": "n-special", "collectionId": "c-typescript", "title": "C++ [operators] 100%", "description": "Quotes: safe and parameterized", "url": "https://symbols.example.test/cpp" },
+    { "resourceType": "node", "resourceId": "n-invalid-url", "collectionId": "c-typescript", "title": "Invalid URL fixture", "description": "Must not fabricate a host", "url": "not a valid URL" }
+  ],
+  "cases": [
+    { "query": "typescript", "expectedTopN": ["c-typescript", "n-typescript"], "topN": 4, "minimumRecall": 1 },
+    { "query": "TYPESCRIPT", "expectedTopN": ["c-typescript", "n-typescript"], "topN": 4, "minimumRecall": 1 },
+    { "query": "running", "expectedTopN": ["n-running"], "topN": 3, "minimumRecall": 1 },
+    { "query": "run", "expectedTopN": ["n-running"], "topN": 3, "minimumRecall": 1 },
+    { "query": "中文搜索", "expectedTopN": ["n-chinese-compact", "n-chinese-spaced"], "topN": 5, "minimumRecall": 1 },
+    { "query": "中文 搜索", "expectedTopN": ["n-chinese-compact", "n-chinese-spaced", "c-chinese"], "topN": 5, "minimumRecall": 0.66 },
+    { "query": "api.example.com", "expectedTopN": ["n-host"], "topN": 3, "minimumRecall": 1 },
+    { "query": "caf\u00e9", "expectedTopN": ["n-unicode"], "topN": 3, "minimumRecall": 1 },
+    { "query": "C++ [operators] 100%", "expectedTopN": ["n-special"], "topN": 3, "minimumRecall": 1 }
+  ]
+}

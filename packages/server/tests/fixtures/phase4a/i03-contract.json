@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "task": "phase4a-i03",
+  "exposureMode": "owner-private-unscanned",
+  "hardCeilingBytes": 5242880,
+  "compileLimitBytes": 5368709120,
+  "mimeSniffPrefixBytes": 4096,
+  "mimeFixtureVersion": "i03-magic-bytes-v1",
+  "mimeAllowlist": [
+    "application/octet-stream",
+    "application/pdf",
+    "image/png",
+    "image/jpeg",
+    "image/gif"
+  ],
+  "mimeUnknownFallback": "application/octet-stream",
+  "capability": {
+    "minTtlSeconds": 1,
+    "maxTtlSeconds": 120,
+    "defaultTtlSeconds": 60,
+    "maxExposureWindowSeconds": 120,
+    "audienceBound": true,
+    "singlePurpose": "owner-private-forced-download",
+    "containsR2Credential": false,
+    "containsObjectKey": false
+  },
+  "securityHeaders": {
+    "contentDisposition": "attachment",
+    "xContentTypeOptions": "nosniff",
+    "cacheControl": "private,no-store",
+    "setCookie": "never"
+  },
+  "revocationPolicy": "revocation is re-checked on every delivery request and takes effect immediately for all subsequent requests; the maximum exposure window of any issued capability is its TTL from issuance (default 60s, hard cap 120s), and revocation before the TTL caps the window at the revocation instant; revoked-before-issuance is refused at the admission step",
+  "storedPrivateMeaning": {
+    "state": "stored_private",
+    "clean": false,
+    "safe": false,
+    "ready": false,
+    "scanned": false,
+    "exposureMode": "owner-private-unscanned",
+    "noProjection": {
+      "publication": false,
+      "sync": false,
+      "mcp": false,
+      "search": false,
+      "profile": false,
+      "sharing": false,
+      "previews": false,
+      "inlineRendering": false
+    }
+  }
+}

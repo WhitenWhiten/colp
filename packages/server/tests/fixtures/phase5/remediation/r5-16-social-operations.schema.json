@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://known.example/schemas/phase5/remediation/r5-16-social-operations.schema.json",
+  "title": "Phase 5 remediation R5-16 closed schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "task",
+    "bindingMode",
+    "runtimeRootEnv",
+    "negativeControlMode",
+    "artifacts"
+  ],
+  "properties": {
+    "format": {
+      "const": "known.phase5.remediation.r5-16.v1"
+    },
+    "task": {
+      "const": "R5-16"
+    },
+    "bindingMode": {
+      "const": "exact-commit"
+    },
+    "runtimeRootEnv": {
+      "const": "KNOWN_PHASE5_EVIDENCE_ROOT"
+    },
+    "negativeControlMode": {
+      "const": "real-temporary-source-corruption"
+    },
+    "artifacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["feedOperations", "notificationOperations"],
+      "properties": {
+        "feedOperations": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["relativePath", "schema"],
+          "properties": {
+            "relativePath": {
+              "const": "p5-24/phase5-feed-operations-status.json"
+            },
+            "schema": {
+              "const": "known.phase5.feed-operations/v1"
+            }
+          }
+        },
+        "notificationOperations": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["relativePath", "schema"],
+          "properties": {
+            "relativePath": {
+              "const": "p5-25/phase5-notification-operations-status.json"
+            },
+            "schema": {
+              "const": "known.phase5.notification-operations/v1"
+            }
+          }
+        }
+      }
+    }
+  }
+}

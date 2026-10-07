@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://known.example/schemas/phase5/notification-operations-evidence.schema.json",
+  "title": "Phase 5 Notification operations evidence (known.phase5.notification-operations/v1)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "sourceRevision",
+    "capturedAt",
+    "command",
+    "capacity",
+    "capacityDigest",
+    "notificationAcceptanceSourceDigest",
+    "runbookDigest",
+    "result",
+    "migrationHead",
+    "migrationDigest",
+    "nodeVersion",
+    "postgresVersion"
+  ],
+  "properties": {
+    "schema": { "const": "known.phase5.notification-operations/v1" },
+    "sourceRevision": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "capturedAt": { "type": "string", "format": "date-time" },
+    "command": { "const": "status" },
+    "capacity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["worker", "notificationOperations"],
+      "properties": {
+        "worker": { "type": "object" },
+        "notificationOperations": { "type": "object" }
+      }
+    },
+    "capacityDigest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "notificationAcceptanceSourceDigest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "runbookDigest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "migrationHead": { "type": "string", "minLength": 1 },
+    "migrationDigest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "nodeVersion": { "type": "string", "minLength": 1 },
+    "postgresVersion": { "type": "string", "minLength": 1 },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "readiness"],
+      "properties": {
+        "status": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "dependency", "worker", "readyCount", "retryCount", "leasedCount",
+            "deadLetterCount", "oldestEligibleAgeMs", "oldestDeadLetterAgeMs",
+            "sourceEventCount", "processedEventCount", "maximumEventLag",
+            "queueErrors", "delivery"
+          ],
+          "properties": {
+            "dependency": { "enum": ["available", "unavailable"] },
+            "worker": { "enum": ["running", "idle", "stopped", "unknown"] },
+            "readyCount": { "type": "integer", "minimum": 0 },
+            "retryCount": { "type": "integer", "minimum": 0 },
+            "leasedCount": { "type": "integer", "minimum": 0 },
+            "deadLetterCount": { "type": "integer", "minimum": 0 },
+            "oldestEligibleAgeMs": { "type": "number", "minimum": 0 },
+            "oldestDeadLetterAgeMs": { "type": "number", "minimum": 0 },
+            "sourceEventCount": { "type": "string" },
+            "processedEventCount": { "type": "string" },
+            "maximumEventLag": { "type": "string" },
+            "queueErrors": { "type": "object" },
+            "delivery": { "type": "object" }
+          }
+        },
+        "readiness": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["capability", "status", "reason", "inApp", "optionalDelivery"],
+          "properties": {
+            "capability": { "const": "notifications" },
+            "status": { "enum": ["ready", "not-ready"] },
+            "reason": {
+              "enum": [
+                "none", "dependency_unavailable", "worker_unavailable",
+                "queue_age", "backlog", "dead_letter"
+              ]
+            },
+            "inApp": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["status", "reason"],
+              "properties": {
+                "status": { "enum": ["ready", "not-ready"] },
+                "reason": { "type": "string", "minLength": 1 }
+              }
+            },
+            "optionalDelivery": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["status", "reason"],
+              "properties": {
+                "status": { "enum": ["available", "degraded"] },
+                "reason": { "type": "string", "minLength": 1 }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

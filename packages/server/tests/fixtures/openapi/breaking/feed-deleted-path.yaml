@@ -1,0 +1,14 @@
+openapi: 3.1.0
+info:
+  title: Breaking Feed check fixture
+  version: 1.0.1
+paths: {}
+components:
+  schemas:
+    FeedPage:
+      type: object
+      additionalProperties: false
+      properties:
+        items: { type: array, items: { type: string } }
+        nextCursor: { type: [string, 'null'] }
+      required: [items, nextCursor]

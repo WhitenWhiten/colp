@@ -1,0 +1,204 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://known.example/schemas/phase5/follow-acceptance-artifact.v1.json",
+  "title": "Phase 5 Follow source-bound acceptance artifact",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "schemaVersion", "accepted", "createdAt", "bindingMode", "evidenceBundle", "remediation", "source", "migration", "contracts", "cursor", "environment", "featureFlag", "gates", "evidence", "negativeControls", "claims", "evidenceDigest"],
+  "properties": {
+    "format": { "const": "known.phase5.follow-acceptance.v1" },
+    "schemaVersion": { "const": 1 },
+    "accepted": { "const": true },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "bindingMode": { "const": "exact-commit" },
+    "evidenceBundle": {
+      "type": "object", "additionalProperties": false,
+      "required": ["relativePath", "runtimeRootEnv"],
+      "properties": {
+        "relativePath": { "const": "p5-07/phase5-follow-acceptance.json" },
+        "runtimeRootEnv": { "const": "KNOWN_PHASE5_EVIDENCE_ROOT" }
+      }
+    },
+    "remediation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["appendAll", "dualUnfollowHandlers", "databaseClock", "negativeControlMode"],
+      "properties": {
+        "appendAll": { "const": true },
+        "dualUnfollowHandlers": { "const": true },
+        "databaseClock": { "const": "postgresql-current_timestamp" },
+        "negativeControlMode": { "const": "real-temporary-source-corruption" }
+      }
+    },
+    "source": {
+      "type": "object", "additionalProperties": false,
+      "required": ["checkoutCommit", "backendCommit", "frontendCommit", "colpCommit", "sourceTreeDigest", "sourceFileCount", "cleanCheckout"],
+      "properties": {
+        "checkoutCommit": { "$ref": "#/$defs/commit" },
+        "backendCommit": { "$ref": "#/$defs/commit" },
+        "frontendCommit": { "$ref": "#/$defs/commit" },
+        "colpCommit": { "$ref": "#/$defs/commit" },
+        "sourceTreeDigest": { "$ref": "#/$defs/sha256" },
+        "sourceFileCount": { "type": "integer", "minimum": 1 },
+        "cleanCheckout": { "const": true }
+      }
+    },
+    "migration": {
+      "type": "object", "additionalProperties": false,
+      "required": ["migrationHead", "followVersion", "digest"],
+      "properties": {
+        "migrationHead": { "type": "string", "pattern": "^[0-9]{12}_[a-z0-9_-]+$" },
+        "followVersion": { "const": "202607280200_follows" },
+        "digest": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "contracts": {
+      "type": "object", "additionalProperties": false,
+      "required": ["freeSocialContractVersion", "freeSocialContractDigest", "artifactSchemaDigest", "openapiVersion", "openapiDigest", "generatedClientDigest", "browserConfigDigest", "browserSourceDigest"],
+      "properties": {
+        "freeSocialContractVersion": { "const": 1 },
+        "freeSocialContractDigest": { "$ref": "#/$defs/sha256" },
+        "artifactSchemaDigest": { "$ref": "#/$defs/sha256" },
+        "openapiVersion": { "type": "string", "minLength": 1 },
+        "openapiDigest": { "$ref": "#/$defs/sha256" },
+        "generatedClientDigest": { "$ref": "#/$defs/sha256" },
+        "browserConfigDigest": { "$ref": "#/$defs/sha256" },
+        "browserSourceDigest": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "cursor": {
+      "type": "object", "additionalProperties": false,
+      "required": ["comparatorVersion", "purposes", "activeKeyIdDigest", "retainedKeyCount", "ttlMilliseconds", "configDigest", "lifecycle"],
+      "properties": {
+        "comparatorVersion": { "const": 1 },
+        "purposes": { "type": "array", "minItems": 2, "maxItems": 2, "prefixItems": [{ "const": "social.followers.v1" }, { "const": "social.following.v1" }], "items": false },
+        "activeKeyIdDigest": { "$ref": "#/$defs/sha256" },
+        "retainedKeyCount": { "type": "integer", "minimum": 1 },
+        "ttlMilliseconds": { "type": "integer", "minimum": 1 },
+        "configDigest": { "$ref": "#/$defs/sha256" },
+        "lifecycle": { "const": "active-plus-retiring-covers-ttl" }
+      }
+    },
+    "environment": {
+      "type": "object", "additionalProperties": false,
+      "required": ["postgresqlVersion", "nodeVersion", "os", "chromiumVersion", "playwrightVersion"],
+      "properties": {
+        "postgresqlVersion": { "type": "string", "pattern": "PostgreSQL" },
+        "nodeVersion": { "type": "string", "pattern": "^v[0-9]+" },
+        "os": { "type": "string", "minLength": 1 },
+        "chromiumVersion": { "type": "string", "pattern": "^[0-9]+(?:\\.[0-9]+){2,3}$" },
+        "playwrightVersion": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+" }
+      }
+    },
+    "featureFlag": {
+      "type": "object", "additionalProperties": false,
+      "required": ["key", "productionDefault", "acceptanceExposure", "eligibleAfter"],
+      "properties": {
+        "key": { "const": "follow" },
+        "productionDefault": { "const": false },
+        "acceptanceExposure": { "const": true },
+        "eligibleAfter": { "const": "P5-07" }
+      }
+    },
+    "gates": {
+      "type": "array", "minItems": 9, "maxItems": 9,
+      "prefixItems": [
+        { "$ref": "#/$defs/migrationGate" }, { "$ref": "#/$defs/applicationGate" },
+        { "$ref": "#/$defs/queryGate" }, { "$ref": "#/$defs/openapiGate" },
+        { "$ref": "#/$defs/httpGate" }, { "$ref": "#/$defs/privacyGate" },
+        { "$ref": "#/$defs/frontendGate" }, { "$ref": "#/$defs/frontendBuildGate" },
+        { "$ref": "#/$defs/browserGate" }
+      ],
+      "items": false
+    },
+    "evidence": {
+      "type": "object", "additionalProperties": false,
+      "required": ["migrationUpgrade", "authorityConcurrency", "exactReplay", "outboxAuthority", "cursorFencing", "privacy", "productionComposition", "generatedClient", "browser"],
+      "properties": {
+        "migrationUpgrade": { "$ref": "#/$defs/migrationEvidence" },
+        "authorityConcurrency": { "$ref": "#/$defs/migrationEvidence" },
+        "exactReplay": { "$ref": "#/$defs/applicationEvidence" },
+        "outboxAuthority": { "$ref": "#/$defs/applicationEvidence" },
+        "cursorFencing": { "$ref": "#/$defs/queryEvidence" },
+        "privacy": { "$ref": "#/$defs/privacyEvidence" },
+        "productionComposition": { "$ref": "#/$defs/httpEvidence" },
+        "generatedClient": { "$ref": "#/$defs/openapiEvidence" },
+        "browser": { "$ref": "#/$defs/browserEvidence" }
+      }
+    },
+    "negativeControls": {
+      "type": "array", "minItems": 10, "maxItems": 10,
+      "prefixItems": [
+        { "$ref": "#/$defs/migrationNegative" }, { "$ref": "#/$defs/repositoryNegative" },
+        { "$ref": "#/$defs/routeNegative" }, { "$ref": "#/$defs/cursorNegative" },
+        { "$ref": "#/$defs/clientNegative" }, { "$ref": "#/$defs/flagNegative" },
+        { "$ref": "#/$defs/browserNegative" }, { "$ref": "#/$defs/appendAllNegative" },
+        { "$ref": "#/$defs/dualUnfollowNegative" }, { "$ref": "#/$defs/databaseClockNegative" }
+      ],
+      "items": false
+    },
+    "claims": {
+      "type": "object", "additionalProperties": false,
+      "required": ["followEligible", "phase5Verified", "deploymentProven", "feed", "notifications", "colpProfile"],
+      "properties": {
+        "followEligible": { "const": true }, "phase5Verified": { "const": false },
+        "deploymentProven": { "const": false }, "feed": { "const": false },
+        "notifications": { "const": false }, "colpProfile": { "const": false }
+      }
+    },
+    "evidenceDigest": { "$ref": "#/$defs/sha256" }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "evidenceClass": { "type": "string", "enum": ["supporting", "verified"] },
+    "gate": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "status", "command", "durationMs", "resultSummary", "outputDigest", "evidenceClass"],
+      "properties": {
+        "id": { "type": "string" }, "status": { "const": "passed" },
+        "command": { "type": "string", "minLength": 1 }, "durationMs": { "type": "number", "minimum": 0 },
+        "resultSummary": { "type": "string", "minLength": 1 }, "outputDigest": { "$ref": "#/$defs/sha256" },
+        "evidenceClass": { "$ref": "#/$defs/evidenceClass" }
+      }
+    },
+    "migrationGate": { "allOf": [{ "$ref": "#/$defs/gate" }, { "type": "object", "properties": { "id": { "const": "migration" } } }] },
+    "applicationGate": { "allOf": [{ "$ref": "#/$defs/gate" }, { "type": "object", "properties": { "id": { "const": "application" } } }] },
+    "queryGate": { "allOf": [{ "$ref": "#/$defs/gate" }, { "type": "object", "properties": { "id": { "const": "query" } } }] },
+    "openapiGate": { "allOf": [{ "$ref": "#/$defs/gate" }, { "type": "object", "properties": { "id": { "const": "openapi" } } }] },
+    "httpGate": { "allOf": [{ "$ref": "#/$defs/gate" }, { "type": "object", "properties": { "id": { "const": "http" } } }] },
+    "privacyGate": { "allOf": [{ "$ref": "#/$defs/gate" }, { "type": "object", "properties": { "id": { "const": "privacy-regression" } } }] },
+    "frontendGate": { "allOf": [{ "$ref": "#/$defs/gate" }, { "type": "object", "properties": { "id": { "const": "frontend" } } }] },
+    "frontendBuildGate": { "allOf": [{ "$ref": "#/$defs/gate" }, { "type": "object", "properties": { "id": { "const": "frontend-build" } } }] },
+    "browserGate": { "allOf": [{ "$ref": "#/$defs/gate" }, { "type": "object", "properties": { "id": { "const": "browser" } } }] },
+    "evidence": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status", "gateId", "observationDigest", "evidenceClass"],
+      "properties": {
+        "status": { "const": "passed" }, "gateId": { "type": "string", "minLength": 1 },
+        "observationDigest": { "$ref": "#/$defs/sha256" }, "evidenceClass": { "const": "verified" }
+      }
+    },
+    "migrationEvidence": { "allOf": [{ "$ref": "#/$defs/evidence" }, { "type": "object", "properties": { "gateId": { "const": "migration" } } }] },
+    "applicationEvidence": { "allOf": [{ "$ref": "#/$defs/evidence" }, { "type": "object", "properties": { "gateId": { "const": "application" } } }] },
+    "queryEvidence": { "allOf": [{ "$ref": "#/$defs/evidence" }, { "type": "object", "properties": { "gateId": { "const": "query" } } }] },
+    "openapiEvidence": { "allOf": [{ "$ref": "#/$defs/evidence" }, { "type": "object", "properties": { "gateId": { "const": "openapi" } } }] },
+    "httpEvidence": { "allOf": [{ "$ref": "#/$defs/evidence" }, { "type": "object", "properties": { "gateId": { "const": "http" } } }] },
+    "privacyEvidence": { "allOf": [{ "$ref": "#/$defs/evidence" }, { "type": "object", "properties": { "gateId": { "const": "privacy-regression" } } }] },
+    "browserEvidence": { "allOf": [{ "$ref": "#/$defs/evidence" }, { "type": "object", "properties": { "gateId": { "const": "browser" } } }] },
+    "negative": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "injection", "outcome", "observationDigest"],
+      "properties": { "id": { "type": "string" }, "injection": { "type": "string", "minLength": 1 }, "outcome": { "const": "failed_closed" }, "observationDigest": { "$ref": "#/$defs/sha256" } }
+    },
+    "migrationNegative": { "allOf": [{ "$ref": "#/$defs/negative" }, { "type": "object", "properties": { "id": { "const": "missing-migration" } } }] },
+    "repositoryNegative": { "allOf": [{ "$ref": "#/$defs/negative" }, { "type": "object", "properties": { "id": { "const": "missing-repository-port" } } }] },
+    "routeNegative": { "allOf": [{ "$ref": "#/$defs/negative" }, { "type": "object", "properties": { "id": { "const": "missing-production-route" } } }] },
+    "cursorNegative": { "allOf": [{ "$ref": "#/$defs/negative" }, { "type": "object", "properties": { "id": { "const": "missing-cursor-key" } } }] },
+    "clientNegative": { "allOf": [{ "$ref": "#/$defs/negative" }, { "type": "object", "properties": { "id": { "const": "generated-client-drift" } } }] },
+    "flagNegative": { "allOf": [{ "$ref": "#/$defs/negative" }, { "type": "object", "properties": { "id": { "const": "feature-flag-not-exercised" } } }] },
+    "browserNegative": { "allOf": [{ "$ref": "#/$defs/negative" }, { "type": "object", "properties": { "id": { "const": "browser-source-mismatch" } } }] },
+    "appendAllNegative": { "allOf": [{ "$ref": "#/$defs/negative" }, { "type": "object", "properties": { "id": { "const": "missing-append-all" } } }] },
+    "dualUnfollowNegative": { "allOf": [{ "$ref": "#/$defs/negative" }, { "type": "object", "properties": { "id": { "const": "missing-dual-unfollow-handlers" } } }] },
+    "databaseClockNegative": { "allOf": [{ "$ref": "#/$defs/negative" }, { "type": "object", "properties": { "id": { "const": "missing-database-clock" } } }] }
+  }
+}

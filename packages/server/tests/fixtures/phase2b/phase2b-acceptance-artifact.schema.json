@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://known.example/schemas/phase2b-acceptance-artifact.v1.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "accepted", "createdAt", "sourceRevision", "sourceDigest", "sourceFileCount", "contracts", "environment", "migrationVersions", "gates", "searchEvidence", "regressions", "artifactDigest"],
+  "properties": {
+    "format": { "const": "known.phase2b.acceptance.v1" },
+    "accepted": { "const": true },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "sourceRevision": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "sourceDigest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "sourceFileCount": { "type": "integer", "minimum": 1 },
+    "contracts": {
+      "type": "object", "additionalProperties": false,
+      "required": ["thresholdVersion", "thresholdDigest", "corpusVersion", "corpusDigest", "artifactSchemaDigest"],
+      "properties": {
+        "thresholdVersion": { "const": "phase2b-search-postgres-v1" },
+        "thresholdDigest": { "$ref": "#/$defs/sha256" },
+        "corpusVersion": { "const": "phase2b-search-quality-v1" },
+        "corpusDigest": { "$ref": "#/$defs/sha256" },
+        "artifactSchemaDigest": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "environment": {
+      "type": "object", "additionalProperties": false,
+      "required": ["postgresql", "node", "os", "cpu", "chromium", "playwright"],
+      "properties": {
+        "postgresql": { "type": "string", "minLength": 1 },
+        "node": { "type": "string", "pattern": "^v" },
+        "os": { "type": "string", "minLength": 1 },
+        "cpu": { "type": "string", "minLength": 1 },
+        "chromium": { "type": "string", "minLength": 1 },
+        "playwright": { "type": "string", "minLength": 1 }
+      }
+    },
+    "migrationVersions": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[0-9]{12}_[a-z0-9_-]+$" }
+    },
+    "gates": {
+      "type": "array", "minItems": 8, "maxItems": 8,
+      "items": { "$ref": "#/$defs/gate" }
+    },
+    "searchEvidence": {
+      "type": "object", "additionalProperties": false,
+      "required": ["quality", "plans", "performance", "authorization", "http", "browser"],
+      "properties": {
+        "quality": { "$ref": "#/$defs/passedProbe" },
+        "plans": { "$ref": "#/$defs/passedProbe" },
+        "performance": { "$ref": "#/$defs/passedProbe" },
+        "authorization": { "$ref": "#/$defs/passedProbe" },
+        "http": { "$ref": "#/$defs/passedProbe" },
+        "browser": { "$ref": "#/$defs/passedProbe" }
+      }
+    },
+    "regressions": {
+      "type": "object", "additionalProperties": false,
+      "required": ["P2B-03", "P2B-09", "P2B-14", "P2B-17", "P2B-20"],
+      "properties": {
+        "P2B-03": { "const": "passed" }, "P2B-09": { "const": "passed" },
+        "P2B-14": { "const": "passed" }, "P2B-17": { "const": "passed" },
+        "P2B-20": { "const": "passed" }
+      }
+    },
+    "artifactDigest": { "type": "string", "pattern": "^[A-Za-z0-9_-]{43}$" }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "gate": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "status", "command", "durationMs", "resultSummary", "outputDigest"],
+      "properties": {
+        "id": { "enum": ["migration", "openapi", "telemetry", "search-postgres", "search-http", "search-frontend", "frontend-build", "real-stack"] },
+        "status": { "const": "passed" },
+        "command": { "type": "string", "minLength": 1 },
+        "durationMs": { "type": "number", "minimum": 0 },
+        "resultSummary": { "type": "string", "minLength": 1 },
+        "outputDigest": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "passedProbe": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status", "summary"],
+      "properties": {
+        "status": { "const": "passed" },
+        "summary": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

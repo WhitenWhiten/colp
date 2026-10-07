@@ -1,0 +1,294 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://known.example.test/schemas/phase2-publication-redis-evidence.schema.json",
+  "title": "Phase 2 Publication Redis performance and failure evidence artifact",
+  "description": "Machine-readable evidence produced by the T14 runner (tests/integration/phase2/phase2-publication-redis-evidence.integration.test.ts) for the Redis hot-data cache plan (docs/12-redis-hot-data-cache-plan.md §6.4 T14). Records database relief (warm hit), concurrent cold-miss merging, Redis outage fallback, breaker/recovery and Outbox invalidation lag against real PostgreSQL + a dedicated Testcontainers Redis. Never contains secrets or business body content.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "schema",
+    "timestamp",
+    "gitSha",
+    "gitDirty",
+    "fixture",
+    "scenarios",
+    "counts",
+    "latencyDistribution",
+    "payloadBytes",
+    "versions",
+    "outboxInvalidation",
+    "breakerEvidence",
+    "knownLimitations",
+    "pass"
+  ],
+  "properties": {
+    "format": { "const": "known.phase2-publication.redis-evidence.v1" },
+    "schema": { "const": "./redis-evidence.schema.json" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "gitSha": { "type": "string", "pattern": "^[0-9a-f]{40}$", "description": "HEAD commit SHA of the repository at evidence time." },
+    "gitDirty": { "type": "boolean", "description": "True when `git status --porcelain` is non-empty at evidence time." },
+    "fixture": { "$ref": "#/$defs/fixture" },
+    "scenarios": {
+      "type": "array",
+      "minItems": 5,
+      "items": { "$ref": "#/$defs/scenario" }
+    },
+    "counts": { "$ref": "#/$defs/counts", "description": "Aggregate counts across all scenarios." },
+    "latencyDistribution": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "warm-hit": { "$ref": "#/$defs/latencySummary" },
+        "cold-miss-concurrent": { "$ref": "#/$defs/latencySummary" },
+        "outage-fallback": { "$ref": "#/$defs/latencySummary" },
+        "recovery": { "$ref": "#/$defs/latencySummary" }
+      }
+    },
+    "payloadBytes": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "warm-hit": { "$ref": "#/$defs/payloadSummary" },
+        "cold-miss-concurrent": { "$ref": "#/$defs/payloadSummary" },
+        "outage-fallback": { "$ref": "#/$defs/payloadSummary" },
+        "recovery": { "$ref": "#/$defs/payloadSummary" }
+      }
+    },
+    "versions": { "$ref": "#/$defs/versions" },
+    "outboxInvalidation": { "$ref": "#/$defs/outboxInvalidation" },
+    "breakerEvidence": { "$ref": "#/$defs/breakerEvidence" },
+    "knownLimitations": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "pass": { "$ref": "#/$defs/pass" }
+  },
+  "$defs": {
+    "fixture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "concurrency",
+        "randomSeed",
+        "childCount",
+        "warmupIterations",
+        "sampleIterations",
+        "domains",
+        "redisImage",
+        "postgresImage",
+        "failureInjectionPoint",
+        "cacheConfig"
+      ],
+      "properties": {
+        "concurrency": { "type": "integer", "minimum": 2, "maximum": 64, "description": "Concurrent cold-miss N driven through a start gate (barrier), never a bare Promise.all." },
+        "randomSeed": { "type": "integer", "minimum": 0, "description": "Fixed deterministic seed used by the fixture." },
+        "childCount": { "type": "integer", "minimum": 1, "maximum": 64, "description": "Fixed public bookmark children under the fixture root (fixed payload size)." },
+        "warmupIterations": { "type": "integer", "minimum": 0, "maximum": 1000 },
+        "sampleIterations": { "type": "integer", "minimum": 5, "maximum": 100000 },
+        "domains": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "enum": ["metadata", "directory", "snapshot"] }
+        },
+        "redisImage": { "type": "string", "minLength": 1 },
+        "postgresImage": { "type": "string", "minLength": 1 },
+        "failureInjectionPoint": { "type": "string", "minLength": 1, "description": "How the Redis outage was injected (test-only container, redis-server shutdown)." },
+        "cacheConfig": { "$ref": "#/$defs/cacheConfig" }
+      }
+    },
+    "cacheConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "commandTimeoutMs",
+        "connectTimeoutMs",
+        "maxRetriesPerRequest",
+        "maxEntryBytes",
+        "lockTtlMs",
+        "metadataSoftTtlMs",
+        "metadataHardTtlMs",
+        "directorySoftTtlMs",
+        "directoryHardTtlMs",
+        "snapshotSoftTtlMs",
+        "snapshotHardTtlMs"
+      ],
+      "properties": {
+        "mode": { "const": "serve" },
+        "commandTimeoutMs": { "type": "integer", "minimum": 1 },
+        "connectTimeoutMs": { "type": "integer", "minimum": 1 },
+        "maxRetriesPerRequest": { "type": "integer", "minimum": 0, "maximum": 10 },
+        "maxEntryBytes": { "type": "integer", "minimum": 1 },
+        "lockTtlMs": { "type": "integer", "minimum": 1 },
+        "metadataSoftTtlMs": { "type": "integer", "minimum": 1 },
+        "metadataHardTtlMs": { "type": "integer", "minimum": 1 },
+        "directorySoftTtlMs": { "type": "integer", "minimum": 1 },
+        "directoryHardTtlMs": { "type": "integer", "minimum": 1 },
+        "snapshotSoftTtlMs": { "type": "integer", "minimum": 1 },
+        "snapshotHardTtlMs": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "redisCommandCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["get", "set", "setIfAbsent", "releaseIfOwner", "rotateEpoch", "health"],
+      "properties": {
+        "get": { "type": "integer", "minimum": 0 },
+        "set": { "type": "integer", "minimum": 0 },
+        "setIfAbsent": { "type": "integer", "minimum": 0 },
+        "releaseIfOwner": { "type": "integer", "minimum": 0 },
+        "rotateEpoch": { "type": "integer", "minimum": 0 },
+        "health": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requests", "loaderCalls", "hits", "misses", "fallbacks", "redisCommands"],
+      "properties": {
+        "requests": { "type": "integer", "minimum": 0 },
+        "loaderCalls": { "type": "integer", "minimum": 0, "description": "Origin read-port calls in the measured window (request-scoped counter)." },
+        "hits": { "type": "integer", "minimum": 0, "description": "Requests served without an origin load (fresh cache hit)." },
+        "misses": { "type": "integer", "minimum": 0, "description": "Requests that triggered or joined an origin load (cold miss / refresh)." },
+        "fallbacks": { "type": "integer", "minimum": 0, "description": "Requests served via a cache_unavailable / lock_unavailable / circuit_open fallback." },
+        "redisCommands": { "$ref": "#/$defs/redisCommandCounts" }
+      }
+    },
+    "latencySummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["p50", "p95", "max", "sampleCount"],
+      "properties": {
+        "p50": { "type": "number", "minimum": 0 },
+        "p95": { "type": "number", "minimum": 0 },
+        "max": { "type": "number", "minimum": 0 },
+        "sampleCount": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "payloadSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mean", "min", "max", "sampleCount"],
+      "properties": {
+        "mean": { "type": "number", "minimum": 0 },
+        "min": { "type": "integer", "minimum": 0 },
+        "max": { "type": "integer", "minimum": 0 },
+        "sampleCount": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "scenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "domain", "mode", "description", "counts", "pass"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "enum": ["warm-hit", "cold-miss-concurrent", "off-parity", "outage-fallback", "recovery", "outbox-invalidation", "breaker"]
+        },
+        "domain": {
+          "type": "string",
+          "enum": ["publication-metadata", "publication-directory", "publication-snapshot", "cache-failure-policy"]
+        },
+        "mode": { "type": "string", "minLength": 1, "description": "Composition mode(s) used: serve / off / serve+off / failure-policy." },
+        "description": { "type": "string", "minLength": 1 },
+        "counts": { "$ref": "#/$defs/counts" },
+        "coldMissLatencyMs": { "type": "number", "minimum": 0, "description": "Cold-start (first miss) latency reported separately from warm-hit samples." },
+        "latencyMs": { "$ref": "#/$defs/latencySummary" },
+        "payloadBytes": { "$ref": "#/$defs/payloadSummary" },
+        "etagObserved": { "type": "boolean" },
+        "resultSetParity": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["withOff", "bytes", "etag", "domains"],
+          "properties": {
+            "withOff": { "const": true },
+            "bytes": { "type": "boolean" },
+            "etag": { "type": "boolean" },
+            "domains": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": { "enum": ["metadata", "directory", "snapshot"] }
+            }
+          }
+        },
+        "pass": { "type": "boolean" }
+      }
+    },
+    "versions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["node", "os", "cpu", "postgres", "redis", "vitest", "tsx", "ioredis"],
+      "properties": {
+        "node": { "type": "string", "minLength": 1 },
+        "os": { "type": "string", "minLength": 1 },
+        "cpu": { "type": "string", "minLength": 1 },
+        "postgres": { "type": "string", "minLength": 1 },
+        "redis": { "type": "string", "minLength": 1 },
+        "vitest": { "type": "string", "minLength": 1 },
+        "tsx": { "type": "string", "minLength": 1 },
+        "ioredis": { "type": "string", "minLength": 1 }
+      }
+    },
+    "outboxInvalidation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lagMs", "epochBefore", "epochAfter", "rotations", "measurement", "workerPollIntervalMs", "pass"],
+      "properties": {
+        "lagMs": { "type": "number", "minimum": 0 },
+        "epochBefore": { "type": "integer", "minimum": 0 },
+        "epochAfter": { "type": "integer", "minimum": 0 },
+        "rotations": { "type": "integer", "minimum": 0 },
+        "measurement": { "type": "string", "minLength": 1 },
+        "workerPollIntervalMs": { "type": "integer", "minimum": 0 },
+        "pass": { "type": "boolean" }
+      }
+    },
+    "breakerEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "layer",
+        "domainPathUsesBreaker",
+        "failureThreshold",
+        "cooldownMs",
+        "stateTransitions",
+        "redisCommandsWhileOpen",
+        "halfOpenProbeCount",
+        "pass"
+      ],
+      "properties": {
+        "layer": { "const": "domain-read" },
+        "domainPathUsesBreaker": { "const": true, "description": "The breaker transition is driven through the production Metadata domain read path." },
+        "failureThreshold": { "type": "integer", "minimum": 1 },
+        "cooldownMs": { "type": "integer", "minimum": 0 },
+        "stateTransitions": {
+          "type": "array",
+          "minItems": 4,
+          "items": { "enum": ["closed", "open", "half_open"] }
+        },
+        "redisCommandsWhileOpen": { "type": "integer", "minimum": 0, "description": "Redis commands issued while the breaker was open (must be 0)." },
+        "halfOpenProbeCount": { "type": "integer", "minimum": 1 },
+        "pass": { "type": "boolean" }
+      }
+    },
+    "pass": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["warmHit", "coldMissConcurrency", "offParity", "outageBoundedFallback", "recovery", "breaker", "outboxInvalidation", "overall"],
+      "properties": {
+        "warmHit": { "type": "boolean" },
+        "coldMissConcurrency": { "type": "boolean" },
+        "offParity": { "type": "boolean" },
+        "outageBoundedFallback": { "type": "boolean" },
+        "recovery": { "type": "boolean" },
+        "breaker": { "type": "boolean" },
+        "outboxInvalidation": { "type": "boolean" },
+        "overall": { "type": "boolean" }
+      }
+    }
+  }
+}

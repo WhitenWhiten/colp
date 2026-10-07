@@ -1,0 +1,19 @@
+{
+  "publicOrigin": "https://sync.example.test",
+  "allowedEndpointOrigins": ["https://sync-edge.example.test"],
+  "trustedProxyHops": 1,
+  "trustedIngressAddress": "127.0.0.1",
+  "trustedIngressProof": "phase3-controlled-ingress-v1",
+  "bodyLimitBytes": 16384,
+  "maxJsonDepth": 12,
+  "maxJsonMembers": 256,
+  "requestTimeoutMs": 1000,
+  "rateLimits": {
+    "sync-session": 8,
+    "sync-snapshot": 16,
+    "sync-push": 4,
+    "sync-pull": 32,
+    "sync-ack": 8,
+    "sync-conflict": 4
+  }
+}

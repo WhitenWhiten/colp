@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://known.example/schemas/phase5/remediation/r5-06-unfollow-withdrawal.schema.json",
+  "title": "Phase 5 remediation R5-06 closed schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "task"
+  ],
+  "properties": {
+    "format": {
+      "const": "known.phase5.remediation.r5-06.v1"
+    },
+    "task": {
+      "const": "R5-06"
+    }
+  }
+}

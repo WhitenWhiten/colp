@@ -1,0 +1,220 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://known.example/schemas/phase5/feed-acceptance-artifact.v1.json",
+  "title": "Phase 5 Feed source-bound acceptance artifact",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "schemaVersion", "accepted", "createdAt", "bindingMode", "evidenceBundle", "remediation", "source", "migration", "contracts", "environment", "featureFlag", "gates", "gateDigest", "evidence", "negativeControls", "claims", "evidenceDigest"],
+  "properties": {
+    "format": { "const": "known.phase5.feed-acceptance.v1" },
+    "schemaVersion": { "const": 1 },
+    "accepted": { "const": true },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "bindingMode": { "const": "exact-commit" },
+    "evidenceBundle": {
+      "type": "object", "additionalProperties": false,
+      "required": ["relativePath", "runtimeRootEnv"],
+      "properties": {
+        "relativePath": { "const": "p5-15/phase5-feed-acceptance.json" },
+        "runtimeRootEnv": { "const": "KNOWN_PHASE5_EVIDENCE_ROOT" }
+      }
+    },
+    "remediation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["recipientContinuation", "batchSql", "crashWindow", "withdrawal", "sparsePlans", "negativeControlMode"],
+      "properties": {
+        "recipientContinuation": { "const": 10007 },
+        "batchSql": { "const": "unnest" },
+        "crashWindow": { "const": true },
+        "withdrawal": { "const": true },
+        "sparsePlans": { "const": true },
+        "negativeControlMode": { "const": "real-temporary-source-corruption" }
+      }
+    },
+    "source": { "$ref": "#/$defs/source" },
+    "migration": { "$ref": "#/$defs/migration" },
+    "contracts": { "$ref": "#/$defs/contracts" },
+    "environment": { "$ref": "#/$defs/environment" },
+    "featureFlag": { "$ref": "#/$defs/featureFlag" },
+    "gates": {
+      "type": "array", "minItems": 13, "maxItems": 13,
+      "prefixItems": [
+        { "$ref": "#/$defs/eventGate" }, { "$ref": "#/$defs/producerGate" },
+        { "$ref": "#/$defs/migrationGate" }, { "$ref": "#/$defs/workerGate" },
+        { "$ref": "#/$defs/fanoutContinuationGate" }, { "$ref": "#/$defs/fanoutBatchGate" },
+        { "$ref": "#/$defs/sparseCapacityGate" }, { "$ref": "#/$defs/queryGate" },
+        { "$ref": "#/$defs/openapiGate" }, { "$ref": "#/$defs/httpGate" },
+        { "$ref": "#/$defs/frontendGate" }, { "$ref": "#/$defs/frontendBuildGate" },
+        { "$ref": "#/$defs/browserGate" }
+      ],
+      "items": false
+    },
+    "gateDigest": { "$ref": "#/$defs/sha256" },
+    "evidence": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "nAndNMinusOne", "producerCommit", "migrationUpgrade", "watermarkCas", "rebuild",
+        "crashRecovery", "recipientContinuation", "batchSql", "sparsePlans", "fullPagination",
+        "authorizationTightening", "productionComposition", "generatedClient", "withdrawal", "browser"
+      ],
+      "properties": {
+        "nAndNMinusOne": { "$ref": "#/$defs/producerEvidence" },
+        "producerCommit": { "$ref": "#/$defs/producerEvidence" },
+        "migrationUpgrade": { "$ref": "#/$defs/migrationEvidence" },
+        "watermarkCas": { "$ref": "#/$defs/workerEvidence" },
+        "rebuild": { "$ref": "#/$defs/workerEvidence" },
+        "crashRecovery": { "$ref": "#/$defs/workerEvidence" },
+        "recipientContinuation": { "$ref": "#/$defs/fanoutContinuationEvidence" },
+        "batchSql": { "$ref": "#/$defs/fanoutBatchEvidence" },
+        "sparsePlans": { "$ref": "#/$defs/sparseCapacityEvidence" },
+        "fullPagination": { "$ref": "#/$defs/browserEvidence" },
+        "authorizationTightening": { "$ref": "#/$defs/queryEvidence" },
+        "productionComposition": { "$ref": "#/$defs/httpEvidence" },
+        "generatedClient": { "$ref": "#/$defs/openapiEvidence" },
+        "withdrawal": { "$ref": "#/$defs/browserEvidence" },
+        "browser": { "$ref": "#/$defs/browserEvidence" }
+      }
+    },
+    "negativeControls": {
+      "type": "array", "minItems": 14, "maxItems": 14,
+      "prefixItems": [
+        { "$ref": "#/$defs/handlerNegative" }, { "$ref": "#/$defs/versionNegative" },
+        { "$ref": "#/$defs/migrationNegative" }, { "$ref": "#/$defs/watermarkNegative" },
+        { "$ref": "#/$defs/routeNegative" }, { "$ref": "#/$defs/clientNegative" },
+        { "$ref": "#/$defs/flagNegative" }, { "$ref": "#/$defs/browserNegative" },
+        { "$ref": "#/$defs/rebuildNegative" }, { "$ref": "#/$defs/crashNegative" },
+        { "$ref": "#/$defs/withdrawalNegative" }, { "$ref": "#/$defs/continuationNegative" },
+        { "$ref": "#/$defs/batchSqlNegative" }, { "$ref": "#/$defs/sparsePlansNegative" }
+      ],
+      "items": false
+    },
+    "claims": {
+      "type": "object", "additionalProperties": false,
+      "required": ["feedEligible", "followEligible", "phase5Verified", "deployment", "deploymentProven", "notifications", "colpFeedProfile", "colpProfile"],
+      "properties": {
+        "feedEligible": { "const": true }, "followEligible": { "const": false },
+        "phase5Verified": { "const": false }, "deployment": { "const": false },
+        "deploymentProven": { "const": false }, "notifications": { "const": false },
+        "colpFeedProfile": { "const": false }, "colpProfile": { "const": false }
+      }
+    },
+    "evidenceDigest": { "$ref": "#/$defs/sha256" }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "source": {
+      "type": "object", "additionalProperties": false,
+      "required": ["checkoutCommit", "backendCommit", "frontendCommit", "colpCommit", "sourceTreeDigest", "sourceFileCount", "cleanCheckout"],
+      "properties": {
+        "checkoutCommit": { "$ref": "#/$defs/commit" }, "backendCommit": { "$ref": "#/$defs/commit" },
+        "frontendCommit": { "$ref": "#/$defs/commit" }, "colpCommit": { "$ref": "#/$defs/commit" },
+        "sourceTreeDigest": { "$ref": "#/$defs/sha256" }, "sourceFileCount": { "type": "integer", "minimum": 1 },
+        "cleanCheckout": { "const": true }
+      }
+    },
+    "migration": {
+      "type": "object", "additionalProperties": false,
+      "required": ["migrationHead", "feedVersion", "fanoutContinuationVersion", "digest"],
+      "properties": {
+        "migrationHead": { "type": "string", "minLength": 1 },
+        "feedVersion": { "const": "202607290100_social_feed_projections" },
+        "fanoutContinuationVersion": { "const": "202607311000_social_feed_fanout_continuation" },
+        "digest": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "contracts": {
+      "type": "object", "additionalProperties": false,
+      "required": ["freeSocialContractVersion", "freeSocialContractDigest", "artifactSchemaDigest", "eventType", "producerVersion", "consumerVersions", "eventContractDigest", "producerDigest", "workerRegistryDigest", "workerRouteDigest", "openapiVersion", "openapiDigest", "generatedClientDigest", "browserConfigDigest", "browserSourceDigest"],
+      "properties": {
+        "freeSocialContractVersion": { "const": 1 }, "freeSocialContractDigest": { "$ref": "#/$defs/sha256" },
+        "artifactSchemaDigest": { "$ref": "#/$defs/sha256" }, "eventType": { "const": "social.collection-change" },
+        "producerVersion": { "const": 2 },
+        "consumerVersions": { "type": "array", "minItems": 2, "maxItems": 2, "prefixItems": [{ "const": 1 }, { "const": 2 }], "items": false },
+        "eventContractDigest": { "$ref": "#/$defs/sha256" }, "producerDigest": { "$ref": "#/$defs/sha256" },
+        "workerRegistryDigest": { "$ref": "#/$defs/sha256" }, "workerRouteDigest": { "$ref": "#/$defs/sha256" },
+        "openapiVersion": { "type": "string", "minLength": 1 }, "openapiDigest": { "$ref": "#/$defs/sha256" },
+        "generatedClientDigest": { "$ref": "#/$defs/sha256" }, "browserConfigDigest": { "$ref": "#/$defs/sha256" },
+        "browserSourceDigest": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "environment": {
+      "type": "object", "additionalProperties": false,
+      "required": ["postgresqlVersion", "nodeVersion", "os", "chromiumVersion", "playwrightVersion"],
+      "properties": {
+        "postgresqlVersion": { "type": "string", "pattern": "PostgreSQL" }, "nodeVersion": { "type": "string", "pattern": "^v[0-9]+" },
+        "os": { "type": "string", "minLength": 1 }, "chromiumVersion": { "type": "string", "pattern": "^[0-9]+(?:\\.[0-9]+){2,3}$" },
+        "playwrightVersion": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+" }
+      }
+    },
+    "featureFlag": {
+      "type": "object", "additionalProperties": false,
+      "required": ["key", "productionDefault", "acceptanceOverrides", "eligibleAfter"],
+      "properties": {
+        "key": { "const": "feed" }, "productionDefault": { "const": false },
+        "acceptanceOverrides": { "type": "array", "minItems": 2, "maxItems": 2, "prefixItems": [{ "const": "off" }, { "const": "on" }], "items": false },
+        "eligibleAfter": { "const": "P5-15" }
+      }
+    },
+    "evidenceClass": { "type": "string", "enum": ["supporting", "verified"] },
+    "gate": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "status", "command", "durationMs", "resultSummary", "outputDigest", "evidenceClass"],
+      "properties": {
+        "id": { "type": "string" }, "status": { "const": "passed" }, "command": { "type": "string", "minLength": 1 },
+        "durationMs": { "type": "number", "minimum": 0 }, "resultSummary": { "type": "string", "minLength": 1 },
+        "outputDigest": { "$ref": "#/$defs/sha256" }, "evidenceClass": { "$ref": "#/$defs/evidenceClass" }
+      }
+    },
+    "eventGate": { "allOf": [{ "$ref": "#/$defs/gate" }, { "type": "object", "properties": { "id": { "const": "event-contract" } } }] },
+    "producerGate": { "allOf": [{ "$ref": "#/$defs/gate" }, { "type": "object", "properties": { "id": { "const": "producer" } } }] },
+    "migrationGate": { "allOf": [{ "$ref": "#/$defs/gate" }, { "type": "object", "properties": { "id": { "const": "migration-projection" } } }] },
+    "workerGate": { "allOf": [{ "$ref": "#/$defs/gate" }, { "type": "object", "properties": { "id": { "const": "worker" } } }] },
+    "fanoutContinuationGate": { "allOf": [{ "$ref": "#/$defs/gate" }, { "type": "object", "properties": { "id": { "const": "fanout-continuation" } } }] },
+    "fanoutBatchGate": { "allOf": [{ "$ref": "#/$defs/gate" }, { "type": "object", "properties": { "id": { "const": "fanout-batch" } } }] },
+    "sparseCapacityGate": { "allOf": [{ "$ref": "#/$defs/gate" }, { "type": "object", "properties": { "id": { "const": "sparse-capacity" } } }] },
+    "queryGate": { "allOf": [{ "$ref": "#/$defs/gate" }, { "type": "object", "properties": { "id": { "const": "query" } } }] },
+    "openapiGate": { "allOf": [{ "$ref": "#/$defs/gate" }, { "type": "object", "properties": { "id": { "const": "openapi" } } }] },
+    "httpGate": { "allOf": [{ "$ref": "#/$defs/gate" }, { "type": "object", "properties": { "id": { "const": "http" } } }] },
+    "frontendGate": { "allOf": [{ "$ref": "#/$defs/gate" }, { "type": "object", "properties": { "id": { "const": "frontend" } } }] },
+    "frontendBuildGate": { "allOf": [{ "$ref": "#/$defs/gate" }, { "type": "object", "properties": { "id": { "const": "frontend-build" } } }] },
+    "browserGate": { "allOf": [{ "$ref": "#/$defs/gate" }, { "type": "object", "properties": { "id": { "const": "browser" } } }] },
+    "evidence": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status", "gateId", "observationDigest", "evidenceClass"],
+      "properties": {
+        "status": { "const": "passed" }, "gateId": { "type": "string" },
+        "observationDigest": { "$ref": "#/$defs/sha256" }, "evidenceClass": { "const": "verified" }
+      }
+    },
+    "producerEvidence": { "allOf": [{ "$ref": "#/$defs/evidence" }, { "type": "object", "properties": { "gateId": { "const": "producer" } } }] },
+    "migrationEvidence": { "allOf": [{ "$ref": "#/$defs/evidence" }, { "type": "object", "properties": { "gateId": { "const": "migration-projection" } } }] },
+    "workerEvidence": { "allOf": [{ "$ref": "#/$defs/evidence" }, { "type": "object", "properties": { "gateId": { "const": "worker" } } }] },
+    "fanoutContinuationEvidence": { "allOf": [{ "$ref": "#/$defs/evidence" }, { "type": "object", "properties": { "gateId": { "const": "fanout-continuation" } } }] },
+    "fanoutBatchEvidence": { "allOf": [{ "$ref": "#/$defs/evidence" }, { "type": "object", "properties": { "gateId": { "const": "fanout-batch" } } }] },
+    "sparseCapacityEvidence": { "allOf": [{ "$ref": "#/$defs/evidence" }, { "type": "object", "properties": { "gateId": { "const": "sparse-capacity" } } }] },
+    "queryEvidence": { "allOf": [{ "$ref": "#/$defs/evidence" }, { "type": "object", "properties": { "gateId": { "const": "query" } } }] },
+    "openapiEvidence": { "allOf": [{ "$ref": "#/$defs/evidence" }, { "type": "object", "properties": { "gateId": { "const": "openapi" } } }] },
+    "httpEvidence": { "allOf": [{ "$ref": "#/$defs/evidence" }, { "type": "object", "properties": { "gateId": { "const": "http" } } }] },
+    "browserEvidence": { "allOf": [{ "$ref": "#/$defs/evidence" }, { "type": "object", "properties": { "gateId": { "const": "browser" } } }] },
+    "negative": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "injection", "outcome", "observationDigest"],
+      "properties": { "id": { "type": "string" }, "injection": { "type": "string", "minLength": 1 }, "outcome": { "const": "failed_closed" }, "observationDigest": { "$ref": "#/$defs/sha256" } }
+    },
+    "handlerNegative": { "allOf": [{ "$ref": "#/$defs/negative" }, { "type": "object", "properties": { "id": { "const": "missing-handler-registration" } } }] },
+    "versionNegative": { "allOf": [{ "$ref": "#/$defs/negative" }, { "type": "object", "properties": { "id": { "const": "missing-event-version" } } }] },
+    "migrationNegative": { "allOf": [{ "$ref": "#/$defs/negative" }, { "type": "object", "properties": { "id": { "const": "missing-migration" } } }] },
+    "watermarkNegative": { "allOf": [{ "$ref": "#/$defs/negative" }, { "type": "object", "properties": { "id": { "const": "missing-watermark-cas" } } }] },
+    "routeNegative": { "allOf": [{ "$ref": "#/$defs/negative" }, { "type": "object", "properties": { "id": { "const": "missing-production-route" } } }] },
+    "clientNegative": { "allOf": [{ "$ref": "#/$defs/negative" }, { "type": "object", "properties": { "id": { "const": "generated-client-drift" } } }] },
+    "flagNegative": { "allOf": [{ "$ref": "#/$defs/negative" }, { "type": "object", "properties": { "id": { "const": "feature-flag-not-exercised" } } }] },
+    "browserNegative": { "allOf": [{ "$ref": "#/$defs/negative" }, { "type": "object", "properties": { "id": { "const": "browser-source-mismatch" } } }] },
+    "rebuildNegative": { "allOf": [{ "$ref": "#/$defs/negative" }, { "type": "object", "properties": { "id": { "const": "missing-rebuild-control" } } }] },
+    "crashNegative": { "allOf": [{ "$ref": "#/$defs/negative" }, { "type": "object", "properties": { "id": { "const": "missing-crash-control" } } }] },
+    "withdrawalNegative": { "allOf": [{ "$ref": "#/$defs/negative" }, { "type": "object", "properties": { "id": { "const": "missing-withdrawal-control" } } }] },
+    "continuationNegative": { "allOf": [{ "$ref": "#/$defs/negative" }, { "type": "object", "properties": { "id": { "const": "missing-recipient-continuation" } } }] },
+    "batchSqlNegative": { "allOf": [{ "$ref": "#/$defs/negative" }, { "type": "object", "properties": { "id": { "const": "missing-batch-sql" } } }] },
+    "sparsePlansNegative": { "allOf": [{ "$ref": "#/$defs/negative" }, { "type": "object", "properties": { "id": { "const": "missing-sparse-plans" } } }] }
+  }
+}

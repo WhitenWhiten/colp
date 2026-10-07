@@ -1,0 +1,10 @@
+{
+  "$schema": "./postgres-editor-paging-thresholds.schema.json",
+  "nodeCount": 10050,
+  "pageSizes": [64, 200, 500],
+  "pageP95Ms": 1500,
+  "landmarkPageMs": 1500,
+  "fullTraversalMs": 120000,
+  "planExecutionMs": 1500,
+  "writerTransactionMs": 5000
+}

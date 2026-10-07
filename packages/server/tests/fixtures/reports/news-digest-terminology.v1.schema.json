@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "schemaVersion", "terms"],
+  "properties": {
+    "$schema": { "const": "./news-digest-terminology.v1.schema.json" },
+    "schemaVersion": { "const": "known.reports.nd01.terminology.v1" },
+    "terms": {
+      "type": "array", "minItems": 8, "maxItems": 8,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["canonical", "meaning", "forbidden"],
+        "properties": {
+          "canonical": { "type": "string", "minLength": 1 },
+          "meaning": { "type": "string", "minLength": 1 },
+          "forbidden": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "$schema": "./performance-baseline.schema.json",
+  "environment": {
+    "runtime": "node-22",
+    "database": "postgresql-testcontainers",
+    "warmupIterations": 10,
+    "measuredIterations": 100,
+    "concurrency": 4
+  },
+  "thresholds": {
+    "transactionP95Ms": 250,
+    "receiptClaimP95Ms": 300,
+    "outboxClaimP95Ms": 300,
+    "maximumPoolWaiters": 4
+  }
+}

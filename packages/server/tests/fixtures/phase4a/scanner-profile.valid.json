@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 2,
+  "runtime": "known-host-rootless-docker",
+  "imageDigest": "registry.example/known-clamav@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "imageCreatedAt": "2026-07-26T00:00:00.000Z",
+  "engineVersion": "ClamAV 1.4.3",
+  "signatureDatabase": {
+    "version": 27809,
+    "builtAt": "2026-07-25T04:31:20.000Z",
+    "maxAgeHours": 48,
+    "fresh": true
+  },
+  "signatureUpdateMode": "digest-pinned-image-rollout",
+  "daemon": {
+    "rootless": true,
+    "localUnixSocket": true,
+    "remoteTcp": false,
+    "seccompBuiltin": true,
+    "cgroupVersion": 2
+  },
+  "defaultRunProfile": {
+    "user": "1000:1000",
+    "network": "none",
+    "readOnlyRootFilesystem": true,
+    "capabilitiesDropped": ["ALL"],
+    "noNewPrivileges": true,
+    "ipc": "none",
+    "privileged": false,
+    "devices": [],
+    "hostNamespaces": [],
+    "dockerSocketMounted": false,
+    "environmentSecrets": false,
+    "imagePullPolicy": "never",
+    "logDriver": "none",
+    "entrypointOverrideRequired": true,
+    "input": {
+      "containerPath": "/scan/input.bin",
+      "readOnly": true,
+      "pathFromUserFilename": false
+    },
+    "budgets": {
+      "cpus": 1,
+      "memoryMiB": 1024,
+      "memorySwapMiB": 1024,
+      "pids": 64,
+      "tmpfsMiB": 64,
+      "timeoutSeconds": 120,
+      "maxBytes": 104857600,
+      "maxFiles": 1000,
+      "maxArchiveRatio": 20,
+      "maxArchiveDepth": 3
+    }
+  },
+  "actualRunProfile": {
+    "user": "1000:1000",
+    "network": "none",
+    "readOnlyRootFilesystem": true,
+    "capabilitiesDropped": ["ALL"],
+    "noNewPrivileges": true,
+    "ipc": "none",
+    "privileged": false,
+    "devices": [],
+    "hostNamespaces": [],
+    "dockerSocketMounted": false,
+    "environmentSecrets": false,
+    "imagePullPolicy": "never",
+    "logDriver": "none",
+    "entrypointOverrideRequired": true,
+    "input": {
+      "containerPath": "/scan/input.bin",
+      "readOnly": true,
+      "pathFromUserFilename": false
+    },
+    "budgets": {
+      "cpus": 1,
+      "memoryMiB": 1024,
+      "memorySwapMiB": 1024,
+      "pids": 64,
+      "tmpfsMiB": 64,
+      "timeoutSeconds": 120,
+      "maxBytes": 104857600,
+      "maxFiles": 1000,
+      "maxArchiveRatio": 20,
+      "maxArchiveDepth": 3
+    }
+  },
+  "actualRunProfileVerified": true
+}

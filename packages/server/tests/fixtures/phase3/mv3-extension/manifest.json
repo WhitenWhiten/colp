@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "Known Phase 3 Auth Evidence",
+  "version": "0.0.1",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAq9I58yPghe6MT9zEAp897xFnNjAfrFWKStxyRgP9fXpjz5quxA7jGEG7pOipYb4FpGyWLNqhkGR/g4qIJuyxhuY03v7HQsLCd89/kQ2eSjNM00bwqYmbXfKgSB63bxcKZruimneh7BhH5vBSStaf0lCsPoD2tisP1e8zsgoFPAWifXvAOw871zJUNr4rGZUkJdFLLtQg+byr1hgzqZtjNdjZ4XeTKxEmCc9w81sDwcdVhdoxBKS4id75QR166I3lyCJ4dhhZBK3oPwBc7RckVK9NSdV8MQ9ioumX/krxt+RvZ5ZPnkDgDtS+PHYsclZZeCxwpTmvpcutbsRFAgQ6pQIDAQAB",
+  "permissions": ["identity", "storage"],
+  "host_permissions": ["https://issuer.example.test/*"],
+  "background": { "service_worker": "service-worker.js" },
+  "action": { "default_popup": "popup.html" }
+}

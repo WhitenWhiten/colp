@@ -1,0 +1,151 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://known.example/schemas/phase5/remediation/r5-09-evidence-class.schema.json",
+  "title": "Phase 5 remediation R5-09 closed schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "task",
+    "evidenceClasses",
+    "capabilityProofAllowedClasses",
+    "productionSurfaces",
+    "supportingSurfaces",
+    "catalogs",
+    "rules"
+  ],
+  "properties": {
+    "format": {
+      "const": "known.phase5.remediation.r5-09.v1"
+    },
+    "task": {
+      "const": "R5-09"
+    },
+    "evidenceClasses": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "prefixItems": [{ "const": "supporting" }, { "const": "verified" }],
+      "items": false
+    },
+    "capabilityProofAllowedClasses": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "prefixItems": [{ "const": "verified" }],
+      "items": false
+    },
+    "productionSurfaces": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "prefixItems": [
+        { "const": "production-migration" },
+        { "const": "postgresql" },
+        { "const": "outbox-worker" },
+        { "const": "fastify" },
+        { "const": "generated-client" },
+        { "const": "chromium" }
+      ],
+      "items": false
+    },
+    "supportingSurfaces": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "prefixItems": [
+        { "const": "unit" },
+        { "const": "direct-handler-application" },
+        { "const": "sql-seeded-http" },
+        { "const": "static-source-check" }
+      ],
+      "items": false
+    },
+    "catalogs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["follow", "feed", "notification", "free-social"],
+      "properties": {
+        "follow": { "$ref": "#/$defs/catalog" },
+        "feed": { "$ref": "#/$defs/catalog" },
+        "notification": { "$ref": "#/$defs/catalog" },
+        "free-social": { "$ref": "#/$defs/catalog" }
+      }
+    },
+    "rules": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "gateEvidenceClassRequired",
+        "capabilityProofVerifiedOnly",
+        "forbidCommandNameInference",
+        "forbidUnitRenamedIntegration",
+        "verifiedRequiresProductionSurface",
+        "rejectDuplicateGateIdsInProof",
+        "digestOrderSensitive"
+      ],
+      "properties": {
+        "gateEvidenceClassRequired": { "const": true },
+        "capabilityProofVerifiedOnly": { "const": true },
+        "forbidCommandNameInference": { "const": true },
+        "forbidUnitRenamedIntegration": { "const": true },
+        "verifiedRequiresProductionSurface": { "const": true },
+        "rejectDuplicateGateIdsInProof": { "const": true },
+        "digestOrderSensitive": { "const": true }
+      }
+    }
+  },
+  "$defs": {
+    "catalog": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": { "$ref": "#/$defs/gateEntry" }
+    },
+    "gateEntry": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["evidenceClass", "productionSurfaces"],
+          "properties": {
+            "evidenceClass": { "const": "verified" },
+            "productionSurfaces": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "enum": [
+                  "production-migration",
+                  "postgresql",
+                  "outbox-worker",
+                  "fastify",
+                  "generated-client",
+                  "chromium"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["evidenceClass", "supportingSurfaces"],
+          "properties": {
+            "evidenceClass": { "const": "supporting" },
+            "supportingSurfaces": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "enum": [
+                  "unit",
+                  "direct-handler-application",
+                  "sql-seeded-http",
+                  "static-source-check"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

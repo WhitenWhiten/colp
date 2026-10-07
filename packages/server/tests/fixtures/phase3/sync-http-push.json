@@ -1,0 +1,22 @@
+{
+  "sessionId": "phase3-sequence-session",
+  "batchId": "phase3-sequence-session.batch-1",
+  "atomic": false,
+  "operations": [
+    {
+      "opId": "phase3-sequence-operation-1",
+      "replicaId": "phase3-sequence-replica",
+      "sequence": 1,
+      "collectionId": "c3Nzc3Nzc3Nzc3Nzc3Nzcw",
+      "type": "update_node_content",
+      "targetId": "phase3-sequence-node",
+      "baseRevision": "node-r1",
+      "occurredAt": "2026-07-25T03:00:00Z",
+      "dependencies": [],
+      "payload": {
+        "base": { "title": "Before exact retry" },
+        "value": { "title": "After exact retry" }
+      }
+    }
+  ]
+}

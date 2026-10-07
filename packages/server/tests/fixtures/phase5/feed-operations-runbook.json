@@ -1,0 +1,13 @@
+{
+  "commands": [
+    "npm run ops:phase5:feed -- status",
+    "npm run ops:phase5:feed -- rebuild",
+    "npm run ops:phase5:feed -- purge",
+    "npm run ops:phase5:feed -- replay-dead-letter"
+  ],
+  "forbidden": [
+    "notification_preferences",
+    "UPDATE social_feed_items",
+    "DELETE FROM social_feed_items"
+  ]
+}

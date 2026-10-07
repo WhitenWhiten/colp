@@ -1,0 +1,10 @@
+[
+  {
+    "schema": "CreateCollectionRequest",
+    "value": {
+      "kind": "future_kind_not_in_contract",
+      "title": "Invalid enum value",
+      "summary": null
+    }
+  }
+]

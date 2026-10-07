@@ -1,0 +1,33 @@
+{
+  "format": "known.phase4a.delivery-url-security.v1",
+  "contractVersion": 1,
+  "planTask": "V4A-05",
+  "runbook": "Known-Backend/docs/runbooks/attachments-delivery-process-operations.md",
+  "capabilityIsBearerSecret": true,
+  "responseHeaders": {
+    "referrerPolicy": { "name": "Referrer-Policy", "value": "no-referrer" },
+    "cacheControl": { "name": "Cache-Control", "value": "no-store" },
+    "noSniff": { "name": "X-Content-Type-Options", "value": "nosniff" }
+  },
+  "headersOnSuccessAndErrorResponses": true,
+  "logScope": "route-template-or-fixed-token-fingerprint",
+  "tokenFingerprintDefaultOff": true,
+  "forbidRawPathQueryLogging": true,
+  "forbidPersistingRealPath": true,
+  "deployment": {
+    "ingress": {
+      "forbidRawPathQueryLogging": true,
+      "forbidCaching": true,
+      "forbidRefererForwarding": true
+    },
+    "cdnWaf": {
+      "forbidRawPathQueryLogging": true,
+      "forbidCaching": true,
+      "forbidRefererForwarding": true
+    },
+    "apm": {
+      "forbidRawPathQueryLogging": true,
+      "scrubUrlCaptures": true
+    }
+  }
+}

@@ -1,0 +1,193 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://known.example/schemas/phase5/free-social-remediation.v1.json",
+  "title": "Phase 5 free-social remediation contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "planDocument", "fanout", "withdrawal", "identity", "queryUnitOfWork", "evidence", "tasks"],
+  "properties": {
+    "format": { "const": "known.phase5.free-social-remediation.v1" },
+    "planDocument": { "const": "docs/plans/completed/known-backend/phase5-remediation-plan.md" },
+    "fanout": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["transport", "pageSizeEnv", "defaultPageSize", "minPageSize", "maxPageSize", "cursorStorage", "continuation", "writeStrategy", "forbidPerRecipientClientQuery", "index"],
+      "properties": {
+        "transport": { "const": "existing-outbox" },
+        "pageSizeEnv": { "const": "FEED_FANOUT_PAGE_SIZE" },
+        "defaultPageSize": { "const": 500 },
+        "minPageSize": { "const": 1 },
+        "maxPageSize": { "const": 1000 },
+        "cursorStorage": { "const": "social_feed_watermarks" },
+        "continuation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "callsFail", "subjectToMaxAttempts", "writesLastError", "forbiddenSubstitutes"],
+          "properties": {
+            "kind": { "const": "normal-control-flow" },
+            "callsFail": { "const": false },
+            "subjectToMaxAttempts": { "const": false },
+            "writesLastError": { "const": false },
+            "forbiddenSubstitutes": {
+              "type": "array",
+              "minItems": 4,
+              "maxItems": 4,
+              "prefixItems": [
+                { "const": "in-process-cursor" },
+                { "const": "ordinary-retry" },
+                { "const": "dead-letter-retry" },
+                { "const": "unbounded-single-transaction" }
+              ],
+              "items": false
+            }
+          }
+        },
+        "writeStrategy": { "const": "set-based-sql" },
+        "forbidPerRecipientClientQuery": { "const": true },
+        "index": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "columns", "include"],
+          "properties": {
+            "name": { "const": "follows_target_actor_fanout_idx" },
+            "columns": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "prefixItems": [
+                { "const": "target_profile_id" },
+                { "const": "actor_profile_id ASC" }
+              ],
+              "items": false
+            },
+            "include": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 1,
+              "prefixItems": [{ "const": "followed_at" }],
+              "items": false
+            }
+          }
+        }
+      }
+    },
+    "withdrawal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outboxType", "appendInFollowCommandTransaction", "independentOutboxRow", "retainQueryTimeRecheck", "requiredHandler"],
+      "properties": {
+        "outboxType": { "const": "social_feed_withdrawal" },
+        "appendInFollowCommandTransaction": { "const": true },
+        "independentOutboxRow": { "const": true },
+        "retainQueryTimeRecheck": { "const": true },
+        "requiredHandler": { "const": "social_feed_withdrawal" }
+      }
+    },
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["socialNotificationsTextMaxLength", "openapiProfileStableIdLength"],
+      "properties": {
+        "socialNotificationsTextMaxLength": { "const": 256 },
+        "openapiProfileStableIdLength": { "const": 22 }
+      }
+    },
+    "queryUnitOfWork": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["surfaces", "isolation", "clock", "forbidAdapterWallClock"],
+      "properties": {
+        "surfaces": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "prefixItems": [
+            { "const": "follow" },
+            { "const": "feed" },
+            { "const": "notification" }
+          ],
+          "items": false
+        },
+        "isolation": { "const": "repeatable-read" },
+        "clock": { "const": "postgresql-current_timestamp" },
+        "forbidAdapterWallClock": { "const": true }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lockPathField", "forbidAbsoluteArtifactPath", "runtimeRootEnv", "runtimeRootMustBeAbsolute", "negativeControls", "evidenceClasses", "capabilityProofAllowedClasses", "supportingOnlySurfaces", "canonicalBindingMode"],
+      "properties": {
+        "lockPathField": { "const": "relativePath" },
+        "forbidAbsoluteArtifactPath": { "const": true },
+        "runtimeRootEnv": { "const": "KNOWN_PHASE5_EVIDENCE_ROOT" },
+        "runtimeRootMustBeAbsolute": { "const": true },
+        "negativeControls": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode", "forbidEmptyStringSimulation", "forbidManualBooleanSimulation"],
+          "properties": {
+            "mode": { "const": "real-temporary-source-corruption" },
+            "forbidEmptyStringSimulation": { "const": true },
+            "forbidManualBooleanSimulation": { "const": true }
+          }
+        },
+        "evidenceClasses": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "prefixItems": [{ "const": "supporting" }, { "const": "verified" }],
+          "items": false
+        },
+        "capabilityProofAllowedClasses": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "prefixItems": [{ "const": "verified" }],
+          "items": false
+        },
+        "supportingOnlySurfaces": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "prefixItems": [
+            { "const": "unit" },
+            { "const": "direct-handler-application" },
+            { "const": "sql-seeded-http" }
+          ],
+          "items": false
+        },
+        "canonicalBindingMode": { "const": "exact-commit" }
+      }
+    },
+    "tasks": {
+      "type": "array",
+      "minItems": 18,
+      "maxItems": 18,
+      "items": { "$ref": "#/$defs/task" }
+    }
+  },
+  "$defs": {
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "commitSubject", "owner", "finalAcceptance", "evidenceClass", "publicCommands", "closedSchema"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^R5-(0[1-9]|1[0-8])$" },
+        "commitSubject": { "type": "string", "minLength": 1, "pattern": "^phase5: " },
+        "owner": { "enum": ["contracts", "social", "outbox", "notifications", "operations", "release"] },
+        "finalAcceptance": { "type": "string", "pattern": "^R5-(0[1-9]|1[0-8])(?:,R5-(0[1-9]|1[0-8]))*$" },
+        "evidenceClass": { "enum": ["supporting", "verified"] },
+        "publicCommands": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "pattern": "^npm run (?:test|evidence|verify):phase5:[a-z0-9:-]+$" }
+        },
+        "closedSchema": {
+          "type": "string",
+          "pattern": "^tests/fixtures/phase5/[A-Za-z0-9._/-]+\\.schema\\.json$"
+        }
+      }
+    }
+  }
+}

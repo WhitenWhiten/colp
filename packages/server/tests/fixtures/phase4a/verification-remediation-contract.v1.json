@@ -1,0 +1,174 @@
+{
+  "format": "known.phase4a.verification-remediation.v1",
+  "contractVersion": 1,
+  "planDocument": "docs/plans/completed/known-backend/phase4a-verification-remediation-plan.md",
+  "authoritativeStatus": {
+    "status": "Implemented / Awaiting current-revision acceptance",
+    "verifiedOnlyAfterTask": "V4A-08",
+    "deploymentProven": false,
+    "historicalEvidenceIsAuditOnly": true,
+    "historicalEvidenceDoesNotProveHead": true,
+    "statusDocument": "Known-Backend/docs/09-phase-execution-status.md",
+    "ownerPrivateEvidenceDocument": "Known-Backend/docs/evidence/phase4a-owner-private.md",
+    "ownerPrivateEvidenceDocumentStatus": "AUDIT RECORD",
+    "historicalRuns": [
+      { "id": "I16", "revision": "af9711f", "artifact": "docs/evidence/phase4a-i16-acceptance.json", "role": "audit-record" },
+      { "id": "P11", "revision": "3d538cd", "artifact": "docs/evidence/phase4a-owner-private.json", "role": "audit-record" }
+    ]
+  },
+  "topology": {
+    "kind": "independent-os-processes",
+    "requiredProcesses": ["api-a", "api-b", "worker", "delivery"],
+    "distinctOsPids": true,
+    "transport": "real-listening-socket",
+    "forbiddenSubstitutes": [
+      "fastify-inject",
+      "same-process-composition",
+      "direct-worker-method-call"
+    ],
+    "runnerRecords": ["pid", "listening-origin"]
+  },
+  "evidenceHierarchy": {
+    "levels": [
+      {
+        "id": "supporting",
+        "proves": ["unit", "schema", "logger/header", "composition-contract"],
+        "cannotReplace": ["independent-processes", "real-r2-chromium"]
+      },
+      {
+        "id": "process-verified",
+        "proves": ["distinct-os-pids", "real-socket", "shared-redis-postgresql", "kill-restart-drain"],
+        "cannotReplace": ["real-cloudflare-r2", "browser-isolation"]
+      },
+      {
+        "id": "environment-verified",
+        "proves": ["real-r2", "real-postgresql", "real-redis", "real-chromium-clean-exact-revision"],
+        "cannotReplace": ["production-deployment-slo"]
+      }
+    ],
+    "finalVerifiedRequires": ["process-verified", "environment-verified"],
+    "sameFreshCanonicalRun": true,
+    "deploymentProven": false
+  },
+  "validationModes": {
+    "defaultMode": "retained",
+    "modes": [
+      {
+        "id": "retained",
+        "sourceBinding": "artifact-source-revision",
+        "bindsRevision": true,
+        "replayableOnBoundRevision": true
+      },
+      {
+        "id": "current",
+        "sourceBinding": "head",
+        "bindsRevision": false,
+        "replayableOnBoundRevision": false,
+        "requiresSourceEqualsHead": true,
+        "oldRevisionFailsWithStableCode": true
+      }
+    ],
+    "forbidCurrentMigrationRejectingHistoricalArtifact": true,
+    "historicalPassDoesNotProveHead": true
+  },
+  "deliveryCredentialBoundary": {
+    "allowed": ["r2-read-only", "capability-hmac-secret", "delivery-postgres-read-only-role"],
+    "forbidden": [
+      "known-session",
+      "r2-read-write",
+      "generic-application-db-role",
+      "physical-key-in-capability",
+      "absolute-credential-free-wording"
+    ],
+    "documentationWording": "session-free, r2-read-only, db-read-only",
+    "keepCurrentActiveFencing": true
+  },
+  "urlSecretContract": {
+    "capabilityIsBearerSecret": true,
+    "requiredResponseHeaders": [
+      { "name": "referrer-policy", "value": "no-referrer" },
+      { "name": "cache-control", "value": "no-store" },
+      { "name": "x-content-type-options", "value": "nosniff" }
+    ],
+    "headersOnSuccessAndErrorResponses": true,
+    "logScope": "route-template-or-fixed-token-fingerprint",
+    "tokenFingerprintDefaultOff": true,
+    "forbidRawPathQueryLogging": true,
+    "forbidPersistingRealPath": true,
+    "ingressContractRequired": true
+  },
+  "tasks": [
+    {
+      "id": "V4A-00",
+      "commitSubject": "chore(deps): remediate phase4a production audit findings",
+      "owner": "mainline",
+      "finalAcceptance": "V4A-08",
+      "focusedGates": ["npm audit --omit=dev --audit-level=high"],
+      "evidenceClass": "supporting"
+    },
+    {
+      "id": "V4A-01",
+      "commitSubject": "docs(phase4a): freeze verification remediation contracts",
+      "owner": "V4A-01",
+      "finalAcceptance": "V4A-08",
+      "focusedGates": ["npm run test:phase4a:verification-remediation-contract"],
+      "evidenceClass": "supporting"
+    },
+    {
+      "id": "V4A-02",
+      "commitSubject": "test(security): classify phase4a synthetic secret fixtures",
+      "owner": "V4A-02",
+      "finalAcceptance": "V4A-08",
+      "focusedGates": ["npm run test:phase4a:secret-scan", "npm run scan:secrets"],
+      "evidenceClass": "supporting"
+    },
+    {
+      "id": "V4A-03",
+      "commitSubject": "fix(phase4a): make retained evidence validation revision-aware",
+      "owner": "V4A-03",
+      "finalAcceptance": "V4A-08",
+      "focusedGates": ["npm run evidence:phase4a-i16:validate", "npm run evidence:phase4a-owner-private:validate"],
+      "evidenceClass": "supporting"
+    },
+    {
+      "id": "V4A-04",
+      "commitSubject": "feat(phase4a): add isolated delivery process entrypoint",
+      "owner": "V4A-04",
+      "finalAcceptance": "V4A-06,V4A-08",
+      "focusedGates": ["npm run test:phase4a:delivery-process"],
+      "evidenceClass": "process-verified"
+    },
+    {
+      "id": "V4A-05",
+      "commitSubject": "fix(phase4a): harden delivery capability URL handling",
+      "owner": "V4A-05",
+      "finalAcceptance": "V4A-08",
+      "focusedGates": ["npm run test:phase4a:delivery-url-security"],
+      "evidenceClass": "process-verified"
+    },
+    {
+      "id": "V4A-06",
+      "commitSubject": "test(phase4a): prove multi-process owner-private topology",
+      "owner": "V4A-06",
+      "finalAcceptance": "V4A-07,V4A-08",
+      "focusedGates": ["npm run test:phase4a:p11:process"],
+      "evidenceClass": "process-verified"
+    },
+    {
+      "id": "V4A-07",
+      "commitSubject": "test(phase4a): bind canonical acceptance to process evidence",
+      "owner": "V4A-07",
+      "finalAcceptance": "V4A-08",
+      "focusedGates": ["npm run test:phase4a:p11:canonical-contract"],
+      "evidenceClass": "environment-verified"
+    },
+    {
+      "id": "V4A-08",
+      "commitSubject": "docs(phase4a): seal current-revision owner-private acceptance",
+      "owner": "V4A-08",
+      "finalAcceptance": "V4A-08",
+      "focusedGates": ["npm audit --omit=dev --audit-level=high", "npm run scan:secrets"],
+      "evidenceClass": "environment-verified"
+    }
+  ]
+}

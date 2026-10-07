@@ -1,0 +1,41 @@
+{
+  "protocol": "https://know-n.com/colp/spec/0.1",
+  "protocolVersions": ["0.1"],
+  "serverId": "https://sync.example.test/",
+  "serverUuid": "019f97ff-1111-7111-8111-111111111111",
+  "title": "Known P3-04 private composition",
+  "mounts": [
+    {
+      "id": "known-sync-entry",
+      "baseUrl": "https://sync.example.test/private-entry/",
+      "profiles": ["core"],
+      "endpoints": {
+        "syncSessions": "https://sync.example.test/private-entry/session-negotiation",
+        "syncSnapshot": "https://sync.example.test/private-entry/snapshot-download",
+        "syncPush": "https://sync.example.test/private-entry/operation-ingress",
+        "syncPull": "https://sync-edge.example.test/private-entry/event-stream",
+        "syncAck": "https://sync.example.test/private-entry/checkpoint-commit",
+        "syncConflict": "https://sync.example.test/private-entry/conflicts/{conflictId}/decision"
+      },
+      "features": {
+        "bookmarkUrls": { "acceptedSchemes": ["http", "https"] },
+        "sync": { "multiCollectionSessions": false }
+      },
+      "auth": {
+        "anonymousRead": false,
+        "apiKeys": false,
+        "oauth": true,
+        "protectedResourceMetadata": "https://sync.example.test/.well-known/oauth-protected-resource"
+      },
+      "limits": {
+        "maxPageSize": 100,
+        "maxSnapshotNodes": 10000,
+        "minPollIntervalSeconds": 10,
+        "recommendedPollIntervalSeconds": 30,
+        "maxSyncBatchOperations": 1,
+        "idempotencyRetentionSeconds": 86400,
+        "syncCursorRetentionSeconds": 2592000
+      }
+    }
+  ]
+}

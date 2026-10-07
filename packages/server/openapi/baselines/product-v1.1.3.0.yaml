@@ -1,0 +1,2955 @@
+openapi: 3.1.0
+info:
+  title: Known Product API
+  version: 1.3.0
+  description: Phase 1 Web Product API. This contract is separate from COLP Publication, Publisher, Sync, MCP, and Admin surfaces. Application commands and COLP wire types are mapped explicitly and are not generated from this document. info.version 1.3.0 adds the Phase 2B authenticated Annotation CRUD surface while preserving the accepted Product 1.2 client contract under ADR-0015. Generated-client drift, command replay versioning, and breaking-change policy are governed by that ADR.
+jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
+servers:
+  - url: /
+tags:
+  - name: BrowserAuth
+    description: Browser navigation endpoints for the OIDC authorization flow.
+  - name: Session
+    description: Browser Session bootstrap and revocation.
+  - name: Account
+    description: Current authenticated Account and Profile views.
+  - name: Profiles
+    description: Public Profile projections and their published Collections.
+  - name: Collections
+    description: Phase 1 Collection creation, metadata, and Editor queries.
+  - name: Nodes
+    description: Phase 1 Folder and Bookmark commands.
+  - name: Annotations
+    description: Authenticated Product Annotation reads and canonical commands.
+paths:
+  /api/v1/auth/oidc/start:
+    get:
+      tags:
+        - BrowserAuth
+      operationId: startOidcAuthorization
+      summary: Start the browser OIDC authorization flow
+      description: Starts Authorization Code with PKCE. Invalid returnTo values fall back to the fixed dashboard. This navigation operation is excluded from the generated business API client.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/ReturnTo'
+      responses:
+        '302':
+          description: Redirect to the configured OIDC issuer.
+          headers:
+            Location:
+              $ref: '#/components/headers/Location'
+            Set-Cookie:
+              $ref: '#/components/headers/SetCookie'
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /api/v1/auth/oidc/callback:
+    get:
+      tags:
+        - BrowserAuth
+      operationId: completeOidcAuthorization
+      summary: Complete the browser OIDC authorization flow
+      description: Accepts exactly one success branch (code plus state) or one failure branch (error plus state). Optional standard iss, session_state, error_description, and error_uri parameters are accepted; only iss is used and must match the configured issuer. Every failure clears the one-time transaction when safe to do so. Terminal denials redirect to the fixed /login?auth=failed path. Non-replayable failures after the authorization code or login transaction is consumed redirect to /login?auth=restart so the browser starts a brand-new login (the same code/state must never be retried).
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/OidcCode'
+        - $ref: '#/components/parameters/OidcState'
+        - $ref: '#/components/parameters/OidcError'
+        - $ref: '#/components/parameters/OidcIssuer'
+        - $ref: '#/components/parameters/OidcSessionState'
+        - $ref: '#/components/parameters/OidcErrorDescription'
+        - $ref: '#/components/parameters/OidcErrorUri'
+      responses:
+        '303':
+          description: Redirect to the validated same-origin returnTo on success; to the fixed /login?auth=failed location on terminal denial; or to /login?auth=restart when the flow is non-replayable and the user must begin a new login.
+          headers:
+            Location:
+              $ref: '#/components/headers/Location'
+            Set-Cookie:
+              $ref: '#/components/headers/SetCookie'
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+  /api/v1/session:
+    get:
+      tags:
+        - Session
+      operationId: getSession
+      summary: Get the current browser session state
+      security:
+        - cookieAuth: []
+        - {}
+      responses:
+        '200':
+          description: Current authenticated or unauthenticated session state.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/PrivateNoStore'
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionView'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+    delete:
+      tags:
+        - Session
+      operationId: deleteSession
+      summary: Revoke the current browser session
+      security:
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CsrfToken'
+      responses:
+        '204':
+          description: Session revoked and cookie cleared.
+          headers:
+            Set-Cookie:
+              $ref: '#/components/headers/SetCookie'
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /api/v1/me:
+    get:
+      tags:
+        - Account
+      operationId: getMe
+      summary: Get the current account and profile
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Current account and minimal profile view.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/PrivateNoStore'
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeView'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/profiles/{handle}:
+    get:
+      tags:
+        - Profiles
+      operationId: getPublicProfile
+      summary: Get a public Profile and one page of public Collections
+      description: Returns the same public representation for anonymous and Session principals. The representation validator covers the final JSON bytes, page identity, negotiated media type, and Product contract version.
+      security:
+        - cookieAuth: []
+        - {}
+      parameters:
+        - $ref: '#/components/parameters/PublicProfileHandlePath'
+        - $ref: '#/components/parameters/PublicProfileLimit'
+        - $ref: '#/components/parameters/PublicProfileCursor'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Public Profile and one stable keyset page.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/PublicProfileCache'
+            Content-Length:
+              $ref: '#/components/headers/ContentLength'
+            ETag:
+              $ref: '#/components/headers/ETag'
+            Vary:
+              $ref: '#/components/headers/VaryAccept'
+            X-Content-Type-Options:
+              $ref: '#/components/headers/XContentTypeOptions'
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicProfilePage'
+        '304':
+          description: The recomputed current public representation matches If-None-Match.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/PublicProfileCache'
+            ETag:
+              $ref: '#/components/headers/ETag'
+            Vary:
+              $ref: '#/components/headers/VaryAccept'
+            X-Content-Type-Options:
+              $ref: '#/components/headers/XContentTypeOptions'
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '406':
+          $ref: '#/components/responses/NotAcceptable'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+    head:
+      tags:
+        - Profiles
+      operationId: headPublicProfile
+      summary: Get public Profile representation metadata without a body
+      description: Performs the same path, query, projection, current-representation, and conditional request work as GET, but never sends representation bytes.
+      security:
+        - cookieAuth: []
+        - {}
+      parameters:
+        - $ref: '#/components/parameters/PublicProfileHandlePath'
+        - $ref: '#/components/parameters/PublicProfileLimit'
+        - $ref: '#/components/parameters/PublicProfileCursor'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Current public Profile representation metadata.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/PublicProfileCache'
+            Content-Length:
+              $ref: '#/components/headers/ContentLength'
+            ETag:
+              $ref: '#/components/headers/ETag'
+            Vary:
+              $ref: '#/components/headers/VaryAccept'
+            X-Content-Type-Options:
+              $ref: '#/components/headers/XContentTypeOptions'
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+        '304':
+          description: The recomputed current public representation matches If-None-Match.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/PublicProfileCache'
+            ETag:
+              $ref: '#/components/headers/ETag'
+            Vary:
+              $ref: '#/components/headers/VaryAccept'
+            X-Content-Type-Options:
+              $ref: '#/components/headers/XContentTypeOptions'
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '406':
+          $ref: '#/components/responses/NotAcceptable'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /api/v1/collections:
+    post:
+      tags:
+        - Collections
+      operationId: createCollection
+      summary: Create an owned Collection and Root atomically
+      security:
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CsrfToken'
+        - $ref: '#/components/parameters/CommandId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCollectionRequest'
+      responses:
+        '201':
+          description: Collection and Root created in one committed transaction.
+          headers:
+            Location:
+              $ref: '#/components/headers/Location'
+            ETag:
+              $ref: '#/components/headers/ETag'
+            Cache-Control:
+              $ref: '#/components/headers/PrivateNoStore'
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateCollectionResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/MutationConflict'
+        '410':
+          $ref: '#/components/responses/Gone'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/InvalidDocument'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /api/v1/collections/{collectionId}/editor:
+    get:
+      tags:
+        - Collections
+      operationId: getCollectionEditorPage
+      summary: Get one revision-fenced Editor page
+      description: The first page accepts limit. A continuation request accepts cursor and must omit limit. The cursor is scoped to the principal, Collection, content revision, policy revision, comparator, and page size. The client publishes the assembled tree only after hasMore is false.
+      security:
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CollectionId'
+        - $ref: '#/components/parameters/EditorLimit'
+        - $ref: '#/components/parameters/EditorCursor'
+      responses:
+        '200':
+          description: One consistent Editor page.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/PrivateNoStore'
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EditorPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/EditorSnapshotConflict'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /api/v1/collections/{collectionId}:
+    get:
+      tags:
+        - Collections
+      operationId: getPublicCollectionPage
+      summary: Get one revision-fenced public Collection page by slug
+      description: For this GET operation, collectionId contains the canonical publication slug. Reads the public projection anonymously or the member projection for an optional valid browser Session. Publish the assembled tree only after hasMore is false; snapshot_expired requires a full restart.
+      security:
+        - cookieAuth: []
+        - {}
+      parameters:
+        - $ref: '#/components/parameters/PublicCollectionSlugPath'
+        - $ref: '#/components/parameters/PublicCollectionLimit'
+        - $ref: '#/components/parameters/PublicCollectionCursor'
+      responses:
+        '200':
+          description: One public/member Collection page.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/PublicOrPrivateCache'
+            Vary:
+              description: Includes Cookie to isolate anonymous and member representations.
+              schema:
+                type: string
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicCollectionPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/EditorSnapshotConflict'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+    patch:
+      tags:
+        - Collections
+      operationId: updateCollection
+      summary: Update Phase 1 Collection metadata
+      security:
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CollectionId'
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CsrfToken'
+        - $ref: '#/components/parameters/CommandId'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              $ref: '#/components/schemas/CollectionMergePatch'
+      responses:
+        '200':
+          description: Updated Collection with current concurrency fences.
+          headers:
+            Location:
+              description: Absolute canonical public page URL when the Collection has been published.
+              schema:
+                type: string
+                format: uri
+            ETag:
+              $ref: '#/components/headers/ETag'
+            Cache-Control:
+              $ref: '#/components/headers/PrivateNoStore'
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateCollectionResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/MutationConflict'
+        '410':
+          $ref: '#/components/responses/Gone'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/InvalidDocument'
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /api/v1/collections/{collectionId}/nodes:
+    post:
+      tags:
+        - Nodes
+      operationId: createCollectionNode
+      summary: Create a Folder or Bookmark
+      security:
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CollectionId'
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CsrfToken'
+        - $ref: '#/components/parameters/CommandId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateNodeRequest'
+      responses:
+        '201':
+          description: Node created with updated Parent and Collection fences.
+          headers:
+            Location:
+              $ref: '#/components/headers/Location'
+            ETag:
+              $ref: '#/components/headers/ETag'
+            Cache-Control:
+              $ref: '#/components/headers/PrivateNoStore'
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateNodeResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/MutationConflict'
+        '410':
+          $ref: '#/components/responses/Gone'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/InvalidDocument'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /api/v1/collections/{collectionId}/nodes/{nodeId}:
+    patch:
+      tags:
+        - Nodes
+      operationId: updateCollectionNode
+      summary: Update Folder or Bookmark content
+      description: Root is immutable through Product Node operations.
+      security:
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CollectionId'
+        - $ref: '#/components/parameters/NodeId'
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CsrfToken'
+        - $ref: '#/components/parameters/CommandId'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              $ref: '#/components/schemas/NodeMergePatch'
+      responses:
+        '200':
+          description: Updated Node and current Collection fence.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+            Cache-Control:
+              $ref: '#/components/headers/PrivateNoStore'
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateNodeResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/MutationConflict'
+        '410':
+          $ref: '#/components/responses/Gone'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/InvalidDocument'
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+    delete:
+      tags:
+        - Nodes
+      operationId: deleteCollectionNode
+      summary: Delete a Node or explicitly confirmed subtree
+      description: recursive=true is valid only for Folder targets and requires If-Content-Match in addition to If-Match. If-Content-Match is rejected on non-recursive requests. Root cannot be deleted by this operation.
+      security:
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CollectionId'
+        - $ref: '#/components/parameters/NodeId'
+        - $ref: '#/components/parameters/Recursive'
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CsrfToken'
+        - $ref: '#/components/parameters/CommandId'
+        - $ref: '#/components/parameters/IfMatch'
+        - $ref: '#/components/parameters/IfContentMatch'
+      responses:
+        '200':
+          description: Node or subtree logically deleted.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/PrivateNoStore'
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteNodeResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/MutationConflict'
+        '410':
+          $ref: '#/components/responses/Gone'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '422':
+          $ref: '#/components/responses/InvalidDocument'
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /api/v1/collections/{collectionId}/nodes/{nodeId}/move:
+    post:
+      tags:
+        - Nodes
+      operationId: moveCollectionNode
+      summary: Move or reorder a Node
+      description: Root is immutable through Product Node operations.
+      security:
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CollectionId'
+        - $ref: '#/components/parameters/NodeId'
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CsrfToken'
+        - $ref: '#/components/parameters/CommandId'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MoveNodeRequest'
+      responses:
+        '200':
+          description: Node moved with current Parent and Collection fences.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+            Cache-Control:
+              $ref: '#/components/headers/PrivateNoStore'
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MoveNodeResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/MutationConflict'
+        '410':
+          $ref: '#/components/responses/Gone'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/InvalidDocument'
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /api/v1/collections/{collectionId}/annotations:
+    get:
+      tags:
+        - Annotations
+      operationId: listAnnotations
+      summary: List live Annotations for one Collection or Node subject
+      description: Uses an Annotation-only signed keyset cursor ordered by updatedAt DESC, id ASC. HTML values are untrusted data and must not be injected into DOM.
+      security:
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CollectionId'
+        - $ref: '#/components/parameters/AnnotationResourceType'
+        - $ref: '#/components/parameters/AnnotationResourceId'
+        - $ref: '#/components/parameters/AnnotationLimit'
+        - $ref: '#/components/parameters/AnnotationCursor'
+      responses:
+        '200':
+          description: One stable page of authorized live Annotations.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/PrivateNoStore'
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnnotationPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+    post:
+      tags:
+        - Annotations
+      operationId: createAnnotation
+      summary: Create an Annotation on the query-selected subject
+      security:
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CollectionId'
+        - $ref: '#/components/parameters/AnnotationResourceType'
+        - $ref: '#/components/parameters/AnnotationResourceId'
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CsrfToken'
+        - $ref: '#/components/parameters/CommandId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAnnotationRequest'
+      responses:
+        '201':
+          description: Annotation created canonically.
+          headers:
+            Location:
+              $ref: '#/components/headers/Location'
+            ETag:
+              $ref: '#/components/headers/ETag'
+            Cache-Control:
+              $ref: '#/components/headers/PrivateNoStore'
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnnotationView'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/MutationConflict'
+        '410':
+          $ref: '#/components/responses/Gone'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/InvalidDocument'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /api/v1/collections/{collectionId}/annotations/{annotationId}:
+    get:
+      tags:
+        - Annotations
+      operationId: getAnnotation
+      summary: Get one authorized live Annotation
+      security:
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CollectionId'
+        - $ref: '#/components/parameters/AnnotationId'
+      responses:
+        '200':
+          description: Current Annotation representation.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+            Cache-Control:
+              $ref: '#/components/headers/PrivateNoStore'
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnnotationView'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+    patch:
+      tags:
+        - Annotations
+      operationId: updateAnnotation
+      summary: Apply an RFC 7396 Annotation merge patch
+      security:
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CollectionId'
+        - $ref: '#/components/parameters/AnnotationId'
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CsrfToken'
+        - $ref: '#/components/parameters/CommandId'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              $ref: '#/components/schemas/AnnotationMergePatch'
+      responses:
+        '200':
+          description: Updated Annotation representation.
+          headers:
+            Location:
+              $ref: '#/components/headers/Location'
+            ETag:
+              $ref: '#/components/headers/ETag'
+            Cache-Control:
+              $ref: '#/components/headers/PrivateNoStore'
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnnotationView'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/MutationConflict'
+        '410':
+          $ref: '#/components/responses/Gone'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/InvalidDocument'
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+    delete:
+      tags:
+        - Annotations
+      operationId: deleteAnnotation
+      summary: Canonically soft-delete one Annotation
+      security:
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CollectionId'
+        - $ref: '#/components/parameters/AnnotationId'
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CsrfToken'
+        - $ref: '#/components/parameters/CommandId'
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '200':
+          description: Stable Annotation deletion receipt.
+          headers:
+            Location:
+              $ref: '#/components/headers/Location'
+            ETag:
+              $ref: '#/components/headers/ETag'
+            Cache-Control:
+              $ref: '#/components/headers/PrivateNoStore'
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteAnnotationResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/MutationConflict'
+        '410':
+          $ref: '#/components/responses/Gone'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '422':
+          $ref: '#/components/responses/InvalidDocument'
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: __Host-known_session
+      description: HttpOnly, Secure, SameSite=Lax, Path=/, no Domain. Phase 1 supports HTTPS same-site Web/API deployments only.
+  parameters:
+    PublicProfileHandlePath:
+      name: handle
+      in: path
+      required: true
+      description: Case-insensitive public handle locator, canonicalized to lowercase by the server.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 64
+        pattern: ^(?!\.{1,2}$)[A-Za-z0-9._~-]{1,64}$
+    PublicProfileLimit:
+      name: limit
+      in: query
+      required: false
+      description: Number of public Collection summaries in this keyset page.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    PublicProfileCursor:
+      name: cursor
+      in: query
+      required: false
+      description: Signed Profile-only Product cursor. Do not log, parse, or reuse for another purpose.
+      schema:
+        $ref: '#/components/schemas/PublicProfileCursorValue'
+    IfNoneMatch:
+      name: If-None-Match
+      in: header
+      required: false
+      description: One raw header field containing RFC entity-tag validators or *. Duplicate header fields are rejected before framework normalization.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 4096
+    PublicCollectionSlugPath:
+      name: collectionId
+      in: path
+      required: true
+      description: Canonical lowercase publication slug.
+      schema:
+        $ref: '#/components/schemas/PublicationLocatorSlug'
+    PublicCollectionLimit:
+      name: limit
+      in: query
+      required: false
+      description: Page node limit, including the Root on the first page.
+      schema:
+        type: integer
+        minimum: 2
+        maximum: 500
+        default: 200
+    PublicCollectionCursor:
+      name: cursor
+      in: query
+      required: false
+      description: Signed Product public-page cursor. It is not a COLP or Editor cursor.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 1024
+    CollectionId:
+      name: collectionId
+      in: path
+      required: true
+      description: Case-sensitive opaque Collection ID.
+      schema:
+        $ref: '#/components/schemas/OpaqueId'
+    NodeId:
+      name: nodeId
+      in: path
+      required: true
+      description: Case-sensitive opaque Node ID.
+      schema:
+        $ref: '#/components/schemas/OpaqueId'
+    AnnotationId:
+      name: annotationId
+      in: path
+      required: true
+      description: Case-sensitive opaque Annotation ID.
+      schema:
+        $ref: '#/components/schemas/OpaqueId'
+    AnnotationResourceType:
+      name: resourceType
+      in: query
+      required: true
+      description: Subject resource kind; path Collection remains the authority domain.
+      schema:
+        type: string
+        enum:
+          - collection
+          - node
+    AnnotationResourceId:
+      name: resourceId
+      in: query
+      required: true
+      description: Existing live Collection or Node subject ID.
+      schema:
+        $ref: '#/components/schemas/OpaqueId'
+    AnnotationLimit:
+      name: limit
+      in: query
+      required: false
+      description: First-page size; omit when cursor is present.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    AnnotationCursor:
+      name: cursor
+      in: query
+      required: false
+      description: Signed Annotation-only continuation; omit limit when present.
+      schema:
+        $ref: '#/components/schemas/AnnotationCursorValue'
+    Origin:
+      name: Origin
+      in: header
+      required: true
+      description: Exact allowed Product Web origin. Duplicate or null values fail.
+      schema:
+        type: string
+        format: uri
+        maxLength: 2048
+    CsrfToken:
+      name: X-CSRF-Token
+      in: header
+      required: true
+      description: Session-bound CSRF token returned by getSession.
+      schema:
+        $ref: '#/components/schemas/CsrfToken'
+    CommandId:
+      name: Known-Command-Id
+      in: header
+      required: true
+      description: Stable ID for one user intent. Reuse only for an exact retry of that intent. Full replay results are retained for at least 30 days.
+      schema:
+        $ref: '#/components/schemas/CommandId'
+    IfMatch:
+      name: If-Match
+      in: header
+      required: true
+      description: One strong resource ETag. Weak tags, lists, and * are rejected.
+      schema:
+        $ref: '#/components/schemas/EntityTag'
+    IfContentMatch:
+      name: If-Content-Match
+      in: header
+      required: false
+      description: Required exactly when recursive=true. Copy CollectionView.contentEtag without modification. Rejected for non-recursive requests.
+      schema:
+        $ref: '#/components/schemas/ContentEntityTag'
+    EditorLimit:
+      name: limit
+      in: query
+      required: false
+      description: First-page item limit. Must be omitted when cursor is present.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 500
+        default: 200
+    EditorCursor:
+      name: cursor
+      in: query
+      required: false
+      description: Signed Product Editor cursor. Do not log or parse.
+      schema:
+        $ref: '#/components/schemas/Cursor'
+    Recursive:
+      name: recursive
+      in: query
+      required: false
+      description: Explicitly delete a Folder subtree.
+      schema:
+        type: boolean
+        default: false
+    ReturnTo:
+      name: returnTo
+      in: query
+      required: false
+      description: Same-origin relative path, at most 2048 code points. It must start with one slash and cannot contain authority, backslash, control characters, scheme, or userinfo.
+      schema:
+        type: string
+        maxLength: 2048
+    OidcCode:
+      name: code
+      in: query
+      required: false
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 4096
+    OidcState:
+      name: state
+      in: query
+      required: false
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 2048
+    OidcError:
+      name: error
+      in: query
+      required: false
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 256
+    OidcIssuer:
+      name: iss
+      in: query
+      required: false
+      schema:
+        type: string
+        format: uri
+        maxLength: 2048
+    OidcSessionState:
+      name: session_state
+      in: query
+      required: false
+      schema:
+        type: string
+        maxLength: 2048
+    OidcErrorDescription:
+      name: error_description
+      in: query
+      required: false
+      schema:
+        type: string
+        maxLength: 2048
+    OidcErrorUri:
+      name: error_uri
+      in: query
+      required: false
+      schema:
+        type: string
+        format: uri
+        maxLength: 2048
+  headers:
+    XRequestId:
+      description: Per-attempt diagnostic request ID.
+      schema:
+        $ref: '#/components/schemas/RequestId'
+    PrivateNoStore:
+      description: Private Product response cache policy.
+      schema:
+        type: string
+        const: private, no-store
+    PublicOrPrivateCache:
+      description: Public shared cache for anonymous reads; private no-store for Session reads.
+      schema:
+        type: string
+    PublicProfileCache:
+      description: Shared cache policy for the principal-invariant public Profile representation.
+      schema:
+        type: string
+        const: public, max-age=60, stale-while-revalidate=300
+    ContentLength:
+      description: Decimal byte length of the selected representation, including on HEAD.
+      schema:
+        type: string
+        pattern: ^(?:0|[1-9][0-9]*)$
+    VaryAccept:
+      description: Representation negotiation cache key.
+      schema:
+        type: string
+        const: Accept
+    XContentTypeOptions:
+      description: Prevent MIME sniffing of the JSON representation.
+      schema:
+        type: string
+        const: nosniff
+    NoStore:
+      description: Browser navigation response cache policy.
+      schema:
+        type: string
+        const: no-store
+    ETag:
+      description: Strong ETag for the primary returned resource.
+      schema:
+        $ref: '#/components/schemas/EntityTag'
+    Location:
+      description: Stable Product resource or navigation URI. A created resource Location is not guaranteed to support GET in Phase 1.
+      schema:
+        type: string
+        format: uri-reference
+        maxLength: 4096
+    RetryAfter:
+      description: Retry delay in decimal seconds.
+      schema:
+        type: integer
+        minimum: 0
+    SetCookie:
+      description: Session or one-time OIDC transaction cookie.
+      schema:
+        type: string
+        minLength: 1
+  schemas:
+    OpaqueId:
+      type: string
+      minLength: 1
+      maxLength: 128
+      pattern: ^[A-Za-z0-9._~-]+$
+    Revision:
+      type: string
+      minLength: 1
+      maxLength: 128
+      pattern: ^[A-Za-z0-9._~-]+$
+    CommandId:
+      type: string
+      format: uuid
+      pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+    CsrfToken:
+      type: string
+      minLength: 43
+      maxLength: 43
+      pattern: ^[A-Za-z0-9_-]{43}$
+    RequestId:
+      type: string
+      minLength: 1
+      maxLength: 128
+      pattern: ^[A-Za-z0-9._~-]+$
+    EntityTag:
+      type: string
+      minLength: 3
+      maxLength: 260
+      pattern: ^"[^"\r\n]+"$
+    ChildrenEntityTag:
+      $ref: '#/components/schemas/EntityTag'
+    ContentEntityTag:
+      $ref: '#/components/schemas/EntityTag'
+    PolicyEntityTag:
+      $ref: '#/components/schemas/EntityTag'
+    UtcDateTime:
+      type: string
+      format: date-time
+      pattern: Z$
+    Position:
+      type: string
+      minLength: 1
+      maxLength: 512
+      pattern: ^[\x21-\x7E]+$
+    Cursor:
+      type: string
+      minLength: 1
+      maxLength: 2048
+      pattern: ^[A-Za-z0-9_-]+$
+    PublicProfileCursorValue:
+      type: string
+      minLength: 1
+      maxLength: 2048
+      pattern: ^ppf1\.[A-Za-z0-9_-]{1,64}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]{43}$
+    HttpUrlNoUserInfo:
+      type: string
+      format: uri
+      minLength: 8
+      maxLength: 4096
+      pattern: ^[Hh][Tt][Tt][Pp][Ss]?://[^/?#@\s]+(?:[/?#]|$)
+    HttpsUrl:
+      type: string
+      format: uri
+      minLength: 9
+      maxLength: 2048
+      pattern: ^[Hh][Tt][Tt][Pp][Ss]://[^/?#@\s]+(?:[/?#]|$)
+    CollectionKind:
+      type: string
+      enum:
+        - bookmarks
+        - reading_path
+        - knowledge_collection
+        - mixed
+    CollectionVisibility:
+      type: string
+      enum:
+        - private
+        - protected
+        - unlisted
+        - public
+    NodeVisibility:
+      type: string
+      enum:
+        - inherit
+        - protected
+        - private
+    PublicProfileView:
+      type: object
+      additionalProperties: false
+      properties:
+        handle:
+          type: string
+          minLength: 1
+          maxLength: 64
+          pattern: ^(?!\.{1,2}$)[a-z0-9._~-]{1,64}$
+        displayName:
+          type: string
+          maxLength: 120
+        avatarUrl:
+          oneOf:
+            - $ref: '#/components/schemas/HttpsUrl'
+            - type: 'null'
+      required:
+        - handle
+        - displayName
+        - avatarUrl
+    PublicProfileCollectionSummary:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          $ref: '#/components/schemas/OpaqueId'
+        slug:
+          $ref: '#/components/schemas/PublicationLocatorSlug'
+        title:
+          type: string
+          minLength: 1
+          maxLength: 512
+        summary:
+          type:
+            - string
+            - 'null'
+          maxLength: 2000
+        kind:
+          $ref: '#/components/schemas/CollectionKind'
+        updatedAt:
+          $ref: '#/components/schemas/UtcDateTime'
+      required:
+        - id
+        - slug
+        - title
+        - summary
+        - kind
+        - updatedAt
+    PublicProfilePageState:
+      type: object
+      additionalProperties: false
+      properties:
+        cursor:
+          oneOf:
+            - $ref: '#/components/schemas/PublicProfileCursorValue'
+            - type: 'null'
+        hasMore:
+          type: boolean
+      required:
+        - cursor
+        - hasMore
+    PublicProfilePage:
+      type: object
+      additionalProperties: false
+      properties:
+        profile:
+          $ref: '#/components/schemas/PublicProfileView'
+        collections:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/PublicProfileCollectionSummary'
+        page:
+          $ref: '#/components/schemas/PublicProfilePageState'
+      required:
+        - profile
+        - collections
+        - page
+    UnauthenticatedSessionView:
+      type: object
+      additionalProperties: false
+      properties:
+        authenticated:
+          type: boolean
+          const: false
+      required:
+        - authenticated
+    AuthenticatedSessionView:
+      type: object
+      additionalProperties: false
+      properties:
+        authenticated:
+          type: boolean
+          const: true
+        idleExpiresAt:
+          $ref: '#/components/schemas/UtcDateTime'
+        absoluteExpiresAt:
+          $ref: '#/components/schemas/UtcDateTime'
+        csrfToken:
+          $ref: '#/components/schemas/CsrfToken'
+      required:
+        - authenticated
+        - idleExpiresAt
+        - absoluteExpiresAt
+        - csrfToken
+    SessionView:
+      oneOf:
+        - $ref: '#/components/schemas/UnauthenticatedSessionView'
+        - $ref: '#/components/schemas/AuthenticatedSessionView'
+    AccountView:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          $ref: '#/components/schemas/OpaqueId'
+        email:
+          type:
+            - string
+            - 'null'
+          format: email
+          maxLength: 320
+      required:
+        - id
+        - email
+    ProfileView:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          $ref: '#/components/schemas/OpaqueId'
+        handle:
+          type: string
+          minLength: 1
+          maxLength: 64
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 120
+        avatarUrl:
+          oneOf:
+            - $ref: '#/components/schemas/HttpsUrl'
+            - type: 'null'
+      required:
+        - id
+        - handle
+        - displayName
+        - avatarUrl
+    MeView:
+      type: object
+      additionalProperties: false
+      properties:
+        account:
+          $ref: '#/components/schemas/AccountView'
+        profile:
+          $ref: '#/components/schemas/ProfileView'
+      required:
+        - account
+        - profile
+    CollectionView:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          $ref: '#/components/schemas/OpaqueId'
+        kind:
+          $ref: '#/components/schemas/CollectionKind'
+        title:
+          type: string
+          minLength: 1
+          maxLength: 512
+        summary:
+          type:
+            - string
+            - 'null'
+          maxLength: 2000
+        visibility:
+          $ref: '#/components/schemas/CollectionVisibility'
+        publicationSlug:
+          oneOf:
+            - $ref: '#/components/schemas/PublicationLocatorSlug'
+            - type: 'null'
+        publishedAt:
+          oneOf:
+            - $ref: '#/components/schemas/UtcDateTime'
+            - type: 'null'
+        rootNodeId:
+          $ref: '#/components/schemas/OpaqueId'
+        revision:
+          $ref: '#/components/schemas/Revision'
+        etag:
+          $ref: '#/components/schemas/EntityTag'
+        contentRevision:
+          $ref: '#/components/schemas/Revision'
+        contentEtag:
+          $ref: '#/components/schemas/ContentEntityTag'
+        policyRevision:
+          $ref: '#/components/schemas/Revision'
+        policyEtag:
+          $ref: '#/components/schemas/PolicyEntityTag'
+        createdAt:
+          $ref: '#/components/schemas/UtcDateTime'
+        updatedAt:
+          $ref: '#/components/schemas/UtcDateTime'
+      required:
+        - id
+        - kind
+        - title
+        - summary
+        - visibility
+        - publicationSlug
+        - publishedAt
+        - rootNodeId
+        - revision
+        - etag
+        - contentRevision
+        - contentEtag
+        - policyRevision
+        - policyEtag
+        - createdAt
+        - updatedAt
+    RootNodeView:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          $ref: '#/components/schemas/OpaqueId'
+        collectionId:
+          $ref: '#/components/schemas/OpaqueId'
+        kind:
+          type: string
+          const: folder
+        folderRole:
+          type: string
+          const: root
+        parentId:
+          type: 'null'
+        position:
+          type: 'null'
+        title:
+          type: string
+          minLength: 1
+          maxLength: 512
+        description:
+          type:
+            - string
+            - 'null'
+          maxLength: 20000
+        tags:
+          type: array
+          maxItems: 64
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 1
+            maxLength: 64
+        visibility:
+          $ref: '#/components/schemas/NodeVisibility'
+        revision:
+          $ref: '#/components/schemas/Revision'
+        etag:
+          $ref: '#/components/schemas/EntityTag'
+        readOnly:
+          type: boolean
+        readOnlyReason:
+          type:
+            - string
+            - 'null'
+          minLength: 1
+          maxLength: 512
+        childrenRevision:
+          $ref: '#/components/schemas/Revision'
+        childrenEtag:
+          $ref: '#/components/schemas/ChildrenEntityTag'
+        createdAt:
+          $ref: '#/components/schemas/UtcDateTime'
+        updatedAt:
+          $ref: '#/components/schemas/UtcDateTime'
+      required:
+        - id
+        - collectionId
+        - kind
+        - folderRole
+        - parentId
+        - position
+        - title
+        - description
+        - tags
+        - visibility
+        - revision
+        - etag
+        - readOnly
+        - readOnlyReason
+        - childrenRevision
+        - childrenEtag
+        - createdAt
+        - updatedAt
+    FolderNodeView:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          $ref: '#/components/schemas/OpaqueId'
+        collectionId:
+          $ref: '#/components/schemas/OpaqueId'
+        kind:
+          type: string
+          const: folder
+        folderRole:
+          type: 'null'
+        parentId:
+          $ref: '#/components/schemas/OpaqueId'
+        position:
+          $ref: '#/components/schemas/Position'
+        title:
+          type: string
+          minLength: 1
+          maxLength: 512
+        description:
+          type:
+            - string
+            - 'null'
+          maxLength: 20000
+        tags:
+          type: array
+          maxItems: 64
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 1
+            maxLength: 64
+        visibility:
+          $ref: '#/components/schemas/NodeVisibility'
+        revision:
+          $ref: '#/components/schemas/Revision'
+        etag:
+          $ref: '#/components/schemas/EntityTag'
+        readOnly:
+          type: boolean
+        readOnlyReason:
+          type:
+            - string
+            - 'null'
+          minLength: 1
+          maxLength: 512
+        childrenRevision:
+          $ref: '#/components/schemas/Revision'
+        childrenEtag:
+          $ref: '#/components/schemas/ChildrenEntityTag'
+        createdAt:
+          $ref: '#/components/schemas/UtcDateTime'
+        updatedAt:
+          $ref: '#/components/schemas/UtcDateTime'
+      required:
+        - id
+        - collectionId
+        - kind
+        - folderRole
+        - parentId
+        - position
+        - title
+        - description
+        - tags
+        - visibility
+        - revision
+        - etag
+        - readOnly
+        - readOnlyReason
+        - childrenRevision
+        - childrenEtag
+        - createdAt
+        - updatedAt
+    BookmarkNodeView:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          $ref: '#/components/schemas/OpaqueId'
+        collectionId:
+          $ref: '#/components/schemas/OpaqueId'
+        kind:
+          type: string
+          const: bookmark
+        parentId:
+          $ref: '#/components/schemas/OpaqueId'
+        position:
+          $ref: '#/components/schemas/Position'
+        title:
+          type: string
+          minLength: 1
+          maxLength: 512
+        url:
+          $ref: '#/components/schemas/HttpUrlNoUserInfo'
+        description:
+          type:
+            - string
+            - 'null'
+          maxLength: 20000
+        tags:
+          type: array
+          maxItems: 64
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 1
+            maxLength: 64
+        visibility:
+          $ref: '#/components/schemas/NodeVisibility'
+        revision:
+          $ref: '#/components/schemas/Revision'
+        etag:
+          $ref: '#/components/schemas/EntityTag'
+        readOnly:
+          type: boolean
+        readOnlyReason:
+          type:
+            - string
+            - 'null'
+          minLength: 1
+          maxLength: 512
+        createdAt:
+          $ref: '#/components/schemas/UtcDateTime'
+        updatedAt:
+          $ref: '#/components/schemas/UtcDateTime'
+      required:
+        - id
+        - collectionId
+        - kind
+        - parentId
+        - position
+        - title
+        - url
+        - description
+        - tags
+        - visibility
+        - revision
+        - etag
+        - readOnly
+        - readOnlyReason
+        - createdAt
+        - updatedAt
+    EditableNodeView:
+      oneOf:
+        - $ref: '#/components/schemas/FolderNodeView'
+        - $ref: '#/components/schemas/BookmarkNodeView'
+      discriminator:
+        propertyName: kind
+        mapping:
+          folder: '#/components/schemas/FolderNodeView'
+          bookmark: '#/components/schemas/BookmarkNodeView'
+    NodeView:
+      oneOf:
+        - $ref: '#/components/schemas/RootNodeView'
+        - $ref: '#/components/schemas/FolderNodeView'
+        - $ref: '#/components/schemas/BookmarkNodeView'
+    CreateCollectionRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        kind:
+          $ref: '#/components/schemas/CollectionKind'
+        title:
+          type: string
+          minLength: 1
+          maxLength: 512
+        summary:
+          type:
+            - string
+            - 'null'
+          maxLength: 2000
+      required:
+        - kind
+        - title
+        - summary
+    CollectionMergePatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 512
+        summary:
+          type:
+            - string
+            - 'null'
+          maxLength: 2000
+        visibility:
+          $ref: '#/components/schemas/PublicationVisibility'
+        publicationSlug:
+          $ref: '#/components/schemas/PublicationSlug'
+    PublicationVisibility:
+      type: string
+      enum:
+        - private
+        - public
+        - unlisted
+    PublicationSlug:
+      type: string
+      minLength: 3
+      maxLength: 63
+      pattern: ^[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])$
+    PublicationLocatorSlug:
+      type: string
+      minLength: 3
+      maxLength: 263
+      pattern: ^[a-z0-9](?:[a-z0-9-]{1,261}[a-z0-9])$
+    FolderCreate:
+      type: object
+      additionalProperties: false
+      properties:
+        kind:
+          type: string
+          const: folder
+        title:
+          type: string
+          minLength: 1
+          maxLength: 512
+        description:
+          type:
+            - string
+            - 'null'
+          maxLength: 20000
+        tags:
+          type: array
+          maxItems: 64
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 1
+            maxLength: 64
+        visibility:
+          $ref: '#/components/schemas/NodeVisibility'
+      required:
+        - kind
+        - title
+        - description
+        - tags
+        - visibility
+    BookmarkCreate:
+      type: object
+      additionalProperties: false
+      properties:
+        kind:
+          type: string
+          const: bookmark
+        title:
+          type: string
+          minLength: 1
+          maxLength: 512
+        url:
+          $ref: '#/components/schemas/HttpUrlNoUserInfo'
+        description:
+          type:
+            - string
+            - 'null'
+          maxLength: 20000
+        tags:
+          type: array
+          maxItems: 64
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 1
+            maxLength: 64
+        visibility:
+          $ref: '#/components/schemas/NodeVisibility'
+      required:
+        - kind
+        - title
+        - url
+        - description
+        - tags
+        - visibility
+    NodeCreate:
+      oneOf:
+        - $ref: '#/components/schemas/FolderCreate'
+        - $ref: '#/components/schemas/BookmarkCreate'
+      discriminator:
+        propertyName: kind
+        mapping:
+          folder: '#/components/schemas/FolderCreate'
+          bookmark: '#/components/schemas/BookmarkCreate'
+    CreateNodeRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        parentId:
+          $ref: '#/components/schemas/OpaqueId'
+        afterId:
+          oneOf:
+            - $ref: '#/components/schemas/OpaqueId'
+            - type: 'null'
+        beforeId:
+          oneOf:
+            - $ref: '#/components/schemas/OpaqueId'
+            - type: 'null'
+        node:
+          $ref: '#/components/schemas/NodeCreate'
+      required:
+        - parentId
+        - afterId
+        - beforeId
+        - node
+    NodeMergePatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 512
+        url:
+          $ref: '#/components/schemas/HttpUrlNoUserInfo'
+        description:
+          type:
+            - string
+            - 'null'
+          maxLength: 20000
+        tags:
+          oneOf:
+            - type: array
+              maxItems: 64
+              uniqueItems: true
+              items:
+                type: string
+                minLength: 1
+                maxLength: 64
+            - type: 'null'
+        visibility:
+          oneOf:
+            - $ref: '#/components/schemas/NodeVisibility'
+            - type: 'null'
+    MoveNodeRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        newParentId:
+          $ref: '#/components/schemas/OpaqueId'
+        afterId:
+          oneOf:
+            - $ref: '#/components/schemas/OpaqueId'
+            - type: 'null'
+        beforeId:
+          oneOf:
+            - $ref: '#/components/schemas/OpaqueId'
+            - type: 'null'
+        baseSourceParentRevision:
+          $ref: '#/components/schemas/Revision'
+        baseTargetParentRevision:
+          $ref: '#/components/schemas/Revision'
+      required:
+        - newParentId
+        - afterId
+        - beforeId
+        - baseSourceParentRevision
+        - baseTargetParentRevision
+    AnnotationCursorValue:
+      type: string
+      minLength: 1
+      maxLength: 2048
+      description: Opaque Annotation-only Product cursor bound to principal, Collection, subject, scope, page size, comparator, key version, and expiry.
+    AnnotationSubject:
+      type: object
+      additionalProperties: false
+      properties:
+        type:
+          type: string
+          enum:
+            - collection
+            - node
+        id:
+          $ref: '#/components/schemas/OpaqueId'
+      required:
+        - type
+        - id
+    AnnotationType:
+      type: string
+      enum:
+        - note
+        - summary
+        - tldr
+        - highlight
+        - rating
+        - custom
+      description: reading_state is reserved for the Reading Progress authority.
+    AnnotationFormat:
+      type: string
+      enum:
+        - plain
+        - markdown
+        - html
+        - json
+    AnnotationVisibility:
+      type: string
+      enum:
+        - private
+        - protected
+        - unlisted
+        - public
+    AnnotationActor:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uri
+          maxLength: 2048
+        name:
+          type: string
+          minLength: 1
+          maxLength: 512
+      required:
+        - id
+        - name
+    AnnotationProvenance:
+      type: object
+      additionalProperties: false
+      properties:
+        kind:
+          type: string
+          enum:
+            - human
+            - ai
+            - imported
+            - derived
+        provider:
+          type: string
+          minLength: 1
+          maxLength: 256
+        model:
+          type: string
+          minLength: 1
+          maxLength: 256
+        generatedAt:
+          $ref: '#/components/schemas/UtcDateTime'
+        sourceNodeIds:
+          type: array
+          maxItems: 500
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/OpaqueId'
+        editedByHuman:
+          type: boolean
+      required:
+        - kind
+    AnnotationView:
+      type: object
+      additionalProperties: false
+      description: Explicit Product projection. value may contain untrusted HTML and must never be directly injected into a browser DOM.
+      properties:
+        id:
+          $ref: '#/components/schemas/OpaqueId'
+        collectionId:
+          $ref: '#/components/schemas/OpaqueId'
+        subject:
+          $ref: '#/components/schemas/AnnotationSubject'
+        type:
+          $ref: '#/components/schemas/AnnotationType'
+        format:
+          oneOf:
+            - $ref: '#/components/schemas/AnnotationFormat'
+            - type: 'null'
+        value: {}
+        visibility:
+          $ref: '#/components/schemas/AnnotationVisibility'
+        creator:
+          oneOf:
+            - $ref: '#/components/schemas/AnnotationActor'
+            - type: 'null'
+        provenance:
+          oneOf:
+            - $ref: '#/components/schemas/AnnotationProvenance'
+            - type: 'null'
+        revision:
+          $ref: '#/components/schemas/Revision'
+        createdAt:
+          $ref: '#/components/schemas/UtcDateTime'
+        updatedAt:
+          $ref: '#/components/schemas/UtcDateTime'
+        extensions:
+          type: object
+          additionalProperties: true
+      required:
+        - id
+        - collectionId
+        - subject
+        - type
+        - format
+        - value
+        - visibility
+        - creator
+        - provenance
+        - revision
+        - createdAt
+        - updatedAt
+        - extensions
+    CreateAnnotationRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        type:
+          $ref: '#/components/schemas/AnnotationType'
+        format:
+          $ref: '#/components/schemas/AnnotationFormat'
+        value: {}
+        visibility:
+          $ref: '#/components/schemas/AnnotationVisibility'
+        extensions:
+          type: object
+          additionalProperties: true
+      required:
+        - type
+        - value
+        - visibility
+    AnnotationMergePatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        format:
+          oneOf:
+            - $ref: '#/components/schemas/AnnotationFormat'
+            - type: 'null'
+        value: {}
+        visibility:
+          $ref: '#/components/schemas/AnnotationVisibility'
+        extensions:
+          oneOf:
+            - type: object
+              additionalProperties: true
+            - type: 'null'
+    AnnotationPageState:
+      type: object
+      additionalProperties: false
+      properties:
+        returnedCount:
+          type: integer
+          minimum: 0
+          maximum: 100
+        hasMore:
+          type: boolean
+        nextCursor:
+          oneOf:
+            - $ref: '#/components/schemas/AnnotationCursorValue'
+            - type: 'null'
+      required:
+        - returnedCount
+        - hasMore
+        - nextCursor
+    AnnotationPage:
+      type: object
+      additionalProperties: false
+      properties:
+        annotations:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/AnnotationView'
+        page:
+          $ref: '#/components/schemas/AnnotationPageState'
+      required:
+        - annotations
+        - page
+    AnnotationDeletionReceipt:
+      type: object
+      additionalProperties: false
+      properties:
+        resourceType:
+          type: string
+          const: annotation
+        targetId:
+          $ref: '#/components/schemas/OpaqueId'
+        collectionId:
+          $ref: '#/components/schemas/OpaqueId'
+        scope:
+          type: string
+          const: single
+        deletedAt:
+          $ref: '#/components/schemas/UtcDateTime'
+        deleteRevision:
+          $ref: '#/components/schemas/Revision'
+        operationId:
+          $ref: '#/components/schemas/OpaqueId'
+        affectedCount:
+          type: integer
+          const: 1
+        purgeAfter:
+          $ref: '#/components/schemas/UtcDateTime'
+      required:
+        - resourceType
+        - targetId
+        - collectionId
+        - scope
+        - deletedAt
+        - deleteRevision
+        - operationId
+        - affectedCount
+        - purgeAfter
+    AnnotationDeleteFence:
+      type: object
+      additionalProperties: false
+      properties:
+        contentRevision:
+          $ref: '#/components/schemas/Revision'
+        policyRevision:
+          $ref: '#/components/schemas/Revision'
+      required:
+        - contentRevision
+        - policyRevision
+    DeleteAnnotationResult:
+      type: object
+      additionalProperties: false
+      properties:
+        receipt:
+          $ref: '#/components/schemas/AnnotationDeletionReceipt'
+        fence:
+          $ref: '#/components/schemas/AnnotationDeleteFence'
+      required:
+        - receipt
+        - fence
+    CollectionCapabilities:
+      type: object
+      additionalProperties: false
+      properties:
+        updateCollection:
+          type: boolean
+        managePublication:
+          type: boolean
+          description: Owner-only authority to publish, withdraw, or claim a publication locator.
+        createNode:
+          type: boolean
+        updateNode:
+          type: boolean
+        moveNode:
+          type: boolean
+        deleteNode:
+          type: boolean
+      required:
+        - updateCollection
+        - managePublication
+        - createNode
+        - updateNode
+        - moveNode
+        - deleteNode
+    EditorPageState:
+      type: object
+      additionalProperties: false
+      properties:
+        snapshotId:
+          $ref: '#/components/schemas/OpaqueId'
+        contentRevision:
+          $ref: '#/components/schemas/Revision'
+        policyRevision:
+          $ref: '#/components/schemas/Revision'
+        comparatorVersion:
+          type: string
+          minLength: 1
+          maxLength: 32
+        expiresAt:
+          $ref: '#/components/schemas/UtcDateTime'
+        returnedCount:
+          type: integer
+          minimum: 0
+          maximum: 500
+        hasMore:
+          type: boolean
+        nextCursor:
+          oneOf:
+            - $ref: '#/components/schemas/Cursor'
+            - type: 'null'
+      required:
+        - snapshotId
+        - contentRevision
+        - policyRevision
+        - comparatorVersion
+        - expiresAt
+        - returnedCount
+        - hasMore
+        - nextCursor
+    EditorPage:
+      type: object
+      additionalProperties: false
+      properties:
+        collection:
+          $ref: '#/components/schemas/CollectionView'
+        root:
+          $ref: '#/components/schemas/RootNodeView'
+        nodes:
+          type: array
+          maxItems: 500
+          items:
+            $ref: '#/components/schemas/EditableNodeView'
+        capabilities:
+          $ref: '#/components/schemas/CollectionCapabilities'
+        page:
+          $ref: '#/components/schemas/EditorPageState'
+      required:
+        - collection
+        - root
+        - nodes
+        - capabilities
+        - page
+    PublicCollectionSummary:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          $ref: '#/components/schemas/OpaqueId'
+        slug:
+          $ref: '#/components/schemas/PublicationLocatorSlug'
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        summary:
+          oneOf:
+            - type: string
+              maxLength: 2000
+            - type: 'null'
+        kind:
+          type: string
+          enum:
+            - bookmarks
+            - reading_path
+            - knowledge_collection
+            - mixed
+        rootNodeId:
+          $ref: '#/components/schemas/OpaqueId'
+        updatedAt:
+          $ref: '#/components/schemas/UtcDateTime'
+        access:
+          type: string
+          enum:
+            - public
+            - member
+      required:
+        - id
+        - slug
+        - title
+        - summary
+        - kind
+        - rootNodeId
+        - updatedAt
+        - access
+    PublicCollectionNode:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          $ref: '#/components/schemas/OpaqueId'
+        parentId:
+          oneOf:
+            - $ref: '#/components/schemas/OpaqueId'
+            - type: 'null'
+        kind:
+          type: string
+          enum:
+            - root
+            - folder
+            - bookmark
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          oneOf:
+            - type: string
+              maxLength: 10000
+            - type: 'null'
+        url:
+          oneOf:
+            - type: string
+              format: uri
+              maxLength: 8192
+            - type: 'null'
+        position:
+          oneOf:
+            - type: string
+              minLength: 1
+              maxLength: 512
+            - type: 'null'
+      required:
+        - id
+        - parentId
+        - kind
+        - title
+        - description
+        - url
+        - position
+    PublicCollectionPageState:
+      type: object
+      additionalProperties: false
+      properties:
+        cursor:
+          oneOf:
+            - type: string
+              minLength: 1
+              maxLength: 1024
+            - type: 'null'
+        hasMore:
+          type: boolean
+        sequence:
+          type: integer
+          minimum: 1
+      required:
+        - cursor
+        - hasMore
+        - sequence
+    PublicCollectionPage:
+      type: object
+      additionalProperties: false
+      properties:
+        collection:
+          $ref: '#/components/schemas/PublicCollectionSummary'
+        nodes:
+          type: array
+          maxItems: 500
+          items:
+            $ref: '#/components/schemas/PublicCollectionNode'
+        page:
+          $ref: '#/components/schemas/PublicCollectionPageState'
+      required:
+        - collection
+        - nodes
+        - page
+    ParentState:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          $ref: '#/components/schemas/OpaqueId'
+        childrenRevision:
+          $ref: '#/components/schemas/Revision'
+        childrenEtag:
+          $ref: '#/components/schemas/ChildrenEntityTag'
+      required:
+        - id
+        - childrenRevision
+        - childrenEtag
+    CollectionFenceState:
+      type: object
+      additionalProperties: false
+      properties:
+        contentRevision:
+          $ref: '#/components/schemas/Revision'
+        contentEtag:
+          $ref: '#/components/schemas/ContentEntityTag'
+        policyRevision:
+          $ref: '#/components/schemas/Revision'
+        policyEtag:
+          $ref: '#/components/schemas/PolicyEntityTag'
+      required:
+        - contentRevision
+        - contentEtag
+        - policyRevision
+        - policyEtag
+    CreateCollectionResult:
+      type: object
+      additionalProperties: false
+      properties:
+        collection:
+          $ref: '#/components/schemas/CollectionView'
+        root:
+          $ref: '#/components/schemas/RootNodeView'
+      required:
+        - collection
+        - root
+    UpdateCollectionResult:
+      type: object
+      additionalProperties: false
+      properties:
+        collection:
+          $ref: '#/components/schemas/CollectionView'
+      required:
+        - collection
+    CreateNodeResult:
+      type: object
+      additionalProperties: false
+      properties:
+        node:
+          $ref: '#/components/schemas/EditableNodeView'
+        parent:
+          $ref: '#/components/schemas/ParentState'
+        fence:
+          $ref: '#/components/schemas/CollectionFenceState'
+      required:
+        - node
+        - parent
+        - fence
+    UpdateNodeResult:
+      type: object
+      additionalProperties: false
+      properties:
+        node:
+          $ref: '#/components/schemas/EditableNodeView'
+        fence:
+          $ref: '#/components/schemas/CollectionFenceState'
+      required:
+        - node
+        - fence
+    MoveNodeResult:
+      type: object
+      additionalProperties: false
+      properties:
+        node:
+          $ref: '#/components/schemas/EditableNodeView'
+        sourceParent:
+          $ref: '#/components/schemas/ParentState'
+        targetParent:
+          $ref: '#/components/schemas/ParentState'
+        fence:
+          $ref: '#/components/schemas/CollectionFenceState'
+      required:
+        - node
+        - sourceParent
+        - targetParent
+        - fence
+    DeletionReceiptView:
+      type: object
+      additionalProperties: false
+      properties:
+        resourceType:
+          type: string
+          const: node
+        targetId:
+          $ref: '#/components/schemas/OpaqueId'
+        collectionId:
+          $ref: '#/components/schemas/OpaqueId'
+        scope:
+          type: string
+          enum:
+            - single
+            - subtree
+        deletedAt:
+          $ref: '#/components/schemas/UtcDateTime'
+        deleteRevision:
+          $ref: '#/components/schemas/Revision'
+        operationId:
+          $ref: '#/components/schemas/OpaqueId'
+        affectedCount:
+          type: integer
+          minimum: 1
+        purgeAfter:
+          $ref: '#/components/schemas/UtcDateTime'
+      required:
+        - resourceType
+        - targetId
+        - collectionId
+        - scope
+        - deletedAt
+        - deleteRevision
+        - operationId
+        - affectedCount
+        - purgeAfter
+    DeleteNodeResult:
+      type: object
+      additionalProperties: false
+      properties:
+        receipt:
+          $ref: '#/components/schemas/DeletionReceiptView'
+        parent:
+          $ref: '#/components/schemas/ParentState'
+        fence:
+          $ref: '#/components/schemas/CollectionFenceState'
+      required:
+        - receipt
+        - parent
+        - fence
+    RecoveryAction:
+      type: string
+      enum:
+        - same_request
+        - refresh_and_retry
+        - restart_from_first_page
+        - user_action
+        - none
+    ProductErrorCode:
+      type: string
+      enum:
+        - invalid_request
+        - invalid_json
+        - invalid_query
+        - invalid_cursor
+        - authentication_required
+        - csrf_failed
+        - insufficient_permission
+        - resource_not_found
+        - method_not_allowed
+        - command_id_reused
+        - command_in_progress
+        - publication_slug_conflict
+        - position_context_stale
+        - folder_not_empty
+        - root_immutable
+        - revision_conflict
+        - snapshot_expired
+        - command_result_expired
+        - precondition_failed
+        - payload_too_large
+        - unsupported_media_type
+        - invalid_document
+        - precondition_required
+        - rate_limited
+        - internal_error
+        - feature_temporarily_unavailable
+    FieldError:
+      type: object
+      additionalProperties: false
+      properties:
+        path:
+          type: string
+          minLength: 1
+          maxLength: 512
+        code:
+          type: string
+          minLength: 1
+          maxLength: 64
+        message:
+          type: string
+          minLength: 1
+          maxLength: 256
+      required:
+        - path
+        - code
+        - message
+    ProductError:
+      type: object
+      additionalProperties: false
+      properties:
+        code:
+          $ref: '#/components/schemas/ProductErrorCode'
+        message:
+          type: string
+          minLength: 1
+          maxLength: 512
+        requestId:
+          $ref: '#/components/schemas/RequestId'
+        recovery:
+          $ref: '#/components/schemas/RecoveryAction'
+        sameRequestRetrySafe:
+          type: boolean
+        precondition:
+          type:
+            - string
+            - 'null'
+          enum:
+            - resource
+            - content
+            - null
+        currentEtag:
+          oneOf:
+            - $ref: '#/components/schemas/EntityTag'
+            - type: 'null'
+        retryAfterSeconds:
+          type:
+            - integer
+            - 'null'
+          minimum: 0
+        fieldErrors:
+          type: array
+          maxItems: 128
+          items:
+            $ref: '#/components/schemas/FieldError'
+      required:
+        - code
+        - message
+        - requestId
+        - recovery
+        - sameRequestRetrySafe
+        - precondition
+        - currentEtag
+        - retryAfterSeconds
+        - fieldErrors
+    ProductErrorEnvelope:
+      type: object
+      additionalProperties: false
+      properties:
+        error:
+          $ref: '#/components/schemas/ProductError'
+      required:
+        - error
+      examples:
+        - error:
+            code: precondition_failed
+            message: This item changed before your edit was saved.
+            requestId: req_01j00000000000000000000000
+            recovery: refresh_and_retry
+            sameRequestRetrySafe: false
+            precondition: resource
+            currentEtag: '"resource:7"'
+            retryAfterSeconds: null
+            fieldErrors: []
+  responses:
+    BadRequest:
+      description: invalid_request, invalid_json, invalid_query, or invalid_cursor.
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/PrivateNoStore'
+        X-Request-Id:
+          $ref: '#/components/headers/XRequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProductErrorEnvelope'
+    AuthenticationRequired:
+      description: authentication_required.
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/PrivateNoStore'
+        X-Request-Id:
+          $ref: '#/components/headers/XRequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProductErrorEnvelope'
+    Forbidden:
+      description: csrf_failed or insufficient_permission.
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/PrivateNoStore'
+        X-Request-Id:
+          $ref: '#/components/headers/XRequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProductErrorEnvelope'
+    NotFound:
+      description: resource_not_found, including concealed resources.
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/PrivateNoStore'
+        X-Request-Id:
+          $ref: '#/components/headers/XRequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProductErrorEnvelope'
+    NotAcceptable:
+      description: No acceptable public Profile JSON representation was requested.
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/PrivateNoStore'
+        X-Request-Id:
+          $ref: '#/components/headers/XRequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProductErrorEnvelope'
+    MutationConflict:
+      description: command_id_reused, command_in_progress, publication_slug_conflict, position_context_stale, folder_not_empty, root_immutable, or revision_conflict. Retry-After is emitted only for command_in_progress and omitted for all other codes.
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/PrivateNoStore'
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+        X-Request-Id:
+          $ref: '#/components/headers/XRequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProductErrorEnvelope'
+    EditorSnapshotConflict:
+      description: snapshot_expired; discard the partial tree and restart paging.
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/PrivateNoStore'
+        X-Request-Id:
+          $ref: '#/components/headers/XRequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProductErrorEnvelope'
+    Gone:
+      description: command_result_expired. The historical command is never rerun.
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/PrivateNoStore'
+        X-Request-Id:
+          $ref: '#/components/headers/XRequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProductErrorEnvelope'
+    PreconditionFailed:
+      description: precondition_failed for resource or Collection content.
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/PrivateNoStore'
+        X-Request-Id:
+          $ref: '#/components/headers/XRequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProductErrorEnvelope'
+    PayloadTooLarge:
+      description: payload_too_large.
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/PrivateNoStore'
+        X-Request-Id:
+          $ref: '#/components/headers/XRequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProductErrorEnvelope'
+    UnsupportedMediaType:
+      description: unsupported_media_type.
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/PrivateNoStore'
+        X-Request-Id:
+          $ref: '#/components/headers/XRequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProductErrorEnvelope'
+    InvalidDocument:
+      description: invalid_document with optional fieldErrors.
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/PrivateNoStore'
+        X-Request-Id:
+          $ref: '#/components/headers/XRequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProductErrorEnvelope'
+    PreconditionRequired:
+      description: precondition_required for resource or Collection content.
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/PrivateNoStore'
+        X-Request-Id:
+          $ref: '#/components/headers/XRequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProductErrorEnvelope'
+    RateLimited:
+      description: rate_limited.
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/PrivateNoStore'
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+        X-Request-Id:
+          $ref: '#/components/headers/XRequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProductErrorEnvelope'
+    InternalError:
+      description: internal_error.
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/PrivateNoStore'
+        X-Request-Id:
+          $ref: '#/components/headers/XRequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProductErrorEnvelope'
+    ServiceUnavailable:
+      description: feature_temporarily_unavailable.
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/PrivateNoStore'
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+        X-Request-Id:
+          $ref: '#/components/headers/XRequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProductErrorEnvelope'

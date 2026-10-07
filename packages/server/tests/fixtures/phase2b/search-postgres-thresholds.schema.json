@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "version", "collectionCount", "nodesPerCollection", "queryLimit", "warmupRuns", "measuredRuns", "concurrentClients", "concurrentRunsPerClient", "concurrentP95Ms", "warmP95Ms", "coldLandmarkMs", "planExecutionMs", "parallelWorkers"],
+  "properties": {
+    "$schema": { "const": "./search-postgres-thresholds.schema.json" },
+    "version": { "const": "phase2b-search-postgres-v1" },
+    "collectionCount": { "type": "integer", "minimum": 2 },
+    "nodesPerCollection": { "type": "integer", "minimum": 10000 },
+    "queryLimit": { "type": "integer", "minimum": 1, "maximum": 100 },
+    "warmupRuns": { "type": "integer", "minimum": 1 },
+    "measuredRuns": { "type": "integer", "minimum": 3 },
+    "concurrentClients": { "type": "integer", "minimum": 2 },
+    "concurrentRunsPerClient": { "type": "integer", "minimum": 2 },
+    "concurrentP95Ms": { "type": "number", "exclusiveMinimum": 0 },
+    "warmP95Ms": { "type": "number", "exclusiveMinimum": 0 },
+    "coldLandmarkMs": { "type": "number", "exclusiveMinimum": 0 },
+    "planExecutionMs": { "type": "number", "exclusiveMinimum": 0 },
+    "parallelWorkers": { "const": 0 }
+  }
+}

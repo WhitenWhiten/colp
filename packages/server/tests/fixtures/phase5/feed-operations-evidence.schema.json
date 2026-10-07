@@ -1,0 +1,145 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://known.example/schemas/phase5/feed-operations-evidence.schema.json",
+  "title": "Phase 5 Feed operations evidence (known.phase5.feed-operations/v1)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "sourceRevision",
+    "capturedAt",
+    "command",
+    "capacity",
+    "capacityDigest",
+    "feedOperationsSourceDigest",
+    "runbookDigest",
+    "result",
+    "migrationHead",
+    "migrationDigest",
+    "nodeVersion",
+    "postgresVersion"
+  ],
+  "properties": {
+    "schema": { "const": "known.phase5.feed-operations/v1" },
+    "sourceRevision": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "capturedAt": { "type": "string", "format": "date-time" },
+    "command": { "const": "status" },
+    "capacity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["worker", "feedOperations"],
+      "properties": {
+        "worker": { "type": "object" },
+        "feedOperations": { "type": "object" }
+      }
+    },
+    "capacityDigest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "feedOperationsSourceDigest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "runbookDigest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "migrationHead": { "type": "string", "minLength": 1 },
+    "migrationDigest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "nodeVersion": { "type": "string", "minLength": 1 },
+    "postgresVersion": { "type": "string", "minLength": 1 },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "readiness"],
+      "properties": {
+        "status": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "dependency", "worker", "readyCount", "retryCount", "leasedCount",
+            "deadLetterCount", "oldestEligibleAgeMs", "oldestDeadLetterAgeMs",
+            "rebuildingScopeCount", "sourceHighCommitOrdinal", "watermarkHighCommitOrdinal",
+            "maximumCommitLag", "deadLetterCategories", "rebuilds", "fanout"
+          ],
+          "properties": {
+            "dependency": { "enum": ["available", "unavailable"] },
+            "worker": { "enum": ["running", "idle", "stopped", "unknown"] },
+            "readyCount": { "type": "integer", "minimum": 0 },
+            "retryCount": { "type": "integer", "minimum": 0 },
+            "leasedCount": { "type": "integer", "minimum": 0 },
+            "deadLetterCount": { "type": "integer", "minimum": 0 },
+            "oldestEligibleAgeMs": { "type": "number", "minimum": 0 },
+            "oldestDeadLetterAgeMs": { "type": "number", "minimum": 0 },
+            "rebuildingScopeCount": { "type": "integer", "minimum": 0 },
+            "sourceHighCommitOrdinal": { "type": "string" },
+            "watermarkHighCommitOrdinal": { "type": "string" },
+            "maximumCommitLag": { "type": "string" },
+            "deadLetterCategories": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "unknownFutureVersion", "invalidContract", "retryExhausted",
+                "dependency", "other"
+              ],
+              "properties": {
+                "unknownFutureVersion": { "type": "integer", "minimum": 0 },
+                "invalidContract": { "type": "integer", "minimum": 0 },
+                "retryExhausted": { "type": "integer", "minimum": 0 },
+                "dependency": { "type": "integer", "minimum": 0 },
+                "other": { "type": "integer", "minimum": 0 }
+              }
+            },
+            "rebuilds": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "aggregateScope", "generation", "capturedHighCommitOrdinal",
+                  "replayedCommitOrdinal", "retentionFloorCommitOrdinal", "startedAt",
+                  "progressPercent", "etaMs", "gap"
+                ],
+                "properties": {
+                  "aggregateScope": { "type": "string", "minLength": 1, "maxLength": 512 },
+                  "generation": { "type": "string" },
+                  "capturedHighCommitOrdinal": { "type": "string" },
+                  "replayedCommitOrdinal": { "type": "string" },
+                  "retentionFloorCommitOrdinal": { "type": "string" },
+                  "startedAt": { "type": ["string", "null"], "format": "date-time" },
+                  "progressPercent": { "type": "number", "minimum": 0, "maximum": 100 },
+                  "etaMs": { "type": "integer", "minimum": 0 },
+                  "gap": { "type": "boolean" }
+                }
+              }
+            },
+            "fanout": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "progressBacklog", "oldestProgressAgeMs", "candidateCount",
+                "orphanProgressCount", "reverseInconsistencyCount", "withdrawalBacklog"
+              ],
+              "properties": {
+                "progressBacklog": { "type": "integer", "minimum": 0 },
+                "oldestProgressAgeMs": { "type": "number", "minimum": 0 },
+                "candidateCount": { "type": "integer", "minimum": 0 },
+                "orphanProgressCount": { "type": "integer", "minimum": 0 },
+                "reverseInconsistencyCount": { "type": "integer", "minimum": 0 },
+                "withdrawalBacklog": { "type": "integer", "minimum": 0 }
+              }
+            }
+          }
+        },
+        "readiness": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["capability", "status", "reason"],
+          "properties": {
+            "capability": { "const": "feed" },
+            "status": { "enum": ["ready", "not-ready"] },
+            "reason": {
+              "enum": [
+                "none", "dependency_unavailable", "worker_unavailable", "queue_age",
+                "backlog", "dead_letter", "stale_progress", "withdrawal_backlog",
+                "fanout_inconsistency"
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}

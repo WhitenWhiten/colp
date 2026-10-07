@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://known.example/schemas/phase5/remediation/r5-11-real-negative-controls.schema.json",
+  "title": "Phase 5 remediation R5-11 closed schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "task",
+    "mode",
+    "controlCount",
+    "filesystemControls",
+    "rules"
+  ],
+  "properties": {
+    "format": {
+      "const": "known.phase5.remediation.r5-11.v1"
+    },
+    "task": {
+      "const": "R5-11"
+    },
+    "mode": {
+      "const": "real-temporary-source-corruption"
+    },
+    "controlCount": {
+      "const": 21
+    },
+    "filesystemControls": {
+      "type": "array",
+      "minItems": 7,
+      "maxItems": 7,
+      "prefixItems": [
+        { "const": "missing-follow-route" },
+        { "const": "missing-feed-handler" },
+        { "const": "missing-notification-migration" },
+        { "const": "generated-client-drift" },
+        { "const": "missing-browser-artifact" },
+        { "const": "monetization-present" },
+        { "const": "manifest-write-present" }
+      ],
+      "items": false
+    },
+    "rules": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "verifierAcceptsExplicitRepositoryRoot",
+        "corruptOnTemporaryBindingCopy",
+        "forbidEmptyStringSimulation",
+        "forbidManualBooleanSimulation",
+        "forbidCheckoutMutation",
+        "forbidGitResetRecovery",
+        "forbidFullBrowserStackPerControl",
+        "failClosedOnIncompleteCopy",
+        "failClosedOnWrongFileCorruption",
+        "failClosedOnMultiBoundaryCorruption",
+        "failClosedOnUnwritableTemp",
+        "failClosedOnCleanupFailure",
+        "failClosedOnUnexpectedPass",
+        "logsMustNotLeakCorruptedContent"
+      ],
+      "properties": {
+        "verifierAcceptsExplicitRepositoryRoot": { "const": true },
+        "corruptOnTemporaryBindingCopy": { "const": true },
+        "forbidEmptyStringSimulation": { "const": true },
+        "forbidManualBooleanSimulation": { "const": true },
+        "forbidCheckoutMutation": { "const": true },
+        "forbidGitResetRecovery": { "const": true },
+        "forbidFullBrowserStackPerControl": { "const": true },
+        "failClosedOnIncompleteCopy": { "const": true },
+        "failClosedOnWrongFileCorruption": { "const": true },
+        "failClosedOnMultiBoundaryCorruption": { "const": true },
+        "failClosedOnUnwritableTemp": { "const": true },
+        "failClosedOnCleanupFailure": { "const": true },
+        "failClosedOnUnexpectedPass": { "const": true },
+        "logsMustNotLeakCorruptedContent": { "const": true }
+      }
+    }
+  }
+}

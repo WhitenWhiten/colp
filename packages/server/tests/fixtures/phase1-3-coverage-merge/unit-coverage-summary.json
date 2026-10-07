@@ -1,0 +1,20 @@
+{
+  "total": {
+    "lines": { "total": 10, "covered": 8, "skipped": 0, "pct": 80 },
+    "statements": { "total": 10, "covered": 8, "skipped": 0, "pct": 80 },
+    "functions": { "total": 4, "covered": 3, "skipped": 0, "pct": 75 },
+    "branches": { "total": 4, "covered": 3, "skipped": 0, "pct": 75 }
+  },
+  "src/transport/product-command-mapping.ts": {
+    "lines": { "total": 10, "covered": 8, "skipped": 0, "pct": 80 },
+    "statements": { "total": 10, "covered": 8, "skipped": 0, "pct": 80 },
+    "functions": { "total": 4, "covered": 3, "skipped": 0, "pct": 75 },
+    "branches": { "total": 4, "covered": 3, "skipped": 0, "pct": 75 }
+  },
+  "src/infrastructure/sync/postgres/sync-pull-postgres.ts": {
+    "lines": { "total": 100, "covered": 0, "skipped": 0, "pct": 0 },
+    "statements": { "total": 100, "covered": 0, "skipped": 0, "pct": 0 },
+    "functions": { "total": 10, "covered": 0, "skipped": 0, "pct": 0 },
+    "branches": { "total": 10, "covered": 0, "skipped": 0, "pct": 0 }
+  }
+}

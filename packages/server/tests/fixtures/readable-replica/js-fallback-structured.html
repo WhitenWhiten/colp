@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Tool use with the Messages API</title>
+</head>
+<body>
+  <noscript>
+    <div class="fallback-banner">Notice: This page displays a fallback because interactive scripts did not run. Possible causes include disabled JavaScript or failure to load scripts or stylesheets.</div>
+  </noscript>
+  <div role="alert" class="hydration-fallback">Notice: This page displays a fallback because interactive scripts did not run. Possible causes include disabled JavaScript or failure to load scripts or stylesheets.</div>
+  <div id="cookie-banner" class="cookie-consent"><p>COOKIE_BANNER_MUST_NOT_APPEAR We use cookies to improve your experience. Accept all.</p></div>
+  <div role="banner"><a href="/">DocsBrand</a> <span>Search ⌘K</span></div>
+  <nav aria-label="Sidebar"><ul><li><a href="/a">SIDEBAR_LINK_MUST_NOT_APPEAR</a></li></ul></nav>
+  <div style="display:none"><p>DISPLAY_NONE_MUST_NOT_APPEAR Extra hidden text that the parser must never surface into the replica.</p></div>
+  <div hidden><p>HIDDEN_ATTR_MUST_NOT_APPEAR Extra hidden text that the parser must never surface into the replica.</p></div>
+  <template><p>TEMPLATE_MUST_NOT_APPEAR Extra template text that the parser must never surface into the replica.</p></template>
+  <main>
+    <article>
+      <h1>Tool use with the Messages API</h1>
+      <p class="title-repeat">Tool use with the Messages API</p>
+      <div class="prose">
+        <div class="lead">
+          INTRO_DIV_SENTENCE Tools let a model call functions you define, receive their results, and
+          continue the conversation with that new information. This introduction lives in a bare div
+          rather than a paragraph element, which older extractors silently dropped after sanitisation.
+        </div>
+        <div class="lead">
+          INTRO_DIV_SENTENCE Tools let a model call functions you define, receive their results, and
+          continue the conversation with that new information. This introduction lives in a bare div
+          rather than a paragraph element, which older extractors silently dropped after sanitisation.
+        </div>
+        <h2>How tool use works</h2>
+        <section>
+          <h3>Request flow</h3>
+          <div>
+            FLOW_DIV_SENTENCE You provide tool definitions, the model decides whether to call one, and
+            you run the tool locally before sending the result back. Each of these steps is described
+            below with enough prose to keep the readability scorer interested in this container.
+          </div>
+        </section>
+        <table>
+          <caption>Parameter reference</caption>
+          <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td>name</td><td>string</td><td>TABLE_ROW_ONE Tool name, unique within the request.</td></tr>
+            <tr><td>input_schema</td><td>object</td><td>TABLE_ROW_TWO JSON schema for the tool input.</td></tr>
+          </tbody>
+        </table>
+        <dl>
+          <dt>tool_choice</dt>
+          <dd>DL_DEFINITION_ONE Controls whether the model must call a tool.</dd>
+          <dt>disable_parallel_tool_use</dt>
+          <dd>DL_DEFINITION_TWO Forces at most one tool call per turn.</dd>
+        </dl>
+        <figure>
+          <img src="https://hotlink.test/diagram.png" alt="diagram">
+          <figcaption>FIGCAPTION_SENTENCE Sequence of a single tool round trip.</figcaption>
+        </figure>
+        <h3>Example request</h3>
+        <pre><code>curl https://api.example.test/v1/messages \
+  -H "content-type: application/json" \
+  -d '{"model":"demo","tools":[]}'</code></pre>
+        <p>Line one of a paragraph<br>Line two after a break</p>
+        <ul>
+          <li>BULLET_ONE define the tool</li>
+          <li>BULLET_TWO run it locally</li>
+        </ul>
+        <ol>
+          <li>STEP_ONE send the definitions</li>
+          <li>STEP_TWO return the result</li>
+        </ol>
+        <blockquote><p>QUOTE_SENTENCE Treat tool results as untrusted input.</p></blockquote>
+        <h4>Trailing heading without content</h4>
+      </div>
+    </article>
+  </main>
+  <footer><p>FOOTER_MUST_NOT_APPEAR © DocsBrand. All rights reserved.</p></footer>
+</body>
+</html>
