@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { defaultClientHostResolver } from '../../src/client/host-resolution.js';
+import { defaultClientHostResolver, defaultPinnedNodeFetch } from '../../src/client/host-resolution.js';
 
 function resolverFor(module: object | undefined) {
   const builtin = vi.spyOn(process, 'getBuiltinModule').mockReturnValue(module);
@@ -49,14 +49,17 @@ describe('Default Node client host resolution', () => {
   it.each([{}, { versions: {} }, { versions: { node: '22' } }])('supports non-Node or older runtimes: %s', runtime => {
     const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'process')!;
     let resolver;
+    let transport;
     try {
       Object.defineProperty(globalThis, 'process', {
         configurable: descriptor.configurable ?? true, enumerable: descriptor.enumerable ?? true, writable: true, value: runtime,
       });
       resolver = defaultClientHostResolver();
+      transport = defaultPinnedNodeFetch();
     } finally {
       Object.defineProperty(globalThis, 'process', descriptor);
     }
     expect(resolver).toBeUndefined();
+    expect(transport).toBeUndefined();
   });
 });

@@ -541,7 +541,6 @@ export async function coordinateSessionBoundReplicaLifecycle<
 ): Promise<{ readonly session: VerifiedSyncSession; readonly result: ReplicaLifecycleCoordinatorResult }> {
   const session = await resolveVerifiedSession(gate);
   assertSessionScope(session, requiredReplicaLifecycleScope(command));
-  if (command.type === 'register') assertSessionScope(session, 'collections:create');
   // An unbound instance Session grants create_collection bootstrap only.
   // It is not a wildcard capability over existing Collections or Replicas.
   if (session.sessionScope !== 'collection' || session.collectionId === null

@@ -70,6 +70,27 @@ function forbiddenUnitOfWork() {
 const ownsReplica = () => true;
 
 describe('Replica lifecycle requires a bound Collection [evidence:sync.composition]', () => {
+  it('registers a Replica in an existing Collection without collections:create', async () => {
+    const session = await verifiedSession('collection', key.collectionId, ['sync:bootstrap', 'sync:push', 'sync:pull']);
+    let stored: DurableReplicaCheckpoint | undefined;
+    const unused = async (): Promise<never> => { throw new Error('unused recovery port'); };
+    const transaction: ReplicaLifecycleTransaction = {
+      readAuthoritativeTime: async () => now,
+      loadReplica: async () => stored,
+      saveReplica: async checkpoint => { stored = structuredClone(checkpoint); },
+      loadRetentionWindow: unused, loadAuthoritativeSnapshot: unused,
+      saveSnapshotAck: unused, loadSnapshotAck: unused,
+    };
+    const unitOfWork: ReplicaLifecycleUnitOfWork = { execute: async (_id, work) => work(transaction) };
+    const result = await coordinateSessionBoundReplicaLifecycle(
+      { kind: 'verified', session }, unitOfWork, key,
+      { type: 'register', collectionId: key.collectionId, ...freshLease, succeeded: true },
+      ownsReplica,
+    );
+    expect(result.result).toMatchObject({ state: 'committed', checkpoint: { lifecycle: 'active' } });
+    expect(stored?.collectionId).toBe(key.collectionId);
+  });
+
   it('requires durable ownership evidence before minting a proof or entering the transaction', async () => {
     const session = await verifiedSession('collection');
     const { entered, unitOfWork } = forbiddenUnitOfWork();
