@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "nodeCount",
+    "pageSizes",
+    "pageP95Ms",
+    "landmarkPageMs",
+    "fullTraversalMs",
+    "planExecutionMs",
+    "writerTransactionMs"
+  ],
+  "properties": {
+    "$schema": { "const": "./postgres-editor-paging-thresholds.schema.json" },
+    "nodeCount": { "type": "integer", "minimum": 10000 },
+    "pageSizes": {
+      "type": "array",
+      "minItems": 3,
+      "uniqueItems": true,
+      "items": { "type": "integer", "minimum": 1, "maximum": 500 }
+    },
+    "pageP95Ms": { "type": "number", "exclusiveMinimum": 0 },
+    "landmarkPageMs": { "type": "number", "exclusiveMinimum": 0 },
+    "fullTraversalMs": { "type": "number", "exclusiveMinimum": 0 },
+    "planExecutionMs": { "type": "number", "exclusiveMinimum": 0 },
+    "writerTransactionMs": { "type": "number", "exclusiveMinimum": 0 }
+  }
+}

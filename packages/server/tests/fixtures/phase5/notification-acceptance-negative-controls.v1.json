@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "known.phase5.notification-acceptance-negative-controls.v1",
+  "controls": [
+    "missing-migration",
+    "missing-handler-registration",
+    "missing-dedupe-key",
+    "missing-production-route",
+    "generated-client-drift",
+    "feature-flag-not-exercised",
+    "browser-source-mismatch",
+    "missing-authority-proof",
+    "missing-retry-proof",
+    "preference-bypass",
+    "duplicate-side-effect",
+    "missing-bulk-boundary-proof",
+    "missing-cross-account-proof",
+    "missing-real-follow-feed-intents",
+    "missing-dual-handler-isolation",
+    "missing-batch-intent-exact-once",
+    "missing-database-clock"
+  ]
+}

@@ -1,0 +1,210 @@
+[
+  {
+    "schema": "SessionView",
+    "value": { "authenticated": false }
+  },
+  {
+    "schema": "PublicProfilePage",
+    "value": {
+      "profile": {
+        "profileId": "IiIiIiIiIiIiIiIiIiIiIg",
+        "handle": "alice",
+        "displayName": "Alice",
+        "avatarUrl": "https://cdn.example.test/alice.png"
+      },
+      "collections": [
+        {
+          "id": "collection-1",
+          "slug": "public-notes",
+          "title": "Public notes",
+          "summary": null,
+          "kind": "knowledge_collection",
+          "updatedAt": "2026-07-24T00:00:00.000Z"
+        }
+      ],
+      "page": { "cursor": null, "hasMore": false }
+    }
+  },
+  {
+    "schema": "CreateCollectionRequest",
+    "value": {
+      "kind": "knowledge_collection",
+      "title": "Phase 1 contract",
+      "summary": null
+    }
+  },
+  {
+    "schema": "CollectionMergePatch",
+    "value": { "title": "Updated title" }
+  },
+  {
+    "schema": "CreateNodeRequest",
+    "value": {
+      "parentId": "root-1",
+      "afterId": null,
+      "beforeId": null,
+      "node": {
+        "kind": "bookmark",
+        "title": "OpenAPI",
+        "url": "https://spec.openapis.org/",
+        "description": null,
+        "tags": ["api"],
+        "visibility": "inherit"
+      }
+    }
+  },
+  {
+    "schema": "NodeMergePatch",
+    "value": { "title": "OpenAPI specification", "tags": ["api", "contract"] }
+  },
+  {
+    "schema": "CreateAnnotationRequest",
+    "value": {
+      "type": "note",
+      "format": "html",
+      "value": "<strong>Untrusted annotation HTML</strong>",
+      "visibility": "private",
+      "extensions": {}
+    }
+  },
+  {
+    "schema": "AnnotationMergePatch",
+    "value": { "format": "plain", "value": "Edited note", "visibility": "protected" }
+  },
+  {
+    "schema": "AnnotationPage",
+    "value": {
+      "annotations": [{
+        "id": "annotation-1",
+        "collectionId": "collection-1",
+        "subject": { "type": "node", "id": "node-1" },
+        "type": "note",
+        "format": "plain",
+        "value": "A note",
+        "visibility": "protected",
+        "creator": { "id": "https://app.example.test/profiles/alice", "name": "Alice" },
+        "provenance": null,
+        "revision": "annotation-revision-1",
+        "createdAt": "2026-07-25T00:00:00.000Z",
+        "updatedAt": "2026-07-25T00:00:00.000Z",
+        "extensions": {}
+      }],
+      "page": { "hasMore": false, "nextCursor": null, "returnedCount": 1 }
+    }
+  },
+  {
+    "schema": "MoveNodeRequest",
+    "value": {
+      "newParentId": "folder-2",
+      "afterId": "node-1",
+      "beforeId": null,
+      "baseSourceParentRevision": "rev-10",
+      "baseTargetParentRevision": "rev-11"
+    }
+  },
+  {
+    "schema": "OwnedCollectionPage",
+    "value": {
+      "items": [{
+        "collection": {
+          "id": "collection-owned-1", "kind": "bookmarks", "title": "Owned bookmarks",
+          "summary": null, "visibility": "private", "allowSearchIndexing": false,
+          "publicationSlug": null, "publishedAt": null, "rootNodeId": "root-owned-1",
+          "revision": "revision-owned-1", "etag": "\"revision-owned-1\"",
+          "contentRevision": "content-owned-1", "contentEtag": "\"content-owned-1\"",
+          "policyRevision": "policy-owned-1", "policyEtag": "\"policy-owned-1\"",
+          "createdAt": "2026-07-26T00:00:00.000Z", "updatedAt": "2026-07-26T00:00:00.000Z"
+        },
+        "capabilities": { "updateCollection": true, "managePublication": true,
+          "createNode": true, "updateNode": true, "moveNode": true, "deleteNode": true }
+      }],
+      "page": { "returnedCount": 1, "hasMore": false, "nextCursor": null }
+    }
+  },
+  {
+    "schema": "SearchPage",
+    "value": {
+      "query": "open api",
+      "types": ["collection", "node", "profile", "annotation"],
+      "items": [
+        {
+          "resourceType": "collection",
+          "resourceId": "collection-1",
+          "title": "Open API",
+          "snippet": "A bounded plain-text result.",
+          "rank": 0.875
+        },
+        {
+          "resourceType": "node",
+          "resourceId": "node-1",
+          "collectionId": "collection-1",
+          "title": "Specification",
+          "urlHost": "spec.example.test",
+          "snippet": "Node result",
+          "rank": 0.75
+        },
+        {
+          "resourceType": "profile",
+          "resourceId": "alice",
+          "handle": "alice",
+          "displayName": "Alice",
+          "avatarUrl": "https://cdn.example.test/alice.png",
+          "snippet": "Alice profile",
+          "rank": 0.625
+        },
+        {
+          "resourceType": "annotation",
+          "resourceId": "annotation-1",
+          "collectionId": "collection-1",
+          "subject": { "type": "node", "id": "node-1" },
+          "annotationType": "note",
+          "snippet": "Plain annotation text",
+          "rank": 0.5
+        }
+      ],
+      "page": { "returnedCount": 4, "hasMore": false, "nextCursor": null },
+      "consistency": { "authority": "recheck-each-page", "ranking": "restart-on-mutation" }
+    }
+  },
+  {
+    "schema": "FeedPageDto",
+    "value": {
+      "items": [{
+        "feedItemId": "feed-item-1",
+        "kind": "collection_change",
+        "actor": {
+          "profileId": "IiIiIiIiIiIiIiIiIiIiIg",
+          "handle": "alice",
+          "displayName": "Alice",
+          "avatarUrl": null
+        },
+        "collectionId": "collection-1",
+        "publishedAt": "2026-07-29T12:00:00.000Z"
+      }],
+      "nextCursor": null
+    }
+  },
+  {
+    "schema": "ExploreCollectionsPage",
+    "value": {
+      "items": [{
+        "id": "public-one",
+        "title": "Public notes",
+        "summary": "Summary",
+        "kind": "bookmarks",
+        "tags": ["tag"],
+        "nodeCount": 3,
+        "updatedAt": "2026-07-24T00:00:00.000Z",
+        "publicationSlug": "public-one",
+        "visibility": "public",
+        "creators": [{
+          "id": "account:acct-owner",
+          "name": "Ada",
+          "handle": "ada",
+          "avatar": "https://cdn.example.test/ada.png"
+        }]
+      }],
+      "nextCursor": null
+    }
+  }
+]

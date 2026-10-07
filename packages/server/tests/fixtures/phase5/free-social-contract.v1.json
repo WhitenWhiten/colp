@@ -1,0 +1,361 @@
+{
+  "format": "known.phase5.free-social-contract.v1",
+  "contractVersion": 1,
+  "phaseStatus": "Not started",
+  "identity": {
+    "owner": "social",
+    "profileIdentity": { "field": "profileId", "stability": "stable", "owner": "identity", "encoding": "canonical-base64url", "entropyBytes": 16, "canonicalLength": 22 },
+    "handle": { "field": "handle", "stability": "mutable", "owner": "identity", "authorityUse": "locator-only" },
+    "followAuthorityKey": ["actorProfileId", "targetProfileId"],
+    "followGrantsCollectionAccess": false,
+    "authorityForbiddenFields": ["handle", "displayName", "slug"]
+  },
+  "productApi": {
+    "baseDocument": "openapi/product-v1.yaml",
+    "compatibility": "additive-only",
+    "privateCacheControl": "private, no-store",
+    "operations": [
+      { "method": "PUT", "path": "/api/v1/profiles/{profileId}/follow", "operationId": "followProfile", "requestDto": "EmptyBody", "responseDto": "FollowRelationDto", "errors": ["invalid_request", "authentication_required", "csrf_failed", "resource_not_found", "command_id_reused", "command_in_progress", "command_result_expired", "rate_limited", "feature_temporarily_unavailable"] },
+      { "method": "DELETE", "path": "/api/v1/profiles/{profileId}/follow", "operationId": "unfollowProfile", "requestDto": "EmptyBody", "responseDto": "FollowRelationDto", "errors": ["invalid_request", "authentication_required", "csrf_failed", "resource_not_found", "command_id_reused", "command_in_progress", "command_result_expired", "rate_limited", "feature_temporarily_unavailable"] },
+      { "method": "GET", "path": "/api/v1/profiles/{profileId}/followers", "operationId": "listProfileFollowers", "requestDto": "FollowPageQueryDto", "responseDto": "FollowPageDto", "errors": ["invalid_request", "authentication_required", "resource_not_found", "invalid_cursor", "rate_limited", "feature_temporarily_unavailable"] },
+      { "method": "GET", "path": "/api/v1/profiles/{profileId}/following", "operationId": "listProfileFollowing", "requestDto": "FollowPageQueryDto", "responseDto": "FollowPageDto", "errors": ["invalid_request", "authentication_required", "resource_not_found", "invalid_cursor", "rate_limited", "feature_temporarily_unavailable"] },
+      { "method": "GET", "path": "/api/v1/me/feed", "operationId": "listMyFeed", "requestDto": "FeedPageQueryDto", "responseDto": "FeedPageDto", "errors": ["invalid_request", "authentication_required", "invalid_cursor", "rate_limited", "feature_temporarily_unavailable"] },
+      { "method": "GET", "path": "/api/v1/me/notifications", "operationId": "listMyNotifications", "requestDto": "NotificationPageQueryDto", "responseDto": "NotificationPageDto", "errors": ["invalid_request", "authentication_required", "invalid_cursor", "rate_limited", "feature_temporarily_unavailable"] },
+      { "method": "POST", "path": "/api/v1/me/notifications/read", "operationId": "markMyNotificationsRead", "requestDto": "MarkNotificationsReadRequestDto", "responseDto": "MarkNotificationsReadResultDto", "errors": ["invalid_request", "authentication_required", "csrf_failed", "resource_not_found", "command_id_reused", "command_in_progress", "command_result_expired", "rate_limited", "feature_temporarily_unavailable"] },
+      { "method": "GET", "path": "/api/v1/me/notification-preferences", "operationId": "getMyNotificationPreferences", "requestDto": "EmptyQuery", "responseDto": "NotificationPreferencesDto", "errors": ["invalid_request", "authentication_required", "rate_limited", "feature_temporarily_unavailable"] },
+      { "method": "PUT", "path": "/api/v1/me/notification-preferences", "operationId": "updateMyNotificationPreferences", "requestDto": "UpdateNotificationPreferencesRequestDto", "responseDto": "NotificationPreferencesDto", "errors": ["invalid_request", "authentication_required", "csrf_failed", "command_id_reused", "command_in_progress", "command_result_expired", "precondition_failed", "rate_limited", "feature_temporarily_unavailable"] }
+    ],
+    "dtoSchemas": {
+      "ProfileSummaryDto": { "required": ["profileId", "handle", "displayName"], "properties": { "profileId": "profile-id", "handle": "string:1..64", "displayName": "string:1..120", "avatarUrl": "https-uri|null" } },
+      "FollowRelationDto": { "required": ["actorProfileId", "targetProfileId", "following", "changedAt"], "properties": { "actorProfileId": "profile-id", "targetProfileId": "profile-id", "following": "boolean", "changedAt": "date-time" } },
+      "FollowPageQueryDto": { "required": [], "properties": { "cursor": "opaque-string", "limit": "integer:1..100" } },
+      "FollowPageDto": { "required": ["items", "nextCursor"], "properties": { "items": "ProfileSummaryDto[]", "nextCursor": "opaque-string|null" } },
+      "FeedPageQueryDto": { "required": [], "properties": { "cursor": "opaque-string", "limit": "integer:1..100", "kind": "collection_change|follow_activity" } },
+      "FeedItemDto": { "required": ["feedItemId", "kind", "actor", "collectionId", "publishedAt"], "properties": { "feedItemId": "uuid", "kind": "collection_change|follow_activity", "actor": "ProfileSummaryDto", "collectionId": "uuid|null", "publishedAt": "date-time" } },
+      "FeedPageDto": { "required": ["items", "nextCursor"], "properties": { "items": "FeedItemDto[]", "nextCursor": "opaque-string|null" } },
+      "NotificationPageQueryDto": { "required": [], "properties": { "cursor": "opaque-string", "limit": "integer:1..100", "read": "boolean" } },
+      "NotificationDto": { "required": ["notificationId", "kind", "createdAt", "readAt", "actor", "collectionId"], "properties": { "notificationId": "uuid", "kind": "new_follower|followed_collection_changed", "createdAt": "date-time", "readAt": "date-time|null", "actor": "ProfileSummaryDto|null", "collectionId": "uuid|null" } },
+      "NotificationPageDto": { "required": ["items", "nextCursor", "unreadCount"], "properties": { "items": "NotificationDto[]", "nextCursor": "opaque-string|null", "unreadCount": "integer:0..2147483647" } },
+      "MarkNotificationsReadRequestDto": { "required": ["notificationIds"], "properties": { "notificationIds": "unique-uuid-array:1..100" } },
+      "MarkNotificationsReadResultDto": { "required": ["notificationIds", "readAt"], "properties": { "notificationIds": "unique-uuid-array:1..100", "readAt": "date-time" } },
+      "NotificationPreferencesDto": { "required": ["revision", "inAppNewFollower", "inAppFollowedCollectionChanged"], "properties": { "revision": "opaque-string", "inAppNewFollower": "boolean", "inAppFollowedCollectionChanged": "boolean" } },
+      "UpdateNotificationPreferencesRequestDto": { "required": ["revision", "inAppNewFollower", "inAppFollowedCollectionChanged"], "properties": { "revision": "opaque-string", "inAppNewFollower": "boolean", "inAppFollowedCollectionChanged": "boolean" } }
+    }
+  },
+  "events": {
+    "envelope": "versioned-outbox-v1",
+    "unknownVersionPolicy": "fail-closed-replayable",
+    "maxPayloadBytes": 2048,
+    "catalog": [
+      { "eventType": "social.follow-created", "producerVersion": 1, "consumerVersions": [1], "mode": "delivery_each_event", "owner": "social", "payloadRequired": ["actorProfileId", "targetProfileId"], "payloadProperties": { "actorProfileId": "profile-id", "targetProfileId": "profile-id" } },
+      { "eventType": "social.follow-removed", "producerVersion": 1, "consumerVersions": [1], "mode": "delivery_each_event", "owner": "social", "payloadRequired": ["actorProfileId", "targetProfileId"], "payloadProperties": { "actorProfileId": "profile-id", "targetProfileId": "profile-id" } },
+      { "eventType": "social.collection-change", "producerVersion": 2, "consumerVersions": [1, 2], "mode": "projection_latest_only", "owner": "social", "payloadRequired": ["collectionId", "ownerProfileId", "publicationRevision", "discoverabilityRecheckKey", "producerDiscoverability"], "nMinus1PayloadRequired": ["collectionId", "ownerProfileId", "publicationRevision", "discoverabilityRecheckKey"], "payloadProperties": { "collectionId": "opaque-id", "ownerProfileId": "profile-id", "publicationRevision": "non-empty-string", "discoverabilityRecheckKey": "non-empty-string", "producerDiscoverability": "public_candidate|remove" } },
+      { "eventType": "social.feed-item-published", "producerVersion": 1, "consumerVersions": [1], "mode": "delivery_each_event", "owner": "notifications", "payloadRequired": ["feedItemId", "recipientProfileId", "sourceEventId", "collectionId", "discoverabilityRecheckKey"], "payloadProperties": { "feedItemId": "uuid", "recipientProfileId": "profile-id", "sourceEventId": "uuid", "collectionId": "uuid", "discoverabilityRecheckKey": "non-empty-string" } }
+    ],
+    "fixtures": { "current": "tests/fixtures/phase5/social-events.n.json", "previous": "tests/fixtures/phase5/social-events.n-minus-1.json" },
+    "collectionChangeContract": {
+      "eventType": "social.collection-change",
+      "namespaceOwner": "product-social",
+      "productEventIsColpFeedEvent": false,
+      "producerVersion": 2,
+      "consumerVersions": [1, 2],
+      "handlerMode": "projection_latest_only",
+      "maxPayloadBytes": 2048,
+      "aggregate": { "aggregateType": "collection", "aggregateId": "payload.collectionId", "aggregateScope": "payload.collectionId", "aggregateRevision": "payload.publicationRevision" },
+      "identities": { "eventId": "canonical-16-byte-base64url", "collectionId": "canonical-16-byte-base64url" },
+      "ordering": { "watermarkScope": "aggregate_identity.aggregate_scope", "monotonicFact": "commit_ordinal", "comparison": "decimal-integer-greater-than", "opaqueRevisionComparable": false },
+      "discoverability": { "recheckKeyFormat": "publication.collection:<collectionId>", "producerFacts": ["public_candidate", "remove"], "consumerMustRecheck": true, "publicCandidateMeaning": "eligible_for_current_authoritative_recheck_only", "removeMeaning": "deleted_or_not_publicly_discoverable_without_visibility_classification" },
+      "payloadSchemas": {
+        "1": ["collectionId", "discoverabilityRecheckKey", "ownerProfileId", "publicationRevision"],
+        "2": ["collectionId", "discoverabilityRecheckKey", "ownerProfileId", "publicationRevision", "producerDiscoverability"]
+      },
+      "rollout": { "unknownPolicy": "fail-closed-replayable-not-completed", "expandOrder": ["deploy-consumer-1-and-2", "enable-producer-2", "drain-retained-version-1", "remove-consumer-1-later"] },
+      "retentionRebuild": {
+        "sourceEventTtlDays": 90,
+        "feedItemTtlDays": 90,
+        "unresolvedRowsPurgeable": false,
+        "rebuildWindow": "retained-source-window-only",
+        "authoritySources": ["retained-social.collection-change-events", "authoritative-follow-graph", "current-publication-discoverability"],
+        "procedure": ["capture-per-scope-high-watermark", "replay-ascending-commit-ordinal", "dual-apply-live-events", "recheck-current-discoverability-before-write", "cas-watermark-with-projection", "cut-over-after-captured-watermarks"]
+      },
+      "consumerFixtures": { "current": "tests/fixtures/phase5/social-collection-change.consumer.n.json", "previous": "tests/fixtures/phase5/social-collection-change.consumer.n-minus-1.json" },
+      "maliciousFixture": "tests/fixtures/phase5/social-collection-change.malicious.json"
+    }
+  },
+  "retention": {
+    "followAuthority": { "owner": "social", "policy": "account-and-profile-lifecycle", "ttlDays": null },
+    "feedItems": { "owner": "social", "ttlDays": 90, "rebuildable": true },
+    "feedWatermarks": { "owner": "social", "ttlDays": null, "policy": "projection-lifecycle" },
+    "socialCollectionChangeEvents": { "owner": "outbox", "ttlDays": 90, "policy": "retain-replayable-source-through-feed-horizon", "unresolvedPurgeable": false },
+    "notificationsUnread": { "owner": "notifications", "ttlDays": 365, "authoritative": true },
+    "notificationsRead": { "owner": "notifications", "ttlDays": 90, "authoritative": true },
+    "notificationDeliveries": { "owner": "notifications", "ttlDays": 30, "authoritative": false },
+    "deadLetters": { "owner": "outbox", "ttlDays": 30, "policy": "purge-only-after-operator-resolution" }
+  },
+  "cursors": [
+    { "purpose": "social.followers.v1", "comparatorVersion": 1, "exclusiveTuple": ["followedAt:desc", "actorProfileId:desc"], "bindings": ["principalId", "targetProfileId", "normalizedFilter", "limit", "purpose", "comparatorVersion", "keyVersion", "issuedAt", "expiresAt"] },
+    { "purpose": "social.following.v1", "comparatorVersion": 1, "exclusiveTuple": ["followedAt:desc", "targetProfileId:desc"], "bindings": ["principalId", "actorProfileId", "normalizedFilter", "limit", "purpose", "comparatorVersion", "keyVersion", "issuedAt", "expiresAt"] },
+    { "purpose": "social.feed.v1", "comparatorVersion": 1, "exclusiveTuple": ["publishedAt:desc", "sourceEventId:desc", "feedItemId:desc"], "bindings": ["principalId", "normalizedFilter", "limit", "purpose", "comparatorVersion", "keyVersion", "issuedAt", "expiresAt"] },
+    { "purpose": "notifications.inbox.v1", "comparatorVersion": 1, "exclusiveTuple": ["createdAt:desc", "notificationId:desc"], "bindings": ["principalId", "normalizedFilter", "limit", "purpose", "comparatorVersion", "keyVersion", "issuedAt", "expiresAt"] }
+  ],
+  "featureFlags": [
+    { "key": "follow", "default": false, "enableAfter": "P5-07" },
+    { "key": "feed", "default": false, "enableAfter": "P5-15" },
+    { "key": "notifications", "default": false, "enableAfter": "P5-23" }
+  ],
+  "performanceBudgets": {
+    "evidenceMode": "production-postgresql-fastify",
+    "datasetMinimums": { "profiles": 10000, "follows": 100000, "feedItemsPerPrincipal": 10000, "notificationsPerPrincipal": 10000 },
+    "p95Milliseconds": { "followMutation": 250, "followPage": 250, "feedPage": 300, "notificationPage": 300, "notificationMutation": 250 },
+    "pageSizeMaximum": 100,
+    "bulkMarkReadMaximum": 100,
+    "queryPlan": { "forbidUnboundedSort": true, "forbidHotPathSequentialScan": true, "requiredPages": ["first", "middle", "final"] }
+  },
+  "protocol": {
+    "productFeedDeclaresColpFeedProfile": false,
+    "manifestMutationAllowed": false,
+    "futureClaimGate": "route+runtime-ports+deployment-probes+assertProfileClaims"
+  },
+  "acceptanceArtifactSchema": "tests/fixtures/phase5/free-social-acceptance-artifact.schema.json",
+  "requirementMapping": [
+    { "id": "phase5-contract-gate", "buildTasks": "P5-01", "finalAcceptance": "P5-01,P5-26", "owner": "contracts" },
+    { "id": "follow-capability", "buildTasks": "P5-02..P5-06", "finalAcceptance": "P5-07", "owner": "social" },
+    { "id": "feed-event-contract", "buildTasks": "P5-08..P5-09", "finalAcceptance": "P5-15", "owner": "social" },
+    { "id": "feed-capability", "buildTasks": "P5-10..P5-14", "finalAcceptance": "P5-15", "owner": "social" },
+    { "id": "notification-capability", "buildTasks": "P5-16..P5-22", "finalAcceptance": "P5-23", "owner": "notifications" },
+    { "id": "feed-operations", "buildTasks": "P5-24", "finalAcceptance": "P5-26", "owner": "social" },
+    { "id": "notification-operations", "buildTasks": "P5-25", "finalAcceptance": "P5-26", "owner": "notifications" },
+    { "id": "free-social-closeout", "buildTasks": "P5-26", "finalAcceptance": "P5-26", "owner": "release" }
+  ],
+  "forbiddenMonetizationTokens": ["subscription", "billing", "entitlement", "payment", "paywall", "price", "revenue", "mrr", "churn", "payout"],
+  "remediation": {
+    "format": "known.phase5.free-social-remediation.v1",
+    "planDocument": "docs/plans/completed/known-backend/phase5-remediation-plan.md",
+    "fanout": {
+      "transport": "existing-outbox",
+      "pageSizeEnv": "FEED_FANOUT_PAGE_SIZE",
+      "defaultPageSize": 500,
+      "minPageSize": 1,
+      "maxPageSize": 1000,
+      "cursorStorage": "social_feed_watermarks",
+      "continuation": {
+        "kind": "normal-control-flow",
+        "callsFail": false,
+        "subjectToMaxAttempts": false,
+        "writesLastError": false,
+        "forbiddenSubstitutes": [
+          "in-process-cursor",
+          "ordinary-retry",
+          "dead-letter-retry",
+          "unbounded-single-transaction"
+        ]
+      },
+      "writeStrategy": "set-based-sql",
+      "forbidPerRecipientClientQuery": true,
+      "index": {
+        "name": "follows_target_actor_fanout_idx",
+        "columns": ["target_profile_id", "actor_profile_id ASC"],
+        "include": ["followed_at"]
+      }
+    },
+    "withdrawal": {
+      "outboxType": "social_feed_withdrawal",
+      "appendInFollowCommandTransaction": true,
+      "independentOutboxRow": true,
+      "retainQueryTimeRecheck": true,
+      "requiredHandler": "social_feed_withdrawal"
+    },
+    "identity": {
+      "socialNotificationsTextMaxLength": 256,
+      "openapiProfileStableIdLength": 22
+    },
+    "queryUnitOfWork": {
+      "surfaces": ["follow", "feed", "notification"],
+      "isolation": "repeatable-read",
+      "clock": "postgresql-current_timestamp",
+      "forbidAdapterWallClock": true
+    },
+    "evidence": {
+      "lockPathField": "relativePath",
+      "forbidAbsoluteArtifactPath": true,
+      "runtimeRootEnv": "KNOWN_PHASE5_EVIDENCE_ROOT",
+      "runtimeRootMustBeAbsolute": true,
+      "negativeControls": {
+        "mode": "real-temporary-source-corruption",
+        "forbidEmptyStringSimulation": true,
+        "forbidManualBooleanSimulation": true
+      },
+      "evidenceClasses": ["supporting", "verified"],
+      "capabilityProofAllowedClasses": ["verified"],
+      "supportingOnlySurfaces": ["unit", "direct-handler-application", "sql-seeded-http"],
+      "canonicalBindingMode": "exact-commit"
+    },
+    "tasks": [
+      {
+        "id": "R5-01",
+        "commitSubject": "phase5: freeze free social remediation contracts",
+        "owner": "contracts",
+        "finalAcceptance": "R5-01",
+        "evidenceClass": "supporting",
+        "publicCommands": ["npm run test:phase5:remediation-contract"],
+        "closedSchema": "tests/fixtures/phase5/free-social-remediation.schema.json"
+      },
+      {
+        "id": "R5-02",
+        "commitSubject": "phase5: expand feed fanout continuation storage",
+        "owner": "social",
+        "finalAcceptance": "R5-02",
+        "evidenceClass": "verified",
+        "publicCommands": ["npm run test:phase5:fanout-migration"],
+        "closedSchema": "tests/fixtures/phase5/remediation/r5-02-fanout-migration.schema.json"
+      },
+      {
+        "id": "R5-03",
+        "commitSubject": "phase5: continue outbox work without failure",
+        "owner": "outbox",
+        "finalAcceptance": "R5-03",
+        "evidenceClass": "verified",
+        "publicCommands": ["npm run test:phase5:outbox-continuation"],
+        "closedSchema": "tests/fixtures/phase5/remediation/r5-03-outbox-continuation.schema.json"
+      },
+      {
+        "id": "R5-04",
+        "commitSubject": "phase5: slice live feed fanout durably",
+        "owner": "social",
+        "finalAcceptance": "R5-04",
+        "evidenceClass": "verified",
+        "publicCommands": ["npm run test:phase5:fanout-continuation"],
+        "closedSchema": "tests/fixtures/phase5/remediation/r5-04-fanout-continuation.schema.json"
+      },
+      {
+        "id": "R5-05",
+        "commitSubject": "phase5: batch feed fanout writes",
+        "owner": "social",
+        "finalAcceptance": "R5-05",
+        "evidenceClass": "verified",
+        "publicCommands": ["npm run test:phase5:fanout-batch"],
+        "closedSchema": "tests/fixtures/phase5/remediation/r5-05-fanout-batch.schema.json"
+      },
+      {
+        "id": "R5-06",
+        "commitSubject": "phase5: withdraw feed items after unfollow",
+        "owner": "social",
+        "finalAcceptance": "R5-06",
+        "evidenceClass": "verified",
+        "publicCommands": ["npm run test:phase5:unfollow-withdrawal"],
+        "closedSchema": "tests/fixtures/phase5/remediation/r5-06-unfollow-withdrawal.schema.json"
+      },
+      {
+        "id": "R5-07",
+        "commitSubject": "phase5: align social identities and database clocks",
+        "owner": "social",
+        "finalAcceptance": "R5-07",
+        "evidenceClass": "verified",
+        "publicCommands": ["npm run test:phase5:social-boundaries"],
+        "closedSchema": "tests/fixtures/phase5/remediation/r5-07-social-boundaries.schema.json"
+      },
+      {
+        "id": "R5-08",
+        "commitSubject": "phase5: prove sparse feed and fanout plans",
+        "owner": "social",
+        "finalAcceptance": "R5-08",
+        "evidenceClass": "verified",
+        "publicCommands": ["npm run evidence:phase5:social-capacity"],
+        "closedSchema": "tests/fixtures/phase5/remediation/r5-08-social-capacity.schema.json"
+      },
+      {
+        "id": "R5-09",
+        "commitSubject": "phase5: classify free social evidence",
+        "owner": "contracts",
+        "finalAcceptance": "R5-09",
+        "evidenceClass": "supporting",
+        "publicCommands": ["npm run test:phase5:evidence-class"],
+        "closedSchema": "tests/fixtures/phase5/remediation/r5-09-evidence-class.schema.json"
+      },
+      {
+        "id": "R5-10",
+        "commitSubject": "phase5: resolve evidence from a portable root",
+        "owner": "contracts",
+        "finalAcceptance": "R5-10",
+        "evidenceClass": "supporting",
+        "publicCommands": ["npm run test:phase5:evidence-root"],
+        "closedSchema": "tests/fixtures/phase5/remediation/r5-10-evidence-root.schema.json"
+      },
+      {
+        "id": "R5-11",
+        "commitSubject": "phase5: corrupt real source bindings in negative controls",
+        "owner": "contracts",
+        "finalAcceptance": "R5-11",
+        "evidenceClass": "supporting",
+        "publicCommands": ["npm run test:phase5:real-negative-controls"],
+        "closedSchema": "tests/fixtures/phase5/remediation/r5-11-real-negative-controls.schema.json"
+      },
+      {
+        "id": "R5-12",
+        "commitSubject": "phase5: operate fanout continuations visibly",
+        "owner": "social",
+        "finalAcceptance": "R5-12",
+        "evidenceClass": "verified",
+        "publicCommands": ["npm run test:phase5:fanout-operations"],
+        "closedSchema": "tests/fixtures/phase5/remediation/r5-12-fanout-operations.schema.json"
+      },
+      {
+        "id": "R5-13",
+        "commitSubject": "phase5: reaccept remediated follow capability",
+        "owner": "social",
+        "finalAcceptance": "R5-13",
+        "evidenceClass": "verified",
+        "publicCommands": ["npm run evidence:phase5:follow"],
+        "closedSchema": "tests/fixtures/phase5/follow-acceptance-artifact.schema.json"
+      },
+      {
+        "id": "R5-14",
+        "commitSubject": "phase5: reaccept remediated feed capability",
+        "owner": "social",
+        "finalAcceptance": "R5-14",
+        "evidenceClass": "verified",
+        "publicCommands": ["npm run evidence:phase5:feed"],
+        "closedSchema": "tests/fixtures/phase5/feed-acceptance-artifact.schema.json"
+      },
+      {
+        "id": "R5-15",
+        "commitSubject": "phase5: reaccept remediated notification capability",
+        "owner": "notifications",
+        "finalAcceptance": "R5-15",
+        "evidenceClass": "verified",
+        "publicCommands": ["npm run evidence:phase5:notification"],
+        "closedSchema": "tests/fixtures/phase5/notification-acceptance-artifact.schema.json"
+      },
+      {
+        "id": "R5-16",
+        "commitSubject": "phase5: reaccept remediated social operations",
+        "owner": "operations",
+        "finalAcceptance": "R5-16",
+        "evidenceClass": "verified",
+        "publicCommands": [
+          "npm run evidence:phase5:feed-operations",
+          "npm run evidence:phase5:notification-operations"
+        ],
+        "closedSchema": "tests/fixtures/phase5/remediation/r5-16-social-operations.schema.json"
+      },
+      {
+        "id": "R5-17",
+        "commitSubject": "phase5: bind remediated free social evidence",
+        "owner": "release",
+        "finalAcceptance": "R5-17",
+        "evidenceClass": "verified",
+        "publicCommands": ["npm run verify:phase5:free-social-dependencies"],
+        "closedSchema": "tests/fixtures/phase5/remediation/r5-17-dependency-binding.schema.json"
+      },
+      {
+        "id": "R5-18",
+        "commitSubject": "phase5: seal canonical remediation acceptance",
+        "owner": "release",
+        "finalAcceptance": "R5-18",
+        "evidenceClass": "verified",
+        "publicCommands": ["npm run evidence:phase5:free-social"],
+        "closedSchema": "tests/fixtures/phase5/free-social-acceptance-artifact.schema.json"
+      }
+    ]
+  }
+}

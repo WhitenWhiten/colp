@@ -1,0 +1,41 @@
+{
+  "format": "known.phase5.social-collection-change.malicious.v1",
+  "contractVersion": 1,
+  "baseEvent": {
+    "event_id": "AQEBAQEBAQEBAQEBAQEBAQ",
+    "event_type": "social.collection-change",
+    "event_version": 2,
+    "aggregate_identity": { "aggregate_type": "collection", "aggregate_id": "AgICAgICAgICAgICAgICAg", "aggregate_scope": "AgICAgICAgICAgICAgICAg" },
+    "aggregate_revision": "publication-revision-900",
+    "commit_ordinal": "900",
+    "occurred_at": "2026-07-29T11:00:00.000Z",
+    "payload": { "collectionId": "AgICAgICAgICAgICAgICAg", "ownerProfileId": "IiIiIiIiIiIiIiIiIiIiIg", "publicationRevision": "publication-revision-900", "discoverabilityRecheckKey": "publication.collection:AgICAgICAgICAgICAgICAg", "producerDiscoverability": "public_candidate" }
+  },
+  "controls": [
+    { "id": "unknown-event-type", "secretMarker": "P508_UNKNOWN_TYPE_MARKER_08_DO_NOT_EMIT", "expectedFailure": "unsupported_event_type", "markerPath": "payload.publicationRevision", "markerMirrorPaths": ["aggregate_revision"], "mutation": { "path": "event_type", "value": "social.collection-change.unknown" } },
+    { "id": "unknown-event-version", "secretMarker": "P508_UNKNOWN_VERSION_MARKER_09_DO_NOT_EMIT", "expectedFailure": "unsupported_event_version", "markerPath": "payload.publicationRevision", "markerMirrorPaths": ["aggregate_revision"], "mutation": { "path": "event_version", "value": 99 } },
+    { "id": "invalid-event-id", "secretMarker": "P508_EVENT_ID_MARKER_32_DO_NOT_EMIT", "expectedFailure": "invalid_payload", "markerPath": "payload.publicationRevision", "markerMirrorPaths": ["aggregate_revision"], "mutation": { "path": "event_id", "value": "018f0e3d-9000-7000-8000-000000000000" } },
+    { "id": "invalid-collection-id", "secretMarker": "P508_COLLECTION_ID_MARKER_33_DO_NOT_EMIT", "expectedFailure": "invalid_payload", "markerPath": "payload.publicationRevision", "markerMirrorPaths": ["aggregate_revision"], "mutation": { "path": "payload.collectionId", "value": "018f0e3d-c900-7900-8900-000000000000" } },
+    { "id": "utf8-payload-at-limit", "secretMarker": "P508_UTF8_LIMIT_MARKER_10_DO_NOT_EMIT", "expectedFailure": "forbidden_payload", "markerPath": null, "markerMirrorPaths": [], "mutation": { "path": "payload.body", "targetPayloadBytes": 2048, "fill": "界" } },
+    { "id": "utf8-payload-over-limit", "secretMarker": "P508_UTF8_OVER_MARKER_24_DO_NOT_EMIT", "expectedFailure": "payload_too_large", "markerPath": null, "markerMirrorPaths": [], "mutation": { "path": "payload.body", "targetPayloadBytes": 2049, "fill": "界" } },
+    { "id": "missing-field", "secretMarker": "P508_MISSING_MARKER_11_DO_NOT_EMIT", "expectedFailure": "invalid_payload", "markerPath": "payload.publicationRevision", "markerMirrorPaths": ["aggregate_revision"], "mutation": { "deletePath": "payload.ownerProfileId" } },
+    { "id": "extra-field", "secretMarker": "P508_EXTRA_MARKER_12_DO_NOT_EMIT", "expectedFailure": "invalid_payload", "markerPath": null, "markerMirrorPaths": [], "mutation": { "path": "payload.unexpectedField", "value": "P508_EXTRA_MARKER_12_DO_NOT_EMIT" } },
+    { "id": "wrong-aggregate-scope", "secretMarker": "P508_SCOPE_MARKER_13_DO_NOT_EMIT", "expectedFailure": "aggregate_scope_mismatch", "markerPath": "payload.publicationRevision", "markerMirrorPaths": ["aggregate_revision"], "mutation": { "path": "aggregate_identity.aggregate_scope", "value": "wrong-scope" } },
+    { "id": "wrong-aggregate-revision", "secretMarker": "P508_REVISION_MARKER_14_DO_NOT_EMIT", "expectedFailure": "aggregate_revision_mismatch", "markerPath": "payload.publicationRevision", "markerMirrorPaths": [], "mutation": { "path": "aggregate_revision", "value": "wrong-revision" } },
+    { "id": "invalid-order", "secretMarker": "P508_ORDER_MARKER_15_DO_NOT_EMIT", "expectedFailure": "invalid_commit_ordinal", "markerPath": "payload.publicationRevision", "markerMirrorPaths": ["aggregate_revision"], "mutation": { "path": "commit_ordinal", "value": "0" } },
+    { "id": "invalid-recheck-key", "secretMarker": "P508_RECHECK_MARKER_16_DO_NOT_EMIT", "expectedFailure": "invalid_recheck_key", "markerPath": null, "markerMirrorPaths": [], "mutation": { "path": "payload.discoverabilityRecheckKey", "value": "publication.collection:P508_RECHECK_MARKER_16_DO_NOT_EMIT" } },
+    { "id": "private-body", "secretMarker": "P508_PRIVATE_BODY_MARKER_17_DO_NOT_EMIT", "expectedFailure": "forbidden_payload", "markerPath": null, "markerMirrorPaths": [], "mutation": { "path": "payload.body", "value": "P508_PRIVATE_BODY_MARKER_17_DO_NOT_EMIT" } },
+    { "id": "private-content", "secretMarker": "P508_PRIVATE_CONTENT_MARKER_25_DO_NOT_EMIT", "expectedFailure": "forbidden_payload", "markerPath": null, "markerMirrorPaths": [], "mutation": { "path": "payload.content", "value": "P508_PRIVATE_CONTENT_MARKER_25_DO_NOT_EMIT" } },
+    { "id": "protected-title", "secretMarker": "P508_PROTECTED_TITLE_MARKER_26_DO_NOT_EMIT", "expectedFailure": "forbidden_payload", "markerPath": null, "markerMirrorPaths": [], "mutation": { "path": "payload.title", "value": "P508_PROTECTED_TITLE_MARKER_26_DO_NOT_EMIT" } },
+    { "id": "protected-summary", "secretMarker": "P508_PROTECTED_SUMMARY_MARKER_18_DO_NOT_EMIT", "expectedFailure": "forbidden_payload", "markerPath": null, "markerMirrorPaths": [], "mutation": { "path": "payload.summary", "value": "P508_PROTECTED_SUMMARY_MARKER_18_DO_NOT_EMIT" } },
+    { "id": "unlisted-handle", "secretMarker": "P508_UNLISTED_HANDLE_MARKER_19_DO_NOT_EMIT", "expectedFailure": "forbidden_payload", "markerPath": null, "markerMirrorPaths": [], "mutation": { "path": "payload.handle", "value": "P508_UNLISTED_HANDLE_MARKER_19_DO_NOT_EMIT" } },
+    { "id": "public-email", "secretMarker": "P508_PUBLIC_EMAIL_MARKER_20_DO_NOT_EMIT", "expectedFailure": "forbidden_payload", "markerPath": null, "markerMirrorPaths": [], "mutation": { "path": "payload.email", "value": "P508_PUBLIC_EMAIL_MARKER_20_DO_NOT_EMIT@example.invalid" } },
+    { "id": "membership-facts", "secretMarker": "P508_MEMBERSHIP_MARKER_21_DO_NOT_EMIT", "expectedFailure": "forbidden_payload", "markerPath": null, "markerMirrorPaths": [], "mutation": { "path": "payload.membership", "value": "P508_MEMBERSHIP_MARKER_21_DO_NOT_EMIT" } },
+    { "id": "policy-facts", "secretMarker": "P508_POLICY_MARKER_27_DO_NOT_EMIT", "expectedFailure": "forbidden_payload", "markerPath": null, "markerMirrorPaths": [], "mutation": { "path": "payload.policy", "value": "P508_POLICY_MARKER_27_DO_NOT_EMIT" } },
+    { "id": "cursor-material", "secretMarker": "P508_CURSOR_MARKER_22_DO_NOT_EMIT", "expectedFailure": "forbidden_payload", "markerPath": null, "markerMirrorPaths": [], "mutation": { "path": "payload.cursor", "value": "P508_CURSOR_MARKER_22_DO_NOT_EMIT" } },
+    { "id": "token-material", "secretMarker": "P508_TOKEN_MARKER_28_DO_NOT_EMIT", "expectedFailure": "forbidden_payload", "markerPath": null, "markerMirrorPaths": [], "mutation": { "path": "payload.token", "value": "P508_TOKEN_MARKER_28_DO_NOT_EMIT" } },
+    { "id": "secret-material", "secretMarker": "P508_SECRET_MARKER_29_DO_NOT_EMIT", "expectedFailure": "forbidden_payload", "markerPath": null, "markerMirrorPaths": [], "mutation": { "path": "payload.secret", "value": "P508_SECRET_MARKER_29_DO_NOT_EMIT" } },
+    { "id": "credential-material", "secretMarker": "P508_CREDENTIAL_MARKER_30_DO_NOT_EMIT", "expectedFailure": "forbidden_payload", "markerPath": null, "markerMirrorPaths": [], "mutation": { "path": "payload.credential", "value": "P508_CREDENTIAL_MARKER_30_DO_NOT_EMIT" } },
+    { "id": "cookie-material", "secretMarker": "P508_COOKIE_MARKER_31_DO_NOT_EMIT", "expectedFailure": "forbidden_payload", "markerPath": null, "markerMirrorPaths": [], "mutation": { "path": "payload.cookie", "value": "P508_COOKIE_MARKER_31_DO_NOT_EMIT" } }
+  ]
+}

@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://known.example/schemas/phase5/free-social-acceptance-artifact.v1.json",
+  "title": "Phase 5 free-social final source-bound acceptance artifact",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "schemaVersion", "accepted", "createdAt", "source", "production", "dependencies", "dependencyDigest", "environment", "gates", "gateDigest", "proofs", "proofDigest", "negativeControls", "negativeControlDigest", "claims", "claimDigest", "evidenceDigest"],
+  "properties": {
+    "format": { "const": "known.phase5.free-social-acceptance.v1" },
+    "schemaVersion": { "const": 1 },
+    "accepted": { "const": true },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "source": {
+      "type": "object", "additionalProperties": false,
+      "required": ["checkoutCommit", "backendCommit", "frontendCommit", "colpCommit", "sourceTreeDigest", "sourceTreeDigestStart", "sourceTreeDigestEnd", "sourceFileCount", "bindingMode", "workingTreeStateDigest", "workingTreeStateDigestStart", "workingTreeStateDigestEnd", "cleanCheckout", "cleanStart", "cleanEnd"],
+      "properties": {
+        "checkoutCommit": { "$ref": "#/$defs/commit" }, "backendCommit": { "$ref": "#/$defs/commit" },
+        "frontendCommit": { "$ref": "#/$defs/commit" }, "colpCommit": { "$ref": "#/$defs/commit" },
+        "sourceTreeDigest": { "$ref": "#/$defs/sha256" }, "sourceTreeDigestStart": { "$ref": "#/$defs/sha256" },
+        "sourceTreeDigestEnd": { "$ref": "#/$defs/sha256" }, "sourceFileCount": { "type": "integer", "minimum": 1 },
+        "bindingMode": { "enum": ["exact-commit", "working-tree"] },
+        "workingTreeStateDigest": { "$ref": "#/$defs/sha256" },
+        "workingTreeStateDigestStart": { "$ref": "#/$defs/sha256" },
+        "workingTreeStateDigestEnd": { "$ref": "#/$defs/sha256" },
+        "cleanCheckout": { "type": "boolean" }, "cleanStart": { "type": "boolean" },
+        "cleanEnd": { "type": "boolean" }
+      },
+      "allOf": [
+        { "if": { "properties": { "bindingMode": { "const": "exact-commit" } } }, "then": { "properties": { "cleanCheckout": { "const": true }, "cleanStart": { "const": true }, "cleanEnd": { "const": true } } } },
+        { "if": { "properties": { "bindingMode": { "const": "working-tree" } } }, "then": { "properties": { "cleanCheckout": { "const": false }, "cleanStart": { "const": false }, "cleanEnd": { "const": false } } } }
+      ]
+    },
+    "production": {
+      "type": "object", "additionalProperties": false,
+      "required": ["migrationHead", "migrationDigest", "openapiVersion", "openapiDigest", "generatedClientDigest", "eventContractVersion", "eventContractDigest", "runtimeConfigDigest"],
+      "properties": {
+        "migrationHead": { "const": "202608011000_nodes_live_sibling_position_c_idx" },
+        "migrationDigest": { "const": "2efa433f3154d891fbe4c62c657b9e4c78aac6bdec2cbf62d69a16fdfc797178" },
+        "openapiVersion": { "type": "string", "minLength": 1 }, "openapiDigest": { "$ref": "#/$defs/sha256" },
+        "generatedClientDigest": { "$ref": "#/$defs/sha256" }, "eventContractVersion": { "const": 1 },
+        "eventContractDigest": { "$ref": "#/$defs/sha256" }, "runtimeConfigDigest": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "dependencies": {
+      "type": "array", "minItems": 5, "maxItems": 5,
+      "prefixItems": [
+        { "$ref": "#/$defs/followAcceptanceDependency" }, { "$ref": "#/$defs/feedAcceptanceDependency" },
+        { "$ref": "#/$defs/notificationAcceptanceDependency" }, { "$ref": "#/$defs/feedOperationsDependency" },
+        { "$ref": "#/$defs/notificationOperationsDependency" }
+      ], "items": false
+    },
+    "dependencyDigest": { "$ref": "#/$defs/sha256" },
+    "environment": {
+      "type": "object", "additionalProperties": false,
+      "required": ["postgresqlVersion", "nodeVersion", "os", "fastifyVersion", "playwrightVersion", "browserName", "browserVersion", "chromiumVersion"],
+      "properties": {
+        "postgresqlVersion": { "type": "string", "pattern": "PostgreSQL" }, "nodeVersion": { "type": "string", "minLength": 1 },
+        "os": { "type": "string", "minLength": 1 }, "fastifyVersion": { "type": "string", "minLength": 1 },
+        "playwrightVersion": { "type": "string", "minLength": 1 }, "browserName": { "const": "chromium" },
+        "browserVersion": { "type": "string", "minLength": 1 }, "chromiumVersion": { "type": "string", "minLength": 1 }
+      }
+    },
+    "gates": { "type": "array", "minItems": 8, "maxItems": 8, "items": { "$ref": "#/$defs/gate" } },
+    "gateDigest": { "$ref": "#/$defs/sha256" },
+    "proofs": {
+      "type": "object", "additionalProperties": false,
+      "required": ["productionMigrationDatabase", "productionFastifyHttp", "generatedClientBrowser", "productionWorkerOutbox", "exactOnceSideEffects", "transactionFaultBoundaries", "postgresConcurrency", "fencedPagination", "multiPrincipalAuthorization", "secretMarkerScan", "withdrawalAfterMutation", "queryPlansAtScale", "featureExposureCompleteness", "sourceBoundArtifacts", "phase4HostBoundaryAbsent", "brokenLayerControls", "monetizationAbsence"],
+      "properties": {
+        "productionMigrationDatabase": { "$ref": "#/$defs/proof" }, "productionFastifyHttp": { "$ref": "#/$defs/proof" },
+        "generatedClientBrowser": { "$ref": "#/$defs/proof" }, "productionWorkerOutbox": { "$ref": "#/$defs/proof" },
+        "exactOnceSideEffects": { "$ref": "#/$defs/proof" }, "transactionFaultBoundaries": { "$ref": "#/$defs/proof" },
+        "postgresConcurrency": { "$ref": "#/$defs/proof" }, "fencedPagination": { "$ref": "#/$defs/proof" },
+        "multiPrincipalAuthorization": { "$ref": "#/$defs/proof" }, "secretMarkerScan": { "$ref": "#/$defs/proof" },
+        "withdrawalAfterMutation": { "$ref": "#/$defs/proof" }, "queryPlansAtScale": { "$ref": "#/$defs/proof" },
+        "featureExposureCompleteness": { "$ref": "#/$defs/proof" }, "sourceBoundArtifacts": { "$ref": "#/$defs/proof" },
+        "phase4HostBoundaryAbsent": { "$ref": "#/$defs/proof" }, "brokenLayerControls": { "$ref": "#/$defs/proof" },
+        "monetizationAbsence": { "$ref": "#/$defs/proof" }
+      }
+    },
+    "proofDigest": { "$ref": "#/$defs/sha256" },
+    "negativeControls": { "type": "array", "minItems": 21, "maxItems": 21, "items": { "$ref": "#/$defs/negative" } },
+    "negativeControlDigest": { "$ref": "#/$defs/sha256" },
+    "claims": {
+      "type": "object", "additionalProperties": false,
+      "required": ["freeSocialMvpEligible", "phase5Verified", "deploymentProven", "colpProfile", "monetization", "phase4", "email", "attachments", "advancedDiscovery", "mcpWrite", "billing", "paidSubscription", "productFeedWritesManifest"],
+      "properties": {
+        "freeSocialMvpEligible": { "const": true }, "phase5Verified": { "const": false },
+        "deploymentProven": { "const": false }, "colpProfile": { "const": false }, "monetization": { "const": false },
+        "phase4": { "const": false }, "email": { "const": false }, "attachments": { "const": false },
+        "advancedDiscovery": { "const": false }, "mcpWrite": { "const": false }, "billing": { "const": false },
+        "paidSubscription": { "const": false }, "productFeedWritesManifest": { "const": false }
+      }
+    },
+    "claimDigest": { "$ref": "#/$defs/sha256" }, "evidenceDigest": { "$ref": "#/$defs/sha256" }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "dependencyBase": {
+      "type": "object", "additionalProperties": false,
+      "required": ["task", "commit", "artifactFormat", "artifactFileName", "fileSha256", "contentDigest", "sourceBindingDigest"],
+      "properties": {
+        "task": { "type": "string" }, "commit": { "$ref": "#/$defs/commit" }, "artifactFormat": { "type": "string" },
+        "artifactFileName": { "type": "string", "minLength": 1 }, "fileSha256": { "$ref": "#/$defs/sha256" },
+        "contentDigest": { "$ref": "#/$defs/sha256" }, "sourceBindingDigest": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "followAcceptanceDependency": { "allOf": [{ "$ref": "#/$defs/dependencyBase" }, { "type": "object", "properties": { "task": { "const": "P5-07" }, "artifactFormat": { "const": "known.phase5.follow-acceptance.v1" } } }] },
+    "feedAcceptanceDependency": { "allOf": [{ "$ref": "#/$defs/dependencyBase" }, { "type": "object", "properties": { "task": { "const": "P5-15" }, "artifactFormat": { "const": "known.phase5.feed-acceptance.v1" } } }] },
+    "notificationAcceptanceDependency": { "allOf": [{ "$ref": "#/$defs/dependencyBase" }, { "type": "object", "properties": { "task": { "const": "P5-23" }, "artifactFormat": { "const": "known.phase5.notification-acceptance.v1" } } }] },
+    "feedOperationsDependency": { "allOf": [{ "$ref": "#/$defs/dependencyBase" }, { "type": "object", "properties": { "task": { "const": "P5-24" }, "artifactFormat": { "const": "known.phase5.feed-operations/v1" } } }] },
+    "notificationOperationsDependency": { "allOf": [{ "$ref": "#/$defs/dependencyBase" }, { "type": "object", "properties": { "task": { "const": "P5-25" }, "artifactFormat": { "const": "known.phase5.notification-operations/v1" } } }] },
+    "evidenceClass": { "type": "string", "enum": ["supporting", "verified"] },
+    "gate": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "status", "command", "durationMs", "resultSummary", "outputDigest", "evidenceClass"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 }, "status": { "const": "passed" }, "command": { "type": "string", "minLength": 1 },
+        "durationMs": { "type": "number", "minimum": 0 }, "resultSummary": { "type": "string", "minLength": 1 }, "outputDigest": { "$ref": "#/$defs/sha256" },
+        "evidenceClass": { "$ref": "#/$defs/evidenceClass" }
+      }
+    },
+    "proof": {
+      "type": "object", "additionalProperties": false, "required": ["status", "gateIds", "evidenceDigests", "evidenceClass"],
+      "properties": {
+        "status": { "const": "proved" },
+        "gateIds": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+        "evidenceDigests": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/sha256" } },
+        "evidenceClass": { "const": "verified" }
+      }
+    },
+    "negative": {
+      "type": "object", "additionalProperties": false, "required": ["id", "injection", "outcome", "observationDigest"],
+      "properties": { "id": { "type": "string", "minLength": 1 }, "injection": { "type": "string", "minLength": 1 }, "outcome": { "const": "failed_closed" }, "observationDigest": { "$ref": "#/$defs/sha256" } }
+    }
+  }
+}

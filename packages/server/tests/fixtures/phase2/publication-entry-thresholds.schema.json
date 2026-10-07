@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://known.local/schemas/phase2-publication-entry-thresholds.schema.json",
+  "title": "Phase 2 PostgreSQL Publication entry thresholds",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "nodeCount",
+    "pageSize",
+    "pageP95Ms",
+    "fullTraversalMs",
+    "planExecutionMs",
+    "maxPageBytes",
+    "maxHeapDeltaBytes",
+    "writerTransactionMs"
+  ],
+  "properties": {
+    "$schema": { "const": "./publication-entry-thresholds.schema.json" },
+    "nodeCount": { "type": "integer", "minimum": 10000 },
+    "pageSize": { "type": "integer", "minimum": 1, "maximum": 500 },
+    "pageP95Ms": { "type": "number", "exclusiveMinimum": 0 },
+    "fullTraversalMs": { "type": "number", "exclusiveMinimum": 0 },
+    "planExecutionMs": { "type": "number", "exclusiveMinimum": 0 },
+    "maxPageBytes": { "type": "integer", "minimum": 1, "maximum": 4194304 },
+    "maxHeapDeltaBytes": { "type": "integer", "minimum": 1 },
+    "writerTransactionMs": { "type": "number", "exclusiveMinimum": 0 }
+  }
+}

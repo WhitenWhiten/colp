@@ -1,0 +1,129 @@
+{
+  "format": "known.phase5.social-collection-change.consumer.n.v1",
+  "contractVersion": 1,
+  "eventType": "social.collection-change",
+  "consumerVersion": 2,
+  "acceptedEventVersions": [1, 2],
+  "rejectedEventVersions": [3],
+  "cases": [
+    {
+      "id": "n-consumer-accepts-n-minus-1-with-recheck",
+      "secretMarker": "P508_N_ACCEPTS_N_MINUS_1_MARKER_23_DO_NOT_EMIT",
+      "producerVisibility": "public",
+      "currentDiscoverability": "public",
+      "expectedDisposition": "recheck_required",
+      "event": {
+        "event_id": "BwcHBwcHBwcHBwcHBwcHBw",
+        "event_type": "social.collection-change",
+        "event_version": 1,
+        "aggregate_identity": { "aggregate_type": "collection", "aggregate_id": "Dg4ODg4ODg4ODg4ODg4ODg", "aggregate_scope": "Dg4ODg4ODg4ODg4ODg4ODg" },
+        "aggregate_revision": "publication-revision-100",
+        "commit_ordinal": "100",
+        "occurred_at": "2026-07-29T10:00:00.000Z",
+        "payload": { "collectionId": "Dg4ODg4ODg4ODg4ODg4ODg", "ownerProfileId": "IiIiIiIiIiIiIiIiIiIiIg", "publicationRevision": "publication-revision-100", "discoverabilityRecheckKey": "publication.collection:Dg4ODg4ODg4ODg4ODg4ODg" }
+      }
+    },
+    {
+      "id": "public-currently-discoverable",
+      "secretMarker": "P508_PUBLIC_MARKER_01_DO_NOT_EMIT",
+      "producerVisibility": "public",
+      "currentDiscoverability": "public",
+      "expectedDisposition": "recheck_then_upsert",
+      "event": {
+        "event_id": "CAgICAgICAgICAgICAgICA",
+        "event_type": "social.collection-change",
+        "event_version": 2,
+        "aggregate_identity": { "aggregate_type": "collection", "aggregate_id": "Dw8PDw8PDw8PDw8PDw8PDw", "aggregate_scope": "Dw8PDw8PDw8PDw8PDw8PDw" },
+        "aggregate_revision": "publication-revision-101",
+        "commit_ordinal": "101",
+        "occurred_at": "2026-07-29T10:01:00.000Z",
+        "payload": { "collectionId": "Dw8PDw8PDw8PDw8PDw8PDw", "ownerProfileId": "IiIiIiIiIiIiIiIiIiIiIg", "publicationRevision": "publication-revision-101", "discoverabilityRecheckKey": "publication.collection:Dw8PDw8PDw8PDw8PDw8PDw", "producerDiscoverability": "public_candidate" }
+      }
+    },
+    {
+      "id": "public-event-tightened-before-consume",
+      "secretMarker": "P508_TIGHTEN_MARKER_02_DO_NOT_EMIT",
+      "producerVisibility": "public",
+      "currentDiscoverability": "not_discoverable",
+      "expectedDisposition": "remove_after_recheck",
+      "event": {
+        "event_id": "CQkJCQkJCQkJCQkJCQkJCQ",
+        "event_type": "social.collection-change",
+        "event_version": 2,
+        "aggregate_identity": { "aggregate_type": "collection", "aggregate_id": "EBAQEBAQEBAQEBAQEBAQEA", "aggregate_scope": "EBAQEBAQEBAQEBAQEBAQEA" },
+        "aggregate_revision": "publication-revision-102",
+        "commit_ordinal": "102",
+        "occurred_at": "2026-07-29T10:02:00.000Z",
+        "payload": { "collectionId": "EBAQEBAQEBAQEBAQEBAQEA", "ownerProfileId": "IiIiIiIiIiIiIiIiIiIiIg", "publicationRevision": "publication-revision-102", "discoverabilityRecheckKey": "publication.collection:EBAQEBAQEBAQEBAQEBAQEA", "producerDiscoverability": "public_candidate" }
+      }
+    },
+    {
+      "id": "unlisted-removal",
+      "secretMarker": "P508_UNLISTED_MARKER_03_DO_NOT_EMIT",
+      "producerVisibility": "unlisted",
+      "currentDiscoverability": "not_discoverable",
+      "expectedDisposition": "remove",
+      "event": {
+        "event_id": "CgoKCgoKCgoKCgoKCgoKCg",
+        "event_type": "social.collection-change",
+        "event_version": 2,
+        "aggregate_identity": { "aggregate_type": "collection", "aggregate_id": "EREREREREREREREREREREQ", "aggregate_scope": "EREREREREREREREREREREQ" },
+        "aggregate_revision": "publication-revision-103",
+        "commit_ordinal": "103",
+        "occurred_at": "2026-07-29T10:03:00.000Z",
+        "payload": { "collectionId": "EREREREREREREREREREREQ", "ownerProfileId": "IiIiIiIiIiIiIiIiIiIiIg", "publicationRevision": "publication-revision-103", "discoverabilityRecheckKey": "publication.collection:EREREREREREREREREREREQ", "producerDiscoverability": "remove" }
+      }
+    },
+    {
+      "id": "protected-removal",
+      "secretMarker": "P508_PROTECTED_MARKER_04_DO_NOT_EMIT",
+      "producerVisibility": "protected",
+      "currentDiscoverability": "not_discoverable",
+      "expectedDisposition": "remove",
+      "event": {
+        "event_id": "CwsLCwsLCwsLCwsLCwsLCw",
+        "event_type": "social.collection-change",
+        "event_version": 2,
+        "aggregate_identity": { "aggregate_type": "collection", "aggregate_id": "EhISEhISEhISEhISEhISEg", "aggregate_scope": "EhISEhISEhISEhISEhISEg" },
+        "aggregate_revision": "publication-revision-104",
+        "commit_ordinal": "104",
+        "occurred_at": "2026-07-29T10:04:00.000Z",
+        "payload": { "collectionId": "EhISEhISEhISEhISEhISEg", "ownerProfileId": "IiIiIiIiIiIiIiIiIiIiIg", "publicationRevision": "publication-revision-104", "discoverabilityRecheckKey": "publication.collection:EhISEhISEhISEhISEhISEg", "producerDiscoverability": "remove" }
+      }
+    },
+    {
+      "id": "private-removal",
+      "secretMarker": "P508_PRIVATE_MARKER_05_DO_NOT_EMIT",
+      "producerVisibility": "private",
+      "currentDiscoverability": "not_discoverable",
+      "expectedDisposition": "remove",
+      "event": {
+        "event_id": "DAwMDAwMDAwMDAwMDAwMDA",
+        "event_type": "social.collection-change",
+        "event_version": 2,
+        "aggregate_identity": { "aggregate_type": "collection", "aggregate_id": "ExMTExMTExMTExMTExMTEw", "aggregate_scope": "ExMTExMTExMTExMTExMTEw" },
+        "aggregate_revision": "publication-revision-105",
+        "commit_ordinal": "105",
+        "occurred_at": "2026-07-29T10:05:00.000Z",
+        "payload": { "collectionId": "ExMTExMTExMTExMTExMTEw", "ownerProfileId": "IiIiIiIiIiIiIiIiIiIiIg", "publicationRevision": "publication-revision-105", "discoverabilityRecheckKey": "publication.collection:ExMTExMTExMTExMTExMTEw", "producerDiscoverability": "remove" }
+      }
+    },
+    {
+      "id": "deleted-removal",
+      "secretMarker": "P508_DELETED_MARKER_06_DO_NOT_EMIT",
+      "producerVisibility": "deleted",
+      "currentDiscoverability": "deleted",
+      "expectedDisposition": "remove",
+      "event": {
+        "event_id": "DQ0NDQ0NDQ0NDQ0NDQ0NDQ",
+        "event_type": "social.collection-change",
+        "event_version": 2,
+        "aggregate_identity": { "aggregate_type": "collection", "aggregate_id": "FBQUFBQUFBQUFBQUFBQUFA", "aggregate_scope": "FBQUFBQUFBQUFBQUFBQUFA" },
+        "aggregate_revision": "publication-revision-106",
+        "commit_ordinal": "106",
+        "occurred_at": "2026-07-29T10:06:00.000Z",
+        "payload": { "collectionId": "FBQUFBQUFBQUFBQUFBQUFA", "ownerProfileId": "IiIiIiIiIiIiIiIiIiIiIg", "publicationRevision": "publication-revision-106", "discoverabilityRecheckKey": "publication.collection:FBQUFBQUFBQUFBQUFBQUFA", "producerDiscoverability": "remove" }
+      }
+    }
+  ]
+}

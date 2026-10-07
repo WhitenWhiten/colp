@@ -1,0 +1,10 @@
+{
+  "event_id": "BQUFBQUFBQUFBQUFBQUFBQ",
+  "event_type": "social.collection-change",
+  "event_version": 99,
+  "aggregate_identity": { "aggregate_type": "collection", "aggregate_id": "BgYGBgYGBgYGBgYGBgYGBg", "aggregate_scope": "BgYGBgYGBgYGBgYGBgYGBg" },
+  "aggregate_revision": "P508_UNKNOWN_VERSION_MARKER_09_DO_NOT_EMIT",
+  "commit_ordinal": "902",
+  "occurred_at": "2026-07-29T11:02:00.000Z",
+  "payload": { "collectionId": "BgYGBgYGBgYGBgYGBgYGBg", "ownerProfileId": "IiIiIiIiIiIiIiIiIiIiIg", "publicationRevision": "P508_UNKNOWN_VERSION_MARKER_09_DO_NOT_EMIT", "discoverabilityRecheckKey": "publication.collection:BgYGBgYGBgYGBgYGBgYGBg", "producerDiscoverability": "public_candidate" }
+}

@@ -1,0 +1,11 @@
+{
+  "$schema": "./publication-entry-thresholds.schema.json",
+  "nodeCount": 10000,
+  "pageSize": 500,
+  "pageP95Ms": 1500,
+  "fullTraversalMs": 30000,
+  "planExecutionMs": 1500,
+  "maxPageBytes": 4194304,
+  "maxHeapDeltaBytes": 268435456,
+  "writerTransactionMs": 5000
+}

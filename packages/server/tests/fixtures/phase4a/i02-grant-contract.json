@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 5,
+  "task": "phase4a-i02",
+  "grant": {
+    "method": "PUT",
+    "singlePutOnly": true,
+    "ifNoneMatch": "*",
+    "signedHeaders": ["content-length", "host", "if-none-match", "x-amz-meta-*"],
+    "ttlSeconds": { "min": 1, "max": 300, "default": 60 },
+    "urlLifetime": "current-response-memory-only",
+    "multipart": false,
+    "copyOver": false,
+    "unconditionalPut": false
+  },
+  "hardCeilingBytes": 5242880,
+  "compileLimitBytes": 5368709120,
+  "recovery": {
+    "unknownOutcome": "explicit-complete-head-same-generation",
+    "signingFailure": "same-generation-regrant-from-durable-record",
+    "precondition": "complete-attestation-no-second-put"
+  },
+  "threatBoundary": {
+    "rwCredentialOverwritePossible": true,
+    "unconditionalPutInPort": false,
+    "multipartInPort": false,
+    "copyOverInPort": false,
+    "acceptedBoundary": "source-restricted-adapter-plus-durable-generation-ledger"
+  }
+}

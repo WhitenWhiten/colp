@@ -1,0 +1,268 @@
+openapi: 3.1.0
+jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
+info:
+  title: Known Extension Favicon Helper API
+  version: 0.1.0
+  description: >-
+    FO-04. The four extension favicon helper operations under /colp/v0.1/sync.
+    These operations are consumed by the Known Chromium extension to read the
+    account icon policy / per-node icon source and to perform automatic
+    capture upload/clear. They reuse the original COLP extension credential
+    authority (extensionBearer) and are NOT part of the strict COLP protocol
+    and NOT part of the Product manifest. Every shared schema and response
+    component is referenced from ./product-v1.yaml; this document owns only
+    the four operations and the extensionBearer security scheme.
+  license: { name: UNLICENSED, identifier: UNLICENSED }
+x-status: implemented
+x-baseline:
+  {
+    product: ./product-v1.yaml,
+    task: FO-04
+  }
+paths:
+  /colp/v0.1/sync/favicon-policy:
+    get:
+      operationId: getExtensionFaviconPolicy
+      summary: Read the account favicon policy with its strong ETag
+      description: >-
+        FO-04. Extension-credential private read of the account singleton
+        favicon policy (newDefault, providerTemplate, fill/force). A missing
+        row exposes virtual defaults with revision 1; the response ETag is the
+        strong entity-tag for the account policy. Feature flag
+        KNOWN_FEATURE_FAVICON_POLICY=false returns 404. No request body and
+        no query parameters are accepted.
+      security:
+        - extensionBearer: []
+      parameters:
+        - name: Origin
+          in: header
+          required: true
+          description: Existing allowed extension origin.
+          schema: { type: string, minLength: 1, maxLength: 2048, format: uri }
+      responses:
+        '200':
+          description: The current favicon policy and its strong ETag (policy revision).
+          headers:
+            Cache-Control: { $ref: './product-v1.yaml#/components/headers/PrivateNoStore' }
+            ETag: { $ref: './product-v1.yaml#/components/headers/ETag' }
+            X-Request-Id: { $ref: './product-v1.yaml#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: './product-v1.yaml#/components/schemas/FaviconOrderingIconPolicy' }
+        '400': { $ref: './product-v1.yaml#/components/responses/FaviconOrderingError400' }
+        '401': { $ref: './product-v1.yaml#/components/responses/FaviconOrderingError401' }
+        '403': { $ref: './product-v1.yaml#/components/responses/FaviconOrderingError403' }
+        '404': { $ref: './product-v1.yaml#/components/responses/FaviconOrderingError404' }
+        '405': { $ref: './product-v1.yaml#/components/responses/FaviconOrderingError405' }
+        '429': { $ref: './product-v1.yaml#/components/responses/FaviconOrderingError429' }
+        '500': { $ref: './product-v1.yaml#/components/responses/FaviconOrderingError500' }
+        '503': { $ref: './product-v1.yaml#/components/responses/FaviconOrderingError503' }
+  /colp/v0.1/sync/collections/{collectionId}/nodes/{nodeId}/favicon-source:
+    get:
+      operationId: getExtensionFaviconSource
+      summary: Read one bookmark favicon source with its strong composite ETag
+      description: >-
+        FO-04. Extension-credential owner-only read of the per-node favicon
+        source projection. The response ETag is the If-Match validator for
+        captureExtensionFavicon / clearExtensionCapturedFavicon. Concealed
+        404 for missing/foreign targets; 403 for non-owner callers. Feature
+        flag KNOWN_FEATURE_FAVICON_POLICY=false returns 404. No request body
+        and no query parameters are accepted.
+      security:
+        - extensionBearer: []
+      parameters:
+        - name: collectionId
+          in: path
+          required: true
+          schema: { $ref: './product-v1.yaml#/components/schemas/OpaqueId' }
+        - name: nodeId
+          in: path
+          required: true
+          schema: { $ref: './product-v1.yaml#/components/schemas/OpaqueId' }
+        - name: Origin
+          in: header
+          required: true
+          description: Existing allowed extension origin.
+          schema: { type: string, minLength: 1, maxLength: 2048, format: uri }
+      responses:
+        '200':
+          description: The current icon source projection and its strong composite ETag.
+          headers:
+            Cache-Control: { $ref: './product-v1.yaml#/components/headers/PrivateNoStore' }
+            ETag: { $ref: './product-v1.yaml#/components/headers/ETag' }
+            X-Request-Id: { $ref: './product-v1.yaml#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: './product-v1.yaml#/components/schemas/FaviconOrderingIconSource' }
+        '400': { $ref: './product-v1.yaml#/components/responses/FaviconOrderingError400' }
+        '401': { $ref: './product-v1.yaml#/components/responses/FaviconOrderingError401' }
+        '403': { $ref: './product-v1.yaml#/components/responses/FaviconOrderingError403' }
+        '404': { $ref: './product-v1.yaml#/components/responses/FaviconOrderingError404' }
+        '405': { $ref: './product-v1.yaml#/components/responses/FaviconOrderingError405' }
+        '429': { $ref: './product-v1.yaml#/components/responses/FaviconOrderingError429' }
+        '500': { $ref: './product-v1.yaml#/components/responses/FaviconOrderingError500' }
+        '503': { $ref: './product-v1.yaml#/components/responses/FaviconOrderingError503' }
+  /colp/v0.1/sync/collections/{collectionId}/nodes/{nodeId}/favicon:
+    post:
+      operationId: captureExtensionFavicon
+      summary: Automatic favicon capture upload for one bookmark
+      description: >-
+        FO-04. Automatic capture only, never manual upload. Requires the
+        current source ETag (If-Match), the current account policy revision
+        (Known-Favicon-Policy-Revision), a canonical Known-Command-Id and the
+        allowed extension Origin. Missing validators are 428
+        precondition_required; malformed validators are 400 invalid_request;
+        stale ETag/policy revision is 412 precondition_failed. capture refuses
+        uploaded, none, force-online and unauthorized ownership with 403.
+        Allowed image MIME types match the preserved Product upload; bytes
+        <= 65536. The in-progress receipt is 429 rate_limited + Retry-After,
+        never 409 command_in_progress. Exact retries reuse Known-Command-Id
+        and replay the first receipt; changed requests are 409
+        command_id_reused. Success returns the Product BookmarkNodeView.
+      security:
+        - extensionBearer: []
+      parameters:
+        - name: collectionId
+          in: path
+          required: true
+          schema: { $ref: './product-v1.yaml#/components/schemas/OpaqueId' }
+        - name: nodeId
+          in: path
+          required: true
+          schema: { $ref: './product-v1.yaml#/components/schemas/OpaqueId' }
+        - name: Known-Command-Id
+          in: header
+          required: true
+          schema: { $ref: './product-v1.yaml#/components/schemas/CommandId' }
+        - name: If-Match
+          in: header
+          required: true
+          description: The strong favicon-source ETag from getExtensionFaviconSource.
+          schema: { $ref: './product-v1.yaml#/components/schemas/EntityTag' }
+        - name: Origin
+          in: header
+          required: true
+          description: Existing allowed extension origin.
+          schema: { type: string, minLength: 1, maxLength: 2048, format: uri }
+        - name: Known-Favicon-Policy-Revision
+          in: header
+          required: true
+          description: The revision field of getExtensionFaviconPolicy.
+          schema: { $ref: './product-v1.yaml#/components/schemas/FaviconOrderingRevision' }
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema: { type: string, format: binary }
+          image/png:
+            schema: { type: string, format: binary }
+          image/jpeg:
+            schema: { type: string, format: binary }
+          image/webp:
+            schema: { type: string, format: binary }
+          image/x-icon:
+            schema: { type: string, format: binary }
+          image/vnd.microsoft.icon:
+            schema: { type: string, format: binary }
+      responses:
+        '200':
+          description: The updated bookmark node view with the captured icon binding.
+          headers:
+            Cache-Control: { $ref: './product-v1.yaml#/components/headers/PrivateNoStore' }
+            ETag: { $ref: './product-v1.yaml#/components/headers/ETag' }
+            X-Request-Id: { $ref: './product-v1.yaml#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: './product-v1.yaml#/components/schemas/BookmarkNodeView' }
+        '400': { $ref: './product-v1.yaml#/components/responses/FaviconOrderingError400' }
+        '401': { $ref: './product-v1.yaml#/components/responses/FaviconOrderingError401' }
+        '403': { $ref: './product-v1.yaml#/components/responses/FaviconOrderingError403' }
+        '404': { $ref: './product-v1.yaml#/components/responses/FaviconOrderingError404' }
+        '405': { $ref: './product-v1.yaml#/components/responses/FaviconOrderingError405' }
+        '409': { $ref: './product-v1.yaml#/components/responses/FaviconOrderingError409' }
+        '410': { $ref: './product-v1.yaml#/components/responses/FaviconOrderingError410' }
+        '412': { $ref: './product-v1.yaml#/components/responses/FaviconOrderingError412' }
+        '413': { $ref: './product-v1.yaml#/components/responses/FaviconOrderingError413' }
+        '415': { $ref: './product-v1.yaml#/components/responses/FaviconOrderingError415' }
+        '428': { $ref: './product-v1.yaml#/components/responses/FaviconOrderingError428' }
+        '429': { $ref: './product-v1.yaml#/components/responses/FaviconOrderingError429' }
+        '500': { $ref: './product-v1.yaml#/components/responses/FaviconOrderingError500' }
+        '503': { $ref: './product-v1.yaml#/components/responses/FaviconOrderingError503' }
+    delete:
+      operationId: clearExtensionCapturedFavicon
+      summary: Clear an automatic favicon capture for one bookmark
+      description: >-
+        FO-04. Removes the automatic capture binding and resets the source to
+        inherit. Requires the current source ETag (If-Match), the current
+        account policy revision (Known-Favicon-Policy-Revision), a canonical
+        Known-Command-Id and the allowed extension Origin; no request body.
+        Missing validators are 428 precondition_required; malformed validators
+        are 400 invalid_request; stale ETag/policy revision is 412
+        precondition_failed. clear refuses uploaded, none, force-online and
+        unauthorized ownership with 403. The in-progress receipt is 429
+        rate_limited + Retry-After, never 409 command_in_progress. Exact
+        retries reuse Known-Command-Id and replay the first receipt; changed
+        requests are 409 command_id_reused. Success returns the Product
+        BookmarkNodeView.
+      security:
+        - extensionBearer: []
+      parameters:
+        - name: collectionId
+          in: path
+          required: true
+          schema: { $ref: './product-v1.yaml#/components/schemas/OpaqueId' }
+        - name: nodeId
+          in: path
+          required: true
+          schema: { $ref: './product-v1.yaml#/components/schemas/OpaqueId' }
+        - name: Known-Command-Id
+          in: header
+          required: true
+          schema: { $ref: './product-v1.yaml#/components/schemas/CommandId' }
+        - name: If-Match
+          in: header
+          required: true
+          description: The strong favicon-source ETag from getExtensionFaviconSource.
+          schema: { $ref: './product-v1.yaml#/components/schemas/EntityTag' }
+        - name: Origin
+          in: header
+          required: true
+          description: Existing allowed extension origin.
+          schema: { type: string, minLength: 1, maxLength: 2048, format: uri }
+        - name: Known-Favicon-Policy-Revision
+          in: header
+          required: true
+          description: The revision field of getExtensionFaviconPolicy.
+          schema: { $ref: './product-v1.yaml#/components/schemas/FaviconOrderingRevision' }
+      responses:
+        '200':
+          description: The updated bookmark node view after the capture binding was cleared.
+          headers:
+            Cache-Control: { $ref: './product-v1.yaml#/components/headers/PrivateNoStore' }
+            ETag: { $ref: './product-v1.yaml#/components/headers/ETag' }
+            X-Request-Id: { $ref: './product-v1.yaml#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: './product-v1.yaml#/components/schemas/BookmarkNodeView' }
+        '400': { $ref: './product-v1.yaml#/components/responses/FaviconOrderingError400' }
+        '401': { $ref: './product-v1.yaml#/components/responses/FaviconOrderingError401' }
+        '403': { $ref: './product-v1.yaml#/components/responses/FaviconOrderingError403' }
+        '404': { $ref: './product-v1.yaml#/components/responses/FaviconOrderingError404' }
+        '405': { $ref: './product-v1.yaml#/components/responses/FaviconOrderingError405' }
+        '409': { $ref: './product-v1.yaml#/components/responses/FaviconOrderingError409' }
+        '410': { $ref: './product-v1.yaml#/components/responses/FaviconOrderingError410' }
+        '412': { $ref: './product-v1.yaml#/components/responses/FaviconOrderingError412' }
+        '413': { $ref: './product-v1.yaml#/components/responses/FaviconOrderingError413' }
+        '415': { $ref: './product-v1.yaml#/components/responses/FaviconOrderingError415' }
+        '428': { $ref: './product-v1.yaml#/components/responses/FaviconOrderingError428' }
+        '429': { $ref: './product-v1.yaml#/components/responses/FaviconOrderingError429' }
+        '500': { $ref: './product-v1.yaml#/components/responses/FaviconOrderingError500' }
+        '503': { $ref: './product-v1.yaml#/components/responses/FaviconOrderingError503' }
+components:
+  securitySchemes:
+    extensionBearer:
+      type: http
+      scheme: bearer
+      description: Existing COLP extension credential verifier; not a Product token.
+servers:
+  - { url: /, description: "Resolve against the configured API origin. This document is the production helper OpenAPI." }

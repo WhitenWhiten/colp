@@ -40,6 +40,7 @@ jobs:
             quality:
               - 'packages/node/**'
               - 'packages/conformance/**'
+              - 'packages/server/**'
               - 'scripts/**'
               - 'protocol/**'
               - '.github/workflows/colp-ci.yml'
@@ -277,6 +278,28 @@ jobs:
         run: npm ci && npm test
         working-directory: packages/conformance
 
+  server:
+    needs: changes
+    if: needs.changes.outputs.full == 'true' || needs.changes.outputs.quality == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: packages/server/package-lock.json
+      - name: Frozen package install
+        run: npm ci
+        working-directory: packages/server
+      - name: Typecheck
+        run: npm run typecheck
+        working-directory: packages/server
+      - name: Lint
+        run: npm run lint
+        working-directory: packages/server
+
   ci-gate:
     if: always()
     needs:
@@ -289,6 +312,7 @@ jobs:
       - package
       - dependency-audit
       - conformance
+      - server
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -304,8 +328,9 @@ jobs:
           PACKAGE_RESULT: ${{ needs.package.result }}
           DEPENDENCY_AUDIT_RESULT: ${{ needs.dependency-audit.result }}
           CONFORMANCE_RESULT: ${{ needs.conformance.result }}
+          SERVER_RESULT: ${{ needs.server.result }}
         run: |
-          for result in "$CHANGES_RESULT" "$STATIC_RESULT" "$TEST_RESULT" "$PUBLISHER_RESULT" "$SECURITY_RESULT" "$SYNC_CORE_RESULT" "$PACKAGE_RESULT" "$DEPENDENCY_AUDIT_RESULT" "$CONFORMANCE_RESULT"; do
+          for result in "$CHANGES_RESULT" "$STATIC_RESULT" "$TEST_RESULT" "$PUBLISHER_RESULT" "$SECURITY_RESULT" "$SYNC_CORE_RESULT" "$PACKAGE_RESULT" "$DEPENDENCY_AUDIT_RESULT" "$CONFORMANCE_RESULT" "$SERVER_RESULT"; do
             if [[ "$result" != "success" && "$result" != "skipped" ]]; then
               echo "A selected colp-ci job did not pass: $result" >&2
               exit 1

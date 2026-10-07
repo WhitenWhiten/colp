@@ -1,0 +1,48 @@
+{
+  "schemaVersion": "known.phase5.email-delivery-gate.replay.v1",
+  "fixture": {
+    "endpoint": "https://dm.aliyuncs.com/",
+    "apiVersion": "2015-11-23",
+    "signatureMethod": "HMAC-SHA1",
+    "signatureVersion": "1.0",
+    "regionId": "cn-hangzhou",
+    "format": "JSON",
+    "tls": "https-local-test-cert"
+  },
+  "fixedInputs": {
+    "testOnly": true,
+    "accessKeyId": "P527FIXTUREAKID",
+    "signingKeyMaterial": "P527-FIXTURE-SIGNING-KEY",
+    "sender": "known-no-reply@example.invalid",
+    "recipient": "p527-recipient@example.invalid",
+    "subjectMarker": "P527-SUBJECT-MARKER",
+    "textBodyMarker": "P527-TEXT-BODY-MARKER",
+    "htmlBodyMarker": "P527-HTML-BODY-MARKER"
+  },
+  "scenarios": [
+    { "id": "success", "name": "SingleSendMail success returns EnvId", "expect": { "httpStatus": 200, "classification": "success", "lastErrorCategory": null } },
+    { "id": "duplicate", "name": "same TagName is exactly-once (delivery_id as provider key)", "expect": { "httpStatus": 200, "classification": "success", "lastErrorCategory": null, "duplicate": true } },
+    { "id": "throttling", "name": "Throttling 400 is retryable dependency", "expect": { "httpStatus": 400, "code": "Throttling", "classification": "retryable", "lastErrorCategory": "dependency" } },
+    { "id": "rateLimit429", "name": "HTTP 429 Throttling is retryable dependency", "expect": { "httpStatus": 429, "code": "Throttling", "classification": "retryable", "lastErrorCategory": "dependency" } },
+    { "id": "internalError", "name": "InternalError 500 is retryable provider_unavailable", "expect": { "httpStatus": 500, "code": "InternalError", "classification": "retryable", "lastErrorCategory": "provider_unavailable" } },
+    { "id": "serviceUnavailable", "name": "ServiceUnavailable 503 is retryable provider_unavailable", "expect": { "httpStatus": 503, "code": "ServiceUnavailable", "classification": "retryable", "lastErrorCategory": "provider_unavailable" } },
+    { "id": "invalidRecipient", "name": "invalid recipient is permanent invalid_contract", "expect": { "httpStatus": 400, "code": "InvalidToAddress", "classification": "permanent", "lastErrorCategory": "invalid_contract" } },
+    { "id": "senderNotFound", "name": "sender not found is permanent invalid_contract", "expect": { "httpStatus": 404, "code": "InvalidMailAddress.NotFound", "classification": "permanent", "lastErrorCategory": "invalid_contract" } },
+    { "id": "badSignature", "name": "SignatureDoesNotMatch 403 is permanent invalid_contract", "expect": { "httpStatus": 403, "code": "SignatureDoesNotMatch", "classification": "permanent", "lastErrorCategory": "invalid_contract" } },
+    { "id": "timeout", "name": "client timeout is retryable provider_unavailable", "expect": { "classification": "retryable", "lastErrorCategory": "provider_unavailable" } },
+    { "id": "providerUnavailable", "name": "provider unreachable is fail-closed retryable provider_unavailable", "expect": { "classification": "retryable", "lastErrorCategory": "provider_unavailable" } },
+    { "id": "reconciliation", "name": "SenderStatisticsDetailByParam Status 0 maps to delivered", "expect": { "httpStatus": 200, "classification": "success", "lastErrorCategory": null, "outcome": "delivered" } }
+  ],
+  "callbacks": [
+    { "id": "callback-deliver-success", "source": "eventbridge", "eventType": "dm:Deliver:Succeed", "outcome": "delivered", "suppression": "none" },
+    { "id": "callback-deliver-bounce", "source": "eventbridge", "eventType": "dm:Deliver:Fail", "outcome": "bounced", "suppression": "suppress_recipient" },
+    { "id": "callback-fbl-report", "source": "eventbridge", "eventType": "dm:Feedback:FblReport", "outcome": "complaint", "suppression": "suppress_recipient" },
+    { "id": "callback-unsubscribe", "source": "eventbridge", "eventType": "dm:Feedback:UnSubscribe", "outcome": "unsubscribed", "suppression": "suppress_recipient" },
+    { "id": "callback-subscribe", "source": "eventbridge", "eventType": "dm:Feedback:Subscribe", "outcome": "subscribed", "suppression": "none" },
+    { "id": "callback-trace-open", "source": "eventbridge", "eventType": "dm:Trace:Open", "outcome": "open", "suppression": "none" },
+    { "id": "callback-trace-click", "source": "eventbridge", "eventType": "dm:Trace:Click", "outcome": "click", "suppression": "none" },
+    { "id": "callback-mns-legacy-deliver-fail", "source": "mns-legacy", "eventType": "deliver", "outcome": "bounced", "suppression": "suppress_recipient" }
+  ],
+  "recordedOutcomes": { "digestAlgorithm": "sha-256", "digest": "b7f40a64664596b9e61d6946b591ffbb0ce200057eb6bdefb639b83d41471f72" }
+}
+

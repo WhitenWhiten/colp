@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 5,
+  "putResponseSamples": {
+    "ok": [200, 201],
+    "precondition": [412],
+    "not_found": [404],
+    "denied": [401, 403],
+    "retryable": [408, 429, 500, 502, 503, 504],
+    "unknown": [300, 400]
+  },
+  "transportErrorSamples": {
+    "retryable": ["timeout", "abort"],
+    "aborted": ["client_abort"],
+    "unknown": ["network_error_after_request_sent"]
+  },
+  "providerErrorSamples": {
+    "precondition": ["PreconditionFailed", "412"],
+    "not_found": ["NoSuchKey", "NotFound", "404"],
+    "denied": ["AccessDenied", "InvalidAccessKeyId", "SignatureDoesNotMatch", "RequestTimeTooSkewed", "401", "403"],
+    "retryable": ["SlowDown", "RequestTimeout", "ServiceUnavailable", "InternalError", "429", "500", "502", "503", "504"],
+    "aborted": ["RequestAbortedException", "AbortError"],
+    "unknown": ["connection_closed_after_request", "malformed_response"]
+  }
+}

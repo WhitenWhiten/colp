@@ -1,0 +1,290 @@
+import { sql, type Kysely } from 'kysely';
+
+export function quoteIdentifier(value: string): string {
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(value)) {
+    throw new Error(`unsafe PostgreSQL identifier: ${value}`);
+  }
+  return `"${value}"`;
+}
+
+export function qualified(schema: string, name: string): string {
+  return `${quoteIdentifier(schema)}.${quoteIdentifier(name)}`;
+}
+
+export async function currentSchema(db: Kysely<unknown>): Promise<string> {
+  const result = await sql<{ schema_name: string }>`select current_schema() as schema_name`.execute(db);
+  const schema = result.rows[0]?.schema_name;
+  if (!schema) throw new Error('credit migration requires a current PostgreSQL schema');
+  quoteIdentifier(schema);
+  return schema;
+}
+
+export async function installCreditTables(db: Kysely<unknown>, schema: string): Promise<void> {
+  const accounts = qualified(schema, 'accounts');
+  const creditAccounts = qualified(schema, 'credit_accounts');
+  const grants = qualified(schema, 'credit_grants');
+  const charges = qualified(schema, 'credit_charges');
+  const allocations = qualified(schema, 'credit_allocations');
+  const entries = qualified(schema, 'credit_ledger_entries');
+
+  // Account deletion is the only supported ledger removal path. The row guards
+  // below require known.credits_account_delete for the cascading child deletes.
+  await sql.raw(`CREATE TABLE ${creditAccounts} (
+    account_id text PRIMARY KEY REFERENCES ${accounts}(id) ON DELETE CASCADE,
+    last_sequence bigint NOT NULL DEFAULT 0 CHECK (last_sequence >= 0),
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp()
+  )`).execute(db);
+
+  await sql.raw(`CREATE TABLE ${grants} (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    account_id text NOT NULL REFERENCES ${accounts}(id) ON DELETE CASCADE,
+    grant_key text NOT NULL,
+    fingerprint text NOT NULL,
+    amount bigint NOT NULL CHECK (amount > 0 AND amount <= 2147483647),
+    reserved_amount bigint NOT NULL DEFAULT 0 CHECK (reserved_amount >= 0),
+    spent_amount bigint NOT NULL DEFAULT 0 CHECK (spent_amount >= 0),
+    expired_amount bigint NOT NULL DEFAULT 0 CHECK (expired_amount >= 0),
+    valid_from timestamptz NOT NULL,
+    expires_at timestamptz,
+    expiry_processed_at timestamptz,
+    source text NOT NULL CHECK (source IN ('operator','scheduler','system')),
+    reason_code text NOT NULL CHECK (reason_code IN ('manual_grant','trial_grant','manual_refund')),
+    operator_note text,
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    UNIQUE (account_id, id),
+    UNIQUE (account_id, grant_key),
+    CHECK (octet_length(grant_key) BETWEEN 1 AND 256),
+    CHECK (octet_length(fingerprint) BETWEEN 1 AND 128),
+    CHECK (operator_note IS NULL OR octet_length(operator_note) <= 4096),
+    CHECK (expires_at IS NULL OR expires_at > valid_from),
+    CHECK (expiry_processed_at IS NULL OR expires_at IS NOT NULL),
+    CHECK (reserved_amount + spent_amount + expired_amount <= amount)
+  )`).execute(db);
+
+  await sql.raw(`CREATE TABLE ${charges} (
+    id uuid PRIMARY KEY,
+    account_id text NOT NULL REFERENCES ${accounts}(id) ON DELETE CASCADE,
+    operation_key text NOT NULL,
+    fingerprint text NOT NULL,
+    operation_type text NOT NULL CHECK (operation_type = 'bookmark.classify'),
+    source text NOT NULL CHECK (source IN ('web','extension','batch','system')),
+    price_version text NOT NULL,
+    quoted_amount bigint NOT NULL CHECK (quoted_amount > 0 AND quoted_amount <= 2147483647),
+    state text NOT NULL CHECK (state IN ('reserved','settled','released')),
+    settled_amount bigint NOT NULL DEFAULT 0 CHECK (settled_amount >= 0),
+    refunded_amount bigint NOT NULL DEFAULT 0 CHECK (refunded_amount >= 0),
+    task_kind text NOT NULL CHECK (task_kind IN ('classification_preview','classification_action')),
+    task_id text NOT NULL,
+    deadline_at timestamptz NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    completed_at timestamptz,
+    UNIQUE (account_id, id),
+    UNIQUE (account_id, operation_key),
+    CHECK (octet_length(operation_key) BETWEEN 1 AND 256),
+    CHECK (octet_length(fingerprint) BETWEEN 1 AND 128),
+    CHECK (octet_length(price_version) BETWEEN 1 AND 64),
+    CHECK (octet_length(task_id) BETWEEN 1 AND 512),
+    CHECK (deadline_at > created_at),
+    CHECK ((state = 'reserved' AND settled_amount = 0 AND refunded_amount = 0 AND completed_at IS NULL)
+      OR (state = 'settled' AND settled_amount = quoted_amount AND refunded_amount BETWEEN 0 AND settled_amount
+        AND completed_at IS NOT NULL)
+      OR (state = 'released' AND settled_amount = 0 AND refunded_amount = 0 AND completed_at IS NOT NULL))
+  )`).execute(db);
+
+  await sql.raw(`CREATE TABLE ${allocations} (
+    account_id text NOT NULL REFERENCES ${accounts}(id) ON DELETE CASCADE,
+    charge_id uuid NOT NULL,
+    grant_id uuid NOT NULL,
+    amount bigint NOT NULL CHECK (amount > 0),
+    PRIMARY KEY (charge_id, grant_id),
+    FOREIGN KEY (account_id, charge_id) REFERENCES ${charges}(account_id, id) ON DELETE CASCADE,
+    FOREIGN KEY (account_id, grant_id) REFERENCES ${grants}(account_id, id) ON DELETE CASCADE
+  )`).execute(db);
+
+  await sql.raw(`CREATE TABLE ${entries} (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    account_id text NOT NULL REFERENCES ${accounts}(id) ON DELETE CASCADE,
+    sequence bigint NOT NULL CHECK (sequence > 0),
+    event_key text NOT NULL,
+    fingerprint text NOT NULL,
+    kind text NOT NULL CHECK (kind IN ('grant','reserve','spend','release','expire','refund','topup','payment_refund')),
+    posted_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    effective_at timestamptz NOT NULL,
+    points_delta bigint NOT NULL,
+    available_delta bigint NOT NULL,
+    reserved_delta bigint NOT NULL,
+    expired_points bigint NOT NULL DEFAULT 0 CHECK (expired_points >= 0),
+    available_after bigint NOT NULL CHECK (available_after >= 0),
+    reserved_after bigint NOT NULL CHECK (reserved_after >= 0),
+    operation_type text NOT NULL CHECK (operation_type IN ('bookmark.classify','credit.grant','credit.expire','credit.refund','credit.topup','credit.payment_refund')),
+    source text NOT NULL CHECK (source IN ('extension','web','batch','operator','scheduler','system','payment')),
+    reason_code text NOT NULL CHECK (reason_code IN ('trial_grant','manual_grant','classification_requested','classification_completed',
+      'classification_failed','classification_cancelled','classification_unneeded','credits_expired','hold_expired','manual_refund',
+      'payment_received','payment_refunded')),
+    grant_id uuid,
+    charge_id uuid,
+    related_entry_id uuid,
+    expires_at timestamptz,
+    task_json jsonb,
+    UNIQUE (account_id, id),
+    UNIQUE (account_id, sequence),
+    UNIQUE (account_id, event_key),
+    CHECK (octet_length(event_key) BETWEEN 1 AND 256),
+    CHECK (octet_length(fingerprint) BETWEEN 1 AND 128),
+    CHECK (points_delta = available_delta + reserved_delta),
+    CHECK (points_delta BETWEEN -2147483647 AND 2147483647),
+    CHECK (available_delta BETWEEN -2147483647 AND 2147483647),
+    CHECK (reserved_delta BETWEEN -2147483647 AND 2147483647),
+    CHECK (expired_points BETWEEN 0 AND 2147483647),
+    CHECK (available_after <= 2147483647 AND reserved_after <= 2147483647),
+    CHECK (available_after + reserved_after <= 2147483647),
+    CHECK (task_json IS NULL OR jsonb_typeof(task_json) = 'object'),
+    CHECK (task_json IS NULL OR octet_length(task_json::text) <= 4096),
+    CHECK (task_json IS NULL OR (task_json ?& ARRAY['kind','collectionId','nodeId','runId','actionId']
+      AND task_json - ARRAY['kind','collectionId','nodeId','runId','actionId'] = '{}'::jsonb
+      AND task_json->>'kind' IN ('classification_preview','classification_action')
+      AND jsonb_typeof(task_json->'collectionId')='string'
+      AND jsonb_typeof(task_json->'nodeId') IN ('string','null')
+      AND jsonb_typeof(task_json->'runId') IN ('string','null')
+      AND jsonb_typeof(task_json->'actionId') IN ('string','null'))),
+    FOREIGN KEY (account_id, grant_id) REFERENCES ${grants}(account_id, id) ON DELETE CASCADE,
+    FOREIGN KEY (account_id, charge_id) REFERENCES ${charges}(account_id, id) ON DELETE CASCADE,
+    FOREIGN KEY (account_id, related_entry_id) REFERENCES ${entries}(account_id, id) ON DELETE CASCADE
+  )`).execute(db);
+
+  await sql.raw(`CREATE INDEX credit_grants_account_expiry_idx
+    ON ${grants}(account_id, expires_at ASC NULLS LAST, valid_from ASC, created_at ASC, id)
+    WHERE amount - reserved_amount - spent_amount - expired_amount > 0`).execute(db);
+  await sql.raw(`CREATE INDEX credit_grants_expiry_pending_idx
+    ON ${grants}(account_id, expires_at ASC, created_at ASC, id)
+    WHERE expires_at IS NOT NULL AND expiry_processed_at IS NULL`).execute(db);
+  await sql.raw(`CREATE INDEX credit_charges_deadline_idx
+    ON ${charges}(deadline_at, account_id, id) WHERE state = 'reserved'`).execute(db);
+  await sql.raw(`CREATE INDEX credit_ledger_account_sequence_idx
+    ON ${entries}(account_id, sequence DESC)`).execute(db);
+  await sql.raw(`CREATE INDEX credit_ledger_kind_sequence_idx
+    ON ${entries}(account_id, kind, sequence DESC)`).execute(db);
+  await sql.raw(`CREATE INDEX credit_ledger_charge_sequence_idx
+    ON ${entries}(account_id, charge_id, sequence DESC) WHERE charge_id IS NOT NULL`).execute(db);
+  await sql.raw(`CREATE INDEX credit_ledger_run_sequence_idx
+    ON ${entries}(account_id, ((task_json ->> 'runId')), sequence DESC)
+    WHERE task_json IS NOT NULL AND task_json ? 'runId'`).execute(db);
+  await sql.raw(`CREATE INDEX credit_allocations_grant_idx
+    ON ${allocations}(account_id, grant_id, charge_id)`).execute(db);
+  await sql.raw(`CREATE UNIQUE INDEX credit_ledger_funding_once_idx
+    ON ${entries}(account_id,grant_id) WHERE kind IN ('grant','refund','topup')`).execute(db);
+  await sql.raw(`CREATE UNIQUE INDEX credit_ledger_reserve_once_idx
+    ON ${entries}(account_id,charge_id) WHERE kind='reserve'`).execute(db);
+  await sql.raw(`CREATE UNIQUE INDEX credit_ledger_terminal_once_idx
+    ON ${entries}(account_id,charge_id) WHERE kind IN ('spend','release')`).execute(db);
+
+  const guard = qualified(schema, 'credit_mutation_guard');
+  const ledgerGuard = qualified(schema, 'credit_ledger_guard');
+  const truncateGuard = qualified(schema, 'credit_truncate_guard');
+  const internalSetting = `current_setting('known.credits_internal_xact', true) IS NOT DISTINCT FROM txid_current()::text`;
+  const deleteSetting = `current_setting('known.credits_account_delete', true) = OLD.account_id
+    AND NOT EXISTS(SELECT 1 FROM ${accounts} owner_account WHERE owner_account.id=OLD.account_id)`;
+  await sql.raw(`CREATE FUNCTION ${guard}() RETURNS trigger
+    LANGUAGE plpgsql SET search_path = pg_catalog, ${quoteIdentifier(schema)} AS $function$
+    BEGIN
+      IF TG_OP = 'DELETE' AND ${deleteSetting} THEN RETURN OLD; END IF;
+      IF NOT ${internalSetting} THEN
+        RAISE EXCEPTION 'credit table mutation is function-owned' USING ERRCODE = '42501';
+      END IF;
+      IF TG_OP = 'UPDATE' AND TG_TABLE_NAME = 'credit_grants'
+        AND (to_jsonb(OLD) - ARRAY['reserved_amount','spent_amount','expired_amount','expiry_processed_at'])
+          IS DISTINCT FROM (to_jsonb(NEW) - ARRAY['reserved_amount','spent_amount','expired_amount','expiry_processed_at']) THEN
+        RAISE EXCEPTION 'credit grant ownership fields are immutable' USING ERRCODE = '42501';
+      END IF;
+      IF TG_OP='UPDATE' AND TG_TABLE_NAME='credit_grants' THEN
+        IF NEW.spent_amount<OLD.spent_amount OR NEW.expired_amount<OLD.expired_amount
+          OR (OLD.expiry_processed_at IS NOT NULL AND NEW.expiry_processed_at IS DISTINCT FROM OLD.expiry_processed_at) THEN
+          RAISE EXCEPTION 'credit grant terminal counters are immutable' USING ERRCODE='42501';
+        END IF;
+      END IF;
+      IF TG_OP = 'UPDATE' AND TG_TABLE_NAME = 'credit_charges'
+        AND (to_jsonb(OLD) - ARRAY['state','settled_amount','refunded_amount','completed_at'])
+          IS DISTINCT FROM (to_jsonb(NEW) - ARRAY['state','settled_amount','refunded_amount','completed_at']) THEN
+        RAISE EXCEPTION 'credit charge ownership fields are immutable' USING ERRCODE = '42501';
+      END IF;
+      IF TG_OP='UPDATE' AND TG_TABLE_NAME='credit_charges' THEN
+        IF NEW.refunded_amount<OLD.refunded_amount OR (OLD.state<>'reserved'
+          AND (NEW.state IS DISTINCT FROM OLD.state OR NEW.completed_at IS DISTINCT FROM OLD.completed_at)) THEN
+          RAISE EXCEPTION 'credit charge terminal state is immutable' USING ERRCODE='42501';
+        END IF;
+      END IF;
+      IF TG_OP = 'UPDATE' AND TG_TABLE_NAME = 'credit_allocations' THEN
+        RAISE EXCEPTION 'credit allocations are immutable' USING ERRCODE = '42501';
+      END IF;
+      IF TG_OP = 'UPDATE' AND TG_TABLE_NAME = 'credit_accounts'
+        AND (to_jsonb(OLD) - ARRAY['last_sequence']) IS DISTINCT FROM (to_jsonb(NEW) - ARRAY['last_sequence']) THEN
+        RAISE EXCEPTION 'credit account identity is immutable' USING ERRCODE = '42501';
+      END IF;
+      IF TG_OP='UPDATE' AND TG_TABLE_NAME='credit_accounts' THEN
+        IF NEW.last_sequence<>OLD.last_sequence+1 THEN
+          RAISE EXCEPTION 'credit account sequence must advance once' USING ERRCODE='42501';
+        END IF;
+      END IF;
+      IF TG_OP = 'DELETE' THEN RAISE EXCEPTION 'credit account cleanup required' USING ERRCODE='42501'; END IF;
+      RETURN NEW;
+    END
+    $function$`).execute(db);
+  await sql.raw(`CREATE FUNCTION ${ledgerGuard}() RETURNS trigger
+    LANGUAGE plpgsql SET search_path = pg_catalog, ${quoteIdentifier(schema)} AS $function$
+    BEGIN
+      IF TG_OP = 'DELETE' AND ${deleteSetting} THEN RETURN OLD; END IF;
+      IF TG_OP = 'INSERT' AND ${internalSetting} THEN RETURN NEW; END IF;
+      RAISE EXCEPTION 'credit ledger is append-only' USING ERRCODE = '42501';
+    END
+    $function$`).execute(db);
+  await sql.raw(`CREATE FUNCTION ${truncateGuard}() RETURNS trigger
+    LANGUAGE plpgsql SET search_path = pg_catalog, ${quoteIdentifier(schema)} AS $function$
+    BEGIN
+      RAISE EXCEPTION 'credit tables cannot be truncated' USING ERRCODE = '42501';
+    END
+    $function$`).execute(db);
+
+  for (const table of ['credit_accounts', 'credit_grants', 'credit_charges', 'credit_allocations']) {
+    await sql.raw(`CREATE TRIGGER ${quoteIdentifier(`${table}_mutation_guard`)}
+      BEFORE INSERT OR UPDATE OR DELETE ON ${qualified(schema, table)}
+      FOR EACH ROW EXECUTE FUNCTION ${guard}()`).execute(db);
+    await sql.raw(`CREATE TRIGGER ${quoteIdentifier(`${table}_truncate_guard`)}
+      BEFORE TRUNCATE ON ${qualified(schema, table)}
+      FOR EACH STATEMENT EXECUTE FUNCTION ${truncateGuard}()`).execute(db);
+  }
+  await sql.raw(`CREATE TRIGGER credit_ledger_entries_mutation_guard
+    BEFORE INSERT OR UPDATE OR DELETE ON ${entries}
+    FOR EACH ROW EXECUTE FUNCTION ${ledgerGuard}()`).execute(db);
+  await sql.raw(`CREATE TRIGGER credit_ledger_entries_truncate_guard
+    BEFORE TRUNCATE ON ${entries}
+    FOR EACH STATEMENT EXECUTE FUNCTION ${truncateGuard}()`).execute(db);
+  await sql.raw(`REVOKE ALL ON FUNCTION ${guard}() FROM PUBLIC`).execute(db);
+  await sql.raw(`REVOKE ALL ON FUNCTION ${ledgerGuard}() FROM PUBLIC`).execute(db);
+  await sql.raw(`REVOKE ALL ON FUNCTION ${truncateGuard}() FROM PUBLIC`).execute(db);
+  const accountDeleteGuard = qualified(schema, 'credit_account_delete_guard');
+  await sql.raw(`CREATE FUNCTION ${accountDeleteGuard}() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,${quoteIdentifier(schema)} AS $function$
+    BEGIN
+      PERFORM 1 FROM ${creditAccounts} WHERE account_id=OLD.id FOR UPDATE;
+      IF NOT FOUND THEN RETURN OLD; END IF;
+      IF OLD.status<>'deleted' OR current_setting('known.credits_account_delete',true) IS DISTINCT FROM OLD.id
+        OR EXISTS(SELECT 1 FROM ${charges} WHERE account_id=OLD.id AND state='reserved') THEN
+        RAISE EXCEPTION 'credit account cleanup requires terminated tasks' USING ERRCODE='42501';
+      END IF;
+      RETURN OLD;
+    END $function$`).execute(db);
+  await sql.raw(`REVOKE ALL ON FUNCTION ${accountDeleteGuard}() FROM PUBLIC`).execute(db);
+  await sql.raw(`CREATE TRIGGER credit_account_delete_guard BEFORE DELETE ON ${accounts}
+    FOR EACH ROW EXECUTE FUNCTION ${accountDeleteGuard}()`).execute(db);
+}
+
+export async function dropCreditTables(db: Kysely<unknown>, schema: string): Promise<void> {
+  await sql.raw(`DROP TRIGGER IF EXISTS credit_account_delete_guard ON ${qualified(schema, 'accounts')}`).execute(db);
+  await sql.raw(`DROP FUNCTION IF EXISTS ${qualified(schema, 'credit_account_delete_guard')}()`).execute(db);
+  for (const table of ['credit_ledger_entries', 'credit_allocations', 'credit_charges', 'credit_grants', 'credit_accounts']) {
+    await sql.raw(`DROP TABLE IF EXISTS ${qualified(schema, table)} CASCADE`).execute(db);
+  }
+  for (const functionName of ['credit_mutation_guard', 'credit_ledger_guard', 'credit_truncate_guard']) {
+    await sql.raw(`DROP FUNCTION IF EXISTS ${qualified(schema, functionName)}()`).execute(db);
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "schemaVersion": 1,
+  "generator": "eicar-standard-antivirus-test-file",
+  "expectedBytes": 68,
+  "expectedSha256": "275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f"
+}

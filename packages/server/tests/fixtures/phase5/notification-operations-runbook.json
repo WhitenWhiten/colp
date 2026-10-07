@@ -1,0 +1,15 @@
+{
+  "commands": [
+    "npm run ops:phase5:notifications -- status",
+    "npm run ops:phase5:notifications -- purge",
+    "npm run ops:phase5:notifications -- recover",
+    "npm run ops:phase5:notifications -- replay-dead-letter"
+  ],
+  "forbidden": [
+    "social_feed_items",
+    "UPDATE notifications",
+    "DELETE FROM notifications",
+    "send email",
+    "provider API"
+  ]
+}

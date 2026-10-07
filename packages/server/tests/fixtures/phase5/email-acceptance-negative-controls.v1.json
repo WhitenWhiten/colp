@@ -1,0 +1,16 @@
+{
+  "schemaVersion": "known.phase5.email-acceptance-negative-controls.v1",
+  "controls": [
+    "missing-adapter-contract-module",
+    "missing-worker-registration",
+    "missing-suppression-migration",
+    "missing-preference-route",
+    "generated-client-drift",
+    "feature-flag-not-exercised",
+    "browser-source-mismatch",
+    "missing-target-attestation",
+    "missing-replay-digest",
+    "secret-marker-leakage",
+    "callback-surface-missing"
+  ]
+}

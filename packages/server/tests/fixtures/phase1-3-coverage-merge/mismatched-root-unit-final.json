@@ -1,0 +1,112 @@
+{
+  "C:\\repo\\etc\\outside-root.ts": {
+    "path": "C:\\repo\\etc\\outside-root.ts",
+    "statementMap": {
+      "0": {
+        "start": {
+          "line": 1,
+          "column": 0
+        },
+        "end": {
+          "line": 1,
+          "column": 1
+        }
+      }
+    },
+    "fnMap": {},
+    "branchMap": {},
+    "s": {
+      "0": 1
+    },
+    "f": {},
+    "b": {}
+  },
+  "C:\\repo\\src\\transport\\product-command-mapping.ts": {
+    "path": "C:\\repo\\src\\transport\\product-command-mapping.ts",
+    "statementMap": {
+      "0": {
+        "start": {
+          "line": 1,
+          "column": 0
+        },
+        "end": {
+          "line": 1,
+          "column": 10
+        }
+      },
+      "1": {
+        "start": {
+          "line": 2,
+          "column": 0
+        },
+        "end": {
+          "line": 2,
+          "column": 10
+        }
+      }
+    },
+    "fnMap": {},
+    "branchMap": {},
+    "s": {
+      "0": 1,
+      "1": 1
+    },
+    "f": {},
+    "b": {}
+  },
+  "C:\\repo\\src\\infrastructure\\sync\\postgres\\sync-pull-postgres.ts": {
+    "path": "C:\\repo\\src\\infrastructure\\sync\\postgres\\sync-pull-postgres.ts",
+    "statementMap": {
+      "0": {
+        "start": {
+          "line": 1,
+          "column": 0
+        },
+        "end": {
+          "line": 1,
+          "column": 10
+        }
+      },
+      "1": {
+        "start": {
+          "line": 2,
+          "column": 0
+        },
+        "end": {
+          "line": 2,
+          "column": 10
+        }
+      }
+    },
+    "fnMap": {},
+    "branchMap": {},
+    "s": {
+      "0": 0,
+      "1": 0
+    },
+    "f": {},
+    "b": {}
+  },
+  "C:\\repo\\src\\transport\\auth\\origin-csrf.ts": {
+    "path": "C:\\repo\\src\\transport\\auth\\origin-csrf.ts",
+    "statementMap": {
+      "0": {
+        "start": {
+          "line": 1,
+          "column": 0
+        },
+        "end": {
+          "line": 1,
+          "column": 10
+        }
+      }
+    },
+    "fnMap": {},
+    "branchMap": {},
+    "s": {
+      "0": 0
+    },
+    "f": {},
+    "b": {}
+  }
+}

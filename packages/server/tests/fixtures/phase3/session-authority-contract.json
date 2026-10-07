@@ -1,0 +1,11 @@
+{
+  "contract": "known.phase3.session-authority.v1",
+  "successfulLeaseStates": ["active"],
+  "authorities": {
+    "bootstrap": { "snapshotRequired": true, "scopeCeiling": "requested" },
+    "active": { "snapshotRequired": false, "scopeCeiling": "requested" },
+    "recovery": { "snapshotRequired": true, "scopeCeiling": "bootstrap_only" }
+  },
+  "snapshotQueryFields": ["sessionId", "limit", "pageCursor"],
+  "snapshotProblemFields": ["status", "code", "retryable", "contentType", "bodyBytes", "bodyDigest"]
+}

@@ -1,0 +1,241 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "known.phase4a.verification-remediation.v1",
+  "title": "Phase 4A verification remediation contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "contractVersion",
+    "planDocument",
+    "authoritativeStatus",
+    "topology",
+    "evidenceHierarchy",
+    "validationModes",
+    "deliveryCredentialBoundary",
+    "urlSecretContract",
+    "tasks"
+  ],
+  "properties": {
+    "format": { "const": "known.phase4a.verification-remediation.v1" },
+    "contractVersion": { "const": 1 },
+    "planDocument": { "type": "string", "minLength": 1 },
+    "authoritativeStatus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "verifiedOnlyAfterTask",
+        "deploymentProven",
+        "historicalEvidenceIsAuditOnly",
+        "historicalEvidenceDoesNotProveHead",
+        "statusDocument",
+        "ownerPrivateEvidenceDocument",
+        "ownerPrivateEvidenceDocumentStatus",
+        "historicalRuns"
+      ],
+      "properties": {
+        "status": { "type": "string", "minLength": 1 },
+        "verifiedOnlyAfterTask": { "type": "string", "minLength": 1 },
+        "deploymentProven": { "type": "boolean" },
+        "historicalEvidenceIsAuditOnly": { "type": "boolean" },
+        "historicalEvidenceDoesNotProveHead": { "type": "boolean" },
+        "statusDocument": { "type": "string", "minLength": 1 },
+        "ownerPrivateEvidenceDocument": { "type": "string", "minLength": 1 },
+        "ownerPrivateEvidenceDocumentStatus": { "type": "string", "minLength": 1 },
+        "historicalRuns": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "revision", "artifact", "role"],
+            "properties": {
+              "id": { "type": "string", "minLength": 1 },
+              "revision": { "type": "string", "pattern": "^[0-9a-f]{7,40}$" },
+              "artifact": { "type": "string", "minLength": 1 },
+              "role": { "const": "audit-record" }
+            }
+          }
+        }
+      }
+    },
+    "topology": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "requiredProcesses",
+        "distinctOsPids",
+        "transport",
+        "forbiddenSubstitutes",
+        "runnerRecords"
+      ],
+      "properties": {
+        "kind": { "const": "independent-os-processes" },
+        "requiredProcesses": {
+          "type": "array",
+          "minItems": 4,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "distinctOsPids": { "const": true },
+        "transport": { "const": "real-listening-socket" },
+        "forbiddenSubstitutes": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "runnerRecords": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "evidenceHierarchy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["levels", "finalVerifiedRequires", "sameFreshCanonicalRun", "deploymentProven"],
+      "properties": {
+        "levels": {
+          "type": "array",
+          "minItems": 3,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "proves", "cannotReplace"],
+            "properties": {
+              "id": { "enum": ["supporting", "process-verified", "environment-verified"] },
+              "proves": {
+                "type": "array",
+                "minItems": 1,
+                "items": { "type": "string", "minLength": 1 }
+              },
+              "cannotReplace": {
+                "type": "array",
+                "minItems": 1,
+                "items": { "type": "string", "minLength": 1 }
+              }
+            }
+          }
+        },
+        "finalVerifiedRequires": {
+          "type": "array",
+          "minItems": 2,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "sameFreshCanonicalRun": { "const": true },
+        "deploymentProven": { "const": false }
+      }
+    },
+    "validationModes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["defaultMode", "modes", "forbidCurrentMigrationRejectingHistoricalArtifact", "historicalPassDoesNotProveHead"],
+      "properties": {
+        "defaultMode": { "const": "retained" },
+        "modes": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "sourceBinding"],
+            "properties": {
+              "id": { "enum": ["retained", "current"] },
+              "sourceBinding": { "type": "string", "minLength": 1 },
+              "bindsRevision": { "type": "boolean" },
+              "replayableOnBoundRevision": { "type": "boolean" },
+              "requiresSourceEqualsHead": { "type": "boolean" },
+              "oldRevisionFailsWithStableCode": { "type": "boolean" }
+            }
+          }
+        },
+        "forbidCurrentMigrationRejectingHistoricalArtifact": { "const": true },
+        "historicalPassDoesNotProveHead": { "const": true }
+      }
+    },
+    "deliveryCredentialBoundary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "allowed",
+        "forbidden",
+        "documentationWording",
+        "keepCurrentActiveFencing"
+      ],
+      "properties": {
+        "allowed": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "forbidden": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "documentationWording": { "type": "string", "minLength": 1 },
+        "keepCurrentActiveFencing": { "const": true }
+      }
+    },
+    "urlSecretContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capabilityIsBearerSecret",
+        "requiredResponseHeaders",
+        "headersOnSuccessAndErrorResponses",
+        "logScope",
+        "tokenFingerprintDefaultOff",
+        "forbidRawPathQueryLogging",
+        "forbidPersistingRealPath",
+        "ingressContractRequired"
+      ],
+      "properties": {
+        "capabilityIsBearerSecret": { "const": true },
+        "requiredResponseHeaders": {
+          "type": "array",
+          "minItems": 3,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "value"],
+            "properties": {
+              "name": { "type": "string", "minLength": 1 },
+              "value": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        "headersOnSuccessAndErrorResponses": { "const": true },
+        "logScope": { "const": "route-template-or-fixed-token-fingerprint" },
+        "tokenFingerprintDefaultOff": { "const": true },
+        "forbidRawPathQueryLogging": { "const": true },
+        "forbidPersistingRealPath": { "const": true },
+        "ingressContractRequired": { "const": true }
+      }
+    },
+    "tasks": {
+      "type": "array",
+      "minItems": 9,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "commitSubject", "owner", "finalAcceptance", "focusedGates", "evidenceClass"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^V4A-\\d{2}$" },
+          "commitSubject": { "type": "string", "minLength": 1 },
+          "owner": { "type": "string", "minLength": 1 },
+          "finalAcceptance": { "type": "string", "pattern": "^V4A-\\d{2}(,V4A-\\d{2})*$" },
+          "focusedGates": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "evidenceClass": {
+            "enum": ["supporting", "process-verified", "environment-verified"]
+          }
+        }
+      }
+    }
+  }
+}

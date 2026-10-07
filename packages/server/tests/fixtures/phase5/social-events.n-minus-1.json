@@ -1,0 +1,16 @@
+{
+  "fixtureVersion": 1,
+  "contractVersion": 1,
+  "events": [
+    {
+      "event_id": "FhYWFhYWFhYWFhYWFhYWFg",
+      "event_type": "social.collection-change",
+      "event_version": 1,
+      "aggregate_identity": { "aggregate_type": "collection", "aggregate_id": "FBQUFBQUFBQUFBQUFBQUFA", "aggregate_scope": "FBQUFBQUFBQUFBQUFBQUFA" },
+      "aggregate_revision": "publication-revision-11",
+      "commit_ordinal": "100",
+      "occurred_at": "2026-07-28T11:59:00.000Z",
+      "payload": { "collectionId": "FBQUFBQUFBQUFBQUFBQUFA", "ownerProfileId": "IiIiIiIiIiIiIiIiIiIiIg", "publicationRevision": "publication-revision-11", "discoverabilityRecheckKey": "publication.collection:FBQUFBQUFBQUFBQUFBQUFA" }
+    }
+  ]
+}

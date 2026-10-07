@@ -1,0 +1,27 @@
+{
+  "seed": 20260830,
+  "unit": "bytes",
+  "boundaries": [
+    {
+      "id": "legacy-2mib",
+      "pullResponseBytes": 2097152,
+      "snapshotPageBytes": 2097152,
+      "effectPageBytes": 2097152,
+      "effectAggregateBytes": 2097152
+    },
+    {
+      "id": "mid-5mib",
+      "pullResponseBytes": 5242880,
+      "snapshotPageBytes": 5242880,
+      "effectPageBytes": 5242880,
+      "effectAggregateBytes": 5242880
+    },
+    {
+      "id": "high-8mib",
+      "pullResponseBytes": 8388608,
+      "snapshotPageBytes": 8388608,
+      "effectPageBytes": 8388608,
+      "effectAggregateBytes": 8388608
+    }
+  ]
+}

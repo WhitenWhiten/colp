@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://known.example/schemas/phase5/remediation/r5-10-evidence-root.schema.json",
+  "title": "Phase 5 remediation R5-10 closed schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "task",
+    "runtimeRootEnv",
+    "lockPathField",
+    "rules"
+  ],
+  "properties": {
+    "format": {
+      "const": "known.phase5.remediation.r5-10.v1"
+    },
+    "task": {
+      "const": "R5-10"
+    },
+    "runtimeRootEnv": {
+      "const": "KNOWN_PHASE5_EVIDENCE_ROOT"
+    },
+    "lockPathField": {
+      "const": "relativePath"
+    },
+    "rules": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runtimeRootMustBeAbsolute",
+        "artifactMustBeInsideRoot",
+        "artifactMustBeOutsideCheckout",
+        "artifactMustBeRegularFile",
+        "forbidAbsoluteRelativePath",
+        "forbidParentSegmentEscape",
+        "forbidPersonalPathFallback",
+        "forbidPerArtifactEnvOverride",
+        "forbidCommittedArtifactBodies"
+      ],
+      "properties": {
+        "runtimeRootMustBeAbsolute": { "const": true },
+        "artifactMustBeInsideRoot": { "const": true },
+        "artifactMustBeOutsideCheckout": { "const": true },
+        "artifactMustBeRegularFile": { "const": true },
+        "forbidAbsoluteRelativePath": { "const": true },
+        "forbidParentSegmentEscape": { "const": true },
+        "forbidPersonalPathFallback": { "const": true },
+        "forbidPerArtifactEnvOverride": { "const": true },
+        "forbidCommittedArtifactBodies": { "const": true }
+      }
+    }
+  }
+}

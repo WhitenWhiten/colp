@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "environment", "thresholds"],
+  "properties": {
+    "$schema": { "const": "./performance-baseline.schema.json" },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["runtime", "database", "warmupIterations", "measuredIterations", "concurrency"],
+      "properties": {
+        "runtime": { "const": "node-22" },
+        "database": { "const": "postgresql-testcontainers" },
+        "warmupIterations": { "type": "integer", "minimum": 1 },
+        "measuredIterations": { "type": "integer", "minimum": 20 },
+        "concurrency": { "type": "integer", "minimum": 1, "maximum": 20 }
+      }
+    },
+    "thresholds": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["transactionP95Ms", "receiptClaimP95Ms", "outboxClaimP95Ms", "maximumPoolWaiters"],
+      "properties": {
+        "transactionP95Ms": { "type": "number", "exclusiveMinimum": 0 },
+        "receiptClaimP95Ms": { "type": "number", "exclusiveMinimum": 0 },
+        "outboxClaimP95Ms": { "type": "number", "exclusiveMinimum": 0 },
+        "maximumPoolWaiters": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

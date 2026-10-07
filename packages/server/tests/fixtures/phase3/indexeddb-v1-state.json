@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "databaseName": "known-phase3-indexeddb-entry",
+  "storeName": "replica_state",
+  "state": {
+    "serverId": "https://sync.phase3.invalid",
+    "collectionId": "01JPHASE3COLLECTION00000000",
+    "replicaId": "01JPHASE3REPLICA00000000000",
+    "generation": 7,
+    "nextSequence": 42,
+    "queuedOperation": {
+      "sequence": 41,
+      "opId": "01JPHASE3OPERATION000000000",
+      "eventId": "native-event-41",
+      "digest": "sha256:phase3-fixed-operation",
+      "acknowledged": false
+    },
+    "receipt": {
+      "sequence": 41,
+      "opId": "01JPHASE3OPERATION000000000",
+      "digest": "sha256:phase3-fixed-operation",
+      "receiptId": "01JPHASE3RECEIPT0000000000",
+      "publishedCursor": "cursor-after-receipt"
+    },
+    "cursor": "cursor-before-receipt-gap",
+    "nativeMapping": {
+      "nativeId": "native-private-41",
+      "colpId": "01JPHASE3NODE00000000000000"
+    },
+    "applyIntent": {
+      "intentId": "01JPHASE3INTENT00000000000",
+      "correlationId": "native-correlation-41",
+      "status": "pending",
+      "expectedMutation": "bookmark.update"
+    }
+  }
+}
