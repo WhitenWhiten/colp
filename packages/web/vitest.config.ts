@@ -7,10 +7,7 @@ const rootDir = path.dirname(fileURLToPath(import.meta.url))
 export default defineConfig({
   resolve: {
     alias: {
-      '@known/product-v1': path.resolve(
-        rootDir,
-        '../server/generated/openapi/product-v1.ts',
-      ),
+      '@known/product-v1': path.resolve(rootDir, 'src/generated/colp-server-v1.ts'),
       '@known/product-v1-client': path.resolve(
         rootDir,
         '../server/generated/openapi/product-v1.client.ts',

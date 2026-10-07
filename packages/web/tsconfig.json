@@ -19,7 +19,7 @@
     "noUncheckedIndexedAccess": true,
     "baseUrl": ".",
     "paths": {
-      "@known/product-v1": ["../server/generated/openapi/product-v1.ts"],
+      "@known/product-v1": ["src/generated/colp-server-v1.ts"],
       "@known/product-v1-client": ["../server/generated/openapi/product-v1.client.ts"]
     }
   },

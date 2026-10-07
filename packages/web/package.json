@@ -8,6 +8,7 @@
     "dev": "vite --host",
     "scan:dependencies": "npm audit --omit=dev --audit-level=high && npm audit --audit-level=high",
     "generate:agent-public": "node scripts/generate-agent-public.mjs",
+    "generate:api-types": "node scripts/generate-openapi-types.mjs",
     "stamp:trust-spa": "node scripts/stamp-trust-spa-html.mjs",
     "prebuild": "npm run generate:agent-public",
     "typecheck": "tsc -b",
@@ -54,10 +55,12 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-vitest": "^0.5.4",
     "happy-dom": "^20.14.0",
+    "openapi-typescript": "^7.13.0",
     "rollup-plugin-visualizer": "^7.0.1",
     "stylelint": "^17.14.1",
     "typescript": "~5.8.3",
     "vite": "^6.3.5",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "yaml": "^2.9.0"
   }
 }

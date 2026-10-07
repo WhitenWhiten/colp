@@ -14,15 +14,15 @@ const MARKER_END = '<!-- agent-public:end -->'
  * inaccurate value would also erode trust in the accurate dynamic sitemaps.
  */
 export const SITEMAP_PAGES = Object.freeze([
-  { path: '/', lastmod: '2026-09-28', sources: ['index.html', 'content/agent-public/home.md'] },
+  { path: '/', lastmod: '2026-10-07', sources: ['index.html', 'content/agent-public/home.md'] },
   { path: '/explore' },
-  { path: '/about', lastmod: '2026-08-25', sources: ['content/agent-public/about.md'] },
-  { path: '/contact', lastmod: '2026-08-23', sources: ['content/agent-public/contact.md'] },
-  { path: '/privacy', lastmod: '2026-09-30', sources: ['content/agent-public/privacy.md'] },
-  { path: '/extension', lastmod: '2026-08-31', sources: ['content/agent-public/extension.md'] },
-  { path: '/mcp', lastmod: '2026-08-29', sources: ['content/agent-public/mcp.md'] },
-  { path: '/developers', lastmod: '2026-09-22', sources: ['content/agent-public/developers.md'] },
-  { path: '/embed-guide', lastmod: '2026-09-26', sources: ['content/agent-public/embed-guide.md'] },
+  { path: '/about', lastmod: '2026-10-07', sources: ['content/agent-public/about.md'] },
+  { path: '/contact', lastmod: '2026-10-07', sources: ['content/agent-public/contact.md'] },
+  { path: '/privacy', lastmod: '2026-10-07', sources: ['content/agent-public/privacy.md'] },
+  { path: '/extension', lastmod: '2026-10-07', sources: ['content/agent-public/extension.md'] },
+  { path: '/mcp', lastmod: '2026-10-07', sources: ['content/agent-public/mcp.md'] },
+  { path: '/developers', lastmod: '2026-10-07', sources: ['content/agent-public/developers.md'] },
+  { path: '/embed-guide', lastmod: '2026-10-07', sources: ['content/agent-public/embed-guide.md'] },
   { path: '/login' },
   { path: '/register' },
 ])

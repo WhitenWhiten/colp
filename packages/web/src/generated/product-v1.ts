@@ -1,8 +1,9 @@
 /**
- * Product 1.9 OpenAPI types, including account profile mutation.
+ * Product API types for the self-hosted edition.
  *
- * Re-exports Known-Backend/generated/openapi/product-v1.ts via the
- * `@known/product-v1` alias so backend generation remains authoritative.
+ * Re-exports src/generated/colp-server-v1.ts via the `@known/product-v1`
+ * alias. That file is generated from packages/server/openapi/colp-server-v1.yaml
+ * (the trimmed server document, read in place — not a copy in this package).
  */
 export type {
   paths,
