@@ -91,6 +91,38 @@ describe('Replica lifecycle requires a bound Collection [evidence:sync.compositi
     expect(stored?.collectionId).toBe(key.collectionId);
   });
 
+  it('executes only the Replica that passed asynchronous ownership verification', async () => {
+    const session = await verifiedSession('collection');
+    const requestedKey = { ...key };
+    const command = { type: 'retire' as const, succeeded: true };
+    const checkedKeys: string[] = [];
+    const replicas = new Map([key.replicaId, 'other-replica'].map(replicaId => [replicaId, {
+      ...key, replicaId, leaseId: 'lease-old', generation: 'generation-old', lifecycle: 'active' as const,
+      lastSeenAt: now, leaseExpiresAt: future, acknowledgedCursor: null, acknowledgedCommitOrdinal: null,
+    } as DurableReplicaCheckpoint]));
+    const unused = async (): Promise<never> => { throw new Error('unused recovery port'); };
+    const transaction: ReplicaLifecycleTransaction = {
+      readAuthoritativeTime: async () => now,
+      loadReplica: async replicaId => replicas.get(replicaId),
+      saveReplica: async checkpoint => { replicas.set(checkpoint.replicaId, structuredClone(checkpoint)); },
+      loadRetentionWindow: unused, loadAuthoritativeSnapshot: unused,
+      saveSnapshotAck: unused, loadSnapshotAck: unused,
+    };
+    const unitOfWork: ReplicaLifecycleUnitOfWork = { execute: async (_id, work) => work(transaction) };
+    await coordinateSessionBoundReplicaLifecycle(
+      { kind: 'verified', session }, unitOfWork, requestedKey, command,
+      async (_session, checkedKey) => {
+        checkedKeys.push(checkedKey.replicaId);
+        await Promise.resolve();
+        requestedKey.replicaId = 'other-replica';
+        return true;
+      },
+    );
+    expect(checkedKeys).toEqual([key.replicaId]);
+    expect(replicas.get('other-replica')?.lifecycle).toBe('active');
+    expect(replicas.get(key.replicaId)?.lifecycle).toBe('retired');
+  });
+
   it('requires durable ownership evidence before minting a proof or entering the transaction', async () => {
     const session = await verifiedSession('collection');
     const { entered, unitOfWork } = forbiddenUnitOfWork();

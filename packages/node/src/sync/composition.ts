@@ -145,9 +145,7 @@ async function assertReplicaOwnership(
   if (typeof verifier !== 'function') {
     throw new TypeError('Replica lifecycle ownershipVerifier must be a function.');
   }
-  const checkedKey = Object.freeze({ replicaId: key.replicaId, collectionId: key.collectionId });
-  const checkedCommand = Object.freeze({ ...command });
-  const candidate = verifier(session, checkedKey, checkedCommand);
+  const candidate = verifier(session, key, command);
   const verdict = candidate instanceof Promise
     ? await requirePromise(candidate, 'Replica lifecycle ownershipVerifier')
     : candidate;
@@ -535,10 +533,12 @@ export async function coordinateSessionBoundReplicaLifecycle<
 >(
   gate: SessionBoundVerifyInput,
   unitOfWork: ReplicaLifecycleUnitOfWork<Transaction>,
-  key: ReplicaLifecycleKey,
-  command: ReplicaAuthenticatedLifecycleCommandInput,
+  candidateKey: ReplicaLifecycleKey,
+  candidateCommand: ReplicaAuthenticatedLifecycleCommandInput,
   ownershipVerifier?: ReplicaLifecycleOwnershipVerifier,
 ): Promise<{ readonly session: VerifiedSyncSession; readonly result: ReplicaLifecycleCoordinatorResult }> {
+  const key = Object.freeze({ ...candidateKey });
+  const command = Object.freeze({ ...candidateCommand });
   const session = await resolveVerifiedSession(gate);
   assertSessionScope(session, requiredReplicaLifecycleScope(command));
   // An unbound instance Session grants create_collection bootstrap only.
