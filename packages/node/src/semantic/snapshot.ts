@@ -26,6 +26,7 @@ import {
   visibilityRank,
   type GraphEdge,
   type LiveResourceIdentity,
+  type SnapshotAssemblyBudget,
 } from './snapshot-page-assembly.js';
 
 export interface SnapshotSemanticContext {
@@ -35,7 +36,7 @@ export interface SnapshotSemanticContext {
   readonly referenceResolution?: SnapshotReferenceResolution;
 }
 
-export interface SnapshotAssemblyContext extends SnapshotSemanticContext {
+export interface SnapshotAssemblyContext extends SnapshotSemanticContext, SnapshotAssemblyBudget {
   /** Omit to preserve every extension. Any removal is returned in extensionRemovals. */
   readonly extensionSecurityPolicy?: ExtensionSecurityPolicy;
 }
@@ -738,7 +739,11 @@ export function assembleSnapshotPages(
   pages: readonly Snapshot[],
   context: SnapshotAssemblyContext = {},
 ): SnapshotAssemblyResult {
-  const assembled = assembleSnapshotPagePayload(pages, context);
+  const assembled = assembleSnapshotPagePayload(pages, {
+    ...context,
+    ...(context.maxMembers === undefined ? {} : { maxMembers: context.maxMembers }),
+    ...(context.maxObjects === undefined ? {} : { maxObjects: context.maxObjects }),
+  });
   if (!assembled.valid) {
     return { valid: false, issues: assembled.issues };
   }

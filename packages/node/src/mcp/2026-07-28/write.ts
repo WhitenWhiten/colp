@@ -1,40 +1,8 @@
-/**
- * Modern MCP `2026-07-28` Write / MRTR adapter.
- *
- * Thin adapter layer over the Write Gateway
- * (`src/mcp/write-tools.ts`) and the change-plan core
- * (`src/mcp/change-plan.ts`): it maps the shared low-risk Tools and
- * `changes.plan` / `changes.commit` / `changes.cancel` onto Modern results
- * and never re-implements execution, approval or idempotency semantics.
- *
- * MRTR mapping (pinned SDK `@modelcontextprotocol/core`/server 2.3.1 wire
- * shape, migration decision §3/§5/§6):
- * - normal results are fixed `complete`;
- * - waiting for out-of-band approval returns `resultType: 'input_required'`
- *   with an `inputRequests` map and a server-minted `requestState`. COLP
- *   never initiates roots/sampling/elicitation server-to-client requests, so
- *   the `inputRequests` map is present but empty (`{}`) — the at-least-one
- *   rule is satisfied by `requestState`, and the client retries after the
- *   host records approval out-of-band;
- * - retries echo `requestState` (+ optional `inputResponses`); the adapter
- *   verifies the state (HMAC integrity, expiry, authenticated-principal bind,
- *   method and input digest) and resumes the SAME plan business state. A
- *   fresh call without `requestState` always creates new business state;
- * - `inputResponses` is structurally validated per the SDK
- *   `inputResponse()` union (elicit/roots/sampling); well-formed entries for
- *   requests this server never issued are ignored, malformed entries are
- *   rejected with Invalid Params;
- * - `elicitationId`, the completion notification channel, roots/sampling/
- *   elicitation requests and any other server-initiated request are never
- *   used (migration decision §3 "server-initiated requests" row).
- *
- * The host owns the plan-status resolver (`resolvePlan`) that backs
- * `requestState` retries: it returns the current plan status plus a
- * protocol-neutral plan projection (same shape as `changes.plan`
- * structuredContent). The request-state HMAC key and TTL are host-configured
- * (`requestStateKey` >= 32 bytes, `requestStateTtlSeconds`). Binding tags are
- * version v1 (see request-state-binding.ts). v0 pipe-join tags are rejected
- * and that failure does not mint a replacement Plan; the TTL default stays 600s.
+/** Modern MCP `2026-07-28` Write/MRTR adapter over the shared write gateway.
+ * It maps plan, commit, cancel, and low-risk Tools without reimplementing
+ * execution or idempotency. Approval retries use an HMAC-bound requestState;
+ * malformed inputResponses are rejected and server-initiated requests are
+ * never emitted. The host supplies the plan resolver and request-state key.
  */
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { types as nodeTypes } from 'node:util';
@@ -59,6 +27,7 @@ import {
   McpWriteBindingRequiredError,
   McpWriteRequestAbortedError,
   McpWriteUnknownToolError,
+  McpWriteToolScopeDeniedError,
   createMcpWriteToolGateway,
   type McpApiKeyApplicationPort,
   type McpLowRiskToolDefinition,
@@ -145,6 +114,13 @@ export class Mcp20260728WriteRequestStateError extends Error {
     super(message);
     this.name = 'Mcp20260728WriteRequestStateError';
     this.code = code;
+  }
+}
+
+class Mcp20260728WriteHostError extends TypeError {
+  constructor(message: string) {
+    super(message);
+    this.name = 'Mcp20260728WriteHostError';
   }
 }
 
@@ -493,18 +469,18 @@ export function createMcp20260728WriteToolAdapter(
   ): Promise<Mcp20260728PlanResolution> => {
     const resolution = await Reflect.apply(resolvePlan.resolvePlan, resolvePlan, [planId, binding]);
     if (typeof resolution !== 'object' || resolution === null || Array.isArray(resolution)) {
-      throw new TypeError('MCP Write adapter resolvePlan must return an object.');
+      throw new Mcp20260728WriteHostError('MCP Write adapter resolvePlan must return an object.');
     }
     const status = readOwnValue(resolution, 'status');
     if (typeof status !== 'string' || !(PLAN_STATUSES as readonly string[]).includes(status)) {
-      throw new TypeError('MCP Write adapter resolvePlan returned an invalid status.');
+      throw new Mcp20260728WriteHostError('MCP Write adapter resolvePlan returned an invalid status.');
     }
     const plan = readOwnValue(resolution, 'plan');
     if (
       plan !== undefined
       && (typeof plan !== 'object' || plan === null || Array.isArray(plan) || nodeTypes.isProxy(plan))
     ) {
-      throw new TypeError('MCP Write adapter resolvePlan plan must be an own-data object.');
+      throw new Mcp20260728WriteHostError('MCP Write adapter resolvePlan plan must be an own-data object.');
     }
     return Object.freeze({
       status: status as Mcp20260728PlanStatus,
@@ -558,7 +534,7 @@ export function createMcp20260728WriteToolAdapter(
       case 'pending':
       case 'committing': {
         if (resolution.plan === undefined) {
-          throw new TypeError('MCP Write adapter pending plan resolution requires a plan projection.');
+          throw new Mcp20260728WriteHostError('MCP Write adapter pending plan resolution requires a plan projection.');
         }
         return buildInputRequiredResult(
           serverInfo,
@@ -569,7 +545,7 @@ export function createMcp20260728WriteToolAdapter(
       }
       case 'approved': {
         if (resolution.plan === undefined) {
-          throw new TypeError('MCP Write adapter approved plan resolution requires a plan projection.');
+          throw new Mcp20260728WriteHostError('MCP Write adapter approved plan resolution requires a plan projection.');
         }
         return buildCompleteResult(serverInfo, budget, Object.freeze({ structuredContent: resolution.plan }));
       }
@@ -629,7 +605,7 @@ export function createMcp20260728WriteToolAdapter(
       case 'pending':
       case 'committing': {
         if (resolution.plan === undefined) {
-          throw new TypeError('MCP Write adapter pending plan resolution requires a plan projection.');
+          throw new Mcp20260728WriteHostError('MCP Write adapter pending plan resolution requires a plan projection.');
         }
         return buildInputRequiredResult(
           serverInfo,
@@ -668,7 +644,11 @@ export function createMcp20260728WriteToolAdapter(
       'tools/list',
       serverInfo,
       trusted.budget,
-      Object.freeze({ tools: sortedModern }),
+      Object.freeze({
+        tools: Object.freeze(entries
+          .filter((entry) => entry.requiredScopes.every((scope) => trusted.scope.includes(scope)))
+          .map((entry) => entry.modern)),
+      }),
       cache['tools/list'],
     );
   };
@@ -841,6 +821,11 @@ function isValidInputResponseEntry(entry: unknown): boolean {
 
 function mapWriteError(error: unknown, toolName?: string): unknown {
   if (error instanceof Mcp20260728RequestError) return error;
+  if (error instanceof McpWriteToolScopeDeniedError) {
+    return new Mcp20260728RequestError('invalid_params', 'MCP write Tool is not available for the current authorization scopes.', {
+      code: 'tool_scope_denied',
+    });
+  }
   if (error instanceof McpWriteUnknownToolError) {
     return new Mcp20260728RequestError('invalid_params', 'Unknown MCP write Tool.');
   }
@@ -850,6 +835,7 @@ function mapWriteError(error: unknown, toolName?: string): unknown {
       'MCP write Tools require a trusted per-request context.',
     );
   }
+  if (error instanceof McpWriteRequestAbortedError) return error;
   if (error instanceof McpToolInputError) {
     const field = error.issues[0]?.instancePath.replace(/^\//u, '').replaceAll('/', '.')
       || undefined;
@@ -873,7 +859,12 @@ function mapWriteError(error: unknown, toolName?: string): unknown {
       code: error.code,
     });
   }
-  return error;
+  if (error instanceof Mcp20260728WriteHostError) return error;
+  // Application/SDK-shaped errors are an untrusted boundary. Never return
+  // their caller-controlled message, data, or enumerable properties through
+  // the Modern write adapter. The host transport can log the original error
+  // out of band under its own policy.
+  return new Mcp20260728RequestError('internal_error', 'MCP write operation failed.');
 }
 
 function readCallToolInput(
@@ -916,6 +907,7 @@ function readCallToolInput(
 interface ToolEntry {
   readonly name: string;
   readonly modern: Readonly<Record<string, unknown>>;
+  readonly requiredScopes: readonly string[];
 }
 
 function readToolEntries(
@@ -927,12 +919,14 @@ function readToolEntries(
     throw configError();
   }
   return definitions.map((definition: McpToolDefinition) => {
-    assertExactDataObject(definition, ['name', 'description', 'inputSchema'], ['outputSchema'], configError);
+    assertExactDataObject(definition, ['name', 'description', 'inputSchema'], ['outputSchema', 'requiredScopes'], configError);
     const name = readOwnData(definition, 'name', configError);
     const description = readOwnData(definition, 'description', configError);
     const inputSchema = readOwnData(definition, 'inputSchema', configError);
     const outputSchema = readOptionalData(definition, 'outputSchema');
+    const requiredScopes = readOptionalData(definition, 'requiredScopes');
     if (typeof name !== 'string' || name.length === 0) throw configError();
+    const scopes = readRequiredScopes(requiredScopes);
     if (typeof description !== 'string' || description.length === 0) throw configError();
     if (typeof inputSchema !== 'object' || inputSchema === null || Array.isArray(inputSchema)) {
       throw configError();
@@ -954,8 +948,19 @@ function readToolEntries(
     if (!ToolSchema.safeParse(modern).success) {
       throw configError();
     }
-    return Object.freeze({ name, modern });
+    return Object.freeze({ name, modern, requiredScopes: scopes });
   });
+}
+
+function readRequiredScopes(value: unknown): readonly string[] {
+  if (value === undefined) return Object.freeze([]);
+  if (!Array.isArray(value) || Object.getPrototypeOf(value) !== Array.prototype) throw configError();
+  const scopes = value.map((scope) => {
+    if (typeof scope !== 'string' || scope.length === 0 || scope.length > 128) throw configError();
+    return scope;
+  });
+  if (new Set(scopes).size !== scopes.length) throw configError();
+  return Object.freeze(scopes);
 }
 
 function resolveSchemaBudget(options: Mcp20260728WriteToolAdapterOptions): Required<McpSchemaBudget> {
@@ -1105,5 +1110,3 @@ function readOptionalData(value: object, name: string): unknown {
   if (descriptor === undefined || !('value' in descriptor)) return undefined;
   return descriptor.value;
 }
-
-

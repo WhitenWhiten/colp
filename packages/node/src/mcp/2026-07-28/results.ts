@@ -10,8 +10,8 @@
  * Error mapping: `normalizeMcp20260728Error` collapses any thrown value into
  * the stable wire codes `-32020` (`HeaderMismatch`) / `-32021`
  * (`MissingRequiredClientCapability`) / `-32022` (`UnsupportedProtocolVersion`)
- * when it is a known adapter/SDK-shaped error, and otherwise returns a
- * low-sensitivity `-32603` (Internal Error) — no internal detail leaks.
+ * when it is a known adapter error, and otherwise returns a low-sensitivity
+ * `-32603` (Internal Error) — no caller-controlled SDK message/data leaks.
  *
  * Vocabulary alignment (SDK pinned 2.3.1):
  * - `resultType` is `'complete' | 'input_required'`; `input_required` is only
@@ -233,10 +233,11 @@ function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
 
 /**
  * Normalizes any thrown value into a stable, low-sensitivity wire error.
- * Adapter errors keep their `-32020/-32021/-32022` codes and low-sensitivity
- * data; upstream SDK-shaped errors (`{ code, message, data? }` with a known
- * code) pass through normalized; everything else collapses to `-32603`
- * `Internal error` without leaking internal details.
+ * Adapter errors keep their `-32020/-32021/-32022` codes and host-controlled
+ * details. Upstream SDK-shaped errors are an untrusted boundary: when their
+ * code is recognized, only a fixed protocol message is emitted and their
+ * caller-controlled `message`/`data` are discarded. Everything else collapses
+ * to `-32603` `Internal error` without leaking internal details.
  */
 export function normalizeMcp20260728Error(error: unknown): Mcp20260728WireError {
   if (error instanceof Mcp20260728RequestError) {
@@ -248,15 +249,23 @@ export function normalizeMcp20260728Error(error: unknown): Mcp20260728WireError 
   }
   if (isRecord(error)) {
     const code = error.code;
-    const message = error.message;
-    if (typeof code === 'number' && KNOWN_WIRE_CODES.has(code) && typeof message === 'string') {
+    if (typeof code === 'number' && KNOWN_WIRE_CODES.has(code)) {
       return {
         code,
-        message,
-        ...(error.data !== undefined ? { data: error.data } : {}),
+        message: SAFE_WIRE_MESSAGES[code] ?? 'Internal error',
       };
     }
   }
   return Object.freeze({ code: MCP_WIRE_INTERNAL_ERROR_CODE, message: 'Internal error' });
 }
 
+/** Fixed messages used for untrusted SDK-shaped errors. */
+const SAFE_WIRE_MESSAGES: Readonly<Record<number, string>> = Object.freeze({
+  [MCP_WIRE_HEADER_MISMATCH_ERROR_CODE]: 'Request headers do not match.',
+  [MCP_WIRE_MISSING_REQUIRED_CLIENT_CAPABILITY_ERROR_CODE]: 'A required client capability is missing.',
+  [MCP_WIRE_UNSUPPORTED_PROTOCOL_VERSION_ERROR_CODE]: 'Unsupported protocol version.',
+  [-32600]: 'Invalid request.',
+  [-32601]: 'Method not found.',
+  [-32602]: 'Invalid params.',
+  [-32603]: 'Internal error',
+});

@@ -50,9 +50,11 @@ import {
   asReplicaAuthenticatedCommand,
   coordinateReplicaLifecycle,
   createReplicaAuthProofFromVerifiedSession,
+  requiredReplicaLifecycleScope,
   type ReplicaAuthenticatedLifecycleCommandInput,
   type ReplicaLifecycleCoordinatorResult,
   type ReplicaLifecycleKey,
+  type ReplicaLifecycleOwnershipVerifier,
   type ReplicaLifecycleTransaction,
   type ReplicaLifecycleUnitOfWork,
 } from './replica-lifecycle.js';
@@ -65,6 +67,8 @@ import {
   type VerifySyncSessionContextInput,
   type SyncSessionStore,
 } from './session.js';
+import type { ScopeName } from '../types/index.js';
+import { requirePromise } from './internal-guards.js';
 
 export type {
   SyncSessionGateDenial,
@@ -79,8 +83,19 @@ export {
 } from './session.js';
 
 export type SessionBoundVerifyInput =
-  | { readonly kind: 'verify'; readonly store: SyncSessionStore; readonly input: VerifySyncSessionContextInput }
-  | { readonly kind: 'verified'; readonly session: VerifiedSyncSession };
+  | {
+      readonly kind: 'verify';
+      readonly store: SyncSessionStore;
+      readonly input: VerifySyncSessionContextInput;
+      /** Optional lifecycle-only ownership verifier for direct composition. */
+      readonly ownershipVerifier?: ReplicaLifecycleOwnershipVerifier;
+    }
+  | {
+      readonly kind: 'verified';
+      readonly session: VerifiedSyncSession;
+      /** Optional lifecycle-only ownership verifier for direct composition. */
+      readonly ownershipVerifier?: ReplicaLifecycleOwnershipVerifier;
+    };
 
 async function resolveVerifiedSession(gate: SessionBoundVerifyInput): Promise<VerifiedSyncSession> {
   if (gate.kind === 'verified') {
@@ -106,10 +121,42 @@ async function resolveVerifiedSession(gate: SessionBoundVerifyInput): Promise<Ve
 
 function assertSessionScope(
   session: VerifiedSyncSession,
-  required: 'sync:push' | 'sync:pull' | 'sync:bootstrap',
+  required: ScopeName,
 ): void {
   if (!session.authorizationScopes.includes(required)) {
     throw new SyncSessionGateDeniedError({ state: 'scope_missing', requiredScope: required });
+  }
+}
+
+async function assertReplicaOwnership(
+  verifier: ReplicaLifecycleOwnershipVerifier | undefined,
+  session: VerifiedSyncSession,
+  key: ReplicaLifecycleKey,
+  command: ReplicaAuthenticatedLifecycleCommandInput,
+): Promise<void> {
+  if (verifier === undefined) {
+    throw new SyncSessionGateDeniedError({
+      state: 'request_binding_mismatch',
+      detail:
+        'Replica lifecycle requires an ownershipVerifier that proves the requested '
+        + 'Replica belongs to the verified Session principal before authentication proof minting.',
+    });
+  }
+  if (typeof verifier !== 'function') {
+    throw new TypeError('Replica lifecycle ownershipVerifier must be a function.');
+  }
+  const candidate = verifier(session, key, command);
+  const verdict = candidate instanceof Promise
+    ? await requirePromise(candidate, 'Replica lifecycle ownershipVerifier')
+    : candidate;
+  if (verdict === false) {
+    throw new SyncSessionGateDeniedError({
+      state: 'request_binding_mismatch',
+      detail: 'Replica ownership does not belong to the verified Session principal.',
+    });
+  }
+  if (verdict !== true && verdict !== undefined) {
+    throw new TypeError('Replica lifecycle ownershipVerifier must return boolean or void.');
   }
 }
 
@@ -475,18 +522,25 @@ export async function coordinateSessionBoundSequence<
 /**
  * Session-bound Replica lifecycle transition. The caller cannot self-assert
  * `authenticated: true`: this helper verifies the Session runtime brand,
- * enforces its Collection binding, mints the proof, and only then enters the
- * low-level durable coordinator.
+ * enforces the command's authorization Scope and Collection binding, asks the
+ * host's durable `ownershipVerifier` to prove the Replica belongs to the
+ * Session principal, then mints the proof and enters the low-level durable
+ * coordinator. Missing or negative ownership evidence fails before any
+ * transaction is opened.
  */
 export async function coordinateSessionBoundReplicaLifecycle<
   Transaction extends ReplicaLifecycleTransaction = ReplicaLifecycleTransaction,
 >(
   gate: SessionBoundVerifyInput,
   unitOfWork: ReplicaLifecycleUnitOfWork<Transaction>,
-  key: ReplicaLifecycleKey,
-  command: ReplicaAuthenticatedLifecycleCommandInput,
+  candidateKey: ReplicaLifecycleKey,
+  candidateCommand: ReplicaAuthenticatedLifecycleCommandInput,
+  ownershipVerifier?: ReplicaLifecycleOwnershipVerifier,
 ): Promise<{ readonly session: VerifiedSyncSession; readonly result: ReplicaLifecycleCoordinatorResult }> {
+  const key = Object.freeze({ ...candidateKey });
+  const command = Object.freeze({ ...candidateCommand });
   const session = await resolveVerifiedSession(gate);
+  assertSessionScope(session, requiredReplicaLifecycleScope(command));
   // An unbound instance Session grants create_collection bootstrap only.
   // It is not a wildcard capability over existing Collections or Replicas.
   if (session.sessionScope !== 'collection' || session.collectionId === null
@@ -496,8 +550,14 @@ export async function coordinateSessionBoundReplicaLifecycle<
       detail: 'Replica lifecycle requires a Collection-bound Session matching the requested Collection.',
     });
   }
-  const authenticated = asReplicaAuthenticatedCommand(
+  await assertReplicaOwnership(
+    ownershipVerifier ?? gate.ownershipVerifier,
+    session,
+    key,
     command,
+  );
+  const authenticated = asReplicaAuthenticatedCommand(
+    Object.freeze({ ...command }),
     createReplicaAuthProofFromVerifiedSession(session),
   );
   const result = await coordinateReplicaLifecycle(unitOfWork, key, authenticated);

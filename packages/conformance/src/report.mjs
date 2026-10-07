@@ -33,13 +33,30 @@ export const CHECKS = Object.freeze([
 
 const byId = new Map(CHECKS.map((check) => [check.id, check]));
 const MAX_DETAILS = 5;
+// Strip terminal protocols (CSI/OSC and the short two-byte forms) and render
+// remaining control characters visibly. Report details include server-owned
+// URLs, headers, and parser messages, so sanitizing at the report boundary
+// protects both the text renderer and callers that log `report` directly.
+const ANSI_ESCAPE = /\u001B(?:\][^\u0007]*(?:\u0007|\u001B\\)|\[[0-?]*[ -/]*[@-~]|[ -/]*[@-~])/gu;
+const CONTROL_CHARACTER = /[\u0000-\u001F\u007F-\u009F]/gu;
+
+export function sanitizeTerminalText(value) {
+  return String(value)
+    .replace(ANSI_ESCAPE, '')
+    .replace(CONTROL_CHARACTER, (character) => {
+      if (character === '\n') return '\\n';
+      if (character === '\r') return '\\r';
+      if (character === '\t') return '\\t';
+      return `\\x${character.codePointAt(0).toString(16).padStart(2, '0')}`;
+    });
+}
 
 export class Report {
   #observations = new Map(CHECKS.map((check) => [check.id, { passed: 0, failures: [], skipReason: undefined }]));
   #notes = [];
 
   constructor(target) {
-    this.target = target;
+    this.target = sanitizeTerminalText(target);
   }
 
   /** Records one observation for a check. `detail` explains a failure. */
@@ -48,7 +65,7 @@ export class Report {
     if (ok) {
       entry.passed += 1;
     } else {
-      entry.failures.push(detail ?? 'failed');
+      entry.failures.push(detail === undefined ? 'failed' : sanitizeTerminalText(detail));
     }
     return ok;
   }
@@ -68,7 +85,7 @@ export class Report {
 
   /** Adds a run-level note, such as stopping early. */
   note(text) {
-    this.#notes.push(text);
+    this.#notes.push(sanitizeTerminalText(text));
   }
 
   finish(requestCount) {
@@ -98,16 +115,16 @@ export class Report {
 export function formatReport(report) {
   const lines = [
     'COLP conformance: core + publication (anonymous, read-only)',
-    `Target: ${report.target}`,
+    `Target: ${sanitizeTerminalText(report.target)}`,
     '',
   ];
   for (const result of report.results) {
-    lines.push(`  ${result.status.toUpperCase().padEnd(4)}  ${result.id.padEnd(9)} ${result.level.padEnd(6)}  ${result.title}`);
+    lines.push(`  ${sanitizeTerminalText(result.status.toUpperCase().padEnd(4))}  ${sanitizeTerminalText(result.id.padEnd(9))} ${sanitizeTerminalText(result.level.padEnd(6))}  ${sanitizeTerminalText(result.title)}`);
     if (result.status !== 'pass') {
-      for (const detail of result.details) lines.push(`          ${detail}`);
+      for (const detail of result.details) lines.push(`          ${sanitizeTerminalText(detail)}`);
     }
   }
-  for (const note of report.notes) lines.push('', `Note: ${note}`);
+  for (const note of report.notes) lines.push('', `Note: ${sanitizeTerminalText(note)}`);
   const { pass, fail, warn, skip } = report.summary;
   lines.push('', `${pass} passed, ${fail} failed, ${warn} warnings, ${skip} skipped (${report.requestCount} requests)`);
   return lines.join('\n');

@@ -778,6 +778,9 @@ export interface Collection {
   tags?: string[];
   icon?: Media;
   cover?: Media;
+  /**
+   * @maxItems 512
+   */
   creators?: Actor[];
   rootNodeId: OpaqueId;
   visibility: Visibility;
@@ -814,6 +817,9 @@ export interface CollectionCreate {
   tags?: string[];
   icon?: Media;
   cover?: Media;
+  /**
+   * @maxItems 512
+   */
   creators?: Actor[];
   visibility: Visibility;
   publication?: Publication;
@@ -881,6 +887,9 @@ export interface DirectoryCollection {
   kind: 'bookmarks' | 'reading_path' | 'knowledge_collection' | 'mixed';
   tags?: string[];
   language?: string;
+  /**
+   * @maxItems 512
+   */
   creators?: Actor[];
   nodeCount: number;
   updatedAt: DateTime;
@@ -1037,6 +1046,9 @@ export interface Feed {
   nextCursor: OpaqueId;
   hasMore: boolean;
   poll: PollHint;
+  /**
+   * @maxItems 512
+   */
   hubs: WebSubHub[];
 }
 export interface PollHint {

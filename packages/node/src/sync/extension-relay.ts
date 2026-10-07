@@ -11,21 +11,27 @@ import {
   assertPlainDataObject,
   requirePromise,
 } from './internal-guards.js';
-
+import {
+  appendSyncOperationReuseAudit,
+  claimSyncOperation,
+  SyncOperationReceiptUnavailableError,
+  SyncOperationReuseError,
+  syncOperationClaimsMatch,
+  type SyncOperationClaim,
+  type SyncOperationReuseAudit,
+  type SyncOperationReuseTransaction,
+} from './operation-reuse.js';
 export interface SyncExtensionResourceKey {
   readonly resourceType: string;
   readonly resourceId: string;
 }
-
 export interface StoredSyncExtensionCarrier extends SyncExtensionResourceKey {
   readonly revision: string;
   readonly extensions?: ExtensionMap;
 }
-
 export type SyncExtensionReplacement =
   | { readonly kind: 'replace'; readonly extensions: ExtensionMap }
   | { readonly kind: 'delete' };
-
 export interface SyncExtensionStoreWrite {
   readonly key: SyncExtensionResourceKey;
   readonly expectedRevision: string | null;
@@ -65,15 +71,13 @@ export type SyncExtensionRelayResult =
   | { readonly state: 'revision_conflict'; readonly currentRevision: string | null; readonly digest?: string };
 
 export interface SyncExtensionReceiptStore {
-  /**
-   * Adapter uniqueness binds operationId, replicaId, sequenceScope, and sequence.
-   * The persisted result's digest distinguishes exact replay from key/Sequence reuse.
-   */
+  /** Uniqueness binds the operation tuple; digest distinguishes exact replay. */
   load(request: SyncExtensionRelayRequest): Promise<SyncExtensionRelayResult | undefined>;
   save(request: SyncExtensionRelayRequest, result: SyncExtensionRelayResult): Promise<void>;
 }
 
-export interface SyncExtensionTransaction {
+/** Transaction boundary carrying the lifetime claim ledger and replay receipt. */
+export interface SyncExtensionTransaction extends SyncOperationReuseTransaction {
   readonly extensions: SyncExtensionStore;
   readonly receipts: SyncExtensionReceiptStore;
 }
@@ -283,7 +287,23 @@ type PersistedSyncExtensionReceipt =
       readonly state: 'revision_conflict';
       readonly currentRevision: string | null;
       readonly digest: string;
-    };
+  };
+
+type SyncExtensionRelayCallbackResult = SyncExtensionRelayResult | {
+  readonly state: 'op_id_reused';
+  readonly auditKey: string;
+  readonly audit: SyncOperationReuseAudit;
+};
+
+function claimForRequest(request: SyncExtensionRelayRequest): SyncOperationClaim {
+  return Object.freeze({
+    operationId: request.operationId,
+    digest: request.digest,
+    replicaId: request.replicaId,
+    sequenceScope: request.sequenceScope,
+    sequence: request.sequence,
+  });
+}
 
 function immutableStoredReceipt(
   candidate: SyncExtensionRelayResult,
@@ -377,15 +397,13 @@ function returnedRelayResult(result: SyncExtensionRelayResult): SyncExtensionRel
   });
 }
 
-/**
- * Atomically CAS-replaces one complete canonical extension map and saves its replay
- * receipt. No success result escapes until the UnitOfWork confirms commit.
- */
+/** CAS-replaces one extension map and saves its receipt before commit returns. */
 export async function relaySyncExtensionCarrier(
   unitOfWork: SyncExtensionUnitOfWork,
   candidateRequest: SyncExtensionRelayRequest,
 ): Promise<SyncExtensionRelayResult> {
   const request = immutableRelayRequest(candidateRequest);
+  const attemptedClaim = claimForRequest(request);
   const expectedCarrier = immutableResourceCarrier({
     ...request.key,
     revision: request.revision,
@@ -394,13 +412,42 @@ export async function relaySyncExtensionCarrier(
       : {}),
   });
   let callbackInvocations = 0;
-  let callbackOutcome: SyncExtensionRelayResult | undefined;
+  let callbackOutcome: SyncExtensionRelayCallbackResult | undefined;
   const outcome = await requirePromise(unitOfWork.execute(async (transaction) => {
     callbackInvocations += 1;
     if (callbackInvocations !== 1) {
       throw new TypeError('Sync extension UnitOfWork must invoke its callback exactly once.');
     }
+    // Claim the lifetime operation before consulting the compactable receipt.
+    const claimResult = await claimSyncOperation(transaction, attemptedClaim);
+    const existingClaim = claimResult.kind === 'existing' ? claimResult.claim : undefined;
+    if (existingClaim !== undefined && !syncOperationClaimsMatch(existingClaim, attemptedClaim)) {
+      const denial = await appendSyncOperationReuseAudit(
+        transaction.reuseAudits,
+        'op_id_reused',
+        attemptedClaim,
+        existingClaim,
+      );
+      callbackOutcome = Object.freeze({
+        state: 'op_id_reused' as const,
+        auditKey: denial.key,
+        audit: denial.audit,
+      });
+      return callbackOutcome;
+    }
+
     const receipt = await requirePromise(transaction.receipts.load(request), 'Sync extension receipt load');
+    // A claim without its receipt is consumed; never execute it against live state.
+    if (existingClaim !== undefined && receipt === undefined) {
+      throw new SyncOperationReceiptUnavailableError(
+        'Lifetime Operation claim exists without its Sync extension receipt.',
+        existingClaim,
+      );
+    }
+    // A receipt without its claim is inconsistent; reject instead of minting reuse.
+    if (existingClaim === undefined && receipt !== undefined) {
+      throw new TypeError('Sync extension receipt exists without its lifetime Operation claim.');
+    }
     if (receipt !== undefined) {
       const storedReceipt = immutableStoredReceipt(receipt, request, expectedCarrier);
       if (storedReceipt.digest !== request.digest) {
@@ -507,7 +554,20 @@ export async function relaySyncExtensionCarrier(
     callbackOutcome = Object.freeze({ state: 'committed' as const, carrier: reloaded });
     return callbackOutcome;
   }), 'Sync extension UnitOfWork execute');
-  if (callbackInvocations !== 1 || callbackOutcome === undefined || !equalRelayResult(outcome, callbackOutcome)) {
+  if (callbackInvocations !== 1 || callbackOutcome === undefined) {
+    throw new TypeError('Sync extension UnitOfWork returned a result other than its transaction callback result.');
+  }
+  if (outcome.state === 'op_id_reused') {
+    if (callbackOutcome.state !== 'op_id_reused'
+      || outcome.auditKey !== callbackOutcome.auditKey
+      || outcome.audit.code !== callbackOutcome.audit.code
+      || !syncOperationClaimsMatch(outcome.audit.attempted, callbackOutcome.audit.attempted)
+      || !syncOperationClaimsMatch(outcome.audit.stored, callbackOutcome.audit.stored)) {
+      throw new TypeError('Sync extension UnitOfWork returned a substituted reuse denial.');
+    }
+    throw new SyncOperationReuseError(outcome.auditKey, outcome.audit);
+  }
+  if (callbackOutcome.state === 'op_id_reused' || !equalRelayResult(outcome, callbackOutcome)) {
     throw new TypeError('Sync extension UnitOfWork returned a result other than its transaction callback result.');
   }
   return returnedRelayResult(outcome);

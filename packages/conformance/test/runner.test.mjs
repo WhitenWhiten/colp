@@ -6,8 +6,8 @@ import { test } from 'node:test';
 import { promisify } from 'node:util';
 
 import { startPublicationServer } from '../../node/examples/publication-server.mjs';
-import { CHECKS, formatReport, resolveManifestUrl, runConformance } from '../src/index.mjs';
-import { createHttpClient } from '../src/http.mjs';
+import { CHECKS, formatReport, resolveManifestUrl, runConformance, sanitizeTerminalText } from '../src/index.mjs';
+import { createHttpClient, createPinnedFetch, ResponseTooLargeError } from '../src/http.mjs';
 
 const exec = promisify(execFile);
 const cli = new URL('../bin/colp-conformance.mjs', import.meta.url);
@@ -184,6 +184,28 @@ test('checks a DNS answer before the first conformance request', async () => {
   assert.deepEqual(calls, []);
 });
 
+test('pinned transport connects to the approved address while preserving the URL Host', async () => {
+  let observedHost;
+  const server = createServer((request, response) => {
+    observedHost = request.headers.host;
+    response.end('ok');
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  try {
+    const port = server.address().port;
+    const response = await createPinnedFetch()(
+      new URL(`http://virtual.example:${port}/health`),
+      { method: 'GET', headers: new Headers() },
+      '127.0.0.1',
+    );
+    assert.equal(response.status, 200);
+    assert.equal(await response.text(), 'ok');
+    assert.equal(observedHost, `virtual.example:${port}`);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
 test('the default resolver accepts a public IPv6 URL hostname', async () => {
   const calls = [];
   const http = createHttpClient({
@@ -201,7 +223,7 @@ test('uses manual redirects and rejects a private Location before the next reque
   const calls = [];
   const http = createHttpClient({
     initialOrigin: 'https://public.example',
-    resolveHost: async () => ['198.51.100.7'],
+    resolveHost: async () => ['93.184.216.34'],
     fetch: async (url, init) => {
       calls.push({ url: String(url), redirect: init.redirect });
       return new Response(null, {
@@ -216,4 +238,33 @@ test('uses manual redirects and rejects a private Location before the next reque
     /private or local target/u,
   );
   assert.deepEqual(calls, [{ url: 'https://public.example/start', redirect: 'manual' }]);
+});
+
+test('applies a smaller per-request cap for cumulative Snapshot budgets', async () => {
+  const http = createHttpClient({
+    maxBytes: 16,
+    initialOrigin: 'https://public.example',
+    resolveHost: async () => ['93.184.216.34'],
+    fetch: async () => new Response('0123456789'),
+  });
+  await assert.rejects(
+    http.request('https://public.example/snapshot', { maxBytes: 5 }),
+    ResponseTooLargeError,
+  );
+});
+
+test('sanitizes ANSI and control sequences in terminal reports', () => {
+  const unsafe = '\u001b[31mred\u001b[0m\nforged\u0000';
+  assert.equal(sanitizeTerminalText(unsafe), 'red\\nforged\\x00');
+  const output = formatReport({
+    target: `https://example.test/${unsafe}`,
+    results: [{
+      status: 'fail', id: 'PUB-0011', level: 'MUST', title: 'Manifest', details: [unsafe],
+    }],
+    notes: [unsafe],
+    summary: { pass: 0, fail: 1, warn: 0, skip: 0 },
+    requestCount: 1,
+  });
+  assert.doesNotMatch(output, /\u001b/u);
+  assert.match(output, /red\\nforged\\x00/u);
 });

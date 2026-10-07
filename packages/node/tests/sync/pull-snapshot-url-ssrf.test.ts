@@ -279,7 +279,7 @@ describe('expired Pull Snapshot URL host / SSRF policy', () => {
 
       // Public IPv4-mapped counterexample remains allowed.
       expect(() => {
-        rejectPrivateOrLocalSnapshotUrl(new URL('https://[::ffff:203.0.113.10]/x'));
+        rejectPrivateOrLocalSnapshotUrl(new URL('https://[::ffff:93.184.216.34]/x'));
       }).not.toThrow();
     });
   });

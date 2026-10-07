@@ -362,6 +362,7 @@ const schema = {
           "items": {
             "$ref": "#/$defs/actor"
           },
+          "maxItems": 512,
           "uniqueItems": true
         },
         "rootNodeId": {
@@ -1311,6 +1312,7 @@ const schema = {
           "items": {
             "$ref": "#/$defs/sourceRef"
           },
+          "maxItems": 512,
           "uniqueItems": true
         },
         "extensions": {
@@ -2221,6 +2223,7 @@ const schema = {
                     "items": {
                       "$ref": "#/$defs/sourceRef"
                     },
+                    "maxItems": 512,
                     "uniqueItems": true
                   },
                   "extensions": {
@@ -3012,6 +3015,7 @@ const schema = {
           "items": {
             "$ref": "#/$defs/actor"
           },
+          "maxItems": 512,
           "uniqueItems": true
         },
         "visibility": {
@@ -3190,6 +3194,7 @@ const schema = {
               "items": {
                 "$ref": "#/$defs/actor"
               },
+              "maxItems": 512,
               "uniqueItems": true
             }
           ]
@@ -3767,6 +3772,7 @@ const schema = {
           "items": {
             "$ref": "#/$defs/actor"
           },
+          "maxItems": 512,
           "uniqueItems": true
         },
         "nodeCount": {
@@ -8295,6 +8301,7 @@ const schema = {
           "items": {
             "$ref": "#/$defs/webSubHub"
           },
+          "maxItems": 512,
           "uniqueItems": true
         }
       },

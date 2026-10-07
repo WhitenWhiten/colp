@@ -22,12 +22,18 @@ import { types as nodeTypes } from 'node:util';
 
 import { snapshotMcpData } from '../safe-data.js';
 import type { McpToolInputSchema, McpToolOutputSchema, McpToolInputValidator } from '../tool-input.js';
-import { McpToolInputError, createMcpToolInputValidator } from '../tool-input.js';
+import {
+  McpToolInputError,
+  createMcpToolOutputValidator,
+  createMcpToolInputValidator,
+  type McpToolOutputValidator,
+} from '../tool-input.js';
 import { containsRawSecretMarker } from '../shared/authorization.js';
 import { McpReadRequestAbortedError } from '../shared/resources.js';
 import {
   McpInvalidToolNameError,
   McpUnknownToolError,
+  McpToolScopeDeniedError,
   type McpReadToolResult,
   type McpStatelessToolCore,
 } from '../shared/tools.js';
@@ -100,6 +106,8 @@ interface ToolEntry {
   readonly name: string;
   readonly modern: Readonly<Record<string, unknown>>;
   readonly validateInput: McpToolInputValidator;
+  readonly requiredScopes: readonly string[];
+  readonly validateOutput?: McpToolOutputValidator;
 }
 
 /**
@@ -131,7 +139,11 @@ export function createMcp20260728ReadToolAdapter(
     // Cursor accepted for wire-shape parity; the full static tool set is
     // always returned and never paginated.
     readCursorRequest(input);
-    return buildToolResult('tools/list', serverInfo, ctx, { tools: sortedModern }, cache['tools/list']);
+    const effectiveScope = new Set(ctx.scope);
+    const tools = Object.freeze(entries
+      .filter((entry) => entry.requiredScopes.every((scope) => effectiveScope.has(scope)))
+      .map((entry) => entry.modern));
+    return buildToolResult('tools/list', serverInfo, ctx, { tools }, cache['tools/list']);
   };
 
   const callTool = async (
@@ -160,11 +172,14 @@ export function createMcp20260728ReadToolAdapter(
     try {
       result = await toolCore.callTool(ctx, request.name, validatedArgs);
     } catch (error) {
-      if (error instanceof McpUnknownToolError || error instanceof McpInvalidToolNameError) {
+      if (error instanceof McpUnknownToolError || error instanceof McpInvalidToolNameError || error instanceof McpToolScopeDeniedError) {
         throw new Mcp20260728RequestError('invalid_params', 'Unknown tool.', { name: request.name });
       }
       if (error instanceof McpReadRequestAbortedError) throw error;
       throw error;
+    }
+    if (entry.validateOutput !== undefined) {
+      entry.validateOutput(result.structuredContent);
     }
     if (containsRawSecretMarker(result)) {
       throw new Mcp20260728ReadToolSecretMarkerError();
@@ -208,12 +223,14 @@ function readToolEntries(
     throw configError();
   }
   return definitions.map((definition) => {
-    assertExactDataObject(definition, ['name', 'description', 'inputSchema'], ['outputSchema'], configError);
+    assertExactDataObject(definition, ['name', 'description', 'inputSchema'], ['outputSchema', 'requiredScopes'], configError);
     const name = readOwnData(definition, 'name', configError);
     const description = readOwnData(definition, 'description', configError);
     const inputSchema = readOwnData(definition, 'inputSchema', configError);
     const outputSchema = readOptionalData(definition, 'outputSchema');
+    const requiredScopes = readOptionalData(definition, 'requiredScopes');
     if (typeof name !== 'string' || name.length === 0) throw configError();
+    const scopes = readRequiredScopes(requiredScopes);
     if (typeof description !== 'string' || description.length === 0) throw configError();
     if (typeof inputSchema !== 'object' || inputSchema === null || Array.isArray(inputSchema)) {
       throw configError();
@@ -225,8 +242,12 @@ function readToolEntries(
     assertMcpSchemaWithinBudget(inputSchema, schemaBudget);
     if (outputSchema !== undefined) assertMcpSchemaWithinBudget(outputSchema, schemaBudget);
     let validateInput: McpToolInputValidator;
+    let validateOutput: McpToolOutputValidator | undefined;
     try {
       validateInput = createMcpToolInputValidator(inputSchema as McpToolInputSchema);
+      if (outputSchema !== undefined) {
+        validateOutput = createMcpToolOutputValidator(outputSchema as McpToolOutputSchema);
+      }
     } catch {
       throw configError();
     }
@@ -241,8 +262,25 @@ function readToolEntries(
     if (!ToolSchema.safeParse(modern).success) {
       throw configError();
     }
-    return Object.freeze({ name, modern, validateInput });
+    return Object.freeze({
+      name,
+      modern,
+      validateInput,
+      requiredScopes: scopes,
+      ...(validateOutput !== undefined ? { validateOutput } : {}),
+    });
   });
+}
+
+function readRequiredScopes(value: unknown): readonly string[] {
+  if (value === undefined) return Object.freeze([]);
+  if (!Array.isArray(value) || Object.getPrototypeOf(value) !== Array.prototype) throw configError();
+  const scopes = value.map((scope) => {
+    if (typeof scope !== 'string' || scope.length === 0 || scope.length > 128) throw configError();
+    return scope;
+  });
+  if (new Set(scopes).size !== scopes.length) throw configError();
+  return Object.freeze(scopes);
 }
 
 function resolveSchemaBudget(options: Mcp20260728ReadToolAdapterOptions): Required<McpSchemaBudget> {

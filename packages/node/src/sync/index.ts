@@ -277,6 +277,7 @@ export {
   // createUnverifiedReplicaAuthProofForTests intentionally omitted — testing surface only
   evaluateReplicaSyncBehavior,
   isReplicaAuthProof,
+  requiredReplicaLifecycleScope,
   type AuthoritativeSnapshotBinding,
   type DurableReplicaCheckpoint,
   type ReplicaAuthProof,
@@ -287,6 +288,7 @@ export {
   type ReplicaLifecycleCommand,
   type ReplicaLifecycleCoordinatorResult,
   type ReplicaLifecycleKey,
+  type ReplicaLifecycleOwnershipVerifier,
   type ReplicaLifecycleProblemCode,
   type ReplicaLifecycleTransaction,
   type ReplicaLifecycleUnitOfWork,

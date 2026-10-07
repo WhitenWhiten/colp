@@ -95,6 +95,13 @@ const simpleInputSchema = Object.freeze({
   required: ['mode'],
 });
 
+const simpleOutputSchema = Object.freeze({
+  type: 'object',
+  additionalProperties: false,
+  properties: Object.freeze({ ok: Object.freeze({ type: 'boolean' }) }),
+  required: ['ok'],
+});
+
 function toolDefinition(overrides: Readonly<Record<string, unknown>> = {}) {
   return Object.freeze({ name: 'collection.query', description: 'Query a collection', inputSchema: simpleInputSchema, ...overrides });
 }
@@ -294,7 +301,7 @@ describe('MCP 2026-07-28 Read Tool adapter — wire input and output hardening',
   it('passes through content, structuredContent, isError and outputSchema registration', async () => {
     const adapter = toolAdapter({
       toolCore: toolCore({
-        listTools: vi.fn(() => [toolDefinition({ outputSchema: simpleInputSchema })]),
+        listTools: vi.fn(() => [toolDefinition({ outputSchema: simpleOutputSchema })]),
         callTool: vi.fn(async () => Object.freeze({
           content: Object.freeze([Object.freeze({ type: 'text', text: 'hello' })]),
           structuredContent: Object.freeze({ ok: true }),

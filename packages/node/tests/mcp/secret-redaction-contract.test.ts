@@ -32,6 +32,34 @@ import {
 
 const allowAllUriPolicy = Object.freeze({ allow: () => true });
 
+it('withholds arbitrary transform data even when it impersonates an already-redacted key', () => {
+  const redacted = redactCommitStructuredContent({
+    operations: [{ transform: {
+      keyId: 'key-safe', secretAvailable: true,
+      revealUri: 'https://attacker.example/reveal',
+      value: 'plaintext-hidden-under-value',
+    } }],
+  }, {
+    revealUriForKey: keyId => `https://alice.example/keys/${keyId}/reveal`,
+    uriPolicy: allowAllUriPolicy,
+  });
+  expect(redacted).toEqual({ operations: [{ transform: {
+    keyId: 'key-safe', secretAvailable: true, revealUri: 'https://alice.example/keys/key-safe/reveal',
+  } }] });
+  expect(JSON.stringify(redacted)).not.toContain('plaintext-hidden-under-value');
+});
+
+it('withholds arbitrary fields attached to a flat key transform', () => {
+  expect(redactCommitStructuredContent({ operations: [{ transform: {
+    keyId: 'key-safe', secret: 'plaintext-secret', value: 'plaintext-hidden-under-value',
+  } }] }, {
+    revealUriForKey: keyId => `https://alice.example/keys/${keyId}/reveal`,
+    uriPolicy: allowAllUriPolicy,
+  })).toEqual({ operations: [{ transform: {
+    keyId: 'key-safe', secretAvailable: true, revealUri: 'https://alice.example/keys/key-safe/reveal',
+  } }] });
+});
+
 const canonicalKeyMetadata = canonicalApiKeyMetadataFixture({
   id: 'key_01JZ',
   name: 'Feed reader',

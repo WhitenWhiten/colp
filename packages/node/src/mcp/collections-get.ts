@@ -13,6 +13,7 @@ import { requireTrustedReadRequestContext } from './shared/resources.js';
 import {
   createMcpStatelessToolCore,
   McpToolOutputUnavailableError,
+  McpToolScopeDeniedError,
   type McpReadToolResult,
   type McpStatelessToolCore,
   type McpToolDefinition,
@@ -22,6 +23,7 @@ import {
 export {
   McpInvalidToolNameError,
   McpToolOutputUnavailableError,
+  McpToolScopeDeniedError,
   McpUnknownToolError,
   type McpReadToolResult,
   type McpToolDefinition,
@@ -60,7 +62,7 @@ export interface McpReadToolGatewayOptions {
  * concurrent requests without hidden per-client instances.
  */
 export interface McpReadToolGateway {
-  readonly listTools: () => readonly McpToolDefinition[];
+  readonly listTools: (context?: McpTrustedReadRequestContext) => readonly McpToolDefinition[];
   readonly callTool: (
     name: string,
     input: unknown,
@@ -81,6 +83,7 @@ export const collectionsGetToolDefinition = Object.freeze({
   name: 'collections.get',
   description: 'Get metadata for one Collection.',
   inputSchema: collectionsGetInputSchema,
+  requiredScopes: Object.freeze(['collections:read']),
 } as const satisfies McpToolDefinition);
 
 const validateCollectionsGetInput = createMcpToolInputValidator(collectionsGetInputSchema);
@@ -149,7 +152,7 @@ export function createMcpReadToolGateway(
 
   const core: McpStatelessToolCore = createMcpStatelessToolCore({ tools: registrations });
   return Object.freeze({
-    listTools: core.listTools,
+    listTools: (context?: McpTrustedReadRequestContext) => core.listTools(context),
     callTool: (name: string, input: unknown, context: McpTrustedReadRequestContext) =>
       core.callTool(context, name, input),
   });

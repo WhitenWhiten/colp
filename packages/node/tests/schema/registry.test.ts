@@ -94,6 +94,48 @@ describe('schema validator registry', () => {
     };
     expect(registry.validate('manifest', manifest).valid).toBe(false);
   });
+
+  it('bounds every structured uniqueItems array before deep uniqueness checks', () => {
+    const structuredUniqueArrays: Record<string, unknown>[] = [];
+    const visit = (value: unknown): void => {
+      if (value === null || typeof value !== 'object') return;
+      if (Array.isArray(value)) {
+        value.forEach(visit);
+        return;
+      }
+      const object = value as Record<string, unknown>;
+      if (object.uniqueItems === true && object.items && typeof object.items === 'object') {
+        const items = object.items as Record<string, unknown>;
+        const reference = typeof items.$ref === 'string' ? items.$ref : '';
+        if (reference.endsWith('/actor') || reference.endsWith('/sourceRef') || reference.endsWith('/webSubHub')) {
+          structuredUniqueArrays.push(object);
+        }
+      }
+      Object.values(object).forEach(visit);
+    };
+    visit(collectionProtocolSchema);
+    expect(structuredUniqueArrays.length).toBeGreaterThan(0);
+    for (const arraySchema of structuredUniqueArrays) expect(arraySchema.maxItems).toBe(512);
+
+    const creators = Array.from({ length: 513 }, (_, index) => ({
+      id: `https://example.com/actors/${index}`,
+      name: `Actor ${index}`,
+    }));
+    const result = registry.validate('collection', {
+      schemaVersion: '0.1',
+      id: 'collection-1',
+      kind: 'mixed',
+      title: 'Bounded',
+      rootNodeId: 'root-1',
+      visibility: 'public',
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-01T00:00:00Z',
+      revision: 'revision-1',
+      creators,
+    });
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((error) => error.keyword === 'maxItems')).toBe(true);
+  });
 });
 
 describe('URI Template format', () => {

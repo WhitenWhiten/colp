@@ -27,6 +27,9 @@ import { Report } from './report.mjs';
 export const WELL_KNOWN_PATH = '/.well-known/collection-protocol';
 const SNAPSHOT_RELATION = 'https://collectionprotocol.org/rels/snapshot';
 const UNKNOWN_PARAMETER = 'colpConformanceUnknown';
+const DEFAULT_SNAPSHOT_BYTES = 64 * 1024 * 1024;
+const DEFAULT_SNAPSHOT_MEMBERS = 100_000;
+const DEFAULT_SNAPSHOT_OBJECTS = 100_000;
 
 /** Accepts a server origin or a Manifest URL and returns the Manifest URL to probe. */
 export function resolveManifestUrl(target) {
@@ -42,7 +45,9 @@ export function resolveManifestUrl(target) {
  *
  * @param {string} target Server origin or Manifest URL.
  * @param {{ maxCollections?: number, maxPages?: number, timeoutMs?: number,
- *   maxBytes?: number, maxRequests?: number, fetch?: typeof fetch }} [options]
+ *   maxBytes?: number, maxRequests?: number, maxSnapshotBytes?: number,
+ *   maxSnapshotMembers?: number, maxSnapshotObjects?: number,
+ *   fetch?: typeof fetch }} [options]
  */
 export async function runConformance(target, options = {}) {
   const manifestUrl = resolveManifestUrl(target);
@@ -72,12 +77,27 @@ class Probe {
   #validators = createValidatorRegistry();
   #maxCollections;
   #maxPages;
+  #maxSnapshotBytes;
+  #maxSnapshotMembers;
+  #maxSnapshotObjects;
 
   constructor(report, http, options) {
     this.#report = report;
     this.#http = http;
     this.#maxCollections = options.maxCollections ?? 3;
     this.#maxPages = options.maxPages ?? 50;
+    this.#maxSnapshotBytes = positiveSafeInteger(
+      options.maxSnapshotBytes ?? DEFAULT_SNAPSHOT_BYTES,
+      'maxSnapshotBytes',
+    );
+    this.#maxSnapshotMembers = positiveSafeInteger(
+      options.maxSnapshotMembers ?? DEFAULT_SNAPSHOT_MEMBERS,
+      'maxSnapshotMembers',
+    );
+    this.#maxSnapshotObjects = positiveSafeInteger(
+      options.maxSnapshotObjects ?? DEFAULT_SNAPSHOT_OBJECTS,
+      'maxSnapshotObjects',
+    );
   }
 
   async run(manifestUrl) {
@@ -179,6 +199,9 @@ class Probe {
   async #snapshot(url) {
     const pages = [];
     const visited = new Set();
+    let totalBytes = 0;
+    let totalMembers = 0;
+    let totalObjects = 1; // The Collection is shared by every assembled page.
     let first;
     let next = url;
     while (next !== undefined) {
@@ -191,10 +214,31 @@ class Probe {
         return;
       }
       visited.add(next);
-      const exchange = await this.#readExchange(next, MEDIA_TYPES.snapshot);
+      const remainingBytes = this.#maxSnapshotBytes - totalBytes;
+      if (remainingBytes < 1) {
+        this.#report.note(`Stopped assembling ${url}: Snapshot byte budget of ${this.#maxSnapshotBytes} exhausted.`);
+        return;
+      }
+      const exchange = await this.#readExchange(next, MEDIA_TYPES.snapshot, { maxBytes: remainingBytes });
       if (exchange === undefined) return;
       const page = this.#document(exchange, 'snapshot', MEDIA_TYPES.snapshot);
       if (page === undefined) return;
+      totalBytes += exchange.bytes.byteLength;
+      const pageMembers = snapshotMemberCount(page);
+      totalMembers += pageMembers;
+      totalObjects += pageMembers;
+      if (totalMembers > this.#maxSnapshotMembers) {
+        this.#report.note(
+          `Stopped assembling ${url}: Snapshot member budget of ${this.#maxSnapshotMembers} exhausted.`,
+        );
+        return;
+      }
+      if (totalObjects > this.#maxSnapshotObjects) {
+        this.#report.note(
+          `Stopped assembling ${url}: Snapshot object budget of ${this.#maxSnapshotObjects} exhausted.`,
+        );
+        return;
+      }
       first ??= exchange;
       pages.push(page);
       if (page.page.hasMore !== true) break;
@@ -215,7 +259,10 @@ class Probe {
 
     let assembled;
     try {
-      assembled = assembleSnapshotPages(pages);
+      assembled = assembleSnapshotPages(pages, {
+        maxMembers: this.#maxSnapshotMembers,
+        maxObjects: this.#maxSnapshotObjects,
+      });
     } catch (error) {
       assembled = { valid: false, issues: [{ code: 'assembly_error', message: describe(error) }] };
     }
@@ -260,8 +307,8 @@ class Probe {
   }
 
   /** GETs a URL that must answer 200; records why it did not. */
-  async #readExchange(url, mediaType) {
-    const exchange = await this.#get(url, mediaType, 'PUB-0018');
+  async #readExchange(url, mediaType, requestOptions) {
+    const exchange = await this.#get(url, mediaType, 'PUB-0018', undefined, requestOptions);
     if (exchange === undefined) return undefined;
     if (exchange.status === 200) return exchange;
     this.#record('PUB-0018', false, `GET ${url} returned ${exchange.status}, expected 200`);
@@ -269,9 +316,13 @@ class Probe {
     return undefined;
   }
 
-  async #get(url, accept, checkId, headers) {
+  async #get(url, accept, checkId, headers, requestOptions) {
     try {
-      return await this.#http.request(url, { accept, headers });
+      return await this.#http.request(url, {
+        accept,
+        ...(headers === undefined ? {} : { headers }),
+        ...(requestOptions === undefined ? {} : requestOptions),
+      });
     } catch (error) {
       if (error instanceof RequestBudgetError) throw error;
       this.#record(checkId, false, `GET ${url} failed: ${describe(error)}`);
@@ -386,6 +437,21 @@ function withQuery(url, pairs) {
 
 function mediaEssence(contentType) {
   return contentType.split(';')[0].trim().toLowerCase();
+}
+
+function snapshotMemberCount(snapshot) {
+  return snapshot.nodes.length
+    + snapshot.annotations.length
+    + snapshot.attachments.length
+    + snapshot.relations.length
+    + snapshot.tombstones.length;
+}
+
+function positiveSafeInteger(value, name) {
+  if (!Number.isSafeInteger(value) || value < 1) {
+    throw new RangeError(`${name} must be a positive safe integer.`);
+  }
+  return value;
 }
 
 function isPlainHttpUrl(value) {

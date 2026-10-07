@@ -242,6 +242,7 @@
         "creators": {
           "type": "array",
           "items": { "$ref": "#/$defs/actor" },
+          "maxItems": 512,
           "uniqueItems": true
         },
         "rootNodeId": { "$ref": "#/$defs/opaqueId" },
@@ -734,6 +735,7 @@
         "sourceRefs": {
           "type": "array",
           "items": { "$ref": "#/$defs/sourceRef" },
+          "maxItems": 512,
           "uniqueItems": true
         },
         "extensions": { "$ref": "#/$defs/extensions" }
@@ -1213,6 +1215,7 @@
                   "items": {
                     "$ref": "#/$defs/sourceRef"
                   },
+                  "maxItems": 512,
                   "uniqueItems": true
                 },
                 "extensions": {
@@ -1834,6 +1837,7 @@
         "creators": {
           "type": "array",
           "items": { "$ref": "#/$defs/actor" },
+          "maxItems": 512,
           "uniqueItems": true
         },
         "visibility": { "$ref": "#/$defs/visibility" },
@@ -1921,6 +1925,7 @@
             {
               "type": "array",
               "items": { "$ref": "#/$defs/actor" },
+              "maxItems": 512,
               "uniqueItems": true
             }
           ]
@@ -2186,6 +2191,7 @@
         "creators": {
           "type": "array",
           "items": { "$ref": "#/$defs/actor" },
+          "maxItems": 512,
           "uniqueItems": true
         },
         "nodeCount": { "type": "integer", "minimum": 0 },
@@ -4758,6 +4764,7 @@
         "hubs": {
           "type": "array",
           "items": { "$ref": "#/$defs/webSubHub" },
+          "maxItems": 512,
           "uniqueItems": true
         }
       },

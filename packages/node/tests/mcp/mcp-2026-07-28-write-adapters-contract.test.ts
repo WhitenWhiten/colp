@@ -377,7 +377,8 @@ describe('MCP 2026-07-28 Modern Write adapter — low-risk Tools and risk [evide
 
 describe('MCP 2026-07-28 Modern Write adapter — tools/list [evidence:mcp.mrtr-contract]', () => {
   it('listTools returns a deterministically ordered complete tools result', async () => {
-    const { adapter, context } = harness();
+    const { adapter, context: baseContext } = harness();
+    const context = Object.freeze({ ...baseContext, scope: Object.freeze(['access:write']) });
     const result = await adapter.listTools(context, {});
 
     expect(result.resultType).toBe('complete');
