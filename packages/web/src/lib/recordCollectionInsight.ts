@@ -80,6 +80,7 @@ export function observePreview(element: Element, slug: string): () => void {
 }
 
 export function recordResourceOpen(slug: string, nodeId: string): void {
+  if (isSelfHostedEdition()) return
   swallow(async () => {
     await productClient.recordPublicCollectionInsightEvent(
       { slug, eventType: 'resource_open', nodeId },

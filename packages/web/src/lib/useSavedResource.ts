@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { isProductApiError, productClient, type SavedResourceType, type SavedResourceView } from '../api'
 import { getSessionSnapshot, subscribeSession } from '../api/sessionStore'
+import { isSelfHostedEdition } from './edition'
 
 type State = 'loading' | 'ready' | 'saving' | 'unknown' | 'error'
 type Locator = { resourceType: SavedResourceType; resourceId: string }
@@ -39,6 +40,7 @@ export function useSavedResource(locator: Locator) {
   const privateIdentity = usePrivateIdentity()
 
   const load = useCallback(async () => {
+    if (isSelfHostedEdition()) { setSaved(false); setState('ready'); return }
     if (pending.current) return
     const current = ++generation.current
     readController.current?.abort(); const next = new AbortController(); readController.current = next
@@ -120,7 +122,7 @@ export function useSavedResources() {
     const controller = new AbortController()
     controllerRef.current = controller
     setItems([])
-    if (!getSessionSnapshot().authenticated) { setState('ready'); return }
+    if (isSelfHostedEdition() || !getSessionSnapshot().authenticated) { setState('ready'); return }
     setState('loading')
     productClient.loadSavedResources({}, { signal: controller.signal, maxRetries: 0 }).then((next) => {
       if (controller.signal.aborted || current !== generation.current || requestedIdentity !== identity()) return
