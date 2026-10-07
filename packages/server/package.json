@@ -162,7 +162,7 @@
     "evidence:phase4a-redis-rate-limit": "node scripts/with-postgres.mjs -- tsx scripts/phase4a-redis-rate-limit-evidence.ts",
     "evidence:phase4a-redis-rate-limit:validate": "node scripts/phase4a-redis-rate-limit-validate-evidence.mjs",
     "evidence:phase4a-attachment-admission-baseline": "node scripts/with-postgres.mjs -- tsx scripts/phase4a-attachment-admission-baseline.ts",
-    "test:redis-rate-limit": "npm run test:phase4a:rl03:redis:inner && npm run test:phase4a:rl04:redis:inner && npm run test:phase4a:rl05:redis:inner && npm run test:phase4a:rl06:redis:inner && npm run test:phase4a:p09:redis:inner && npm run test:phase4a:p10:redis:inner && vitest run --project redis tests/integration/redis/effect-page-admission-security.integration.test.ts",
+    "test:redis-rate-limit": "vitest run --project redis tests/integration/redis/effect-page-admission-security.integration.test.ts",
     "evidence:phase4a-p10-recovery": "tsx scripts/phase4a-p10-recovery-evidence.ts",
     "evidence:phase4a-owner-private": "tsx scripts/phase4a-owner-private-evidence.ts",
     "evidence:phase4a-avatar-r2": "tsx scripts/phase4a-avatar-r2-live-check.ts",
