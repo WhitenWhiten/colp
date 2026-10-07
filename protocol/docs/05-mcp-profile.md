@@ -1,5 +1,9 @@
 # 05. Native MCP Profile
 
+> **In short:** How AI assistants use COLP through the Model Context Protocol (MCP `2026-07-28`, stateless and POST-only). Collections and Nodes are MCP resources and changes are MCP tools, and every call goes through the same scopes, revisions, audit, and rate limits as the HTTP API. High-risk changes, such as deleting a Collection or making it public, go through a change plan that a person approves outside the model. The chapter also covers secrets, prompt injection, and a recommended tool set.
+>
+> **Read this if** you expose collections to AI assistants. **Profiles:** `mcp-read`, `mcp-write`.
+
 <a id="colp-section-1"></a>
 
 ## 1. Design Goals
@@ -62,7 +66,7 @@ Remote writes must use the OAuth 2.1 profile:
 - No token passthrough.
 - Scope upgrades use 403 `insufficient_scope`.
 
-For OAuth client issuer binding, see Section 6.1 of `docs/04-auth-security-rate-limit.md`: the authorization response `iss`, the DCR `application_type`, and per-issuer isolated credentials are a required contract for MCP OAuth clients.
+For OAuth client issuer binding, see Section 6.1 of [`docs/04-auth-security-rate-limit.md`](04-auth-security-rate-limit.md#colp-section-6-1): the authorization response `iss`, the DCR `application_type`, and per-issuer isolated credentials are a required contract for MCP OAuth clients.
 
 Anonymous MCP MAY expose only public resources and no tools.
 
@@ -738,3 +742,7 @@ ping
 ```
 
 When the server meets any of the methods, headers, or verbs above, it returns the corresponding rejection error (unsupported method or version) directly; it never ignores them and continues, and never tries to resume a legacy event stream.
+
+---
+
+[← 04 Auth, security, and rate limits](04-auth-security-rate-limit.md) · [All documents](../README.md#documents) · [Glossary](../GLOSSARY.md) · [06 Browser mapping →](06-browser-mapping.md)

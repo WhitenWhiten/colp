@@ -1,12 +1,16 @@
 # 03. Synchronization Protocol
 
+> **In short:** Two-way sync between trusted replicas such as browser extensions, desktop apps, and servers. A replica opens a session for one Collection and bootstraps from a Snapshot, then repeats one loop: push its numbered operations, pull everyone else's operations after its cursor, and ack what it applied. The server stays authoritative: it applies or rebases each operation or records an explicit conflict, and keeps a tombstone for every delete until its retention period has passed and every active replica has acknowledged it. The chapter ends with a [recommended sync loop](#colp-section-20).
+>
+> **Read this if** you build a sync client or a sync server. Browser specifics are in [06 Browser mapping](06-browser-mapping.md). **Profiles:** `sync`.
+
 <a id="colp-section-1"></a>
 
 ## 1. Goals
 
 The synchronization sub-protocol replicates data in both directions between browser extensions, desktop clients, web applications, personal servers, and other trusted replicas.
 
-Where this chapter writes `{}` to keep a flow readable, it means "embed the corresponding complete object"; it is not an empty object that can be sent. Executable wire examples are in `examples/sync-*.json`, and endpoint requests and responses must be validated against the named `$defs` listed in `docs/10-implementation-contract.md`.
+Where this chapter writes `{}` to keep a flow readable, it means "embed the corresponding complete object"; it is not an empty object that can be sent. Executable wire examples are in [`examples/sync-*.json`](../examples), and endpoint requests and responses must be validated against the named `$defs` listed in [`docs/10-implementation-contract.md`](10-implementation-contract.md).
 
 It must handle:
 
@@ -430,38 +434,17 @@ Rules:
 - The pull response order is the server commit order.
 - Operations and conflicts share one `events` sequence, so that the true interleaved commit order can be expressed. Clients must apply events in order, unless events are explicitly independent and the client implementation can prove that doing otherwise is safe.
 - A cursor must be bound to the session, principal, Collection, and protocol version; use across contexts returns `400 invalid_cursor_scope`.
-- A pull must first fully verify the request cursor's signature, validity period, session, principal, Collection, protocol version, policy, page size, and
-  authority handoff evidence. After verification, if `events` is empty, `hasMore` must be `false` and `nextCursor` must be byte-for-byte identical to the request
-  `cursor`; the server must not re-sign it, extend its validity, or change the token by way of a key rotation. A first pull without a
-  `cursor` is not subject to this identity rule: the server must issue a `nextCursor` bound to the current session and the initial exclusive tuple.
-  For a non-empty page, `nextCursor` must equal the `cursor` of the last event and advance the exclusive tuple; a page that carries events
-  but keeps the original tuple or cursor must be rejected. A durable handoff across sessions must still verify the old authority lineage first; empty pages keep echoing the
-  input token until a non-empty page explicitly enters the new session's authority through an event cursor, or until session negotiation completes the switch before the pull
-  through an explicit `serverCursor` rebase.
+- A pull must first fully verify the request cursor's signature, validity period, session, principal, Collection, protocol version, policy, page size, and authority handoff evidence. After verification, if `events` is empty, `hasMore` must be `false` and `nextCursor` must be byte-for-byte identical to the request `cursor`; the server must not re-sign it, extend its validity, or change the token by way of a key rotation. A first pull without a `cursor` is not subject to this identity rule: the server must issue a `nextCursor` bound to the current session and the initial exclusive tuple. For a non-empty page, `nextCursor` must equal the `cursor` of the last event and advance the exclusive tuple; a page that carries events but keeps the original tuple or cursor must be rejected. A durable handoff across sessions must still verify the old authority lineage first; empty pages keep echoing the input token until a non-empty page explicitly enters the new session's authority through an event cursor, or until session negotiation completes the switch before the pull through an explicit `serverCursor` rebase.
 
 <a id="colp-section-8-1"></a>
 
 ### 8.1 COLP 0.2 Authoritative Pull Effects
 
-In COLP 0.1, `syncPullEvent` stays exactly as it is: an operation event contains only `cursor`, `kind`, and the original
-`operation`, and must reject `effect`. A server that supports this section declares both `0.1` and `0.2` in the Manifest's
-`protocolVersions`; the client requests one version explicitly in the session request, and the server may only echo that version in
-`acceptedProtocolVersion` or reject it with a version negotiation problem. The session, the pull cursor, and the pull
-representation must be bound to the accepted version; 0.2 events must not be sent in a 0.1 session.
+In COLP 0.1, `syncPullEvent` stays exactly as it is: an operation event contains only `cursor`, `kind`, and the original `operation`, and must reject `effect`. A server that supports this section declares both `0.1` and `0.2` in the Manifest's `protocolVersions`; the client requests one version explicitly in the session request, and the server may only echo that version in `acceptedProtocolVersion` or reject it with a version negotiation problem. The session, the pull cursor, and the pull representation must be bound to the accepted version; 0.2 events must not be sent in a 0.1 session.
 
-In COLP 0.2, an operation event MUST carry both the original operation and an immutable `effect`. The effect must be bound to
-the operation's `opId`, `replicaId`, `sequence`, `collectionId`, and canonical operation digest; the event
-`cursor` is still bound to the receiving replica's session and must not reuse the source replica's push result cursor.
-The `deleteCursor` of the Sync tombstone inside a delete effect is the stable mutation or source cursor persisted by the server;
-it belongs to the immutable effect and its `effectDigest`, and must not be rewritten into the receiver-bound event `cursor`. The same effect may be read
-by several replicas under different session cursors; a receiver's progress is expressed only by the event `cursor`.
-`operationDigest` and `effectDigest` use the RFC 9530 `sha-256=:base64:` format. The operation digest input is the
-canonical I-JSON of the complete operation; the effect digest input is the canonical I-JSON of the complete effect with the `effectDigest`
-member removed. Object members are sorted by UTF-16 code units in ascending order, arrays keep their wire order, and SHA-256 is computed over the UTF-8 encoding.
+In COLP 0.2, an operation event MUST carry both the original operation and an immutable `effect`. The effect must be bound to the operation's `opId`, `replicaId`, `sequence`, `collectionId`, and canonical operation digest; the event `cursor` is still bound to the receiving replica's session and must not reuse the source replica's push result cursor. The `deleteCursor` of the Sync tombstone inside a delete effect is the stable mutation or source cursor persisted by the server; it belongs to the immutable effect and its `effectDigest`, and must not be rewritten into the receiver-bound event `cursor`. The same effect may be read by several replicas under different session cursors; a receiver's progress is expressed only by the event `cursor`. `operationDigest` and `effectDigest` use the RFC 9530 `sha-256=:base64:` format. The operation digest input is the canonical I-JSON of the complete operation; the effect digest input is the canonical I-JSON of the complete effect with the `effectDigest` member removed. Object members are sorted by UTF-16 code units in ascending order, arrays keep their wire order, and SHA-256 is computed over the UTF-8 encoding.
 
-Only `applied` and `rebased` mutations may enter the operation stream. `noop`, `rejected`, and `deferred`
-must not produce mutation events; `conflicted` produces only a separate conflict event. A successful conflict resolution must
-create a new applied operation with a matching effect; it cannot rewrite the original conflicted operation as a mutation.
+Only `applied` and `rebased` mutations may enter the operation stream. `noop`, `rejected`, and `deferred` must not produce mutation events; `conflicted` produces only a separate conflict event. A successful conflict resolution must create a new applied operation with a matching effect; it cannot rewrite the original conflicted operation as a mutation.
 
 The effect is a closed union keyed by operation type:
 
@@ -478,30 +461,13 @@ The effect is a closed union keyed by operation type:
 
 `restore_node` already exists as a Sync Operation name. COLP 0.2 Pull now includes the matching `node_restored` effect so receivers apply restore from closed-union authority instead of guessing a `create_node`. After `node_restored`, Live Node and Tombstone for that ID are mutually exclusive. A purged Tombstone is `resource_purged` and is not restoreable. If the original Parent is gone, placement is the originating mount's `recovered` Folder (unique per parent). If that mount is gone, placement is the Collection-root `recovered` fallback. Receivers MUST NOT guess `bookmarks-bar`.
 
-The canonical UTF-8 representation of an inline pull effect is at most 262144 bytes, with a maximum JSON depth of 32 and at most
-10000 members. The exact member list of a subtree may inline at most 512 IDs; larger sets must use an immutable
-`effectRef`, which carries `pageCount`, `memberCount`, `memberDigest`, and `firstPageDigest`. The `syncEffectPages` HTTPS URI template in the Manifest is the only effect page endpoint; clients
-must expand it per RFC 6570 with the current `effectId` and a `pageNumber` starting at 1, and `effectRef` never copies
-or overrides the endpoint URL. The expanded result must not contain userinfo, query credentials, a fragment, or an authority outside the Manifest.
-Reads must use the normal authorization of the current session; the URL itself must not be
-a bearer capability or carry any credential.
+The canonical UTF-8 representation of an inline pull effect is at most 262144 bytes, with a maximum JSON depth of 32 and at most 10000 members. The exact member list of a subtree may inline at most 512 IDs; larger sets must use an immutable `effectRef`, which carries `pageCount`, `memberCount`, `memberDigest`, and `firstPageDigest`. The `syncEffectPages` HTTPS URI template in the Manifest is the only effect page endpoint; clients must expand it per RFC 6570 with the current `effectId` and a `pageNumber` starting at 1, and `effectRef` never copies or overrides the endpoint URL. The expanded result must not contain userinfo, query credentials, a fragment, or an authority outside the Manifest. Reads must use the normal authorization of the current session; the URL itself must not be a bearer capability or carry any credential.
 
-Each effect page is at most 262144 bytes, 512 members, and JSON depth 32; a whole reference is at most 1024 pages and
-524288 members. Page numbers start at 1 and increase by one, and `pageCount` and the effect ID never change. The first page has
-`previousPageDigest=null`, its `pageDigest` must equal the reference's `firstPageDigest`, and every later page must reference the previous page's `pageDigest` exactly. Each page digest is computed over the complete canonical page
-with `pageDigest` removed; the members of all pages, concatenated in page order, must match the event's `memberCount` and
-`memberDigest`. Responses must be immutable, session-authenticated, and `Cache-Control: private, no-store`.
-Any missing, out-of-order, or duplicated page, any digest or count mismatch, or any budget overrun must fail closed: no partial mutation may be applied and the cursor must not advance.
+Each effect page is at most 262144 bytes, 512 members, and JSON depth 32; a whole reference is at most 1024 pages and 524288 members. Page numbers start at 1 and increase by one, and `pageCount` and the effect ID never change. The first page has `previousPageDigest=null`, its `pageDigest` must equal the reference's `firstPageDigest`, and every later page must reference the previous page's `pageDigest` exactly. Each page digest is computed over the complete canonical page with `pageDigest` removed; the members of all pages, concatenated in page order, must match the event's `memberCount` and `memberDigest`. Responses must be immutable, session-authenticated, and `Cache-Control: private, no-store`. Any missing, out-of-order, or duplicated page, any digest or count mismatch, or any budget overrun must fail closed: no partial mutation may be applied and the cursor must not advance.
 
-An effect may contain the Node content needed for normal synchronization within the selected Collection; it must not expose database primary keys, principals,
-credentials, browser native IDs or profile IDs, internal audit IDs, or any other server implementation identity.
-Historical operations must not be backfilled by guessing. A 0.2 deployment must announce the effect cutover of each Collection; a cursor from before the cutover
-returns `sync_cursor_expired` or `recovery_required` and requires a complete Snapshot, after which the server issues a new cursor bound to the 0.2
-session.
+An effect may contain the Node content needed for normal synchronization within the selected Collection; it must not expose database primary keys, principals, credentials, browser native IDs or profile IDs, internal audit IDs, or any other server implementation identity. Historical operations must not be backfilled by guessing. A 0.2 deployment must announce the effect cutover of each Collection; a cursor from before the cutover returns `sync_cursor_expired` or `recovery_required` and requires a complete Snapshot, after which the server issues a new cursor bound to the 0.2 session.
 
-A COLP 0.2 Sync Snapshot uses `syncSnapshotV02` and provides `parentRevisions` for every root or folder that appears on
-the page. When the client has finished every Snapshot page, it must have the children revision of every node in the complete tree that can be a
-parent; `resourceRevision` and `childrenRevision` are independent authorities and cannot stand in for each other.
+A COLP 0.2 Sync Snapshot uses `syncSnapshotV02` and provides `parentRevisions` for every root or folder that appears on the page. When the client has finished every Snapshot page, it must have the children revision of every node in the complete tree that can be a parent; `resourceRevision` and `childrenRevision` are independent authorities and cannot stand in for each other.
 
 <a id="colp-section-9"></a>
 
@@ -692,17 +658,7 @@ If the list is missing a child or has an extra one, the server must not guess; i
 - The server does not have to generate a separate public Feed event for every Node in the subtree, but the Sync Snapshot must be able to stop old replicas from resurrecting any of the children.
 - Internally, the server must keep the membership of every deleted ID or an equivalent generation watermark; the wire `syncTombstone` expresses the range with `scope=subtree`, `targetId`, the required `deleteCursor`, and `affectedCount`. A Publisher HTTP DELETE returns a `deletionReceipt` without `deleteCursor` and must not invent a cursor for a deployment without Sync.
 
-**Subtree observation precondition.** A Sync deployment may require clients to prove which subtree they observed before a multi-member
-`delete_subtree`. Such a deployment requires the operation's
-`source.extensions["https://known.example/extensions/sync-subtree-observation-v1"]` (the namespace keeps its original identifier for wire compatibility).
-The value is `{version: 1, count, digest}`; `digest` encodes, with the canonical operation digest algorithm,
-`{rootId, members: [[id, resourceRevision], ...]}`, where members are sorted by ID in code point order, include the root, and contain no duplicate IDs.
-This is an operation precondition and is part of the immutable operation's digest and replay identity.
-The client freezes the value when it captures or previews the deletion; a retry must not re-read the current tree and regenerate it.
-The server compares the current members and versions inside the deletion transaction's lock; any change returns `revision_conflict`.
-In such a deployment, a request without this extension may only delete a root that currently has no children; a root with descendants returns `precondition_required`.
-This protection is independent of the root's resourceRevision and covers additions, updates, and moves at any depth.
-The reference package exports `subtreeDeleteSource()` to compute this value.
+**Subtree observation precondition.** A Sync deployment may require clients to prove which subtree they observed before a multi-member `delete_subtree`. Such a deployment requires the operation's `source.extensions["https://known.example/extensions/sync-subtree-observation-v1"]` (the namespace keeps its original identifier for wire compatibility). The value is `{version: 1, count, digest}`; `digest` encodes, with the canonical operation digest algorithm, `{rootId, members: [[id, resourceRevision], ...]}`, where members are sorted by ID in code point order, include the root, and contain no duplicate IDs. This is an operation precondition and is part of the immutable operation's digest and replay identity. The client freezes the value when it captures or previews the deletion; a retry must not re-read the current tree and regenerate it. The server compares the current members and versions inside the deletion transaction's lock; any change returns `revision_conflict`. In such a deployment, a request without this extension may only delete a root that currently has no children; a root with descendants returns `precondition_required`. This protection is independent of the root's resourceRevision and covers additions, updates, and moves at any depth. The reference package exports `subtreeDeleteSource()` to compute this value.
 
 <a id="colp-section-13-2"></a>
 
@@ -819,3 +775,7 @@ A server may compact the operation log, but must:
 9. Store the result of each operation
 10. If serverCursor advanced, pull again until hasMore=false
 ```
+
+---
+
+[← 02 HTTP, publication, and feed](02-http-publication-feed.md) · [All documents](../README.md#documents) · [Glossary](../GLOSSARY.md) · [04 Auth, security, and rate limits →](04-auth-security-rate-limit.md)

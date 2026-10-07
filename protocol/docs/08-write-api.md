@@ -1,5 +1,9 @@
 # 08. Publisher HTTP Write API
 
+> **In short:** The HTTP write API of the `publisher` profile. It starts with the rules every write shares (`If-Match`, `Idempotency-Key`, status codes, and `no-store` responses), then walks through each write: creating a Collection together with its root, updating and deleting Collections and Nodes, moving Nodes, managing Annotations, Attachments, and Relations, publishing immutable Releases, and replaying idempotent requests.
+>
+> **Read this if** your server accepts writes or your client sends them. **Profiles:** `publisher`.
+
 <a id="colp-section-1"></a>
 
 ## 1. Scope
@@ -69,7 +73,7 @@ Content-Type: application/vnd.collection-protocol.collection-create-result+json;
 Cache-Control: no-store
 ```
 
-The response body must validate against `collectionCreateResult` and contain the complete Collection, the complete root, and links. See `examples/publisher-collection-create-result.json` for an executable example; an empty object, or returning only the new ID, must not replace the complete result.
+The response body must validate against `collectionCreateResult` and contain the complete Collection, the complete root, and links. See [`examples/publisher-collection-create-result.json`](../examples/publisher-collection-create-result.json) for an executable example; an empty object, or returning only the new ID, must not replace the complete result.
 
 Snapshot import is a separate, expensive operation and does not reuse this endpoint. COLP 0.1 defines no Snapshot import endpoint; a future version may add one with its own Manifest endpoint key and limits.
 
@@ -245,3 +249,7 @@ The server keeps idempotency key records for at least the Manifest's `limits.ide
 - Same binding but a different request digest: `409 idempotency_key_reused`, and the request must not be executed.
 - The same key being processed concurrently: only one execution is allowed; other requests wait for the original result or return a retryable `409 idempotency_in_progress`.
 - The deduplication record and the business transaction must commit atomically; there can be no window in which the resource has been created but the key record is lost.
+
+---
+
+[← 07 NestJS integration](07-nestjs-integration.md) · [All documents](../README.md#documents) · [Glossary](../GLOSSARY.md) · [09 Problem registry →](09-problem-registry.md)

@@ -68,6 +68,15 @@ Then, in `packages/node`, run `npm run refresh:protocol`, `npm run refresh:evide
 
 If you find that the prose and the schema disagree, treat it as a specification bug and fix the side that is wrong; do not pick one in code.
 
+## Writing documentation
+
+- Every protocol chapter opens with an **In short** box that says what the chapter covers and who should read it, and ends with links to the previous and next chapters. Keep both when you edit a chapter, and update the box when the chapter's scope changes.
+- Add new terms to the [glossary](protocol/GLOSSARY.md), with a link to the section that defines them.
+- Link to files instead of only naming them in backticks, and link to a section through its `colp-section-N` anchor.
+- Write each paragraph or list item on a single line; do not hard-wrap prose.
+- Markdown that ships in the npm package (`packages/node/README.md` and the docs listed under `files` in `packages/node/package.json`) may link only to other shipped files. Link to anything else with an absolute GitHub URL; `npm run pack:check` fails on a broken link.
+- When you change `README.md` or `protocol/README.md`, update the `README.zh-CN.md` next to it as well.
+
 ## Pull requests
 
 - Keep each pull request focused on one change, and describe the motivation and the user-visible effect.
