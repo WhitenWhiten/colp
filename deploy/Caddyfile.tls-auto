@@ -1,0 +1,4 @@
+{$COLP_SERVER_ORIGIN} {
+  encode gzip
+  reverse_proxy server:3000
+}
