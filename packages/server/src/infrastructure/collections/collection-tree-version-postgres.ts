@@ -53,6 +53,7 @@ interface VersionRow {
   collection_id: string;
   content_revision: string;
   kind: CollectionTreeVersionKind;
+  cause: CollectionVersionRecord['cause'];
   label: string;
   etag: string;
   node_count: number;
@@ -143,6 +144,7 @@ export function createPostgresCollectionVersionStore(
         collection_id: row.collectionId,
         content_revision: row.contentRevision,
         kind: row.kind,
+        cause: row.cause,
         label: row.label,
         etag: row.etag,
         node_count: row.nodeCount,
@@ -466,6 +468,7 @@ function mapVersionRow(row: VersionRow): CollectionVersionRecord {
     collectionId: row.collection_id,
     contentRevision: row.content_revision,
     kind: row.kind,
+    cause: row.cause,
     label: row.label,
     etag: row.etag,
     nodeCount: row.node_count,
