@@ -1,0 +1,806 @@
+/* ——— Top nav chrome (base layer) ———
+ *
+ * Site-wide navigation chrome split out of global.css (R8-12): the sticky
+ * .topnav bar, brand lockup, nav links and ⌘K search triggers, the burger
+ * mobile drawer, the account / tools menus, and the ≤719px bottom tab bar.
+ * Pure move — rules keep @layer base and their original relative order
+ * (this file is imported right after global.css, before shared-chrome.css).
+ */
+
+@layer base {
+/* ——— Top nav ——— */
+.topnav {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-overlay);
+  height: var(--header-h);
+  /* R7-14: --header-h includes the notch inset; the content row sits below it. */
+  padding-top: var(--safe-top);
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--paper) var(--frost-bg-mix), transparent);
+  backdrop-filter: blur(var(--frost-blur)) saturate(var(--frost-saturate));
+  box-shadow: none;
+  transition: box-shadow var(--duration-state) var(--ease-quart);
+}
+
+.topnav.is-menu-open {
+  position: fixed;
+  inset: 0;
+  height: 100dvh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  background: var(--paper);
+  display: flex;
+  flex-direction: column;
+}
+
+.topnav.is-menu-open .topnav-inner {
+  flex-shrink: 0;
+  height: var(--header-h);
+  width: 100%;
+}
+
+.topnav.is-scrolled {
+  box-shadow: var(--shadow-sm);
+}
+
+/* The gutter pads outside the --shell-wide track, not inside it (the
+   tokens.css rule): the brand then lands on the edge the footer and the
+   grid pages share instead of a gutter's width inside it (R12-07). */
+.topnav-inner {
+  height: 100%;
+  width: calc(var(--shell-wide) + 2 * var(--gutter));
+  max-width: 100%;
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-base);
+  letter-spacing: var(--tracking-display);
+  flex-shrink: 0;
+  transition:
+    opacity var(--duration-fast) var(--ease-quart),
+    transform var(--duration-fast) var(--ease-quart);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .brand:hover {
+    opacity: 0.85;
+    transform: translateX(-1px);
+  }
+
+  .brand:active {
+    transform: scale(0.98) translateX(0);
+  }
+}
+
+.brand-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  white-space: nowrap;
+}
+
+.brand-wordmark {
+  display: block;
+  width: auto;
+  height: 1.5em;
+}
+
+.brand-mark {
+  display: block;
+  flex-shrink: 0;
+  width: 1em;
+  height: 1em;
+  overflow: visible;
+  transition: transform var(--duration-state) var(--ease-quart);
+}
+
+.nav-links {
+  display: none;
+  align-items: center;
+  gap: var(--hair-15);
+  flex: 1;
+  min-width: 0;
+}
+
+.nav-links a {
+  position: relative;
+  padding: var(--hair-40) var(--hair-65);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--faint);
+  letter-spacing: var(--tracking-tight);
+  transition:
+    background var(--duration-fast) var(--ease-quart),
+    color var(--duration-fast) var(--ease-quart);
+}
+
+.nav-links a:hover {
+  color: var(--ink-2);
+  background: transparent;
+}
+
+.nav-links a[aria-current='page'],
+.nav-links a.is-active {
+  color: var(--ink);
+  background: transparent;
+  font-weight: var(--weight-semibold);
+}
+
+@media (pointer: coarse) {
+  .nav-links a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+  }
+}
+
+/* Active/hover underline is owned by interactions.css (single scaleX
+   implementation) — the earlier double-underline rules were removed so only
+   one nav-underline mechanism exists in the cascade. */
+
+.nav-search:hover {
+  border-color: var(--line-heavy);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-sm);
+}
+
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--hair-40);
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.nav-search {
+  display: none;
+  align-items: center;
+  gap: var(--hair-45);
+  min-width: 11.5rem;
+  max-width: 16rem;
+  height: 2.2rem;
+  padding: 0 var(--hair-65) 0 var(--space-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: var(--text-sm);
+  box-shadow: var(--shadow-xs);
+  cursor: pointer;
+  transition:
+    border-color var(--duration-fast) var(--ease-quart),
+    background var(--duration-fast) var(--ease-quart),
+    box-shadow var(--duration-state) var(--ease-quart);
+}
+
+.nav-search span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav-search kbd {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+@media (min-width: 720px) {
+  .nav-links {
+    display: flex;
+  }
+}
+
+.nav-search-compact {
+  /* Same rounded square as .nav-burger, so the header controls match. */
+  width: 2.25rem;
+  height: 2.25rem;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-xs);
+  color: var(--muted);
+  font-size: var(--text-base);
+  transition: color var(--duration-fast) var(--ease-quart), border-color var(--duration-fast) var(--ease-quart), background var(--duration-fast) var(--ease-quart);
+}
+
+.nav-icon-btn {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-xs);
+  color: var(--muted);
+  text-decoration: none;
+  font-size: var(--text-base);
+  transition: color var(--duration-fast) var(--ease-quart), border-color var(--duration-fast) var(--ease-quart), background var(--duration-fast) var(--ease-quart);
+}
+
+.nav-icon-btn .badge-dot,
+.bottom-nav-icon .badge-dot {
+  position: absolute;
+  top: var(--hair-20);
+  right: var(--hair-20);
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: var(--radius-pill);
+  background: var(--danger);
+}
+
+/* .nav-icon-btn interaction states (color/border/background + glow) are owned
+   by interactions.css — keep only .nav-search-compact here. */
+.nav-search-compact:hover {
+  color: var(--ink);
+  border-color: var(--line-heavy);
+  background: var(--surface);
+  box-shadow: var(--shadow-ring-soft);
+}
+
+@media (min-width: 720px) and (max-width: 1099px) {
+  .nav-link-rest {
+    display: none;
+  }
+
+  .nav-search {
+    display: none;
+  }
+}
+
+@media (min-width: 1100px) {
+  .nav-search {
+    display: inline-flex;
+  }
+
+  .nav-search-compact {
+    display: none;
+  }
+}
+
+/* ≤540 phone micro-cut: chrome keeps the compact search (search must stay
+   reachable without opening the drawer) plus one primary CTA; the ghost
+   CTA, bell, account trigger and tools menu move into the drawer.
+   541–1099 keeps Get started visible in the bar; Log in stays in the
+   drawer until full chrome at 1100. */
+@media (max-width: 540px) {
+  .nav-actions {
+    gap: var(--hair-30);
+  }
+
+  .nav-actions > .btn {
+    min-height: 2.75rem;
+    padding: 0 var(--hair-55);
+    font-size: var(--text-sm);
+  }
+
+  .nav-actions > .btn-ghost,
+  .nav-actions > .nav-icon-btn,
+  .nav-actions > .account-menu,
+  .nav-actions > .tools-menu {
+    display: none;
+  }
+
+  .topnav-inner {
+    gap: var(--hair-65);
+  }
+
+  .brand-name {
+    font-size: var(--text-md);
+  }
+}
+
+/* Until full chrome (--bp-lg): burger is visible — keep Log in in the
+   drawer. Get started stays in the bar so mid-range still has a CTA. */
+@media (min-width: 541px) and (max-width: 1099px) {
+  .nav-actions > a.btn-ghost {
+    display: none;
+  }
+}
+
+/* Mobile nav */
+.nav-burger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-xs);
+  transition: border-color var(--duration-fast) var(--ease-quart);
+}
+
+.nav-burger:hover {
+  border-color: var(--line-heavy);
+}
+
+@media (pointer: coarse) {
+  .nav-burger {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+
+  /* Same 2.75rem touch floor as the filter chips (owner: page-chrome.css);
+     this override belongs to the button's owner file (style-drift gate). */
+  .nav-icon-btn {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+}
+
+.nav-burger svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+@media (min-width: 1100px) {
+  .nav-burger {
+    display: none;
+  }
+}
+
+/* Top-anchored drawer: it hangs from the header, so it slides down on enter
+   and lifts back up on exit — not the generic bottom-up `rise`. */
+@keyframes mobile-drawer-in {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+}
+
+@keyframes mobile-drawer-out {
+  to {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+}
+
+.mobile-drawer {
+  position: static;
+  inset: auto;
+  z-index: var(--z-overlay);
+  background: var(--paper);
+  backdrop-filter: none;
+  padding: var(--hair-85) var(--gutter) var(--hair-200);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  border-top: 1px solid var(--line);
+  animation: mobile-drawer-in var(--duration-spatial) var(--ease-out);
+  /* The open drawer fills the fixed .topnav.is-menu-open overlay; let it
+     shrink below its content and scroll itself so the account section
+     (Log out) stays reachable in short viewports (e.g. 844×390). */
+  overflow-y: auto;
+  /* Bottoming out must not chain to the page behind the drawer. */
+  overscroll-behavior: contain;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* Exit phase (useExitAnimation): .is-menu-open holds until this finishes. */
+.mobile-drawer.is-closing {
+  animation: mobile-drawer-out var(--duration-state) var(--ease-quart) forwards;
+  pointer-events: none;
+}
+
+.mobile-drawer a {
+  display: flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: var(--space-3) var(--hair-85);
+  border-radius: var(--radius);
+  font-weight: var(--weight-semibold);
+  font-size: var(--text-md);
+  border: 1px solid transparent;
+  letter-spacing: var(--tracking-tight);
+}
+
+.mobile-drawer a:hover,
+.mobile-drawer a[aria-current='page'] {
+  background: var(--surface);
+  border-color: var(--line-strong);
+}
+
+.mobile-search {
+  width: 100%;
+  min-height: 3rem;
+  margin-bottom: var(--space-3);
+  padding: 0 var(--hair-85);
+  display: flex;
+  align-items: center;
+  gap: var(--hair-65);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--muted);
+  text-align: left;
+  box-shadow: var(--shadow-xs);
+}
+
+.mobile-search > span:nth-child(2) {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-sm);
+}
+
+.mobile-drawer-section {
+  padding: var(--hair-85) 0;
+  border-top: 1px solid var(--line);
+}
+
+.mobile-drawer-label {
+  display: block;
+  padding: 0 var(--hair-55) var(--hair-45);
+  color: var(--faint);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+
+.mobile-drawer-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-1);
+}
+
+.mobile-drawer-grid a,
+.mobile-drawer-grid button {
+  min-height: 2.7rem;
+  padding: var(--hair-65) var(--hair-70);
+  display: flex;
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  text-align: left;
+}
+
+.mobile-drawer-grid button:hover {
+  background: var(--surface);
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+
+.mobile-account-section {
+  padding-bottom: max(var(--hair-150), var(--safe-bottom));
+}
+
+@media (min-width: 720px) {
+  .mobile-drawer {
+    padding-inline: max(var(--gutter), calc((100% - 42rem) / 2));
+  }
+}
+
+/* Account menu (logged-in) */
+.account-menu {
+  position: relative;
+}
+
+.tools-menu {
+  display: none;
+  position: relative;
+}
+
+/* The Tools trigger shares the nav's btn-ghost chrome (same geometry as
+   Log in / Get started) — only the account pill keeps the bordered chip. */
+.account-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 2.4rem;
+  padding: var(--hair-15) var(--hair-45) var(--hair-15) var(--hair-20);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  transition: border-color var(--duration-fast) var(--ease-quart), background var(--duration-fast) var(--ease-quart);
+}
+
+.account-trigger:hover {
+  border-color: var(--line-heavy);
+  background: var(--surface-raised);
+}
+
+@media (pointer: coarse) {
+  .account-trigger,
+  .tools-trigger {
+    min-height: 2.75rem;
+  }
+}
+
+.account-trigger-meta {
+  display: none;
+  flex-direction: column;
+  align-items: flex-start;
+  /* Ellipsis-safe leading (see --leading-clamp): snug sheared ascenders. */
+  line-height: var(--leading-clamp);
+  padding-right: var(--hair-35);
+}
+
+.account-trigger-meta strong,
+.account-trigger-meta .meta {
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-trigger-meta strong {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-tight);
+}
+
+@media (min-width: 1100px) {
+  .account-trigger-meta {
+    display: flex;
+  }
+
+  .tools-menu {
+    display: block;
+  }
+}
+
+.nav-dropdown {
+  position: absolute;
+  top: calc(100% + var(--hair-40));
+  right: 0;
+  z-index: var(--z-overlay);
+  min-width: 13.5rem;
+  /* Portaled menus cap height inline (anchorPopover); scroll instead of
+     spilling. */
+  overflow-y: auto;
+  padding: var(--hair-40);
+  border: 1px solid var(--line-heavy);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-float), var(--inset-highlight);
+  animation: popover-in var(--duration-fast) var(--ease-quart);
+}
+
+/* Exit phase (useExitAnimation): shared popover-out (cards.css). */
+.nav-dropdown.is-closing {
+  animation: popover-out var(--duration-fast) var(--ease-quart) forwards;
+  pointer-events: none;
+}
+
+.account-dropdown-head {
+  display: flex;
+  align-items: center;
+  gap: var(--hair-55);
+  padding: var(--hair-55) var(--hair-55) var(--hair-65);
+  border-bottom: 1px solid var(--line);
+  margin-bottom: var(--space-1);
+}
+
+.account-dropdown-head > div {
+  min-width: 0;
+}
+
+.account-dropdown-head strong {
+  display: block;
+  max-width: 16rem;
+  overflow: hidden;
+  font-size: var(--text-md);
+  letter-spacing: var(--tracking-tight);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav-dropdown a,
+.nav-dropdown button {
+  display: block;
+  width: 100%;
+  padding: var(--hair-55) var(--hair-55);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  text-align: left;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-quart);
+}
+
+/* A tool the server reported as off: listed in the same row rhythm, muted,
+   not a link (Tools dropdown and the mobile drawer). */
+.nav-item-unavailable {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--hair-55);
+  color: var(--faint);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  cursor: default;
+}
+
+.nav-item-unavailable small {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-regular);
+}
+
+/* Group label inside a dropdown (Tools → Moderation): .section-label type
+   at the dropdown's item inset. */
+.nav-dropdown-label {
+  margin: 0;
+  padding: var(--hair-40) var(--hair-55) var(--hair-15);
+}
+
+.nav-dropdown a:hover,
+.nav-dropdown button:hover {
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+}
+
+.account-logout {
+  margin-top: var(--hair-15);
+  color: var(--danger);
+}
+
+.account-logout:hover {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.mobile-logout {
+  display: flex;
+  width: 100%;
+  min-height: 2.7rem;
+  margin-top: var(--space-2);
+  padding: var(--hair-65) var(--hair-70);
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  text-align: left;
+}
+
+.mobile-logout:hover {
+  background: var(--surface);
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+
+/* Re-homed from global.css's button coarse block: the override must keep
+   loading after the .nav-search-compact base geometry above (equal
+   specificity), which the split would otherwise have inverted. */
+@media (pointer: coarse) {
+  .nav-search-compact,
+  .nav-icon-btn {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+}
+
+/* ——— Mobile primary tab bar (R11-06) ———
+   Mounted in the DOM on every non-auth/non-embed shell. Visible only at
+   ≤719px; desktop TopNav is unchanged. Height includes --safe-bottom so
+   stacking offsets can sit on --bottom-nav-h without a second inset. */
+.bottom-nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: var(--z-overlay);
+  height: var(--bottom-nav-h);
+  display: flex;
+  align-items: stretch;
+  padding-bottom: var(--safe-bottom);
+  padding-left: var(--safe-left);
+  padding-right: var(--safe-right);
+  border-top: 1px solid var(--line);
+  background: color-mix(in srgb, var(--paper) var(--frost-bg-mix), transparent);
+  backdrop-filter: blur(var(--frost-blur)) saturate(var(--frost-saturate));
+}
+
+.bottom-nav-item {
+  flex: 1;
+  min-width: 0;
+  min-height: 2.75rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--hair-15);
+  padding: var(--space-1) var(--hair-15);
+  color: var(--faint);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-tight);
+  text-decoration: none;
+  transition: color var(--duration-fast) var(--ease-quart);
+}
+
+.bottom-nav-item[aria-current='page'],
+.bottom-nav-item.is-active {
+  color: var(--ink);
+  font-weight: var(--weight-semibold);
+}
+
+.bottom-nav-icon {
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+
+.bottom-nav-icon svg {
+  width: var(--hair-125);
+  height: var(--hair-125);
+}
+
+.bottom-nav-label {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 719px) {
+  .app-shell--tabs {
+    --bottom-nav-h: calc(var(--header-h) - var(--safe-top) + var(--safe-bottom));
+    padding-bottom: var(--bottom-nav-h);
+  }
+}
+
+@media (min-width: 720px) {
+  .bottom-nav {
+    display: none;
+  }
+}
+
+/* Fullscreen burger overlay paints at the same z-overlay; hide the tab
+   bar so it cannot sit on top of the drawer (later sibling in the shell). */
+.topnav.is-menu-open ~ .bottom-nav {
+  display: none;
+}
+
+@media print {
+  .bottom-nav {
+    display: none;
+  }
+
+  .app-shell--tabs {
+    padding-bottom: 0;
+  }
+}
+
+/* R15-18: on short viewports (≤26rem tall, the overlays.css cut) stacked
+   sticky chrome would cover the reading area, so it scrolls with the page. */
+@media (max-height: 26rem) {
+  .topnav {
+    position: relative;
+  }
+
+  .bottom-nav {
+    position: static;
+  }
+
+  .app-shell--tabs {
+    padding-bottom: 0;
+  }
+}
+}

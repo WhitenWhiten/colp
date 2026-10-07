@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="description" content="Know-N is an online bookmark library for saving, syncing, organizing, and sharing collections." />
+    <meta name="theme-color" content="#f3f5f8" />
+    <meta property="og:site_name" content="Know-N" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:title" content="Know-N — Online bookmark library" />
+    <meta property="og:description" content="Save browser bookmarks, organize them into collections, and share knowledge paths with collaborators." />
+    <meta property="og:url" content="https://know-n.com/" />
+    <meta property="og:image" content="https://know-n.com/og-cover.png" />
+    <meta property="og:image:alt" content="Know-N — Online bookmark library" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="https://know-n.com/og-cover.png" />
+    <title>Online bookmark library — Know-N</title>
+    <link rel="canonical" href="https://know-n.com/" />
+    <link rel="alternate" type="text/plain" title="llms.txt" href="https://know-n.com/llms.txt" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Know-N",
+        "url": "https://know-n.com/",
+        "description": "Know-N is an online bookmark library for saving, syncing, organizing, and sharing collections."
+      }
+    </script>
+    <link rel="stylesheet" href="/src/styles/print.css" media="print" />
+    <style>
+      @layer utilities {
+        #agent-public-fallback[hidden] { display: none !important; }
+      }
+    </style>
+    <noscript>
+      <style>
+        @layer utilities {
+          #agent-public-fallback[hidden] { display: block !important; }
+        }
+      </style>
+    </noscript>
+  </head>
+  <body>
+    <div id="root">
+      <!-- agent-public:start -->
+<div id="agent-public-fallback" hidden>
+<h1>Know-N</h1>
+<p>Know-N is an online bookmark library for saving, syncing, organizing, and sharing collections.</p>
+<p>Know-N keeps saved links, shared collections, browser sync, and knowledge paths worth revisiting in one library. Use Explore to browse public reading paths. Sign in to keep a private library, capture pages with the browser extension, and share a collection when you are ready.</p>
+<h2>Capture, classify, connect, and publish</h2>
+<p>The library stays out of the way: capture in context, file with suggestions, and arrange on your terms.</p>
+<ul>
+<li>Capture preserves browser context: the page title, address, and source metadata in one click.</li>
+<li>Classify keeps suggestions reversible. Accept, adjust, or ignore so the library learns your folders.</li>
+<li>Connect uses board, list, and graph views over the same links. Reorganize without losing the thread.</li>
+<li>Publish a collection as private or as a public reading path others can follow.</li>
+</ul>
+<h2>Browser extension and sync</h2>
+<p>A Chromium browser extension saves the page, with its title and source, into the right collection. It is built for Chrome. Two-way browser sync keeps existing bookmarks and the library in step, without a one-off import or export.</p>
+<h2>Public reading paths</h2>
+<p>Explore lists collections with a point of view. Share a collection as a reading path, or keep it in a private library until you are ready. Bookmarks are better when they stay organized. Bring the links you already have and build a collection worth revisiting.</p>
+<h2>For agents</h2>
+<p>If you are connecting as an MCP client, read these next. Do not invent other discovery URLs from this page.</p>
+<ul>
+<li>Guidance: <a href="https://know-n.com/llms.txt">https://know-n.com/llms.txt</a></li>
+<li>Connection notes: <a href="https://know-n.com/mcp">https://know-n.com/mcp</a> (`GET /mcp` is documentation; do not POST JSON-RPC there)</li>
+<li>Machine discovery: `GET https://know-n.com/.well-known/mcp` (JSON). There is no `/.well-known/mcp.json` and no `/mcp.json`.</li>
+<li>Wire: `POST https://know-n.com/collections/-/mcp` (`2026-07-28`) or `POST https://know-n.com/collections/-/mcp-compat` (`2025-11-25`)</li>
+</ul>
+</div>
+      <!-- agent-public:end -->
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>About Know-N</title>
+    <meta name="description" content="Know-N is an online bookmark library for saving, syncing, organizing, and sharing collections and public reading paths." />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+      :root { color-scheme: light; }
+      body {
+        margin: 0;
+        padding: 3rem 1.25rem 4rem;
+        background: rgb(243 245 248);
+        color: rgb(6 7 10);
+        font-family: "Instrument Sans", "Segoe UI", "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+        line-height: 1.6;
+      }
+      body > * { max-width: 38rem; margin-left: auto; margin-right: auto; overflow-wrap: anywhere; }
+      h1 { font-size: 1.75rem; letter-spacing: -0.02em; margin: 0 auto 1rem; }
+      h2 { font-size: 1.15rem; margin: 2rem auto 0.5rem; }
+      p, li { color: rgb(51 53 58); }
+      a { color: rgb(56 102 149); }
+      nav p { margin: 0.35rem auto; }
+      pre {
+        max-width: 100%;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+      }
+    </style>
+  </head>
+  <body>
+<h1>About Know-N</h1>
+<p>Know-N is an online bookmark library for saving, syncing, organizing, and sharing collections and public reading paths. It is a place to keep pages you already care about, group them into collections you own, and publish a reading path when you want other people to follow the same sequence.</p>
+<h2>What Know-N is</h2>
+<p>Know-N is software for bookmarks that live in collections. You save a page, file it with the rest of a collection, and return to it later. Signed-in people can sync that library while they work, capture a page with the browser extension, and share a collection as a public reading path when they are ready. Guests can browse public reading paths without an account. A new collection stays with its owner until that owner chooses to share it.</p>
+<p>The site also publishes a Collection protocol document at <a href="/.well-known/collection-protocol">/.well-known/collection-protocol</a>. That document describes how a public collection can be read by other software. It is not a general search API, and it is not a way to write into a private library without an account.</p>
+<p>Signed-in agents that need the library itself use MCP. Connection notes live at <a href="/mcp">/mcp</a>. The protocol endpoint is `POST /collections/-/mcp`, not a Settings API key and not this About page.</p>
+<h2>What Know-N is not</h2>
+<p>Know-N is not a general-purpose search engine and is not a substitute for the open web. It does not try to index or rank the entire internet, and it does not claim to answer arbitrary questions from every public page. It is not a social network, a marketplace, or a CMS for writing original essays. It does not present other people's private collections as a public catalog.</p>
+<p>Saving a bookmark for yourself does not require a public profile. A public reading path is something an owner publishes on purpose; it is not the default for a new collection. This page is a public product summary for people and agents who arrive without signing in. It is not a changelog, and it is not the signed-in Settings screen.</p>
+  </body>
+</html>

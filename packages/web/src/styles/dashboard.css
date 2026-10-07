@@ -1,0 +1,305 @@
+/* ——— Dashboard + browser fullscreen ——— */
+
+@layer pages {
+/* ——— Dashboard ——— */
+.dashboard-page {
+  min-height: calc(100dvh - var(--header-h));
+}
+
+/* Below the board-fit cut (DESKTOP_DASHBOARD_MIN, 1476px): interactive
+   single-column stack of the same modules. Do not EmptyState-reject narrow
+   screens, and do not scale the 1400px board. The cut is the canvas-fit
+   width — 1400px board + 2 × 2.35rem gutter cap = 1475.2 — so between the
+   old 900px cut and 1475px the fixed board used to clip behind the shell's
+   overflow fade; now the stack holds until the board fits whole. */
+.dashboard-stack {
+  display: grid;
+  gap: var(--space-4);
+  width: min(100%, 40rem);
+  margin-inline: auto;
+  padding: var(--space-4) var(--gutter) max(2rem, var(--safe-bottom));
+}
+
+@media (min-width: 1476px) {
+  .dashboard-stack {
+    display: none;
+  }
+}
+
+.dashboard-eyebrow {
+  margin-bottom: var(--hair-15);
+}
+
+.dashboard-bar {
+  position: sticky;
+  top: var(--header-h);
+  z-index: var(--z-sticky);
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--paper) var(--frost-bg-mix), transparent);
+  backdrop-filter: blur(var(--frost-blur)) saturate(var(--frost-saturate));
+  padding: var(--hair-55) var(--gutter) 0;
+  box-shadow: var(--shadow-xs);
+}
+
+.dashboard-bar-inner {
+  width: var(--board-width);
+  margin-inline: auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hair-65) var(--space-4);
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: var(--hair-55);
+}
+
+.dashboard-bar-inner--wide {
+  width: 100%;
+  max-width: 100%;
+  padding-inline: 0;
+}
+
+.dashboard-identity {
+  display: flex;
+  align-items: center;
+  gap: var(--hair-85);
+  min-width: 0;
+}
+
+.dashboard-clock {
+  display: none;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 4.5rem;
+  padding-right: var(--hair-85);
+  border-right: 1px solid var(--line);
+  line-height: var(--leading-snug);
+}
+
+.dashboard-clock strong {
+  font-size: var(--text-lg);
+  letter-spacing: var(--tracking-display);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--weight-bold);
+}
+
+@media (min-width: 720px) {
+  .dashboard-clock {
+    display: flex;
+  }
+}
+
+.dashboard-title {
+  display: block;
+  font-size: var(--display-sm);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-display);
+  line-height: var(--leading-snug);
+}
+
+.dashboard-hint {
+  margin: var(--hair-20) 0 0;
+}
+
+.dashboard-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--hair-40);
+}
+
+.dashboard-overflow {
+  position: relative;
+}
+
+.dashboard-overflow > summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.dashboard-overflow > summary::-webkit-details-marker {
+  display: none;
+}
+
+.dashboard-overflow-menu {
+  position: absolute;
+  top: calc(100% + var(--hair-35));
+  right: 0;
+  z-index: var(--z-overlay);
+  display: flex;
+  min-width: 11rem;
+  padding: var(--hair-35);
+  flex-direction: column;
+  gap: var(--hair-15);
+  border: 1px solid var(--line-heavy);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-float), var(--inset-highlight);
+  /* Native <details> repaints on toggle; the enter keyframe replays each
+     open (exit would need JS — accepted for this utility menu). */
+  animation: popover-in var(--duration-fast) var(--ease-quart);
+}
+
+.dashboard-overflow-menu .btn,
+.dashboard-overflow-menu a,
+.dashboard-overflow-menu button {
+  justify-content: flex-start;
+  width: 100%;
+}
+
+.dashboard-rail {
+  border-top: 1px solid var(--line);
+  padding: var(--hair-45) 0 var(--hair-55);
+}
+
+.dashboard-rail-inner {
+  width: min(100%, max(var(--board-width), 100%));
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.dashboard-rail-label {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--faint);
+  flex-shrink: 0;
+}
+
+.dashboard-rail-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hair-35);
+  min-width: 0;
+}
+
+.dashboard-chip-title {
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-empty {
+  padding: 3rem var(--gutter) var(--page-pad-bottom);
+  display: grid;
+  place-items: center;
+}
+
+.dashboard-empty .empty-state {
+  width: min(100%, 28rem);
+}
+
+/* ——— Browser fullscreen: board only (hide app + desk chrome) ——— */
+html.dashboard-is-fullscreen .topnav,
+html.dashboard-is-fullscreen .site-footer,
+html.dashboard-is-fullscreen .scroll-progress,
+html.dashboard-is-fullscreen .skip-link {
+  display: none !important;
+}
+
+/* Stacked layout (below the board-fit cut) — never hide global chrome. */
+@media (max-width: 1475px) {
+  html.dashboard-is-fullscreen .app-shell > header.topnav,
+  html.dashboard-is-fullscreen .app-shell .site-footer,
+  html.dashboard-is-fullscreen .app-shell .scroll-progress,
+  html.dashboard-is-fullscreen .app-shell .skip-link {
+    display: revert !important;
+  }
+}
+
+html.dashboard-is-fullscreen .app-shell {
+  min-height: 100dvh;
+}
+
+html.dashboard-is-fullscreen .page {
+  flex: 1;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+html.dashboard-is-fullscreen .dashboard-page,
+.dashboard-page.is-browser-fullscreen {
+  min-height: 100dvh;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+html.dashboard-is-fullscreen .dashboard-page .canvas-shell,
+.dashboard-page.is-browser-fullscreen .canvas-shell {
+  flex: 1;
+  padding-top: var(--hair-65);
+  padding-bottom: var(--hair-65);
+}
+
+html.dashboard-is-fullscreen .dashboard-page .canvas-toolbar,
+.dashboard-page.is-browser-fullscreen .canvas-toolbar {
+  display: none !important;
+}
+
+/* —— Dashboard module market —— */
+.module-market-head {
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.module-market-head h2 {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-lg);
+}
+
+.module-market-head .meta {
+  margin: var(--hair-35) 0 0;
+}
+
+.module-market-restore {
+  margin-top: var(--hair-85);
+  width: 100%;
+}
+
+.module-catalog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--hair-85);
+}
+
+.module-catalog-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--hair-65);
+  align-items: start;
+  padding: var(--hair-65) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.module-catalog-row:last-child {
+  scroll-margin-bottom: var(--space-4);
+}
+
+.module-catalog-row > div:first-child {
+  min-width: 0;
+}
+
+.module-catalog-row strong {
+  font-size: var(--text-md);
+}
+
+.module-catalog-desc {
+  margin: var(--hair-20) 0 0;
+  line-height: var(--leading-copy);
+}
+
+/* R15-18: short viewports unstick the page toolbar (see nav.css). */
+@media (max-height: 26rem) {
+  .dashboard-bar {
+    position: relative;
+    top: auto;
+  }
+}
+}

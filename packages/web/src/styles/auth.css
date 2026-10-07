@@ -1,0 +1,237 @@
+/* ——— Auth surface ———
+   Entry-loaded on purpose. Two audiences share these rules:
+
+     1. The lazy auth pages (Login/Register/… — page chrome like .auth-page,
+        .auth-form, .auth-tabs moved to the shared-route auth-pages.css).
+     2. The globally mounted Settings dialog's account-security sections
+        (components/auth/* via components/settings/SettingsDialog.tsx),
+        which render .auth-notice/.auth-alert* feedback, .auth-action-row
+        button rows, PasswordField's .auth-otp-row/.auth-otp-send, and the
+        .security-* blocks on every route — the route-stylesheet contract
+        can only route CSS through page modules, so anything a global
+        component needs must live in the entry.
+
+   .auth-card itself is the C01-owned surface primitive (auth.css is its
+   registered chrome owner) and .auth-action-row / .auth-cta-stack are the
+   two contracted action containers — see auth-actions.contract.test.ts. */
+
+@layer pages {
+.auth-card {
+  width: min(100%, 26rem);
+  min-width: 0;
+  max-width: 100%;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background-color: var(--surface);
+  background-image: var(--grain);
+  padding: var(--hair-200) var(--hair-160);
+  box-shadow: var(--shadow-md), var(--inset-highlight);
+  /* CIMD client_id tokens have no wrap points; keep them inside the card. */
+  overflow-wrap: anywhere;
+}
+
+/* R10-28: every auth card opens with the brand mark, not bare text. */
+.auth-brand {
+  margin: 0 0 var(--hair-70);
+}
+
+.auth-card h1 {
+  margin: 0 0 var(--hair-35);
+  font-size: var(--text-xl);
+  letter-spacing: var(--tracking-display);
+}
+
+/* Success/verification headlines use the shared display rung — this
+   selector must outrank the card's compact h1 size above (R10-28). */
+.auth-card h1.display-sm {
+  font-size: var(--display-sm);
+}
+
+.auth-card .sub {
+  margin: 0 0 var(--hair-150);
+  color: var(--muted);
+  font-size: var(--text-md);
+}
+
+.auth-notice {
+  margin: 0;
+  padding: var(--hair-85) var(--hair-110);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  /* Neutral band, not an accent wash: a status note ("Email verified")
+     is information, and tinted surfaces read as a call to action. */
+  background: var(--paper-2);
+  color: var(--ink);
+  font-size: var(--text-sm);
+}
+
+/* One feedback slot per auth card. Progress copy and errors share this
+   position directly under the header, so a message never appears mid-form and
+   pushes the submit button down as the flow advances. */
+.auth-feedback {
+  margin: 0 0 var(--hair-125);
+}
+
+.auth-alert {
+  border-color: color-mix(in srgb, var(--danger) 35%, var(--line-strong));
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.auth-alert-text {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.auth-alert-action {
+  margin: var(--hair-55) 0 0;
+  font-size: var(--text-sm);
+}
+
+.auth-alert-action a {
+  color: var(--danger);
+  font-weight: var(--weight-semibold);
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+/* Stacked full-bleed CTAs for the auth cards that are a single decision
+   ("check your email", "sign out and sign in again"): the card is the whole
+   screen and each option deserves the full measure.
+   `align-items` is spelled out because full bleed is the intent here, not a
+   flex default someone inherited — the opposite case is `.auth-action-row`,
+   which keeps buttons at their label width. Pick one at every call site. */
+.auth-cta-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-2);
+}
+
+/* ——— Account security centre ———
+   Seven concerns, each its own `.settings-section` (layout in
+   page-layouts.css). Only the security-specific pieces live here. */
+.security-sections {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+/* A TOTP URI is one unbroken token wide enough to push the settings grid past
+   the viewport on a phone. Recovery codes are short enough that this never
+   fires on them. */
+.security-sections code {
+  overflow-wrap: anywhere;
+}
+
+/* Action rows keep buttons at their label width. `.btn` is inline-flex, so a
+   column-flex parent stretched every one of them across the whole card and a
+   two-word label ended up centred in a full-bleed bar. They sit at the end of
+   the column for the same reason `.settings-save-btn` does: the action follows
+   the fields it submits. */
+.auth-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.auth-action-row > .btn {
+  flex: 0 0 auto;
+}
+
+/* Destructive actions sit below a rule so they are never mistaken for the
+   section's primary control. */
+.auth-action-row--danger {
+  margin-top: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+
+.security-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Recovery codes are shown once and get transcribed, so they need a monospace
+   grid rather than a bulleted column. */
+.security-codes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr));
+  gap: var(--hair-35);
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+/* PasswordField (auth pages + settings) and Login's OTP send share this
+   input + trailing-button row. Lives in the entry because PasswordField
+   mounts from the globally mounted Settings dialog. */
+.auth-otp-row {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-2);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.auth-otp-row input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.auth-otp-send {
+  flex: 0 1 auto;
+  min-width: 0;
+  min-height: 2.75rem;
+  padding-inline: var(--space-3);
+  white-space: nowrap;
+}
+
+/* PasswordField: the show/hide eye sits inside the input's right edge.
+   As a trailing button beside it, it made Password ~3rem narrower than the
+   Email field above, so the form's right edge stepped in. The row takes
+   the field's measure cap; the input fills it and reserves room for the
+   eye. */
+.auth-password-row {
+  position: relative;
+  max-width: var(--measure);
+}
+
+.auth-password-row input {
+  max-width: none;
+  padding-right: var(--space-8);
+}
+
+.auth-password-row .auth-otp-send {
+  position: absolute;
+  inset-block: 0;
+  right: 0;
+  min-height: 0;
+  padding-inline: var(--space-3);
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+}
+
+.auth-password-row .auth-otp-send:hover {
+  color: var(--ink);
+}
+
+/* Narrow viewports: full-bleed is the right answer for a thumb, and long
+   labels need to wrap rather than overflow the card. */
+@media (max-width: 540px) {
+  .auth-action-row > .btn {
+    flex: 1 1 100%;
+    height: auto;
+    white-space: normal;
+    text-align: center;
+  }
+}
+
+}

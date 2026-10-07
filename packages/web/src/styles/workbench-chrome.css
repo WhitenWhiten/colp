@@ -1,0 +1,374 @@
+/* ——— Workbench chrome ———
+   Cross-route chrome for the product's workbench surfaces: the collection
+   editor (pages/collection-editor/*), CreateCollection, the demo
+   LibraryEdit, and the shared annotation fields.
+
+   Entry-loaded on purpose. These selectors are consumed by modules that can
+   never appear in ROUTE_STYLESHEETS / SHARED_ROUTE_STYLESHEETS — that
+   contract only routes stylesheets through top-level page modules — because
+   they are globally mounted or shared components:
+
+     .tree-item / .tree-nested      components/settings/SettingsDialog.tsx
+                                    (global dialog, Layout.tsx:147), the
+                                    collection editor nav tree, demo
+                                    LegacyLibrary sidebar
+     .toggle / .toggle-row          pages/Notifications, LibraryEdit, and the
+                                    Settings dialog sections
+                                    (components/auth/SessionSection,
+                                    ProviderLinkSection,
+                                    components/settings/NotificationsSection)
+     .node-drawer-annotation-* /
+     .node-visibility-switch        components/NodeAnnotationFields.tsx —
+                                    mounted by both the desk NodeEditDrawer
+                                    and the collection editor inspector
+     .edit-form / .edit-side        CollectionEditor, CreateCollection,
+                                    LibraryEdit (demo), library-desk compose
+
+   Split out of library.css (R9-04/R9-32): that file now carries only
+   library-domain chrome (.library-*, .lib-*) shared by the library desk,
+   the demo library, and the public collection resource rows. */
+
+@layer pages {
+
+/* ——— Editor tree row ——— */
+.tree-item {
+  display: flex;
+  align-items: center;
+  gap: var(--hair-40);
+  width: 100%;
+  min-height: 2.15rem;
+  padding: var(--hair-30) var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--ink-2);
+  text-align: left;
+  letter-spacing: var(--tracking-tight);
+  transition:
+    background var(--duration-fast) var(--ease-quart),
+    color var(--duration-fast) var(--ease-quart);
+}
+
+.tree-item:hover {
+  background: color-mix(in srgb, var(--ink) 4%, transparent);
+  color: var(--ink);
+}
+
+.tree-item[aria-current='true'] {
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+  color: var(--ink);
+  font-weight: var(--weight-bold);
+}
+
+.tree-item .count {
+  margin-left: auto;
+  font-size: var(--text-xs);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.tree-nested {
+  padding-left: var(--hair-85);
+  margin-top: var(--hair-15);
+}
+
+/* ——— Edit collection ——— */
+/* R10-17: .edit-page / .edit-layout are gone — the create/edit routes ride
+   PageShell (narrow for the forms, grid for the editor workbench). */
+.edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hair-110);
+}
+
+/* Edit-form labels take the quiet sentence-case rung instead of .field's
+   default caps — every .edit-form consumer (create/edit/inspect) shares it.
+   Moved here from collab.css, where it was hostage to a lazy-route file. */
+.edit-form .field label {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+  text-transform: none;
+  color: var(--ink-2);
+}
+
+.edit-side {
+  position: sticky;
+  top: calc(var(--header-h) + var(--space-4));
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* ——— Switch rows (settings dialogs, Notifications, LibraryEdit) ——— */
+.toggle-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--line);
+  font-size: var(--text-sm);
+}
+
+/* Title + supporting line stack, same as .settings-facts > div.
+   Without this, <strong> and .meta stay inline and glue into one
+   run ("In-app notificationsReceive…"). */
+.toggle-row > :first-child {
+  flex: 1 1 12rem;
+  min-width: 0;
+  display: grid;
+  gap: var(--hair-15);
+}
+
+.toggle-row > .row {
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.toggle-row > .btn {
+  flex-shrink: 0;
+  max-width: 100%;
+  height: auto;
+  white-space: normal;
+  text-align: center;
+}
+
+.toggle {
+  width: 2.4rem;
+  height: 1.35rem;
+  border-radius: var(--radius-pill);
+  background: var(--paper-2);
+  border: 1px solid var(--line-control);
+  position: relative;
+  flex-shrink: 0;
+}
+
+/* R15-43: on touch screens the switch answers a 44 px target around its
+   drawn track. */
+@media (pointer: coarse) {
+  .toggle::before {
+    content: '';
+    position: absolute;
+    inset: calc((2.75rem - 1.35rem) / -2) calc((2.75rem - 2.4rem) / -2);
+  }
+}
+
+.toggle[aria-checked='true'] {
+  background: var(--ink);
+  border-color: var(--ink);
+}
+
+.toggle::after {
+  content: '';
+  position: absolute;
+  top: var(--hair-15);
+  left: var(--hair-15);
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  /* R15-43: the OFF thumb was --surface on --paper-2 (1.16:1), so OFF
+     read as nothing; a dark thumb marks the state. ON inverts it. */
+  background: var(--ink-3);
+  transition: transform var(--duration-state) var(--ease-quart);
+}
+
+.toggle[aria-checked='true']::after {
+  transform: translateX(1.05rem);
+  background: var(--paper);
+}
+
+/* ——— Radio/checkbox option groups ———
+   NOT .toggle-row: that anatomy is label-left / control-right with a
+   per-row hairline for settings switches. An option row is a 1rem marker
+   column + a wrapping label column — the .resolution-option anatomy
+   (sync.css) — so the input never stretches and the label never drifts
+   to the far edge. Consumed by the settings dialog's favicon policy and
+   the desk node drawer's favicon source; both mount from shared modules,
+   so the recipe is entry-loaded here rather than beside either caller. */
+.option-group {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.option-group legend {
+  padding: 0;
+}
+
+.option-row {
+  display: grid;
+  grid-template-columns: 1rem minmax(0, 1fr);
+  gap: var(--hair-55);
+  align-items: start;
+  min-width: 0;
+  padding: var(--hair-45) 0;
+  cursor: pointer;
+  font-size: var(--text-sm);
+}
+
+/* The control fills its 1rem track: with the UA radio margins
+   (3px 3px 0 5px) left in place, grid stretch squeezed it to 8×13px. */
+.option-row input {
+  width: 1rem;
+  height: 1rem;
+  margin: var(--hair-20) 0 0;
+}
+
+/* Title + muted supporting line stack, same as .resolution-option span. */
+.option-row > span {
+  display: grid;
+  gap: var(--hair-15);
+  min-width: 0;
+}
+
+/* A lone action inside the group keeps its width instead of stretching
+   across the grid track. */
+.option-group > .btn {
+  justify-self: start;
+}
+
+/* Create-collection card: the card is already a reading-width column, so
+   its title and summary fill it. Under the default --measure cap they
+   stopped ~6rem short of the card edge the Create button sits on. */
+.cc-form .field input,
+.cc-form .field textarea {
+  max-width: none;
+}
+
+/* Create-collection kind list. Rows stay on .option-row; this only
+   matches the form labels and wraps to two columns from 720px. */
+.cc-kind legend {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--ink-2);
+  margin-bottom: var(--space-1);
+}
+
+@media (min-width: 720px) {
+  .cc-kind {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2);
+  }
+
+  .cc-kind legend,
+  .cc-kind .field-hint {
+    grid-column: 1 / -1;
+  }
+}
+
+/* —— Collection editor —— */
+.edit-resources {
+  margin-top: var(--hair-125);
+}
+
+.edit-res-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--space-2);
+  align-items: start;
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.edit-res-row:last-child {
+  border-bottom: 0;
+}
+
+.edit-res-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hair-35);
+  margin-top: var(--hair-35);
+}
+
+.edit-res-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hair-35);
+  justify-content: flex-end;
+}
+
+.publish-diff {
+  margin-top: var(--hair-85);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius);
+  padding: var(--space-3) var(--hair-85);
+  background: var(--paper);
+  font-size: var(--text-sm);
+  line-height: var(--leading-body);
+  color: var(--ink-2);
+}
+
+.publish-diff li {
+  margin: var(--space-1) 0;
+}
+
+/* ——— Node annotation fields ———
+   The annotation sections + visibility radiogroup of the shared
+   components/NodeAnnotationFields.tsx. It renders inside the desk's
+   NodeEditDrawer (drawer chrome stays in library.css) and inside the
+   collection editor's inspector panel — two lazy routes plus a shared
+   component, so the rules live in the entry. */
+.node-drawer-annotation {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hair-40);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+.node-drawer-annotation-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+/* Annotation labels sit outside .field, so they carry the canonical field
+   label chrome themselves — same caps rung as Title/URL above them. */
+.node-drawer-annotation-head label {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--ink-2);
+}
+/* Two-segment Private/Public control (FilterRail radiogroup, R10-27) on the
+   shared .view-switch rail; this class only owns its disabled dimming.
+   FilterRail marks busy options aria-disabled, not :disabled. */
+.node-visibility-switch button:disabled,
+.node-visibility-switch button[aria-disabled='true'] {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.editor-section-title {
+  font-size: var(--text-base);
+}
+
+.edit-diff-list {
+  margin: 0;
+  padding-left: var(--hair-110);
+}
+
+.edit-path-title {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-lg);
+}
+
+.edit-resource-title {
+  font-size: var(--text-md);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.edit-side-copy {
+  line-height: var(--leading-normal);
+}
+}

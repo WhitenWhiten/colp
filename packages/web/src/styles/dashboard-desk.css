@@ -1,0 +1,109 @@
+/* Shared desk chrome and the stacked-dashboard tile reset.
+   Widget chapters stay in dashboard-widgets.css (R8-01).
+   Tile base + generic tile chrome live in cards.css; desk color themes live
+   in desk-themes.css. */
+
+@layer components {
+/* Stack reset must share @layer components with `.tile` (cards.css) and
+   follow it in main.tsx import order, beating `.tile` by specificity +
+   source order inside the same layer. A pages-layer copy would WIN
+   regardless of specificity — pages sits above components
+   (the `@layer` statement in tokens.css) — which is exactly why the reset
+   must not live there:
+   it would also overrule the widget chapters' own components-layer tile
+   specialization in the stacked layout. */
+.dashboard-stack .tile {
+  position: relative;
+  inset: auto;
+  transform: none;
+  width: 100%;
+  height: auto;
+  min-height: 12rem;
+  z-index: auto;
+}
+
+/* ═══════════════════════════════════════════
+   Shared desk chrome
+   ═══════════════════════════════════════════ */
+.desk-widget {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  padding: var(--hair-70) var(--hair-85) var(--hair-45);
+}
+
+/* R10-26 — one fill/head/title recipe for every desk widget; the widget
+   chapters used to copy these under .tile-X / .desk-X-head / .desk-X-title.
+   Fill tiles are widgets only (SourceCard gates contentFill on
+   isWidgetResource), so the resize-handle room is safe to share. */
+.tile .tile-content--fill {
+  padding-bottom: var(--hair-160);
+}
+
+.desk-widget-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--hair-45);
+  flex-wrap: wrap;
+  margin-bottom: var(--hair-55);
+}
+
+.desk-widget-title {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: var(--text-md);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-tight);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* In board-edit mode the whole tile is the drag surface — titles hide. */
+.tile.is-editable .desk-widget-title {
+  display: none;
+}
+
+/* Structural desk/card chrome — lives with the card UI system (was cards.css) */
+.card-shell {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+.tile.is-editable .drag-handle:hover {
+  background: color-mix(in srgb, currentColor 6%, transparent);
+  border-radius: var(--radius-sm);
+}
+
+.source-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--source-accent, var(--ink));
+}
+
+.desk-mark {
+  width: 1.15rem;
+  height: 1.15rem;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line-heavy);
+  border-radius: var(--radius-xs);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-bold);
+  color: var(--ink-2);
+  flex-shrink: 0;
+  line-height: var(--leading-none);
+}
+}

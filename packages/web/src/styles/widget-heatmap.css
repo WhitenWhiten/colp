@@ -1,0 +1,188 @@
+/* Dashboard canvas widget — GitHub contribution heatmap (R8-01 chapter split).
+   Owns only this widget's .desk-X content rules — shared chrome (fill
+   padding, card-head tint, .desk-widget-head/-title) lives in
+   dashboard-desk.css; tile base in cards.css; color themes + the
+   widget-intrinsic skins (wash / terminal) in desk-themes.css (R10-26).
+   Route-owned: imported by pages/Dashboard.tsx after dashboard-desk.css. */
+
+@layer components {
+/* ═══════════════════════════════════════════
+   GitHub contribution heatmap
+   ═══════════════════════════════════════════ */
+.tile-ghheatmap .tile-content--fill {
+  padding-bottom: var(--hair-15);
+}
+
+.desk-mark-heatmap {
+  font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-caps);
+  font-weight: var(--weight-bold);
+}
+
+.desk-heatmap {
+  gap: var(--hair-45);
+  padding: var(--hair-65) var(--space-3) var(--hair-55);
+  min-height: 0;
+}
+
+.desk-hm-sub {
+  margin: var(--hair-15) 0 0;
+}
+
+.desk-hm-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hair-65) var(--space-4);
+  align-items: baseline;
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.desk-hm-stats strong {
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-display);
+  color: var(--ink);
+}
+
+.desk-hm-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  min-height: 0;
+  flex: 1;
+}
+
+.desk-hm-grid-wrap {
+  display: inline-flex;
+  flex-direction: column;
+  gap: var(--hair-20);
+  min-width: min(100%, 52rem);
+}
+
+.desk-hm-months {
+  display: grid;
+  grid-template-columns: 1.6rem repeat(53, 0.72rem);
+  gap: var(--hair-20);
+  height: 0.95rem;
+  font-size: var(--text-3xs);
+  color: var(--faint);
+  font-weight: var(--weight-semibold);
+  padding-left: 0;
+}
+
+.desk-hm-month {
+  white-space: nowrap;
+}
+
+.desk-hm-body {
+  display: grid;
+  grid-template-columns: 1.6rem 1fr;
+  gap: var(--space-1) var(--hair-30);
+  align-items: start;
+}
+
+.desk-hm-wdays {
+  display: grid;
+  grid-template-rows: repeat(7, 0.72rem);
+  gap: var(--hair-20);
+  font-size: var(--text-3xs);
+  color: var(--faint);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-none);
+}
+
+.desk-hm-wday {
+  display: flex;
+  align-items: center;
+}
+
+.desk-hm-weeks {
+  display: flex;
+  gap: var(--hair-20);
+}
+
+.desk-hm-week {
+  display: grid;
+  grid-template-rows: repeat(7, 0.72rem);
+  gap: var(--hair-20);
+}
+
+.desk-hm-cell {
+  width: 0.72rem;
+  height: 0.72rem;
+  border-radius: var(--radius-2xs);
+  border: 1px solid color-mix(in srgb, var(--ink) 6%, transparent);
+  padding: 0;
+  appearance: none;
+  cursor: pointer;
+  background: color-mix(in srgb, var(--ink) 5%, var(--surface-sunken));
+  transition: outline var(--duration-fast) var(--ease-quart), transform var(--duration-fast) var(--ease-quart);
+}
+
+.desk-hm-cell:hover:not(:disabled),
+.desk-hm-cell:focus-visible {
+  outline: 1px solid var(--ink);
+  outline-offset: 1px;
+  z-index: 1;
+}
+
+.desk-hm-cell:disabled,
+.desk-hm-cell.is-future {
+  cursor: default;
+  opacity: 0.35;
+}
+
+.desk-hm-cell.is-legend {
+  cursor: default;
+  border-color: color-mix(in srgb, var(--ink) 8%, transparent);
+}
+
+/* GitHub-like greens, tinted to work on paper surfaces */
+.desk-hm-cell.level-0 {
+  background: color-mix(in srgb, var(--ink) 5.5%, var(--surface-sunken));
+}
+
+.desk-hm-cell.level-1 {
+  background: color-mix(in srgb, var(--success) 28%, var(--surface));
+  border-color: color-mix(in srgb, var(--success) 25%, transparent);
+}
+
+.desk-hm-cell.level-2 {
+  background: color-mix(in srgb, var(--success) 48%, var(--surface));
+  border-color: color-mix(in srgb, var(--success) 30%, transparent);
+}
+
+.desk-hm-cell.level-3 {
+  background: color-mix(in srgb, var(--success) 70%, var(--surface-sunken));
+  border-color: color-mix(in srgb, var(--success) 35%, transparent);
+}
+
+.desk-hm-cell.level-4 {
+  background: var(--success);
+  border-color: color-mix(in srgb, var(--success) 40%, var(--ink));
+}
+
+.desk-hm-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--hair-45) var(--space-4);
+  padding-top: var(--hair-20);
+}
+
+.desk-hm-tip {
+  min-height: 1.1em;
+}
+
+.desk-hm-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hair-20);
+}
+
+  /* ——— Rehomed from page-layouts.css (R9-12) ——— */
+/* GitHub heatmap month label column placement */
+.desk-hm-month--col {
+  grid-column: var(--gh-col);
+}
+}

@@ -1,0 +1,160 @@
+/* Dashboard canvas widget — Weather — big temp, quiet labels (R8-01 chapter split).
+   Owns only this widget's .desk-X content rules — shared chrome (fill
+   padding, card-head tint, .desk-widget-head/-title) lives in
+   dashboard-desk.css; tile base in cards.css; color themes + the
+   widget-intrinsic skins (wash / terminal) in desk-themes.css (R10-26).
+   Route-owned: imported by pages/Dashboard.tsx after dashboard-desk.css. */
+
+@layer components {
+/* ═══════════════════════════════════════════
+   Weather — big temp, quiet labels
+   ═══════════════════════════════════════════ */
+.desk-mark-weather {
+  color: var(--accent-ink);
+}
+
+.desk-weather-city {
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+}
+
+.desk-weather-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--hair-35) var(--hair-55);
+  margin-top: var(--hair-55);
+}
+
+.desk-weather-temp {
+  font-family: var(--font-sans);
+  font-size: var(--text-3xl);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-display);
+  line-height: var(--leading-none);
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.desk-weather-glyph {
+  color: var(--ink-2);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-ui);
+  text-transform: lowercase;
+  font-size: var(--text-xl);
+  opacity: 0.75;
+  line-height: var(--leading-none);
+}
+
+.desk-weather-label {
+  font-size: var(--text-sm);
+  color: var(--ink-2);
+  font-weight: var(--weight-medium);
+  width: 100%;
+  margin-top: var(--hair-15);
+}
+
+.desk-weather-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hair-35) var(--hair-85);
+  margin-top: var(--hair-65);
+  padding-top: var(--hair-55);
+  border-top: 1px solid var(--line);
+  font-size: var(--text-xs);
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.desk-weather-refresh {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: var(--hair-15) var(--space-1);
+  cursor: pointer;
+  font: inherit;
+  border-radius: var(--radius-xs);
+  font-size: var(--text-xs);
+  color: var(--faint);
+}
+
+.desk-weather-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.desk-weather-place {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: var(--hair-15);
+  min-width: 0;
+}
+
+.desk-weather-place:hover .desk-weather-city {
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.desk-weather-refresh:hover:not(:disabled) {
+  color: var(--ink);
+  background: var(--surface-sunken);
+}
+
+.desk-weather-edit {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hair-35);
+  margin: var(--space-2) 0 var(--space-1);
+}
+
+.desk-weather-edit input {
+  flex: 1 1 7rem;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-sm);
+  padding: var(--hair-30) var(--space-2);
+  outline: none;
+}
+
+.desk-weather-edit input:focus {
+  border-color: var(--line-heavy);
+  box-shadow: var(--shadow-ring);
+}
+
+.desk-weather-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hair-45);
+  margin-top: auto;
+  padding-top: var(--hair-35);
+}
+
+.desk-weather-error,
+.desk-weather-loading {
+  margin: var(--hair-65) 0 0;
+}
+
+/* R7-17: micro controls ride into the phone dashboard stack unchanged — on
+   touch they need the shared 44px target (the glyph keeps its size; the hit
+   area grows). */
+@media (pointer: coarse) {
+  .desk-weather-refresh {
+    min-height: 2.75rem;
+  }
+}
+}

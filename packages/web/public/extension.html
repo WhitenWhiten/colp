@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Know-N browser extension</title>
+    <meta name="description" content="Use the Know-N browser extension to capture the active page and sync selected bookmark folders into collections you own." />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+      :root { color-scheme: light; }
+      body {
+        margin: 0;
+        padding: 3rem 1.25rem 4rem;
+        background: rgb(243 245 248);
+        color: rgb(6 7 10);
+        font-family: "Instrument Sans", "Segoe UI", "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+        line-height: 1.6;
+      }
+      body > * { max-width: 38rem; margin-left: auto; margin-right: auto; overflow-wrap: anywhere; }
+      h1 { font-size: 1.75rem; letter-spacing: -0.02em; margin: 0 auto 1rem; }
+      h2 { font-size: 1.15rem; margin: 2rem auto 0.5rem; }
+      p, li { color: rgb(51 53 58); }
+      a { color: rgb(56 102 149); }
+      nav p { margin: 0.35rem auto; }
+      pre {
+        max-width: 100%;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+      }
+    </style>
+  </head>
+  <body>
+<h1>Know-N browser extension</h1>
+<p>Use the Know-N browser extension to capture the active page and sync selected bookmark folders into collections you own. The current artifact targets Chromium Manifest V3, declares Chrome 121 as its minimum version, and is exercised by the repository's Chromium release evidence. Know-N does not currently publish separate Edge, Firefox, or Safari builds, and this page does not claim availability in any browser extension store.</p>
+<h2>What the extension does</h2>
+<p>The toolbar popup saves the page you are viewing to a collection that you own. You choose the destination collection and can add the page without giving the website general access to your browser. The extension requests access to the active tab for the capture action, while bookmark access is optional and is requested only when you choose a bookmark workflow.</p>
+<p>The options page lets you sign in, select bookmark folder boundaries, and import or synchronize those selected folders. Folder, bookmark, and separator changes inside an allowed boundary are recorded locally and queued in durable order before they are sent to Know-N. The extension syncs collections you own; it does not treat collections shared with you as writable replicas. It also does not automatically resolve sync conflicts.</p>
+<h2>Browser support</h2>
+<ul>
+<li><strong>Chrome:</strong> the manifest declares Chrome 121 as the minimum version; automated release evidence runs the production artifact in Chromium.</li>
+<li><strong>Edge:</strong> no separate Edge package or Edge-specific compatibility evidence is currently published. Chromium-based Edge users may evaluate the Chromium artifact under their own browser or organization policy.</li>
+<li><strong>Firefox:</strong> no Firefox release artifact is currently published.</li>
+<li><strong>Safari:</strong> no Safari release artifact is currently published.</li>
+</ul>
+<h2>Install and connect</h2>
+<p>1. <a href="/register">Create a Know-N account</a>, or use an account you already control.</p>
+<p>2. Obtain a trusted Know-N Chromium release artifact. There is no public store-install promise on this page. If you are evaluating a development build, follow your browser or organization policy for loading an unpacked extension.</p>
+<p>3. Open the extension options page and sign in to Know-N. Authentication stays behind the extension's closed message boundary; raw credentials are not passed through popup messages.</p>
+<p>4. Open the toolbar popup on a page you want to keep, choose a collection you own, and save the active page.</p>
+<p>5. If you want bookmark synchronization, grant the optional bookmark permission and select only the folders that should be in scope. You can later remove that permission or change the selected boundaries.</p>
+<h2>Control and recovery</h2>
+<p>Bookmark access can be revoked without silently expanding the previous boundary when it is granted again. Pending changes remain ordered through temporary disconnects, and server receipts determine whether an operation is complete, deferred, or needs recovery. These safeguards reduce accidental duplication, but they do not replace a user's decision when a real conflict needs resolution.</p>
+<p>For the public protocol and machine-readable integration surfaces used by Know-N clients, see <a href="/developers">Developers on Know-N</a>. The extension is one client of those authenticated services; installing it does not publish a collection or change its visibility by itself.</p>
+  </body>
+</html>

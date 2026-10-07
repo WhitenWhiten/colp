@@ -1,0 +1,955 @@
+/* Resource detail — the bookmark ("node") page: a back link, the link
+   card (source mark + host/kind line, serif title, description, URL, then
+   an action rail), a reading column (TL;DR → notes → relations → comments)
+   and a sticky aside (collection context with previous / next, tags).
+   Route-owned: imported by pages/ResourceDetail.tsx only. */
+
+@layer pages {
+/* ——— Back link ——— the way out sits above the card, never inside it. */
+.resource-back {
+  margin-bottom: var(--space-4);
+}
+
+/* ——— Link card ———
+   The bookmark as an object. The head's copy dissolves into the card grid
+   (display: contents) so the mark sits beside the host line and the title,
+   lede and URL run the card's full width; actions and votes share the
+   footer rail under a hairline. */
+.resource-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  column-gap: var(--space-3);
+  align-items: center;
+  margin-bottom: 0;
+  padding: var(--space-6);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm), var(--inset-highlight);
+}
+
+.resource-head .page-head-copy {
+  display: contents;
+}
+
+.resource-head .page-head-avatar {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.resource-head .page-head-copy > .eyebrow {
+  grid-column: 2 / -1;
+  grid-row: 1;
+  min-width: 0;
+  margin: 0;
+  text-transform: none;
+  letter-spacing: var(--tracking-ui);
+}
+
+.resource-head .page-head-copy > :not(.eyebrow) {
+  grid-column: 1 / -1;
+}
+
+.resource-head .page-head-copy > h1 {
+  margin-top: var(--space-5);
+}
+
+.resource-head .display-md {
+  display: block;
+  max-width: none;
+  overflow: visible;
+  -webkit-line-clamp: unset;
+  line-clamp: unset;
+}
+
+/* p.lede (0,2,1) ties .page-head p:not(.eyebrow) and wins on order. */
+.resource-head p.lede {
+  max-width: var(--measure-wide);
+  margin-top: var(--space-3);
+  color: var(--ink-2);
+  font-size: var(--text-lede);
+  line-height: var(--leading-prose);
+  overflow-wrap: anywhere;
+}
+
+/* Bookmark identity: the domain monogram as a tile. The letter is
+   font-driven and the favicon a fixed share of the tile, so a single size
+   carries both fallbacks. */
+.resource-mark {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+}
+
+.resource-mark .domain-mark {
+  width: 100%;
+  height: 100%;
+  font-size: var(--text-xl);
+}
+
+.resource-mark .domain-mark img {
+  width: 58%;
+  height: 58%;
+}
+
+/* Containers (folder / collection root) have no host monogram — a panel
+   tile with the matching glyph keeps the same silhouette. */
+.resource-mark--tile {
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--muted);
+  box-shadow: var(--shadow-sm), var(--inset-highlight);
+}
+
+.resource-mark--tile svg {
+  width: 1.3rem;
+  height: 1.3rem;
+}
+
+/* Host + kind chip: "where and what" beside the mark. */
+.resource-kicker {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.resource-kicker-host {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  /* Ellipsis-safe leading (see --leading-clamp): snug inherited leading
+     sheared the host's ascenders under overflow:hidden. */
+  line-height: var(--leading-clamp);
+}
+
+/* The destination, protocol stripped: one line, the full href in title=. */
+.resource-url {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hair-35);
+  justify-self: start;
+  max-width: 100%;
+  margin-top: var(--space-4);
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-clamp);
+}
+
+.resource-url svg {
+  width: 0.95rem;
+  height: 0.95rem;
+  flex-shrink: 0;
+}
+
+.resource-url span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resource-url:hover {
+  color: var(--ink);
+}
+
+.resource-url:hover span {
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+/* Footer rail: actions on the left, the vote pill at the far end. */
+.resource-head .page-head-actions,
+.resource-head .page-head-stats {
+  grid-row: 5;
+  margin-top: var(--space-5);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--line);
+}
+
+.resource-head .page-head-actions {
+  grid-column: 1 / 3;
+  /* Bridge the column gap so the rail's hairline runs unbroken into the
+     vote cell. */
+  margin-inline-end: calc(-1 * var(--space-3));
+  padding-inline-end: var(--space-3);
+}
+
+.resource-head .page-head-stats {
+  grid-column: 3;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  align-self: stretch;
+}
+
+/* Without actions (a container with no URL) the votes own the rail. */
+.resource-head .page-head-copy + .page-head-stats {
+  grid-column: 1 / -1;
+  justify-content: flex-start;
+}
+
+.resource-head .saved-resource-control {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--hair-30);
+}
+
+/* Long resource titles clamp to two lines with an expand toggle. Clamping is
+   pure CSS on the inner span (full text stays in the DOM); the toggle only
+   renders when the title actually truncates. */
+.resource-title {
+  display: block;
+}
+
+.resource-title-text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  /* Clamp-safe leading (see --leading-clamp): the inherited snug leading let
+     the third line's ink bleed a few px past the clamp boundary. */
+  line-height: var(--leading-clamp);
+}
+
+.resource-title[data-expanded] .resource-title-text {
+  display: block;
+  overflow: visible;
+}
+
+.resource-title-toggle {
+  display: inline-block;
+  margin-top: var(--space-2);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-normal);
+  color: var(--muted);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  transition: color var(--duration-fast) var(--ease-quart);
+}
+
+.resource-title-toggle:hover {
+  color: var(--ink);
+}
+
+/* ——— Layout ———
+   R15-33: the DOM is the phone order — card → TL;DR, notes, relations →
+   aside → comments — so one column below 900 needs no reordering and Tab
+   follows what is on screen. From 900 the card, reading column and
+   comments share the first track and the aside rides the second, sticky
+   under the topnav. */
+.resource-layout {
+  display: grid;
+  gap: var(--space-6);
+}
+
+@media (max-width: 899px) {
+  .resource-detail {
+    width: min(100%, var(--measure-wide));
+    margin-inline: auto;
+  }
+}
+
+.resource-comments {
+  min-width: 0;
+}
+
+.resource-main,
+.resource-aside {
+  min-width: 0;
+}
+
+.resource-main {
+  display: grid;
+  gap: var(--space-6);
+  align-content: start;
+}
+
+/* Sections share one rhythm: a single top hairline each, never boxes. */
+.resource-section {
+  display: grid;
+  gap: var(--space-3);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--line-strong);
+}
+
+.resource-section-head {
+  align-items: baseline;
+}
+
+.resource-section-head h2 {
+  font-size: var(--text-lg);
+}
+
+.resource-section-status {
+  margin: 0;
+  color: var(--faint);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-normal);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+/* The same slot carries errors; danger so a failed load is not quiet text. */
+.resource-section-status[data-error='true'] {
+  color: var(--danger);
+}
+
+/* A grid item inherits `justify-items: stretch`; CTAs stay intrinsic. */
+.resource-section-cta {
+  justify-self: start;
+  max-width: 100%;
+}
+
+/* ——— Guest invitation ——— one quiet row instead of two empty sections. */
+.resource-signin {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-lg);
+}
+
+.resource-signin-mark {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+  color: var(--muted);
+}
+
+.resource-signin-mark svg {
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
+.resource-signin-copy {
+  display: grid;
+  gap: var(--hair-20);
+  min-width: 0;
+}
+
+.resource-signin-copy h2 {
+  margin: 0;
+  font-size: var(--text-md);
+  line-height: var(--leading-heading);
+}
+
+.resource-signin-copy p {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-copy);
+}
+
+/* ——— Aside ——— collection context (with the pager) and tags, as one
+   quiet panel each. */
+.resource-aside {
+  display: grid;
+  gap: var(--space-4);
+  align-content: start;
+}
+
+.resource-context,
+.resource-tags {
+  display: grid;
+  gap: var(--hair-65);
+  min-width: 0;
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.resource-context-title {
+  color: var(--ink);
+  font-family: var(--font-serif);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-heading);
+  overflow-wrap: anywhere;
+}
+
+.resource-context-title:hover {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.15em;
+}
+
+.resource-context-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hair-30) var(--space-4);
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+.resource-context-links a {
+  color: var(--muted);
+}
+
+.resource-context-links a:hover {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.resource-tags-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hair-45);
+}
+
+/* ——— TL;DR ———
+   The highest-value summary on the page, so it gets the accent wash instead
+   of the default hairline panel. */
+.resource-tldr {
+  border-color: color-mix(in srgb, var(--accent) 22%, var(--line-strong));
+  background: color-mix(in srgb, var(--accent-soft) 45%, var(--surface));
+}
+
+.resource-tldr-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hair-30);
+  color: var(--accent-ink);
+}
+
+.resource-tldr-eyebrow svg {
+  width: 0.85rem;
+  height: 0.85rem;
+}
+
+.resource-tldr-body {
+  margin: var(--hair-45) 0 0;
+  color: var(--ink-2);
+  font-size: var(--text-md);
+  line-height: var(--leading-relaxed);
+  overflow-wrap: anywhere;
+}
+
+/* Markdown bodies (TL;DR, note preview) drop their outer margins so the
+   container owns the rhythm. */
+.resource-tldr-body > :first-child,
+.resource-annotation-preview > :first-child { margin-top: 0; }
+.resource-tldr-body > :last-child,
+.resource-annotation-preview > :last-child { margin-bottom: 0; }
+.resource-tldr-body p,
+.resource-annotation-preview p { margin: var(--space-2) 0; }
+.resource-tldr-body h2,
+.resource-tldr-body h3,
+.resource-tldr-body h4,
+.resource-tldr-body h5,
+.resource-tldr-body h6,
+.resource-annotation-preview h2,
+.resource-annotation-preview h3,
+.resource-annotation-preview h4,
+.resource-annotation-preview h5,
+.resource-annotation-preview h6 { margin: var(--space-3) 0 var(--space-2); }
+
+/* ——— Notes ———
+   Full notes and highlights use a quiet hairline instead of a card. The
+   kind label carries a small marker dot; highlights get the reading-marker
+   tint (--hl-mark) so a quoted passage reads as marked text. */
+.resource-annotation-list {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.resource-annotation-item {
+  min-width: 0;
+}
+
+.resource-annotation-item > .section-label {
+  margin-bottom: var(--space-2);
+}
+
+.resource-annotation-kind::before {
+  content: "";
+  display: inline-block;
+  width: 0.45rem;
+  height: 0.45rem;
+  margin-right: var(--hair-30);
+  border-radius: 50%;
+  background: var(--line-heavy);
+  vertical-align: baseline;
+}
+
+.resource-annotation-item[data-kind='highlight'] .resource-annotation-kind::before {
+  background: var(--hl-mark);
+  /* Border, not a ring shadow — literal box-shadows are ratcheted
+     (elevation.contract.test.ts). */
+  border: 1px solid color-mix(in srgb, var(--hl-mark) 55%, var(--line-heavy));
+}
+
+.resource-annotation-preview {
+  margin: 0;
+  padding: var(--hair-30) 0 var(--hair-30) var(--space-4);
+  border-left: 2px solid var(--line-heavy);
+  color: var(--ink-2);
+  font-size: var(--text-md);
+  line-height: var(--leading-relaxed);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.resource-annotation-item[data-kind='highlight'] .resource-annotation-preview {
+  padding: var(--hair-45) var(--space-3) var(--hair-45) var(--space-4);
+  border-left-color: color-mix(in srgb, var(--hl-mark) 78%, var(--line-heavy));
+  border-radius: 0 var(--radius) var(--radius) 0;
+  background: color-mix(in srgb, var(--hl-mark) 13%, var(--surface));
+}
+
+/* ——— Relations ——— */
+.resource-relations-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2) var(--space-3);
+  min-width: 0;
+}
+
+.relation-recovery {
+  justify-self: start;
+}
+
+.resource-relations-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+/* Both forms share one grid: one column on phones, two on tablets, a full
+   row from 900 (create: endpoint / type / label / visibility; edit: label /
+   type / visibility). Actions and the replacement row always span. */
+.relation-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--hair-65);
+  align-items: end;
+}
+
+.relation-form h3 {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: var(--text-base);
+  line-height: var(--leading-clamp);
+}
+
+.relation-form label {
+  min-width: 0;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+/* Relation form controls reuse .field chrome (global.css). Width is
+   layout-only so grid cells fill without a second skin. */
+.relation-form input,
+.relation-form select {
+  width: 100%;
+  min-width: 0;
+}
+
+.relation-form-actions,
+.relation-replacement {
+  grid-column: 1 / -1;
+}
+
+.relation-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--hair-40);
+}
+
+.relation-replacement {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--hair-65);
+  align-items: end;
+}
+
+.relation-replacement > .btn {
+  min-height: 2.75rem;
+  justify-self: start;
+}
+
+/* The create form is a disclosed tool panel, not bare controls floating in
+   the section flow. */
+.relation-create {
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper-2);
+}
+
+.relation-editor {
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line-strong);
+}
+
+.relation-direction {
+  min-width: 0;
+}
+
+.relation-direction + .relation-direction {
+  margin-top: var(--space-2);
+}
+
+.relation-direction h3 {
+  margin-bottom: var(--hair-45);
+}
+
+.relation-direction ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--line);
+}
+
+.relation-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--hair-65) var(--hair-45);
+  /* The hover wash bleeds a touch past the hairline list, like the
+     neighbour pager's row tint. */
+  margin-inline: calc(-1 * var(--hair-45));
+  border-bottom: 1px solid var(--line);
+  border-radius: var(--radius);
+  transition: background var(--duration-fast) var(--ease-quart);
+}
+
+.relation-row:hover {
+  background: color-mix(in srgb, var(--ink) 4%, transparent);
+}
+
+.relation-row-content {
+  display: grid;
+  gap: var(--hair-20);
+  min-width: 0;
+}
+
+/* Direction glyph + endpoint title + type chip share the first line; the
+   free-text label sits on the second so long labels never squeeze the
+   endpoint title. */
+.relation-row-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--hair-40);
+  min-width: 0;
+}
+
+.relation-row-dir {
+  width: 0.9rem;
+  height: 0.9rem;
+  flex-shrink: 0;
+  /* Pin to the endpoint's first text line — centering inside a two-line
+     clamped title leaves the glyph floating mid-air. */
+  align-self: flex-start;
+  margin-top: var(--hair-20);
+  color: var(--faint);
+}
+
+.relation-row-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--hair-40);
+  flex-shrink: 0;
+}
+
+/* One Delete per row: a bordered red button on every relation stacked a
+   column of alarms down the list. At rest it is red text beside Edit; the
+   shared danger-ghost hover still draws its border and wash. */
+.relation-row-actions .btn-danger-ghost:not(:hover, :focus-visible) {
+  border-color: transparent;
+}
+
+.relation-row-content a {
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  min-width: 0;
+  overflow-wrap: anywhere;
+  /* Endpoint titles cap at two lines so long node titles don't stretch the
+     relation row. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+
+.relation-row-content a:hover {
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.relation-label {
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+
+/* ——— Neighbours ———
+   Previous / next through the collection's flat bookmark order, as
+   hairline rows at the foot of the context panel. */
+.resource-neighbors {
+  display: grid;
+  margin: var(--hair-45) calc(-1 * var(--space-5)) calc(-1 * var(--space-4));
+  border-top: 1px solid var(--line);
+}
+
+.resource-neighbor {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  min-height: 2.75rem;
+  padding: var(--space-3) var(--space-5);
+  color: inherit;
+  text-decoration: none;
+  transition: background var(--duration-fast) var(--ease-quart);
+}
+
+.resource-neighbor + .resource-neighbor {
+  border-top: 1px solid var(--line);
+}
+
+.resource-neighbor:last-child {
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+
+.resource-neighbor:hover {
+  background: color-mix(in srgb, var(--ink) 4%, transparent);
+}
+
+.resource-neighbor.is-next {
+  text-align: right;
+}
+
+.resource-neighbor-copy {
+  display: grid;
+  gap: var(--hair-15);
+  flex: 1;
+  min-width: 0;
+}
+
+.resource-neighbor-glyph {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+  color: var(--faint);
+}
+
+.resource-neighbor-dir {
+  color: var(--faint);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-meta);
+}
+
+.resource-neighbor-title {
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-clamp);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resource-neighbor:hover .resource-neighbor-title,
+.resource-neighbor:hover .resource-neighbor-glyph {
+  color: var(--ink);
+}
+
+/* ——— Tablet + ——— */
+@media (min-width: 640px) {
+  .relation-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .relation-replacement {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}
+
+/* ——— Desktop ——— the card and the reading column share the first track;
+   the aside takes the second from the card's top edge down. */
+@media (min-width: 900px) {
+  .resource-detail {
+    max-width: 72rem;
+    margin-inline: auto;
+  }
+
+  .resource-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(17rem, 20rem);
+    column-gap: clamp(var(--space-6), 4vw, var(--space-8));
+    align-items: start;
+  }
+
+  .resource-head,
+  .resource-main,
+  .resource-comments {
+    grid-column: 1;
+  }
+
+  .resource-aside {
+    grid-column: 2;
+    grid-row: 1 / span 3;
+    position: sticky;
+    top: calc(var(--header-h) + var(--hair-150));
+    /* R7-15: dvh tracks the iOS dynamic toolbar; a long tag list scrolls
+       inside the rail instead of hiding below the fold. */
+    max-height: calc(100dvh - var(--header-h) - var(--space-6));
+    overflow-y: auto;
+  }
+
+  .relation-editor {
+    grid-template-columns: minmax(12rem, 1.4fr) minmax(8rem, 0.8fr) minmax(8rem, 0.8fr);
+  }
+}
+
+@media (min-width: 1100px) {
+  .resource-detail {
+    max-width: 74rem;
+  }
+
+  .resource-layout {
+    grid-template-columns: minmax(0, 1fr) 21rem;
+  }
+
+  /* Four columns need ~40rem of track; at 900–1099 the reading column is
+     ~33rem beside the 17–20rem aside, so the two-column tablet rule holds
+     until the wider measure arrives and Visibility stays unclipped. */
+  .relation-create {
+    grid-template-columns: minmax(10rem, 1.5fr) minmax(8rem, 0.8fr) minmax(10rem, 1.2fr) minmax(8rem, 0.8fr);
+  }
+}
+
+/* ——— Phones ——— */
+@media (max-width: 639px) {
+  .resource-back {
+    margin-bottom: var(--space-3);
+  }
+
+  .resource-head {
+    padding: var(--space-4);
+    border-radius: var(--radius-lg);
+  }
+
+  .resource-mark {
+    width: 2.25rem;
+    height: 2.25rem;
+  }
+
+  .resource-mark .domain-mark {
+    font-size: var(--text-lg);
+  }
+
+  .resource-head .page-head-copy > h1 {
+    margin-top: var(--space-4);
+  }
+
+  .resource-head p.lede {
+    font-size: var(--text-md);
+  }
+
+  /* The rail stacks: full-width actions (the primary first and widest),
+     then the vote pill on its own line. */
+  /* The primary takes the free width; Save (and Read) keep their own. */
+  .resource-head .page-head-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-auto-columns: auto;
+    grid-auto-flow: column;
+    grid-column: 1 / -1;
+    margin-top: var(--space-4);
+    margin-inline-end: 0;
+    padding-top: var(--space-4);
+    padding-inline-end: 0;
+  }
+
+  .resource-head .page-head-actions .btn {
+    justify-content: center;
+  }
+
+  .resource-head .page-head-stats {
+    grid-column: 1 / -1;
+    grid-row: 6;
+    justify-content: flex-start;
+    margin-top: var(--space-3);
+    padding-top: 0;
+    border-top: 0;
+  }
+
+  .resource-head .page-head-copy + .page-head-stats {
+    grid-row: 5;
+    margin-top: var(--space-4);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--line);
+  }
+
+  .resource-signin {
+    grid-template-columns: auto minmax(0, 1fr);
+    padding: var(--space-4);
+  }
+
+  .resource-signin > .btn {
+    grid-column: 1 / -1;
+  }
+
+  .relation-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .resource-relations-tools {
+    justify-content: flex-start;
+  }
+
+  .resource-section-status {
+    text-align: left;
+  }
+}
+
+/* motion-exempt: reduced-motion instantiation — 0.01ms is intentionally non-token (WCAG 2.3.3) */
+@media (prefers-reduced-motion: reduce) {
+  .resource-relations *,
+  .resource-relations *::before,
+  .resource-relations *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
+}

@@ -1,0 +1,539 @@
+/* ——— Loading skeletons (base layer) ———
+ *
+ * The route Suspense fallback (components/RouteLoading.tsx) and every
+ * page-owned placeholder that reuses its bones: CollectionSkeleton, the
+ * reader's replica lines, the profile hover card. The fallback is drawn on
+ * the page's own chrome — .page-shell padding and track, .page-head layout
+ * modifiers — so this file only owns the bones and the body shapes that
+ * stand in for route-chunk styles which are not loaded yet.
+ */
+
+@layer base {
+/* ——— The bone ———
+   One recipe for every placeholder in the app: a visible grey (the old
+   paper-2 → white sweep was near-invisible on paper, the a03 complaint)
+   with a soft glint. The glint is one viewport-wide tile pinned to the
+   viewport (background-attachment: fixed), so every bone on screen sweeps
+   in lockstep at the same speed whatever its width, and the keyframe moves
+   the tile by exactly one tile width, so the loop never jumps. */
+/* motion-exempt: linear shimmer — looping sweep must not ease */
+.skeleton-block {
+  display: block;
+  border-radius: var(--radius-sm);
+  background-color: color-mix(in srgb, var(--ink) 6%, var(--paper));
+  background-image: linear-gradient(
+    90deg,
+    transparent 30%,
+    color-mix(in srgb, var(--paper) 55%, transparent) 50%,
+    transparent 70%
+  );
+  background-size: 100vw 100%;
+  background-repeat: repeat-x;
+  background-attachment: fixed;
+  animation: route-shimmer var(--duration-loop) linear infinite;
+}
+
+@keyframes route-shimmer {
+  from { background-position: -100vw 0; }
+  to { background-position: 0 0; }
+}
+
+/* Reduced motion: a still bone. A paused glint would freeze as a pale band
+   across whichever bones sit mid-viewport. */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-block {
+    background-image: none;
+    animation: none;
+  }
+}
+
+/* Layout wrappers never paint — they only place bones. Flex columns so
+   the text bones' line-box margins add up instead of collapsing. */
+.skeleton-stack {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* ——— Text bones ———
+   A text bone fills the middle 60% of the line box of the type it stands
+   in for (--bone-size × --bone-leading), so a head or row reserves exactly
+   the height its real text will take. */
+.skeleton-text {
+  --bone-size: var(--text-md);
+  --bone-leading: var(--leading-normal);
+  width: 100%;
+  height: calc(var(--bone-size) * var(--bone-leading) * 0.6);
+  margin-block: calc(var(--bone-size) * var(--bone-leading) * 0.2);
+}
+
+.skeleton-text--crumb {
+  --bone-size: var(--text-xs);
+  --bone-leading: var(--leading-normal);
+  width: 9rem;
+  margin-bottom: var(--space-3);
+}
+
+.skeleton-text--eyebrow {
+  --bone-size: var(--text-xs);
+  --bone-leading: var(--leading-heading);
+  width: 5.5rem;
+  margin-bottom: calc(var(--text-xs) * var(--leading-heading) * 0.2 + var(--hair-55));
+}
+
+.page-head--workbench .skeleton-text--eyebrow {
+  margin-bottom: calc(var(--text-xs) * var(--leading-heading) * 0.2 + var(--space-2));
+}
+
+.skeleton-text--title {
+  --bone-size: var(--display-md);
+  --bone-leading: var(--leading-snug);
+  width: min(22rem, 70%);
+}
+
+.page-head--workbench .skeleton-text--title {
+  --bone-size: var(--text-2xl);
+  --bone-leading: var(--leading-clamp);
+  width: min(18rem, 60%);
+}
+
+.skeleton-text--lede {
+  width: min(32rem, 90%);
+  margin-top: calc(var(--text-md) * var(--leading-normal) * 0.2 + var(--hair-55));
+}
+
+.page-head--split .skeleton-text--lede {
+  margin-top: calc(var(--text-md) * var(--leading-normal) * 0.2 + var(--space-3));
+}
+
+.skeleton-text--section {
+  --bone-size: var(--text-xl);
+  --bone-leading: var(--leading-heading);
+  width: min(20rem, 60%);
+}
+
+.skeleton-text--row-title {
+  width: min(24rem, 55%);
+}
+
+.skeleton-row:nth-child(even) .skeleton-text--row-title {
+  width: min(18rem, 42%);
+}
+
+.skeleton-text--meta,
+.skeleton-text--row-meta {
+  --bone-size: var(--text-sm);
+  width: 7rem;
+}
+
+.skeleton-text--row-meta {
+  flex: none;
+  width: 5rem;
+}
+
+.skeleton-text--copy,
+.skeleton-text--prose {
+  width: 100%;
+}
+
+.skeleton-text--prose {
+  --bone-size: var(--text-lg);
+  --bone-leading: var(--leading-prose);
+}
+
+.skeleton-text--short {
+  width: 62%;
+}
+
+.skeleton-text--card-title {
+  --bone-size: var(--text-xl);
+  --bone-leading: var(--leading-heading);
+  width: 80%;
+}
+
+.skeleton-text--label {
+  --bone-size: var(--text-sm);
+  width: 5rem;
+  margin-bottom: calc(var(--text-sm) * var(--leading-normal) * 0.2 + var(--space-1));
+}
+
+.skeleton-text--tab {
+  --bone-size: var(--text-sm);
+  width: 4.5rem;
+}
+
+.skeleton-text--stat {
+  --bone-size: var(--text-xl);
+  --bone-leading: var(--leading-heading);
+  width: 3rem;
+}
+
+.skeleton-text--nav-title {
+  --bone-size: var(--text-xl);
+  --bone-leading: var(--leading-heading);
+  width: 7.5rem;
+}
+
+.skeleton-text--nav {
+  width: 70%;
+}
+
+.skeleton-text--count {
+  --bone-size: var(--text-sm);
+  width: 5.5rem;
+}
+
+.skeleton-text--auth-title {
+  --bone-size: var(--display-sm);
+  --bone-leading: var(--leading-snug);
+  width: 60%;
+}
+
+/* ——— Control bones ——— */
+.skeleton-button {
+  width: 7rem;
+  height: 2rem;
+  border-radius: var(--radius);
+}
+
+.skeleton-button--end {
+  align-self: flex-end;
+}
+
+.skeleton-button--block {
+  width: 100%;
+  height: 2.75rem;
+  margin-top: var(--space-2);
+}
+
+.skeleton-input {
+  width: 100%;
+  height: 2.75rem;
+  border-radius: var(--radius);
+}
+
+.skeleton-input--search {
+  max-width: 34rem;
+  margin-bottom: var(--space-4);
+}
+
+.skeleton-input--desk {
+  flex: 1 1 16rem;
+  max-width: 28rem;
+  height: 2.5rem;
+}
+
+.skeleton-chip {
+  width: 4.75rem;
+  height: 2rem;
+  border-radius: var(--radius-pill);
+}
+
+.skeleton-chip:first-child {
+  width: 2.75rem;
+}
+
+.skeleton-chip--modebar {
+  width: 11rem;
+  margin-bottom: var(--space-5);
+}
+
+.skeleton-avatar {
+  flex: none;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 50%;
+}
+
+.skeleton-avatar--profile {
+  width: 4.5rem;
+  height: 4.5rem;
+}
+
+.skeleton-canvas {
+  width: 100%;
+  min-height: 22rem;
+  height: 60vh;
+  border-radius: var(--radius-lg);
+}
+
+/* ——— Body shapes ——— */
+/* Split heads size the copy column to its text; bones have no intrinsic
+   width, so give the column the room the real title and lede take. */
+.skeleton-head.page-head--split .page-head-copy {
+  flex: 1 1 20rem;
+}
+
+.skeleton-head .page-head-actions {
+  flex: none;
+}
+
+/* Row list: the shared bordered list shell (notifications, library desk,
+   digests, history, exports…). */
+.skeleton-list {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-xs);
+  overflow: hidden;
+}
+
+.skeleton-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  min-height: 4.5rem;
+  padding: var(--space-3) var(--hair-125);
+  border-bottom: 1px solid var(--line);
+}
+
+.skeleton-row:last-child {
+  border-bottom: 0;
+}
+
+.skeleton-row > .skeleton-stack {
+  flex: 1;
+}
+
+.skeleton-chips,
+.skeleton-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.skeleton-tabs {
+  gap: var(--space-5);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--line);
+}
+
+.skeleton-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+.skeleton-stats--strip {
+  display: flex;
+  gap: var(--space-5);
+  margin-bottom: 0;
+}
+
+.skeleton-stats--strip .skeleton-text {
+  width: 5.5rem;
+}
+
+.skeleton-panel {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-xs);
+}
+
+.skeleton-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hair-125);
+  padding: var(--hair-125);
+}
+
+.skeleton-stream {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.skeleton-stream-card {
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-4) var(--hair-125);
+}
+
+.skeleton-prose {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hair-150);
+  max-width: 68ch;
+}
+
+/* Today: main column + quick-action rail (today.css tracks). */
+.skeleton-split {
+  display: grid;
+  gap: clamp(2rem, 5vw, 5rem);
+  margin-top: var(--space-5);
+}
+
+@media (min-width: 900px) {
+  .skeleton-split {
+    grid-template-columns: minmax(0, 1.55fr) minmax(17rem, 0.55fr);
+  }
+}
+
+.skeleton-split .skeleton-text--section {
+  margin-bottom: var(--space-4);
+}
+
+/* Card grid: the same 1 / 2 / 3 tracks and gap as default .collection-grid
+   (explore.css), and the card anatomy of CollectionCard. */
+.route-loading-grid {
+  display: grid;
+  gap: var(--hair-110);
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 640px) {
+  .route-loading-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 900px) {
+  .route-loading-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.route-loading-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hair-45);
+  min-height: 12rem;
+  padding: var(--space-4) var(--hair-110);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.skeleton-card-chip {
+  width: 4rem;
+  height: 1.45rem;
+  border-radius: var(--radius-pill);
+}
+
+.skeleton-card-footer {
+  display: flex;
+  align-items: center;
+  gap: var(--hair-45);
+  margin-top: auto;
+  padding-top: var(--hair-85);
+  border-top: 1px solid var(--line);
+}
+
+.skeleton-card-footer--head {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+  margin-bottom: var(--space-2);
+}
+
+/* ——— Library desk (library.css is route-loaded) ———
+   Rail | divider track | pane, on the desk's own breakpoints and tracks. */
+.skeleton-desk {
+  width: var(--shell-grid);
+  margin-inline: auto;
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+@media (min-width: 720px) {
+  .skeleton-desk {
+    grid-template-columns: minmax(12.5rem, 14rem) minmax(0, 1fr);
+    column-gap: var(--space-5);
+    align-items: start;
+  }
+}
+
+@media (min-width: 1100px) {
+  .skeleton-desk {
+    grid-template-columns: minmax(16.5rem, 18.5rem) minmax(0, 1fr);
+  }
+}
+
+.skeleton-desk-nav {
+  display: none;
+}
+
+@media (min-width: 720px) {
+  .skeleton-desk-nav {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    min-height: 24rem;
+    padding-right: var(--space-4);
+    border-right: 1px solid var(--line);
+  }
+}
+
+.skeleton-desk-nav-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.skeleton-desk-mark {
+  flex: none;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--radius);
+}
+
+.skeleton-desk-nav-group {
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--line);
+}
+
+.skeleton-desk-main {
+  min-width: 0;
+}
+
+/* LibraryHeader keeps a hard divider under the desk head. */
+.skeleton-desk-main .skeleton-head {
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--line);
+}
+
+.skeleton-desk-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+/* ——— Profile (profile.css is route-loaded): .profile-page padding ——— */
+.skeleton-profile-page {
+  padding-top: var(--hair-200);
+}
+
+/* ——— Auth card (auth-pages.css is route-loaded): .auth-page stage ——— */
+.skeleton-auth {
+  min-height: calc(100dvh - var(--header-h));
+  display: grid;
+  place-items: center;
+  padding: var(--hair-200) var(--gutter);
+  background: var(--wash-hero);
+}
+
+.skeleton-auth-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: min(100%, 26rem);
+  padding: var(--hair-200) var(--hair-160);
+}
+
+@media (max-width: 639px) {
+  .skeleton-profile-page {
+    padding-top: var(--space-4);
+  }
+}
+}

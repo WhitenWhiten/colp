@@ -1,0 +1,313 @@
+/* Dashboard canvas widget — AI chat (R8-01 chapter split).
+   Owns only this widget's .desk-X content rules — shared chrome (fill
+   padding, card-head tint, .desk-widget-head/-title) lives in
+   dashboard-desk.css; tile base in cards.css; color themes + the
+   widget-intrinsic skins (wash / terminal) in desk-themes.css (R10-26).
+   Route-owned: imported by pages/Dashboard.tsx after dashboard-desk.css. */
+
+@layer components {
+/* ═══════════════════════════════════════════
+   AI chat
+   ═══════════════════════════════════════════ */
+.desk-mark-ai {
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-tight);
+}
+
+.desk-ai-chat {
+  gap: var(--space-2);
+  padding-bottom: var(--hair-65);
+}
+
+.desk-ai-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--hair-65);
+}
+
+.desk-ai-model {
+  display: flex;
+  align-items: center;
+  gap: var(--hair-40);
+  min-width: 0;
+  color: var(--faint);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+
+.desk-ai-model select {
+  min-width: 0;
+  max-width: 11.5rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-caption);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0;
+  text-transform: none;
+  padding: var(--hair-30) 1.7rem var(--hair-30) var(--space-2); /* off-scale: 1.7rem right pad clears the select chevron (icon + its --hair-65 anchor) */
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: var(--select-chevron);
+  background-repeat: no-repeat;
+  background-position: right var(--hair-55) center;
+  background-size: 0.65rem auto;
+}
+
+/* Opt into the shared customizable-select list (global.css). */
+@supports (appearance: base-select) {
+  .desk-ai-model select { appearance: base-select; }
+}
+
+.desk-ai-model select:focus-visible,
+.desk-ai-compose:focus-within {
+  border-color: var(--ink);
+  box-shadow: var(--shadow-ring);
+}
+
+.desk-ai-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hair-30);
+  color: var(--muted);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+.desk-ai-status i {
+  width: 0.38rem;
+  height: 0.38rem;
+  border-radius: 50%;
+  background: var(--success);
+}
+
+.desk-ai-scopes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.desk-ai-scopes button {
+  appearance: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--ink) 4%, var(--paper));
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  padding: var(--space-1) var(--space-2);
+  cursor: pointer;
+}
+
+.desk-ai-scopes button:hover {
+  color: var(--ink);
+}
+
+.desk-ai-scopes button[aria-pressed='true'] {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.desk-ai-log {
+  flex: 1;
+  min-height: 6rem;
+  overflow: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--hair-15) var(--hair-15) var(--hair-20);
+}
+
+.desk-ai-message {
+  width: fit-content;
+  max-width: min(88%, 34rem);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  padding: var(--space-2) var(--hair-55);
+}
+
+.desk-ai-message.is-user {
+  align-self: flex-end;
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--paper);
+}
+
+.desk-ai-role {
+  display: block;
+  margin-bottom: var(--hair-20);
+  color: var(--faint);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+
+.desk-ai-message.is-user .desk-ai-role {
+  color: color-mix(in srgb, var(--paper) 68%, transparent);
+}
+
+.desk-ai-message p {
+  margin: 0;
+  color: inherit;
+  font-size: var(--text-caption);
+  line-height: 1.42; /* off-scale: tuned chat-bubble leading between the copy rungs */
+}
+
+.desk-ai-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hair-20);
+  margin-top: var(--hair-40);
+}
+
+.desk-ai-sources span {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  color: var(--muted);
+  font-size: var(--text-xs);
+  padding: var(--hair-15) var(--hair-35);
+}
+
+.desk-ai-starters {
+  display: flex;
+  gap: var(--hair-30);
+  overflow-x: auto;
+  padding-bottom: 0.05rem; /* off-scale: optical lift so the scroll row's ink clears the scrollbar track */
+}
+
+.desk-ai-starters button {
+  flex: 0 0 auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: var(--text-xs);
+  padding: var(--hair-30) var(--space-2);
+  cursor: pointer;
+}
+
+.desk-ai-starters button:hover {
+  border-color: var(--line-heavy);
+  color: var(--ink);
+}
+
+.desk-ai-compose {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--hair-40);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface-raised);
+  padding: var(--hair-30);
+}
+
+.desk-ai-compose textarea {
+  flex: 1;
+  min-width: 0;
+  max-height: 4.5rem;
+  resize: none;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-sm);
+  line-height: var(--leading-copy);
+  padding: var(--hair-30) var(--hair-35);
+  outline: none;
+}
+
+.desk-ai-compose textarea::placeholder {
+  color: var(--faint);
+}
+
+.desk-ai-compose button {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 2rem;
+  height: 2rem;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--ink);
+  color: var(--paper);
+  cursor: pointer;
+}
+
+.desk-ai-compose button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.desk-ai-compose svg {
+  width: 1rem;
+  height: 1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
+.desk-ai-dots {
+  display: flex;
+  gap: var(--hair-20);
+  padding: var(--space-1) 0.05rem var(--hair-15); /* off-scale: 0.05rem optical side nudge for the dot row, below the scale floor */
+}
+
+.desk-ai-dots i {
+  width: 0.3rem;
+  height: 0.3rem;
+  border-radius: 50%;
+  background: var(--muted);
+  animation: desk-ai-thinking var(--duration-loop) var(--ease-quart) infinite alternate;
+}
+
+/* motion-exempt: stagger cascade — thinking-dot delays have no token equivalent */
+.desk-ai-dots i:nth-child(2) { animation-delay: 140ms; }
+.desk-ai-dots i:nth-child(3) { animation-delay: calc(var(--duration-fast) * 2); }
+
+@keyframes desk-ai-thinking {
+  to { opacity: 0.25; transform: translateY(-0.12rem); }
+}
+
+@container tile (max-width: 25rem) {
+  .desk-ai-model > span,
+  .desk-ai-status {
+    display: none;
+  }
+
+  .desk-ai-model select {
+    max-width: 9.5rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .desk-ai-dots i { animation: none; }
+}
+
+/* Touch targets: 2.75rem (44px) — owner file carries the coarse override
+   (style-drift gate: one stylesheet per selector). Glyphs stay visually
+   small; the hit box grows. */
+@media (pointer: coarse) {
+  .desk-ai-scopes button,
+  .desk-ai-starters button {
+    min-height: 2.75rem;
+  }
+
+  .desk-ai-compose button {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+}
+}

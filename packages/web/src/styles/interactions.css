@@ -1,0 +1,296 @@
+/* ——— Enhanced Interactions & Micro-animations ——— */
+
+/* ═══════════════════════════════════════════
+   Interaction vocabulary (convention)
+   - Hover lift:      translateY(-1px) for buttons/rows/chrome;
+                      translateY(-2px) for cards/tiles.
+                      Larger lifts only on hero/marketing surfaces.
+   - Press:           scale(0.97); translateY(0) settles the lift.
+                      Smaller scales (0.92) only for tiny icon buttons.
+   - Hover tint:      color-mix(in srgb, var(--ink) 3%, transparent).
+   - Timing:          var(--duration-fast) micro feedback,
+                      var(--duration-state) state changes,
+                      var(--duration-spatial) spatial moves (lift/shadow),
+                      var(--duration-enter) entrances (owned by polish.css).
+   - Motion tokens are defined in tokens.css (M01). Each selector has ONE
+     transition owner: this file (micro-interactions), polish.css
+     (entrances / reduced-motion) or the component stylesheet named in its
+     comment — never declared twice.
+   ═══════════════════════════════════════════ */
+
+/* Smoother, more tactile button press — transform rides the spring curve so
+   the scale(0.97) settle pops back with a subtle overshoot */
+
+@layer patterns {
+.btn {
+  transition:
+    transform var(--duration-fast) var(--ease-spring),
+    background var(--duration-state) var(--ease-quart),
+    border-color var(--duration-state) var(--ease-quart),
+    color var(--duration-state) var(--ease-quart),
+    box-shadow var(--duration-state) var(--ease-quart);
+}
+
+.btn:active {
+  transform: scale(0.97) translateY(1px);
+}
+
+/* Hover lifts are fine-pointer only: on touch, :hover sticks after a tap
+   and the button would stay floated. Press feedback (:active) stays global. */
+@media (hover: hover) and (pointer: fine) {
+  .btn-primary:hover {
+    box-shadow: var(--shadow-primary-hover);
+    transform: translateY(-1px);
+  }
+
+  .btn-secondary:hover {
+    box-shadow: var(--shadow-lift);
+  }
+}
+
+.btn-primary:active {
+  transform: scale(0.97) translateY(0);
+  box-shadow: none;
+}
+
+.btn-secondary:active {
+  transform: scale(0.97) translateY(0);
+  box-shadow: none;
+}
+
+.btn-lg:active {
+  transform: scale(0.97) translateY(0);
+}
+
+/* Nav links — subtle slide-in underline */
+.nav-links a::after {
+  content: '';
+  position: absolute;
+  bottom: 2px;
+  left: var(--hair-65);
+  right: var(--hair-65);
+  height: 1.5px;
+  background: var(--ink);
+  border-radius: var(--radius-pill);
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform var(--duration-state) var(--ease-quart);
+}
+
+.nav-links a:hover::after,
+.nav-links a[aria-current='page']::after,
+.nav-links a.is-active::after {
+  transform: scaleX(1);
+}
+
+/* Chip hover — the .chip transition itself is owned by global.css (base
+   chrome). */
+.chip:hover {
+  background: color-mix(in srgb, var(--ink) 8%, var(--paper));
+  color: var(--ink-2);
+}
+
+/* Collection card — hover title/avatar detail.
+   The card's own hover elevation (translate/border/shadow) is owned solely by
+   cards-ui.css; this block only adds the detail-level affordances. */
+@media (hover: hover) and (pointer: fine) {
+  .result-card--collection:hover .collection-card-title,
+  .folder-gallery-card:hover .collection-card-title {
+    text-decoration: underline;
+    text-underline-offset: 0.15em;
+  }
+}
+
+/* Brand mark pulse on hover. Resting .brand-mark geometry + transition live in nav.css. */
+.brand:hover .brand-mark {
+  transform: scale(1.06);
+}
+
+/* Search field focus glow. Color/border/background hover lives in nav.css. */
+.nav-search-compact:focus-visible {
+  box-shadow: var(--shadow-ring-accent);
+}
+
+/* Nav icon button interaction states — owned here (patterns layer); the base
+   layer keeps only the resting .nav-icon-btn definition. */
+.nav-icon-btn:hover {
+  color: var(--ink);
+  border-color: var(--line-heavy);
+  background: var(--surface);
+  box-shadow: var(--shadow-ring-soft);
+}
+
+.nav-icon-btn:focus-visible {
+  color: var(--ink);
+  border-color: var(--line-heavy);
+  background: var(--surface);
+  box-shadow: var(--shadow-ring-accent);
+}
+
+/* Footer link hover slide — translate, not padding, so text does not shift layout */
+.site-footer nav a {
+  transition:
+    color var(--duration-fast) var(--ease-quart),
+    background var(--duration-fast) var(--ease-quart),
+    transform var(--duration-fast) var(--ease-quart);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .site-footer nav a:hover {
+    transform: translateX(var(--hair-15));
+  }
+}
+
+/* Kbd press effect */
+kbd, .kbd {
+  transition:
+    transform var(--duration-fast) var(--ease-quart),
+    box-shadow var(--duration-fast) var(--ease-quart);
+}
+
+kbd:active, .kbd:active {
+  transform: translateY(1px);
+  box-shadow: none;
+}
+
+/* Landing hint link arrow animation */
+.landing-hint a span {
+  display: inline-block;
+  transition: transform var(--duration-state) var(--ease-quart);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .landing-hint a:hover span {
+    transform: translate(2px, -2px);
+  }
+}
+
+/* Section head link hover */
+.section-head .btn-secondary {
+  position: relative;
+  overflow: hidden;
+}
+
+.section-head .btn-secondary::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--ink) 3%, transparent);
+  transform: translateX(-100%);
+  transition: transform var(--duration-spatial) var(--ease-out);
+}
+
+.section-head .btn-secondary:hover::before {
+  transform: translateX(0);
+}
+
+/* Eyebrow fade-in enhancement */
+.eyebrow {
+  transition: color var(--duration-state) var(--ease-quart);
+}
+
+/* Seriffed emphasis italic sway on hover */
+.serif-em {
+  transition:
+    color var(--duration-state) var(--ease-quart),
+    letter-spacing var(--duration-state) var(--ease-quart);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .landing-hero:hover .serif-em {
+    letter-spacing: var(--tracking-tight);
+  }
+}
+
+/* ——— Typewriter effect (Landing hero) ——— */
+.typewriter-line {
+  /* Own line; the typed word never breaks mid-word (short phrases sized to
+     fit the smallest phone via the hero title's clamp). */
+  display: block;
+  max-width: 100%;
+  padding-top: 0.12em;
+  white-space: nowrap;
+}
+
+.typewriter-wrap {
+  /* Shrink-to-fit the typed word so hero centering ignores the caret. */
+  display: inline-block;
+  position: relative;
+  overflow: visible;
+  white-space: nowrap;
+}
+
+.typewriter-text {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-weight: var(--weight-medium);
+}
+
+/* One-shot pixel pop on each newly typed char — stepped easing keeps it in
+   the dither field's register.
+   motion-exempt: the JS typewriter loop is the M02 exception and this
+   stepped frame is its register; no easing token expresses steps(). */
+.typewriter-pop {
+  display: inline-block;
+  animation: typewriter-pop var(--duration-fast) steps(2, end);
+}
+
+@keyframes typewriter-pop {
+  from {
+    transform: translateY(0.14em) scale(1.35);
+    opacity: 0.25;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+/* Typewriter cursor — motion-exempt: step-end blink is a deliberate
+   terminal cadence (same recipe as .desk-ssh-caret); typewriter motion
+   itself is owned by M02. R15-38: under reduced motion the caret rests
+   visible like every other animation, and Landing's "Pause animation"
+   control removes it along with the typing loop.
+   Hang off the word: in-flow width would shift the typed line left of
+   the lead's center axis by half a caret. top is auto so the static
+   position keeps the glyph on the same baseline as the italic word. */
+.typewriter-cursor {
+  display: inline-block;
+  position: absolute;
+  left: 100%;
+  font-family: var(--font-serif);
+  font-style: normal;
+  font-weight: var(--weight-regular);
+  opacity: 0.7;
+  margin-left: 0.05em;
+  animation: cursor-blink var(--duration-loop) step-end infinite;
+}
+
+.typewriter-cursor.is-blinking {
+  /* Idle pause — same discrete blink, slightly slower than the typing rate */
+  animation: cursor-blink calc(var(--duration-loop) + var(--duration-fast)) step-end infinite;
+}
+
+@keyframes cursor-blink {
+  50% { opacity: 0; }
+}
+
+/* ——— Reduced motion (interactions half) ——— */
+/* Hover/press transforms are suppressed here, next to the rules they
+   neutralize; the animation/transition instantiation lives in
+   polish.css. */
+@media (prefers-reduced-motion: reduce) {
+  .btn:active,
+  .btn-primary:hover,
+  .btn-primary:active,
+  .btn-secondary:active,
+  .btn-lg:active,
+  .brand:hover .brand-mark,
+  .landing-hint a:hover span,
+  .result-card--collection:hover .avatar,
+  .site-footer nav a:hover {
+    transform: none;
+  }
+
+}
+}

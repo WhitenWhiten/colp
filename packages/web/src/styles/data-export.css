@@ -1,0 +1,265 @@
+/* Data export — progress, format picker, job list and the rail.
+   Route-owned: imported by pages/DataExport.tsx only. */
+
+@layer pages {
+.export-progress {
+  margin-top: var(--space-4);
+  padding: var(--hair-85) 0;
+  display: grid;
+  grid-template-columns: minmax(14rem, auto) minmax(12rem, 1fr);
+  align-items: center;
+  gap: var(--hair-150);
+  border-bottom: 1px solid var(--line-strong);
+}
+
+.export-progress > div:first-child {
+  display: grid;
+  gap: var(--hair-15);
+}
+
+.export-progress strong {
+  font-size: var(--text-sm);
+}
+
+.export-progress span {
+  color: var(--faint);
+  font-size: var(--text-xs);
+}
+
+.export-layout {
+  margin-top: 2.5rem;
+  display: grid;
+  gap: clamp(2.5rem, 5vw, 5rem);
+}
+
+.export-config,
+.export-rail {
+  min-width: 0;
+}
+
+.export-config > section {
+  padding: var(--hair-125) 0 var(--hair-200);
+  border-top: 1px solid var(--line-strong);
+}
+
+.export-format-options {
+  margin-top: var(--space-4);
+  display: grid;
+  gap: var(--hair-55);
+}
+
+.export-format-options button {
+  min-width: 0;
+  min-height: 4.5rem;
+  padding: var(--space-3) var(--hair-90);
+  display: grid;
+  grid-template-columns: 5rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  text-align: left;
+}
+
+.export-format-options button[aria-checked='true'] {
+  border-color: var(--ink);
+  box-shadow: var(--shadow-ring);
+}
+
+.export-format-options button[aria-disabled='true'],
+.export-format-options button[aria-disabled='true']:hover {
+  color: var(--ghost);
+  background: var(--surface);
+  cursor: default;
+  transform: none;
+}
+
+.export-format-options strong {
+  font-size: var(--text-sm);
+}
+
+.export-format-options span {
+  color: var(--ink-2);
+  font-size: var(--text-xs);
+  line-height: var(--leading-copy);
+}
+
+.export-format-options small {
+  color: var(--faint);
+  font-size: var(--text-xs);
+}
+
+.export-format-note {
+  margin: var(--space-3) 0 0;
+  color: var(--faint);
+  font-size: var(--text-xs);
+}
+
+.export-scope {
+  margin-top: var(--hair-35);
+}
+
+/* The decision line and its primary sit together at the end of the form. */
+.export-config > .export-manifest {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-4);
+}
+
+.export-manifest > .meta {
+  margin: 0;
+}
+
+.export-manifest dl {
+  margin: var(--space-4) 0 var(--hair-125);
+  padding: var(--hair-85) 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.export-manifest dl div {
+  display: grid;
+  gap: var(--hair-15);
+}
+
+.export-manifest dt {
+  color: var(--faint);
+  font-size: var(--text-xs);
+}
+
+.export-manifest dd {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+}
+
+.export-rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hair-200);
+}
+
+.export-portability,
+.export-history {
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line-strong);
+}
+
+.export-portability ul {
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--hair-55);
+  list-style: none;
+}
+
+.export-portability li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--hair-55);
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.export-portability li svg {
+  flex: none;
+  margin-top: 0.15em;
+  width: 0.95em;
+  height: 0.95em;
+  color: var(--success);
+}
+
+.export-portability > p:last-child {
+  margin: var(--space-4) 0 0;
+  color: var(--faint);
+  font-size: var(--text-xs);
+  line-height: var(--leading-body);
+}
+
+.export-history article {
+  min-height: 4.5rem;
+  padding: var(--hair-65) 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--hair-65);
+  border-bottom: 1px solid var(--line);
+}
+
+.export-file-mark {
+  width: 2rem;
+  height: 2.35rem;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.export-file-mark svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.export-history article > div {
+  min-width: 0;
+  display: grid;
+  gap: var(--hair-15);
+}
+
+.export-history article strong,
+.export-history article small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.export-history article strong {
+  font-size: var(--text-xs);
+}
+
+.export-history article small,
+.export-history article > span:last-child {
+  color: var(--faint);
+  font-size: var(--text-xs);
+}
+
+@media (min-width: 900px) {
+  .export-layout {
+    grid-template-columns: minmax(0, 1.25fr) minmax(18rem, 0.55fr);
+  }
+
+  .export-rail {
+    position: sticky;
+    top: calc(var(--header-h) + var(--hair-150));
+    align-self: start;
+  }
+}
+
+@media (max-width: 639px) {
+  .export-progress {
+    grid-template-columns: 1fr;
+    gap: var(--hair-65);
+  }
+
+  .export-format-options button {
+    grid-template-columns: 1fr auto;
+  }
+
+  .export-format-options span {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .export-manifest .btn {
+    width: 100%;
+  }
+}
+}

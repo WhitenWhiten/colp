@@ -1,0 +1,254 @@
+/* ——— Classify inbox ——— */
+
+@layer pages {
+/* R9-34: no shell-width re-declarations here — PageShell (Classify.tsx)
+   already centers the inner track at --shell with its own gutter; the
+   former `width: var(--shell); margin-inline: auto` blocks on .page-head /
+   .classify-empty / .inbox-layout were dead (they resolved to 100% of the
+   inner track). The classify-empty hook is retired with them. */
+
+/* Queue + the decision card. Page already owns the gutter; this
+   grid must not add a second inline pad or the body drifts under the head. */
+.inbox-layout {
+  display: grid;
+  gap: var(--space-4);
+}
+
+@media (min-width: 900px) {
+  .inbox-layout {
+    /* Queue left, the decision card right. */
+    grid-template-columns: 16rem minmax(0, 1fr);
+    /* A queue taller than the card must not stretch it: the first row hugs
+       the card and the last row takes the slack. */
+    grid-template-rows: auto 1fr;
+    align-items: start;
+  }
+
+  .inbox-layout > aside {
+    grid-row: 1 / span 2;
+  }
+}
+
+.inbox-queue {
+  display: flex;
+  flex-direction: column;
+}
+
+.inbox-queue .section-label {
+  margin-bottom: var(--hair-45);
+}
+
+/* Master-detail list (shared treatment with Version history): rows sit on
+   the page background between hairlines; the selected row lifts into a
+   raised white card. */
+.inbox-queue button {
+  text-align: left;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  padding: var(--space-3);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+  color: var(--ink-2);
+}
+
+.inbox-queue button:hover {
+  background: color-mix(in srgb, var(--ink) 3%, transparent);
+  color: var(--ink);
+}
+
+.inbox-queue button[aria-checked='true'] {
+  border-bottom-color: transparent;
+  border-radius: var(--radius);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-raised);
+  color: var(--ink);
+}
+
+.inbox-queue strong {
+  font-weight: var(--weight-semibold);
+  font-size: var(--text-sm);
+}
+
+.inbox-queue .meta {
+  display: block;
+  margin-top: var(--hair-15);
+}
+
+.incoming-card {
+  padding: var(--space-4) var(--hair-110);
+}
+
+/* The selected bookmark heads the decision card — the queue row is not
+   repeated in a separate Incoming card. */
+.incoming-head {
+  margin-bottom: var(--space-4);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--line);
+}
+
+.incoming-title {
+  font-size: var(--text-xl);
+  margin: 0 0 var(--hair-35);
+}
+
+/* Manual destination under the suggestions. */
+.classify-manual {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--hair-45) var(--space-3);
+  margin-top: var(--space-3);
+}
+
+/* Suggestions column is a flex card so its actions can anchor to the foot. */
+.incoming-card--suggestions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+/* Skip / File read as the card's form footer — a hairline above, pinned to
+   the card foot even when no suggestions are listed, instead of floating
+   directly under a one-line meta. */
+.classify-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--hair-45);
+  margin-top: auto;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+
+/* R11-08: one incoming card. Queue stays in the DOM (tests query it).
+   --bottom-nav-h already includes --safe-bottom when the tab bar is shown
+   and is 0px when it is not, so the dock clears whichever is larger. */
+@media (max-width: 899px) {
+  .inbox-layout > aside {
+    display: none;
+  }
+
+  .inbox-layout {
+    padding-bottom: var(--space-12);
+  }
+
+  .classify-actions {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: max(var(--bottom-nav-h), var(--safe-bottom));
+    z-index: var(--z-sticky);
+    width: 100%;
+    flex-wrap: nowrap;
+    margin-top: 0;
+    padding: var(--space-3) var(--gutter);
+    background: var(--surface);
+  }
+
+  .classify-actions .btn {
+    min-height: 2.75rem;
+    flex: 1;
+    min-width: 0;
+  }
+
+  /* The bar is nowrap: a long "File to {folder} and add N tags" must
+     ellipsize inside its own half — unclipped nowrap text overflows the
+     button and paints over Skip, stealing its taps. */
+  .classify-file-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+.suggestion {
+  cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease-quart), background var(--duration-fast) var(--ease-quart);
+  border-radius: var(--radius);
+  text-align: left;
+  width: 100%;
+  padding: var(--hair-70) var(--space-3);
+  margin-top: var(--hair-40);
+  border: 1px solid var(--line);
+  background: transparent;
+}
+
+.suggestion strong {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-md);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-tight);
+  color: var(--ink);
+}
+
+.suggestion p {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-2);
+  line-height: var(--leading-copy);
+}
+
+.suggestion[aria-checked='true'] {
+  border-color: var(--ink);
+  background: color-mix(in srgb, var(--ink) 3%, var(--surface));
+}
+
+.confidence {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--hair-45);
+  width: 100%;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.confidence-track {
+  flex: 1 1 auto;
+  min-width: 3.5rem;
+  height: 0.4rem;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--line);
+}
+
+/* R10-18: the fill rides the shared ProgressBar anatomy — the accent tone
+   comes from .p0-progress--accent (studio.css). */
+.confidence-track span {
+  display: block;
+  height: 100%;
+  width: 100%;
+  border-radius: inherit;
+  transform: scaleX(var(--progress, 0));
+  transform-origin: left center;
+  will-change: transform;
+  transition: transform var(--duration-state) var(--ease-out);
+}
+
+.classification-preview {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+
+.classification-preview select {
+  width: 100%;
+  min-width: 0;
+}
+
+.classification-preview fieldset {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: 0;
+  border: 0;
+}
+
+}

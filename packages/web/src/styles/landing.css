@@ -1,0 +1,755 @@
+/* ——— Landing ——— */
+
+@layer pages {
+/* The hero is a sticky full-viewport stage: the dither field fills it,
+   the headline sits centered with Skip, and native scroll lets
+   .landing-content cover it. No wheel/touch preventDefault.
+   Height uses svh (not dvh): the mobile URL bar would otherwise resize
+   the canvas every frame and flash a cleared bitmap. */
+.landing-hero {
+  position: sticky;
+  top: var(--header-h);
+  height: calc(100vh - var(--header-h));
+  height: calc(100svh - var(--header-h));
+  z-index: 1;
+  overflow: hidden;
+  background: var(--paper);
+}
+
+.landing-hero-wipe {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+/* The hero's living background: a Bayer-dithered flow field on canvas.
+   Colors are read from tokens by the component; grain layers over it. */
+.dither-field {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.landing-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: var(--grain);
+  pointer-events: none;
+}
+
+.landing-hero-stage {
+  position: relative;
+  z-index: 2;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  padding-inline: var(--gutter);
+  text-align: center;
+}
+
+.landing-hero-title {
+  position: relative;
+  margin: 0;
+}
+
+/* Soft accent blob behind the headline and lede: the field's calm zone
+   keeps the center quiet, and this gradient guarantees contrast for the
+   type. It hangs off the copy column (R12-13), which is taller than the
+   headline alone, so it stays near-opaque further out: the lede sits
+   below the field's calm center, where the dither is denser. */
+.landing-hero-copy::before {
+  content: '';
+  position: absolute;
+  inset: -14% -18%;
+  z-index: -1;
+  background: radial-gradient(
+    ellipse 58% 60% at 50% 50%,
+    color-mix(in srgb, var(--accent-soft) 94%, transparent),
+    color-mix(in srgb, var(--accent-soft) 80%, transparent) 60%,
+    transparent 88%
+  );
+  pointer-events: none;
+}
+
+/* R7-20: on narrow screens the field's dark bands sit close to the
+   headline — the backdrop blob deepens so the title keeps contrast
+   without a box. */
+@media (max-width: 899px) {
+  .landing-hero-copy::before {
+    inset: -20% -24%;
+    background: radial-gradient(
+      ellipse 64% 62% at 50% 50%,
+      color-mix(in srgb, var(--accent-soft) 97%, transparent),
+      color-mix(in srgb, var(--accent-soft) 84%, transparent) 62%,
+      transparent 90%
+    );
+  }
+}
+
+.landing-hero-copy {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  max-width: min(100%, 46rem);
+}
+
+.landing-hero-lede {
+  max-width: 32rem;
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--text-lg);
+  line-height: var(--leading-body);
+  text-wrap: balance;
+}
+
+/* Scroll cue into #landing-content (it replaced the bare "Skip to content",
+   which duplicated the app-wide skip link's label). */
+.landing-skip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+  color: var(--muted);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.landing-skip svg {
+  width: 1em;
+  height: 1em;
+}
+
+.landing-skip:hover,
+.landing-skip:focus-visible {
+  color: var(--ink);
+}
+
+/* R15-38: the hero's ambient motion (field, typewriter, caret) runs
+   indefinitely, so it carries a pause control (2.2.2). Quiet, in the
+   hero's top corner; hidden under reduced motion, where nothing moves. */
+.landing-motion-toggle {
+  position: absolute;
+  z-index: 3;
+  /* Top corner: the bottom of the sticky hero sits inside the phone
+     scroll-padding band (tab bar + scroll-to-top), where focusing the
+     control would scroll the page and slide content over it. */
+  top: var(--space-4);
+  right: var(--gutter);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+}
+
+.landing-motion-toggle:hover,
+.landing-motion-toggle:focus-visible {
+  color: var(--ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-motion-toggle {
+    display: none;
+  }
+}
+
+/* Content follows the in-flow/sticky hero. margin-top: 100dvh is the
+   fallback if the hero is taken out of flow; sticky layout does not need it. */
+.landing-content {
+  position: relative;
+  z-index: 3;
+  background: var(--paper);
+  border-top: 1px solid var(--line-strong);
+}
+
+/* The field settles into the page: a short Bayer band under the content's
+   top hairline, fading downward — the site footer band's mirror, so the
+   landing content opens and closes in the hero's texture family. */
+.landing-content::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3rem;
+  background-image: var(--dither);
+  -webkit-mask-image: linear-gradient(var(--ink), transparent);
+  mask-image: linear-gradient(var(--ink), transparent);
+  pointer-events: none;
+}
+
+.landing-hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--hair-45) var(--hair-85);
+  margin-top: var(--space-5);
+  padding-top: var(--hair-110);
+  border-top: 0;
+  background-image: var(--hairline-fade);
+  background-size: 100% 1px;
+  background-repeat: no-repeat;
+  background-position: top left;
+  color: var(--muted);
+  font-size: var(--text-caption);
+}
+
+.landing-hint-sep {
+  width: 1px;
+  height: 0.85rem;
+  background: var(--line-strong);
+}
+
+.landing-search-trigger {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hair-35);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.landing-search-trigger:hover,
+.landing-search-trigger:focus-visible {
+  color: var(--ink);
+}
+
+@media (pointer: coarse) {
+  .landing-search-trigger {
+    min-height: 2.75rem;
+  }
+}
+
+/* R10-24: focus rings ride the global :focus-visible (1px ink + --shadow-ring);
+   no local 2px/4px variants. */
+
+/* Statement: support copy below the hero; primary CTAs live on first paint. */
+.landing-statement {
+  padding-top: clamp(3.5rem, 7vw, 6rem);
+}
+
+.landing-statement-inner {
+  width: var(--shell);
+  margin-inline: auto;
+}
+
+.landing-statement-lede {
+  margin: 0;
+  max-width: 34ch;
+  font-family: var(--font-serif);
+  font-size: var(--display-sm);
+  line-height: 1.38; /* off-scale: serif lede, tuned for the 34ch measure */
+  letter-spacing: var(--tracking-tight);
+  color: var(--ink);
+  text-wrap: balance;
+}
+
+/* The hero's 3D tilt collection preview (hero-preview-* / preview-*) was
+   retired with the dither-field hero; the field itself is the visual.
+   .hero-tile* belonged to a retired hero mockup — removed (no markup uses it). */
+
+.landing-section {
+  padding: clamp(2.75rem, 5vw, 4rem) var(--gutter);
+}
+
+.landing-section + .landing-section {
+  border-top: 0;
+  background-image: var(--hairline-fade);
+  background-size: 100% 1px;
+  background-repeat: no-repeat;
+  background-position: top left;
+}
+
+/* ——— Closing: light editorial CTA, no abrupt dark promo block ——— */
+.landing-closing-serif {
+  width: var(--shell);
+  max-width: 24ch;
+  margin: 0 auto clamp(2rem, 4vw, 3rem);
+  text-align: center;
+  font-size: var(--display-md);
+  line-height: 1.16; /* off-scale: hero display leading */
+  letter-spacing: var(--tracking-tight);
+  color: var(--ink);
+  text-wrap: balance;
+}
+
+/* Closing band: a soft accent card with the dither texture (painted once by
+   JS into --band-texture) masked to its edges — the field's last echo. */
+.landing-closing-band {
+  position: relative;
+  width: var(--shell);
+  margin-inline: auto;
+  padding: clamp(2.2rem, 5vw, 3.5rem) clamp(1.4rem, 4vw, 3rem);
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+  border-radius: var(--radius-xl);
+  background: var(--wash-hero), var(--wash-accent);
+  overflow: hidden;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.landing-closing-band::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: var(--band-texture, none);
+  background-size: cover;
+  opacity: 0.55;
+  -webkit-mask-image: radial-gradient(ellipse 68% 62% at 50% 50%, transparent 42%, var(--ink) 88%);
+  mask-image: radial-gradient(ellipse 68% 62% at 50% 50%, transparent 42%, var(--ink) 88%);
+  pointer-events: none;
+}
+
+.landing-closing-band > * {
+  position: relative;
+}
+
+.landing-closing-band .eyebrow {
+  color: var(--muted);
+}
+
+.landing-closing-band h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--display-sm);
+  letter-spacing: var(--tracking-display);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-snug);
+}
+
+.landing-closing-band > p:not(.eyebrow) {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--text-md);
+  line-height: var(--leading-normal);
+  max-width: 38ch;
+}
+
+.landing-closing-band .landing-cta {
+  justify-content: center;
+  margin-top: var(--space-1);
+}
+
+/* .section-head base and the .cta-row action row live in page-chrome.css. */
+
+/* The lead-in sits on --ink so the first line matches the typed word;
+   the italic third line is no longer the only high-contrast row (R10-15). */
+.landing-hero-lead {
+  color: var(--ink);
+}
+
+.landing-hint a {
+  color: inherit;
+  transition: color var(--duration-fast) var(--ease-quart);
+}
+
+.landing-external-arrow {
+  display: inline-flex;
+  vertical-align: -0.2em;
+}
+
+.landing-external-arrow svg {
+  width: 1em;
+  height: 1em;
+}
+
+.landing-hint a:hover {
+  color: var(--ink);
+}
+
+/* Chapter: sticky intro column (with the mini collection card) beside the
+   four mode rows — the landing's "how it works" spread. */
+.landing-chapter-grid {
+  width: var(--shell);
+  margin-inline: auto;
+  display: grid;
+  gap: clamp(2rem, 4vw, 3.5rem);
+}
+
+.landing-chapter-sticky .lede {
+  margin-top: var(--space-3);
+  max-width: 30rem;
+}
+
+/* R7-18: the 640–899 band gets the two-column chapter early — a portrait
+   tablet otherwise reads a stretched phone column until 900. No sticky
+   here; that stays a desktop affordance. */
+@media (min-width: 640px) and (max-width: 899px) {
+  .landing-chapter-grid {
+    grid-template-columns: 1fr 1.1fr;
+    align-items: start;
+  }
+}
+
+@media (min-width: 900px) {
+  .landing-chapter-grid {
+    grid-template-columns: 0.9fr 1.1fr;
+    align-items: start;
+  }
+
+  .landing-chapter-sticky {
+    position: sticky;
+    top: calc(var(--header-h) + var(--hair-150));
+  }
+}
+
+.mode-row {
+  display: grid;
+  grid-template-columns: 3.2rem minmax(0, 1fr);
+  gap: var(--space-3);
+  padding: var(--hair-110) var(--hair-40);
+  border-top: 1px solid var(--line);
+  transition: background var(--duration-fast) var(--ease-quart);
+}
+
+.landing-chapter-rows .mode-row:last-child {
+  border-bottom: 1px solid var(--line);
+}
+
+.mode-index {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: var(--text-xl);
+  line-height: var(--leading-meta);
+  color: var(--faint);
+  transition: color var(--duration-fast) var(--ease-quart);
+}
+
+.mode-body h3 {
+  margin: 0 0 var(--hair-15);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-tight);
+  color: var(--ink);
+}
+
+.mode-body p {
+  margin: 0;
+  max-width: 46ch;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .mode-row:hover {
+    background: color-mix(in srgb, var(--accent-soft) 45%, transparent);
+  }
+
+  .mode-row:hover .mode-index {
+    color: var(--accent-ink);
+  }
+}
+
+/* The mini collection card: a compact echo of the retired hero preview,
+   grounding the chapter in the product's real objects. Dots reuse the
+   source-accent tokens as their color vocabulary. */
+.mini-card {
+  margin-top: clamp(1.4rem, 2.5vw, 2rem);
+  max-width: 24rem;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4) var(--hair-110);
+  box-shadow: var(--shadow-xs);
+}
+
+.mini-head {
+  display: grid;
+  gap: var(--hair-15);
+  padding-bottom: var(--hair-55);
+  margin-bottom: var(--hair-55);
+  border-bottom: 1px solid var(--line);
+}
+
+.mini-kicker {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.mini-title {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-tight);
+  color: var(--ink);
+}
+
+.mini-meta {
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+.mini-row {
+  display: flex;
+  align-items: center;
+  gap: var(--hair-45);
+  padding: var(--hair-30) 0;
+  font-size: var(--text-xs);
+}
+
+.mini-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  flex: none;
+  background: var(--accent);
+}
+
+.mini-dot--github {
+  background: var(--source-github);
+}
+
+.mini-dot--medium {
+  background: var(--source-medium);
+}
+
+.mini-dot--figma {
+  background: var(--source-figma);
+}
+
+.mini-dot--arxiv {
+  background: var(--source-arxiv);
+}
+
+.mini-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-2);
+  font-weight: var(--weight-semibold);
+}
+
+.mini-host {
+  margin-left: auto;
+  color: var(--faint);
+  font-size: var(--text-2xs);
+}
+
+/* Extensibility framework for future integrations (browser plugins, Obsidian, embeds, self-hosted).
+   Raindrop.io-inspired clean, visual-first aesthetic with calm editorial cards.
+   Sections stay on --paper like the rest of the page — the hairline-fade
+   separators own the rhythm; filled bands made two adjacent sections read
+   as one arbitrary dark block. */
+.extensibility-grid {
+  width: var(--shell);
+  margin-inline: auto;
+  display: grid;
+  grid-template-columns: none;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(min(100%, 260px), 1fr);
+  gap: var(--hair-125);
+  /* Padding is the hover-clip budget: the top slot keeps the -2px lift
+     inside the scrollport while the bottom slot lets the raised shadow
+     fade out instead of being cut into a hard gray block. */
+  padding: var(--hair-15) 0 var(--space-6);
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-inline: contain;
+  scroll-snap-type: inline mandatory;
+}
+
+.extensibility-grid > *,
+.landing-collection-grid > * {
+  scroll-snap-align: start;
+}
+
+.extensibility-grid > [role='listitem'] {
+  min-width: 0;
+  display: flex;
+}
+
+.extensibility-grid > [role='listitem'] > .ext-card {
+  flex: 1;
+  width: 100%;
+}
+
+/* R10-24: grid focus rings ride the global :focus-visible recipe too. */
+
+/* R7-27: surface chrome comes from .panel.panel-raised; the card keeps
+   its marketing layout and lift motion. */
+.ext-card {
+  padding: var(--space-6);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  transition: transform var(--duration-spatial) var(--ease-out),
+              border-color var(--duration-state) var(--ease-quart),
+              box-shadow var(--duration-spatial) var(--ease-out),
+              translate var(--duration-spatial) var(--ease-out);
+}
+
+/* Fine-pointer only: a tapped card must not stay floated (sticky :hover). */
+@media (hover: hover) and (pointer: fine) {
+  .ext-card:hover {
+    border-color: var(--line-heavy);
+    translate: 0 -2px;
+    box-shadow: var(--shadow-raised), var(--inset-highlight);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ext-card:hover {
+    transform: none !important;
+    translate: none !important;
+  }
+}
+
+.ext-glyph {
+  display: grid;
+  place-items: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  margin-bottom: var(--hair-65);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--accent-soft) 55%, transparent);
+  color: var(--accent-ink);
+}
+
+.ext-glyph svg {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+.ext-header {
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--faint);
+  margin-bottom: var(--space-2);
+}
+
+.ext-card h3 {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-tight);
+  color: var(--ink);
+}
+
+.ext-card p {
+  margin: 0 0 var(--hair-150);
+  color: var(--ink-2);
+  line-height: var(--leading-prose);
+  font-size: var(--text-sm);
+  flex-grow: 1;
+}
+
+.ext-foot {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  margin-top: auto;
+}
+
+.ext-badges {
+  display: flex;
+  gap: var(--hair-35);
+  flex-wrap: wrap;
+}
+
+.ext-cta {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+  color: var(--accent-ink);
+}
+
+/* .badge / .badge--soon live in global.css */
+
+/* .workflow-list / .workflow-step* belonged to a retired landing section —
+   removed along with their responsive variants (no markup uses them). */
+
+/* Landing's curated row is a horizontal snap scroller at EVERY width: this
+   compound selector (0-2-0) owns the grid tracks, so narrower tiers must not
+   redeclare a single column here — phones scroll sideways like desktop. */
+.collection-grid.landing-collection-grid {
+  width: var(--shell);
+  grid-template-columns: none;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(min(100%, 260px), 1fr);
+  gap: var(--hair-125);
+  /* Same hover-clip budget as .extensibility-grid: lift headroom on top,
+     full shadow fade-out room below the cards. */
+  padding: var(--hair-15) 0 var(--space-6);
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-inline: contain;
+  scroll-snap-type: inline mandatory;
+}
+
+@media (max-width: 639px) {
+  .landing-hero-title {
+    font-size: clamp(1.65rem, 8.4vw, 2.3rem); /* off-scale: landing hero mobile display, below the --display-lg floor */
+  }
+
+  .landing-hero-lede {
+    font-size: var(--text-md);
+  }
+
+  .landing-hint {
+    display: block;
+  }
+
+  .landing-search-trigger,
+  .landing-hint-sep {
+    display: none;
+  }
+
+  .landing-browse-link {
+    display: block;
+    width: 100%;
+    text-align: right;
+  }
+
+  /* One card nearly fills the row; leave a peek of the next so the snap
+     scroller is obvious. Keep Browse all collections in the section head. */
+  .extensibility-grid,
+  .collection-grid.landing-collection-grid {
+    grid-auto-columns: calc(100% - 2.5rem);
+    padding-inline-end: var(--space-4);
+  }
+}
+
+/* Phone landscape (e.g. 844×390): the sticky hero gets under ~26rem of
+   height and its overflow is hidden, so compact the stage instead of
+   letting the title/cue clip. */
+@media (max-height: 26rem) and (min-width: 640px) {
+  .landing-hero-title {
+    /* ~the --display-lg clamp floor (2.4rem); tokenized to keep the drift ratchet green */
+    font-size: var(--text-3xl);
+  }
+
+  .landing-hero-lede {
+    font-size: var(--text-md);
+  }
+
+  .landing-hint {
+    display: none;
+  }
+
+  .landing-cta {
+    margin-top: var(--space-4);
+  }
+}
+
+}

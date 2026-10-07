@@ -1,0 +1,448 @@
+/* Curator digest management — shared route stylesheet for pages/MyDigests.tsx
+   and pages/DigestManage.tsx (SHARED_ROUTE_STYLESHEETS in
+   styles/css-layers.contract.test.ts). Single owner of every `digest-*` and
+   `my-digest-*` rule: the Mine board's nameplate rows and the manage
+   workbench's issue table and settings cards. Collaborators
+   reuse collab.css; the collection picker reuses library.css.
+   Chrome stays on the shared atoms — .result-card (cards-ui.css), .edit-form
+   / .field (workbench-chrome.css), .section-head, .filter-btn and
+   StatusBadge — this file only owns the manage-specific layout. */
+
+@layer pages {
+/* ——— Shared page wrapper + quiet note ——— */
+.digest-manage-page {
+  min-width: 0;
+}
+
+.digest-note {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+
+/* New issue form: the issue key sits behind this disclosure. */
+.digest-advanced > summary {
+  cursor: pointer;
+  padding-block: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--ink-2);
+}
+
+/* ——— Mine board (/library/digests) ——— */
+/* "Shared with me" (components/bookmark-subscriptions/SharedDigests.tsx)
+   is a secondary section under the curator's own list: a hairline, a
+   section-sized head and caption-register notes, not a second page title. */
+.shared-digests {
+  margin-top: var(--space-8);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+
+.shared-digests h2 {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+}
+
+.shared-digests-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-1) 0 var(--space-3);
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.my-digest-list {
+  list-style: none;
+  margin: var(--space-4) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.my-digest-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.my-digest-card-kicker {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.my-digest-slug {
+  font-size: var(--text-xs);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.my-digest-card-foot {
+  margin-top: auto;
+}
+
+.my-digest-more {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding-block: var(--space-3);
+}
+
+/* ——— Manage workbench (/library/digests/:id) ——— */
+
+/* Mutation receipt bar — parked intents, stale data, command conflicts. */
+.digest-op-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  margin-top: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+}
+
+.digest-op-bar p {
+  margin: 0;
+}
+
+/* The bar carries parked-intent and failure notices; the left edge is a
+   fixed-width neutral spine that only recolors by severity, so switching
+   between states never shifts layout (same recipe as .replica-message in
+   sync.css). */
+.digest-op-bar.is-unknown,
+.digest-op-bar.is-stale,
+.digest-op-bar.is-conflict {
+  border-left-color: var(--warning);
+}
+
+.digest-op-bar.is-error {
+  border-left-color: var(--danger);
+}
+
+.digest-op-bar.is-error p {
+  color: var(--danger);
+}
+
+.digest-op-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.digest-manage-page .tab-rail { margin-top: var(--space-4); }
+
+.digest-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+  margin-bottom: var(--space-3);
+}
+
+.digest-panel-count {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+
+/* Issue table — No. / Title / Source / Period / State / Actions on the
+   shared .data-table primitive (R10-18). The host supplies the column
+   template; head/row chrome comes from data-table.css. */
+.digest-table {
+  --data-table-cols: 4.5rem minmax(10rem, 1.4fr) minmax(8rem, 1fr) minmax(9rem, 1fr) 6rem 10rem;
+  font-size: var(--text-sm);
+}
+
+.digest-table-num {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.digest-table-key {
+  display: block;
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.digest-table-actions {
+  white-space: nowrap;
+  text-align: end;
+}
+
+.digest-table-more {
+  margin-top: var(--space-3);
+}
+
+/* ≤899px data-table.css hides the header and stacks every cell. This block
+   is in @layer pages, so the same specificity re-grids the row: title with
+   the state badge, then "Source" and "Period". Empty cells are not a line. */
+@media (max-width: 899px) {
+  .digest-table .data-table-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--space-1) var(--space-3);
+    padding-block: var(--space-3);
+  }
+
+  .digest-table .digest-table-num { display: none; }
+
+  .digest-table [data-label]::before {
+    content: attr(data-label) ': ';
+    color: var(--muted);
+  }
+
+  .digest-table [data-label] {
+    font-size: var(--text-sm);
+    grid-column: 1;
+  }
+
+  .digest-table [data-label='State'] {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: start;
+  }
+
+  .digest-table [data-label='State']::before { content: none; }
+
+  .digest-table .digest-table-actions {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  .digest-table [data-empty] { display: none; }
+}
+
+/* Settings tab — one surface card per concern (General, Catalog, Schedule,
+   Danger zone) in a bounded column. Inside a card every .field is a row:
+   label on the left, control + hint on the right from 720px; stacked below. */
+.digest-settings-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: 56rem;
+  margin-top: var(--space-5);
+}
+
+/* .digest-card.edit-form (0,2,0) beats the .edit-form column gap — the card
+   owns its rhythm; the danger card has no .edit-form. */
+.digest-card.edit-form,
+.digest-card {
+  gap: 0;
+  min-width: 0;
+  margin: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.digest-card-head {
+  display: grid;
+  gap: var(--hair-15);
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--line);
+}
+
+.digest-card h2 {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+
+.digest-card-head p,
+.digest-danger-zone p {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+
+.digest-card-body > .field {
+  padding: var(--space-4) var(--space-5);
+}
+
+.digest-card-body > .field + .field {
+  border-top: 1px solid var(--line);
+}
+
+/* Catalog rides the General form's Save settings: a labelled group under
+   the general fields, same row rhythm. */
+.digest-settings-catalog {
+  display: grid;
+  gap: var(--hair-20);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+
+.digest-settings-catalog > .section-label,
+.digest-settings-catalog > .field-hint {
+  margin: 0;
+  padding: 0 var(--space-5);
+}
+
+.digest-settings-catalog > .field {
+  padding: var(--space-4) var(--space-5);
+}
+
+.digest-settings-catalog > .field + .field {
+  border-top: 1px solid var(--line);
+}
+
+/* Controls fill the right column; the readable cap still bounds them, and
+   hints wrap at the same edge. */
+.digest-card-body .field :is(input:not([type='checkbox']), textarea, select) {
+  width: 100%;
+}
+
+.digest-card-body .field-hint {
+  max-width: var(--measure);
+}
+
+/* A non-<label> row name (the checkbox row's control carries its own label),
+   same register as the .edit-form field labels. */
+.digest-field-label {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+  color: var(--ink-2);
+}
+
+/* Footer band: status + the card's one action at the end of the row. */
+.digest-card-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-3) var(--space-5);
+  border-top: 1px solid var(--line);
+}
+
+/* /reports/ prefix joined to the slug input. */
+.digest-address {
+  display: flex;
+  min-width: 0;
+  max-width: var(--measure);
+}
+
+.digest-address-prefix {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  padding-inline: var(--hair-85);
+  border: 1px solid var(--line-strong);
+  border-right: 0;
+  border-radius: var(--radius) 0 0 var(--radius);
+  background: var(--paper-2);
+  color: var(--muted);
+  font-size: var(--text-md);
+}
+
+.digest-address input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+.digest-check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 2.75rem;
+  font-size: var(--text-md);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+/* .field input (0,1,1) outranks the :where() checkbox recipe in global.css:
+   its min-height, padding, radius and surface fill would stretch the box and
+   hide the tick. Hand the recipe's shape and checked fill back. */
+.field .digest-check input {
+  min-height: 0;
+  padding: 0;
+  border-color: var(--line-heavy);
+  border-radius: var(--radius-xs);
+}
+
+.field .digest-check input:checked {
+  border-color: var(--ink);
+  background: var(--ink);
+}
+
+/* Danger zone: one row — consequence on the left, the action on the right. */
+.digest-danger-zone {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-5);
+  padding: var(--space-4) var(--space-5);
+  border-color: color-mix(in srgb, var(--danger) 35%, var(--line-strong));
+}
+
+.digest-danger-zone > div {
+  display: grid;
+  flex: 1 1 18rem;
+  gap: var(--hair-15);
+}
+
+@media (min-width: 720px) {
+  .digest-card-body > .field {
+    display: grid;
+    grid-template-columns: minmax(8rem, 12rem) minmax(0, 1fr);
+    gap: var(--hair-40) var(--space-6);
+    align-items: start;
+  }
+
+  .digest-card-body > .field > * {
+    grid-column: 2;
+  }
+
+  .digest-card-body .field select {
+    max-width: 18rem;
+  }
+
+  /* Row name sits on the first control's text line. */
+  .digest-card-body > .field > :is(label, .digest-field-label):first-child {
+    grid-column: 1;
+    grid-row: 1;
+    padding-top: var(--hair-85);
+  }
+}
+
+@media (max-width: 540px) {
+  .digest-card-head,
+  .digest-card-body > .field,
+  .digest-card-foot,
+  .digest-danger-zone {
+    padding-inline: var(--space-4);
+  }
+}
+
+.digest-form-pair {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.digest-collection-pick {
+  justify-content: flex-start;
+  max-width: 24rem;
+}
+
+@media (min-width: 640px) {
+  .digest-form-pair {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+}
