@@ -1,6 +1,6 @@
 # The Collection Protocol
 
-[English](README.md) | [简体中文](README.zh-CN.md)
+[English](README.md) | [简体中文](README.zh-CN.md) | [日本語](README.ja.md)
 
 The Collection Protocol (COLP) is an open, HTTP-native protocol for bookmarks and curated knowledge collections. It describes how to publish a collection the way you publish a blog, how to sync bookmark trees between browsers and servers, and how to let AI assistants help without giving them more access than you meant to.
 

@@ -1,11 +1,51 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="470" viewBox="0 0 1000 470" role="img" aria-labelledby="title desc" xml:lang="zh-CN">
-<title id="title">一致性 Profile</title>
-<desc id="desc">每个 Profile 建立在指向它的 Profile 之上。服务器只声明自己完整通过的 Profile。</desc>
-<style>text{font-family:Inter, 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Droid Sans Fallback', sans-serif}.mono{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', 'Noto Sans Mono', 'Droid Sans Fallback', monospace}.frame{fill:#ffffff;stroke:#d0d7de}.card{fill:#f6f8fa;stroke:#d0d7de}.inner{fill:#ffffff;stroke:#d8dee4}.h{fill:#1f2328;font-weight:700}.b{fill:#1f2328}.m{fill:#59636e}.ln{stroke:#8c959f;fill:none}.lnf{fill:#8c959f}@media (prefers-color-scheme: dark){.frame{fill:#0d1117;stroke:#30363d}.card{fill:#161b22;stroke:#30363d}.inner{fill:#0d1117;stroke:#3d444d}.h,.b{fill:#e6edf3}.m{fill:#9198a1}.ln{stroke:#6e7681}.lnf{fill:#6e7681}}</style>
-<defs><linearGradient id="mark" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2DD4BF"/><stop offset="1" stop-color="#6366F1"/></linearGradient><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" class="lnf"/></marker></defs>
-<rect class="frame" x="0.5" y="0.5" width="999" height="469" rx="16"/>
-<text class="h" x="32" y="48" font-size="21">一致性 Profile</text>
-<text class="m" x="32" y="74" font-size="14">每个 Profile 建立在指向它的 Profile 之上。服务器只声明自己完整通过的 Profile。</text>
-<path class="ln" d="M236 275C250 275 250 185 264 185" stroke-width="1.75" marker-end="url(#arrow)"/><path class="ln" d="M236 275C250 275 250 275 264 275" stroke-width="1.75" marker-end="url(#arrow)"/><path class="ln" d="M236 275C250 275 250 365 264 365" stroke-width="1.75" marker-end="url(#arrow)"/><path class="ln" d="M480 185C494 185 494 145 508 145" stroke-width="1.75" marker-end="url(#arrow)"/><path class="ln" d="M480 185C494 185 494 235 508 235" stroke-width="1.75" marker-end="url(#arrow)"/><path class="ln" d="M724 235C738 235 738 315 752 315" stroke-width="1.75" marker-end="url(#arrow)"/><path class="ln" d="M480 365C616 365 616 315 752 315" stroke-width="1.75" marker-end="url(#arrow)"/><rect class="card" x="24" y="240" width="212" height="70" rx="12"/><rect x="24" y="240" width="6" height="70" rx="3" fill="#6366F1"/><text class="mono" x="44" y="269" font-size="15" font-weight="700" fill="#6366F1">core</text><text class="m" x="44" y="291" font-size="12.5">数据模型与 Snapshot</text><rect class="card" x="268" y="150" width="212" height="70" rx="12"/><rect x="268" y="150" width="6" height="70" rx="3" fill="#0EA5E9"/><text class="mono" x="288" y="179" font-size="15" font-weight="700" fill="#0EA5E9">publication</text><text class="m" x="288" y="201" font-size="12.5">发现与只读 API</text><rect class="card" x="268" y="240" width="212" height="70" rx="12"/><rect x="268" y="240" width="6" height="70" rx="3" fill="#EC4899"/><text class="mono" x="288" y="269" font-size="15" font-weight="700" fill="#EC4899">sync</text><text class="m" x="288" y="291" font-size="12.5">双向副本同步</text><rect class="card" x="268" y="330" width="212" height="70" rx="12"/><rect x="268" y="330" width="6" height="70" rx="3" fill="#8B5CF6"/><text class="mono" x="288" y="359" font-size="15" font-weight="700" fill="#8B5CF6">mcp-read</text><text class="m" x="288" y="381" font-size="12.5">AI 只读访问</text><rect class="card" x="512" y="110" width="212" height="70" rx="12"/><rect x="512" y="110" width="6" height="70" rx="3" fill="#F59E0B"/><text class="mono" x="532" y="139" font-size="15" font-weight="700" fill="#F59E0B">feed</text><text class="m" x="532" y="161" font-size="12.5">公开变更订阅</text><rect class="card" x="512" y="200" width="212" height="70" rx="12"/><rect x="512" y="200" width="6" height="70" rx="3" fill="#10B981"/><text class="mono" x="532" y="229" font-size="15" font-weight="700" fill="#10B981">publisher</text><text class="m" x="532" y="251" font-size="12.5">认证写入</text><rect class="card" x="756" y="280" width="212" height="70" rx="12"/><rect x="756" y="280" width="6" height="70" rx="3" fill="#9333EA"/><text class="mono" x="776" y="309" font-size="15" font-weight="700" fill="#9333EA">mcp-write</text><text class="m" x="776" y="331" font-size="12.5">经用户批准的 AI 写入</text>
-<text class="m" x="32" y="440" font-size="13">从 core + publication 起步，再逐个加入 Feed、写入、Sync 和 MCP。</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="430" viewBox="0 0 1000 430" role="img" aria-labelledby="title desc" xml:lang="zh-CN">
+<title id="title">COLP 一致性 Profile</title>
+<desc id="desc">Profile 依赖图：publication、sync、mcp-read 建立在 core 之上；feed 与 publisher 建立在 publication 之上；mcp-write 建立在 mcp-read 与 publisher 之上。core 与 publication 合起来就是完整的静态服务器。</desc>
+<style>text{font-family:Inter, 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans CJK SC', sans-serif}.mono{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace}</style>
+<rect x="0.5" y="0.5" width="999" height="429" rx="16" fill="#ffffff" stroke="#d1d9e0"/>
+<rect x="18" y="56" width="480" height="88" rx="16" fill="#6366f1" fill-opacity="0.07" stroke="#6366f1" stroke-opacity="0.55" stroke-dasharray="6 5"/>
+<text x="20" y="44" font-size="14" font-weight="600" fill="#4338ca">从这里开始：静态站点即可提供这两项</text>
+<path d="M242 100H265" fill="none" stroke="#818b98" stroke-width="2"/>
+<path d="M274 100L265 104.5L265 95.5Z" fill="#818b98"/>
+<path d="M484 100H507" fill="none" stroke="#818b98" stroke-width="2"/>
+<path d="M516 100L507 104.5L507 95.5Z" fill="#818b98"/>
+<path d="M137 130V248Q137 260 149 260H265" fill="none" stroke="#818b98" stroke-width="2"/>
+<path d="M274 260L265 264.5L265 255.5Z" fill="#818b98"/>
+<path d="M137 130V328Q137 340 149 340H265" fill="none" stroke="#818b98" stroke-width="2"/>
+<path d="M274 340L265 344.5L265 335.5Z" fill="#818b98"/>
+<path d="M379 130V168Q379 180 391 180H507" fill="none" stroke="#818b98" stroke-width="2"/>
+<path d="M516 180L507 184.5L507 175.5Z" fill="#818b98"/>
+<path d="M726 180H749" fill="none" stroke="#818b98" stroke-width="2"/>
+<path d="M758 180L749 184.5L749 175.5Z" fill="#818b98"/>
+<path d="M484 260H749" fill="none" stroke="#818b98" stroke-width="2"/>
+<path d="M758 260L749 264.5L749 255.5Z" fill="#818b98"/>
+<rect x="32" y="70" width="210" height="60" rx="12" fill="#f6f8fa" stroke="#d1d9e0"/>
+<rect x="44" y="82" width="4" height="36" rx="2" fill="#6366f1"/>
+<text x="58" y="96" font-size="16" font-weight="700" fill="#4338ca" class="mono">core</text>
+<text x="58" y="118" font-size="14" fill="#59636e">数据模型与 Snapshot</text>
+<rect x="274" y="70" width="210" height="60" rx="12" fill="#f6f8fa" stroke="#d1d9e0"/>
+<rect x="286" y="82" width="4" height="36" rx="2" fill="#0ea5e9"/>
+<text x="300" y="96" font-size="16" font-weight="700" fill="#0369a1" class="mono">publication</text>
+<text x="300" y="118" font-size="14" fill="#59636e">发现与只读 API</text>
+<rect x="516" y="70" width="210" height="60" rx="12" fill="#f6f8fa" stroke="#d1d9e0"/>
+<rect x="528" y="82" width="4" height="36" rx="2" fill="#f59e0b"/>
+<text x="542" y="96" font-size="16" font-weight="700" fill="#b45309" class="mono">feed</text>
+<text x="542" y="118" font-size="14" fill="#59636e">公开变更订阅</text>
+<rect x="516" y="150" width="210" height="60" rx="12" fill="#f6f8fa" stroke="#d1d9e0"/>
+<rect x="528" y="162" width="4" height="36" rx="2" fill="#10b981"/>
+<text x="542" y="176" font-size="16" font-weight="700" fill="#047857" class="mono">publisher</text>
+<text x="542" y="198" font-size="14" fill="#59636e">认证写入</text>
+<rect x="274" y="230" width="210" height="60" rx="12" fill="#f6f8fa" stroke="#d1d9e0"/>
+<rect x="286" y="242" width="4" height="36" rx="2" fill="#8b5cf6"/>
+<text x="300" y="256" font-size="16" font-weight="700" fill="#6d28d9" class="mono">mcp-read</text>
+<text x="300" y="278" font-size="14" fill="#59636e">AI 只读访问</text>
+<rect x="274" y="310" width="210" height="60" rx="12" fill="#f6f8fa" stroke="#d1d9e0"/>
+<rect x="286" y="322" width="4" height="36" rx="2" fill="#ec4899"/>
+<text x="300" y="336" font-size="16" font-weight="700" fill="#be185d" class="mono">sync</text>
+<text x="300" y="358" font-size="14" fill="#59636e">双向副本同步</text>
+<rect x="758" y="166" width="210" height="108" rx="12" fill="#f6f8fa" stroke="#d1d9e0"/>
+<rect x="770" y="202" width="4" height="36" rx="2" fill="#a855f7"/>
+<text x="784" y="216" font-size="16" font-weight="700" fill="#7e22ce" class="mono">mcp-write</text>
+<text x="784" y="238" font-size="14" fill="#59636e">经用户批准的 AI 写入</text>
+<text x="32" y="404" font-size="14" fill="#59636e">每个 Profile 建立在指向它的 Profile 之上。服务器只声明自己完整通过的 Profile。</text>
 </svg>

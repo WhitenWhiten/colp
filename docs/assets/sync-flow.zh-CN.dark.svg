@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="584" viewBox="0 0 1000 584" role="img" aria-labelledby="title desc" xml:lang="zh-CN">
+<title id="title">COLP 双向同步</title>
+<desc id="desc">浏览器副本打开会话，从快照初始化，推送本地队列中的操作，拉取游标之后的变更，并确认进度。</desc>
+<style>text{font-family:Inter, 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans CJK SC', sans-serif}.mono{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace}</style>
+<rect x="0.5" y="0.5" width="999" height="583" rx="16" fill="#0d1117" stroke="#3d444d"/>
+<rect x="90" y="28" width="280" height="70" rx="12" fill="#151b23" stroke="#3d444d"/>
+<rect x="90" y="28" width="280" height="4" rx="2" fill="#f472b6"/>
+<text x="230" y="60" font-size="17" font-weight="700" fill="#f0f6fc" text-anchor="middle">浏览器副本</text>
+<text x="230" y="82" font-size="14" fill="#9198a1" text-anchor="middle">适配器 + 本地 Sidecar</text>
+<rect x="600" y="28" width="280" height="70" rx="12" fill="#151b23" stroke="#3d444d"/>
+<rect x="600" y="28" width="280" height="4" rx="2" fill="#818cf8"/>
+<text x="740" y="60" font-size="17" font-weight="700" fill="#f0f6fc" text-anchor="middle">COLP 服务器</text>
+<text x="740" y="82" font-size="14" fill="#9198a1" text-anchor="middle">权威状态 + 操作日志</text>
+<line x1="230" y1="98" x2="230" y2="556" stroke="#656c76" stroke-width="1.5" stroke-dasharray="5 5"/>
+<line x1="740" y1="98" x2="740" y2="556" stroke="#656c76" stroke-width="1.5" stroke-dasharray="5 5"/>
+<circle cx="449" cy="120" r="12" fill="#f472b6"/>
+<text x="449" y="124.5" font-size="13" font-weight="700" fill="#ffffff" text-anchor="middle">1</text>
+<text x="469" y="126" font-size="16" font-weight="700" fill="#f0f6fc">打开会话</text>
+<line x1="230" y1="146" x2="730" y2="146" stroke="#f472b6" stroke-width="2"/>
+<path d="M740 146L729 151.5L729 140.5Z" fill="#f472b6"/>
+<text x="485" y="172" font-size="14" fill="#9198a1" text-anchor="middle">副本绑定、作用域、协议版本</text>
+<text x="756" y="150.5" font-size="13" fill="#9198a1" class="mono">syncSessions</text>
+<circle cx="457" cy="200" r="12" fill="#818cf8"/>
+<text x="457" y="204.5" font-size="13" font-weight="700" fill="#ffffff" text-anchor="middle">2</text>
+<text x="477" y="206" font-size="16" font-weight="700" fill="#f0f6fc">初始化</text>
+<line x1="740" y1="226" x2="240" y2="226" stroke="#818cf8" stroke-width="2"/>
+<path d="M230 226L241 220.5L241 231.5Z" fill="#818cf8"/>
+<text x="485" y="252" font-size="14" fill="#9198a1" text-anchor="middle">一份完整的 Sync Snapshot</text>
+<text x="756" y="230.5" font-size="13" fill="#9198a1" class="mono">syncSnapshot</text>
+<circle cx="449" cy="338" r="12" fill="#f472b6"/>
+<text x="449" y="342.5" font-size="13" font-weight="700" fill="#ffffff" text-anchor="middle">3</text>
+<text x="469" y="344" font-size="16" font-weight="700" fill="#f0f6fc">推送操作</text>
+<line x1="230" y1="364" x2="730" y2="364" stroke="#f472b6" stroke-width="2"/>
+<path d="M740 364L729 369.5L729 358.5Z" fill="#f472b6"/>
+<text x="485" y="390" font-size="14" fill="#9198a1" text-anchor="middle">逐条结果：applied · rebased · conflicted</text>
+<text x="756" y="368.5" font-size="13" fill="#9198a1" class="mono">syncPush</text>
+<circle cx="449" cy="418" r="12" fill="#818cf8"/>
+<text x="449" y="422.5" font-size="13" font-weight="700" fill="#ffffff" text-anchor="middle">4</text>
+<text x="469" y="424" font-size="16" font-weight="700" fill="#f0f6fc">拉取变更</text>
+<line x1="740" y1="444" x2="240" y2="444" stroke="#818cf8" stroke-width="2"/>
+<path d="M230 444L241 438.5L241 449.5Z" fill="#818cf8"/>
+<text x="485" y="470" font-size="14" fill="#9198a1" text-anchor="middle">游标之后的操作与冲突</text>
+<text x="756" y="448.5" font-size="13" fill="#9198a1" class="mono">syncPull</text>
+<circle cx="449" cy="498" r="12" fill="#f472b6"/>
+<text x="449" y="502.5" font-size="13" font-weight="700" fill="#ffffff" text-anchor="middle">5</text>
+<text x="469" y="504" font-size="16" font-weight="700" fill="#f0f6fc">确认进度</text>
+<line x1="230" y1="524" x2="730" y2="524" stroke="#f472b6" stroke-width="2"/>
+<path d="M740 524L729 529.5L729 518.5Z" fill="#f472b6"/>
+<text x="485" y="550" font-size="14" fill="#9198a1" text-anchor="middle">服务器据此清理旧墓碑</text>
+<text x="756" y="528.5" font-size="13" fill="#9198a1" class="mono">syncAck</text>
+<rect x="53.5" y="284" width="353" height="36" rx="10" fill="#151b23" stroke="#3d444d" stroke-dasharray="4 4"/>
+<text x="230" y="307" font-size="14" fill="#f0f6fc" text-anchor="middle">用户编辑书签 → 本地队列中的操作（seq 1, 2, 3）</text>
+</svg>

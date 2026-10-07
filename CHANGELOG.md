@@ -48,6 +48,8 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Repository
 
 - The root README (English and Chinese) has a "Try it" section with the example server's real output, a "Find your way" table, and an updated repository layout. `CONTRIBUTING.md` has a "Writing documentation" section.
+- The README banner and diagrams were redrawn: larger text that stays legible at README width, light and dark versions that follow the GitHub theme, a top-down architecture diagram with each client's profiles on its connection, and a profile graph that marks where to start. One script, `docs/assets/generate.mjs`, now generates every version.
+- Added Japanese translations of the root README ([README.ja.md](README.ja.md)) and the protocol README ([protocol/README.ja.md](protocol/README.ja.md)), with Japanese versions of the banner and diagrams. Every README links to all three languages.
 - The example server uses the new read helpers and `createLoopbackEgressPolicy`, and no longer hard-codes media types.
 - Conformance requests follow redirects manually with per-hop egress validation and a redirect limit.
 - Heap-copy measurements use V8 counters for sandbox compatibility; heavy snapshot and built export tests have local 30-second deadlines.
