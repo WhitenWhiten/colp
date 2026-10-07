@@ -279,6 +279,8 @@ export interface AuthUserTable {
   image: string | null;
   createdAt: Date;
   updatedAt: Date;
+  /** G2 username plugin. Null for email-only rows created before a username was set. */
+  username: string | null;
 }
 
 /** B1 expand + T-02: Better Auth 1.7.1 credential / provider account rows. */

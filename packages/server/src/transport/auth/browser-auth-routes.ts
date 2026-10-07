@@ -17,6 +17,10 @@
  *
  * Registration stays here; handlers live in `browser-auth-handlers.ts`,
  * mapping in `browser-auth-mapping.ts`, and legacy OIDC in `browser-auth-oidc.ts`.
+ *
+ * G2 browser sign-in stays on the Better Auth allowlist: POST
+ * /api/v1/auth/sign-in/username is mounted next to POST
+ * /api/v1/auth/sign-in/email. Email sign-in is not removed.
  */
 import type { FastifyInstance } from 'fastify';
 import { requireAuthManifestEntry } from './auth-route-manifest.js';

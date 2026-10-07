@@ -41,7 +41,9 @@ export interface BetterAuthAllowlistEntry {
  */
 export const BETTER_AUTH_BROWSER_ALLOWLIST: readonly BetterAuthAllowlistEntry[] = Object.freeze([
   Object.freeze({ method: 'POST', path: '/sign-up/email' }),
+  Object.freeze({ method: 'GET', path: '/registration-state' }),
   Object.freeze({ method: 'POST', path: '/sign-in/email' }),
+  Object.freeze({ method: 'POST', path: '/sign-in/username' }),
   Object.freeze({ method: 'GET', path: '/get-session' }),
   Object.freeze({ method: 'POST', path: '/sign-out' }),
   Object.freeze({ method: 'POST', path: '/revoke-session' }),

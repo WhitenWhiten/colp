@@ -75,12 +75,30 @@ export const AUTH_ROUTE_MANIFEST: readonly AuthRouteManifestEntry[] = Object.fre
     status: 'registered',
   }),
   Object.freeze({
+    method: 'GET',
+    path: '/api/v1/auth/registration-state',
+    operationId: 'getRegistrationState',
+    rateLimitFamily: 'sign-up',
+    scope: 'better-auth',
+    status: 'registered',
+    note: 'G2 first-run: open only when auth_users is empty (reason first-run); otherwise closed. Invite is unused. COLP_MULTI_USER does not open this.',
+  }),
+  Object.freeze({
     method: 'POST',
     path: '/api/v1/auth/sign-in/email',
     operationId: 'signInEmail',
     rateLimitFamily: 'sign-in',
     scope: 'better-auth',
     status: 'registered',
+  }),
+  Object.freeze({
+    method: 'POST',
+    path: '/api/v1/auth/sign-in/username',
+    operationId: 'signInUsername',
+    rateLimitFamily: 'sign-in',
+    scope: 'better-auth',
+    status: 'registered',
+    note: 'G2 username sign-in; email sign-in stays mounted',
   }),
   // BA's own operationId for get-session is `getSession`, which the product
   // /api/v1/session already owns in openapi/product-v1.yaml — the manifest

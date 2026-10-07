@@ -390,7 +390,8 @@ describeWithPostgres('E2 auth rollout negatives: legacy isolation, availability 
     for (const absent of ['/api/v1/auth/oidc/start', '/api/v1/auth/oidc/callback', '/__test__/oidc/authorize']) {
       assert.equal(routes.includes(absent), false, `${absent} must be absent from the route table`);
     }
-    for (const present of ['/api/v1/auth/sign-up/email', '/api/v1/auth/sign-in/email', '/api/v1/auth/get-session',
+    for (const present of ['/api/v1/auth/sign-up/email', '/api/v1/auth/registration-state',
+      '/api/v1/auth/sign-in/email', '/api/v1/auth/sign-in/username', '/api/v1/auth/get-session',
       '/api/v1/auth/sign-out', '/api/v1/auth/change-password', '/api/v1/auth/sign-in/oauth2',
       '/api/v1/auth/oauth2/callback/:providerId', '/api/v1/session', '/api/v1/me',
       // C2/A4: the email surface is mounted (reset/verification/emailOTP).

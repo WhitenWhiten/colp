@@ -24,7 +24,7 @@ const KNOWN_TABLES = ['auth_user_account_map', 'known_auth_session_metadata', 'l
 
 /** Exact column order transcribed from artifacts/compile-migration.sql (spike §4.2). */
 const EXPECTED_COLUMNS: Record<string, readonly string[]> = {
-  auth_users: ['id', 'name', 'email', 'emailVerified', 'image', 'createdAt', 'updatedAt', 'twoFactorEnabled'],
+  auth_users: ['id', 'name', 'email', 'emailVerified', 'image', 'createdAt', 'updatedAt', 'twoFactorEnabled', 'username'],
   auth_sessions: [
     'id', 'expiresAt', 'token', 'createdAt', 'updatedAt', 'ipAddress', 'userAgent', 'userId',
     'tokenLookupHash',

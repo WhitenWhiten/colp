@@ -249,6 +249,9 @@ export function translateBetterAuthError(
     return null;
   }
   const code = typeof record.code === 'string' ? record.code : null;
+  // G2 owner gate. The wire code stays registration_closed at 403; it is not
+  // a credential failure and must not be rewritten to invalid_request.
+  if (code === 'registration_closed') return null;
   if (code === null) {
     // BA 1.6.29's own rate-limit response has no code field.
     if (statusCode === 429) return betterAuthRateLimited(retryAfterSeconds);
