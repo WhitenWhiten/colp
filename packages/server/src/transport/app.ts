@@ -161,23 +161,11 @@ import type {
 } from '../modules/sync/index.js';
 import { registerEmailCallbackRoutes, type EmailCallbackRoutesDependencies } from './product/email-callback-routes.js';
 import { registerEmailOpsRoutes, type EmailOpsRoutesDependencies } from './product/email-ops-routes.js';
-import { registerAttachmentRoutes, type AttachmentRoutesDependencies } from './product/attachment-routes.js';
-import {
-  ATTACHMENT_ERROR_CODES,
-  AttachmentHttpError,
-  attachmentErrorStatus,
-  sendAttachmentError,
-  type AttachmentErrorCode,
-  type AttachmentRecovery,
-} from './product/attachment-error.js';
-import type { AttachmentsCapabilityReadiness } from '../modules/attachments/index.js';
 import {
   allowedMethods,
-  isAttachmentUrl,
   isMalformedUrlError,
   isPublicationUrl,
   isProductUrl,
-  mapAttachmentError,
   mapFrameworkError,
   matchesBookmarkFaviconHelperPath,
   sendBadUrlProductError,
@@ -293,8 +281,6 @@ export function buildApiApp(input: AppDependencies) {
   readableReplicaRateLimiter,
   publicObjectRateLimiter,
   notificationRateLimiter,
-  attachmentsCapabilityReadiness,
-  attachmentRoutes,
   emailCallbackRoutes,
   emailOpsRoutes,
   mcpReadTransport,
@@ -594,7 +580,6 @@ export function buildApiApp(input: AppDependencies) {
     productRouteRateLimiters,
     effectPageRateLimiter,
     mcpRateLimiter,
-    attachmentsCapabilityReadiness,
     syncConflictsCapabilityReadiness,
     metrics,
   });
@@ -629,23 +614,6 @@ export function buildApiApp(input: AppDependencies) {
         headers: { Allow: 'POST' },
       }));
     }
-    if (isAttachmentUrl(request.url)) {
-      const allowed = allowedMethods(app, request.url);
-      if (allowed.length > 0) {
-        return sendAttachmentError(request, reply, new AttachmentHttpError({
-          statusCode: 405,
-          code: 'method_not_allowed',
-          message: 'This method is not allowed for the requested resource.',
-          headers: { Allow: allowed.join(', ') },
-        }));
-      }
-      return sendAttachmentError(request, reply, new AttachmentHttpError({
-        statusCode: attachmentErrorStatus('resource_not_found'),
-        code: 'resource_not_found',
-        message: 'The requested Attachment resource was not found.',
-        recovery: 'none',
-      }));
-    }
     const allowed = allowedMethods(app, request.url);
     if (allowed.length > 0) {
       if (isPublicationUrl(request.url)) {
@@ -673,9 +641,6 @@ export function buildApiApp(input: AppDependencies) {
   });
 
   app.setErrorHandler((error: FastifyError | ProductHttpError, request, reply) => {
-    if (isAttachmentUrl(request.url)) {
-      return sendAttachmentError(request, reply, mapAttachmentError(error));
-    }
     // FIX-L-004: a malformed URL on ANY /api/v1/** path maps to the same
     // fixed invalid_request Product envelope (the per-path profile 404 /
     // search invalid_query special cases are gone). Other surfaces keep

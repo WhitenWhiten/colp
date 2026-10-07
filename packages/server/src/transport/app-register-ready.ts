@@ -31,7 +31,6 @@ export function registerReadyRoutes(
     }[];
     readonly effectPageRateLimiter: AppDependencies['effectPageRateLimiter'];
     readonly mcpRateLimiter: AppDependencies['mcpRateLimiter'];
-    readonly attachmentsCapabilityReadiness: AppDependencies['attachmentsCapabilityReadiness'];
     readonly syncConflictsCapabilityReadiness: AppDependencies['syncConflictsCapabilityReadiness'];
     readonly metrics: Metrics;
   },
@@ -52,7 +51,6 @@ export function registerReadyRoutes(
     productRouteRateLimiters,
     effectPageRateLimiter,
     mcpRateLimiter,
-    attachmentsCapabilityReadiness,
     syncConflictsCapabilityReadiness,
     metrics,
   } = resolved;
@@ -287,17 +285,6 @@ export function registerReadyRoutes(
       reasons: Object.freeze(['disabled']),
     });
   });
-  if (attachmentsCapabilityReadiness) {
-    app.get('/ready/features/attachments', {
-      config: { productTransport: { allowedQuery: [], cacheControl: 'no-store' } },
-    }, async (_request, reply) => {
-      const result = await attachmentsCapabilityReadiness().catch(() => ({
-        capability: 'attachments' as const, status: 'not-ready' as const,
-        reason: 'dependency_unavailable' as const,
-      }));
-      return reply.code(result.status === 'ready' ? 200 : 503).send(result);
-    });
-  }
   if (syncConflictsCapabilityReadiness) {
     app.get('/ready/features/sync-conflicts', {
       config: { productTransport: { allowedQuery: [], cacheControl: 'no-store' } },

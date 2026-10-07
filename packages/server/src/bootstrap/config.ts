@@ -7,11 +7,6 @@ import {
   assertNotificationOperationsConfig,
 } from './config-social.js';
 import {
-  parseAttachmentsFeatureConfig,
-  assertProductionRateLimitProfile,
-  parseAttachmentRateLimitConfig,
-} from '../modules/attachments/index.js';
-import {
   assertNoForbiddenMcpLegacyEnvKeys,
 } from '../modules/mcp/index.js';
 import {
@@ -197,7 +192,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     }
   }
 
-  const attachments = parseAttachmentsFeatureConfig(env, { nodeEnv, appOrigin: productOrigin });
   const avatarR2Prefix = env.AVATAR_R2_PREFIX?.trim() || DEFAULT_AVATAR_R2_PREFIX;
   const faviconR2Prefix = env.FAVICON_R2_PREFIX?.trim() || DEFAULT_FAVICON_R2_PREFIX;
   const exportR2Prefix = env.EXPORT_R2_PREFIX?.trim() || DEFAULT_EXPORT_R2_PREFIX;
@@ -205,22 +199,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   assertPublicObjectPrefixesDoNotOverlap(
     avatarR2Prefix,
     faviconR2Prefix,
-    attachments?.r2.livePrefix ?? DEFAULT_ATTACHMENTS_LIVE_PREFIX,
-    attachments?.r2.probePrefix ?? DEFAULT_ATTACHMENTS_PROBE_PREFIX,
+    DEFAULT_ATTACHMENTS_LIVE_PREFIX,
+    DEFAULT_ATTACHMENTS_PROBE_PREFIX,
     exportR2Prefix,
     linkPreview.r2Prefix,
   );
-  const attachmentsRateLimit = parseAttachmentRateLimitConfig(env);
-  const attachmentsApiReplicas = parsePositiveInt(
-    env.ATTACHMENTS_API_REPLICAS, 1, 'ATTACHMENTS_API_REPLICAS', { max: 10_000 },
-  );
-  assertProductionRateLimitProfile({
-    attachmentsEnabled: attachments !== undefined,
-    production: nodeEnv === 'production',
-    multiReplica: attachmentsApiReplicas > 1,
-    mode: attachmentsRateLimit.mode,
-    required: attachmentsRateLimit.required,
-  });
 
   const publicationCore = loadPublicationCore(env, { nodeEnv, productOrigin });
   const oidcRuntime = loadOidcRuntimeConfig(env, {
@@ -634,10 +617,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     collaborationInviteEmail,
     emailSkins,
     publication,
-    ...(attachments ? { attachments } : {}),
     avatarR2Prefix,
     faviconR2Prefix,
-    attachmentsRateLimit,
     mcpRateLimit,
     ...(syncSession ? { syncSession } : {}),
     ...(mcpConfig ? { mcp: mcpConfig } : {}),

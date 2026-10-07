@@ -205,49 +205,6 @@ export type {
   SocialProducerDiscoverability,
 } from './social-collection-change.js';
 
-
-export {
-  ATTACHMENTS_VERIFICATION_EVENT_TYPE,
-  ATTACHMENTS_VERIFICATION_EVENT_VERSION,
-  ATTACHMENTS_VERIFICATION_HANDLER_NAME,
-  ATTACHMENTS_VERIFICATION_HANDLER_MODE,
-  appendAttachmentsVerificationOutbox,
-  attachmentsVerificationEnvelopeRegistration,
-  parseAttachmentsVerificationPayload,
-} from './attachments-verification.js';
-export type {
-  AppendAttachmentsVerificationOutboxOptions,
-} from './attachments-verification.js';
-export {
-  createAttachmentsVerificationOutboxRoute,
-} from './attachments-verification-route.js';
-export type {
-  AttachmentsVerificationRouteOptions,
-} from './attachments-verification-route.js';
-export {
-  ATTACHMENT_FINALIZED_EVENT_TYPE,
-  ATTACHMENT_FINALIZED_EVENT_VERSION,
-  ATTACHMENT_FINALIZED_HANDLER_NAME,
-  ATTACHMENT_FINALIZED_HANDLER_MODE,
-  appendAttachmentFinalizedOutbox,
-  attachmentFinalizedEnvelopeRegistration,
-  parseAttachmentFinalizedPayload,
-} from './attachment-finalized.js';
-export type {
-  AppendAttachmentFinalizedOutboxOptions,
-} from './attachment-finalized.js';
-export {
-  ATTACHMENT_RETIRED_EVENT_TYPE,
-  ATTACHMENT_RETIRED_EVENT_VERSION,
-  ATTACHMENT_RETIRED_HANDLER_NAME,
-  ATTACHMENT_RETIRED_HANDLER_MODE,
-  appendAttachmentRetiredOutbox,
-  attachmentRetiredEnvelopeRegistration,
-  parseAttachmentRetiredPayload,
-} from './attachment-retired.js';
-export type {
-  AppendAttachmentRetiredOutboxOptions,
-} from './attachment-retired.js';
 export {
   COLLECTION_INVITE_CREATED_EVENT_TYPE,
   COLLECTION_INVITE_CREATED_EVENT_VERSION,

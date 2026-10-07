@@ -19,7 +19,7 @@ import {
   assessSharedExposureScope,
   assertSharedExposureScopeIneligible,
   type SharedExposureFactsPort,
-} from '../../modules/attachments/index.js';
+} from '../../modules/exposure/deny-by-default.js';
 
 /** The structural shape of the Sync `AttachmentExposurePolicyPort`. */
 export interface AttachmentExposurePolicyAdapter {

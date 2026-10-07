@@ -50,7 +50,7 @@ export type {
   McpReadOAuthDependencyBundle,
 } from './api-mcp-oauth-composition.js';
 import { registerTestAuthMailboxRoute } from './api-auth-mailbox.js';
-import { composeApiAttachments } from './api-attachments-composition.js';
+import { composeApiPublicObjectStores } from './favicon-object-storage-composition.js';
 import { composeApiEmail } from './api-email-composition.js';
 import { composeApiAccountServices } from './api-account-services.js';
 import { composeApiMcpSurface } from './api-mcp-surface-composition.js';
@@ -162,13 +162,7 @@ async function startApi(): Promise<void> {
     environment: config.nodeEnv,
     clock: () => Date.now(),
   });
-  const attachments = await composeApiAttachments({
-    config,
-    database,
-    identityUnitOfWork: ports.identityUnitOfWork,
-    metrics,
-    metricsLogger,
-  });
+  const publicObjects = await composeApiPublicObjectStores(config);
   const {
     authRateLimiter,
     searchRateLimiter,
@@ -325,7 +319,7 @@ async function startApi(): Promise<void> {
     // hashes (bare SHA-256 fallback only when unconfigured).
     { secretHmacKey: config.accountCredentials.cursorHmacKey?.toString('utf8') },
   );
-  const avatarStore = attachments.avatarStore ? createPersistentAvatarStore(database.db, attachments.avatarStore) : undefined;
+  const avatarStore = publicObjects.avatarStore ? createPersistentAvatarStore(database.db, publicObjects.avatarStore) : undefined;
   const lifecycle = {
     accountCredentialCursors: accountCredentialCursors ?? { destroy() { /* feature off */ } },
     accountCredentialGrantCursors: accountCredentialGrantCursors ?? { destroy() { /* feature off */ } },
@@ -342,7 +336,6 @@ async function startApi(): Promise<void> {
     mcpCollectionResourceCursorKeys,
     publicationCursorKeys: ports.publicationCursorKeys,
     mcpChangeSignalSource,
-    attachmentRateLimit: attachments.attachmentRateLimit,
     authRateLimiter,
     searchRateLimiter,
     exploreDirectoryRateLimiter,
@@ -385,8 +378,7 @@ async function startApi(): Promise<void> {
     mcpRateLimiter,
     emailCallbackRateLimiter: email.emailCallbackRateLimiter,
     avatarStore,
-    ...attachments.publicObjectStores,
-    attachmentsObjectStorage: attachments.attachmentsObjectStorage,
+    ...publicObjects.publicObjectStores,
     cacheComposition,
     database,
   };
@@ -399,7 +391,7 @@ async function startApi(): Promise<void> {
     readiness: composeReadinessProbe([database]),
     identityUnitOfWork: ports.identityUnitOfWork,
     avatarStore,
-    ...attachments.publicObjectStores,
+    ...publicObjects.publicObjectStores,
     faviconPublicAccess: { isHiddenPublic: (objectId) => isFaviconHiddenPublic(database.db, objectId) },
     linkPreviewPublicAccess: { isServable: (objectId, signal) => createPostgresLinkPreviewPublicAccess(database.db, { cancelBackend: database.cancelBackend }).isServable(objectId, signal) },
     avatarPublicAccess: { isPublicationRestricted: (objectId) => isAvatarPublicationRestricted(database.db, objectId) },
@@ -529,10 +521,8 @@ async function startApi(): Promise<void> {
     readableReplicaRateLimiter,
     publicObjectRateLimiter,
     communityRateLimiters,
-    attachmentsCapabilityReadiness: attachments.attachmentsCapabilityReadiness,
     ...(email.emailCallbackRoutes === undefined ? {} : { emailCallbackRoutes: email.emailCallbackRoutes }),
     ...(email.emailOpsRoutes === undefined ? {} : { emailOpsRoutes: email.emailOpsRoutes }),
-    ...(attachments.attachmentRoutes === undefined ? {} : { attachmentRoutes: attachments.attachmentRoutes }),
     ...postgresApp,
     accountCredentialUnitOfWork,
     accountCredentialCursors,

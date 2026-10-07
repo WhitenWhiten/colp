@@ -4,12 +4,6 @@ import { DatabaseOperationError } from '../infrastructure/database/errors.js';
 import { applySecurityHeaders } from './http-security.js';
 import { mapProductDatabaseError } from './product-command-mapping.js';
 import { ProductHttpError, type ProductErrorEnvelope } from './product-error.js';
-import {
-  ATTACHMENT_ERROR_CODES,
-  AttachmentHttpError,
-  type AttachmentErrorCode,
-  type AttachmentRecovery,
-} from './product/attachment-error.js';
 
 const BOOKMARK_FAVICON_HELPER_PATH =
   /^\/colp\/v0\.1\/sync\/collections\/([A-Za-z0-9._~-]{1,128})\/nodes\/([A-Za-z0-9._~-]{1,128})\/favicon(?:-source)?$/u;
@@ -48,38 +42,6 @@ export function isPublicReportUrl(url: string): boolean {
 export function isProductUrl(url: string): boolean {
   const path = url.split('?', 1)[0] ?? url;
   return path === '/api/v1' || path.startsWith('/api/v1/');
-}
-
-export function isAttachmentUrl(url: string): boolean {
-  return url.split('?', 1)[0]?.startsWith('/api/v1/attachments') === true;
-}
-
-/**
- * P4A-P01: maps any transport/framework error on an Attachment path into the
- * stable Attachment envelope. Codes outside the Attachment contract (e.g. a
- * database mapping that cannot occur on the P01 closed skeleton) fail closed
- * as internal_error rather than leaking a foreign code.
- */
-export function mapAttachmentError(error: unknown): AttachmentHttpError {
-  if (error instanceof AttachmentHttpError) return error;
-  const product = error instanceof ProductHttpError
-    ? error
-    : (error instanceof DatabaseOperationError ? mapProductDatabaseError(error) : mapFrameworkError(error));
-  const code: AttachmentErrorCode = (ATTACHMENT_ERROR_CODES as readonly string[]).includes(product.productCode)
-    ? product.productCode as AttachmentErrorCode
-    : 'internal_error';
-  return new AttachmentHttpError({
-    statusCode: code === 'internal_error' && product.statusCode < 500 ? 500 : product.statusCode,
-    code,
-    message: product.message,
-    recovery: product.recovery as AttachmentRecovery,
-    sameRequestRetrySafe: product.sameRequestRetrySafe,
-    precondition: product.precondition,
-    currentEtag: product.currentEtag,
-    retryAfterSeconds: product.retryAfterSeconds,
-    fieldErrors: product.fieldErrors,
-    headers: product.headers,
-  });
 }
 
 export function isMalformedUrlError(error: unknown): boolean {

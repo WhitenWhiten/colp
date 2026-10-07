@@ -142,28 +142,10 @@ import {
   type Phase4bMcpWriteMaintenanceJobLike,
   type Phase4bMcpWriteOperations,
 } from '../modules/mcp/index.js';
-import {
-  composeAttachmentsWorker,
-  type AttachmentsWorkerComposition,
-} from './attachments-worker-composition.js';
-import {
-  composeAttachmentsObjectStorage,
-  type ResolvedR2Secret,
-} from './attachments-object-storage-composition.js';
-import type { BlobStorePort } from '../infrastructure/object-storage/index.js';
-import type {
-  AttachmentAlertConfig,
-  AttachmentAlertName,
-  AttachmentAlertVerdict,
-  AttachmentMetricsSnapshot,
-  AttachmentMetricsStore,
-  AttachmentsReadinessFacts,
-  CleanupBatchResult,
-} from '../modules/attachments/index.js';
 import { composeLedgerArchiveWorker } from './ledger-archive-worker-composition.js';
 import type { LedgerArchiveExportWorkerRuntime } from '../infrastructure/ledger-archive/index.js';
 import type { LedgerArchiveSourceResolver } from './ledger-archive-worker-composition.js';
-import { composeFaviconObjectStore } from './favicon-object-storage-composition.js';
+import { composeFaviconObjectStore, type FaviconSecretResolver } from './favicon-object-storage-composition.js';
 import type { BookmarkFaviconObjectStore } from '../modules/collections/index.js';
 import {
   CACHE_WORKER_READINESS_GAUGE,
@@ -213,18 +195,6 @@ export interface WorkerRuntime {
    * missing credentials). Never touches the notification worker semantics.
    */
   readonly authEmail?: { readonly sender: AuthEmailAdapter };
-  /**
-   * P4A-P05 attachments worker surface: live backlog facts for partial
-   * readiness, I15 sustained-window alert verdicts, and the bounded
-   * fixed-label metrics snapshot. Present only when attachments are composed.
-   */
-  readonly attachments?: {
-    readonly readinessFacts: () => Promise<AttachmentsReadinessFacts>;
-    readonly alertVerdicts: () => Readonly<Record<AttachmentAlertName, AttachmentAlertVerdict>>;
-    readonly metricsSnapshot: () => AttachmentMetricsSnapshot;
-    /** P4A-P05: run one bounded cleanup batch now (keyset cursor continues). */
-    readonly runCleanupOnce: () => Promise<CleanupBatchResult>;
-  };
   /** Credential-free capacity snapshot used for startup telemetry/readiness. */
   readonly capacity: ReturnType<typeof sanitizedRuntimeCapacity>;
   start(): Promise<void>;
@@ -233,7 +203,6 @@ export interface WorkerRuntime {
 export interface WorkerProcessResources {
   readonly metricsServer: { close(): Promise<void> };
   readonly worker: { stop(): Promise<void> };
-  readonly attachmentsObjectStorage?: { close?: () => Promise<void> };
   readonly faviconObjectStore?: { close?: () => Promise<void> };
 }
 interface WorkerStopFailure {
@@ -255,11 +224,6 @@ export async function closeWorkerProcessResources(input: WorkerProcessResources)
   const failures: WorkerStopFailure[] = [];
   await attemptWorkerStop(failures, 'metricsServer', () => input.metricsServer.close());
   await attemptWorkerStop(failures, 'worker', () => input.worker.stop());
-  const objectStorage = input.attachmentsObjectStorage;
-  if (objectStorage?.close !== undefined) {
-    const close = objectStorage.close;
-    await attemptWorkerStop(failures, 'attachmentsObjectStorage', () => close.call(objectStorage));
-  }
   const faviconStore = input.faviconObjectStore;
   if (faviconStore?.close !== undefined) {
     const close = faviconStore.close;
@@ -354,24 +318,6 @@ export interface BuildWorkerOptions {
   readonly mcpWriteMaintenanceJob?: Phase4bMcpWriteMaintenanceJobLike;
   /** P4B-R11 non-durable MCP change-signal source. */
   readonly mcpReadChangeSignalSource?: Phase4bMcpChangeSignalSource;
-  /**
-   * P4A-P05 production attachments object storage (RW+RO). Required when
-   * ATTACHMENTS_ENABLED=true: the worker composes the verification outbox
-   * route (RO credential reads) and the independent cleanup RW scheduler.
-   */
-  readonly attachmentsObjectStorage?: BlobStorePort;
-  /** P4A-P05 bounded cleanup scheduler interval (ms); default 60s. */
-  readonly attachmentsCleanupIntervalMs?: number;
-  /** P4A-P05 bounded backlog sample interval (ms); default 30s. */
-  readonly attachmentsTelemetryIntervalMs?: number;
-  /** P4A-P05 I15 alert thresholds (test seam; production uses the baseline). */
-  readonly attachmentsAlertConfig?: AttachmentAlertConfig;
-  /** P4A-P05 injectable fixed-label backlog store (test seam). */
-  readonly attachmentsMetricsStore?: AttachmentMetricsStore;
-  /** P4A-P05 deterministic backlog clock (test seam). */
-  readonly attachmentsNow?: () => Date;
-  /** P4A-P05 stable cleanup lease owner identity. */
-  readonly attachmentsWorkerId?: string;
   readonly ledgerArchiveSourceResolver?: LedgerArchiveSourceResolver;
   readonly ledgerArchiveWorkerId?: string;
 }
@@ -611,38 +557,6 @@ export function buildWorker(
   const syncConflictRoutes = database
     ? Object.freeze([createSyncConflictOutboxRoute(database.pool)])
     : Object.freeze([]);
-  // P4A-P05: production attachments worker composition. Fail closed when
-  // ATTACHMENTS_ENABLED=true but the worker cannot consume product traffic
-  // (no database or no object storage). Runtime attachments failures stay
-  // isolated to their own outbox rows / cleanup runs and never disable the
-  // unrelated routes below.
-  let attachmentsComposition: AttachmentsWorkerComposition | undefined;
-  if (config.attachments) {
-    if (!database) {
-      throw new Error('worker composition refused: ATTACHMENTS_ENABLED requires PostgreSQL');
-    }
-    if (!options.attachmentsObjectStorage) {
-      throw new Error(
-        'worker composition refused: ATTACHMENTS_ENABLED requires an attachments '
-        + 'object storage (attachmentsObjectStorage) for verification + cleanup',
-      );
-    }
-    attachmentsComposition = composeAttachmentsWorker({
-      config: config.attachments,
-      database,
-      objectStorage: options.attachmentsObjectStorage,
-      metrics,
-      logger,
-      ...(options.attachmentsCleanupIntervalMs === undefined
-        ? {} : { cleanupIntervalMs: options.attachmentsCleanupIntervalMs }),
-      ...(options.attachmentsTelemetryIntervalMs === undefined
-        ? {} : { telemetrySampleIntervalMs: options.attachmentsTelemetryIntervalMs }),
-      ...(options.attachmentsAlertConfig === undefined ? {} : { alertConfig: options.attachmentsAlertConfig }),
-      ...(options.attachmentsMetricsStore === undefined ? {} : { metricsStore: options.attachmentsMetricsStore }),
-      ...(options.attachmentsNow === undefined ? {} : { now: options.attachmentsNow }),
-      ...(options.attachmentsWorkerId === undefined ? {} : { workerId: options.attachmentsWorkerId }),
-    });
-  }
   const inviteEmailComposition: InviteEmailComposition | undefined = database
     ? options.inviteEmail?.sender !== undefined
       ? { sender: options.inviteEmail.sender, close: async () => {} }
@@ -684,7 +598,6 @@ export function buildWorker(
     ...projectionRoutes, ...syncConflictRoutes,
     ...publicationCachePurgeRoutes,
     ...collectionInviteEmailRoutes,
-    ...(attachmentsComposition === undefined ? [] : [attachmentsComposition.route]),
   ]);
   const durability = assertProductionOutboxRouteDurability(routes);
   metrics.gauge('outbox.projection_routes', durability.routeCount);
@@ -747,7 +660,6 @@ export function buildWorker(
       ...createCollectionMutationEnvelopeRegistrations(), classificationAutoTagEnvelopeRegistration,
       syncConflictEnvelopeRegistration,
       collectionInviteCreatedEnvelopeRegistration,
-      ...(attachmentsComposition === undefined ? [] : [attachmentsComposition.envelopeRegistration]),
     ]),
     logger,
     metrics,
@@ -957,12 +869,6 @@ export function buildWorker(
     faviconJobs: faviconJobsRuntime,
     ledgerArchive: ledgerArchiveRuntime,
     ...(authEmailComposition === undefined ? {} : { authEmail: { sender: authEmailComposition.sender } }),
-    attachments: attachmentsComposition === undefined ? undefined : {
-      readinessFacts: () => attachmentsComposition!.telemetry.readinessFacts(),
-      alertVerdicts: () => attachmentsComposition!.telemetry.alertVerdicts(),
-      metricsSnapshot: () => attachmentsComposition!.telemetry.metricsSnapshot(),
-      runCleanupOnce: () => attachmentsComposition!.cleanup.runOnce(),
-    },
     projectionSink,
     publicationCachePurgeProvider,
     indexNowPublisher,
@@ -1002,9 +908,6 @@ export function buildWorker(
       // otherwise an enabled-but-unwired connector would leave outbox/email
       // timers running after start() rejects.
       outbox?.start();
-      // P4A-P05: start the attachments sampler + cleanup scheduler only after
-      // the outbox loop is live; independent timers, bounded, unref'd.
-      attachmentsComposition?.start();
       emailDeliveryRuntime?.loop.start();
       linkHealthRuntime?.loop.start();
       readableReplicaRuntime?.loop.start();
@@ -1134,8 +1037,6 @@ export function buildWorker(
         reportsOutboxRoutes: durability.reportPublicSurfacePurge.routeCount,
         reportsOutboxRoutesDurable: durability.reportPublicSurfacePurge.allDurable,
         projectionSinkDurability: projectionSink?.durability ?? 'none',
-        attachmentsVerificationRoutes: attachmentsComposition === undefined ? 0 : 1,
-        attachmentsCleanupScheduler: attachmentsComposition === undefined ? 'off' : 'on',
         cacheMode: config.cache.redis.mode,
         cacheReadiness: cacheReadinessState,
         capacity,
@@ -1168,9 +1069,6 @@ export function buildWorker(
       // shutting down, leaving work stranded behind the drain boundary.
       await attemptWorkerStop(failures, 'outbox', () => outbox?.stop());
       await attemptWorkerStop(failures, 'indexNowPublisher', () => indexNowPublisher?.close());
-      // P4A-P05: stop the sampler and drain the in-flight cleanup batch AFTER
-      // the outbox loop drained, so no new verification claims race cleanup.
-      await attemptWorkerStop(failures, 'attachmentsComposition', () => attachmentsComposition?.stop());
       await attemptWorkerStop(failures, 'emailDeliveryLoop', () => emailDeliveryRuntime?.loop.stop());
       await attemptWorkerStop(failures, 'linkHealthLoop', () => linkHealthRuntime?.loop.stop());
       await attemptWorkerStop(failures, 'readableReplicaLoop', () => readableReplicaRuntime?.loop.stop());
@@ -1220,24 +1118,19 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
         channel: createPostgresMcpChangeSignalChannel(config.mcp.serverUuid),
       })
     : undefined;
-  // P4A-P05: resolve the attachments R2 secrets through the configured secret
-  // references (values arrive as ATTACHMENTS_R2_<REF_SUFFIX>_ACCESS_KEY_ID /
-  // _SECRET_ACCESS_KEY env vars; the refs name which secret, never a value).
-  const attachmentsObjectStorage = config.attachments
-    ? await composeAttachmentsObjectStorage(config.attachments, resolveWorkerAttachmentSecret)
-    : undefined;
-  // FO-02: the favicon worker shares the attachments/avatar R2 storage the API
-  // uses (same bucket, isolated FAVICON_R2_PREFIX). Enabled feature without
-  // storage fails closed at startup.
+  // Public object stores use AVATAR_R2_* directly. The resolver is unused.
+  const unresolvedPublicObjectSecret: FaviconSecretResolver = async () => {
+    throw new Error('public object storage does not resolve attachment secret refs');
+  };
   const faviconObjectStore = config.faviconPolicy.enabled
-    ? await composeFaviconObjectStore(config, resolveWorkerAttachmentSecret)
+    ? await composeFaviconObjectStore(config, unresolvedPublicObjectSecret)
     : undefined;
   if (config.faviconPolicy.enabled && faviconObjectStore === undefined) {
     throw new Error(
       'worker composition refused: KNOWN_FEATURE_FAVICON_POLICY enabled requires favicon object storage',
     );
   }
-  const linkPreviewStore = await composeLinkPreviewWorkerStore(config, resolveWorkerAttachmentSecret);
+  const linkPreviewStore = await composeLinkPreviewWorkerStore(config, unresolvedPublicObjectSecret);
   const linkHealthProbe = linkHealthProbeInjectionFromEnv(process.env, config.nodeEnv);
   const metrics = new InMemoryMetrics();
   const metricsServer = createPrometheusMetricsServer({
@@ -1248,7 +1141,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   const worker = buildWorker(config, database, metrics, {
     logger: processLogger,
     mcpReadChangeSignalSource,
-    ...(attachmentsObjectStorage === undefined ? {} : { attachmentsObjectStorage }),
     ...(linkPreviewStore === undefined ? {} : { linkPreview: { store: linkPreviewStore } }),
     ...(linkHealthProbe === undefined ? {} : { linkHealth: linkHealthProbe }),
     ...(faviconObjectStore === undefined ? {} : { favicon: { store: faviconObjectStore } }),
@@ -1266,7 +1158,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
         if (startPromise) await startPromise;
         // The worker owns its provider clients; release them after the outbox
         // loop and cleanup scheduler have fully drained.
-        await closeWorkerProcessResources({ metricsServer, worker, attachmentsObjectStorage, faviconObjectStore });
+        await closeWorkerProcessResources({ metricsServer, worker, faviconObjectStore });
       })();
       return stopPromise;
     },
@@ -1282,7 +1174,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     removeSignalHandlers();
     if (!stopRequested) {
       try {
-        await closeWorkerProcessResources({ metricsServer, worker, attachmentsObjectStorage, faviconObjectStore });
+        await closeWorkerProcessResources({ metricsServer, worker, faviconObjectStore });
       } catch (cleanupError: unknown) {
         error = new AggregateError(
           [error, cleanupError],
@@ -1293,24 +1185,4 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     reportFatalProcessError(processLogger, 'startup_failure', error);
     process.exitCode = 1;
   });
-}
-/**
- * P4A-P05 worker CLI secret resolver: maps each configured R2 secret REF to
- * env vars named after the ref suffix (e.g. ref `known/prod/r2/ro` reads
- * `ATTACHMENTS_R2_RO_ACCESS_KEY_ID` / `ATTACHMENTS_R2_RO_SECRET_ACCESS_KEY`).
- * Fails closed when the ref is unknown or the values are missing.
- */
-async function resolveWorkerAttachmentSecret(ref: string): Promise<ResolvedR2Secret> {
-  const suffix = ref.split('/').filter(Boolean).pop()
-    ?.replace(/[^A-Za-z0-9]/g, '_').toUpperCase() ?? '';
-  if (suffix.length === 0) throw new Error(`worker composition refused: invalid R2 secret ref ${ref}`);
-  const accessKeyId = process.env[`ATTACHMENTS_R2_${suffix}_ACCESS_KEY_ID`]?.trim();
-  const secretAccessKey = process.env[`ATTACHMENTS_R2_${suffix}_SECRET_ACCESS_KEY`]?.trim();
-  if (!accessKeyId || !secretAccessKey) {
-    throw new Error(
-      `worker composition refused: ATTACHMENTS_R2_${suffix}_ACCESS_KEY_ID / `
-      + `ATTACHMENTS_R2_${suffix}_SECRET_ACCESS_KEY are required to resolve ${ref}`,
-    );
-  }
-  return { accessKeyId, secretAccessKey };
 }

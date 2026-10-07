@@ -3,7 +3,7 @@ import {
   assessSharedExposureScope,
   assertSharedExposureScopeIneligible,
   type SharedExposureFactsPort,
-} from '../../attachments/index.js';
+} from '../../exposure/deny-by-default.js';
 import { canonicalJson } from '../../commands/index.js';
 import { resolveEffectiveRole, type MembershipRole } from '../../access-policy/index.js';
 import {

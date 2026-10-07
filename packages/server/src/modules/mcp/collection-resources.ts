@@ -20,8 +20,9 @@ import { requireMcpAccountSubjectId } from './account-context.js';
 import {
   assessSharedExposureScope,
   assertSharedExposureScopeIneligible,
+  type DenyByDefaultExposure,
   type SharedExposureFactsPort,
-} from '../attachments/index.js';
+} from '../exposure/deny-by-default.js';
 import {
   PublicationDirectoryCursorError,
   PublicationMetadataNotFoundError,
@@ -546,7 +547,7 @@ async function projectRead(
   }
   if (result.kind !== 'metadata') throw new McpResourceNotFoundError();
   // This metadata resource has no attachment candidates; do not scan its history.
-  const exposure = await assessSharedExposureScope(state.sharedExposure, {
+  const exposure: readonly DenyByDefaultExposure[] = await assessSharedExposureScope(state.sharedExposure, {
     collectionId: resource.collectionId, blobIds: [],
   }, { signal: context.abortSignal });
   assertSharedExposureScopeIneligible(exposure);

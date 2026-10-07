@@ -8,4 +8,3 @@
  */
 export * from './blob-store-port.js';
 export * from './r2-adapter.js';
-export * from './generation-object-store-adapter.js';

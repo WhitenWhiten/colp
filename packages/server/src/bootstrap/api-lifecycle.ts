@@ -16,7 +16,6 @@ export interface ApiRuntimeResources {
   readonly mcpCollectionResourceCursorKeys?: { destroy(): void };
   readonly publicationCursorKeys: { destroy(): void };
   readonly mcpChangeSignalSource?: { close(): Promise<void> };
-  readonly attachmentRateLimit?: { close(): Promise<void> };
   readonly authRateLimiter?: { close(): Promise<void> };
   readonly searchRateLimiter?: { close(): Promise<void> };
   readonly exploreDirectoryRateLimiter?: { close(): Promise<void> };
@@ -33,7 +32,6 @@ export interface ApiRuntimeResources {
   readonly collaborationInviteRateLimiter: { close(): Promise<void> };
   readonly mcpRateLimiter?: { close(): Promise<void> };
   readonly emailCallbackRateLimiter?: { close(): Promise<void> };
-  readonly attachmentsObjectStorage?: { close?: () => Promise<void> };
   readonly avatarStore?: { close?: () => Promise<void> };
   readonly faviconStore?: { close?: () => Promise<void> };
   readonly linkPreviewStore?: { close?: () => Promise<void> };
@@ -115,7 +113,6 @@ export async function closeApiRuntimeResources(input: ApiRuntimeResources): Prom
   }
   attemptDestroy(failures, 'publicationCursorKeys', () => input.publicationCursorKeys.destroy());
   await attemptOptionalClose(failures, 'mcpChangeSignalSource', input.mcpChangeSignalSource);
-  await attemptOptionalClose(failures, 'attachmentRateLimit', input.attachmentRateLimit);
   await attemptOptionalClose(failures, 'authRateLimiter', input.authRateLimiter);
   await attemptOptionalClose(failures, 'searchRateLimiter', input.searchRateLimiter);
   await attemptOptionalClose(failures, 'exploreDirectoryRateLimiter', input.exploreDirectoryRateLimiter);
@@ -164,11 +161,6 @@ export async function closeApiRuntimeResources(input: ApiRuntimeResources): Prom
   if (avatarStore?.close !== undefined) {
     const close = avatarStore.close;
     await attemptClose(failures, 'avatarStore', () => close.call(avatarStore));
-  }
-  const objectStorage = input.attachmentsObjectStorage;
-  if (objectStorage?.close !== undefined) {
-    const close = objectStorage.close;
-    await attemptClose(failures, 'attachmentsObjectStorage', () => close.call(objectStorage));
   }
   await attemptClose(failures, 'cacheComposition', () => input.cacheComposition.close());
   await attemptClose(failures, 'database', () => input.database.close());

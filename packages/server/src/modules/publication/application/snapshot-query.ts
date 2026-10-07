@@ -12,7 +12,7 @@ import {
   assessSharedExposureScope,
   type SharedExposureEligibility,
   type SharedExposureFactsPort,
-} from '../../attachments/index.js';
+} from '../../exposure/deny-by-default.js';
 import { isHiddenPublicCollection, type CollectionHideControlPort } from './collection-control-gate.js';
 import { PUBLIC_NODE_EXTENSIONS, PUBLICATION_PRODUCER_SEMANTICS, publicBookmarkExtensions } from './publication-node-extensions.js';
 import type { PublicationCursorKeyring } from './cursor-keyring.js';
