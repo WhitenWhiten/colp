@@ -37,7 +37,7 @@ export class ResponseTooLargeError extends Error {}
  *   resolveHost?: (hostname: string) => Promise<readonly string[]> }} [options]
  */
 export function createHttpClient(options = {}) {
-  const timeoutMs = options.timeoutMs ?? 10_000;
+  const timeoutMs = positiveSafeInteger(options.timeoutMs ?? 10_000, 'timeoutMs');
   const maxBytes = positiveSafeInteger(options.maxBytes ?? 16 * 1024 * 1024, 'maxBytes');
   const maxRequests = options.maxRequests ?? 200;
   const maxRedirects = options.maxRedirects ?? 5;
@@ -80,13 +80,18 @@ export function createHttpClient(options = {}) {
     let currentUrl = new URL(url);
     let redirects = 0;
     while (true) {
+      // Charge every hop before doing DNS or transport work. Otherwise a
+      // resolver that never settles can consume time without consuming the
+      // run's request budget.
+      if (used >= maxRequests) throw new RequestBudgetError(`Request budget of ${maxRequests} exhausted.`);
+      used += 1;
+      const requestSignal = AbortSignal.timeout(timeoutMs);
       const approvedAddress = await assertEgressTarget(currentUrl, {
         initialOrigin,
         initialPrivateLiteral,
         resolveHost,
+        signal: requestSignal,
       });
-      if (used >= maxRequests) throw new RequestBudgetError(`Request budget of ${maxRequests} exhausted.`);
-      used += 1;
       const requestInit = {
         method,
         headers,
@@ -94,7 +99,7 @@ export function createHttpClient(options = {}) {
         // next network request. A transport that ignores manual mode fails
         // closed rather than hiding an uninspected hop.
         redirect: 'manual',
-        signal: AbortSignal.timeout(timeoutMs),
+        signal: requestSignal,
       };
       const response = pinnedFetch !== undefined && approvedAddress !== undefined
         ? await pinnedFetch(currentUrl, requestInit, approvedAddress)
@@ -154,7 +159,11 @@ async function assertEgressTarget(url, policy) {
   if (!privateLiteral && policy.resolveHost !== undefined) {
     let addresses;
     try {
-      addresses = await policy.resolveHost(url.hostname);
+      // Keep DNS policy evaluation under the same deadline as the request.
+      // The resolver promise cannot necessarily be cancelled, but the
+      // transport never waits past the request deadline and its rejection is
+      // observed so a late resolver failure cannot become unhandled.
+      addresses = await resolveHostWithSignal(policy.resolveHost, url.hostname, policy.signal);
     } catch (error) {
       throw new TypeError('Conformance egress policy could not resolve the target host.', { cause: error });
     }
@@ -164,6 +173,28 @@ async function assertEgressTarget(url, policy) {
     return addresses[0];
   }
   return undefined;
+}
+
+function resolveHostWithSignal(resolveHost, hostname, signal) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const cleanup = () => signal.removeEventListener('abort', onAbort);
+    const settle = (callback, value) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      callback(value);
+    };
+    const onAbort = () => settle(reject, signal.reason ?? new DOMException('DNS resolution timed out.', 'TimeoutError'));
+    if (signal.aborted) {
+      onAbort();
+      return;
+    }
+    signal.addEventListener('abort', onAbort, { once: true });
+    Promise.resolve()
+      .then(() => resolveHost(hostname))
+      .then(value => settle(resolve, value), error => settle(reject, error));
+  });
 }
 
 /** Internal transport hook exported for the pinned-address regression test. */

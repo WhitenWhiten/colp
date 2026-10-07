@@ -26,6 +26,7 @@ import {
   createPublicationProblemDescriptor,
   PUBLICATION_PROBLEM_CONTENT_TYPE,
 } from './publication-problems.js';
+import { assertAnonymousPublicationPrimaryVisibility } from './publication-anonymous-visibility.js';
 import {
   projectPublicationPublicWire,
   type PublicationPublicWireOptions,
@@ -162,6 +163,12 @@ export async function composePublicationHttpRead<Context = unknown>(
     let projected = safeInput.access === 'anonymous-public'
       ? projectPublicationPublicWire(representation.value, safeInput.publicProjection)
       : cloneAndFreezeJsonData(representation.value);
+    if (safeInput.access === 'anonymous-public') {
+      // Public redaction removes secrets and sidecars, while this separate
+      // graph guard rejects restricted primary resources whose references
+      // cannot safely be dropped from an anonymous response.
+      assertAnonymousPublicationPrimaryVisibility(projected);
+    }
     const validation = validateWireDocument<unknown, never>(
       safeInput.validators,
       responseDefinitionFor(safeInput.endpoint),
