@@ -184,6 +184,36 @@ test('checks a DNS answer before the first conformance request', async () => {
   assert.deepEqual(calls, []);
 });
 
+test('charges DNS resolution to the request budget and applies the request deadline', async () => {
+  let resolveStarted = false;
+  let fetchCalled = false;
+  const http = createHttpClient({
+    timeoutMs: 20,
+    maxRequests: 1,
+    resolveHost: async () => {
+      resolveStarted = true;
+      await new Promise(() => {});
+    },
+    fetch: async () => {
+      fetchCalled = true;
+      return new Response('{}');
+    },
+  });
+
+  await assert.rejects(
+    http.request('https://public.example/.well-known/collection-protocol'),
+    /could not resolve the target host/u,
+  );
+  assert.equal(resolveStarted, true);
+  assert.equal(fetchCalled, false);
+  assert.equal(http.requestCount, 1);
+  await assert.rejects(
+    http.request('https://public.example/.well-known/collection-protocol'),
+    /Request budget of 1 exhausted/u,
+  );
+  assert.equal(http.requestCount, 1);
+});
+
 test('pinned transport connects to the approved address while preserving the URL Host', async () => {
   let observedHost;
   const server = createServer((request, response) => {

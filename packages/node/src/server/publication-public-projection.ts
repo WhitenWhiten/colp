@@ -347,15 +347,20 @@ function isHttpsNamespace(namespace: string): boolean {
     return false;
   }
 }
-
+function chargeInputBudget(state: ProjectionState, amount = 1): void {
+  if (!Number.isSafeInteger(amount) || amount < 0 || state.visited > state.maxNodes - amount) {
+    throw new PublicationPublicProjectionError('projection_limit_exceeded');
+  }
+  state.visited += amount;
+}
 function projectValue(
   value: unknown,
   state: ProjectionState,
   depth: number,
   context: ProjectionContext,
 ): PublicationPublicValue {
-  state.visited += 1;
-  if (state.visited > state.maxNodes || depth > state.maxDepth) {
+  chargeInputBudget(state);
+  if (depth > state.maxDepth) {
     throw new PublicationPublicProjectionError('projection_limit_exceeded');
   }
   if (value === null || typeof value === 'string' || typeof value === 'boolean') return value;
@@ -369,7 +374,6 @@ function projectValue(
     throw new PublicationPublicProjectionError('malformed_input');
   }
   if (state.ancestors.has(value)) throw new PublicationPublicProjectionError('malformed_input');
-
   state.ancestors.add(value);
   try {
     return Array.isArray(value)
@@ -379,7 +383,6 @@ function projectValue(
     state.ancestors.delete(value);
   }
 }
-
 function projectArray(
   value: readonly unknown[],
   state: ProjectionState,
@@ -387,6 +390,7 @@ function projectArray(
   context: ProjectionContext,
 ): PublicationPublicValue {
   const keys = Reflect.ownKeys(value);
+  chargeInputBudget(state, Math.max(0, value.length - keys.filter((key) => isArrayIndex(key)).length));
   if (keys.some((key) => typeof key === 'symbol' || (key !== 'length' && !isArrayIndex(key)))) {
     throw new PublicationPublicProjectionError('malformed_input');
   }
@@ -397,26 +401,22 @@ function projectArray(
       throw new PublicationPublicProjectionError('malformed_input');
     }
     if (context.parentKey === 'annotations') {
-      // Standard annotations array: every element is an Annotation; enforce
-      // visibility and drop private/protected. Public/unlisted are retained.
-      if (isPrivateAnnotation(descriptor.value)) continue;
+      // Standard annotations: retain public/unlisted; drop private/protected.
+      if (isPrivateAnnotation(descriptor.value)) { chargeInputBudget(state); continue; }
     } else if (isNonPublicAnnotationObject(descriptor.value)) {
-      // Semantic filter for private/protected annotation-shaped objects nested
-      // under non-standard carriers (e.g. items, notes, included sidecars).
-      continue;
+      // Filter annotation-shaped objects nested under other carriers.
+      chargeInputBudget(state); continue;
     }
-    if (context.parentKey === 'attachments' && !isExplicitlyPublicAttachment(descriptor.value)) continue;
+    if (context.parentKey === 'attachments' && !isExplicitlyPublicAttachment(descriptor.value)) { chargeInputBudget(state); continue; }
     output.push(projectValue(descriptor.value, state, depth + 1, context));
   }
   return Object.freeze(output);
 }
-
 function isArrayIndex(key: PropertyKey): boolean {
   if (typeof key !== 'string' || !/^(?:0|[1-9][0-9]*)$/u.test(key)) return false;
   const index = Number(key);
   return Number.isSafeInteger(index) && index >= 0 && index <= 0xffff_fffe;
 }
-
 function isPrivateAnnotation(value: unknown): boolean {
   const visibility = readDataProperty(value, 'visibility');
   if (visibility !== 'public' && visibility !== 'unlisted'
@@ -425,7 +425,6 @@ function isPrivateAnnotation(value: unknown): boolean {
   }
   return visibility === 'private' || visibility === 'protected';
 }
-
 /**
  * True when `value` is structurally an Annotation-shaped object (not a node,
  * collection, attachment, or relation that happens to carry `visibility`).
@@ -521,11 +520,12 @@ function projectObject(
   context: ProjectionContext,
 ): PublicationPublicValue {
   if (!isPlainObject(value)) throw new PublicationPublicProjectionError('malformed_input');
-  const descriptors = Object.getOwnPropertyDescriptors(value);
   const ownKeys = Reflect.ownKeys(value);
   if (ownKeys.some((key) => typeof key === 'symbol')) {
     throw new PublicationPublicProjectionError('malformed_input');
   }
+  if (ownKeys.length > state.maxNodes) throw new PublicationPublicProjectionError('projection_limit_exceeded');
+  const descriptors = Object.getOwnPropertyDescriptors(value);
 
   const conflictObject = context.inConflict || looksLikeConflict(descriptors);
   const output: Record<string, PublicationPublicValue> = Object.create(null) as Record<string, PublicationPublicValue>;
@@ -539,23 +539,17 @@ function projectObject(
     if (isCredentialContainer(normalized)) {
       // Manifest auth capabilities use boolean apiKeys/accessKeys fields;
       // they advertise support and contain no credential material.
-      if (typeof descriptor.value === 'boolean') {
-        output[key] = descriptor.value;
-        continue;
-      }
-      const hint = projectCredentialHint(descriptor.value);
+      if (typeof descriptor.value === 'boolean') { chargeInputBudget(state); output[key] = descriptor.value; continue; }
+      const hint = projectCredentialHint(descriptor.value, state);
       if (hint !== undefined) output[key] = hint;
       continue;
     }
-    if (normalized === 'annotation' && hasOwnVisibility(descriptor.value)
-      && isPrivateAnnotation(descriptor.value)) continue;
+    if (normalized === 'annotation' && hasOwnVisibility(descriptor.value) && isPrivateAnnotation(descriptor.value)) { chargeInputBudget(state); continue; }
     // Drop private/protected annotation-shaped values on any object key
     // (items/notes/sidecars/etc.), without key-name matching.
-    if (normalized !== 'annotation' && isNonPublicAnnotationObject(descriptor.value)) continue;
-    if (normalized === 'attachment' && hasOwnVisibility(descriptor.value)) {
-      if (!isExplicitlyPublicAttachment(descriptor.value)) continue;
-    }
-    if (shouldRemoveField(key, normalized, descriptors, context, conflictObject)) continue;
+    if (normalized !== 'annotation' && isNonPublicAnnotationObject(descriptor.value)) { chargeInputBudget(state); continue; }
+    if (normalized === 'attachment' && hasOwnVisibility(descriptor.value) && !isExplicitlyPublicAttachment(descriptor.value)) { chargeInputBudget(state); continue; }
+    if (shouldRemoveField(key, normalized, descriptors, context, conflictObject)) { chargeInputBudget(state); continue; }
     if (key === 'extensions') {
       const projected = projectExtensions(descriptor.value, state, depth + 1);
       if (projected !== undefined) output[key] = projected;
@@ -643,15 +637,21 @@ function isCredentialContainer(normalized: string): boolean {
     || normalized === 'credentials';
 }
 
-function projectCredentialHint(value: unknown): PublicationPublicValue | undefined {
-  if (!isPlainObject(value)) return undefined;
+function projectCredentialHint(value: unknown, state: ProjectionState): PublicationPublicValue | undefined {
+  // Unsupported credential values still consume one input-budget unit.
+  if (!isPlainObject(value)) {
+    chargeInputBudget(state);
+    return undefined;
+  }
   const keys = Reflect.ownKeys(value);
   if (keys.some((key) => typeof key === 'symbol' || forbiddenObjectKeys.has(key))) {
     throw new PublicationPublicProjectionError('malformed_input');
   }
+  if (keys.length > state.maxNodes) throw new PublicationPublicProjectionError('projection_limit_exceeded');
   let hint: string | undefined;
   for (const key of keys as string[]) {
     const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    chargeInputBudget(state);
     if (descriptor === undefined || !descriptor.enumerable || !('value' in descriptor)) {
       throw new PublicationPublicProjectionError('malformed_input');
     }
@@ -678,21 +678,21 @@ function projectExtensions(
 ): PublicationPublicValue | undefined {
   if (!isPlainObject(value)) throw new PublicationPublicProjectionError('malformed_input');
   const keys = Reflect.ownKeys(value);
+  if (keys.length > state.maxNodes) throw new PublicationPublicProjectionError('projection_limit_exceeded');
   const output: Record<string, PublicationPublicValue> = Object.create(null) as Record<string, PublicationPublicValue>;
   for (const key of keys) {
     if (typeof key === 'symbol' || forbiddenObjectKeys.has(key)) {
       throw new PublicationPublicProjectionError('malformed_input');
     }
     const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    chargeInputBudget(state);
     if (descriptor === undefined || !descriptor.enumerable || !('value' in descriptor)) {
       throw new PublicationPublicProjectionError('malformed_input');
     }
-    if (!state.allowedExtensions.has(key)) continue;
+    if (!state.allowedExtensions.has(key)) { chargeInputBudget(state); continue; }
     output[key] = projectValue(descriptor.value, state, depth, rootContext);
   }
-  // Preserve an explicitly empty extension map because several wire schemas
-  // require the container. A non-empty map with no allowlisted namespaces is
-  // still removed fail-closed.
+  // Preserve an explicitly empty extension map required by wire schemas.
   return keys.length === 0 || Object.keys(output).length !== 0 ? Object.freeze(output) : undefined;
 }
 

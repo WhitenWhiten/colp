@@ -157,6 +157,7 @@ export const DEFAULT_MCP_LISTEN_MAX_RATE_PER_WINDOW = 1000 as const;
 export const DEFAULT_MCP_LISTEN_RATE_WINDOW_MS = 1000 as const;
 export const DEFAULT_MCP_LISTEN_MAX_LIFETIME_MS = 1_800_000 as const;
 export const DEFAULT_MCP_LISTEN_MAX_NOTIFICATIONS = 10_000 as const;
+export const MCP_20260728_MAX_LISTEN_REQUEST_ID_LENGTH = 16_384 as const;
 
 const LISTEN_TYPE_CAPABILITY_PATHS: Readonly<Record<Mcp20260728ListenOptInType, readonly [string, string]>> = Object.freeze({
   toolsListChanged: ['tools', 'listChanged'],
@@ -242,8 +243,13 @@ export function createMcp20260728SubscriptionsListenAdapter(
       maxLifetimeMs,
       maxNotifications,
     });
-    const subscription = signalSource.subscribe((raw) => stream.onSignal(raw));
-    stream.start(subscription);
+    // Build every response value before opening the source subscription. The
+    // SDK snapshot boundary is deliberately bounded, so a caller-controlled
+    // request id (or another response field) may fail validation here. Doing
+    // this after subscribe would leave the source listener and lifetime timer
+    // alive when the response construction throws.
+    const result = buildListenResult(subscriptionId, serverInfo);
+    const acknowledged = buildAckNotification(subscriptionId, filter);
     const iterable: AsyncIterable<Mcp20260728ListenNotification> = {
       [Symbol.asyncIterator]: () => ({
         next: () => stream.next(),
@@ -253,10 +259,12 @@ export function createMcp20260728SubscriptionsListenAdapter(
         },
       }),
     };
+    const subscription = signalSource.subscribe((raw) => stream.onSignal(raw));
+    stream.start(subscription);
     return Object.freeze({
       subscriptionId,
-      result: buildListenResult(subscriptionId, serverInfo),
-      acknowledged: buildAckNotification(subscriptionId, filter),
+      result,
+      acknowledged,
       notifications: iterable,
       close: () => stream.close(),
       closed: stream.closed,
@@ -267,9 +275,11 @@ export function createMcp20260728SubscriptionsListenAdapter(
 }
 
 function requireRequestId(value: unknown): string | number {
-  if (typeof value === 'string' && value.length > 0) return value;
+  if (typeof value === 'string'
+    && value.length > 0
+    && value.length <= MCP_20260728_MAX_LISTEN_REQUEST_ID_LENGTH) return value;
   if (typeof value === 'number' && Number.isSafeInteger(value)) return value;
-  throw new TypeError('MCP subscriptions/listen request id must be a non-empty string or a safe integer.');
+  throw new TypeError(`MCP subscriptions/listen request id must be a non-empty string of at most ${MCP_20260728_MAX_LISTEN_REQUEST_ID_LENGTH} characters or a safe integer.`);
 }
 
 function buildAckNotification(

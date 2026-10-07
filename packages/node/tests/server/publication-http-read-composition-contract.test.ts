@@ -88,6 +88,107 @@ async function anonymousRead(
 }
 
 describe(`Publication HTTP read composition boundary ${evidence}`, () => {
+  it(`rejects restricted primary resources before anonymous validation, caching, or serialization ${evidence}`, async () => {
+    const cases: ReadonlyArray<{
+      readonly endpoint: PublicationHttpReadEndpoint;
+      readonly rawSearch: string;
+      readonly value: unknown;
+    }> = [
+      {
+        endpoint: 'snapshot',
+        rawSearch: '?root=root_1&depth=2',
+        value: {
+          collection: {
+            id: 'collection-private',
+            kind: 'knowledge_collection',
+            rootNodeId: 'root-1',
+            visibility: 'private',
+            title: 'hidden collection secret',
+          },
+        },
+      },
+      {
+        endpoint: 'snapshot',
+        rawSearch: '?root=root_1&depth=2',
+        value: {
+          collection: {
+            id: 'collection-public',
+            kind: 'knowledge_collection',
+            rootNodeId: 'root-1',
+            visibility: 'public',
+            title: 'Public collection',
+          },
+          nodes: [
+            { id: 'root-1', collectionId: 'collection-public', kind: 'root', parentId: null },
+            {
+              id: 'folder-private',
+              collectionId: 'collection-public',
+              kind: 'folder',
+              parentId: 'root-1',
+              visibility: 'private',
+              title: 'hidden inherited parent',
+            },
+            {
+              id: 'child-inherited-private',
+              collectionId: 'collection-public',
+              kind: 'bookmark',
+              parentId: 'folder-private',
+              title: 'hidden inherited child',
+              url: 'https://private.example/inherited',
+            },
+          ],
+          annotations: [],
+          attachments: [],
+          relations: [],
+          page: { sequence: 1, hasMore: false, nextCursor: null },
+        },
+      },
+      {
+        endpoint: 'node',
+        rawSearch: '?include=relations',
+        value: {
+          node: {
+            id: 'node-private',
+            collectionId: 'collection-1',
+            kind: 'bookmark',
+            parentId: 'root-1',
+            title: 'hidden node secret',
+            url: 'https://private.example/secret',
+            visibility: 'private',
+          },
+          included: { annotations: [], attachments: [], relations: [] },
+        },
+      },
+      {
+        endpoint: 'directory',
+        rawSearch: '',
+        value: {
+          protocolVersion: '0.1',
+          collections: [{
+            id: 'directory-private',
+            kind: 'knowledge_collection',
+            canonicalUrl: 'https://private.example/collection',
+            links: {},
+            nodeCount: 1,
+            visibility: 'protected',
+            title: 'hidden directory secret',
+          }],
+          nextCursor: null,
+        },
+      },
+    ];
+
+    for (const candidate of cases) {
+      const response = await anonymousRead(candidate.value, {
+        endpoint: candidate.endpoint,
+        rawSearch: candidate.rawSearch,
+      });
+      expect(response.status).toBe(500);
+      expect(response.headers.get('cache-control')).toBe('private, no-store');
+      expect(await bodyText(response)).not.toContain('hidden');
+    }
+  });
+
   it(`decodes and rejects an invalid query before authorization or resolution ${evidence}`, async () => {
     const events: string[] = [];
     const authorize = vi.fn(() => {
