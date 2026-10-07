@@ -127,10 +127,10 @@ export default function App() {
           <Route path="auth/recovery" element={<AuthRecovery />} />
           <Route path="onboarding" element={<Onboarding />} />
           <Route path="graph/:slug" element={<Graph />} />
-          <Route path="creator" element={<Creator />} />
-          <Route path="export" element={<DataExport />} />
+          {!selfHostedEdition && <Route path="creator" element={<Creator />} />}
+          {!selfHostedEdition && <Route path="export" element={<DataExport />} />}
           <Route path="settings" element={<SettingsRedirect />} />
-          <Route path="settings/export" element={<Navigate to="/export" replace />} />
+          {!selfHostedEdition && <Route path="settings/export" element={<Navigate to="/export" replace />} />}
           <Route path="extension" element={<Extension />} />
           <Route path="sync" element={<Sync />} />
           {!selfHostedEdition && <Route path="classify" element={<Classify />} />}
