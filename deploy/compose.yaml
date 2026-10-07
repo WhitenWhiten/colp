@@ -24,13 +24,35 @@ services:
       db:
         condition: service_healthy
     expose: ["3000"]
-  caddy:
+  caddy-http:
     image: caddy:2
     restart: unless-stopped
     profiles: ["http"]
     ports: ["8080:80"]
     volumes:
       - ./Caddyfile.http:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - server
+  caddy-tls-auto:
+    image: caddy:2
+    restart: unless-stopped
+    profiles: ["tls-auto"]
+    ports: ["443:443", "80:80"]
+    volumes:
+      - ./Caddyfile.tls-auto:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - server
+  caddy-tls-internal:
+    image: caddy:2
+    restart: unless-stopped
+    profiles: ["tls-internal"]
+    ports: ["443:443", "80:80"]
+    volumes:
+      - ./Caddyfile.tls-internal:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
       - caddy-config:/config
     depends_on:
