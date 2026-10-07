@@ -11,9 +11,9 @@ if docker compose ps --status running --services | grep -qx server; then
 fi
 # shellcheck disable=SC1091
 source .env
-: "\${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required in .env}"
+: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required in .env}"
 docker compose up -d db
-until docker compose exec -T db pg_isready -U "\${POSTGRES_USER:-colp}" -d "\${POSTGRES_DB:-colp}" >/dev/null 2>&1; do sleep 2; done
-gunzip -c "$1" | docker compose exec -T db psql -U "\${POSTGRES_USER:-colp}" -d "\${POSTGRES_DB:-colp}"
+until docker compose exec -T db pg_isready -U "${POSTGRES_USER:-colp}" -d "${POSTGRES_DB:-colp}" >/dev/null 2>&1; do sleep 2; done
+gunzip -c "$1" | docker compose exec -T db psql -U "${POSTGRES_USER:-colp}" -d "${POSTGRES_DB:-colp}"
 docker compose up -d server
-echo "restore completed; verify readiness with curl -fsS \"\${COLP_SERVER_ORIGIN%/}/ready\""
+echo "restore completed; verify readiness with curl -fsS \"${COLP_SERVER_ORIGIN%/}/ready\""
