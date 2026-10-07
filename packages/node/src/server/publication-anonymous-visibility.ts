@@ -88,7 +88,9 @@ function assertSnapshotGraphVisibility(snapshot: JsonRecord): void {
     const subject = asRecord(value.subject);
     if (subject === undefined || typeof subject.type !== 'string' || typeof subject.id !== 'string') return 2;
     const ownerRank = subject.type === 'collection'
-      ? collectionRank
+      // A foreign Collection's policy is unknown. Never authorize its
+      // sidecars using the current Snapshot Collection's public visibility.
+      ? subject.id === collection.id ? collectionRank : 2
       : subject.type === 'node'
         ? resolveNodeRank(nodeById.get(subject.id))
         : 2;

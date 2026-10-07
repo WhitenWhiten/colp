@@ -184,7 +184,12 @@ test('checks a DNS answer before the first conformance request', async () => {
   assert.deepEqual(calls, []);
 });
 
-test('charges DNS resolution to the request budget and applies the request deadline', async () => {
+test('charges DNS resolution to the request budget and applies the request deadline', async (t) => {
+  // AbortSignal.timeout deliberately does not keep the event loop alive.
+  // This simulated resolver has no DNS socket, so give the test a handle until
+  // its deadline fires, then release it even if an assertion fails.
+  const keepAlive = setInterval(() => {}, 1000);
+  t.after(() => clearInterval(keepAlive));
   let resolveStarted = false;
   let fetchCalled = false;
   const http = createHttpClient({

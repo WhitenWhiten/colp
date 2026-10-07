@@ -88,6 +88,20 @@ async function anonymousRead(
 }
 
 describe(`Publication HTTP read composition boundary ${evidence}`, () => {
+  it(`rejects an annotation whose collection subject cannot be authorized ${evidence}`, async () => {
+    const value = fixture('snapshot');
+    const annotations = value.annotations as Array<Record<string, unknown>>;
+    annotations[0]!.subject = {
+      type: 'collection',
+      id: '019b3ca2-8424-7cc2-9a61-4bf44c23f07b',
+    };
+    annotations[0]!.value = 'hidden foreign collection annotation';
+    const response = await anonymousRead(value);
+    expect(response.status).toBe(500);
+    expect(response.headers.get('cache-control')).toBe('private, no-store');
+    expect(await bodyText(response)).not.toContain('hidden');
+  });
+
   it(`rejects restricted primary resources before anonymous validation, caching, or serialization ${evidence}`, async () => {
     const cases: ReadonlyArray<{
       readonly endpoint: PublicationHttpReadEndpoint;
