@@ -76,6 +76,7 @@ If you find that the prose and the schema disagree, treat it as a specification 
 - Write each paragraph or list item on a single line; do not hard-wrap prose.
 - Markdown that ships in the npm package (`packages/node/README.md`, the docs listed under `files` in `packages/node/package.json`, and `packages/node/docs/README.md`, which npm always includes) may link only to other shipped files. Link to anything else with an absolute GitHub URL; `npm run pack:check` fails on a broken link.
 - When you change `README.md` or `protocol/README.md`, update the `README.zh-CN.md` next to it as well.
+- The README banner and diagrams in `docs/assets` are generated, in English and Chinese and for light and dark themes. Change the copy or layout in [`docs/assets/generate.mjs`](docs/assets/generate.mjs), run `node docs/assets/generate.mjs`, and commit the regenerated SVG files with it.
 
 ## Pull requests
 

@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="docs/assets/banner.zh-CN.svg" alt="The Collection Protocol：面向书签与知识集合的开放协议" width="100%">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/banner.zh-CN.dark.svg">
+    <img src="docs/assets/banner.zh-CN.svg" alt="The Collection Protocol：面向书签与知识集合的开放协议" width="100%">
+  </picture>
 </p>
 
 <p align="center">
@@ -25,7 +28,10 @@
 - **默认不公开**：同步到服务器不等于公开发布，每个令牌、密钥和 AI 授权都有明确的作用域。
 
 <p align="center">
-  <img src="docs/assets/architecture.zh-CN.svg" alt="中间是 COLP 服务器，提供 Manifest、数据模型、变更日志与安全层。浏览器与它同步，应用向它写入，阅读器和网站读取快照与订阅，AI 助手通过 MCP 使用它。" width="100%">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/architecture.zh-CN.dark.svg">
+    <img src="docs/assets/architecture.zh-CN.svg" alt="四类客户端位于同一个 COLP 服务器之上，各自通过 Profile 连接：浏览器书签通过 sync，应用与脚本通过 publisher，阅读器与网站通过 publication 和 feed，AI 助手通过 mcp-read 和 mcp-write。服务器提供 Manifest、数据模型、变更日志与安全层。" width="100%">
+  </picture>
 </p>
 
 > 规范正文（[`protocol/`](protocol/README.zh-CN.md)）以英文为准，本页是中文导读。
@@ -47,7 +53,10 @@
 ### 数据模型
 
 <p align="center">
-  <img src="docs/assets/data-model.zh-CN.svg" alt="一个 Collection 包含根节点、文件夹、书签、分隔线与别名；批注、附件与关系作为附加数据挂在节点上。" width="100%">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/data-model.zh-CN.dark.svg">
+    <img src="docs/assets/data-model.zh-CN.svg" alt="一个 Collection 包含根节点、文件夹、书签、分隔线与别名；批注、附件与关系作为附加数据挂在节点上。" width="100%">
+  </picture>
 </p>
 
 **Collection** 是一棵有序的 **Node** 树（`root`、`folder`、`bookmark`、`separator`、`alias`），与浏览器书签树一一对应。浏览器无法存储的数据作为 **附加数据（sidecar）** 放在树旁边：批注（笔记、摘要、高亮、评分；AI 生成的批注带有来源信息）、附件，以及带类型的关系。其他数据放进带命名空间的 `extensions`，服务器会原样保留。详见 [01 核心数据模型](protocol/docs/01-core-data-model.md)。
@@ -55,7 +64,10 @@
 ### 双向同步
 
 <p align="center">
-  <img src="docs/assets/sync-flow.zh-CN.svg" alt="浏览器副本打开会话，从快照初始化，推送本地队列中的操作，拉取游标之后的变更，并确认进度。" width="100%">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/sync-flow.zh-CN.dark.svg">
+    <img src="docs/assets/sync-flow.zh-CN.svg" alt="浏览器副本打开会话，从快照初始化，推送本地队列中的操作，拉取游标之后的变更，并确认进度。" width="100%">
+  </picture>
 </p>
 
 副本之间交换的是 **操作**，而不是整棵树。每个操作都带有副本内的序号和它所基于的修订号，服务器可以直接应用、变基或记录冲突，重试的推送也不会被重复应用。删除会留下墓碑，直到所有活跃副本都确认过之后才清理。详见 [03 同步](protocol/docs/03-sync.md) 与 [06 浏览器映射](protocol/docs/06-browser-mapping.md)。
@@ -63,7 +75,10 @@
 ### Profile
 
 <p align="center">
-  <img src="docs/assets/profiles.zh-CN.svg" alt="Profile 依赖图：publication、sync、mcp-read 建立在 core 之上；feed 与 publisher 建立在 publication 之上；mcp-write 建立在 mcp-read 与 publisher 之上。" width="100%">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/profiles.zh-CN.dark.svg">
+    <img src="docs/assets/profiles.zh-CN.svg" alt="Profile 依赖图：publication、sync、mcp-read 建立在 core 之上；feed 与 publisher 建立在 publication 之上；mcp-write 建立在 mcp-read 与 publisher 之上。core 与 publication 合起来就是完整的静态服务器。" width="100%">
+  </picture>
 </p>
 
 COLP 拆分为可组合的一致性 Profile。服务器只在 Manifest 中声明自己完整通过的 Profile，客户端从 Manifest 发现其余一切。

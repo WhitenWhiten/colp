@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="docs/assets/banner.svg" alt="The Collection Protocol: an open protocol for bookmarks and knowledge collections" width="100%">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/banner.dark.svg">
+    <img src="docs/assets/banner.svg" alt="The Collection Protocol: an open protocol for bookmarks and knowledge collections" width="100%">
+  </picture>
 </p>
 
 <p align="center">
@@ -25,7 +28,10 @@ Bookmarks are some of the most personal knowledge people keep, yet every browser
 - **Private by default.** Syncing to a server is not publishing, and every token, key, and AI grant is scoped.
 
 <p align="center">
-  <img src="docs/assets/architecture.svg" alt="A COLP server in the middle, exposing a Manifest, the data model, a change log, and security. Browsers sync with it, apps write to it, readers and websites read snapshots and feeds from it, and AI assistants use it through MCP." width="100%">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/architecture.dark.svg">
+    <img src="docs/assets/architecture.svg" alt="Four kinds of clients above one COLP server, each connected through its own profile: browser bookmarks through sync, apps and scripts through publisher, readers and websites through publication and feed, and AI assistants through mcp-read and mcp-write. The server exposes a Manifest, the data model, a change log, and security." width="100%">
+  </picture>
 </p>
 
 ## Contents
@@ -45,7 +51,10 @@ This section is the short version. The [five-minute tour](protocol/README.md#col
 ### Data model
 
 <p align="center">
-  <img src="docs/assets/data-model.svg" alt="A Collection contains a root node, folders, bookmarks, separators, and aliases. Annotations, attachments, and relations attach to nodes as sidecar data." width="100%">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/data-model.dark.svg">
+    <img src="docs/assets/data-model.svg" alt="A Collection contains a root node, folders, bookmarks, separators, and aliases. Annotations, attachments, and relations attach to nodes as sidecar data." width="100%">
+  </picture>
 </p>
 
 A **Collection** is an ordered tree of **Nodes** (`root`, `folder`, `bookmark`, `separator`, `alias`) that maps one-to-one onto a browser bookmark tree. Data that browsers cannot store lives next to the tree as **sidecars**: annotations (notes, summaries, highlights, ratings, with provenance for AI-written ones), attachments, and typed relations. Anything else goes into namespaced `extensions`, which servers preserve verbatim. See [01 Core data model](protocol/docs/01-core-data-model.md).
@@ -53,7 +62,10 @@ A **Collection** is an ordered tree of **Nodes** (`root`, `folder`, `bookmark`, 
 ### Two-way sync
 
 <p align="center">
-  <img src="docs/assets/sync-flow.svg" alt="A browser replica opens a session, bootstraps from a snapshot, pushes queued operations, pulls changes after its cursor, and acknowledges progress." width="100%">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/sync-flow.dark.svg">
+    <img src="docs/assets/sync-flow.svg" alt="A browser replica opens a session, bootstraps from a snapshot, pushes queued operations, pulls changes after its cursor, and acknowledges progress." width="100%">
+  </picture>
 </p>
 
 Replicas exchange **operations**, not whole trees. Each operation has a per-replica sequence number and the base revision it was made against, so the server can apply it, rebase it, or record a conflict, and a retried push never applies twice. Deletes leave tombstones until every active replica has acknowledged them. See [03 Sync](protocol/docs/03-sync.md) and [06 Browser mapping](protocol/docs/06-browser-mapping.md).
@@ -61,7 +73,10 @@ Replicas exchange **operations**, not whole trees. Each operation has a per-repl
 ### Profiles
 
 <p align="center">
-  <img src="docs/assets/profiles.svg" alt="Profile dependency graph: publication, sync, and mcp-read build on core; feed and publisher build on publication; mcp-write builds on mcp-read and publisher." width="100%">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/profiles.dark.svg">
+    <img src="docs/assets/profiles.svg" alt="Profile dependency graph: publication, sync, and mcp-read build on core; feed and publisher build on publication; mcp-write builds on mcp-read and publisher. Core and publication together are a complete static server." width="100%">
+  </picture>
 </p>
 
 COLP is split into composable conformance profiles. A server declares in its Manifest only the profiles it fully passes, and clients discover everything else from there.

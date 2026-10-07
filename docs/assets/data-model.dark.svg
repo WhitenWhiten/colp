@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="476" viewBox="0 0 1000 476" role="img" aria-labelledby="title desc" xml:lang="en">
+<title id="title">COLP data model</title>
+<desc id="desc">A Collection contains a root node, folders, bookmarks, separators, and aliases. Annotations, attachments, and relations attach to nodes as sidecar data.</desc>
+<style>text{font-family:Inter, 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans CJK SC', sans-serif}.mono{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace}</style>
+<rect x="0.5" y="0.5" width="999" height="475" rx="16" fill="#0d1117" stroke="#3d444d"/>
+<rect x="28" y="28" width="532" height="362" rx="12" fill="#151b23" stroke="#3d444d"/>
+<rect x="128" y="171" width="418" height="34" rx="9" fill="#38bdf8" fill-opacity="0.1"/>
+<path d="M64 75V96Q64 104 72 104H76" fill="none" stroke="#3d444d" stroke-width="1.5"/>
+<path d="M92 117V138Q92 146 100 146H104" fill="none" stroke="#3d444d" stroke-width="1.5"/>
+<path d="M120 159V180Q120 188 128 188H132" fill="none" stroke="#3d444d" stroke-width="1.5"/>
+<path d="M120 159V222Q120 230 128 230H132" fill="none" stroke="#3d444d" stroke-width="1.5"/>
+<path d="M120 159V264Q120 272 128 272H132" fill="none" stroke="#3d444d" stroke-width="1.5"/>
+<path d="M92 117V306Q92 314 100 314H104" fill="none" stroke="#3d444d" stroke-width="1.5"/>
+<path d="M120 327V348Q120 356 128 356H132" fill="none" stroke="#3d444d" stroke-width="1.5"/>
+<rect x="52" y="49" width="102" height="26" rx="13" fill="#151b23"/><rect x="52" y="49" width="102" height="26" rx="13" fill="#818cf8" fill-opacity="0.14" stroke="#818cf8" stroke-opacity="0.5"/><text x="103" y="66.55" font-size="13" font-weight="600" fill="#a5b4fc" text-anchor="middle" class="mono">collection</text>
+<text x="166" y="67.5" font-size="15" font-weight="700" fill="#f0f6fc">Interface Systems</text>
+<text x="316.7" y="67" font-size="13" fill="#9198a1" class="mono">visibility: public</text>
+<rect x="80" y="91" width="56" height="26" rx="13" fill="#151b23"/><rect x="80" y="91" width="56" height="26" rx="13" fill="#656c76" fill-opacity="0.14" stroke="#656c76" stroke-opacity="0.5"/><text x="108" y="108.55" font-size="13" font-weight="600" fill="#9198a1" text-anchor="middle" class="mono">root</text>
+<rect x="108" y="133" width="71" height="26" rx="13" fill="#151b23"/><rect x="108" y="133" width="71" height="26" rx="13" fill="#fbbf24" fill-opacity="0.14" stroke="#fbbf24" stroke-opacity="0.5"/><text x="143.5" y="150.55" font-size="13" font-weight="600" fill="#fcd34d" text-anchor="middle" class="mono">folder</text>
+<text x="191" y="151.5" font-size="15" font-weight="400" fill="#f0f6fc">Bookmarks bar</text>
+<text x="313.95" y="151" font-size="13" fill="#9198a1" class="mono">bookmarks-bar</text>
+<rect x="136" y="175" width="87" height="26" rx="13" fill="#151b23"/><rect x="136" y="175" width="87" height="26" rx="13" fill="#38bdf8" fill-opacity="0.14" stroke="#38bdf8" stroke-opacity="0.5"/><text x="179.5" y="192.55" font-size="13" font-weight="600" fill="#7dd3fc" text-anchor="middle" class="mono">bookmark</text>
+<text x="235" y="193.5" font-size="15" font-weight="400" fill="#f0f6fc">Design Tokens</text>
+<text x="356.75" y="193" font-size="13" fill="#9198a1" class="mono">url · tags · position</text>
+<rect x="136" y="217" width="95" height="26" rx="13" fill="#151b23"/><rect x="136" y="217" width="95" height="26" rx="13" fill="#656c76" fill-opacity="0.14" stroke="#656c76" stroke-opacity="0.5"/><text x="183.5" y="234.55" font-size="13" font-weight="600" fill="#9198a1" text-anchor="middle" class="mono">separator</text>
+<rect x="136" y="259" width="63" height="26" rx="13" fill="#151b23"/><rect x="136" y="259" width="63" height="26" rx="13" fill="#a78bfa" fill-opacity="0.14" stroke="#a78bfa" stroke-opacity="0.5"/><text x="167.5" y="276.55" font-size="13" font-weight="600" fill="#c4b5fd" text-anchor="middle" class="mono">alias</text>
+<text x="211" y="277.5" font-size="15" font-weight="400" fill="#f0f6fc">→ Motion Guide</text>
+<rect x="108" y="301" width="71" height="26" rx="13" fill="#151b23"/><rect x="108" y="301" width="71" height="26" rx="13" fill="#fbbf24" fill-opacity="0.14" stroke="#fbbf24" stroke-opacity="0.5"/><text x="143.5" y="318.55" font-size="13" font-weight="600" fill="#fcd34d" text-anchor="middle" class="mono">folder</text>
+<text x="191" y="319.5" font-size="15" font-weight="400" fill="#f0f6fc">Other bookmarks</text>
+<text x="329.7" y="319" font-size="13" fill="#9198a1" class="mono">other-bookmarks</text>
+<rect x="136" y="343" width="87" height="26" rx="13" fill="#151b23"/><rect x="136" y="343" width="87" height="26" rx="13" fill="#38bdf8" fill-opacity="0.14" stroke="#38bdf8" stroke-opacity="0.5"/><text x="179.5" y="360.55" font-size="13" font-weight="600" fill="#7dd3fc" text-anchor="middle" class="mono">bookmark</text>
+<text x="235" y="361.5" font-size="15" font-weight="400" fill="#f0f6fc">Motion Guide</text>
+<path d="M546 188C576 188 582 95 612 95" fill="none" stroke="#656c76" stroke-width="1.5" stroke-dasharray="4 4"/>
+<rect x="612" y="46" width="360" height="98" rx="12" fill="#151b23" stroke="#3d444d"/>
+<rect x="626" y="62" width="4" height="66" rx="2" fill="#f472b6"/>
+<text x="642" y="76" font-size="16" font-weight="700" fill="#f0f6fc">Annotation</text>
+<text x="642" y="100" font-size="13" fill="#f9a8d4" class="mono">note · summary · highlight · rating</text>
+<text x="642" y="124" font-size="14" fill="#9198a1">Notes, with provenance for AI-written ones</text>
+<path d="M546 188C576 188 582 209 612 209" fill="none" stroke="#656c76" stroke-width="1.5" stroke-dasharray="4 4"/>
+<rect x="612" y="160" width="360" height="98" rx="12" fill="#151b23" stroke="#3d444d"/>
+<rect x="626" y="176" width="4" height="66" rx="2" fill="#34d399"/>
+<text x="642" y="190" font-size="16" font-weight="700" fill="#f0f6fc">Attachment</text>
+<text x="642" y="214" font-size="13" fill="#6ee7b7" class="mono">rel · url · mimeType · digest</text>
+<text x="642" y="238" font-size="14" fill="#9198a1">Metadata for files and page captures</text>
+<path d="M546 188C576 188 582 323 612 323" fill="none" stroke="#656c76" stroke-width="1.5" stroke-dasharray="4 4"/>
+<rect x="612" y="274" width="360" height="98" rx="12" fill="#151b23" stroke="#3d444d"/>
+<rect x="626" y="290" width="4" height="66" rx="2" fill="#a78bfa"/>
+<text x="642" y="304" font-size="16" font-weight="700" fill="#f0f6fc">Relation</text>
+<text x="642" y="328" font-size="13" fill="#c4b5fd" class="mono">related · supports · derived_from · …</text>
+<text x="642" y="352" font-size="14" fill="#9198a1">Typed links between two nodes</text>
+<circle cx="546" cy="188" r="4" fill="#656c76"/>
+<text x="28" y="424" font-size="14" fill="#9198a1">Order uses opaque position keys, so concurrent inserts never renumber siblings.</text>
+<text x="28" y="446" font-size="14" fill="#9198a1">Deletes leave tombstones, so every replica learns about them before they are purged.</text>
+</svg>

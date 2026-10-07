@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="520" viewBox="0 0 1000 520" role="img" aria-labelledby="title desc" xml:lang="en">
+<title id="title">How COLP fits together</title>
+<desc id="desc">Four kinds of clients connect to one COLP server, each through its own profile. Browser bookmarks sync with it; apps and scripts write to it through publisher; readers and websites read snapshots and feeds through publication and feed; AI assistants use it through mcp-read and mcp-write. The server exposes a Manifest, the data model, a change log, and security.</desc>
+<style>text{font-family:Inter, 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans CJK SC', sans-serif}.mono{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace}</style>
+<defs><linearGradient id="mark" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2dd4bf"/><stop offset="1" stop-color="#6366f1"/></linearGradient></defs>
+<rect x="0.5" y="0.5" width="999" height="519" rx="16" fill="#0d1117" stroke="#3d444d"/>
+<text x="40" y="52" font-size="22" font-weight="700" fill="#f0f6fc">How COLP fits together</text>
+<text x="40" y="80" font-size="15" fill="#9198a1">One server, four kinds of clients. Each connection is a profile you can implement on its own.</text>
+<rect x="40" y="108" width="215" height="84" rx="12" fill="#151b23" stroke="#3d444d"/>
+<text x="58" y="143" font-size="16" font-weight="700" fill="#f0f6fc">Browser bookmarks</text>
+<text x="58" y="168" font-size="14" fill="#9198a1">Chromium · Firefox · Safari</text>
+<line x1="147.5" y1="202" x2="147.5" y2="280" stroke="#656c76" stroke-width="2"/>
+<path d="M147.5 193L153 204L142 204Z" fill="#656c76"/>
+<path d="M147.5 289L142 278L153 278Z" fill="#656c76"/>
+<rect x="119.5" y="228" width="56" height="26" rx="13" fill="#0d1117"/><rect x="119.5" y="228" width="56" height="26" rx="13" fill="#f472b6" fill-opacity="0.14" stroke="#f472b6" stroke-opacity="0.5"/><text x="147.5" y="245.55" font-size="13" font-weight="600" fill="#f9a8d4" text-anchor="middle" class="mono">sync</text>
+<rect x="275" y="108" width="215" height="84" rx="12" fill="#151b23" stroke="#3d444d"/>
+<text x="293" y="143" font-size="16" font-weight="700" fill="#f0f6fc">Apps and scripts</text>
+<text x="293" y="168" font-size="14" fill="#9198a1">Create, edit, release</text>
+<line x1="382.5" y1="192" x2="382.5" y2="280" stroke="#656c76" stroke-width="2"/>
+<path d="M382.5 289L377 278L388 278Z" fill="#656c76"/>
+<rect x="335" y="228" width="95" height="26" rx="13" fill="#0d1117"/><rect x="335" y="228" width="95" height="26" rx="13" fill="#34d399" fill-opacity="0.14" stroke="#34d399" stroke-opacity="0.5"/><text x="382.5" y="245.55" font-size="13" font-weight="600" fill="#6ee7b7" text-anchor="middle" class="mono">publisher</text>
+<rect x="510" y="108" width="215" height="84" rx="12" fill="#151b23" stroke="#3d444d"/>
+<text x="528" y="143" font-size="16" font-weight="700" fill="#f0f6fc">Readers and websites</text>
+<text x="528" y="168" font-size="14" fill="#9198a1">Pages · JSON Feed · Atom</text>
+<line x1="617.5" y1="202" x2="617.5" y2="290" stroke="#656c76" stroke-width="2"/>
+<path d="M617.5 193L623 204L612 204Z" fill="#656c76"/>
+<rect x="531.5" y="228" width="110" height="26" rx="13" fill="#0d1117"/><rect x="531.5" y="228" width="110" height="26" rx="13" fill="#38bdf8" fill-opacity="0.14" stroke="#38bdf8" stroke-opacity="0.5"/><text x="586.5" y="245.55" font-size="13" font-weight="600" fill="#7dd3fc" text-anchor="middle" class="mono">publication</text>
+<rect x="647.5" y="228" width="56" height="26" rx="13" fill="#0d1117"/><rect x="647.5" y="228" width="56" height="26" rx="13" fill="#fbbf24" fill-opacity="0.14" stroke="#fbbf24" stroke-opacity="0.5"/><text x="675.5" y="245.55" font-size="13" font-weight="600" fill="#fcd34d" text-anchor="middle" class="mono">feed</text>
+<rect x="745" y="108" width="215" height="84" rx="12" fill="#151b23" stroke="#3d444d"/>
+<text x="763" y="143" font-size="16" font-weight="700" fill="#f0f6fc">AI assistants</text>
+<text x="763" y="168" font-size="14" fill="#9198a1">Any MCP client</text>
+<line x1="852.5" y1="202" x2="852.5" y2="280" stroke="#656c76" stroke-width="2"/>
+<path d="M852.5 193L858 204L847 204Z" fill="#656c76"/>
+<path d="M852.5 289L847 278L858 278Z" fill="#656c76"/>
+<rect x="758.5" y="228" width="87" height="26" rx="13" fill="#0d1117"/><rect x="758.5" y="228" width="87" height="26" rx="13" fill="#a78bfa" fill-opacity="0.14" stroke="#a78bfa" stroke-opacity="0.5"/><text x="802" y="245.55" font-size="13" font-weight="600" fill="#c4b5fd" text-anchor="middle" class="mono">mcp-read</text>
+<rect x="851.5" y="228" width="95" height="26" rx="13" fill="#0d1117"/><rect x="851.5" y="228" width="95" height="26" rx="13" fill="#c084fc" fill-opacity="0.14" stroke="#c084fc" stroke-opacity="0.5"/><text x="899" y="245.55" font-size="13" font-weight="600" fill="#d8b4fe" text-anchor="middle" class="mono">mcp-write</text>
+<rect x="40" y="290" width="920" height="172" rx="12" fill="#151b23" stroke="#3d444d"/>
+<g transform="translate(60 310) scale(0.63)"><rect x="0" y="0" width="64" height="64" rx="16" fill="url(#mark)"/><path d="M21 14h22a3 3 0 0 1 3 3v35.5a1.5 1.5 0 0 1-2.4 1.2L32 45l-11.6 8.7A1.5 1.5 0 0 1 18 52.5V17a3 3 0 0 1 3-3z" fill="#ffffff"/><rect x="24" y="22" width="16" height="3.2" rx="1.6" fill="#6366f1"/><rect x="24" y="29" width="11" height="3.2" rx="1.6" fill="#14b8a6"/><rect x="24" y="36" width="14" height="3.2" rx="1.6" fill="#8b5cf6"/></g>
+<text x="114" y="328" font-size="18" font-weight="700" fill="#f0f6fc">COLP server</text>
+<text x="114" y="350" font-size="14" fill="#9198a1">Any conforming implementation</text>
+<text x="940" y="336" font-size="13" fill="#9198a1" text-anchor="end" class="mono">GET /.well-known/collection-protocol</text>
+<rect x="60" y="374" width="208" height="68" rx="12" fill="#0d1117" stroke="#3d444d"/>
+<rect x="74" y="390" width="4" height="36" rx="2" fill="#38bdf8"/>
+<text x="90" y="404" font-size="15" font-weight="700" fill="#f0f6fc">Manifest</text>
+<text x="90" y="426" font-size="14" fill="#9198a1">Profiles and endpoints</text>
+<rect x="284" y="374" width="208" height="68" rx="12" fill="#0d1117" stroke="#3d444d"/>
+<rect x="298" y="390" width="4" height="36" rx="2" fill="#818cf8"/>
+<text x="314" y="404" font-size="15" font-weight="700" fill="#f0f6fc">Data model</text>
+<text x="314" y="426" font-size="14" fill="#9198a1">Nodes and sidecars</text>
+<rect x="508" y="374" width="208" height="68" rx="12" fill="#0d1117" stroke="#3d444d"/>
+<rect x="522" y="390" width="4" height="36" rx="2" fill="#f472b6"/>
+<text x="538" y="404" font-size="15" font-weight="700" fill="#f0f6fc">Change log</text>
+<text x="538" y="426" font-size="14" fill="#9198a1">Operations, tombstones</text>
+<rect x="732" y="374" width="208" height="68" rx="12" fill="#0d1117" stroke="#3d444d"/>
+<rect x="746" y="390" width="4" height="36" rx="2" fill="#34d399"/>
+<text x="762" y="404" font-size="15" font-weight="700" fill="#f0f6fc">Security</text>
+<text x="762" y="426" font-size="14" fill="#9198a1">Scopes, ACL, audit</text>
+<text x="40" y="500" font-size="14" fill="#9198a1">Implement only what you need: a static site serving core + publication is already a complete COLP server.</text>
+</svg>
