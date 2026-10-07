@@ -218,7 +218,7 @@ function immutableData<Value>(value: Value, label: string, seen = new Set<object
 
 function invalidCursorScope(): SyncPullCoordinatorFailure {
   const problem = immutableData({
-    type: 'https://collectionprotocol.org/problems/invalid-cursor-scope',
+    type: 'https://know-n.com/colp/problems/invalid-cursor-scope',
     title: 'Invalid cursor scope',
     status: 400 as const,
     code: 'invalid_cursor_scope' as const,
@@ -230,7 +230,7 @@ function invalidCursorScope(): SyncPullCoordinatorFailure {
 
 function cursorExpired(snapshotUrl: string | undefined): SyncPullCoordinatorFailure {
   const problem = immutableData({
-    type: 'https://collectionprotocol.org/problems/sync-cursor-expired',
+    type: 'https://know-n.com/colp/problems/sync-cursor-expired',
     title: 'Sync cursor expired',
     status: 410 as const,
     code: 'sync_cursor_expired' as const,

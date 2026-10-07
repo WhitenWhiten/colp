@@ -37,7 +37,7 @@ describe('Read Tool output distinguishes data from credential formats', () => {
     { nested: { access_token: 'opaque-token' } },
     { password: 'secret' }, { apiKey: 'sk-secret-123' },
     { nested: ['Basic dXNlcjpwYXNz'] }, { value: 'Bearer opaque-token' },
-    { value: 'AKIA0123456789ABCDEF' }, { value: 'sk-0123456789abcdef' },
+    { value: 'AKIA' + '0123456789ABCDEF' }, { value: 'sk-0123456789abcdef' },
     { value: jwt }, { value: `${joseHeader}.key.iv.ciphertext.tag` },
   ])('still withholds credential fields or complete credential strings %j', async (structuredContent) => {
     const error: unknown = await adapter({ structuredContent })

@@ -355,7 +355,7 @@ describe(`Publication HTTP black-box integration ${evidence}`, () => {
       expect(metadataExchange.responseHeaders?.get('link')).toBe([
         `<${server.origin}/collections/c/${collectionId}>; rel="self"; type="application/vnd.collection-protocol.collection+json"`,
         `<${metadata.collection.canonicalUrl}>; rel="canonical"; type="text/html"`,
-        `<${server.origin}/collections/c/${collectionId}/snapshot>; rel="https://collectionprotocol.org/rels/snapshot"; type="application/vnd.collection-protocol.snapshot+json"`,
+        `<${server.origin}/collections/c/${collectionId}/snapshot>; rel="https://know-n.com/colp/rels/snapshot"; type="application/vnd.collection-protocol.snapshot+json"`,
       ].join(', '));
       expect(snapshot).toMatchObject({
         snapshotId: 'snap_public_1042',

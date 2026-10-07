@@ -6,7 +6,7 @@
 
 The Collection Protocol（COLP）は、ブックマークとキュレーションされた知識コレクションのための、HTTP ネイティブなオープンプロトコルです。ブログのようにコレクションを公開する方法、ブラウザーとサーバーの間でブックマークツリーを同期する方法、そして意図した以上の権限を与えずに AI アシスタントの手を借りる方法を定めています。
 
-このフォルダーが仕様そのものです。[`SPECIFICATION.md`](SPECIFICATION.md) と [`docs/`](docs) の本文が規範であり、[JSON Schema](schemas)、[例](examples)、[要件レジストリ](requirements.yaml) が機械可読なもう半分です。CI がこれらすべての整合性を保っています。リファレンス実装は [`@collection-protocol/node`](../packages/node) です。
+このフォルダーが仕様そのものです。[`SPECIFICATION.md`](SPECIFICATION.md) と [`docs/`](docs) の本文が規範であり、[JSON Schema](schemas)、[例](examples)、[要件レジストリ](requirements.yaml) が機械可読なもう半分です。CI がこれらすべての整合性を保っています。リファレンス実装は [`@know-n/colp`](../packages/node) です。
 
 **COLP は初めてですか？** まず [5 分でわかる COLP](#5-分でわかる-colp) を読み、次に作りたいものに合わせて [どこから読むか](#どこから読むか) の順路をたどってください。わからない用語は [用語集（英語）](GLOSSARY.md) で説明しています。
 
@@ -163,7 +163,7 @@ python scripts/validate_examples.py
 | JSON Schema | Draft 2020-12 |
 | 互換性の対象 | Chromium Bookmarks API、Firefox WebExtensions Bookmarks API、Netscape Bookmark HTML、アダプター経由で読み取る Safari のブックマークデータ |
 | ワイヤー契約 | 0.1 は確定済み：Publication、Publisher、Feed、Sync、セキュリティ管理、MCP が参照するすべてのコア DTO に、安定した `$defs` 名があります |
-| リファレンス実装 | [`../packages/node`](../packages/node)（`@collection-protocol/node`）。要件とテストの対応は [`TRACEABILITY.md`](../packages/node/docs/TRACEABILITY.md) にあります |
+| リファレンス実装 | [`../packages/node`](../packages/node)（`@know-n/colp`）。要件とテストの対応は [`TRACEABILITY.md`](../packages/node/docs/TRACEABILITY.md) にあります |
 
 仕様がドラフトの間は、本文とスキーマの食い違いをバグとして修正します。互換性にとっての意味は [Specification §1](SPECIFICATION.md#colp-section-1) を参照してください。
 

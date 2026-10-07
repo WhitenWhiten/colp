@@ -16,9 +16,9 @@ export const PUBLICATION_FEED_MEDIA_TYPE =
 export const PUBLICATION_JSON_FEED_MEDIA_TYPE = 'application/feed+json' as const;
 export const PUBLICATION_ATOM_FEED_MEDIA_TYPE = 'application/atom+xml' as const;
 export const PUBLICATION_SNAPSHOT_REL =
-  'https://collectionprotocol.org/rels/snapshot' as const;
+  'https://know-n.com/colp/rels/snapshot' as const;
 export const PUBLICATION_FEED_REL =
-  'https://collectionprotocol.org/rels/feed' as const;
+  'https://know-n.com/colp/rels/feed' as const;
 
 export interface PublicationCollectionMetadataResponseInit {
   readonly method: 'GET' | 'HEAD';

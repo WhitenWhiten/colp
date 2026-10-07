@@ -28,7 +28,7 @@ describe(`PUB-0008 server Problem Details contract ${evidence}`, () => {
 
       const body = await response.json() as Record<string, unknown>;
       expect(body).toEqual(expect.objectContaining({
-        type: `https://collectionprotocol.org/problems/${code.replaceAll('_', '-')}`,
+        type: `https://know-n.com/colp/problems/${code.replaceAll('_', '-')}`,
         title: expect.any(String),
         status: definition.status,
         code,

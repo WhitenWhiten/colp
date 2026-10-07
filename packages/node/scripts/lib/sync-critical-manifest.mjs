@@ -8,6 +8,7 @@ export const syncCriticalManifest = Object.freeze([
   Object.freeze({ path: 'src/sync/sequence-validation.ts', mutate: false }),
   Object.freeze({ path: 'src/sync/push-transaction.ts', mutate: true }),
   Object.freeze({ path: 'src/sync/push-transaction-guards.ts', mutate: false }),
+  Object.freeze({ path: 'src/sync/push-partial-progress.ts', mutate: false }),
   Object.freeze({ path: 'src/sync/push-unit-of-work.ts', mutate: true }),
   Object.freeze({ path: 'src/sync/pull.ts', mutate: true }),
   Object.freeze({ path: 'src/sync/pull-cursor-lifecycle.ts', mutate: true }),

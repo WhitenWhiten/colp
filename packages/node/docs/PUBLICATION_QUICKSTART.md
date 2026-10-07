@@ -41,7 +41,7 @@ Never compute an ETag over an authoritative object before public projection, and
 
 ## Serve one endpoint
 
-`composePublicationHttpReadFromRequest` from `@collection-protocol/node/server` takes a Fetch API `Request` and returns a `Promise<Response>`. It reads the method, query string, and `If-None-Match` from the request and answers any method other than `GET` and `HEAD` with a `405` Problem and `Allow: GET, HEAD`.
+`composePublicationHttpReadFromRequest` from `@know-n/colp/server` takes a Fetch API `Request` and returns a `Promise<Response>`. It reads the method, query string, and `If-None-Match` from the request and answers any method other than `GET` and `HEAD` with a `405` Problem and `Allow: GET, HEAD`.
 
 This complete module compiles against the installed package. The host supplies `loadDirectory`, which receives the decoded query and returns the representation to serve:
 
@@ -50,7 +50,7 @@ This complete module compiles against the installed package. The host supplies `
 import {
   composePublicationHttpReadFromRequest,
   type AnonymousPublicationHttpReadInput,
-} from '@collection-protocol/node/server';
+} from '@know-n/colp/server';
 
 export function readPublicDirectory(
   request: Request,
@@ -91,7 +91,7 @@ The composition distinguishes anonymous public output from output that depends o
 ## Read it back with ColpClient
 
 ```ts
-import { ColpClient, createLoopbackEgressPolicy } from '@collection-protocol/node/client';
+import { ColpClient, createLoopbackEgressPolicy } from '@know-n/colp/client';
 
 const client = new ColpClient({
   manifestUrl: 'http://127.0.0.1:8080/.well-known/collection-protocol',
@@ -171,7 +171,7 @@ Cancellation ends the client's waiting and prevents further request hops. It can
 
 ## Cursor keys
 
-Snapshot and Directory cursors are HMAC-bound capabilities, so a client cannot forge or alter one. All these functions are exported from `@collection-protocol/node/server`:
+Snapshot and Directory cursors are HMAC-bound capabilities, so a client cannot forge or alter one. All these functions are exported from `@know-n/colp/server`:
 
 | Purpose | Snapshot | Directory |
 |---|---|---|
@@ -188,7 +188,7 @@ Restore the handles at worker startup from your secret store, then reuse them fo
 import {
   createPublicationSnapshotCursorHmacKey,
   createPublicationDirectoryCursorHmacKey,
-} from '@collection-protocol/node/server';
+} from '@know-n/colp/server';
 
 export function restorePublicationCursorKeys(
   snapshotKeyMaterial: Uint8Array,

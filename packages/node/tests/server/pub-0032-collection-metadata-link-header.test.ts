@@ -48,7 +48,7 @@ function expectedCoreLinks(value: Record<string, unknown>): string {
   return [
     `<${String(links.self)}>; rel="self"; type="${collectionMediaType}"`,
     `<${String(links.canonical)}>; rel="canonical"; type="text/html"`,
-    `<${String(links.snapshot)}>; rel="https://collectionprotocol.org/rels/snapshot"; type="${snapshotMediaType}"`,
+    `<${String(links.snapshot)}>; rel="https://know-n.com/colp/rels/snapshot"; type="${snapshotMediaType}"`,
   ].join(', ');
 }
 
@@ -70,7 +70,7 @@ describe(`PUB-0032 Collection Metadata Link response contract ${evidence}`, () =
 
     expect(link(create(value))).toBe([
       expectedCoreLinks(value),
-      `<${String(links.feed)}>; rel="https://collectionprotocol.org/rels/feed"; type="${feedMediaType}"`,
+      `<${String(links.feed)}>; rel="https://know-n.com/colp/rels/feed"; type="${feedMediaType}"`,
       '<https://feeds.example/interface-systems.json>; rel="alternate"; type="application/feed+json"',
     ].join(', '));
   });
@@ -88,7 +88,7 @@ describe(`PUB-0032 Collection Metadata Link response contract ${evidence}`, () =
   });
 
   it.each([
-    ['feed only', { feed: 'https://feeds.example/live' }, `; rel="https://collectionprotocol.org/rels/feed"; type="${feedMediaType}"`],
+    ['feed only', { feed: 'https://feeds.example/live' }, `; rel="https://know-n.com/colp/rels/feed"; type="${feedMediaType}"`],
     ['JSON Feed alternate only', { alternateJsonFeed: 'https://feeds.example/live.json' }, '; rel="alternate"; type="application/feed+json"'],
     ['Atom alternate only', { alternateAtom: 'https://feeds.example/live.atom' }, '; rel="alternate"; type="application/atom+xml"'],
   ] as const)(`emits an optional %s only when its body link is present ${evidence}`, (_name, optional, suffix) => {
@@ -138,7 +138,7 @@ describe(`PUB-0032 Collection Metadata Link response contract ${evidence}`, () =
     const existing = '<https://schema.example/collection>; rel="describedby"; type="application/schema+json"';
     const response = create(value, { method: 'GET', headers: { Link: existing } });
 
-    expect(link(response)).toBe(`${existing}, ${expectedCoreLinks(value)}, <${String(linksOf(value).feed)}>; rel="https://collectionprotocol.org/rels/feed"; type="${feedMediaType}"`);
+    expect(link(response)).toBe(`${existing}, ${expectedCoreLinks(value)}, <${String(linksOf(value).feed)}>; rel="https://know-n.com/colp/rels/feed"; type="${feedMediaType}"`);
     expect(Array.from(response.headers.keys()).filter((name) => name.toLowerCase() === 'link')).toEqual(['link']);
   });
 
@@ -154,8 +154,8 @@ describe(`PUB-0032 Collection Metadata Link response contract ${evidence}`, () =
   it.each([
     ['self', '<https://attacker.example/wrong>; rel="self"; type="application/vnd.collection-protocol.collection+json"'],
     ['canonical', '<https://attacker.example/wrong>; rel="canonical"; type="text/html"'],
-    ['snapshot', '<https://attacker.example/wrong>; rel="https://collectionprotocol.org/rels/snapshot"; type="application/vnd.collection-protocol.snapshot+json"'],
-    ['feed', '<https://attacker.example/wrong>; rel="https://collectionprotocol.org/rels/feed"; type="application/vnd.collection-protocol.feed+json"'],
+    ['snapshot', '<https://attacker.example/wrong>; rel="https://know-n.com/colp/rels/snapshot"; type="application/vnd.collection-protocol.snapshot+json"'],
+    ['feed', '<https://attacker.example/wrong>; rel="https://know-n.com/colp/rels/feed"; type="application/vnd.collection-protocol.feed+json"'],
     ['case-insensitive self', '<https://attacker.example/wrong>; rel="SELF"; type="application/vnd.collection-protocol.collection+json"'],
   ] as const)(`rejects a conflicting existing %s relation ${evidence}`, (_name, existing) => {
     expect(() => create(metadata(), { method: 'GET', headers: { Link: existing } })).toThrow(TypeError);

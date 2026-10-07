@@ -333,7 +333,7 @@ Content-Type: application/problem+json
 
 ```json
 {
-  "type": "https://collectionprotocol.org/problems/rate-limited",
+  "type": "https://know-n.com/colp/problems/rate-limited",
   "title": "Too many requests",
   "status": 429,
   "code": "rate_limited",

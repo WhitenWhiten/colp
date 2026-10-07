@@ -6,7 +6,7 @@
 
 The Collection Protocol（COLP）是一个面向书签与人工整理的知识集合的开放协议，原生基于 HTTP。它说明了三件事：如何像发布博客一样发布一个集合，如何在浏览器与服务器之间同步书签树，以及如何让 AI 助手帮忙而不让它拿到超出你本意的权限。
 
-本目录就是规范本身。[`SPECIFICATION.md`](SPECIFICATION.md) 与 [`docs/`](docs) 中的正文是规范性文本；[JSON Schema](schemas)、[示例](examples) 与 [Requirement Registry](requirements.yaml) 是它机器可读的另一半，CI 会保证它们彼此一致。参考实现是 [`@collection-protocol/node`](../packages/node)。
+本目录就是规范本身。[`SPECIFICATION.md`](SPECIFICATION.md) 与 [`docs/`](docs) 中的正文是规范性文本；[JSON Schema](schemas)、[示例](examples) 与 [Requirement Registry](requirements.yaml) 是它机器可读的另一半，CI 会保证它们彼此一致。参考实现是 [`@know-n/colp`](../packages/node)。
 
 **第一次接触 COLP？** 先读 [五分钟了解 COLP](#五分钟了解-colp)，再按 [从哪里开始](#从哪里开始) 找到与你要做的事对应的阅读路线。不熟悉的术语可以查 [术语表（英文）](GLOSSARY.md)。
 
@@ -163,7 +163,7 @@ python scripts/validate_examples.py
 | JSON Schema | Draft 2020-12 |
 | 兼容目标 | Chromium Bookmarks API、Firefox WebExtensions Bookmarks API、Netscape Bookmark HTML，以及可通过适配器读取的 Safari 书签数据 |
 | Wire Contract | 0.1 已收口：Publication、Publisher、Feed、Sync、安全管理和 MCP 引用的核心 DTO 均有稳定的 `$defs` 名称 |
-| 参考实现 | [`../packages/node`](../packages/node)（`@collection-protocol/node`），需求到测试的追踪见 [`TRACEABILITY.md`](../packages/node/docs/TRACEABILITY.md) |
+| 参考实现 | [`../packages/node`](../packages/node)（`@know-n/colp`），需求到测试的追踪见 [`TRACEABILITY.md`](../packages/node/docs/TRACEABILITY.md) |
 
 规范处于草案阶段时，正文与 Schema 之间的不一致按缺陷修正；这对兼容性意味着什么，见 [规范第 1 节](SPECIFICATION.md#colp-section-1)。
 

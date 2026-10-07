@@ -1,6 +1,6 @@
 # Package documentation
 
-Everything written about `@collection-protocol/node`, grouped by what you are trying to do. The guides ship with the package; the reference documents and records live in the repository. If you are new, read the [package README](../README.md) first, then the [API guide](API.md). The protocol itself is specified in [`protocol/`](https://github.com/WhitenWhiten/colp/blob/main/protocol/README.md).
+Everything written about `@know-n/colp`, grouped by what you are trying to do. The guides ship with the package; the reference documents and records live in the repository. If you are new, read the [package README](../README.md) first, then the [API guide](API.md). The protocol itself is specified in [`protocol/`](https://github.com/WhitenWhiten/colp/blob/main/protocol/README.md).
 
 ## Guides
 

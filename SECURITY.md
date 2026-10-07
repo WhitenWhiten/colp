@@ -22,7 +22,7 @@ You should receive an acknowledgement within 7 days. We will keep you informed w
 In scope:
 
 - flaws in the protocol design that allow unauthorized reads or writes, leak private data into public projections or feeds, or bypass scopes, approval plans, or rate limits;
-- vulnerabilities in `@collection-protocol/node`, such as validation bypasses, injection, prototype pollution, SSRF, or denial of service through unbounded input.
+- vulnerabilities in `@know-n/colp`, such as validation bypasses, injection, prototype pollution, SSRF, or denial of service through unbounded input.
 
 Out of scope:
 

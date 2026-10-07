@@ -122,7 +122,7 @@ const feedEvent = {
   specversion: '1.0',
   id: 'event-created',
   source: 'https://example.test/collections',
-  type: 'org.collectionprotocol.collection.created.v1',
+  type: 'com.know-n.colp.collection.created.v1',
   subject: 'collections/collection-main',
   time: timestamp,
   datacontenttype: 'application/json',

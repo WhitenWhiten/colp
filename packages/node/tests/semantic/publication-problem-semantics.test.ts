@@ -8,7 +8,7 @@ import {
 import type { Problem } from '../../src/types/index.js';
 
 const problem: Problem = {
-  type: 'https://collectionprotocol.org/problems/precondition-failed',
+  type: 'https://know-n.com/colp/problems/precondition-failed',
   title: 'Precondition failed',
   status: 412,
   code: 'precondition_failed',

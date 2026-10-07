@@ -17,16 +17,16 @@ import type { FeedEvent } from '../types/index.js';
 
 /** Standard Feed Event types with exact `data` discriminants (FEED-0001). */
 export const STANDARD_FEED_EVENT_TYPES = Object.freeze([
-  'org.collectionprotocol.collection.created.v1',
-  'org.collectionprotocol.collection.updated.v1',
-  'org.collectionprotocol.collection.deleted.v1',
-  'org.collectionprotocol.release.published.v1',
-  'org.collectionprotocol.node.created.v1',
-  'org.collectionprotocol.node.updated.v1',
-  'org.collectionprotocol.node.moved.v1',
-  'org.collectionprotocol.node.deleted.v1',
-  'org.collectionprotocol.annotation.published.v1',
-  'org.collectionprotocol.access.publication_changed.v1',
+  'com.know-n.colp.collection.created.v1',
+  'com.know-n.colp.collection.updated.v1',
+  'com.know-n.colp.collection.deleted.v1',
+  'com.know-n.colp.release.published.v1',
+  'com.know-n.colp.node.created.v1',
+  'com.know-n.colp.node.updated.v1',
+  'com.know-n.colp.node.moved.v1',
+  'com.know-n.colp.node.deleted.v1',
+  'com.know-n.colp.annotation.published.v1',
+  'com.know-n.colp.access.publication_changed.v1',
 ] as const);
 
 export type StandardFeedEventType = (typeof STANDARD_FEED_EVENT_TYPES)[number];
@@ -82,23 +82,23 @@ const standardTypeSet = new Set<string>(STANDARD_FEED_EVENT_TYPES);
 
 const DATA_KEYS_BY_STANDARD_TYPE: ReadonlyMap<string, ReadonlySet<string>> = new Map([
   [
-    'org.collectionprotocol.collection.created.v1',
+    'com.know-n.colp.collection.created.v1',
     new Set(['collectionId', 'revision', 'summary']),
   ],
   [
-    'org.collectionprotocol.collection.updated.v1',
+    'com.know-n.colp.collection.updated.v1',
     new Set(['collectionId', 'revision', 'summary']),
   ],
   [
-    'org.collectionprotocol.collection.deleted.v1',
+    'com.know-n.colp.collection.deleted.v1',
     new Set(['collectionId', 'revision', 'summary']),
   ],
   [
-    'org.collectionprotocol.annotation.published.v1',
+    'com.know-n.colp.annotation.published.v1',
     new Set(['collectionId', 'revision', 'summary']),
   ],
   [
-    'org.collectionprotocol.release.published.v1',
+    'com.know-n.colp.release.published.v1',
     new Set([
       'collectionId',
       'revision',
@@ -110,23 +110,23 @@ const DATA_KEYS_BY_STANDARD_TYPE: ReadonlyMap<string, ReadonlySet<string>> = new
     ]),
   ],
   [
-    'org.collectionprotocol.node.created.v1',
+    'com.know-n.colp.node.created.v1',
     new Set(['collectionId', 'revision', 'node']),
   ],
   [
-    'org.collectionprotocol.node.updated.v1',
+    'com.know-n.colp.node.updated.v1',
     new Set(['collectionId', 'revision', 'node']),
   ],
   [
-    'org.collectionprotocol.node.moved.v1',
+    'com.know-n.colp.node.moved.v1',
     new Set(['collectionId', 'revision', 'node']),
   ],
   [
-    'org.collectionprotocol.node.deleted.v1',
+    'com.know-n.colp.node.deleted.v1',
     new Set(['collectionId', 'revision', 'nodeId', 'summary']),
   ],
   [
-    'org.collectionprotocol.access.publication_changed.v1',
+    'com.know-n.colp.access.publication_changed.v1',
     new Set(['collectionId', 'revision', 'visibility']),
   ],
 ]);
@@ -217,7 +217,7 @@ export function discriminateFeedEvent(
       }
     }
 
-    if (typeValue === 'org.collectionprotocol.access.publication_changed.v1') {
+    if (typeValue === 'com.know-n.colp.access.publication_changed.v1') {
       for (const key of dataKeys(data)) {
         const normalized = key.toLowerCase().replace(/[_\-\s]/gu, '');
         if (
@@ -237,9 +237,9 @@ export function discriminateFeedEvent(
     }
 
     if (
-      typeValue === 'org.collectionprotocol.node.created.v1'
-      || typeValue === 'org.collectionprotocol.node.updated.v1'
-      || typeValue === 'org.collectionprotocol.node.moved.v1'
+      typeValue === 'com.know-n.colp.node.created.v1'
+      || typeValue === 'com.know-n.colp.node.updated.v1'
+      || typeValue === 'com.know-n.colp.node.moved.v1'
     ) {
       const node = data.node;
       if (!isPlainObject(node)) {
@@ -258,7 +258,7 @@ export function discriminateFeedEvent(
 
     // FEED-0004: release.published must carry an immutable Release Snapshot URL + digest.
     // This is enforced on the primary wire discrimination boundary (not only the builder).
-    if (typeValue === 'org.collectionprotocol.release.published.v1') {
+    if (typeValue === 'com.know-n.colp.release.published.v1') {
       const snapshotUrl = data.snapshotUrl;
       if (!isImmutableReleaseSnapshotUrl(snapshotUrl)) {
         return fail('mutable_snapshot_url', '/data/snapshotUrl');

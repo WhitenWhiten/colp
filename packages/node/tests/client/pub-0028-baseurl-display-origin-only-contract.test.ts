@@ -275,7 +275,7 @@ describe(`PUB-0028 routing uses exact declared Endpoint and Link targets [eviden
       requested.push(url);
       if (url === manifestUrl) return Response.json(value);
       return new Response(JSON.stringify({
-        type: `https://collectionprotocol.org/problems/${code.replaceAll('_', '-')}`,
+        type: `https://know-n.com/colp/problems/${code.replaceAll('_', '-')}`,
         title: 'Declared endpoint failed',
         status,
         code,

@@ -1,8 +1,8 @@
 {
-  "name": "@collection-protocol/conformance",
-  "version": "0.0.0-development",
-  "license": "Apache-2.0",
+  "name": "@know-n/colp-conformance",
+  "version": "0.1.0",
   "private": true,
+  "license": "Apache-2.0",
   "description": "Black-box conformance runner for servers implementing The Collection Protocol (COLP)",
   "keywords": [
     "collection-protocol",
@@ -36,9 +36,14 @@
     "README.md"
   ],
   "scripts": {
-    "test": "node --test test/*.test.mjs"
+    "test": "node --test test/*.test.mjs",
+    "pack:release": "node scripts/pack-release.mjs"
   },
   "dependencies": {
-    "@collection-protocol/node": "file:../node"
+    "@know-n/colp": "file:../node"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
   }
 }

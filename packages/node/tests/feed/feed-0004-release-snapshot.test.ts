@@ -31,7 +31,7 @@ function releasePublishedEnvelope(overrides: {
     specversion: '1.0',
     id: '019b3d0b-efcf-7fa7-9778-33e8e77620f4',
     source: 'https://alice.example/collections',
-    type: 'org.collectionprotocol.release.published.v1',
+    type: 'com.know-n.colp.release.published.v1',
     subject: 'collections/c/collection-1/releases/r1',
     time: '2026-07-16T06:30:00Z',
     datacontenttype: 'application/json',
@@ -67,7 +67,7 @@ describe(`FEED-0004 release.published immutable snapshot [evidence:${evidence}]`
     );
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.event.type).toBe('org.collectionprotocol.release.published.v1');
+      expect(result.event.type).toBe('com.know-n.colp.release.published.v1');
       const data = result.event.data as unknown as Record<string, unknown>;
       expect(data.snapshotUrl).toBe(IMMUTABLE);
       expect(data.snapshotDigest).toBe(DIGEST);

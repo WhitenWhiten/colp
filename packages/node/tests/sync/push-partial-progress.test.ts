@@ -114,7 +114,7 @@ describe('non-atomic Push reuse denial after progress', () => {
     expect(retried.result.results).toEqual(reuse.progress.results);
     expect(replay).not.toHaveBeenCalled();
     expect(db.state.business).toHaveLength(20);
-  });
+  }, 30_000); // The bytes case copies a 10 MB prefix repeatedly under coverage.
 
   it('exposes the committed prefix, failed identity, latest cursor and persisted audit', async () => {
     const { db, push, sessionId } = await setup();

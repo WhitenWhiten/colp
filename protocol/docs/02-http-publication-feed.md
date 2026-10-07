@@ -24,7 +24,7 @@ Consumers do not need an account with the publisher, and do not need to install 
 
 ```json
 {
-  "protocol": "https://collectionprotocol.org/spec/0.1",
+  "protocol": "https://know-n.com/colp/spec/0.1",
   "protocolVersions": ["0.1"],
   "serverId": "https://alice.example/",
   "serverUuid": "019b3c67-a03c-7f02-9c7e-1ee8d50a77de",
@@ -178,8 +178,8 @@ The server SHOULD also send Link headers:
 ```http
 Link: </collections/c/collection-1>; rel="self"; type="application/vnd.collection-protocol.collection+json"
 Link: </collections/interface-systems>; rel="canonical"; type="text/html"
-Link: </collections/c/collection-1/snapshot>; rel="https://collectionprotocol.org/rels/snapshot"; type="application/vnd.collection-protocol.snapshot+json"
-Link: </collections/c/collection-1/feed>; rel="https://collectionprotocol.org/rels/feed"; type="application/vnd.collection-protocol.feed+json"
+Link: </collections/c/collection-1/snapshot>; rel="https://know-n.com/colp/rels/snapshot"; type="application/vnd.collection-protocol.snapshot+json"
+Link: </collections/c/collection-1/feed>; rel="https://know-n.com/colp/rels/feed"; type="application/vnd.collection-protocol.feed+json"
 Link: </collections/c/collection-1/feed.json>; rel="alternate"; type="application/feed+json"
 ```
 
@@ -248,7 +248,7 @@ A Bookmark navigation URL that appears in a Feed MUST be an absolute HTTP(S) URL
   "specversion": "1.0",
   "id": "019b3d0b-...",
   "source": "https://alice.example/collections",
-  "type": "org.collectionprotocol.node.created.v1",
+  "type": "com.know-n.colp.node.created.v1",
   "subject": "collections/c/collection-1/nodes/node-9",
   "time": "2026-07-16T06:30:00Z",
   "datacontenttype": "application/json",
@@ -267,16 +267,16 @@ A Bookmark navigation URL that appears in a Feed MUST be an absolute HTTP(S) URL
 
 Standard event types:
 
-- `org.collectionprotocol.collection.created.v1`
-- `org.collectionprotocol.collection.updated.v1`
-- `org.collectionprotocol.collection.deleted.v1`
-- `org.collectionprotocol.release.published.v1`
-- `org.collectionprotocol.node.created.v1`
-- `org.collectionprotocol.node.updated.v1`
-- `org.collectionprotocol.node.moved.v1`
-- `org.collectionprotocol.node.deleted.v1`
-- `org.collectionprotocol.annotation.published.v1`
-- `org.collectionprotocol.access.publication_changed.v1`
+- `com.know-n.colp.collection.created.v1`
+- `com.know-n.colp.collection.updated.v1`
+- `com.know-n.colp.collection.deleted.v1`
+- `com.know-n.colp.release.published.v1`
+- `com.know-n.colp.node.created.v1`
+- `com.know-n.colp.node.updated.v1`
+- `com.know-n.colp.node.moved.v1`
+- `com.know-n.colp.node.deleted.v1`
+- `com.know-n.colp.annotation.published.v1`
+- `com.know-n.colp.access.publication_changed.v1`
 
 An access event may only say that the publication state changed; it must not carry keys, internal principals, or private rules.
 

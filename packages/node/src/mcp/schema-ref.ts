@@ -51,7 +51,7 @@ export function createCanonicalMcpSchemaReference(
  * Rewrites absolute Collection Protocol `$ref` values to local `#/$defs/…`
  * pointers and copies the referenced package `$defs` into the document.
  * Wire `tools/list` must emit this closed form so clients never fetch
- * collectionprotocol.org. Does not change package `$id` or Problem types.
+ * know-n.com/colp. Does not change package `$id` or Problem types.
  */
 export function materializeClosedMcpToolSchema(
   schema: Readonly<Record<string, unknown>>,
@@ -148,8 +148,8 @@ function assertNoCanonicalHttpRef(value: unknown): void {
   }
   if (value === null || typeof value !== 'object') return;
   for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
-    if (key === '$ref' && typeof child === 'string' && child.includes('collectionprotocol.org')) {
-      throw new TypeError('Closed MCP tool schemas must not $ref collectionprotocol.org.');
+    if (key === '$ref' && typeof child === 'string' && child.includes('know-n.com/colp')) {
+      throw new TypeError('Closed MCP tool schemas must not $ref know-n.com/colp.');
     }
     assertNoCanonicalHttpRef(child);
   }

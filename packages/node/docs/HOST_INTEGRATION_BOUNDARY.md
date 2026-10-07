@@ -1,6 +1,6 @@
 # Host integration boundary
 
-This document defines the ownership boundary between `@collection-protocol/node`
+This document defines the ownership boundary between `@know-n/colp`
 and any application that embeds it. The package is a Node.js implementation of
 The Collection Protocol. It does not know which product, service, HTTP framework,
 database, identity provider, or deployment topology will host it.
@@ -84,7 +84,7 @@ a Manifest.
 Scopes containing `mcp-read` or `mcp-write` must provide
 `mcpConformance: { packageVersion, requirementsDigest }`.
 Take both values from the installed package's `bundledConformanceEvidence`
-export in `@collection-protocol/node/conformance`: it is the evidence shipped
+export in `@know-n/colp/conformance`: it is the evidence shipped
 with that exact package version. Do not copy test-fixture values or read
 internal files from another checkout.
 
@@ -101,7 +101,7 @@ import {
   runDeploymentConformanceProbes,
   type DeploymentConformanceScope,
   type DeploymentConformanceTarget,
-} from '@collection-protocol/node/conformance';
+} from '@know-n/colp/conformance';
 
 export function mcpReadScopeFromInstalledPackage(): DeploymentConformanceScope {
   const { packageVersion, requirementsDigest } = bundledConformanceEvidence;

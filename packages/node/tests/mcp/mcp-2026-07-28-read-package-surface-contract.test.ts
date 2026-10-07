@@ -179,7 +179,7 @@ describe('MCP 2026-07-28 Read package surface (COLP-MCP-12)', () => {
     }
 
     // No other new subpath and no deep path under the MCP entries: importing
-    // `@collection-protocol/node/mcp/2026-07-28/<file>` must fail to resolve.
+    // `@know-n/colp/mcp/2026-07-28/<file>` must fail to resolve.
     const unexpected = Object.keys(packageJson.exports).filter(
       (key) =>
         key !== './mcp'

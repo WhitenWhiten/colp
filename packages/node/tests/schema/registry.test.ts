@@ -70,7 +70,7 @@ describe('schema validator registry', () => {
 
   it('requires publication endpoints at the manifest mount', () => {
     const manifest = {
-      protocol: 'https://collectionprotocol.org/spec/0.1',
+      protocol: 'https://know-n.com/colp/spec/0.1',
       protocolVersions: ['0.1'],
       serverId: 'https://example.com/',
       serverUuid: 'server-1',

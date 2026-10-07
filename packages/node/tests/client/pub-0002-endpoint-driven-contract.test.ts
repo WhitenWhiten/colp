@@ -170,7 +170,7 @@ describe(`PUB-0002 endpoint-driven publication client [evidence:${evidence}]`, (
       const requested: string[] = [];
       const code = status === 404 ? 'resource_not_found' : 'service_unavailable';
       const problem = JSON.stringify({
-        type: `https://collectionprotocol.org/problems/${code.replaceAll('_', '-')}`,
+        type: `https://know-n.com/colp/problems/${code.replaceAll('_', '-')}`,
         title: 'Declared endpoint failed',
         status,
         code,

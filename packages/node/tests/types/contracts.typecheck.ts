@@ -131,7 +131,7 @@ export const incompleteReleaseEvent: FeedEvent = {
   specversion: '1.0',
   id: 'event-1',
   source: 'https://example.com/collections',
-  type: 'org.collectionprotocol.release.published.v1',
+  type: 'com.know-n.colp.release.published.v1',
   subject: 'collections/c/collection-1/releases/release-1',
   time: timestamp,
   datacontenttype: 'application/json',

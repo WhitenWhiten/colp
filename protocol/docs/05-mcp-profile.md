@@ -473,7 +473,7 @@ Return instead:
       "collectionId": { "type": "string" },
       "parentId": { "type": "string" },
       "afterId": { "type": ["string", "null"] },
-      "node": { "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/nodeCreate" },
+      "node": { "$ref": "https://know-n.com/colp/schema/0.1#/$defs/nodeCreate" },
       "dryRun": { "type": "boolean", "default": false }
     },
     "required": ["collectionId", "parentId", "node"],
@@ -482,10 +482,10 @@ Return instead:
   "outputSchema": {
     "type": "object",
     "properties": {
-      "node": { "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/node" },
+      "node": { "$ref": "https://know-n.com/colp/schema/0.1#/$defs/node" },
       "warnings": {
         "type": "array",
-        "items": { "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/warning" }
+        "items": { "$ref": "https://know-n.com/colp/schema/0.1#/$defs/warning" }
       }
     },
     "required": ["node", "warnings"]

@@ -4,7 +4,7 @@ Practical wiring guide for integrators who compose COLP Security guards at a req
 
 **Ownership boundary:** [`docs/HOST_INTEGRATION_BOUNDARY.md`](HOST_INTEGRATION_BOUNDARY.md)
 
-**Public export:** `@collection-protocol/node/security` (`package.json` → `./security`)
+**Public export:** `@know-n/colp/security` (`package.json` → `./security`)
 
 ---
 
@@ -15,7 +15,7 @@ Practical wiring guide for integrators who compose COLP Security guards at a req
 | What this package surface is | A **library / port layer**: fail-closed decision functions, request-boundary composition helpers, and typed ports (rate limit, credential restrictions, OAuth provenance, DPoP/mTLS, publisher admission). |
 | What it is **not** | A framework middleware stack, HTTP server, or standalone Security Profile. Exporting `./security` alone does not create a deployment Publisher claim. |
 | Conformance | Package Profile evidence is **repository-tracked and checked against a fresh test run in CI**; each deployment must separately pass its black-box probes. |
-| Package status | Package is **`private: true`**, version `0.0.0-development`. These are publication-maturity fields. Framework route/middleware ownership remains with the host and is not a package-completeness criterion. |
+| Package status | Package is configured for public publication as `@know-n/colp`, version `0.1.0`. Registry publication requires the release checks and accepted artifact. Framework route/middleware ownership remains with the host and is not a package-completeness criterion. |
 | Residual trust | Misclassified *deployment evidence* (wrong `networkExposure`, untrusted “TLS terminated” signals) can still under-enforce. That residual is deployment trust, not a free caller flag on composition APIs. |
 
 Atomic guards remain internal implementation details available through their source modules for low-level tests. `enforceHttpsEndpoint` and `enforceOriginGuard` are intentionally absent from the public `./security` subpath. Production handlers use composition APIs that derive remote/applicability from trusted evidence.
@@ -72,7 +72,7 @@ There is **no** free-form `remote` override on the composition API.
 
 **Do not** call atomic `enforceHttpsEndpoint` / `enforceOriginGuard` from their source modules in a production handler with a self-asserted `remote`. Those functions are not exported from `./security`; production must use composition APIs that derive remote from trusted evidence.
 
-Import this boundary from `@collection-protocol/node/security` for both Publisher and MCP adapters. The `publisher` entry also re-exports it and the evidence type; `mcp` does not. The host still owns transport attachment and must derive evidence from trusted framework/deployment state.
+Import this boundary from `@know-n/colp/security` for both Publisher and MCP adapters. The `publisher` entry also re-exports it and the evidence type; `mcp` does not. The host still owns transport attachment and must derive evidence from trusted framework/deployment state.
 
 This small public-API example is compiled and executed from the installed tarball:
 
@@ -81,7 +81,7 @@ This small public-API example is compiled and executed from the installed tarbal
 import {
   enforcePublisherStreamableHttpBoundary,
   type TrustedTransportEvidence,
-} from '@collection-protocol/node/security';
+} from '@know-n/colp/security';
 
 export function checkWriteTransport(evidence: TrustedTransportEvidence) {
   return enforcePublisherStreamableHttpBoundary(evidence, {
@@ -106,7 +106,7 @@ Publisher **Streamable HTTP** example. Order matters: transport trust before cre
 | **6** | Sender constraints (remote high-risk admin) | `enforceSenderConstraint` for remote Key / ACL / Public Exposure / Purge (DPoP or mTLS). Local and other ops need explicit `not_applicable` classification. |
 | **7** | Rate limit | Prefer `enforceRateLimitForOperation` (classifies canonical bucket then charges). Do **not** pass free-form bucket IDs; non-canonical buckets throw/`TypeError` or fail closed. Attach RFC 9651 headers via `serializeRateLimitFields` (not legacy aliases). |
 | **8** | Operation cost / subscription | For batch / sync / MCP expansion: `enforcePublisherAdmission` and/or `enforceSubscriptionLimits` as applicable (SEC-0013 ports). |
-| **9** | I-JSON parse for write bodies | Server boundary: `parseIJson` / `validateServerWireDocument` from `@collection-protocol/node/server` (stricter server guard). Do not treat raw `JSON.parse` as the write gate. |
+| **9** | I-JSON parse for write bodies | Server boundary: `parseIJson` / `validateServerWireDocument` from `@know-n/colp/server` (stricter server guard). Do not treat raw `JSON.parse` as the write gate. |
 | **10** | Content integrity (response side) | **Emit** only: `emitContentIntegrityHeaders`. Success disposition is `headers_emitted`. Cryptographic verify and JWKS/Manifest retrieval are **adapter-owned**. Mutable resources use `enforceMutableResourceIntegrity` (verify path) separately (SEC-0018). |
 
 ### Why this order
@@ -180,8 +180,8 @@ import {
   type DefinitionName,
   type IJsonParseLimits,
   type SemanticValidationResultLike,
-} from '@collection-protocol/node/schema';
-import { validateServerWireDocument } from '@collection-protocol/node/server';
+} from '@know-n/colp/schema';
+import { validateServerWireDocument } from '@know-n/colp/server';
 
 const validators = createValidatorRegistry();
 
@@ -223,14 +223,14 @@ import {
   enforceSubscriptionLimits,
   emitContentIntegrityHeaders,
   serializeRateLimitFields,
-} from '@collection-protocol/node/security';
+} from '@know-n/colp/security';
 // Relative equivalent while developing in-tree:
 // import { ... } from '../src/security/index.js';
 
 import {
   parseIJson,
   validateServerWireDocument,
-} from '@collection-protocol/node/server';
+} from '@know-n/colp/server';
 
 async function handlePublisherStreamableHttp(ctx: {
   /** Built ONLY from listen address, TLS terminator, scheme, protocol, target, Origin */

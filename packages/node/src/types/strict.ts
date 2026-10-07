@@ -366,22 +366,22 @@ interface FeedEventBase<Type extends string, Data> {
 
 export type StrictFeedEvent =
   | FeedEventBase<
-      | 'org.collectionprotocol.collection.created.v1'
-      | 'org.collectionprotocol.collection.updated.v1'
-      | 'org.collectionprotocol.collection.deleted.v1'
-      | 'org.collectionprotocol.annotation.published.v1',
+      | 'com.know-n.colp.collection.created.v1'
+      | 'com.know-n.colp.collection.updated.v1'
+      | 'com.know-n.colp.collection.deleted.v1'
+      | 'com.know-n.colp.annotation.published.v1',
       CollectionFeedEventData
     >
-  | FeedEventBase<'org.collectionprotocol.release.published.v1', ReleasePublishedFeedEventData>
+  | FeedEventBase<'com.know-n.colp.release.published.v1', ReleasePublishedFeedEventData>
   | FeedEventBase<
-      | 'org.collectionprotocol.node.created.v1'
-      | 'org.collectionprotocol.node.updated.v1'
-      | 'org.collectionprotocol.node.moved.v1',
+      | 'com.know-n.colp.node.created.v1'
+      | 'com.know-n.colp.node.updated.v1'
+      | 'com.know-n.colp.node.moved.v1',
       NodeChangedFeedEventData
     >
-  | FeedEventBase<'org.collectionprotocol.node.deleted.v1', NodeDeletedFeedEventData>
+  | FeedEventBase<'com.know-n.colp.node.deleted.v1', NodeDeletedFeedEventData>
   | FeedEventBase<
-      'org.collectionprotocol.access.publication_changed.v1',
+      'com.know-n.colp.access.publication_changed.v1',
       AccessPublicationChangedFeedEventData
     >
   | FeedEventBase<`https://${string}`, ExtensionFeedEventData>;

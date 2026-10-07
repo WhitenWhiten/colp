@@ -52,7 +52,7 @@ for (const specifier of ${JSON.stringify(specifiers)}) {
 }
 ${schemaLoader}
 assert.equal(schema.$schema, 'https://json-schema.org/draft/2020-12/schema');
-const semantic = ${mode === 'esm' ? `await import(${JSON.stringify('@collection-protocol/node/semantic')})` : `require(${JSON.stringify('@collection-protocol/node/semantic')})`};
+const semantic = ${mode === 'esm' ? `await import(${JSON.stringify('@know-n/colp/semantic')})` : `require(${JSON.stringify('@know-n/colp/semantic')})`};
 assert.equal(semantic.createUrlHash('https://example.test/'), 'sha-256=:Fkhwe5+NezpUP7dTQsRMzE5oDMIixSSbIUVLLxyjYQk=:');
 process.stdout.write(JSON.stringify(results));
 `;

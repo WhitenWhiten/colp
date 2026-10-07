@@ -1,7 +1,7 @@
 /**
  * Production `./sync` host façade (SYNC-Q-019).
  *
- * Ordinary `@collection-protocol/node/sync` cannot import bare coordinators.
+ * Ordinary `@know-n/colp/sync` cannot import bare coordinators.
  * `createSyncHost` requires a branded Session and exclusive sequence XOR push.
  */
 import { describe, expect, it } from 'vitest';

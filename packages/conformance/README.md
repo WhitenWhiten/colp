@@ -1,12 +1,27 @@
-# @collection-protocol/conformance
+# @know-n/colp-conformance
 
-A black-box conformance runner for servers that implement [The Collection Protocol](../../README.md). Point it at a live server, in any language, and it reports which `core + publication` requirements the server meets, citing each requirement by its ID in [`protocol/requirements.yaml`](../../protocol/requirements.yaml).
+A black-box conformance runner for servers that implement [The Collection Protocol](https://github.com/WhitenWhiten/colp). Point it at a live server, in any language, and it reports which `core + publication` requirements the server meets, citing each requirement by its ID in [`protocol/requirements.yaml`](https://github.com/WhitenWhiten/colp/blob/main/protocol/requirements.yaml).
 
 The runner acts like an anonymous COLP client. It starts at `/.well-known/collection-protocol`, follows only the endpoints and links the server declares, and sends read-only `GET` requests. It validates every response with the reference package's JSON Schema and semantic validators.
 
 ## Usage
 
-From a checkout of this repository (the package is not on npm yet):
+Requires **Node.js 22 or later**. Run the CLI directly from npm:
+
+```bash
+npx --yes --package=@know-n/colp-conformance@0.1.0 colp-conformance https://your-server.example
+```
+
+For repeated use, install it in your project:
+
+```bash
+npm install --save-dev @know-n/colp-conformance@0.1.0
+npx colp-conformance https://your-server.example --json
+```
+
+The reference implementation is installed automatically as a dependency. Replace the URL with your server's origin or Manifest URL. This package's JavaScript API uses ESM.
+
+From a checkout of this repository:
 
 ```bash
 npm run install:package && npm run build    # build the reference package once
@@ -64,7 +79,7 @@ Not covered yet: authenticated reads (PUB-0007, PUB-0023), and the `feed`, `publ
 ## Use from code
 
 ```js
-import { formatReport, runConformance } from '@collection-protocol/conformance';
+import { formatReport, runConformance } from '@know-n/colp-conformance';
 
 const report = await runConformance('https://alice.example');
 console.log(formatReport(report));
@@ -74,3 +89,13 @@ if (report.summary.fail > 0) process.exitCode = 1;
 ## Development
 
 `npm test` runs the suite with `node:test`. It needs the reference package built (`npm run build` in `packages/node`), because the tests start the example server and a deliberately misbehaving proxy in front of it to prove that violations are caught.
+
+## Release packaging
+
+Development uses `file:../node` so the runner tests the same implementation as the checkout. Keep the source package private and create its release tarball with:
+
+```bash
+npm run pack:release -- /path/to/artifacts
+```
+
+The command copies the shipped files and Apache-2.0 license into a temporary directory, replaces the local dependency with the exact matching `@know-n/colp` version, and packs a public package. Publish the accepted implementation tarball first, then the accepted runner tarball. Publish the tarball produced by this command; the source directory retains its development dependency.

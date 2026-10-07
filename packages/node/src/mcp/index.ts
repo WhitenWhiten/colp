@@ -7,7 +7,7 @@
  * handshake method, old subscription methods, Legacy transport types, or
  * the pre-Modern adapter / factory signatures (those are removed or kept
  * internal-only). The explicit versioned entry
- * `@collection-protocol/node/mcp/2026-07-28` exposes the exact same
+ * `@know-n/colp/mcp/2026-07-28` exposes the exact same
  * surface; see `src/mcp/2026-07-28/index.ts`.
  *
  * Package consumers must explicitly choose `/mcp` (or `/mcp/2026-07-28`);

@@ -8,7 +8,7 @@ import { createPublicationJsonResponse } from './publication-http-utf8.js';
 
 export const PUBLICATION_PROBLEM_CONTENT_TYPE = 'application/problem+json' as const;
 
-const CORE_PROBLEM_TYPE_BASE = 'https://collectionprotocol.org/problems/';
+const CORE_PROBLEM_TYPE_BASE = 'https://know-n.com/colp/problems/';
 const MAX_EXTENSION_CODE_LENGTH = 2_048;
 const MAX_PROBLEM_BODY_BYTES = 65_536;
 const MAX_RECOVERY_ARRAY_ITEMS = 64;

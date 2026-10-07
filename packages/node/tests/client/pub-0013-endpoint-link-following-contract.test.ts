@@ -353,7 +353,7 @@ describe(`PUB-0013 client follows Endpoint and Link sources [evidence:${evidence
         requested.push(url);
         if (url === manifestUrl) return Response.json(manifest);
         return new Response(JSON.stringify({
-          type: `https://collectionprotocol.org/problems/${problemCode.replaceAll('_', '-')}`,
+          type: `https://know-n.com/colp/problems/${problemCode.replaceAll('_', '-')}`,
           title: 'Endpoint failed',
           status,
           code: problemCode,

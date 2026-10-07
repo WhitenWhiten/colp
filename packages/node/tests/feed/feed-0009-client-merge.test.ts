@@ -16,16 +16,16 @@ const fixturesRoot = resolve(import.meta.dirname, '..', '..', 'fixtures', 'proto
 
 interface StandardRouteCase {
   readonly type:
-    | 'org.collectionprotocol.collection.created.v1'
-    | 'org.collectionprotocol.collection.updated.v1'
-    | 'org.collectionprotocol.collection.deleted.v1'
-    | 'org.collectionprotocol.release.published.v1'
-    | 'org.collectionprotocol.node.created.v1'
-    | 'org.collectionprotocol.node.updated.v1'
-    | 'org.collectionprotocol.node.moved.v1'
-    | 'org.collectionprotocol.node.deleted.v1'
-    | 'org.collectionprotocol.annotation.published.v1'
-    | 'org.collectionprotocol.access.publication_changed.v1';
+    | 'com.know-n.colp.collection.created.v1'
+    | 'com.know-n.colp.collection.updated.v1'
+    | 'com.know-n.colp.collection.deleted.v1'
+    | 'com.know-n.colp.release.published.v1'
+    | 'com.know-n.colp.node.created.v1'
+    | 'com.know-n.colp.node.updated.v1'
+    | 'com.know-n.colp.node.moved.v1'
+    | 'com.know-n.colp.node.deleted.v1'
+    | 'com.know-n.colp.annotation.published.v1'
+    | 'com.know-n.colp.access.publication_changed.v1';
   readonly data: (
     collectionId: string,
     fixture: FeedEvent,
@@ -50,19 +50,19 @@ const nodeData = (collectionId: string): Record<string, unknown> => ({
 
 const standardRouteCases: readonly StandardRouteCase[] = [
   {
-    type: 'org.collectionprotocol.collection.created.v1',
+    type: 'com.know-n.colp.collection.created.v1',
     data: collectionData,
   },
   {
-    type: 'org.collectionprotocol.collection.updated.v1',
+    type: 'com.know-n.colp.collection.updated.v1',
     data: collectionData,
   },
   {
-    type: 'org.collectionprotocol.collection.deleted.v1',
+    type: 'com.know-n.colp.collection.deleted.v1',
     data: collectionData,
   },
   {
-    type: 'org.collectionprotocol.release.published.v1',
+    type: 'com.know-n.colp.release.published.v1',
     data: (collectionId, fixture) => ({
       ...structuredClone(fixture.data),
       collectionId,
@@ -70,19 +70,19 @@ const standardRouteCases: readonly StandardRouteCase[] = [
     }),
   },
   {
-    type: 'org.collectionprotocol.node.created.v1',
+    type: 'com.know-n.colp.node.created.v1',
     data: nodeData,
   },
   {
-    type: 'org.collectionprotocol.node.updated.v1',
+    type: 'com.know-n.colp.node.updated.v1',
     data: nodeData,
   },
   {
-    type: 'org.collectionprotocol.node.moved.v1',
+    type: 'com.know-n.colp.node.moved.v1',
     data: nodeData,
   },
   {
-    type: 'org.collectionprotocol.node.deleted.v1',
+    type: 'com.know-n.colp.node.deleted.v1',
     data: (collectionId) => ({
       collectionId,
       revision: 'revision-1',
@@ -91,11 +91,11 @@ const standardRouteCases: readonly StandardRouteCase[] = [
     }),
   },
   {
-    type: 'org.collectionprotocol.annotation.published.v1',
+    type: 'com.know-n.colp.annotation.published.v1',
     data: collectionData,
   },
   {
-    type: 'org.collectionprotocol.access.publication_changed.v1',
+    type: 'com.know-n.colp.access.publication_changed.v1',
     data: (collectionId) => ({
       collectionId,
       revision: 'revision-1',
@@ -182,7 +182,7 @@ describe(`FEED-0009 multi-subscription merge [evidence:${evidence}]`, () => {
     };
     const routed = routeMergedFeedEvents([event], subscription, requestFor(subscription));
     expect(routed.map((item) => item.id)).toEqual([event.id]);
-    expect(routed[0]?.type).toBe('org.collectionprotocol.release.published.v1');
+    expect(routed[0]?.type).toBe('com.know-n.colp.release.published.v1');
   });
 
   it.each(standardRouteCases)(
@@ -225,7 +225,7 @@ describe(`FEED-0009 multi-subscription merge [evidence:${evidence}]`, () => {
     const events: readonly FeedEvent[] = [
       feedEvent(
         fixture,
-        'org.collectionprotocol.node.created.v1',
+        'com.know-n.colp.node.created.v1',
         nodeData(collectionA),
         eventId(1),
       ),
@@ -240,7 +240,7 @@ describe(`FEED-0009 multi-subscription merge [evidence:${evidence}]`, () => {
       ),
       feedEvent(
         fixture,
-        'org.collectionprotocol.access.publication_changed.v1',
+        'com.know-n.colp.access.publication_changed.v1',
         {
           collectionId: collectionA,
           revision: 'revision-3',
@@ -250,7 +250,7 @@ describe(`FEED-0009 multi-subscription merge [evidence:${evidence}]`, () => {
       ),
       feedEvent(
         fixture,
-        'org.collectionprotocol.collection.updated.v1',
+        'com.know-n.colp.collection.updated.v1',
         collectionData(collectionB),
         eventId(4),
       ),
@@ -275,11 +275,11 @@ describe(`FEED-0009 multi-subscription merge [evidence:${evidence}]`, () => {
   });
 
   it.each([
-    ['missing standard collectionId', 'org.collectionprotocol.collection.updated.v1', {
+    ['missing standard collectionId', 'com.know-n.colp.collection.updated.v1', {
       revision: 'revision-1',
       summary: 'Missing owner',
     }],
-    ['wrong-type standard collectionId', 'org.collectionprotocol.node.deleted.v1', {
+    ['wrong-type standard collectionId', 'com.know-n.colp.node.deleted.v1', {
       collectionId: 42,
       revision: 'revision-1',
       nodeId: 'node-9',
@@ -313,12 +313,12 @@ describe(`FEED-0009 multi-subscription merge [evidence:${evidence}]`, () => {
   );
 
   it.each([
-    ['unknown non-HTTPS type', 'org.collectionprotocol.future.v1', collectionData('collection-1')],
-    ['invalid standard data shape', 'org.collectionprotocol.node.created.v1', {
+    ['unknown non-HTTPS type', 'com.know-n.colp.future.v1', collectionData('collection-1')],
+    ['invalid standard data shape', 'com.know-n.colp.node.created.v1', {
       collectionId: 'collection-1',
       revision: 'revision-1',
     }],
-    ['excess standard data field', 'org.collectionprotocol.collection.updated.v1', {
+    ['excess standard data field', 'com.know-n.colp.collection.updated.v1', {
       ...collectionData('collection-1'),
       privateKey: 'must-not-pass',
     }],
@@ -347,13 +347,13 @@ describe(`FEED-0009 multi-subscription merge [evidence:${evidence}]`, () => {
     const events = [
       feedEvent(
         fixture,
-        'org.collectionprotocol.collection.created.v1',
+        'com.know-n.colp.collection.created.v1',
         collectionData(fixture.data.collectionId),
         eventId(5),
       ),
       feedEvent(
         fixture,
-        'org.collectionprotocol.collection.updated.v1',
+        'com.know-n.colp.collection.updated.v1',
         collectionData('collection-2'),
         eventId(6),
       ),

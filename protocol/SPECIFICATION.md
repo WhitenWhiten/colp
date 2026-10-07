@@ -319,7 +319,7 @@ Example error:
 
 ```json
 {
-  "type": "https://collectionprotocol.org/problems/revision-conflict",
+  "type": "https://know-n.com/colp/problems/revision-conflict",
   "title": "Revision conflict",
   "status": 409,
   "code": "revision_conflict",

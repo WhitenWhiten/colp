@@ -80,10 +80,11 @@ Import-graph / export basis: package root re-exports Sync from `src/sync/index.j
 | `src/sync/sequence-validation.ts` | A core | Production dependency of `sequence.ts` (lane/request/receipt/evaluation normalization and equality) | (internal; types via barrel) | `sync-core` | Follows Sequence imports |
 | `src/sync/push-transaction.ts` | A core | Atomic Push commit/rollback, receipt/conflict/cursor/audit/outbox matrix, `reevaluateDeferred` opt-in | `coordinatePushTransaction` | `sync-core` | New Push artifact → update |
 | `src/sync/push-transaction-guards.ts` | A core | Production dependency of `push-transaction.ts` (request/plan/result/receipt normalization) | (internal; types via barrel) | `sync-core` | Follows push-transaction imports |
+| `src/sync/push-partial-progress.ts` | A core | Push prefix and partial-commit progress validation | (internal) | `sync-core` | Follows push-transaction imports |
 | `src/sync/push-unit-of-work.ts` | A core | Push adapter contract and execution scope (Collection + Sequence lanes in lock order) | `SyncUnitOfWork`, `PushExecutionScope` (types via barrel) | `sync-core` | Scope/lock-order change → update |
 | `src/sync/pull.ts` | A core | Pull cursor order, event/cursor consistency, receiver-bound scope | `coordinateSyncPull` | `sync-core` | New Pull event kind → update |
 | `src/sync/pull-cursor-lifecycle.ts` | A core | Pull start cursor: initial issuance, same-Session continuation, adapter-verified cross-Session handoff | via `coordinateSyncPull` / `host.pull` | `sync-core` | New cursor transition → update |
-| `src/sync/canonical.ts` | A core | Browser-safe protocol digest + effect-page URL expansion; production `./sync` re-exports the same functions | `@collection-protocol/node/sync/canonical` | `sync-core` | Digest framing change → update corpus |
+| `src/sync/canonical.ts` | A core | Browser-safe protocol digest + effect-page URL expansion; production `./sync` re-exports the same functions | `@know-n/colp/sync/canonical` | `sync-core` | Digest framing change → update corpus |
 | `src/sync/canonical-json.ts` | A core | Production dependency of canonical digest (I-JSON snapshot + RFC 8785) | (internal; `encodeCanonicalJson` via canonical) | `sync-core` | Follows canonical imports |
 | `src/sync/replica-lifecycle.ts` | A core | Replica active/expired/recovery/retired coordinator + VerifiedSession auth proof; system-initiated due expiry | `coordinateReplicaLifecycle`, `coordinateReplicaDueExpiry`, `createReplicaAuthProofFromVerifiedSession` | `sync-core` | New lifecycle command → update |
 | `src/sync/replica-lifecycle-transitions.ts` | A core | Production dependency of replica-lifecycle transitions | (internal; `transitionReplicaLifecycle` re-export) | `sync-core` | Follows lifecycle imports |
@@ -154,7 +155,7 @@ The executable gate also walks value imports and exports inside src/sync, exclud
 | --- | --- | --- | --- | --- | --- |
 | `src/sync/composition.ts` | B adapter-composition | Session-bound Push/Pull/Sequence host helpers | `coordinateSessionBound*` | adapter / aggregate Sync | Stay out of `sync-core` include |
 | `src/sync/host.ts` | B adapter-composition | Typed exclusive `createSyncHost` production façade | `createSyncHost` | adapter / aggregate Sync | Stay out of `sync-core` include |
-| `src/sync/unsafe.ts` | B adapter-composition | Explicit composition-free coordinators | `@collection-protocol/node/sync/unsafe` | adapter / COLP tests | Stay out of `sync-core` include |
+| `src/sync/unsafe.ts` | B adapter-composition | Explicit composition-free coordinators | `@know-n/colp/sync/unsafe` | adapter / COLP tests | Stay out of `sync-core` include |
 | `src/sync/browser-batch-adapter.ts` | B adapter-composition | Browser batch driver | `applySyncBrowserBatch` | adapter / aggregate Sync | Stay out of `sync-core` |
 | `src/sync/browser-event-translation.ts` | B adapter-composition | Browser event → operation translation | `translateSyncBrowserEvent` | adapter / aggregate Sync | Stay out of `sync-core` |
 | `src/sync/root-mapping.ts` | B adapter-composition | Browser root mapping | `establishSyncRootMapping` | adapter / aggregate Sync | Stay out of `sync-core` |

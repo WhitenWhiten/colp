@@ -232,8 +232,8 @@ describe('Sync production export surface', () => {
     expect(readme).toMatch(/public subpaths are[\s\S]*`sync`/u);
     expect(readme).toMatch(/public subpaths are[\s\S]*`sync\/canonical`/u);
     expect(readme).not.toMatch(/public subpaths are[\s\S]*`sync\/unsafe`/u);
-    expect(readme).toContain('@collection-protocol/node/sync');
-    expect(readme).toContain('@collection-protocol/node/sync/canonical');
+    expect(readme).toContain('@know-n/colp/sync');
+    expect(readme).toContain('@know-n/colp/sync/canonical');
   });
 
   it.skipIf(!distPresent)(

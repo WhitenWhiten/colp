@@ -4,7 +4,7 @@
 
 The Collection Protocol (COLP) is an open, HTTP-native protocol for bookmarks and curated knowledge collections. It describes how to publish a collection the way you publish a blog, how to sync bookmark trees between browsers and servers, and how to let AI assistants help without giving them more access than you meant to.
 
-This folder is the specification. The prose in [`SPECIFICATION.md`](SPECIFICATION.md) and [`docs/`](docs) is normative. The [JSON Schemas](schemas), [examples](examples), and [requirement registries](requirements.yaml) are its machine-readable half, and CI keeps all of them in agreement. The reference implementation is [`@collection-protocol/node`](../packages/node).
+This folder is the specification. The prose in [`SPECIFICATION.md`](SPECIFICATION.md) and [`docs/`](docs) is normative. The [JSON Schemas](schemas), [examples](examples), and [requirement registries](requirements.yaml) are its machine-readable half, and CI keeps all of them in agreement. The reference implementation is [`@know-n/colp`](../packages/node).
 
 **New to COLP?** Take the [five-minute tour](#colp-in-five-minutes), then follow the [reading path](#where-to-start) for what you are building. Unfamiliar words are explained in the [glossary](GLOSSARY.md).
 
@@ -161,7 +161,7 @@ python scripts/validate_examples.py
 | JSON Schema | Draft 2020-12 |
 | Compatibility targets | Chromium Bookmarks API, Firefox WebExtensions Bookmarks API, Netscape Bookmark HTML, and Safari bookmark data read through an adapter |
 | Wire contract | 0.1 is closed: every core DTO referenced by Publication, Publisher, Feed, Sync, security administration, and MCP has a stable `$defs` name |
-| Reference implementation | [`../packages/node`](../packages/node) (`@collection-protocol/node`), with requirement-to-test traceability in [`TRACEABILITY.md`](../packages/node/docs/TRACEABILITY.md) |
+| Reference implementation | [`../packages/node`](../packages/node) (`@know-n/colp`), with requirement-to-test traceability in [`TRACEABILITY.md`](../packages/node/docs/TRACEABILITY.md) |
 
 While the specification is a draft, inconsistencies between the prose and the schema are fixed as bugs; see [Specification §1](SPECIFICATION.md#colp-section-1) for what that means for compatibility.
 

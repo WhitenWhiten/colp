@@ -57,7 +57,7 @@ function validatorsOrDefault(validators?: ValidatorRegistry): ValidatorRegistry 
 }
 
 /**
- * Builds a `org.collectionprotocol.release.published.v1` Feed Event with an
+ * Builds a `com.know-n.colp.release.published.v1` Feed Event with an
  * immutable Snapshot URL + Digest (FEED-0004).
  */
 export function buildReleasePublishedFeedEvent(
@@ -105,7 +105,7 @@ export function buildReleasePublishedFeedEvent(
       specversion: '1.0' as const,
       id: snapshot.id,
       source: snapshot.source,
-      type: 'org.collectionprotocol.release.published.v1' as const,
+      type: 'com.know-n.colp.release.published.v1' as const,
       subject: snapshot.subject,
       time: snapshot.time,
       datacontenttype: 'application/json' as const,

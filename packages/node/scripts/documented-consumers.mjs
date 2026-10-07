@@ -51,7 +51,7 @@ const examples = [
   {
     document: 'PUBLICATION_QUICKSTART.md', id: 'publication-cursor-keys',
     check: async (example, assert, loadPublicEntry) => {
-      const api = await loadPublicEntry('@collection-protocol/node/server');
+      const api = await loadPublicEntry('@know-n/colp/server');
       const snapshotBytes = new Uint8Array(32).fill(17);
       const directoryBytes = new Uint8Array(32).fill(29);
       const first = example.restorePublicationCursorKeys(snapshotBytes, directoryBytes);
@@ -123,20 +123,21 @@ const examples = [
           authorization: { credentialActive: true, authorizationScopes: ['sync:push'] },
           terminatedAt: '2026-09-25T11:00:00Z' };
         const hosts = [];
+        const pushOwnershipVerifier = () => true;
         const handle = async (host) => {
           assert.ok(loads > hosts.length, 'Reload durable state before each request callback.');
           hosts.push(host);
           return 'handled';
         };
-        assert.equal(await example.withSyncPushRequest(store, input, handle), 'handled');
-        assert.equal(await example.withSyncPushRequest(store, input, handle), 'handled');
+        assert.equal(await example.withSyncPushRequest(store, input, pushOwnershipVerifier, handle), 'handled');
+        assert.equal(await example.withSyncPushRequest(store, input, pushOwnershipVerifier, handle), 'handled');
         assert.notEqual(hosts[0], hosts[1]);
         assert.notEqual(hosts[0].session, hosts[1].session);
         const denied = structuredClone(input);
         if (reason === 'credential_revoked') denied.authorization.credentialActive = false;
         if (reason === 'scope_reduced') denied.authorization.authorizationScopes = [];
         if (reason === 'lease_expired') denied.terminatedAt = record.expiresAt;
-        await assert.rejects(example.withSyncPushRequest(store, denied, handle));
+        await assert.rejects(example.withSyncPushRequest(store, denied, pushOwnershipVerifier, handle));
         assert.equal(hosts.length, 2, 'A denied request must not reach business work.');
         assert.ok(loads >= 3, 'The denied request must also recheck durable state.');
         assert.equal(record.terminationReason, reason);
@@ -170,7 +171,7 @@ const examples = [
     check: async (example, assert) => {
       const origin = 'https://example.test';
       const manifest = {
-        protocol: 'https://collectionprotocol.org/spec/0.1', protocolVersions: ['0.1'],
+        protocol: 'https://know-n.com/colp/spec/0.1', protocolVersions: ['0.1'],
         serverId: origin + '/', serverUuid: '019b3c67-a03c-7f02-9c7e-1ee8d50a77de', title: 'Example',
         mounts: [{
           id: 'default', baseUrl: origin + '/collections/', profiles: ['core', 'publication'],
@@ -192,7 +193,7 @@ const examples = [
   {
     document: 'API.md', id: 'api-local-client',
     check: async (example, assert, loadPublicEntry) => {
-      const { ColpClient } = await loadPublicEntry('@collection-protocol/node/client');
+      const { ColpClient } = await loadPublicEntry('@know-n/colp/client');
       assert.ok(example.createLocalClient() instanceof ColpClient);
       assert.ok(example.createLocalClient('http://localhost:3000') instanceof ColpClient);
       assert.throws(() => example.createLocalClient('https://alice.example'), RangeError);

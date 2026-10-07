@@ -39,6 +39,7 @@
 ## 目次
 
 - [仕組み](#仕組み)
+- [npm からインストール](#npm-からインストール)
 - [ざっと見てみる](#ざっと見てみる)
 - [試してみる](#試してみる)
 - [目的別ガイド](#目的別ガイド)
@@ -93,6 +94,41 @@ COLP は組み合わせ可能な適合プロファイルに分かれています
 | `mcp-read` | MCP のリソースと読み取り専用ツール | [05](protocol/docs/05-mcp-profile.md) |
 | `mcp-write` | MCP の書き込みツール、スコープ、監査、リスクの高い変更のための計画 / コミット | [05](protocol/docs/05-mcp-profile.md) |
 
+## npm からインストール
+
+**Node.js 22 以降**が必要です。アプリケーションのプロジェクトで参照実装をインストールします：
+
+```bash
+npm install @know-n/colp@0.1.0
+```
+
+TypeScript の型定義が含まれ、ESM と CommonJS の両方に対応しています。次の例を `colp-demo.mjs` として保存すると、サーバーなしで試せます：
+
+```js
+import { protocolVersion, supportedProfiles } from '@know-n/colp';
+import { createUrlHash } from '@know-n/colp/semantic';
+
+console.log(protocolVersion); // '0.1'
+console.log(supportedProfiles); // core, publication, publisher, feed, sync, mcp-read, mcp-write
+console.log(createUrlHash('https://example.com/'));
+```
+
+```bash
+node colp-demo.mjs
+```
+
+API は `@know-n/colp/client`、`@know-n/colp/server`、`@know-n/colp/semantic` などのサブパスからインポートします。パッケージのルートはプロトコルのメタデータを提供します。検証、HTTP 公開、同期、MCP の例は [パッケージ README](packages/node/README.md) と [API ガイド](packages/node/docs/API.md) を参照してください。
+
+リポジトリをクローンせずに、稼働中の COLP サーバーを検査できます：
+
+```bash
+npx --yes --package=@know-n/colp-conformance@0.1.0 colp-conformance https://your-server.example
+```
+
+URL を自分のサーバーのオリジンまたは Manifest URL に置き換えてください。オプションとプログラムからの使い方は [ランナー README](packages/conformance/README.md) にあります。npm パッケージは [@know-n/colp](https://www.npmjs.com/package/@know-n/colp) と [@know-n/colp-conformance](https://www.npmjs.com/package/@know-n/colp-conformance) です。
+
+`0.x` の API はマイナーバージョン間で変わる可能性があるため、導入時にはバージョンを固定してください。
+
 ## ざっと見てみる
 
 すべては well-known URL から始まります。Manifest は、サーバーが対応するプロファイルと各エンドポイントの場所をクライアントに伝えるので、クライアントがパスを推測することはありません。
@@ -105,7 +141,7 @@ Accept: application/vnd.collection-protocol.manifest+json
 
 ```jsonc
 {
-  "protocol": "https://collectionprotocol.org/spec/0.1",
+  "protocol": "https://know-n.com/colp/spec/0.1",
   "protocolVersions": ["0.1"],
   "serverUuid": "019b3c67-a03c-7f02-9c7e-1ee8d50a77de",
   "title": "Alice's Collections",
@@ -127,7 +163,7 @@ Accept: application/vnd.collection-protocol.manifest+json
 Node.js のリファレンス実装を使うと、クライアントは Manifest をたどり、検証済みの完全な Snapshot を組み立てます。
 
 ```ts
-import { ColpClient } from '@collection-protocol/node/client';
+import { ColpClient } from '@know-n/colp/client';
 
 const client = new ColpClient({
   manifestUrl: 'https://alice.example/.well-known/collection-protocol',
@@ -175,7 +211,7 @@ curl -i http://127.0.0.1:8080/.well-known/collection-protocol
 | 自分のサーバーで COLP を提供する | [Publication クイックスタート](packages/node/docs/PUBLICATION_QUICKSTART.md) と [サンプルサーバー](packages/node/examples/publication-server.mjs) |
 | 書き込みを受け付ける、ブラウザーを同期する、AI アシスタントと連携する | [パッケージのガイド](packages/node/docs/README.md#guides) |
 | 別の言語で COLP を実装する | プロトコル README の [どこから読むか](protocol/README.ja.md#どこから読むか) |
-| サーバーが仕様に適合しているか確かめる | [`colp-conformance`](packages/conformance/README.md)：`npm run conformance -- https://your-server.example` |
+| サーバーが仕様に適合しているか確かめる | [`colp-conformance`](packages/conformance/README.md)：`npx --yes --package=@know-n/colp-conformance@0.1.0 colp-conformance https://your-server.example` |
 | コントリビュートする | [CONTRIBUTING.md](CONTRIBUTING.md) |
 
 このパッケージは、サーバーを含まないプロトコルロジックです。ワイヤードキュメントを検証し、各リクエストに何が許されるかを判断し、永続的な書き込みと同期のやり取りを調整します。HTTP のルーティング、認証、ストレージは、アプリケーションが小さなポートインターフェースを通じて提供します。
@@ -185,7 +221,7 @@ curl -i http://127.0.0.1:8080/.well-known/collection-protocol
 | パス | 内容 |
 |---|---|
 | [`protocol/`](protocol/README.ja.md) | 仕様、用語集、JSON Schema、実行可能な例、要件レジストリ |
-| [`packages/node/`](packages/node/README.md) | `@collection-protocol/node`：TypeScript によるリファレンス実装と、そのテストと [ガイド](packages/node/docs/README.md) |
+| [`packages/node/`](packages/node/README.md) | `@know-n/colp`：TypeScript によるリファレンス実装と、そのテストと [ガイド](packages/node/docs/README.md) |
 | [`packages/node/examples/`](packages/node/examples/publication-server.mjs) | ローカルで動かせる最小限の読み取り専用サーバー |
 | [`packages/conformance/`](packages/conformance/README.md) | `colp-conformance`：任意の COLP サーバーに使えるブラックボックステストランナー |
 | [`docs/assets/`](docs/assets) | README で使うバナーと図 |
@@ -203,7 +239,7 @@ cd protocol && python scripts/validate_examples.py   # プロトコルの例を�
 ## プロジェクトの状況
 
 - **仕様**：`0.1-draft`。0.1 のワイヤー契約は確定しており、すべての DTO に安定した `$defs` 名があります。0.2 では、サーバーを正とするプルの効果（authoritative pull effects）を Sync に追加しています。
-- **Node.js パッケージ**：7 つのプロファイルをすべて実装しています。MUST と MUST NOT の要件はすべてテストに対応付けられ、[TRACEABILITY.md](packages/node/docs/TRACEABILITY.md) に一覧があります。npm にはまだ公開していません。
+- **Node.js パッケージ**：7 つのプロファイルをすべて実装しています。MUST と MUST NOT の要件はすべてテストに対応付けられ、[TRACEABILITY.md](packages/node/docs/TRACEABILITY.md) に一覧があります。npm パッケージは `@know-n/colp` で、初期バージョンは `0.1.0` です。
 - **適合性テストランナー**：匿名での `core + publication` の読み取りに対応しています。認証付きの読み取りとほかのプロファイルは今後対応します。
 - **含まれないもの**：本番用のサーバー、データベースアダプター、ブラウザー拡張機能。これらはパッケージの上に作るアプリケーションの役割で、上のサンプルサーバーがその形を示しています。
 

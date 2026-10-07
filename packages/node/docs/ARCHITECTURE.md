@@ -35,8 +35,8 @@ decision §8.2, development plan §2). Developers must explicitly choose one of:
 
 | Subpath | Purpose |
 | --- | --- |
-| `@collection-protocol/node/mcp` | Default entry — the completed Modern `2026-07-28` Read + shared surface (authorization bindings, stateless shared Resource/Tool cores, change signals, per-request context, discovery/result, Resource and Read Tool adapters, subscriptions/listen, schema budget, pinned SDK boundary, OAuth client security) plus the Modern Write/MRTR adapter (`createMcp20260728WriteToolAdapter`, COLP-MCP-13). |
-| `@collection-protocol/node/mcp/2026-07-28` | Explicit version-identified entry exposing the exact same surface as `/mcp` (re-exports the same module; the package-surface contract test asserts the key sets are equal). |
+| `@know-n/colp/mcp` | Default entry — the completed Modern `2026-07-28` Read + shared surface (authorization bindings, stateless shared Resource/Tool cores, change signals, per-request context, discovery/result, Resource and Read Tool adapters, subscriptions/listen, schema budget, pinned SDK boundary, OAuth client security) plus the Modern Write/MRTR adapter (`createMcp20260728WriteToolAdapter`, COLP-MCP-13). |
+| `@know-n/colp/mcp/2026-07-28` | Explicit version-identified entry exposing the exact same surface as `/mcp` (re-exports the same module; the package-surface contract test asserts the key sets are equal). |
 
 Neither entry exports the legacy Session binding, the legacy read server
 session, the handshake method, old subscription methods, Legacy transport
@@ -50,8 +50,8 @@ entry. Minimal host examples (Resource-only, Read Tools, and Write) live in
 A host may add a product compatibility surface outside the Profile endpoint.
 That surface must not enter Manifest, Profile claims, or conformance evidence.
 COLP MCP entries remain `2026-07-28` only
-(`@collection-protocol/node/mcp` and
-`@collection-protocol/node/mcp/2026-07-28`).
+(`@know-n/colp/mcp` and
+`@know-n/colp/mcp/2026-07-28`).
 
 ### Old Session API migration table
 
@@ -132,11 +132,11 @@ Sync durable coordinators are intentionally **composition-free** so adapters and
 2. `createSyncHost({ owner: 'sequence' | 'push', session })` — typed exclusive write dispatcher. The host cannot dispatch the other write coordinator.
 3. Pull via `host.pull` (session-bound principal / collection / session / protocolVersion binding).
 
-`coordinateSessionBoundPush`, `coordinateSessionBoundPull`, and `coordinateSessionBoundSequence` remain the primitives the host wraps. Bare `coordinatePushTransaction`, `coordinateSyncPull`, and `coordinateSequenceOperation` are **not** on `@collection-protocol/node/sync`; import `@collection-protocol/node/sync/unsafe` only from tests and adapter fixtures.
+`coordinateSessionBoundPush`, `coordinateSessionBoundPull`, and `coordinateSessionBoundSequence` remain the primitives the host wraps. Bare `coordinatePushTransaction`, `coordinateSyncPull`, and `coordinateSequenceOperation` are **not** on `@know-n/colp/sync`; import `@know-n/colp/sync/unsafe` only from tests and adapter fixtures.
 
-Protocol digest identity (canonical JSON, SHA-256 framing, effect/page/member projection, effect-page URI expansion) lives on `@collection-protocol/node/sync/canonical`. That subpath has no Node builtins so MV3 can import it. Production `./sync` re-exports the same function objects; do not ship a second digest algorithm.
+Protocol digest identity (canonical JSON, SHA-256 framing, effect/page/member projection, effect-page URI expansion) lives on `@know-n/colp/sync/canonical`. That subpath has no Node builtins so MV3 can import it. Production `./sync` re-exports the same function objects; do not ship a second digest algorithm.
 
-`@collection-protocol/node/sync/browser` extends that subpath with the other browser-oriented Sync helpers (browser event translation and batch application, root mapping, sidecars, Netscape bookmark parsing, separator presentation, transport budgets, light-Pull advice, typed-update payload validation). Its dependency graph contains no Node built-ins or implicit `Buffer` use, verified by a `platform: 'browser'` esbuild bundle. Helpers built on the immutable JSON snapshot (for example `mergeSyncTypedUpdate`) keep their Node-backed Proxy rejection and remain server-side on `./sync`.
+`@know-n/colp/sync/browser` extends that subpath with the other browser-oriented Sync helpers (browser event translation and batch application, root mapping, sidecars, Netscape bookmark parsing, separator presentation, transport budgets, light-Pull advice, typed-update payload validation). Its dependency graph contains no Node built-ins or implicit `Buffer` use, verified by a `platform: 'browser'` esbuild bundle. Helpers built on the immutable JSON snapshot (for example `mergeSyncTypedUpdate`) keep their Node-backed Proxy rejection and remain server-side on `./sync`.
 
 `host.push` fail-closes unless `request.batchId` is the versioned binding from `bindSyncPushBatchId` for the verified Session's full `sessionId`. The encoding is `b1.<sessionLength>.<sessionId>.<suffix>` (binding version 1): `sessionLength` is the canonical decimal length, the suffix is an independent non-empty opaque segment, and the whole value is one wire `opaqueId` of at most 128 characters. Session `a` and session `a.b` do not accept each other's batch ids. A legacy `sessionId` or `sessionId.<suffix>` value is not a unique binding, because `opaqueId` may contain `.`; `legacySyncPushBatchInReceiptScope` matches an old retry only when the full session, principal, endpoint, and digest all agree. When b1 framing would exceed 128 characters, the mint uses `b2.<sessionDigest>.<suffixDigest>`: two domain-separated SHA-256 base64url digests covering the full inputs, in 90 wire characters. Every legal Session and local ID up to 128 characters remains usable; b1 IDs that already fit keep their exact bytes and remain accepted for retries. `readSyncPushBatchBinding` returns the digests for version 2, not raw IDs. A host that derives its own server batch id still scopes that receipt by Session. The client `batchId` does not authorize a receipt.
 

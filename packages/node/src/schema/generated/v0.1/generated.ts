@@ -1,7 +1,7 @@
 /** Generated from the protocol JSON Schema; run npm run generate:types. */
 const schema = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://collectionprotocol.org/schema/0.1",
+  "$id": "https://know-n.com/colp/schema/0.1",
   "title": "The Collection Protocol 0.1 Draft",
   "type": "object",
   "$defs": {
@@ -7752,7 +7752,7 @@ const schema = {
       "type": "object",
       "properties": {
         "protocol": {
-          "const": "https://collectionprotocol.org/spec/0.1"
+          "const": "https://know-n.com/colp/spec/0.1"
         },
         "protocolVersions": {
           "type": "array",
@@ -8059,16 +8059,16 @@ const schema = {
             {
               "type": "string",
               "enum": [
-                "org.collectionprotocol.collection.created.v1",
-                "org.collectionprotocol.collection.updated.v1",
-                "org.collectionprotocol.collection.deleted.v1",
-                "org.collectionprotocol.release.published.v1",
-                "org.collectionprotocol.node.created.v1",
-                "org.collectionprotocol.node.updated.v1",
-                "org.collectionprotocol.node.moved.v1",
-                "org.collectionprotocol.node.deleted.v1",
-                "org.collectionprotocol.annotation.published.v1",
-                "org.collectionprotocol.access.publication_changed.v1"
+                "com.know-n.colp.collection.created.v1",
+                "com.know-n.colp.collection.updated.v1",
+                "com.know-n.colp.collection.deleted.v1",
+                "com.know-n.colp.release.published.v1",
+                "com.know-n.colp.node.created.v1",
+                "com.know-n.colp.node.updated.v1",
+                "com.know-n.colp.node.moved.v1",
+                "com.know-n.colp.node.deleted.v1",
+                "com.know-n.colp.annotation.published.v1",
+                "com.know-n.colp.access.publication_changed.v1"
               ]
             },
             {
@@ -8111,7 +8111,7 @@ const schema = {
           "if": {
             "properties": {
               "type": {
-                "const": "org.collectionprotocol.release.published.v1"
+                "const": "com.know-n.colp.release.published.v1"
               }
             },
             "required": [
@@ -8131,10 +8131,10 @@ const schema = {
             "properties": {
               "type": {
                 "enum": [
-                  "org.collectionprotocol.collection.created.v1",
-                  "org.collectionprotocol.collection.updated.v1",
-                  "org.collectionprotocol.collection.deleted.v1",
-                  "org.collectionprotocol.annotation.published.v1"
+                  "com.know-n.colp.collection.created.v1",
+                  "com.know-n.colp.collection.updated.v1",
+                  "com.know-n.colp.collection.deleted.v1",
+                  "com.know-n.colp.annotation.published.v1"
                 ]
               }
             },
@@ -8155,9 +8155,9 @@ const schema = {
             "properties": {
               "type": {
                 "enum": [
-                  "org.collectionprotocol.node.created.v1",
-                  "org.collectionprotocol.node.updated.v1",
-                  "org.collectionprotocol.node.moved.v1"
+                  "com.know-n.colp.node.created.v1",
+                  "com.know-n.colp.node.updated.v1",
+                  "com.know-n.colp.node.moved.v1"
                 ]
               }
             },
@@ -8177,7 +8177,7 @@ const schema = {
           "if": {
             "properties": {
               "type": {
-                "const": "org.collectionprotocol.node.deleted.v1"
+                "const": "com.know-n.colp.node.deleted.v1"
               }
             },
             "required": [
@@ -8196,7 +8196,7 @@ const schema = {
           "if": {
             "properties": {
               "type": {
-                "const": "org.collectionprotocol.access.publication_changed.v1"
+                "const": "com.know-n.colp.access.publication_changed.v1"
               }
             },
             "required": [

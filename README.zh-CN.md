@@ -39,6 +39,7 @@
 ## 目录
 
 - [工作原理](#工作原理)
+- [通过 npm 安装](#通过-npm-安装)
 - [快速一览](#快速一览)
 - [动手试试](#动手试试)
 - [找到你的入口](#找到你的入口)
@@ -93,6 +94,41 @@ COLP 拆分为可组合的一致性 Profile。服务器只在 Manifest 中声明
 | `mcp-read` | MCP Resources 与只读 Tools | [05](protocol/docs/05-mcp-profile.md) |
 | `mcp-write` | MCP 写入 Tools、作用域、审计，以及高风险变更的计划 / 提交 | [05](protocol/docs/05-mcp-profile.md) |
 
+## 通过 npm 安装
+
+需要 **Node.js 22 或更高版本**。在你的应用项目中安装参考实现：
+
+```bash
+npm install @know-n/colp@0.1.0
+```
+
+包内附带 TypeScript 类型声明，同时支持 ESM 和 CommonJS。将下面的示例保存为 `colp-demo.mjs`，无需服务器即可试用：
+
+```js
+import { protocolVersion, supportedProfiles } from '@know-n/colp';
+import { createUrlHash } from '@know-n/colp/semantic';
+
+console.log(protocolVersion); // '0.1'
+console.log(supportedProfiles); // core, publication, publisher, feed, sync, mcp-read, mcp-write
+console.log(createUrlHash('https://example.com/'));
+```
+
+```bash
+node colp-demo.mjs
+```
+
+按用途从子路径导入 API，例如 `@know-n/colp/client`、`@know-n/colp/server` 或 `@know-n/colp/semantic`；包根路径提供协议元信息。文档校验、HTTP 发布、同步和 MCP 的示例见 [包 README](packages/node/README.md) 与 [API 指南](packages/node/docs/API.md)。
+
+无需克隆仓库，也可以检查一个运行中的 COLP 服务器：
+
+```bash
+npx --yes --package=@know-n/colp-conformance@0.1.0 colp-conformance https://your-server.example
+```
+
+将 URL 替换为你的服务器地址或 Manifest URL。命令选项和编程调用方式见 [测试工具 README](packages/conformance/README.md)。npm 包为 [@know-n/colp](https://www.npmjs.com/package/@know-n/colp) 和 [@know-n/colp-conformance](https://www.npmjs.com/package/@know-n/colp-conformance)。
+
+`0.x` 的 API 可能随次版本更新而变化，集成时建议固定版本。
+
 ## 快速一览
 
 一切都从一个 well-known URL 开始。Manifest 告诉客户端服务器支持哪些 Profile、每个端点在哪里，客户端从不猜测路径：
@@ -105,7 +141,7 @@ Accept: application/vnd.collection-protocol.manifest+json
 
 ```jsonc
 {
-  "protocol": "https://collectionprotocol.org/spec/0.1",
+  "protocol": "https://know-n.com/colp/spec/0.1",
   "protocolVersions": ["0.1"],
   "serverUuid": "019b3c67-a03c-7f02-9c7e-1ee8d50a77de",
   "title": "Alice's Collections",
@@ -127,7 +163,7 @@ Accept: application/vnd.collection-protocol.manifest+json
 使用 Node.js 参考实现时，客户端跟随 Manifest，组装出一份完整且经过校验的 Snapshot：
 
 ```ts
-import { ColpClient } from '@collection-protocol/node/client';
+import { ColpClient } from '@know-n/colp/client';
 
 const client = new ColpClient({
   manifestUrl: 'https://alice.example/.well-known/collection-protocol',
@@ -175,7 +211,7 @@ curl -i http://127.0.0.1:8080/.well-known/collection-protocol
 | 在自己的服务器上提供 COLP | [Publication 快速上手](packages/node/docs/PUBLICATION_QUICKSTART.md) 与 [示例服务器](packages/node/examples/publication-server.mjs) |
 | 接受写入、同步浏览器或接入 AI 助手 | [包的使用指南](packages/node/docs/README.md#guides) |
 | 用另一种语言实现 COLP | 协议导读中的 [从哪里开始](protocol/README.zh-CN.md#从哪里开始) |
-| 检查服务器是否符合规范 | [`colp-conformance`](packages/conformance/README.md)：`npm run conformance -- https://your-server.example` |
+| 检查服务器是否符合规范 | [`colp-conformance`](packages/conformance/README.md)：`npx --yes --package=@know-n/colp-conformance@0.1.0 colp-conformance https://your-server.example` |
 | 参与贡献 | [CONTRIBUTING.md](CONTRIBUTING.md) |
 
 这个包是不含服务器的协议逻辑：它校验 Wire 文档、判断每个请求能做什么，并协调持久化写入与同步交换；HTTP 路由、认证与存储由你的应用通过少量端口接口提供。
@@ -185,7 +221,7 @@ curl -i http://127.0.0.1:8080/.well-known/collection-protocol
 | 路径 | 内容 |
 |---|---|
 | [`protocol/`](protocol/README.zh-CN.md) | 规范、术语表、JSON Schema、可执行示例与需求注册表 |
-| [`packages/node/`](packages/node/README.md) | `@collection-protocol/node`：TypeScript 参考实现，以及测试与 [使用指南](packages/node/docs/README.md) |
+| [`packages/node/`](packages/node/README.md) | `@know-n/colp`：TypeScript 参考实现，以及测试与 [使用指南](packages/node/docs/README.md) |
 | [`packages/node/examples/`](packages/node/examples/publication-server.mjs) | 可在本地运行的最小只读服务器 |
 | [`packages/conformance/`](packages/conformance/README.md) | `colp-conformance`：适用于任何 COLP 服务器的黑盒测试工具 |
 | [`docs/assets/`](docs/assets) | README 使用的横幅与示意图 |
@@ -203,7 +239,7 @@ cd protocol && python scripts/validate_examples.py   # 校验协议示例（需�
 ## 项目状态
 
 - **规范**：`0.1-draft`。0.1 的 Wire Contract 已收口，每个 DTO 都有稳定的 `$defs` 名称；0.2 为 Sync 增加了权威 Pull Effect。
-- **Node.js 包**：实现了全部七个 Profile，每条 MUST 与 MUST NOT 需求都对应到测试，见 [TRACEABILITY.md](packages/node/docs/TRACEABILITY.md)。尚未发布到 npm。
+- **Node.js 包**：实现了全部七个 Profile，每条 MUST 与 MUST NOT 需求都对应到测试，见 [TRACEABILITY.md](packages/node/docs/TRACEABILITY.md)。npm 包为 `@know-n/colp`，初始版本为 `0.1.0`。
 - **一致性测试工具**：目前覆盖匿名的 `core + publication` 读取；带认证的读取与其他 Profile 将在后续加入。
 - **不包含**：生产级服务器、数据库适配器或浏览器扩展。这些属于基于本包构建的应用；上面的示例服务器展示了这类应用的基本结构。
 

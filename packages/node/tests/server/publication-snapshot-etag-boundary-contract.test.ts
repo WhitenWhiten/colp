@@ -396,7 +396,7 @@ describe(`Deleted Collection retention and recovery boundary ${evidence}`, () =>
     );
     expect(response?.status).toBe(410);
     expect(response?.headers.get('Cache-Control')).toBe('no-store');
-    expect(response?.headers.get('Link')).toContain('rel="https://collectionprotocol.org/rels/archive"');
+    expect(response?.headers.get('Link')).toContain('rel="https://know-n.com/colp/rels/archive"');
     expect(await response?.json()).toMatchObject({ status: 410, links: expect.any(Object) });
   });
 

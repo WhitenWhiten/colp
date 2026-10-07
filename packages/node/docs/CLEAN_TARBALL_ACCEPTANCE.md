@@ -7,7 +7,7 @@ check, not a replacement or a claim that the existing checks provide no protecti
 Build and pack a candidate, then pass that **existing** artifact to:
 
 ```sh
-node scripts/clean-tarball-consumer.mjs /absolute/path/collection-protocol-node-version.tgz
+node scripts/clean-tarball-consumer.mjs /absolute/path/know-n-colp-0.1.0.tgz
 ```
 
 The script copies the exact tarball bytes into an isolated temporary consumer,

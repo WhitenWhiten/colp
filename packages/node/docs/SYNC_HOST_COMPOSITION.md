@@ -11,14 +11,14 @@ execution. See [`HOST_INTEGRATION_BOUNDARY.md`](HOST_INTEGRATION_BOUNDARY.md).
 
 ## Production path vs explicit unsafe
 
-Production hosts import **only** `@collection-protocol/node/sync` and call
+Production hosts import **only** `@know-n/colp/sync` and call
 `createSyncHost({ owner: 'sequence' | 'push', session })` with a package-minted
 `VerifiedSyncSession`. The returned host can dispatch exactly one write owner
 plus session-bound Pull / Replica.
 
 Composition-free coordinators (`coordinateSequenceOperation`,
 `coordinatePushTransaction`, `coordinateSyncPull`) are **not** on `./sync`.
-They live on the explicit `@collection-protocol/node/sync/unsafe` subpath for
+They live on the explicit `@know-n/colp/sync/unsafe` subpath for
 COLP tests and adapter fixtures. That subpath is not a production default.
 Production hosts must not import it.
 
@@ -61,7 +61,7 @@ import {
   type PushReplicaOwnershipVerifier,
   type SyncSessionStore,
   type VerifySyncSessionContextInput,
-} from '@collection-protocol/node/sync';
+} from '@know-n/colp/sync';
 
 export async function withSyncPushRequest<Result>(
   store: SyncSessionStore,
@@ -107,7 +107,7 @@ import {
   createSyncHost,
   createTypedUpdateMergePushPreflight,
   requireVerifiedSyncSession,
-} from '@collection-protocol/node/sync';
+} from '@know-n/colp/sync';
 
 const session = await requireVerifiedSyncSession(sessionStore, verificationInput);
 const host = createSyncHost({ owner: 'push', session, pushOwnershipVerifier });
@@ -376,7 +376,7 @@ write `acknowledgedCursor` / `acknowledgedCommitOrdinal` outside this command.
 import {
   coordinateSessionBoundPull,
   withRecommendedSnapshotUrlHostPolicy,
-} from '@collection-protocol/node/sync';
+} from '@know-n/colp/sync';
 
 // Default session-bound path already installs private/local rejector:
 await coordinateSessionBoundPull(gate, request, cursors, events);
@@ -396,7 +396,7 @@ await coordinateSessionBoundPull(gate, request, cursors, events, {
 
 ## Boundary reminders
 
-- `@collection-protocol/node/sync/unsafe` stays composition-free and is not a production default.
+- `@know-n/colp/sync/unsafe` stays composition-free and is not a production default.
 - `host.push` binds `batchId` to the Session; the unsafe Push coordinator does not.
 - This recipe does not mount routes or produce a deployment Profile claim; package-level Sync support is recorded separately in `supportedProfiles`.
 - Sequence continuity remains Sequence-only; Push batch semantics remain Push-only.

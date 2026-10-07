@@ -252,7 +252,7 @@ describe(`PUB-0005 atomic Publication Snapshot state [evidence:${evidence}]`, ()
     const oldSnapshot = await publication('old');
     const [first] = splitPages(await publication('expired'));
     const problem = {
-      type: 'https://collectionprotocol.org/problems/snapshot-expired',
+      type: 'https://know-n.com/colp/problems/snapshot-expired',
       title: 'Snapshot revision expired',
       status: 409,
       code: 'snapshot_expired',

@@ -1,4 +1,4 @@
-# @collection-protocol/node
+# @know-n/colp
 
 The reference implementation of [The Collection Protocol](https://github.com/WhitenWhiten/colp) (COLP) for Node.js 22 and later, written in TypeScript.
 
@@ -6,7 +6,7 @@ COLP is an open protocol for bookmarks and curated knowledge collections: one da
 
 This package is the protocol logic without a server. It validates wire documents, decides what each request may do, and coordinates the durable steps of a write or a sync exchange. You supply the HTTP routes, authentication, and storage by implementing small port interfaces; the package calls them in the order the protocol requires and checks what they return.
 
-> **Status:** not yet published to npm. The package is marked `private` at version `0.0.0-development`; build it from a repository checkout as shown below. It implements all seven protocol profiles: `core`, `publication`, `publisher`, `feed`, `sync`, `mcp-read`, and `mcp-write`.
+> **Version:** `0.1.0`, the first public npm release. The package implements all seven protocol profiles: `core`, `publication`, `publisher`, `feed`, `sync`, `mcp-read`, and `mcp-write`. The `0.x` APIs may change between minor versions.
 
 ## Contents
 
@@ -20,21 +20,36 @@ This package is the protocol logic without a server. It validates wire documents
 
 ## Install
 
-From a clone of the repository:
+Requires Node.js 22 or later. Install from npm:
+
+```bash
+npm install @know-n/colp@0.1.0
+```
+
+TypeScript declarations are included. Import the API for your task from a subpath:
+
+```js
+// ESM: save as colp-demo.mjs and run node colp-demo.mjs.
+import { createUrlHash } from '@know-n/colp/semantic';
+console.log(createUrlHash('https://example.com/'));
+```
+
+```js
+// CommonJS: save as colp-demo.cjs and run node colp-demo.cjs.
+const { createUrlHash } = require('@know-n/colp/semantic');
+console.log(createUrlHash('https://example.com/'));
+```
+
+The package root exports protocol metadata; the [entry points](#entry-points) table lists the APIs. For TypeScript projects, use a module resolution mode that supports package exports, such as `NodeNext` or `Bundler`.
+
+To use a local repository build:
 
 ```bash
 git clone https://github.com/WhitenWhiten/colp.git && cd colp
 npm run install:package && npm run build
-```
-
-To use the build in another project, pack it and install the tarball there:
-
-```bash
 cd packages/node && npm pack
-cd /path/to/your-project && npm install /path/to/collection-protocol-node-0.0.0-development.tgz
+cd /path/to/your-project && npm install /path/to/know-n-colp-0.1.0.tgz
 ```
-
-Every entry point works from both ESM (`import`) and CommonJS (`require`).
 
 ## Quick start
 
@@ -43,7 +58,7 @@ Every entry point works from both ESM (`import`) and CommonJS (`require`).
 One call checks a document against its JSON Schema definition and then against the protocol rules a schema cannot express:
 
 ```ts
-import { validateColpJsonDocument } from '@collection-protocol/node/semantic';
+import { validateColpJsonDocument } from '@know-n/colp/semantic';
 
 const result = validateColpJsonDocument('snapshot', text);
 if (result.valid) {
@@ -58,7 +73,7 @@ if (result.valid) {
 `ColpClient` starts from a server's Manifest and follows the endpoints it declares:
 
 ```ts
-import { ColpClient } from '@collection-protocol/node/client';
+import { ColpClient } from '@know-n/colp/client';
 
 const client = new ColpClient({
   manifestUrl: 'https://alice.example/.well-known/collection-protocol',
@@ -77,8 +92,8 @@ In any handler that receives a Fetch API `Request`, one call serves a read with 
 import {
   composePublicationHttpReadFromRequest,
   createPublicationHttpReadRepresentation,
-} from '@collection-protocol/node/server';
-import type { Snapshot } from '@collection-protocol/node/types';
+} from '@know-n/colp/server';
+import type { Snapshot } from '@know-n/colp/types';
 
 export function serveSnapshot(request: Request, snapshot: Snapshot): Promise<Response> {
   return composePublicationHttpReadFromRequest(request, {
@@ -95,18 +110,18 @@ The repository's [example server](https://github.com/WhitenWhiten/colp/blob/main
 
 ### Host Sync
 
-The Sequence coordinator makes each client Operation take effect exactly once: it replays a retried Operation from its receipt, and refuses a gap or a reused sequence number. This example runs it against the in-memory reference adapters from `@collection-protocol/node/testing`:
+The Sequence coordinator makes each client Operation take effect exactly once: it replays a retried Operation from its receipt, and refuses a gap or a reused sequence number. This example runs it against the in-memory reference adapters from `@know-n/colp/testing`:
 
 ```ts
 import {
   createSyncHost,
   createSyncSession,
   requireVerifiedSyncSession,
-} from '@collection-protocol/node/sync';
+} from '@know-n/colp/sync';
 import {
   createInMemorySequenceUnitOfWork,
   createInMemorySyncSessionStore,
-} from '@collection-protocol/node/testing';
+} from '@know-n/colp/testing';
 
 const binding = {
   principal: { type: 'user', id: 'alice' },
@@ -149,7 +164,7 @@ To build a real host, replace the two in-memory adapters with your own (`SyncSes
 
 ## Entry points
 
-The public subpaths are `schema`, `types`, `semantic`, `client`, `server`, `publisher`, `adapters`, `feed`, `sync`, `sync/canonical`, `sync/browser`, `testing`, `delivery`, `conformance`, `security`, `mcp`, and `mcp/2026-07-28`. Import each one as `@collection-protocol/node/<subpath>`, for example `@collection-protocol/node/sync`, so that loading one domain does not initialize unrelated schemas and runtime state. The raw JSON Schema is also exported as `@collection-protocol/node/schema/collection-protocol.schema.json`.
+The public subpaths are `schema`, `types`, `semantic`, `client`, `server`, `publisher`, `adapters`, `feed`, `sync`, `sync/canonical`, `sync/browser`, `testing`, `delivery`, `conformance`, `security`, `mcp`, and `mcp/2026-07-28`. Import each one as `@know-n/colp/<subpath>`, for example `@know-n/colp/sync`, so that loading one domain does not initialize unrelated schemas and runtime state. The raw JSON Schema is also exported as `@know-n/colp/schema/collection-protocol.schema.json`.
 
 | Entry point | Use it to | Maturity |
 |---|---|---|
@@ -174,7 +189,7 @@ The public subpaths are `schema`, `types`, `semantic`, `client`, `server`, `publ
 
 A few rules about where things live:
 
-- **Browser and MV3 code** imports digests from `@collection-protocol/node/sync/canonical`, and the other browser Sync helpers (event translation, batch application, root mapping, sidecars, Netscape bookmark parsing, separator presentation, transport budgets, light-Pull advice, typed-update payload validation) from `@collection-protocol/node/sync/browser`, which re-exports all of `sync/canonical`. Both are verified to contain no Node.js built-ins or implicit `Buffer` use; treat every other entry point as Node.js only. Production `sync` re-exports the same digest functions, while coordinators, Pull and effect-page validators, and `mergeSyncTypedUpdate` stay on `sync`.
+- **Browser and MV3 code** imports digests from `@know-n/colp/sync/canonical`, and the other browser Sync helpers (event translation, batch application, root mapping, sidecars, Netscape bookmark parsing, separator presentation, transport budgets, light-Pull advice, typed-update payload validation) from `@know-n/colp/sync/browser`, which re-exports all of `sync/canonical`. Both are verified to contain no Node.js built-ins or implicit `Buffer` use; treat every other entry point as Node.js only. Production `sync` re-exports the same digest functions, while coordinators, Pull and effect-page validators, and `mergeSyncTypedUpdate` stay on `sync`.
 - **`testing`** holds test-only helpers: a fixed clock, a deterministic ID generator, the unverified Replica auth proof, and in-memory reference adapters for the Sync Session store and the Sequence unit of work. Use them to exercise coordinators without a database and as a known-good comparison for a real adapter; never wire them into a deployment.
 - **The package root** exports only `protocolVersion`, `packageStatus`, and `supportedProfiles`. It is package metadata, not an API barrel.
 - **MCP**: the Modern MCP `2026-07-28` surface, Read and Write, is available only from `mcp` (or the explicit `mcp/2026-07-28`).

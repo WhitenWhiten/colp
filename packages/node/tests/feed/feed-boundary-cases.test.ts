@@ -62,7 +62,7 @@ describe('Feed coverage boundary cases', () => {
         specversion: '1.0',
         id: 'e',
         source: 'https://example.com/collections',
-        type: 'org.collectionprotocol.collection.updated.v1',
+        type: 'com.know-n.colp.collection.updated.v1',
         subject: 'collections/c/c1',
         time: '2026-01-01T00:00:00Z',
         datacontenttype: 'application/json',
@@ -97,7 +97,7 @@ describe('Feed coverage boundary cases', () => {
         specversion: '1.0',
         id: 'e-unknown',
         source: 'https://example.com/collections',
-        type: 'org.collectionprotocol.future.v1',
+        type: 'com.know-n.colp.future.v1',
         subject: 'collections/c/c1',
         time: '2026-01-01T00:00:00Z',
         datacontenttype: 'application/json',
@@ -193,20 +193,20 @@ describe('Feed coverage boundary cases', () => {
     expect(discriminateFeedEvent({ type: '' }, fakeValidators)).toMatchObject({ valid: false });
     expect(discriminateFeedEvent({ type: 'https://vendor.example/e', data: { collectionId: 'c' } }, fakeValidators)).toMatchObject({ valid: false, code: 'missing_extensions' });
     expect(discriminateFeedEvent(base('https://vendor.example/e', { collectionId: 'c', extensions: {}, extra: 1 }), fakeValidators)).toMatchObject({ valid: false, code: 'excess_data_field' });
-    expect(discriminateFeedEvent(base('org.collectionprotocol.node.created.v1', { node: 'bad' }), fakeValidators)).toMatchObject({ valid: false, code: 'malformed_event' });
-    expect(discriminateFeedEvent(base('org.collectionprotocol.node.created.v1', { node: { kind: 'bookmark', url: 'file:///x' } }), fakeValidators)).toMatchObject({ valid: false, code: 'unsafe_bookmark_url' });
-    expect(discriminateFeedEvent(base('org.collectionprotocol.access.publication_changed.v1', { visibility: 'public', nested: {} }), fakeValidators)).toMatchObject({ valid: false, code: 'excess_data_field' });
+    expect(discriminateFeedEvent(base('com.know-n.colp.node.created.v1', { node: 'bad' }), fakeValidators)).toMatchObject({ valid: false, code: 'malformed_event' });
+    expect(discriminateFeedEvent(base('com.know-n.colp.node.created.v1', { node: { kind: 'bookmark', url: 'file:///x' } }), fakeValidators)).toMatchObject({ valid: false, code: 'unsafe_bookmark_url' });
+    expect(discriminateFeedEvent(base('com.know-n.colp.access.publication_changed.v1', { visibility: 'public', nested: {} }), fakeValidators)).toMatchObject({ valid: false, code: 'excess_data_field' });
   });
 
   it('covers discriminateFeedEvent success and schema_invalid with the real registry', () => {
-    const valid = base('org.collectionprotocol.collection.updated.v1', {
+    const valid = base('com.know-n.colp.collection.updated.v1', {
       collectionId: 'c',
       revision: 'r',
       summary: 'S',
     });
     expect(discriminateFeedEvent(valid, validators)).toMatchObject({ valid: true, kind: 'standard' });
 
-    const invalid = base('org.collectionprotocol.collection.updated.v1', {
+    const invalid = base('com.know-n.colp.collection.updated.v1', {
       collectionId: 'c',
       revision: 7,
       summary: 'S',
@@ -224,7 +224,7 @@ describe('Feed coverage boundary cases', () => {
         specversion: '1.0',
         id: 'event-1',
         source: 'https://example.com/collections',
-        type: 'org.collectionprotocol.collection.updated.v1',
+        type: 'com.know-n.colp.collection.updated.v1',
         subject: 'https://other.example/e',
         time: '2026-07-16T06:30:00Z',
         datacontenttype: 'application/json',
@@ -247,7 +247,7 @@ describe('Feed coverage boundary cases', () => {
 
   it('covers projection malformed and option branches', () => {
     expect(projectFeedEvent(null)).toMatchObject({ ok: false, code: 'malformed_input' });
-    expect(projectFeedEvent(base('org.collectionprotocol.node.created.v1', { collectionId: 'c', revision: 'r', node: {} }), { bookmarkMode: 'redact' })).toMatchObject({ ok: false });
+    expect(projectFeedEvent(base('com.know-n.colp.node.created.v1', { collectionId: 'c', revision: 'r', node: {} }), { bookmarkMode: 'redact' })).toMatchObject({ ok: false });
     expect(projectFeedEvents(new Proxy([], {}))).toMatchObject({ ok: false, code: 'malformed_input' });
     expect(projectFeedEvents([null])).toMatchObject({ ok: false, code: 'partial_projection' });
   });

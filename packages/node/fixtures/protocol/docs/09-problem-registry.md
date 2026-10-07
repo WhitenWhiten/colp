@@ -12,7 +12,7 @@ Error responses use RFC 9457 `application/problem+json` and include a stable ASC
 
 ```json
 {
-  "type": "https://collectionprotocol.org/problems/precondition-failed",
+  "type": "https://know-n.com/colp/problems/precondition-failed",
   "title": "Precondition failed",
   "status": 412,
   "code": "precondition_failed",

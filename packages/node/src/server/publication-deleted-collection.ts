@@ -5,18 +5,18 @@ import { createPublicationProblemResponse } from './publication-problems.js';
 /** Thirty exact 24-hour days, the minimum deleted-Collection retention window. */
 export const PUBLICATION_DELETED_COLLECTION_MIN_RETENTION_MILLISECONDS = 30 * 24 * 60 * 60 * 1_000;
 
-const COLLECTION_DELETED_PROBLEM = 'https://collectionprotocol.org/problems/collection-deleted';
+const COLLECTION_DELETED_PROBLEM = 'https://know-n.com/colp/problems/collection-deleted';
 const INPUT_KEYS = new Set(['canonicalUrl', 'deletedAt', 'retentionMilliseconds']);
 const RECOVERY_TARGET_INPUT_KEYS = new Set(['kind', 'url']);
 const TOMBSTONE_CACHE_CONTROL = 'no-store';
 const MAX_RECOVERY_TARGET_LENGTH = 4_096;
 
 export const PUBLICATION_DELETED_COLLECTION_ARCHIVE_REL =
-  'https://collectionprotocol.org/rels/archive' as const;
+  'https://know-n.com/colp/rels/archive' as const;
 export const PUBLICATION_DELETED_COLLECTION_MIGRATION_REL =
-  'https://collectionprotocol.org/rels/migration' as const;
+  'https://know-n.com/colp/rels/migration' as const;
 export const PUBLICATION_DELETED_COLLECTION_OWNER_REL =
-  'https://collectionprotocol.org/rels/owner' as const;
+  'https://know-n.com/colp/rels/owner' as const;
 
 const RECOVERY_RELATIONS = Object.freeze({
   archive: PUBLICATION_DELETED_COLLECTION_ARCHIVE_REL,

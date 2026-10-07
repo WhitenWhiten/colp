@@ -1101,7 +1101,7 @@ export interface HighlightValue {
   comment?: string;
 }
 export interface Manifest {
-  protocol: 'https://collectionprotocol.org/spec/0.1';
+  protocol: 'https://know-n.com/colp/spec/0.1';
   /**
    * @minItems 1
    */
@@ -1572,7 +1572,7 @@ export interface SyncPullQuery {
 /** COLP 0.2 RFC 9530 SHA-256 Content-Digest field value. */
 export type AuthoritativeDigest = string;
 export type ManifestV02 = Omit<Manifest, 'protocol'> & {
-  protocol: 'https://collectionprotocol.org/spec/0.2';
+  protocol: 'https://know-n.com/colp/spec/0.2';
   protocolVersions: [string, string, ...string[]];
   syncEffectPages: HttpsUriTemplate;
 };

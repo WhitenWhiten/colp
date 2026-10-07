@@ -1,14 +1,14 @@
 /** Generated from the protocol JSON Schema; run npm run generate:types. */
 const schema = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://collectionprotocol.org/schema/0.2",
+  "$id": "https://know-n.com/colp/schema/0.2",
   "title": "The Collection Protocol 0.2 Authoritative Pull Effects",
   "$defs": {
     "manifestV02": {
       "type": "object",
       "properties": {
         "protocol": {
-          "const": "https://collectionprotocol.org/spec/0.2"
+          "const": "https://know-n.com/colp/spec/0.2"
         },
         "protocolVersions": {
           "type": "array",
@@ -35,10 +35,10 @@ const schema = {
           "uniqueItems": true
         },
         "serverId": {
-          "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/serviceUrl"
+          "$ref": "https://know-n.com/colp/schema/0.1#/$defs/serviceUrl"
         },
         "serverUuid": {
-          "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/opaqueId"
+          "$ref": "https://know-n.com/colp/schema/0.1#/$defs/opaqueId"
         },
         "title": {
           "type": "string"
@@ -47,14 +47,14 @@ const schema = {
           "type": "array",
           "minItems": 1,
           "items": {
-            "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/manifestMount"
+            "$ref": "https://know-n.com/colp/schema/0.1#/$defs/manifestMount"
           }
         },
         "signing": {
-          "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/manifestSigning"
+          "$ref": "https://know-n.com/colp/schema/0.1#/$defs/manifestSigning"
         },
         "syncEffectPages": {
-          "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/httpsUriTemplate"
+          "$ref": "https://know-n.com/colp/schema/0.1#/$defs/httpsUriTemplate"
         }
       },
       "required": [
@@ -78,7 +78,7 @@ const schema = {
       "type": "object",
       "properties": {
         "effectId": {
-          "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/opaqueId"
+          "$ref": "https://know-n.com/colp/schema/0.1#/$defs/opaqueId"
         },
         "status": {
           "enum": [
@@ -87,10 +87,10 @@ const schema = {
           ]
         },
         "opId": {
-          "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/opaqueId"
+          "$ref": "https://know-n.com/colp/schema/0.1#/$defs/opaqueId"
         },
         "replicaId": {
-          "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/opaqueId"
+          "$ref": "https://know-n.com/colp/schema/0.1#/$defs/opaqueId"
         },
         "sequence": {
           "type": "integer",
@@ -98,7 +98,7 @@ const schema = {
           "maximum": 9007199254740991
         },
         "collectionId": {
-          "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/opaqueId"
+          "$ref": "https://know-n.com/colp/schema/0.1#/$defs/opaqueId"
         },
         "operationDigest": {
           "$ref": "#/$defs/authoritativeDigest"
@@ -122,7 +122,7 @@ const schema = {
       "type": "object",
       "properties": {
         "parentId": {
-          "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/opaqueId"
+          "$ref": "https://know-n.com/colp/schema/0.1#/$defs/opaqueId"
         },
         "afterId": {
           "oneOf": [
@@ -130,7 +130,7 @@ const schema = {
               "type": "null"
             },
             {
-              "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/opaqueId"
+              "$ref": "https://know-n.com/colp/schema/0.1#/$defs/opaqueId"
             }
           ]
         },
@@ -140,12 +140,12 @@ const schema = {
               "type": "null"
             },
             {
-              "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/opaqueId"
+              "$ref": "https://know-n.com/colp/schema/0.1#/$defs/opaqueId"
             }
           ]
         },
         "position": {
-          "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/orderKey"
+          "$ref": "https://know-n.com/colp/schema/0.1#/$defs/orderKey"
         }
       },
       "required": [
@@ -160,10 +160,10 @@ const schema = {
       "type": "object",
       "properties": {
         "parentId": {
-          "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/opaqueId"
+          "$ref": "https://know-n.com/colp/schema/0.1#/$defs/opaqueId"
         },
         "childrenRevision": {
-          "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/opaqueId"
+          "$ref": "https://know-n.com/colp/schema/0.1#/$defs/opaqueId"
         }
       },
       "required": [
@@ -179,7 +179,7 @@ const schema = {
           "const": "0.2"
         },
         "snapshotId": {
-          "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/opaqueId"
+          "$ref": "https://know-n.com/colp/schema/0.1#/$defs/opaqueId"
         },
         "mode": {
           "const": "sync"
@@ -188,12 +188,12 @@ const schema = {
           "type": "boolean"
         },
         "collection": {
-          "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/collection"
+          "$ref": "https://know-n.com/colp/schema/0.1#/$defs/collection"
         },
         "nodes": {
           "type": "array",
           "items": {
-            "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/node"
+            "$ref": "https://know-n.com/colp/schema/0.1#/$defs/node"
           }
         },
         "parentRevisions": {
@@ -205,49 +205,49 @@ const schema = {
         "annotations": {
           "type": "array",
           "items": {
-            "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/annotation"
+            "$ref": "https://know-n.com/colp/schema/0.1#/$defs/annotation"
           }
         },
         "attachments": {
           "type": "array",
           "items": {
-            "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/attachment"
+            "$ref": "https://know-n.com/colp/schema/0.1#/$defs/attachment"
           }
         },
         "relations": {
           "type": "array",
           "items": {
-            "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/relation"
+            "$ref": "https://know-n.com/colp/schema/0.1#/$defs/relation"
           }
         },
         "tombstones": {
           "type": "array",
           "items": {
-            "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/syncTombstone"
+            "$ref": "https://know-n.com/colp/schema/0.1#/$defs/syncTombstone"
           }
         },
         "revision": {
-          "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/opaqueId"
+          "$ref": "https://know-n.com/colp/schema/0.1#/$defs/opaqueId"
         },
         "syncCursor": {
-          "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/opaqueId"
+          "$ref": "https://know-n.com/colp/schema/0.1#/$defs/opaqueId"
         },
         "recoveryCapability": {
-          "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/opaqueId"
+          "$ref": "https://know-n.com/colp/schema/0.1#/$defs/opaqueId"
         },
         "generatedAt": {
-          "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/dateTime"
+          "$ref": "https://know-n.com/colp/schema/0.1#/$defs/dateTime"
         },
         "contentDigest": {
           "$ref": "#/$defs/authoritativeDigest"
         },
         "page": {
-          "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/snapshotPage"
+          "$ref": "https://know-n.com/colp/schema/0.1#/$defs/snapshotPage"
         },
         "warnings": {
           "type": "array",
           "items": {
-            "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/warning"
+            "$ref": "https://know-n.com/colp/schema/0.1#/$defs/warning"
           }
         }
       },
@@ -303,7 +303,7 @@ const schema = {
       "type": "object",
       "properties": {
         "effectId": {
-          "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/opaqueId"
+          "$ref": "https://know-n.com/colp/schema/0.1#/$defs/opaqueId"
         },
         "pageNumber": {
           "type": "integer",
@@ -320,7 +320,7 @@ const schema = {
           "minItems": 1,
           "maxItems": 512,
           "items": {
-            "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/opaqueId"
+            "$ref": "https://know-n.com/colp/schema/0.1#/$defs/opaqueId"
           },
           "uniqueItems": true
         },
@@ -366,7 +366,7 @@ const schema = {
               "const": "node_created"
             },
             "node": {
-              "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/node"
+              "$ref": "https://know-n.com/colp/schema/0.1#/$defs/node"
             },
             "placement": {
               "$ref": "#/$defs/placement"
@@ -380,7 +380,7 @@ const schema = {
                   "type": "null"
                 },
                 {
-                  "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/opaqueId"
+                  "$ref": "https://know-n.com/colp/schema/0.1#/$defs/opaqueId"
                 }
               ]
             }
@@ -408,7 +408,7 @@ const schema = {
               "const": "node_content_updated"
             },
             "node": {
-              "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/node"
+              "$ref": "https://know-n.com/colp/schema/0.1#/$defs/node"
             }
           },
           "required": [
@@ -431,7 +431,7 @@ const schema = {
               "const": "node_moved"
             },
             "node": {
-              "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/node"
+              "$ref": "https://know-n.com/colp/schema/0.1#/$defs/node"
             },
             "placement": {
               "$ref": "#/$defs/placement"
@@ -467,10 +467,10 @@ const schema = {
               "const": "node_deleted"
             },
             "deletion": {
-              "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/syncTombstone"
+              "$ref": "https://know-n.com/colp/schema/0.1#/$defs/syncTombstone"
             },
             "tombstone": {
-              "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/syncTombstone"
+              "$ref": "https://know-n.com/colp/schema/0.1#/$defs/syncTombstone"
             },
             "parentRevision": {
               "$ref": "#/$defs/parentRevision"
@@ -498,14 +498,14 @@ const schema = {
               "const": "subtree_deleted"
             },
             "rootTombstone": {
-              "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/syncTombstone"
+              "$ref": "https://know-n.com/colp/schema/0.1#/$defs/syncTombstone"
             },
             "members": {
               "type": "array",
               "minItems": 1,
               "maxItems": 512,
               "items": {
-                "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/opaqueId"
+                "$ref": "https://know-n.com/colp/schema/0.1#/$defs/opaqueId"
               },
               "uniqueItems": true
             },
@@ -569,7 +569,7 @@ const schema = {
               "const": "node_restored"
             },
             "node": {
-              "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/node"
+              "$ref": "https://know-n.com/colp/schema/0.1#/$defs/node"
             },
             "placement": {
               "$ref": "#/$defs/placement"
@@ -578,7 +578,7 @@ const schema = {
               "$ref": "#/$defs/parentRevision"
             },
             "consumedTombstone": {
-              "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/syncTombstone"
+              "$ref": "https://know-n.com/colp/schema/0.1#/$defs/syncTombstone"
             }
           },
           "required": [
@@ -618,7 +618,7 @@ const schema = {
       "type": "object",
       "properties": {
         "cursor": {
-          "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/opaqueId"
+          "$ref": "https://know-n.com/colp/schema/0.1#/$defs/opaqueId"
         },
         "kind": {
           "enum": [
@@ -627,13 +627,13 @@ const schema = {
           ]
         },
         "operation": {
-          "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/operation"
+          "$ref": "https://know-n.com/colp/schema/0.1#/$defs/operation"
         },
         "effect": {
           "$ref": "#/$defs/authoritativePullEffect"
         },
         "conflict": {
-          "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/conflict"
+          "$ref": "https://know-n.com/colp/schema/0.1#/$defs/conflict"
         }
       },
       "required": [
@@ -882,13 +882,13 @@ const schema = {
           }
         },
         "nextCursor": {
-          "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/opaqueId"
+          "$ref": "https://know-n.com/colp/schema/0.1#/$defs/opaqueId"
         },
         "hasMore": {
           "type": "boolean"
         },
         "collectionRevision": {
-          "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/opaqueId"
+          "$ref": "https://know-n.com/colp/schema/0.1#/$defs/opaqueId"
         },
         "recommendedPullAfterSeconds": {
           "type": "integer",
@@ -913,16 +913,16 @@ const schema = {
               "const": "0.2"
             },
             "replica": {
-              "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/replica"
+              "$ref": "https://know-n.com/colp/schema/0.1#/$defs/replica"
             },
             "scope": {
               "const": "collection"
             },
             "collection": {
-              "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/syncSessionCollectionRequest"
+              "$ref": "https://know-n.com/colp/schema/0.1#/$defs/syncSessionCollectionRequest"
             },
             "clientTime": {
-              "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/dateTime"
+              "$ref": "https://know-n.com/colp/schema/0.1#/$defs/dateTime"
             }
           },
           "required": [
@@ -941,7 +941,7 @@ const schema = {
               "const": "0.2"
             },
             "replica": {
-              "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/replica"
+              "$ref": "https://know-n.com/colp/schema/0.1#/$defs/replica"
             },
             "scope": {
               "const": "instance"
@@ -950,7 +950,7 @@ const schema = {
               "const": "create_collection"
             },
             "clientTime": {
-              "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/dateTime"
+              "$ref": "https://know-n.com/colp/schema/0.1#/$defs/dateTime"
             }
           },
           "required": [
@@ -970,13 +970,13 @@ const schema = {
           "type": "object",
           "properties": {
             "sessionId": {
-              "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/opaqueId"
+              "$ref": "https://know-n.com/colp/schema/0.1#/$defs/opaqueId"
             },
             "expiresAt": {
-              "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/dateTime"
+              "$ref": "https://know-n.com/colp/schema/0.1#/$defs/dateTime"
             },
             "serverTime": {
-              "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/dateTime"
+              "$ref": "https://know-n.com/colp/schema/0.1#/$defs/dateTime"
             },
             "clockSkewMilliseconds": {
               "type": "integer"
@@ -996,13 +996,13 @@ const schema = {
               "minimum": 1
             },
             "replicaLease": {
-              "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/activeReplicaLease"
+              "$ref": "https://know-n.com/colp/schema/0.1#/$defs/activeReplicaLease"
             },
             "collection": {
-              "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/syncSessionCollectionResult"
+              "$ref": "https://know-n.com/colp/schema/0.1#/$defs/syncSessionCollectionResult"
             },
             "conversionPolicy": {
-              "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/conversionPolicy"
+              "$ref": "https://know-n.com/colp/schema/0.1#/$defs/conversionPolicy"
             }
           },
           "required": [
@@ -1024,13 +1024,13 @@ const schema = {
           "type": "object",
           "properties": {
             "sessionId": {
-              "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/opaqueId"
+              "$ref": "https://know-n.com/colp/schema/0.1#/$defs/opaqueId"
             },
             "expiresAt": {
-              "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/dateTime"
+              "$ref": "https://know-n.com/colp/schema/0.1#/$defs/dateTime"
             },
             "serverTime": {
-              "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/dateTime"
+              "$ref": "https://know-n.com/colp/schema/0.1#/$defs/dateTime"
             },
             "clockSkewMilliseconds": {
               "type": "integer"
@@ -1052,10 +1052,10 @@ const schema = {
               "minimum": 1
             },
             "replicaLease": {
-              "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/activeReplicaLease"
+              "$ref": "https://know-n.com/colp/schema/0.1#/$defs/activeReplicaLease"
             },
             "conversionPolicy": {
-              "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/conversionPolicy"
+              "$ref": "https://know-n.com/colp/schema/0.1#/$defs/conversionPolicy"
             }
           },
           "required": [

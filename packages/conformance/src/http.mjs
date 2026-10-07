@@ -13,7 +13,7 @@ import { Readable } from 'node:stream';
 import {
   isPrivateOrLocalAddress,
   isPrivateOrLocalLiteralHostname,
-} from '@collection-protocol/node/client';
+} from '@know-n/colp/client';
 
 export const PROTOCOL_VERSION = '0.1';
 

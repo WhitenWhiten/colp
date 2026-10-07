@@ -11,7 +11,7 @@ function nodeCreated(url = 'https://example.com/article'): Record<string, unknow
     specversion: '1.0',
     id: '019b3d0b-efcf-7fa7-9778-33e8e77620f4',
     source: 'https://alice.example/collections',
-    type: 'org.collectionprotocol.node.created.v1',
+    type: 'com.know-n.colp.node.created.v1',
     subject: 'collections/c/collection-1/nodes/node-9',
     time: '2026-07-16T06:30:00Z',
     datacontenttype: 'application/json',
@@ -88,7 +88,7 @@ describe(`FEED-0003 feed projection MUST_NOT private fields [evidence:${evidence
 
   it(`[negative] event contract failure does not project [evidence:${evidence}]`, () => {
     const bad = nodeCreated();
-    bad.type = 'org.collectionprotocol.not-a-real-type.v1';
+    bad.type = 'com.know-n.colp.not-a-real-type.v1';
     const result = projectFeedEvent(bad, { validators });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.code).toBe('event_contract_failed');

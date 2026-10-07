@@ -67,7 +67,7 @@ describe('SYNC-0027 COLP 0.2 authoritative Pull effect schema', () => {
     delete (manifest.mounts[0]!.endpoints as unknown as Record<string, string>).syncEffectPages;
     const manifestV02 = {
       ...manifest,
-      protocol: 'https://collectionprotocol.org/spec/0.2',
+      protocol: 'https://know-n.com/colp/spec/0.2',
       syncEffectPages: 'https://alice.example/collections/-/sync/effects/{effectId}/pages/{pageNumber}',
     };
     expect(registry.validate('manifestV02', manifestV02).valid).toBe(true);

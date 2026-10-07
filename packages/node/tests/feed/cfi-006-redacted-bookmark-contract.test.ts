@@ -24,9 +24,9 @@ const permissiveValidators = {
   validate: () => ({ valid: true, errors: [] }),
 } as unknown as ValidatorRegistry;
 const nodeChangedTypes = [
-  'org.collectionprotocol.node.created.v1',
-  'org.collectionprotocol.node.updated.v1',
-  'org.collectionprotocol.node.moved.v1',
+  'com.know-n.colp.node.created.v1',
+  'com.know-n.colp.node.updated.v1',
+  'com.know-n.colp.node.moved.v1',
 ] as const;
 
 const generatedRedactedFeedNode: FeedNode = {
@@ -81,7 +81,7 @@ describe(`CFI-006 redacted Feed Bookmark contract [evidence:${evidence}]`, () =>
   );
 
   it(`[negative] discriminator independently enforces the shared redacted shape rule [evidence:${evidence}]`, () => {
-    const event = nodeChangedEvent('org.collectionprotocol.node.created.v1', {
+    const event = nodeChangedEvent('com.know-n.colp.node.created.v1', {
       id: 'node-9',
       kind: 'bookmark',
       redacted: true,
@@ -102,7 +102,7 @@ describe(`CFI-006 redacted Feed Bookmark contract [evidence:${evidence}]`, () =>
   ])(
     `[negative] keeps Schema and URL guard rejection for dangerous target %s [evidence:${evidence}]`,
     (url) => {
-      const event = nodeChangedEvent('org.collectionprotocol.node.created.v1', {
+      const event = nodeChangedEvent('com.know-n.colp.node.created.v1', {
         id: 'node-9',
         kind: 'bookmark',
         redacted: true,
@@ -138,7 +138,7 @@ describe(`CFI-006 redacted Feed Bookmark contract [evidence:${evidence}]`, () =>
 
   it(`[success] accepts a redacted Bookmark with no target fields through every contract [evidence:${evidence}]`, () => {
     const node = structuredClone(generatedRedactedFeedNode) as unknown as Record<string, unknown>;
-    const event = nodeChangedEvent('org.collectionprotocol.node.created.v1', node);
+    const event = nodeChangedEvent('com.know-n.colp.node.created.v1', node);
 
     expect(() => assertRedactedFeedBookmarkShape(node)).not.toThrow();
     expect(() => assertFeedEventBookmarkUrls({ node })).not.toThrow();

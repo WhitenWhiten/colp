@@ -274,7 +274,7 @@ describe(`CORE-0026 client sibling-anchor writes ${evidence}`, () => {
     'leaves conflicting %s sibling context to the authoritative server',
     async (operation) => {
       const problem = {
-        type: 'https://collectionprotocol.org/problems/position-context-stale',
+        type: 'https://know-n.com/colp/problems/position-context-stale',
         title: 'Sibling position context is stale',
         status: 409,
         code: 'position_context_stale',

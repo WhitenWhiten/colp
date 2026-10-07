@@ -8,12 +8,12 @@
  */
 import { randomUUID } from 'node:crypto';
 
-import { createValidatorRegistry, parseIJson } from '@collection-protocol/node/schema';
+import { createValidatorRegistry, parseIJson } from '@know-n/colp/schema';
 import {
   assembleSnapshotPages,
   expandPublicationEndpointTemplate,
   validateManifestSemantics,
-} from '@collection-protocol/node/semantic';
+} from '@know-n/colp/semantic';
 
 import {
   createHttpClient,
@@ -25,7 +25,7 @@ import {
 import { Report } from './report.mjs';
 
 export const WELL_KNOWN_PATH = '/.well-known/collection-protocol';
-const SNAPSHOT_RELATION = 'https://collectionprotocol.org/rels/snapshot';
+const SNAPSHOT_RELATION = 'https://know-n.com/colp/rels/snapshot';
 const UNKNOWN_PARAMETER = 'colpConformanceUnknown';
 const DEFAULT_SNAPSHOT_BYTES = 64 * 1024 * 1024;
 const DEFAULT_SNAPSHOT_MEMBERS = 100_000;

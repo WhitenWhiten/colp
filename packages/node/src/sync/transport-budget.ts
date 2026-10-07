@@ -2,7 +2,7 @@ export const LEGACY_SYNC_TRANSPORT_BUDGET_BYTES = 2 * 1024 * 1024;
 export const SYNC_TRANSPORT_BUDGET_MIN_BYTES = 16 * 1024;
 export const SYNC_TRANSPORT_BUDGET_MAX_BYTES = 16 * 1024 * 1024;
 export const SYNC_TRANSPORT_BUDGET_EXTENSION =
-  'https://collectionprotocol.org/extensions/sync-transport-budget';
+  'https://know-n.com/colp/extensions/sync-transport-budget';
 export const SYNC_TRANSPORT_BUDGET_HEADER = 'Known-Sync-Transport-Budget';
 
 export const SYNC_TRANSPORT_BUDGET_KEYS = Object.freeze([

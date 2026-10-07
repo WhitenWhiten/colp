@@ -2,9 +2,9 @@
  * Production Sync host façade.
  *
  * `createSyncHost` is the only typed exclusive write dispatcher on
- * `@collection-protocol/node/sync`. It requires a package-minted
+ * `@know-n/colp/sync`. It requires a package-minted
  * {@link VerifiedSyncSession} and exactly one opId owner (`sequence` XOR `push`).
- * Composition-free coordinators live on `@collection-protocol/node/sync/unsafe`.
+ * Composition-free coordinators live on `@know-n/colp/sync/unsafe`.
  * Request-scoped: verify with current credentials, scopes and server time for
  * each request before constructing this host. Methods reuse that snapshot;
  * they do not reload the Session store. Never cache or transfer the host.

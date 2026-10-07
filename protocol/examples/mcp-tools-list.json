@@ -74,7 +74,7 @@
               "type": "array",
               "minItems": 1,
               "items": {
-                "$ref": "https://collectionprotocol.org/schema/0.1#/$defs/changePlanOperation"
+                "$ref": "https://know-n.com/colp/schema/0.1#/$defs/changePlanOperation"
               }
             },
             "reason": { "type": "string" },

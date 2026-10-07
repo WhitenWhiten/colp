@@ -139,10 +139,10 @@ This lets a public page safely show that a restricted entry exists without leaki
 
 ## 8. Node Package Shape
 
-The reference implementation ships as one package, `@collection-protocol/node`. Splitting it into several published packages too early would add version negotiation and circular dependency costs, so splitting is evaluated only after the API is stable. Each subpath is exported only once it is implemented and tested; empty placeholder subpaths are not published.
+The reference implementation ships as one package, `@know-n/colp`. Splitting it into several published packages too early would add version negotiation and circular dependency costs, so splitting is evaluated only after the API is stable. Each subpath is exported only once it is implemented and tested; empty placeholder subpaths are not published.
 
 ```text
-@collection-protocol/node
+@know-n/colp
 ├── schema            JSON Schema and validators compiled by $defs name
 ├── types             TypeScript types generated from the schema
 ├── semantic          Snapshot, Manifest, URI Template, and graph checks

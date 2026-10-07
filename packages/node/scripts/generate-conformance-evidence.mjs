@@ -1,6 +1,6 @@
 // Runs the whole Vitest suite once and records which registered requirements
 // have every tagged test passing. The result is bundled with the package and
-// read by `@collection-protocol/node/conformance`.
+// read by `@know-n/colp/conformance`.
 //
 //   node scripts/generate-conformance-evidence.mjs            write evidence.json
 //   node scripts/generate-conformance-evidence.mjs --check    fail if it would change

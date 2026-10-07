@@ -418,9 +418,9 @@ function mapEventToJsonFeedItem(
 
   let externalUrl: string | undefined;
   if (
-    event.type === 'org.collectionprotocol.node.created.v1'
-    || event.type === 'org.collectionprotocol.node.updated.v1'
-    || event.type === 'org.collectionprotocol.node.moved.v1'
+    event.type === 'com.know-n.colp.node.created.v1'
+    || event.type === 'com.know-n.colp.node.updated.v1'
+    || event.type === 'com.know-n.colp.node.moved.v1'
   ) {
     const node = event.data.node;
     if (node.kind === 'bookmark' && node.redacted !== true) {

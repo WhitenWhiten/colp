@@ -311,7 +311,7 @@ function assertNoCollectionProtocolOrgRef(value: unknown): void {
   if (value === null || typeof value !== 'object') return;
   for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
     if (key === '$ref' && typeof child === 'string') {
-      expect(child.includes('collectionprotocol.org')).toBe(false);
+      expect(child.includes('know-n.com/colp')).toBe(false);
     }
     assertNoCollectionProtocolOrgRef(child);
   }

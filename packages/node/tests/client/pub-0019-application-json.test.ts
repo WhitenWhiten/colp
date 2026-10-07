@@ -248,7 +248,7 @@ describe(`PUB-0019 application/json client media contract ${evidence}`, () => {
 
   it('keeps successful JSON and Problem Details media contracts separate', async () => {
     const problem = JSON.stringify({
-      type: 'https://collectionprotocol.org/problems/resource-not-found',
+      type: 'https://know-n.com/colp/problems/resource-not-found',
       title: 'Resource not found',
       status: 404,
       code: 'resource_not_found',

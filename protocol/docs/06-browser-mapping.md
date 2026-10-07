@@ -129,7 +129,7 @@ Example of unknown attributes:
 ```json
 {
   "extensions": {
-    "https://collectionprotocol.org/ns/netscape-bookmark-html/v1": {
+    "https://know-n.com/colp/ns/netscape-bookmark-html/v1": {
       "attributes": {
         "TAGS": "design,css"
       }

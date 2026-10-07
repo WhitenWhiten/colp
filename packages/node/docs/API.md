@@ -1,6 +1,6 @@
 # API guide
 
-`@collection-protocol/node` is split into entry points, one for each job, so that loading one part does not load the rest. This guide tells you which entry point to start from for a task and shows the first lines of code. Your editor's autocomplete lists everything else an entry point exports, and every export has TypeScript types.
+`@know-n/colp` is split into entry points, one for each job, so that loading one part does not load the rest. This guide tells you which entry point to start from for a task and shows the first lines of code. Your editor's autocomplete lists everything else an entry point exports, and every export has TypeScript types.
 
 The code in the sections on validating, reading, and serving is compiled and run against the packed package on every CI run, so it matches the API you install.
 
@@ -24,9 +24,9 @@ A few rules hold across the whole package. Knowing them makes the rest predictab
 
 - **Invalid data is a result, not an exception.** Validators return an object that says whether the input was valid and, if not, why. Decisions and coordinators return their outcome the same way, in a field named `valid`, `ok`, `allowed`, or `state` depending on the entry point. A thrown `TypeError` or `RangeError` usually means the call itself was wrong, such as an unknown option or a Proxy where plain data is expected. `ColpClient` is the exception: it reports failed requests by throwing [typed errors](#read-from-a-server).
 - **Inputs are strict.** Inputs and options must be plain data, and an unknown option is a `TypeError` rather than something silently ignored, so a typo cannot quietly turn a check off.
-- **Wire types are types only.** Import `Manifest`, `Snapshot`, `Node`, and the rest from `@collection-protocol/node/types` with `import type`. `ColpContract<'collectionMetadata'>` names the type of any JSON Schema definition.
-- **You own storage and HTTP.** Where the package needs your database or your transaction manager, it asks for a small interface (a "port"), calls it in the order the protocol requires, and checks what it returns. The in-memory ports in `@collection-protocol/node/testing` are for tests only.
-- **The root is metadata.** `@collection-protocol/node` exports only `protocolVersion`, `packageStatus`, and `supportedProfiles`. Everything else lives on its own entry point.
+- **Wire types are types only.** Import `Manifest`, `Snapshot`, `Node`, and the rest from `@know-n/colp/types` with `import type`. `ColpContract<'collectionMetadata'>` names the type of any JSON Schema definition.
+- **You own storage and HTTP.** Where the package needs your database or your transaction manager, it asks for a small interface (a "port"), calls it in the order the protocol requires, and checks what it returns. The in-memory ports in `@know-n/colp/testing` are for tests only.
+- **The root is metadata.** `@know-n/colp` exports only `protocolVersion`, `packageStatus`, and `supportedProfiles`. Everything else lives on its own entry point.
 
 ## Which entry point?
 
@@ -34,7 +34,7 @@ A few rules hold across the whole package. Knowing them makes the rest predictab
 |---|---|---|
 | Check that a JSON document is valid COLP | `semantic` | `validateColpDocument`, `validateColpJsonDocument` |
 | Use TypeScript types for wire documents | `types` | `Manifest`, `Snapshot`, `ColpContract` |
-| Get the raw JSON Schema | `schema` | `collectionProtocolSchema`, or the file `@collection-protocol/node/schema/collection-protocol.schema.json` |
+| Get the raw JSON Schema | `schema` | `collectionProtocolSchema`, or the file `@know-n/colp/schema/collection-protocol.schema.json` |
 | Read collections from a COLP server | `client` | `ColpClient` |
 | Serve read-only collections | `server` | `composePublicationHttpReadFromRequest`, `createPublicationHttpReadRepresentation` |
 | Accept authenticated writes | `publisher` | `executePublisherIdempotencyBoundary`, then the [Publisher quickstart](PUBLISHER_QUICKSTART.md) |
@@ -49,7 +49,7 @@ A few rules hold across the whole package. Knowing them makes the rest predictab
 | Test against in-memory ports | `testing` | `createInMemorySyncSessionStore`, `createInMemorySequenceUnitOfWork`, `FixedClock` |
 | See the recommended delivery order of the profiles | `delivery` | `planDelivery` |
 
-Every entry point is imported as `@collection-protocol/node/<entry point>`, for example `@collection-protocol/node/semantic`. `mcp/2026-07-28` is the same surface as `mcp`, for hosts that want to pin the MCP version in their imports.
+Every entry point is imported as `@know-n/colp/<entry point>`, for example `@know-n/colp/semantic`. `mcp/2026-07-28` is the same surface as `mcp`, for hosts that want to pin the MCP version in their imports.
 
 ## Validate a document
 
@@ -57,8 +57,8 @@ Every entry point is imported as `@collection-protocol/node/<entry point>`, for 
 
 <!-- colp-consumer: api-validate -->
 ```ts
-import { validateColpJsonDocument } from '@collection-protocol/node/semantic';
-import type { Manifest } from '@collection-protocol/node/types';
+import { validateColpJsonDocument } from '@know-n/colp/semantic';
+import type { Manifest } from '@know-n/colp/types';
 
 /** Parses and checks a Manifest received as text. */
 export function readManifest(text: string): Manifest {
@@ -73,7 +73,7 @@ export function readManifest(text: string): Manifest {
 }
 ```
 
-The first argument is the name of a definition in the JSON Schema, such as `manifest`, `snapshot`, `collectionDirectory`, `collectionMetadata`, `nodeDetail`, or `problem`. On success, `result.value` has the matching type from `@collection-protocol/node/types`.
+The first argument is the name of a definition in the JSON Schema, such as `manifest`, `snapshot`, `collectionDirectory`, `collectionMetadata`, `nodeDetail`, or `problem`. On success, `result.value` has the matching type from `@know-n/colp/types`.
 
 Which protocol rules run depends on the definition:
 
@@ -100,7 +100,7 @@ The lower-level pieces are still there when you need them: `createValidatorRegis
 
 <!-- colp-consumer: api-local-client -->
 ```ts
-import { ColpClient, createLoopbackEgressPolicy } from '@collection-protocol/node/client';
+import { ColpClient, createLoopbackEgressPolicy } from '@know-n/colp/client';
 
 /** A client for a COLP server on this machine, such as the example server. */
 export function createLocalClient(origin = 'http://127.0.0.1:8080'): ColpClient {
@@ -134,8 +134,8 @@ A read-only server implements the `core` and `publication` profiles: a Manifest 
 import {
   composePublicationHttpReadFromRequest,
   createPublicationHttpReadRepresentation,
-} from '@collection-protocol/node/server';
-import type { Snapshot } from '@collection-protocol/node/types';
+} from '@know-n/colp/server';
+import type { Snapshot } from '@know-n/colp/types';
 
 /** Serves GET and HEAD for one Collection's Snapshot from any Fetch-style framework. */
 export function serveSnapshot(request: Request, loadSnapshot: () => Promise<Snapshot>): Promise<Response> {

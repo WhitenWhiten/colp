@@ -2,7 +2,7 @@
 
 The `mcp-read` and `mcp-write` profiles are delivered as adapter libraries, not
 as a complete remote MCP server. Every example below imports only from the
-public `@collection-protocol/node/mcp` entry, which serves MCP protocol version
+public `@know-n/colp/mcp` entry, which serves MCP protocol version
 `2026-07-28`. Type-checked copies of the examples live in
 [`tests/mcp/examples/`](https://github.com/WhitenWhiten/colp/tree/main/packages/node/tests/mcp/examples), and `npm run typecheck` compiles
 them, so keep the two in sync when you change either.
@@ -30,7 +30,7 @@ import {
   createMcp20260728ResourceAdapter,
   createMcpStatelessReadCore,
   type McpResourceProjectionPort,
-} from '@collection-protocol/node/mcp';
+} from '@know-n/colp/mcp';
 
 const serverUuid = '019b3c67-a03c-7f02-9c7e-1ee8d50a77de';
 const collectionMetadataUri = `colp://${serverUuid}/collections/collection-1`;
@@ -102,7 +102,7 @@ import {
   createMcpStatelessToolCore,
   mapStdioEvidenceToAuthenticatedBinding,
   type McpToolDefinition,
-} from '@collection-protocol/node/mcp';
+} from '@know-n/colp/mcp';
 
 const collectionsGetDefinition: McpToolDefinition = Object.freeze({
   name: 'collections.get',
@@ -224,7 +224,7 @@ import {
   createMcp20260728WriteToolAdapter,
   mapStdioEvidenceToAuthenticatedBinding,
   type Mcp20260728PlanResolution,
-} from '@collection-protocol/node/mcp';
+} from '@know-n/colp/mcp';
 
 // Host-owned: durable plan store, approval store, executor, impact/revision/
 // scope/authorization/rate-limit ports, commit coordinator (see the type-

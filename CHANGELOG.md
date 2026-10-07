@@ -1,10 +1,14 @@
 # Changelog
 
-All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The specification and the Node.js package are versioned separately; until the first release, both are tracked under "Unreleased".
+All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The specification and the Node.js package are versioned separately; npm releases are recorded below while the specification remains a draft.
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-07
+
 ### Specification
+
+- Moved canonical protocol, Schema, Problem, relation, and extension URIs to `https://know-n.com/colp/`; Feed event types use `com.know-n.colp.*`. This replaces the draft namespace and changes wire identifiers.
 
 - The whole specification (`SPECIFICATION.md` and `docs/00`–`10`) is now in English. Normative keywords follow BCP 14 (RFC 2119 and RFC 8174), and every numbered section has a stable `colp-section-N` anchor.
 - Aligned the prose with the schema and the reference implementation:
@@ -23,6 +27,8 @@ All notable changes to this project are documented here. The format follows [Kee
 - Made the specification easier to read without changing any requirement: a [glossary](protocol/GLOSSARY.md); a rewritten protocol README (English and Chinese) with a five-minute tour, a profile table, and a reading guide by role; an "In short" box and previous/next links on every chapter; links in place of bare file names; and prose that is no longer hard-wrapped.
 
 ### Node.js package
+
+- Published the initial `0.1.0` npm release as `@know-n/colp`, with installation and usage instructions in all three repository READMEs. The runner is `@know-n/colp-conformance`; its release tarball depends on the matching registry version and includes the license.
 
 - Added approachable entry points, without changing existing APIs:
   - `validateColpDocument` and `validateColpJsonDocument` (`semantic`) validate a document against its schema and the matching protocol rules in one call. `validatePublicationProblemSemantics` and `classifyPublicationProblem` are now also exported from `semantic`.
@@ -43,7 +49,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Simplified the conformance evidence workflow. `npm run refresh:evidence` runs the suite once and records each requirement whose tagged tests all passed; `npm run check:evidence` verifies the committed result. This replaces the source-revision-bound certificate, release gate, MCP candidate, and SDK acceptance scripts.
 - The evidence artifact (schema version 2) contains `protocolVersion`, `packageVersion`, `requirementsDigest`, and `passedRequirementIds`. The digest covers requirement IDs, levels, profiles, and test IDs, so editing requirement wording does not invalidate evidence.
 - MCP deployment conformance scopes take `mcpConformance: { packageVersion, requirementsDigest }` from `bundledConformanceEvidence`.
-- Sync pull problem `type` URIs use the same `https://collectionprotocol.org/problems/` base as all other problems.
+- Sync pull problem `type` URIs use the same `https://know-n.com/colp/problems/` base as all other problems.
 
 ### Repository
 

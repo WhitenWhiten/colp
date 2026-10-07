@@ -254,7 +254,7 @@ describe(`PUB-0016 client HTTP UTF-8 contract ${evidence}`, () => {
 
     it(`rejects fatal UTF-8 on a Problem Details error body before semantic recovery ${evidence}`, async () => {
       const problem = JSON.stringify({
-        type: 'https://collectionprotocol.org/problems/resource-not-found',
+        type: 'https://know-n.com/colp/problems/resource-not-found',
         title: 'Resource not found',
         status: 404,
         code: 'resource_not_found',
@@ -302,7 +302,7 @@ describe(`PUB-0016 client HTTP UTF-8 contract ${evidence}`, () => {
 
     it(`keeps successful JSON and Problem Details media contracts separate under UTF-8 ${evidence}`, async () => {
       const problem = JSON.stringify({
-        type: 'https://collectionprotocol.org/problems/resource-not-found',
+        type: 'https://know-n.com/colp/problems/resource-not-found',
         title: 'Resource not found',
         status: 404,
         code: 'resource_not_found',

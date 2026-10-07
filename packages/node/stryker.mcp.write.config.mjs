@@ -8,6 +8,7 @@ export default {
     'src/mcp/write-tool-options.ts',
     'src/mcp/risk-aggregation.ts',
     'src/mcp/secret-redaction.ts',
+    'src/mcp/shared/secret-markers.ts',
     'src/mcp/write-mount.ts',
     'src/mcp/tool-input.ts',
     'src/mcp/schema-ref.ts',

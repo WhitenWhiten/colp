@@ -8,7 +8,7 @@
       "specversion": "1.0",
       "id": "019b3d0b-efcf-7fa7-9778-33e8e77620f4",
       "source": "https://alice.example/collections",
-      "type": "org.collectionprotocol.release.published.v1",
+      "type": "com.know-n.colp.release.published.v1",
       "subject": "collections/c/019b3ca2-8424-7cc2-9a61-4bf44c23f07a/releases/release-r_1042",
       "time": "2026-07-16T06:30:00Z",
       "datacontenttype": "application/json",

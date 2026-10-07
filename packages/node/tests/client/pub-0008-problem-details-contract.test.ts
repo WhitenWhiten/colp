@@ -31,7 +31,7 @@ interface RunOptions {
 
 function baseProblem(overrides: Readonly<Record<string, unknown>> = {}): Record<string, unknown> {
   return {
-    type: 'https://collectionprotocol.org/problems/resource-not-found',
+    type: 'https://know-n.com/colp/problems/resource-not-found',
     title: 'Resource not found',
     status: 404,
     code: 'resource_not_found',

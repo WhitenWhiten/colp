@@ -1,7 +1,7 @@
 # Browser batch integration
 
 `applySyncBrowserBatch` is available from
-`@collection-protocol/node/sync/browser` (and the Node `sync` entry).
+`@know-n/colp/sync/browser` (and the Node `sync` entry).
 
 For a Move from A to B, supply `{ folderId: 'B', sourceFolderId: 'A', ...payload }`.
 The driver still receives the complete change. Additional folders can be named

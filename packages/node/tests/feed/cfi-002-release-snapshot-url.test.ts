@@ -42,7 +42,7 @@ function releaseEvent(snapshotUrl: string, ids = {
     specversion: '1.0',
     id: '019b3d0b-efcf-7fa7-9778-33e8e77620f4',
     source: BASE,
-    type: 'org.collectionprotocol.release.published.v1',
+    type: 'com.know-n.colp.release.published.v1',
     subject: `collections/c/${ids.collectionId}/releases/${ids.releaseId}`,
     time: '2026-07-16T06:30:00Z',
     datacontenttype: 'application/json',

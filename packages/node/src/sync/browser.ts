@@ -1,5 +1,5 @@
 /**
- * Browser-safe Sync helpers: `@collection-protocol/node/sync/browser`.
+ * Browser-safe Sync helpers: `@know-n/colp/sync/browser`.
  *
  * Every module reachable from this entry is free of Node built-ins and of any
  * implicit `Buffer` requirement, so MV3 service workers, pages and other

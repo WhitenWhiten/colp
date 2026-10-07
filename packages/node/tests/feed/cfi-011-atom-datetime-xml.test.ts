@@ -50,7 +50,7 @@ function atomEvent(
     specversion: '1.0',
     id: `event-${index}`,
     source: 'https://alice.example/collections',
-    type: 'org.collectionprotocol.collection.updated.v1',
+    type: 'com.know-n.colp.collection.updated.v1',
     subject: 'collections/c/c1',
     time,
     datacontenttype: 'application/json',
@@ -398,7 +398,7 @@ describe(`CFI-011 XML 1.0 allowed characters and escaping [evidence:${evidence}]
         url: "https://bookmark.example/item?a=1&owner=O'Hara",
       },
     };
-    feed.events[0]!.type = 'org.collectionprotocol.node.created.v1';
+    feed.events[0]!.type = 'com.know-n.colp.node.created.v1';
     const result = successful(feed);
 
     expect(result.xml).toContain(

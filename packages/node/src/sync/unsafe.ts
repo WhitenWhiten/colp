@@ -2,7 +2,7 @@
  * Composition-free Sync coordinators.
  *
  * This is **not** the production Sync host API. Production hosts
- * must import `createSyncHost` from `@collection-protocol/node/sync`. This
+ * must import `createSyncHost` from `@know-n/colp/sync`. This
  * subpath exists for COLP tests, conformance fixtures, and adapter unit tests
  * that exercise persistence without a Session stack. Production hosts must not
  * import it.

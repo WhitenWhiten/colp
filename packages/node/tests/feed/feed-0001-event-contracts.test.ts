@@ -59,22 +59,22 @@ const nodeData = {
 
 const standardEventCases: readonly StandardEventCase[] = [
   {
-    type: 'org.collectionprotocol.collection.created.v1',
+    type: 'com.know-n.colp.collection.created.v1',
     data: collectionData,
     invalidData: { collectionId: 'collection-1' },
   },
   {
-    type: 'org.collectionprotocol.collection.updated.v1',
+    type: 'com.know-n.colp.collection.updated.v1',
     data: collectionData,
     invalidData: { ...collectionData, revision: 7 },
   },
   {
-    type: 'org.collectionprotocol.collection.deleted.v1',
+    type: 'com.know-n.colp.collection.deleted.v1',
     data: collectionData,
     invalidData: { revision: 'revision-1' },
   },
   {
-    type: 'org.collectionprotocol.release.published.v1',
+    type: 'com.know-n.colp.release.published.v1',
     data: {
       collectionId: 'collection-1',
       revision: 'revision-1',
@@ -92,17 +92,17 @@ const standardEventCases: readonly StandardEventCase[] = [
     },
   },
   {
-    type: 'org.collectionprotocol.node.created.v1',
+    type: 'com.know-n.colp.node.created.v1',
     data: nodeData,
     invalidData: { ...nodeData, node: 'node-9' },
   },
   {
-    type: 'org.collectionprotocol.node.updated.v1',
+    type: 'com.know-n.colp.node.updated.v1',
     data: nodeData,
     invalidData: { collectionId: 'collection-1', revision: 'revision-1' },
   },
   {
-    type: 'org.collectionprotocol.node.moved.v1',
+    type: 'com.know-n.colp.node.moved.v1',
     data: nodeData,
     invalidData: {
       collectionId: 'collection-1',
@@ -111,7 +111,7 @@ const standardEventCases: readonly StandardEventCase[] = [
     },
   },
   {
-    type: 'org.collectionprotocol.node.deleted.v1',
+    type: 'com.know-n.colp.node.deleted.v1',
     data: {
       collectionId: 'collection-1',
       revision: 'revision-1',
@@ -121,12 +121,12 @@ const standardEventCases: readonly StandardEventCase[] = [
     invalidData: { collectionId: 'collection-1', revision: 'revision-1' },
   },
   {
-    type: 'org.collectionprotocol.annotation.published.v1',
+    type: 'com.know-n.colp.annotation.published.v1',
     data: collectionData,
     invalidData: { ...collectionData, collectionId: '' },
   },
   {
-    type: 'org.collectionprotocol.access.publication_changed.v1',
+    type: 'com.know-n.colp.access.publication_changed.v1',
     data: {
       collectionId: 'collection-1',
       revision: 'revision-1',
@@ -147,7 +147,7 @@ describe(`FEED-0001 event type/data discrimination [evidence:${evidence}]`, () =
     expect(result.valid).toBe(true);
     if (result.valid) {
       expect(result.kind).toBe('standard');
-      expect(result.event.type).toBe('org.collectionprotocol.release.published.v1');
+      expect(result.event.type).toBe('com.know-n.colp.release.published.v1');
       expect(validators.validate('feedEvent', result.event)).toEqual({ valid: true, errors: [] });
     }
   });
@@ -185,11 +185,11 @@ describe(`FEED-0001 event type/data discrimination [evidence:${evidence}]`, () =
   );
 
   it(`[negative] does not classify unregistered types as standard [evidence:${evidence}]`, () => {
-    expect(isStandardFeedEventType('org.collectionprotocol.node.future.v1')).toBe(false);
+    expect(isStandardFeedEventType('com.know-n.colp.node.future.v1')).toBe(false);
   });
 
   it(`[success] accepts a node.created event with feedNode data [evidence:${evidence}]`, () => {
-    const event = baseEnvelope('org.collectionprotocol.node.created.v1', {
+    const event = baseEnvelope('com.know-n.colp.node.created.v1', {
       collectionId: 'collection-1',
       revision: 'r_1',
       node: {
@@ -217,7 +217,7 @@ describe(`FEED-0001 event type/data discrimination [evidence:${evidence}]`, () =
   });
 
   it(`[negative] rejects unknown non-HTTPS event types [evidence:${evidence}]`, () => {
-    const event = baseEnvelope('org.collectionprotocol.unknown.v1', {
+    const event = baseEnvelope('com.know-n.colp.unknown.v1', {
       collectionId: 'collection-1',
       revision: 'r_1',
     });
@@ -261,7 +261,7 @@ describe(`FEED-0001 event type/data discrimination [evidence:${evidence}]`, () =
   });
 
   it(`[negative] rejects access events that carry private principal/key fields [evidence:${evidence}]`, () => {
-    const event = baseEnvelope('org.collectionprotocol.access.publication_changed.v1', {
+    const event = baseEnvelope('com.know-n.colp.access.publication_changed.v1', {
       collectionId: 'collection-1',
       revision: 'r_1',
       visibility: 'public',
@@ -282,7 +282,7 @@ describe(`FEED-0001 event type/data discrimination [evidence:${evidence}]`, () =
   });
 
   it(`[negative] rejects bookmark node with userinfo URL [evidence:${evidence}]`, () => {
-    const event = baseEnvelope('org.collectionprotocol.node.created.v1', {
+    const event = baseEnvelope('com.know-n.colp.node.created.v1', {
       collectionId: 'collection-1',
       revision: 'r_1',
       node: {

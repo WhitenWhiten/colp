@@ -37,6 +37,7 @@ Bookmarks are some of the most personal knowledge people keep, yet every browser
 ## Contents
 
 - [How it works](#how-it-works)
+- [Install from npm](#install-from-npm)
 - [A quick look](#a-quick-look)
 - [Try it](#try-it)
 - [Find your way](#find-your-way)
@@ -91,6 +92,41 @@ COLP is split into composable conformance profiles. A server declares in its Man
 | `mcp-read` | MCP resources and read-only tools | [05](protocol/docs/05-mcp-profile.md) |
 | `mcp-write` | MCP write tools, scopes, audit, and plan / commit for high-risk changes | [05](protocol/docs/05-mcp-profile.md) |
 
+## Install from npm
+
+Requires **Node.js 22 or later**. Install the reference implementation in your application:
+
+```bash
+npm install @know-n/colp@0.1.0
+```
+
+The package includes TypeScript declarations and supports ESM and CommonJS. Save this example as `colp-demo.mjs` to try the package without a server:
+
+```js
+import { protocolVersion, supportedProfiles } from '@know-n/colp';
+import { createUrlHash } from '@know-n/colp/semantic';
+
+console.log(protocolVersion); // '0.1'
+console.log(supportedProfiles); // core, publication, publisher, feed, sync, mcp-read, mcp-write
+console.log(createUrlHash('https://example.com/'));
+```
+
+```bash
+node colp-demo.mjs
+```
+
+Import APIs from their subpaths, such as `@know-n/colp/client`, `@know-n/colp/server`, or `@know-n/colp/semantic`. The package root exposes protocol metadata. See the [package README](packages/node/README.md) and [API guide](packages/node/docs/API.md) for validation, HTTP publication, Sync, and MCP examples.
+
+To check a running COLP server without cloning this repository:
+
+```bash
+npx --yes --package=@know-n/colp-conformance@0.1.0 colp-conformance https://your-server.example
+```
+
+Replace the URL with your server's origin or Manifest URL. See the [runner README](packages/conformance/README.md) for options and programmatic usage. The packages are [@know-n/colp](https://www.npmjs.com/package/@know-n/colp) and [@know-n/colp-conformance](https://www.npmjs.com/package/@know-n/colp-conformance).
+
+The `0.x` APIs may change between minor versions; pin a version when integrating.
+
 ## A quick look
 
 Everything starts at a well-known URL. The Manifest tells a client which profiles a server supports and where every endpoint lives, so clients never guess paths:
@@ -103,7 +139,7 @@ Accept: application/vnd.collection-protocol.manifest+json
 
 ```jsonc
 {
-  "protocol": "https://collectionprotocol.org/spec/0.1",
+  "protocol": "https://know-n.com/colp/spec/0.1",
   "protocolVersions": ["0.1"],
   "serverUuid": "019b3c67-a03c-7f02-9c7e-1ee8d50a77de",
   "title": "Alice's Collections",
@@ -125,7 +161,7 @@ Accept: application/vnd.collection-protocol.manifest+json
 With the Node.js reference implementation, a client follows the Manifest and assembles a complete, validated Snapshot:
 
 ```ts
-import { ColpClient } from '@collection-protocol/node/client';
+import { ColpClient } from '@know-n/colp/client';
 
 const client = new ColpClient({
   manifestUrl: 'https://alice.example/.well-known/collection-protocol',
@@ -173,7 +209,7 @@ The server is [one file](packages/node/examples/publication-server.mjs) built on
 | Serve COLP from your own server | The [Publication quickstart](packages/node/docs/PUBLICATION_QUICKSTART.md) and the [example server](packages/node/examples/publication-server.mjs) |
 | Accept writes, sync browsers, or connect AI assistants | The [package guides](packages/node/docs/README.md#guides) |
 | Implement COLP in another language | [Where to start](protocol/README.md#where-to-start) in the protocol README |
-| Check that a server conforms | [`colp-conformance`](packages/conformance/README.md): `npm run conformance -- https://your-server.example` |
+| Check that a server conforms | [`colp-conformance`](packages/conformance/README.md): `npx --yes --package=@know-n/colp-conformance@0.1.0 colp-conformance https://your-server.example` |
 | Contribute | [CONTRIBUTING.md](CONTRIBUTING.md) |
 
 The package is protocol logic without a server: it validates wire documents, decides what each request may do, and coordinates durable writes and sync exchanges, while your application supplies HTTP routes, authentication, and storage through small port interfaces.
@@ -183,7 +219,7 @@ The package is protocol logic without a server: it validates wire documents, dec
 | Path | Contents |
 |---|---|
 | [`protocol/`](protocol/README.md) | The specification, its glossary, JSON Schemas, executable examples, and the requirement registry |
-| [`packages/node/`](packages/node/README.md) | `@collection-protocol/node`, the reference implementation in TypeScript, with its tests and [guides](packages/node/docs/README.md) |
+| [`packages/node/`](packages/node/README.md) | `@know-n/colp`, the reference implementation in TypeScript, with its tests and [guides](packages/node/docs/README.md) |
 | [`packages/node/examples/`](packages/node/examples/publication-server.mjs) | A minimal read-only server you can run locally |
 | [`packages/conformance/`](packages/conformance/README.md) | `colp-conformance`, a black-box test runner for any COLP server |
 | [`docs/assets/`](docs/assets) | Banner and diagrams used by the READMEs |
@@ -201,7 +237,7 @@ cd protocol && python scripts/validate_examples.py   # validate the protocol exa
 ## Project status
 
 - **Specification:** `0.1-draft`. The 0.1 wire contract is closed: every DTO has a stable `$defs` name. Version 0.2 adds authoritative pull effects to Sync.
-- **Node.js package:** implements all seven profiles. Every MUST and MUST NOT requirement maps to tests, as listed in [TRACEABILITY.md](packages/node/docs/TRACEABILITY.md). It is not yet published to npm.
+- **Node.js package:** implements all seven profiles. Every MUST and MUST NOT requirement maps to tests, as listed in [TRACEABILITY.md](packages/node/docs/TRACEABILITY.md). The npm package is `@know-n/colp`, starting at version `0.1.0`.
 - **Conformance runner:** covers anonymous `core + publication` reads. Authenticated reads and the other profiles are next.
 - **Not included:** a production server, a database adapter, or browser extensions. These belong to applications built on the package; the example server above shows the shape of one.
 

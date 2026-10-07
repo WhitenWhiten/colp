@@ -11,12 +11,12 @@ import {
   executePublisherIdempotencyBoundary,
   type PublisherTransaction,
   type PublisherUnitOfWork,
-} from '@collection-protocol/node/publisher';
+} from '@know-n/colp/publisher';
 ```
 
 Publisher runtime functions and transaction types are exported from
-`@collection-protocol/node/publisher`. The package root
-`@collection-protocol/node` exports only `protocolVersion`, `packageStatus`, and
+`@know-n/colp/publisher`. The package root
+`@know-n/colp` exports only `protocolVersion`, `packageStatus`, and
 `supportedProfiles`; it does not export Publisher APIs.
 
 The import example above is a complete TypeScript consumer snippet. It resolves

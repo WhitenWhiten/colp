@@ -26,7 +26,7 @@ describe('Publication client ETag validation boundaries [evidence:http.condition
 });
 
 const problem = {
-  type: 'https://collectionprotocol.org/problems/resource-not-found',
+  type: 'https://know-n.com/colp/problems/resource-not-found',
   title: 'Resource not found',
   status: 404,
   code: 'resource_not_found',

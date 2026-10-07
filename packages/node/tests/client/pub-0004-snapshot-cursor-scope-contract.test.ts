@@ -159,7 +159,7 @@ describe(`PUB-0004 Snapshot cursor scope client [evidence:${evidence}]`, () => {
   it(`discards assembled pages when a later page returns valid snapshot_expired Problem Details [evidence:${evidence}]`, async () => {
     const { manifest, first } = await paginatedFixture();
     const problem = {
-      type: 'https://collectionprotocol.org/problems/snapshot-expired',
+      type: 'https://know-n.com/colp/problems/snapshot-expired',
       title: 'Snapshot revision expired',
       status: 409,
       code: 'snapshot_expired',

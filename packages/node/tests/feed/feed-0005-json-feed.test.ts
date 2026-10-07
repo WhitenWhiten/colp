@@ -26,7 +26,7 @@ describe(`FEED-0005 JSON Feed 1.1 mapping [evidence:${evidence}]`, () => {
         'https://alice.example/collections/c/019b3ca2-8424-7cc2-9a61-4bf44c23f07a/releases/release-r_1042',
       );
       expect(result.document.items[0]!._collection_protocol.type).toBe(
-        'org.collectionprotocol.release.published.v1',
+        'com.know-n.colp.release.published.v1',
       );
       expect(result.document._collection_protocol.nextCursor).toBe(feed.nextCursor);
       expect(result.document.authors?.[0]?.name).toBe('Alice');
@@ -44,7 +44,7 @@ describe(`FEED-0005 JSON Feed 1.1 mapping [evidence:${evidence}]`, () => {
           specversion: '1.0',
           id: '019b3d0b-efcf-7fa7-9778-33e8e77620f4',
           source: 'https://alice.example/collections',
-          type: 'org.collectionprotocol.node.created.v1',
+          type: 'com.know-n.colp.node.created.v1',
           subject: 'collections/c/c1/nodes/n1',
           time: '2026-07-16T06:30:00Z',
           datacontenttype: 'application/json',

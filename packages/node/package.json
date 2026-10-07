@@ -1,8 +1,7 @@
 {
-  "name": "@collection-protocol/node",
-  "version": "0.0.0-development",
+  "name": "@know-n/colp",
+  "version": "0.1.0",
   "license": "Apache-2.0",
-  "private": true,
   "description": "Node.js implementation of The Collection Protocol (COLP)",
   "keywords": [
     "collection-protocol",
@@ -29,7 +28,8 @@
     "node": ">=22"
   },
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
   },
   "files": [
     "dist",

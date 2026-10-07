@@ -1,5 +1,5 @@
 {
-  "protocol": "https://collectionprotocol.org/spec/0.1",
+  "protocol": "https://know-n.com/colp/spec/0.1",
   "protocolVersions": ["0.1"],
   "serverId": "https://alice.example/",
   "serverUuid": "019b3c67-a03c-7f02-9c7e-1ee8d50a77de",

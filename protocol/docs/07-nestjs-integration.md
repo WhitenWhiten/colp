@@ -1,10 +1,10 @@
 # 07. NestJS Integration (Illustrative)
 
-> **In short:** An illustrative example, not a required design, of embedding COLP in an existing server application, using NestJS as the framework. It sketches a module, the ports a host implements (storage, authentication, outbox, and approvals), the generated routes, middleware order, database suggestions, and the order in which to deliver profiles. The reference package `@collection-protocol/node` is framework-neutral and does not ship a NestJS module.
+> **In short:** An illustrative example, not a required design, of embedding COLP in an existing server application, using NestJS as the framework. It sketches a module, the ports a host implements (storage, authentication, outbox, and approvals), the generated routes, middleware order, database suggestions, and the order in which to deliver profiles. The reference package `@know-n/colp` is framework-neutral and does not ship a NestJS module.
 >
 > **Read this if** you are wiring COLP into a server application. **Profiles:** none of its own.
 
-This chapter describes how a host application, using NestJS as the example framework, embeds the protocol. The module shape, option names, and routes below are illustrative. The reference package `@collection-protocol/node` is framework-neutral: it provides the protocol logic and port interfaces, and does not publish a NestJS module.
+This chapter describes how a host application, using NestJS as the example framework, embeds the protocol. The module shape, option names, and routes below are illustrative. The reference package `@know-n/colp` is framework-neutral: it provides the protocol logic and port interfaces, and does not publish a NestJS module.
 
 <a id="colp-section-1"></a>
 
@@ -51,17 +51,17 @@ The protocol package should not force the blog to use a particular ORM, identity
 The reference implementation is a single package with subpath exports. A subpath is exported only after the corresponding profile is implemented and tested:
 
 ```text
-@collection-protocol/node/schema
-@collection-protocol/node/types
-@collection-protocol/node/semantic
-@collection-protocol/node/client
-@collection-protocol/node/server
-@collection-protocol/node/publisher
-@collection-protocol/node/feed
-@collection-protocol/node/sync
-@collection-protocol/node/security
-@collection-protocol/node/mcp
-@collection-protocol/node/conformance
+@know-n/colp/schema
+@know-n/colp/types
+@know-n/colp/semantic
+@know-n/colp/client
+@know-n/colp/server
+@know-n/colp/publisher
+@know-n/colp/feed
+@know-n/colp/sync
+@know-n/colp/security
+@know-n/colp/mcp
+@know-n/colp/conformance
 ```
 
 Framework modules such as NestJS live in the host, or in a separate package with NestJS as an optional peer dependency. Browser runtime adapters for Chromium, Firefox, and others are published separately when they mature and are not merged into the Node target. An entry point that is empty or has not yet passed its profile tests must not be exported early.
@@ -482,7 +482,7 @@ A static bundle suits GitHub Pages, object storage, or a CDN, and contains no ad
 
 ## 16. Conformance
 
-`@collection-protocol/node/conformance` and the deployment's own tests should cover:
+`@know-n/colp/conformance` and the deployment's own tests should cover:
 
 - Discovery and links.
 - Schema and unknown extension preservation.

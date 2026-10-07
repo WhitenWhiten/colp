@@ -153,9 +153,9 @@ describe('security public surface (PR8 package-export smoke)', () => {
       require: './dist/security/index.cjs',
     });
 
-    // Packaging honesty: still private / pre-release; export ≠ Profile claim.
-    expect(packageJson.private).toBe(true);
-    expect(packageJson.version).toBe('0.0.0-development');
+    // Registry metadata does not change which Profiles the package implements.
+    expect(packageJson.private).not.toBe(true);
+    expect(packageJson.version).toBe('0.1.0');
     expect([...supportedProfiles]).toEqual([
       'core',
       'publication',

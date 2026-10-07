@@ -26,7 +26,7 @@ function envelope(type: string, data: Record<string, unknown>): Record<string, u
 }
 
 function releaseEvent(): Record<string, unknown> {
-  return envelope('org.collectionprotocol.release.published.v1', {
+  return envelope('com.know-n.colp.release.published.v1', {
     collectionId: 'collection-1',
     revision: 'revision-1',
     changes: { created: 1, updated: 2, moved: 3, deleted: 4 },
@@ -37,7 +37,7 @@ function releaseEvent(): Record<string, unknown> {
 }
 
 function bookmarkEvent(): Record<string, unknown> {
-  return envelope('org.collectionprotocol.node.created.v1', {
+  return envelope('com.know-n.colp.node.created.v1', {
     collectionId: 'collection-1',
     revision: 'revision-1',
     node: {
@@ -154,7 +154,7 @@ describe(`CFI-001 verified Feed Event deep immutability [evidence:${evidence}]`,
       },
     });
 
-    expectMalformed(envelope('org.collectionprotocol.release.published.v1', data));
+    expectMalformed(envelope('com.know-n.colp.release.published.v1', data));
     expect(getterCalls).toBe(0);
   });
 
@@ -185,7 +185,7 @@ describe(`CFI-001 verified Feed Event deep immutability [evidence:${evidence}]`,
       node,
     };
 
-    expectMalformed(envelope('org.collectionprotocol.node.created.v1', data));
+    expectMalformed(envelope('com.know-n.colp.node.created.v1', data));
     expect(trapCalls).toBe(0);
   });
 

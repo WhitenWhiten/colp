@@ -2,7 +2,7 @@
 
 Status: accepted (COLP-MCP-03)
 
-This document records how `@collection-protocol/node` locks, imports and
+This document records how `@know-n/colp` locks, imports and
 upgrades the upstream MCP SDK, which SDK types may cross COLP's public
 boundary, and how the test-only reference client / fixture host are bounded.
 It is the policy companion of the source-bound boundary module
@@ -27,7 +27,7 @@ explicit, reviewed change. The `package-lock.json` entries resolve to the
 - `@modelcontextprotocol/core` is a **regular `dependencies` entry**: future
   production adapters under `src/mcp/2026-07-28/` import its allowlisted
   schemas and `_meta` constants, so the runtime package must be resolvable by
-  **packed consumers** who install only `@collection-protocol/node` plus its
+  **packed consumers** who install only `@know-n/colp` plus its
   declared dependencies. Making it a dependency is the "runtime ownership"
   choice: production code owns and executes the schema/constant surface.
 - `@modelcontextprotocol/client` and `@modelcontextprotocol/server` are

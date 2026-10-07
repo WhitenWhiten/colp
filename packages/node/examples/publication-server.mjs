@@ -15,18 +15,18 @@
  * The data is one Collection taken from the protocol examples. Replace `store`
  * with your own storage. A real deployment also serves HTTPS, runs the
  * package's conformance probes, and publishes only the profiles that
- * `assertProfileClaims` from `@collection-protocol/node/conformance` returns.
+ * `assertProfileClaims` from `@know-n/colp/conformance` returns.
  */
 import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { pathToFileURL } from 'node:url';
 
-import { ColpClient, createLoopbackEgressPolicy } from '@collection-protocol/node/client';
+import { ColpClient, createLoopbackEgressPolicy } from '@know-n/colp/client';
 import {
   composePublicationHttpReadFromRequest,
   createPublicationHttpReadRepresentation,
   createPublicationProblemResponse,
-} from '@collection-protocol/node/server';
+} from '@know-n/colp/server';
 
 const examples = new URL('../fixtures/protocol/examples/', import.meta.url);
 const snapshot = JSON.parse(await readFile(new URL('collection-snapshot.json', examples), 'utf8'));
@@ -43,7 +43,7 @@ function createStore(origin) {
   };
   return {
     manifest: {
-      protocol: 'https://collectionprotocol.org/spec/0.1',
+      protocol: 'https://know-n.com/colp/spec/0.1',
       protocolVersions: ['0.1'],
       serverId: `${origin}/`,
       serverUuid: '019b3c67-a03c-7f02-9c7e-1ee8d50a77de',

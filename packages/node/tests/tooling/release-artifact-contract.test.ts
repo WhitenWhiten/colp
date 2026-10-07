@@ -12,7 +12,7 @@ function acceptedFixture() {
   const bytes = new TextEncoder().encode('test-only artifact bytes');
   const digest = artifactDigests(bytes);
   const sourceRevision = 'a'.repeat(40);
-  const cleanConsumer = { sha256: digest.sha256, packageName: '@collection-protocol/node',
+  const cleanConsumer = { sha256: digest.sha256, packageName: '@know-n/colp',
     packageVersion: '0.1.0', skipLibCheck: false, entryCount: 18, node: 'v22.16.0', platform: 'linux' };
   return { bytes, record: { formatVersion: 1, sourceRevision, packageName: cleanConsumer.packageName,
     packageVersion: cleanConsumer.packageVersion, artifact: digest,
@@ -41,9 +41,9 @@ describe('Publish exactly the accepted artifact', () => {
     expect(() => assertReleaseMatrix(matrix.map(value => ({ ...value, sha256: 'other' })), record)).toThrow();
   });
   it('distinguishes publication blockers from optional project metadata', () => {
-    const ready = releaseReadiness({ name: '@collection-protocol/node', version: '0.1.0', license: 'MIT' }, true);
+    const ready = releaseReadiness({ name: '@know-n/colp', version: '0.1.0', license: 'MIT' }, true);
     expect(ready.errors).toEqual([]);
     expect(ready.warnings).toHaveLength(2);
-    expect(releaseReadiness({ name: '@collection-protocol/node', private: true, version: '0.0.0-development' }, false).errors.length).toBeGreaterThan(0);
+    expect(releaseReadiness({ name: '@know-n/colp', private: true, version: '0.0.0-development' }, false).errors.length).toBeGreaterThan(0);
   });
 });

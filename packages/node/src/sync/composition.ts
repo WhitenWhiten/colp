@@ -2,7 +2,7 @@
  * Thin Sync host composition helpers.
  *
  * Production hosts should call {@link createSyncHost} from `./host.js` (exported
- * on `@collection-protocol/node/sync`). That builder requires a branded Session
+ * on `@know-n/colp/sync`). That builder requires a branded Session
  * and returns a typed dispatcher that can own **either** Sequence **or** Push.
  *
  * Session-bound helpers below remain the primitives the host wraps. Bare
@@ -585,11 +585,11 @@ export type SyncWriteCoordinatorOwner = 'sequence' | 'push';
  */
 export const SYNC_HOST_COMPOSITION_NOTES = Object.freeze({
   productionPath:
-    'Production hosts call createSyncHost from @collection-protocol/node/sync with a branded VerifiedSyncSession and exactly one owner (sequence or push).',
+    'Production hosts call createSyncHost from @know-n/colp/sync with a branded VerifiedSyncSession and exactly one owner (sequence or push).',
   exclusiveOpIdOwner:
     'createSyncHost chooses exactly one write owner. The returned host cannot dispatch the other coordinator. There is no dual-owner sequenced-push facade.',
   sessionFirst:
     'createSyncHost requires a package-minted VerifiedSyncSession (verifySyncSessionContext / requireVerifiedSyncSession). HTTP paths verify first, then construct the host.',
   migration:
-    'Composition-free coordinators are not on ./sync. Import @collection-protocol/node/sync/unsafe only from COLP tests and adapter fixtures. Production hosts must not import that subpath.',
+    'Composition-free coordinators are not on ./sync. Import @know-n/colp/sync/unsafe only from COLP tests and adapter fixtures. Production hosts must not import that subpath.',
 } as const);

@@ -72,12 +72,14 @@ describe('MCP 2026-07-28 SDK lock contract (COLP-MCP-03)', () => {
   it('locks the SDK in the package lockfile at exact 2.3.1 and never depends on the legacy monolith', async () => {
     const lockText = await readFile(resolve(packageRoot, 'package-lock.json'), 'utf8');
     const lock = JSON.parse(lockText) as {
-      readonly packages?: Readonly<Record<string, { version?: string }>>;
+      readonly packages?: Readonly<Record<string, { name?: string; version?: string }>>;
     };
+    const packageJson = await readJson<PackageJson>(resolve(packageRoot, 'package.json'));
 
     const root = lock.packages?.[''];
     expect(root).toBeDefined();
-    expect(root?.version).toBe('0.0.0-development');
+    expect(root?.name).toBe(packageJson.name);
+    expect(root?.version).toBe(packageJson.version);
 
     for (const name of [
       'node_modules/@modelcontextprotocol/core',
