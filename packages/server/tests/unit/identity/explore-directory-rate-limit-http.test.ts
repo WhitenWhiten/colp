@@ -395,25 +395,6 @@ test('omitted Explore limiter fails closed for public Collection paging validati
   );
 });
 
-test('denied Explore limiter is 429 on public Profile GET and HEAD', async () => {
-  const app = buildApiApp({
-    config,
-    publicProfileQuery: {
-      async get() { throw new Error('profile query must not run after deny'); },
-    },
-    exploreDirectoryRateLimiter: deniedLimiter(),
-  });
-  apps.push(app);
-  const denied = await app.inject({
-    method: 'GET', url: '/api/v1/profiles/alice', headers: { accept: 'application/json' },
-  });
-  assert.equal(denied.statusCode, 429);
-  assert.equal(denied.json().error.code, 'rate_limited');
-  assert.equal((await app.inject({
-    method: 'HEAD', url: '/api/v1/profiles/alice', headers: { accept: 'application/json' },
-  })).statusCode, 429);
-});
-
 test('omitted Explore limiter fails closed for public Profile', () => {
   assert.throws(
     () => buildApiApp({

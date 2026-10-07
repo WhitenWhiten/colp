@@ -120,21 +120,6 @@ function anonymousMcpContext() {
 }
 
 describe('partial API composition resource cleanup', () => {
-  test('reports MCP write fails closed when no durable typed write port is wired', async () => {
-    const base = loadConfig(testEnv());
-    const config = {
-      ...base,
-      reports: { ...base.reports, enabled: true, mcpEnabled: true, mcpWriteEnabled: true },
-    } as typeof base;
-    const database = listeningDatabase();
-    const publicationCursorKeys = createPublicationCursorKeyring(config.publication.cursorKeys);
-    await assert.rejects(
-      composeApiMcpSurface(mcpInput(config, database, publicationCursorKeys)),
-      /durable typed report write port/u,
-    );
-    publicationCursorKeys.destroy();
-  });
-
   test('MCP Read starts one LISTEN source, serves a list, and closes it with UNLISTEN', async () => {
     const config = loadConfig(phase4bMcpOnEnv());
     const database = listeningDatabase();

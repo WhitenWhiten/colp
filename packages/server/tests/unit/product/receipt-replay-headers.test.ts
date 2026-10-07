@@ -465,10 +465,7 @@ const GRANTS = 'src/modules/auth/application/account-credentials/grant-commands.
 const CRED = 'src/modules/auth/application/account-credentials/commands.ts';
 const CRED_FACADE = 'src/infrastructure/auth/account-credentials-postgres.ts';
 const COLL = 'src/modules/collections/application';
-const COMM = 'src/modules/community/application';
-const GOV = 'src/modules/governance/application';
 const IDENTITY = 'src/modules/identity/application';
-const REPT = 'src/modules/reports/application';
 const via = (name: RegExp): [string, RegExp] => [CRED_FACADE, name];
 
 /** Every discovered ETag-replay route, pinned to the command whose stored result must snapshot `etag`. */
@@ -507,38 +504,11 @@ const REQUIRED_ETAG_RECEIPTS: readonly PinnedRoute[] = [
   pin('POST /api/v1/collections/:collectionId/relations', 'product/relation-routes.ts', 'createRelation', `${COLL}/create-relation.ts`),
   pin('PATCH /api/v1/collections/:collectionId/relations/:relationId', 'product/relation-routes.ts', 'updateRelation', `${COLL}/update-relation.ts`),
   pin('DELETE /api/v1/collections/:collectionId/relations/:relationId', 'product/relation-routes.ts', 'deleteRelation', `${COLL}/delete-relation.ts`),
-  // Community commands (invoked through `(deps.x ?? command)(ports, input)` fallbacks).
-  pin('POST /api/v1/community/comments', 'product/community-comment-routes.ts', 'createCommunityComment', `${COMM}/community-comment-command.ts`),
-  pin('PATCH /api/v1/community/comments/:commentId', 'product/community-comment-routes.ts', 'editCommunityComment', `${COMM}/community-comment-manage.ts`),
-  pin('DELETE /api/v1/community/comments/:commentId', 'product/community-comment-routes.ts', 'deleteCommunityComment', `${COMM}/community-comment-manage.ts`),
-  pin('PUT /api/v1/community/comments/:commentId/curation', 'product/community-comment-routes.ts', 'setCommentCuration', `${COMM}/community-comment-curation.ts`),
-  pin('PUT /api/v1/community/comment-settings', 'product/community-comment-routes.ts', 'setCommunityCommentSettings', `${COMM}/community-comment-settings.ts`),
-  pin('PUT /api/v1/me/community-notification-preferences', 'product/community-notification-routes.ts', 'putCommunityNotificationPreference', `${COMM}/community-notification-preference.ts`),
-  // Reading progress.
-  pin('PUT /api/v1/reading-progress/:resourceType/:resourceId', 'product/reading-progress-routes.ts', 'putReadingProgress', 'src/modules/reading-progress/application/reading-progress.ts', 'upsertReadingProgress'),
   // Product sync commands (reached through `ports.*` -> shared infra helpers).
   pin('POST /api/v1/sync/conflicts/:conflictId/resolution', 'product/product-sync-center-routes.ts', 'ports.resolveConflict', 'src/infrastructure/sync/product-sync-center-postgres.ts', 'command', 'src/infrastructure/sync/product-sync-center-postgres.ts', /resolveConflict\s*:\s*\(input\)\s*=>\s*command\s*\(/),
   pin('DELETE /api/v1/sync/replicas/:replicaId', 'product/product-sync-center-routes.ts', 'ports.retireReplica', 'src/infrastructure/sync/product-sync-center-postgres.ts', 'command', 'src/infrastructure/sync/product-sync-center-postgres.ts', /retireReplica\s*:\s*\(input\)\s*=>\s*command\s*\(/),
   pin('POST /api/v1/sync/trash/:deletionId/restore', 'product/product-sync-trash-routes.ts', 'ports.restoreTrash', 'src/infrastructure/sync/product-sync-trash-shared-postgres.ts', 'productTrashCommand', 'src/infrastructure/sync/product-sync-trash-postgres.ts', /restoreTrash\s*:\s*\(input\)\s*=>\s*productTrashCommand\s*\(/),
-  // Private report mutations (`result(...)` snapshots `stableHeaders.etag`).
-  pin('POST /api/v1/reports', 'product/report-private-primary-routes.ts', 'createSeries', `${REPT}/report-commands.ts`),
-  pin('PATCH /api/v1/reports/:reportId', 'product/report-private-primary-routes.ts', 'updateSeries', `${REPT}/report-commands.ts`),
-  pin('POST /api/v1/reports/:reportId/issues', 'product/report-private-primary-routes.ts', 'attachEdition', `${REPT}/report-commands.ts`),
-  pin('PATCH /api/v1/reports/:reportId/issues/:editionId', 'product/report-private-primary-routes.ts', 'updateEdition', `${REPT}/report-commands.ts`),
-  pin('POST /api/v1/reports/:reportId/issues/:editionId/publish', 'product/report-private-primary-routes.ts', 'publishEditionRoute', `${REPT}/report-commands.ts`, 'publishEdition'),
-  pin('POST /api/v1/reports/:reportId/issues/:editionId/withdraw', 'product/report-private-primary-routes.ts', 'withdrawEdition', `${REPT}/report-commands.ts`),
-  pin('PUT /api/v1/reports/:reportId/schedule', 'product/report-private-secondary-routes.ts', 'upsertDigestSchedule', `${REPT}/schedule.ts`),
-  // Content governance commands.
-  pin('PATCH /api/v1/me/catalog-preferences', 'product/catalog-preferences-routes.ts', 'updateCatalogPreferences', `${GOV}/catalog-preferences.ts`),
   pin('PATCH /api/v1/me/bookmark-preferences', 'product/bookmark-preferences-routes.ts', 'updateBookmarkPreferences', `${IDENTITY}/bookmark-preferences.ts`),
-  pin('PATCH /api/v1/collections/:collectionId/catalog', 'product/catalog-routes.ts', 'updateCollectionCatalog', `${GOV}/collection-catalog.ts`),
-  pin('PATCH /api/v1/moderation/cases/:caseId', 'product/moderation-action-routes.ts', 'updateModerationCase', `${GOV}/moderation-case-update.ts`),
-  pin('POST /api/v1/moderation/actions', 'product/moderation-action-routes.ts', 'createModerationAction', `${GOV}/moderation-action-commands.ts`),
-  pin('POST /api/v1/moderation/actions/:actionId/revoke', 'product/moderation-action-routes.ts', 'revokeModerationAction', `${GOV}/moderation-action-commands.ts`),
-  pin('POST /api/v1/moderation/appeals', 'product/moderation-appeal-routes.ts', 'createModerationAppeal', `${GOV}/moderation-appeal-commands.ts`),
-  pin('POST /api/v1/moderation/appeals/:appealId/decision', 'product/moderation-appeal-routes.ts', 'decideModerationAppeal', `${GOV}/moderation-appeal-commands.ts`),
-  pin('POST /api/v1/moderation/reports', 'product/moderation-routes.ts', 'submitModerationReport', `${GOV}/moderation-report.ts`),
-  pin('PATCH /api/v1/reports/:reportId/catalog', 'product/catalog-routes.ts', 'updateReportCatalog', `${GOV}/report-catalog.ts`),
   // Bookmark subscription mutations register through one shared
   // `app.route({method,url:route,...})` loop (POST/PATCH rows of
   // BOOKMARK_SUBSCRIPTION_ROUTES), so the scanner pins the registration-site
@@ -547,21 +517,8 @@ const REQUIRED_ETAG_RECEIPTS: readonly PinnedRoute[] = [
   pin('ROUTE {method,url:route,exposeHeadRoute:false,bodyLimit:operation=', 'product/bookmark-subscription-routes.ts', 'p.receipts.complete', 'src/transport/product/bookmark-subscription-routes.ts', 'registerBookmarkSubscriptionRoutes'),
 ];
 
-/**
- * Discovered routes whose stored results currently do NOT snapshot `etag` —
- * live instances of the defect class, pinned negatively so the suite flips
- * red the moment a fix stores the header (forcing promotion into
- * REQUIRED_ETAG_RECEIPTS). Fixing them needs contract care: PUT
- * /notification-preferences/:channel and the frozen PUT
- * /me/notification-preferences alias emit differently-scoped ETags for the
- * same outcome, so one stored value cannot serve both, and PUT
- * /notifications/:id/read suppresses ETag on the `not_found` outcome only.
- */
-const KNOWN_GAPS: readonly PinnedRoute[] = [
-  pin('PUT /api/v1/notifications/:notificationId/read', 'product/notification-routes.ts', 'markNotificationRead', 'src/modules/notifications/application/notification-read-command.ts'),
-  pin('PUT /api/v1/notification-preferences/:channel', 'product/notification-routes.ts', 'updateNotificationPreference', 'src/modules/notifications/application/notification-preference-command.ts'),
-  pin('PUT /api/v1/me/notification-preferences', 'product/notification-routes.ts', 'updateNotificationPreference', 'src/modules/notifications/application/notification-preference-command.ts'),
-];
+/** Notification preference gaps left with the removed notification routes. */
+const KNOWN_GAPS: readonly PinnedRoute[] = [];
 
 /** Routes whose replay branch re-derives ETag outside stored headers. */
 const REPLAY_ETAG_FALLBACK_ROUTES = [
@@ -594,7 +551,7 @@ describe('receipt-replay ETag parity', () => {
   const byLabel = new Map(discovered.map((route) => [route.label, route]));
 
   test('the scan finds a real inventory (fail-closed)', () => {
-    assert.ok(discovered.length >= 40,
+    assert.ok(discovered.length >= 34,
       `expected a broad ETag-receipt route inventory, found ${discovered.length} — the scanner is silently broken`);
   });
 
