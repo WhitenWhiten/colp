@@ -1,0 +1,41 @@
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: \${POSTGRES_DB:-colp}
+      POSTGRES_USER: \${POSTGRES_USER:-colp}
+      POSTGRES_PASSWORD: \${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - colp-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U colp -d colp"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  server:
+    image: ghcr.io/whitenwhiten/colp-server:\${COLP_IMAGE_TAG:-0.1}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://\${POSTGRES_USER:-colp}:\${POSTGRES_PASSWORD}@db:5432/\${POSTGRES_DB:-colp}
+      PORT: 3000
+    depends_on:
+      db:
+        condition: service_healthy
+    expose: ["3000"]
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    profiles: ["http"]
+    ports: ["8080:80"]
+    volumes:
+      - ./Caddyfile.http:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - server
+volumes:
+  colp-db:
+  caddy-data:
+  caddy-config:
