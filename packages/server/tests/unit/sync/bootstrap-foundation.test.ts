@@ -7,6 +7,7 @@ import { loadConfig } from '../../support/test-config.js';
 import { buildWorker } from '../../../src/bootstrap/worker.js';
 import { composeModules } from '../../../src/index.js';
 import { InMemoryMetrics } from '../../../src/infrastructure/telemetry/index.js';
+import { version } from '../../../src/version.js';
 
 const backendRoot = resolve(import.meta.dirname, '../../..');
 
@@ -423,7 +424,7 @@ test('minimal API and Worker composition can be constructed without business mod
   const health = await app.inject({ method: 'GET', url: '/health' });
   const readiness = await app.inject({ method: 'GET', url: '/ready' });
   assert.equal(health.statusCode, 200);
-  assert.deepEqual(health.json(), { status: 'ok' });
+  assert.deepEqual(health.json(), { status: 'ok', version });
   assert.equal(readiness.statusCode, 200);
   assert.deepEqual(readiness.json(), { status: 'ready' });
 

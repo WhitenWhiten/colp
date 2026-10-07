@@ -10,6 +10,7 @@ import {
 } from '../../support/postgres-test-runtime.js';
 import { reserveTcpPort, startApiProcess, stopProcess, waitForHttpOk } from '../../support/runtime-process.js';
 import type { ChildProcess } from 'node:child_process';
+import { version } from '../../../src/version.js';
 
 describeWithPostgres('Phase 0 exit evidence on real PostgreSQL', () => {
   let isolated: IsolatedPostgresRuntime;
@@ -124,7 +125,7 @@ describeWithPostgres('Phase 0 exit evidence on real PostgreSQL', () => {
     api = startApiProcess(isolated.databaseUrl, port);
     const baseUrl = `http://127.0.0.1:${port}`;
     const health = await waitForHttpOk(`${baseUrl}/health`);
-    assert.deepEqual(await health.json(), { status: 'ok' });
+    assert.deepEqual(await health.json(), { status: 'ok', version });
     const ready = await waitForHttpOk(`${baseUrl}/ready`);
     assert.deepEqual(await ready.json(), { status: 'ready' });
   }, 30_000);

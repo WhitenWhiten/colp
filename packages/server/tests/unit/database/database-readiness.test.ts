@@ -4,6 +4,7 @@ import type { FastifyInstance } from 'fastify';
 import { loadConfig } from '../../support/test-config.js';
 import { buildApiApp } from '../../../src/transport/app.js';
 import { InMemoryMetrics } from '../../../src/infrastructure/telemetry/index.js';
+import { version } from '../../../src/version.js';
 
 const openApps: FastifyInstance[] = [];
 
@@ -33,7 +34,7 @@ describe('database-backed readiness boundary', () => {
     const response = await app.inject({ method: 'GET', url: '/health' });
 
     assert.equal(response.statusCode, 200);
-    assert.deepEqual(response.json(), { status: 'ok' });
+    assert.deepEqual(response.json(), { status: 'ok', version });
     assert.equal(calls, 0);
   });
 

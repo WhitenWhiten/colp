@@ -1,6 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { createValidatorRegistry, validateWireDocument } from '@know-n/colp/schema';
 import { validateManifestSemantics } from '@know-n/colp/semantic';
 import type { Manifest, ManifestEndpoints, ManifestV02, ServiceUrl } from '@know-n/colp/types';
@@ -13,6 +10,7 @@ import {
   TOMBSTONE_RETENTION_BOUNDS,
   type Phase3SyncProfileClaims,
 } from '../../sync/index.js';
+import { version } from '../../../version.js';
 
 const KNOWN_SYNC_RETIRE_MANIFEST_EXTENSION = 'https://known.example/extensions/sync-retire';
 
@@ -24,30 +22,9 @@ export interface SelfHostedManifestFeatures {
   readonly edition: { readonly name: 'colp-server'; readonly version: string };
 }
 
-let cachedServerVersion: string | undefined;
-
-/** `package.json` version until H1's generated `src/version.ts` exists. */
+/** Server version recorded by `scripts/write-version.mjs`. */
 export function colpServerPackageVersion(): string {
-  if (cachedServerVersion !== undefined) return cachedServerVersion;
-  let directory = dirname(fileURLToPath(import.meta.url));
-  for (let depth = 0; depth < 8; depth += 1) {
-    try {
-      const parsed = JSON.parse(readFileSync(resolve(directory, 'package.json'), 'utf8')) as {
-        name?: string;
-        version?: string;
-      };
-      if (parsed.name === '@know-n/colp-server' && typeof parsed.version === 'string' && parsed.version.length > 0) {
-        cachedServerVersion = parsed.version;
-        return cachedServerVersion;
-      }
-    } catch {
-      // Keep walking toward the server package root.
-    }
-    const parent = dirname(directory);
-    if (parent === directory) break;
-    directory = parent;
-  }
-  throw new Error('colp-server package.json version is unavailable');
+  return version.server;
 }
 
 /**

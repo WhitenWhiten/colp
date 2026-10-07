@@ -9,6 +9,7 @@ import {
 } from '../../../src/bootstrap/oidc-endpoint-policy.js';
 import type { IdentityUnitOfWork } from '../../../src/modules/identity/index.js';
 import { buildApiApp } from '../../../src/transport/app.js';
+import { version } from '../../../src/version.js';
 import {
   AUTH_RATE_LIMITED_PATHS,
   authRateLimitRouteFamilyForPath,
@@ -388,7 +389,7 @@ describe('auth rate limit boundary and reset', () => {
     // Health remains available under auth rate pressure.
     const health = await app.inject({ method: 'GET', url: '/health' });
     assert.equal(health.statusCode, 200);
-    assert.deepEqual(health.json(), { status: 'ok' });
+    assert.deepEqual(health.json(), { status: 'ok', version });
 
     limiter.reset();
     const afterReset = await app.inject({ method: 'GET', url: '/api/v1/session' });
