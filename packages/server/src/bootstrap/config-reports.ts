@@ -1,6 +1,13 @@
 import { parseCanonicalUtcTimestamp, parsePositiveInt, requireNonEmpty } from './config-parse-helpers.js';
-import { REPORT_CURSOR_MAX_PREVIOUS_KEYS, REPORT_CURSOR_TTL_MS, REPORT_ISSUE_KEY_MAX_LENGTH, REPORT_RRULE_MAX_LENGTH, REPORT_SLUG_MAX_LENGTH, REPORT_SUMMARY_MAX_LENGTH, REPORT_TITLE_MAX_LENGTH } from '../modules/reports/index.js';
 import type { CacheTtlConfig } from './config-types.js';
+
+const REPORT_TITLE_MAX_LENGTH = 512;
+const REPORT_SUMMARY_MAX_LENGTH = 2_000;
+const REPORT_SLUG_MAX_LENGTH = 63;
+const REPORT_ISSUE_KEY_MAX_LENGTH = 128;
+const REPORT_RRULE_MAX_LENGTH = 1_024;
+const REPORT_CURSOR_TTL_MS = 15 * 60 * 1_000;
+const REPORT_CURSOR_MAX_PREVIOUS_KEYS = 8;
 
 export interface ReportsCacheConfig {
   readonly metadata: CacheTtlConfig;

@@ -78,24 +78,8 @@ export {
   validatePublicationCachePurgeV2,
 } from './publication-cache-purge.js';
 export { RedisReportCacheInvalidator, REPORT_CACHE_EPOCH_TTL_MS, REPORT_CACHE_SOURCE_BATCH_LIMIT } from './redis-report-invalidator.js';
-export {
-  createGovernanceAccountControlRoute,
-  createGovernanceBookmarkControlRoute,
-  createGovernanceBookmarkControlRoutes,
-  createGovernanceCollectionControlRoute,
-  createGovernanceCollectionControlRoutes,
-  createGovernanceDigestControlRoute,
-  governanceBookmarkControlEnvelopeRegistrations,
-  governanceCollectionControlEnvelopeRegistrations,
-  validateGovernanceAccountControlV1,
-  validateGovernanceBookmarkControlV1,
-  validateGovernanceCollectionControlV1,
-  validateGovernanceDigestControlV1,
-} from './governance-collection-control.js';
 export { createPostgresReportSourceInvalidationOutboxPort } from './report-source-invalidation-producer.js';
 export type { ReportSeriesInvalidationInput, ReportSourceInvalidationInput, ReportSourceInvalidationOutboxPort } from './report-source-invalidation-producer.js';
-export { buildReportPublicSurfaceUrls, createFetchPublicSurfacePurgePort } from './reports-public-surface-purge.js';
-export type { PublicSurfacePurgePort, PublicSurfacePurgeRequest, ReportPublicSurface } from './reports-public-surface-purge.js';
 export {
   CompositePublicationCachePurgeProvider,
   PUBLICATION_DIRECTORY_ROTATION_BY_SOURCE_EVENT_TYPE,
@@ -186,34 +170,6 @@ export type {
   PostgresMcpChangeSignalSource,
   PostgresMcpChangeSignalSourceOptions,
 } from './postgres-mcp-change-signal-source.js';
-export {
-  appendReportOutboxEvent,
-  appendReportsSeriesChangedOutbox,
-  appendReportsEditionChangedOutbox,
-  appendReportsSourceInvalidatedOutbox,
-  appendReportsPublicSurfacePurgeOutbox,
-  REPORTS_SERIES_CHANGED_EVENT_TYPE,
-  REPORTS_EDITION_CHANGED_EVENT_TYPE,
-  REPORTS_SOURCE_INVALIDATED_EVENT_TYPE,
-  REPORTS_PUBLIC_SURFACE_PURGE_EVENT_TYPE,
-  REPORTS_PROJECTION_HANDLER_NAME,
-  REPORTS_SOURCE_INVALIDATION_HANDLER_NAME,
-  REPORTS_PUBLIC_SURFACE_PURGE_HANDLER_NAME,
-  REPORTS_SERIES_CHANGED_EVENT_VERSION,
-  REPORTS_EDITION_CHANGED_EVENT_VERSION,
-  REPORTS_SOURCE_INVALIDATED_EVENT_VERSION,
-  REPORTS_PUBLIC_SURFACE_PURGE_EVENT_VERSION,
-  validateReportsSeriesChangedV1,
-  validateReportsEditionChangedV1,
-  validateReportsSourceInvalidatedV1,
-  validateReportsPublicSurfacePurgeV1,
-  reportsEnvelopeRegistrations,
-  reportEnvelopeRegistrations,
-  createReportsOutboxRoutes,
-  createReportsOutboxRouter,
-  createPostgresReportOutboxConsumer,
-} from './reports-events.js';
-export type { ReportOutboxConsumer } from './reports-events.js';
 export {
   SYNC_CONFLICT_OPENED_EVENT_TYPE,
   SYNC_CONFLICT_OPENED_EVENT_VERSION,

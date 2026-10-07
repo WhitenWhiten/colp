@@ -15,7 +15,7 @@ import type { DatabaseSchema } from '../database/index.js';
 import {
   accountRestrictPublicationExistsSql,
   bookmarkDiscoveryExistsSql,
-} from '../governance/collection-control-sql.js';
+} from '../database/collection-control-sql.js';
 
 type AnnotationType = 'note' | 'summary' | 'tldr' | 'highlight' | 'rating' | 'custom';
 

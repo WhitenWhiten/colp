@@ -41,7 +41,6 @@ import type {
 } from '../modules/collections/index.js';
 import type { IdentityUnitOfWork, AvatarObjectStore, ExploreCreatorsQueryPort } from '../modules/identity/index.js';
 import type { BrowserSessionAuthority, AccountLinkingService, AccountRecoveryService, AccountDeletionService, SecurityEpochBridge } from '../modules/auth/index.js';
-import type { ReadingProgressUnitOfWork, ReadingProgressReadUnitOfWork, SavedResourceReadUnitOfWork, SavedResourceUnitOfWork } from '../modules/reading-progress/index.js';
 import type {
   PublicationDirectoryQueryPorts,
   PublicationMetadataQueryPorts,
@@ -136,15 +135,6 @@ import {
 } from './product/product-collaboration-routes.js';
 import { registerSharedCollectionRoutes } from './product/shared-collection-routes.js';
 import {
-  registerProductPublicProfileRoutes,
-  type ProductPublicProfileQuery,
-} from './product/product-public-profile-routes.js';
-import {
-  PUBLIC_ACTIVITY_OPERATION_IDS,
-  registerProductPublicActivityRoutes,
-  type ProductPublicActivityQuery,
-} from './product/product-public-activity-routes.js';
-import {
   registerSyncSessionRoutes,
   type SyncSessionRouteDependencies,
 } from './colp-sync/sync-session-routes.js';
@@ -156,8 +146,6 @@ import { registerSyncEffectPageRoutes, type SyncEffectPageRouteDependencies } fr
 import { registerSyncAckRoutes, type SyncAckRouteDependencies } from './colp-sync/sync-ack-routes.js';
 import { registerSyncRetireRoutes, type SyncRetireRouteDependencies } from './colp-sync/sync-retire-routes.js';
 import { EXTENSION_COLLECTIONS_PATH, registerExtensionCollectionRoutes, type ExtensionCollectionRouteDependencies } from './colp-sync/extension-collection-routes.js';
-import { registerSavedResourceRoutes } from './product/saved-resource-routes.js';
-import { registerReadingProgressRoutes } from './product/reading-progress-routes.js';
 import { registerSearchRoutes, type SearchProductQuery } from './product/search-routes.js';
 import { registerMcpProtectedResourceRoutes } from './mcp/mcp-protected-resource-routes.js';
 import { registerMcpReadRoutes, type McpReadTransportDependencies } from './mcp/mcp-read-routes.js';
@@ -171,16 +159,8 @@ import type {
   Phase3SyncProfileClaims,
   Phase3SyncProfileClaimController,
 } from '../modules/sync/index.js';
-import type { CollectionFollowCombinedQueryPorts, CollectionFollowCommandPorts,
-  FeedCapabilityReadiness, FeedQueryPorts, FollowCommandPorts,
-  FollowQueryPorts } from '../modules/social/index.js';
-import { registerFollowRoutes } from './product/follow-routes.js';
-import { registerFeedRoutes } from './product/feed-routes.js';
-import type { NotificationCapabilityReadiness, NotificationInboxQueryPorts, NotificationPreferenceCommandPorts,
-  NotificationPreferenceReadPort, NotificationReadCommandPorts } from '../modules/notifications/index.js';
 import { registerEmailCallbackRoutes, type EmailCallbackRoutesDependencies } from './product/email-callback-routes.js';
 import { registerEmailOpsRoutes, type EmailOpsRoutesDependencies } from './product/email-ops-routes.js';
-import { registerNotificationRoutes } from './product/notification-routes.js';
 import { registerAttachmentRoutes, type AttachmentRoutesDependencies } from './product/attachment-routes.js';
 import {
   ATTACHMENT_ERROR_CODES,
@@ -249,10 +229,6 @@ export function buildApiApp(input: AppDependencies) {
   annotationReadUnitOfWork,
   relationMutationUnitOfWork,
   relationReadUnitOfWork,
-  savedResourceUnitOfWork,
-  savedResourceReadUnitOfWork,
-  readingProgressUnitOfWork,
-  readingProgressReadUnitOfWork,
   oidcProvider,
   browserSessionAuthority,
   accountLinking,
@@ -281,7 +257,6 @@ export function buildApiApp(input: AppDependencies) {
   productPublishingInsights,
   productCollaboration,
   publicProfileQuery,
-  publicActivityQuery,
   searchQuery,
   publicationProfileClaims,
   publicationProfileClaimController,
@@ -302,23 +277,13 @@ export function buildApiApp(input: AppDependencies) {
   extensionCollectionRoutes,
   productSyncCenterUnitOfWork,
   syncConflictsCapabilityReadiness,
-  followCommandUnitOfWork,
-  followQueryUnitOfWork,
   followRateLimiter,
-  collectionFollowCommandUnitOfWork,
-  collectionFollowQueryUnitOfWork,
   collectionFollowRateLimiter,
-  communityTargetQueryUnitOfWork,
-  communityVoteCommandUnitOfWork,
-  communityRankingQueryUnitOfWork,
-  communityCommentQueryUnitOfWork,
-  communityCommentCommandUnitOfWork,
   libraryOrderCommandUnitOfWork,
   libraryOrderQueryUnitOfWork,
   libraryOrderRateLimiter,
-  catalogPreferencesUnitOfWork, catalogPreferencesQuery, moderationCommandUnitOfWork, moderationQueryPorts, governanceReportRateLimiter, governanceActionRateLimiter, governanceAppealRateLimiter,
+  governanceReportRateLimiter, governanceActionRateLimiter, governanceAppealRateLimiter,
   bookmarkPreferencesUnitOfWork, bookmarkPreferencesQuery,
-  feedQueryUnitOfWork,
   feedRateLimiter,
   linkHealthRateLimiter,
   classifyInboxRateLimiter,
@@ -327,14 +292,7 @@ export function buildApiApp(input: AppDependencies) {
   collectionVersionRateLimiter,
   readableReplicaRateLimiter,
   publicObjectRateLimiter,
-  feedCapabilityReadiness,
-  notificationQueryUnitOfWork,
-  notificationReadCommandUnitOfWork,
-  notificationPreferenceRead,
-  notificationEmailRuntime,
-  notificationPreferenceCommandUnitOfWork,
   notificationRateLimiter,
-  notificationCapabilityReadiness,
   attachmentsCapabilityReadiness,
   attachmentRoutes,
   emailCallbackRoutes,
@@ -491,30 +449,14 @@ export function buildApiApp(input: AppDependencies) {
       && annotationReadUnitOfWork
       && relationMutationUnitOfWork
       && relationReadUnitOfWork
-      && savedResourceUnitOfWork
-      && savedResourceReadUnitOfWork
-      && readingProgressUnitOfWork
-      && readingProgressReadUnitOfWork
       && productPublicCollectionQuery
       && publicProfileQuery
       && searchQuery
       && productSyncCenterUnitOfWork
-      && followCommandUnitOfWork
-      && followQueryUnitOfWork
-      && collectionFollowCommandUnitOfWork
-      && collectionFollowQueryUnitOfWork
-      && communityTargetQueryUnitOfWork
-      && communityVoteCommandUnitOfWork
-      && communityRankingQueryUnitOfWork
-      && communityCommentQueryUnitOfWork
-      && communityCommentCommandUnitOfWork
       && libraryOrderCommandUnitOfWork
       && libraryOrderQueryUnitOfWork
-      && catalogPreferencesUnitOfWork && catalogPreferencesQuery
       && bookmarkPreferencesUnitOfWork && bookmarkPreferencesQuery && input.captureRuntime && input.captureHistory && input.captureLearning
-      && moderationCommandUnitOfWork && moderationQueryPorts
       && mcpWriteApprovalRoutes !== undefined
-      && (!config.reports.enabled || (input.reportsUnitOfWork !== undefined && input.reportsRateLimiter !== undefined))
     ),
     // F2: Better Auth mode composes zero legacy OIDC routes while the
     // OpenAPI keeps the operations marked deprecated (rollback-safe), so the
@@ -528,7 +470,8 @@ export function buildApiApp(input: AppDependencies) {
       ...BOOKMARK_FAVICON_DEFERRED_OPERATION_IDS,
       ...(faviconStore ? [] : ['getBookmarkFavicon']), ...(linkPreviewStore ? [] : ['getLinkPreviewObject']),
       ...(explorePageQuery ? [] : [...EXPLORE_OPERATION_IDS]),
-      ...(publicActivityQuery ? [] : [...PUBLIC_ACTIVITY_OPERATION_IDS]),
+      'listPublicProfileActivity',
+      'headPublicProfileActivity',
     ], classificationByokEnabled: config.classification?.enabled === true && config.classification?.byokEnabled === true,
   });
   app.decorate('metrics', metrics);
@@ -651,9 +594,7 @@ export function buildApiApp(input: AppDependencies) {
     productRouteRateLimiters,
     effectPageRateLimiter,
     mcpRateLimiter,
-    feedCapabilityReadiness,
     attachmentsCapabilityReadiness,
-    notificationCapabilityReadiness,
     syncConflictsCapabilityReadiness,
     metrics,
   });

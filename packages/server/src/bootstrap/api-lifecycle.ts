@@ -1,13 +1,8 @@
 import { isProductSurfaceRateLimiter, type ProductAdmissionRateLimiter } from '../transport/http-security.js';
 
 export interface ApiRuntimeResources {
-  readonly notificationCursorKeys: { destroy(): void };
-  readonly feedCursorKeys: { destroy(): void };
-  readonly publicActivityCursorKeys: { destroy(): void };
-  readonly followCursorKeys: { destroy(): void };
   readonly accountCredentialCursors: { destroy(): void };
   readonly accountCredentialGrantCursors: { destroy(): void };
-  readonly followedCollectionsCursorKeys: { destroy(): void };
   readonly ownedCollectionsCursorSigner: { destroy(): void };
   readonly sharedCollectionsCursorSigner: { destroy(): void };
   readonly collaborationMembersCursorSigner: { destroy(): void };
@@ -87,13 +82,8 @@ async function attemptOptionalClose(
 
 export async function closeApiRuntimeResources(input: ApiRuntimeResources): Promise<void> {
   const failures: CloseFailure[] = [];
-  attemptDestroy(failures, 'notificationCursorKeys', () => input.notificationCursorKeys.destroy());
-  attemptDestroy(failures, 'feedCursorKeys', () => input.feedCursorKeys.destroy());
-  attemptDestroy(failures, 'publicActivityCursorKeys', () => input.publicActivityCursorKeys.destroy());
-  attemptDestroy(failures, 'followCursorKeys', () => input.followCursorKeys.destroy());
   attemptDestroy(failures, 'accountCredentialCursors', () => input.accountCredentialCursors.destroy());
   attemptDestroy(failures, 'accountCredentialGrantCursors', () => input.accountCredentialGrantCursors.destroy());
-  attemptDestroy(failures, 'followedCollectionsCursorKeys', () => input.followedCollectionsCursorKeys.destroy());
   attemptDestroy(failures, 'ownedCollectionsCursorSigner', () => input.ownedCollectionsCursorSigner.destroy());
   attemptDestroy(failures, 'sharedCollectionsCursorSigner', () => input.sharedCollectionsCursorSigner.destroy());
   attemptDestroy(

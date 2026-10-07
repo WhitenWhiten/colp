@@ -76,24 +76,10 @@ describe('Worker inspection ticks', () => {
   test('worker start records inspection errors and keeps later ticks eligible', async () => {
     vi.useFakeTimers();
     let syncCalls = 0;
-    let feedCalls = 0;
-    let notificationCalls = 0;
     const metrics = new InMemoryMetrics();
     const silent = { info() {}, warn() {}, error() {} };
     const worker = buildWorker(config, undefined, metrics, {
       logger: silent,
-      feedOperations: {
-        inspectStatus: async () => {
-          feedCalls += 1;
-          throw new Error('feed inspect failed');
-        },
-      },
-      notificationOperations: {
-        inspectStatus: async () => {
-          notificationCalls += 1;
-          throw new Error('notification inspect failed');
-        },
-      },
       syncOperations: {
         inspect: async () => {
           syncCalls += 1;
@@ -102,19 +88,13 @@ describe('Worker inspection ticks', () => {
       },
     });
     await worker.start();
-    assert.equal(feedCalls, 1);
-    assert.equal(notificationCalls, 1);
     assert.equal(syncCalls, 1);
-    assert.equal(metrics.get('feed.operations_inspect_error'), 1);
-    assert.equal(metrics.get('notifications.operations_inspect_error'), 1);
     assert.equal(metrics.get('sync.operations_inspect_error'), 1);
     await vi.advanceTimersByTimeAsync(30_001);
-    assert.equal(feedCalls, 2);
-    assert.equal(notificationCalls, 2);
     assert.equal(syncCalls, 2);
     await worker.stop();
-    const stoppedFeed = feedCalls;
+    const stoppedSync = syncCalls;
     await vi.advanceTimersByTimeAsync(30_000);
-    assert.equal(feedCalls, stoppedFeed);
+    assert.equal(syncCalls, stoppedSync);
   });
 });

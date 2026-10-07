@@ -5,7 +5,7 @@ import {
   type InviteEmailSender,
   type SendInviteEmailInput,
 } from '../../modules/access-policy/index.js';
-import type { EmailSendInput, EmailSendResult } from '../../modules/notifications/index.js';
+import type { EmailSendInput, EmailSendResult } from '../../modules/email/index.js';
 import { AliyunDirectMailAdapter, redactEvidence, validateIdempotencyKey } from './aliyun-directmail-adapter.js';
 import {
   defaultEmailSkinMap,

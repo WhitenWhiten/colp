@@ -5,7 +5,7 @@ import {
   type EmailCallbackRateLimiter,
   type EmailCallbackReconciliationResult,
   type EmailCallbackVerifier,
-} from '../../modules/notifications/index.js';
+} from '../../modules/email/index.js';
 import { redactSensitiveText, type Metrics } from '../../infrastructure/telemetry/index.js';
 
 export const EMAIL_CALLBACK_PATH = '/api/v1/email/callbacks/delivery';

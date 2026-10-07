@@ -37,7 +37,6 @@ import {
   callOwnedCollectionsListTool,
   canListOwnedCollectionsTool,
 } from './owned-collection-mcp.js';
-import { COMMUNITY_MCP_TOOL_NAMES } from './community-mcp.js';
 
 export interface McpApplicationFacade {
   readonly listTools: (
@@ -69,14 +68,6 @@ export interface Phase4bMcpApplicationFacadeOptions {
   readonly snapshotProjection: Phase4bMcpSnapshotResourceProjection;
   readonly nodeProjection: Phase4bMcpNodeResourceProjection;
   readonly readPort: McpApplicationReadPort;
-  /** Optional host-extension read tools (for example Reports). */
-  readonly reportReadPort?: McpApplicationReadPort;
-  /** Optional host-extension write tools (for example typed report Plans). */
-  readonly reportWritePort?: McpApplicationWritePort;
-  /** Optional host-extension community tools (CS-01 target + vote). */
-  readonly communityPort?: McpApplicationReadPort;
-  /** Optional content-governance moderation tools on the compat host. */
-  readonly moderationPort?: McpApplicationReadPort;
   readonly writePort?: McpApplicationWritePort;
   readonly ownedCollectionsQuery?: GetOwnedCollectionsPagePorts;
 }
@@ -89,10 +80,6 @@ export function createPhase4bMcpApplicationFacade(
   const snapshotProjection = options.snapshotProjection;
   const nodeProjection = options.nodeProjection;
   const readPort = options.readPort;
-  const reportReadPort = options.reportReadPort;
-  const reportWritePort = options.reportWritePort;
-  const communityPort = options.communityPort;
-  const moderationPort = options.moderationPort;
   const writePort = options.writePort;
   const ownedCollectionsQuery = options.ownedCollectionsQuery;
 
@@ -102,24 +89,14 @@ export function createPhase4bMcpApplicationFacade(
   ): Promise<McpApplicationToolList> => {
     const canRead = canListApplicationReadTools(context);
     const canWrite = writePort !== undefined && canListApplicationWriteTools(context);
-    const reportTools = reportReadPort === undefined ? [] : await reportReadPort.listTools(context, cursor);
-    const reportWriteTools = reportWritePort === undefined ? [] : await reportWritePort.listTools(context, cursor);
-    const moderationTools = moderationPort === undefined ? [] : await moderationPort.listTools(context, cursor);
-    const canReport = reportTools.length > 0 || reportWriteTools.length > 0;
-    const communityTools = communityPort === undefined ? [] : await communityPort.listTools(context, cursor);
-    const canModeration = moderationTools.length > 0;
     const canListOwned = canListOwnedCollectionsTool(context, ownedCollectionsQuery);
-    if (!canRead && !canWrite && !canReport && communityTools.length === 0 && !canModeration) {
+    if (!canRead && !canWrite && !canListOwned) {
       return Object.freeze({ tools: Object.freeze([]) });
     }
     const tools: McpApplicationToolDescriptor[] = [];
     if (canRead) {
       tools.push(...await readPort.listTools(context, cursor));
     }
-    if (canReport) tools.push(...reportTools);
-    if (reportWriteTools.length > 0) tools.push(...reportWriteTools);
-    if (communityTools.length > 0) tools.push(...communityTools);
-    if (canModeration) tools.push(...moderationTools);
     if (canListOwned) {
       tools.push(PHASE4B_MCP_COLLECTIONS_LIST_TOOL);
     }
@@ -143,19 +120,6 @@ export function createPhase4bMcpApplicationFacade(
       return callOwnedCollectionsListTool(ownedCollectionsQuery, context, args);
     }
     const isWriteTool = isApplicationWriteToolName(name);
-    if (reportReadPort !== undefined && (name === 'reports.get' || name === 'reports.list' || name === 'reports.issues.list' || name === 'reports.issues.content')) {
-      return reportReadPort.callTool(context, name, args);
-    }
-    if (reportWritePort !== undefined && name.startsWith('reports.')) {
-      return reportWritePort.callTool(context, name, args);
-    }
-    if (communityPort !== undefined
-        && (COMMUNITY_MCP_TOOL_NAMES as readonly string[]).includes(name)) {
-      return communityPort.callTool(context, name, args);
-    }
-    if (moderationPort !== undefined && name.startsWith('known.moderation.')) {
-      return moderationPort.callTool(context, name, args);
-    }
     const canCallWrite = isWriteTool
       && writePort !== undefined
       && canCallApplicationWriteTool(context, name);

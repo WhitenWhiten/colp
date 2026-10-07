@@ -21,12 +21,12 @@ import {
   UNIFIED_EMAIL_SKIN,
 } from '../../../src/infrastructure/email/unified-email-chrome.js';
 import { renderEmailHeading } from '../../../src/infrastructure/email/email-inner-blocks.js';
-import { createEmailTemplateRenderers } from '../../../src/modules/notifications/index.js';
+import { createEmailTemplateRenderers } from '../../../src/modules/email/index.js';
 import type {
   EmailTemplateContext,
   EmailTemplateMessage,
   EmailTemplateNotificationType,
-} from '../../../src/modules/notifications/index.js';
+} from '../../../src/modules/email/index.js';
 
 const OTP = '483920';
 const backendRoot = resolve(import.meta.dirname, '../../..');
@@ -369,7 +369,7 @@ describe('MAIL-01 source negatives', () => {
 
   test('application email delivery worker still has no chrome import', () => {
     const source = readFileSync(
-      resolve(backendRoot, 'src/modules/notifications/application/email-delivery-worker.ts'),
+      resolve(backendRoot, 'src/modules/email/email-delivery-worker.ts'),
       'utf8',
     );
     assert.doesNotMatch(source, /unified-email-chrome/u);

@@ -4,8 +4,8 @@ import { timingSafeEqual } from 'node:crypto';
 import { DEFAULT_EXPORT_R2_PREFIX } from '../modules/collections/index.js';
 import {
   assertFeedOperationsConfig,
-} from '../modules/social/index.js';
-import { assertNotificationOperationsConfig } from '../modules/notifications/index.js';
+  assertNotificationOperationsConfig,
+} from './config-social.js';
 import {
   parseAttachmentsFeatureConfig,
   assertProductionRateLimitProfile,

@@ -339,7 +339,7 @@ describe('publication cache purge configuration and readiness', () => {
     assert.equal(loopback.publication.cachePurge?.endpoint, 'http://127.0.0.1:9999/purge');
   });
 
-  test('production readiness fails closed without purge and exposes the durable purge routes (2 versioned + 4 governance) when wired', async () => {
+  test('production readiness fails closed without purge and exposes the durable purge routes (2 versioned) when wired', async () => {
     const base = loadConfig({ DATABASE_URL: 'postgres://unused/known', LOG_LEVEL: 'silent',
       OIDC_JWKS_URI: 'https://issuer.example/realms/known/certs' });
     const config = Object.freeze({ ...base, nodeEnv: 'production' });
@@ -369,8 +369,8 @@ describe('publication cache purge configuration and readiness', () => {
     });
     assert.deepEqual(configured.outbox?.projectionReadiness().publicationCachePurge, {
       configured: true,
-      routeCount: 6,
-      durableCount: 6,
+      routeCount: 2,
+      durableCount: 2,
       allDurable: true,
       state: 'durable',
     });
@@ -392,8 +392,8 @@ describe('publication cache purge configuration and readiness', () => {
     // it must never be reported as durable even though the routes are declared durable.
     assert.deepEqual(worker.outbox?.projectionReadiness().publicationCachePurge, {
       configured: true,
-      routeCount: 6,
-      durableCount: 6,
+      routeCount: 2,
+      durableCount: 2,
       allDurable: false,
       state: 'stubbed',
     });
@@ -417,8 +417,8 @@ describe('publication cache purge configuration and readiness', () => {
     const worker = buildWorker(config, database);
     assert.deepEqual(worker.outbox?.projectionReadiness().publicationCachePurge, {
       configured: true,
-      routeCount: 6,
-      durableCount: 6,
+      routeCount: 2,
+      durableCount: 2,
       allDurable: true,
       state: 'durable',
     });

@@ -1,4 +1,3 @@
-import { createReportIssueContentReader } from './mcp-report-content-composition.js';
 import { loadConfig, DEFAULT_MCP_WRITE_COMMIT_RATE_LIMIT } from './config.js';
 import { createPhase4bMcpWriteComposition } from './mcp-write-composition.js';
 import { createMcpReadOAuthTransportDependencies, createMcpSecurityEpochReader,
@@ -14,20 +13,8 @@ import {
   mcpReadFeatureConfigAssertOptions,
   type McpOauthRevocationStore,
   type McpApplicationFacade,
-  type McpApplicationWritePort,
 } from '../modules/mcp/index.js';
 import { createPostgresMcpOwnedCollectionReadPort } from '../infrastructure/collections/index.js';
-import {
-  createPostgresCommunityCommentCommandUnitOfWork,
-  createPostgresCommunityCommentManageUnitOfWork,
-  createPostgresCommunityCommentQueryUnitOfWork,
-  createPostgresCommunityNotificationCommandUnitOfWork,
-  createPostgresCommunityNotificationQueryUnitOfWork,
-  createPostgresCommunityRankingQueryUnitOfWork,
-  createPostgresCommunityTargetQueryUnitOfWork,
-  createPostgresCommunityVoteCommandUnitOfWork,
-} from '../infrastructure/community/index.js';
-import { createCommunityMcpToolPort } from '../modules/mcp/index.js';
 import {
   createPostgresMcpChangeSignalChannel,
   createPostgresMcpChangeSignalSource,
@@ -45,9 +32,6 @@ import {
   type McpRateLimiter,
 } from '../infrastructure/rate-limit/index.js';
 import type { IdentityUnitOfWork } from '../modules/identity/index.js';
-import type { ReportTransactionPorts, ReportUnitOfWork } from '../modules/reports/index.js';
-import { createReportMcpReadToolPort } from '../modules/mcp/index.js';
-export { createReportMcpReadToolPort } from '../modules/mcp/index.js';
 import type { GetOwnedCollectionsPagePorts } from '../modules/collections/index.js';
 import { composeCredentialGrantMcp, createCollectionGrantCommitGuard } from './account-credential-grant-composition.js';
 import { createPostgresAccountCredentialUnitOfWork } from '../infrastructure/auth/account-credentials-postgres.js';
@@ -59,13 +43,6 @@ import {
 } from '../modules/auth/index.js';
 import type { Metrics } from '../infrastructure/telemetry/index.js';
 import { createPhase4bMcpApplicationFacadeFromColpAdapters } from '../transport/mcp/mcp-strict-application-adapter.js';
-import { createModerationMcpPort } from '../transport/mcp/moderation-mcp-adapter.js';
-import {
-  createPostgresModerationActionMethods,
-  createPostgresModerationCommandUnitOfWork,
-  createPostgresModerationQueryPorts,
-  findAccountBySubject,
-} from '../infrastructure/governance/index.js';
 import { settleBestEffort } from '../infrastructure/async/best-effort.js';
 
 export interface ApiMcpSurfaceComposition {
@@ -94,11 +71,6 @@ export async function composeApiMcpSurface(input: {
   readonly accessPolicyFacts: Parameters<typeof createPhase4bMcpCollectionResourceProjection>[0]['accessPolicy'];
   readonly publicationSnapshotQuery: Parameters<typeof createPhase4bMcpSnapshotResourceProjection>[0]['snapshotQuery'];
   readonly ownedCollectionsQuery?: GetOwnedCollectionsPagePorts;
-  readonly reportsUnitOfWork?: ReportUnitOfWork;
-  readonly reportsUnitOfWorkOptions?: {
-    readonly publicSurfacePurgeEnabled?: boolean;
-    };
-  readonly reportWritePort?: McpApplicationWritePort;
   readonly reportSourceInvalidation?: ReportSourceInvalidationOutboxPort;
   readonly jwksProvider?: McpReadOAuthTransportDependenciesOptions['jwksProvider'];
   readonly governanceReportRateLimiter?: import('../transport/http-security.js').ProductAdmissionRateLimiter;
@@ -108,12 +80,9 @@ export async function composeApiMcpSurface(input: {
   const {
     config, database, identityUnitOfWork, metrics,
     publicationDirectoryReads, publicationMetadataReads, publicationCursorKeys,
-    accessPolicyFacts, publicationSnapshotQuery, ownedCollectionsQuery, reportsUnitOfWork,
+    accessPolicyFacts, publicationSnapshotQuery, ownedCollectionsQuery,
     reportSourceInvalidation, jwksProvider, governanceReportRateLimiter,
   } = input;
-  if (config.reports.mcpWriteEnabled && input.reportWritePort === undefined && reportsUnitOfWork === undefined) {
-    throw new Error('KNOWN_FEATURE_REPORTS_MCP_WRITE requires a durable typed report write port');
-  }
   const mcpAssertOptions = mcpReadFeatureConfigAssertOptions({
     nodeEnv: config.nodeEnv,
     oauthIssuerEnabled: config.betterAuth.oauthIssuerEnabled,
@@ -149,7 +118,6 @@ export async function composeApiMcpSurface(input: {
           metadataQuery: {
             reads: publicationMetadataReads,
             origin: config.publication.origin,
-            collectionControl: createPostgresModerationActionMethods(database.db),
           },
           accessPolicy: accessPolicyFacts,
           cursorKeys: mcpCollectionResourceCursorKeys,
@@ -284,14 +252,10 @@ export async function composeApiMcpSurface(input: {
   }
   let mcpWriteComposition: ReturnType<typeof createPhase4bMcpWriteComposition> | undefined;
   const grantMcp = composeCredentialGrantMcp({
-    config, db: database.db, reportsUnitOfWork,
+    config,
     securityEpoch: createMcpSecurityEpochReader(config, mcpOauthRevocationStore),
-    ...(input.reportsUnitOfWorkOptions === undefined
-      ? {} : { reportsUnitOfWorkOptions: input.reportsUnitOfWorkOptions }),
-    incomingReportWritePort: input.reportWritePort,
   });
   const grantRuntime = grantMcp.grantRuntime;
-  const resolvedReportWrite = grantMcp.reportWritePort;
   if (config.mcpWriteEnabled) {
     if (config.mcp === undefined || config.mcpWrite === undefined) {
       throw new Error('KNOWN_FEATURE_MCP_WRITE requires the complete MCP Read host and Write config closure');
@@ -321,38 +285,6 @@ export async function composeApiMcpSurface(input: {
     });
     grantMcp.bindCollectionPlanStore(mcpWriteComposition.store);
   }
-  let moderationPort: ReturnType<typeof createModerationMcpPort> | undefined;
-  if (config.contentGovernance.enabled && config.mcp) {
-    if (config.mcp.budgets.output.maxBytes < 262_144) {
-      throw new Error('content governance MCP adapters require MCP output.maxBytes >= 262144');
-    }
-    if (governanceReportRateLimiter === undefined) {
-      throw new Error('content governance MCP adapters require the governance-report rate limiter');
-    }
-    const actionRateLimiter = input.governanceActionRateLimiter;
-    if (actionRateLimiter === undefined) {
-      throw new Error('content governance MCP adapters require the governance-action rate limiter');
-    }
-    const appealRateLimiter = input.governanceAppealRateLimiter;
-    if (appealRateLimiter === undefined) {
-      throw new Error('content governance MCP adapters require the governance-appeal rate limiter');
-    }
-    const hmacKey = config.contentGovernance.cursorHmacKey;
-    if (hmacKey === null) {
-      throw new Error('GOVERNANCE_CURSOR_HMAC_KEY is required when KNOWN_FEATURE_CONTENT_GOVERNANCE=true');
-    }
-    moderationPort = createModerationMcpPort({
-      hmacKey,
-      commandUnitOfWork: createPostgresModerationCommandUnitOfWork(database.db),
-      queryPorts: createPostgresModerationQueryPorts(database.db),
-      identity: {
-        findAccountBySubject: (subjectId) => findAccountBySubject(database.db, subjectId),
-      },
-      rateLimiter: governanceReportRateLimiter,
-      actionRateLimiter,
-      appealRateLimiter,
-    });
-  }
   const mcpApplicationFacade = config.mcp
     && mcpReadResourceProjection
     && mcpSnapshotResourceProjection
@@ -364,35 +296,6 @@ export async function composeApiMcpSurface(input: {
       snapshotProjection: mcpSnapshotResourceProjection,
       nodeProjection: mcpNodeResourceProjection,
       readToolAdapter: mcpReadToolAdapter.adapter,
-      ...(config.reports.mcpEnabled && reportsUnitOfWork !== undefined
-        ? { reportReadPort: createReportMcpReadToolPort(reportsUnitOfWork, config.reports.cursor, { publicEnabled: config.reports.publicEnabled,
-          ...(mcpOwnedCollectionRead ? { contentReader: createReportIssueContentReader(mcpOwnedCollectionRead, publicationSnapshotQuery) } : {}) }) }
-        : {}),
-      ...(config.reports.mcpWriteEnabled && resolvedReportWrite !== undefined ? { reportWritePort: resolvedReportWrite } : {}),
-      // CS-01/CS-02/CS-03 community tools: same application services and
-      // PostgreSQL authority as the product HTTP routes; `enabled` only
-      // gates exposure.
-      communityPort: createCommunityMcpToolPort({
-        enabled: config.community.enabled,
-        targetQueryUnitOfWork: createPostgresCommunityTargetQueryUnitOfWork(database.db, database.cancelBackend),
-        voteCommandUnitOfWork: createPostgresCommunityVoteCommandUnitOfWork(database.db),
-        rankingQueryUnitOfWork: createPostgresCommunityRankingQueryUnitOfWork(database.db, database.cancelBackend),
-        rankingCursorHmacKey: config.community.cursorHmacKey,
-        commentQueryUnitOfWork: createPostgresCommunityCommentQueryUnitOfWork(database.db, database.cancelBackend),
-        commentCommandUnitOfWork: createPostgresCommunityCommentCommandUnitOfWork(database.db, {
-          etagHmacKey: config.community.cursorHmacKey,
-        }),
-        commentManageUnitOfWork: createPostgresCommunityCommentManageUnitOfWork(database.db, {
-          etagHmacKey: config.community.cursorHmacKey }),
-        commentCursorHmacKey: config.community.cursorHmacKey,
-        notificationQueryUnitOfWork: createPostgresCommunityNotificationQueryUnitOfWork(
-          database.db, {}, database.cancelBackend),
-        notificationCommandUnitOfWork: createPostgresCommunityNotificationCommandUnitOfWork(database.db, {
-          etagHmacKey: config.community.cursorHmacKey,
-        }),
-        notificationCursorHmacKey: config.community.cursorHmacKey,
-      }),
-      ...(moderationPort === undefined ? {} : { moderationPort }),
       ...(mcpWriteComposition === undefined ? {} : { writeToolAdapter: mcpWriteComposition.adapter }),
       ...(ownedCollectionsQuery === undefined ? {} : { ownedCollectionsQuery }),
     })

@@ -5,7 +5,7 @@ import {
   isSearchIndexableVisibility,
   SEARCH_INDEXABLE_VISIBILITY,
 } from '../http/index.js';
-import { COLLECTION_DISCOVERY_CONTROL_SQL } from '../governance/collection-control-sql.js';
+import { COLLECTION_DISCOVERY_CONTROL_SQL } from '../database/collection-control-sql.js';
 import { SEED_COLLECTION_EXCLUSION_SQL } from './postgres-search-indexing-exclusion.js';
 
 export interface PublicationSitemapRecord {

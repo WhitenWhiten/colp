@@ -37,8 +37,6 @@ function toRepoRelative(path: string): string {
 const FAST_CHECK_IMPORT_ALLOWLIST = [
   // allocatePosition is the only property-tested surface today.
   'tests/unit/collections/position-allocator-property.test.ts',
-  // Report cursor/slug/state invariants are exercised as bounded properties.
-  'tests/unit/reports/reports-domain.test.ts',
 ] as const;
 
 test('npm test delegates to unit tests and cannot pick up tests/integration', () => {

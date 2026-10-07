@@ -19,7 +19,6 @@ function createMemoryRateLimiter(): ProductAdmissionRateLimiter {
 test('API cleanup attempts every resource and reports all close failures together', async () => {
   const calls: string[] = [];
   const failures = new Set([
-    'notificationCursorKeys',
     'emailProvider',
     'mcpChangeSignalSource',
     'followRateLimiter',
@@ -52,13 +51,8 @@ test('API cleanup attempts every resource and reports all close failures togethe
   });
   const memoryRateLimiter = createMemoryRateLimiter();
   const resources = {
-    notificationCursorKeys: destroyable('notificationCursorKeys'),
-    feedCursorKeys: destroyable('feedCursorKeys'),
-    publicActivityCursorKeys: destroyable('publicActivityCursorKeys'),
-    followCursorKeys: destroyable('followCursorKeys'),
     accountCredentialCursors: destroyable('accountCredentialCursors'),
     accountCredentialGrantCursors: destroyable('accountCredentialGrantCursors'),
-    followedCollectionsCursorKeys: destroyable('followedCollectionsCursorKeys'),
     ownedCollectionsCursorSigner: destroyable('ownedCollectionsCursorSigner'),
     sharedCollectionsCursorSigner: destroyable('sharedCollectionsCursorSigner'),
     collaborationMembersCursorSigner: destroyable('collaborationMembersCursorSigner'),
@@ -106,13 +100,8 @@ test('API cleanup attempts every resource and reports all close failures togethe
   assert.equal(reported.errors.length, failures.size);
   for (const resource of failures) assert.match(reported.message, new RegExp(resource.replace('[', '\\[')));
   assert.deepEqual(calls, [
-    'notificationCursorKeys',
-    'feedCursorKeys',
-    'publicActivityCursorKeys',
-    'followCursorKeys',
     'accountCredentialCursors',
     'accountCredentialGrantCursors',
-    'followedCollectionsCursorKeys',
     'ownedCollectionsCursorSigner',
     'sharedCollectionsCursorSigner',
     'collaborationMembersCursorSigner',

@@ -242,13 +242,6 @@ const COVERED: readonly CoveredBullet[] = Object.freeze([
     title: 'canary bearer never appears in admission context, logs, metrics, or response',
   },
   {
-    id: '9.3-metrics-allowlist',
-    section: '9.3',
-    bullet: 'logs/metrics label allowlist and high-cardinality negative',
-    file: 'phase4b-mcp-compat-operations.test.ts',
-    title: 'allowlist is a small frozen suffix set and never a cartesian mega-name',
-  },
-  {
     id: '9.3-db-leak',
     section: '9.3',
     bullet: 'DB exception does not leak internals',
@@ -388,7 +381,6 @@ const REQUIRED_IDS = Object.freeze([
   '9.3-shared-rate',
   '9.3-shared-concurrency',
   '9.3-token-taint',
-  '9.3-metrics-allowlist',
   '9.3-jwks',
   '9.3-timeout',
   '9.3-no-retarget',

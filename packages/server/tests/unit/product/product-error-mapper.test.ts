@@ -11,26 +11,11 @@ import {
   RelationUpdateError,
 } from '../../../src/modules/collections/index.js';
 import { IdentityError } from '../../../src/modules/identity/index.js';
-import {
-  NotificationPreferenceCommandError,
-  NotificationReadCommandError,
-} from '../../../src/modules/notifications/index.js';
-import {
-  ReadingProgressError,
-  ReadingProgressQueryError,
-  SavedResourceError,
-  SavedResourceQueryError,
-} from '../../../src/modules/reading-progress/index.js';
 import { SearchQueryError } from '../../../src/modules/search/index.js';
-import { FollowCommandError } from '../../../src/modules/social/index.js';
 import { mapAnnotationError } from '../../../src/transport/product/annotation-routes.js';
 import { mapProfileSettingsError } from '../../../src/transport/auth/browser-auth-routes.js';
-import { mapFollowError } from '../../../src/transport/product/follow-routes.js';
-import { mapNotificationError } from '../../../src/transport/product/notification-routes.js';
 import { mapCollaborationHttpError } from '../../../src/transport/product/product-collaboration-routes.js';
 import { mapRelationError } from '../../../src/transport/product/relation-routes.js';
-import { mapReadingProgressError } from '../../../src/transport/product/reading-progress-routes.js';
-import { mapSavedResourceError } from '../../../src/transport/product/saved-resource-routes.js';
 import { mapSearchError } from '../../../src/transport/product/search-routes.js';
 import { ProductHttpError } from '../../../src/transport/product-error.js';
 
@@ -163,60 +148,6 @@ describe('R19 transport mapper wire contract', () => {
     const invalidDocument = asProductError(
       mapRelationError(new RelationCreateError('invalid_relation_document', 'x')), 'invalid_relation_document');
     assertWire(invalidDocument, 'invalid_document', 422);
-  });
-
-  test('follow mapper: command errors and unknown fail-closed to 500 internal_error', () => {
-    assertWire(asProductError(mapFollowError(new FollowCommandError('resource_not_found', 'x')), 'resource_not_found'),
-      'resource_not_found', 404, 'none');
-    assertWire(asProductError(mapFollowError(new FollowCommandError('invalid_request', 'x')), 'invalid_request'),
-      'invalid_request', 400);
-
-    const unknown = asProductError(mapFollowError(new Error('boom')), 'unknown follow error');
-    assertWire(unknown, 'internal_error', 500, 'same_request');
-  });
-
-  test('notification mapper: stale revisions/state and unknown fail-closed', () => {
-    const preference = asProductError(
-      mapNotificationError(new NotificationPreferenceCommandError('stale_revision', 'x')), 'stale_revision');
-    assertWire(preference, 'precondition_failed', 412, 'refresh_and_retry');
-    assert.equal(preference.precondition, 'resource');
-
-    const read = asProductError(mapNotificationError(new NotificationReadCommandError('stale_state', 'x')), 'stale_state');
-    assertWire(read, 'precondition_failed', 412);
-
-    const invalidRequest = asProductError(mapNotificationError(new NotificationReadCommandError('invalid_request', 'x')), 'invalid_request');
-    assertWire(invalidRequest, 'invalid_document', 422);
-
-    const unknown = asProductError(mapNotificationError(new Error('boom')), 'unknown notification error');
-    assertWire(unknown, 'internal_error', 500, 'same_request');
-  });
-
-  test('reading-progress mapper: query and mutation error codes', () => {
-    assertWire(asProductError(mapReadingProgressError(new ReadingProgressQueryError('invalid_cursor')), 'invalid_cursor'),
-      'invalid_cursor', 400, 'restart_from_first_page');
-    assertWire(asProductError(mapReadingProgressError(new ReadingProgressQueryError('invalid_reading_progress_query')), 'query'),
-      'invalid_query', 400);
-    assertWire(asProductError(mapReadingProgressError(new ReadingProgressError('reading_progress_not_found', 'x')), 'not_found'),
-      'resource_not_found', 404, 'none');
-
-    const preconditionFailed = asProductError(
-      mapReadingProgressError(new ReadingProgressError('reading_progress_precondition_failed', 'x', '"etag"')), 'precondition_failed');
-    assertWire(preconditionFailed, 'precondition_failed', 412, 'refresh_and_retry');
-    assert.equal(preconditionFailed.currentEtag, '"etag"');
-
-    assertWire(asProductError(mapReadingProgressError(new ReadingProgressError('invalid_reading_progress_input', 'x')), 'invalid_input'),
-      'invalid_document', 422);
-  });
-
-  test('saved-resource mapper: query and mutation error codes', () => {
-    assertWire(asProductError(mapSavedResourceError(new SavedResourceQueryError('invalid_cursor')), 'invalid_cursor'),
-      'invalid_cursor', 400, 'restart_from_first_page');
-    assertWire(asProductError(mapSavedResourceError(new SavedResourceQueryError('invalid_saved_resource_query')), 'query'),
-      'invalid_query', 400);
-    assertWire(asProductError(mapSavedResourceError(new SavedResourceError('saved_resource_not_found', 'x')), 'not_found'),
-      'resource_not_found', 404, 'none');
-    assertWire(asProductError(mapSavedResourceError(new SavedResourceError('invalid_saved_resource_input', 'x')), 'invalid_input'),
-      'invalid_document', 422);
   });
 
   test('search mapper: query errors, timeout/abort, unknown fail-closed', () => {

@@ -14,7 +14,7 @@ import {
   type LinkPreviewTargetIdentity,
 } from '../../modules/collections/index.js';
 import { readBackendPid, withPostgresAbort } from '../database/query-abort.js';
-import { bookmarkHidePublicExistsSql } from '../governance/collection-control-sql.js';
+import { bookmarkHidePublicExistsSql } from '../database/collection-control-sql.js';
 import { PUBLICATION_TARGET_ACCESS_MAX_DEPTH } from '../publication/target-access-facts.js';
 
 /** Transient failures retry with backoff until this count, then park. */

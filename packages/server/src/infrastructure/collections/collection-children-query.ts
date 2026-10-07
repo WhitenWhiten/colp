@@ -1,5 +1,5 @@
 import { sql } from 'kysely';
-import { bookmarkHidePublicExistsSql } from '../governance/collection-control-sql.js';
+import { bookmarkHidePublicExistsSql } from '../database/collection-control-sql.js';
 import { bookmarkPinnedSql } from './bookmark-pin-sql.js';
 import type {
   CollectionChildrenNodeRow,

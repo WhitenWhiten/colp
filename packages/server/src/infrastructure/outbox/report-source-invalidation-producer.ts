@@ -5,10 +5,9 @@ import {
   createPostgresResourceIdLedgerPort,
   type ResourceIdLedgerPort,
 } from '../database/resource-id-ledger.js';
-import {
-  REPORTS_SOURCE_INVALIDATED_EVENT_TYPE, REPORTS_SOURCE_INVALIDATED_EVENT_VERSION,
-  REPORTS_SOURCE_INVALIDATION_HANDLER_NAME,
-} from './reports-events.js';
+const REPORTS_SOURCE_INVALIDATED_EVENT_TYPE = 'reports.source.invalidated@1' as const;
+const REPORTS_SOURCE_INVALIDATION_HANDLER_NAME = 'reports_source_invalidation' as const;
+const REPORTS_SOURCE_INVALIDATED_EVENT_VERSION = 1 as const;
 
 export interface ReportSourceInvalidationInput {
   readonly domainEventId: string;

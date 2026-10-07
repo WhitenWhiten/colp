@@ -138,8 +138,8 @@ describe('T11 worker cache readiness: combinations', () => {
     assert.equal(resolvePublicationCachePurgeReadinessState(composite), 'durable');
     assert.deepEqual(worker.outbox?.projectionReadiness().publicationCachePurge, {
       configured: true,
-      routeCount: 6,
-      durableCount: 6,
+      routeCount: 2,
+      durableCount: 2,
       allDurable: true,
       state: 'durable',
     });
@@ -161,8 +161,8 @@ describe('T11 worker cache readiness: combinations', () => {
     assert.equal(resolvePublicationCachePurgeReadinessState(worker.publicationCachePurgeProvider), 'durable');
     assert.deepEqual(worker.outbox?.projectionReadiness().publicationCachePurge, {
       configured: true,
-      routeCount: 6,
-      durableCount: 6,
+      routeCount: 2,
+      durableCount: 2,
       allDurable: true,
       state: 'durable',
     });

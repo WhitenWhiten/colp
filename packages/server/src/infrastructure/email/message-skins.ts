@@ -14,7 +14,7 @@ import type {
   EmailTemplateMessage,
   EmailTemplateNotificationType,
   EmailTemplateRenderers,
-} from '../../modules/notifications/index.js';
+} from '../../modules/email/index.js';
 import {
   wrapUnifiedEmailChrome,
   type EmailMailClass,

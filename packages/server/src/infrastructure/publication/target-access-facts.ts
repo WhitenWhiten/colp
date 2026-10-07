@@ -18,7 +18,7 @@
 import {
   bookmarkHidePublicExistsSql,
   collectionHidePublicExistsSql,
-} from '../governance/collection-control-sql.js';
+} from '../database/collection-control-sql.js';
 
 export const PUBLICATION_TARGET_ACCESS_MAX_DEPTH = 256;
 

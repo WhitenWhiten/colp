@@ -128,11 +128,6 @@ function destroyPostgresCursorKeys(ports: ReturnType<typeof createApiPostgresPor
   ports.linkHealthCursorSigner.destroy();
   ports.classifyInboxCursorSigner.destroy();
   ports.collectionVersionCursorSigner.destroy();
-  ports.followCursorKeys.destroy();
-  ports.followedCollectionsCursorKeys.destroy();
-  ports.feedCursorKeys.destroy();
-  ports.publicActivityCursorKeys.destroy();
-  ports.notificationCursorKeys.destroy();
   ports.publicationCursorKeys.destroy();
 }
 
@@ -362,25 +357,6 @@ describe('API composition leaves', () => {
       accountId: 'account-1', deletedAt: new Date('2026-09-01T00:00:00.000Z'),
     }]);
     assert.deepEqual(deletedAuthUsers, ['auth-user-1']);
-  });
-
-  test('PostgreSQL composition defensively refuses missing mandatory product configs', () => {
-    const database = noSqlDatabase();
-    const metrics = new InMemoryMetrics();
-    const metricsLogger = createLogger('silent');
-    const base = loadConfig(testEnv());
-    for (const [field, message] of [
-      ['follow', 'Follow'],
-      ['feed', 'Feed'],
-      ['notifications', 'Notification'],
-    ] as const) {
-      const config = { ...base, [field]: undefined } as typeof base;
-      assert.throws(
-        () => createApiPostgresPorts({ database, config, metrics, metricsLogger }),
-        new RegExp(`${message} production configuration is required`, 'u'),
-      );
-    }
-    assert.equal(database.sqlCalls.length, 0);
   });
 
   test('attachment and delivery secret resolvers reject empty or missing refs and trim resolved values', async () => {

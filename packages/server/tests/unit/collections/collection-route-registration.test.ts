@@ -61,8 +61,6 @@ test('collection facade registers each route once in the established order', () 
   assert.deepEqual(routes, [
     ['POST', '/api/v1/collections'],
     ['PATCH', '/api/v1/collections/:collectionId'],
-    ['GET', '/api/v1/collections/:collectionId/catalog'],
-    ['PATCH', '/api/v1/collections/:collectionId/catalog'],
     ['GET', '/api/v1/collections'],
     ['POST', '/api/v1/collections/:collectionId/nodes'],
     ['PATCH', '/api/v1/collections/:collectionId/nodes/:nodeId'],

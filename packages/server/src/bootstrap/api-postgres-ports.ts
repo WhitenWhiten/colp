@@ -44,7 +44,6 @@ import {
   createPostgresLibraryOrderCommandUnitOfWork,
   createPostgresLibraryOrderQueryUnitOfWork,
 } from '../infrastructure/collections/index.js';
-import { createPostgresCatalogPreferencesQuery, createPostgresCatalogPreferencesUnitOfWork, createPostgresModerationActionMethods, createPostgresModerationCommandUnitOfWork, createPostgresModerationQueryPorts } from '../infrastructure/governance/index.js';
 import {
   createPostgresExploreCreatorsQueryPort,
   createPostgresAccountCreditsPort, createPostgresCreditHealthObserver,
@@ -103,40 +102,9 @@ import {
 } from '../infrastructure/publication/index.js';
 import { createPostgresAccessPolicyFactsPort } from '../infrastructure/access-policy/index.js';
 import { createWebShellCache, toPublicShellMarkdownNode } from '../infrastructure/http/index.js';
-import { createPostgresReadingProgressReadUnitOfWork, createPostgresReadingProgressUnitOfWork,
-  createPostgresSavedResourceReadUnitOfWork, createPostgresSavedResourceUnitOfWork } from '../infrastructure/reading-progress/index.js';
-import { createReadingProgressCursorSigner, createSavedResourceCursorSigner } from '../modules/reading-progress/index.js';
-import { createPostgresReportUnitOfWork, type PostgresReportsUnitOfWorkOptions } from '../infrastructure/reports/index.js';
 import { createPostgresSearchAuthorityPort, createPostgresSearchCandidatePort } from '../infrastructure/search/index.js';
-import { createPostgresReportSourceInvalidationOutboxPort } from '../infrastructure/outbox/index.js';
 import { createSearchCursorSigner, createSearchFirstPageCache, createSearchTelemetry,
   executeSearchQuery } from '../modules/search/index.js';
-import { createPostgresCollectionFollowCommandUnitOfWork,
-  createPostgresCollectionFollowQueryUnitOfWork,
-  createPostgresFeedQueryUnitOfWork, createPostgresFollowCommandUnitOfWork,
-  createPostgresFollowQueryUnitOfWork, createPostgresPublicActivityQueryUnitOfWork,
-  createPostgresSocialFeedOperationsRepository } from '../infrastructure/social/index.js';
-import { createPostgresCommunityTargetQueryUnitOfWork,
-  createPostgresCommunityRankingQueryUnitOfWork,
-  createPostgresCommunityVoteCommandUnitOfWork,
-  createPostgresCommunityCommentQueryUnitOfWork,
-  createPostgresCommunityCommentCommandUnitOfWork,
-  createPostgresCommunityCommentManageUnitOfWork,
-  createPostgresCommunityNotificationQueryUnitOfWork,
-  createPostgresCommunityNotificationCommandUnitOfWork } from '../infrastructure/community/index.js';
-import { createFeedCursorKeyring, createFollowCursorKeyring,
-  createFollowedCollectionsCursorKeyring,
-  createPublicActivityCursorKeyring, queryCurrentPublicActivity,
-  evaluateFeedCapabilityReadiness, publishFeedOperationsMetrics } from '../modules/social/index.js';
-import { createNotificationInboxCursorKeyring, deriveEmailDeliveryWorkerRunning,
-  evaluateNotificationCapabilityReadiness, publishNotificationOperationsMetrics }
-  from '../modules/notifications/index.js';
-import { createPostgresNotificationInboxQueryUnitOfWork,
-  createPostgresNotificationPreferenceCommandUnitOfWork,
-  createPostgresNotificationReadCommandUnitOfWork,
-  getPostgresNotificationPreferences,
-  createPostgresNotificationOperationsRepository,
-} from '../infrastructure/notifications/index.js';
 import { composeProfileSitemapQuery, composePublicProfileProjection } from './public-profile-projection.js';
 import { createApiPostgresProductCursors } from './api-postgres-product-cursors.js';
 import { createLogger, type Metrics } from '../infrastructure/telemetry/index.js';
@@ -148,8 +116,6 @@ import type { IdentityUnitOfWork } from '../modules/identity/index.js';
 
 export interface ApiPostgresPorts {
   readonly reportSourceInvalidation?: import('../infrastructure/outbox/index.js').ReportSourceInvalidationOutboxPort;
-  readonly reportsUnitOfWork: ReturnType<typeof createPostgresReportUnitOfWork>;
-  readonly reportsUnitOfWorkOptions: Pick<PostgresReportsUnitOfWorkOptions, 'publicSurfacePurgeEnabled'>;
   readonly identityUnitOfWork: IdentityUnitOfWork;
   readonly collectionsUnitOfWork: ReturnType<typeof createPostgresCollectionsUnitOfWork>;
   readonly productCollectionMutationUnitOfWork: ReturnType<typeof createPostgresCanonicalMutationUnitOfWork>;
@@ -167,10 +133,6 @@ export interface ApiPostgresPorts {
   readonly annotationReadUnitOfWork: ReturnType<typeof createPostgresAnnotationReadUnitOfWork>;
   readonly relationMutationUnitOfWork: ReturnType<typeof createPostgresRelationMutationUnitOfWork>;
   readonly relationReadUnitOfWork: ReturnType<typeof createPostgresRelationReadUnitOfWork>;
-  readonly savedResourceUnitOfWork: ReturnType<typeof createPostgresSavedResourceUnitOfWork>;
-  readonly savedResourceReadUnitOfWork: ReturnType<typeof createPostgresSavedResourceReadUnitOfWork>;
-  readonly readingProgressUnitOfWork: ReturnType<typeof createPostgresReadingProgressUnitOfWork>;
-  readonly readingProgressReadUnitOfWork: ReturnType<typeof createPostgresReadingProgressReadUnitOfWork>;
   readonly searchPorts: {
     readonly candidates: ReturnType<typeof createPostgresSearchCandidatePort>;
     readonly authority: ReturnType<typeof createPostgresSearchAuthorityPort>;
@@ -180,13 +142,6 @@ export interface ApiPostgresPorts {
     readonly sharedExposure: ReturnType<typeof createPostgresSharedExposureFactsPort>;
     readonly firstPageCache: ReturnType<typeof createSearchFirstPageCache>;
   };
-  readonly followCursorKeys: ReturnType<typeof createFollowCursorKeyring>;
-  readonly followedCollectionsCursorKeys: ReturnType<typeof createFollowedCollectionsCursorKeyring>;
-  readonly feedCursorKeys: ReturnType<typeof createFeedCursorKeyring>;
-  readonly publicActivityCursorKeys: ReturnType<typeof createPublicActivityCursorKeyring>;
-  readonly feedOperations: ReturnType<typeof createPostgresSocialFeedOperationsRepository>;
-  readonly notificationCursorKeys: ReturnType<typeof createNotificationInboxCursorKeyring>;
-  readonly notificationOperations: ReturnType<typeof createPostgresNotificationOperationsRepository>;
   readonly publicationCursorKeys: ReturnType<typeof createPublicationCursorKeyring>;
   readonly accessPolicyFacts: ReturnType<typeof createPostgresAccessPolicyFactsPort>;
   readonly publicationDirectoryReads: ReturnType<typeof createPostgresPublicationDirectoryReadPort>;
@@ -231,9 +186,7 @@ export function createApiPostgresPorts(input: {
   readonly metricsLogger: ReturnType<typeof createLogger>;
 }): ApiPostgresPorts {
   const { database, config, metrics, metricsLogger } = input;
-  const reportCacheEnabled = config.reports.enabled && config.cache.redis.mode !== 'off'
-    && (config.cache.reports.metadataEnabled || config.cache.reports.issuesEnabled || config.cache.reports.directoryEnabled);
-  const reportSourceInvalidation = reportCacheEnabled ? createPostgresReportSourceInvalidationOutboxPort() : undefined;
+  const reportSourceInvalidation = undefined;
   const identityUnitOfWork = createPostgresIdentityUnitOfWork(database.db, {
     // F2: Better Auth mode omits legacy transaction secrets; legacy mode keeps
     // the production config-backed material exactly as before.
@@ -300,24 +253,6 @@ export function createApiPostgresPorts(input: {
     cursorTtlMs: config.productEditorCursor.ttlMs,
     metrics,
   });
-  const savedResourceUnitOfWork = createPostgresSavedResourceUnitOfWork(database.db, {
-    cancelBackend: database.cancelBackend,
-  });
-  const savedResourceReadUnitOfWork = createPostgresSavedResourceReadUnitOfWork(database.db, {
-    cursorSigner: createSavedResourceCursorSigner({ current: config.productEditorCursor.current,
-      previous: config.productEditorCursor.previous }), cursorTtlMs: config.productEditorCursor.ttlMs,
-    cancelBackend: database.cancelBackend,
-  });
-  const readingProgressUnitOfWork = createPostgresReadingProgressUnitOfWork(database.db, {
-    cancelBackend: database.cancelBackend,
-  });
-  const readingProgressReadUnitOfWork = createPostgresReadingProgressReadUnitOfWork(database.db, {
-    cursorSigner: createReadingProgressCursorSigner({ current: config.productEditorCursor.current,
-      previous: config.productEditorCursor.previous }), cursorTtlMs: config.productEditorCursor.ttlMs,
-    cancelBackend: database.cancelBackend,
-  });
-  const reportsUnitOfWorkOptions = { publicSurfacePurgeEnabled: reportCacheEnabled };
-  const reportsUnitOfWork = createPostgresReportUnitOfWork(database.db, reportsUnitOfWorkOptions);
   const searchPorts = {
     candidates: createPostgresSearchCandidatePort(database.db),
     authority: createPostgresSearchAuthorityPort(database.db),
@@ -328,18 +263,6 @@ export function createApiPostgresPorts(input: {
     sharedExposure: createPostgresSharedExposureFactsPort(database),
     firstPageCache: createSearchFirstPageCache(),
   };
-  if (!config.follow) throw new Error('Follow production configuration is required');
-  const followCursorKeys = createFollowCursorKeyring(config.follow.cursorKeys);
-  const followedCollectionsCursorKeys = createFollowedCollectionsCursorKeyring(
-    config.collectionFollow.cursorKeys,
-  );
-  if (!config.feed) throw new Error('Feed production configuration is required');
-  const feedCursorKeys = createFeedCursorKeyring(config.feed.cursorKeys);
-  const publicActivityCursorKeys = createPublicActivityCursorKeyring(config.publicActivity.cursorKeys);
-  const feedOperations = createPostgresSocialFeedOperationsRepository(database.pool);
-  if (!config.notifications) throw new Error('Notification production configuration is required');
-  const notificationCursorKeys = createNotificationInboxCursorKeyring(config.notifications.cursorKeys);
-  const notificationOperations = createPostgresNotificationOperationsRepository(database.pool);
   const publicationCursorKeys = createPublicationCursorKeyring(config.publication.cursorKeys);
   const accessPolicyFacts = createPostgresAccessPolicyFactsPort(database.db);
   const publicationDirectoryReads = createPostgresPublicationDirectoryReadPort(database);
@@ -353,7 +276,7 @@ export function createApiPostgresPorts(input: {
     accessPolicy: accessPolicyFacts,
     cursors: publicationCursorKeys,
     origin: config.publication.origin,
-    sharedExposure: createPostgresSharedExposureFactsPort(database), collectionControl: createPostgresModerationActionMethods(database.db),
+    sharedExposure: createPostgresSharedExposureFactsPort(database),
   };
   const ownedCollectionsQueryPorts = {
     reads: createPostgresOwnedCollectionsReadPort(database.db),
@@ -380,8 +303,6 @@ export function createApiPostgresPorts(input: {
   const creditLedgerRead = createPostgresCreditLedgerReadPort(database.db);
   return {
     ...(reportSourceInvalidation === undefined ? {} : { reportSourceInvalidation }),
-    reportsUnitOfWork,
-    reportsUnitOfWorkOptions,
     identityUnitOfWork,
     collectionsUnitOfWork,
     productCollectionMutationUnitOfWork,
@@ -398,18 +319,7 @@ export function createApiPostgresPorts(input: {
     annotationReadUnitOfWork,
     relationMutationUnitOfWork,
     relationReadUnitOfWork,
-    savedResourceUnitOfWork,
-    savedResourceReadUnitOfWork,
-    readingProgressUnitOfWork,
-    readingProgressReadUnitOfWork,
     searchPorts,
-    followCursorKeys,
-    followedCollectionsCursorKeys,
-    feedCursorKeys,
-    publicActivityCursorKeys,
-    feedOperations,
-    notificationCursorKeys,
-    notificationOperations,
     publicationCursorKeys,
     accessPolicyFacts,
     publicationDirectoryReads,
@@ -437,11 +347,8 @@ export function createApiPostgresAppDependencies(input: {
     publishingInsightsRateLimiter, identityUnitOfWork } = input;
   const reportSourceInvalidation = ports.reportSourceInvalidation;
   const { publicationSnapshotQuery, publicationCursorKeys, publicationDirectoryReads,
-    feedCursorKeys, followedCollectionsCursorKeys, followCursorKeys,
-    notificationCursorKeys, feedOperations, notificationOperations,
     collaborationMembersCursorSigner, myCollaborationInvitesCursorSigner,
-    collectionVersionCursorSigner, publishingInsightsVisitorHash, searchPorts,
-    publicActivityCursorKeys } = ports;
+    collectionVersionCursorSigner, publishingInsightsVisitorHash, searchPorts } = ports;
   const publicProfileFacts = createPostgresPublicProfileFactsReadPort(database);
   const searchIndexingExclusion = createPostgresSearchIndexingExclusionReadPort(database);
   const publicationNodeCount = createPostgresPublicationNodeCountReadPort(database);
@@ -485,7 +392,7 @@ export function createApiPostgresAppDependencies(input: {
     exploreCreatorsQuery: createPostgresExploreCreatorsQueryPort(database.db),
     publicationMetadataQuery: {
       reads: ports.publicationMetadataReads,
-      origin: config.publication.origin, collectionControl: createPostgresModerationActionMethods(database.db),
+      origin: config.publication.origin,
     },
     publicationSitemapQuery: createPostgresPublicationSitemapReadPort(database),
     profileSitemapQuery: composeProfileSitemapQuery({
@@ -578,12 +485,8 @@ export function createApiPostgresAppDependencies(input: {
       profiles: publicProfileFacts,
       collections: createPostgresPublicationDirectoryReadPort(database),
       cursors: publicationCursorKeys,
-      sharedExposure: createPostgresSharedExposureFactsPort(database), accountControl: createPostgresModerationActionMethods(database.db),
+      sharedExposure: createPostgresSharedExposureFactsPort(database),
     }),
-    publicActivityQuery: {
-      get: (activityInput: Parameters<typeof queryCurrentPublicActivity>[1]) => createPostgresPublicActivityQueryUnitOfWork(database, publicActivityCursorKeys)
-        .execute((queryPorts) => queryCurrentPublicActivity(queryPorts, activityInput)),
-    },
     searchQuery: { execute: (searchInput: Parameters<typeof executeSearchQuery>[1]) => executeSearchQuery(searchPorts, searchInput),
       loadCatalogDisplayTargets: createPostgresSearchCatalogDisplayTargetPort(database).load },
     mcpWriteOperations: createPhase4bMcpWriteOperations({
@@ -591,56 +494,9 @@ export function createApiPostgresAppDependencies(input: {
       store: createPostgresMcpWriteOperationsStore(database.db),
       enabled: config.mcpWriteEnabled,
     }),
-    followCommandUnitOfWork: createPostgresFollowCommandUnitOfWork(database.db),
-    followQueryUnitOfWork: createPostgresFollowQueryUnitOfWork(database.db, followCursorKeys),
-    collectionFollowCommandUnitOfWork: createPostgresCollectionFollowCommandUnitOfWork(database.db),
-    collectionFollowQueryUnitOfWork: createPostgresCollectionFollowQueryUnitOfWork(
-      database.db, followedCollectionsCursorKeys,
-    ),
-    communityTargetQueryUnitOfWork: createPostgresCommunityTargetQueryUnitOfWork(database.db, database.cancelBackend),
-    communityVoteCommandUnitOfWork: createPostgresCommunityVoteCommandUnitOfWork(database.db),
-    communityRankingQueryUnitOfWork: createPostgresCommunityRankingQueryUnitOfWork(database.db, database.cancelBackend),
-    communityCommentQueryUnitOfWork: createPostgresCommunityCommentQueryUnitOfWork(database.db, database.cancelBackend),
-    communityCommentCommandUnitOfWork: createPostgresCommunityCommentCommandUnitOfWork(database.db, {
-      etagHmacKey: config.community.cursorHmacKey,
-    }),
-    communityCommentManageUnitOfWork: createPostgresCommunityCommentManageUnitOfWork(database.db, {
-      etagHmacKey: config.community.cursorHmacKey,
-    }),
-    communityNotificationQueryUnitOfWork: createPostgresCommunityNotificationQueryUnitOfWork(database.db, {},
-      database.cancelBackend),
-    communityNotificationCommandUnitOfWork: createPostgresCommunityNotificationCommandUnitOfWork(database.db, {
-      etagHmacKey: config.community.cursorHmacKey,
-    }),
     libraryOrderCommandUnitOfWork: createPostgresLibraryOrderCommandUnitOfWork(database.db),
     libraryOrderQueryUnitOfWork: createPostgresLibraryOrderQueryUnitOfWork(database.db),
-    catalogPreferencesUnitOfWork: createPostgresCatalogPreferencesUnitOfWork(database.db), catalogPreferencesQuery: createPostgresCatalogPreferencesQuery(database.db),
-    bookmarkSubscriptionUnitOfWork: createPostgresBookmarkSubscriptionUnitOfWork(database.db, { origin: config.productOrigin, reportsEnabled: config.reports.enabled, metrics }),
+    bookmarkSubscriptionUnitOfWork: createPostgresBookmarkSubscriptionUnitOfWork(database.db, { origin: config.productOrigin, reportsEnabled: false, metrics }),
     bookmarkPreferencesUnitOfWork: createPostgresBookmarkPreferencesUnitOfWork(database.db), bookmarkPreferencesQuery: createPostgresBookmarkPreferencesQuery(database.db),
-    moderationCommandUnitOfWork: createPostgresModerationCommandUnitOfWork(database.db),
-    moderationQueryPorts: createPostgresModerationQueryPorts(database.db),
-    feedQueryUnitOfWork: createPostgresFeedQueryUnitOfWork(database, feedCursorKeys, {
-      includeCollectionFollowers: config.collectionFollow.enabled,
-    }),
-    feedCapabilityReadiness: async () => {
-      const status = await feedOperations.inspectStatus();
-      publishFeedOperationsMetrics(status, metrics);
-      return evaluateFeedCapabilityReadiness(status, config.feed!.operations);
-    },
-    notificationQueryUnitOfWork: createPostgresNotificationInboxQueryUnitOfWork(database.db, notificationCursorKeys),
-    notificationReadCommandUnitOfWork: createPostgresNotificationReadCommandUnitOfWork(database.db),
-    notificationPreferenceRead: getPostgresNotificationPreferences(database.db),
-    // P5-30: the Product preference view reports email availability honestly from
-    // configuration (flag on + verified sender). Never fake usability when unconfigured.
-    notificationEmailRuntime: { verifiedSender: config.email?.accountName ?? null,
-      emailAvailable: config.email?.enabled === true && config.email?.accountName != null },
-    notificationPreferenceCommandUnitOfWork: createPostgresNotificationPreferenceCommandUnitOfWork(database.db),
-    notificationCapabilityReadiness: async () => {
-      const status = await notificationOperations.inspectStatus();
-      publishNotificationOperationsMetrics(status, metrics);
-      return evaluateNotificationCapabilityReadiness(status, config.notifications!.operations,
-        { enabled: config.email?.enabled === true,
-          workerRunning: deriveEmailDeliveryWorkerRunning(status.worker) });
-    },
   };
 }

@@ -1,4 +1,4 @@
-import { COLLECTION_DISCOVERY_CONTROL_SQL, accountRestrictPublicationExistsSql } from '../governance/collection-control-sql.js';
+import { COLLECTION_DISCOVERY_CONTROL_SQL, accountRestrictPublicationExistsSql } from '../database/collection-control-sql.js';
 
 /** Shared public discovery eligibility for recall and authoritative recheck.
  * Private owner/member access is evaluated separately by each caller.

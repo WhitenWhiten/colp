@@ -14,7 +14,6 @@ const transportDir = join(root, 'src/transport');
 const HEARTBEAT_GET = '/api/v1/me';
 const SESSIONS_GET = '/api/v1/auth/sessions';
 const SESSION_BOOTSTRAP_GET = '/api/v1/session';
-const REPORT_READERS_GET = '/api/v1/me/report-readers/:reportId';
 const APP_ROUTE = /\bapp\.(get|post|put|patch|delete|head|route)\(/g;
 const CONST_PATH = /(?:const|let)\s+([A-Za-z_][\w]*)\s*=\s*(['"`])((?:\/|\$\{)[^'"`]*?)\2/g;
 
@@ -428,17 +427,6 @@ test('every product GET pins heartbeat vs no-touch against production source', (
   assert.equal(sessions[0]?.auth.kind, 'touch');
   assert.equal(sessions[0]?.auth.kind === 'touch' && sessions[0].auth.touch, false, 'P-07 sessions GET must not touch');
 
-  // The edition child is the same app.get: path is the base plus an optional
-  // `/editions/:editionId` suffix, and both call requireSessionActor({ touch: false }).
-  const reportReaders = sessionGated.filter((site) => site.route === REPORT_READERS_GET);
-  assert.equal(reportReaders.length, 1, `GET ${REPORT_READERS_GET} must appear once`);
-  assert.equal(reportReaders[0]?.auth.kind, 'touch');
-  assert.equal(
-    reportReaders[0]?.auth.kind === 'touch' && reportReaders[0].auth.touch,
-    false,
-    'report-reader GETs are content reads and must not heartbeat',
-  );
-
   const bootstrap = sessionGated.filter((site) => site.route === SESSION_BOOTSTRAP_GET);
   assert.equal(bootstrap.length, 1, `GET ${SESSION_BOOTSTRAP_GET} must appear once`);
   assert.equal(bootstrap[0]?.auth.kind, 'bootstrap', 'GET /session must use bootstrap, not requireSessionActor touch');
@@ -475,11 +463,9 @@ const SESSION_GATED_GET_GOLD = [
   '/api/v1/collections/:collectionId/annotations/:annotationId',
   '/api/v1/collections/:collectionId/capture-decisions',
   '/api/v1/collections/:collectionId/capture-decisions/:decisionId',
-  '/api/v1/collections/:collectionId/catalog',
   '/api/v1/collections/:collectionId/classification-settings',
   '/api/v1/collections/:collectionId/children',
   '/api/v1/collections/:collectionId/editor',
-  '/api/v1/collections/:collectionId/follow',
   '/api/v1/collections/:collectionId/members',
   '/api/v1/collections/:collectionId/organize-plans/:planId',
   '/api/v1/collections/:collectionId/versions',
@@ -489,18 +475,9 @@ const SESSION_GATED_GET_GOLD = [
   '/api/v1/collections/:collectionId/nodes/:nodeId/readable',
   '/api/v1/collections/:collectionId/relations',
   '/api/v1/collections/:collectionId/relations/:relationId',
-  '/api/v1/community/comment-settings',
-  '/api/v1/community/comments',
-  '/api/v1/community/comments/:commentId',
-  '/api/v1/community/comments/:commentId/curation',
-  '/api/v1/community/comments/:commentId/replies',
-  '/api/v1/community/ranking',
-  '/api/v1/community/target',
-  '/api/v1/feed',
   '/api/v1/mcp/approvals',
   '/api/v1/mcp/approvals/:planId',
   '/api/v1/me',
-  '/api/v1/me/catalog-preferences',
   '/api/v1/me/bookmark-preferences',
   '/api/v1/me/bookmark-captures',
   '/api/v1/me/bookmark-captures/aggregate',
@@ -508,48 +485,15 @@ const SESSION_GATED_GET_GOLD = [
   '/api/v1/me/capture-learning',
   '/api/v1/me/classify-inbox',
   '/api/v1/me/collaboration-invites',
-  '/api/v1/me/community-notification-preferences',
-  '/api/v1/me/community-notifications',
   '/api/v1/me/export-jobs',
   '/api/v1/me/export-jobs/:jobId',
   '/api/v1/me/export-jobs/:jobId/download',
   '/api/v1/me/favicon-jobs/:jobId',
   '/api/v1/me/favicon-policy',
-  '/api/v1/me/feed',
-  '/api/v1/me/followed-collections',
-  '/api/v1/me/followed-reports',
-  '/api/v1/me/followed-reports/issues',
   '/api/v1/me/library-order',
   '/api/v1/me/link-health',
-  '/api/v1/me/moderation-actions',
-  '/api/v1/me/moderation-appeals',
-  '/api/v1/me/moderation-reports',
-  '/api/v1/me/moderation-reports/:caseId',
-  '/api/v1/me/notification-preferences',
-  '/api/v1/me/notifications',
   '/api/v1/me/publishing-insights',
-  '/api/v1/me/report-readers/:reportId',
-  '/api/v1/me/reports',
   '/api/v1/me/shared-collections',
-  '/api/v1/moderation/actions/:actionId',
-  '/api/v1/moderation/appeals',
-  '/api/v1/moderation/appeals/:appealId',
-  '/api/v1/moderation/cases',
-  '/api/v1/moderation/cases/:caseId',
-  '/api/v1/moderation/cases/:caseId/evidence/:evidenceId',
-  '/api/v1/notification-preferences',
-  '/api/v1/notifications',
-  '/api/v1/profiles/:profileId/followers|/api/v1/profiles/:profileId/following',
-  '/api/v1/reports/:reportId',
-  '/api/v1/reports/:reportId/catalog',
-  '/api/v1/reports/:reportId/follow',
-  '/api/v1/reports/:reportId/issues',
-  '/api/v1/reports/:reportId/issues/:editionId',
-  '/api/v1/reports/:reportId/members',
-  '/api/v1/reports/:reportId/schedule',
-  '/api/v1/reading-progress',
-  '/api/v1/reading-progress/:resourceType/:resourceId',
-  '/api/v1/saved-resources',
   '/api/v1/session',
   '/api/v1/sync/conflicts',
   '/api/v1/sync/status',

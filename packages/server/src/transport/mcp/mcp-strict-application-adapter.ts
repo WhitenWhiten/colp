@@ -127,10 +127,6 @@ export function createPhase4bMcpApplicationFacadeFromColpAdapters(
     snapshotProjection: options.snapshotProjection,
     nodeProjection: options.nodeProjection,
     readPort: toNeutralReadPort(options.readToolAdapter),
-    ...(options.reportReadPort === undefined ? {} : { reportReadPort: options.reportReadPort }),
-    ...(options.reportWritePort === undefined ? {} : { reportWritePort: options.reportWritePort }),
-    ...(options.communityPort === undefined ? {} : { communityPort: options.communityPort }),
-    ...(options.moderationPort === undefined ? {} : { moderationPort: options.moderationPort }),
     ...(options.writeToolAdapter === undefined
       ? {}
       : { writePort: toNeutralWritePort(options.writeToolAdapter) }),

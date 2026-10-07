@@ -5,7 +5,7 @@ import {
   verifyEmailOpsToken,
   type EmailSuppressionOpsRepository,
   type EmailSuppressionFactView,
-} from '../../modules/notifications/index.js';
+} from '../../modules/email/index.js';
 import type { Metrics } from '../../infrastructure/telemetry/index.js';
 import { ProductHttpError } from '../product-error.js';
 import { rateLimitClientKey, type FixedWindowRateLimiter } from '../http-security.js';

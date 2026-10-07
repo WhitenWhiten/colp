@@ -21,7 +21,6 @@ import { createUnitOfWork } from '../database/unit-of-work.js';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
 import type { DatabaseRuntime } from '../database/runtime.js';
 import { runCanonicalSeedPhase } from './canonical-phase.js';
-import { runCommunityRankingSeedPhase } from './ranking-phase.js';
 import { executableSeedDataSql, SEED_OPAQUE_INSTALL_SQL } from './seed-opaque-id.js';
 import { runSubjectIdReferenceCascade } from './subject-id-reference-cascade.js';
 
@@ -280,9 +279,6 @@ export async function applySeed(
 
   // 阶段 2b：Canonical 门面写 annotations/relations（独立 UoW，必须看见已提交的 collections/nodes）
   await runCanonicalSeedPhase(runtime);
-
-  // 阶段 2b2：hot-v1 排名快照（必须看见已提交的 votes + moderation_actions）
-  await runCommunityRankingSeedPhase(runtime);
 
   // 阶段 2c：登记 + 期望行数 + post_checks（含 Canonical 副作用）
   const registered = await createUnitOfWork(runtime.db, { isolationLevel: 'read committed' }).execute(

@@ -55,12 +55,14 @@ import { composeApiEmail } from './api-email-composition.js';
 import { composeApiAccountServices } from './api-account-services.js';
 import { composeApiMcpSurface } from './api-mcp-surface-composition.js';
 import { createApiPostgresPorts, createApiPostgresAppDependencies } from './api-postgres-ports.js';
-import { createPostgresModerationActionMethods } from '../infrastructure/governance/index.js';
 import { createPostgresLinkPreviewPublicAccess } from '../infrastructure/collections/index.js';
+import {
+  isAvatarPublicationRestricted,
+  isFaviconHiddenPublic,
+} from '../infrastructure/database/publication-object-controls.js';
 import { closeApiRuntimeResources } from './api-lifecycle.js';
 import { composeLedgerArchiveColdReaders } from './ledger-archive-reader-composition.js';
 import { createPostgresAccountCredentialUnitOfWork } from '../infrastructure/auth/account-credentials-postgres.js';
-import { createReportPublishGuard } from './account-credential-grant-composition.js';
 import { createAccountCredentialCursorCodec, createCredentialGrantCursorCodec } from '../modules/auth/index.js';
 import { consumeProductAdmission } from '../transport/http-security.js';
 
@@ -133,8 +135,6 @@ async function startApi(): Promise<void> {
     accessPolicyFacts: ports.accessPolicyFacts,
     publicationSnapshotQuery: ports.publicationSnapshotQuery,
     ownedCollectionsQuery: ports.ownedCollectionsQueryPorts,
-    reportsUnitOfWork: ports.reportsUnitOfWork,
-    reportsUnitOfWorkOptions: ports.reportsUnitOfWorkOptions,
     governanceReportRateLimiter: surfaceLimiters.governanceReportRateLimiter,
     governanceActionRateLimiter: surfaceLimiters.governanceActionRateLimiter,
     governanceAppealRateLimiter: surfaceLimiters.governanceAppealRateLimiter,
@@ -325,20 +325,10 @@ async function startApi(): Promise<void> {
     // hashes (bare SHA-256 fallback only when unconfigured).
     { secretHmacKey: config.accountCredentials.cursorHmacKey?.toString('utf8') },
   );
-  const reportPublishGuard = accountCredentialGrantRuntime
-    ? createReportPublishGuard({
-      db: database.db, ...accountCredentialGrantRuntime, ...ports.reportsUnitOfWorkOptions,
-    })
-    : undefined;
   const avatarStore = attachments.avatarStore ? createPersistentAvatarStore(database.db, attachments.avatarStore) : undefined;
   const lifecycle = {
-    notificationCursorKeys: ports.notificationCursorKeys,
-    feedCursorKeys: ports.feedCursorKeys,
-    publicActivityCursorKeys: ports.publicActivityCursorKeys,
-    followCursorKeys: ports.followCursorKeys,
     accountCredentialCursors: accountCredentialCursors ?? { destroy() { /* feature off */ } },
     accountCredentialGrantCursors: accountCredentialGrantCursors ?? { destroy() { /* feature off */ } },
-    followedCollectionsCursorKeys: ports.followedCollectionsCursorKeys,
     ownedCollectionsCursorSigner: ports.ownedCollectionsCursorSigner,
     sharedCollectionsCursorSigner: ports.sharedCollectionsCursorSigner,
     collaborationMembersCursorSigner: ports.collaborationMembersCursorSigner,
@@ -410,9 +400,9 @@ async function startApi(): Promise<void> {
     identityUnitOfWork: ports.identityUnitOfWork,
     avatarStore,
     ...attachments.publicObjectStores,
-    faviconPublicAccess: { isHiddenPublic: (objectId) => createPostgresModerationActionMethods(database.db).isFaviconHiddenPublic(objectId) },
+    faviconPublicAccess: { isHiddenPublic: (objectId) => isFaviconHiddenPublic(database.db, objectId) },
     linkPreviewPublicAccess: { isServable: (objectId, signal) => createPostgresLinkPreviewPublicAccess(database.db, { cancelBackend: database.cancelBackend }).isServable(objectId, signal) },
-    avatarPublicAccess: { isPublicationRestricted: (objectId) => createPostgresModerationActionMethods(database.db).isAvatarPublicationRestricted(objectId) },
+    avatarPublicAccess: { isPublicationRestricted: (objectId) => isAvatarPublicationRestricted(database.db, objectId) },
     authRateLimiter,
     mcpRateLimiter,
     collectionsUnitOfWork: ports.collectionsUnitOfWork,
@@ -430,16 +420,7 @@ async function startApi(): Promise<void> {
     annotationReadUnitOfWork: ports.annotationReadUnitOfWork,
     relationMutationUnitOfWork: ports.relationMutationUnitOfWork,
     relationReadUnitOfWork: ports.relationReadUnitOfWork,
-    savedResourceUnitOfWork: ports.savedResourceUnitOfWork,
-    savedResourceReadUnitOfWork: ports.savedResourceReadUnitOfWork,
-    readingProgressUnitOfWork: ports.readingProgressUnitOfWork,
-    readingProgressReadUnitOfWork: ports.readingProgressReadUnitOfWork,
-    reportsUnitOfWork: ports.reportsUnitOfWork,
-    ...(config.contentGovernance.enabled || cacheComposition.reportCache === undefined
-      ? {}
-      : { reportCache: cacheComposition.reportCache }),
     reportsRateLimiter,
-    ...(reportPublishGuard === undefined ? {} : { reportPublishGuard }),
     governanceReportRateLimiter,
     governanceActionRateLimiter,
     governanceAppealRateLimiter,

@@ -31,7 +31,6 @@ import { databaseNow } from '../database/time.js';
 import { createPostgresResourceIdLedgerPort } from '../database/resource-id-ledger.js';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
 import type { Metrics } from '../telemetry/index.js';
-import { appendSocialCollectionChangeOutbox } from '../outbox/social-collection-change.js';
 import { deleteBookmarkIconsForNodeIds, createPostgresBookmarkIconWritePort } from './bookmark-icon-postgres.js';
 import { createPostgresFaviconPolicyPort } from './favicon-policy-postgres.js';
 import { createPostgresFaviconSourcePort, createPostgresFaviconSourceMembershipPort } from './favicon-source-postgres.js';
@@ -761,13 +760,6 @@ export function createPostgresBootstrapOutboxPort(
           dead_lettered_at: null,
         })
         .execute();
-      await appendSocialCollectionChangeOutbox(
-        transaction,
-        record.domainEventId,
-        record.aggregateScope ?? record.aggregateId,
-        record.commitOrdinal,
-        { occurredAt: record.occurredAt },
-      );
     },
   };
 }

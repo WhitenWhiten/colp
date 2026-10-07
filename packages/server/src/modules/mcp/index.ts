@@ -54,11 +54,6 @@ export * from './application-catalog.js';
 export * from './application-results.js';
 export * from './application-ports.js';
 export * from './application-facade.js';
-export * from './report-plan.js';
-export * from './report-write-tools.js';
-export * from './report-read-tools.js';
-export * from './report-issue-content.js';
-export * from './community-mcp.js';
 // Bootstrap composes the MCP write path with the same default own-data budget
 // the direct/plan paths use; re-export the single authority instead of letting
 // composition reach into the module internal.

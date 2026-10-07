@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import { readFileSync } from 'node:fs';
 import { afterEach, test, expect, vi } from 'vitest';
 import { ClassificationError, ClassificationProviderError, classificationFailureReceipt, type ClassificationPreviewRuntime } from '../../../src/modules/collections/index.js';
 import { createFixedWindowRateLimiter } from '../../../src/transport/http-security.js';
@@ -100,12 +99,19 @@ test('billing stays closed, preserves consent in the command input, and cannot d
 });
 
 test('credit failures retain the shared golden envelope semantics and exact HTTP retry policy', async () => {
-  const golden=JSON.parse(readFileSync(new URL('../../../../docs/plans/active/cross-module/classification-credits/contracts/golden.json',import.meta.url),'utf8')) as {
-    name:string;schema:string;value:{error:{code:CreditFailureCode;creditContext?:CreditQuoteContext;recovery:string;sameRequestRetrySafe:boolean;retryAfterSeconds:number|null}};
-  }[];
+  const quote = { requiredPoints: 5, availablePoints: 3, maxPoints: 5, priceVersion: 'bookmark-classify.v1' } as const;
+  const golden: Array<{ error: { code: CreditFailureCode; creditContext?: CreditQuoteContext; recovery: string; sameRequestRetrySafe: boolean; retryAfterSeconds: number | null } }> = [
+    { error: { code: 'billing_consent_required', recovery: 'user_action', sameRequestRetrySafe: false, retryAfterSeconds: null } },
+    { error: { code: 'credit_price_changed', recovery: 'user_action', sameRequestRetrySafe: false, retryAfterSeconds: null, creditContext: quote } },
+    { error: { code: 'credit_limit_exceeded', recovery: 'user_action', sameRequestRetrySafe: false, retryAfterSeconds: null, creditContext: quote } },
+    { error: { code: 'insufficient_credits', recovery: 'user_action', sameRequestRetrySafe: false, retryAfterSeconds: null, creditContext: quote } },
+    { error: { code: 'credits_busy', recovery: 'same_request', sameRequestRetrySafe: true, retryAfterSeconds: 1 } },
+    { error: { code: 'credits_reconciling', recovery: 'same_request', sameRequestRetrySafe: true, retryAfterSeconds: 1 } },
+    { error: { code: 'credits_unavailable', recovery: 'same_request', sameRequestRetrySafe: true, retryAfterSeconds: 1 } },
+  ];
   const {app,spy}=setup();
-  for(const fixture of golden.filter(item=>item.schema==='CreditErrorEnvelope'&&!['invalid_cursor','cursor_expired'].includes(item.name))) {
-    const expected=fixture.value.error;
+  for(const fixture of golden) {
+    const expected=fixture.error;
     spy.mockRejectedValueOnce(new CreditError(expected.code,expected.creditContext));
     const result=await app.inject({method:'POST',url:path,headers:headers(),payload});
     const status=expected.code==='billing_consent_required'?422:expected.code.startsWith('credits_')?503:409;

@@ -3,14 +3,11 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { AppConfig } from '../../bootstrap/config.js';
 import { canonicalJson } from '../../modules/commands/index.js';
 import {
-  SEARCH_GOVERNANCE_CURSOR_MAX_LENGTH,
-  type CatalogPreferencesStore,
-} from '../../modules/governance/index.js';
-import {
   SEARCH_DEFAULT_TIMEOUT_MS,
   SEARCH_MAX_TIMEOUT_MS,
   SearchQueryError,
   type SearchPrincipal,
+  type SearchQueryInput,
   type SearchQueryResult,
   type SearchResourceType,
 } from '../../modules/search/index.js';
@@ -21,8 +18,9 @@ import { ProductHttpError } from '../product-error.js';
 import { productErrorStatus } from '../product-codes.js';
 import { productRouteMetadata } from '../product-route-manifest.js';
 import { negotiatePublicationRead } from './publication-read-negotiation.js';
-import { executeSearchWithCatalogPreferences, type SearchCatalogMuteQuery } from './search-catalog-mute.js';
 import type { SearchRateLimiter, SearchRateLimitSubject } from '../../infrastructure/rate-limit/index.js';
+
+const SEARCH_CURSOR_MAX_LENGTH = 4_096;
 
 export const SEARCH_PRODUCT_CONTRACT_VERSION = '1.7.0';
 export const SEARCH_PRODUCT_MEDIA_TYPE = 'application/json';
@@ -61,12 +59,13 @@ const COMBINING = /\p{M}/u;
 const WILDCARD_LIKE = /[*?%_\\]/gu;
 const OPERATOR_LIKE = /["':()&|!<>]/gu;
 
-export type SearchProductQuery = SearchCatalogMuteQuery;
+export interface SearchProductQuery {
+  execute(input: SearchQueryInput): Promise<SearchQueryResult>;
+}
 
 export interface SearchRoutesDependencies {
   readonly query: SearchProductQuery;
   readonly identityUnitOfWork?: IdentityUnitOfWork;
-  readonly catalogPreferences?: CatalogPreferencesStore;
   readonly config?: AppConfig;
   readonly contentGovernanceEnabled?: boolean;
   /**
@@ -115,7 +114,7 @@ async function searchHandler(request: FastifyRequest, reply: FastifyReply,
   mergeReplyVary(reply, ['Accept', 'Cookie', 'Authorization']);
   negotiateAccept(request.headers.accept);
   const input = parseSearchQuery(request.query as Record<string, string | readonly string[]>);
-  const { principal, accountCreatedAt } = await resolvePrincipal(request, dependencies.identityUnitOfWork);
+  const { principal } = await resolvePrincipal(request, dependencies.identityUnitOfWork);
   // FIX-M-006: Search admission runs AFTER principal resolution so the
   // anonymous family keys on the trusted client IP and the account family on
   // the account id — the two identity strategies never share a counter and
@@ -125,16 +124,11 @@ async function searchHandler(request: FastifyRequest, reply: FastifyReply,
   await admitSearchRateLimit(dependencies.rateLimiter, request, principal);
   const cancellation = requestCancellation(request, reply, timeoutMs);
   try {
-    const result = await executeSearchWithCatalogPreferences({
-      query: dependencies.query,
-      input: { principal, query: input.query, types: input.types,
-        ...(input.pageSize === undefined ? {} : { pageSize: input.pageSize }),
-        ...(input.cursor === undefined ? {} : { cursor: input.cursor }), timeoutMs,
-        signal: cancellation.signal },
-      ...(dependencies.catalogPreferences ? { catalogPreferences: dependencies.catalogPreferences } : {}),
-      ...(accountCreatedAt === undefined ? {} : { accountCreatedAt }),
-      hmacKey: dependencies.contentGovernanceEnabled
-        ? dependencies.config?.contentGovernance.cursorHmacKey ?? null : null,
+    const result = await dependencies.query.execute({
+      principal, query: input.query, types: input.types,
+      ...(input.pageSize === undefined ? {} : { pageSize: input.pageSize }),
+      ...(input.cursor === undefined ? {} : { cursor: input.cursor }), timeoutMs,
+      signal: cancellation.signal,
     });
     assertSearchProjection(result, principal, input.query, input.types);
     const representation = mapRepresentation(result);
@@ -256,7 +250,7 @@ function parseSearchQuery(query: Record<string, string | readonly string[]>): {
   let cursor: string | undefined;
   if (query.cursor !== undefined) {
     if (typeof query.cursor !== 'string' || query.cursor.length === 0
-      || query.cursor.length > SEARCH_GOVERNANCE_CURSOR_MAX_LENGTH
+      || query.cursor.length > SEARCH_CURSOR_MAX_LENGTH
       || pageSize !== undefined) throw invalidCursor();
     cursor = query.cursor;
   }

@@ -106,8 +106,6 @@ test('API and Worker startup paths stay explicit while current business modules 
       `${futurePath} belongs to P3-08 or later`);
   }
 
-  assert.equal(existsSync(join(backendRoot, 'src/modules/notifications/index.ts')), true,
-    'Phase 5 must own the production Notification module');
   // P4A-I05 creates the production attachments module (config + readiness);
   // subscriptions remains a future module with no scaffold.
   for (const futureModule of ['subscriptions']) {
