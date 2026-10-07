@@ -180,6 +180,7 @@ function stripSecretsDeep(
   value: unknown,
   revealUriForKey?: (keyId: string) => string,
   uriPolicy?: ResolvedMcpHttpUriPolicy,
+  operationTransform = false,
 ): unknown {
   if (value === null || typeof value === 'string' || typeof value === 'boolean' || typeof value === 'number') {
     return value;
@@ -188,7 +189,20 @@ function stripSecretsDeep(
     throw new McpSecretRedactionError('Structured content must contain only JSON data.');
   }
   if (Array.isArray(value)) {
-    return value.map((item) => stripSecretsDeep(item, revealUriForKey, uriPolicy));
+    return operationTransform
+      ? Object.freeze([])
+      : value.map((item) => stripSecretsDeep(item, revealUriForKey, uriPolicy));
+  }
+
+  // A result may pass through this helper more than once (the durable
+  // Change Plan store and the model gateway both redact). Preserve the
+  // already-redacted key projection on subsequent passes.
+  if (operationTransform
+    && Object.getOwnPropertyDescriptor(value, 'keyId') !== undefined
+    && Object.getOwnPropertyDescriptor(value, 'secretAvailable') !== undefined
+    && (value as Record<string, unknown>).secretAvailable === true
+    && typeof (value as Record<string, unknown>).revealUri === 'string') {
+    return redactNested(value);
   }
 
   if (isSecretBearingApiKeyResult(value)) {
@@ -201,6 +215,13 @@ function stripSecretsDeep(
     const revealUri = buildRevealUri(revealUriForKey, keyId, uriPolicy);
     return adaptApiKeyApplicationResult(value as McpApiKeyApplicationResult, revealUri);
   }
+
+  // OperationResult.transform is an executor-owned provenance boundary. The
+  // wire schema historically left it open, so arbitrary values could carry a
+  // plaintext secret under a harmless-looking key (for example `value`).
+  // Preserve only the explicitly recognized API-key projection above; unknown
+  // transform shapes are withheld as an empty object.
+  if (operationTransform) return Object.freeze({});
 
   const out: Record<string, unknown> = {};
   let hadSecretField = false;
@@ -219,7 +240,12 @@ function stripSecretsDeep(
     if (key === 'keyId' && typeof descriptor.value === 'string') {
       keyId = descriptor.value;
     }
-    out[key] = stripSecretsDeep(descriptor.value, revealUriForKey, uriPolicy);
+    out[key] = stripSecretsDeep(
+      descriptor.value,
+      revealUriForKey,
+      uriPolicy,
+      key === 'transform',
+    );
   }
 
   if (hadSecretField && typeof keyId === 'string' && keyId.length > 0) {
@@ -373,10 +399,13 @@ function classifyApiKeyApplicationResult(raw: McpApiKeyApplicationResult): 'cano
 }
 
 function isSecretBearingApiKeyResult(value: object): boolean {
-  const secret = Object.getOwnPropertyDescriptor(value, 'secret');
-  if (secret === undefined) return false;
-  return Object.getOwnPropertyDescriptor(value, 'key') !== undefined
-    || Object.getOwnPropertyDescriptor(value, 'keyId') !== undefined;
+  const hasCanonicalIdentity = Object.getOwnPropertyDescriptor(value, 'key') !== undefined;
+  const hasFlatIdentity = Object.getOwnPropertyDescriptor(value, 'keyId') !== undefined;
+  if (!hasCanonicalIdentity && !hasFlatIdentity) return false;
+  if (Object.getOwnPropertyDescriptor(value, 'secret') !== undefined) return true;
+  return Reflect.ownKeys(value).some((key) =>
+    typeof key === 'string' && (SECRET_FIELD_NAMES.has(key) || isSecretLikeFieldName(key)),
+  );
 }
 
 function assertPlainDataObject(value: unknown, label: string): asserts value is object {

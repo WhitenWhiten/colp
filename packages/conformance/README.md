@@ -40,6 +40,9 @@ Target: http://127.0.0.1:8080/.well-known/collection-protocol
 | `--json` | off | Print the report as JSON, for CI |
 | `--max-collections <n>` | 3 | Collections to inspect from the Directory |
 | `--max-pages <n>` | 50 | Snapshot pages to follow per Collection |
+| `--max-snapshot-bytes <n>` | 67108864 | Cumulative response bytes retained while assembling one Snapshot |
+| `--max-snapshot-members <n>` | 100000 | Cumulative resource-array members retained while assembling one Snapshot |
+| `--max-snapshot-objects <n>` | 100000 | Cumulative Snapshot objects retained while assembling one Snapshot |
 | `--max-requests <n>` | 200 | Total request budget |
 | `--timeout <ms>` | 10000 | Per-request timeout |
 

@@ -121,6 +121,35 @@ export type AssembledSnapshotPages =
   | { readonly valid: false; readonly issues: readonly SemanticIssue[] };
 
 /**
+ * Resource budgets used while merging a paginated Snapshot. `maxMembers`
+ * counts entries copied from the page resource arrays (including Tombstones),
+ * while `maxObjects` also accounts for the one shared Collection object.
+ * Keeping these limits at the assembly boundary prevents a caller that has
+ * already fetched several individually valid pages from multiplying its
+ * memory allowance during the final `flatMap` operations.
+ */
+export interface SnapshotAssemblyBudget {
+  readonly maxMembers?: number;
+  readonly maxObjects?: number;
+}
+
+function resolveBudget(name: keyof SnapshotAssemblyBudget, value: number | undefined): number | undefined {
+  if (value === undefined) return undefined;
+  if (!Number.isSafeInteger(value) || value < 1) {
+    throw new RangeError(`Snapshot assembly ${name} must be a positive safe integer.`);
+  }
+  return value;
+}
+
+function snapshotPageMemberCount(page: Snapshot): number {
+  return page.nodes.length
+    + page.annotations.length
+    + page.attachments.length
+    + page.relations.length
+    + page.tombstones.length;
+}
+
+/**
  * Validates multi-page Snapshot framing and merges pages into one logical Snapshot.
  * Full graph/reference/visibility semantics are applied by the caller via
  * `validateSnapshotSemantics` after assembly.
@@ -129,10 +158,36 @@ export function assembleSnapshotPagePayload(
   pages: readonly Snapshot[],
   options: {
     readonly extensionSecurityPolicy?: ExtensionSecurityPolicy;
+    readonly maxMembers?: number;
+    readonly maxObjects?: number;
   } = {},
 ): AssembledSnapshotPages {
   if (pages.length === 0) {
     return { valid: false, issues: [issue('empty_snapshot_assembly', '/', 'No pages supplied.')] };
+  }
+  const maxMembers = resolveBudget('maxMembers', options.maxMembers);
+  const maxObjects = resolveBudget('maxObjects', options.maxObjects);
+  const memberCount = pages.reduce((total, page) => total + snapshotPageMemberCount(page), 0);
+  const objectCount = memberCount + 1;
+  if (maxMembers !== undefined && memberCount > maxMembers) {
+    return {
+      valid: false,
+      issues: [issue(
+        'snapshot_assembly_member_budget',
+        '/pages',
+        `Snapshot page assembly contains ${memberCount} members, exceeding the limit of ${maxMembers}.`,
+      )],
+    };
+  }
+  if (maxObjects !== undefined && objectCount > maxObjects) {
+    return {
+      valid: false,
+      issues: [issue(
+        'snapshot_assembly_object_budget',
+        '/pages',
+        `Snapshot page assembly contains ${objectCount} objects, exceeding the limit of ${maxObjects}.`,
+      )],
+    };
   }
   const first = pages[0] as Snapshot;
   const firstCollectionDigest = canonicalize(first.collection);

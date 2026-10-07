@@ -13,18 +13,18 @@
  * The execution port and Tool definitions are deliberately protocol-neutral:
  * they carry no MCP Header, JSON-RPC, transport or protocol lifecycle types.
  */
-import { types as nodeTypes } from 'node:util';
+import { types as nodeTypes } from "node:util";
 
-import type { McpToolInputSchema, McpToolOutputSchema } from '../tool-input.js';
-import { McpToolInputError } from '../tool-input.js';
-import { snapshotMcpData } from '../safe-data.js';
-import type { McpResourceReadBudget } from './resources.js';
+import type { McpToolInputSchema, McpToolOutputSchema } from "../tool-input.js";
+import { McpToolInputError } from "../tool-input.js";
+import { snapshotMcpData } from "../safe-data.js";
+import type { McpResourceReadBudget } from "./resources.js";
 import {
   McpReadRequestAbortedError,
   McpReadRequestContextError,
   requireTrustedReadRequestContext,
   type McpTrustedReadRequestContext,
-} from './resources.js';
+} from "./resources.js";
 
 /** Protocol-neutral Tool definition with a safe closed input schema. */
 export interface McpToolDefinition {
@@ -32,6 +32,8 @@ export interface McpToolDefinition {
   readonly description: string;
   readonly inputSchema: McpToolInputSchema;
   readonly outputSchema?: McpToolOutputSchema;
+  /** Scopes required before this Tool is advertised or invoked. */
+  readonly requiredScopes?: readonly string[];
 }
 
 /** Protocol-neutral read Tool result (structured content passthrough). */
@@ -42,29 +44,38 @@ export interface McpReadToolResult {
 }
 
 export class McpUnknownToolError extends TypeError {
-  readonly code = 'unknown_tool' as const;
+  readonly code = "unknown_tool" as const;
 
   constructor() {
-    super('Unknown MCP Tool.');
-    this.name = 'McpUnknownToolError';
+    super("Unknown MCP Tool.");
+    this.name = "McpUnknownToolError";
   }
 }
 
 export class McpInvalidToolNameError extends TypeError {
-  readonly code = 'invalid_tool_name' as const;
+  readonly code = "invalid_tool_name" as const;
 
   constructor() {
-    super('Invalid MCP Tool name.');
-    this.name = 'McpInvalidToolNameError';
+    super("Invalid MCP Tool name.");
+    this.name = "McpInvalidToolNameError";
+  }
+}
+
+export class McpToolScopeDeniedError extends Error {
+  readonly code = "tool_scope_denied" as const;
+
+  constructor() {
+    super("MCP Tool is not available for the current authorization scopes.");
+    this.name = "McpToolScopeDeniedError";
   }
 }
 
 export class McpToolOutputUnavailableError extends Error {
-  readonly code = 'tool_output_unavailable' as const;
+  readonly code = "tool_output_unavailable" as const;
 
   constructor() {
-    super('MCP Tool output is unavailable.');
-    this.name = 'McpToolOutputUnavailableError';
+    super("MCP Tool output is unavailable.");
+    this.name = "McpToolOutputUnavailableError";
   }
 }
 
@@ -82,7 +93,7 @@ export interface McpToolExecutionPort {
 
 export interface McpToolRegistration {
   readonly definition: McpToolDefinition;
-  readonly invoke: McpToolExecutionPort['invoke'];
+  readonly invoke: McpToolExecutionPort["invoke"];
 }
 
 export interface McpStatelessToolCoreOptions {
@@ -90,7 +101,9 @@ export interface McpStatelessToolCoreOptions {
 }
 
 export interface McpStatelessToolCore {
-  readonly listTools: () => readonly McpToolDefinition[];
+  readonly listTools: (
+    context?: McpTrustedReadRequestContext,
+  ) => readonly McpToolDefinition[];
   readonly callTool: (
     context: McpTrustedReadRequestContext,
     name: string,
@@ -109,19 +122,45 @@ export function createMcpStatelessToolCore(
   options: McpStatelessToolCoreOptions,
 ): McpStatelessToolCore {
   if (arguments.length !== 1) throw configError();
-  if (typeof options !== 'object' || options === null || nodeTypes.isProxy(options)) throw configError();
+  if (
+    typeof options !== "object" ||
+    options === null ||
+    nodeTypes.isProxy(options)
+  )
+    throw configError();
   const registrations = readToolRegistrations(options);
-  const registry = new Map<string, { readonly invoke: McpToolExecutionPort['invoke']; readonly receiver: object }>();
+  const registry = new Map<
+    string,
+    {
+      readonly definition: McpToolDefinition;
+      readonly invoke: McpToolExecutionPort["invoke"];
+      readonly receiver: object;
+    }
+  >();
   for (const registration of registrations) {
     if (registry.has(registration.definition.name)) throw configError();
     registry.set(registration.definition.name, {
+      definition: registration.definition,
       invoke: registration.invoke,
       receiver: registration.receiver,
     });
   }
-  const definitions = Object.freeze(registrations.map((registration) => registration.definition));
+  const definitions = Object.freeze(
+    registrations.map((registration) => registration.definition),
+  );
 
-  const listTools = (): readonly McpToolDefinition[] => definitions;
+  const listTools = (
+    context?: McpTrustedReadRequestContext,
+  ): readonly McpToolDefinition[] => {
+    if (context === undefined) return definitions;
+    const trustedContext = requireTrustedReadRequestContext(context);
+    const effectiveScope = new Set(trustedContext.scope);
+    return Object.freeze(
+      definitions.filter((definition) =>
+        hasRequiredScopes(definition, effectiveScope),
+      ),
+    );
+  };
 
   const callTool = async (
     ...args: [context: unknown, name: unknown, input: unknown]
@@ -132,9 +171,14 @@ export function createMcpStatelessToolCore(
     const name = readToolName(args[1]);
     const entry = registry.get(name);
     if (entry === undefined) throw new McpUnknownToolError();
+    if (!hasRequiredScopes(entry.definition, new Set(context.scope)))
+      throw new McpToolScopeDeniedError();
     let raw: unknown;
     try {
-      raw = await Reflect.apply(entry.invoke, entry.receiver, [args[2], context]);
+      raw = await Reflect.apply(entry.invoke, entry.receiver, [
+        args[2],
+        context,
+      ]);
     } catch (error) {
       classifyToolError(error);
     }
@@ -149,47 +193,119 @@ export function createMcpStatelessToolCore(
 
 function readToolRegistrations(options: McpStatelessToolCoreOptions): readonly {
   readonly definition: McpToolDefinition;
-  readonly invoke: McpToolExecutionPort['invoke'];
+  readonly invoke: McpToolExecutionPort["invoke"];
   readonly receiver: object;
 }[] {
-  const raw = readOwnValue(options, 'tools', configError);
-  if (!Array.isArray(raw) || Object.getPrototypeOf(raw) !== Array.prototype) throw configError();
+  const raw = readOwnValue(options, "tools", configError);
+  if (!Array.isArray(raw) || Object.getPrototypeOf(raw) !== Array.prototype)
+    throw configError();
   return raw.map((candidate) => {
-    assertExactDataObject(candidate, ['definition', 'invoke'], [], configError);
-    const definition = readOwnData(candidate as object, 'definition', configError);
-    assertExactDataObject(definition, ['name', 'description', 'inputSchema'], ['outputSchema'], configError);
-    const name = readOwnData(definition as object, 'name', configError);
-    const description = readOwnData(definition as object, 'description', configError);
-    const inputSchema = readOwnData(definition as object, 'inputSchema', configError);
-    if (typeof name !== 'string' || name.length === 0 || name.length > 128) throw configError();
+    assertExactDataObject(candidate, ["definition", "invoke"], [], configError);
+    const definition = readOwnData(
+      candidate as object,
+      "definition",
+      configError,
+    );
+    assertExactDataObject(
+      definition,
+      ["name", "description", "inputSchema"],
+      ["outputSchema", "requiredScopes"],
+      configError,
+    );
+    const name = readOwnData(definition as object, "name", configError);
+    const description = readOwnData(
+      definition as object,
+      "description",
+      configError,
+    );
+    const inputSchema = readOwnData(
+      definition as object,
+      "inputSchema",
+      configError,
+    );
+    const requiredScopes = readOptionalData(
+      definition as object,
+      "requiredScopes",
+    );
+    if (typeof name !== "string" || name.length === 0 || name.length > 128)
+      throw configError();
     if (!toolNamePattern.test(name)) throw configError();
-    if (typeof description !== 'string' || description.length === 0) throw configError();
-    if (typeof inputSchema !== 'object' || inputSchema === null || Array.isArray(inputSchema)) throw configError();
-    const invoke = readOwnData(candidate as object, 'invoke', configError);
-    if (typeof invoke !== 'function') throw configError();
+    if (typeof description !== "string" || description.length === 0)
+      throw configError();
+    if (
+      typeof inputSchema !== "object" ||
+      inputSchema === null ||
+      Array.isArray(inputSchema)
+    )
+      throw configError();
+    readRequiredScopes(requiredScopes);
+    const invoke = readOwnData(candidate as object, "invoke", configError);
+    if (typeof invoke !== "function") throw configError();
     return Object.freeze({
+      // Preserve the validated definition identity for callers that publish
+      // canonical schema objects by reference.
       definition: definition as McpToolDefinition,
-      invoke: invoke as McpToolExecutionPort['invoke'],
+      invoke: invoke as McpToolExecutionPort["invoke"],
       receiver: candidate as object,
     });
   });
 }
 
+function readRequiredScopes(value: unknown): readonly string[] {
+  if (value === undefined) return Object.freeze([]);
+  if (!Array.isArray(value) || Object.getPrototypeOf(value) !== Array.prototype)
+    throw configError();
+  const scopes = value.map((scope) => {
+    if (typeof scope !== "string" || scope.length === 0 || scope.length > 128)
+      throw configError();
+    return scope;
+  });
+  if (new Set(scopes).size !== scopes.length) throw configError();
+  return Object.freeze(scopes);
+}
+
+function readOptionalData(value: object, name: string): unknown {
+  const descriptor = Object.getOwnPropertyDescriptor(value, name);
+  if (descriptor === undefined || !("value" in descriptor)) return undefined;
+  return descriptor.value;
+}
+
+function hasRequiredScopes(
+  definition: McpToolDefinition,
+  effectiveScope: ReadonlySet<string>,
+): boolean {
+  return (definition.requiredScopes ?? []).every((scope) =>
+    effectiveScope.has(scope),
+  );
+}
+
 function readToolName(value: unknown): string {
-  if (typeof value !== 'string' || value.length === 0 || value.length > 128 || !toolNamePattern.test(value)) {
+  if (
+    typeof value !== "string" ||
+    value.length === 0 ||
+    value.length > 128 ||
+    !toolNamePattern.test(value)
+  ) {
     throw new McpInvalidToolNameError();
   }
   return value;
 }
 
-function snapshotToolResult(raw: unknown, budget: McpResourceReadBudget): McpReadToolResult {
+function snapshotToolResult(
+  raw: unknown,
+  budget: McpResourceReadBudget,
+): McpReadToolResult {
   let snapshot: unknown;
   try {
     snapshot = snapshotMcpData(raw, budget);
   } catch {
     throw new McpToolOutputUnavailableError();
   }
-  if (typeof snapshot !== 'object' || snapshot === null || Array.isArray(snapshot)) {
+  if (
+    typeof snapshot !== "object" ||
+    snapshot === null ||
+    Array.isArray(snapshot)
+  ) {
     throw new McpToolOutputUnavailableError();
   }
   return snapshot as McpReadToolResult;
@@ -197,10 +313,11 @@ function snapshotToolResult(raw: unknown, budget: McpResourceReadBudget): McpRea
 
 function classifyToolError(error: unknown): never {
   if (
-    error instanceof McpToolInputError
-    || error instanceof McpToolOutputUnavailableError
-    || error instanceof McpUnknownToolError
-    || error instanceof McpInvalidToolNameError
+    error instanceof McpToolInputError ||
+    error instanceof McpToolOutputUnavailableError ||
+    error instanceof McpUnknownToolError ||
+    error instanceof McpInvalidToolNameError ||
+    error instanceof McpToolScopeDeniedError
   ) {
     throw error;
   }
@@ -219,36 +336,39 @@ function assertExactDataObject(
   optional: readonly string[] = [],
   fail: () => Error = configError,
 ): asserts value is object {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw fail();
+  if (typeof value !== "object" || value === null || Array.isArray(value))
+    throw fail();
   const prototype = Object.getPrototypeOf(value);
   if (prototype !== Object.prototype && prototype !== null) throw fail();
   const allowed = new Set([...required, ...optional]);
   const keys = Reflect.ownKeys(value);
-  if (keys.some((key) => typeof key !== 'string' || !allowed.has(key))) throw fail();
+  if (keys.some((key) => typeof key !== "string" || !allowed.has(key)))
+    throw fail();
   if (required.some((key) => !keys.includes(key))) throw fail();
   for (const key of keys) {
     const descriptor = Object.getOwnPropertyDescriptor(value, key);
-    if (descriptor === undefined || !('value' in descriptor)) throw fail();
+    if (descriptor === undefined || !("value" in descriptor)) throw fail();
   }
 }
 
 function readOwnValue(value: object, name: string, fail: () => Error): unknown {
   const descriptor = Object.getOwnPropertyDescriptor(value, name);
   if (descriptor === undefined) return undefined;
-  if (!('value' in descriptor)) throw fail();
+  if (!("value" in descriptor)) throw fail();
   return descriptor.value;
 }
 
 function readOwnData(value: object, name: string, fail: () => Error): unknown {
   const descriptor = Object.getOwnPropertyDescriptor(value, name);
-  if (descriptor === undefined || !('value' in descriptor)) throw fail();
+  if (descriptor === undefined || !("value" in descriptor)) throw fail();
   return descriptor.value;
 }
 
 function assertArgumentCount(actual: number, expected: number): void {
-  if (actual !== expected) throw new TypeError('Invalid stateless MCP Tool core invocation.');
+  if (actual !== expected)
+    throw new TypeError("Invalid stateless MCP Tool core invocation.");
 }
 
 function configError(): TypeError {
-  return new TypeError('Invalid stateless MCP Tool core configuration.');
+  return new TypeError("Invalid stateless MCP Tool core configuration.");
 }

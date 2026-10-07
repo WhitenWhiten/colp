@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { parseArgs } from 'node:util';
 
-import { formatReport, runConformance } from '../src/index.mjs';
+import { formatReport, runConformance, sanitizeTerminalText } from '../src/index.mjs';
 
 const usage = `Usage: colp-conformance [options] <server-or-manifest-url>
 
@@ -12,6 +12,9 @@ Options:
   --json                  Print the report as JSON
   --max-collections <n>   Collections to inspect from the Directory (default 3)
   --max-pages <n>         Snapshot pages to follow per Collection (default 50)
+  --max-snapshot-bytes <n> Cumulative Snapshot response bytes (default 67108864)
+  --max-snapshot-members <n> Cumulative Snapshot resource members (default 100000)
+  --max-snapshot-objects <n> Cumulative Snapshot objects (default 100000)
   --max-requests <n>      Total request budget (default 200)
   --timeout <ms>          Per-request timeout (default 10000)
   -h, --help              Show this help
@@ -26,6 +29,9 @@ try {
       json: { type: 'boolean' },
       'max-collections': { type: 'string' },
       'max-pages': { type: 'string' },
+      'max-snapshot-bytes': { type: 'string' },
+      'max-snapshot-members': { type: 'string' },
+      'max-snapshot-objects': { type: 'string' },
       'max-requests': { type: 'string' },
       timeout: { type: 'string' },
       help: { type: 'boolean', short: 'h' },
@@ -44,6 +50,9 @@ if (positionals.length !== 1) fail('Expected exactly one server or Manifest URL.
 const report = await runConformance(positionals[0], {
   maxCollections: count(values['max-collections'], 'max-collections'),
   maxPages: count(values['max-pages'], 'max-pages'),
+  maxSnapshotBytes: count(values['max-snapshot-bytes'], 'max-snapshot-bytes'),
+  maxSnapshotMembers: count(values['max-snapshot-members'], 'max-snapshot-members'),
+  maxSnapshotObjects: count(values['max-snapshot-objects'], 'max-snapshot-objects'),
   maxRequests: count(values['max-requests'], 'max-requests'),
   timeoutMs: count(values.timeout, 'timeout'),
 }).catch((error) => fail(error.message));
@@ -59,6 +68,6 @@ function count(value, name) {
 }
 
 function fail(message) {
-  console.error(`colp-conformance: ${message}\n\n${usage}`);
+  console.error(`colp-conformance: ${sanitizeTerminalText(message)}\n\n${usage}`);
   process.exit(2);
 }

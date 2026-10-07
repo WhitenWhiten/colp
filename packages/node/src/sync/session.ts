@@ -604,7 +604,7 @@ export type SyncSessionGateDenial =
       readonly state: 'terminated';
       readonly session: TerminatedSyncSessionRecord;
     }
-  | { readonly state: 'scope_missing'; readonly requiredScope: 'sync:push' | 'sync:pull' | 'sync:bootstrap' }
+  | { readonly state: 'scope_missing'; readonly requiredScope: ScopeName }
   | { readonly state: 'request_binding_mismatch'; readonly detail: string };
 
 /**

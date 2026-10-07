@@ -68,8 +68,14 @@ class DurableLifecycle implements ReplicaLifecycleUnitOfWork {
 }
 
 async function replica(lifecycle: DurableLifecycle, command: ReplicaAuthenticatedLifecycleCommandInput) {
-  const session = await verifiedSession('session-1', { authorizationScopes: ['sync:pull', 'sync:push'] });
-  return (await createSyncHost({ owner: 'push', session }).replica(lifecycle, key, command)).result;
+  const session = await verifiedSession('session-1', {
+    authorizationScopes: ['collections:create', 'sync:bootstrap', 'sync:pull', 'sync:push'],
+  });
+  return (await createSyncHost({
+    owner: 'push',
+    session,
+    ownershipVerifier: () => true,
+  }).replica(lifecycle, key, command)).result;
 }
 
 const fresh = { leaseId: 'lease-2', generation: 'g2', succeeded: true } as const;

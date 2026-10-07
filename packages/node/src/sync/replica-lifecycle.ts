@@ -21,9 +21,7 @@ import {
   parseReplicaLifecycleCommand,
 } from './replica-lifecycle-parsing.js';
 import { isVerifiedSyncSession, type VerifiedSyncSession } from './session.js';
-
 export type ReplicaLifecycle = 'active' | 'expired' | 'recovery_required' | 'retired';
-
 export { type ReplicaCheckpoint } from './replica-lifecycle-transitions.js';
 
 export interface DurableReplicaCheckpoint extends Omit<ReplicaCheckpoint, 'collectionId'> {
@@ -232,6 +230,36 @@ type OmitReplicaAuthentication<Command> = Command extends unknown
  */
 export type ReplicaAuthenticatedLifecycleCommandInput =
   OmitReplicaAuthentication<ReplicaAuthorizedCommand>;
+
+/**
+ * Host supplied proof that the requested Replica belongs to the verified
+ * Session's principal (and any deployment-specific credential/tenant binding).
+ *
+ * This callback is deliberately evaluated before a `ReplicaAuthProof` is
+ * minted and before the lifecycle UnitOfWork is entered.  A deployment should
+ * resolve the durable principal → Replica binding inside its authorization
+ * boundary and return `true` (or `undefined` for a void callback).  `false`
+ * denies the request; any other return value is an adapter contract error.
+ */
+export type ReplicaLifecycleOwnershipVerifier = (
+  session: VerifiedSyncSession,
+  key: ReplicaLifecycleKey,
+  command: ReplicaAuthenticatedLifecycleCommandInput,
+) => Promise<boolean | void> | boolean | void;
+
+/** Scope required by each host-facing Replica lifecycle operation. */
+export function requiredReplicaLifecycleScope(
+  command: Pick<ReplicaAuthenticatedLifecycleCommandInput, 'type'>,
+): 'sync:bootstrap' | 'sync:pull' | 'sync:push' {
+  switch (command.type) {
+    case 'register':
+      return 'sync:bootstrap';
+    case 'acknowledge':
+      return 'sync:pull';
+    default:
+      return 'sync:push';
+  }
+}
 
 /**
  * Builds an authorized Replica lifecycle command with `authenticated: true`

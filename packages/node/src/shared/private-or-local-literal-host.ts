@@ -36,6 +36,17 @@ function isPrivateOrLocalIPv4(octets: readonly [number, number, number, number])
   if (a === 169 && b === 254) return true;
   // 100.64.0.0/10 shared address space (CGNAT / carrier-grade NAT)
   if (a === 100 && b >= 64 && b <= 127) return true;
+  // 192.0.0.0/24 protocol assignments and TEST-NET-1 (192.0.2.0/24).
+  if (a === 192 && b === 0) return true;
+  // TEST-NET-1/2/3 and deprecated 6to4 relay anycast. These are not
+  // globally reachable destinations and must not be used as an SSRF escape.
+  if (a === 192 && b === 88 && octets[2] === 99) return true;
+  if (a === 198 && b === 51 && octets[2] === 100) return true;
+  if (a === 203 && b === 0 && octets[2] === 113) return true;
+  // Benchmarking (RFC 2544) is reserved for test networks.
+  if (a === 198 && (b === 18 || b === 19)) return true;
+  // Multicast (224/4), reserved/future use (240/4), and limited broadcast.
+  if (a >= 224) return true;
   return false;
 }
 
@@ -133,6 +144,13 @@ function isPrivateOrLocalIPv6(hextets: Uint16Array): boolean {
   if ((hextets[0]! & 0xffc0) === 0xfe80) return true;
   // fc00::/7 unique local (ULA)
   if ((hextets[0]! & 0xfe00) === 0xfc00) return true;
+  // ff00::/8 multicast and IPv6 special-use non-global ranges.
+  if ((hextets[0]! & 0xff00) === 0xff00) return true;
+  // IPv6 discard-only, benchmarking, documentation, and ORCHID ranges.
+  if (hextets[0] === 0x0100 && hextets[1] === 0) return true; // 100::/64
+  if (hextets[0] === 0x2001 && hextets[1] === 0x0002 && hextets[2] === 0) return true; // 2001:2::/48
+  if (hextets[0] === 0x2001 && hextets[1] === 0x0db8) return true; // 2001:db8::/32
+  if (hextets[0] === 0x2001 && (hextets[1]! & 0xfff0) === 0x0010) return true; // 2001:10::/28
 
   return false;
 }

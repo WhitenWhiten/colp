@@ -130,7 +130,7 @@ function collectionInput(
     protocolVersion: '0.1',
     collectionId: 'collection-1',
     purpose: null,
-    authorizationScopes: ['sync:pull', 'sync:push'],
+    authorizationScopes: ['collections:create', 'sync:bootstrap', 'sync:pull', 'sync:push'],
     ...overrides,
   };
 }
@@ -1031,6 +1031,7 @@ describe(`Sync composition & export layering ${evidence}`, () => {
           leaseExpiresAt: future,
           succeeded: true,
         },
+        () => true,
       );
 
       expect(outcome.session.sessionId).toBe(input.sessionId);
@@ -1061,6 +1062,7 @@ describe(`Sync composition & export layering ${evidence}`, () => {
           leaseExpiresAt: future,
           succeeded: true,
         },
+        () => true,
       );
 
       await expect(operation).rejects.toBeInstanceOf(SyncSessionGateDeniedError);
@@ -1091,6 +1093,7 @@ describe(`Sync composition & export layering ${evidence}`, () => {
           succeeded: true,
           authenticated: true,
         } as never,
+        () => true,
       )).rejects.toThrow(/must not supply authenticated/i);
       expect(handle.executeCount).toBe(0);
     });

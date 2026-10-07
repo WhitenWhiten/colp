@@ -62,7 +62,7 @@ export interface McpWriteToolResult {
 }
 
 export interface McpWriteToolGateway {
-  readonly listTools: () => readonly McpToolDefinition[];
+  readonly listTools: (context?: McpTrustedWriteRequestContext) => readonly McpToolDefinition[];
   readonly callTool: (
     name: string,
     input: unknown,
@@ -121,6 +121,8 @@ export interface McpLowRiskToolDefinition {
   readonly inputSchema: McpToolInputSchema;
   /** Closed schema for the successful model-visible structured result. */
   readonly outputSchema: McpToolOutputSchema;
+  /** Scopes required before this Tool is advertised or invoked. */
+  readonly requiredScopes?: readonly string[];
   readonly toCanonicalOperations: (
     input: Readonly<Record<string, unknown>>,
     context: McpTrustedWriteRequestContext,
@@ -324,6 +326,7 @@ export const changesPlanToolDefinition = Object.freeze({
   description: 'Create a typed Change Plan for high-risk operations. Requires out-of-band approval before commit.',
   inputSchema: planInputSchema,
   outputSchema: changePlanResultRef,
+  requiredScopes: Object.freeze(['access:write']),
 } as const satisfies McpToolDefinition);
 
 export const changesCommitToolDefinition = Object.freeze({
@@ -331,6 +334,7 @@ export const changesCommitToolDefinition = Object.freeze({
   description: 'Commit an approved Change Plan. Revalidates binding, digest, revisions, scope, and impact.',
   inputSchema: commitInputSchema,
   outputSchema: changeCommitResultRef,
+  requiredScopes: Object.freeze(['access:write']),
 } as const satisfies McpToolDefinition);
 
 export const changesCancelToolDefinition = Object.freeze({
@@ -338,6 +342,7 @@ export const changesCancelToolDefinition = Object.freeze({
   description: 'Cancel a pending Change Plan bound to the current Subject / Client / Session.',
   inputSchema: cancelInputSchema,
   outputSchema: cancelOutputSchema,
+  requiredScopes: Object.freeze(['access:write']),
 } as const satisfies McpToolDefinition);
 
 export const keysCreateToolDefinition = Object.freeze({
@@ -345,6 +350,7 @@ export const keysCreateToolDefinition = Object.freeze({
   description: 'Create an API key via Plan/Commit-safe path. Structured results never include plaintext secrets.',
   inputSchema: apiKeyCreateRequestRef,
   outputSchema: keyOutputSchema,
+  requiredScopes: Object.freeze(['keys:write']),
 } as const satisfies McpToolDefinition);
 
 export const keysRotateToolDefinition = Object.freeze({
@@ -352,6 +358,7 @@ export const keysRotateToolDefinition = Object.freeze({
   description: 'Rotate an API key via Plan/Commit-safe path. Structured results never include plaintext secrets.',
   inputSchema: apiKeyRotateRequestRef,
   outputSchema: keyOutputSchema,
+  requiredScopes: Object.freeze(['keys:write']),
 } as const satisfies McpToolDefinition);
 
 /**
@@ -456,6 +463,8 @@ export function createMcpWriteToolGateway<
       if (nodeTypes.isProxy(definition)) {
         throw new TypeError(`lowRiskTools.${name} must not be a Proxy.`);
       }
+      const requiredScopesCandidate = readOwnValue(definition, 'requiredScopes');
+      const requiredScopes = readWriteToolScopes(requiredScopesCandidate);
       const inputSchemaCandidate = readOwnValue(definition, 'inputSchema');
       if (typeof inputSchemaCandidate !== 'object' || inputSchemaCandidate === null
         || nodeTypes.isProxy(inputSchemaCandidate)) {
@@ -499,13 +508,21 @@ export function createMcpWriteToolGateway<
         description: `Write tool ${name}`,
         inputSchema,
         outputSchema: publishedOutputSchema,
+        ...(requiredScopes.length > 0 ? { requiredScopes } : {}),
       }));
     }
   }
 
   const published = Object.freeze(tools.slice());
 
-  const listTools = (): readonly McpToolDefinition[] => published;
+  const listTools = (context?: McpTrustedWriteRequestContext): readonly McpToolDefinition[] => {
+    if (context === undefined) return published;
+    const trustedContext = requireTrustedWriteRequestContext(context);
+    const effectiveScope = new Set(trustedContext.scope);
+    return Object.freeze(published.filter((definition) =>
+      hasWriteToolScopes(readWriteToolScopes(readOwnValue(definition, 'requiredScopes')), effectiveScope),
+    ));
+  };
 
   const callTool = async (
     name: string,
@@ -587,6 +604,8 @@ export function createMcpWriteToolGateway<
 
     const registration = registeredLowRiskTools.get(name);
     if (registration !== undefined) {
+      const requiredScopes = readWriteToolScopes(readOwnValue(registration.definition, 'requiredScopes'));
+      if (!hasWriteToolScopes(requiredScopes, activeContext.scope)) throw new McpWriteToolScopeDeniedError();
       const inputSnapshot = registration.validate(input, requestBudget);
       const extractor = readOwnValue(registration.definition, 'toCanonicalOperations') as
         McpLowRiskToolDefinition['toCanonicalOperations'];
@@ -663,6 +682,15 @@ export function toRedactedKeyToolResult(
   return redacted;
 }
 
+export class McpWriteToolScopeDeniedError extends TypeError {
+  readonly code = 'tool_scope_denied' as const;
+
+  constructor() {
+    super('MCP write Tool is not available for the current authorization scopes.');
+    this.name = 'McpWriteToolScopeDeniedError';
+  }
+}
+
 export class McpWriteUnknownToolError extends TypeError {
   readonly code = 'unknown_tool' as const;
 
@@ -688,6 +716,26 @@ export class McpWriteRequestAbortedError extends Error {
     super('MCP write request aborted before a model-visible result was produced.');
     this.name = 'McpWriteRequestAbortedError';
   }
+}
+
+function readWriteToolScopes(value: unknown): readonly string[] {
+  if (value === undefined) return Object.freeze([]);
+  if (!Array.isArray(value) || Object.getPrototypeOf(value) !== Array.prototype) {
+    throw new TypeError('Tool requiredScopes must be an array of non-empty strings.');
+  }
+  const scopes = value.map((scope) => {
+    if (typeof scope !== 'string' || scope.length === 0 || scope.length > 128) {
+      throw new TypeError('Tool requiredScopes must be an array of non-empty strings.');
+    }
+    return scope;
+  });
+  if (new Set(scopes).size !== scopes.length) throw new TypeError('Tool requiredScopes must be unique.');
+  return Object.freeze(scopes);
+}
+
+function hasWriteToolScopes(required: readonly string[], effective: ReadonlySet<string> | readonly string[]): boolean {
+  const set = effective instanceof Set ? effective : new Set(effective);
+  return required.every((scope) => set.has(scope));
 }
 
 async function invokeKeyTool(

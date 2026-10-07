@@ -277,7 +277,7 @@ describe('ColpClient default literal-host egress on GET redirects', () => {
     const directory = await fixture('collection-directory.json');
     const fetch = directoryRedirectFetch(manifest, directory, 'https://cdn.example/directory');
     const resolveHost = vi.fn(async (hostname: string) => (
-      hostname === 'cdn.example' ? ['192.168.1.5'] : ['198.51.100.7']
+      hostname === 'cdn.example' ? ['192.168.1.5'] : ['93.184.216.34']
     ));
     const client = new ColpClient({
       manifestUrl,

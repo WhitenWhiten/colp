@@ -26,6 +26,7 @@ import {
   changePlanOptions,
   commitInput,
   firstPlanResult,
+  lowRiskDescriptor,
   harness,
   planRequest,
   serverInfo,
@@ -310,6 +311,29 @@ describe('MCP 2026-07-28 Write adapter — plan resolution statuses', () => {
       requestState: state,
     }));
     expect(error).toMatchObject({ kind: 'invalid_params' });
+  });
+});
+
+describe('MCP 2026-07-28 Write adapter — untrusted application errors', () => {
+  it('does not expose a caller-controlled TypeError from a low-risk Tool', async () => {
+    const { adapter, context } = harness({
+      lowRiskTools: {
+        'custom.write': lowRiskDescriptor({
+          invoke: () => {
+            throw new TypeError('caller secret');
+          },
+        }),
+      },
+    });
+    const error = await captureError(adapter.callTool(context, {
+      name: 'custom.write',
+      arguments: { mode: 'private' },
+    }));
+    expect(error).toMatchObject({
+      kind: 'internal_error',
+      message: 'MCP write operation failed.',
+    });
+    expect((error as Error).message).not.toContain('caller secret');
   });
 });
 

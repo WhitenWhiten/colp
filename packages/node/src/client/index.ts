@@ -7,14 +7,14 @@ import { cancelResponseBody, readResponseBody } from './response-body.js';
 import { withClientRequestIdentity, type ClientRequestContext, type ClientRequestIdentity, type ClientRequestIdentityProvider, type CredentialProvider } from './request-identity.js';
 export type { ClientRequestIdentity, ClientRequestIdentityProvider, CredentialProvider } from './request-identity.js';
 export { ColpClientLimitError, defaultClientRequestLimits, type ClientRequestLimits, type ClientRequestOptions } from './request-budget.js';
-
 import canonicalize from 'canonicalize';
 import { parseTemplate } from 'url-template';
 import {
   defaultClientHostResolver,
+  defaultPinnedNodeFetch,
   type ClientHostResolver,
+  type PinnedNodeFetch,
 } from './host-resolution.js';
-
 import {
   createValidatorRegistry,
   parseIJson,
@@ -94,7 +94,6 @@ import {
 import { validatePublicationIfNoneMatchEtag } from './publication-conditional.js';
 import { updatePublicationResponseCache, type ClientCache, type ClientCacheEntry } from './publication-cache.js';
 export type { ClientCache, ClientCacheEntry } from './publication-cache.js';
-
 export { compareOrderKeys } from '../semantic/index.js';
 export { buildCreateNodePayload, buildMoveNodePayload } from './node-placement.js';
 export {
@@ -162,13 +161,10 @@ export {
   type GlobalResourceType,
   type LocalResourceReferenceContext,
 } from '../shared/resource-identity.js';
-
 export type FetchImplementation = typeof globalThis.fetch;
 export type { ClientHostResolver } from './host-resolution.js';
-
 export const supportedClientProtocolVersions = ['0.1'] as const;
 export type SupportedClientProtocolVersion = (typeof supportedClientProtocolVersions)[number];
-
 function parseClientHeaders(
   input: ConstructorParameters<typeof Headers>[0],
   source: 'static' | 'provider' | 'operation',
@@ -666,6 +662,7 @@ function detachedSnapshot<Value>(value: Readonly<Value>): Value {
 export class ColpClient {
   readonly #fetch: FetchImplementation;
   readonly #hostResolver: ClientHostResolver | undefined;
+  readonly #pinnedFetch: PinnedNodeFetch | undefined;
   readonly #manifestUrl: URL;
   readonly #protocolVersion: SupportedClientProtocolVersion;
   readonly #headers: Headers;
@@ -689,6 +686,7 @@ export class ColpClient {
 
   constructor(options: ColpClientOptions) {
     this.#fetch = options.fetch ?? globalThis.fetch;
+    this.#pinnedFetch = options.fetch === undefined ? defaultPinnedNodeFetch() : undefined;
     // A supplied fetch implementation owns its own DNS/connection policy. Use
     // the built-in resolver only for the default Node fetch path, while still
     // allowing custom transports to opt into the same check explicitly.
@@ -1127,8 +1125,9 @@ export class ColpClient {
     policy: RequestPolicy,
     previousUrl: URL | null,
     redirectCount: number,
-  ): Promise<void> {
+  ): Promise<string | undefined> {
     if (this.#egressPolicy === undefined) {
+      let approvedAddress: string | undefined;
       // The fetched Manifest is not authority to select private destinations.
       // Only the origin explicitly supplied by the caller can retain the
       // initial local-development exception, never redirects or response Links.
@@ -1163,8 +1162,11 @@ export class ColpClient {
             `Egress policy denied ${policy.purpose} request URL: DNS resolved to a private or local address.`,
           );
         }
+        // All answers were policy-approved; pin the socket to one concrete
+        // answer so DNS cannot change between authorization and connect.
+        approvedAddress = addresses[0];
       }
-      return;
+      return approvedAddress;
     }
     const context: ClientEgressPolicyContext = Object.freeze({
       purpose: policy.purpose,
@@ -1210,7 +1212,7 @@ export class ColpClient {
       }
       visitedUrls.add(key);
 
-      await this.#authorizeEgress(current, policy, previousUrl, redirectCount);
+      const approvedAddress = await this.#authorizeEgress(current, policy, previousUrl, redirectCount);
       policy.signal?.throwIfAborted();
       const requestHeaders = await this.#requestHeaders(
         current,
@@ -1219,14 +1221,24 @@ export class ColpClient {
       );
       policy.signal?.throwIfAborted();
       const response = await abortable(
-        this.#fetch(current, {
-          method: policy.operation?.method ?? 'GET',
-          headers: requestHeaders.headers,
-          redirect: 'manual',
-          credentials: current.origin === policy.trustedOrigin ? 'same-origin' : 'omit',
-          ...(policy.body === undefined ? {} : { body: policy.body }),
-          ...(policy.signal === undefined ? {} : { signal: policy.signal }),
-        }).then(response => {
+        (this.#pinnedFetch !== undefined && approvedAddress !== undefined
+          ? this.#pinnedFetch(current, {
+            method: policy.operation?.method ?? 'GET',
+            headers: requestHeaders.headers,
+            redirect: 'manual',
+            credentials: current.origin === policy.trustedOrigin ? 'same-origin' : 'omit',
+            ...(policy.body === undefined ? {} : { body: policy.body }),
+            ...(policy.signal === undefined ? {} : { signal: policy.signal }),
+          }, approvedAddress)
+          : this.#fetch(current, {
+            method: policy.operation?.method ?? 'GET',
+            headers: requestHeaders.headers,
+            redirect: 'manual',
+            credentials: current.origin === policy.trustedOrigin ? 'same-origin' : 'omit',
+            ...(policy.body === undefined ? {} : { body: policy.body }),
+            ...(policy.signal === undefined ? {} : { signal: policy.signal }),
+          })
+        ).then(response => {
           if (policy.signal?.aborted) {
             cancelResponseBody(response, policy.signal.reason);
             throw policy.signal.reason;

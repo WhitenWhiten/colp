@@ -155,6 +155,26 @@ describe('snapshot semantics [evidence:publication.bookmark-url-safety] [evidenc
     expect(duplicate.valid).toBe(false);
   });
 
+  it('enforces cumulative member and object budgets before page flattening', async () => {
+    const complete = await fixture('collection-snapshot.json');
+    const first = structuredClone(complete);
+    first.nodes = complete.nodes.slice(0, 1);
+    first.annotations = [];
+    first.page = { nextCursor: 'page-2', hasMore: true, sequence: 1 };
+    const second = structuredClone(complete);
+    second.nodes = complete.nodes.slice(1);
+    second.annotations = [];
+    second.page = { nextCursor: null, hasMore: false, sequence: 2 };
+
+    const memberLimited = assembleSnapshotPages([first, second], { maxMembers: 1 });
+    expect(memberLimited.valid).toBe(false);
+    if (!memberLimited.valid) expect(memberLimited.issues[0]?.code).toBe('snapshot_assembly_member_budget');
+
+    const objectLimited = assembleSnapshotPages([first, second], { maxObjects: 1 });
+    expect(objectLimited.valid).toBe(false);
+    if (!objectLimited.valid) expect(objectLimited.issues[0]?.code).toBe('snapshot_assembly_object_budget');
+  });
+
   it('rejects empty, changed, and cropped page assemblies', async () => {
     expect(assembleSnapshotPages([]).valid).toBe(false);
     const first = await fixture('collection-snapshot.json');

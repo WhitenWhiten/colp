@@ -20,6 +20,8 @@ import {
   type SyncExtensionStoreWriteResult,
   type SyncExtensionTransaction,
   type SyncExtensionUnitOfWork,
+  type SyncOperationClaim,
+  type SyncOperationReuseAudit,
 } from '../../src/sync/index.js';
 
 const evidence = '[evidence:core.sync-unknown-extension-roundtrip]';
@@ -31,6 +33,9 @@ type RelayResult = SyncExtensionRelayResult;
 interface DurableState {
   readonly carriers: Map<string, StoredSyncExtensionCarrier>;
   readonly receipts: Map<string, RelayResult>;
+  readonly operationClaims: Map<string, SyncOperationClaim>;
+  readonly reuseAudits: Map<string, SyncOperationReuseAudit>;
+  readonly reservedOperationIds: Set<string>;
 }
 
 function identity(key: SyncExtensionResourceKey): string {
@@ -58,6 +63,9 @@ function cloneState(state: DurableState): DurableState {
   return {
     carriers: new Map([...state.carriers].map(([key, carrier]) => [key, cloneCarrier(carrier)])),
     receipts: new Map([...state.receipts].map(([key, result]) => [key, cloneResult(result)])),
+    operationClaims: new Map([...state.operationClaims].map(([key, claim]) => [key, structuredClone(claim)])),
+    reuseAudits: new Map([...state.reuseAudits].map(([key, audit]) => [key, structuredClone(audit)])),
+    reservedOperationIds: new Set(state.reservedOperationIds),
   };
 }
 
@@ -75,7 +83,9 @@ class DurableMemoryExtensionAdapter implements SyncExtensionUnitOfWork {
   savedReceiptOverride?: (result: RelayResult) => RelayResult;
 
   constructor(seed?: DurableState) {
-    this.state = seed === undefined ? { carriers: new Map(), receipts: new Map() } : cloneState(seed);
+    this.state = seed === undefined
+      ? { carriers: new Map(), receipts: new Map(), operationClaims: new Map(), reuseAudits: new Map(), reservedOperationIds: new Set() }
+      : cloneState(seed);
   }
 
   restart(): DurableMemoryExtensionAdapter {
@@ -132,6 +142,40 @@ class DurableMemoryExtensionAdapter implements SyncExtensionUnitOfWork {
           const saved = this.savedReceiptOverride?.(result) ?? result;
           draft.receipts.set(receiptIdentity(request), cloneResult(saved));
           if (this.failReceipt) throw new Error('injected receipt save failure');
+        },
+      },
+      idReservations: {
+        reserveAll: async (reservations) => {
+          const conflict = reservations.find((reservation) => draft.reservedOperationIds.has(reservation.id));
+          if (conflict !== undefined) {
+            return {
+              state: 'conflict' as const,
+              conflict: {
+                requested: structuredClone(conflict),
+                existing: { id: conflict.id, resourceType: 'operation' as const },
+              },
+            };
+          }
+          for (const reservation of reservations) draft.reservedOperationIds.add(reservation.id);
+          return { state: 'reserved' as const };
+        },
+      },
+      operationClaims: {
+        load: async (operationId) => {
+          const claim = draft.operationClaims.get(operationId);
+          return claim === undefined ? undefined : structuredClone(claim);
+        },
+        save: async (claim) => { draft.operationClaims.set(claim.operationId, structuredClone(claim)); },
+      },
+      reuseAudits: {
+        append: async (audit) => {
+          const key = `reuse-${draft.reuseAudits.size + 1}`;
+          draft.reuseAudits.set(key, structuredClone(audit));
+          return key;
+        },
+        load: async (key) => {
+          const audit = draft.reuseAudits.get(key);
+          return audit === undefined ? undefined : structuredClone(audit);
         },
       },
     };
@@ -309,8 +353,12 @@ describe(`CORE-0033 durable unknown Sync Extension relay ${evidence}`, () => {
     await expect(relaySyncExtensionCarrier(adapter, request({
       digest: 'sha-256:different-request',
       replacement: { kind: 'delete' },
-    }))).resolves.toMatchObject({ state: 'receipt_conflict' });
-    expect(adapter.snapshot()).toEqual(before);
+    }))).rejects.toMatchObject({ code: 'op_id_reused' });
+    const after = adapter.snapshot();
+    expect(after.carriers).toEqual(before.carriers);
+    expect(after.receipts).toEqual(before.receipts);
+    expect(after.operationClaims).toEqual(before.operationClaims);
+    expect(after.reuseAudits.size).toBe(before.reuseAudits.size + 1);
     await expect(loadSyncExtensionCarrier(adapter.extensionStore(), collectionKey)).resolves.toEqual(original);
   });
 
@@ -474,6 +522,9 @@ describe(`CORE-0033 durable unknown Sync Extension relay ${evidence}`, () => {
           load: async () => undefined,
           save: async () => undefined,
         },
+        idReservations: { reserveAll: async () => ({ state: 'reserved' }) },
+        operationClaims: { load: async () => undefined, save: async () => undefined },
+        reuseAudits: { append: async () => 'unused', load: async () => undefined },
       }),
     };
     await expect(relaySyncExtensionCarrier(invalidUnitOfWork, request())).rejects.toThrow(TypeError);
@@ -499,6 +550,7 @@ describe(`CORE-0033 durable unknown Sync Extension relay ${evidence}`, () => {
         ? { execute: (() => undefined) as never }
         : {
             execute: async (work) => adapter.execute(async (transaction) => work({
+              ...transaction,
               extensions: {
                 load: transaction.extensions.load,
                 compareAndSet: point === 'compare-and-set'

@@ -126,6 +126,12 @@ Pagination uses only `page.nextCursor`. Sync progress uses only `syncCursor`. Fe
 
 ## 7. Two-Stage Validation
 
+The schema caps `uniqueItems` arrays whose entries are structured objects at
+512 entries. Receivers MUST enforce that bound (or an equivalent linear-time
+admission budget) before performing deep structural uniqueness comparisons;
+this keeps a malformed collection of large, distinct objects from turning
+validation into an unbounded quadratic operation.
+
 JSON Schema is responsible for structure and format validation. Implementations must enable Draft 2020-12 format assertion or perform equivalent RFC 3339 and URI validation; treating `format` as an annotation only does not conform to this profile. After structural validation passes, the receiver MUST perform semantic validation:
 
 - Exactly one root, equal to `collection.rootNodeId`.

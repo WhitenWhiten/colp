@@ -266,15 +266,21 @@ describe('MCP 2026-07-28 error normalization', () => {
     });
   });
 
-  it('normalizes upstream SDK-shaped errors without importing SDK types', () => {
+  it('normalizes upstream SDK-shaped errors without importing SDK types or leaking data', () => {
     const sdkShaped = {
       code: MCP_WIRE_UNSUPPORTED_PROTOCOL_VERSION_ERROR_CODE,
-      message: 'Unsupported protocol version: 2025-11-25',
-      data: { supported: ['2026-07-28'], requested: '2025-11-25' },
+      message: 'attacker-controlled message: secret',
+      data: { supported: ['2026-07-28'], token: 'secret' },
     };
-    expect(normalizeMcp20260728Error(sdkShaped)).toEqual(sdkShaped);
-    const headerShaped = { code: MCP_WIRE_HEADER_MISMATCH_ERROR_CODE, message: 'mismatch' };
-    expect(normalizeMcp20260728Error(headerShaped)).toEqual(headerShaped);
+    expect(normalizeMcp20260728Error(sdkShaped)).toEqual({
+      code: MCP_WIRE_UNSUPPORTED_PROTOCOL_VERSION_ERROR_CODE,
+      message: 'Unsupported protocol version.',
+    });
+    const headerShaped = { code: MCP_WIRE_HEADER_MISMATCH_ERROR_CODE, message: 'mismatch', data: { secret: 'value' } };
+    expect(normalizeMcp20260728Error(headerShaped)).toEqual({
+      code: MCP_WIRE_HEADER_MISMATCH_ERROR_CODE,
+      message: 'Request headers do not match.',
+    });
   });
 
   it('collapses unknown errors to a low-sensitivity -32603', () => {
@@ -300,4 +306,3 @@ describe('MCP 2026-07-28 error normalization', () => {
     expect(normalized.code).toBe(-32021);
   });
 });
-

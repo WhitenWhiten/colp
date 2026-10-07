@@ -15,7 +15,13 @@ const now = '2026-07-18T01:00:00Z';
 const future = '2026-07-18T02:00:00Z';
 const key = { replicaId: 'replica-scope', collectionId: 'collection-scope' };
 
-async function verifiedSession(scope: 'instance' | 'collection', collectionId = key.collectionId) {
+async function verifiedSession(
+  scope: 'instance' | 'collection',
+  collectionId = key.collectionId,
+  authorizationScopes: ActiveSyncSessionRecord['authorizationScopes'] = [
+    'collections:create', 'sync:bootstrap', 'sync:push', 'sync:pull',
+  ],
+) {
   const binding = {
     principal: { type: 'user' as const, id: 'alice' },
     credential: { kind: 'token' as const, id: 'token-scope' },
@@ -26,7 +32,7 @@ async function verifiedSession(scope: 'instance' | 'collection', collectionId = 
   };
   const record: ActiveSyncSessionRecord = {
     ...binding, sessionId: 'session-scope', status: 'active',
-    authorizationScopes: ['collections:create', 'sync:bootstrap', 'sync:push', 'sync:pull'],
+    authorizationScopes,
   };
   const store: SyncSessionStore = {
     load: async (id) => id === record.sessionId ? structuredClone(record) : undefined,
@@ -61,14 +67,46 @@ function forbiddenUnitOfWork() {
   return { entered, unitOfWork };
 }
 
+const ownsReplica = () => true;
+
 describe('Replica lifecycle requires a bound Collection [evidence:sync.composition]', () => {
+  it('requires durable ownership evidence before minting a proof or entering the transaction', async () => {
+    const session = await verifiedSession('collection');
+    const { entered, unitOfWork } = forbiddenUnitOfWork();
+    await expect(coordinateSessionBoundReplicaLifecycle(
+      { kind: 'verified', session }, unitOfWork, key,
+      { type: 'retire', succeeded: true },
+    )).rejects.toMatchObject({ denial: { state: 'request_binding_mismatch' } });
+    expect(entered).not.toHaveBeenCalled();
+
+    await expect(coordinateSessionBoundReplicaLifecycle(
+      { kind: 'verified', session }, unitOfWork, key,
+      { type: 'retire', succeeded: true },
+      () => false,
+    )).rejects.toMatchObject({ denial: { state: 'request_binding_mismatch' } });
+    expect(entered).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['register', { type: 'register', collectionId: key.collectionId, ...freshLease, succeeded: true }, ['sync:push', 'sync:pull'], 'sync:bootstrap'],
+    ['acknowledge', { type: 'acknowledge', cursor: 'cursor-1', commitOrdinal: '1', succeeded: true }, ['collections:create', 'sync:bootstrap', 'sync:push'], 'sync:pull'],
+    ['renew', { type: 'renew', leaseExpiresAt: future, succeeded: true }, ['collections:create', 'sync:bootstrap', 'sync:pull'], 'sync:push'],
+  ] as const)('requires the command-specific authorization scope for %s', async (_label, command, scopes, requiredScope) => {
+    const session = await verifiedSession('collection', key.collectionId, scopes);
+    const { entered, unitOfWork } = forbiddenUnitOfWork();
+    await expect(coordinateSessionBoundReplicaLifecycle(
+      { kind: 'verified', session }, unitOfWork, key, command, ownsReplica,
+    )).rejects.toMatchObject({ denial: { state: 'scope_missing', requiredScope } });
+    expect(entered).not.toHaveBeenCalled();
+  });
+
   it.each(commands)('rejects instance Session $type before any transaction', async (command) => {
     const session = await verifiedSession('instance');
     const { entered, unitOfWork } = forbiddenUnitOfWork();
     for (const run of [
-      () => coordinateSessionBoundReplicaLifecycle({ kind: 'verified', session }, unitOfWork, key, command),
-      () => createSyncHost({ owner: 'push', session }).replica(unitOfWork, key, command),
-      () => createSyncHost({ owner: 'sequence', session }).replica(unitOfWork, key, command),
+      () => coordinateSessionBoundReplicaLifecycle({ kind: 'verified', session }, unitOfWork, key, command, ownsReplica),
+      () => createSyncHost({ owner: 'push', session, ownershipVerifier: ownsReplica }).replica(unitOfWork, key, command),
+      () => createSyncHost({ owner: 'sequence', session, ownershipVerifier: ownsReplica }).replica(unitOfWork, key, command),
     ]) {
       await expect(run()).rejects.toBeInstanceOf(SyncSessionGateDeniedError);
     }
@@ -79,7 +117,8 @@ describe('Replica lifecycle requires a bound Collection [evidence:sync.compositi
     const session = await verifiedSession('collection', 'other-collection');
     const { entered, unitOfWork } = forbiddenUnitOfWork();
     await expect(coordinateSessionBoundReplicaLifecycle(
-      { kind: 'verified', session }, unitOfWork, key, { type: 'retire', succeeded: true },
+    { kind: 'verified', session }, unitOfWork, key, { type: 'retire', succeeded: true },
+    ownsReplica,
     )).rejects.toMatchObject({ denial: { state: 'request_binding_mismatch' } });
     expect(entered).not.toHaveBeenCalled();
   });
@@ -100,7 +139,7 @@ describe('Replica lifecycle requires a bound Collection [evidence:sync.compositi
       saveSnapshotAck: unused, loadSnapshotAck: unused,
     };
     const unitOfWork: ReplicaLifecycleUnitOfWork = { execute: async (_id, work) => work(transaction) };
-    const outcome = await createSyncHost({ owner: 'push', session }).replica(
+    const outcome = await createSyncHost({ owner: 'push', session, ownershipVerifier: ownsReplica }).replica(
       unitOfWork, key, { type: 'retire', succeeded: true },
     );
     expect(outcome.result).toMatchObject({ state: 'committed', checkpoint: { lifecycle: 'retired' } });

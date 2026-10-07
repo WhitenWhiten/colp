@@ -62,6 +62,10 @@ const addFormats = addFormatsImport as unknown as FormatsPlugin;
 const trustedValidatorRegistries = new WeakSet<ValidatorRegistry>();
 let canonicalValidators: ReadonlyMap<DefinitionName, ValidateFunction> | undefined;
 
+/** The protocol bound shared by object-valued `uniqueItems` arrays. */
+export const MAX_STRUCTURED_UNIQUE_ITEMS = 512;
+const structuredUniqueArrayKeys = new Set(['creators', 'sourceRefs', 'hubs']);
+
 /** Format-level assertion for RFC 6570 Level 1 templates. */
 export function isLevelOneUriTemplate(value: string): boolean {
   const variables = new Set<string>();
@@ -203,6 +207,8 @@ export function createValidatorRegistry(ajv?: Ajv2020): ValidatorRegistry {
     definitionNames,
     get,
     validate(name: DefinitionName, value: unknown): ValidationResult {
+      const bounded = findStructuredUniqueArrayLimit(value);
+      if (bounded !== undefined) return { valid: false, errors: [bounded] };
       const validator = get(name);
       if (validator(value)) {
         return { valid: true, errors: [] };
@@ -219,6 +225,8 @@ function validateWithCanonicalRegistry(
   definition: DefinitionName,
   value: unknown,
 ): ValidationResult {
+  const bounded = findStructuredUniqueArrayLimit(value);
+  if (bounded !== undefined) return { valid: false, errors: [bounded] };
   const validator = getCanonicalValidators().get(definition);
   if (validator === undefined) {
     throw new RangeError(`Unknown Collection Protocol schema definition: ${definition}`);
@@ -239,6 +247,62 @@ function validateWithCanonicalRegistry(
   // A structurally compatible wrapper is useful for instrumentation, but it is
   // untrusted code and may mutate the candidate while validating it.
   return canonicalResult();
+}
+
+/**
+ * Checks the small set of object-valued unique arrays before Ajv sees them.
+ * Ajv's `allErrors` mode can continue to its deep `uniqueItems` comparison
+ * after reporting `maxItems`, so relying on the schema keyword alone still
+ * permits quadratic work for an oversized input. The parser already rejects
+ * cycles and accessors on wire data; this traversal is deliberately bounded
+ * to the protocol's named structured unique arrays and visits each container
+ * once.
+ */
+function findStructuredUniqueArrayLimit(value: unknown): ErrorObject | undefined {
+  if (value === null || typeof value !== 'object') return undefined;
+  const seen = new WeakSet<object>();
+  const stack: Array<{ readonly value: object; readonly path: string }> = [{
+    value: value as object,
+    path: '',
+  }];
+  while (stack.length > 0) {
+    const current = stack.pop()!;
+    if (seen.has(current.value)) continue;
+    seen.add(current.value);
+    if (Array.isArray(current.value)) {
+      for (let index = current.value.length - 1; index >= 0; index -= 1) {
+        const descriptor = Object.getOwnPropertyDescriptor(current.value, String(index));
+        if (descriptor !== undefined && 'value' in descriptor && descriptor.value !== null
+          && typeof descriptor.value === 'object') {
+          stack.push({ value: descriptor.value, path: `${current.path}/${index}` });
+        }
+      }
+      continue;
+    }
+    for (const key of Object.keys(current.value)) {
+      // Extension payloads are intentionally opaque and may use these names
+      // without inheriting the core schema's unique-array contract.
+      if (key === 'extensions') continue;
+      const descriptor = Object.getOwnPropertyDescriptor(current.value, key);
+      if (descriptor === undefined || !('value' in descriptor)) continue;
+      const child = descriptor.value;
+      const childPath = `${current.path}/${key.replaceAll('~', '~0').replaceAll('/', '~1')}`;
+      if (structuredUniqueArrayKeys.has(key) && Array.isArray(child)
+        && child.length > MAX_STRUCTURED_UNIQUE_ITEMS) {
+        return {
+          instancePath: childPath,
+          schemaPath: `#/properties/${key}/maxItems`,
+          keyword: 'maxItems',
+          params: { limit: MAX_STRUCTURED_UNIQUE_ITEMS },
+          message: `must NOT have more than ${MAX_STRUCTURED_UNIQUE_ITEMS} items`,
+        };
+      }
+      if (child !== null && typeof child === 'object') {
+        stack.push({ value: child, path: childPath });
+      }
+    }
+  }
+  return undefined;
 }
 
 function normalizeStructuralResult(candidate: unknown): ValidationResult {

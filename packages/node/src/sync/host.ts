@@ -36,6 +36,7 @@ import type {
   ReplicaAuthenticatedLifecycleCommandInput,
   ReplicaLifecycleCoordinatorResult,
   ReplicaLifecycleKey,
+  ReplicaLifecycleOwnershipVerifier,
   ReplicaLifecycleTransaction,
   ReplicaLifecycleUnitOfWork,
 } from './replica-lifecycle.js';
@@ -58,11 +59,15 @@ export type SyncHostWriteOwner = 'sequence' | 'push';
 export interface SequenceSyncHostConfig {
   readonly owner: 'sequence';
   readonly session: VerifiedSyncSession;
+  /** Durable principal → Replica binding used by the lifecycle façade. */
+  readonly ownershipVerifier?: ReplicaLifecycleOwnershipVerifier;
 }
 
 export interface PushSyncHostConfig {
   readonly owner: 'push';
   readonly session: VerifiedSyncSession;
+  /** Durable principal → Replica binding used by the lifecycle façade. */
+  readonly ownershipVerifier?: ReplicaLifecycleOwnershipVerifier;
 }
 
 export type SyncHostConfig = SequenceSyncHostConfig | PushSyncHostConfig;
@@ -152,10 +157,13 @@ function bindPull(session: VerifiedSyncSession): HostPull {
     coordinateSessionBoundPull(gate, request, cursorStore, eventStore, snapshotUrlOptions);
 }
 
-function bindReplica(session: VerifiedSyncSession): HostReplica {
+function bindReplica(
+  session: VerifiedSyncSession,
+  ownershipVerifier: ReplicaLifecycleOwnershipVerifier | undefined,
+): HostReplica {
   const gate = { kind: 'verified' as const, session };
   return (unitOfWork, key, command) =>
-    coordinateSessionBoundReplicaLifecycle(gate, unitOfWork, key, command);
+    coordinateSessionBoundReplicaLifecycle(gate, unitOfWork, key, command, ownershipVerifier);
 }
 
 export function createSyncHost(config: SequenceSyncHostConfig): SequenceSyncHost;
@@ -165,7 +173,7 @@ export function createSyncHost(config: SyncHostConfig): SequenceSyncHost | PushS
   assertBrandedActiveSession(config.session);
   const gate = { kind: 'verified' as const, session: config.session };
   const pull = bindPull(config.session);
-  const replica = bindReplica(config.session);
+  const replica = bindReplica(config.session, config.ownershipVerifier);
 
   if (config.owner === 'sequence') {
     const sequence: SequenceSyncHost['sequence'] = (unitOfWork, request, evaluate) =>

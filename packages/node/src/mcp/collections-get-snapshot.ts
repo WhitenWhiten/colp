@@ -78,6 +78,7 @@ export const collectionsGetSnapshotToolDefinition = Object.freeze({
   name: 'collections.get_snapshot',
   description: 'Get a Resource Link for one authorized Collection snapshot.',
   inputSchema: collectionsGetSnapshotInputSchema,
+  requiredScopes: Object.freeze(['collections:read']),
 } as const satisfies McpToolDefinition);
 
 const validateCollectionsGetSnapshotInput = createMcpToolInputValidator(
