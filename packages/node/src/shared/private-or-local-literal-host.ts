@@ -131,6 +131,9 @@ function isPrivateOrLocalIPv6(hextets: Uint16Array): boolean {
   if (isZeroPrefix(8)) return true;
   if (isZeroPrefix(7) && hextets[7] === 1) return true;
 
+  // IPv4-translatable ::ffff:0:0:0/96 is non-global in its own right.
+  if (isZeroPrefix(4) && hextets[4] === 0xffff && hextets[5] === 0) return true;
+
   // IPv4-mapped ::ffff:0:0/96 — re-check embedded IPv4 as private/local
   if (isZeroPrefix(5) && hextets[5] === 0xffff) {
     const a = hextets[6]! >> 8;
@@ -140,17 +143,38 @@ function isPrivateOrLocalIPv6(hextets: Uint16Array): boolean {
     return isPrivateOrLocalIPv4([a, b, c, d]);
   }
 
+  // RFC 6052 / RFC 8215 NAT64 well-known prefix.  A translated address can
+  // look globally routable while carrying an RFC1918, loopback, or metadata
+  // IPv4 destination; classify the embedded address before allowing egress.
+  if (hextets[0] === 0x0064 && hextets[1] === 0xff9b
+    && hextets[2] === 0 && hextets[3] === 0 && hextets[4] === 0 && hextets[5] === 0) {
+    const a = hextets[6]! >> 8;
+    const b = hextets[6]! & 0xff;
+    const c = hextets[7]! >> 8;
+    const d = hextets[7]! & 0xff;
+    return isPrivateOrLocalIPv4([a, b, c, d]);
+  }
+
   // fe80::/10 link-local
   if ((hextets[0]! & 0xffc0) === 0xfe80) return true;
+  // fec0::/10 deprecated site-local; still routed internally by some stacks.
+  if ((hextets[0]! & 0xffc0) === 0xfec0) return true;
   // fc00::/7 unique local (ULA)
   if ((hextets[0]! & 0xfe00) === 0xfc00) return true;
   // ff00::/8 multicast and IPv6 special-use non-global ranges.
   if ((hextets[0]! & 0xff00) === 0xff00) return true;
   // IPv6 discard-only, benchmarking, documentation, and ORCHID ranges.
-  if (hextets[0] === 0x0100 && hextets[1] === 0) return true; // 100::/64
-  if (hextets[0] === 0x2001 && hextets[1] === 0x0002 && hextets[2] === 0) return true; // 2001:2::/48
+  if (hextets[0] === 0x0100 && hextets[1] === 0 && hextets[2] === 0 && hextets[3] === 0) return true; // 100::/64
+  if (hextets[0] === 0x2001 && hextets[1]! === 0) return true; // 2001::/32 (Teredo)
+  if (hextets[0] === 0x2001 && hextets[1]! === 0x0002 && hextets[2]! === 0) return true; // 2001:2::/48
+  if (hextets[0] === 0x2001 && (hextets[1]! & 0xfff0) === 0x0020) return true; // 2001:20::/28 (ORCHIDv2)
+  if (hextets[0] === 0x2001 && (hextets[1]! & 0xfff0) === 0x0030) return true; // 2001:30::/28
   if (hextets[0] === 0x2001 && hextets[1] === 0x0db8) return true; // 2001:db8::/32
   if (hextets[0] === 0x2001 && (hextets[1]! & 0xfff0) === 0x0010) return true; // 2001:10::/28
+  if (hextets[0] === 0x2002) return true; // 2002::/16 (6to4)
+  if (hextets[0] === 0x3fff && (hextets[1]! & 0xf000) === 0) return true; // 3fff::/20 documentation
+  if (hextets[0] === 0x5f00) return true; // 5f00::/16 (SRv6)
+  if (hextets[0] === 0x0064 && hextets[1] === 0xff9b && hextets[2] === 0x0001) return true; // 64:ff9b:1::/48
 
   return false;
 }

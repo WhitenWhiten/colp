@@ -17,7 +17,7 @@ import {
   mapPublisherPreconditionToProblem,
   mapPublisherWriteConflictToProblem,
 } from '../server/problems.js';
-import { immutableJsonData } from '../shared/immutable-json.js';
+import { immutableJsonData, omitUndefinedJsonProperties } from '../shared/immutable-json.js';
 import type { NodeMoveResult, StrictNode } from '../types/index.js';
 import {
   applyPublisherOperations,
@@ -294,8 +294,10 @@ function writerResult(
 }
 
 function snapshotRequest(request: PublisherNodeMoveRequest): PublisherNodeMoveRequest {
-  assertPlainSource(request, 'Publisher Node Move request');
-  const command = cloneMoveRequestData(request, 'Publisher Node Move request');
+  const command = immutableJsonData(
+    omitUndefinedJsonProperties(request, 'Publisher Node Move request'),
+    'Publisher Node Move request',
+  );
   const allowed = new Set(['operation', 'ifMatch']);
   if (!Object.hasOwn(command, 'operation')
     || Reflect.ownKeys(command).some((key) => typeof key !== 'string' || !allowed.has(key))) {
@@ -500,7 +502,6 @@ function snapshotPositionContext(
   maxChildren: number,
 ): PublisherNodeMovePositionContext {
   assertPositionContextLimit(candidate, parentId, collectionId, maxChildren);
-  assertPlainSource(candidate, 'Publisher Node Move position context');
   const context = immutableJsonData(candidate, 'Publisher Node Move position context') as PublisherNodeMovePositionContext;
   if (Reflect.ownKeys(context).length !== 3
     || context.parentId !== parentId
@@ -549,7 +550,6 @@ function assertPositionContextLimit(
 }
 
 function snapshotNode(candidate: unknown, label: string): StrictNode {
-  assertPlainSource(candidate, `Publisher Node Move ${label}`);
   const node = immutableJsonData(candidate, `Publisher Node Move ${label}`) as StrictNode;
   if (!validators.validate('node', node).valid || node.redacted === true) {
     throw new TypeError(`Publisher Node Move ${label} is malformed.`);
@@ -634,65 +634,6 @@ function assertStableReferences(before: MoveReferences, after: MoveReferences): 
     || before.source.parentId !== after.source.parentId
     || before.target.parentId !== after.target.parentId) {
     throw new TypeError('Publisher Node Move authoritative identities changed during application.');
-  }
-}
-
-function cloneMoveRequestData<Value>(
-  value: Value,
-  label: string,
-  ancestors = new Set<object>(),
-): Value {
-  if (value === undefined) return value;
-  if (value === null || typeof value === 'string' || typeof value === 'boolean'
-    || typeof value === 'number') {
-    return immutableJsonData(value, label);
-  }
-  if (typeof value !== 'object') throw new TypeError(`${label} must contain only plain data.`);
-  if (ancestors.has(value)) throw new TypeError(`${label} must not contain cycles.`);
-  ancestors.add(value);
-  if (Array.isArray(value)) {
-    const clone = value.map((entry) => cloneMoveRequestData(entry, label, ancestors));
-    ancestors.delete(value);
-    return Object.freeze(clone) as Value;
-  }
-  const clone: Record<string, unknown> = {};
-  for (const key of Reflect.ownKeys(value)) {
-    if (typeof key !== 'string') throw new TypeError(`${label} must not contain symbol keys.`);
-    const descriptor = Object.getOwnPropertyDescriptor(value, key);
-    if (descriptor === undefined || !descriptor.enumerable || !('value' in descriptor)) {
-      throw new TypeError(`${label} members must be enumerable data properties.`);
-    }
-    Object.defineProperty(clone, key, {
-      value: cloneMoveRequestData(descriptor.value, label, ancestors),
-      enumerable: true,
-      configurable: false,
-      writable: false,
-    });
-  }
-  ancestors.delete(value);
-  return Object.freeze(clone) as Value;
-}
-
-function assertPlainSource(value: unknown, label: string, seen = new WeakSet<object>()): void {
-  if (value === null || typeof value !== 'object' || seen.has(value)) return;
-  if (nodeTypes.isProxy(value)) throw new TypeError(`${label} cannot contain a Proxy.`);
-  const prototype = Object.getPrototypeOf(value) as unknown;
-  if (Array.isArray(value)) {
-    if (prototype !== Array.prototype && prototype !== null
-      || Reflect.ownKeys(value).length !== value.length + 1) {
-      throw new TypeError(`${label} arrays must be plain and dense.`);
-    }
-  } else if (prototype !== Object.prototype && prototype !== null) {
-    throw new TypeError(`${label} must contain only plain data.`);
-  }
-  seen.add(value);
-  for (const key of Reflect.ownKeys(value)) {
-    const descriptor = Object.getOwnPropertyDescriptor(value, key);
-    if (typeof key !== 'string' || descriptor === undefined || !('value' in descriptor)
-      || (key !== 'length' && !descriptor.enumerable)) {
-      throw new TypeError(`${label} cannot contain accessors or hidden members.`);
-    }
-    if (key !== 'length') assertPlainSource(descriptor.value, label, seen);
   }
 }
 

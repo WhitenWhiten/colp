@@ -16,6 +16,9 @@ export interface PublicationPublicProjectionLimits {
   readonly maxNodes?: number;
 }
 
+/** Strings larger than this are rejected before stringify/parse materialization. */
+const MAX_PUBLIC_STRING_BYTES = 8 * 1024 * 1024;
+
 export interface PublicationPublicProjectionOptions {
   /** Exact HTTPS extension namespaces audited as safe for public output. */
   readonly publicExtensionNamespaces: readonly string[];
@@ -363,7 +366,16 @@ function projectValue(
   if (depth > state.maxDepth) {
     throw new PublicationPublicProjectionError('projection_limit_exceeded');
   }
-  if (value === null || typeof value === 'string' || typeof value === 'boolean') return value;
+  if (value === null || typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    // Buffer.byteLength counts UTF-8 bytes without allocating a second copy
+    // of the string, so an oversized attacker-controlled value is rejected
+    // before any wire materialization.
+    if (Buffer.byteLength(value, 'utf8') > MAX_PUBLIC_STRING_BYTES) {
+      throw new PublicationPublicProjectionError('projection_limit_exceeded');
+    }
+    return value;
+  }
   if (typeof value === 'number') {
     if (!Number.isFinite(value) || (Number.isInteger(value) && !Number.isSafeInteger(value))) {
       throw new PublicationPublicProjectionError('malformed_input');
@@ -520,6 +532,16 @@ function projectObject(
   context: ProjectionContext,
 ): PublicationPublicValue {
   if (!isPlainObject(value)) throw new PublicationPublicProjectionError('malformed_input');
+  // Extension members and bare Feed payloads are projected with a synthetic
+  // root context.  A private annotation/attachment at that root cannot be
+  // safely dropped without changing the caller's envelope, so reject it.
+  if (context.parentKey === undefined) {
+    if (isNonPublicAnnotationObject(value)
+      || (hasOwnVisibility(value) && !isExplicitlyPublicAttachment(value)
+        && hasOwnDataProperty(value, 'rel') && hasOwnDataProperty(value, 'url'))) {
+      throw new PublicationPublicProjectionError('malformed_input');
+    }
+  }
   const ownKeys = Reflect.ownKeys(value);
   if (ownKeys.some((key) => typeof key === 'symbol')) {
     throw new PublicationPublicProjectionError('malformed_input');
@@ -573,8 +595,10 @@ function shouldRemoveField(
   context: ProjectionContext,
   conflictObject: boolean,
 ): boolean {
-  if ((context.parentKey === 'sourceRefs' && normalized === 'nativeid')
-    || normalized === 'profileid' || localPathKeys.has(normalized)) return true;
+  // The entire sourceRefs carrier is synchronization metadata.  Removing a
+  // few obvious IDs is insufficient because replica, adapter, hierarchy, and
+  // capture-time fields can still disclose private topology or provenance.
+  if (normalized === 'sourcerefs' || normalized === 'profileid' || localPathKeys.has(normalized)) return true;
   if (normalized === 'principalid' || (context.inPrincipal && normalized === 'id')) return true;
   if (isSecretField(normalized)) return true;
   if ((normalized === 'key' || normalized === 'keys')

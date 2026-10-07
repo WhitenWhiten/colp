@@ -136,6 +136,20 @@ describe('schema validator registry', () => {
     expect(result.valid).toBe(false);
     expect(result.errors.some((error) => error.keyword === 'maxItems')).toBe(true);
   });
+
+  it('rejects oversized parsed graphs before schema traversal', () => {
+    let nested: Record<string, unknown> = {};
+    for (let index = 0; index < 130; index += 1) nested = { next: nested };
+    const deep = registry.validate('opaqueId', nested);
+    expect(deep.valid).toBe(false);
+    expect(deep.errors[0]?.keyword).toBe('x-colp-budget');
+
+    const wide: Record<string, unknown> = {};
+    for (let index = 0; index < 100_001; index += 1) wide[`k${index}`] = index;
+    const broad = registry.validate('opaqueId', wide);
+    expect(broad.valid).toBe(false);
+    expect(broad.errors[0]?.keyword).toBe('x-colp-budget');
+  });
 });
 
 describe('URI Template format', () => {

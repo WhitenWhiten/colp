@@ -13,7 +13,7 @@ import {
   type ServerIdReservation,
   type ServerIdReservationTransaction,
 } from '../shared/server-id-reservations.js';
-import { immutableJsonData } from '../shared/immutable-json.js';
+import { immutableJsonData, omitUndefinedJsonProperties } from '../shared/immutable-json.js';
 import type { CreateNodeOperationPayload, StrictNode } from '../types/index.js';
 import {
   applyPublisherOperations,
@@ -174,8 +174,10 @@ async function executeOrdinaryNodeCreate<Context extends PublisherOrdinaryNodeCr
 }
 
 function snapshotRequest(request: PublisherOrdinaryNodeCreateRequest): PublisherOrdinaryNodeCreateRequest {
-  assertPlainSource(request, 'Publisher ordinary Node create request');
-  const command = immutableJsonData(request, 'Publisher ordinary Node create request');
+  const command = immutableJsonData(
+    omitUndefinedJsonProperties(request, 'Publisher ordinary Node create request'),
+    'Publisher ordinary Node create request',
+  );
   const keys = Reflect.ownKeys(command);
   if (keys.length !== 2 || !Object.hasOwn(command, 'nodeId') || !Object.hasOwn(command, 'operation')) {
     throw new TypeError('Publisher ordinary Node create request contains unknown or missing fields.');
@@ -326,7 +328,6 @@ async function reserveNodeId<Context extends PublisherOrdinaryNodeCreateTransact
 }
 
 function snapshotCollection(candidate: unknown, collectionId: string): CreateReferences['collection'] {
-  assertPlainSource(candidate, 'Publisher ordinary Node create Collection');
   const collection = immutableJsonData(candidate, 'Publisher ordinary Node create Collection') as {
     readonly id?: unknown;
     readonly rootNodeId?: unknown;
@@ -341,7 +342,6 @@ function snapshotCollection(candidate: unknown, collectionId: string): CreateRef
 }
 
 function snapshotNode(candidate: unknown, label: string): StrictNode {
-  assertPlainSource(candidate, `Publisher ordinary Node create ${label}`);
   const node = immutableJsonData(candidate, `Publisher ordinary Node create ${label}`) as StrictNode;
   if (!validators.validate('node', node).valid || node.redacted === true) {
     throw new TypeError(`Publisher ordinary Node create ${label} resolver returned a malformed authoritative Node.`);
@@ -395,31 +395,6 @@ function equalJsonData(left: unknown, right: unknown): boolean {
   return leftKeys.length === rightKeys.length
     && leftKeys.every((key) => Object.hasOwn(rightRecord, key)
       && equalJsonData(leftRecord[key], rightRecord[key]));
-}
-
-function assertPlainSource(value: unknown, label: string, seen = new WeakSet<object>()): void {
-  if (value === null || typeof value !== 'object' || seen.has(value)) return;
-  if (nodeTypes.isProxy(value)) throw new TypeError(`${label} cannot contain a Proxy.`);
-  const prototype = Object.getPrototypeOf(value) as unknown;
-  if (Array.isArray(value)) {
-    if (prototype !== Array.prototype && prototype !== null) {
-      throw new TypeError(`${label} arrays must have a plain prototype.`);
-    }
-    if (Reflect.ownKeys(value).length !== value.length + 1) {
-      throw new TypeError(`${label} arrays must be dense and contain no extra properties.`);
-    }
-  } else if (prototype !== Object.prototype && prototype !== null) {
-    throw new TypeError(`${label} must contain only plain data.`);
-  }
-  seen.add(value);
-  for (const key of Reflect.ownKeys(value)) {
-    const descriptor = Object.getOwnPropertyDescriptor(value, key);
-    if (typeof key !== 'string' || descriptor === undefined || !('value' in descriptor)
-      || (key !== 'length' && !descriptor.enumerable)) {
-      throw new TypeError(`${label} cannot contain accessors or hidden members.`);
-    }
-    if (key !== 'length') assertPlainSource(descriptor.value, label, seen);
-  }
 }
 
 function assertPortObject(value: unknown, label: string): asserts value is object {

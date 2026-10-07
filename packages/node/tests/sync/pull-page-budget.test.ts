@@ -101,6 +101,8 @@ class RecordingPullStore implements SyncPullCursorStore, SyncPullEventStore {
   async readCommittedAfter(candidate: SyncPullEventReadRequest): Promise<SyncPullEventPage> {
     await Promise.resolve();
     expect(candidate.limit).toBeGreaterThan(0);
+    expect(candidate.maxMembers).toBeGreaterThan(candidate.limit);
+    expect(candidate.maxBytes).toBeGreaterThan(0);
     this.readCalls += 1;
     const remaining = this.stored.entries.filter(entry => BigInt(entry.commitOrdinal) > BigInt(candidate.afterCommitOrdinal));
     const entries = remaining.slice(0, candidate.limit);

@@ -183,7 +183,7 @@ describe(`PUB-0040 Publication Bookmark URL safety ${evidence}`, () => {
     async (visibility) => {
       const value = redactedSnapshot(visibility);
       assertPublicationSnapshotBookmarkUrls(value);
-      const response = createPublicationSnapshotPageResponse(value, { method: 'GET' });
+      const response = createPublicationSnapshotPageResponse(value, { method: 'GET', access: 'authorized-private' });
       const body = await response.json() as Snapshot;
       expect(body.nodes.find((node) => node.kind === 'bookmark')).not.toHaveProperty('url');
     },

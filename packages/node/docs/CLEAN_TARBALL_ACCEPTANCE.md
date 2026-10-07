@@ -24,15 +24,22 @@ Docker: the probe container has no network, a read-only root and candidate
 bind-mount, UID/GID `65534`, dropped capabilities, no-new-privileges, and CPU,
 memory and PID limits. Docker is required; if its CLI or daemon is unavailable,
 the check fails closed instead of running the candidate under the host Node.
-The host-side npm install uses ignored lifecycle scripts, an allowlisted
-environment, and disposable npmrc, cache and temporary directories.
+Candidate installation, dependency extraction, and all npm resolution happen
+inside the same constrained Docker boundary as the consumer checks. The
+verifier requires a pre-populated npm cache (`npm_config_cache` or
+`$HOME/.npm`) and mounts it read-only; npm runs with `--offline`, so an empty
+or missing cache fails closed instead of causing a host-network request. The
+candidate tar stream is inspected before installation, with fixed expanded-byte
+and entry-count ceilings, package identity checks, path/link rejection, and
+registry-only dependency specifiers.
 Runtime probes use a 512 MiB container with a 256 MiB Node heap; strict
 TypeScript compilation uses a 1 GiB container with a 768 MiB heap. Both keep
 the same network, filesystem, privilege, CPU and PID restrictions. The package
 CI job runs both the isolation regression and the complete tarball verifier.
 
-Network access to the configured npm registry is required. Failures are release
-failures to investigate, not a reason to turn skipLibCheck back on. Run this on
-the existing local Node/OS release matrix. An installation failure or an unrun
+Populate the cache in the trusted package-install step before running this
+acceptance check (CI's setup-node/npm cache does this). A missing cache or an
+installation failure is a release failure, not a reason to turn skipLibCheck
+back on. Run this on the existing local Node/OS release matrix. An unrun
 matrix is not successful acceptance. The final release procedure must publish
 the same artifact digest; it must not run npm pack again after this check.

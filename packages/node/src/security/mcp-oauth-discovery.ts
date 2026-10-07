@@ -24,7 +24,8 @@ export function isLoopbackHost(hostname: string): boolean {
 
 function assertIssuerUrl(issuer: string, label: string): URL {
   // URL parsing is for syntax only. Never use its normalized serialization as identity.
-  if (!/^https?:\/\//iu.test(issuer) || /[\u0000-\u0020\u007f\\]/u.test(issuer)) {
+  if (!/^https?:\/\//iu.test(issuer)
+    || /[\u0000-\u0020\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069\\]/u.test(issuer)) {
     throw new TypeError(`${label} must be an absolute http(s) URL without whitespace or backslashes`);
   }
   let url: URL;
@@ -347,7 +348,7 @@ function snapshotMetadata(input: unknown): MetadataSnapshot {
   });
 }
 
-function endpointReason(value: unknown): 'missing' | 'invalid' | 'insecure' | 'ok' {
+function endpointReason(value: unknown, loopbackHttpOrigin?: string): 'missing' | 'invalid' | 'insecure' | 'ok' {
   if (typeof value !== 'string' || value.length === 0) return 'missing';
   let url: URL;
   try {
@@ -355,8 +356,10 @@ function endpointReason(value: unknown): 'missing' | 'invalid' | 'insecure' | 'o
   } catch {
     return 'invalid';
   }
+  if (url.username !== '' || url.password !== '' || url.hash !== '') return 'invalid';
   if (url.protocol === 'https:') return 'ok';
-  if (url.protocol === 'http:' && isLoopbackHost(url.hostname)) return 'ok';
+  if (url.protocol === 'http:' && loopbackHttpOrigin !== undefined
+    && isLoopbackHost(url.hostname) && url.origin === loopbackHttpOrigin) return 'ok';
   return 'insecure';
 }
 
@@ -423,7 +426,19 @@ export function enforceOAuthAuthorizationServerMetadata(
       return Object.freeze({ allowed: false, reason: 'issuer_mismatch' } as const);
     }
   }
-  const authorizationEndpointReason = endpointReason(snapshot.authorizationEndpoint);
+  let issuerUrl: URL;
+  try {
+    issuerUrl = new URL(snapshot.issuer as string);
+  } catch {
+    return Object.freeze({ allowed: false, reason: 'invalid_issuer' } as const);
+  }
+  // Plain HTTP endpoints are permitted only for a genuinely loopback issuer.
+  // A remote issuer must not be able to redirect browser or token traffic to
+  // a local service through otherwise valid metadata.
+  const loopbackHttpOrigin = issuerUrl.protocol === 'http:' && isLoopbackHost(issuerUrl.hostname)
+    ? issuerUrl.origin
+    : undefined;
+  const authorizationEndpointReason = endpointReason(snapshot.authorizationEndpoint, loopbackHttpOrigin);
   if (authorizationEndpointReason === 'missing') {
     return Object.freeze({ allowed: false, reason: 'missing_authorization_endpoint' } as const);
   }
@@ -433,7 +448,7 @@ export function enforceOAuthAuthorizationServerMetadata(
   if (authorizationEndpointReason === 'insecure') {
     return Object.freeze({ allowed: false, reason: 'insecure_authorization_endpoint' } as const);
   }
-  const tokenEndpointReason = endpointReason(snapshot.tokenEndpoint);
+  const tokenEndpointReason = endpointReason(snapshot.tokenEndpoint, loopbackHttpOrigin);
   if (tokenEndpointReason === 'missing') {
     return Object.freeze({ allowed: false, reason: 'missing_token_endpoint' } as const);
   }
@@ -448,7 +463,7 @@ export function enforceOAuthAuthorizationServerMetadata(
     if (requireDcr) {
       return Object.freeze({ allowed: false, reason: 'missing_registration_endpoint' } as const);
     }
-  } else if (endpointReason(snapshot.registrationEndpoint) !== 'ok') {
+  } else if (endpointReason(snapshot.registrationEndpoint, loopbackHttpOrigin) !== 'ok') {
     return Object.freeze({ allowed: false, reason: 'invalid_registration_endpoint' } as const);
   }
 

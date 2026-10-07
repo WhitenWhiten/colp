@@ -4,6 +4,7 @@ import canonicalize from 'canonicalize';
 import { cloneAndFreezeJsonData, createValidatorRegistry } from '../schema/index.js';
 import type { Snapshot } from '../types/index.js';
 import { assertPublicationSnapshotBookmarkUrls } from './publication-bookmark-url-guard.js';
+import { assertAnonymousPublicationPrimaryVisibility } from './publication-anonymous-visibility.js';
 import { rememberPublicationJsonBytes } from './publication-prepared-json.js';
 import {
   projectPublicationPublicWire, PublicationPublicProjectionError,
@@ -19,6 +20,7 @@ class SnapshotLimitError extends Error {}
 export function preparePublicationSnapshotWire(
   value: unknown,
   projectionOptions?: PublicationPublicWireOptions,
+  access: 'anonymous-public' | 'authorized-private' = 'anonymous-public',
 ): Readonly<Snapshot> {
   try {
     assertBoundedDataGraph(value);
@@ -27,6 +29,7 @@ export function preparePublicationSnapshotWire(
     assertPublicationSnapshotBookmarkUrls(snapshot);
     assertPage(snapshot);
     const projected = projectPublicationPublicWire(snapshot, projectionOptions);
+    if (access === 'anonymous-public') assertAnonymousPublicationPrimaryVisibility(projected);
     if (!validators.validate('snapshot', projected).valid) throw new TypeError();
     return finalizePublicationSnapshotWire(projected as unknown as Readonly<Snapshot>);
   } catch (error) {

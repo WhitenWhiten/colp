@@ -824,7 +824,8 @@ export function formatOAuthLogContext(context: OAuthLogSafeContext): string {
     throw new TypeError('log issuer must be a non-empty string');
   }
   if (typeof clientId !== 'string' || clientId.length === 0 || clientId.length > 256
-    || Buffer.byteLength(clientId, 'utf8') > 256 || /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/u.test(clientId)) {
+    || Buffer.byteLength(clientId, 'utf8') > 256
+    || /[\u0000-\u001f\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069]/u.test(clientId)) {
     throw new TypeError('log clientId must be a non-empty, control-free identifier of at most 256 UTF-8 bytes');
   }
   if (typeof operation !== 'string' || !OAUTH_LOG_OPERATIONS.has(operation as OAuthLogOperation)) {
@@ -841,7 +842,17 @@ export function formatOAuthLogContext(context: OAuthLogSafeContext): string {
   }
   const reasonSuffix =
     reason !== undefined && OAUTH_LOG_SAFE_REASONS.has(reason) ? ` reason=${reason}` : '';
-  return `oauth clientId=${clientId} issuer=${canonicalIssuer} operation=${operation} outcome=${outcome}${reasonSuffix}`;
+  return `oauth clientId=${formatOAuthLogValue(clientId)} issuer=${formatOAuthLogValue(canonicalIssuer)} operation=${operation} outcome=${outcome}${reasonSuffix}`;
+}
+
+function formatOAuthLogValue(value: string): string {
+  // Keep ordinary identifiers readable while quoting every value that could
+  // introduce a second key/value field or a visual/log-record delimiter.
+  if (/^[A-Za-z0-9._~:/%+\-]+$/u.test(value)) return value;
+  return JSON.stringify(value).replace(
+    /[\u0000-\u001f\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069]/gu,
+    (character) => `\\u${character.codePointAt(0)!.toString(16).padStart(4, '0')}`,
+  );
 }
 
 // =====================================================================

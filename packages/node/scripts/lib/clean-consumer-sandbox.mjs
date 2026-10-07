@@ -12,11 +12,17 @@ import { isolatedProcessEnvironment } from './npm-command.mjs';
 
 const exec = promisify(execFile);
 export function cleanConsumerImage() {
-  return `node:${process.versions.node}-bookworm-slim`;
+  // This digest is recorded in SECURITY_CLOUD_2026_10_06.md after resolving
+  // the official Node 24.14.0 bookworm-slim image. Never fall back to a tag:
+  // a moving image would change the verifier's trust boundary.
+  return 'node@sha256:d8e448a56fc63242f70026718378bd4b00f8c82e78d20eefb199224a4d8e33d8';
 }
 
 export function cleanConsumerSandboxArguments(consumer, args, name, options = {}) {
   assert.ok(isAbsolute(consumer) && !/[,\r\n]/u.test(consumer), 'Invalid sandbox mount path.');
+  if (options.npmCache !== undefined) {
+    assert.ok(isAbsolute(options.npmCache) && !/[,\r\n]/u.test(options.npmCache), 'Invalid npm cache mount path.');
+  }
   assert.ok(/^colp-clean-[a-f0-9-]+$/u.test(name), 'Invalid sandbox name.');
   assert.ok(Array.isArray(args) && args.every(arg => typeof arg === 'string'));
   // Checking all public declarations with skipLibCheck=false needs more heap
@@ -30,7 +36,11 @@ export function cleanConsumerSandboxArguments(consumer, args, name, options = {}
     '--pids-limit=64', `--memory=${memory}`, `--memory-swap=${memory}`, '--cpus=1',
     '--ipc=none',
     '--tmpfs', '/tmp:rw,noexec,nosuid,nodev,size=67108864,mode=1777',
-    '--mount', `type=bind,source=${consumer},target=/work,readonly`,
+    '--mount', `type=bind,source=${consumer},target=/work${options.writable === true ? '' : ',readonly'}`,
+    ...(options.npmCache === undefined ? [] : [
+      '--mount', `type=bind,source=${options.npmCache},target=/npm-cache,readonly`,
+      '--env=npm_config_cache=/npm-cache',
+    ]),
     '--workdir=/work', '--env=HOME=/tmp', '--env=NODE_ENV=production',
     '--entrypoint=node', cleanConsumerImage(), `--max-old-space-size=${heap}`, ...args,
   ];

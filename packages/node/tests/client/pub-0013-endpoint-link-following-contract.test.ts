@@ -463,6 +463,50 @@ describe(`PUB-0013 client follows Endpoint and Link sources [evidence:${evidence
     ]);
   });
 
+  it('does not retain a redirected representation or validator under the original cache key [evidence:http.endpoint-link-following]', async () => {
+    const manifest = await publicationManifest();
+    const directory = await fixtureObject('collection-directory.json');
+    const endpoint = 'https://source.example/directory.json';
+    const redirected = 'https://final.example/directory.json';
+    manifest.mounts[0].endpoints.directory = endpoint;
+    const entries = new Map<string, ClientCacheEntry>();
+    const cacheEvents: string[] = [];
+    const cache: ClientCache = {
+      get(key) { cacheEvents.push(`get:${key}`); return entries.get(key); },
+      set(key, value) { cacheEvents.push(`set:${key}`); entries.set(key, value); },
+      delete(key) { cacheEvents.push(`delete:${key}`); entries.delete(key); },
+    };
+    let sourceCalls = 0;
+    const fetch = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = href(input);
+      if (url === manifestUrl) return Response.json(manifest);
+      if (url === endpoint) {
+        sourceCalls += 1;
+        const validator = new Headers(init?.headers).get('if-none-match');
+        if (validator !== null) return new Response(null, { status: 304, headers: { ETag: validator } });
+        if (sourceCalls === 1) return new Response(null, { status: 302, headers: { Location: redirected } });
+        return protocolResponse(directory, { headers: { ETag: '"source-v2"' } });
+      }
+      if (url === redirected) return protocolResponse(directory, { headers: { ETag: '"final-v1"' } });
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    const client = new ColpClient({
+      manifestUrl,
+      fetch: fetch as typeof globalThis.fetch,
+      cache,
+      cachePartition: 'principal-a',
+    });
+
+    await client.getDirectory();
+    expect(cacheEvents.some(event => event.startsWith('set:'))).toBe(false);
+    expect(cacheEvents.some(event => event.startsWith('delete:'))).toBe(true);
+    await client.getDirectory();
+    expect(sourceCalls).toBe(2);
+    const sourceRequests = fetch.mock.calls.filter(([input]) => href(input as string | URL | Request) === endpoint);
+    expect(sourceRequests).toHaveLength(2);
+    expect(new Headers(sourceRequests[1]?.[1]?.headers).get('if-none-match')).toBeNull();
+  });
+
   it('partitions cache entries without allowing cached data to forge navigation provenance [evidence:http.endpoint-link-following]', async () => {
     const manifest = await publicationManifest();
     const directory = await fixtureObject('collection-directory.json');

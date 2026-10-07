@@ -65,6 +65,16 @@ let canonicalValidators: ReadonlyMap<DefinitionName, ValidateFunction> | undefin
 /** The protocol bound shared by object-valued `uniqueItems` arrays. */
 export const MAX_STRUCTURED_UNIQUE_ITEMS = 512;
 const structuredUniqueArrayKeys = new Set(['creators', 'sourceRefs', 'hubs']);
+// The graph walk is bounded, but valid publication Snapshots may contain
+// tens of thousands of independently represented nodes. Keep the bound high
+// enough for those documents while retaining a deterministic fail-closed cap.
+const MAX_STRUCTURED_VALIDATION_NODES = 1_000_000;
+const MAX_STRUCTURED_VALIDATION_DEPTH = 128;
+const MAX_STRUCTURED_VALIDATION_PATH_LENGTH = 16_384;
+const MAX_STRUCTURED_VALIDATION_MEMBERS = 1_000_000;
+const MAX_STRUCTURED_VALIDATION_OBJECT_MEMBERS = 100_000;
+const MAX_STRUCTURED_VALIDATION_BYTES = 64 * 1024 * 1024;
+const structuredValidationTextEncoder = new TextEncoder();
 
 /** Format-level assertion for RFC 6570 Level 1 templates. */
 export function isLevelOneUriTemplate(value: string): boolean {
@@ -265,11 +275,30 @@ function findStructuredUniqueArrayLimit(value: unknown): ErrorObject | undefined
     value: value as object,
     path: '',
   }];
+  let visitedNodes = 0;
+  let visitedMembers = 0;
+  let visitedBytes = 0;
+  const budgetIssue = (path: string): ErrorObject => ({
+    instancePath: path,
+    schemaPath: '#/maxProperties',
+    keyword: 'x-colp-budget',
+    params: { limit: MAX_STRUCTURED_VALIDATION_NODES },
+    message: 'must stay within the structured validation graph budget',
+  });
   while (stack.length > 0) {
     const current = stack.pop()!;
     if (seen.has(current.value)) continue;
     seen.add(current.value);
+    visitedNodes += 1;
+    if (visitedNodes > MAX_STRUCTURED_VALIDATION_NODES
+      || current.path.length > MAX_STRUCTURED_VALIDATION_PATH_LENGTH
+      || current.path.split('/').length > MAX_STRUCTURED_VALIDATION_DEPTH) {
+      return budgetIssue(current.path);
+    }
     if (Array.isArray(current.value)) {
+      visitedMembers += current.value.length;
+      if (current.value.length > MAX_STRUCTURED_VALIDATION_OBJECT_MEMBERS
+        || visitedMembers > MAX_STRUCTURED_VALIDATION_MEMBERS) return budgetIssue(current.path);
       for (let index = current.value.length - 1; index >= 0; index -= 1) {
         const descriptor = Object.getOwnPropertyDescriptor(current.value, String(index));
         if (descriptor !== undefined && 'value' in descriptor && descriptor.value !== null
@@ -279,14 +308,21 @@ function findStructuredUniqueArrayLimit(value: unknown): ErrorObject | undefined
       }
       continue;
     }
-    for (const key of Object.keys(current.value)) {
-      // Extension payloads are intentionally opaque and may use these names
-      // without inheriting the core schema's unique-array contract.
-      if (key === 'extensions') continue;
+    const keys = Object.keys(current.value);
+    visitedMembers += keys.length;
+    if (keys.length > MAX_STRUCTURED_VALIDATION_OBJECT_MEMBERS
+      || visitedMembers > MAX_STRUCTURED_VALIDATION_MEMBERS) return budgetIssue(current.path);
+    for (const key of keys) {
+      visitedBytes += structuredValidationTextEncoder.encode(key).byteLength;
+      if (visitedBytes > MAX_STRUCTURED_VALIDATION_BYTES) return budgetIssue(current.path);
       const descriptor = Object.getOwnPropertyDescriptor(current.value, key);
       if (descriptor === undefined || !('value' in descriptor)) continue;
       const child = descriptor.value;
       const childPath = `${current.path}/${key.replaceAll('~', '~0').replaceAll('/', '~1')}`;
+      if (typeof child === 'string') {
+        visitedBytes += structuredValidationTextEncoder.encode(child).byteLength;
+        if (visitedBytes > MAX_STRUCTURED_VALIDATION_BYTES) return budgetIssue(childPath);
+      }
       if (structuredUniqueArrayKeys.has(key) && Array.isArray(child)
         && child.length > MAX_STRUCTURED_UNIQUE_ITEMS) {
         return {

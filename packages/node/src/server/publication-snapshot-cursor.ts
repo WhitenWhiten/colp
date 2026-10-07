@@ -11,7 +11,7 @@ import {
 
 const MIN_KEY_BYTES = 32;
 const MAX_KEY_BYTES = 1024;
-/** MAC-bound scope fields (revision, principal, root) — not on the wire cursor string. */
+/** MAC-bound scope fields (collection/resource identity, revision, principal, root) — not on the wire cursor string. */
 const MAX_SCOPE_FIELD_BYTES = 4096;
 /**
  * Wire cursor character budget:
@@ -41,6 +41,10 @@ const INCLUDE_VALUES = ['annotations', 'attachments', 'relations'] as const;
 export type PublicationSnapshotInclude = (typeof INCLUDE_VALUES)[number];
 
 export interface PublicationSnapshotCursorContext {
+  /** Canonical collection identity. Required to prevent cross-collection replay. */
+  readonly collectionId: string;
+  /** Canonical resource/mount identity. Required when keys serve multiple endpoints. */
+  readonly resourceId: string;
   readonly revision: string;
   readonly principal: string;
   readonly root?: string;
@@ -158,6 +162,8 @@ const invalidCursorScope = Object.freeze({
 } as const);
 
 interface NormalizedScope {
+  readonly collectionId: Buffer;
+  readonly resourceId: Buffer;
   readonly revision: Buffer;
   readonly principal: Buffer;
   readonly root: Buffer | undefined;
@@ -171,6 +177,11 @@ function normalizeScope(scope: PublicationSnapshotCursorScope): NormalizedScope 
   if (typeof scope !== 'object' || scope === null) {
     throw new TypeError('Publication Snapshot cursor scope must be an object.');
   }
+  // Scope identities are mandatory. Treating an omitted identity as an
+  // authenticated wildcard would let a cursor minted for one collection or
+  // mount replay against another endpoint sharing the signing key.
+  const collectionId = encodeField('collectionId', scope.collectionId);
+  const resourceId = encodeField('resourceId', scope.resourceId);
   const revision = encodeField('revision', scope.revision);
   const principal = encodeField('principal', scope.principal);
   const root = scope.root === undefined ? undefined : encodeField('root', scope.root);
@@ -178,7 +189,7 @@ function normalizeScope(scope: PublicationSnapshotCursorScope): NormalizedScope 
   const pageSize = encodeInteger('pageSize', scope.pageSize, false);
   const nextPosition = encodeField('nextPosition', scope.nextPosition);
   const include = normalizeInclude(scope.include);
-  return { revision, principal, root, depth, include, pageSize, nextPosition };
+  return { collectionId, resourceId, revision, principal, root, depth, include, pageSize, nextPosition };
 }
 
 function normalizeInclude(value: readonly PublicationSnapshotInclude[] | undefined): readonly Buffer[] {
@@ -249,6 +260,8 @@ function decodePosition(cursor: string): string {
 function computeMac(key: Buffer, scope: NormalizedScope): Buffer {
   const mac = createHmac('sha256', key);
   updateFrame(mac, CONTEXT);
+  updateFrame(mac, scope.collectionId);
+  updateFrame(mac, scope.resourceId);
   updateFrame(mac, scope.revision);
   updateFrame(mac, scope.principal);
   updateOptionalFrame(mac, scope.root);
@@ -281,6 +294,8 @@ function borrowKey(value: PublicationSnapshotCursorHmacKey): Buffer {
 }
 
 function destroyNormalizedScope(scope: NormalizedScope): void {
+  scope.collectionId.fill(0);
+  scope.resourceId.fill(0);
   scope.revision.fill(0);
   scope.principal.fill(0);
   scope.root?.fill(0);

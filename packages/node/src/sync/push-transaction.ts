@@ -9,6 +9,8 @@ import { snapshotPushPartialProgress } from './push-partial-progress.js';
 import {
   pushExecutionScope,
   type PushExecutionScope,
+  type PushSequenceLane,
+  type PushSequenceLaneState,
   type PushReceiptWriteCondition,
 } from './push-unit-of-work.js';
 import {
@@ -190,6 +192,36 @@ export class AtomicPushNotCommittableError extends Error {
   }
 }
 
+/** Push-owned lane continuity denied a sequence above the durable expectation. */
+export class PushSequenceGapError extends Error {
+  readonly expectedSequence: number;
+
+  constructor(expectedSequence: number) {
+    super(`Push sequence gap: expected sequence ${expectedSequence}.`);
+    this.name = 'PushSequenceGapError';
+    this.expectedSequence = expectedSequence;
+  }
+}
+
+/** A deferred receipt at the expected sequence blocks larger Push operations. */
+export class PushSequenceBlockedError extends Error {
+  readonly expectedSequence: number;
+
+  constructor(expectedSequence: number) {
+    super(`Push sequence is blocked by deferred sequence ${expectedSequence}.`);
+    this.name = 'PushSequenceBlockedError';
+    this.expectedSequence = expectedSequence;
+  }
+}
+
+/** A Push lane's continuity state is missing or inconsistent. */
+export class PushSequenceStateUnavailableError extends Error {
+  constructor(detail: string) {
+    super(detail);
+    this.name = 'PushSequenceStateUnavailableError';
+  }
+}
+
 /** Identity of the non-atomic Push operation that was denied. */
 export interface PushDeniedOperation {
   readonly index: number;
@@ -281,6 +313,86 @@ type PushInspection =
     }
   | { readonly kind: 'denied'; readonly denial: PushReuseDenial };
 
+type PushSequenceAdmission = {
+  readonly enforce: boolean;
+  readonly contiguousSequences?: ReadonlySet<number>;
+};
+
+function laneForItem(item: PushTransactionOperation): PushSequenceLane {
+  return Object.freeze({
+    replicaId: item.operation.replicaId,
+    sequenceScope: item.sequenceScope,
+  });
+}
+
+function isContiguousFrom(
+  expectedSequence: number,
+  requestedSequence: number,
+  sequences: ReadonlySet<number> | undefined,
+): boolean {
+  if (sequences === undefined || requestedSequence <= expectedSequence) return false;
+  for (let sequence = expectedSequence; sequence <= requestedSequence; sequence += 1) {
+    if (!sequences.has(sequence)) return false;
+  }
+  return true;
+}
+
+async function loadPushLaneState<
+  Conflict extends PushConflictRecord,
+  Audit,
+  Outbox,
+  Transaction extends SyncTransaction<Operation, OperationResult, Conflict, Audit, Outbox>,
+>(transaction: Transaction, item: PushTransactionOperation): Promise<PushSequenceLaneState> {
+  const store = transaction.sequenceLanes;
+  if (store === undefined || typeof store.load !== 'function' || typeof store.save !== 'function') {
+    throw new PushSequenceStateUnavailableError(
+      'Production Push requires a transactional Sequence lane state store.',
+    );
+  }
+  const raw = await requirePromise(store.load(laneForItem(item)), 'Push Sequence lane-state load');
+  if (raw === undefined) return Object.freeze({ nextSequence: 1 });
+  if (typeof raw !== 'object' || raw === null
+      || !Number.isSafeInteger(raw.nextSequence) || raw.nextSequence < 1) {
+    throw new PushSequenceStateUnavailableError('Push Sequence lane state is invalid.');
+  }
+  return Object.freeze({ nextSequence: raw.nextSequence });
+}
+
+async function assertPushSequenceAdmission<
+  Conflict extends PushConflictRecord,
+  Audit,
+  Outbox,
+  Transaction extends SyncTransaction<Operation, OperationResult, Conflict, Audit, Outbox>,
+>(
+  transaction: Transaction,
+  item: PushTransactionOperation,
+  admission: PushSequenceAdmission,
+): Promise<PushSequenceLaneState | undefined> {
+  if (!admission.enforce) return undefined;
+  const state = await loadPushLaneState(transaction, item);
+  const sequence = item.operation.sequence;
+  if (sequence > state.nextSequence
+      && !isContiguousFrom(state.nextSequence, sequence, admission.contiguousSequences)) {
+    const blockerRaw = await requirePromise(
+      transaction.receipts.findBySequence(
+        item.operation.replicaId,
+        item.sequenceScope,
+        state.nextSequence,
+      ),
+      'Push expected Sequence receipt load',
+    );
+    if (blockerRaw !== undefined) {
+      const blocker = immutableStoredReceipt(blockerRaw, 'Push expected Sequence receipt');
+      if (blocker.status === 'deferred') throw new PushSequenceBlockedError(state.nextSequence);
+      throw new PushSequenceStateUnavailableError(
+        'Push lane state points at a terminal receipt that was not consumed.',
+      );
+    }
+    throw new PushSequenceGapError(state.nextSequence);
+  }
+  return state;
+}
+
 function claimForItem(item: PushTransactionOperation): SyncOperationClaim {
   return Object.freeze({
     operationId: item.operation.opId,
@@ -342,7 +454,9 @@ async function inspectPushOperation<
   transaction: Transaction,
   item: PushTransactionOperation,
   reevaluateDeferred: boolean,
+  admission: PushSequenceAdmission = { enforce: false },
 ): Promise<PushInspection> {
+  const laneState = await assertPushSequenceAdmission(transaction, item, admission);
   const attempted = claimForItem(item);
   const byOperationIdRaw = await requirePromise(
     transaction.receipts.findByOperationId(item.operation.opId),
@@ -357,6 +471,11 @@ async function inspectPushOperation<
     'Push replay receipt Sequence load',
   );
   if (byOperationIdRaw === undefined && bySequenceRaw === undefined) {
+    if (laneState !== undefined && item.operation.sequence < laneState.nextSequence) {
+      throw new PushSequenceStateUnavailableError(
+        'Push lane state has advanced beyond a missing consumed receipt.',
+      );
+    }
     return Object.freeze({ kind: 'new' });
   }
 
@@ -427,6 +546,7 @@ async function commitOperation<
   item: PushTransactionOperation,
   plan: PushPreparedOperation<Transaction, Conflict, Audit, Outbox>,
   previousDeferredReceipt?: StoredOperationReceipt<OperationResult>,
+  continuity?: PushSequenceLaneState,
 ): Promise<CommittedOperation> {
   const cursor = plan.status === 'applied' || plan.status === 'rebased' || plan.status === 'conflicted'
     ? await requirePromise(transaction.allocateCursor(), 'Push Cursor allocation')
@@ -503,6 +623,30 @@ async function commitOperation<
     : immutableData(bySequenceRaw, 'Push receipt Sequence read-back');
   if (!sameData(byOperationId, receipt) || !sameData(bySequence, receipt)) {
     throw new TypeError('Push receipt was not durably staged under both receipt indexes.');
+  }
+  if (continuity !== undefined) {
+    const store = transaction.sequenceLanes;
+    if (store === undefined) {
+      throw new PushSequenceStateUnavailableError(
+        'Production Push requires a transactional Sequence lane state store.',
+      );
+    }
+    const nextSequence = plan.status === 'deferred'
+      ? item.operation.sequence
+      : item.operation.sequence === Number.MAX_SAFE_INTEGER
+        ? (() => { throw new RangeError('Push terminal Sequence cannot advance beyond safe integer range.'); })()
+        : item.operation.sequence + 1;
+    await requirePromise(
+      store.save(laneForItem(item), { nextSequence }),
+      'Push Sequence lane-state save',
+    );
+    const saved = await requirePromise(
+      store.load(laneForItem(item)),
+      'Push Sequence lane-state read-back',
+    );
+    if (saved?.nextSequence !== nextSequence) {
+      throw new PushSequenceStateUnavailableError('Push Sequence lane state was not persisted.');
+    }
   }
 
   if (plan.status !== 'deferred') {
@@ -679,12 +823,22 @@ export async function coordinatePushTransaction<
 ): Promise<PushTransactionResult> {
   if (typeof preflight !== 'function') throw new TypeError('Push preflight must be a function.');
   const request = immutableRequest(candidateRequest);
+  const enforceContinuity = unitOfWork.pushSequenceContinuity === true;
   const results: OperationResult[] = [];
   let serverCursor = request.serverCursor;
   if (request.atomic) {
     // Every lane of the batch, in lock order, covers admission, commit and the
     // reuse-denial audit alike.
     const batchScope = pushExecutionScope(request.operations);
+    const batchSequences = new Map<string, Set<number>>();
+    if (enforceContinuity) {
+      for (const item of request.operations) {
+        const key = JSON.stringify([item.operation.replicaId, item.sequenceScope]);
+        const sequences = batchSequences.get(key) ?? new Set<number>();
+        sequences.add(item.operation.sequence);
+        batchSequences.set(key, sequences);
+      }
+    }
     const localReuse = localAtomicReuse(request);
     if (localReuse !== undefined) {
       const denial = await executeExactlyOnce<PushReuseDenial, Transaction>(
@@ -715,6 +869,18 @@ export async function coordinatePushTransaction<
             transaction,
             request.operations[index]!,
             request.reevaluateDeferred === true,
+            {
+              enforce: enforceContinuity,
+              ...(batchSequences.has(JSON.stringify([
+                request.operations[index]!.operation.replicaId,
+                request.operations[index]!.sequenceScope,
+              ]))
+                ? { contiguousSequences: batchSequences.get(JSON.stringify([
+                  request.operations[index]!.operation.replicaId,
+                  request.operations[index]!.sequenceScope,
+                ]))! }
+                : {}),
+            },
           );
           inspections.push(inspection);
           if (inspection.kind === 'denied') {
@@ -764,6 +930,9 @@ export async function coordinatePushTransaction<
               request.operations[index]!,
               plans[index]!,
               inspection.kind === 'reevaluate' ? inspection.previousDeferredReceipt : undefined,
+              enforceContinuity
+                ? await loadPushLaneState(transaction, request.operations[index]!)
+                : undefined,
             ));
         }
         return Object.freeze({ kind: 'committed' as const, operations: Object.freeze(batch) });
@@ -789,6 +958,7 @@ export async function coordinatePushTransaction<
             transaction,
             item,
             request.reevaluateDeferred === true,
+            { enforce: enforceContinuity },
           );
           if (inspection.kind === 'denied') {
             return Object.freeze({ kind: 'denied' as const, denial: inspection.denial });
@@ -814,7 +984,11 @@ export async function coordinatePushTransaction<
               });
             }
             const committed = await commitOperation(
-              transaction, item, plan, inspection.previousDeferredReceipt,
+              transaction,
+              item,
+              plan,
+              inspection.previousDeferredReceipt,
+              enforceContinuity ? await loadPushLaneState(transaction, item) : undefined,
             );
             return Object.freeze({ kind: 'committed' as const, operation: committed });
           }
@@ -828,7 +1002,13 @@ export async function coordinatePushTransaction<
             preflight(mutableData(item), index),
             'Push preflight',
           ));
-          const committed = await commitOperation(transaction, item, plan);
+          const committed = await commitOperation(
+            transaction,
+            item,
+            plan,
+            undefined,
+            enforceContinuity ? await loadPushLaneState(transaction, item) : undefined,
+          );
           return Object.freeze({ kind: 'committed' as const, operation: committed });
         },
       );

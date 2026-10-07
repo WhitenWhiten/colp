@@ -87,6 +87,12 @@ describe('SYNC-Q-003 SyncTransportBudget', () => {
     expect(parseSyncTransportBudgetHeader('')).toEqual(legacySyncTransportBudget());
   });
 
+  it('rejects an overlong header before JSON parsing', () => {
+    expect(() => parseSyncTransportBudgetHeader('{"effectPageBytes":' + '9'.repeat(2000)))
+      .toThrow(/byte budget/i);
+    expect(() => parseSyncTransportBudgetHeader(42 as never)).toThrow(/invalid/i);
+  });
+
   it('locks the shared 2/5/8 MiB boundary fixture including UTF-8 envelope overhead', () => {
     expect(expectedBoundaries.boundaries.map((row) => row.id)).toEqual([
       'legacy-2mib', 'mid-5mib', 'high-8mib',

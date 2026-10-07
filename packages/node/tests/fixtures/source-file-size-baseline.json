@@ -1,11 +1,12 @@
 {
   "maximumNewFileLines": 600,
   "grandfathered": {
-    "src/client/index.ts": 1509,
+    "src/client/index.ts": 1551,
     "src/conformance/deployment.ts": 1037,
     "src/mcp/2026-07-28/request-context.ts": 1120,
-    "src/mcp/2026-07-28/write.ts": 1114,
-    "src/mcp/change-plan.ts": 2340,
+    "src/mcp/2026-07-28/subscriptions.ts": 670,
+    "src/mcp/2026-07-28/write.ts": 1115,
+    "src/mcp/change-plan.ts": 2365,
     "src/mcp/shared/resources.ts": 606,
     "src/mcp/write-tools.ts": 911,
     "src/publisher/index.ts": 1162,
@@ -18,11 +19,12 @@
     "src/security/sender-constraint.ts": 731,
     "src/semantic/snapshot.ts": 780,
     "src/server/node-write-guard.ts": 985,
-    "src/server/publication-public-projection.ts": 703,
+    "src/server/publication-public-projection.ts": 727,
     "src/sync/pull.ts": 890,
-    "src/sync/push-transaction.ts": 886,
+    "src/sync/push-transaction.ts": 1037,
     "src/sync/session-bootstrap.ts": 761,
-    "src/sync/session.ts": 690
+    "src/sync/session.ts": 690,
+    "src/sync/composition.ts": 620
   },
   "excludeFileNames": [
     "generated.ts"

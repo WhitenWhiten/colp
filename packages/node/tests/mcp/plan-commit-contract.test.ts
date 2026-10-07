@@ -379,6 +379,29 @@ describe('MCP-0004 plan commit [evidence:mcp.plan-commit]', () => {
     });
   });
 
+  it('rejects commit when live impact drops an approved private-field exclusion', async () => {
+    let call = 0;
+    const impact = {
+      assessImpact: vi.fn(async () => {
+        call += 1;
+        return {
+          collections: 1,
+          nodes: 10,
+          annotations: 0,
+          attachments: 0,
+          relations: 0,
+          privateFieldsExcluded: call === 1 ? ['sourceRefs'] as string[] : [] as string[],
+        };
+      }),
+    };
+    const { service } = createService({ impact });
+    const plan = await service.plan(planRequest(), bindingA);
+    await service.recordOutOfBandApproval(plan.planId, bindingA);
+    await expect(service.commit(plan.planId, bindingA, 'idem-private-fields')).rejects.toMatchObject({
+      code: 'impact_exceeded',
+    });
+  });
+
   it('cancels a pending plan for the bound principal [evidence:mcp.plan-commit]', async () => {
     const { service } = createService();
     const plan = await service.plan(planRequest(), bindingA);

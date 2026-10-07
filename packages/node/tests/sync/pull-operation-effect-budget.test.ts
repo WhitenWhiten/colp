@@ -17,7 +17,9 @@ function event(memberCount: number): Extract<SyncPullEventV02, { operation: { ty
     Array.from({ length: memberCount }, (_, index) => [`k${index}`, index]),
   ) };
   const operation: Extract<Operation, { type: 'create_node' }> = {
-    ...operationBase, type: 'create_node', baseRevision: null,
+    // Push-owned lanes now admit only the next durable Sequence. This fixture
+    // starts from an empty lane, so make its first operation explicit.
+    ...operationBase, sequence: 1, type: 'create_node', baseRevision: null,
     payload: { parentId: placement.parentId, afterId: null, beforeId: null,
       node: { kind: 'folder', title: 'Node', extensions } },
   };

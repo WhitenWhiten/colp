@@ -15,6 +15,8 @@ import type { Operation, OperationResult } from '../../src/types/index.js';
 import {
   PushReceiptConditionFailedError,
   type PushExecutionScope,
+  type PushSequenceLane,
+  type PushSequenceLaneState,
   type PushReceiptWriteCondition,
   type StoredOperationReceipt,
   type SyncOperationClaim,
@@ -41,6 +43,7 @@ export interface LaneState {
   readonly conflicts: LaneConflict[];
   readonly audits: LaneAudit[];
   readonly outbox: LaneOutbox[];
+  readonly laneStates: Map<string, PushSequenceLaneState>;
 }
 
 export class UniqueViolation extends Error {
@@ -52,7 +55,7 @@ export class UniqueViolation extends Error {
 
 function emptyLaneState(): LaneState {
   return {
-    business: [], operations: [], receipts: [], claims: new Map(), reuseAudits: new Map(),
+    business: [], operations: [], receipts: [], claims: new Map(), reuseAudits: new Map(), laneStates: new Map(),
     conflicts: [], audits: [], outbox: [],
   };
 }
@@ -130,6 +133,7 @@ export class LaneSerializedDatabase {
 export class LaneSerializedUnitOfWork
 implements SyncUnitOfWork<Operation, OperationResult, LaneConflict, LaneAudit, LaneOutbox, LaneTransaction> {
   readonly operationIdReservationOwner = 'push' as const;
+  readonly pushSequenceContinuity = true as const;
 
   constructor(readonly db: LaneSerializedDatabase) {}
 
@@ -199,6 +203,14 @@ implements SyncUnitOfWork<Operation, OperationResult, LaneConflict, LaneAudit, L
           this.db.receiptConditions.push(structuredClone(condition));
           write(saveReceipt(receipt, condition));
         },
+      },
+      sequenceLanes: {
+        load: async (lane: PushSequenceLane) => structuredClone(
+          draft.laneStates.get(JSON.stringify([lane.replicaId, lane.sequenceScope])),
+        ),
+        save: async (lane: PushSequenceLane, state: PushSequenceLaneState) => write((next) => {
+          next.laneStates.set(JSON.stringify([lane.replicaId, lane.sequenceScope]), structuredClone(state));
+        }),
       },
       putBusiness: async (value) => write(state => { state.business.push(value); }),
       appendOperation: async (operation) => write(state => { state.operations.push(structuredClone(operation)); }),

@@ -268,13 +268,6 @@ describe(`PUB-0025 outbound projection wiring ${evidence}`, () => {
           [publicNamespace]: {
             rating: 5,
             label: 'safe-public-ext',
-            sourceRefs: [{
-              system: 'browser',
-              adapterVersion: '4.2.0',
-              replicaId: 'replica-public',
-              nativeParentId: 'native-parent-keep',
-              capturedAt: '2026-07-18T00:00:00Z',
-            }],
             notes: [
               { type: 'note', visibility: 'public', value: 'public-note-in-ext' },
             ],
@@ -297,13 +290,6 @@ describe(`PUB-0025 outbound projection wiring ${evidence}`, () => {
     expect(directory.collections[0]?.extensions?.[publicNamespace]).toEqual({
       rating: 5,
       label: 'safe-public-ext',
-      sourceRefs: [{
-        system: 'browser',
-        adapterVersion: '4.2.0',
-        replicaId: 'replica-public',
-        nativeParentId: 'native-parent-keep',
-        capturedAt: '2026-07-18T00:00:00Z',
-      }],
       notes: [
         { type: 'note', visibility: 'public', value: 'public-note-in-ext' },
       ],
@@ -447,12 +433,6 @@ describe(`PUB-0025 outbound projection wiring ${evidence}`, () => {
     expect(body.collection.extensions).toEqual({
       [publicNamespace]: {
         readingGoal: 12,
-        sourceRefs: [{
-          system: 'browser',
-          adapterVersion: '4.2.0',
-          replicaId: 'replica-public',
-          capturedAt: '2026-07-18T00:00:00Z',
-        }],
       },
     });
 
@@ -640,22 +620,11 @@ describe(`PUB-0025 outbound projection wiring ${evidence}`, () => {
         [publicNamespace]: {
           rating: 5,
           label: 'safe-public-ext',
-          sourceRefs: [{
-            system: 'browser',
-            adapterVersion: '4.2.0',
-            replicaId: 'replica-public',
-            nativeParentId: 'native-parent-keep',
-            capturedAt: '2026-07-18T00:00:00Z',
-          }],
           notes: [
             { type: 'note', visibility: 'public', value: 'public-note-in-ext' },
           ],
         },
       },
-      sourceRefs: [{
-        system: 'browser',
-        nativeParentId: 'native-parent-keep',
-      }],
       notes: [
         { type: 'note', visibility: 'public', value: 'public-discovery-note' },
       ],
@@ -778,13 +747,6 @@ describe(`PUB-0025 outbound projection wiring ${evidence}`, () => {
       [publicNamespace]: {
         rating: 5,
         label: 'safe-public-ext',
-        sourceRefs: [{
-          system: 'browser',
-          adapterVersion: '4.2.0',
-          replicaId: 'replica-public',
-          nativeParentId: 'native-parent-keep',
-          capturedAt: '2026-07-18T00:00:00Z',
-        }],
         notes: [
           { type: 'note', visibility: 'public', value: 'public-note-in-ext' },
         ],
