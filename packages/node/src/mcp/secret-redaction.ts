@@ -202,7 +202,10 @@ function stripSecretsDeep(
     && Object.getOwnPropertyDescriptor(value, 'secretAvailable') !== undefined
     && (value as Record<string, unknown>).secretAvailable === true
     && typeof (value as Record<string, unknown>).revealUri === 'string') {
-    return redactNested(value);
+    const revealUri = revealUriForKey !== undefined && uriPolicy !== undefined
+      ? buildRevealUri(revealUriForKey, readNonEmptyOwnString(value, 'keyId', 'MCP API key Tool output'), uriPolicy)
+      : readNonEmptyOwnString(value, 'revealUri', 'MCP API key Tool output') as HttpUrl;
+    return projectOperationKeyResult(value, revealUri);
   }
 
   if (isSecretBearingApiKeyResult(value)) {
@@ -213,7 +216,8 @@ function stripSecretsDeep(
     }
     const keyId = readApiKeyApplicationResultKeyId(value as McpApiKeyApplicationResult);
     const revealUri = buildRevealUri(revealUriForKey, keyId, uriPolicy);
-    return adaptApiKeyApplicationResult(value as McpApiKeyApplicationResult, revealUri);
+    const redacted = adaptApiKeyApplicationResult(value as McpApiKeyApplicationResult, revealUri);
+    return operationTransform ? projectOperationKeyResult(redacted, revealUri) : redacted;
   }
 
   // OperationResult.transform is an executor-owned provenance boundary. The
@@ -259,6 +263,22 @@ function stripSecretsDeep(
   }
 
   return out;
+}
+
+/** Only declared key metadata may cross an executor-owned transform boundary. */
+function projectOperationKeyResult(value: object, revealUri: HttpUrl): ApiKeyToolResultMetadata {
+  const fields = new Set([
+    'keyId', 'name', 'type', 'scopes', 'collections', 'createdAt',
+    'expiresAt', 'lastUsedAt', 'lastUsedIp', 'status',
+  ]);
+  const projected = Object.fromEntries(
+    ownEnumerableDataEntries(value, 'MCP API key Tool output').filter(([key]) => fields.has(key)),
+  );
+  // Preserve the stored reveal URI so idempotent replay does not consult a
+  // mutable reveal builder. Arbitrary extra fields never inherit that trust.
+  return validateApiKeyToolResultOutput(snapshotMcpData({
+    ...projected, secretAvailable: true, revealUri,
+  }));
 }
 
 function readOptionalRevealBuilder(

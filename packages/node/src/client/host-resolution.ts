@@ -1,3 +1,6 @@
+import type { ClientRequest, IncomingMessage, RequestOptions } from 'node:http';
+import type { Readable } from 'node:stream';
+
 import { abortable } from './request-budget.js';
 
 /**
@@ -75,7 +78,9 @@ export function defaultPinnedNodeFetch(): PinnedNodeFetch | undefined {
   }
   const http = runtime.process.getBuiltinModule('node:http') as NodeHttpModule | undefined;
   const https = runtime.process.getBuiltinModule('node:https') as NodeHttpModule | undefined;
-  if (http?.request === undefined || https?.request === undefined) return undefined;
+  const stream = runtime.process.getBuiltinModule('node:stream') as { readonly Readable?: typeof Readable } | undefined;
+  if (http?.request === undefined || https?.request === undefined || stream?.Readable?.toWeb === undefined) return undefined;
+  const toWeb = stream.Readable.toWeb;
 
   return (url, init, approvedAddress) => new Promise<Response>((resolve, reject) => {
     const secure = url.protocol === 'https:';
@@ -98,26 +103,29 @@ export function defaultPinnedNodeFetch(): PinnedNodeFetch | undefined {
       headers: Object.fromEntries(headers.entries()),
       ...(secure ? { servername: url.hostname.replace(/^\[|\]$/gu, '') } : {}),
     }, (response) => {
-      const responseHeaders = new Headers();
-      for (const [name, value] of Object.entries(response.headers)) {
-        if (value === undefined) continue;
-        responseHeaders.set(name, Array.isArray(value) ? value.join(', ') : value);
+      try {
+        const responseHeaders = new Headers();
+        for (const [name, value] of Object.entries(response.headers)) {
+          if (value === undefined) continue;
+          responseHeaders.set(name, Array.isArray(value) ? value.join(', ') : value);
+        }
+        const status = response.statusCode ?? 500;
+        const noBody = init.method?.toUpperCase() === 'HEAD' || [204, 205, 304].includes(status);
+        // Node's bridge propagates cancellation and applies backpressure rather
+        // than eagerly queueing an unbounded response through data listeners.
+        const body = noBody ? null : toWeb(response, {
+          strategy: { highWaterMark: 64 * 1024, size: (chunk: Uint8Array) => chunk.byteLength },
+        }) as ReadableStream<Uint8Array>;
+        if (noBody) response.resume();
+        resolve(new Response(body, {
+          status,
+          ...(response.statusMessage === undefined ? {} : { statusText: response.statusMessage }),
+          headers: responseHeaders,
+        }));
+      } catch (error) {
+        response.destroy();
+        reject(error);
       }
-      const body = new ReadableStream<Uint8Array>({
-        start(controller) {
-          response.on('data', (chunk: Buffer | Uint8Array | string) => {
-            controller.enqueue(typeof chunk === 'string' ? new TextEncoder().encode(chunk) : new Uint8Array(chunk));
-          });
-          response.on('end', () => controller.close());
-          response.on('error', error => controller.error(error));
-        },
-        cancel() { response.destroy(); },
-      });
-      resolve(new Response(body, {
-        status: response.statusCode ?? 500,
-        ...(response.statusMessage === undefined ? {} : { statusText: response.statusMessage }),
-        headers: responseHeaders,
-      }));
     });
     request.once('error', reject);
     const signal = init.signal;
@@ -127,7 +135,9 @@ export function defaultPinnedNodeFetch(): PinnedNodeFetch | undefined {
         reject(signal.reason);
         return;
       }
-      signal.addEventListener('abort', () => request.destroy(signal.reason), { once: true });
+      const onAbort = (): void => { request.destroy(signal.reason); };
+      signal.addEventListener('abort', onAbort, { once: true });
+      request.once('close', () => signal.removeEventListener('abort', onAbort));
     }
     const body = init.body;
     if (typeof body === 'string' || body instanceof Uint8Array) request.write(body);
@@ -137,21 +147,7 @@ export function defaultPinnedNodeFetch(): PinnedNodeFetch | undefined {
 
 interface NodeHttpModule {
   readonly request?: (
-    options: Record<string, unknown>,
-    callback: (response: NodeHttpResponse) => void,
-  ) => NodeHttpRequest;
-}
-interface NodeHttpRequest {
-  readonly once: (event: string, listener: (...args: any[]) => void) => NodeHttpRequest;
-  readonly on: (event: string, listener: (...args: any[]) => void) => NodeHttpRequest;
-  readonly write: (body: string | Uint8Array) => void;
-  readonly end: () => void;
-  readonly destroy: (error?: unknown) => void;
-}
-interface NodeHttpResponse {
-  readonly statusCode?: number;
-  readonly statusMessage?: string;
-  readonly headers: Record<string, string | string[] | undefined>;
-  readonly on: (event: string, listener: (...args: any[]) => void) => NodeHttpResponse;
-  readonly destroy: () => void;
+    options: RequestOptions,
+    callback: (response: IncomingMessage) => void,
+  ) => ClientRequest;
 }

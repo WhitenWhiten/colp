@@ -8,6 +8,7 @@
 import { lookup } from 'node:dns/promises';
 import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
+import { Readable } from 'node:stream';
 
 import {
   isPrivateOrLocalAddress,
@@ -170,7 +171,7 @@ export function createPinnedFetch() {
   return (url, init, approvedAddress) => new Promise((resolve, reject) => {
     const secure = url.protocol === 'https:';
     const request = (secure ? httpsRequest : httpRequest)({
-      hostname: approvedAddress ?? url.hostname,
+      hostname: approvedAddress ?? url.hostname.replace(/^\[|\]$/gu, ''),
       port: url.port === '' ? undefined : Number(url.port),
       path: `${url.pathname}${url.search}`,
       method: init.method ?? 'GET',
@@ -181,19 +182,22 @@ export function createPinnedFetch() {
       })(),
       ...(secure ? { servername: url.hostname.replace(/^\[|\]$/gu, '') } : {}),
     }, response => {
-      const headers = new Headers();
-      for (const [name, value] of Object.entries(response.headers)) {
-        if (value !== undefined) headers.set(name, Array.isArray(value) ? value.join(', ') : value);
+      try {
+        const headers = new Headers();
+        for (const [name, value] of Object.entries(response.headers)) {
+          if (value !== undefined) headers.set(name, Array.isArray(value) ? value.join(', ') : value);
+        }
+        const status = response.statusCode ?? 500;
+        const noBody = init.method?.toUpperCase() === 'HEAD' || [204, 205, 304].includes(status);
+        const body = noBody ? null : Readable.toWeb(response, {
+          strategy: { highWaterMark: 64 * 1024, size: chunk => chunk.byteLength },
+        });
+        if (noBody) response.resume();
+        resolve(new Response(body, { status, statusText: response.statusMessage, headers }));
+      } catch (error) {
+        response.destroy();
+        reject(error);
       }
-      const body = new ReadableStream({
-        start(controller) {
-          response.on('data', chunk => controller.enqueue(typeof chunk === 'string' ? new TextEncoder().encode(chunk) : new Uint8Array(chunk)));
-          response.on('end', () => controller.close());
-          response.on('error', error => controller.error(error));
-        },
-        cancel() { response.destroy(); },
-      });
-      resolve(new Response(body, { status: response.statusCode ?? 500, statusText: response.statusMessage, headers }));
     });
     request.once('error', reject);
     if (init.signal?.aborted) {
@@ -201,7 +205,9 @@ export function createPinnedFetch() {
       reject(init.signal.reason);
       return;
     }
-    init.signal?.addEventListener('abort', () => request.destroy(init.signal.reason), { once: true });
+    const onAbort = () => request.destroy(init.signal.reason);
+    init.signal?.addEventListener('abort', onAbort, { once: true });
+    request.once('close', () => init.signal?.removeEventListener('abort', onAbort));
     if (typeof init.body === 'string' || init.body instanceof Uint8Array) request.write(init.body);
     request.end();
   });

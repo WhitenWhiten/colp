@@ -552,13 +552,10 @@ export function createMcpWriteToolGateway<
         validated.idempotencyKey as string,
       );
       assertNotAborted(activeContext.abortSignal);
-      // Defense-in-depth: re-redact before model-facing structured content leaves the gateway.
-      const structuredContent = redactCommitStructuredContent(
-        result,
-        activeRevealUriForKey !== undefined
-          ? { revealUriForKey: activeRevealUriForKey, uriPolicy }
-          : undefined,
-      );
+      // The Plan service already applied the host reveal boundary before
+      // committing. Re-project its receipt without consulting mutable reveal
+      // configuration so exact idempotent replays retain the first result.
+      const structuredContent = redactCommitStructuredContent(result);
       if (structuredContentContainsSecret(structuredContent)) {
         throw new Error('Commit structured content still contains secrets after redaction.');
       }
