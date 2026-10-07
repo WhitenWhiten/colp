@@ -536,6 +536,11 @@ export function createMcpWriteToolGateway<
     if (typeof name !== 'string' || name.length > MAX_TOOL_NAME_LENGTH || !toolNamePattern.test(name)) {
       throw new McpWriteUnknownToolError();
     }
+    const definition = published.find((tool) => tool.name === name);
+    if (definition !== undefined
+      && !hasWriteToolScopes(definition.requiredScopes ?? [], activeContext.scope)) {
+      throw new McpWriteToolScopeDeniedError();
+    }
 
     if (name === 'changes.plan') {
       const validated = validatePlanInput(input, requestBudget);
@@ -601,8 +606,6 @@ export function createMcpWriteToolGateway<
 
     const registration = registeredLowRiskTools.get(name);
     if (registration !== undefined) {
-      const requiredScopes = readWriteToolScopes(readOwnValue(registration.definition, 'requiredScopes'));
-      if (!hasWriteToolScopes(requiredScopes, activeContext.scope)) throw new McpWriteToolScopeDeniedError();
       const inputSnapshot = registration.validate(input, requestBudget);
       const extractor = readOwnValue(registration.definition, 'toCanonicalOperations') as
         McpLowRiskToolDefinition['toCanonicalOperations'];

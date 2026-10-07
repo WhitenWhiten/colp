@@ -414,7 +414,6 @@ export function createMcp20260728WriteToolAdapter(
 
   const entries = readToolEntries(gateway, schemaBudget);
   entries.sort((left, right) => (left.name < right.name ? -1 : left.name > right.name ? 1 : 0));
-  const sortedModern = Object.freeze(entries.map((entry) => entry.modern));
 
   const toTrustedWriteContext = (context: Mcp20260728RequestContext): McpTrustedWriteRequestContext => {
     let binding: McpAuthenticatedAuthorizationBinding;
@@ -663,6 +662,10 @@ export function createMcp20260728WriteToolAdapter(
     const request = readCallToolInput(input);
     validateInputResponses(request.inputResponses);
     try {
+      const entry = entries.find((tool) => tool.name === request.name);
+      if (entry?.requiredScopes.some((scope) => !trusted.scope.includes(scope))) {
+        throw new McpWriteToolScopeDeniedError();
+      }
       if (request.name === 'changes.plan') {
         return await handlePlan(trusted, request.arguments, request.requestState);
       }
@@ -679,8 +682,7 @@ export function createMcp20260728WriteToolAdapter(
     planId: string,
     context: Mcp20260728RequestContext,
   ): Promise<void> => {
-    const ctx = requireMcp20260728RequestContext(context);
-    const trusted = toTrustedWriteContext(ctx);
+    const trusted = toTrustedWriteContext(requireMcp20260728RequestContext(context));
     assertNotAborted(trusted.abortSignal);
     try {
       await gateway.recordOutOfBandApproval(planId, trusted);

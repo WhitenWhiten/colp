@@ -160,6 +160,7 @@ export function createContext(
     httpMethod: 'POST',
     body: { method: 'tools/call', params: { _meta: meta() } },
     binding,
+    scope: ['access:write'],
     ...overrides,
   } as Mcp20260728RequestContextInput));
 }
@@ -244,6 +245,5 @@ export async function firstPlanResult(
 ) {
   return adapter.callTool(context, { name: 'changes.plan', arguments: planRequest() });
 }
-
 
 

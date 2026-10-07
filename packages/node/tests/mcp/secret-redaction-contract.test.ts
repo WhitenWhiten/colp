@@ -118,7 +118,7 @@ function trustedContext(
 ): McpTrustedWriteRequestContext {
   return Object.freeze({
     binding: authenticatedBinding({ principalId, clientId, credentialBindingId }),
-    scope: Object.freeze(['keys:write']),
+    scope: Object.freeze(['keys:write', 'access:write']),
     budget: Object.freeze({
       maxDepth: 32,
       maxNodes: 10_000,

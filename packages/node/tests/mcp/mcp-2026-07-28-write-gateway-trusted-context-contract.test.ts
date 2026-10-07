@@ -96,7 +96,7 @@ function trustedContext(overrides: Readonly<{
       principalId: 'principal-gw',
       clientId: 'client-gw',
     }),
-    scope: overrides.scope ?? Object.freeze(['collections:write']),
+    scope: overrides.scope ?? Object.freeze(['collections:write', 'access:write']),
     budget: overrides.budget ?? DEFAULT_BUDGET,
     abortSignal: overrides.abortSignal ?? new AbortController().signal,
     authorization: overrides.authorization ?? Object.freeze({

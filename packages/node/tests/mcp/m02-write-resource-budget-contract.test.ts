@@ -84,7 +84,7 @@ function trustedContext(budget?: McpWriteInputBudget): McpTrustedWriteRequestCon
       principalId: 'subject-1',
       clientId: 'client-1',
     }),
-    scope: Object.freeze(['collections:write']),
+    scope: Object.freeze(['collections:write', 'access:write']),
     budget: budget ?? Object.freeze({
       maxDepth: 32,
       maxNodes: 10_000,
