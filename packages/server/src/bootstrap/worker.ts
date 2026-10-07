@@ -320,6 +320,11 @@ export interface BuildWorkerOptions {
   readonly mcpReadChangeSignalSource?: Phase4bMcpChangeSignalSource;
   readonly ledgerArchiveSourceResolver?: LedgerArchiveSourceResolver;
   readonly ledgerArchiveWorkerId?: string;
+  /**
+   * When false, stop() leaves the database open. The self-hosted process
+   * shares one pool and closes it after the API stops.
+   */
+  readonly closeDatabase?: boolean;
 }
 /**
  * FO-02 favicon worker composition. Fails closed when the feature is enabled
@@ -1087,7 +1092,9 @@ export function buildWorker(
       // stopped claiming new tasks and drained in-flight delivery; idempotent.
       await attemptWorkerStop(failures, 'workerCacheComposition', () => workerCacheComposition.close());
       await attemptWorkerStop(failures, 'mcpReadChangeSignalSource', () => mcpReadChangeSignalSource?.close?.());
-      await attemptWorkerStop(failures, 'database', () => database?.close());
+      if (options.closeDatabase !== false) {
+        await attemptWorkerStop(failures, 'database', () => database?.close());
+      }
       if (failures.length > 0) {
         throw new AggregateError(
           failures.map(({ error }) => error),
@@ -1098,21 +1105,28 @@ export function buildWorker(
     },
   };
 }
-if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  const processLogger = createLogger(process.env.LOG_LEVEL?.trim() || 'info');
-  registerFatalProcessHandlers({ logger: processLogger });
-  const config = loadConfig();
-  const database = createDatabaseRuntime(config.databaseUrl, {
-    maxConnections: config.database.maxConnections,
-    connectionTimeoutMs: config.database.connectionTimeoutMs,
-    idleTimeoutMs: config.database.idleTimeoutMs,
-    statementTimeoutMs: config.database.statementTimeoutMs,
-    lockTimeoutMs: config.database.lockTimeoutMs,
-    idleTransactionTimeoutMs: config.database.idleTransactionTimeoutMs,
-    applicationName: 'known-worker',
-    production: config.nodeEnv === 'production',
-    ssl: config.databaseSsl,
-  });
+
+export interface CreateWorkerProcessOptions {
+  readonly logger?: EmailDeliveryWorkerLoopLogger;
+  /** Default true. Self-hosted passes false so the shared pool outlives the worker. */
+  readonly closeDatabase?: boolean;
+  readonly env?: NodeJS.ProcessEnv;
+}
+
+export interface WorkerProcessHandle {
+  readonly worker: WorkerRuntime;
+  start(): Promise<void>;
+  stop(): Promise<void>;
+}
+
+/** Same production wiring the worker entry uses, on a caller-supplied pool. */
+export async function createWorkerProcess(
+  config: AppConfig,
+  database: DatabaseRuntime,
+  options: CreateWorkerProcessOptions = {},
+): Promise<WorkerProcessHandle> {
+  const env = options.env ?? process.env;
+  const logger = options.logger ?? createLogger(config.logLevel);
   const mcpReadChangeSignalSource = config.mcp
     ? createPostgresMcpChangeSignalSource({
         pool: database.pool,
@@ -1132,20 +1146,55 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     );
   }
   const linkPreviewStore = await composeLinkPreviewWorkerStore(config, unresolvedPublicObjectSecret);
-  const linkHealthProbe = linkHealthProbeInjectionFromEnv(process.env, config.nodeEnv);
+  const linkHealthProbe = linkHealthProbeInjectionFromEnv(env, config.nodeEnv);
   const metrics = new InMemoryMetrics();
   const metricsServer = createPrometheusMetricsServer({
     metrics,
-    host: process.env.WORKER_METRICS_HOST?.trim() || '127.0.0.1',
-    port: parseMetricsPort(process.env.WORKER_METRICS_PORT),
+    host: env.WORKER_METRICS_HOST?.trim() || '127.0.0.1',
+    port: parseMetricsPort(env.WORKER_METRICS_PORT),
   });
-  const worker = buildWorker(config, database, metrics, {
-    logger: processLogger,
-    mcpReadChangeSignalSource,
-    ...(linkPreviewStore === undefined ? {} : { linkPreview: { store: linkPreviewStore } }),
-    ...(linkHealthProbe === undefined ? {} : { linkHealth: linkHealthProbe }),
-    ...(faviconObjectStore === undefined ? {} : { favicon: { store: faviconObjectStore } }),
+  let worker: WorkerRuntime;
+  try {
+    worker = buildWorker(config, database, metrics, {
+      logger,
+      closeDatabase: options.closeDatabase,
+      mcpReadChangeSignalSource,
+      ...(linkPreviewStore === undefined ? {} : { linkPreview: { store: linkPreviewStore } }),
+      ...(linkHealthProbe === undefined ? {} : { linkHealth: linkHealthProbe }),
+      ...(faviconObjectStore === undefined ? {} : { favicon: { store: faviconObjectStore } }),
+    });
+  } catch (error) {
+    await mcpReadChangeSignalSource?.close?.();
+    throw error;
+  }
+  return {
+    worker,
+    async start() {
+      await worker.start();
+      await metricsServer.start();
+    },
+    async stop() {
+      await closeWorkerProcessResources({ metricsServer, worker, faviconObjectStore });
+    },
+  };
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+  const processLogger = createLogger(process.env.LOG_LEVEL?.trim() || 'info');
+  registerFatalProcessHandlers({ logger: processLogger });
+  const config = loadConfig();
+  const database = createDatabaseRuntime(config.databaseUrl, {
+    maxConnections: config.database.maxConnections,
+    connectionTimeoutMs: config.database.connectionTimeoutMs,
+    idleTimeoutMs: config.database.idleTimeoutMs,
+    statementTimeoutMs: config.database.statementTimeoutMs,
+    lockTimeoutMs: config.database.lockTimeoutMs,
+    idleTransactionTimeoutMs: config.database.idleTransactionTimeoutMs,
+    applicationName: 'known-worker',
+    production: config.nodeEnv === 'production',
+    ssl: config.databaseSsl,
   });
+  const handle = await createWorkerProcess(config, database, { logger: processLogger });
   // Serialize shutdown with startup: stop() waits for start() to settle so a
   // signal during startup can never close the database under the pending
   // startup queries (which would surface as a misleading "start failed" and
@@ -1157,9 +1206,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
       stopPromise ??= (async () => {
         stopRequested = true;
         if (startPromise) await startPromise;
-        // The worker owns its provider clients; release them after the outbox
-        // loop and cleanup scheduler have fully drained.
-        await closeWorkerProcessResources({ metricsServer, worker, faviconObjectStore });
+        await handle.stop();
       })();
       return stopPromise;
     },
@@ -1171,11 +1218,11 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     deadlineMs: DEFAULT_GRACEFUL_SHUTDOWN_DEADLINE_MS,
   });
   let startPromise: Promise<void> | undefined;
-  startPromise = worker.start().then(async () => { await metricsServer.start(); }).catch(async (error: unknown) => {
+  startPromise = handle.start().catch(async (error: unknown) => {
     removeSignalHandlers();
     if (!stopRequested) {
       try {
-        await closeWorkerProcessResources({ metricsServer, worker, faviconObjectStore });
+        await handle.stop();
       } catch (cleanupError: unknown) {
         error = new AggregateError(
           [error, cleanupError],

@@ -118,7 +118,12 @@ export function loadOidcRuntimeConfig(
     );
   }
 
-  const endpointMode = oidcEndpointPolicyMode({ nodeEnv, allowTestProvider });
+  // Self-hosted loopback HTTP is a supported origin. Relaxed mode still
+  // rejects userinfo and cloud-metadata hosts. Other editions stay strict
+  // unless the test provider is explicitly enabled.
+  const endpointMode = env.KNOWN_EDITION === 'self-hosted'
+    ? 'relaxed'
+    : oidcEndpointPolicyMode({ nodeEnv, allowTestProvider });
   // Issuer is an identifier URL; still reject private/metadata under production policy.
   const issuerUrl = assertOidcEndpointUrl('OIDC_ISSUER', issuer, endpointMode);
   const authorizationUrl = assertOidcEndpointUrl(
