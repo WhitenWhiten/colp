@@ -10,7 +10,8 @@
     "colp-server": "dist/src/cli/index.js"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json && esbuild migrations/*.ts --bundle --packages=external --outdir=dist/migrations --format=esm --platform=node --target=node22 --outbase=migrations --log-level=error",
+    "prebuild": "node scripts/write-version.mjs",
+    "build": "node scripts/write-version.mjs && tsc -p tsconfig.json && esbuild migrations/*.ts --bundle --packages=external --outdir=dist/migrations --format=esm --platform=node --target=node22 --outbase=migrations --log-level=error",
     "dev": "tsx src/bootstrap/api.ts",
     "start": "node dist/src/bootstrap/self-hosted.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",

@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import { randomBytes } from 'node:crypto';
-import { existsSync, readFileSync } from 'node:fs';
-import { dirname, resolve, sep } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { existsSync } from 'node:fs';
+import { resolve, sep } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { applySelfHostedPreset } from '../bootstrap/self-hosted-preset.js';
 import { loadConfig } from '../bootstrap/config.js';
 import { composeBetterAuthComposition } from '../bootstrap/composition.js';
@@ -14,6 +14,7 @@ import { runMigrations } from '../infrastructure/database/migrations.js';
 import type { BetterAuthInstance } from '../infrastructure/auth/better-auth-runtime.js';
 import type { AuthEmailSender } from '../modules/auth/index.js';
 import { createLogger } from '../infrastructure/telemetry/index.js';
+import { version } from '../version.js';
 
 const NETWORK_CODES = new Set([
   'ECONNREFUSED', 'ECONNRESET', 'ENOTFOUND', 'EAI_AGAIN', 'ETIMEDOUT',
@@ -113,17 +114,6 @@ function stderrLine(error: unknown, code: number): string {
   const line = oneLine(error instanceof CliExit ? error.message : messageOf(error));
   if (code === 4 && !(error instanceof CliExit)) return `database unreachable: ${line}`;
   return line;
-}
-
-function packageVersion(): string {
-  // Compiled entry is dist/src/cli/index.js; three levels up is the package root.
-  const here = dirname(fileURLToPath(import.meta.url));
-  const pkgPath = resolve(here, '../../../package.json');
-  const parsed: unknown = JSON.parse(readFileSync(pkgPath, 'utf8'));
-  if (typeof parsed !== 'object' || parsed === null || !('version' in parsed) || typeof parsed.version !== 'string' || parsed.version.length === 0) {
-    throw new CliExit(1, 'package.json version is missing');
-  }
-  return parsed.version;
 }
 
 function migrationDirectory(): string | undefined {
@@ -407,7 +397,9 @@ async function start(): Promise<void> {
 async function main(): Promise<boolean> {
   const command = parseCommand(process.argv);
   if (command.kind === 'version') {
-    process.stdout.write(`${packageVersion()}\n`);
+    process.stdout.write(`colp-server ${version.server}\n`);
+    process.stdout.write(`@know-n/colp ${version.colp}\n`);
+    process.stdout.write(`protocols ${version.protocols.join(' ')}\n`);
     return false;
   }
   if (command.kind === 'export') throw new CliExit(2, 'export is not implemented yet');

@@ -8,6 +8,7 @@ import {
   type ProductAdmissionRateLimiter,
 } from './http-security.js';
 import { limiterCapabilityFromStates } from './limiter-readiness.js';
+import { version } from '../version.js';
 
 export function registerReadyRoutes(
   app: FastifyInstance,
@@ -57,7 +58,7 @@ export function registerReadyRoutes(
   const { config, syncAdmissionPolicy } = input;
   app.get('/health', {
     config: { productTransport: { allowedQuery: [], cacheControl: 'no-store' } },
-  }, async () => ({ status: 'ok' }));
+  }, async () => ({ status: 'ok', version }));
   app.get('/metrics', {
     config: { productTransport: { allowedQuery: [], cacheControl: 'no-store' } },
   }, async (_request, reply) => {
