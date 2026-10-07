@@ -15,5 +15,5 @@ source .env
 docker compose up -d db
 until docker compose exec -T db pg_isready -U "\${POSTGRES_USER:-colp}" -d "\${POSTGRES_DB:-colp}" >/dev/null 2>&1; do sleep 2; done
 gunzip -c "$1" | docker compose exec -T db psql -U "\${POSTGRES_USER:-colp}" -d "\${POSTGRES_DB:-colp}"
-docker compose up -d server caddy
+docker compose up -d server
 echo "restore completed; verify readiness with curl -fsS \"\${COLP_SERVER_ORIGIN%/}/ready\""
