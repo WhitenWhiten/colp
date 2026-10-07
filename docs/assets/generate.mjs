@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// Generates the README banner and diagrams in this folder, in English and
-// Simplified Chinese, for GitHub's light and dark themes:
+// Generates the README banner and diagrams in this folder, in English,
+// Simplified Chinese, and Japanese, for GitHub's light and dark themes:
 //
 //   node docs/assets/generate.mjs
 //
@@ -14,7 +14,14 @@ import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
-const sans = "Inter, 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans CJK SC', sans-serif";
+const latinFonts = "Inter, 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial";
+const chineseFonts = "'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans CJK SC'";
+const japaneseFonts = "'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', Meiryo, 'Noto Sans CJK JP'";
+const sansFonts = {
+  en: `${latinFonts}, ${chineseFonts}, sans-serif`,
+  'zh-CN': `${latinFonts}, ${chineseFonts}, sans-serif`,
+  ja: `${latinFonts}, ${japaneseFonts}, sans-serif`,
+};
 const mono = "ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace";
 
 // Inter advance widths for U+0020 to U+007E, in hundredths of an em.
@@ -202,6 +209,67 @@ const copy = {
       footer: '每个 Profile 建立在指向它的 Profile 之上。服务器只声明自己完整通过的 Profile。',
     },
   },
+  ja: {
+    banner: {
+      title: 'The Collection Protocol (COLP)',
+      desc: 'ブックマークと知識コレクションのためのオープンなプロトコル。公開も、同期も、AI による整理も、あなたの管理下で。',
+      meta: 'オープン仕様 · v0.1 ドラフト',
+      tagline: ['ブックマークと知識コレクションのためのオープンなプロトコル。', '公開も、同期も、AI による整理も、あなたの管理下で。'],
+      tree: ['デザインシステム', 'デザイントークン', 'モーションガイド', 'タイポグラフィ', '文字サイズ'],
+      targets: [['公開', 'サイトとフィード'], ['同期', 'ブラウザー間で'], ['AI で整理', 'MCP 経由']],
+    },
+    architecture: {
+      title: 'COLP の全体像',
+      desc: '4 種類のクライアントが、それぞれのプロファイルを通じて 1 つの COLP サーバーにつながります。ブラウザーのブックマークは sync で同期し、アプリとスクリプトは publisher で書き込み、リーダーと Web サイトは publication と feed でスナップショットとフィードを読み、AI アシスタントは mcp-read と mcp-write で利用します。サーバーは Manifest、データモデル、変更ログ、セキュリティを提供します。',
+      subtitle: '1 つのサーバーに 4 種類のクライアント。接続ごとに、個別に実装できるプロファイルがあります。',
+      clients: [
+        ['ブラウザーブックマーク', 'Chromium · Firefox · Safari'],
+        ['アプリとスクリプト', '作成・編集・リリース'],
+        ['リーダーと Web サイト', 'ページ · JSON Feed · Atom'],
+        ['AI アシスタント', '任意の MCP クライアント'],
+      ],
+      server: ['COLP サーバー', '仕様に準拠した任意の実装'],
+      discovery: 'GET /.well-known/collection-protocol',
+      layers: [['Manifest', 'プロファイルと URL'], ['データモデル', 'Node とサイドカー'], ['変更ログ', '操作とトゥームストーン'], ['セキュリティ', 'スコープ・ACL・監査']],
+      footer: '必要な部分だけ実装すれば十分です。core + publication を提供する静的サイトだけでも、完全な COLP サーバーになります。',
+    },
+    dataModel: {
+      title: 'COLP のデータモデル',
+      desc: '1 つの Collection は、ルートノード、フォルダー、ブックマーク、区切り線、エイリアスを含みます。注釈、添付、関係はサイドカーデータとしてノードに付きます。',
+      tree: {
+        collection: 'デザインシステム', bar: 'ブックマークバー', tokens: 'デザイントークン', alias: '→ モーションガイド', other: 'その他のブックマーク', motion: 'モーションガイド',
+      },
+      sidecars: [
+        ['Annotation 注釈', 'note · summary · highlight · rating', 'ノードへのメモ。AI が書いたものは出所付き'],
+        ['Attachment 添付', 'rel · url · mimeType · digest', 'ファイルや保存したページのメタデータ'],
+        ['Relation 関係', 'related · supports · derived_from · …', '2 つのノードをつなぐ型付きリンク'],
+      ],
+      footer: ['並び順は不透明な position キーで表すため、同時に挿入しても兄弟ノードの番号は振り直されません。', '削除はトゥームストーンを残すため、どのレプリカも完全に消える前に削除を知ることができます。'],
+    },
+    syncFlow: {
+      title: 'COLP の双方向同期',
+      desc: 'ブラウザーのレプリカがセッションを開き、スナップショットからブートストラップし、キューに溜めた操作をプッシュし、カーソル以降の変更をプルして、進捗を確認応答します。',
+      actors: [['ブラウザーのレプリカ', 'アダプター + ローカルのサイドカー'], ['COLP サーバー', '正となる状態 + 操作ログ']],
+      steps: [
+        ['セッションを開く', 'レプリカの紐付け、スコープ、プロトコルバージョン'],
+        ['ブートストラップ', '1 つの完全な Sync Snapshot'],
+        ['操作をプッシュ', '操作ごとの結果：applied · rebased · conflicted'],
+        ['変更をプル', 'カーソル以降の操作と競合'],
+        ['確認応答', 'サーバーが古いトゥームストーンを削除できる'],
+      ],
+      note: 'ブックマークを編集 → 操作がキューに入る（seq 1, 2, 3）',
+    },
+    profiles: {
+      title: 'COLP の適合プロファイル',
+      desc: 'プロファイルの依存関係：publication、sync、mcp-read は core の上に、feed と publisher は publication の上に、mcp-write は mcp-read と publisher の上に成り立ちます。core と publication だけで完全な静的サーバーになります。',
+      descriptions: {
+        core: 'データモデルと Snapshot', publication: '探索と読み取り API', feed: '公開の変更フィード', publisher: '認証付きの書き込み',
+        sync: '双方向のレプリカ同期', 'mcp-read': 'AI による読み取り', 'mcp-write': '承認付きの AI 書き込み',
+      },
+      start: 'ここから始める：静的サイトでも両方を提供できます',
+      footer: '各プロファイルは、矢印の出元にあるプロファイルの上に成り立ちます。サーバーは完全に満たすプロファイルだけを宣言します。',
+    },
+  },
 };
 
 // SVG building blocks.
@@ -296,7 +364,7 @@ function svgDocument({ width, height, lang, title, desc, defs = '', body }) {
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-labelledby="title desc" xml:lang="${lang}">`,
     tag('title', { id: 'title' }, escape(title)),
     tag('desc', { id: 'desc' }, escape(desc)),
-    `<style>text{font-family:${sans}}.mono{font-family:${mono}}</style>`,
+    `<style>text{font-family:${sansFonts[lang]}}.mono{font-family:${mono}}</style>`,
     ...(defs === '' ? [] : [`<defs>${defs}</defs>`]),
     ...body,
     '</svg>',
@@ -686,7 +754,7 @@ function profiles(lang, mode) {
 const pieces = { banner, architecture, 'data-model': dataModel, 'sync-flow': syncFlow, profiles };
 
 for (const [name, render] of Object.entries(pieces)) {
-  for (const lang of ['en', 'zh-CN']) {
+  for (const lang of ['en', 'zh-CN', 'ja']) {
     for (const mode of ['light', 'dark']) {
       const file = `${name}${lang === 'en' ? '' : `.${lang}`}${mode === 'light' ? '' : '.dark'}.svg`;
       writeFileSync(join(here, file), render(lang, mode));

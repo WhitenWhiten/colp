@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="476" viewBox="0 0 1000 476" role="img" aria-labelledby="title desc" xml:lang="ja">
+<title id="title">COLP のデータモデル</title>
+<desc id="desc">1 つの Collection は、ルートノード、フォルダー、ブックマーク、区切り線、エイリアスを含みます。注釈、添付、関係はサイドカーデータとしてノードに付きます。</desc>
+<style>text{font-family:Inter, 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', Meiryo, 'Noto Sans CJK JP', sans-serif}.mono{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace}</style>
+<rect x="0.5" y="0.5" width="999" height="475" rx="16" fill="#ffffff" stroke="#d1d9e0"/>
+<rect x="28" y="28" width="532" height="362" rx="12" fill="#f6f8fa" stroke="#d1d9e0"/>
+<rect x="128" y="171" width="418" height="34" rx="9" fill="#0ea5e9" fill-opacity="0.07"/>
+<path d="M64 75V96Q64 104 72 104H76" fill="none" stroke="#d1d9e0" stroke-width="1.5"/>
+<path d="M92 117V138Q92 146 100 146H104" fill="none" stroke="#d1d9e0" stroke-width="1.5"/>
+<path d="M120 159V180Q120 188 128 188H132" fill="none" stroke="#d1d9e0" stroke-width="1.5"/>
+<path d="M120 159V222Q120 230 128 230H132" fill="none" stroke="#d1d9e0" stroke-width="1.5"/>
+<path d="M120 159V264Q120 272 128 272H132" fill="none" stroke="#d1d9e0" stroke-width="1.5"/>
+<path d="M92 117V306Q92 314 100 314H104" fill="none" stroke="#d1d9e0" stroke-width="1.5"/>
+<path d="M120 327V348Q120 356 128 356H132" fill="none" stroke="#d1d9e0" stroke-width="1.5"/>
+<rect x="52" y="49" width="102" height="26" rx="13" fill="#f6f8fa"/><rect x="52" y="49" width="102" height="26" rx="13" fill="#6366f1" fill-opacity="0.1" stroke="#6366f1" stroke-opacity="0.4"/><text x="103" y="66.55" font-size="13" font-weight="600" fill="#4338ca" text-anchor="middle" class="mono">collection</text>
+<text x="166" y="67.5" font-size="15" font-weight="700" fill="#1f2328">デザインシステム</text>
+<text x="302" y="67" font-size="13" fill="#59636e" class="mono">visibility: public</text>
+<rect x="80" y="91" width="56" height="26" rx="13" fill="#f6f8fa"/><rect x="80" y="91" width="56" height="26" rx="13" fill="#818b98" fill-opacity="0.1" stroke="#818b98" stroke-opacity="0.4"/><text x="108" y="108.55" font-size="13" font-weight="600" fill="#59636e" text-anchor="middle" class="mono">root</text>
+<rect x="108" y="133" width="71" height="26" rx="13" fill="#f6f8fa"/><rect x="108" y="133" width="71" height="26" rx="13" fill="#f59e0b" fill-opacity="0.1" stroke="#f59e0b" stroke-opacity="0.4"/><text x="143.5" y="150.55" font-size="13" font-weight="600" fill="#b45309" text-anchor="middle" class="mono">folder</text>
+<text x="191" y="151.5" font-size="15" font-weight="400" fill="#1f2328">ブックマークバー</text>
+<text x="327" y="151" font-size="13" fill="#59636e" class="mono">bookmarks-bar</text>
+<rect x="136" y="175" width="87" height="26" rx="13" fill="#f6f8fa"/><rect x="136" y="175" width="87" height="26" rx="13" fill="#0ea5e9" fill-opacity="0.1" stroke="#0ea5e9" stroke-opacity="0.4"/><text x="179.5" y="192.55" font-size="13" font-weight="600" fill="#0369a1" text-anchor="middle" class="mono">bookmark</text>
+<text x="235" y="193.5" font-size="15" font-weight="400" fill="#1f2328">デザイントークン</text>
+<text x="371" y="193" font-size="13" fill="#59636e" class="mono">url · tags · position</text>
+<rect x="136" y="217" width="95" height="26" rx="13" fill="#f6f8fa"/><rect x="136" y="217" width="95" height="26" rx="13" fill="#818b98" fill-opacity="0.1" stroke="#818b98" stroke-opacity="0.4"/><text x="183.5" y="234.55" font-size="13" font-weight="600" fill="#59636e" text-anchor="middle" class="mono">separator</text>
+<rect x="136" y="259" width="63" height="26" rx="13" fill="#f6f8fa"/><rect x="136" y="259" width="63" height="26" rx="13" fill="#8b5cf6" fill-opacity="0.1" stroke="#8b5cf6" stroke-opacity="0.4"/><text x="167.5" y="276.55" font-size="13" font-weight="600" fill="#6d28d9" text-anchor="middle" class="mono">alias</text>
+<text x="211" y="277.5" font-size="15" font-weight="400" fill="#1f2328">→ モーションガイド</text>
+<rect x="108" y="301" width="71" height="26" rx="13" fill="#f6f8fa"/><rect x="108" y="301" width="71" height="26" rx="13" fill="#f59e0b" fill-opacity="0.1" stroke="#f59e0b" stroke-opacity="0.4"/><text x="143.5" y="318.55" font-size="13" font-weight="600" fill="#b45309" text-anchor="middle" class="mono">folder</text>
+<text x="191" y="319.5" font-size="15" font-weight="400" fill="#1f2328">その他のブックマーク</text>
+<text x="357" y="319" font-size="13" fill="#59636e" class="mono">other-bookmarks</text>
+<rect x="136" y="343" width="87" height="26" rx="13" fill="#f6f8fa"/><rect x="136" y="343" width="87" height="26" rx="13" fill="#0ea5e9" fill-opacity="0.1" stroke="#0ea5e9" stroke-opacity="0.4"/><text x="179.5" y="360.55" font-size="13" font-weight="600" fill="#0369a1" text-anchor="middle" class="mono">bookmark</text>
+<text x="235" y="361.5" font-size="15" font-weight="400" fill="#1f2328">モーションガイド</text>
+<path d="M546 188C576 188 582 95 612 95" fill="none" stroke="#818b98" stroke-width="1.5" stroke-dasharray="4 4"/>
+<rect x="612" y="46" width="360" height="98" rx="12" fill="#f6f8fa" stroke="#d1d9e0"/>
+<rect x="626" y="62" width="4" height="66" rx="2" fill="#ec4899"/>
+<text x="642" y="76" font-size="16" font-weight="700" fill="#1f2328">Annotation 注釈</text>
+<text x="642" y="100" font-size="13" fill="#be185d" class="mono">note · summary · highlight · rating</text>
+<text x="642" y="124" font-size="14" fill="#59636e">ノードへのメモ。AI が書いたものは出所付き</text>
+<path d="M546 188C576 188 582 209 612 209" fill="none" stroke="#818b98" stroke-width="1.5" stroke-dasharray="4 4"/>
+<rect x="612" y="160" width="360" height="98" rx="12" fill="#f6f8fa" stroke="#d1d9e0"/>
+<rect x="626" y="176" width="4" height="66" rx="2" fill="#10b981"/>
+<text x="642" y="190" font-size="16" font-weight="700" fill="#1f2328">Attachment 添付</text>
+<text x="642" y="214" font-size="13" fill="#047857" class="mono">rel · url · mimeType · digest</text>
+<text x="642" y="238" font-size="14" fill="#59636e">ファイルや保存したページのメタデータ</text>
+<path d="M546 188C576 188 582 323 612 323" fill="none" stroke="#818b98" stroke-width="1.5" stroke-dasharray="4 4"/>
+<rect x="612" y="274" width="360" height="98" rx="12" fill="#f6f8fa" stroke="#d1d9e0"/>
+<rect x="626" y="290" width="4" height="66" rx="2" fill="#8b5cf6"/>
+<text x="642" y="304" font-size="16" font-weight="700" fill="#1f2328">Relation 関係</text>
+<text x="642" y="328" font-size="13" fill="#6d28d9" class="mono">related · supports · derived_from · …</text>
+<text x="642" y="352" font-size="14" fill="#59636e">2 つのノードをつなぐ型付きリンク</text>
+<circle cx="546" cy="188" r="4" fill="#818b98"/>
+<text x="28" y="424" font-size="14" fill="#59636e">並び順は不透明な position キーで表すため、同時に挿入しても兄弟ノードの番号は振り直されません。</text>
+<text x="28" y="446" font-size="14" fill="#59636e">削除はトゥームストーンを残すため、どのレプリカも完全に消える前に削除を知ることができます。</text>
+</svg>

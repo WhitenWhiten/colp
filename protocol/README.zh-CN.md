@@ -1,6 +1,6 @@
 # The Collection Protocol
 
-[English](README.md) | [简体中文](README.zh-CN.md)
+[English](README.md) | [简体中文](README.zh-CN.md) | [日本語](README.ja.md)
 
 > 规范正文（`SPECIFICATION.md` 与 `docs/`）以英文为准。本页是中文导读。
 

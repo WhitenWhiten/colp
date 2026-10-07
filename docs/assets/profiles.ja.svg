@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="430" viewBox="0 0 1000 430" role="img" aria-labelledby="title desc" xml:lang="ja">
+<title id="title">COLP の適合プロファイル</title>
+<desc id="desc">プロファイルの依存関係：publication、sync、mcp-read は core の上に、feed と publisher は publication の上に、mcp-write は mcp-read と publisher の上に成り立ちます。core と publication だけで完全な静的サーバーになります。</desc>
+<style>text{font-family:Inter, 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', Meiryo, 'Noto Sans CJK JP', sans-serif}.mono{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace}</style>
+<rect x="0.5" y="0.5" width="999" height="429" rx="16" fill="#ffffff" stroke="#d1d9e0"/>
+<rect x="18" y="56" width="480" height="88" rx="16" fill="#6366f1" fill-opacity="0.07" stroke="#6366f1" stroke-opacity="0.55" stroke-dasharray="6 5"/>
+<text x="20" y="44" font-size="14" font-weight="600" fill="#4338ca">ここから始める：静的サイトでも両方を提供できます</text>
+<path d="M242 100H265" fill="none" stroke="#818b98" stroke-width="2"/>
+<path d="M274 100L265 104.5L265 95.5Z" fill="#818b98"/>
+<path d="M484 100H507" fill="none" stroke="#818b98" stroke-width="2"/>
+<path d="M516 100L507 104.5L507 95.5Z" fill="#818b98"/>
+<path d="M137 130V248Q137 260 149 260H265" fill="none" stroke="#818b98" stroke-width="2"/>
+<path d="M274 260L265 264.5L265 255.5Z" fill="#818b98"/>
+<path d="M137 130V328Q137 340 149 340H265" fill="none" stroke="#818b98" stroke-width="2"/>
+<path d="M274 340L265 344.5L265 335.5Z" fill="#818b98"/>
+<path d="M379 130V168Q379 180 391 180H507" fill="none" stroke="#818b98" stroke-width="2"/>
+<path d="M516 180L507 184.5L507 175.5Z" fill="#818b98"/>
+<path d="M726 180H749" fill="none" stroke="#818b98" stroke-width="2"/>
+<path d="M758 180L749 184.5L749 175.5Z" fill="#818b98"/>
+<path d="M484 260H749" fill="none" stroke="#818b98" stroke-width="2"/>
+<path d="M758 260L749 264.5L749 255.5Z" fill="#818b98"/>
+<rect x="32" y="70" width="210" height="60" rx="12" fill="#f6f8fa" stroke="#d1d9e0"/>
+<rect x="44" y="82" width="4" height="36" rx="2" fill="#6366f1"/>
+<text x="58" y="96" font-size="16" font-weight="700" fill="#4338ca" class="mono">core</text>
+<text x="58" y="118" font-size="14" fill="#59636e">データモデルと Snapshot</text>
+<rect x="274" y="70" width="210" height="60" rx="12" fill="#f6f8fa" stroke="#d1d9e0"/>
+<rect x="286" y="82" width="4" height="36" rx="2" fill="#0ea5e9"/>
+<text x="300" y="96" font-size="16" font-weight="700" fill="#0369a1" class="mono">publication</text>
+<text x="300" y="118" font-size="14" fill="#59636e">探索と読み取り API</text>
+<rect x="516" y="70" width="210" height="60" rx="12" fill="#f6f8fa" stroke="#d1d9e0"/>
+<rect x="528" y="82" width="4" height="36" rx="2" fill="#f59e0b"/>
+<text x="542" y="96" font-size="16" font-weight="700" fill="#b45309" class="mono">feed</text>
+<text x="542" y="118" font-size="14" fill="#59636e">公開の変更フィード</text>
+<rect x="516" y="150" width="210" height="60" rx="12" fill="#f6f8fa" stroke="#d1d9e0"/>
+<rect x="528" y="162" width="4" height="36" rx="2" fill="#10b981"/>
+<text x="542" y="176" font-size="16" font-weight="700" fill="#047857" class="mono">publisher</text>
+<text x="542" y="198" font-size="14" fill="#59636e">認証付きの書き込み</text>
+<rect x="274" y="230" width="210" height="60" rx="12" fill="#f6f8fa" stroke="#d1d9e0"/>
+<rect x="286" y="242" width="4" height="36" rx="2" fill="#8b5cf6"/>
+<text x="300" y="256" font-size="16" font-weight="700" fill="#6d28d9" class="mono">mcp-read</text>
+<text x="300" y="278" font-size="14" fill="#59636e">AI による読み取り</text>
+<rect x="274" y="310" width="210" height="60" rx="12" fill="#f6f8fa" stroke="#d1d9e0"/>
+<rect x="286" y="322" width="4" height="36" rx="2" fill="#ec4899"/>
+<text x="300" y="336" font-size="16" font-weight="700" fill="#be185d" class="mono">sync</text>
+<text x="300" y="358" font-size="14" fill="#59636e">双方向のレプリカ同期</text>
+<rect x="758" y="166" width="210" height="108" rx="12" fill="#f6f8fa" stroke="#d1d9e0"/>
+<rect x="770" y="202" width="4" height="36" rx="2" fill="#a855f7"/>
+<text x="784" y="216" font-size="16" font-weight="700" fill="#7e22ce" class="mono">mcp-write</text>
+<text x="784" y="238" font-size="14" fill="#59636e">承認付きの AI 書き込み</text>
+<text x="32" y="404" font-size="14" fill="#59636e">各プロファイルは、矢印の出元にあるプロファイルの上に成り立ちます。サーバーは完全に満たすプロファイルだけを宣言します。</text>
+</svg>
