@@ -1,5 +1,4 @@
 import { registerBookmarkSubscriptionRoutes } from './product/bookmark-subscription-routes.js';
-import { registerReportReaderRoutes } from './product/report-reader-routes.js';
 import type { FastifyInstance } from 'fastify';
 import { createCreditLedgerCursorCodec } from '../modules/identity/index.js';
 import type { AppDependencies } from './app-dependencies.js';
@@ -13,7 +12,6 @@ export function registerAccountProductSurfaces(app: FastifyInstance, deps: AppDe
     creditLedgerRead, creditsReadRateLimiter } = deps;
   const subscriptions = { identityUnitOfWork, unitOfWork: deps.bookmarkSubscriptionUnitOfWork, allowedOrigins: extensionProductAllowedOrigins(config), enabled: () => config.bookmarkSubscriptions?.enabled === true, protocolReady: () => config.bookmarkSubscriptions?.protocolReady === true, cursorKey: config.community.cursorHmacKey, rateLimiter: deps.reportsRateLimiter };
   registerBookmarkSubscriptionRoutes(app, subscriptions);
-  registerReportReaderRoutes(app, subscriptions);
   if (identityUnitOfWork && bookmarkPreferencesUnitOfWork && bookmarkPreferencesQuery) {
     registerBookmarkPreferencesRoutes(app, {
       identityUnitOfWork,

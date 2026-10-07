@@ -12,7 +12,7 @@ import { createUnitOfWork, type DatabaseTransaction, type UnitOfWorkOptions } fr
 import {
   bookmarkHidePublicExistsSql,
   collectionHidePublicExistsSql,
-} from '../governance/collection-control-sql.js';
+} from '../database/collection-control-sql.js';
 import { PUBLICATION_TARGET_ACCESS_MAX_DEPTH } from '../publication/target-access-facts.js';
 
 type Executor = Kysely<DatabaseSchema> | DatabaseTransaction;

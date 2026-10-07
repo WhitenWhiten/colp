@@ -38,13 +38,13 @@ import {
   type EmailProviderAdapter,
   type EmailSendInput,
   type EmailSendResult,
-} from '../../modules/notifications/index.js';
+} from '../../modules/email/index.js';
 
 /**
  * Narrow Alibaba Cloud DirectMail provider adapter (P5-28).
  *
  * Implements the application-layer email delivery port
- * (modules/notifications/application/email-delivery-port.ts) over the frozen
+ * (modules/email/email-delivery-port.ts) over the frozen
  * P5-27 RPC protocol helpers (aliyun-directmail-contract.ts). This adapter
  * performs network I/O and holds credentials, but:
  * - never logs credentials, recipient addresses, subjects or bodies;

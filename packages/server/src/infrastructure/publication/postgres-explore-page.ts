@@ -8,7 +8,7 @@ import {
 } from '../../modules/publication/index.js';
 import type { DatabaseRuntime } from '../database/index.js';
 import { readBackendPid, withPostgresAbort } from '../database/index.js';
-import { COLLECTION_DELIST_CONTROL_SQL, collectionHidePublicExistsSql, collectionVisibleNodeCountSql } from '../governance/collection-control-sql.js';
+import { COLLECTION_DELIST_CONTROL_SQL, collectionHidePublicExistsSql, collectionVisibleNodeCountSql } from '../database/collection-control-sql.js';
 import {
   COLLECTION_CATALOG_LANGUAGE_SQL,
   COLLECTION_CATALOG_TAGS_SQL,

@@ -1,30 +1,27 @@
 import { loadSharedFaviconConfig } from './config-favicon-shared.js';
-import {
-  FEED_CURSOR_TTL_MS,
-  FOLLOW_CURSOR_TTL_MS,
-  PUBLIC_ACTIVITY_CURSOR_TTL_MS,
-  type FeedOperationsConfig,
-  type RetainedFeedCursorKey,
-  type RetainedFollowCursorKey,
-  type RetainedPublicActivityCursorKey,
-} from '../modules/social/index.js';
-import {
-  NOTIFICATION_INBOX_CURSOR_TTL_MS,
-  type NotificationOperationsConfig,
-  type RetainedNotificationInboxCursorKey,
-} from '../modules/notifications/index.js';
 import { parseCanonicalUtcTimestamp, parsePositiveInt, requireNonEmpty } from './config-parse-helpers.js';
 import type {
   CollectionFollowFeatureConfig,
   CommunityFeatureConfig,
   FaviconPolicyAdmissionConfig,
-  LibraryOrderAdmissionConfig,
   FeedFeatureConfig,
+  FeedOperationsConfig,
   FollowFeatureConfig,
+  LibraryOrderAdmissionConfig,
   NotificationFeatureConfig,
+  NotificationOperationsConfig,
   PublicActivityFeatureConfig,
   RedisRateLimitFamilySharedConfig,
+  RetainedFeedCursorKey,
+  RetainedFollowCursorKey,
+  RetainedNotificationInboxCursorKey,
+  RetainedPublicActivityCursorKey,
 } from './config-types.js';
+
+const FEED_CURSOR_TTL_MS = 15 * 60 * 1000;
+const FOLLOW_CURSOR_TTL_MS = 15 * 60 * 1000;
+const PUBLIC_ACTIVITY_CURSOR_TTL_MS = 15 * 60 * 1000;
+const NOTIFICATION_INBOX_CURSOR_TTL_MS = 15 * 60 * 1000;
 
 const DEFAULT_FEED_QUEUE_AGE_NOT_READY_MS = 60_000;
 const DEFAULT_FEED_QUEUE_BACKLOG_NOT_READY = 1_000;
@@ -641,4 +638,87 @@ function parseConstInt(raw: string | undefined, expected: number, label: string)
     throw new Error(`${label} must be exactly ${expected}`);
   }
   return value;
+}
+
+export interface FeedWorkerCapacity {
+  readonly workerConcurrency: number;
+  readonly workerBatchSize: number;
+  readonly workerLeaseDurationMs: number;
+  readonly workerHandlerTimeoutMs: number;
+}
+
+export interface NotificationWorkerCapacity {
+  readonly workerConcurrency: number;
+  readonly workerBatchSize: number;
+  readonly workerLeaseDurationMs: number;
+  readonly workerHandlerTimeoutMs: number;
+}
+
+function bounded(value: number, name: string, max: number): void {
+  if (!Number.isSafeInteger(value) || value < 1 || value > max) {
+    throw new RangeError(`${name} must be between 1 and ${max}`);
+  }
+}
+
+export function assertFeedOperationsConfig(
+  config: FeedOperationsConfig,
+  capacity: FeedWorkerCapacity,
+): void {
+  bounded(config.queueAgeNotReadyMs, 'queueAgeNotReadyMs', 86_400_000);
+  bounded(config.queueBacklogNotReady, 'queueBacklogNotReady', 1_000_000);
+  bounded(config.deadLetterNotReady, 'deadLetterNotReady', 1_000_000);
+  bounded(config.fanoutProgressAgeNotReadyMs, 'fanoutProgressAgeNotReadyMs', 86_400_000);
+  bounded(config.withdrawalBacklogNotReady, 'withdrawalBacklogNotReady', 1_000_000);
+  bounded(config.rebuildMaxEvents, 'rebuildMaxEvents', 10_000);
+  bounded(config.rebuildMaxRecipientsPerEvent, 'rebuildMaxRecipientsPerEvent', 1_000);
+  bounded(config.rebuildMaxTotalRecipients, 'rebuildMaxTotalRecipients', 1_000_000);
+  bounded(config.rebuildTimeoutMs, 'rebuildTimeoutMs', 3_600_000);
+  bounded(config.purgeBatchSize, 'purgeBatchSize', 10_000);
+  bounded(config.retentionDays, 'retentionDays', 3650);
+  if (config.retentionDays !== 90) {
+    throw new RangeError('retentionDays must match the production 90-day Feed source window');
+  }
+  if (config.rebuildMaxTotalRecipients < config.rebuildMaxRecipientsPerEvent) {
+    throw new RangeError('rebuildMaxTotalRecipients must cover one configured recipient page');
+  }
+  bounded(capacity.workerConcurrency, 'workerConcurrency', 64);
+  bounded(capacity.workerBatchSize, 'workerBatchSize', 64);
+  bounded(capacity.workerLeaseDurationMs, 'workerLeaseDurationMs', 3_600_000);
+  bounded(capacity.workerHandlerTimeoutMs, 'workerHandlerTimeoutMs', 3_600_000);
+  if (capacity.workerBatchSize > capacity.workerConcurrency
+      || capacity.workerHandlerTimeoutMs > capacity.workerLeaseDurationMs
+      || config.rebuildTimeoutMs > capacity.workerLeaseDurationMs) {
+    throw new RangeError('Feed operations capacity is incoherent with worker lease capacity');
+  }
+}
+
+export function assertNotificationOperationsConfig(
+  config: NotificationOperationsConfig,
+  capacity: NotificationWorkerCapacity,
+): void {
+  bounded(config.queueAgeNotReadyMs, 'queueAgeNotReadyMs', 86_400_000);
+  bounded(config.queueBacklogNotReady, 'queueBacklogNotReady', 1_000_000);
+  bounded(config.queueDeadLetterNotReady, 'queueDeadLetterNotReady', 1_000_000);
+  bounded(config.deliveryBacklogDegraded, 'deliveryBacklogDegraded', 1_000_000);
+  bounded(config.deliveryDeadLetterDegraded, 'deliveryDeadLetterDegraded', 1_000_000);
+  bounded(config.retentionDays, 'retentionDays', 3650);
+  bounded(config.purgeBatchSize, 'purgeBatchSize', 10_000);
+  bounded(config.recoveryBatchSize, 'recoveryBatchSize', 1_000);
+  bounded(config.recoveryMaxEvents, 'recoveryMaxEvents', 10_000);
+  bounded(config.recoveryTimeoutMs, 'recoveryTimeoutMs', 3_600_000);
+  if (config.retentionDays !== 90) {
+    throw new RangeError('retentionDays must match the read-state Notification authority retention (unread 365 / read 90 / delivery 30)');
+  }
+  if (config.recoveryMaxEvents < config.recoveryBatchSize) {
+    throw new RangeError('recoveryMaxEvents must cover one recovery batch');
+  }
+  bounded(capacity.workerConcurrency, 'workerConcurrency', 64);
+  bounded(capacity.workerBatchSize, 'workerBatchSize', 64);
+  bounded(capacity.workerLeaseDurationMs, 'workerLeaseDurationMs', 3_600_000);
+  bounded(capacity.workerHandlerTimeoutMs, 'workerHandlerTimeoutMs', 3_600_000);
+  if (capacity.workerBatchSize > capacity.workerConcurrency
+      || capacity.workerHandlerTimeoutMs > capacity.workerLeaseDurationMs
+      || config.recoveryTimeoutMs > capacity.workerLeaseDurationMs) {
+    throw new RangeError('Notification operations capacity is incoherent with worker lease capacity');
+  }
 }

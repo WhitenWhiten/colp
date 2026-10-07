@@ -8,12 +8,57 @@ import type {
 } from '../modules/attachments/index.js';
 import type { McpReadFeatureConfig } from '../modules/mcp/index.js';
 import type { ExtensionAuthConfig, OidcEncryptionKey } from '../modules/identity/index.js';
-import type {
-  NotificationOperationsConfig,
-  RetainedNotificationInboxCursorKey,
-} from '../modules/notifications/index.js';
-import type { FeedOperationsConfig, RetainedFeedCursorKey, RetainedFollowCursorKey, RetainedPublicActivityCursorKey } from '../modules/social/index.js';
 import type { LedgerArchiveRuntimeConfig, SanitizedLedgerArchiveRuntimeConfig } from './config-ledger-archive.js';
+
+export interface RetainedFollowCursorKey {
+  readonly id: string;
+  readonly secret: string;
+  readonly lastIssuedAt: string;
+  readonly retainUntil: string;
+}
+export interface RetainedFeedCursorKey {
+  readonly id: string;
+  readonly secret: string;
+  readonly lastIssuedAt: string;
+  readonly retainUntil: string;
+}
+export interface RetainedPublicActivityCursorKey {
+  readonly id: string;
+  readonly secret: string;
+  readonly lastIssuedAt: string;
+  readonly retainUntil: string;
+}
+export interface RetainedNotificationInboxCursorKey {
+  readonly id: string;
+  readonly secret: string;
+  readonly lastIssuedAt: string;
+  readonly retainUntil: string;
+}
+export interface FeedOperationsConfig {
+  readonly queueAgeNotReadyMs: number;
+  readonly queueBacklogNotReady: number;
+  readonly deadLetterNotReady: number;
+  readonly fanoutProgressAgeNotReadyMs: number;
+  readonly withdrawalBacklogNotReady: number;
+  readonly rebuildMaxEvents: number;
+  readonly rebuildMaxRecipientsPerEvent: number;
+  readonly rebuildMaxTotalRecipients: number;
+  readonly rebuildTimeoutMs: number;
+  readonly purgeBatchSize: number;
+  readonly retentionDays: number;
+}
+export interface NotificationOperationsConfig {
+  readonly queueAgeNotReadyMs: number;
+  readonly queueBacklogNotReady: number;
+  readonly queueDeadLetterNotReady: number;
+  readonly deliveryBacklogDegraded: number;
+  readonly deliveryDeadLetterDegraded: number;
+  readonly retentionDays: number;
+  readonly purgeBatchSize: number;
+  readonly recoveryBatchSize: number;
+  readonly recoveryMaxEvents: number;
+  readonly recoveryTimeoutMs: number;
+}
 /**
  * Explicit OIDC client authentication mode (OIDC Core §9 / RFC 6749 §2.3).
  * Never derived from OIDC_CLIENT_SECRET presence: mode/secret conflicts fail

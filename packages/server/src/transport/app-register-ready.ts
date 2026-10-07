@@ -31,9 +31,7 @@ export function registerReadyRoutes(
     }[];
     readonly effectPageRateLimiter: AppDependencies['effectPageRateLimiter'];
     readonly mcpRateLimiter: AppDependencies['mcpRateLimiter'];
-    readonly feedCapabilityReadiness: AppDependencies['feedCapabilityReadiness'];
     readonly attachmentsCapabilityReadiness: AppDependencies['attachmentsCapabilityReadiness'];
-    readonly notificationCapabilityReadiness: AppDependencies['notificationCapabilityReadiness'];
     readonly syncConflictsCapabilityReadiness: AppDependencies['syncConflictsCapabilityReadiness'];
     readonly metrics: Metrics;
   },
@@ -54,9 +52,7 @@ export function registerReadyRoutes(
     productRouteRateLimiters,
     effectPageRateLimiter,
     mcpRateLimiter,
-    feedCapabilityReadiness,
     attachmentsCapabilityReadiness,
-    notificationCapabilityReadiness,
     syncConflictsCapabilityReadiness,
     metrics,
   } = resolved;
@@ -286,38 +282,11 @@ export function registerReadyRoutes(
   app.get('/ready/features/reports', {
     config: { productTransport: { allowedQuery: [], cacheControl: 'no-store' } },
   }, async (_request, reply) => {
-    const reasons: string[] = [];
-    if (!config.reports.enabled) reasons.push('disabled');
-    else {
-      if (input.reportsUnitOfWork === undefined) reasons.push('database_unavailable');
-      if (input.reportsRateLimiter === undefined) reasons.push('rate_limiter_unavailable');
-      if (config.reports.publicEnabled && input.reportCache === undefined
-        && !config.contentGovernance.enabled
-        && config.cache.redis.mode !== 'off'
-        && (config.cache.reports.metadataEnabled || config.cache.reports.issuesEnabled || config.cache.reports.directoryEnabled)) {
-        // A missing cache decorator is safe (the origin remains authoritative)
-        // but indicates an incomplete enabled composition, so report it as a
-        // degraded optional dependency rather than claiming full readiness.
-        reasons.push('cache_composition_incomplete');
-      }
-      if (config.reports.mcpEnabled && input.mcpReadTransport === undefined) reasons.push('mcp_unavailable');
-      if (config.reports.mcpWriteEnabled && input.mcpReadTransport === undefined) reasons.push('mcp_write_unavailable');
-    }
-    const status = reasons.length === 0 ? 'ready' : reasons.length === 1 && reasons[0] === 'disabled' ? 'disabled' : 'not-ready';
-    return reply.code(status === 'ready' || status === 'disabled' ? 200 : 503).send({
-      capability: 'reports', status, enabled: config.reports.enabled,
-      reasons: Object.freeze(reasons),
+    return reply.code(200).send({
+      capability: 'reports', status: 'disabled', enabled: false,
+      reasons: Object.freeze(['disabled']),
     });
   });
-  if (feedCapabilityReadiness) {
-    app.get('/ready/features/feed', {
-      config: { productTransport: { allowedQuery: [], cacheControl: 'no-store' } },
-    }, async (_request, reply) => {
-      const result = await feedCapabilityReadiness().catch(() => ({ capability: 'feed' as const,
-        status: 'not-ready' as const, reason: 'dependency_unavailable' as const }));
-      return reply.code(result.status === 'ready' ? 200 : 503).send(result);
-    });
-  }
   if (attachmentsCapabilityReadiness) {
     app.get('/ready/features/attachments', {
       config: { productTransport: { allowedQuery: [], cacheControl: 'no-store' } },
@@ -325,19 +294,6 @@ export function registerReadyRoutes(
       const result = await attachmentsCapabilityReadiness().catch(() => ({
         capability: 'attachments' as const, status: 'not-ready' as const,
         reason: 'dependency_unavailable' as const,
-      }));
-      return reply.code(result.status === 'ready' ? 200 : 503).send(result);
-    });
-  }
-  if (notificationCapabilityReadiness) {
-    app.get('/ready/features/notifications', {
-      config: { productTransport: { allowedQuery: [], cacheControl: 'no-store' } },
-    }, async (_request, reply) => {
-      const result = await notificationCapabilityReadiness().catch(() => ({
-        capability: 'notifications' as const, status: 'not-ready' as const,
-        reason: 'dependency_unavailable' as const,
-        inApp: { status: 'not-ready' as const, reason: 'dependency_unavailable' },
-        optionalDelivery: { status: 'degraded' as const, reason: 'dependency_unavailable' },
       }));
       return reply.code(result.status === 'ready' ? 200 : 503).send(result);
     });

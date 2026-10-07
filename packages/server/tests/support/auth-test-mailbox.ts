@@ -17,7 +17,7 @@
 import {
   createInProcessMailboxSink,
 } from '../../src/infrastructure/email/auth-email-adapter.js';
-import type { EmailSendInput, EmailSendResult } from '../../src/modules/notifications/index.js';
+import type { EmailSendInput, EmailSendResult } from '../../src/modules/email/index.js';
 import { authEmailIdempotencyKey } from '../../src/modules/auth/index.js';
 
 export type AuthTestMailScope =

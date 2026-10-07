@@ -4,3 +4,8 @@ Extra files, copied because `npm run typecheck` failed without them (`TS2307` on
 
 - `generated/openapi/product-v1.ts` — imported by `src/transport/product-codes.ts` and `src/modules/identity/application/credit-ledger-read.ts`
 - `generated/openapi/product-v1.routes.ts` — imported by `src/transport/product-route-manifest.ts`
+
+A2 copied these because `npm run test:unit` could not load Vitest projects without them (Know-N `c34645710`):
+
+- `vitest.workspace-projects.ts` — imported by `vitest.unit.config.ts` and the other project configs
+- `scripts/vitest-project-files.mjs` — imported by `vitest.workspace-projects.ts`

@@ -3,7 +3,6 @@ import { canonicalJson } from '../../modules/commands/index.js';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
 import type { ActorCollectionReadPort } from '../../modules/collections/index.js';
 import { createPostgresTransactionPublicProfileFactsReadPort } from '../identity/postgres-public-profile-read.js';
-import type { ReportActorReadPort } from '../../modules/reports/index.js';
 import type { SubscriptionSourcePort, SubscriptionActor, SourceRef, SourceView, SourceProjection, SourceNodeRef, ProjectionNode } from '../../modules/bookmark-subscriptions/index.js';
 import { fail, digest } from '../../modules/bookmark-subscriptions/index.js';
 
@@ -12,15 +11,39 @@ export const sourceNodeKey=(parts:unknown[]):string=>canonicalJson(parts);
 export function decodeSourceNodeKey(key:string):SourceNodeRef|null {
   try {const p=JSON.parse(key);if(p[0]==='collection')return {sourceCollectionId:p[1],nodeId:p[2],editionId:null};if(p[0]==='digest')return {sourceCollectionId:p[3],nodeId:p[4],editionId:p[2]};}catch {return null;}return null;
 }
-export function createBookmarkSubscriptionSources(tx:DatabaseTransaction,options:{origin:string;reportsEnabled?:boolean},collections:ActorCollectionReadPort,reports:ReportActorReadPort):SubscriptionSourcePort & {
+export function createBookmarkSubscriptionSources(tx:DatabaseTransaction,options:{origin:string;reportsEnabled?:boolean},collections:ActorCollectionReadPort):SubscriptionSourcePort & {
   memberSeries(actor:SubscriptionActor,id:string):Promise<SourceView|null>;
   memberEditions(actor:SubscriptionActor,id:string,after?:string,limit?:number):Promise<SourceProjection['editions']>;
   memberEdition(actor:SubscriptionActor,id:string,editionId:string):Promise<SourceProjection|null>;
 } {
   const profiles=createPostgresTransactionPublicProfileFactsReadPort(tx);
+  interface UnavailableDigestSeries {
+    readonly title: string; readonly ownerSubjectId: string; readonly visibility: 'private' | 'public' | 'unlisted' | 'protected';
+    readonly slug: string | null; readonly id: string; readonly updatedAt: string | null;
+    readonly summary: string | null; readonly policyRevision: string; readonly contentRevision: string;
+  }
+  interface UnavailableDigestSeriesView {
+    readonly s: UnavailableDigestSeries; readonly member: boolean; readonly memberRole: string | null;
+    readonly hidden: boolean; readonly followed: boolean;
+  }
+  interface UnavailableDigestEdition {
+    readonly id: string; readonly sourceCollectionId: string; readonly publishedAt: string | null;
+    readonly editionOrdinal: number; readonly titleSnapshot: string; readonly summarySnapshot: string | null;
+    readonly resourceRevision: string;
+  }
+  const reports: {
+    series: (actor: SubscriptionActor, id: string) => Promise<UnavailableDigestSeriesView>;
+    publishedEdition: (actor: SubscriptionActor, seriesId: string, id: string) => Promise<UnavailableDigestEdition | null>;
+    publishedCandidates: (id: string, limit: number, after?: { publishedAt: string; editionOrdinal: number; id: string }) => Promise<UnavailableDigestEdition[]>;
+    hiddenPublishedEditionIds: (ids: readonly string[]) => Promise<Set<string>>;
+  } = {
+    series: () => fail('feature_temporarily_unavailable'),
+    publishedEdition: () => fail('feature_temporarily_unavailable'),
+    publishedCandidates: () => fail('feature_temporarily_unavailable'),
+    hiddenPublishedEditionIds: () => fail('feature_temporarily_unavailable'),
+  };
   async function owner(id:string) {const p=await profiles.findByOwnerSubjectId(id);return p?{displayName:p.displayName,handle:p.handle}:null;}
   async function series(actor:SubscriptionActor,id:string) {
-    if(options.reportsEnabled===false) return fail('feature_temporarily_unavailable');
     return reports.series(actor,id);
   }
   async function get(actor:SubscriptionActor,ref:SourceRef,requireRelation=true):Promise<SourceView|null> {
@@ -44,8 +67,8 @@ export function createBookmarkSubscriptionSources(tx:DatabaseTransaction,options
     while(result.length<limit) {
       const candidates=await reports.publishedCandidates(id,Math.min(100,10001-scan),cursor?{publishedAt:cursor.publishedAt,editionOrdinal:Number(cursor.ordinal),id:cursor.id}:undefined);
       if(!candidates.length)break;
-      const metadata=await collections.metadataMany(actor,candidates.map(e=>e.sourceCollectionId));
-      const hidden=s.member?new Set<string>():await reports.hiddenPublishedEditionIds(candidates.map(e=>e.id));
+      const metadata=await collections.metadataMany(actor,candidates.map((e)=>e.sourceCollectionId));
+      const hidden=s.member?new Set<string>():await reports.hiddenPublishedEditionIds(candidates.map((e)=>e.id));
       for(const e of candidates) {scan++;if(scan>10000)fail('payload_too_large');cursor={publishedAt:e.publishedAt!,ordinal:String(e.editionOrdinal),id:e.id};const c=metadata.get(e.sourceCollectionId);if(c&&!hidden.has(e.id))result.push({e,c,s});if(result.length===limit)break;}
       if(candidates.length<100)break;
     }

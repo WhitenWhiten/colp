@@ -15,18 +15,6 @@ import {
 } from '../../modules/publication/index.js';
 import type { SearchRateLimiter } from '../../infrastructure/rate-limit/index.js';
 import {
-  createExploreGovernanceCursorSigner,
-  EXPLORE_GOVERNANCE_CURSOR_MAX_LENGTH,
-  EXPLORE_GOVERNANCE_CURSOR_PURPOSE,
-  ExploreGovernanceCursorExpiredError,
-  exploreGovernanceBindDigest,
-  getCatalogPreferences,
-  GovernanceCatalogError,
-  parseLanguageQuery,
-  type CatalogPreferencesStore,
-  type CatalogPreferencesView,
-} from '../../modules/governance/index.js';
-import {
   admitExploreDirectoryRateLimit,
   exploreDirectoryAnonymousSubject,
 } from './explore-directory-rate-limit.js';
@@ -34,7 +22,6 @@ import { loadEligibleExplorePage } from './explore-preference-page.js';
 import { ProductHttpError } from '../product-error.js';
 import { productErrorStatus } from '../product-codes.js';
 import { productRouteMetadata } from '../product-route-manifest.js';
-import { optionalSessionActor } from '../session-auth.js';
 
 /**
  * Explore 产品路由：公开收藏夹目录（/api/v1/explore/collections）。
@@ -174,7 +161,7 @@ function parseExploreCursorQuery(raw: unknown): string | undefined {
   if (raw === undefined || raw === '') return undefined;
   if (typeof raw !== 'string'
     || raw.length < 1
-    || raw.length > EXPLORE_GOVERNANCE_CURSOR_MAX_LENGTH) {
+    || raw.length > 4_096) {
     invalidCursor();
   }
   return raw;
@@ -185,15 +172,6 @@ function invalidCursor(): never {
     statusCode: productErrorStatus('invalid_cursor'),
     code: 'invalid_cursor',
     message: 'The Explore cursor is invalid.',
-    recovery: 'restart_from_first_page',
-  });
-}
-
-function snapshotExpired(): never {
-  throw new ProductHttpError({
-    statusCode: productErrorStatus('snapshot_expired'),
-    code: 'snapshot_expired',
-    message: 'The Explore cursor has expired.',
     recovery: 'restart_from_first_page',
   });
 }
@@ -247,16 +225,12 @@ export function registerExploreRoutes(
     readonly rateLimiter?: SearchRateLimiter;
     readonly config?: AppConfig;
     readonly identityUnitOfWork?: IdentityUnitOfWork;
-    readonly catalogPreferences?: CatalogPreferencesStore;
   },
 ): void {
-  const governance = dependencies.config?.contentGovernance.enabled === true;
   const routeOptions = {
     config: {
       productTransport: {
-        allowedQuery: governance
-          ? ['q', 'tag', 'limit', 'cursor', 'sort', 'language']
-          : ['q', 'tag', 'limit', 'cursor', 'sort'],
+        allowedQuery: ['q', 'tag', 'limit', 'cursor', 'sort'],
         cacheControl: 'public-revalidate' as const,
         rejectRequestBody: true,
       },
@@ -281,55 +255,22 @@ function exploreHandler(
     readonly rateLimiter?: SearchRateLimiter;
     readonly config?: AppConfig;
     readonly identityUnitOfWork?: IdentityUnitOfWork;
-    readonly catalogPreferences?: CatalogPreferencesStore;
   },
 ) {
   return async (
     request: FastifyRequest<{ Querystring: Record<string, string | undefined> }>,
     reply: FastifyReply,
   ) => {
-    const governance = dependencies.config?.contentGovernance.enabled === true;
     const limit = parseLimit(request.query.limit);
     const sort = parseSort(request.query.sort);
-    let language: string | undefined;
-    try {
-      language = governance ? parseLanguageQuery(request.query.language) : undefined;
-    } catch (error: unknown) {
-      if (error instanceof GovernanceCatalogError) {
-        throw new ProductHttpError({
-          statusCode: 400,
-          code: 'invalid_query',
-          message: 'The Explore language is invalid.',
-        });
-      }
-      throw error;
-    }
     const filter = {
       q: parseStringParam(request.query.q, 256),
       tag: parseStringParam(request.query.tag, 64),
-      ...(language ? { language } : {}),
     };
-    const session = governance
-      ? await optionalSessionActor(request, dependencies.identityUnitOfWork, { bearer: 'ignore' })
-      : null;
-    let prefs: CatalogPreferencesView | null = null;
-    if (session && dependencies.catalogPreferences) {
-      prefs = await getCatalogPreferences(dependencies.catalogPreferences, {
-        principalId: session.account.id,
-        accountId: session.account.id,
-        createdAt: session.account.createdAt,
-      });
-    }
     let after: ExplorePagePosition | undefined;
     const cursor = parseExploreCursorQuery(request.query.cursor);
     if (cursor !== undefined) {
-      after = decodeExploreCursor(cursor, sort, {
-        governance,
-        hmacKey: dependencies.config?.contentGovernance.cursorHmacKey ?? null,
-        language: language ?? null,
-        viewer: session?.account.id ?? null,
-        prefRev: prefs?.revision ?? null,
-      });
+      after = decodeExploreCursor(cursor, sort);
     }
 
     await admitExploreDirectoryRateLimit(
@@ -339,7 +280,7 @@ function exploreHandler(
     );
 
     const selected = await loadEligibleExplorePage(dependencies.page, {
-      filter, sort, limit, ...(after ? { after } : {}), prefs,
+      filter, sort, limit, ...(after ? { after } : {}),
     });
     const pageRecords = selected.records;
     const creatorMap = dependencies.creators
@@ -367,90 +308,20 @@ function exploreHandler(
       creators: [mapExploreCreatorDto(record.ownerSubjectId, creatorMap.get(record.ownerSubjectId))],
     }));
     const nextCursor = selected.resume
-      ? encodeExploreCursor(selected.resume, sort, {
-        governance,
-        hmacKey: dependencies.config?.contentGovernance.cursorHmacKey ?? null,
-        language: language ?? null,
-        viewer: session?.account.id ?? null,
-        prefRev: prefs?.revision ?? null,
-      })
+      ? encodeExploreCursor(selected.resume, sort)
       : null;
-    if (session) reply.header('cache-control', 'private, no-store');
-    else if (governance) reply.header('cache-control', 'public, max-age=0, must-revalidate');
-    else reply.header('cache-control', 'public, max-age=60');
+    reply.header('cache-control', 'public, max-age=60');
     if (request.method === 'HEAD') return reply.send();
     return { items, nextCursor };
   };
 }
 
-function encodeExploreCursor(
-  record: ExplorePageRecord,
-  sort: ExplorePageSort,
-  scope: {
-    readonly governance: boolean;
-    readonly hmacKey: string | null;
-    readonly language: string | null;
-    readonly viewer: string | null;
-    readonly prefRev: string | null;
-  },
-): string {
-  if (!scope.governance || !scope.hmacKey) return encodeCursor(record, sort);
-  const signer = createExploreGovernanceCursorSigner(scope.hmacKey);
-  try {
-    const now = new Date();
-    return signer.sign({
-      v: 1,
-      purpose: EXPLORE_GOVERNANCE_CURSOR_PURPOSE,
-      sort,
-      language: scope.language,
-      viewer: scope.viewer,
-      prefRev: scope.prefRev,
-      after: {
-        micros: record.orderingUpdatedAtMicros,
-        id: record.id,
-        ...(sort === 'popular' ? { viewCount: record.viewCount } : {}),
-        ...(sort === 'links' ? { nodeCount: linksSortCount(record) } : {}),
-      },
-      issuedAt: now.toISOString(),
-      expiresAt: new Date(now.getTime() + 900_000).toISOString(),
-    });
-  } finally {
-    signer.destroy();
-  }
+function encodeExploreCursor(record: ExplorePageRecord, sort: ExplorePageSort): string {
+  return encodeCursor(record, sort);
 }
 
-function decodeExploreCursor(
-  cursor: string,
-  sort: ExplorePageSort,
-  scope: {
-    readonly governance: boolean;
-    readonly hmacKey: string | null;
-    readonly language: string | null;
-    readonly viewer: string | null;
-    readonly prefRev: string | null;
-  },
-): ExplorePagePosition {
-  if (!scope.governance) {
-    const decoded = decodeCursor(cursor, sort);
-    if (!decoded) invalidCursor();
-    return decoded;
-  }
-  if (!scope.hmacKey) invalidCursor();
-  const signer = createExploreGovernanceCursorSigner(scope.hmacKey);
-  try {
-    const payload = signer.verify(cursor, new Date());
-    const bind = exploreGovernanceBindDigest({
-      language: scope.language,
-      viewer: scope.viewer,
-      prefRev: scope.prefRev,
-      sort,
-    });
-    if (payload.sort !== sort || payload.bind !== bind) invalidCursor();
-    return payload.after;
-  } catch (error: unknown) {
-    if (error instanceof ExploreGovernanceCursorExpiredError) snapshotExpired();
-    invalidCursor();
-  } finally {
-    signer.destroy();
-  }
+function decodeExploreCursor(cursor: string, sort: ExplorePageSort): ExplorePagePosition {
+  const decoded = decodeCursor(cursor, sort);
+  if (!decoded) invalidCursor();
+  return decoded;
 }

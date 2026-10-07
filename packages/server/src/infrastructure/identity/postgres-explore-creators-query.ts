@@ -4,7 +4,7 @@ import type {
   ExploreCreatorsQueryPort,
 } from '../../modules/identity/index.js';
 import type { DatabaseSchema } from '../database/runtime.js';
-import { accountRestrictPublicationExistsSql } from '../governance/collection-control-sql.js';
+import { accountRestrictPublicationExistsSql } from '../database/collection-control-sql.js';
 
 interface ExploreCreatorRow {
   subject_id: string;

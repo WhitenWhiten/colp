@@ -22,10 +22,6 @@ import {
 } from '../infrastructure/outbox/index.js';
 import type { Metrics } from '../infrastructure/telemetry/index.js';
 import type { CacheConfig, CacheMode } from './config.js';
-import {
-  createReportsCacheInvalidator,
-  type RedisReportCacheInvalidator,
-} from './reports-worker-composition.js';
 
 /** T11 worker cache readiness gauge: 0=disabled, 1=degraded, 2=healthy. */
 export const CACHE_WORKER_READINESS_METRIC = 'cache.worker.readiness';
@@ -57,7 +53,7 @@ export interface WorkerCacheComposition {
   readonly store?: CacheStore;
   /** Composite provider when shadow/serve; undefined for mode=off. */
   readonly publicationCachePurgeProvider?: PublicationCachePurgeProvider;
-  readonly reportCacheInvalidator?: RedisReportCacheInvalidator;
+  readonly reportCacheInvalidator?: undefined;
   /** Live readiness: disabled (off), healthy, or degraded (store health). */
   readiness(): Promise<CacheReadinessState>;
   /** Bounded, idempotent close; no-op for mode=off. */
@@ -104,11 +100,7 @@ export function createWorkerCacheComposition(
     },
     metrics,
   });
-  const reportCacheInvalidator = createReportsCacheInvalidator({
-    store,
-    environment: options.environment ?? 'default',
-    keyPrefix: config.redis.keyPrefix,
-  });
+  const reportCacheInvalidator = undefined;
   const publicationCachePurgeProvider = new CompositePublicationCachePurgeProvider({
     invalidator,
     ...(cdn === undefined ? {} : { cdn }),

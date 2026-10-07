@@ -9,14 +9,14 @@ import {
 import {
   createPostgresEmailDeliveryWorkerRepository,
   createPostgresEmailSuppressionOpsRepository,
-} from '../infrastructure/notifications/index.js';
+} from '../infrastructure/email/index.js';
 import {
   createMemoryEmailCallbackRateLimiter,
   createRedisEmailCallbackRateLimiter,
 } from '../infrastructure/rate-limit/index.js';
 import { createFixedWindowRateLimiter } from '../transport/http-security.js';
 import { reconcileEmailCallback, type EmailCallbackFact, type EmailCallbackRateLimiter,
-  type EmailProviderAdapter } from '../modules/notifications/index.js';
+  type EmailProviderAdapter } from '../modules/email/index.js';
 import type { DatabaseRuntime } from '../infrastructure/database/index.js';
 import { createLogger, type Metrics } from '../infrastructure/telemetry/index.js';
 

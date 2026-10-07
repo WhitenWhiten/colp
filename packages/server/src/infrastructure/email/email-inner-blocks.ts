@@ -4,7 +4,7 @@
  * Email clients (notably Outlook) strip `<head><style>` rules, so every inner
  * element carries inline styles. This file is the single source of truth for
  * the block markup; the module-layer template leaves (modules/auth,
- * modules/access-policy, modules/notifications) must not import
+ * modules/access-policy, the email module) must not import
  * infrastructure, so they carry byte-equal MIRRORS of these constants —
  * `tests/unit/email/email-inner-blocks.test.ts` pins the mirrors against the
  * canonical renderers here.

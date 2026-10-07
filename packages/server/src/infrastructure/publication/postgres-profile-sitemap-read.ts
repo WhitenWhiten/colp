@@ -3,7 +3,7 @@ import { readBackendPid, withPostgresAbort } from '../database/index.js';
 import {
   COLLECTION_DISCOVERY_CONTROL_SQL,
   accountRestrictPublicationExistsSql,
-} from '../governance/collection-control-sql.js';
+} from '../database/collection-control-sql.js';
 import { SEED_COLLECTION_EXCLUSION_SQL } from './postgres-search-indexing-exclusion.js';
 
 export const PROFILE_SITEMAP_CANDIDATE_LIMIT = 50_000;

@@ -65,10 +65,6 @@ import {
   type PublicationCachePurgeReadinessState,
   type OutboxRoute,
   type OutboxWorker,
-  createGovernanceBookmarkControlRoutes,
-  createGovernanceCollectionControlRoutes,
-  governanceBookmarkControlEnvelopeRegistrations,
-  governanceCollectionControlEnvelopeRegistrations,
 } from '../infrastructure/outbox/index.js';
 import {
   composePublicationCachePurgeRoutes,
@@ -76,43 +72,12 @@ import {
 } from './publication-cache-purge-composition.js';
 export { resolvePublicationCachePurgeProvider } from './publication-cache-purge-composition.js';
 import {
-  createPostgresSocialFeedWorkerRepository,
-  createPostgresSocialFeedOperationsRepository,
-  createPostgresSocialFeedWithdrawalWorkerRepository,
-  createSocialFeedWorkerRoutes,
-  createSocialFeedFollowActivityWorkerRoutes,
-  createSocialFeedWithdrawalWorkerRoutes,
-  createPublicActivityWorkerRoutes,
-  createPostgresPublicActivityWorkerRepository,
-  socialCollectionChangeEnvelopeRegistrations,
-} from '../infrastructure/social/index.js';
-import { publishFeedOperationsMetrics } from '../modules/social/index.js';
-import {
-  COMMUNITY_RANK_REFRESH_SECONDS,
-} from '../modules/community/index.js';
-import {
-  communityCommentNotificationEnvelopeRegistrations,
-  communityRankRefreshEnvelopeRegistrations,
-  createCommunityNotificationWorkerRoutes,
-  createCommunityRankRefreshScheduler,
-  createCommunityRankRefreshWorkerRoutes,
-  createPostgresCommunityNotificationWorkerRepository,
-  createPostgresCommunityRankingRefreshUnitOfWork,
-  type CommunityRankRefreshScheduler,
-} from '../infrastructure/community/index.js';
-import {
-  createPostgresSocialNotificationWorkerRepository,
-  createPostgresNotificationOperationsRepository,
-  createSocialNotificationWorkerRoutes,
-  socialNotificationEnvelopeRegistrations,
-} from '../infrastructure/notifications/index.js';
-import {
   createPostgresEmailDeliveryWorkerRepository,
   createPostgresEmailSuppressionOpsRepository,
   createEmailDeliveryWorkerRuntime,
   type EmailDeliveryWorkerLoopLogger,
   type EmailDeliveryWorkerRuntime,
-} from '../infrastructure/notifications/index.js';
+} from '../infrastructure/email/index.js';
 import {
   createLinkHealthWorkerRuntime,
   createPostgresLinkHealthWorkerRepository,
@@ -142,7 +107,7 @@ import { buildInviteLoginUrl, processOne, scheduleCollaborationInviteCleanup,
   type CollaborationInviteCleanupSchedule,
   type CollaborationInviteMaintenancePortFactory } from '../modules/access-policy/index.js';
 import { createEmailDeliveryRetryPolicy, type EmailProviderAdapter }
-  from '../modules/notifications/index.js';
+  from '../modules/email/index.js';
 import {
   AliyunDirectMailAdapter,
   composeAuthEmailAdapter,
@@ -152,7 +117,7 @@ import {
   type InviteEmailAdapter,
   type InviteEmailComposition,
 } from '../infrastructure/email/index.js';
-import { inspectEmailDeliveryMetrics, publishNotificationOperationsMetrics } from '../modules/notifications/index.js';
+import { inspectEmailDeliveryMetrics } from '../modules/email/index.js';
 import { pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
 import {
@@ -201,13 +166,6 @@ import type { LedgerArchiveSourceResolver } from './ledger-archive-worker-compos
 import { composeFaviconObjectStore } from './favicon-object-storage-composition.js';
 import type { BookmarkFaviconObjectStore } from '../modules/collections/index.js';
 import {
-  composeReportsOutboxRoutes,
-  composeReportsSchedulerWorker,
-  publishReportsOutboxMetrics,
-  reportsEnvelopeRegistrations,
-} from './reports-worker-composition.js';
-import type { ReportsSchedulerComposition } from '../modules/reports/index.js';
-import {
   CACHE_WORKER_READINESS_GAUGE,
   CACHE_WORKER_READINESS_METRIC,
   createWorkerCacheComposition,
@@ -248,7 +206,6 @@ export interface WorkerRuntime {
   /** FO-02 optional favicon job + GC workers, composed only when the feature is enabled. */
   readonly faviconJobs?: FaviconWorkerRuntime;
   readonly ledgerArchive?: LedgerArchiveExportWorkerRuntime;
-  readonly reportsScheduler?: ReportsSchedulerComposition;
   /**
    * C1 auth email surface (plan §9 Task C1); present only when
    * AUTH_EMAIL_ENABLED=true. Test mode composes the in-process mailbox sink;
@@ -325,7 +282,6 @@ export interface BuildWorkerOptions {
   readonly projectionSink?: CollectionMutationProjectionSink;
   /** Optional provider injection; production config otherwise builds the generic HTTP adapter. */
   readonly publicationCachePurgeProvider?: PublicationCachePurgeProvider;
-  readonly reportPublicSurfacePurgeProvider?: import('../infrastructure/outbox/index.js').PublicSurfacePurgePort;
   /** Test seam that prevents real IndexNow egress. */
   readonly indexNowFetch?: IndexNowFetch;
   /**
@@ -343,14 +299,6 @@ export interface BuildWorkerOptions {
   readonly insightMaintenance?: PublicationInsightMaintenancePortFactory;
   /** Optional overdue-invite expiry adapter for deterministic lifecycle composition tests. */
   readonly inviteCleanup?: CollaborationInviteMaintenancePortFactory;
-  /** Optional Feed operations inspect seam so inspection failures stay unit-testable. */
-  readonly feedOperations?: {
-    inspectStatus(): Promise<Parameters<typeof publishFeedOperationsMetrics>[0]>;
-  };
-  /** Optional Notification operations inspect seam so inspection failures stay unit-testable. */
-  readonly notificationOperations?: {
-    inspectStatus(): Promise<Parameters<typeof publishNotificationOperationsMetrics>[0]>;
-  };
   /** Optional Sync operations inspect seam so inspection failures stay unit-testable. */
   readonly syncOperations?: {
     inspect(): Promise<Parameters<typeof publishSyncOperationalTelemetry>[0]>;
@@ -426,12 +374,6 @@ export interface BuildWorkerOptions {
   readonly attachmentsWorkerId?: string;
   readonly ledgerArchiveSourceResolver?: LedgerArchiveSourceResolver;
   readonly ledgerArchiveWorkerId?: string;
-  /** Optional controlled News Digest scheduler connector (required when flag on). */
-  readonly reportsScheduler?: {
-    readonly connector?: import('../modules/reports/index.js').DigestScheduleConnector;
-    readonly store?: import('../modules/reports/index.js').DigestSchedulerOptions['store'];
-    readonly ownerId?: string;
-  };
 }
 /**
  * FO-02 favicon worker composition. Fails closed when the feature is enabled
@@ -578,14 +520,6 @@ export function buildWorker(
 ): WorkerRuntime {
   const logger: EmailDeliveryWorkerLoopLogger = options.logger ?? createLogger(config.logLevel);
   const capacity = sanitizedRuntimeCapacity(config);
-  const reportsScheduler = composeReportsSchedulerWorker({
-    config,
-    database,
-    capacity,
-    ...(options.reportsScheduler?.connector === undefined ? {} : { connector: options.reportsScheduler.connector }),
-    ...(options.reportsScheduler?.store === undefined ? {} : { store: options.reportsScheduler.store }),
-    ...(options.reportsScheduler?.ownerId === undefined ? {} : { ownerId: options.reportsScheduler.ownerId }),
-  });
   if (config.syncTombstonePurge.enabled && !database) {
     throw new Error('worker composition refused: Sync Tombstone purge requires PostgreSQL');
   }
@@ -709,42 +643,6 @@ export function buildWorker(
       ...(options.attachmentsWorkerId === undefined ? {} : { workerId: options.attachmentsWorkerId }),
     });
   }
-  const socialFeedRoutes = database
-    ? createSocialFeedWorkerRoutes({
-        repository: createPostgresSocialFeedWorkerRepository(database.pool, {
-          emitNotificationIntents: true,
-          includeCollectionFollowers: config.collectionFollow.enabled,
-        }),
-        maxRecipientsPerEvent: config.feed?.fanoutPageSize ?? 500,
-        metrics,
-      })
-    : Object.freeze([]);
-  const socialFeedFollowActivityRoutes = database
-    ? createSocialFeedFollowActivityWorkerRoutes({
-        repository: createPostgresSocialFeedWorkerRepository(database.pool, {
-          emitNotificationIntents: true,
-        }),
-        metrics,
-      })
-    : Object.freeze([]);
-  const socialFeedWithdrawalRoutes = database
-    ? createSocialFeedWithdrawalWorkerRoutes({
-        repository: createPostgresSocialFeedWithdrawalWorkerRepository(database.pool),
-        maxRecipientsPerEvent: config.feed?.fanoutPageSize ?? 500,
-      })
-    : Object.freeze([]);
-  const publicActivityRoutes = database
-    ? createPublicActivityWorkerRoutes({
-        repository: createPostgresPublicActivityWorkerRepository(database.pool),
-        metrics,
-      })
-    : Object.freeze([]);
-  const socialNotificationRoutes = database
-    ? createSocialNotificationWorkerRoutes({
-        repository: createPostgresSocialNotificationWorkerRepository(database.pool),
-        metrics,
-      })
-    : Object.freeze([]);
   const inviteEmailComposition: InviteEmailComposition | undefined = database
     ? options.inviteEmail?.sender !== undefined
       ? { sender: options.inviteEmail.sender, close: async () => {} }
@@ -779,64 +677,13 @@ export function buildWorker(
       }),
     })])
     : Object.freeze([]);
-  // ND-13A consumer-first: report envelopes/routes are always registered with a
-  // durable PostgreSQL authority fence. Producers remain independently gated/off.
-  const reportsOutboxRoutes = composeReportsOutboxRoutes({
-    database,
-    ...(workerCacheComposition.reportCacheInvalidator === undefined ? {} : { cacheInvalidator: workerCacheComposition.reportCacheInvalidator }),
-    ...(options.reportPublicSurfacePurgeProvider === undefined ? {} : { publicSurfacePurge: options.reportPublicSurfacePurgeProvider }),
-  });
-  // CS-02: the durable hot-ranking refresh consumer. One stable handler
-  // identity on the shared community_ranking aggregate; gated on the
-  // community feature so a disabled deployment never runs the projection.
-  const communityRankRefreshRoutes = database && config.community.enabled
-    ? createCommunityRankRefreshWorkerRoutes({
-        refreshUnitOfWork: createPostgresCommunityRankingRefreshUnitOfWork(database.db, database.cancelBackend),
-        metrics,
-      })
-    : Object.freeze([]);
-  // CS-05: the durable reply-notification consumer — one handler per
-  // `community.comment-created` event; gated on the community feature like
-  // the rank-refresh projection.
-  const communityNotificationRoutes = database && config.community.enabled
-    ? createCommunityNotificationWorkerRoutes({
-        repository: createPostgresCommunityNotificationWorkerRepository(database.db),
-        metrics,
-      })
-    : Object.freeze([]);
-  const communityRankRefreshScheduler: CommunityRankRefreshScheduler | undefined =
-    database && config.community.enabled
-      ? createCommunityRankRefreshScheduler({
-          db: database.db,
-          intervalMs: COMMUNITY_RANK_REFRESH_SECONDS * 1_000,
-          logger,
-          metrics,
-        })
-      : undefined;
   const autoTagRoute=database?createPostgresClassificationAutoTagRoute(database,config.classification,metrics,
-    config.reports.enabled&&config.cache.redis.mode!=='off'&&(config.cache.reports.metadataEnabled||config.cache.reports.issuesEnabled||config.cache.reports.directoryEnabled)):undefined;
+    false):undefined;
   const routes = Object.freeze([
     ...(autoTagRoute?[autoTagRoute]:[]),
-    ...projectionRoutes, ...syncConflictRoutes, ...socialFeedRoutes,
-    ...socialFeedFollowActivityRoutes, ...socialFeedWithdrawalRoutes,
-    ...publicActivityRoutes,
-    ...socialNotificationRoutes, ...publicationCachePurgeRoutes,
+    ...projectionRoutes, ...syncConflictRoutes,
+    ...publicationCachePurgeRoutes,
     ...collectionInviteEmailRoutes,
-    ...reportsOutboxRoutes,
-    ...communityRankRefreshRoutes,
-    ...communityNotificationRoutes,
-    ...createGovernanceCollectionControlRoutes({
-      provider: publicationCachePurgeProvider,
-      publicationOrigin: config.publication.origin,
-      productOrigin: config.productOrigin,
-      ...(database === undefined ? {} : { pool: database.pool }),
-    }),
-    ...createGovernanceBookmarkControlRoutes({
-      provider: publicationCachePurgeProvider,
-      publicationOrigin: config.publication.origin,
-      productOrigin: config.productOrigin,
-      ...(database === undefined ? {} : { pool: database.pool }),
-    }),
     ...(attachmentsComposition === undefined ? [] : [attachmentsComposition.route]),
   ]);
   const durability = assertProductionOutboxRouteDurability(routes);
@@ -858,7 +705,6 @@ export function buildWorker(
     'publication.cache_purge.route_durable',
     publicationCachePurgeReadinessState === 'durable' ? 1 : 0,
   );
-  publishReportsOutboxMetrics(metrics, durability.reportPublicSurfacePurge);
   // T11: worker cache readiness gauge (0=disabled, 1=degraded, 2=healthy).
   // mode=off is decided synchronously here; shadow/serve refresh it in
   // start() and on every cacheReadiness() probe.
@@ -900,13 +746,7 @@ export function buildWorker(
     envelopes: new EventEnvelopeRegistry([
       ...createCollectionMutationEnvelopeRegistrations(), classificationAutoTagEnvelopeRegistration,
       syncConflictEnvelopeRegistration,
-      ...socialCollectionChangeEnvelopeRegistrations, ...socialNotificationEnvelopeRegistrations,
       collectionInviteCreatedEnvelopeRegistration,
-      ...reportsEnvelopeRegistrations,
-      ...communityRankRefreshEnvelopeRegistrations,
-      ...communityCommentNotificationEnvelopeRegistrations,
-      ...governanceCollectionControlEnvelopeRegistrations(),
-      ...governanceBookmarkControlEnvelopeRegistrations(),
       ...(attachmentsComposition === undefined ? [] : [attachmentsComposition.envelopeRegistration]),
     ]),
     logger,
@@ -933,16 +773,9 @@ export function buildWorker(
   const inviteCleanup = options.inviteCleanup
     ?? (database ? createPostgresCollaborationInviteMaintenancePortFactory(database.db) : undefined);
   let inviteCleanupSchedule: CollaborationInviteCleanupSchedule | undefined;
-  let feedOperationsTimer: NodeJS.Timeout | undefined;
-  const feedOperationsInspectionGate = { running: false };
   let notificationOperationsTimer: NodeJS.Timeout | undefined;
-  const notificationOperationsInspectionGate = { running: false };
   let syncOperationsTimer: NodeJS.Timeout | undefined;
   const syncOperationsInspectionGate = { running: false };
-  const feedOperations = options.feedOperations
-    ?? (database ? createPostgresSocialFeedOperationsRepository(database.pool) : undefined);
-  const notificationOperations = options.notificationOperations
-    ?? (database ? createPostgresNotificationOperationsRepository(database.pool) : undefined);
   const emailDeliveryRuntime = (database && config.email?.enabled)
     ? composeEmailDeliveryRuntime(config, database, metrics, logger, options)
     : undefined;
@@ -1123,7 +956,6 @@ export function buildWorker(
     exportJobs: exportJobRuntime,
     faviconJobs: faviconJobsRuntime,
     ledgerArchive: ledgerArchiveRuntime,
-    reportsScheduler,
     ...(authEmailComposition === undefined ? {} : { authEmail: { sender: authEmailComposition.sender } }),
     attachments: attachmentsComposition === undefined ? undefined : {
       readinessFacts: () => attachmentsComposition!.telemetry.readinessFacts(),
@@ -1169,13 +1001,7 @@ export function buildWorker(
       // Validate the scheduler dependency before any worker loop is started;
       // otherwise an enabled-but-unwired connector would leave outbox/email
       // timers running after start() rejects.
-      if (config.reports.schedulerEnabled && reportsScheduler.readiness() !== 'ready') {
-        throw new Error('worker start refused: reports scheduler is enabled but durable store/connector is not ready');
-      }
       outbox?.start();
-      // CS-02: the periodic refresh producer starts only after the outbox
-      // loop is live so its first enqueue can be claimed immediately.
-      communityRankRefreshScheduler?.start();
       // P4A-P05: start the attachments sampler + cleanup scheduler only after
       // the outbox loop is live; independent timers, bounded, unref'd.
       attachmentsComposition?.start();
@@ -1187,7 +1013,6 @@ export function buildWorker(
       faviconJobsRuntime?.jobs.start();
       faviconJobsRuntime?.gc.start();
       ledgerArchiveRuntime?.start();
-      if (reportsScheduler.readiness() === 'ready') reportsScheduler.scheduler.start();
       const emailSuppressionOps = emailDeliveryRuntime && database
         ? createPostgresEmailSuppressionOpsRepository(database.pool)
         : undefined;
@@ -1195,29 +1020,10 @@ export function buildWorker(
         emailDeliveryRuntime ? 1 : 0);
       metrics.gauge('notifications.email_delivery.worker_running',
         emailDeliveryRuntime?.loop.isRunning() ? 1 : 0);
-      const publishFeedStatus = () => runWorkerInspectionTick({
-        enabled: feedOperations !== undefined,
-        gate: feedOperationsInspectionGate,
-        inspect: async () => {
-          if (!feedOperations) return;
-          publishFeedOperationsMetrics(await feedOperations.inspectStatus(), metrics);
-        },
-        onError(error) {
-          metrics.increment('feed.operations_inspect_error');
-          logger.warn({ error: redactSensitiveText(error) }, 'Feed operations inspection failed');
-        },
-      });
-      await publishFeedStatus();
-      feedOperationsTimer = setInterval(() => { void publishFeedStatus(); },
-        Math.max(1_000, Math.min(30_000, config.feed?.operations.queueAgeNotReadyMs ?? 30_000)));
-      feedOperationsTimer.unref();
       const publishNotificationStatus = () => runWorkerInspectionTick({
-        enabled: notificationOperations !== undefined,
-        gate: notificationOperationsInspectionGate,
+        enabled: emailDeliveryRuntime !== undefined,
+        gate: { running: false },
         inspect: async () => {
-          if (!notificationOperations) return;
-          const status = await notificationOperations.inspectStatus();
-          publishNotificationOperationsMetrics(status, metrics);
           metrics.gauge('notifications.email_delivery.enabled',
             emailDeliveryRuntime ? 1 : 0);
           metrics.gauge('notifications.email_delivery.worker_running',
@@ -1226,7 +1032,7 @@ export function buildWorker(
             enabled: emailDeliveryRuntime !== undefined,
             workerRunning: emailDeliveryRuntime?.loop.isRunning() ?? false,
             probeStatus: 0,
-            optionalDeliveryAvailable: status.delivery.deadLetterCount === 0,
+            optionalDeliveryAvailable: true,
           }, metrics);
         },
         onError(error) {
@@ -1338,8 +1144,6 @@ export function buildWorker(
     },
     async stop() {
       const failures: WorkerStopFailure[] = [];
-      if (feedOperationsTimer) clearInterval(feedOperationsTimer);
-      feedOperationsTimer = undefined;
       if (notificationOperationsTimer) clearInterval(notificationOperationsTimer);
       notificationOperationsTimer = undefined;
       if (syncOperationsTimer) clearInterval(syncOperationsTimer);
@@ -1362,10 +1166,6 @@ export function buildWorker(
       // Stop the report scheduler before draining outbox handlers. Otherwise
       // a connector can append fresh runs/events while the outbox is already
       // shutting down, leaving work stranded behind the drain boundary.
-      await attemptWorkerStop(failures, 'reportsScheduler', () => reportsScheduler.scheduler.stop());
-      // CS-02: same ordering for the community ranking refresh producer.
-      await attemptWorkerStop(failures, 'communityRankRefreshScheduler',
-        () => communityRankRefreshScheduler?.stop());
       await attemptWorkerStop(failures, 'outbox', () => outbox?.stop());
       await attemptWorkerStop(failures, 'indexNowPublisher', () => indexNowPublisher?.close());
       // P4A-P05: stop the sampler and drain the in-flight cleanup batch AFTER

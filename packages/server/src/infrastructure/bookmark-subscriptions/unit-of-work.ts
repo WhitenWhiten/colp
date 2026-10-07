@@ -7,7 +7,6 @@ import { createPostgresProductCommandReceiptPort } from '../database/product-com
 import { createPostgresBookmarkPreferencesStore } from '../identity/postgres-bookmark-preferences.js';
 import { databaseNow } from '../database/time.js';
 import { createBookmarkSubscriptionStore } from './store.js';
-import { createPostgresReportActorReadPort } from '../reports/index.js';
 import { createActorCollectionReader } from '../collections/index.js';
 import { createBookmarkSubscriptionSources } from './sources.js';
 import type { Metrics } from '../telemetry/index.js';
@@ -15,7 +14,7 @@ import { createSubscriptionExitCoordinator, BookmarkSubscriptionError, fail } fr
 import type { SubscriptionTransactionPorts, BookmarkSubscriptionUnitOfWork } from '../../modules/bookmark-subscriptions/index.js';
 export interface BookmarkSubscriptionAdapterOptions { origin:string; reportsEnabled?:boolean; faultInjector?:TransactionFaultInjector;metrics?:Metrics }
 export function createPostgresBookmarkSubscriptionPorts(tx:DatabaseTransaction,options:BookmarkSubscriptionAdapterOptions):SubscriptionTransactionPorts {
-  return {store:createBookmarkSubscriptionStore(tx),sources:createBookmarkSubscriptionSources(tx,options,createActorCollectionReader(tx,options.origin),createPostgresReportActorReadPort(tx)),receipts:createPostgresProductCommandReceiptPort(tx),lockAccount:accountId=>lockBookmarkSubscriptionAccount(tx,accountId),now:()=>databaseNow(tx),async preferences(accountId){return await createPostgresBookmarkPreferencesStore(tx).load(accountId)??{revision:'0',subscriptionOnUnfollow:'keep',subscriptionOnUnsubscribe:'keep'};}};
+  return {store:createBookmarkSubscriptionStore(tx),sources:createBookmarkSubscriptionSources(tx,options,createActorCollectionReader(tx,options.origin)),receipts:createPostgresProductCommandReceiptPort(tx),lockAccount:accountId=>lockBookmarkSubscriptionAccount(tx,accountId),now:()=>databaseNow(tx),async preferences(accountId){return await createPostgresBookmarkPreferencesStore(tx).load(accountId)??{revision:'0',subscriptionOnUnfollow:'keep',subscriptionOnUnsubscribe:'keep'};}};
 }
 export function createPostgresBookmarkSubscriptionExitPort(tx:DatabaseTransaction,options:BookmarkSubscriptionAdapterOptions={origin:'https://known.invalid'}) {return createSubscriptionExitCoordinator(createPostgresBookmarkSubscriptionPorts(tx,options));}
 export function createPostgresBookmarkSubscriptionUnitOfWork(db:Kysely<DatabaseSchema>,options:BookmarkSubscriptionAdapterOptions):BookmarkSubscriptionUnitOfWork {

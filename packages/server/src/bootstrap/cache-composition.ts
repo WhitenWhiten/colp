@@ -75,7 +75,6 @@ import type {
   PublicationMetadataResult,
 } from '../modules/publication/index.js';
 import type { CacheConfig, CacheEntryLimitsConfig, CacheTtlConfig } from './config.js';
-import { createReportCache, type ReportCacheReader } from '../infrastructure/reports/report-cache.js';
 
 /** Low-cardinality shadow-mode digest mismatch counter (plan §5/§6.4 T10). */
 export const CACHE_SHADOW_DIGEST_MISMATCH_METRIC = 'cache.shadow.digest_mismatch';
@@ -142,7 +141,7 @@ export interface ApiCacheComposition {
   readonly bookmarkCountCache:
     | ((origin: CollectionBookmarkCountCacheOrigin) => CollectionBookmarkCountCache)
     | undefined;
-  readonly reportCache: ReportCacheReader | undefined;
+  readonly reportCache?: undefined;
   readiness(): Promise<CacheReadinessState>;
   capabilityReadiness(): Promise<ApiCacheCapabilityReadiness>;
   /** Bounded, idempotent close of the Redis client; no-op for mode=off. */
@@ -335,7 +334,6 @@ export function composeCollectionBookmarkCountLookup(
 
 export function createApiCacheComposition(options: CacheCompositionOptions): ApiCacheComposition {
   const { config, metrics } = options;
-  const reportsConfig = options.reportsEnabled === false ? undefined : config.reports ?? { metadataEnabled: false, issuesEnabled: false, directoryEnabled: false, metadata: { softTtlMs: 10_000, hardTtlMs: 30_000 }, issues: { softTtlMs: 10_000, hardTtlMs: 30_000 }, directory: { softTtlMs: 5_000, hardTtlMs: 15_000 } };
   const mode = config.redis.mode;
   const required = config.redis.required;
   const environment = options.environment ?? 'default';
@@ -443,17 +441,7 @@ export function createApiCacheComposition(options: CacheCompositionOptions): Api
     });
   }
 
-  let reportCache: ReportCacheReader | undefined;
-  if (reportsConfig !== undefined && (reportsConfig.metadataEnabled || reportsConfig.issuesEnabled || reportsConfig.directoryEnabled)) {
-    reportCache = createReportCache({ store, key, failurePolicy, singleflight, bulkhead, clock, mode, ...(metrics === undefined ? {} : { metrics }),
-      metadataEnabled: reportsConfig.metadataEnabled,
-      issuesEnabled: reportsConfig.issuesEnabled,
-      directoryEnabled: reportsConfig.directoryEnabled,
-      metadataPolicy: { domain: 'report-metadata', ...reportsConfig.metadata, maxEntryBytes: config.limits.maxEntryBytes, lockTtlMs: config.limits.lockTtlMs, serveStale: false },
-      issuesPolicy: { domain: 'report-issues', ...reportsConfig.issues, maxEntryBytes: config.limits.maxEntryBytes, lockTtlMs: config.limits.lockTtlMs, serveStale: false },
-      directoryPolicy: { domain: 'report-directory', ...reportsConfig.directory, maxEntryBytes: config.limits.maxEntryBytes, lockTtlMs: config.limits.lockTtlMs, serveStale: false },
-    });
-  }
+  const reportCache = undefined;
 
   async function observeHealth(): Promise<{ readonly storeHealth: CacheHealthState; readonly state: CacheReadinessState }> {
     let storeHealth: CacheHealthState;

@@ -16,7 +16,7 @@ import {
   type PublicationSnapshotReadPort,
   type PublicationSnapshotReadRequest,
 } from '../../modules/publication/index.js';
-import { bookmarkHidePublicExistsSql } from '../governance/collection-control-sql.js';
+import { bookmarkHidePublicExistsSql } from '../database/collection-control-sql.js';
 import { nodeExtensionFlagSql } from '../database/node-extension-sql.js';
 
 interface CollectionRow {

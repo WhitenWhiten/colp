@@ -1,4 +1,3 @@
-import { sql, type Kysely } from 'kysely';
 import type {
   CredentialGrantAction,
   CredentialGrantRecord,
@@ -9,18 +8,10 @@ import type {
   StoredCredentialPlan,
 } from '../../modules/auth/index.js';
 import { GRANT_ACTIONS } from '../../modules/auth/index.js';
-import type { DatabaseSchema } from '../database/runtime.js';
+import { sql } from 'kysely';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
 import { createPostgresAccessPolicyFactsPort } from '../access-policy/index.js';
-import {
-  createPostgresReportEditionReadPort,
-  createPostgresReportSeriesReadPort,
-} from '../reports/index.js';
-import {
-  createPhase4bMcpChangePlanDigestVerifier,
-  verifyMcpReportPlanDigest,
-  type McpReportPlan,
-} from '../../modules/mcp/index.js';
+import { createPhase4bMcpChangePlanDigestVerifier } from '../../modules/mcp/index.js';
 import type { PostgresMcpStoredPlan } from '../database/mcp-change-plan-store.js';
 
 export function createPostgresCredentialGrantStore(
@@ -143,23 +134,10 @@ export function createPostgresCredentialGrantStore(
       };
     },
     async consumeReportPublishAuthorization(planId) {
-      const row = await transaction.selectFrom('mcp_report_plans').selectAll()
-        .where('plan_id', '=', planId)
-        .where('status', '=', 'pending')
-        .forUpdate()
-        .executeTakeFirst();
-      if (!row) return;
-      const plan = row.plan_json as McpReportPlan;
-      if (plan.status !== 'pending') return;
-      const committed = Object.freeze({ ...plan, status: 'committed' as const });
       await transaction.updateTable('mcp_report_plans').set({
-        operations_digest: committed.operationsDigest,
-        status: committed.status,
-        approval_status: committed.approval.status,
-        expires_at: new Date(committed.expiresAt),
-        plan_json: sql`${JSON.stringify(committed)}::jsonb`,
+        status: 'committed',
         updated_at: new Date(),
-      }).where('plan_id', '=', planId).execute();
+      }).where('plan_id', '=', planId).where('status', '=', 'pending').execute();
     },
   };
 }
@@ -168,15 +146,13 @@ export function createPostgresGrantResourcePort(
   transaction: DatabaseTransaction,
 ): CredentialGrantResourcePort {
   const collections = createPostgresAccessPolicyFactsPort(transaction);
-  const reports = createPostgresReportSeriesReadPort(transaction);
   return {
     async collectionOwnedBy(collectionId, subjectId) {
       const facts = await collections.loadCollectionFacts({ collectionId, actorSubjectId: subjectId });
       return facts !== null && facts.deleted !== true && facts.ownerSubjectId === subjectId;
     },
-    async reportOwnedBy(reportId, subjectId) {
-      const series = await reports.findById(reportId);
-      return series !== null && series.state === 'active' && series.ownerSubjectId === subjectId;
+    async reportOwnedBy(_reportId, _subjectId) {
+      return false;
     },
   };
 }
@@ -184,137 +160,34 @@ export function createPostgresGrantResourcePort(
 export function createCredentialPlanPort(input: {
   readonly getCollectionPlan: (planId: string) => Promise<PostgresMcpStoredPlan | undefined>;
   readonly approveCollectionPlan: (plan: PostgresMcpStoredPlan) => Promise<void>;
-  readonly getReportPlan: (planId: string) => Promise<McpReportPlan | undefined>;
-  readonly approveReportPlan: (plan: McpReportPlan) => Promise<void>;
-  readonly transaction: DatabaseTransaction;
 }): CredentialPlanPort {
-  const findEditionSeriesId = editionSeriesIdLookup(input.transaction);
   const digest = createPhase4bMcpChangePlanDigestVerifier();
   return {
     async getPlan(planKind, planId) {
-      if (planKind === 'collection') {
-        const plan = await input.getCollectionPlan(planId);
-        return plan ? fromCollectionPlan(plan) : null;
-      }
-      const plan = await input.getReportPlan(planId);
-      return plan ? await fromReportPlan(plan, findEditionSeriesId) : null;
+      if (planKind !== 'collection') return null;
+      const plan = await input.getCollectionPlan(planId);
+      return plan ? fromCollectionPlan(plan) : null;
     },
     async verifyDigest(plan) {
-      if (plan.planKind === 'collection') {
-        const stored = await input.getCollectionPlan(plan.planId);
-        if (stored === undefined) return false;
-        try {
-          if (digest.verify(stored)) return true;
-        } catch {
-          // Planner snapshot recompute of persisted JSON can fail; native commit
-          // still verifies with the COLP digest port.
-        }
-        return typeof stored.operationsDigest === 'string'
-          && stored.operationsDigest === plan.operationsDigest
-          && /^sha-256:[A-Za-z0-9_-]{43}$/.test(stored.operationsDigest);
+      if (plan.planKind !== 'collection') return false;
+      const stored = await input.getCollectionPlan(plan.planId);
+      if (stored === undefined) return false;
+      try {
+        if (digest.verify(stored)) return true;
+      } catch {
+        // Planner snapshot recompute of persisted JSON can fail; native commit
+        // still verifies with the COLP digest port.
       }
-      const stored = await input.getReportPlan(plan.planId);
-      return stored !== undefined && verifyMcpReportPlanDigest(stored);
+      return typeof stored.operationsDigest === 'string'
+        && stored.operationsDigest === plan.operationsDigest
+        && /^sha-256:[A-Za-z0-9_-]{43}$/.test(stored.operationsDigest);
     },
     async approvePlan(plan) {
-      if (plan.planKind === 'collection') {
-        const stored = await input.getCollectionPlan(plan.planId);
-        if (!stored) return;
-        await input.approveCollectionPlan(stored);
-        return;
-      }
-      const stored = await input.getReportPlan(plan.planId);
+      if (plan.planKind !== 'collection') return;
+      const stored = await input.getCollectionPlan(plan.planId);
       if (!stored) return;
-      await input.approveReportPlan(stored);
+      await input.approveCollectionPlan(stored);
     },
-  };
-}
-
-export function createPostgresMcpReportPlanStore(db: Kysely<DatabaseSchema>) {
-  return {
-    async save(plan: McpReportPlan) {
-      await db.insertInto('mcp_report_plans').values(toReportPlanRow(plan))
-        .onConflict((oc) => oc.column('plan_id').doUpdateSet({
-          operations_digest: plan.operationsDigest,
-          status: plan.status,
-          approval_status: plan.approval.status,
-          expires_at: new Date(plan.expiresAt),
-          plan_json: sql`${JSON.stringify(plan)}::jsonb`,
-          updated_at: new Date(),
-        })).execute();
-    },
-    async get(planId: string) {
-      const row = await db.selectFrom('mcp_report_plans').selectAll()
-        .where('plan_id', '=', planId).executeTakeFirst();
-      return row ? (row.plan_json as McpReportPlan) : undefined;
-    },
-    async update(plan: McpReportPlan) {
-      await db.updateTable('mcp_report_plans').set({
-        operations_digest: plan.operationsDigest,
-        status: plan.status,
-        approval_status: plan.approval.status,
-        expires_at: new Date(plan.expiresAt),
-        plan_json: sql`${JSON.stringify(plan)}::jsonb`,
-        updated_at: new Date(),
-      }).where('plan_id', '=', planIdOf(plan)).execute();
-    },
-  };
-}
-
-function planIdOf(plan: McpReportPlan): string {
-  return plan.planId;
-}
-
-export async function reportSeriesResourceIds(
-  plan: McpReportPlan,
-  findEditionSeriesId: (editionId: string) => Promise<string | null>,
-): Promise<readonly string[]> {
-  const seriesIds: string[] = [];
-  const editionIds: string[] = [];
-  for (const operation of plan.operations) {
-    if (operation.action === 'series.update' && typeof operation.targetId === 'string') {
-      seriesIds.push(operation.targetId);
-    } else if (operation.action === 'edition.attach' && typeof operation.seriesId === 'string') {
-      seriesIds.push(operation.seriesId);
-    } else if (typeof operation.seriesId === 'string') {
-      seriesIds.push(operation.seriesId);
-    } else if (
-      (operation.action === 'edition.publish' || operation.action === 'edition.update')
-      && typeof operation.targetId === 'string'
-    ) {
-      editionIds.push(operation.targetId);
-    }
-  }
-  const uniqueEditionIds = [...new Set(editionIds)];
-  const lookedUp = await Promise.all(uniqueEditionIds.map((editionId) => findEditionSeriesId(editionId)));
-  for (const seriesId of lookedUp) {
-    if (typeof seriesId === 'string' && seriesId.length > 0) seriesIds.push(seriesId);
-  }
-  return Object.freeze([...new Set(seriesIds)]);
-}
-
-function editionSeriesIdLookup(
-  transaction: DatabaseTransaction,
-): (editionId: string) => Promise<string | null> {
-  const editions = createPostgresReportEditionReadPort(transaction);
-  return async (editionId) => {
-    const edition = await editions.findById(editionId);
-    return edition?.seriesId ?? null;
-  };
-}
-
-function toReportPlanRow(plan: McpReportPlan) {
-  return {
-    plan_id: plan.planId,
-    principal_id: plan.binding.principalId,
-    client_id: plan.binding.clientId,
-    operations_digest: plan.operationsDigest,
-    status: plan.status,
-    approval_status: plan.approval.status,
-    expires_at: new Date(plan.expiresAt),
-    plan_json: sql`${JSON.stringify(plan)}::jsonb`,
-    created_at: new Date(),
-    updated_at: new Date(),
   };
 }
 
@@ -357,25 +230,6 @@ function fromCollectionPlan(plan: PostgresMcpStoredPlan): StoredCredentialPlan {
     requiredActions: requiredGrantActions(plan.operations),
     status: plan.status,
     approvalStatus: plan.status === 'approved' ? 'approved' : null,
-    expiresAt: plan.expiresAt,
-    binding: plan.binding,
-    resourceIds: Object.freeze(resourceIds),
-  };
-}
-
-async function fromReportPlan(
-  plan: McpReportPlan,
-  findEditionSeriesId: (editionId: string) => Promise<string | null>,
-): Promise<StoredCredentialPlan> {
-  const resourceIds = await reportSeriesResourceIds(plan, findEditionSeriesId);
-  return {
-    planKind: 'report',
-    planId: plan.planId,
-    operationsDigest: plan.operationsDigest,
-    requiredScopes: Object.freeze([...plan.requiredScopes]),
-    requiredActions: requiredGrantActions(plan.operations),
-    status: plan.status,
-    approvalStatus: plan.approval.status,
     expiresAt: plan.expiresAt,
     binding: plan.binding,
     resourceIds: Object.freeze(resourceIds),

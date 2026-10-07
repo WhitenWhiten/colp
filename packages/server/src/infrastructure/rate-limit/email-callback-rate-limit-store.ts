@@ -3,7 +3,7 @@
  * surface (audit KA-P5-SOC-16).
  *
  * Two implementations of ONE port
- * (`EmailCallbackRateLimiter`, port in `modules/notifications`):
+ * (`EmailCallbackRateLimiter`, port in the email module):
  *
  *  - `createMemoryEmailCallbackRateLimiter` — the bounded in-process
  *    fixed-window adapter (single-instance deployments and tests; the
@@ -43,12 +43,12 @@ import type {
   EmailCallbackRateLimitOutcome,
   EmailCallbackRateLimitReadiness,
   EmailCallbackRateLimitSubject,
-} from '../../modules/notifications/index.js';
+} from '../../modules/email/index.js';
 import {
   EMAIL_CALLBACK_RATE_LIMIT_IP_MAX_DEFAULT,
   EMAIL_CALLBACK_RATE_LIMIT_IP_WINDOW_MS_DEFAULT,
   assertEmailCallbackRateLimitBudget,
-} from '../../modules/notifications/index.js';
+} from '../../modules/email/index.js';
 import {
   buildEmailCallbackRateLimitKey,
   assertEmailCallbackRateLimitSubject,

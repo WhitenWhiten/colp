@@ -6,7 +6,7 @@ import {
   type AuthEmailSender,
   type SendAuthEmailInput,
 } from '../../modules/auth/index.js';
-import type { EmailSendInput, EmailSendResult } from '../../modules/notifications/index.js';
+import type { EmailSendInput, EmailSendResult } from '../../modules/email/index.js';
 import { AliyunDirectMailAdapter, redactEvidence } from './aliyun-directmail-adapter.js';
 import {
   defaultEmailSkinMap,

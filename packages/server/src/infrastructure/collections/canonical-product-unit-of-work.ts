@@ -42,8 +42,6 @@ import { createPostgresBookmarkIconWritePort } from './bookmark-icon-postgres.js
 import { createPostgresFaviconSourcePort } from './favicon-source-postgres.js';
 import { createPostgresFaviconPolicyPort } from './favicon-policy-postgres.js';
 import { createPostgresFaviconJobWritePort } from './favicon-job-postgres.js';
-import { createPostgresModerationActionMethods } from '../governance/postgres-moderation-actions.js';
-
 export type PostgresCanonicalMutationProductPorts = ProductCollectionCanonicalPorts;
 
 export interface PostgresCanonicalMutationUnitOfWorkOptions {
@@ -194,7 +192,6 @@ export function createPostgresCanonicalMutationUnitOfWork(
           policies: createPostgresFaviconPolicyPort(transaction),
           jobs: createPostgresFaviconJobWritePort(transaction),
         },
-        accountControl: createPostgresModerationActionMethods(transaction),
         ...(options.productOrigin === undefined ? {} : { productOrigin: options.productOrigin }),
       });
       if (!claimCalled) invariant('successful canonical mutation unit of work must claim one product command');

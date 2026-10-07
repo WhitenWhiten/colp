@@ -20,10 +20,11 @@ import {
   exploreDirectoryAccountSubject,
   exploreDirectoryAnonymousSubject,
 } from './product/explore-directory-rate-limit.js';
-import type {
-  ProductPublicProfileProjection,
-  ProductPublicProfileQuery,
-} from './product/product-public-profile-routes.js';
+import type { PublicProfileProjection as ProductPublicProfileProjection } from '../bootstrap/public-profile-projection.js';
+
+interface ProductPublicProfileQuery {
+  get(input: { readonly handle: string; readonly limit?: number }): Promise<ProductPublicProfileProjection>;
+}
 import {
   applyPublicShellHeaders,
   applyPublicShellLastModified,

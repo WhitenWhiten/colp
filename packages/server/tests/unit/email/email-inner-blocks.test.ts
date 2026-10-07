@@ -17,7 +17,7 @@ import { renderInviteEmailTemplate } from '../../../src/modules/access-policy/in
 import {
   renderCollectionChangeEmail,
   renderFollowActivityEmail,
-} from '../../../src/modules/notifications/index.js';
+} from '../../../src/modules/email/index.js';
 
 /**
  * The module-layer template leaves (modules/auth, modules/access-policy,

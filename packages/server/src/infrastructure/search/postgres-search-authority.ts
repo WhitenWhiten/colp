@@ -11,7 +11,7 @@ import type { DatabaseSchema } from '../database/index.js';
 import {
   accountRestrictPublicationExistsSql,
   bookmarkDiscoveryExistsSql,
-} from '../governance/collection-control-sql.js';
+} from '../database/collection-control-sql.js';
 
 interface AuthorityJsonRow { readonly fact: unknown }
 

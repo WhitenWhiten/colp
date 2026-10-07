@@ -32,12 +32,6 @@ import type {
   LibraryOrderQueryPorts,
 } from '../modules/collections/index.js';
 import type {
-  CatalogPreferencesPorts,
-  CatalogPreferencesStore,
-  ModerationCommandPorts,
-  ModerationQueryPorts,
-} from '../modules/governance/index.js';
-import type {
   CreditLedgerReadPort,
   BookmarkPreferencesPorts,
   BookmarkPreferencesStore,
@@ -47,9 +41,6 @@ import type {
 } from '../modules/identity/index.js';
 import type { ExploreCollectionMarksPort } from './product/explore-routes.js';
 import type { BrowserSessionAuthority, AccountLinkingService, AccountRecoveryService, AccountDeletionService, SecurityEpochBridge } from '../modules/auth/index.js';
-import type { ReadingProgressUnitOfWork, ReadingProgressReadUnitOfWork, SavedResourceReadUnitOfWork, SavedResourceUnitOfWork } from '../modules/reading-progress/index.js';
-import type { ReportUnitOfWork } from '../modules/reports/index.js';
-import type { ReportCacheReader } from '../infrastructure/reports/report-cache.js';
 import type {
   PublicationDirectoryQueryPorts,
   PublicationMetadataQueryPorts,
@@ -85,8 +76,7 @@ import type { ProfileSitemapQueryPort, PublicationSitemapQueryPort } from './col
 import type { ProductPublicInsightRouteDependencies } from './product/product-public-insight-routes.js';
 import type { ProductPublishingInsightsRouteDependencies } from './product/product-publishing-insights-routes.js';
 import type { ProductCollaborationRouteDependencies } from './product/product-collaboration-routes.js';
-import type { ProductPublicProfileQuery } from './product/product-public-profile-routes.js';
-import type { ProductPublicActivityQuery } from './product/product-public-activity-routes.js';
+import type { PublicProfileProjection } from '../bootstrap/public-profile-projection.js';
 import type { SyncSessionRouteDependencies } from './colp-sync/sync-session-routes.js';
 import type { SyncSnapshotRouteDependencies } from './colp-sync/sync-snapshot-routes.js';
 import type { SyncPushRouteDependencies } from './colp-sync/sync-push-routes.js';
@@ -102,21 +92,6 @@ import type {
   Phase3SyncProfileClaims,
   Phase3SyncProfileClaimController,
 } from '../modules/sync/index.js';
-import type { CollectionFollowCombinedQueryPorts, CollectionFollowCommandPorts,
-  FeedCapabilityReadiness, FeedQueryPorts, FollowCommandPorts,
-  FollowQueryPorts } from '../modules/social/index.js';
-import type {
-  CommunityCommentCommandPorts,
-  CommunityCommentManagePorts,
-  CommunityCommentQueryPorts,
-  CommunityNotificationCommandPorts,
-  CommunityNotificationQueryPorts,
-  CommunityRankingQueryPorts,
-  CommunityTargetQueryPorts,
-  CommunityVoteCommandPorts,
-} from '../modules/community/index.js';
-import type { NotificationCapabilityReadiness, NotificationInboxQueryPorts, NotificationPreferenceCommandPorts,
-  NotificationPreferenceReadPort, NotificationReadCommandPorts } from '../modules/notifications/index.js';
 import type { EmailCallbackRoutesDependencies } from './product/email-callback-routes.js';
 import type { EmailOpsRoutesDependencies } from './product/email-ops-routes.js';
 import type { AttachmentRoutesDependencies } from './product/attachment-routes.js';
@@ -224,19 +199,7 @@ export interface AppDependencies {
   readonly annotationReadUnitOfWork?: AnnotationReadUnitOfWork;
   readonly relationMutationUnitOfWork?: RelationMutationUnitOfWork;
   readonly relationReadUnitOfWork?: RelationReadUnitOfWork;
-  readonly savedResourceUnitOfWork?: SavedResourceUnitOfWork;
-  readonly savedResourceReadUnitOfWork?: SavedResourceReadUnitOfWork;
-  readonly readingProgressUnitOfWork?: ReadingProgressUnitOfWork;
-  readonly readingProgressReadUnitOfWork?: ReadingProgressReadUnitOfWork;
-  readonly reportsUnitOfWork?: ReportUnitOfWork;
-  readonly reportCache?: ReportCacheReader;
   readonly reportsRateLimiter?: ProductAdmissionRateLimiter;
-  /**
-   * Bearer publish gate for the report routes. When composed, HTTP publication
-   * by a machine token requires `reports:publish` plus a valid grant/Plan
-   * approval. Absent means bearer publication fails closed with 403.
-   */
-  readonly reportPublishGuard?: import('../modules/reports/index.js').ReportPublishGuard;
   readonly oidcProvider?: OidcProviderPort;
   /**
    * A3 BrowserSessionAuthority. When present AND composed, the product
@@ -354,8 +317,9 @@ export interface AppDependencies {
   readonly productPublicInsight?: ProductPublicInsightRouteDependencies;
   readonly productPublishingInsights?: ProductPublishingInsightsRouteDependencies;
   readonly productCollaboration?: ProductCollaborationRouteDependencies;
-  readonly publicProfileQuery?: ProductPublicProfileQuery;
-  readonly publicActivityQuery?: ProductPublicActivityQuery;
+  readonly publicProfileQuery?: {
+    get(input: { readonly handle: string; readonly limit?: number }): Promise<PublicProfileProjection>;
+  };
   readonly searchQuery?: SearchProductQuery;
   /** Only a process-local token issued after P2-16 and official COLP gates pass. */
   readonly publicationProfileClaims?: Phase2PublicationProfileClaims;
@@ -386,71 +350,8 @@ export interface AppDependencies {
   readonly productSyncCenterUnitOfWork?: ProductSyncCenterUnitOfWork;
   /** FIX-M-011 (SYNC-R06): versioned Conflict keyring gate (/ready/features/sync-conflicts). */
   readonly syncConflictsCapabilityReadiness?: () => Promise<SyncConflictKeyringReadiness>;
-  readonly followCommandUnitOfWork?: { execute<Result>(work: (ports: FollowCommandPorts) => Promise<Result>,
-    options?: { readonly signal?: AbortSignal }): Promise<Result> };
-  readonly followQueryUnitOfWork?: { execute<Result>(work: (ports: FollowQueryPorts) => Promise<Result>): Promise<Result> };
   readonly followRateLimiter?: ProductAdmissionRateLimiter;
-  readonly collectionFollowCommandUnitOfWork?: {
-    execute<Result>(
-      work: (ports: CollectionFollowCommandPorts) => Promise<Result>,
-      options?: { readonly signal?: AbortSignal },
-    ): Promise<Result>;
-  };
-  readonly collectionFollowQueryUnitOfWork?: {
-    execute<Result>(work: (ports: CollectionFollowCombinedQueryPorts) => Promise<Result>): Promise<Result>;
-  };
   readonly collectionFollowRateLimiter?: ProductAdmissionRateLimiter;
-  readonly communityTargetQueryUnitOfWork?: {
-    execute<Result>(
-      work: (ports: CommunityTargetQueryPorts) => Promise<Result>,
-      options?: { readonly signal?: AbortSignal },
-    ): Promise<Result>;
-  };
-  readonly communityVoteCommandUnitOfWork?: {
-    execute<Result>(
-      work: (ports: CommunityVoteCommandPorts) => Promise<Result>,
-      options?: { readonly signal?: AbortSignal },
-    ): Promise<Result>;
-  };
-  readonly communityRankingQueryUnitOfWork?: {
-    execute<Result>(
-      work: (ports: CommunityRankingQueryPorts) => Promise<Result>,
-      options?: { readonly signal?: AbortSignal },
-    ): Promise<Result>;
-  };
-  readonly communityCommentQueryUnitOfWork?: {
-    execute<Result>(
-      work: (ports: CommunityCommentQueryPorts) => Promise<Result>,
-      options?: { readonly signal?: AbortSignal },
-    ): Promise<Result>;
-  };
-  readonly communityCommentCommandUnitOfWork?: {
-    execute<Result>(
-      work: (ports: CommunityCommentCommandPorts) => Promise<Result>,
-      options?: { readonly signal?: AbortSignal },
-    ): Promise<Result>;
-  };
-  /** CS-04: comment edit/delete + curation + comment-area settings writes. */
-  readonly communityCommentManageUnitOfWork?: {
-    execute<Result>(
-      work: (ports: CommunityCommentManagePorts) => Promise<Result>,
-      options?: { readonly signal?: AbortSignal },
-    ): Promise<Result>;
-  };
-  /** CS-05: community reply-notification inbox + preference reads. */
-  readonly communityNotificationQueryUnitOfWork?: {
-    execute<Result>(
-      work: (ports: CommunityNotificationQueryPorts) => Promise<Result>,
-      options?: { readonly signal?: AbortSignal },
-    ): Promise<Result>;
-  };
-  /** CS-05: community notification mark-read + preference CAS writes. */
-  readonly communityNotificationCommandUnitOfWork?: {
-    execute<Result>(
-      work: (ports: CommunityNotificationCommandPorts) => Promise<Result>,
-      options?: { readonly signal?: AbortSignal },
-    ): Promise<Result>;
-  };
   /** CS: four sealed contract families (vote/comment/curation/publicReads). */
   readonly communityRateLimiters?: CommunityRateLimiters;
   readonly libraryOrderCommandUnitOfWork?: {
@@ -472,10 +373,6 @@ export interface AppDependencies {
   readonly credentialIssuanceRateLimiter?: ProductAdmissionRateLimiter;
   readonly automationTokenCredentialRateLimiter?: ProductAdmissionRateLimiter;
   readonly automationTokenClientRateLimiter?: ProductAdmissionRateLimiter;
-  readonly catalogPreferencesUnitOfWork?: {
-    execute<Result>(work: (ports: CatalogPreferencesPorts) => Promise<Result>): Promise<Result>;
-  };
-  readonly catalogPreferencesQuery?: CatalogPreferencesStore;
   readonly bookmarkPreferencesUnitOfWork?: {
     execute<Result>(work: (ports: BookmarkPreferencesPorts) => Promise<Result>): Promise<Result>;
   };
@@ -484,15 +381,9 @@ export interface AppDependencies {
   readonly captureRuntime?: import('../modules/collections/index.js').CaptureRuntime;
   readonly captureHistory?: import('../modules/collections/index.js').CaptureHistoryRuntime;
   readonly captureLearning?: import('./product/capture-learning-routes.js').CaptureLearningRuntime;
-  readonly moderationCommandUnitOfWork?: {
-    execute<Result>(work: (ports: ModerationCommandPorts) => Promise<Result>): Promise<Result>;
-  };
-  readonly moderationQueryPorts?: ModerationQueryPorts;
   readonly governanceReportRateLimiter?: ProductAdmissionRateLimiter;
   readonly governanceActionRateLimiter?: ProductAdmissionRateLimiter;
   readonly governanceAppealRateLimiter?: ProductAdmissionRateLimiter;
-  readonly feedQueryUnitOfWork?: { execute<Result>(work: (ports: FeedQueryPorts) => Promise<Result>,
-    options?: { readonly signal?: AbortSignal }): Promise<Result> };
   readonly feedRateLimiter?: ProductAdmissionRateLimiter;
   readonly linkHealthRateLimiter?: ProductAdmissionRateLimiter;
   readonly classifyInboxRateLimiter?: ProductAdmissionRateLimiter;
@@ -500,17 +391,7 @@ export interface AppDependencies {
   readonly organizePlanRateLimiter?: ProductAdmissionRateLimiter;
   /** Shared family for public avatar and bookmark-favicon origin GETs. */
   readonly publicObjectRateLimiter?: ProductAdmissionRateLimiter;
-  readonly feedCapabilityReadiness?: () => Promise<FeedCapabilityReadiness>;
-  readonly notificationQueryUnitOfWork?: { execute<Result>(work: (ports: NotificationInboxQueryPorts) => Promise<Result>): Promise<Result> };
-  readonly notificationReadCommandUnitOfWork?: { execute<Result>(work: (ports: NotificationReadCommandPorts) => Promise<Result>,
-    options?: { readonly signal?: AbortSignal }): Promise<Result> };
-  readonly notificationPreferenceRead?: NotificationPreferenceReadPort;
-  /** P5-30 additive email runtime view (verified sender + honest availability). */
-  readonly notificationEmailRuntime?: { readonly verifiedSender: string | null; readonly emailAvailable: boolean };
-  readonly notificationPreferenceCommandUnitOfWork?: { execute<Result>(work: (ports: NotificationPreferenceCommandPorts) => Promise<Result>,
-    options?: { readonly signal?: AbortSignal }): Promise<Result> };
   readonly notificationRateLimiter?: ProductAdmissionRateLimiter;
-  readonly notificationCapabilityReadiness?: () => Promise<NotificationCapabilityReadiness>;
   /** P4A-I05 optional attachments capability readiness provider (/ready/features/attachments). */
   readonly attachmentsCapabilityReadiness?: () => Promise<AttachmentsCapabilityReadiness>;
   /** P4A-P03 production issue/complete Attachment composition; absent keeps every Attachment route closed (P01 skeleton). */

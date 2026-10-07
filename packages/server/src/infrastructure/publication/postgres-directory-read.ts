@@ -9,7 +9,7 @@ import {
   COLLECTION_DISCOVERY_CONTROL_SQL,
   bookmarkHidePublicExistsSql,
   collectionVisibleNodeCountSql,
-} from '../governance/collection-control-sql.js';
+} from '../database/collection-control-sql.js';
 import type { DatabaseRuntime } from '../database/index.js';
 import { readBackendPid, withPostgresAbort } from '../database/index.js';
 

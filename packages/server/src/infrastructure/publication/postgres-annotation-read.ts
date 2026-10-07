@@ -11,7 +11,7 @@ import {
   type PublicationAnnotationReadRequest,
   type PublicationAnnotationRecord,
 } from '../../modules/publication/index.js';
-import { bookmarkHidePublicExistsSql } from '../governance/collection-control-sql.js';
+import { bookmarkHidePublicExistsSql } from '../database/collection-control-sql.js';
 
 interface CollectionFenceRow {
   content_revision: string;

@@ -19,7 +19,7 @@ import {
 } from '../../../src/infrastructure/email/auth-email-adapter.js';
 import { parseEmailSkinConfig } from '../../../src/infrastructure/email/message-skins.js';
 import { UNIFIED_EMAIL_SKIN } from '../../../src/infrastructure/email/unified-email-chrome.js';
-import type { EmailSendInput, EmailSendResult } from '../../../src/modules/notifications/index.js';
+import type { EmailSendInput, EmailSendResult } from '../../../src/modules/email/index.js';
 import {
   AUTH_EMAIL_BODY_MAX_BYTES,
   AUTH_EMAIL_IDEMPOTENCY_KEY_MAX_CHARS,
@@ -33,7 +33,7 @@ import {
   EMAIL_BODY_MAX_BYTES,
   EMAIL_IDEMPOTENCY_KEY_MAX_CHARS,
   EMAIL_SUBJECT_MAX_CHARS,
-} from '../../../src/modules/notifications/index.js';
+} from '../../../src/modules/email/index.js';
 import { createLogger } from '../../../src/infrastructure/telemetry/index.js';
 
 const backendRoot = resolve(import.meta.dirname, '../../..');
@@ -283,7 +283,7 @@ describe('C1 auth email port contract (stable result union, logging and ledger p
     assert.doesNotMatch(adapterSource, /createPostgresEmailDeliveryWorkerRepository/u);
     // The only modules/notifications surface the adapter may consume is the
     // frozen provider port types (EmailSendInput/EmailSendResult).
-    assert.match(adapterSource, /from '\.\.\/\.\.\/modules\/notifications\/index\.js'/u);
+    assert.match(adapterSource, /from '\.\.\/\.\.\/modules\/email\/index\.js'/u);
   });
 
   test('the auth email sender surface exposes ONLY sendAuthEmail (never lookup/verifyCallback/ledger)', async () => {

@@ -91,3 +91,12 @@ export {
   UNIFIED_EMAIL_SKIN,
   wrapUnifiedEmailChrome,
 } from './unified-email-chrome.js';
+export {
+  createEmailDeliveryWorkerRuntime,
+  createPostgresEmailDeliveryWorkerRepository,
+} from './email-delivery-worker-postgres.js';
+export type {
+  EmailDeliveryWorkerLoopLogger,
+  EmailDeliveryWorkerRuntime,
+} from './email-delivery-worker-postgres.js';
+export { createPostgresEmailSuppressionOpsRepository } from './email-suppression-ops-postgres.js';

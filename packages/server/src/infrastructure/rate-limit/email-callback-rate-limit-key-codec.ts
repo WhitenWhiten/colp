@@ -36,7 +36,7 @@ import { createHmac } from 'node:crypto';
 import {
   EMAIL_CALLBACK_RATE_LIMIT_POLICIES,
   type EmailCallbackRateLimitPolicy,
-} from '../../modules/notifications/index.js';
+} from '../../modules/email/index.js';
 
 /** Fixed key schema version (the `v1` segment). */
 export const EMAIL_CALLBACK_RATE_LIMIT_KEY_SCHEMA_VERSION = 1;

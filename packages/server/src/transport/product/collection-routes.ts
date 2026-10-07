@@ -8,7 +8,6 @@ import { registerNodeRoutes } from './node-routes.js';
 import { registerAnnotationRoutes } from './annotation-routes.js';
 import { registerRelationRoutes } from './relation-routes.js';
 import { registerOwnedCollectionRoutes } from './owned-collection-routes.js';
-import { registerCollectionCatalogRoutes } from './catalog-routes.js';
 
 export type { CollectionRoutesDeps } from './collection-route-helpers.js';
 
@@ -22,7 +21,6 @@ export function registerCollectionRoutes(
     );
   }
   registerCollectionResourceRoutes(app, deps);
-  registerCollectionCatalogRoutes(app, deps);
   registerOwnedCollectionRoutes(app, deps);
   registerNodeRoutes(app, deps);
   registerEditorRoutes(app, deps);

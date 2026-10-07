@@ -20,7 +20,7 @@ import {
   type ProductEditorCursorSignerPort,
 } from '../../modules/collections/index.js';
 import { createPostgresAccessPolicyFactsPort } from '../access-policy/index.js';
-import { accountRestrictPublicationExistsSql } from '../governance/collection-control-sql.js';
+import { accountRestrictPublicationExistsSql } from '../database/collection-control-sql.js';
 import { DatabaseOperationError } from '../database/errors.js';
 import type { DatabaseSchema } from '../database/runtime.js';
 import type { Metrics } from '../telemetry/index.js';

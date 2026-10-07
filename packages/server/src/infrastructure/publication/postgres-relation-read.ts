@@ -11,7 +11,7 @@ import {
   type PublicationRelationRecord,
 } from '../../modules/publication/index.js';
 import { rollbackTransaction, type DatabaseRuntime } from '../database/index.js';
-import { bookmarkHidePublicExistsSql } from '../governance/collection-control-sql.js';
+import { bookmarkHidePublicExistsSql } from '../database/collection-control-sql.js';
 
 interface FenceRow { content_revision: string; policy_revision: string; deleted_at: Date | null }
 interface RelationRow {

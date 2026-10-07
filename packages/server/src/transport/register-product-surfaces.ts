@@ -33,18 +33,10 @@ import { registerProductPublicInsightRoutes } from './product/product-public-ins
 import { registerProductPublishingInsightsRoutes } from './product/product-publishing-insights-routes.js';
 import { registerProductCollaborationRoutes } from './product/product-collaboration-routes.js';
 import { registerSharedCollectionRoutes } from './product/shared-collection-routes.js';
-import { registerProductPublicProfileRoutes } from './product/product-public-profile-routes.js';
-import { registerProductPublicActivityRoutes } from './product/product-public-activity-routes.js';
 import { registerProductSyncCenterRoutes } from './product/product-sync-center-routes.js';
-import { registerSavedResourceRoutes } from './product/saved-resource-routes.js';
-import { registerReadingProgressRoutes } from './product/reading-progress-routes.js';
-import { registerFollowRoutes } from './product/follow-routes.js'; import { registerAccountCredentialSurfaces } from './product/register-account-credential-surfaces.js';
-import { registerCollectionFollowRoutes } from './product/collection-follow-routes.js';
-import { registerCommunityProductSurfaces } from './register-community-surfaces.js';
+import { registerAccountCredentialSurfaces } from './product/register-account-credential-surfaces.js';
 import { registerLibraryOrderRoutes } from './product/library-order-routes.js';
 import { registerAccountProductSurfaces } from './register-account-product-surfaces.js';
-import { registerFeedRoutes } from './product/feed-routes.js';
-import { registerNotificationRoutes } from './product/notification-routes.js';
 import { registerLinkHealthRoutes } from './product/link-health-routes.js';
 import { registerExportJobRoutes } from './product/export-job-routes.js';
 import { registerClassificationProductSurfaces } from './register-classification-surfaces.js';
@@ -56,8 +48,6 @@ import { registerEmailCallbackRoutes } from './product/email-callback-routes.js'
 import { registerEmailOpsRoutes } from './product/email-ops-routes.js';
 import { registerSearchRoutes } from './product/search-routes.js';
 import type { AppDependencies } from './app-dependencies.js';
-import { registerReportsProductSurfaces } from './register-reports-surfaces.js';
-import { registerGovernanceProductSurfaces } from './register-governance-surfaces.js';
 import { mcpReadFeatureConfigAssertOptions } from '../modules/mcp/index.js';
 
 export function registerProductSurfaces(
@@ -88,10 +78,6 @@ export function registerProductSurfaces(
     annotationReadUnitOfWork,
     relationMutationUnitOfWork,
     relationReadUnitOfWork,
-    savedResourceUnitOfWork,
-    savedResourceReadUnitOfWork,
-    readingProgressUnitOfWork,
-    readingProgressReadUnitOfWork,
     oidcProvider,
     browserSessionAuthority,
     accountLinking,
@@ -120,7 +106,6 @@ export function registerProductSurfaces(
     productPublishingInsights,
     productCollaboration,
     publicProfileQuery,
-    publicActivityQuery,
     searchQuery,
     publicationProfileClaims,
     publicationProfileClaimController,
@@ -132,19 +117,11 @@ export function registerProductSurfaces(
     mcpWriteProfileClaimController,
     extensionCollectionRoutes,
     productSyncCenterUnitOfWork,
-    followCommandUnitOfWork,
-    followQueryUnitOfWork,
-    followRateLimiter, accountCredentialUnitOfWork, accountCredentialCursors, accountCredentialGrantCursors, credentialsRateLimiter, credentialIssuanceRateLimiter, automationTokenCredentialRateLimiter, automationTokenClientRateLimiter,
-    collectionFollowCommandUnitOfWork,
-    collectionFollowQueryUnitOfWork,
-    collectionFollowRateLimiter,
+    accountCredentialUnitOfWork, accountCredentialCursors, accountCredentialGrantCursors, credentialsRateLimiter, credentialIssuanceRateLimiter, automationTokenCredentialRateLimiter, automationTokenClientRateLimiter,
     libraryOrderCommandUnitOfWork,
     libraryOrderQueryUnitOfWork,
     libraryOrderRateLimiter,
     faviconPolicyRateLimiter,
-    catalogPreferencesQuery,
-    feedQueryUnitOfWork,
-    feedRateLimiter,
     linkHealthQuery,
     linkHealthEnqueue,
     linkHealthRateLimiter,
@@ -164,12 +141,6 @@ export function registerProductSurfaces(
     linkPreviewCommands,
     readableReplicaRateLimiter,
     publicObjectRateLimiter,
-    notificationQueryUnitOfWork,
-    notificationReadCommandUnitOfWork,
-    notificationPreferenceRead,
-    notificationEmailRuntime,
-    notificationPreferenceCommandUnitOfWork,
-    notificationRateLimiter,
     attachmentRoutes,
     emailCallbackRoutes,
     emailOpsRoutes,
@@ -207,19 +178,6 @@ export function registerProductSurfaces(
       );
     }
     return exploreDirectoryRateLimiter;
-  };
-  const requirePublicActivityRateLimiter = (): NonNullable<AppDependencies['publicActivityRateLimiter']> => {
-    if (publicActivityRateLimiter === undefined) {
-      if (config.publicActivityRateLimit.shared.enabled) {
-        throw new Error(
-          'buildApiApp requires an injected publicActivityRateLimiter when PUBLIC_ACTIVITY_RATE_LIMIT_SHARED=true (production composition must inject the Redis adapter)',
-        );
-      }
-      throw new Error(
-        'buildApiApp requires an injected publicActivityRateLimiter whenever public Activity routes are registered',
-      );
-    }
-    return publicActivityRateLimiter;
   };
   const requireSearchRateLimiter = (): NonNullable<AppDependencies['searchRateLimiter']> => {
     if (searchRateLimiter === undefined) {
@@ -317,7 +275,6 @@ export function registerProductSurfaces(
       ...(exploreCreatorsQuery ? { creators: exploreCreatorsQuery } : {}),
       ...(explorePublicMarks ? { publicMarks: explorePublicMarks } : {}),
       ...(identityUnitOfWork ? { identityUnitOfWork } : {}),
-      ...(catalogPreferencesQuery ? { catalogPreferences: catalogPreferencesQuery } : {}),
       rateLimiter: requireExploreDirectoryLimiter(),
     });
     registerPublicExploreShellRoutes(app, {
@@ -398,10 +355,6 @@ export function registerProductSurfaces(
     registerProductCollaborationRoutes(app, productCollaboration);
   }
   if (publicProfileQuery) {
-    registerProductPublicProfileRoutes(app, {
-      query: publicProfileQuery,
-      rateLimiter: requireExploreDirectoryLimiter(), contentGovernanceEnabled: config.contentGovernance.enabled,
-    });
     registerPublicProfileShellRoutes(app, {
       config: config.publicProfileShell,
       query: publicProfileQuery,
@@ -410,41 +363,6 @@ export function registerProductSurfaces(
       rateLimiter: requireExploreDirectoryLimiter(), contentGovernanceEnabled: config.contentGovernance.enabled,
     });
   }
-  if (publicActivityQuery) {
-    registerProductPublicActivityRoutes(app, { query: publicActivityQuery, rateLimiter: requirePublicActivityRateLimiter(), contentGovernanceEnabled: config.contentGovernance.enabled });
-  }
-  if (identityUnitOfWork && savedResourceUnitOfWork && savedResourceReadUnitOfWork) {
-    registerSavedResourceRoutes(app, { config, identityUnitOfWork, savedResourceUnitOfWork, savedResourceReadUnitOfWork });
-  }
-  if (identityUnitOfWork && readingProgressUnitOfWork && readingProgressReadUnitOfWork) {
-    registerReadingProgressRoutes(app, { config, identityUnitOfWork, readingProgressUnitOfWork, readingProgressReadUnitOfWork });
-  }
-  registerReportsProductSurfaces(app, deps, { resolveRateLimiter: resolveProductRouteRateLimiter, requireExploreDirectoryLimiter, exploreDirectoryRateLimiter, defaultBudget: defaultProductRouteBudget });
-  if ((followCommandUnitOfWork === undefined) !== (followQueryUnitOfWork === undefined)) {
-    throw new TypeError('Follow command and query production ports must be configured together');
-  }
-  if (identityUnitOfWork && followCommandUnitOfWork && followQueryUnitOfWork) {
-    registerFollowRoutes(app, { enabled: config.follow?.enabled ?? false, allowedOrigins: config.allowedOrigins,
-      identityUnitOfWork, commandUnitOfWork: followCommandUnitOfWork, queryUnitOfWork: followQueryUnitOfWork,
-      rateLimiter: followRateLimiter ?? createFixedWindowRateLimiter(config.follow?.rateLimit
-        ?? { maxRequests: 120, windowMs: 60_000 }),
-      timeoutMs: config.follow?.timeoutMs ?? 2_000 });
-  }
-  if ((collectionFollowCommandUnitOfWork === undefined) !== (collectionFollowQueryUnitOfWork === undefined)) {
-    throw new TypeError('Collection Follow command and query production ports must be configured together');
-  }
-  if (identityUnitOfWork && collectionFollowCommandUnitOfWork && collectionFollowQueryUnitOfWork) {
-    registerCollectionFollowRoutes(app, {
-      enabled: config.collectionFollow.enabled,
-      allowedOrigins: config.allowedOrigins,
-      identityUnitOfWork,
-      commandUnitOfWork: collectionFollowCommandUnitOfWork,
-      queryUnitOfWork: collectionFollowQueryUnitOfWork,
-      rateLimiter: collectionFollowRateLimiter ?? createFixedWindowRateLimiter(config.collectionFollow.rateLimit),
-      timeoutMs: config.collectionFollow.timeoutMs,
-    });
-  }
-  registerCommunityProductSurfaces(app, deps, { resolveRateLimiter: resolveProductRouteRateLimiter });
   if ((libraryOrderCommandUnitOfWork === undefined) !== (libraryOrderQueryUnitOfWork === undefined)) {
     throw new TypeError('Library order command and query production ports must be configured together');
   }
@@ -484,14 +402,7 @@ export function registerProductSurfaces(
       });
     }
   }
-  registerGovernanceProductSurfaces(app, deps, resolveProductRouteRateLimiter);
   registerAccountProductSurfaces(app, deps);
-  if (identityUnitOfWork && feedQueryUnitOfWork) {
-    registerFeedRoutes(app, { enabled: config.feed?.enabled ?? false, identityUnitOfWork,
-      queryUnitOfWork: feedQueryUnitOfWork,
-      rateLimiter: feedRateLimiter ?? createFixedWindowRateLimiter(config.feed?.rateLimit
-        ?? { maxRequests: 120, windowMs: 60_000 }), timeoutMs: config.feed?.timeoutMs ?? 2_000 });
-  }
   if ((linkHealthQuery === undefined) !== (linkHealthEnqueue === undefined)) {
     throw new TypeError('Link-health query and enqueue production ports must be configured together');
   }
@@ -582,31 +493,12 @@ export function registerProductSurfaces(
       ),
     });
   }
-  const notificationPorts = [notificationQueryUnitOfWork, notificationReadCommandUnitOfWork,
-    notificationPreferenceRead, notificationPreferenceCommandUnitOfWork];
-  if (notificationPorts.some(Boolean) && notificationPorts.some((port) => port === undefined)) {
-    throw new TypeError('Notification query, read command, and preference ports must be configured together');
-  }
-  if (identityUnitOfWork && notificationQueryUnitOfWork && notificationReadCommandUnitOfWork
-      && notificationPreferenceRead && notificationPreferenceCommandUnitOfWork) {
-    registerNotificationRoutes(app, { enabled: config.notifications?.enabled ?? false,
-      allowedOrigins: config.allowedOrigins, identityUnitOfWork,
-      queryUnitOfWork: notificationQueryUnitOfWork,
-      readCommandUnitOfWork: notificationReadCommandUnitOfWork,
-      preferenceRead: notificationPreferenceRead,
-      preferenceCommandUnitOfWork: notificationPreferenceCommandUnitOfWork,
-      ...(notificationEmailRuntime === undefined ? {} : { emailRuntime: notificationEmailRuntime }),
-      rateLimiter: notificationRateLimiter ?? createFixedWindowRateLimiter(config.notifications?.rateLimit
-        ?? { maxRequests: 120, windowMs: 60_000 }),
-      timeoutMs: config.notifications?.timeoutMs ?? 2_000 });
-  }
   registerAttachmentRoutes(app, attachmentRoutes);
   if (emailCallbackRoutes) registerEmailCallbackRoutes(app, emailCallbackRoutes);
   if (emailOpsRoutes) registerEmailOpsRoutes(app, emailOpsRoutes);
   if (searchQuery) {
     registerSearchRoutes(app, { query: searchQuery, ...(identityUnitOfWork ? { identityUnitOfWork } : {}),
       rateLimiter: requireSearchRateLimiter(), contentGovernanceEnabled: config.contentGovernance.enabled, config,
-      ...(catalogPreferencesQuery ? { catalogPreferences: catalogPreferencesQuery } : {}),
       ...(searchTimeoutMs === undefined ? {} : { timeoutMs: searchTimeoutMs }) });
   }
   // Collection product routes need session auth (identity) + collections write/read UoWs.
