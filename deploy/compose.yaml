@@ -1,0 +1,90 @@
+services:
+  server:
+    image: ghcr.io/whitenwhiten/colp-server:${COLP_IMAGE_TAG:-0.1}
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgres://colp:${POSTGRES_PASSWORD}@db:5432/colp
+      COLP_SERVER_ORIGIN: ${COLP_SERVER_ORIGIN}
+      COLP_SERVER_SECRET: ${COLP_SERVER_SECRET}
+      COLP_INSECURE_HTTP: ${COLP_INSECURE_HTTP}
+      COLP_ALLOWED_EXTENSION_IDS: ${COLP_ALLOWED_EXTENSION_IDS}
+      COLP_SMTP_URL: ${COLP_SMTP_URL}
+      COLP_MULTI_USER: ${COLP_MULTI_USER}
+      COLP_LOG_LEVEL: ${COLP_LOG_LEVEL}
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      # A6 populates /srv/web.
+      - colp-web:/srv/web
+
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: colp
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: colp
+    volumes:
+      - colp-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U colp -d colp"]
+
+  caddy-tls-auto:
+    image: caddy:2
+    restart: unless-stopped
+    profiles:
+      - tls-auto
+    environment:
+      COLP_SERVER_ORIGIN: ${COLP_SERVER_ORIGIN}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile.tls-auto:/etc/caddy/Caddyfile
+      - caddy-data:/data
+      - caddy-config:/config
+      - colp-web:/srv/web:ro
+    depends_on:
+      - server
+
+  caddy-tls-internal:
+    image: caddy:2
+    restart: unless-stopped
+    profiles:
+      - tls-internal
+    environment:
+      COLP_SERVER_ORIGIN: ${COLP_SERVER_ORIGIN}
+    ports:
+      - "443:443"
+    volumes:
+      - ./Caddyfile.tls-internal:/etc/caddy/Caddyfile
+      - caddy-data:/data
+      - caddy-config:/config
+      - colp-web:/srv/web:ro
+    depends_on:
+      - server
+
+  caddy-http:
+    image: caddy:2
+    restart: unless-stopped
+    profiles:
+      - http
+    ports:
+      - "${COLP_HTTP_PORT:-8080}:80"
+    volumes:
+      - ./Caddyfile.http:/etc/caddy/Caddyfile
+      - caddy-data:/data
+      - caddy-config:/config
+      - colp-web:/srv/web:ro
+    depends_on:
+      - server
+
+volumes:
+  colp-db:
+  caddy-data:
+  caddy-config:
+  colp-web:
