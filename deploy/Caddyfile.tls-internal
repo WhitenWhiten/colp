@@ -1,0 +1,5 @@
+{$COLP_SERVER_ORIGIN} {
+  tls internal
+  encode gzip
+  reverse_proxy server:3000
+}
