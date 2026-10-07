@@ -25,6 +25,7 @@ import type {
   PushTransactionRequest,
   PushTransactionResult,
 } from './push-transaction.js';
+import type { PushReplicaOwnershipVerifier } from './push-ownership.js';
 import type {
   SyncPullCoordinatorResult,
   SyncPullCursorStore,
@@ -68,6 +69,8 @@ export interface PushSyncHostConfig {
   readonly session: VerifiedSyncSession;
   /** Durable principal → Replica binding used by the lifecycle façade. */
   readonly ownershipVerifier?: ReplicaLifecycleOwnershipVerifier;
+  /** Required when calling push; verifies every Replica before receipt/claim lookup. */
+  readonly pushOwnershipVerifier?: PushReplicaOwnershipVerifier;
 }
 
 export type SyncHostConfig = SequenceSyncHostConfig | PushSyncHostConfig;
@@ -187,8 +190,9 @@ export function createSyncHost(config: SyncHostConfig): SequenceSyncHost | PushS
     });
   }
 
+  const pushOwnershipVerifier = config.pushOwnershipVerifier;
   const push: PushSyncHost['push'] = (unitOfWork, request, preflight) =>
-    coordinateSessionBoundPush(gate, unitOfWork, request, preflight);
+    coordinateSessionBoundPush(gate, unitOfWork, request, preflight, pushOwnershipVerifier);
   return Object.freeze({
     owner: 'push' as const,
     session: config.session,

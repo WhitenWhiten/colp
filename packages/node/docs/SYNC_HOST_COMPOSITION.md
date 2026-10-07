@@ -58,6 +58,7 @@ import {
   createSyncHost,
   requireVerifiedSyncSession,
   type PushSyncHost,
+  type PushReplicaOwnershipVerifier,
   type SyncSessionStore,
   type VerifySyncSessionContextInput,
 } from '@collection-protocol/node/sync';
@@ -65,10 +66,11 @@ import {
 export async function withSyncPushRequest<Result>(
   store: SyncSessionStore,
   input: VerifySyncSessionContextInput,
+  pushOwnershipVerifier: PushReplicaOwnershipVerifier,
   handle: (host: PushSyncHost) => Promise<Result>,
 ): Promise<Result> {
   const session = await requireVerifiedSyncSession(store, input);
-  const host = createSyncHost({ owner: 'push', session });
+  const host = createSyncHost({ owner: 'push', session, pushOwnershipVerifier });
   return handle(host);
 }
 ```
@@ -108,7 +110,7 @@ import {
 } from '@collection-protocol/node/sync';
 
 const session = await requireVerifiedSyncSession(sessionStore, verificationInput);
-const host = createSyncHost({ owner: 'push', session });
+const host = createSyncHost({ owner: 'push', session, pushOwnershipVerifier });
 const preflight = createTypedUpdateMergePushPreflight({
   loadCurrent: async (operation) => /* server projection for operation.targetId */,
   planMerged: async ({ merged, operation, item }) => /* applied/rebased plan using merged */,
@@ -125,6 +127,17 @@ const request = {
 
 await host.push(unitOfWork, request, preflight);
 ```
+
+`pushOwnershipVerifier(session, { replicaId, collectionId })` must consult the
+host's durable principal/tenant/credential-to-Replica binding and return `true`
+only for an authorized Replica. Every distinct Replica is checked before any
+receipt lookup, claim, audit or batch write, including exact receipt replays.
+Missing evidence denies Push; `false` denies ownership and malformed evidence
+is an adapter error. Checks only in `preflight` cannot protect replays, which
+skip that callback. The lifecycle `ownershipVerifier` remains separate.
+Direct `coordinateSessionBoundPush` callers supply `pushOwnershipVerifier` on
+the Session gate or pass it as the fifth argument. Hosts that previously relied
+on route checks must wire that verifier explicitly before calling Push.
 
 - `base` / `incoming` come from `operation.payload.base` / `operation.payload.value` (after SYNC-0016 assert).
 - `current` is host-loaded server state.

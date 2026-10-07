@@ -465,7 +465,7 @@ describe(`Push batchId ↔ Session binding (session-bound path) ${evidence}`, ()
       const preflight = vi.fn(async () => appliedPlan(1));
 
       await expect(coordinateSessionBoundPush(
-        { kind: 'verified', session },
+        { pushOwnershipVerifier: () => true, kind: 'verified', session },
         unitOfWork,
         pushRequest(input.sessionId),
         preflight,
@@ -484,7 +484,7 @@ describe(`Push batchId ↔ Session binding (session-bound path) ${evidence}`, ()
       const batchId = bindSyncPushBatchId(input.sessionId, 'push-1');
 
       const outcome = await coordinateSessionBoundPush(
-        { kind: 'verified', session },
+        { pushOwnershipVerifier: () => true, kind: 'verified', session },
         unitOfWork,
         pushRequest(batchId),
         async () => appliedPlan(1),
@@ -503,7 +503,7 @@ describe(`Push batchId ↔ Session binding (session-bound path) ${evidence}`, ()
         const preflight = vi.fn(async () => appliedPlan(1));
 
         await expect(coordinateSessionBoundPush(
-          { kind: 'verified', session },
+          { pushOwnershipVerifier: () => true, kind: 'verified', session },
           unitOfWork,
           pushRequest(batchId),
           preflight,
@@ -523,7 +523,7 @@ describe(`Push batchId ↔ Session binding (session-bound path) ${evidence}`, ()
       const preflight = vi.fn(async () => appliedPlan(1));
 
       await expect(coordinateSessionBoundPush(
-        { kind: 'verified', session },
+        { pushOwnershipVerifier: () => true, kind: 'verified', session },
         unitOfWork,
         pushRequest('batch-unrelated'),
         preflight,
@@ -545,7 +545,7 @@ describe(`Push batchId ↔ Session binding (session-bound path) ${evidence}`, ()
       const preflight = vi.fn(async () => appliedPlan(1));
 
       await expect(coordinateSessionBoundPush(
-        { kind: 'verified', session },
+        { pushOwnershipVerifier: () => true, kind: 'verified', session },
         unitOfWork,
         pushRequest('session-10'),
         preflight,
@@ -568,7 +568,7 @@ describe(`Push batchId ↔ Session binding (session-bound path) ${evidence}`, ()
 
       // Unbound batch fails closed after durable Session verify succeeds.
       await expect(coordinateSessionBoundPush(
-        { kind: 'verify', store, input: verification(input) },
+        { pushOwnershipVerifier: () => true, kind: 'verify', store, input: verification(input) },
         unitOfWork,
         pushRequest('free-form-batch'),
         preflight,

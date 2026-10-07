@@ -55,6 +55,8 @@ export const SYNC_HOST_COMPOSITION_RECIPE = Object.freeze({
     'Gate every mutating Sync path with verifySyncSessionContext / requireVerifiedSyncSession, then createSyncHost({ owner, session }). coordinateSessionBoundPush | coordinateSessionBoundPull | coordinateSessionBoundSequence remain the primitives the host wraps.',
   exclusiveWriteOwner:
     'Choose exactly one opId reservation owner per write path via createSyncHost({ owner: "sequence" }) OR createSyncHost({ owner: "push" }). Never nest coordinateSequenceOperation and coordinatePushTransaction; there is no dual-owner sequenced-push facade.',
+  pushReplicaOwnership:
+    'Configure pushOwnershipVerifier to check the durable Session principal/tenant/credential to Replica binding. Push requires true for every Replica before any receipt/claim access, including replays. Checks only in preflight or lifecycle ownershipVerifier are insufficient.',
   pullAfterSession:
     'Call host.pull or coordinateSessionBoundPull for Pull; Pull does not own opId reservation. Bare coordinateSyncPull is ./sync/unsafe only.',
   typedUpdateMergeInPreflight:

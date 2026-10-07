@@ -69,6 +69,7 @@ import {
 } from './session.js';
 import type { ScopeName } from '../types/index.js';
 import { requirePromise } from './internal-guards.js';
+import { assertPushReplicaOwnership, type PushReplicaOwnershipVerifier } from './push-ownership.js';
 
 export type {
   SyncSessionGateDenial,
@@ -89,12 +90,14 @@ export type SessionBoundVerifyInput =
       readonly input: VerifySyncSessionContextInput;
       /** Optional lifecycle-only ownership verifier for direct composition. */
       readonly ownershipVerifier?: ReplicaLifecycleOwnershipVerifier;
+      readonly pushOwnershipVerifier?: PushReplicaOwnershipVerifier;
     }
   | {
       readonly kind: 'verified';
       readonly session: VerifiedSyncSession;
       /** Optional lifecycle-only ownership verifier for direct composition. */
       readonly ownershipVerifier?: ReplicaLifecycleOwnershipVerifier;
+      readonly pushOwnershipVerifier?: PushReplicaOwnershipVerifier;
     };
 
 async function resolveVerifiedSession(gate: SessionBoundVerifyInput): Promise<VerifiedSyncSession> {
@@ -417,7 +420,8 @@ export function assertSyncPushBatchBoundToSession(
 /**
  * Session-bound Push: verify Session (unless already branded), require
  * `sync:push`, assert `request.batchId` is bound to the verified Session, then
- * call `coordinatePushTransaction`.
+ * prove each Replica's ownership before any receipt or claim lookup and call
+ * `coordinatePushTransaction`. Missing ownership evidence denies the request.
  *
  * Does **not** run Sequence continuity. Hosts that need gap/blocked semantics
  * must use Sequence as the sole opId owner for that path instead of Push.
@@ -438,6 +442,7 @@ export async function coordinateSessionBoundPush<
     & PushOperationIdOwner,
   candidateRequest: PushTransactionRequest,
   preflight: PurePushPreflight<Transaction, Conflict, Audit, Outbox>,
+  ownershipVerifier?: PushReplicaOwnershipVerifier,
 ): Promise<{ readonly session: VerifiedSyncSession; readonly result: PushTransactionResult }> {
   const session = await resolveVerifiedSession(gate);
   assertSessionScope(session, 'sync:push');
@@ -450,6 +455,10 @@ export async function coordinateSessionBoundPush<
       state: 'request_binding_mismatch',
       detail: 'Every Push Operation and Sequence lane must match the verified Collection Session.',
     });
+  }
+  for (const replicaId of new Set(request.operations.map((item) => item.operation.replicaId))) {
+    await assertPushReplicaOwnership(ownershipVerifier ?? gate.pushOwnershipVerifier, session,
+      { replicaId, collectionId: session.collectionId });
   }
   const result = await coordinatePushTransaction(unitOfWork, request, preflight);
   return Object.freeze({ session, result });

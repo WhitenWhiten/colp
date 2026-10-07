@@ -135,7 +135,7 @@ describe('typed patch projection through the production host [C01]', () => {
   it.each([true, false].flatMap(atomic => [undefined, null, 'remote'].map(description => ({ atomic, description }))))(
     'preserves optional fields across two updates: $atomic / $description', async ({ atomic, description }) => {
       const session = await mintVerified();
-      const host = createSyncHost({ owner: 'push', session });
+      const host = createSyncHost({ owner: 'push', session, pushOwnershipVerifier: () => true });
       const adapter = new DurableContractHandle();
       const initial = { title: 'old', serverOnly: 'preserved', ...(description === undefined ? {} : { description }) };
       const current = () => adapter.backend.state.business.length === 0
@@ -246,7 +246,7 @@ describe(`production Sync host façade ${evidence}`, () => {
 
   it(`returns a push host that cannot dispatch Sequence ${evidence}`, async () => {
     const session = await mintVerified();
-    const host = createSyncHost({ owner: 'push', session });
+    const host = createSyncHost({ owner: 'push', session, pushOwnershipVerifier: () => true });
     expect(host.owner).toBe('push');
     expect('sequence' in host).toBe(false);
     expect(typeof host.push).toBe('function');
@@ -265,7 +265,7 @@ describe(`production Sync host façade ${evidence}`, () => {
 
   it(`fail-closes Push writes when batchId is not bound to the Session ${evidence}`, async () => {
     const session = await mintVerified();
-    const host = createSyncHost({ owner: 'push', session });
+    const host = createSyncHost({ owner: 'push', session, pushOwnershipVerifier: () => true });
     await expect(host.push(
       unusedPushUnitOfWork,
       pushRequest('unrelated-batch'),

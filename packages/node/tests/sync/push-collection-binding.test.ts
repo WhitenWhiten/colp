@@ -6,7 +6,7 @@ async function host() {
   const binding = { principal: { type: 'user' as const, id: 'alice' }, credential: { kind: 'token' as const, id: 'key-1' }, oauthClientId: null, origin: null, sessionScope: 'collection' as const, protocolVersion: '0.1' as const, collectionId: 'collection-1', purpose: null };
   const record = { ...binding, status: 'active' as const, sessionId: 'session-1', authorizationScopes: ['sync:push' as const] };
   const session = await requireVerifiedSyncSession({ load: async () => structuredClone(record), create: async () => { throw Error('unused'); }, terminate: async () => { throw Error('unused'); } }, { sessionId: record.sessionId, binding, authorization: { credentialActive: true, authorizationScopes: record.authorizationScopes }, terminatedAt: '2026-09-25T00:00:00Z' });
-  return createSyncHost({ owner: 'push', session });
+  return createSyncHost({ owner: 'push', session, pushOwnershipVerifier: () => true });
 }
 
 describe('Push Collection binding [evidence:sync.composition]', () => {

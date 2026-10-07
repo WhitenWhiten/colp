@@ -66,7 +66,7 @@ function preflight(status: 'applied' | 'deferred', seen: Array<PushPreflightCont
 async function setup() {
   const session = await verifiedSession('session-1', { authorizationScopes: ['sync:pull', 'sync:push'] });
   const db = new LaneSerializedDatabase();
-  const host = createSyncHost({ owner: 'push', session });
+  const host = createSyncHost({ owner: 'push', session, pushOwnershipVerifier: () => true });
   const push = (candidate: PushTransactionRequest, plan: ReturnType<typeof preflight>) =>
     host.push(new LaneSerializedUnitOfWork(db), candidate, plan).then(({ result }) => result);
   return { db, push, sessionId: session.sessionId };

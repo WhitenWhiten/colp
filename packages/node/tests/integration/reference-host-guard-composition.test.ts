@@ -340,7 +340,7 @@ async function hostPush(options: {
     return appliedPlan();
   });
   await coordinateSessionBoundPush(
-    { kind: 'verify', store: options.store, input: verification(options.sessionInput) },
+    { pushOwnershipVerifier: () => true, kind: 'verify', store: options.store, input: verification(options.sessionInput) },
     options.unitOfWork,
     pushRequest(batchId),
     preflight,
@@ -447,7 +447,7 @@ describe(`reference host guard composition ${evidence}`, () => {
     order.push('rate-limit.allowed');
 
     await expect(coordinateSessionBoundPush(
-      {
+      { pushOwnershipVerifier: () => true,
         kind: 'verify',
         store,
         input: verification(input, {

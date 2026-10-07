@@ -555,7 +555,7 @@ describe(`Sync composition & export layering ${evidence}`, () => {
 
       // Binding mismatch is a durable verify failure (not an input TypeError).
       await expect(coordinateSessionBoundPush(
-        {
+        { pushOwnershipVerifier: () => true,
           kind: 'verify',
           store,
           input: verification(input, {
@@ -583,7 +583,7 @@ describe(`Sync composition & export layering ${evidence}`, () => {
       const preflight = vi.fn(async () => appliedPlan(1));
 
       await expect(coordinateSessionBoundPush(
-        { kind: 'verify', store, input: verification(input) },
+        { pushOwnershipVerifier: () => true, kind: 'verify', store, input: verification(input) },
         unitOfWork,
         pushRequest(),
         preflight,
@@ -616,7 +616,7 @@ describe(`Sync composition & export layering ${evidence}`, () => {
       const preflight = vi.fn(async () => appliedPlan(1));
 
       await expect(coordinateSessionBoundPush(
-        { kind: 'verify', store, input: verification(collectionInput()) },
+        { pushOwnershipVerifier: () => true, kind: 'verify', store, input: verification(collectionInput()) },
         unitOfWork,
         pushRequest(),
         preflight,
@@ -636,7 +636,7 @@ describe(`Sync composition & export layering ${evidence}`, () => {
       const preflight = vi.fn(async () => appliedPlan(1));
 
       await expect(coordinateSessionBoundPush(
-        { kind: 'verify', store, input: verification(input) },
+        { pushOwnershipVerifier: () => true, kind: 'verify', store, input: verification(input) },
         unitOfWork,
         pushRequest(),
         preflight,
@@ -655,7 +655,7 @@ describe(`Sync composition & export layering ${evidence}`, () => {
       const unitOfWork = new TrackingPushUnitOfWork();
       const batchId = bindSyncPushBatchId(input.sessionId, 'batch-1');
       const outcome = await coordinateSessionBoundPush(
-        { kind: 'verify', store, input: verification(input) },
+        { pushOwnershipVerifier: () => true, kind: 'verify', store, input: verification(input) },
         unitOfWork,
         pushRequest(batchId),
         async () => appliedPlan(1),
@@ -679,7 +679,7 @@ describe(`Sync composition & export layering ${evidence}`, () => {
       const preflight = vi.fn(async () => appliedPlan(1));
 
       await expect(coordinateSessionBoundPush(
-        { kind: 'verified', session: verified },
+        { pushOwnershipVerifier: () => true, kind: 'verified', session: verified },
         unitOfWork,
         pushRequest(),
         preflight,
@@ -698,7 +698,7 @@ describe(`Sync composition & export layering ${evidence}`, () => {
       const preflight = vi.fn(async () => appliedPlan(1));
 
       await expect(coordinateSessionBoundPush(
-        { kind: 'verify', store, input: verification(input) },
+        { pushOwnershipVerifier: () => true, kind: 'verify', store, input: verification(input) },
         unitOfWork,
         pushRequest('batch-unbound'),
         preflight,

@@ -76,7 +76,7 @@ function appliedPreflight(calls: string[], options: PreflightOptions = {}) {
 
 async function pushHost(sessionId = 'session-1') {
   const session = await verifiedSession(sessionId, { authorizationScopes: ['sync:pull', 'sync:push'] });
-  return { host: createSyncHost({ owner: 'push', session }), sessionId };
+  return { host: createSyncHost({ owner: 'push', session, pushOwnershipVerifier: () => true }), sessionId };
 }
 
 function withTimeout<Value>(promise: Promise<Value>, label: string): Promise<Value> {

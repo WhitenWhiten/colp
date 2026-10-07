@@ -795,7 +795,7 @@ describe(`Sync host composition recipe ${evidence}`, () => {
       });
 
       await expect(coordinateSessionBoundPush(
-        { kind: 'verify', store, input: verification(input) },
+        { pushOwnershipVerifier: () => true, kind: 'verify', store, input: verification(input) },
         unitOfWork,
         pushRequestFrom(item),
         wrapped,
@@ -825,7 +825,7 @@ describe(`Sync host composition recipe ${evidence}`, () => {
       const preflight = vi.fn(createTypedUpdateMergePushPreflight(handlers));
 
       await expect(coordinateSessionBoundPush(
-        {
+        { pushOwnershipVerifier: () => true,
           kind: 'verify',
           store,
           input: verification(input, {
@@ -866,7 +866,7 @@ describe(`Sync host composition recipe ${evidence}`, () => {
       const unitOfWork = new TrackingPushUnitOfWork();
 
       const outcome = await coordinateSessionBoundPush(
-        { kind: 'verify', store, input: verification(input) },
+        { pushOwnershipVerifier: () => true, kind: 'verify', store, input: verification(input) },
         unitOfWork,
         pushRequestFrom(item),
         createTypedUpdateMergePushPreflight(handlers),
@@ -907,7 +907,7 @@ describe(`Sync host composition recipe ${evidence}`, () => {
       const unitOfWork = new TrackingPushUnitOfWork();
 
       const outcome = await coordinateSessionBoundPush(
-        { kind: 'verify', store, input: verification(input) },
+        { pushOwnershipVerifier: () => true, kind: 'verify', store, input: verification(input) },
         unitOfWork,
         pushRequestFrom(item),
         createTypedUpdateMergePushPreflight(handlers),

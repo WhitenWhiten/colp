@@ -59,7 +59,7 @@ function applied(calls: string[]) {
 async function setup() {
   const session = await verifiedSession('session-1', { authorizationScopes: ['sync:pull', 'sync:push'] });
   const db = new LaneSerializedDatabase();
-  const host = createSyncHost({ owner: 'push', session });
+  const host = createSyncHost({ owner: 'push', session, pushOwnershipVerifier: () => true });
   const push = (request: PushTransactionRequest, calls: string[] = []) =>
     host.push(new LaneSerializedUnitOfWork(db), request, applied(calls)).then(({ result }) => result);
   return { db, push, sessionId: session.sessionId };
