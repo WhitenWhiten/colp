@@ -29,10 +29,16 @@ export const PHASE4B_MCP_NODE_RESOURCE_CACHE_TTL_MS = PHASE4B_MCP_PUBLIC_READ_CA
 
 const NODE_READ_LIMIT = 2;
 
+export type McpNodeLinkHealth = 'pending' | 'healthy' | 'redirect' | 'broken';
+
 export interface Phase4bMcpNodeResourceProjectionOptions {
   readonly config: McpReadFeatureConfig;
   readonly snapshotQuery: PublicationSnapshotQueryPorts;
   readonly now?: () => Date;
+  readonly readLinkHealth?: (
+    collectionId: string,
+    nodeId: string,
+  ) => Promise<McpNodeLinkHealth | null>;
 }
 
 export type Phase4bMcpNodeResourceContentProjection = Readonly<{
@@ -61,6 +67,7 @@ interface ProjectionState {
   readonly config: McpReadFeatureConfig;
   readonly snapshotQuery: PublicationSnapshotQueryPorts;
   readonly now: () => Date;
+  readonly readLinkHealth?: Phase4bMcpNodeResourceProjectionOptions['readLinkHealth'];
 }
 
 /**
@@ -87,10 +94,15 @@ export function createPhase4bMcpNodeResourceProjection(
   if (typeof now !== 'function') throw projectionConfigError();
   if (!isRecord(config) || !isRecord(snapshotQuery)) throw projectionConfigError();
 
+  const readLinkHealth = readOptionalData(options, 'readLinkHealth');
+  if (readLinkHealth !== undefined && typeof readLinkHealth !== 'function') throw projectionConfigError();
   const state: ProjectionState = Object.freeze({
     config,
     snapshotQuery,
     now,
+    ...(typeof readLinkHealth === 'function'
+      ? { readLinkHealth: readLinkHealth as NonNullable<ProjectionState['readLinkHealth']> }
+      : {}),
   });
 
   return Object.freeze({
@@ -124,11 +136,16 @@ async function projectRead(
   ) {
     throw new McpResourceNotFoundError();
   }
-  const core = projectCoreNode(result.snapshot.nodes[0]!);
+  const node = result.snapshot.nodes[0]!;
+  const core = projectCoreNode(node);
   validateNode(core);
+  const linkHealth = state.readLinkHealth
+    ? await state.readLinkHealth(node.collectionId, node.id)
+    : null;
+  const payload = attachNodeLinkHealth(core, linkHealth ?? null);
   let text: string;
   try {
-    text = serializeMcpIJson(core);
+    text = serializeMcpIJson(payload);
   } catch {
     throw new McpReadRequestContextError();
   }
@@ -197,6 +214,13 @@ async function loadNodePage(
     }
     throw error;
   }
+}
+
+export function attachNodeLinkHealth(
+  core: Readonly<Record<string, unknown>>,
+  status: McpNodeLinkHealth | null,
+): Readonly<Record<string, unknown>> {
+  return status === null ? core : { ...core, linkHealth: status };
 }
 
 function projectCoreNode(node: SnapshotNode): Readonly<Record<string, unknown>> {

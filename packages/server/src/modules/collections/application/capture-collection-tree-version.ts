@@ -5,6 +5,7 @@ export const COLLECTION_TREE_VERSION_FIFO_LIMIT = 50;
 export const COLLECTION_VERSION_CHANGES_LIMIT = 50;
 
 export type CollectionTreeVersionKind = 'manual' | 'pre_restore' | 'pre_mutation';
+export type CollectionVersionCause = 'web' | 'sync' | 'agent-plan' | 'restore' | 'undo';
 
 export class CollectionVersionNotFoundError extends Error {
   readonly code = 'resource_not_found' as const;
@@ -56,6 +57,7 @@ export interface CollectionVersionRecord {
   readonly collectionId: string;
   readonly contentRevision: string;
   readonly kind: CollectionTreeVersionKind;
+  readonly cause: CollectionVersionCause;
   readonly label: string;
   readonly etag: string;
   readonly nodeCount: number;
@@ -132,6 +134,7 @@ export interface CaptureCollectionTreeVersionInput {
   readonly accountId: string;
   readonly collection: CollectionVersionLockedCollection;
   readonly kind: CollectionTreeVersionKind;
+  readonly cause?: CollectionVersionCause;
   readonly label?: string;
   readonly restoringVersionId?: string;
 }
@@ -367,6 +370,7 @@ export async function captureCollectionTreeVersion(
     collectionId: input.collection.collectionId,
     contentRevision: input.collection.contentRevision,
     kind: input.kind,
+    cause: input.cause ?? 'web',
     label,
     etag: strongEntityTag(versionId),
     nodeCount: treeJson.length,

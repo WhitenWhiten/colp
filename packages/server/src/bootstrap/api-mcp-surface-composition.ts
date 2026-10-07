@@ -146,6 +146,14 @@ export async function composeApiMcpSurface(input: {
         config: config.mcp,
         snapshotQuery: publicationSnapshotQuery,
         now: () => new Date(),
+        readLinkHealth: async (collectionId, nodeId) => {
+          const row = await database.db.selectFrom('collection_link_health')
+            .select('status')
+            .where('collection_id', '=', collectionId)
+            .where('node_id', '=', nodeId)
+            .executeTakeFirst();
+          return row?.status ?? null;
+        },
       })
     : undefined;
   const mcpOwnedCollectionRead = config.mcp

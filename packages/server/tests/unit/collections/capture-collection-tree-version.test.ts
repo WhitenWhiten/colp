@@ -115,6 +115,38 @@ test('childIds follow editor positionToken then id, not loadLiveTree array order
   assert.equal(compareEditorSiblingOrder(early, late) < 0, true);
 });
 
+test('a sync capture stores cause sync and a web capture stores cause web', async () => {
+  const versions = memoryStore({ members: [] });
+  const sync = await captureCollectionTreeVersion({
+    versions,
+    clock: { now: () => NOW },
+    ids: { nextVersionId: () => 'ver-sync' },
+  }, {
+    accountId: ACCOUNT,
+    collection: {
+      collectionId: COL, ownerSubjectId: OWNER, contentRevision: 'rev-sync', rootNodeId: ROOT,
+    },
+    kind: 'pre_mutation',
+    cause: 'sync',
+  });
+  assert.equal(sync.kind, 'inserted');
+  assert.equal(sync.record.cause, 'sync');
+
+  const web = await captureCollectionTreeVersion({
+    versions,
+    clock: { now: () => NOW },
+    ids: { nextVersionId: () => 'ver-web' },
+  }, {
+    accountId: ACCOUNT,
+    collection: {
+      collectionId: COL, ownerSubjectId: OWNER, contentRevision: 'rev-web', rootNodeId: ROOT,
+    },
+    kind: 'manual',
+  });
+  assert.equal(web.kind, 'inserted');
+  assert.equal(web.record.cause, 'web');
+});
+
 test('empty tree is a legal snapshot with nodeCount 0', async () => {
   const versions = memoryStore({ members: [] });
   const result = await captureCollectionTreeVersion({

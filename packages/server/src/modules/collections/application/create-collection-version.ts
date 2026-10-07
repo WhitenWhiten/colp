@@ -43,6 +43,7 @@ export interface CollectionVersionDto {
   readonly collectionId: string;
   readonly contentRevision: string;
   readonly kind: CollectionVersionRecord['kind'];
+  readonly cause: CollectionVersionRecord['cause'];
   readonly label: string;
   readonly nodeCount: number;
   readonly createdAt: string;
@@ -73,6 +74,7 @@ export interface CreateCollectionVersionInput {
   readonly collectionId: string;
   readonly ifMatch: string;
   readonly label?: string;
+  readonly cause?: CollectionVersionRecord['cause'];
 }
 
 export type CreateCollectionVersionResult =
@@ -122,6 +124,7 @@ export function toCollectionVersionDto(
     collectionId: record.collectionId,
     contentRevision: record.contentRevision,
     kind: record.kind,
+    cause: record.cause,
     label: record.label,
     nodeCount: record.nodeCount,
     createdAt: formatUtcDateTime(record.createdAt),
@@ -192,6 +195,7 @@ export async function createCollectionVersion(
       accountId: input.actor.principalId,
       collection,
       kind: 'manual',
+      cause: input.cause ?? 'web',
       label: input.label,
     });
     const status = captured.kind === 'existing' ? 200 : 201;

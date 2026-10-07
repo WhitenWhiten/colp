@@ -306,6 +306,7 @@ async function capturePreRestore(
       accountId,
       collection,
       kind: 'pre_restore',
+      cause: 'restore',
       label: 'Before restore',
       restoringVersionId: target.versionId,
     });

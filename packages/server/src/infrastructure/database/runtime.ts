@@ -484,6 +484,7 @@ export interface CollectionTreeVersionTable {
   collection_id: string;
   content_revision: string;
   kind: 'manual' | 'pre_restore' | 'pre_mutation';
+  cause: 'web' | 'sync' | 'agent-plan' | 'restore' | 'undo';
   label: string;
   etag: string;
   node_count: number;

@@ -89,6 +89,7 @@ export function registerCollectionVersionRoutes(
           collectionId,
           ifMatch,
           label: readLabel(request.body),
+          cause: 'web',
         }), { signal }));
       if (outcome.kind !== 'succeeded') return sendProductCommandReceiptOutcome(reply, outcome);
       return sendVersion(reply, outcome.status, outcome.version, collectionId);
