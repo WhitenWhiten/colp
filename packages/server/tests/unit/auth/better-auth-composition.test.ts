@@ -181,7 +181,9 @@ describe('enabled mode: allowlist-only mounting with the real handler', () => {
       BETTER_AUTH_ALLOWLIST.map((entry) => `${entry.method} ${entry.path}`),
       [
         'POST /sign-up/email',
+        'GET /registration-state',
         'POST /sign-in/email',
+        'POST /sign-in/username',
         'GET /get-session',
         'POST /sign-out',
         'POST /revoke-session',

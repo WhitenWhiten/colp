@@ -70,7 +70,9 @@ describe('auth-route-manifest: single source for OpenAPI/rate-limit/registration
       registered.map((entry) => `${entry.method} ${entry.path}`),
       [
         'POST /api/v1/auth/sign-up/email',
+        'GET /api/v1/auth/registration-state',
         'POST /api/v1/auth/sign-in/email',
+        'POST /api/v1/auth/sign-in/username',
         'GET /api/v1/auth/get-session',
         'POST /api/v1/auth/sign-out',
         'POST /api/v1/auth/revoke-session',
@@ -113,7 +115,9 @@ describe('auth-route-manifest: single source for OpenAPI/rate-limit/registration
     );
     const expectedFamily: Readonly<Record<string, 'sign-up' | 'sign-in' | 'session' | 'otp' | 'reset' | 'oauth-callback' | 'oauth-authorize' | 'oauth-register' | 'oauth-token'>> = {
       '/api/v1/auth/sign-up/email': 'sign-up',
+      '/api/v1/auth/registration-state': 'sign-up',
       '/api/v1/auth/sign-in/email': 'sign-in',
+      '/api/v1/auth/sign-in/username': 'sign-in',
       '/api/v1/auth/sign-in/social': 'sign-in',
       '/api/v1/auth/sign-in/oauth2': 'sign-in',
       '/api/v1/auth/callback/:providerId': 'oauth-callback',

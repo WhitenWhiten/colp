@@ -429,13 +429,18 @@ function isExpired(metadata: BrowserSessionMetadataRow, now: Date): boolean {
  * Optionally slides idle expiry. Invalid authority throws; expired sessions
  * return null after recording revocation so the transaction commits (G1 §14).
  */
+/** Self-hosted sign-up does not verify email. The column stays false; the mapped session is still an actor. */
+function unverifiedSessionBlocksProductActor(): boolean {
+  return process.env.KNOWN_EDITION !== 'self-hosted';
+}
+
 async function loadUsableActor(
   ports: BrowserSessionAuthorityPorts,
   metadata: BrowserSessionMetadataRow,
   baSession: BetterAuthSessionRecord,
   options: { readonly touch: boolean; readonly idleTtlMs: number; readonly touchMinIntervalMs: number },
 ): Promise<AuthenticatedBrowserActor | null> {
-  if (baSession.emailVerified === false) throw verificationRequired();
+  if (baSession.emailVerified === false && unverifiedSessionBlocksProductActor()) throw verificationRequired();
   if (metadata.revokedAt !== null) throw authenticationRequired();
   const now = await ports.clock.now();
   if (isExpired(metadata, now)) {
@@ -618,7 +623,7 @@ export function createBrowserSessionAuthority(
     // Authoritative carrier check (cookie signature + BA session row).
     const baSession = await betterAuth.getSession(request);
     if (!baSession || baSession.token !== token) return { kind: 'missing' };
-    if (baSession.emailVerified === false) return { kind: 'occupancy' };
+    if (baSession.emailVerified === false && unverifiedSessionBlocksProductActor()) return { kind: 'occupancy' };
 
     try {
       const actor = await unitOfWork.execute(async (ports) => {
@@ -671,7 +676,7 @@ export function createBrowserSessionAuthority(
 
       const baSession = await betterAuth.getSession(request);
       if (!baSession || baSession.token !== token) return unauthenticatedBootstrap(false);
-      if (baSession.emailVerified === false) return unauthenticatedBootstrap(true);
+      if (baSession.emailVerified === false && unverifiedSessionBlocksProductActor()) return unauthenticatedBootstrap(true);
 
       try {
         return await unitOfWork.execute(async (ports) => {

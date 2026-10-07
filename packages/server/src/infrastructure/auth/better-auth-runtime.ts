@@ -4,9 +4,9 @@ import { createCimdClientDiscovery, type CimdOptions } from '@better-auth/cimd';
 import { mcp } from '@better-auth/mcp';
 import { extendOAuthProvider } from '@better-auth/oauth-provider';
 import { betterAuth, type BetterAuthOptions, type BetterAuthPlugin } from 'better-auth';
-import { APIError, createAuthMiddleware } from 'better-auth/api';
+import { APIError, createAuthEndpoint, createAuthMiddleware } from 'better-auth/api';
 import { expireCookie } from 'better-auth/cookies';
-import { emailOTP, jwt, twoFactor } from 'better-auth/plugins';
+import { emailOTP, jwt, twoFactor, username } from 'better-auth/plugins';
 import type { Kysely } from 'kysely';
 import {
   AUTH_OTP_MAX_ATTEMPTS,
@@ -123,6 +123,12 @@ export {
  * This file consumes the modules/auth facade ONLY (infrastructure:auth ->
  * module:auth:facade edge); its structural config mirror is pinned to the
  * module-layer BetterAuthConfig by the composition tests.
+ *
+ * G2: the username plugin is always on. `KNOWN_EDITION=self-hosted` turns
+ * email verification, email OTP, and two-factor off and lets sign-up omit
+ * email. A before hook on `/sign-up/*` returns 403 `{ code: 'registration_closed' }`
+ * once `auth_users` has a row unless `COLP_MULTI_USER=true`.
+ * `GET /registration-state` is first-run or closed; multi-user does not open it.
  */
 /** Frozen Better Auth table names (G1 §3; spike §4.2; B1 lands the schema). */
 const BETTER_AUTH_MODEL_NAMES = Object.freeze({
@@ -157,6 +163,7 @@ const BETTER_AUTH_OAUTH_MODEL_NAMES = Object.freeze({
  */
 export function buildBetterAuthOptions<DB>(input: BetterAuthRuntimeInput<DB>): BetterAuthOptions {
   const { config } = input;
+  const selfHosted = isSelfHostedEdition();
   const emailDelivery = buildAuthEmailDelivery({
     authEmail: input.authEmail,
     logger: input.logger,
@@ -252,7 +259,9 @@ export function buildBetterAuthOptions<DB>(input: BetterAuthRuntimeInput<DB>): B
       // still creates the user + credential + sends mail (sendOnSignUp) but
       // skips auto sign-in; unverified password sign-in returns BA
       // EMAIL_NOT_VERIFIED (wire verification_required).
-      requireEmailVerification: true,
+      // G2 self-hosted: email is optional and unverified, so sign-up may
+      // create a session immediately.
+      requireEmailVerification: selfHosted ? false : true,
       // G1 §2 / spike §4.4: Argon2id hook (never the default scrypt).
       password: {
         hash: config.passwordHash.hash,
@@ -273,7 +282,8 @@ export function buildBetterAuthOptions<DB>(input: BetterAuthRuntimeInput<DB>): B
     emailVerification: {
       // C2: the verification email goes out at registration (plan §4.3.1.3)
       // and sign-in never re-sends it (no verification spam).
-      sendOnSignUp: true,
+      // Self-hosted sign-up does not send one (email may be absent).
+      sendOnSignUp: selfHosted ? false : true,
       sendOnSignIn: false,
       // P1: after the mailbox proof, mint a session so Congratulations +
       // Continue works. Library / mutations still refuse unverified occupancy.
@@ -302,7 +312,9 @@ export function buildBetterAuthOptions<DB>(input: BetterAuthRuntimeInput<DB>): B
         }
       : {}),
     plugins: [
-      ...(config.emailOtp
+      username({ displayUsername: false }),
+      colpRegistrationStatePlugin(),
+      ...(!selfHosted && config.emailOtp
         ? [
             emailOTP({
               otpLength: config.emailOtp.otpLength,
@@ -328,7 +340,7 @@ export function buildBetterAuthOptions<DB>(input: BetterAuthRuntimeInput<DB>): B
             }),
           ]
         : []),
-      ...(config.mfa
+      ...(!selfHosted && config.mfa
         ? [
             // C4: two-factor TOTP plugin (G0 §4/G1 contract). The library
             // contract stores the TOTP secret AND the backup codes encrypted
@@ -562,6 +574,49 @@ function headerValue(
   return typeof fromRequest === 'string' && fromRequest.length > 0 ? fromRequest : null;
 }
 
+function isSelfHostedEdition(): boolean {
+  return process.env.KNOWN_EDITION === 'self-hosted';
+}
+
+/** `COLP_MULTI_USER=true` is the only value that skips the single-owner gate. */
+function isColpMultiUser(): boolean {
+  return process.env.COLP_MULTI_USER === 'true';
+}
+
+/**
+ * Self-hosted sign-up may omit email. Better Auth's sign-up body still
+ * requires an email string, so a missing one is filled from the username
+ * before the endpoint schema runs. A supplied email is left unchanged.
+ */
+function fillSelfHostedOptionalSignupEmail(body: unknown): void {
+  if (!isSelfHostedEdition()) return;
+  if (body === null || typeof body !== 'object' || Array.isArray(body)) return;
+  const record = body as { email?: unknown; username?: unknown; name?: unknown };
+  if (typeof record.email === 'string' && record.email.trim().length > 0) return;
+  if (typeof record.username !== 'string' || record.username.trim().length === 0) return;
+  const normalized = record.username.trim().toLowerCase();
+  record.email = `${normalized}@users.invalid`;
+  if (typeof record.name !== 'string' || record.name.trim().length === 0) {
+    record.name = record.username.trim();
+  }
+}
+
+/** First-run page: open only while `auth_users` is empty. Invite is unused. */
+function colpRegistrationStatePlugin(): BetterAuthPlugin {
+  return {
+    id: 'colp-registration-state',
+    endpoints: {
+      getRegistrationState: createAuthEndpoint('/registration-state', {
+        method: 'GET',
+      }, async (ctx) => {
+        const existingUsers = await ctx.context.adapter.count({ model: 'user' });
+        if (existingUsers === 0) return { open: true, reason: 'first-run' as const };
+        return { open: false, reason: 'closed' as const };
+      }),
+    },
+  };
+}
+
 function buildProductAuthHooks(input: {
   readonly onPasswordChanged?: BetterAuthRuntimeInput<never>['onPasswordChanged'];
   readonly onOAuthOccupancyAdopted?: BetterAuthRuntimeInput<never>['onOAuthOccupancyAdopted'];
@@ -581,6 +636,18 @@ function buildProductAuthHooks(input: {
   };
   return {
     before: createAuthMiddleware(async (ctx) => {
+      if (typeof ctx.path === 'string' && ctx.path.startsWith('/sign-up/')) {
+        if (ctx.path === '/sign-up/email') fillSelfHostedOptionalSignupEmail(ctx.body);
+        if (!isColpMultiUser()) {
+          const existingUsers = await ctx.context.adapter.count({ model: 'user' });
+          if (existingUsers > 0) {
+            throw APIError.from('FORBIDDEN', {
+              code: 'registration_closed',
+              message: 'Registration is closed.',
+            });
+          }
+        }
+      }
       if (isOAuthCallbackPath(ctx.path)) {
         applyOAuthOccupancyAdoptToAdapter(ctx.context, input.onOAuthOccupancyAdopted);
       }

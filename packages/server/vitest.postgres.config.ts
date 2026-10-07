@@ -10,6 +10,7 @@ export default defineProject({
   },
   test: {
     name: 'postgres',
+    setupFiles: ['./tests/support/colp-multi-user-default.ts'],
     include: [...POSTGRES_INCLUDE],
     exclude: [...POSTGRES_EXCLUDE],
     fileParallelism: false,

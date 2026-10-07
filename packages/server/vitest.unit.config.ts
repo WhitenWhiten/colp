@@ -4,6 +4,7 @@ import { UNIT_EXCLUDE, UNIT_INCLUDE } from './vitest.workspace-projects.js';
 export default defineProject({
   test: {
     name: 'unit',
+    setupFiles: ['./tests/support/colp-multi-user-default.ts'],
     include: [...UNIT_INCLUDE],
     exclude: [...UNIT_EXCLUDE],
     maxWorkers: 4,
