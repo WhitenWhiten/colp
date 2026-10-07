@@ -1,5 +1,9 @@
 # 02. HTTP Publication and Feed Protocol
 
+> **In short:** How a server publishes Collections over plain HTTP, and how followers keep up. A client reads the Manifest, lists Collections in the directory, fetches metadata and a Snapshot that may be paginated, and uses ETags so it never downloads the same data twice. Feeds announce changes in `live` or `release` mode and can also be offered as JSON Feed 1.1 or Atom. The chapter also covers polling etiquette, static hosting, deletion, and moving a Collection to a new server.
+>
+> **Read this if** you serve published Collections or read them. **Profiles:** `publication`, `feed`.
+
 <a id="colp-section-1"></a>
 
 ## 1. Goals
@@ -96,7 +100,7 @@ Rules:
 - Clients must follow `endpoints` and the `links` in resource responses.
 - The `publisher` profile must declare `nodes`, `node`, `nodeMove`, `annotations`, `annotation`, `attachments`, `attachment`, `relations`, `relation`, `release`, `releases`, `releaseItem`, and `releaseSnapshot`.
 - `features.admin` is declared only when the HTTP management API is supported, together with the `adminAccess`, `adminKeys`, `adminKey`, `adminKeyRotate`, `adminRateLimits`, and `adminAudit` endpoints; when every flag would be `false`, the whole feature should be omitted.
-- `features.mcp.protocolVersion` is always `2026-07-28` (see `docs/05-mcp-profile.md`).
+- `features.mcp.protocolVersion` is always `2026-07-28` (see [`docs/05-mcp-profile.md`](05-mcp-profile.md)).
 
 <a id="colp-section-3"></a>
 
@@ -167,7 +171,7 @@ Rules:
 
 `GET /collections/c/{collectionId}` returns the public projection of a Collection and its links. `canonicalUrl` is the human-facing page; the API `self` link is a separate JSON resource.
 
-The response must validate against `collectionMetadata` and contain the complete Collection and its links, with no empty-object placeholders. See `examples/collection-metadata.json` for an executable example.
+The response must validate against `collectionMetadata` and contain the complete Collection and its links, with no empty-object placeholders. See [`examples/collection-metadata.json`](../examples/collection-metadata.json) for an executable example.
 
 The server SHOULD also send Link headers:
 
@@ -457,3 +461,7 @@ When a Collection moves to a new server:
 - The new server keeps the Collection ID or provides `formerIds`.
 - The Feed publishes a `collection.moved` extension event.
 - Consumers must guard against infinite redirects and cross-origin credential leaks; the `Authorization` header must not be forwarded automatically to an untrusted new origin.
+
+---
+
+[← 01 Core data model](01-core-data-model.md) · [All documents](../README.md#documents) · [Glossary](../GLOSSARY.md) · [03 Sync →](03-sync.md)

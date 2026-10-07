@@ -2,7 +2,7 @@
 
 ## Source of truth
 
-The sibling `The Collection Protocol` directory is normative. The package copies its JSON Schema, examples, and Requirement Registry through `scripts/sync-protocol-assets.mjs`; CI checks byte-for-byte equality. TypeScript declarations and traceability records are generated from the copied contracts.
+The repository's [`protocol/`](../../../protocol) directory is normative. The package copies its JSON Schema, examples, and Requirement Registry through `scripts/sync-protocol-assets.mjs`; CI checks byte-for-byte equality. TypeScript declarations and traceability records are generated from the copied contracts.
 
 Conditional JSON Schema constructs that generic generators cannot preserve are replaced in generated declarations with tested strict discriminated unions from `src/types/strict.ts`. Runtime validation remains governed by the canonical Schema.
 

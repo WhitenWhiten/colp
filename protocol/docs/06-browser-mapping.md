@@ -1,5 +1,9 @@
 # 06. Browser Bookmark Compatibility and Mapping
 
+> **In short:** How COLP maps onto real browsers: field-by-field mappings for Chromium, Firefox, Netscape bookmark HTML, and Safari; how special root folders such as the bookmarks bar are handled; which conversions lose information and how that loss is reported; and how to turn browser events into Sync operations without creating sync loops.
+>
+> **Read this if** you build a browser extension, an importer, or an exporter. **Profiles:** `sync`.
+
 <a id="colp-section-1"></a>
 
 ## 1. Compatibility Targets
@@ -256,7 +260,7 @@ Standard warning codes:
 - `timestamp_precision_changed`
 - `unknown_extension_preserved_remote_only`
 - `favicon_sidecar_only`
-- `lossy_conversion` (an extension was removed or degraded, see `docs/01-core-data-model.md` Section 10)
+- `lossy_conversion` (an extension was removed or degraded, see [`docs/01-core-data-model.md`](01-core-data-model.md#colp-section-10) Section 10)
 
 <a id="colp-section-8"></a>
 
@@ -320,13 +324,13 @@ When a folder is deleted recursively, some browsers emit only the folder deletio
 
 ### 11.1 Hosts Without `reorder_children`
 
-A host that has not implemented `reorder_children` rejects it with the non-retryable `422 unsupported_operation` (see `docs/03-sync.md` Section 6.3). An adapter that syncs with such a host does not upload `onChildrenReordered`: it updates its local projection and records a diagnostic, and it does not expand a reorder into a series of `move_node` operations. The authoritative sibling order stays the server `position` and children revision from pull.
+A host that has not implemented `reorder_children` rejects it with the non-retryable `422 unsupported_operation` (see [`docs/03-sync.md`](03-sync.md#colp-section-6-3) Section 6.3). An adapter that syncs with such a host does not upload `onChildrenReordered`: it updates its local projection and records a diagnostic, and it does not expand a reorder into a series of `move_node` operations. The authoritative sibling order stays the server `position` and children revision from pull.
 
 <a id="colp-section-11-2"></a>
 
 ### 11.2 Sync Scenarios and Problem Codes
 
-UIs and workers key off the codes in `09-problem-registry.md` and receipt reasons; they do not parse the English `title` or `detail` or exception text. New codes go through the registry; this table does not invent codes.
+UIs and workers key off the codes in [`09-problem-registry.md`](09-problem-registry.md) and receipt reasons; they do not parse the English `title` or `detail` or exception text. New codes go through the registry; this table does not invent codes.
 
 | Scenario | Code |
 |---|---|
@@ -338,7 +342,7 @@ UIs and workers key off the codes in `09-problem-registry.md` and receipt reason
 | Purged | `resource_purged` |
 | Read-only | `node_read_only` |
 
-On the wire, "parent not ready" is also the `deferred` receipt reason `dependency_pending` (`03-sync.md` Section 6); that reason is not a registry code.
+On the wire, "parent not ready" is also the `deferred` receipt reason `dependency_pending` ([`03-sync.md`](03-sync.md#colp-section-6) Section 6); that reason is not a registry code.
 
 `node_ancestry_unresolved` and `invalid_node_constraints` are the helper denials described in the registry notes; hosts use those spellings for mount-role uniqueness and ancestry preflight so that every consumer shares one code table.
 
@@ -352,3 +356,7 @@ Local-only signals (not wire codes): permission loss, the `root_role_materialize
 - When the corresponding browser event arrives later, it is marked as an `echo` and must not be uploaded again as a new operation.
 - When no direct association is possible, use a short-lived fingerprint: the Node ID map, a field digest, the parent, the index, and a time window.
 - A fingerprint can only be used for loop detection, never as a long-term identity.
+
+---
+
+[← 05 MCP profile](05-mcp-profile.md) · [All documents](../README.md#documents) · [Glossary](../GLOSSARY.md) · [07 NestJS integration →](07-nestjs-integration.md)

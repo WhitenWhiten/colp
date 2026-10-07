@@ -1,15 +1,19 @@
 # 10. Implementation Contract and Node Package Guide
 
+> **In short:** The bridge from prose to code: the order in which to read the specification, the order in which to deliver profiles, tables that name the request and response schema (`$defs`) of every endpoint, the step-by-step algorithm for assembling a paginated Snapshot, the rules for publication projections, the shape of the Node package, and the minimum a usable implementation must do.
+>
+> **Read this if** you are writing an implementation, an SDK, or a validator. **Profiles:** all.
+
 <a id="colp-section-1"></a>
 
 ## 1. Implementation Basis
 
 Implementers read the specification in this order:
 
-1. `docs/00-practical-profile.md`: profile dependencies and the scope of a first implementation.
-2. `schemas/collection-protocol.schema.json`: the machine contract for every core wire DTO.
+1. [`docs/00-practical-profile.md`](00-practical-profile.md): profile dependencies and the scope of a first implementation.
+2. [`schemas/collection-protocol.schema.json`](../schemas/collection-protocol.schema.json): the machine contract for every core wire DTO.
 3. The topic documents: HTTP behavior, the sync algorithm, and security or MCP adapter rules.
-4. `examples/*.json` and `scripts/validate_examples.py`: positive examples, semantic checks, and negative examples.
+4. [`examples/*.json`](../examples) and [`scripts/validate_examples.py`](../scripts/validate_examples.py): positive examples, semantic checks, and negative examples.
 
 If the prose and the schema disagree, the draft must fix the disagreement as a specification bug; implementers cannot pick one side. Profile conformance requires the structural schema, the semantic rules, and the HTTP behavior to pass together.
 
@@ -179,4 +183,8 @@ A usable Node implementation must at least:
 - Compute the canonical request digest from RFC 8785 and the normalized endpoint / query / media type.
 - Decode `application/problem+json` to its stable `code` without parsing the error text.
 - Remove publication extensions that are not on the allowlist by default.
-- Run `scripts/validate_examples.py` and pass every positive and negative example.
+- Run [`scripts/validate_examples.py`](../scripts/validate_examples.py) and pass every positive and negative example.
+
+---
+
+[← 09 Problem registry](09-problem-registry.md) · [All documents](../README.md#documents) · [Glossary](../GLOSSARY.md)

@@ -34,12 +34,15 @@
 
 - [工作原理](#工作原理)
 - [快速一览](#快速一览)
+- [动手试试](#动手试试)
+- [找到你的入口](#找到你的入口)
 - [仓库结构](#仓库结构)
-- [开始使用](#开始使用)
 - [项目状态](#项目状态)
 - [参与贡献](#参与贡献)
 
 ## 工作原理
+
+这里是简短版本。[五分钟了解 COLP](protocol/README.zh-CN.md#五分钟了解-colp) 会再深入一层，[术语表（英文）](protocol/GLOSSARY.md) 解释了每个术语。
 
 ### 数据模型
 
@@ -122,53 +125,65 @@ console.log(manifest.title, snapshot.nodes.length);
 
 完整示例见 [`protocol/examples/public-manifest.json`](protocol/examples/public-manifest.json)；全部 28 个示例都在 CI 中校验。
 
+## 动手试试
+
+需要 Node.js 22 或更高版本。在新克隆的仓库中构建参考包，然后运行示例服务器的自检：它会启动一个 `core + publication` 的小服务器，用 `ColpClient` 从 Manifest 出发把全部内容读一遍，然后退出：
+
+```bash
+git clone https://github.com/WhitenWhiten/colp.git && cd colp
+npm run install:package && npm run build
+npm run example:publication -- --self-test
+```
+
+```text
+Manifest:  Example Collections (core, publication)
+Directory: 1 collection(s)
+Metadata:  Interface Systems
+Snapshot:  2 node(s), 1 annotation(s)
+```
+
+如果想用 `curl` 手动访问，去掉 `--self-test` 启动它，用完后按 Ctrl+C 停止：
+
+```bash
+npm run example:publication
+curl -i http://127.0.0.1:8080/.well-known/collection-protocol
+```
+
+这个服务器只有 [一个文件](packages/node/examples/publication-server.mjs)，基于 `node:http`，可以看出哪些部分属于你的应用、哪些由包替你处理。
+
+## 找到你的入口
+
+| 你想…… | 从这里开始 |
+|---|---|
+| 了解协议如何工作 | [五分钟了解 COLP](protocol/README.zh-CN.md#五分钟了解-colp)，然后是 [术语表（英文）](protocol/GLOSSARY.md) |
+| 用 TypeScript 或 JavaScript 读取、校验 COLP 数据 | [包 README](packages/node/README.md) 与 [API 指南](packages/node/docs/API.md) |
+| 在自己的服务器上提供 COLP | [Publication 快速上手](packages/node/docs/PUBLICATION_QUICKSTART.md) 与 [示例服务器](packages/node/examples/publication-server.mjs) |
+| 接受写入、同步浏览器或接入 AI 助手 | [包的使用指南](packages/node/docs/README.md#guides) |
+| 用另一种语言实现 COLP | 协议导读中的 [从哪里开始](protocol/README.zh-CN.md#从哪里开始) |
+| 检查服务器是否符合规范 | [`colp-conformance`](packages/conformance/README.md)：`npm run conformance -- https://your-server.example` |
+| 参与贡献 | [CONTRIBUTING.md](CONTRIBUTING.md) |
+
+这个包是不含服务器的协议逻辑：它校验 Wire 文档、判断每个请求能做什么，并协调持久化写入与同步交换；HTTP 路由、认证与存储由你的应用通过少量端口接口提供。
+
 ## 仓库结构
 
 | 路径 | 内容 |
 |---|---|
-| [`protocol/`](protocol/README.zh-CN.md) | 规范、JSON Schema、可执行示例与需求注册表 |
-| [`packages/node/`](packages/node/README.md) | `@collection-protocol/node`：TypeScript 参考实现，以及测试与集成指南 |
+| [`protocol/`](protocol/README.zh-CN.md) | 规范、术语表、JSON Schema、可执行示例与需求注册表 |
+| [`packages/node/`](packages/node/README.md) | `@collection-protocol/node`：TypeScript 参考实现，以及测试与 [使用指南](packages/node/docs/README.md) |
 | [`packages/node/examples/`](packages/node/examples/publication-server.mjs) | 可在本地运行的最小只读服务器 |
 | [`packages/conformance/`](packages/conformance/README.md) | `colp-conformance`：适用于任何 COLP 服务器的黑盒测试工具 |
 | [`docs/assets/`](docs/assets) | README 使用的横幅与示意图 |
 | [`.github/workflows/colp-ci.yml`](.github/workflows/colp-ci.yml) | CI：协议检查、示例校验、类型检查、测试与证据检查 |
 
-## 开始使用
-
-**阅读协议。** 从 [协议导读](protocol/README.zh-CN.md) 开始，然后阅读 [00 实用 Profile](protocol/docs/00-practical-profile.md)，它说明了应该先实现什么。首个可互操作的服务器只需要 `core + publication`。
-
-**校验示例**（Python 3）：
+常用命令（在仓库根目录运行）：
 
 ```bash
-cd protocol
-python -m venv .venv && . .venv/bin/activate
-python -m pip install -r requirements-dev.txt
-python scripts/validate_examples.py
+npm test                                   # 运行包的测试
+npm run check                              # 运行 CI 对包执行的全部检查
+npm run conformance -- <server-url>        # 测试一个在线服务器（先运行一次 `npm --prefix packages/conformance ci`）
+cd protocol && python scripts/validate_examples.py   # 校验协议示例（需要 Python 3，见 protocol/README.zh-CN.md）
 ```
-
-**构建并测试 Node.js 包**（Node.js 22 或更高版本）：
-
-```bash
-npm run install:package
-npm run build
-npm test
-```
-
-**运行示例服务器。** 构建完成后，[`publication-server.mjs`](packages/node/examples/publication-server.mjs) 只用 `node:http` 就能在 `http://127.0.0.1:8080` 上以 `core + publication` Profile 提供一个 Collection：
-
-```bash
-npm run example:publication                 # 然后：curl -i http://127.0.0.1:8080/.well-known/collection-protocol
-npm run example:publication -- --self-test  # 启动后用 ColpClient 读取全部内容，然后退出
-```
-
-**测试任意服务器。** [`colp-conformance`](packages/conformance/README.md) 会按照 `core + publication` 的需求检查一个在线服务器（可以用任何语言实现），并用需求 ID 标注每一项结果：
-
-```bash
-npm --prefix packages/conformance ci
-npm run conformance -- https://your-server.example
-```
-
-这个包是不含服务器的协议逻辑：它校验 Wire 文档、判断每个请求能做什么，并协调持久化写入与同步交换；HTTP 路由、认证与存储由你的应用通过少量端口接口提供。建议从 [包 README](packages/node/README.md)、[Publication 快速上手](packages/node/docs/PUBLICATION_QUICKSTART.md) 与 [Publisher 快速上手](packages/node/docs/PUBLISHER_QUICKSTART.md) 开始。
 
 ## 项目状态
 

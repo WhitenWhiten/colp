@@ -1,5 +1,9 @@
 # 00. Practical Interoperability Profile
 
+> **In short:** You do not have to build everything. This chapter lists the seven profiles and what each one depends on, describes the smallest useful server (read-only `core + publication`) and client, and sets the ground rules they all share: follow the Manifest instead of guessing paths, keep one authoritative copy of every object in a Snapshot, validate structure first and semantics second, and respect the safety floor for writes and Sync.
+>
+> **Read this if** you are planning a first implementation or deciding which profiles to support. **Profiles:** all.
+
 <a id="colp-section-1"></a>
 
 ## 1. Purpose
@@ -40,7 +44,7 @@ Each mount in the Manifest declares its own `profiles`:
 
 A profile is a capability claim, not a marketing tier. An implementation MUST NOT declare a profile that has not passed the corresponding conformance tests.
 
-Conformance evidence comes from `requirements.yaml`: package-level tests, deployment endpoints, and required ports must all be complete. Manifest configuration alone cannot create a profile claim.
+Conformance evidence comes from [`requirements.yaml`](../requirements.yaml): package-level tests, deployment endpoints, and required ports must all be complete. Manifest configuration alone cannot create a profile claim.
 
 A profile dependency is a dependency on the data model, wire contract, and endpoint semantics. It does not mean that every deployment takes on every optional role mentioned in the chapters of the profiles it depends on. For example, `publication -> core` requires that Publication representations follow the Core object and Snapshot semantics, but a read-only Publication deployment does not thereby become a Sync server, an AI content writer, a local browser profile store, or a server-side profile ID HMAC deriver. Ordinary authoritative Node writes likewise do not mean that a deployment accepts or stores every optional folder role; only a write surface that actually supports `managed-bookmarks` takes on that role's default read-only boundary. Deployment conformance tests must be selected by the profiles actually declared and the roles actually enabled; when a role is not enabled, a deployment must not fake the corresponding ports, data, or persistence just to pass a test.
 
@@ -126,11 +130,7 @@ Pagination uses only `page.nextCursor`. Sync progress uses only `syncCursor`. Fe
 
 ## 7. Two-Stage Validation
 
-The schema caps `uniqueItems` arrays whose entries are structured objects at
-512 entries. Receivers MUST enforce that bound (or an equivalent linear-time
-admission budget) before performing deep structural uniqueness comparisons;
-this keeps a malformed collection of large, distinct objects from turning
-validation into an unbounded quadratic operation.
+The schema caps `uniqueItems` arrays whose entries are structured objects at 512 entries. Receivers MUST enforce that bound (or an equivalent linear-time admission budget) before performing deep structural uniqueness comparisons; this keeps a malformed collection of large, distinct objects from turning validation into an unbounded quadratic operation.
 
 JSON Schema is responsible for structure and format validation. Implementations must enable Draft 2020-12 format assertion or perform equivalent RFC 3339 and URI validation; treating `format` as an annotation only does not conform to this profile. After structural validation passes, the receiver MUST perform semantic validation:
 
@@ -145,7 +145,7 @@ JSON Schema is responsible for structure and format validation. Implementations 
 - After authorization, a Publication Snapshot may carry the safe projection of a `protected` or `private` Collection; `mode` describes the projection category and does not replace ACLs.
 - A restricted Bookmark with `redacted=true` may keep its title, position, and public teaser, but must drop the target URL, source references, and unpublished fields.
 
-`scripts/validate_examples.py` in this repository performs both kinds of validation.
+[`scripts/validate_examples.py`](../scripts/validate_examples.py) in this repository performs both kinds of validation.
 
 <a id="colp-section-8"></a>
 
@@ -170,3 +170,7 @@ Authoritative and Sync bookmark URLs use `$defs.bookmarkUrl`, which allows the s
 The core schema of a public projection allows `extensions` to be present; whether an extension may be published is decided semantically by the deployment's configured namespace allowlist and that namespace's publication schema. Without a configured allowlist, extensions must be removed, rather than having the base schema forbid every extension permanently.
 
 A strict schema may use `additionalProperties: false`. A client that meets a newer version negotiates the version first and must not act on unknown core fields as if it understood them. A relay that promises round-tripping of unknown data must keep the original representation or refuse to downgrade, instead of silently dropping data.
+
+---
+
+[← Specification overview](../SPECIFICATION.md) · [All documents](../README.md#documents) · [Glossary](../GLOSSARY.md) · [01 Core data model →](01-core-data-model.md)

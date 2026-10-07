@@ -1,5 +1,9 @@
 # 04. Authorization, Security and Rate Limits
 
+> **In short:** Who may do what, and how much. The chapter keeps authentication, authorization, publication, rate limiting, and audit apart; defines principals, scopes, and roles; specifies API keys and the OAuth 2.1 profile; and covers access policies, rate-limit headers, request security, content integrity, the audit log, secure defaults, and a threat matrix.
+>
+> **Read this if** your deployment accepts credentials, writes, or AI requests. **Profiles:** every profile beyond anonymous reading.
+
 <a id="colp-section-1"></a>
 
 ## 1. Security Boundaries
@@ -480,3 +484,7 @@ Recommended defaults for a new server:
 | Secrets leaking through audit logs | Redaction, minimal metadata, access scopes, retention policy |
 | Malicious extension fields | Namespaces, schema and size limits, output sanitization, unknown fields never executed |
 | DoS through large trees or deep JSON | Body, depth, Node, batch, pagination, and execution time limits |
+
+---
+
+[← 03 Sync](03-sync.md) · [All documents](../README.md#documents) · [Glossary](../GLOSSARY.md) · [05 MCP profile →](05-mcp-profile.md)

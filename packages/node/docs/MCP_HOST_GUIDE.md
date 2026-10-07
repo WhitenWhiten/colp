@@ -4,13 +4,13 @@ The `mcp-read` and `mcp-write` profiles are delivered as adapter libraries, not
 as a complete remote MCP server. Every example below imports only from the
 public `@collection-protocol/node/mcp` entry, which serves MCP protocol version
 `2026-07-28`. Type-checked copies of the examples live in
-[`tests/mcp/examples/`](../tests/mcp/examples), and `npm run typecheck` compiles
+[`tests/mcp/examples/`](https://github.com/WhitenWhiten/colp/tree/main/packages/node/tests/mcp/examples), and `npm run typecheck` compiles
 them, so keep the two in sync when you change either.
 
 The host owns the transport, request demultiplexing, authentication, and the
 application ports. The package owns per-request context validation, result
 shapes, budgets, and the fail-closed boundaries listed below. See
-[`MCP_SDK_POLICY.md`](MCP_SDK_POLICY.md) for how the upstream SDK is pinned.
+[`MCP_SDK_POLICY.md`](https://github.com/WhitenWhiten/colp/blob/main/packages/node/docs/MCP_SDK_POLICY.md) for how the upstream SDK is pinned.
 
 ## Read: host responsibilities
 

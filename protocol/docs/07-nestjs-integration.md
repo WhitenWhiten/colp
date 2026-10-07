@@ -1,4 +1,8 @@
-# 07. NestJS Integration Profile
+# 07. NestJS Integration (Illustrative)
+
+> **In short:** An illustrative example, not a required design, of embedding COLP in an existing server application, using NestJS as the framework. It sketches a module, the ports a host implements (storage, authentication, outbox, and approvals), the generated routes, middleware order, database suggestions, and the order in which to deliver profiles. The reference package `@collection-protocol/node` is framework-neutral and does not ship a NestJS module.
+>
+> **Read this if** you are wiring COLP into a server application. **Profiles:** none of its own.
 
 This chapter describes how a host application, using NestJS as the example framework, embeds the protocol. The module shape, option names, and routes below are illustrative. The reference package `@collection-protocol/node` is framework-neutral: it provides the protocol logic and port interfaces, and does not publish a NestJS module.
 
@@ -497,7 +501,7 @@ A static bundle suits GitHub Pages, object storage, or a CDN, and contains no ad
 
 ## 17. Profile Delivery Order
 
-This section speaks of "profile delivery milestones" and does not use `Phase 1` for package scaffolding or a browser product roadmap. The foundation milestone of the Node package is the schema, types, semantic, client, server, and conformance tooling, and does not mean that any profile conforms. Profiles are implemented in the same order as in `docs/10-implementation-contract.md`:
+This section speaks of "profile delivery milestones" and does not use `Phase 1` for package scaffolding or a browser product roadmap. The foundation milestone of the Node package is the schema, types, semantic, client, server, and conformance tooling, and does not mean that any profile conforms. Profiles are implemented in the same order as in [`docs/10-implementation-contract.md`](10-implementation-contract.md):
 
 1. `core + publication`: Manifest, directory, Collection, Snapshot, and the safe Publication projection.
 2. `publisher`: conditional writes, idempotency, the publisher unit of work, operations, audit, and the transactional outbox.
@@ -506,3 +510,7 @@ This section speaks of "profile delivery milestones" and does not use `Phase 1` 
 5. `mcp-read` / `mcp-write`: resources and tools, OAuth 2.1, high-risk approval plans, and scope filtering.
 
 Browser adapters, an admin UI, HTTP signatures, a public conformance registry, and a server directory are separate product tracks. They can progress in parallel as their dependencies mature, but cannot change the profile dependencies above, and the completion of a product track cannot replace profile conformance evidence.
+
+---
+
+[← 06 Browser mapping](06-browser-mapping.md) · [All documents](../README.md#documents) · [Glossary](../GLOSSARY.md) · [08 Write API →](08-write-api.md)

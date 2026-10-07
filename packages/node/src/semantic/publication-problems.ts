@@ -1,5 +1,5 @@
 import { problemRegistry, type ProblemCode } from '../shared/problems.js';
-import type { SemanticValidationResult } from '../semantic/index.js';
+import type { SemanticValidationResult } from './index.js';
 import type { Problem } from '../types/index.js';
 
 const MAX_CONTENT_TYPE_LENGTH = 1_024;

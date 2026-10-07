@@ -1,5 +1,9 @@
 # The Collection Protocol Specification 0.1-draft
 
+> **In short:** The overview that the numbered chapters build on. It names the five layers of the protocol, defines the three kinds of data (Snapshot, Sync, and Feed), and sets the rules every profile shares: IDs, times, revisions, URLs, discovery, the recommended endpoint layout, HTTP behavior, visibility, and version negotiation.
+>
+> **Read this if** you are implementing any part of COLP. For a gentler start, take the [five-minute tour](README.md#colp-in-five-minutes) first, and keep the [glossary](GLOSSARY.md) open for unfamiliar terms. **Profiles:** all.
+
 <a id="colp-section-1"></a>
 
 ## 1. Conventions
@@ -118,7 +122,7 @@ An Annotation is content attached to a Collection or a Node:
 
 Every Annotation has its own `visibility`. A private Annotation must not enter a public projection, even if its parent Node is public.
 
-The identity fields of AI provenance are established by the server's trusted generation boundary. Later human, imported, or derived writes may edit the content, but cannot rewrite the generation source of existing AI content based on the provenance in a request body. See `docs/01-core-data-model.md` for the complete rules.
+The identity fields of AI provenance are established by the server's trusted generation boundary. Later human, imported, or derived writes may edit the content, but cannot rewrite the generation source of existing AI content based on the provenance in a request body. See [`docs/01-core-data-model.md`](docs/01-core-data-model.md) for the complete rules.
 
 <a id="colp-section-4-4"></a>
 
@@ -155,25 +159,11 @@ Within one exact protocol version, new data MUST be placed in `extensions`. A ne
 - Collection, Node, Annotation, Attachment, Relation, Operation, and Event IDs MUST be unique within their server and are never reused.
 - Native browser IDs must not be used as primary protocol IDs; they belong in `sourceRefs`.
 - The global identity of a resource is `(serverUuid, resourceType, id)`. A cross-server reference MUST use the canonical URI and cannot send a bare ID alone.
-
-The only serialization of the canonical URI is
-`colp:/resources/~{serverUuid}/{resourceType}/~{id}`. `serverUuid` and `id` are decoded wire IDs.
-Because wire IDs contain only URI unreserved ASCII characters, the canonical URI contains no
-percent-encoding. `resourceType` is one of `collection`, `node`, `annotation`, `attachment`,
-`relation`, `operation`, or `event`. The form has no authority, userinfo, port, query, or fragment.
-The `~` prefix ensures that legal wire IDs whose value is `.` or `..` are not normalized away by a
-URI parser as path-traversal segments.
-
-Canonical URIs are compared field by field, case-sensitively, on the fully decoded triple, not as
-display URLs or as strings normalized by a URI parser. A bare wire ID denotes a reference only
-when the caller also supplies an explicit local resolution context with the `serverUuid` of the
-same server and the expected `resourceType`; without that context, references use the canonical
-URI. This global identity URI and the MCP Profile's `colp://{serverUuid}/...` resource locator
-are two different URI namespaces: the former has no authority and encodes only the resource
-identity triple, while the latter has an authority and locates a specific MCP representation or
-operation. There is no implicit alias or general string conversion between them.
-
 - When a URI template is expanded, IDs must be UTF-8 percent-encoded. Servers compare the decoded raw byte values and do not fold case.
+
+**Canonical resource URI.** The only serialization of the canonical URI is `colp:/resources/~{serverUuid}/{resourceType}/~{id}`. `serverUuid` and `id` are decoded wire IDs. Because wire IDs contain only URI unreserved ASCII characters, the canonical URI contains no percent-encoding. `resourceType` is one of `collection`, `node`, `annotation`, `attachment`, `relation`, `operation`, or `event`. The form has no authority, userinfo, port, query, or fragment. The `~` prefix ensures that legal wire IDs whose value is `.` or `..` are not normalized away by a URI parser as path-traversal segments.
+
+Canonical URIs are compared field by field, case-sensitively, on the fully decoded triple, not as display URLs or as strings normalized by a URI parser. A bare wire ID denotes a reference only when the caller also supplies an explicit local resolution context with the `serverUuid` of the same server and the expected `resourceType`; without that context, references use the canonical URI. This global identity URI and the MCP Profile's `colp://{serverUuid}/...` resource locator are two different URI namespaces: the former has no authority and encodes only the resource identity triple, while the latter has an authority and locates a specific MCP representation or operation. There is no implicit alias or general string conversion between them.
 
 <a id="colp-section-5-2"></a>
 
@@ -201,16 +191,11 @@ operation. There is no implicit alias or general string conversion between them.
 - Navigable URLs in Publication, Feed, and assistant-facing output allow only HTTP(S) whose authority has no userinfo. URLs with other schemes or with userinfo must be omitted, redacted, or kept in the authorized Sync representation; they must not be published directly.
 - `canonicalUrl` MAY store a canonical URL that was computed by an explicit rule or declared by the page.
 - `urlHash` MAY be used for duplicate detection, but must not be used as an object ID.
-
-The wire syntax of the optional Bookmark `urlHash` MUST be `sha-256=:<base64>:`, where the Base64 MUST use
-canonical padded encoding and decode to exactly 32 octets. The digest input MUST be the UTF-8
-octets of the original `url` string, without URL parsing, normalization, or rewriting. A missing `urlHash` is legal; when present it MUST match the original
-`url` preserved in the same object. Equal hashes MUST only select duplicate candidates for further comparison and MUST NOT prove that two objects are the same;
-the final decision compares the applicable URL, content, and Collection semantics. `urlHash` MUST NOT be written into or substitute for `id`,
-`collectionId`, Node references, or any other object ID field.
 - Default normalization may perform only uncontroversial operations, such as lowercasing the scheme and host and removing a default port.
 - Removing tracking parameters, expanding short links, deleting fragments, and similar operations must be controlled by a named `normalizationProfile`.
 - URLs with signatures, temporary tokens, or order-sensitive queries MUST keep their original value.
+
+**URL hash.** The wire syntax of the optional Bookmark `urlHash` MUST be `sha-256=:<base64>:`, where the Base64 MUST use canonical padded encoding and decode to exactly 32 octets. The digest input MUST be the UTF-8 octets of the original `url` string, without URL parsing, normalization, or rewriting. A missing `urlHash` is legal; when present it MUST match the original `url` preserved in the same object. Equal hashes MUST only select duplicate candidates for further comparison and MUST NOT prove that two objects are the same; the final decision compares the applicable URL, content, and Collection semantics. `urlHash` MUST NOT be written into or substitute for `id`, `collectionId`, Node references, or any other object ID field.
 
 <a id="colp-section-7"></a>
 
@@ -305,7 +290,7 @@ The paths below are recommended dynamic routes. A Manifest may declare other abs
 | DELETE | `/-/admin/keys/{keyId}` | Revoke a key |
 | GET/PATCH | `/-/admin/rate-limits` | Rate-limit policies |
 | GET | `/-/admin/audit` | Audit log |
-| POST | `/-/mcp` | MCP Streamable HTTP endpoint (stateless and POST-only; `GET` and `DELETE` are rejected, see `docs/05-mcp-profile.md`) |
+| POST | `/-/mcp` | MCP Streamable HTTP endpoint (stateless and POST-only; `GET` and `DELETE` are rejected, see [`docs/05-mcp-profile.md`](docs/05-mcp-profile.md)) |
 
 <a id="colp-section-9"></a>
 
@@ -313,7 +298,7 @@ The paths below are recommended dynamic routes. A Manifest may declare other abs
 
 - Requests and responses MUST use UTF-8.
 - JSON MUST follow the I-JSON interoperability constraints: no duplicate member names, no protocol integer outside the range that IEEE 754 binary64 represents exactly, and no non-finite numbers.
-- The query, request body, and response body of every endpoint MUST be validated with the named `$defs` listed in `docs/10-implementation-contract.md`. The root `anyOf` of the schema is only for independently recognizable resource and response representations and must not replace endpoint-level DTO validation.
+- The query, request body, and response body of every endpoint MUST be validated with the named `$defs` listed in [`docs/10-implementation-contract.md`](docs/10-implementation-contract.md). The root `anyOf` of the schema is only for independently recognizable resource and response representations and must not replace endpoint-level DTO validation.
 - Query arrays use repeated parameters, for example `include=annotations&include=attachments`. A repeated scalar parameter, an empty value, or an unknown parameter returns `400 invalid_query`. Clients and servers must encode and decode with the same endpoint contract registry.
 - Clients MUST support `application/json`.
 - Implementations SHOULD support `application/vnd.collection-protocol.*+json;version=0.1`.
@@ -388,9 +373,9 @@ Implementations declare composable profiles per mount in the Manifest:
 }
 ```
 
-Dependencies and minimum capabilities are listed in `docs/00-practical-profile.md`. If an implementation declares a profile, all required endpoints and semantics of that profile MUST pass the conformance tests. The legacy draft bundle names `reader`, `sync-server`, and `mcp-server` are no longer used in new Manifests.
+Dependencies and minimum capabilities are listed in [`docs/00-practical-profile.md`](docs/00-practical-profile.md). If an implementation declares a profile, all required endpoints and semantics of that profile MUST pass the conformance tests. The legacy draft bundle names `reader`, `sync-server`, and `mcp-server` are no longer used in new Manifests.
 
-Stable requirement IDs, implementing modules, and test evidence are recorded in `requirements.yaml`. A profile claim must satisfy all of the following: the package-level required tests pass, the deployment has registered every endpoint, and the required ports (transactions, authorization, outbox, and so on) are available. A configuration boolean is not conformance evidence by itself.
+Stable requirement IDs, implementing modules, and test evidence are recorded in [`requirements.yaml`](requirements.yaml). A profile claim must satisfy all of the following: the package-level required tests pass, the deployment has registered every endpoint, and the required ports (transactions, authorization, outbox, and so on) are available. A configuration boolean is not conformance evidence by itself.
 
 <a id="colp-section-12"></a>
 
@@ -431,3 +416,7 @@ Collection-Protocol-Version: 0.1
 - JSON Feed 1.1: optional public feed representation.
 - CloudEvents 1.0: event envelope compatibility target.
 - MCP Specification 2026-07-28: MCP Profile baseline (stateless, POST-only).
+
+---
+
+[All documents](README.md#documents) · [Glossary](GLOSSARY.md) · [00 Practical profile →](docs/00-practical-profile.md)

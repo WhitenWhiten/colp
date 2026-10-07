@@ -1,5 +1,9 @@
 # 09. Problem Code Registry
 
+> **In short:** The registry of error codes. Every error is an RFC 9457 Problem Details document with a stable `code`. The table lists each code's HTTP status, what it means, and how a client should recover, and the last section lists the machine-readable recovery fields. Clients act on `status` and `code`, never on the human-readable text.
+>
+> **Read this if** you return errors or handle them. **Profiles:** all.
+
 <a id="colp-section-1"></a>
 
 ## 1. General Format
@@ -89,3 +93,7 @@ Errors provide, as needed:
 - `links`, for example `current`, `snapshot`, `authorization`
 
 Extension error codes use an HTTPS namespace URI and must not occupy an unregistered short ASCII core code.
+
+---
+
+[← 08 Write API](08-write-api.md) · [All documents](../README.md#documents) · [Glossary](../GLOSSARY.md) · [10 Implementation contract →](10-implementation-contract.md)

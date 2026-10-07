@@ -1,5 +1,9 @@
 # 01. Core Data Model
 
+> **In short:** The objects every COLP document is made of. A Collection owns a tree of Nodes (`root`, `folder`, `bookmark`, `separator`, `alias`) ordered by `position`. Annotations, Attachments, and Relations sit next to the tree as sidecars, deletions become tombstones, and a Snapshot packages all of it at one revision. The chapter ends with the validation rules a receiver runs before it trusts a document.
+>
+> **Read this if** you produce or consume any COLP data. **Profiles:** `core`.
+
 <a id="colp-section-1"></a>
 
 ## 1. Design Goals
@@ -170,21 +174,11 @@ Core fields stay small and stable; platform-specific information goes into names
 
 Annotations, Attachments, and Relations are not embedded in Nodes. A canonical Snapshot stores one authoritative copy of each, in the top-level arrays. A Node Detail API may expand related objects temporarily through `included`, but their IDs and revisions must match the top-level representation.
 
-When a resource reference crosses servers, `colp:/resources/~{serverUuid}/{resourceType}/~{id}` expresses its complete global identity.
-For example, `colp:/resources/~Server.A/node/~..` denotes exactly `("Server.A", "node", "..")`, and it is not equal to
-`("server.a", "node", "..")`. The authority-free form avoids case normalization of a URI host, and the `~` prefix
-of the value segments keeps the legal wire IDs `.` and `..` from being parsed as path traversal. The bare parent, alias,
-subject, relation, and provenance IDs already inside a Snapshot are still resolved in the Snapshot's same-Collection
-context, and their reference scope does not grow.
-This global identity URI is not the MCP Profile's `colp://{serverUuid}/...` resource locator; the latter has an authority,
-locates an MCP representation or operation, and is not another serialization of the global identity URI.
+When a resource reference crosses servers, `colp:/resources/~{serverUuid}/{resourceType}/~{id}` expresses its complete global identity. For example, `colp:/resources/~Server.A/node/~..` denotes exactly `("Server.A", "node", "..")`, and it is not equal to `("server.a", "node", "..")`. The authority-free form avoids case normalization of a URI host, and the `~` prefix of the value segments keeps the legal wire IDs `.` and `..` from being parsed as path traversal. The bare parent, alias, subject, relation, and provenance IDs already inside a Snapshot are still resolved in the Snapshot's same-Collection context, and their reference scope does not grow. This global identity URI is not the MCP Profile's `colp://{serverUuid}/...` resource locator; the latter has an authority, locates an MCP representation or operation, and is not another serialization of the global identity URI.
 
 `redacted=true` is allowed only in projections with `mode=publication`. A Bookmark may omit `url`, but must keep its stable `id`, `collectionId`, `parentId`, `position`, `title`, and `revision`, and must explicitly use a tightened `visibility` of `protected` or `private`. Sync Snapshots, write responses, and authoritative storage representations must not contain redacted Nodes.
 
-A missing `urlHash` is legal; it never causes a Bookmark to be rejected or to receive a different identity. When present, its value
-is the matching digest of the unrewritten `url` of the same Bookmark, and it never replaces or changes `url`. Equal hashes only mark
-candidates whose URL, content, and Collection semantics should be compared further; they do not establish that Nodes are equal and do
-not enter any object ID or reference field.
+A missing `urlHash` is legal; it never causes a Bookmark to be rejected or to receive a different identity. When present, its value is the matching digest of the unrewritten `url` of the same Bookmark, and it never replaces or changes `url`. Equal hashes only mark candidates whose URL, content, and Collection semantics should be compared further; they do not establish that Nodes are equal and do not enter any object ID or reference field.
 
 <a id="colp-section-3-2"></a>
 
@@ -193,12 +187,12 @@ not enter any object ID or reference field.
 - `position` is a sortable, opaque ASCII token matching `^[0-9A-Za-z_-]{1,128}$`.
 - Clients MUST compare positions by unsigned ASCII octet order, but must not interpret their structure. The restricted character set avoids differences between JavaScript UTF-16 ordering and the Unicode ordering of other languages.
 - When creating or moving a Node, clients SHOULD submit `afterId` / `beforeId` and let the server assign the position.
+- A server may rebalance positions without changing the visible order. A rebalance must atomically advance the Collection state revision and enter the Sync log, but should not produce user-level Feed events.
 - A Snapshot MAY provide a derived `index`, but Sync must not depend on it, because concurrent inserts make it drift.
 
 `index` is an I-JSON-safe, zero-based integer for a non-root Node: its rank, by `position`, among the Nodes with the same `parentId` in the whole logical Snapshot projection. The root may omit `index` or use `null`, and must not invent a sibling rank. Pagination does not restart the numbering; cropped or sparse projections number only the siblings actually represented in the projection. A server that cannot determine the sibling set of the complete projection should omit it.
 
 `index` is only a display hint, not an authoritative Node field. Sync must not require, compare, or persist it as authoritative state, and must not use it to decide order. Receivers must ignore stale or tampered values and always compare `position` by unsigned ASCII octet order.
-- A server may rebalance positions without changing the visible order. A rebalance must atomically advance the Collection state revision and enter the Sync log, but should not produce user-level Feed events.
 
 <a id="colp-section-3-3"></a>
 
@@ -448,7 +442,7 @@ A deleted object is represented in the sync layer as `$defs.syncTombstone`. A Pu
 
 ## 9. Snapshot
 
-A Snapshot must validate against `$defs.snapshot`, contain the complete Collection representation and normalized top-level arrays, and must not use an empty object to stand for omitted content. Executable Publication, Protected Publication, and Sync examples are `examples/collection-snapshot.json`, `examples/protected-publication-snapshot.json`, and `examples/sync-snapshot.json`.
+A Snapshot must validate against `$defs.snapshot`, contain the complete Collection representation and normalized top-level arrays, and must not use an empty object to stand for omitted content. Executable Publication, Protected Publication, and Sync examples are [`examples/collection-snapshot.json`](../examples/collection-snapshot.json), [`examples/protected-publication-snapshot.json`](../examples/protected-publication-snapshot.json), and [`examples/sync-snapshot.json`](../examples/sync-snapshot.json).
 
 A Snapshot with `mode=publication` contains no tombstones, source references, or internal ACLs, and `syncCursor` must not appear. It can be used both as an anonymous public representation and as the authorized safe projection of a protected or private Collection; the objects it contains are still decided by scopes and ACLs. `mode=sync` requires authorization and filters sidecars by scopes and ACLs.
 
@@ -489,3 +483,7 @@ The Sync round-trip rules in this section apply to deployments that act as a Syn
 - The I-JSON receiving boundary MUST enforce a deterministic maximum nesting depth and member and array-item budgets before constructing business objects; relying on a natural JavaScript call stack overflow is not depth control.
 - Parent ancestry and subtree traversals MUST enforce a deterministic maximum depth and maximum number of visited Nodes, and fail closed before any persistence when the limit is exceeded.
 - Remote input MUST NOT raise the parsing, ancestry, or subtree hard limits configured by the implementation or deployment. The concrete values are chosen by the deployment within the implementation's limits; over-limit HTTP requests use `413 payload_too_large`, and non-HTTP boundaries return a stable limit denial.
+
+---
+
+[← 00 Practical profile](00-practical-profile.md) · [All documents](../README.md#documents) · [Glossary](../GLOSSARY.md) · [02 HTTP, publication, and feed →](02-http-publication-feed.md)

@@ -24,7 +24,7 @@ COLP is a `0.1-draft`. This page lists what is done and what comes next. Issues 
 - [ ] Paginated Snapshots in the example server ([#14](https://github.com/WhitenWhiten/colp/issues/14), good first issue)
 - [ ] Build with TypeScript 7 ([#15](https://github.com/WhitenWhiten/colp/issues/15), help wanted)
 - [ ] Require an issuer on stored OAuth records ([#16](https://github.com/WhitenWhiten/colp/issues/16))
-- [ ] API reference for the package's export subpaths
+- [x] [API guide](packages/node/docs/API.md) to the package's export subpaths
 
 ## Ecosystem (help wanted)
 

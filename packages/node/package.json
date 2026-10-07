@@ -34,7 +34,10 @@
   "files": [
     "dist",
     "README.md",
+    "docs/API.md",
+    "docs/BROWSER_BATCH_INTEGRATION.md",
     "docs/HOST_INTEGRATION_BOUNDARY.md",
+    "docs/MCP_HOST_GUIDE.md",
     "docs/PUBLICATION_QUICKSTART.md",
     "docs/PUBLISHER_QUICKSTART.md",
     "docs/SECURITY_COMPOSITION.md",

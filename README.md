@@ -32,12 +32,15 @@ Bookmarks are some of the most personal knowledge people keep, yet every browser
 
 - [How it works](#how-it-works)
 - [A quick look](#a-quick-look)
+- [Try it](#try-it)
+- [Find your way](#find-your-way)
 - [Repository layout](#repository-layout)
-- [Getting started](#getting-started)
 - [Project status](#project-status)
 - [Contributing](#contributing)
 
 ## How it works
+
+This section is the short version. The [five-minute tour](protocol/README.md#colp-in-five-minutes) goes one level deeper, and the [glossary](protocol/GLOSSARY.md) explains every term.
 
 ### Data model
 
@@ -120,53 +123,65 @@ console.log(manifest.title, snapshot.nodes.length);
 
 The full example is [`protocol/examples/public-manifest.json`](protocol/examples/public-manifest.json); all 28 examples are validated in CI.
 
+## Try it
+
+You need Node.js 22 or later. From a fresh clone, build the reference package and run the example server's self-test. It starts a small `core + publication` server, reads everything back through the Manifest with `ColpClient`, and exits:
+
+```bash
+git clone https://github.com/WhitenWhiten/colp.git && cd colp
+npm run install:package && npm run build
+npm run example:publication -- --self-test
+```
+
+```text
+Manifest:  Example Collections (core, publication)
+Directory: 1 collection(s)
+Metadata:  Interface Systems
+Snapshot:  2 node(s), 1 annotation(s)
+```
+
+To poke at it with `curl`, start it without `--self-test` and stop it with Ctrl+C when you are done:
+
+```bash
+npm run example:publication
+curl -i http://127.0.0.1:8080/.well-known/collection-protocol
+```
+
+The server is [one file](packages/node/examples/publication-server.mjs) built on `node:http`; it shows which parts belong to your application and which the package handles for you.
+
+## Find your way
+
+| You want to… | Start with |
+|---|---|
+| Understand how the protocol works | The [five-minute tour](protocol/README.md#colp-in-five-minutes), then the [glossary](protocol/GLOSSARY.md) |
+| Read or validate COLP data from TypeScript or JavaScript | The [package README](packages/node/README.md) and the [API guide](packages/node/docs/API.md) |
+| Serve COLP from your own server | The [Publication quickstart](packages/node/docs/PUBLICATION_QUICKSTART.md) and the [example server](packages/node/examples/publication-server.mjs) |
+| Accept writes, sync browsers, or connect AI assistants | The [package guides](packages/node/docs/README.md#guides) |
+| Implement COLP in another language | [Where to start](protocol/README.md#where-to-start) in the protocol README |
+| Check that a server conforms | [`colp-conformance`](packages/conformance/README.md): `npm run conformance -- https://your-server.example` |
+| Contribute | [CONTRIBUTING.md](CONTRIBUTING.md) |
+
+The package is protocol logic without a server: it validates wire documents, decides what each request may do, and coordinates durable writes and sync exchanges, while your application supplies HTTP routes, authentication, and storage through small port interfaces.
+
 ## Repository layout
 
 | Path | Contents |
 |---|---|
-| [`protocol/`](protocol/README.md) | The specification, JSON Schemas, executable examples, and the requirement registry |
-| [`packages/node/`](packages/node/README.md) | `@collection-protocol/node`, the reference implementation in TypeScript, with its tests and integration guides |
+| [`protocol/`](protocol/README.md) | The specification, its glossary, JSON Schemas, executable examples, and the requirement registry |
+| [`packages/node/`](packages/node/README.md) | `@collection-protocol/node`, the reference implementation in TypeScript, with its tests and [guides](packages/node/docs/README.md) |
 | [`packages/node/examples/`](packages/node/examples/publication-server.mjs) | A minimal read-only server you can run locally |
 | [`packages/conformance/`](packages/conformance/README.md) | `colp-conformance`, a black-box test runner for any COLP server |
 | [`docs/assets/`](docs/assets) | Banner and diagrams used by the READMEs |
 | [`.github/workflows/colp-ci.yml`](.github/workflows/colp-ci.yml) | CI: protocol checks, example validation, type checks, tests, and the evidence check |
 
-## Getting started
-
-**Read the protocol.** Start with the [protocol README](protocol/README.md), then [00 Practical profile](protocol/docs/00-practical-profile.md), which says what to build first. A first interoperable server only needs `core + publication`.
-
-**Validate the examples** (Python 3):
+Common commands, from the repository root:
 
 ```bash
-cd protocol
-python -m venv .venv && . .venv/bin/activate
-python -m pip install -r requirements-dev.txt
-python scripts/validate_examples.py
+npm test                                   # the package's test suite
+npm run check                              # every gate CI runs for the package
+npm run conformance -- <server-url>        # test a live server (run `npm --prefix packages/conformance ci` once first)
+cd protocol && python scripts/validate_examples.py   # validate the protocol examples (Python 3, see protocol/README.md)
 ```
-
-**Build and test the Node.js package** (Node.js 22 or later):
-
-```bash
-npm run install:package
-npm run build
-npm test
-```
-
-**Run the example server.** After the build, [`publication-server.mjs`](packages/node/examples/publication-server.mjs) serves one Collection with the `core + publication` profiles on `http://127.0.0.1:8080`, using nothing but `node:http`:
-
-```bash
-npm run example:publication                 # then: curl -i http://127.0.0.1:8080/.well-known/collection-protocol
-npm run example:publication -- --self-test  # start, read everything back with ColpClient, exit
-```
-
-**Test any server.** [`colp-conformance`](packages/conformance/README.md) checks a live server, written in any language, against the `core + publication` requirements and cites each result by requirement ID:
-
-```bash
-npm --prefix packages/conformance ci
-npm run conformance -- https://your-server.example
-```
-
-The package is protocol logic without a server: it validates wire documents, decides what each request may do, and coordinates durable writes and sync exchanges, while your application supplies HTTP routes, authentication, and storage through small port interfaces. Start with the [package README](packages/node/README.md), the [Publication quickstart](packages/node/docs/PUBLICATION_QUICKSTART.md), and the [Publisher quickstart](packages/node/docs/PUBLISHER_QUICKSTART.md).
 
 ## Project status
 
