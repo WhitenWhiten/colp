@@ -1,0 +1,21 @@
+{
+  "name": "@know-n/colp-server",
+  "version": "0.1.0",
+  "description": "Self-hosted COLP Server",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --test tests/**/*.node.test.ts && npm run test:self-hosted",
+    "test:self-hosted": "vitest run tests/unit/self-hosted/preset.test.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.4",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.11"
+  }
+}
