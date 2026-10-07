@@ -1,4 +1,5 @@
 import { isProductApiError, productClient } from '../api'
+import { isSelfHostedEdition } from './edition'
 
 const memoryRecords = new Set<string>()
 
@@ -37,6 +38,7 @@ function swallow(run: () => Promise<unknown>): void {
 }
 
 export function recordView(slug: string, options?: { signal?: AbortSignal }): void {
+  if (isSelfHostedEdition()) return
   swallow(async () => {
     if (options?.signal?.aborted) return
     const key = viewKey(slug)
@@ -51,6 +53,7 @@ export function recordView(slug: string, options?: { signal?: AbortSignal }): vo
 }
 
 export function observePreview(element: Element, slug: string): () => void {
+  if (isSelfHostedEdition()) return () => undefined
   if (typeof IntersectionObserver === 'undefined') return () => undefined
   const key = previewKey(slug)
   if (hasTabRecord(key)) return () => undefined
@@ -77,6 +80,7 @@ export function observePreview(element: Element, slug: string): () => void {
 }
 
 export function recordResourceOpen(slug: string, nodeId: string): void {
+  if (isSelfHostedEdition()) return
   swallow(async () => {
     await productClient.recordPublicCollectionInsightEvent(
       { slug, eventType: 'resource_open', nodeId },

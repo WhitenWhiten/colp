@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { isProductApiError, productClient } from '../api'
 import type { BookmarkPreviewModeView } from '../api/types'
+import { isSelfHostedEdition } from '../lib/edition'
 import { previewCover } from '../lib/linkPreview'
 
 type ModeState =
@@ -27,6 +28,7 @@ export function PreviewModeControl({ collectionId, nodeId, disabled, onChanged }
   const generation = useRef(0)
 
   const load = useCallback(async (signal?: AbortSignal) => {
+    if (isSelfHostedEdition()) { setState({ kind: 'hidden' }); return }
     const mine = ++generation.current
     try {
       const view = await productClient.getBookmarkPreviewMode(collectionId, nodeId, { signal, maxRetries: 0 })

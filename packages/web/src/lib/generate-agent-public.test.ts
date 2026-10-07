@@ -216,7 +216,7 @@ describe('generate-agent-public', () => {
     expect(() => buildSitemap([{ path: '/about', sources: ['content/agent-public/about.md'] }])).toThrow(/no valid lastmod/)
     expect(() => buildSitemap([{ path: '/about', lastmod: '', sources: ['content/agent-public/about.md'] }])).toThrow(/no valid lastmod/)
     expect(() => buildSitemap([{ path: '/about', lastmod: '2020-01-02' }])).toThrow(/without the sources/)
-    expect(sitemapPages.find((page) => page.path === '/extension')?.lastmod).toBe('2026-08-31')
+    expect(sitemapPages.find((page) => page.path === '/extension')?.lastmod).toBe('2026-10-07')
     for (const page of sitemapPages) {
       for (const source of page.sources ?? []) {
         expect(existsSync(join(webRoot, source)), `${page.path} source ${source} must exist`).toBe(true)
@@ -287,8 +287,8 @@ describe('generate-agent-public', () => {
     expect(mcp).not.toMatch(/supported versions[^\n]*2025-06-18/u)
     expect(llms).not.toMatch(/supported versions[^\n]*2025-06-18/u)
     expect(mcp).toContain(MCP_COMPAT_INITIALIZE_INSTRUCTIONS)
-    expect(sitemapPages.find((page) => page.path === '/')?.lastmod).toBe('2026-09-28')
-    expect(sitemapPages.find((page) => page.path === '/mcp')?.lastmod).toBe('2026-08-29')
+    expect(sitemapPages.find((page) => page.path === '/')?.lastmod).toBe('2026-10-07')
+    expect(sitemapPages.find((page) => page.path === '/mcp')?.lastmod).toBe('2026-10-07')
   })
 
   it('declared lastmod is never older than the last commit that touched its sources (full clones only)', () => {

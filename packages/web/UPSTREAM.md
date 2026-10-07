@@ -8,6 +8,6 @@ The package name stays `known` (`private: true`). Neither 02-plan.md nor the C1 
 
 Page modules stay in the tree. The copied unit suite runs with the edition unset, so those tests still mount the cloud UI. Agents (C3) and the insecure-transport banner (C4) are not added.
 
-OpenAPI aliases point at `packages/server/generated/openapi` (the full client copied with the server), not a regenerated trimmed client. C2 replaces that client.
+`@known/product-v1` is generated from `packages/server/openapi/colp-server-v1.yaml` by `npm run generate:api-types` (`scripts/generate-openapi-types.mjs`). The script reads that server document directly; nothing is copied into this package. Output is `src/generated/colp-server-v1.ts`, re-exported by `src/generated/product-v1.ts`. `@known/product-v1-client` still aliases `packages/server/generated/openapi/product-v1.client.ts`: the copied unit suite loads client factories for operations the trimmed document removed, and those factories are not new UI callers. Operations marked `x-colp-server-pending` have no UI callers. The server generator (`packages/server/scripts/generate-openapi.mjs`) still reads `openapi/product-v1.yaml` for the full Known client.
 
 `upstream-fixtures/` holds the Know-N files the copied unit tests read by relative path (product evidence notes, the credits golden file, `nginx.conf`, and Known-Extension `popup.css`). They are not part of the self-hosted product.

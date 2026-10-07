@@ -1,4 +1,3 @@
-import type { operations } from '../generated/product-v1'
 /**
  * Shared Product transport types. Domain transport modules and the barrel
  * import from here so they never import `./product-transport`.
@@ -189,7 +188,20 @@ export type SessionCallOptions = {
   signal?: AbortSignal
 }
 
-export type CreditLedgerListParams = NonNullable<operations['listMyCreditLedger']['parameters']['query']> & { signal?: AbortSignal }
+/**
+ * Cloud credit-ledger query. GET /api/v1/me/credits/ledger is not in the
+ * trimmed edition document, so this is not indexed from `operations`.
+ */
+export type CreditLedgerListParams = {
+  limit?: number
+  cursor?: string
+  kind?: 'grant' | 'reserve' | 'spend' | 'release' | 'expire' | 'refund' | 'topup' | 'payment_refund'
+  from?: string
+  to?: string
+  chargeId?: string
+  runId?: string
+  signal?: AbortSignal
+}
 
 export type SavedResourceListParams = {
   resourceType?: SavedResourceType
