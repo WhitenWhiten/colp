@@ -277,13 +277,15 @@ Every tool must provide a JSON Schema `inputSchema`; write tools SHOULD provide 
 | `collections.search` | collections:read | Search titles, tags, and creators |
 | `collections.get_snapshot` | nodes:read | Core Node fields only by default; including sidecars also requires the corresponding read scopes |
 | `nodes.get` | nodes:read | Get a single Node |
-| `nodes.search` | nodes:read | Search URLs, titles, and tags; searching annotations also requires annotations:read |
+| `nodes.search` | nodes:read | Optional; risk none. Search URLs, titles, and tags. Input is `query` plus optional `collectionId`, `cursor`, and `limit`; searching annotations also requires annotations:read |
 | `feed.get_changes` | feed:read | Pull a public or authorized Feed |
 | `sync.get_status` | sync:pull | View cursors, queues, and conflicts |
 | `access.get` | access:read | View publication state and the effective policy |
 | `keys.list` | keys:read | Key metadata only |
 | `rate_limits.get` | rate_limits:read | View rate-limit policies |
 | `audit.list` | audit:read | View audit records |
+
+`nodes.search` is optional: a server MAY expose it. The tool has risk none and scope `nodes:read`. Its input is `query` plus optional `collectionId`, `cursor`, and `limit`. Searching annotations also requires `annotations:read`.
 
 <a id="colp-section-11"></a>
 
@@ -318,7 +320,7 @@ Modify, move, reorder, delete, and conflict resolution tools must require the ta
 The following operations must not be designed as a single step:
 
 - `collections.delete`
-- `nodes.delete_subtree`, when above a safety threshold
+- `nodes.delete_subtree`, when above a host-configurable safety threshold (default 20)
 - `access.visibility` changing to public or unlisted
 - `access.set_policy`
 - `keys.create`
@@ -328,6 +330,8 @@ The following operations must not be designed as a single step:
 - `release.publish`
 - `sync.mirror`
 - Large-scale overwrite, deletion, or publication of annotations or attachments
+
+The `nodes.delete_subtree` safety threshold MUST be host-configurable with a default of 20. Above the threshold the operation is high risk; at or below it, the operation is medium risk.
 
 Risk is aggregated over the actual operations after expansion, not judged by the outer tool name. When a generic `sync.push`, a batch tool, or a custom tool contains any high-risk operation, the whole call must go through plan / commit; a generic batch must not be used to bypass confirmation.
 
@@ -399,6 +403,8 @@ Result:
 
 Approval of a high-risk plan must come from a user-visible interface or a trusted host, not from a boolean the model generates itself.
 
+Approval MAY be granted by an owner-configured policy recorded as `approvedBy: "policy"`. Operations that expose or purge data MUST NOT be policy-approved. Expose means `set_visibility` to `public` or `unlisted`. Purge means emptying trash, purging tombstones, or deleting a collection.
+
 Recommended flow:
 
 1. The MCP tool returns `approvalUri`.
@@ -418,7 +424,7 @@ Approval tokens must be short-lived, single-use, stored hashed, and bound to the
 A commit must revalidate that:
 
 - The plan has not expired.
-- A user approval exists.
+- A user approval exists, or a policy approval recorded as `approvedBy: "policy"` exists. Policy approval is unavailable for operations that expose or purge data (Section 13.2).
 - The base revisions have not changed.
 - The scopes are still valid.
 - The rate limit allows it.
