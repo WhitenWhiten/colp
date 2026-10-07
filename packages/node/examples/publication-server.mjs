@@ -21,25 +21,17 @@ import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { pathToFileURL } from 'node:url';
 
-import { ColpClient } from '@collection-protocol/node/client';
-import { createValidatorRegistry } from '@collection-protocol/node/schema';
+import { ColpClient, createLoopbackEgressPolicy } from '@collection-protocol/node/client';
 import {
-  composePublicationHttpRead,
+  composePublicationHttpReadFromRequest,
+  createPublicationHttpReadRepresentation,
   createPublicationProblemResponse,
-  mergePublicationCollectionMetadataLinkHeaders,
 } from '@collection-protocol/node/server';
 
 const examples = new URL('../fixtures/protocol/examples/', import.meta.url);
 const snapshot = JSON.parse(await readFile(new URL('collection-snapshot.json', examples), 'utf8'));
 const collection = snapshot.collection;
 const lastModified = new Date(collection.updatedAt);
-
-const media = {
-  manifest: 'application/vnd.collection-protocol.manifest+json;version=0.1',
-  directory: 'application/vnd.collection-protocol.catalog+json;version=0.1',
-  metadata: 'application/vnd.collection-protocol.collection+json;version=0.1',
-  snapshot: 'application/vnd.collection-protocol.snapshot+json;version=0.1',
-};
 
 /** Builds every public document for a server reachable at `origin`. */
 function createStore(origin) {
@@ -101,70 +93,37 @@ function pick(source, keys) {
   return Object.fromEntries(keys.filter((key) => source[key] !== undefined).map((key) => [key, source[key]]));
 }
 
-const validators = createValidatorRegistry();
-
-/** Wraps a stored document as the public representation the package serializes. */
-function representation(value, revision, mediaType, cacheControl = 'public, max-age=60') {
-  return {
-    value,
-    revision,
-    projectionKey: 'public',
-    protocolVersion: '0.1',
-    lastModified,
-    negotiatedMediaType: mediaType,
-    cacheControl,
-  };
+/**
+ * Serves one document through the package: it decodes and checks the query,
+ * then asks `resolveRepresentation` for the document and adds the ETag, cache
+ * headers, 304, HEAD, and Problem responses. Methods other than GET and HEAD
+ * get a 405 Problem.
+ */
+function read(request, endpoint, value, options = {}) {
+  return composePublicationHttpReadFromRequest(request, {
+    endpoint,
+    access: 'anonymous-public',
+    resolveRepresentation: () => createPublicationHttpReadRepresentation(endpoint, value, {
+      lastModified,
+      cacheControl: 'public, max-age=60',
+      ...options,
+    }),
+  });
 }
 
 /** Routes one request to the composed Publication read for its endpoint. */
 async function handle(request, store) {
-  const url = new URL(request.url);
-  if (request.method !== 'GET' && request.method !== 'HEAD') {
-    const response = createPublicationProblemResponse({ code: 'method_not_allowed' });
-    response.headers.set('Allow', 'GET, HEAD');
-    return response;
-  }
-  const read = {
-    method: request.method,
-    access: 'anonymous-public',
-    rawSearch: url.search,
-    ifNoneMatch: request.headers.get('if-none-match'),
-    validators,
-  };
   const collectionPath = `/collections/c/${collection.id}`;
-
-  switch (url.pathname) {
+  switch (new URL(request.url).pathname) {
     case '/.well-known/collection-protocol':
-      return composePublicationHttpRead({
-        ...read,
-        endpoint: 'manifest',
-        resolveRepresentation: () => representation(store.manifest, 'manifest-r1', media.manifest, 'public, max-age=300'),
-      });
+      // The Manifest and the Directory have no revision of their own, so the host names one.
+      return read(request, 'manifest', store.manifest, { revision: 'manifest-r1', cacheControl: 'public, max-age=300' });
     case '/collections':
-      return composePublicationHttpRead({
-        ...read,
-        endpoint: 'directory',
-        resolveRepresentation: () => representation(store.directory, 'directory-r1', media.directory),
-      });
+      return read(request, 'directory', store.directory, { revision: 'directory-r1' });
     case collectionPath:
-      return composePublicationHttpRead({
-        ...read,
-        endpoint: 'metadata',
-        resolveRepresentation: () => ({
-          ...representation(store.metadata, store.snapshot.revision, media.metadata),
-          headers: mergePublicationCollectionMetadataLinkHeaders(store.metadata),
-        }),
-      });
+      return read(request, 'metadata', store.metadata);
     case `${collectionPath}/snapshot`:
-      return composePublicationHttpRead({
-        ...read,
-        endpoint: 'snapshot',
-        resolveRepresentation: () => ({
-          ...representation(store.snapshot, store.snapshot.revision, media.snapshot),
-          snapshotIdentity: { snapshotId: store.snapshot.snapshotId, sequence: 1 },
-          pageIdentity: { pageNumber: 1 },
-        }),
-      });
+      return read(request, 'snapshot', store.snapshot);
     default:
       // Errors are RFC 9457 Problem Details with a registered code (PUB-0008).
       return createPublicationProblemResponse({ code: 'resource_not_found' });
@@ -217,8 +176,10 @@ async function selfTest() {
   try {
     const client = new ColpClient({
       manifestUrl: server.manifestUrl,
-      // ColpClient refuses loopback hosts unless the caller opts in.
-      egressPolicy: (url) => url.origin === server.origin,
+      // Without a policy, ColpClient follows a loopback Manifest only on the first
+      // hop; this also allows redirects and next-page links to this server, and
+      // nothing else.
+      egressPolicy: createLoopbackEgressPolicy([server.origin]),
     });
     const manifest = await client.discover();
     const directory = await client.getDirectory();

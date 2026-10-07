@@ -4,8 +4,10 @@ export * from './bookmark-url-hash.js';
 export * from './manifest.js';
 export * from './publication-endpoint-templates.js';
 export * from './publication-endpoints.js';
+export * from './publication-problems.js';
 export * from './publication-snapshot-replacement.js';
 export * from './snapshot.js';
+export * from './wire-documents.js';
 export * from '../shared/resource-identity.js';
 export * from '../shared/url-hash.js';
 

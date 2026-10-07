@@ -20,9 +20,16 @@ All notable changes to this project are documented here. The format follows [Kee
 - Removed product-specific notes that came from the project COLP was extracted from.
 - The example validator now also validates the COLP 0.2 example (`sync-pull-v02.json`) against the 0.2 schema.
 - Requirement records carry only `id`, `level`, `profile`, `source`, `requirement`, `implementation`, and `tests`; all requirement texts are in English.
+- Made the specification easier to read without changing any requirement: a [glossary](protocol/GLOSSARY.md); a rewritten protocol README (English and Chinese) with a five-minute tour, a profile table, and a reading guide by role; an "In short" box and previous/next links on every chapter; links in place of bare file names; and prose that is no longer hard-wrapped.
 
 ### Node.js package
 
+- Added approachable entry points, without changing existing APIs:
+  - `validateColpDocument` and `validateColpJsonDocument` (`semantic`) validate a document against its schema and the matching protocol rules in one call. `validatePublicationProblemSemantics` and `classifyPublicationProblem` are now also exported from `semantic`.
+  - `composePublicationHttpReadFromRequest`, `createPublicationHttpReadRepresentation`, and `PUBLICATION_HTTP_READ_MEDIA_TYPES` (`server`) serve a Publication read straight from a Fetch `Request`, answer other methods with a `405` Problem, and derive the revision, media type, Snapshot identities, and Metadata `Link` headers from the document.
+  - `createLoopbackEgressPolicy` (`client`) lets `ColpClient` follow redirects and Snapshot pages on a local server without turning off its private-network protection.
+- Added an [API guide](packages/node/docs/API.md) that maps tasks to entry points, rewrote the package README and the Publication quickstart around the new helpers, and added a [documentation index](packages/node/docs/README.md). The API guide, the MCP host guide, and the browser batch guide now ship in the package, and the API guide's examples are compiled and run against the packed package like the other guides' examples.
+- The Publication quickstart example now answers unsupported methods with a `405` Problem (PUB-0008) instead of an empty body.
 - Publisher idempotency and request-digest boundaries now snapshot caller-owned inputs as plain own-data records and fail closed on Proxy/accessor inputs, including nested array accessors and custom array prototypes, before they can affect an identity or key decision. Non-string HTTP methods are rejected without invoking coercion hooks.
 - Manifest semantics reject repeated URI-template variables, snapshot continuation links enforce the safe transport policy used by initial links, and ETag serialization rejects Proxy-backed values before inspection.
 - Atom output includes entry content and validates every mapped event against the Feed event discriminator while preserving the documented omission of unsafe Bookmark targets.
@@ -40,6 +47,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Repository
 
+- The root README (English and Chinese) has a "Try it" section with the example server's real output, a "Find your way" table, and an updated repository layout. `CONTRIBUTING.md` has a "Writing documentation" section.
+- The example server uses the new read helpers and `createLoopbackEgressPolicy`, and no longer hard-codes media types.
 - Conformance requests follow redirects manually with per-hop egress validation and a redirect limit.
 - Heap-copy measurements use V8 counters for sandbox compatibility; heavy snapshot and built export tests have local 30-second deadlines.
 - Added `packages/conformance`, a black-box conformance runner (`colp-conformance`, `npm run conformance`) that checks a live server against 21 anonymous `core + publication` requirements and cites each by ID. CI runs its tests against the example server and a deliberately misbehaving proxy.

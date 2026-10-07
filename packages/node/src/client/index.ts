@@ -44,10 +44,8 @@ import {
   isPrivateOrLocalAddress,
   isPrivateOrLocalLiteralHostname,
 } from '../shared/private-or-local-literal-host.js';
-export {
-  isPrivateOrLocalAddress,
-  isPrivateOrLocalLiteralHostname,
-} from '../shared/private-or-local-literal-host.js';
+export { isPrivateOrLocalAddress, isPrivateOrLocalLiteralHostname } from '../shared/private-or-local-literal-host.js';
+export { createLoopbackEgressPolicy } from './egress-policies.js';
 import type {
   CollectionDirectory,
   CollectionMetadata,
@@ -79,7 +77,7 @@ import {
   classifyPublicationProblem,
   validatePublicationProblemSemantics,
   type PublicationProblemClassification,
-} from './publication-problems.js';
+} from '../semantic/publication-problems.js';
 import { PublicationSnapshotState } from './publication-snapshot-state.js';
 import {
   createPublicationTransportBoundary,
@@ -141,7 +139,7 @@ export {
   type PublicationProblemFieldError,
   type PublicationProblemRecovery,
   type PublicationProblemSemanticContext,
-} from './publication-problems.js';
+} from '../semantic/publication-problems.js';
 export {
   parseProtocolJsonResponseMediaType,
   protocolVendorJsonMediaType,

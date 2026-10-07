@@ -165,6 +165,81 @@ const examples = [
       assert.deepEqual(example.checkWriteTransport({}), { allowed: false, reason: 'invalid_evidence' });
     },
   },
+  {
+    document: 'API.md', id: 'api-validate',
+    check: async (example, assert) => {
+      const origin = 'https://example.test';
+      const manifest = {
+        protocol: 'https://collectionprotocol.org/spec/0.1', protocolVersions: ['0.1'],
+        serverId: origin + '/', serverUuid: '019b3c67-a03c-7f02-9c7e-1ee8d50a77de', title: 'Example',
+        mounts: [{
+          id: 'default', baseUrl: origin + '/collections/', profiles: ['core', 'publication'],
+          endpoints: { directory: origin + '/collections', collection: origin + '/collections/c/{collectionId}',
+            snapshot: origin + '/collections/c/{collectionId}/snapshot' },
+          features: {}, auth: { anonymousRead: true, apiKeys: false, oauth: false },
+          limits: { maxPageSize: 200, maxSnapshotNodes: 10000, minPollIntervalSeconds: 60,
+            recommendedPollIntervalSeconds: 300 },
+        }],
+      };
+      assert.equal(example.readManifest(JSON.stringify(manifest)).title, 'Example');
+      assert.throws(() => example.readManifest('{"title":'), /^TypeError: Invalid Manifest \(parse\)/);
+      assert.throws(() => example.readManifest('{}'), /Invalid Manifest \(structural\)/);
+      const duplicate = { ...manifest, mounts: [manifest.mounts[0], manifest.mounts[0]] };
+      assert.throws(() => example.readManifest(JSON.stringify(duplicate)),
+        /Invalid Manifest \(semantic\): \/mounts\/1\/id /);
+    },
+  },
+  {
+    document: 'API.md', id: 'api-local-client',
+    check: async (example, assert, loadPublicEntry) => {
+      const { ColpClient } = await loadPublicEntry('@collection-protocol/node/client');
+      assert.ok(example.createLocalClient() instanceof ColpClient);
+      assert.ok(example.createLocalClient('http://localhost:3000') instanceof ColpClient);
+      assert.throws(() => example.createLocalClient('https://alice.example'), RangeError);
+    },
+  },
+  {
+    document: 'API.md', id: 'api-serve-read',
+    check: async (example, assert) => {
+      const root = '019b3ca2-9a3f-7e07-8f18-cc4f2cb4bca8';
+      const collectionId = '019b3ca2-8424-7cc2-9a61-4bf44c23f07a';
+      const at = '2026-07-16T06:30:00Z';
+      const snapshot = {
+        protocolVersion: '0.1', snapshotId: 'snap_1', mode: 'publication', complete: true,
+        collection: { schemaVersion: '0.1', id: collectionId, kind: 'knowledge_collection', title: 'Example',
+          rootNodeId: root, visibility: 'public', createdAt: at, updatedAt: at, revision: 'r_1' },
+        nodes: [{ id: root, collectionId, kind: 'root', parentId: null, position: null, folderRole: 'root',
+          title: 'Example', createdAt: at, updatedAt: at, revision: 'r_1',
+          constraints: { readOnly: false, reason: null }, extensions: {} }],
+        annotations: [], attachments: [], relations: [], tombstones: [], revision: 'r_1', generatedAt: at,
+        page: { nextCursor: null, hasMore: false, sequence: 1 }, warnings: [],
+      };
+      let loads = 0;
+      const load = async () => { loads++; return snapshot; };
+      const url = 'https://example.test/collections/c/' + collectionId + '/snapshot';
+      const get = await example.serveSnapshot(new Request(url), load);
+      assert.equal(get.status, 200);
+      assert.equal(get.headers.get('content-type'), 'application/vnd.collection-protocol.snapshot+json;version=0.1');
+      assert.equal(get.headers.get('cache-control'), 'public, max-age=60');
+      assert.equal(get.headers.get('last-modified'), new Date(at).toUTCString());
+      assert.equal((await get.json()).snapshotId, 'snap_1');
+      const etag = get.headers.get('etag');
+      assert.ok(etag);
+      const head = await example.serveSnapshot(new Request(url, { method: 'HEAD' }), load);
+      assert.equal(head.status, 200);
+      assert.equal(head.body, null);
+      const cached = await example.serveSnapshot(new Request(url, { headers: { 'If-None-Match': etag } }), load);
+      assert.equal(cached.status, 304);
+      const invalid = await example.serveSnapshot(new Request(url + '?unknown=1'), load);
+      assert.equal(invalid.status, 400);
+      assert.equal((await invalid.json()).code, 'invalid_query');
+      const post = await example.serveSnapshot(new Request(url, { method: 'POST' }), load);
+      assert.equal(post.status, 405);
+      assert.equal(post.headers.get('allow'), 'GET, HEAD');
+      assert.equal((await post.json()).code, 'method_not_allowed');
+      assert.equal(loads, 3, 'Rejected requests must not load the Snapshot.');
+    },
+  },
 ];
 
 export async function verifyDocumentedConsumers({ consumerRoot, installedPackage, packageRoot }) {

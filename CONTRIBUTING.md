@@ -74,7 +74,7 @@ If you find that the prose and the schema disagree, treat it as a specification 
 - Add new terms to the [glossary](protocol/GLOSSARY.md), with a link to the section that defines them.
 - Link to files instead of only naming them in backticks, and link to a section through its `colp-section-N` anchor.
 - Write each paragraph or list item on a single line; do not hard-wrap prose.
-- Markdown that ships in the npm package (`packages/node/README.md` and the docs listed under `files` in `packages/node/package.json`) may link only to other shipped files. Link to anything else with an absolute GitHub URL; `npm run pack:check` fails on a broken link.
+- Markdown that ships in the npm package (`packages/node/README.md`, the docs listed under `files` in `packages/node/package.json`, and `packages/node/docs/README.md`, which npm always includes) may link only to other shipped files. Link to anything else with an absolute GitHub URL; `npm run pack:check` fails on a broken link.
 - When you change `README.md` or `protocol/README.md`, update the `README.zh-CN.md` next to it as well.
 
 ## Pull requests

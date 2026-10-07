@@ -1,6 +1,6 @@
 # Package documentation
 
-Everything written about `@collection-protocol/node`, grouped by what you are trying to do. If you are new, read the [package README](../README.md) first, then the [API guide](API.md). The protocol itself is specified in [`protocol/`](../../../protocol/README.md).
+Everything written about `@collection-protocol/node`, grouped by what you are trying to do. The guides ship with the package; the reference documents and records live in the repository. If you are new, read the [package README](../README.md) first, then the [API guide](API.md). The protocol itself is specified in [`protocol/`](https://github.com/WhitenWhiten/colp/blob/main/protocol/README.md).
 
 ## Guides
 
@@ -21,20 +21,20 @@ Step-by-step help for building on the package.
 
 | Document | What it is |
 |---|---|
-| [Architecture](ARCHITECTURE.md) | How the package is organized, where its contracts come from, and why the boundaries are where they are |
-| [Traceability](TRACEABILITY.md) | Generated: every protocol requirement, the modules that implement it, and the tests that prove it |
-| [Sync wire completeness](SYNC_WIRE_COMPLETENESS.md) | Which Sync capabilities the package implements and which pieces a host must wire itself |
-| [MCP SDK policy](MCP_SDK_POLICY.md) | How the upstream MCP SDK is pinned and which of its types may cross the package's public API |
+| [Architecture](https://github.com/WhitenWhiten/colp/blob/main/packages/node/docs/ARCHITECTURE.md) | How the package is organized, where its contracts come from, and why the boundaries are where they are |
+| [Traceability](https://github.com/WhitenWhiten/colp/blob/main/packages/node/docs/TRACEABILITY.md) | Generated: every protocol requirement, the modules that implement it, and the tests that prove it |
+| [Sync wire completeness](https://github.com/WhitenWhiten/colp/blob/main/packages/node/docs/SYNC_WIRE_COMPLETENESS.md) | Which Sync capabilities the package implements and which pieces a host must wire itself |
+| [MCP SDK policy](https://github.com/WhitenWhiten/colp/blob/main/packages/node/docs/MCP_SDK_POLICY.md) | How the upstream MCP SDK is pinned and which of its types may cross the package's public API |
 
 ## For maintainers
 
 | Document | What it is |
 |---|---|
-| [Testing strategy](TESTING.md) | Test layers, coverage floors, and naming conventions |
-| [Release checklist](RELEASE_CHECKLIST.md) | What must be decided and verified before the first npm release |
-| [Release artifact](RELEASE_ARTIFACT.md) | How to publish exactly the tarball that was tested, without rebuilding it |
-| [Clean tarball acceptance](CLEAN_TARBALL_ACCEPTANCE.md) | Installing a packed tarball into an isolated consumer before a release |
-| [Local performance review](LOCAL_PERFORMANCE_REVIEW.md) | Measuring the publication pipeline on your own machine |
+| [Testing strategy](https://github.com/WhitenWhiten/colp/blob/main/packages/node/docs/TESTING.md) | Test layers, coverage floors, and naming conventions |
+| [Release checklist](https://github.com/WhitenWhiten/colp/blob/main/packages/node/docs/RELEASE_CHECKLIST.md) | What must be decided and verified before the first npm release |
+| [Release artifact](https://github.com/WhitenWhiten/colp/blob/main/packages/node/docs/RELEASE_ARTIFACT.md) | How to publish exactly the tarball that was tested, without rebuilding it |
+| [Clean tarball acceptance](https://github.com/WhitenWhiten/colp/blob/main/packages/node/docs/CLEAN_TARBALL_ACCEPTANCE.md) | Installing a packed tarball into an isolated consumer before a release |
+| [Local performance review](https://github.com/WhitenWhiten/colp/blob/main/packages/node/docs/LOCAL_PERFORMANCE_REVIEW.md) | Measuring the publication pipeline on your own machine |
 
 ## Records
 
@@ -42,6 +42,6 @@ Decisions and changes kept for history. They explain what was done and why; they
 
 | Record | What it covers |
 |---|---|
-| [Protocol corrections](PROTOCOL_CORRECTION.md) | Specification bugs found while implementing the package, how they were fixed, and how to migrate |
-| [Review dispositions](REVIEW_DISPOSITIONS.md) | Audit findings closed by design or accepted as deployment responsibilities, with the conditions that would reopen them |
-| [Security Cloud remediation, 2026-10-06](SECURITY_CLOUD_2026_10_06.md) | Hardening done in response to a security scan |
+| [Protocol corrections](https://github.com/WhitenWhiten/colp/blob/main/packages/node/docs/PROTOCOL_CORRECTION.md) | Specification bugs found while implementing the package, how they were fixed, and how to migrate |
+| [Review dispositions](https://github.com/WhitenWhiten/colp/blob/main/packages/node/docs/REVIEW_DISPOSITIONS.md) | Audit findings closed by design or accepted as deployment responsibilities, with the conditions that would reopen them |
+| [Security Cloud remediation, 2026-10-06](https://github.com/WhitenWhiten/colp/blob/main/packages/node/docs/SECURITY_CLOUD_2026_10_06.md) | Hardening done in response to a security scan |

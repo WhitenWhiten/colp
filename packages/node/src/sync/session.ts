@@ -84,8 +84,8 @@ export interface SyncSessionTermination {
  * A server adapter must enforce globally unique sessionId values, make committed
  * writes visible across server processes, and make terminate atomic and
  * irreversible. Repeated terminate calls must preserve the first termination
- * reason and timestamp. This package intentionally provides no in-memory
- * implementation because an in-process map cannot provide those guarantees.
+ * reason and timestamp. The in-memory store from `./testing` is for tests only,
+ * because an in-process map cannot provide those guarantees.
  */
 export interface SyncSessionStore {
   create(session: ActiveSyncSessionRecord): Promise<SyncSessionStoreCreateResult>;
