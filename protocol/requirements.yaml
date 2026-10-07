@@ -1172,6 +1172,27 @@ requirements:
     requirement: The MCP endpoint MUST reject legacy methods, headers, and verbs (`initialize`, `Mcp-Session-Id`, GET / DELETE, legacy subscriptions, `Last-Event-ID`, `logging/setLevel`, `ping`) instead of ignoring them or attempting recovery.
     implementation: [mcp]
     tests: [mcp.legacy-semantics-rejected]
+  - id: MCP-0025
+    level: MAY
+    profile: mcp-read
+    source: docs/05-mcp-profile.md#colp-section-10
+    requirement: "A server MAY expose `nodes.search`. The tool has risk none and scope `nodes:read`. Its input is `query` plus optional `collectionId`, `cursor`, and `limit`."
+    implementation: [mcp]
+    tests: [mcp.nodes-search]
+  - id: MCP-0026
+    level: MUST_NOT
+    profile: mcp-write
+    source: docs/05-mcp-profile.md#colp-section-13-2
+    requirement: 'Approval MAY be granted by an owner-configured policy recorded as `approvedBy: "policy"`. Operations that expose or purge data MUST NOT be policy-approved. Expose means `set_visibility` to `public` or `unlisted`. Purge means emptying trash, purging tombstones, or deleting a collection.'
+    implementation: [mcp, security]
+    tests: [mcp.policy-approval]
+  - id: MCP-0027
+    level: MUST
+    profile: mcp-write
+    source: docs/05-mcp-profile.md#colp-section-12
+    requirement: "The `nodes.delete_subtree` safety threshold MUST be host-configurable with a default of 20. Above the threshold the operation is high risk; at or below it, the operation is medium risk."
+    implementation: [mcp, security]
+    tests: [mcp.delete-subtree-threshold]
   - id: CORE-0038
     level: MUST
     profile: core
