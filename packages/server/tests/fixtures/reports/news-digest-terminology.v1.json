@@ -1,0 +1,14 @@
+{
+  "$schema": "./news-digest-terminology.v1.schema.json",
+  "schemaVersion": "known.reports.nd01.terminology.v1",
+  "terms": [
+    { "canonical": "reports", "meaning": "News Digest module and public surface", "forbidden": ["daily_reports", "news_digest"] },
+    { "canonical": "DigestSeries", "meaning": "A named series of editions", "forbidden": ["report resource"] },
+    { "canonical": "DigestEdition", "meaning": "One edition referencing a live source Collection", "forbidden": ["snapshot", "archive"] },
+    { "canonical": "live reference", "meaning": "Reads the current source Collection at access time", "forbidden": ["immutable snapshot", "frozen content"] },
+    { "canonical": "source Collection", "meaning": "Existing Collection referenced by an edition", "forbidden": ["copied tree", "report nodes"] },
+    { "canonical": "public source", "meaning": "Current public, published, rooted, sluggable, non-deleted source with active owner", "forbidden": ["protected source", "private source"] },
+    { "canonical": "unlisted", "meaning": "Slug-addressable but always noindex and excluded from discovery", "forbidden": ["searchable public"] },
+    { "canonical": "explicit indexing opt-in", "meaning": "Series and eligible source explicitly set allow_search_indexing=true", "forbidden": ["implicit indexing", "default indexable"] }
+  ]
+}

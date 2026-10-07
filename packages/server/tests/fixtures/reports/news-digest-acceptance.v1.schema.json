@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "schemaVersion", "adr", "featureFlags", "scenarios"],
+  "properties": {
+    "$schema": { "const": "./news-digest-acceptance.v1.schema.json" },
+    "schemaVersion": { "const": "known.reports.nd01.acceptance.v1" },
+    "adr": { "const": "docs/decisions/reports-news-digest-preflight-adr.md" },
+    "featureFlags": {
+      "type": "object", "additionalProperties": false,
+      "required": ["reports", "reportsPublic", "reportsMcp", "reportsMcpWrite"],
+      "properties": { "reports": { "const": false }, "reportsPublic": { "const": false }, "reportsMcp": { "const": false }, "reportsMcpWrite": { "const": false } }
+    },
+    "scenarios": {
+      "type": "array", "minItems": 9, "maxItems": 9,
+      "items": { "type": "object", "additionalProperties": false, "required": ["id", "decision", "given", "when", "then"], "properties": {
+        "id": { "type": "string", "pattern": "^ND01-[A-Z]+-[0-9]{3}$" },
+        "decision": { "enum": ["live-reference", "slug-63-limit", "public-source", "explicit-indexing-opt-in", "non-goals"] },
+        "given": { "type": "string", "minLength": 1 }, "when": { "type": "string", "minLength": 1 }, "then": { "type": "string", "minLength": 1 },
+        "publicStatus": { "enum": [200, 404] }, "validation": { "enum": ["accept", "reject"] }, "indexable": { "type": "boolean" },
+        "search": { "const": "unchanged" }, "feed": { "const": "unchanged" }, "og": { "const": "fallback-cover" }
+      } }
+    }
+  }
+}

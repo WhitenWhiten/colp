@@ -1,0 +1,17 @@
+{
+  "$schema": "./news-digest-acceptance.v1.schema.json",
+  "schemaVersion": "known.reports.nd01.acceptance.v1",
+  "adr": "docs/decisions/reports-news-digest-preflight-adr.md",
+  "featureFlags": { "reports": false, "reportsPublic": false, "reportsMcp": false, "reportsMcpWrite": false },
+  "scenarios": [
+    { "id": "ND01-LIVE-001", "decision": "live-reference", "given": "published edition references an eligible source", "when": "source content_revision changes", "then": "public read uses current source content and recomputes source fence", "publicStatus": 200 },
+    { "id": "ND01-SOURCE-001", "decision": "public-source", "given": "source is private, protected, unlisted, deleted, unpublished, rootless, or has no slug", "when": "anonymous public projection is read", "then": "edition is hidden without a placeholder or source id", "publicStatus": 404 },
+    { "id": "ND01-SLUG-001", "decision": "slug-63-limit", "given": "canonical slug has 63 characters", "when": "series becomes public or unlisted", "then": "slug is accepted by the shared validator", "validation": "accept" },
+    { "id": "ND01-SLUG-002", "decision": "slug-63-limit", "given": "canonical slug has 64 characters", "when": "series becomes public or unlisted", "then": "request is rejected; the historical 263-character read limit is not used", "validation": "reject" },
+    { "id": "ND01-INDEX-001", "decision": "explicit-indexing-opt-in", "given": "public series and every published source are eligible", "when": "series and source allow_search_indexing are true", "then": "ReportIndexability is true and the series/visible editions may enter discovery", "indexable": true },
+    { "id": "ND01-INDEX-002", "decision": "explicit-indexing-opt-in", "given": "series or any source lacks explicit opt-in", "when": "public metadata is read", "then": "metadata may be returned but robots is noindex and discovery excludes it", "indexable": false },
+    { "id": "ND01-INDEX-003", "decision": "explicit-indexing-opt-in", "given": "series visibility is unlisted", "when": "allow_search_indexing is true", "then": "slug remains readable to a knower but always noindex and undiscoverable", "indexable": false },
+    { "id": "ND01-BOUNDARY-001", "decision": "non-goals", "given": "a report is created or source changes", "when": "Search, Social Feed, or dynamic OG surfaces are inspected", "then": "no Search type, feed item kind, or dynamic OG operation is emitted", "search": "unchanged", "feed": "unchanged", "og": "fallback-cover" },
+    { "id": "ND01-REBIND-001", "decision": "live-reference", "given": "edition has an attached source_collection_id", "when": "caller attempts to attach a different source", "then": "mutation is rejected; withdraw old edition and create a new one", "validation": "reject" }
+  ]
+}
