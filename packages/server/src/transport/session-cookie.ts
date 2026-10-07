@@ -1,21 +1,33 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 
 export const SESSION_COOKIE_NAME = '__Host-known_session';
+export const INSECURE_SESSION_COOKIE_NAME = 'known_session';
 
-/** Build Set-Cookie for production Session cookie (never sets Domain). */
+function insecureHttp(): boolean {
+  return process.env.COLP_INSECURE_HTTP === 'true';
+}
+
+/** TLS writes `__Host-known_session` with Secure. Plain HTTP writes `known_session` without Secure. */
+export function writtenSessionCookieName(): string {
+  return insecureHttp() ? INSECURE_SESSION_COOKIE_NAME : SESSION_COOKIE_NAME;
+}
+
+/** Build Set-Cookie for the product session cookie (never sets Domain). */
 export function buildSessionSetCookie(
   rawToken: string,
   options: { readonly maxAgeSeconds: number; readonly clear?: boolean } = { maxAgeSeconds: 0 },
 ): string {
+  const name = writtenSessionCookieName();
+  const secure = name === SESSION_COOKIE_NAME ? 'Secure; ' : '';
   if (options.clear) {
-    return `${SESSION_COOKIE_NAME}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`;
+    return `${name}=; Path=/; HttpOnly; ${secure}SameSite=Lax; Max-Age=0`;
   }
-  // __Host- prefix requires Secure, Path=/, no Domain.
+  // __Host- prefix requires Secure, Path=/, no Domain. known_session omits Secure.
   return [
-    `${SESSION_COOKIE_NAME}=${encodeURIComponent(rawToken)}`,
+    `${name}=${encodeURIComponent(rawToken)}`,
     'Path=/',
     'HttpOnly',
-    'Secure',
+    ...(name === SESSION_COOKIE_NAME ? ['Secure'] : []),
     'SameSite=Lax',
     `Max-Age=${Math.max(0, Math.floor(options.maxAgeSeconds))}`,
   ].join('; ');

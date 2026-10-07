@@ -210,7 +210,7 @@ export function redactSensitiveText(value: unknown): string {
     // C4: Better Auth browser cookies (session, MFA pending challenge,
     // trusted device, OAuth state) — the signed values are bearer secrets
     // even when the surrounding text has no 'cookie' key word.
-    .replace(/\b(__Host-known_session|known\.two_factor|known\.trust_device|known\.state|known\.dont_remember)\s*[:=]\s*[^\s,;]+/gi, '$1=[REDACTED]')
+    .replace(/\b(__Host-known_session|known_session|known\.two_factor|known\.trust_device|known\.state|known\.dont_remember)\s*[:=]\s*[^\s,;]+/gi, '$1=[REDACTED]')
     // C4: OTP / TOTP / backup (recovery) code values, incl. 'backup code:'
     // and 'recovery code:' prose shapes. The value must look like a code
     // (4+ chars), so config words (otpLength=6, otpMaxAttempts=3) are not
