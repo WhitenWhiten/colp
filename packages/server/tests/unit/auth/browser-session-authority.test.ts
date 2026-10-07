@@ -1435,6 +1435,46 @@ describe('browser auth transport with the BrowserSessionAuthority', () => {
     assert.equal(identityState.handles.has('after_user'), false);
   });
 
+  test('a self-hosted unverified session is a product actor while emailVerified stays false', async () => {
+    const previous = process.env.KNOWN_EDITION;
+    process.env.KNOWN_EDITION = 'self-hosted';
+    try {
+      const { app, world, identityState } = createAppHarness();
+      apps.push(app);
+      const { cookie } = seedUsableSession(world);
+      seedIdentityProfile(identityState, 'acct-1', 'Profile One');
+      const session = world.baSessions.get(TOKEN_1);
+      assert.ok(session);
+      world.baSessions.set(TOKEN_1, { ...session, emailVerified: false });
+
+      const me = await app.inject({
+        method: 'GET',
+        url: '/api/v1/me',
+        headers: { cookie: cookieHeader(cookie) },
+      });
+      assert.equal(me.statusCode, 200);
+      assert.equal(world.baSessions.get(TOKEN_1)?.emailVerified, false);
+
+      const patched = await app.inject({
+        method: 'PATCH',
+        url: '/api/v1/me',
+        headers: {
+          cookie: cookieHeader(cookie),
+          origin: 'https://app.example.test',
+          'x-csrf-token': deriveBrowserSessionCsrfTokenRaw(TOKEN_1),
+          'known-command-id': '123e4567-e89b-42d3-a456-426614174000',
+          'content-type': 'application/json',
+        },
+        payload: { handle: 'after_user', displayName: 'After' },
+      });
+      assert.equal(patched.statusCode, 200);
+      assert.equal(identityState.profiles.get('acct-1')?.displayName, 'After');
+    } finally {
+      if (previous === undefined) delete process.env.KNOWN_EDITION;
+      else process.env.KNOWN_EDITION = previous;
+    }
+  });
+
   test('DELETE /api/v1/session requires Origin+CSRF and logout is idempotent', async () => {
     const { app, world, authority } = createAppHarness();
     apps.push(app);
