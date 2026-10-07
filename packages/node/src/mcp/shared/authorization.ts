@@ -40,6 +40,7 @@
  * at compile time by `tests/mcp/mcp-2026-07-28-authorization-bindings.typecheck.ts`).
  */
 import { types as nodeTypes } from 'node:util';
+import { containsRawSecretMarker } from './secret-markers.js';
 
 /** Anonymous public Resource Read binding fixed contract. */
 export interface McpAnonymousAuthorizationBinding {
@@ -161,42 +162,7 @@ const CREDENTIAL_EVIDENCE_KEYS = Object.freeze([
 const BINDING_KINDS = Object.freeze(['anonymous', 'authenticated'] as const);
 const CREDENTIAL_KINDS = Object.freeze(['oauth', 'api-key', 'service', 'stdio'] as const);
 
-/** Recognizable raw-credential value prefixes used by {@link containsRawSecretMarker}. */
-export const RAW_SECRET_PREFIXES: readonly string[] = Object.freeze([
-  'Bearer ',
-  'Basic ',
-  'sk-',
-  'pk-live-',
-  'pk-test-',
-  'ghp_',
-  'gho_',
-  'glpat-',
-  'xoxb-',
-  'xoxp-',
-  'AKIA',
-  'ya29.',
-  'eyJ',
-] as const);
-
-/** Own-key names treated as raw-credential carriers by {@link containsRawSecretMarker}. */
-export const RAW_SECRET_KEY_NAMES: readonly string[] = Object.freeze([
-  'token',
-  'accessToken',
-  'access_token',
-  'refreshToken',
-  'refresh_token',
-  'secret',
-  'clientSecret',
-  'client_secret',
-  'apiKey',
-  'api_key',
-  'apikey',
-  'password',
-  'authorization',
-  'Authorization',
-  'rawToken',
-  'raw_token',
-] as const);
+export { containsRawSecretMarker, RAW_SECRET_PREFIXES, RAW_SECRET_KEY_NAMES } from './secret-markers.js';
 
 type PlainRecord = Readonly<Record<string, unknown>>;
 
@@ -539,59 +505,5 @@ export function assertBindingMatchesSecurityEpoch(
       'security_epoch_mismatch',
       `MCP authorization binding security epoch "${binding.securityEpoch}" does not match expected epoch "${securityEpoch}".`,
     );
-  }
-}
-
-/**
- * Heuristic scanner for recognizable raw credential material (tokens, client
- * secrets, API Key values). Used by the strict validators as a defense-in-depth
- * marker check; hosts may also call it on evidence before mapping. Cycle-safe
- * and proxy-safe: Proxies are treated as clean (never trap), and no accessor is
- * ever invoked.
- */
-export function containsRawSecretMarker(value: unknown): boolean {
-  return containsRawSecretMarkerInternal(value, new WeakSet<object>());
-}
-
-function containsRawSecretMarkerInternal(value: unknown, seen: WeakSet<object>): boolean {
-  if (typeof value === 'string') {
-    return RAW_SECRET_PREFIXES.some((prefix) => value.startsWith(prefix));
-  }
-  if (typeof value !== 'object' || value === null || nodeTypes.isProxy(value)) {
-    return false;
-  }
-  if (seen.has(value)) {
-    return false;
-  }
-  seen.add(value);
-  try {
-    const keys = Reflect.ownKeys(value);
-    for (const key of keys) {
-      if (typeof key !== 'string' || !RAW_SECRET_KEY_NAMES.includes(key)) continue;
-      const descriptor = Object.getOwnPropertyDescriptor(value, key);
-      if (
-        descriptor !== undefined
-        && 'value' in descriptor
-        && descriptor.value !== ''
-        && descriptor.value !== null
-        && descriptor.value !== undefined
-      ) {
-        return true;
-      }
-    }
-    for (const key of keys) {
-      if (typeof key !== 'string') continue;
-      const descriptor = Object.getOwnPropertyDescriptor(value, key);
-      if (
-        descriptor !== undefined
-        && 'value' in descriptor
-        && containsRawSecretMarkerInternal(descriptor.value, seen)
-      ) {
-        return true;
-      }
-    }
-    return false;
-  } finally {
-    seen.delete(value);
   }
 }

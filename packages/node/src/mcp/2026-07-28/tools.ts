@@ -28,7 +28,7 @@ import {
   createMcpToolInputValidator,
   type McpToolOutputValidator,
 } from '../tool-input.js';
-import { containsRawSecretMarker } from '../shared/authorization.js';
+import { containsOutputSecretMarker } from '../shared/secret-markers.js';
 import { McpReadRequestAbortedError } from '../shared/resources.js';
 import {
   McpInvalidToolNameError,
@@ -181,7 +181,7 @@ export function createMcp20260728ReadToolAdapter(
     if (entry.validateOutput !== undefined) {
       entry.validateOutput(result.structuredContent);
     }
-    if (containsRawSecretMarker(result)) {
+    if (containsOutputSecretMarker(result)) {
       throw new Mcp20260728ReadToolSecretMarkerError();
     }
     const fields: Record<string, unknown> = {
