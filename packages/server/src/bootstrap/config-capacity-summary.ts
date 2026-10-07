@@ -5,11 +5,37 @@ import { sanitizeLedgerArchiveReaderRuntimeConfig } from './config-ledger-archiv
 /**
  * Credential-free capacity snapshot for startup logs and readiness probes.
  * Never includes DATABASE_URL, secrets, or connection userinfo.
+ *
+ * API and worker share DATABASE_POOL_MAX (default 10). On the self-hosted
+ * edition the worker side of that one pool may reserve at most 3 connections.
  */
+export const SHARED_POOL_WORKER_RESERVE_MAX = 3;
+
+export function workerReservedConnections(config: AppConfig): number {
+  return config.worker.concurrency
+    + (config.reports.schedulerEnabled ? 1 : 0)
+    + (config.linkHealth.enabled ? config.linkHealth.workerConcurrency : 0)
+    + (config.readableReplica.enabled ? config.readableReplica.workerConcurrency : 0)
+    + (config.linkPreview.enabled ? config.linkPreview.workerConcurrency : 0)
+    + (config.exportJobs.enabled ? config.exportJobs.workerConcurrency : 0)
+    + (config.ledgerArchive.enabled ? config.ledgerArchive.concurrency : 0);
+}
+
+function assertSharedPoolWorkerReserve(reserved: number): void {
+  if (process.env.KNOWN_EDITION === 'self-hosted' && reserved > SHARED_POOL_WORKER_RESERVE_MAX) {
+    throw new Error(
+      `worker reserves ${reserved} connections on the shared pool, which exceeds the cap of ${SHARED_POOL_WORKER_RESERVE_MAX}`,
+    );
+  }
+}
+
 export function sanitizedRuntimeCapacity(config: AppConfig): SanitizedRuntimeCapacity {
+  const reserved = workerReservedConnections(config);
+  assertSharedPoolWorkerReserve(reserved);
   return Object.freeze({
     database: Object.freeze({ ...config.database }),
     worker: Object.freeze({ ...config.worker }),
+    workerReservedConnections: reserved,
     cache: Object.freeze({
       mode: config.cache.redis.mode,
       required: config.cache.redis.required,

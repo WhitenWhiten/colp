@@ -1277,6 +1277,8 @@ export interface SanitizedCacheCapacity {
 export interface SanitizedRuntimeCapacity {
   readonly database: DatabasePoolConfig;
   readonly worker: WorkerConcurrencyConfig;
+  /** Worker-side connections on the shared DATABASE_POOL_MAX. Capped at 3 for self-hosted. */
+  readonly workerReservedConnections: number;
   readonly cache: SanitizedCacheCapacity;
   /** Explicit OIDC client auth mode — never the client secret. */
   readonly oidcClientAuthMode: OidcClientAuthMode;

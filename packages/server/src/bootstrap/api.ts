@@ -1,6 +1,6 @@
 import { createPersistentAvatarStore } from '../infrastructure/identity/index.js';
 import { createPostgresAccountDeletionStore } from '../infrastructure/auth/business-account-unit-of-work.js';
-import { loadConfig, sanitizedRuntimeCapacity } from './config.js';
+import { loadConfig, sanitizedRuntimeCapacity, type AppConfig } from './config.js';
 import { createApiCacheComposition, composeCollectionBookmarkCountLookup } from './cache-composition.js';
 import { composeApiSurfaceRateLimiters } from './api-rate-limit-composition.js';
 import { createSyncSessionRuntime } from './sync-session-runtime.js';
@@ -16,6 +16,7 @@ import {
   createPostgresMcpWriteApprovalPorts,
   createAttachmentExposurePolicyAdapter,
   createPostgresSharedExposureFactsPort,
+  type DatabaseRuntime,
 } from '../infrastructure/database/index.js';
 import {
   createPostgresExtensionOwnerAccountPort,
@@ -31,7 +32,7 @@ import {
   DEFAULT_GRACEFUL_SHUTDOWN_DEADLINE_MS,
 } from './process-lifecycle.js';
 import { createLogger, InMemoryMetrics } from '../infrastructure/telemetry/index.js';
-import { composeReadinessProbe } from '../infrastructure/health.js';
+import { composeReadinessProbe, type ReadinessProbe } from '../infrastructure/health.js';
 import {
   composeCollaborationInviteRateLimiter,
   composePublishingInsightsIngestRateLimiter,
@@ -78,8 +79,28 @@ export function legacyOidcDiscoveryProbeRequired(
   return !config.betterAuth.enabled;
 }
 
-async function startApi(): Promise<void> {
-  const config = loadConfig();
+export interface StartApiOptions {
+  readonly config?: AppConfig;
+  readonly database?: DatabaseRuntime;
+  /** When false, API shutdown leaves the database open for a shared pool. */
+  readonly closeDatabase?: boolean;
+  /** When false, build the app but do not listen or install signal handlers. */
+  readonly listen?: boolean;
+  /** When false, the caller owns process signals. */
+  readonly registerShutdown?: boolean;
+  /** Extra readiness probe. Self-hosted passes the migration-currency gate. */
+  readonly readiness?: ReadinessProbe;
+}
+
+export interface StartedApi {
+  readonly app: ReturnType<typeof buildApiApp>;
+  readonly database: DatabaseRuntime;
+  listen(): Promise<void>;
+  stop(): Promise<void>;
+}
+
+export async function startApi(options: StartApiOptions = {}): Promise<StartedApi> {
+  const config = options.config ?? loadConfig();
   assertMcpWriteOAuthRequirement(config);
   // G1 §6/§16: Better Auth mode makes the legacy OIDC env non-required, so the
   // legacy discovery probe is skipped (production can start without OIDC env).
@@ -88,7 +109,7 @@ async function startApi(): Promise<void> {
     await verifyOidcDiscoveryMetadata(config.oidc);
   }
   const capacity = sanitizedRuntimeCapacity(config);
-  const database = createDatabaseRuntime(config.databaseUrl, {
+  const database = options.database ?? createDatabaseRuntime(config.databaseUrl, {
     maxConnections: config.database.maxConnections,
     connectionTimeoutMs: config.database.connectionTimeoutMs,
     idleTimeoutMs: config.database.idleTimeoutMs,
@@ -99,6 +120,7 @@ async function startApi(): Promise<void> {
     production: config.nodeEnv === 'production',
     ssl: config.databaseSsl,
   });
+  const releaseDatabaseOnApiClose = options.closeDatabase !== false;
   const metricsLogger = createLogger(config.logLevel);
   const archiveColdReaders = composeLedgerArchiveColdReaders({
     config: config.ledgerArchiveReader,
@@ -380,7 +402,7 @@ async function startApi(): Promise<void> {
     avatarStore,
     ...publicObjects.publicObjectStores,
     cacheComposition,
-    database,
+    database: releaseDatabaseOnApiClose ? database : { async close() {} },
   };
   let app: ReturnType<typeof buildApiApp>;
   try {
@@ -388,7 +410,7 @@ async function startApi(): Promise<void> {
     config,
     creditLedgerRead: ports.creditLedgerRead,
     // F2: readiness reflects only enabled dependencies. Legacy OIDC is never one.
-    readiness: composeReadinessProbe([database]),
+    readiness: composeReadinessProbe([options.readiness, database]),
     identityUnitOfWork: ports.identityUnitOfWork,
     avatarStore,
     ...publicObjects.publicObjectStores,
@@ -540,24 +562,36 @@ async function startApi(): Promise<void> {
   app.addHook('onClose', async () => {
     await closeApiRuntimeResources(lifecycle);
   });
-  const removeSignalHandlers = registerGracefulShutdown(
-    { stop: async () => app.close() },
-    {
-      onError: (error) => app.log.error({ error }, 'API graceful shutdown failed'),
-      deadlineMs: DEFAULT_GRACEFUL_SHUTDOWN_DEADLINE_MS,
-    },
-  );
-  try {
+  const stop = async (): Promise<void> => {
+    await app.close();
+  };
+  const listen = async (): Promise<void> => {
     await database.verifyReady();
     await app.listen({ host: config.host, port: config.port });
     avatarStore?.startCleanup(error => app.log.error({ error }, 'Avatar cleanup will retry from its durable lease'));
     // Sanitized capacity only — never log DATABASE_URL or credentials.
     app.log.info({ service: 'api', capacity }, 'api started');
-  } catch (error: unknown) {
-    removeSignalHandlers();
-    await app.close();
-    throw error;
+  };
+  let removeSignalHandlers: (() => void) | undefined;
+  if (options.registerShutdown !== false && options.listen !== false) {
+    removeSignalHandlers = registerGracefulShutdown(
+      { stop },
+      {
+        onError: (error) => app.log.error({ error }, 'API graceful shutdown failed'),
+        deadlineMs: DEFAULT_GRACEFUL_SHUTDOWN_DEADLINE_MS,
+      },
+    );
   }
+  if (options.listen !== false) {
+    try {
+      await listen();
+    } catch (error: unknown) {
+      removeSignalHandlers?.();
+      await stop();
+      throw error;
+    }
+  }
+  return { app, database, listen, stop };
 }
 
 
