@@ -13,7 +13,10 @@ import type {
   SyncPullEventV02,
   SyncPullV02,
 } from '../types/index.js';
-import { DEFAULT_IMMUTABLE_JSON_MAX_DEPTH, immutableJsonData, immutableJsonSnapshot } from '../shared/immutable-json.js';
+import {
+  DEFAULT_IMMUTABLE_JSON_MAX_DEPTH, DEFAULT_IMMUTABLE_JSON_MAX_MEMBERS,
+  immutableJsonData, immutableJsonSnapshot,
+} from '../shared/immutable-json.js';
 import {
   AUTHORITATIVE_EFFECT_MAX_BYTES,
   AUTHORITATIVE_EFFECT_PAGE_MAX_BYTES,
@@ -463,7 +466,21 @@ export function validateAuthoritativePullEvent(
   protocolVersion: AuthoritativePullProtocolVersion,
   options: { readonly effectPageAuthority?: string; readonly effectPageTemplate?: string } = {},
 ): SyncPullEvent | SyncPullEventV02 {
-  return validateImmutablePullEvent(immutableData(candidate, 'Sync Pull event'), protocolVersion, options);
+  return validateImmutablePullEvent(snapshotPullEvent(candidate, protocolVersion), protocolVersion, options);
+}
+
+function snapshotPullEvent<Value extends SyncPullEvent | SyncPullEventV02>(
+  candidate: Value,
+  protocolVersion: string,
+): Value {
+  if (protocolVersion !== '0.2') return immutableData(candidate, 'Sync Pull event');
+  // Operation and effect retain their own budgets in assertEffectBinding.
+  // Their combined envelope must accommodate both plus its four own fields.
+  const event = immutableJsonSnapshot(candidate, 'Sync Pull event', {
+    maxMembers: DEFAULT_IMMUTABLE_JSON_MAX_MEMBERS + AUTHORITATIVE_EFFECT_MAX_MEMBERS + 4,
+    maxDepth: DEFAULT_IMMUTABLE_JSON_MAX_DEPTH + 1,
+  }) as Value;
+  return event.kind === 'operation' ? event : immutableData(event, 'Sync Pull event');
 }
 
 /** Validation core for an event that is already an isolated frozen snapshot. */
@@ -587,8 +604,7 @@ function validateEvent(
   effectPageAuthority?: string,
   effectPageTemplate?: string,
 ): SyncPullEvent | SyncPullEventV02 {
-  // This copy also enforces the per-event member and depth budget.
-  const event = immutableData(candidate, 'Sync Pull event');
+  const event = snapshotPullEvent(candidate, protocolVersion);
   if (event.cursor !== expectedCursor) throw new TypeError('Sync Pull event Cursor does not match its Cursor record.');
   if (protocolVersion !== '0.1' && protocolVersion !== '0.2') {
     throw new TypeError('Sync Pull protocolVersion must be 0.1 or 0.2.');
