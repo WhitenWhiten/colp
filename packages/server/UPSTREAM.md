@@ -8,6 +8,8 @@ Extra files, copied because `npm run typecheck` failed without them (`TS2307` on
 - `generated/openapi/product-v1.bundle.yaml` — read by OpenAPI catalog and sync-center contract tests
 - `generated/openapi/product-v1.routes.json` — read by product route manifest and search OpenAPI contract tests
 
+A2 moved the email delivery ports out of `modules/notifications` into `modules/email` so that module could be deleted while the kept mailer still typechecks.
+
 A2 copied these because `npm run test:unit` could not load Vitest projects without them (Know-N `c34645710`):
 
 - `vitest.workspace-projects.ts` — imported by `vitest.unit.config.ts` and the other project configs
