@@ -241,7 +241,7 @@ export interface IdempotencyBinding {
 /** Builds the complete uniqueness tuple and digest from one request view. */
 export function createPublisherIdempotencyBinding(input: PublisherIdempotencyRequest): IdempotencyBinding {
   const request = snapshotPublisherIdempotencyRequest(input);
-  if (!/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/u.test(request.method)) {
+  if (typeof request.method !== 'string' || !/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/u.test(request.method)) {
     throw new TypeError('Publisher idempotency request method is invalid.');
   }
   if (typeof request.endpointKey !== 'string'

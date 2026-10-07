@@ -23,7 +23,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Node.js package
 
-- Publisher idempotency and request-digest boundaries now snapshot caller-owned inputs as plain own-data records and fail closed on Proxy/accessor inputs before they can affect an identity or key decision.
+- Publisher idempotency and request-digest boundaries now snapshot caller-owned inputs as plain own-data records and fail closed on Proxy/accessor inputs, including nested array accessors and custom array prototypes, before they can affect an identity or key decision. Non-string HTTP methods are rejected without invoking coercion hooks.
 - Manifest semantics reject repeated URI-template variables, snapshot continuation links enforce the safe transport policy used by initial links, and ETag serialization rejects Proxy-backed values before inspection.
 - Atom output includes entry content and validates every mapped event against the Feed event discriminator while preserving the documented omission of unsafe Bookmark targets.
 - Removed tautological, fixture-count-only, and pseudo-negative tests, replaced export smoke checks with behavioral assertions, and capped Vitest at two workers so the full suite stays within ordinary CI memory limits.

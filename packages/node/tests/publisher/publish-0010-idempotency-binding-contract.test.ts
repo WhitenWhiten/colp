@@ -109,6 +109,13 @@ describe(`PUBLISH-0010 complete idempotency binding [evidence:${evidence}]`, () 
       .toThrow(/unknown or missing fields/u);
   });
 
+  it(`rejects non-string methods without invoking coercion hooks [evidence:${evidence}]`, () => {
+    const toString = vi.fn(() => 'POST');
+    expect(() => createPublisherIdempotencyBinding({ ...request, method: { toString } } as never))
+      .toThrow(TypeError);
+    expect(toString).not.toHaveBeenCalled();
+  });
+
   it.each([
     ['principalId', 'principal-bob'],
     ['protocolVersion', '0.2'],
@@ -306,6 +313,40 @@ describe(`PUBLISH-0010 canonical request digest [evidence:${evidence}]`, () => {
     expect(() => digest({ query: cyclic })).toThrow(/decoded I-JSON object/u);
     expect(() => digest({ query: accessor })).toThrow(/decoded I-JSON object/u);
   });
+
+  it.each(['body', 'query'] as const)(
+    `rejects nested array accessors in %s before reading them [evidence:${evidence}]`,
+    (field) => {
+      const getter = vi.fn(() => 'safe');
+      const items = Object.defineProperty(['safe'], '0', { enumerable: true, get: getter });
+      const value = { items };
+      expect(() => digest({ [field]: value })).toThrow(/I-JSON/u);
+      expect(getter).not.toHaveBeenCalled();
+
+      expect(() => createPublisherIdempotencyBinding({
+        ...request,
+        [field === 'query' ? 'decodedQuery' : 'body']: value,
+      })).toThrow(/I-JSON/u);
+      expect(getter).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['body', 'query'] as const)(
+    `rejects custom array prototypes in %s without invoking inherited methods [evidence:${evidence}]`,
+    (field) => {
+      const every = vi.fn(() => true);
+      const map = vi.fn(() => ['forged']);
+      const items = Object.setPrototypeOf(['safe'], { every, map });
+      const value = { items };
+      expect(() => digest({ [field]: value })).toThrow(/I-JSON/u);
+      expect(() => createPublisherIdempotencyBinding({
+        ...request,
+        [field === 'query' ? 'decodedQuery' : 'body']: value,
+      })).toThrow(/I-JSON/u);
+      expect(every).not.toHaveBeenCalled();
+      expect(map).not.toHaveBeenCalled();
+    },
+  );
 
   it(`rejects unsafe numbers, prototype-polluting keys, and excessive nesting [evidence:${evidence}]`, () => {
     const polluted = JSON.parse('{"constructor":"attacker"}') as Record<string, unknown>;

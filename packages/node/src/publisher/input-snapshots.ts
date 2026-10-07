@@ -58,13 +58,22 @@ export function isJsonValue(
     || depth > DEFAULT_I_JSON_PARSE_LIMITS.maxDepth) return false;
   const prototype = Object.getPrototypeOf(value);
   if (Array.isArray(value)) {
+    if (prototype !== Array.prototype) return false;
     const keys = Reflect.ownKeys(value);
     if (keys.length !== value.length + 1 || keys.at(-1) !== 'length'
       || !Object.keys(value).every((key, index) => key === String(index))) return false;
     state.members += value.length;
     if (state.members > DEFAULT_I_JSON_PARSE_LIMITS.maxMembers) return false;
     ancestors.add(value);
-    const valid = value.every((item) => isJsonValue(item, ancestors, depth + 1, state));
+    let valid = true;
+    for (let index = 0; index < value.length; index += 1) {
+      const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
+      if (descriptor === undefined || !descriptor.enumerable || !('value' in descriptor)
+        || !isJsonValue(descriptor.value, ancestors, depth + 1, state)) {
+        valid = false;
+        break;
+      }
+    }
     ancestors.delete(value);
     return valid;
   }
