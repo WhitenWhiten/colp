@@ -246,7 +246,7 @@
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
     "canonicalize": "^3.0.0",
-    "entities": "6.0.1",
+    "entities": "8.1.0",
     "http-link-header": "^1.1.4",
     "lossless-json": "^4.3.1",
     "url-template": "^3.1.1"
