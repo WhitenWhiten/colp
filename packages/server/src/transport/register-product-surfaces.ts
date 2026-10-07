@@ -43,7 +43,6 @@ import { registerClassificationProductSurfaces } from './register-classification
 import { registerOrganizePlanRoutes } from './product/organize-plan-routes.js';
 import { registerCollectionVersionRoutes } from './product/collection-version-routes.js';
 import { registerReadableReplicaRoutes } from './product/readable-replica-routes.js';
-import { registerAttachmentRoutes } from './product/attachment-routes.js';
 import { registerEmailCallbackRoutes } from './product/email-callback-routes.js';
 import { registerEmailOpsRoutes } from './product/email-ops-routes.js';
 import { registerSearchRoutes } from './product/search-routes.js';
@@ -141,7 +140,6 @@ export function registerProductSurfaces(
     linkPreviewCommands,
     readableReplicaRateLimiter,
     publicObjectRateLimiter,
-    attachmentRoutes,
     emailCallbackRoutes,
     emailOpsRoutes,
   } = deps;
@@ -493,7 +491,6 @@ export function registerProductSurfaces(
       ),
     });
   }
-  registerAttachmentRoutes(app, attachmentRoutes);
   if (emailCallbackRoutes) registerEmailCallbackRoutes(app, emailCallbackRoutes);
   if (emailOpsRoutes) registerEmailOpsRoutes(app, emailOpsRoutes);
   if (searchQuery) {

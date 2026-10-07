@@ -33,7 +33,6 @@
 export * from './rate-limit-lua.js';
 export * from './rate-limit-circuit-breaker.js';
 export * from './rate-limit-client.js';
-export * from './rate-limit-store.js';
 export {
   createRedisFixedWindowStore,
   mapFrozenQuotaOutcome,
@@ -47,8 +46,6 @@ export type {
   RedisFixedWindowStoreConfig,
   RedisFixedWindowStoreOptions,
 } from './redis-fixed-window-store.js';
-export * from './rate-limit-failure-policy.js';
-export * from './rate-limit-route-facade.js';
 export * from './auth-rate-limit-key-codec.js';
 export * from './auth-rate-limit-store.js';
 export * from './search-rate-limit-key-codec.js';
@@ -56,8 +53,6 @@ export * from './search-rate-limit-store.js';
 export * from './mcp-rate-limit-key-codec.js';
 export * from './mcp-rate-limit-store.js';
 export * from './mcp-rate-limit-memory.js';
-export * from './delivery-rate-limit-key-codec.js';
-export * from './delivery-rate-limit-store.js';
 export * from './email-callback-rate-limit-key-codec.js';
 export * from './email-callback-rate-limit-store.js';
 export * from './effect-page-rate-limit.js';

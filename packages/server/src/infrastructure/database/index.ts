@@ -243,28 +243,10 @@ export {
   createPostgresProductCommandReceiptPort,
   createPostgresProductCommandReceiptPortFactory,
 } from './product-command-receipt.js';
-export { createPostgresAttachmentsPorts } from './attachments-postgres-ports.js';
-export {
-  createPostgresAttachmentMetadataRepository,
-} from './attachment-metadata-postgres.js';
-export {
-  createPostgresAttachmentCanonicalMutationPorts,
-} from './attachment-canonical-mutation-postgres.js';
-export type {
-  AttachmentCanonicalWritePhase,
-  AttachmentCanonicalFaultInjector,
-  AttachmentCanonicalMutationOptions,
-  FinalizeAttachmentInput,
-  FinalizeAttachmentReceipt,
-  FinalizeAttachmentResult,
-  ReadAttachmentFinalizeRecoveryResult,
-} from '../../modules/attachments/index.js';
 export { createPostgresSharedExposureFactsPort } from './postgres-shared-exposure-facts.js';
 export { createAttachmentExposurePolicyAdapter } from './attachment-exposure-policy-adapter.js';
 export type { AttachmentExposurePolicyAdapter } from './attachment-exposure-policy-adapter.js';
-export type { SharedExposureFactsPort, SharedExposureFactsScope } from '../../modules/attachments/index.js';
-export { createPostgresAttachmentsAdmissionSwitchStore } from './attachments-admission-switch-port.js';
-export { createPostgresPitrLedgerPort } from './attachments-pitr-port.js';
+export type { SharedExposureFactsPort, SharedExposureFactsScope } from '../../modules/exposure/deny-by-default.js';
 export {
   assertNoLegacyMcpSessionFields,
   buildPostgresMcpChangePlanRow,

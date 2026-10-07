@@ -5,7 +5,6 @@ export interface ApplicationModule {
 }
 
 export * from './access-policy/index.js';
-export * from './attachments/index.js';
 export * from './collections/index.js';
 export * from './commands/index.js';
 export * from './identity/index.js';

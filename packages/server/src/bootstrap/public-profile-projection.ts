@@ -3,7 +3,7 @@ import {
   assessSharedExposureScope,
   assertSharedExposureScopeIneligible,
   type SharedExposureFactsPort,
-} from '../modules/attachments/index.js';
+} from '../modules/exposure/deny-by-default.js';
 import {
   getPublicProfileFacts,
   isCanonicalPublicProfileHandle,

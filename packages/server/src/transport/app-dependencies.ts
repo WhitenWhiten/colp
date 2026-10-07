@@ -94,8 +94,6 @@ import type {
 } from '../modules/sync/index.js';
 import type { EmailCallbackRoutesDependencies } from './product/email-callback-routes.js';
 import type { EmailOpsRoutesDependencies } from './product/email-ops-routes.js';
-import type { AttachmentRoutesDependencies } from './product/attachment-routes.js';
-import type { AttachmentsCapabilityReadiness } from '../modules/attachments/index.js';
 import type { McpReadTransportDependencies } from './mcp/mcp-read-routes.js';
 import type { McpWriteApprovalRoutesDependencies } from './mcp/mcp-write-approval-routes.js';
 
@@ -392,10 +390,6 @@ export interface AppDependencies {
   /** Shared family for public avatar and bookmark-favicon origin GETs. */
   readonly publicObjectRateLimiter?: ProductAdmissionRateLimiter;
   readonly notificationRateLimiter?: ProductAdmissionRateLimiter;
-  /** P4A-I05 optional attachments capability readiness provider (/ready/features/attachments). */
-  readonly attachmentsCapabilityReadiness?: () => Promise<AttachmentsCapabilityReadiness>;
-  /** P4A-P03 production issue/complete Attachment composition; absent keeps every Attachment route closed (P01 skeleton). */
-  readonly attachmentRoutes?: AttachmentRoutesDependencies;
   /** P5-31 optional email delivery-result callback ingress (disabled when unconfigured). */
   readonly emailCallbackRoutes?: EmailCallbackRoutesDependencies;
   /** P5-31 ops-only suppression surface (disabled when unconfigured). */

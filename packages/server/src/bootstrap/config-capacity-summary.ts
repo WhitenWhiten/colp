@@ -1,5 +1,4 @@
 import type { AppConfig, SanitizedRuntimeCapacity } from './config-types.js';
-import { sanitizeAttachmentRateLimitConfig } from '../modules/attachments/index.js';
 import { sanitizeLedgerArchiveRuntimeConfig } from './config-ledger-archive.js';
 import { sanitizeLedgerArchiveReaderRuntimeConfig } from './config-ledger-archive-reader.js';
 
@@ -39,8 +38,6 @@ export function sanitizedRuntimeCapacity(config: AppConfig): SanitizedRuntimeCap
         directory: Object.freeze({ ...config.cache.reports.directory }),
       }),
     }),
-    // P4A-RL04: credential-free rate-limit snapshot (never the URL/secret).
-    attachmentsRateLimit: sanitizeAttachmentRateLimitConfig(config.attachmentsRateLimit),
     // FIX-L-001: startup summary records the explicit auth mode, never the secret.
     oidcClientAuthMode: config.oidc.clientAuthMode,
     ledgerArchive: sanitizeLedgerArchiveRuntimeConfig(config.ledgerArchive),

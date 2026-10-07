@@ -1,11 +1,6 @@
 import type { ClassifyInboxFeatureConfig } from './config-classification.js';
 export type { ClassifyInboxFeatureConfig } from './config-classification.js';
 import type { EmailSkinMap } from '../infrastructure/email/index.js';
-import type {
-  AttachmentRateLimitConfig,
-  AttachmentRateLimitConfigSanitized,
-  AttachmentsFeatureConfig,
-} from '../modules/attachments/index.js';
 import type { McpReadFeatureConfig } from '../modules/mcp/index.js';
 import type { ExtensionAuthConfig, OidcEncryptionKey } from '../modules/identity/index.js';
 import type { LedgerArchiveRuntimeConfig, SanitizedLedgerArchiveRuntimeConfig } from './config-ledger-archive.js';
@@ -856,18 +851,8 @@ export interface AppConfig {
    */
   readonly emailSkins: EmailSkinMap;
   /**
-   * P4A-RL04 distributed Attachment admission limiter contract (plan §2.3);
-   * always present, defaults to `off` (zero Redis connections, bounded local
-   * I10 behavior). Orthogonal to `cache.redis`/KNOWN_CACHE_MODE: turning the
-   * Publication cache off never disables Attachment rate limiting and vice
-   * versa (plan §2.2.5).
-   */
-  readonly attachmentsRateLimit: AttachmentRateLimitConfig;
-  /** P4A-I05 private attachment infrastructure; present only when ATTACHMENTS_ENABLED=true. */
-  readonly attachments?: AttachmentsFeatureConfig;
-  /**
    * Public avatar object-key prefix (`AVATAR_R2_PREFIX`). Default `avatar/`.
-   * Must not overlap favicon or attachments live/probe prefixes (§2.10).
+   * Must not overlap favicon or the reserved attachment prefixes (§2.10).
    */
   readonly avatarR2Prefix: string;
   /**
@@ -1293,8 +1278,6 @@ export interface SanitizedRuntimeCapacity {
   readonly database: DatabasePoolConfig;
   readonly worker: WorkerConcurrencyConfig;
   readonly cache: SanitizedCacheCapacity;
-  /** P4A-RL04 credential-free Attachment rate-limit snapshot. */
-  readonly attachmentsRateLimit: AttachmentRateLimitConfigSanitized;
   /** Explicit OIDC client auth mode — never the client secret. */
   readonly oidcClientAuthMode: OidcClientAuthMode;
   readonly ledgerArchive: SanitizedLedgerArchiveRuntimeConfig;
