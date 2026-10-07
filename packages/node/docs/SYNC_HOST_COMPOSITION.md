@@ -354,7 +354,10 @@ await host.replica(unitOfWork, { replicaId, collectionId }, {
 ```
 
 The acknowledgement only moves forward: an older or repeated position commits
-without a write, and a non-active Replica is denied `stale_replica`. Do not
+without a write, including a newly authorized Session cursor for the same
+commit ordinal after rotation. The stored cursor is retained for a no-op;
+the host must still resolve and validate the presented cursor's binding before
+issuing the command. A non-active Replica is denied `stale_replica`. Do not
 write `acknowledgedCursor` / `acknowledgedCommitOrdinal` outside this command.
 
 ## Expired Pull Snapshot URL host policy

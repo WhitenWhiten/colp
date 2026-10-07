@@ -3,12 +3,16 @@ import { describe, expect, it } from 'vitest';
 import {
   asReplicaAuthenticatedCommand,
   coordinateReplicaLifecycle,
+  createSyncHost,
   type DurableReplicaCheckpoint,
   type ReplicaLifecycleCommand,
   type ReplicaLifecycleCoordinatorResult,
   type ReplicaLifecycleUnitOfWork,
+  type SyncPullCursorStore,
+  type SyncPullEventStore,
 } from '../../src/sync/index.js';
 import { createTestReplicaAuthProof } from '../../src/testing/index.js';
+import { verifiedSession } from './verified-session-fixture.js';
 
 const evidence = '[evidence:sync.replica-lifecycle]';
 const key = { replicaId: 'replica-1', collectionId: 'collection-1' };
@@ -74,12 +78,50 @@ describe(`Replica Pull acknowledgement ${evidence}`, () => {
     expect(store.state.writes).toBe(1);
 
     // A retried or reordered older acknowledgement is accepted without a write.
-    for (const [cursor, ordinal] of [['cursor-12', '12'], ['cursor-25', '25']] as const) {
+    for (const [cursor, ordinal] of [['cursor-12', '12'], ['cursor-25', '25'], ['cursor-new-session', '25']] as const) {
       await expect(acknowledge(store, cursor, ordinal))
         .resolves.toMatchObject({ state: 'committed', checkpoint: { acknowledgedCommitOrdinal: '25' } });
     }
     expect(store.state.writes).toBe(1);
-    await expect(acknowledge(store, 'cursor-other', '25')).rejects.toThrow('conflicts with the stored Cursor');
+  });
+
+  it('accepts a verified rotated Session cursor at the same ordinal without replacing the checkpoint', async () => {
+    const store = replicaStore(checkpoint());
+    const session = await verifiedSession('session-old');
+    const rotated = await verifiedSession('session-new');
+    const records = new Map([
+      ['cursor-10', { sessionId: session.sessionId, commitOrdinal: '10' }],
+      ['cursor-rotated-10', { sessionId: rotated.sessionId, commitOrdinal: '10' }],
+      ['cursor-rotated-11', { sessionId: rotated.sessionId, commitOrdinal: '11' }],
+    ]);
+    const cursorStore: SyncPullCursorStore = {
+      resolveCursor: async (cursor) => {
+        const record = records.get(cursor);
+        return record === undefined ? null : { ...record, cursor, principal: session.principal,
+          collectionId: key.collectionId, protocolVersion: '0.1', state: 'active' };
+      },
+    };
+    const eventStore: SyncPullEventStore = {
+      readCommittedAfter: async () => ({ entries: [], hasMore: false,
+        collectionRevision: 'r11', recommendedPullAfterSeconds: 30 }),
+    };
+    const host = createSyncHost({ owner: 'push', session: rotated, ownershipVerifier: () => true });
+    const cursor = 'cursor-rotated-10';
+    await expect(host.pull({ sessionId: rotated.sessionId, principal: rotated.principal,
+      collectionId: key.collectionId, protocolVersion: '0.1', cursor, limit: 1 }, cursorStore, eventStore))
+      .resolves.toMatchObject({ result: { ok: true, body: { nextCursor: cursor } } });
+    const record = await cursorStore.resolveCursor(cursor);
+    if (record === null) throw new Error('Expected authorized cursor record');
+    await expect(host.replica(store.unitOfWork, key, { type: 'acknowledge', cursor,
+      commitOrdinal: record.commitOrdinal, succeeded: true }))
+      .resolves.toMatchObject({ result: { state: 'committed', checkpoint: {
+        acknowledgedCursor: 'cursor-10', acknowledgedCommitOrdinal: '10',
+      } } });
+    expect(store.state.writes).toBe(0);
+    await expect(host.replica(store.unitOfWork, key, { type: 'acknowledge', cursor: 'cursor-rotated-11',
+      commitOrdinal: '11', succeeded: true }))
+      .resolves.toMatchObject({ result: { checkpoint: { acknowledgedCommitOrdinal: '11' } } });
+    expect(store.state.writes).toBe(1);
   });
 
   it('compares positions numerically and records a first acknowledgement', async () => {

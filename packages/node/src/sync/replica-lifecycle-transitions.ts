@@ -371,7 +371,9 @@ export async function applyRenewReplicaCommand(
 /**
  * `acknowledge` command branch — advances the durable Pull acknowledgement of
  * an active Replica. An older position is accepted without a write, so
- * retried or reordered acknowledgements never move it backwards.
+ * retried or reordered acknowledgements never move it backwards. Hosts resolve
+ * and authorize cursors before this command; Session rotation may give the
+ * same durable position a different opaque cursor.
  */
 export async function applyAcknowledgeReplicaCommand(
   ctx: ReplicaCommandTransitionContext,
@@ -387,9 +389,6 @@ export async function applyAcknowledgeReplicaCommand(
     ? null
     : ordinal(ctx.checkpoint.acknowledgedCommitOrdinal, 'Replica acknowledged commit ordinal').order;
   if (current !== null && requested <= current) {
-    if (requested === current && command.cursor !== ctx.checkpoint.acknowledgedCursor) {
-      throw new TypeError('Acknowledged Cursor conflicts with the stored Cursor at the same commit ordinal.');
-    }
     return replicaLifecycleCommitted(ctx.checkpoint);
   }
   const acknowledged = await ctx.saveAndVerify(ctx.transaction, ctx.key, Object.freeze({
