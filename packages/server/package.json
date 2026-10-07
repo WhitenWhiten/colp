@@ -6,6 +6,9 @@
   "engines": {
     "node": ">=22"
   },
+  "bin": {
+    "colp-server": "dist/src/cli/index.js"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json && esbuild migrations/*.ts --bundle --packages=external --outdir=dist/migrations --format=esm --platform=node --target=node22 --outbase=migrations --log-level=error",
     "dev": "tsx src/bootstrap/api.ts",
