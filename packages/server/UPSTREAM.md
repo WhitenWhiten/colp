@@ -134,3 +134,8 @@ Remaining server acceptance restoration (2026-10-08):
   a deployment; official COLP package evidence remains the final claim authority.
 - Restored the profile-claim boundary unit suite and source identity helper;
   repaired the existing acceptance contract's obsolete browser assertions.
+- The restored MCP OAuth fixture now resolves the seeded account ID, instead
+  of inventing an `account:`-prefixed ID rejected by the owner-bound agent
+  policy port. The deployment metrics instance is initialized explicitly, and
+  the official-client wrapper reports which method/tool failed without dumping
+  authorization or request payloads.

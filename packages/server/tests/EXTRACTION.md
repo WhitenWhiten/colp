@@ -51,3 +51,8 @@ Restored server acceptance suites (2026-10-08 follow-up):
 
 The restored suites import their evidence modules directly, rather than the
 Know-N evidence barrel that also loads deleted social/report harnesses.
+
+`npm run test:acceptance:profiles` runs the source-bound profile suite with an
+owned disposable PostgreSQL container (requires a clean repository HEAD). All
+three restored integration files are also included by `test:integration:inner`
+and the existing six-shard server integration CI job.

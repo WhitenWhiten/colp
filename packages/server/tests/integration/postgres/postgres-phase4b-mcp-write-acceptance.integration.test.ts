@@ -525,7 +525,7 @@ describeWithPostgres('MCP-W10 real Fastify Write lifecycle with Read regression'
       now: () => NOW,
       clockToleranceSeconds: 0,
       resolveAccountBySubject: async (sub) => ({
-        id: `account:${sub}`,
+        id: sub,
         subjectId: sub,
         status: 'active',
       }),
