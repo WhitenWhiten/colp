@@ -255,7 +255,7 @@
     "@arethetypeswrong/cli": "^0.18.5",
     "@modelcontextprotocol/client": "2.3.1",
     "@modelcontextprotocol/server": "2.3.1",
-    "@stryker-mutator/core": "^9.6.1",
+    "@stryker-mutator/core": "^10.0.0",
     "@stryker-mutator/vitest-runner": "^9.6.1",
     "@types/http-link-header": "^1.0.7",
     "@types/node": "^22.20.4",
