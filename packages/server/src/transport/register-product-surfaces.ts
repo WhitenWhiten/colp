@@ -39,6 +39,7 @@ import { registerLibraryOrderRoutes } from './product/library-order-routes.js';
 import { registerAccountProductSurfaces } from './register-account-product-surfaces.js';
 import { registerLinkHealthRoutes } from './product/link-health-routes.js';
 import { registerExportJobRoutes } from './product/export-job-routes.js';
+import { registerCollectionExportRoutes } from './product/collection-export-routes.js';
 import { registerClassificationProductSurfaces } from './register-classification-surfaces.js';
 import { registerOrganizePlanRoutes } from './product/organize-plan-routes.js';
 import { registerCollectionVersionRoutes } from './product/collection-version-routes.js';
@@ -127,6 +128,7 @@ export function registerProductSurfaces(
     exportJobReads,
     exportJobEnqueue,
     exportJobStore,
+    collectionExportReads,
     exportJobRateLimiter,
     organizePlanReads,
     organizePlanMutations,
@@ -419,6 +421,13 @@ export function registerProductSurfaces(
   const exportJobPorts = [exportJobReads, exportJobEnqueue, exportJobStore];
   if (exportJobPorts.some(Boolean) && exportJobPorts.some((port) => port === undefined)) {
     throw new TypeError('Export-job read, enqueue, and store production ports must be configured together');
+  }
+  if (identityUnitOfWork && collectionExportReads) {
+    registerCollectionExportRoutes(app, {
+      identityUnitOfWork,
+      origin: config.publication.origin,
+      reads: collectionExportReads,
+    });
   }
   if (identityUnitOfWork && exportJobReads && exportJobEnqueue && exportJobStore) {
     registerExportJobRoutes(app, {

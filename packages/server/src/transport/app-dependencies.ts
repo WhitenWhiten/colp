@@ -164,6 +164,7 @@ export interface AppDependencies {
     ): Promise<Result>;
   };
   readonly exportJobReads?: ExportJobReadPort;
+  readonly collectionExportReads?: import('../modules/collections/application/export-collection.js').CollectionExportReadPort;
   readonly exportJobEnqueue?: {
     execute<Result>(
       work: (ports: CreateMyExportJobPorts) => Promise<Result>,

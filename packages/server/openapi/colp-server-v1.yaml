@@ -7276,8 +7276,10 @@ paths:
         schema:
           type: string
     get:
-      summary: Export a collection
+      summary: Export a collection as Netscape HTML or COLP JSON
       operationId: exportCollection
+      description: Owner or member session. The body is an attachment named
+        `<slug>.html` or `<slug>.json`.
       security:
         - cookieAuth: []
       parameters:
@@ -7291,8 +7293,28 @@ paths:
               - json
       responses:
         "200":
-          description: Netscape HTML or COLP JSON
-      x-colp-server-pending: true
+          description: Netscape bookmark HTML or a COLP snapshot JSON document.
+          headers:
+            Content-Disposition:
+              description: attachment; filename="<slug>.html" or "<slug>.json"
+              required: true
+              schema:
+                type: string
+          content:
+            text/html:
+              schema:
+                type: string
+            application/vnd.collection-protocol.snapshot+json:
+              schema:
+                type: object
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/AuthenticationRequired"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/me/agents:
     get:
       summary: List agents

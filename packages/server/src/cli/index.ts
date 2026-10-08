@@ -15,6 +15,7 @@ import type { BetterAuthInstance } from '../infrastructure/auth/better-auth-runt
 import type { AuthEmailSender } from '../modules/auth/index.js';
 import { createLogger } from '../infrastructure/telemetry/index.js';
 import { version } from '../version.js';
+import { ExportCliError, exportOwnedCollections } from './export.js';
 
 const NETWORK_CODES = new Set([
   'ECONNREFUSED', 'ECONNRESET', 'ENOTFOUND', 'EAI_AGAIN', 'ETIMEDOUT',
@@ -52,7 +53,7 @@ type Command =
   | { readonly kind: 'start' }
   | { readonly kind: 'migrate' }
   | { readonly kind: 'version' }
-  | { readonly kind: 'export' }
+  | { readonly kind: 'export'; readonly username: string; readonly out: string }
   | CreateUserCommand
   | ResetPasswordCommand;
 
@@ -162,7 +163,14 @@ function parseCommand(argv: readonly string[]): Command {
     if (args.length !== 1) throw new CliExit(2, 'usage: colp-server --version');
     return { kind: 'version' };
   }
-  if (head === 'export') return { kind: 'export' };
+  if (head === 'export') {
+    const flags = parseFlags(args.slice(1), new Set(['username', 'out']));
+    const username = flags.get('username');
+    const out = flags.get('out');
+    if (username === undefined) throw new CliExit(2, 'export requires --username <name>');
+    if (out === undefined) throw new CliExit(2, 'export requires --out <dir>');
+    return { kind: 'export', username, out };
+  }
   if (head === 'start') {
     if (args.length !== 1) throw new CliExit(2, 'usage: colp-server start');
     return { kind: 'start' };
@@ -344,6 +352,7 @@ function signupEmail(username: string, email: string | undefined): string {
 }
 
 async function createUser(username: string, email: string | undefined, password: string): Promise<void> {
+  await migrate();
   await withAuth(async (auth) => {
     const body = {
       name: username.trim(),
@@ -402,7 +411,16 @@ async function main(): Promise<boolean> {
     process.stdout.write(`protocols ${version.protocols.join(' ')}\n`);
     return false;
   }
-  if (command.kind === 'export') throw new CliExit(2, 'export is not implemented yet');
+  if (command.kind === 'export') {
+    try {
+      await migrate();
+      await exportOwnedCollections({ username: command.username, outDir: command.out });
+    } catch (error: unknown) {
+      if (error instanceof ExportCliError) throw new CliExit(error.code, error.message);
+      throw error;
+    }
+    return false;
+  }
   if (command.kind === 'start') {
     await start();
     return true;
