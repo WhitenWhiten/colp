@@ -87,7 +87,18 @@ interface RawExtensionAuthConfig {
   readonly evidenceTtlSeconds: number;
 }
 
-export function parseExtensionAuthConfig(input: unknown): ExtensionAuthConfig {
+export interface ExtensionAuthConfigOptions {
+  /**
+   * Accept `http:` issuer, authorization, token, and JWKS URLs on a loopback
+   * host (COLP_INSECURE_HTTP, D26). The redirect URI stays HTTPS.
+   */
+  readonly allowLoopbackHttp?: boolean;
+}
+
+export function parseExtensionAuthConfig(
+  input: unknown,
+  options: ExtensionAuthConfigOptions = {},
+): ExtensionAuthConfig {
   if (!isRecord(input)) throw new ExtensionAuthError('invalid_config', 'Extension auth config must be an object');
   if (hasNonEmpty(input.clientSecret) || hasNonEmpty(input.client_secret)) {
     throw new ExtensionAuthError('client_secret_forbidden', 'A browser extension is a public client');
@@ -113,10 +124,11 @@ export function parseExtensionAuthConfig(input: unknown): ExtensionAuthConfig {
     evidenceTtlSeconds: requireBoundedInteger(input, 'evidenceTtlSeconds', 1, 60),
   };
 
-  const issuer = requireHttpsUrl(raw.issuer, 'issuer', { allowPath: true }).toString();
-  const authorizationEndpoint = requireHttpsUrl(raw.authorizationEndpoint, 'authorizationEndpoint').toString();
-  const tokenEndpoint = requireHttpsUrl(raw.tokenEndpoint, 'tokenEndpoint').toString();
-  const jwksUri = requireHttpsUrl(raw.jwksUri, 'jwksUri').toString();
+  const loopbackHttp = options.allowLoopbackHttp === true;
+  const issuer = requireHttpsUrl(raw.issuer, 'issuer', { allowPath: true, loopbackHttp }).toString();
+  const authorizationEndpoint = requireHttpsUrl(raw.authorizationEndpoint, 'authorizationEndpoint', { loopbackHttp }).toString();
+  const tokenEndpoint = requireHttpsUrl(raw.tokenEndpoint, 'tokenEndpoint', { loopbackHttp }).toString();
+  const jwksUri = requireHttpsUrl(raw.jwksUri, 'jwksUri', { loopbackHttp }).toString();
   for (const endpoint of [authorizationEndpoint, tokenEndpoint, jwksUri]) {
     if (new URL(endpoint).origin !== new URL(issuer).origin) {
       throw new ExtensionAuthError('invalid_config', 'OAuth endpoints must be issuer-origin in the P3-01 profile');
@@ -737,14 +749,21 @@ function requireClaimString(payload: JWTPayload, key: 'sub' | 'jti' | 'client_id
   return value;
 }
 
-function requireHttpsUrl(value: string, label: string, options: { readonly allowPath?: boolean } = {}): URL {
+function requireHttpsUrl(
+  value: string,
+  label: string,
+  options: { readonly allowPath?: boolean; readonly loopbackHttp?: boolean } = {},
+): URL {
   let parsed: URL;
   try {
     parsed = new URL(value);
   } catch {
     throw new ExtensionAuthError('invalid_config', `${label} must be an absolute URL`);
   }
-  if (parsed.protocol !== 'https:' || parsed.username || parsed.password || parsed.hash || parsed.search) {
+  const loopbackHttp = options.loopbackHttp === true && parsed.protocol === 'http:'
+    && ['localhost', '127.0.0.1', '[::1]'].includes(parsed.hostname);
+  if ((parsed.protocol !== 'https:' && !loopbackHttp)
+      || parsed.username || parsed.password || parsed.hash || parsed.search) {
     throw new ExtensionAuthError('invalid_config', `${label} must be a clean HTTPS URL`);
   }
   if (!options.allowPath && parsed.pathname === '/') {

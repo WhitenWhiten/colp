@@ -24,10 +24,14 @@ export function loadSyncSessionConfig(env: NodeJS.ProcessEnv): SyncSessionConfig
   const issuer = requireNonEmpty(env, 'SYNC_OAUTH_ISSUER');
   const clientId = requireNonEmpty(env, 'SYNC_OAUTH_CLIENT_ID');
   const jwksUri = requireNonEmpty(env, 'SYNC_OAUTH_JWKS_URI');
+  // Self-hosted points the JWKS at its own origin, which may be loopback or a
+  // LAN name (config-auth.ts relaxes OIDC_* the same way).
   assertOidcEndpointUrl(
     'SYNC_OAUTH_JWKS_URI',
     jwksUri,
-    (env.NODE_ENV ?? 'development') === 'production' ? 'strict' : 'relaxed',
+    env.KNOWN_EDITION === 'self-hosted' || (env.NODE_ENV ?? 'development') !== 'production'
+      ? 'relaxed'
+      : 'strict',
   );
   const extensionAuth = parseExtensionAuthConfig({
     issuer,
@@ -45,6 +49,10 @@ export function loadSyncSessionConfig(env: NodeJS.ProcessEnv): SyncSessionConfig
       'SYNC_OAUTH_CLOCK_SKEW_SECONDS', { max: 300 }),
     evidenceTtlSeconds: parsePositiveInt(env.SYNC_OAUTH_EVIDENCE_TTL_SECONDS, 30,
       'SYNC_OAUTH_EVIDENCE_TTL_SECONDS', { max: 60 }),
+  }, {
+    // Same rule as the product origin (config.ts): loopback http outside
+    // production, or in production with COLP_INSECURE_HTTP (D26).
+    allowLoopbackHttp: env.COLP_INSECURE_HTTP === 'true' || (env.NODE_ENV ?? 'development') !== 'production',
   });
   const encodedReplayKey = requireNonEmpty(env, 'SYNC_SESSION_REPLAY_KEY');
   if (!/^(?:[A-Za-z0-9+/]{4}){10}(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)$/u.test(encodedReplayKey)) {

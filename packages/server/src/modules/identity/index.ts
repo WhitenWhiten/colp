@@ -197,6 +197,7 @@ export {
   verifyPkceIdToken,
   type ExtensionAuthAlgorithm,
   type ExtensionAuthConfig,
+  type ExtensionAuthConfigOptions,
   type ExtensionAuthFailureReason,
   type ExtensionBrowserSessionPort,
   type ExtensionCredentialEvidencePort,

@@ -300,8 +300,10 @@ function isLoopback(hostname: string): boolean {
 function createSyncRetireManifestExtension(href: string) {
   let url: URL;
   try { url = new URL(href); } catch { throw new TypeError('Sync retire extension href must be absolute'); }
-  if (url.protocol !== 'https:' || url.username !== '' || url.password !== '' || url.hash !== '') {
-    throw new TypeError('Sync retire extension href must be a credential-free HTTPS URL');
+  // Same transport rule as the origin (assertConfig): https, or http on loopback.
+  if ((url.protocol !== 'https:' && !(url.protocol === 'http:' && isLoopback(url.hostname)))
+      || url.username !== '' || url.password !== '' || url.hash !== '') {
+    throw new TypeError('Sync retire extension href must be a credential-free HTTPS (or loopback HTTP) URL');
   }
   return Object.freeze({
     href: url.href,

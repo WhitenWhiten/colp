@@ -20,6 +20,9 @@ import { createECDH, createHash, hkdfSync } from 'node:crypto';
  * - KNOWN_FEATURE flags other than MCP read/write/compat, account credentials,
  *   collection history, and link health are false, which skips their
  *   production credential checks.
+ * - Sync Sessions are on. SYNC_OAUTH_JWKS_URI is checked with the relaxed
+ *   endpoint policy, and the SYNC_OAUTH_* URLs may be loopback http where the
+ *   origin may be (bootstrap/config-sync.ts).
  */
 
 export const SECRET_NAMES = [
@@ -53,7 +56,6 @@ export const SECRET_NAMES = [
   'NOTIFICATION_CURSOR_ACTIVE_SECRET',
   'NOTIFICATION_RATE_LIMIT_KEY_SECRET',
   'OIDC_TEST_PROVIDER_HMAC_SECRET',
-  'OIDC_TOKEN_ENDPOINT',
   'OIDC_TRANSACTION_HMAC_SECRET',
   'PRODUCT_CLASSIFY_INBOX_CURSOR_HMAC_KEY',
   'PRODUCT_COLLECTION_VERSIONS_CURSOR_HMAC_KEY',
@@ -70,7 +72,6 @@ export const SECRET_NAMES = [
   'REPORTS_CURSOR_ACTIVE_SECRET',
   'SEARCH_RATE_LIMIT_KEY_SECRET',
   'SYNC_EFFECT_PAGE_RATE_LIMIT_KEY_SECRET',
-  'SYNC_OAUTH_TOKEN_ENDPOINT',
   'SYNC_PULL_CURSOR_KEY',
   'SYNC_PULL_LINEAGE_KEY',
   'SYNC_RATE_LIMIT_KEY_SECRET',
@@ -214,6 +215,18 @@ export function applySelfHostedPreset(env: NodeJS.ProcessEnv): void {
   set(env, 'OIDC_AUTHORIZATION_ENDPOINT', `${canonical}/api/v1/auth/oauth2/authorize`);
   set(env, 'OIDC_TOKEN_ENDPOINT', `${canonical}/api/v1/auth/oauth2/token`);
   set(env, 'OIDC_JWKS_URI', `${canonical}/api/v1/auth/jwks`);
+  // Browser sync (P1). The extension presents its browser session as the
+  // Bearer, so the session verifier admits it; JWT access tokens would come
+  // from Better Auth. Client id and audience are the extension's build pins.
+  // SYNC_SESSION_ENABLED=false turns sync off.
+  set(env, 'SYNC_SESSION_ENABLED', 'true');
+  set(env, 'SYNC_OAUTH_ISSUER', `${canonical}/api/v1/auth`);
+  set(env, 'SYNC_OAUTH_CLIENT_ID', 'known-chromium-extension');
+  set(env, 'SYNC_OAUTH_AUDIENCE', 'known-sync-api');
+  set(env, 'SYNC_OAUTH_AUTHORIZATION_ENDPOINT', `${canonical}/api/v1/auth/oauth2/authorize`);
+  set(env, 'SYNC_OAUTH_TOKEN_ENDPOINT', `${canonical}/api/v1/auth/oauth2/token`);
+  set(env, 'SYNC_OAUTH_JWKS_URI', `${canonical}/api/v1/auth/jwks`);
+  set(env, 'SYNC_OAUTH_REDIRECT_URI', `https://${extensionIds[0] ?? DEFAULT_EXTENSION_ID}.chromiumapp.org/oauth2`);
   set(env, 'PRODUCT_EDITOR_CURSOR_ISSUANCE_FORMAT', 'keyed');
   set(env, 'MCP_REQUEST_RATE_LIMIT_MAX', '120');
   set(env, 'MCP_REQUEST_RATE_LIMIT_WINDOW_MS', '60000');

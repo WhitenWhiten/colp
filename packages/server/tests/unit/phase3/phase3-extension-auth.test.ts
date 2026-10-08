@@ -82,6 +82,36 @@ describe('P3-01 strict public-client configuration', () => {
       'invalid_config',
     );
   });
+
+  test('accepts loopback http endpoints only when acknowledged, and keeps the redirect on https (D26)', async () => {
+    const loopback = {
+      ...await fixture(),
+      issuer: 'http://localhost:8080/api/v1/auth',
+      authorizationEndpoint: 'http://localhost:8080/api/v1/auth/oauth2/authorize',
+      tokenEndpoint: 'http://localhost:8080/api/v1/auth/oauth2/token',
+      jwksUri: 'http://localhost:8080/api/v1/auth/jwks',
+    };
+    await expectReason(async () => parseExtensionAuthConfig(loopback), 'invalid_config');
+    const parsed = parseExtensionAuthConfig(loopback, { allowLoopbackHttp: true });
+    assert.equal(parsed.jwksUri, 'http://localhost:8080/api/v1/auth/jwks');
+    await expectReason(
+      async () => parseExtensionAuthConfig({
+        ...loopback,
+        issuer: 'http://192.168.1.20/api/v1/auth',
+        authorizationEndpoint: 'http://192.168.1.20/api/v1/auth/oauth2/authorize',
+        tokenEndpoint: 'http://192.168.1.20/api/v1/auth/oauth2/token',
+        jwksUri: 'http://192.168.1.20/api/v1/auth/jwks',
+      }, { allowLoopbackHttp: true }),
+      'invalid_config',
+    );
+    await expectReason(
+      async () => parseExtensionAuthConfig({
+        ...loopback,
+        redirectUri: 'http://pplpnpegpnghcddhmpgkbfkdfadjiaen.chromiumapp.org/oauth2',
+      }, { allowLoopbackHttp: true }),
+      'invalid_config',
+    );
+  });
 });
 
 describe('P3-01 Authorization Code + PKCE transaction', () => {

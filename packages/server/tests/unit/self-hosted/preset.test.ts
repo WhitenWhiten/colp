@@ -2,6 +2,10 @@ import { createHash, createPrivateKey, createPublicKey } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { applySelfHostedPreset, SECRET_NAMES } from '../../../src/bootstrap/self-hosted-preset.js';
 import { loadConfig } from '../../../src/bootstrap/config.js';
+import {
+  createPublicationManifestCandidateV02,
+  type PublicationEndpointName,
+} from '../../../src/modules/publication/application/manifest-candidate.js';
 
 const SECRET = Buffer.alloc(32, 7).toString('base64');
 
@@ -69,12 +73,62 @@ describe('self-hosted preset', () => {
     expect(() => loadConfig(env)).toThrow(/https/);
   });
 
+  it('turns on browser sync for an https origin and for acknowledged loopback http', () => {
+    const tls = baseEnv();
+    applySelfHostedPreset(tls);
+    const tlsConfig = loadConfig(tls);
+    expect(tlsConfig.syncSession?.extensionAuth.issuer).toBe('https://colp.test/api/v1/auth');
+    expect(tlsConfig.syncSession?.allowedOrigins).toEqual(['chrome-extension://pplpnpegpnghcddhmpgkbfkdfadjiaen']);
+    expect(tlsConfig.publication.endpoints.syncSessions).toBe('https://colp.test/colp/v0.1/sync/sessions');
+    expect(tlsConfig.publication.endpoints.syncEffectPages).toMatch(/\{effectId\}.*\{pageNumber\}$/u);
+
+    const loopback = baseEnv({ COLP_SERVER_ORIGIN: 'http://localhost:8080', COLP_INSECURE_HTTP: 'true' });
+    applySelfHostedPreset(loopback);
+    expect(loadConfig(loopback).syncSession?.extensionAuth.jwksUri).toBe('http://localhost:8080/api/v1/auth/jwks');
+  });
+
+  it('builds the COLP 0.2 sync manifest the extension discovers, on https and loopback http', () => {
+    for (const extra of [{}, { COLP_SERVER_ORIGIN: 'http://localhost:8080', COLP_INSECURE_HTTP: 'true' }]) {
+      const env = baseEnv(extra);
+      applySelfHostedPreset(env);
+      const { publication } = loadConfig(env);
+      const implemented = Object.keys(publication.endpoints) as PublicationEndpointName[];
+      const { manifest } = createPublicationManifestCandidateV02(publication, implemented);
+      const mount = manifest.mounts[0] as unknown as Record<string, unknown> & {
+        readonly profiles: readonly string[];
+        readonly endpoints: Record<string, string>;
+        readonly auth: { readonly oauth: boolean };
+      };
+      expect(manifest.protocolVersions).toContain('0.2');
+      expect(Object.keys(mount.endpoints)).toEqual(expect.arrayContaining(
+        ['syncSessions', 'syncSnapshot', 'syncPush', 'syncPull', 'syncAck', 'syncConflict'],
+      ));
+      expect(mount.profiles).not.toContain('sync');
+      expect(mount.auth.oauth).toBe(true);
+      expect(mount['https://known.example/extensions/sync-retire']).toMatchObject({ method: 'DELETE' });
+    }
+  });
+
+  it('binds the sync redirect to the first allowed extension and keeps sync opt-out', () => {
+    const custom = baseEnv({ COLP_ALLOWED_EXTENSION_IDS: 'abcdefghijklmnopabcdefghijklmnop, pplpnpegpnghcddhmpgkbfkdfadjiaen' });
+    applySelfHostedPreset(custom);
+    expect(custom.SYNC_OAUTH_REDIRECT_URI).toBe('https://abcdefghijklmnopabcdefghijklmnop.chromiumapp.org/oauth2');
+    expect(loadConfig(custom).syncSession?.allowedOrigins).toHaveLength(2);
+
+    const off = baseEnv({ SYNC_SESSION_ENABLED: 'false' });
+    applySelfHostedPreset(off);
+    const config = loadConfig(off);
+    expect(config.syncSession).toBeUndefined();
+    expect(config.publication.endpoints.syncSessions).toBeUndefined();
+  });
+
   it('derives a distinct value for every secret', () => {
     const env = baseEnv();
     applySelfHostedPreset(env);
     const values = SECRET_NAMES.filter((name) => !name.endsWith('_KEY_ID') && !name.endsWith('_KEYID')).map((name) => env[name]);
     expect(new Set(values).size).toBe(values.length);
     expect(env.PUBLICATION_CURSOR_ACTIVE_KEY_ID).toBe('self-hosted-v1');
+    expect(SECRET_NAMES.filter((name) => name.endsWith('_ENDPOINT'))).toEqual([]);
   });
 
   it('keeps an explicit override', () => {

@@ -422,7 +422,9 @@ export function buildApiApp(input: AppDependencies) {
     app.server.once('close', () => clearInterval(sweep));
   });
   installProductRouteManifestChecks(app, {
-    requireComplete: Boolean(
+    // The coverage check is against the full Know-N route table. The
+    // self-hosted edition registers only the colp-server-v1 subset on purpose.
+    requireComplete: process.env.KNOWN_EDITION !== 'self-hosted' && Boolean(
       identityUnitOfWork
       && collectionsUnitOfWork
       && productCollectionMutationUnitOfWork
