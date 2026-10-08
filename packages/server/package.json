@@ -56,7 +56,8 @@
     "test:mcp:change-plan-service": "npm run test:mcp:change-plan-service:unit && npm run test:mcp:change-plan-service:postgres",
     "test:mcp:write-operations:postgres:inner": "vitest run --fileParallelism=false --project postgres tests/integration/postgres/postgres-phase4b-mcp-write-operations.integration.test.ts",
     "test:mcp:write-operations:postgres": "node scripts/with-postgres.mjs -- npm run test:mcp:write-operations:postgres:inner",
-    "test:redis-rate-limit": "vitest run --project redis tests/integration/redis/effect-page-admission-security.integration.test.ts"
+    "test:redis-rate-limit": "vitest run --project redis tests/integration/redis/effect-page-admission-security.integration.test.ts",
+    "test:acceptance:profiles": "node scripts/with-postgres.mjs --isolated-owner -- node node_modules/vitest/vitest.mjs run --project postgres --fileParallelism=false tests/integration/phase2/phase2-profile-conformance.integration.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1095.0",

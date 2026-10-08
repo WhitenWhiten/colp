@@ -10,7 +10,6 @@ import {
 import type { EndpointKey } from '@know-n/colp/semantic';
 
 export type Phase2PublicationRequiredProbe =
-  | 'browser'
   | 'cachePartition'
   | 'cursorRotationRestart'
   | 'mutationFences'
@@ -55,8 +54,8 @@ const REQUIRED_ENDPOINTS = Object.freeze([
   'snapshot',
 ] as const satisfies readonly EndpointKey[]);
 const REQUIRED_PORTS = Object.freeze(['schema', 'semantic', 'client', 'server'] as const);
+// The self-hosted runner owns server probes; Know-N's web browser probe is not shipped.
 const REQUIRED_PROBES = Object.freeze([
-  'browser',
   'cachePartition',
   'cursorRotationRestart',
   'mutationFences',

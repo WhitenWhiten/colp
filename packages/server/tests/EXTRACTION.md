@@ -31,3 +31,23 @@ Restored from Know-N because they cover shipped promises (2026-10-08):
 
 `mcp/nodes-search` moved from the unit project to the integration project
 because it needs PostgreSQL.
+
+Restored server acceptance suites (2026-10-08 follow-up):
+
+- `phase2/phase2-profile-conformance`: real PostgreSQL ID persistence/restart,
+  canonical validation/cycle/subtree transactions, conditional publication
+  HTTP, and source-bound official COLP profile claims. Its deployment adapter
+  binds to a clean repository HEAD and retains every server acceptance probe.
+  The evidence verifier now matches the extracted runner's five probes;
+  Know-N's web browser probe is excluded from both. The profile-claim boundary
+  unit suite is restored, and the existing acceptance contract matches this scope.
+- `postgres/postgres-phase4b-mcp-write-acceptance`: official MCP client write,
+  approval/commit/replay/cancel lifecycle, read regression and transport headers.
+  The report-source invalidation case is omitted with the removed reports module.
+- `postgres/postgres-phase4b-mcp-snapshot-resources`: public/private cache and
+  access, bounded 10k-node snapshots, sidecar omission and continuation expiry.
+  Upload/finalize attachment fixtures and their two metadata leak cases are
+  omitted with the removed attachment module; empty attachments assertions remain.
+
+The restored suites import their evidence modules directly, rather than the
+Know-N evidence barrel that also loads deleted social/report harnesses.

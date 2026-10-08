@@ -122,3 +122,15 @@ I2 browser acceptance (2026-10-08):
   The same assertion applies at config load and runtime re-assertion. Cloud
   production policy stays strict, and HTTP still requires the explicit
   acknowledgement and a loopback origin.
+
+Remaining server acceptance restoration (2026-10-08):
+
+- Ported profile conformance, MCP write acceptance, MCP snapshot resources and
+  their necessary adapters from Know-N `be1fd1cec`. Direct evidence imports
+  avoid restoring deleted domain harnesses. See `tests/EXTRACTION.md` for scope.
+- Public-only: profile evidence validation uses the same five server probes as
+  the extracted publication runner, instead of requiring Know-N's web browser
+  probe. Source identity resolves the public repository root before provisioning
+  a deployment; official COLP package evidence remains the final claim authority.
+- Restored the profile-claim boundary unit suite and source identity helper;
+  repaired the existing acceptance contract's obsolete browser assertions.

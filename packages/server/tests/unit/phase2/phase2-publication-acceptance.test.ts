@@ -35,7 +35,6 @@ function targetOptions(): Phase2PublicationDeploymentTargetOptions {
       },
     },
     fetch: vi.fn() as FetchImplementation,
-    browserProbe: () => passed({ browser: 'chromium' }),
     cachePartitionProbe: () => passed({ partition: 'public/member' }),
     cursorRotationRestartProbe: () => passed({ rotation: 'restart-retained' }),
     mutationFenceProbe: () => passed({ fences: 'content/policy' }),
@@ -55,13 +54,11 @@ describe('Phase 2 Publication acceptance target', () => {
     assert.equal(target.sourceRevision, '0123456789abcdef');
     assert.equal(target.sourceDigest, 'a'.repeat(64));
     assert.deepEqual(Object.keys(target.probes), [...PHASE2_PUBLICATION_REQUIRED_PROBES]);
-    assert.equal(target.probes.browser, options.browserProbe);
     assert.equal(target.probes.mutationFences, options.mutationFenceProbe);
   });
 
   test.each([
     ['postgres', 'PostgreSQL'],
-    ['browserProbe', 'browser'],
     ['cachePartitionProbe', 'cachePartition'],
     ['cursorRotationRestartProbe', 'cursorRotationRestart'],
     ['mutationFenceProbe', 'mutationFences'],
@@ -227,22 +224,6 @@ describe('Phase 2 Publication acceptance target', () => {
   });
 });
 
-test('the Known probe suite propagates a missing PostgreSQL/browser harness as a hard failure', async () => {
-  const suite = createKnownPhase2DeploymentProbeSuite({
-    runtime: {} as never,
-    config: { databaseUrl: '' } as never,
-    origin: 'https://publication.example.test',
-    collectionId: ACCEPTANCE_COLLECTION_ID,
-    publicationSlug: ACCEPTANCE_PUBLICATION_SLUG,
-    memberHeaders: { cookie: '__Host-known_session=real-session' },
-  });
-
-  await assert.rejects(
-    suite.probes.browser(),
-    /browser probe requires the deployment PostgreSQL URL/u,
-  );
-});
-
 test('the Fastify deployment adapter refuses to listen when PostgreSQL is unavailable', async () => {
   const app = {
     listen: vi.fn(),
@@ -364,18 +345,4 @@ test('the CLI exits non-zero instead of skipping when PostgreSQL is absent', () 
   assert.doesNotMatch(`${result.stdout}${result.stderr}`, /\bskip(?:ped)?\b/iu);
 }, 30_000);
 
-test('Playwright artifacts cannot perturb the source digest after acceptance cleanup', () => {
-  const repositoryDirectory = resolve('..');
-  const result = spawnSync(
-    'git',
-    ['check-ignore', 'Known-Frontend/web/test-results/.last-run.json'],
-    {
-      cwd: repositoryDirectory,
-      encoding: 'utf8',
-      timeout: 15_000,
-      windowsHide: true,
-    },
-  );
-
-  assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
-});
+// Know-N's browser artifacts are outside the extracted server test scope.
