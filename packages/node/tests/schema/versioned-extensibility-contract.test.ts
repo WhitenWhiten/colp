@@ -93,16 +93,17 @@ describe(`exact-version extensibility ${evidence}`, () => {
     const definitions = (collectionProtocolSchema as JsonSchema).$defs as Record<string, JsonSchema>;
     const paths = schemaObjectPaths();
 
-    expect(Object.keys(definitions)).toHaveLength(186);
+    expect(Object.keys(definitions)).toHaveLength(191);
     expect(definitions.globalResourceIdentity).toMatchObject({
       type: 'object',
       additionalProperties: false,
       required: ['serverUuid', 'resourceType', 'id'],
     });
-    expect(paths.rootClosed).toHaveLength(155);
+    expect(paths.rootClosed).toHaveLength(160);
     expect(paths.rootOpen).toEqual(['#/$defs/extensions']);
     // CORE-0027 adds one closed Snapshot-only Node projection without opening core fields.
-    expect(paths.closed).toHaveLength(164);
+    // F2 adds five closed MCP node-tool objects (search input, hit, result, move, delete subtree).
+    expect(paths.closed).toHaveLength(169);
     expect(paths.open).toHaveLength(13);
     expect(paths.open.sort()).toEqual(Object.keys(reviewedOpenObjects).sort());
   });

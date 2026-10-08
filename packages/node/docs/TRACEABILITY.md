@@ -22,7 +22,7 @@ dependencies.
 | `publisher` | `publication` | 101 | 101 | Complete |
 | `sync` | `core` | 67 | 67 | Complete |
 | `mcp-read` | `core` | 60 | 60 | Complete |
-| `mcp-write` | `mcp-read`, `publisher` | 118 | 118 | Complete |
+| `mcp-write` | `mcp-read`, `publisher` | 120 | 120 | Complete |
 
 ## Requirements
 
@@ -194,6 +194,9 @@ dependencies.
 | `MCP-0022` | MUST | `mcp-write` | A tool that needs more input or confirmation MUST return `resultType: input_required` with `inputRequests` and an opaque `requestState`, which the client returns unchanged on retry. | [docs/05-mcp-profile.md#colp-section-25](../../../protocol/docs/05-mcp-profile.md#colp-section-25) | `mcp` | `mcp.mrtr-contract` | Verified |
 | `MCP-0023` | MUST | `mcp-read` | Tool `inputSchema` / `outputSchema` use JSON Schema 2020-12, and `$ref` resolution and combinator resource use MUST stay within hard budgets. | [docs/05-mcp-profile.md#colp-section-26](../../../protocol/docs/05-mcp-profile.md#colp-section-26) | `mcp` | `mcp.schema-budget` | Verified |
 | `MCP-0024` | MUST | `mcp-read` | The MCP endpoint MUST reject legacy methods, headers, and verbs (`initialize`, `Mcp-Session-Id`, GET / DELETE, legacy subscriptions, `Last-Event-ID`, `logging/setLevel`, `ping`) instead of ignoring them or attempting recovery. | [docs/05-mcp-profile.md#colp-section-27](../../../protocol/docs/05-mcp-profile.md#colp-section-27) | `mcp` | `mcp.legacy-semantics-rejected` | Verified |
+| `MCP-0025` | MAY | `mcp-read` | A server MAY expose `nodes.search`. The tool has risk none and scope `nodes:read`. Its input is `query` plus optional `collectionId`, `cursor`, and `limit`. | [docs/05-mcp-profile.md#colp-section-10](../../../protocol/docs/05-mcp-profile.md#colp-section-10) | `mcp` | `mcp.nodes-search` | Verified |
+| `MCP-0026` | MUST_NOT | `mcp-write` | Approval MAY be granted by an owner-configured policy recorded as `approvedBy: "policy"`. Operations that expose or purge data MUST NOT be policy-approved. Expose means `set_visibility` to `public` or `unlisted`. Purge means emptying trash, purging tombstones, or deleting a collection. | [docs/05-mcp-profile.md#colp-section-13-2](../../../protocol/docs/05-mcp-profile.md#colp-section-13-2) | `mcp`, `security` | `mcp.policy-approval` | Verified |
+| `MCP-0027` | MUST | `mcp-write` | The `nodes.delete_subtree` safety threshold MUST be host-configurable with a default of 20. Above the threshold the operation is high risk; at or below it, the operation is medium risk. | [docs/05-mcp-profile.md#colp-section-12](../../../protocol/docs/05-mcp-profile.md#colp-section-12) | `mcp`, `security` | `mcp.delete-subtree-threshold` | Verified |
 | `CORE-0038` | MUST | `core` | The wire syntax of a Bookmark `urlHash` MUST be `sha-256=:<base64>:`. | [SPECIFICATION.md#colp-section-6](../../../protocol/SPECIFICATION.md#colp-section-6) | `schema`, `semantic` | `core.url-hash-wire-envelope` | Verified |
 | `CORE-0039` | MUST | `core` | The `urlHash` Base64 MUST use canonical padded encoding and decode to exactly 32 octets. | [SPECIFICATION.md#colp-section-6](../../../protocol/SPECIFICATION.md#colp-section-6) | `schema`, `semantic` | `core.url-hash-canonical-base64` | Verified |
 | `CORE-0040` | MUST | `core` | The `urlHash` digest input MUST be the UTF-8 octets of the original `url` string, without URL parsing, normalization, or rewriting. | [SPECIFICATION.md#colp-section-6](../../../protocol/SPECIFICATION.md#colp-section-6) | `semantic` | `core.url-hash-exact-utf8-input` | Verified |

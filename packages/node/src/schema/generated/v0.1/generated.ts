@@ -6979,6 +6979,13 @@ const schema = {
         "approvalUri": {
           "$ref": "#/$defs/httpUrl"
         },
+        "approvedBy": {
+          "type": "string",
+          "enum": [
+            "user",
+            "policy"
+          ]
+        },
         "summary": {
           "type": "string"
         },
@@ -8318,6 +8325,165 @@ const schema = {
       ],
       "additionalProperties": false
     },
+    "nodesSearchInput": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "minLength": 1
+        },
+        "collectionId": {
+          "$ref": "#/$defs/opaqueId"
+        },
+        "cursor": {
+          "$ref": "#/$defs/opaqueId"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "nodesSearchHit": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/opaqueId"
+        },
+        "collectionId": {
+          "$ref": "#/$defs/opaqueId"
+        },
+        "folderPath": {
+          "type": "string"
+        },
+        "linkStatus": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "enum": [
+                "pending",
+                "healthy",
+                "redirect",
+                "broken"
+              ]
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "collectionId",
+        "folderPath",
+        "linkStatus"
+      ],
+      "additionalProperties": false
+    },
+    "nodesSearchResult": {
+      "type": "object",
+      "properties": {
+        "nodes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/nodesSearchHit"
+          }
+        },
+        "cursor": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/opaqueId"
+            }
+          ]
+        }
+      },
+      "required": [
+        "nodes",
+        "cursor"
+      ],
+      "additionalProperties": false
+    },
+    "nodesMoveInput": {
+      "type": "object",
+      "properties": {
+        "collectionId": {
+          "$ref": "#/$defs/opaqueId"
+        },
+        "nodeId": {
+          "$ref": "#/$defs/opaqueId"
+        },
+        "baseRevision": {
+          "$ref": "#/$defs/opaqueId"
+        },
+        "newParentId": {
+          "$ref": "#/$defs/opaqueId"
+        },
+        "afterId": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/opaqueId"
+            }
+          ]
+        },
+        "beforeId": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/opaqueId"
+            }
+          ]
+        },
+        "baseSourceParentRevision": {
+          "$ref": "#/$defs/opaqueId"
+        },
+        "baseTargetParentRevision": {
+          "$ref": "#/$defs/opaqueId"
+        }
+      },
+      "required": [
+        "collectionId",
+        "nodeId",
+        "baseRevision",
+        "newParentId",
+        "baseSourceParentRevision",
+        "baseTargetParentRevision"
+      ],
+      "additionalProperties": false
+    },
+    "nodesDeleteSubtreeInput": {
+      "type": "object",
+      "properties": {
+        "collectionId": {
+          "$ref": "#/$defs/opaqueId"
+        },
+        "targetId": {
+          "$ref": "#/$defs/opaqueId"
+        },
+        "baseRevision": {
+          "$ref": "#/$defs/opaqueId"
+        }
+      },
+      "required": [
+        "collectionId",
+        "targetId",
+        "baseRevision"
+      ],
+      "additionalProperties": false
+    },
     "mcpTool": {
       "type": "object",
       "properties": {
@@ -8491,6 +8657,9 @@ const schema = {
     },
     {
       "$ref": "#/$defs/changePlan"
+    },
+    {
+      "$ref": "#/$defs/nodesSearchResult"
     },
     {
       "$ref": "#/$defs/changeCommitResult"
