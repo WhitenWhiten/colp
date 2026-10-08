@@ -178,6 +178,16 @@ describe('MCP-0004 plan commit [evidence:mcp.plan-commit]', () => {
     expect(plan.summary).toContain('set_visibility');
   });
 
+  it('applies plan admission before assessment work [evidence:mcp.plan-commit]', async () => {
+    const allowPlan = vi.fn(async () => false);
+    const { service, impact } = createService({
+      rateLimit: { allowPlan, allow: vi.fn(async () => true) },
+    });
+    await expect(service.plan(planRequest(), bindingA)).rejects.toMatchObject({ code: 'rate_limited' });
+    expect(allowPlan).toHaveBeenCalledWith({ binding: bindingA });
+    expect(impact.assessImpact).not.toHaveBeenCalled();
+  });
+
   it('rejects open payload operations [evidence:mcp.plan-commit]', async () => {
     const { service } = createService();
     await expect(
@@ -434,7 +444,7 @@ describe('MCP-0004 plan commit [evidence:mcp.plan-commit]', () => {
   });
 
   it('rejects commit when rate limit denies [evidence:mcp.plan-commit]', async () => {
-    const rateLimit = { allow: vi.fn(async () => false) };
+    const rateLimit = { allowPlan: vi.fn(async () => true), allow: vi.fn(async () => false) };
     const { service } = createService({ rateLimit });
     const plan = await service.plan(planRequest(), bindingA);
     await service.recordOutOfBandApproval(plan.planId, bindingA);

@@ -253,6 +253,23 @@ describe(`CORE-0024 asserted formats followed by semantics ${evidence}`, () => {
     expect(semantics).not.toHaveBeenCalled();
   });
 
+  it('rejects malformed validation results from an untrusted wrapper', () => {
+    const snapshot = fixture('collection-snapshot.json');
+    const delegate = createValidatorRegistry();
+    const wrapper: ValidatorRegistry = {
+      definitionNames: delegate.definitionNames,
+      get: (name) => delegate.get(name),
+      validate: () => ({ valid: true, errors: null } as never),
+    };
+
+    expect(() => validateWireDocument(
+      wrapper,
+      'snapshot',
+      snapshot,
+      () => ({ valid: true as const, issues: [] as const }),
+    )).toThrow(/boolean valid and an errors array/u);
+  });
+
   it('stops the server receive boundary at parse failure without semantics or dispatch', () => {
     const semantics = vi.fn((_value: unknown) => ({ valid: true as const, issues: [] as const }));
     const dispatch = vi.fn();

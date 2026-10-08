@@ -149,6 +149,10 @@ describe('schema validator registry', () => {
     const broad = registry.validate('opaqueId', wide);
     expect(broad.valid).toBe(false);
     expect(broad.errors[0]?.keyword).toBe('x-colp-budget');
+
+    const broadArray = registry.validate('opaqueId', new Array(100_001));
+    expect(broadArray.valid).toBe(false);
+    expect(broadArray.errors[0]?.keyword).toBe('x-colp-budget');
   });
 });
 

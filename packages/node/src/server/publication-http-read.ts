@@ -1,7 +1,6 @@
 import { isProxy } from 'node:util/types';
 
 import {
-  cloneAndFreezeJsonData,
   validateWireDocument,
   type DefinitionName,
   type ValidatorRegistry,
@@ -31,6 +30,7 @@ import {
   projectPublicationPublicWire,
   type PublicationPublicWireOptions,
 } from './publication-public-projection.js';
+import { projectPublicationAuthorizedWire } from './publication-authorized-projection.js';
 import type {
   PublicationEtagJsonValue,
   PublicationEtagQueryContract,
@@ -161,9 +161,9 @@ export async function composePublicationHttpRead<Context = unknown>(
   try {
     const representation = inspectRepresentation(selected);
     assertPrincipalPartition(safeInput.access, representation);
-    let projected = safeInput.access === 'anonymous-public'
+    let projected: unknown = safeInput.access === 'anonymous-public'
       ? projectPublicationPublicWire(representation.value, safeInput.publicProjection)
-      : cloneAndFreezeJsonData(representation.value);
+      : projectPublicationAuthorizedWire(representation.value);
     if (safeInput.access === 'anonymous-public') {
       // Public redaction removes secrets and sidecars, while this separate
       // graph guard rejects restricted primary resources whose references
@@ -181,7 +181,7 @@ export async function composePublicationHttpRead<Context = unknown>(
     }
     if (safeInput.endpoint === 'snapshot') {
       assertPublicationSnapshotBookmarkUrls(projected as Readonly<Snapshot>);
-      projected = finalizePublicationSnapshotWire(projected as Readonly<Snapshot>);
+      projected = finalizePublicationSnapshotWire(projected as Readonly<Snapshot>) as unknown as typeof projected;
     }
     const bytes = publicationUtf8JsonBytes(projected);
     const mediaType = representation.negotiatedMediaType ?? PUBLICATION_JSON_MEDIA_TYPE;

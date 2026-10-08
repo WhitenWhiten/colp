@@ -7,6 +7,8 @@ export const RAW_SECRET_PREFIXES: readonly string[] = Object.freeze([
   'sk-',
   'pk-live-',
   'pk-test-',
+  'colp_live_',
+  'colp_test_',
   'ghp_',
   'gho_',
   'glpat-',
@@ -109,7 +111,8 @@ function isCredentialString(value: string): boolean {
       && decoded.toString('base64').replace(/=+$/u, '') === encoded.replace(/=+$/u, '');
   }
   if (/^AKIA[A-Z0-9]{16}$/u.test(value)) return true;
-  if (/^(?:sk-|pk-live-|pk-test-|ghp_|gho_|glpat-|xoxb-|xoxp-|ya29\.)[A-Za-z0-9_-]{16,}$/u.test(value)) {
+  if (/^colp_(?:live|test)_[A-Za-z0-9_+\-./~=]+$/u.test(value)) return true;
+  if (/^(?:sk-|pk-live-|pk-test-|ghp_|gho_|glpat-|xoxb-|xoxp-|ya29\.)[A-Za-z0-9_+\-./~=]{16,}$/u.test(value)) {
     return true;
   }
   // A base64url JSON cursor is not a JWT/JWE. Require the complete compact

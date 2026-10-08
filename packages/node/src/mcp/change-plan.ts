@@ -31,6 +31,7 @@ import {
   type ResolvedMcpHttpUriPolicy,
 } from './http-uri-policy.js';
 import { redactCommitStructuredContent } from './secret-redaction.js';
+import { allowChangePlanAdmission, readChangePlanRateLimitPort } from './change-plan-rate-limit.js';
 import {
   resolveMcpWriteInputBudget,
   snapshotMcpData,
@@ -106,7 +107,6 @@ export interface McpChangePlanStorePort {
   readonly get: (planId: string) => McpStoredPlan | undefined | PromiseLike<McpStoredPlan | undefined>;
   readonly update: (plan: McpStoredPlan) => void | PromiseLike<void>;
 }
-
 /**
  * Host-owned approval store. Approval is server-bound: the model never supplies
  * an approve boolean or approval secret through Tool input.
@@ -447,9 +447,8 @@ export interface McpChangePlanCommitCoordinatorPort<
  * auditable decision port; the library never supplies an allow-all default.
  */
 export interface McpChangePlanRateLimitPort {
-  readonly allow: (
-    input: Readonly<{ planId: string; binding: McpAuthenticatedAuthorizationBinding }>,
-  ) => boolean | PromiseLike<boolean>;
+  readonly allowPlan?: (input: Readonly<{ binding: McpAuthenticatedAuthorizationBinding }>) => boolean | PromiseLike<boolean>;
+  readonly allow: (input: Readonly<{ planId: string; binding: McpAuthenticatedAuthorizationBinding }>) => boolean | PromiseLike<boolean>;
 }
 
 /**
@@ -549,6 +548,7 @@ export function createChangePlanService<
     activePlans += 1;
     try {
       const ownedBinding = readBinding(binding);
+      if (await allowChangePlanAdmission(ports.rateLimit, ownedBinding) !== true) throw new McpChangePlanError('rate_limited', 'Rate limit does not allow plan assessment.');
     const typedRequest = validatePlanRequest(request, inputBudget);
     const operations = typedRequest.operations;
     assertKeyRevealCapability(operations, ports.revealUriForKey);
@@ -1714,7 +1714,7 @@ type ResolvedServiceOptions<
     };
     executor: { receiver: object; execute: McpChangePlanExecutorPort<Transaction>['execute'] };
   };
-  readonly rateLimit: { receiver: object; allow: McpChangePlanRateLimitPort['allow'] };
+  readonly rateLimit: { receiver: object; allow: McpChangePlanRateLimitPort['allow']; allowPlan?: McpChangePlanRateLimitPort['allowPlan'] };
   readonly verifyStoredOperationsDigest?: {
     receiver: object;
     verify: McpChangePlanStoredDigestPort['verify'];
@@ -1772,7 +1772,7 @@ function readServiceOptions<
     authorizationPolicy: readPort(options, 'authorizationPolicy', ['requiredScopesForOperation']) as
       ResolvedServiceOptions<Transaction>['authorizationPolicy'],
     commitCoordinator: readCommitCoordinator<Transaction>(options),
-    rateLimit: readPort(options, 'rateLimit', ['allow']) as ResolvedServiceOptions<Transaction>['rateLimit'],
+    rateLimit: readChangePlanRateLimitPort(options, readPort),
     approvalBaseUri,
     uriPolicy,
     uriPolicyPort,

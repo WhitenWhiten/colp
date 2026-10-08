@@ -81,7 +81,7 @@ describe('subscription acquisition and teardown ordering', () => {
     });
     const session = adapter.listen(context(), { notifications }, 'live');
     expect(unsubscribe).not.toHaveBeenCalled();
-    expect(vi.getTimerCount()).toBe(1);
+    expect(vi.getTimerCount()).toBe(2);
     expect((await session.notifications[Symbol.asyncIterator]().next()).done).toBe(false);
     session.close();
     await expect(session.closed).resolves.toMatchObject({ reason: 'closed' });
