@@ -5,6 +5,7 @@ import { RelationProductReadError, formatUtcDateTime, type ProductRelationCursor
   type ProductRelationReadPort, type ProductRelationRow, type RelationReadUnitOfWork } from '../../modules/collections/index.js';
 import { createPostgresAccessPolicyFactsPort } from '../access-policy/index.js';
 import type { DatabaseSchema } from '../database/runtime.js';
+import { buildPublicationTargetAncestorRestrictionSql } from '../database/collection-control-sql.js';
 import { createUnitOfWork, type DatabaseTransaction, type UnitOfWorkOptions } from '../database/unit-of-work.js';
 import type { Metrics } from '../telemetry/index.js';
 import { createPostgresCollectionsClock } from './repositories.js';
@@ -119,10 +120,23 @@ export function createPostgresRelationReadPort(transaction: DatabaseTransaction,
       if (input.types.length > 0) query = query.where('relations.type', 'in', input.types);
       if (input.visibilities.length > 0) query = query.where('relations.visibility', 'in', input.visibilities);
       const endpointVisibilityList = sql.join(input.endpointVisibilities.map((visibility) => sql`${visibility}`));
-      query = query.where(sql<boolean>`(CASE WHEN relation_from.visibility = 'inherit'
-        THEN relation_collection.visibility ELSE relation_from.visibility END) IN (${endpointVisibilityList})`)
-        .where(sql<boolean>`(CASE WHEN relation_to.visibility = 'inherit'
-          THEN relation_collection.visibility ELSE relation_to.visibility END) IN (${endpointVisibilityList})`);
+      // Keep the SQL pre-filter aligned with the effective visibility used in
+      // the selected from/to columns. An inherited node below a private or
+      // protected/deleted/dangling/cyclic ancestor must not pass as public
+      // merely because its collection is public; the application-level
+      // filter is intentionally a second line of defence, not the only gate.
+      // The shared ancestor fragment is bounded and cycle-safe. It maps every
+      // restricted inherited endpoint to `private` for this pre-filter;
+      // members still receive the row because their endpoint allow-list also
+      // includes private.
+      query = query.where(sql<boolean>`(CASE
+        WHEN relation_from.visibility <> 'inherit' THEN relation_from.visibility
+        WHEN ${sql.raw(buildPublicationTargetAncestorRestrictionSql('relation_from'))} THEN 'private'
+        ELSE relation_collection.visibility END) IN (${endpointVisibilityList})`)
+        .where(sql<boolean>`(CASE
+        WHEN relation_to.visibility <> 'inherit' THEN relation_to.visibility
+        WHEN ${sql.raw(buildPublicationTargetAncestorRestrictionSql('relation_to'))} THEN 'private'
+        ELSE relation_collection.visibility END) IN (${endpointVisibilityList})`);
       if (input.after) { const updated = parseDate(input.after.updatedAt);
         query = query.where((eb) => eb.or([eb('relations.updated_at', '<', updated), eb.and([
           eb('relations.updated_at', '=', updated), sql<boolean>`relations.id COLLATE "C" > ${input.after!.id} COLLATE "C"`])])); }
