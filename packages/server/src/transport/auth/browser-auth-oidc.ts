@@ -38,6 +38,7 @@ const AUTH_FAILED_LOCATION = '/login?auth=failed';
  */
 const AUTH_RESTART_LOCATION = '/login?auth=restart';
 export const FIXED_DASHBOARD = '/';
+const OIDC_BROWSER_STATE_COOKIE = '__Host-known_oidc_state';
 
 /** Callback stages used for failure classification.
  * @deprecated Legacy OIDC callback flow (Task F1 quarantine).
@@ -162,6 +163,11 @@ export function registerLegacyOidcRoutes(app: FastifyInstance, deps: BrowserAuth
       return reply
         .code(302)
         .header('Cache-Control', 'no-store')
+        // Bind the transaction to the browser that initiated it. Without a
+        // browser-held state proof an attacker can start OIDC in their own
+        // session and deliver the callback to a victim (login CSRF/session
+        // swapping), even though state is valid in the database.
+        .header('Set-Cookie', `${OIDC_BROWSER_STATE_COOKIE}=${encodeURIComponent(started.transaction.state)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=600`)
         .header('Location', location)
         .send();
     });
@@ -213,6 +219,13 @@ async function completeOidcCallback(
   if (!state || (hasCode === hasError) || (!hasCode && !hasError)) {
     throw new OidcExchangeError('invalid_callback_shape');
   }
+  const stateCookie = readOidcBrowserStateCookie(request);
+  if (stateCookie === null || stateCookie !== state) {
+    throw new OidcExchangeError('invalid_callback_shape');
+  }
+  // Consume the binding before any redirect; replayed callbacks cannot reuse
+  // a browser state cookie after the one-time transaction is consumed.
+  reply.header('Set-Cookie', `${OIDC_BROWSER_STATE_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`);
   if (query.iss !== undefined && query.iss !== deps.config.oidc.issuer) {
     // Pre-exchange validation: do not consume the TX so a correct iss retry
     // of the same browser callback remains possible before code expiry.
@@ -300,6 +313,20 @@ async function completeOidcCallback(
     .header('Cache-Control', 'no-store')
     .header('Location', location)
     .send();
+}
+
+function readOidcBrowserStateCookie(request: FastifyRequest): string | null {
+  const header = request.headers.cookie;
+  if (typeof header !== 'string') return null;
+  let value: string | null = null;
+  for (const part of header.split(';')) {
+    const trimmed = part.trim();
+    const separator = trimmed.indexOf('=');
+    if (separator < 0 || trimmed.slice(0, separator) !== OIDC_BROWSER_STATE_COOKIE) continue;
+    if (value !== null) return null;
+    try { value = decodeURIComponent(trimmed.slice(separator + 1)); } catch { return null; }
+  }
+  return value;
 }
 
 async function issueSessionForOidcClaims(

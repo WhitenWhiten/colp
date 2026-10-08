@@ -13,6 +13,7 @@ import {
 import { canonicalCommandFingerprint } from '../../modules/commands/index.js';
 import { httpCommandScopeV1 } from '../http-command-scope.js';
 import { colpAuthorizationFromRawHeaders } from './sync-colp-authorization.js';
+import type { SyncTransportSecurity } from './sync-transport-security.js';
 
 export const EXTENSION_COLLECTIONS_PATH = '/colp/v0.1/sync/collections';
 const MAX_ITEMS = 100;
@@ -39,6 +40,8 @@ export interface ExtensionCollectionRouteDependencies {
   readonly allowedOrigins: readonly string[];
   readonly ownerAccount?: ExtensionOwnerAccountPort;
   readonly collectionMutation?: ProductCollectionMutationUnitOfWork;
+  /** Shared Sync TLS/ingress admission; helper routes must not bypass it. */
+  readonly transportSecurity?: SyncTransportSecurity;
 }
 
 interface ExtensionCollectionView {
@@ -57,6 +60,9 @@ export function registerExtensionCollectionRoutes(
   app.get(EXTENSION_COLLECTIONS_PATH, {
     config: { productTransport: { allowedQuery: [], cacheControl: 'private-no-store' } },
   }, async (request, reply) => {
+    if (dependencies.transportSecurity && !dependencies.transportSecurity.isSecure(request)) {
+      return deny(reply, 'authentication_required', 'A secure transport is required.');
+    }
     const origin = normalizeOrigin(readHeader(request, 'origin'));
     if (origin !== undefined && !dependencies.allowedOrigins.includes(origin)) {
       return deny(reply, 'origin_not_allowed', 'The request origin is not allowed.');
@@ -87,6 +93,9 @@ export function registerExtensionCollectionRoutes(
     config: { productTransport: { allowedQuery: [], acceptedMediaTypes: ['application/json'],
       bodyLimitBytes: 16_384, cacheControl: 'private-no-store' } },
   }, async (request, reply) => {
+    if (dependencies.transportSecurity && !dependencies.transportSecurity.isSecure(request)) {
+      return deny(reply, 'authentication_required', 'A secure transport is required.');
+    }
     const origin = normalizeOrigin(readHeader(request, 'origin'));
     if (origin !== undefined && !dependencies.allowedOrigins.includes(origin)) {
       return deny(reply, 'origin_not_allowed', 'The request origin is not allowed.');

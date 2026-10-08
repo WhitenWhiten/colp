@@ -1165,6 +1165,19 @@ export class ColpClient {
           `Egress policy denied ${policy.purpose} request URL: literal private or local host.`,
         );
       }
+      // Node 22.0–22.2 do not expose process.getBuiltinModule. In that
+      // runtime the default resolver/pinned transport is unavailable; treating
+      // the missing capability as "no DNS policy" would silently re-enable
+      // DNS-rebinding SSRF. Fail closed for remote destinations until the
+      // caller supplies an explicit egress policy/transport.
+      if (!callerSelectedLocalOrigin && !privateLiteral
+          && this.#hostResolver === undefined && this.#pinnedFetch === undefined
+          && typeof (globalThis as typeof globalThis & { process?: { versions?: { node?: unknown } } }).process
+            ?.versions?.node === 'string') {
+        throw new TypeError(
+          `Egress policy denied ${policy.purpose} request URL: Node DNS pinning capability is unavailable.`,
+        );
+      }
       if (!callerSelectedLocalOrigin && !privateLiteral && this.#hostResolver !== undefined) {
         let addresses: readonly string[];
         try {

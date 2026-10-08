@@ -15,6 +15,7 @@ import { registerSyncAckRoutes } from './sync-ack-routes.js';
 import { registerSyncRetireRoutes } from './sync-retire-routes.js';
 import { registerExtensionCollectionRoutes } from './extension-collection-routes.js';
 import { registerSyncFaviconHelperRoutes } from './sync-favicon-helper-routes.js';
+import { createSyncTransportSecurity } from './sync-transport-security.js';
 import type { SyncAdmissionPolicy } from '../../infrastructure/rate-limit/index.js';
 import type { AppDependencies } from '../app.js';
 
@@ -215,7 +216,14 @@ export function registerColpSync(app: FastifyInstance, deps: AppDependencies): v
     throw new TypeError('Sync retire route dependencies must match the advertised configuration');
   }
   if (syncRetireRoutes) registerSyncRetireRoutes(app, withAdmission(syncRetireRoutes, syncAdmissionPolicy));
-  if (extensionCollectionRoutes) registerExtensionCollectionRoutes(app, extensionCollectionRoutes);
+  const extensionTransportSecurity = createSyncTransportSecurity({
+    allowInsecureLoopback: config.allowInsecureLoopback,
+    trustedIngress: config.httpSecurity.trustedIngress,
+  });
+  if (extensionCollectionRoutes) registerExtensionCollectionRoutes(app, {
+    ...extensionCollectionRoutes,
+    transportSecurity: extensionTransportSecurity,
+  });
   // FO-04: the four extension favicon helper operations under /colp/v0.1/sync.
   // They reuse the original COLP extension credential authority and are gated
   // by the same KNOWN_FEATURE_FAVICON_POLICY flag as the Product favicon
@@ -239,6 +247,7 @@ export function registerColpSync(app: FastifyInstance, deps: AppDependencies): v
         : { rateLimiter: deps.faviconPolicyRateLimiter }),
     timeoutMs: config.faviconPolicy.timeoutMs,
     ...(deps.metrics ? { metrics: deps.metrics } : {}),
+    transportSecurity: extensionTransportSecurity,
   });
 }
 

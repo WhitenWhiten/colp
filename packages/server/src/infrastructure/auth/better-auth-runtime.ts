@@ -659,6 +659,35 @@ function buildProductAuthHooks(input: {
   };
   return {
     before: createAuthMiddleware(async (ctx) => {
+      // Better Auth's OAuth authorize endpoint authenticates the browser
+      // session itself, but the product authority also tracks revocation and
+      // security-epoch state in known_auth_session_metadata. Re-check that
+      // authoritative row before issuing an authorization code so a cookie
+      // accepted by BA cannot survive product-side session revocation.
+      if (ctx.path === '/oauth2/authorize' && input.db !== undefined) {
+        const candidate = (ctx.context as unknown as {
+          readonly session?: { readonly session?: { readonly id?: unknown } };
+        }).session?.session?.id;
+        if (typeof candidate === 'string' && candidate.length > 0) {
+          const row = await input.db.selectFrom('known_auth_session_metadata')
+            .select(['revoked_at', 'security_epoch', 'account_id'])
+            .where('auth_session_id', '=', candidate)
+            .executeTakeFirst();
+          if (!row || row.revoked_at !== null) {
+            throw APIError.from('UNAUTHORIZED', {
+              code: 'session_revoked', message: 'The browser session is no longer valid.',
+            });
+          }
+          const account = await input.db.selectFrom('accounts').select(['security_epoch', 'status'])
+            .where('id', '=', row.account_id).executeTakeFirst();
+          if (!account || account.status !== 'active'
+              || BigInt(account.security_epoch) !== BigInt(row.security_epoch)) {
+            throw APIError.from('UNAUTHORIZED', {
+              code: 'session_revoked', message: 'The browser session is no longer valid.',
+            });
+          }
+        }
+      }
       // OAuth Provider 1.7.1 dispatches registered backchannel logout URIs
       // with the process-global fetch.  It has no egress injection seam, so
       // accepting that metadata would leave a DNS-rebinding SSRF primitive in

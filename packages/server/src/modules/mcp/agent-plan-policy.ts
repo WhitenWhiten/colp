@@ -108,6 +108,12 @@ export function createAutoApproveTrustedPlan(
   return async (planned, binding, actions) => {
     const policy = await deps.readPolicy(binding.principalId, binding.clientId);
     if (policy !== 'trusted') return planned;
+    // A trusted client may only auto-commit when the current request carries
+    // the explicit commit capability. Older callers do not expose scopes on
+    // the binding, so absence is intentionally fail-closed and leaves the
+    // plan in the normal owner-approval flow.
+    const scopes = (binding as unknown as { readonly scopes?: readonly string[] }).scopes;
+    if (!Array.isArray(scopes) || !scopes.includes('changes:commit')) return planned;
     if (!planOperationsAreReversible(planned.operations)) return planned;
     const collectionId = collectionIdFromPlan(planned);
     if (collectionId === undefined) return planned;
