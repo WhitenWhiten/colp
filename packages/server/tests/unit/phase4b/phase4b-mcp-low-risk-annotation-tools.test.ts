@@ -485,10 +485,10 @@ test('annotations.update not found is policy_denied, not Internal error', async 
   );
 });
 
-test('catalog lists annotations.create and annotations.update when nodes:write is present', async () => {
+test('catalog lists annotations.create and annotations.update when annotations:write is present', async () => {
   const fixture = createInMemoryWriteToolFixture();
   const listed = await fixture.bundle.adapter.listTools(
-    listContext(['nodes:write']),
+    listContext(['annotations:write']),
     {},
   );
   const names = (listed.tools as ReadonlyArray<{ readonly name: string }>).map((tool) => tool.name);
@@ -499,11 +499,11 @@ test('catalog lists annotations.create and annotations.update when nodes:write i
     ['annotations.create', 'annotations.update'],
   );
   assert.equal(
-    canCallPhase4bMcpWriteTool(listContext(['nodes:write']), 'annotations.create'),
+    canCallPhase4bMcpWriteTool(listContext(['annotations:write']), 'annotations.create'),
     true,
   );
   assert.equal(
-    canCallPhase4bMcpWriteTool(listContext(['nodes:write']), 'annotations.update'),
+    canCallPhase4bMcpWriteTool(listContext(['annotations:write']), 'annotations.update'),
     true,
   );
   assert.equal(
@@ -515,7 +515,7 @@ test('catalog lists annotations.create and annotations.update when nodes:write i
 test('compat listed annotation schemas have no x-mcp-header', async () => {
   const fixture = createInMemoryWriteToolFixture();
   const listed = await fixture.bundle.adapter.listTools(
-    listContext(['nodes:write']),
+    listContext(['annotations:write']),
     {},
   );
   const tools = listed.tools as ReadonlyArray<{
