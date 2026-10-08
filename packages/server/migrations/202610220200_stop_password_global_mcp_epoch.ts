@@ -9,7 +9,9 @@ export async function up(db: Kysely<unknown>): Promise<void> {
   await sql`CREATE OR REPLACE FUNCTION commit_password_security_event() RETURNS trigger LANGUAGE plpgsql AS $$
   DECLARE product_account_id text; next_epoch bigint; event_time timestamptz;
   BEGIN
-    IF NEW.password IS NOT DISTINCT FROM OLD.password THEN RETURN NEW; END IF;
+    IF TG_OP = 'UPDATE' THEN
+      IF NEW.password IS NOT DISTINCT FROM OLD.password THEN RETURN NEW; END IF;
+    END IF;
     SELECT account_id INTO product_account_id FROM auth_user_account_map WHERE auth_user_id = NEW."userId";
     IF product_account_id IS NULL THEN RETURN NEW; END IF;
     UPDATE accounts SET security_epoch = security_epoch + 1 WHERE id = product_account_id RETURNING security_epoch INTO next_epoch;
@@ -27,7 +29,9 @@ export async function down(db: Kysely<unknown>): Promise<void> {
   await sql`CREATE OR REPLACE FUNCTION commit_password_security_event() RETURNS trigger LANGUAGE plpgsql AS $$
   DECLARE product_account_id text; next_epoch bigint; event_id bigint; event_time timestamptz;
   BEGIN
-    IF NEW.password IS NOT DISTINCT FROM OLD.password THEN RETURN NEW; END IF;
+    IF TG_OP = 'UPDATE' THEN
+      IF NEW.password IS NOT DISTINCT FROM OLD.password THEN RETURN NEW; END IF;
+    END IF;
     SELECT account_id INTO product_account_id FROM auth_user_account_map WHERE auth_user_id = NEW."userId";
     IF product_account_id IS NULL THEN RETURN NEW; END IF;
     UPDATE accounts SET security_epoch = security_epoch + 1 WHERE id = product_account_id RETURNING security_epoch INTO next_epoch;

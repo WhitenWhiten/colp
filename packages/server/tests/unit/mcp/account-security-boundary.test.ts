@@ -34,7 +34,7 @@ const ACTIVE: McpAccountSecurityBoundary = {
 };
 const FLOOR = Math.floor(ACTIVE.bumpedAt!.getTime() / 1_000);
 
-test('account boundary uses epoch equality or strict second iat and fails closed', () => {
+test('account boundary uses epoch equality or rejects the boundary second and fails closed', () => {
   assert.equal(isMcpAccountSecurityBoundaryRevoked({
     boundary: ACTIVE, issuedAtSeconds: FLOOR - 30, knownAccountEpoch: '1',
   }), false, 'a matching account epoch is not revoked by an earlier iat');
@@ -43,7 +43,7 @@ test('account boundary uses epoch equality or strict second iat and fails closed
   }), true, 'an old account epoch is revoked in the event second');
   assert.equal(isMcpAccountSecurityBoundaryRevoked({
     boundary: ACTIVE, issuedAtSeconds: FLOOR, knownAccountEpoch: undefined,
-  }), false, 'same-second iat is not revoked');
+  }), true, 'boundary-second iat is rejected without an exact epoch claim');
   assert.equal(isMcpAccountSecurityBoundaryRevoked({
     boundary: ACTIVE, issuedAtSeconds: FLOOR - 1, knownAccountEpoch: undefined,
   }), true);

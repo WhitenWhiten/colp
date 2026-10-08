@@ -17,9 +17,9 @@ const CAPABILITY_HEADER = 'known-sync-conflict-recovery';
 
 export interface SyncSnapshotConflictApplication {
   listOpenConflicts(input: { readonly credential: VerifiedExtensionCredential; readonly sessionId: string;
-    readonly snapshotId: string; readonly offset: number; readonly limit: number }): Promise<SnapshotOpenConflictPage>;
+    readonly snapshotId: string; readonly offset: number; readonly limit: number; readonly origin: string }): Promise<SnapshotOpenConflictPage>;
   confirmOpenConflicts(input: { readonly credential: VerifiedExtensionCredential; readonly sessionId: string;
-    readonly snapshotId: string; readonly conflictDigest: string }): Promise<{ readonly confirmed: true }>;
+    readonly snapshotId: string; readonly conflictDigest: string; readonly origin: string }): Promise<{ readonly confirmed: true }>;
 }
 
 /** Paged open-conflict list bound to one Snapshot cut. Negotiated; old clients are not served it. */
@@ -46,6 +46,7 @@ export function registerSyncSnapshotConflictRoutes(app: FastifyInstance, depende
       }
       const page = await dependencies.application.listOpenConflicts({
         credential: admitted.credential, sessionId: admitted.sessionId, snapshotId: admitted.snapshotId, offset, limit,
+        origin: admitted.origin,
       });
       return reply.code(200).header('Cache-Control', 'private, no-store').type('application/json').send(page);
     } catch (error) {
@@ -66,7 +67,7 @@ export function registerSyncSnapshotConflictRoutes(app: FastifyInstance, depende
       }
       const confirmed = await dependencies.application.confirmOpenConflicts({
         credential: admitted.credential, sessionId: admitted.sessionId, snapshotId: admitted.snapshotId,
-        conflictDigest: digest,
+        conflictDigest: digest, origin: admitted.origin,
       });
       return reply.code(200).header('Cache-Control', 'private, no-store').type('application/json').send(confirmed);
     } catch (error) {
@@ -77,7 +78,7 @@ export function registerSyncSnapshotConflictRoutes(app: FastifyInstance, depende
 
 async function admit(request: FastifyRequest, dependencies: SyncSnapshotRouteDependencies,
   transportSecurity: { isSecure(value: FastifyRequest): boolean }): Promise<{
-  readonly credential: VerifiedExtensionCredential; readonly sessionId: string; readonly snapshotId: string }> {
+  readonly credential: VerifiedExtensionCredential; readonly sessionId: string; readonly snapshotId: string; readonly origin: string }> {
   const headers = collect(request.raw.rawHeaders);
   const authorization = requireColpAuthorization(headers, (code) => new SyncBootstrapSnapshotError(code));
   const origin = one(headers, 'origin', 'origin_not_allowed');
@@ -105,7 +106,7 @@ async function admit(request: FastifyRequest, dependencies: SyncSnapshotRouteDep
     const normalized = normalize(error);
     throw normalized.code === 'internal_error' ? new SyncBootstrapSnapshotError('authentication_required') : normalized;
   }
-  return { credential, sessionId, snapshotId };
+  return { credential, sessionId, snapshotId, origin };
 }
 
 async function enforceAdmission(request: FastifyRequest, reply: FastifyReply,

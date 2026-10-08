@@ -50,8 +50,9 @@ test('pushes visibility, filters, full keyset comparator, and limit+1 into Postg
   assert.match(query.sql, /c\.id collate "C" > \$[0-9]+::text collate "C"/u);
   assert.match(query.sql, /order by c\.updated_at desc, c\.id collate "C" asc/u);
   assert.match(query.sql, /extract\(epoch from c\.updated_at\) \* 1000000/u);
-  assert.match(query.sql, /c\.live_node_count - coalesce\(\(\s*select count\(\*\)::int\s*from nodes n/u);
-  assert.match(query.sql, /n\.kind = 'bookmark'/u);
+  assert.match(query.sql, /select count\(\*\)::int\s*from nodes n/u);
+  assert.match(query.sql, /n\.visibility = 'inherit'/u);
+  assert.match(query.sql, /target_ancestors/u);
   assert.match(query.sql, /ma\.target_id = n\.id/u);
   assert.doesNotMatch(query.sql, /GREATEST\s*\(/u);
   assert.match(query.sql, /as node_count/u);
@@ -134,13 +135,14 @@ test('combined q and tag filters keep authorization, keyset, and limit+1 semanti
   assert.equal(statement.values.at(-1), 11);
 });
 
-test('directory SELECT reads materialized live_node_count and does not correlate count(*) on nodes', () => {
+test('directory SELECT derives node count from the anonymous public visibility policy', () => {
   const statement = buildPublicationDirectoryStatement({
     principal: 'anonymous', filter: {}, limit: 24,
   });
-  assert.match(statement.text, /c\.live_node_count - coalesce\(\(\s*select count\(\*\)::int\s*from nodes n/u);
-  assert.match(statement.text, /n\.kind = 'bookmark'/u);
-  assert.match(statement.text, /n\.is_root = false/u);
+  assert.match(statement.text, /select count\(\*\)::int\s*from nodes n/u);
+  assert.match(statement.text, /n\.visibility = 'inherit'/u);
+  assert.match(statement.text, /target_ancestors/u);
+  assert.doesNotMatch(statement.text, /c\.live_node_count/u);
   assert.doesNotMatch(statement.text, /GREATEST\s*\(/u);
   assert.match(statement.text, /as node_count/u);
 });

@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { isProductApiError, productClient, type ReportSeries } from '../api'
 import { isAbort } from './libraryTree'
+import { privateSessionIdentity, subscribeSession } from '../api/sessionStore'
 import { readRouteCache, writeRouteCache } from './routeCache'
 
 const MINE_CHANNEL = 'known.my-reports.v1'
@@ -36,6 +37,7 @@ export function notifyMyReportsChanged() {
  * 404 (feature not exposed). Mirrors useFollowedReports.
  */
 export function useMyReports(exposed: boolean) {
+  const sessionIdentity = useSyncExternalStore(subscribeSession, privateSessionIdentity, privateSessionIdentity)
   const restored = readRouteCache<MineCache>(MINE_CACHE_KEY)
   const [items, setItems] = useState<ReportSeries[]>(restored?.items ?? [])
   const [nextCursor, setNextCursor] = useState<string | null>(restored?.nextCursor ?? null)
@@ -45,6 +47,7 @@ export function useMyReports(exposed: boolean) {
   const itemsRef = useRef<ReportSeries[]>([])
   const generation = useRef(0)
   const controllerRef = useRef<AbortController | null>(null)
+  const renderedIdentityRef = useRef(sessionIdentity)
   itemsRef.current = items
 
   const loadFirstPage = useCallback(async () => {
@@ -52,6 +55,7 @@ export function useMyReports(exposed: boolean) {
     controllerRef.current?.abort()
     const controller = new AbortController()
     controllerRef.current = controller
+    const requestIdentity = sessionIdentity
     const requestGeneration = ++generation.current
     const keepExisting = itemsRef.current.length > 0
     if (!keepExisting) setStatus('loading')
@@ -60,14 +64,16 @@ export function useMyReports(exposed: boolean) {
         { limit: MINE_PAGE_LIMIT },
         { signal: controller.signal, maxRetries: 0 },
       )
-      if (controller.signal.aborted || requestGeneration !== generation.current) return
+      if (controller.signal.aborted || requestGeneration !== generation.current
+        || privateSessionIdentity() !== requestIdentity) return
       setItems(page.items)
       setNextCursor(page.nextCursor)
       setMoreError(false)
       setStatus('ready')
       writeRouteCache<MineCache>(MINE_CACHE_KEY, { items: page.items, nextCursor: page.nextCursor })
     } catch (error) {
-      if (controller.signal.aborted || requestGeneration !== generation.current || isAbort(error)) return
+      if (controller.signal.aborted || requestGeneration !== generation.current
+        || privateSessionIdentity() !== requestIdentity || isAbort(error)) return
       if (isProductApiError(error) && (error.status === 404 || error.code === 'resource_not_found')) {
         setStatus('unavailable')
         return
@@ -80,13 +86,14 @@ export function useMyReports(exposed: boolean) {
     } finally {
       if (controllerRef.current === controller) controllerRef.current = null
     }
-  }, [exposed])
+  }, [exposed, sessionIdentity])
 
   const loadMore = useCallback(async () => {
     const cursor = nextCursor
     if (!cursor || loadingMore || controllerRef.current) return
     const controller = new AbortController()
     controllerRef.current = controller
+    const requestIdentity = sessionIdentity
     const requestGeneration = ++generation.current
     setLoadingMore(true)
     setMoreError(false)
@@ -95,7 +102,8 @@ export function useMyReports(exposed: boolean) {
         { cursor },
         { signal: controller.signal, maxRetries: 0 },
       )
-      if (controller.signal.aborted || requestGeneration !== generation.current) return
+      if (controller.signal.aborted || requestGeneration !== generation.current
+        || privateSessionIdentity() !== requestIdentity) return
       setItems((current) => {
         const seen = new Set(current.map((item) => item.id))
         return [...current, ...page.items.filter((item) => !seen.has(item.id))]
@@ -104,15 +112,22 @@ export function useMyReports(exposed: boolean) {
       setMoreError(false)
       setStatus('ready')
     } catch (error) {
-      if (controller.signal.aborted || requestGeneration !== generation.current || isAbort(error)) return
+      if (controller.signal.aborted || requestGeneration !== generation.current
+        || privateSessionIdentity() !== requestIdentity || isAbort(error)) return
       setMoreError(true)
     } finally {
       if (controllerRef.current === controller) controllerRef.current = null
       if (requestGeneration === generation.current) setLoadingMore(false)
     }
-  }, [loadingMore, nextCursor])
+  }, [loadingMore, nextCursor, sessionIdentity])
 
   useEffect(() => {
+    renderedIdentityRef.current = sessionIdentity
+    const cached = readRouteCache<MineCache>(MINE_CACHE_KEY)
+    setItems(cached?.items ?? [])
+    setNextCursor(cached?.nextCursor ?? null)
+    setStatus(cached ? 'ready' : 'loading')
+    setMoreError(false)
     if (!exposed) return
     void loadFirstPage()
     const onStorage = (event: StorageEvent) => {
@@ -127,7 +142,15 @@ export function useMyReports(exposed: boolean) {
       controllerRef.current?.abort()
       generation.current += 1
     }
-  }, [exposed, loadFirstPage])
+  }, [exposed, loadFirstPage, sessionIdentity])
 
-  return { items, status, nextCursor, loadingMore, moreError, loadFirstPage, loadMore }
+  const identityReady = renderedIdentityRef.current === sessionIdentity
+  return {
+    items: identityReady ? items : [],
+    status: identityReady ? status : 'loading' as MyReportsStatus,
+    nextCursor: identityReady ? nextCursor : null,
+    loadingMore: identityReady ? loadingMore : false,
+    moreError: identityReady ? moreError : false,
+    loadFirstPage, loadMore,
+  }
 }

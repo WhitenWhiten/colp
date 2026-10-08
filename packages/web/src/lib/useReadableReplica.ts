@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { isProductApiError, productClient } from '../api'
+import { privateSessionIdentity, subscribeSession } from '../api/sessionStore'
 import type { ReadableReplicaView } from '../api/types'
 import { isAbort } from './libraryTree'
 import { readRouteCache, writeRouteCache } from './routeCache'
@@ -65,6 +66,7 @@ export function useReadableReplica(input: {
   nodeId: string
   enabled: boolean
 }): ReplicaFields & { retry: (force: boolean) => void } {
+  const sessionIdentity = useSyncExternalStore(subscribeSession, privateSessionIdentity, privateSessionIdentity)
   const [snapshot, setSnapshot] = useState<ReplicaFields>(() => (
     restoredReplica(input.collectionId, input.nodeId)
     ?? (input.enabled ? { ...idle, status: 'none' } : idle)
@@ -73,8 +75,13 @@ export function useReadableReplica(input: {
   paramsRef.current = input
   const retryImplRef = useRef<(force: boolean) => void>(() => {})
   const autoPostedRef = useRef(false)
+  const renderedIdentityRef = useRef(sessionIdentity)
 
   useEffect(() => {
+    // Hide the previous account's replica for the render between the session
+    // notification and this effect replacing its cache/read.
+    renderedIdentityRef.current = sessionIdentity
+    const requestIdentity = sessionIdentity
     const controller = new AbortController()
     let interval: number | undefined
     let pollCount = 0
@@ -114,6 +121,7 @@ export function useReadableReplica(input: {
       interval = window.setInterval(() => {
         pollCount += 1
         if (pollCount > POLL_MAX) {
+          if (privateSessionIdentity() !== requestIdentity) return
           exhausted = true
           stopPolling()
           setSnapshot((prev) => ({ ...prev, pollExhausted: true }))
@@ -124,6 +132,7 @@ export function useReadableReplica(input: {
     }
 
     const apply = (view: ReadableReplicaView) => {
+      if (privateSessionIdentity() !== requestIdentity) return
       if (view.status !== 'pending') exhausted = false
       const next = {
         ...fromView(view),
@@ -144,21 +153,23 @@ export function useReadableReplica(input: {
           force ? { force: true } : {},
           { intentId: extractIntentId(force), maxRetries: 0, signal: controller.signal },
         )
-        if (controller.signal.aborted) return
+      if (controller.signal.aborted || privateSessionIdentity() !== requestIdentity) return
         apply(view)
       } catch (error) {
-        if (isAbort(error) || controller.signal.aborted) return
+        if (isAbort(error) || controller.signal.aborted || privateSessionIdentity() !== requestIdentity) return
         if (isProductApiError(error) && error.status === 429) {
           // Rate-limited means the server is already extracting this node
           // (the previous enqueue is still cooling down). Poll for that
           // result instead of parking the page on `none` forever; a replica
           // that is already readable stays on screen while we look.
+          if (privateSessionIdentity() !== requestIdentity) return
           setSnapshot((prev) => (prev.status === 'ready'
             ? prev
             : { ...prev, status: 'pending', sections: [], pollExhausted: false }))
           startPolling()
           return
         }
+        if (privateSessionIdentity() !== requestIdentity) return
         setSnapshot((prev) => ({ ...prev, status: 'failed', sections: [] }))
         stopPolling()
       }
@@ -173,14 +184,14 @@ export function useReadableReplica(input: {
           paramsRef.current.nodeId,
           { signal: controller.signal, maxRetries: 0 },
         )
-        if (controller.signal.aborted) return
+        if (controller.signal.aborted || privateSessionIdentity() !== requestIdentity) return
         apply(view)
         if (view.status === 'none' && !autoPostedRef.current) {
           autoPostedRef.current = true
           await postExtract(false)
         }
       } catch (error) {
-        if (isAbort(error) || controller.signal.aborted) return
+        if (isAbort(error) || controller.signal.aborted || privateSessionIdentity() !== requestIdentity) return
       } finally {
         inflight = false
       }
@@ -193,11 +204,15 @@ export function useReadableReplica(input: {
 
     void getOnce()
     return cleanup
-  }, [input.collectionId, input.enabled, input.nodeId])
+  }, [input.collectionId, input.enabled, input.nodeId, sessionIdentity])
 
   const retry = useCallback((force: boolean) => {
     retryImplRef.current(force)
   }, [])
 
-  return { ...snapshot, retry }
+  const identityReady = renderedIdentityRef.current === sessionIdentity
+  return {
+    ...(identityReady ? snapshot : input.enabled ? { ...idle, status: 'none' as const } : idle),
+    retry,
+  }
 }

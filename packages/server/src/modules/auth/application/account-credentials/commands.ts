@@ -63,6 +63,14 @@ export async function createChildCredential(
     issuanceKey: `parent:${input.parentId}`,
     status: 201,
     write: async (now) => {
+      // Account deletion locks the manager row before revoking its
+      // credentials. Take the same lock before reading the parent so a
+      // concurrent deletion cannot observe an active manager and then leave
+      // a newly inserted child usable after the deletion commits.
+      const manager = await (ports.accounts.lockAccountById ?? ports.accounts.findAccountById)(input.managerAccountId);
+      if (!manager || manager.status !== 'active' || manager.deletedAt !== null) {
+        throw new AccountCredentialCommandError('resource_not_found', 'The parent credential was not found.');
+      }
       const parent = await ports.credentials.lockById(input.parentId);
       if (!parent || parent.kind !== 'parent' || parent.managerAccountId !== input.managerAccountId) {
         throw new AccountCredentialCommandError('resource_not_found', 'The parent credential was not found.');
@@ -315,6 +323,10 @@ async function loadManaged(
 ): Promise<{ readonly record: AccountCredentialRecord; readonly parent: AccountCredentialRecord | null }> {
   const record = await ports.credentials.lockById(input.credentialId);
   if (!record || record.managerAccountId !== input.managerAccountId) {
+    throw new AccountCredentialCommandError('resource_not_found', 'The credential was not found.');
+  }
+  const manager = await ports.accounts.findAccountById(input.managerAccountId);
+  if (!manager || manager.status !== 'active' || manager.deletedAt !== null) {
     throw new AccountCredentialCommandError('resource_not_found', 'The credential was not found.');
   }
   if (input.parentId !== undefined) {

@@ -258,6 +258,39 @@ describeWithPostgres('LH-01 PostgreSQL link-health page and mutation hooks', () 
     assert.equal(afterEditor.rows.every((row) => row.status === 'pending'), true);
   });
 
+  test('empty owner sweep leaves live worker leases untouched', async () => {
+    await resetOwnedLibrary();
+    await isolated.runtime.pool.query(
+      `update collection_link_health
+          set status = 'healthy', http_status = 200, checked_at = $2,
+              lease_owner = $3, lease_until = $4
+        where node_id = $1`,
+      [BOOKMARK_A, NOW, 'lh-live-worker', new Date(NOW.getTime() + 60_000)],
+    );
+    const uow = createPostgresLinkHealthEnqueueUnitOfWork(isolated.runtime.db);
+    const result = await uow.execute((ports) => enqueueMyLinkHealthChecks(ports, {
+      actor: { principalId: 'lh-owner-account', subjectId: OWNER },
+      commandId: randomUUID(),
+      filter: { collectionId: COLLECTION_ID },
+    }));
+    assert.equal(result.kind, 'succeeded');
+    if (result.kind === 'succeeded') assert.equal(result.queued, 1);
+    const rows = await isolated.runtime.pool.query<{
+      node_id: string; status: string; lease_owner: string | null; checked_at: Date | null;
+    }>(
+      `select node_id, status, lease_owner, checked_at
+         from collection_link_health
+        where collection_id = $1
+        order by node_id`,
+      [COLLECTION_ID],
+    );
+    const active = rows.rows.find((row) => row.node_id === BOOKMARK_A);
+    assert.equal(active?.status, 'healthy');
+    assert.equal(active?.lease_owner, 'lh-live-worker');
+    assert.equal(active?.checked_at?.getTime(), NOW.getTime());
+    assert.equal(rows.rows.find((row) => row.node_id === BOOKMARK_B)?.status, 'pending');
+  });
+
   test('shared first page continuation with only cursor stays on the shared set', async () => {
     await resetOwnedLibrary();
     const signer = createProductLinkHealthCursorSigner({

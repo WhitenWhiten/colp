@@ -125,7 +125,7 @@ describe('BF-03 bookmark favicon HTTP (product session)', () => {
     assert.equal(get.statusCode, 200, get.body);
     assert.equal(get.headers['content-type'], 'image/png');
     assert.deepEqual(get.rawPayload, PNG);
-    assert.equal(get.headers['cache-control'], 'public, max-age=31536000, immutable');
+    assert.equal(get.headers['cache-control'], 'public, max-age=30, must-revalidate');
   });
 
   test('PATCH title keeps the uploaded iconUrl (same-origin, not reset to null)', async () => {

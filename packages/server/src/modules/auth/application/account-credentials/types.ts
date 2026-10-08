@@ -112,6 +112,12 @@ export interface AccountCredentialStore {
 
 export interface AccountCredentialAccountPorts {
   findAccountById(id: string): Promise<Account | null>;
+  /**
+   * Serialize credential issuance with account security transitions.  Older
+   * compositions may omit this seam; production PostgreSQL wiring supplies
+   * it so a manager deletion cannot race a child-credential insert.
+   */
+  lockAccountById?(id: string): Promise<Account | null>;
   insertAccount(account: Account): Promise<void>;
   insertProfile(profile: {
     readonly accountId: string;

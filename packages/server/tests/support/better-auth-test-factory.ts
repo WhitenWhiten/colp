@@ -473,6 +473,7 @@ export function createInMemoryBetterAuthTestFactory(options: {
           accounts: identityPorts.accounts,
           sessions: identityPorts.sessions,
           clock: identityPorts.clock,
+          revokeOAuthRefreshTokensForAccount: async () => 0,
         }));
     },
   };

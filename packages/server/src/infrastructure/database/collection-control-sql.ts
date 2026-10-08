@@ -62,6 +62,25 @@ export function collectionVisibleNodeCountSql(alias = 'collection'): string {
   ), 0))`;
 }
 
+/**
+ * Count only nodes that can actually appear in an anonymous public
+ * projection.  `live_node_count` is maintained for private owner views and
+ * therefore includes private/protected descendants and nodes below a
+ * restricted ancestor.  Reusing it in a public directory or cursor leaks
+ * the size of unpublished parts of a collection.
+ */
+export function collectionPublicVisibleNodeCountSql(alias = 'collection'): string {
+  const ancestorRestriction = buildPublicationTargetAncestorRestrictionSql('n');
+  return `(select count(*)::int
+             from nodes n
+            where n.collection_id = ${alias}.id
+              and n.deleted_at is null
+              and n.visibility = 'inherit'
+              and not ${ancestorRestriction}
+              and not ${collectionHidePublicExistsSql(alias)}
+              and not ${bookmarkHidePublicExistsSql('n.id', 'n.collection_id')})`;
+}
+
 /** Public snapshot/Reader/COLP: hide_public on this bookmark node. */
 export function bookmarkHidePublicExistsSql(nodeIdSql: string, collectionIdSql: string): string {
   return `exists (
@@ -128,6 +147,44 @@ export function accountRestrictInteractionExistsSql(accountIdSql: string): strin
 /** Official account restrict_publication — public profile/avatar/feed/directory. */
 export function accountRestrictPublicationExistsSql(accountIdSql: string): string {
   return accountRestrictExistsSql(accountIdSql, 'restrict_publication');
+}
+
+/**
+ * Maximum parent walk used by every anonymous publication projection.  Keep
+ * this SQL fragment in the database layer so low-level object and collection
+ * readers do not import the higher publication infrastructure package.
+ */
+export const PUBLICATION_TARGET_ACCESS_MAX_DEPTH = 256;
+
+/**
+ * Effective public visibility for a node requires a complete, live ancestor
+ * chain. The target row itself is included so callers can use the same guard
+ * for bookmarks and folders; callers that require inherited visibility should
+ * additionally constrain the target's `visibility = 'inherit'`.
+ */
+export function buildPublicationTargetAncestorRestrictionSql(nodeAlias: string): string {
+  return `exists (
+    with recursive target_ancestors(collection_id,id,parent_id,visibility,deleted_at,path,depth,cycle) as (
+      select ${nodeAlias}.collection_id,${nodeAlias}.id,${nodeAlias}.parent_id,
+             ${nodeAlias}.visibility,${nodeAlias}.deleted_at,array[${nodeAlias}.id],1,false
+      union all
+      select parent.collection_id,parent.id,parent.parent_id,parent.visibility,parent.deleted_at,
+             child.path || parent.id,child.depth+1,parent.id = any(child.path)
+        from nodes parent join target_ancestors child on parent.id = child.parent_id
+       where parent.collection_id = child.collection_id
+         and not child.cycle and child.depth < ${PUBLICATION_TARGET_ACCESS_MAX_DEPTH}
+    )
+    select 1 from target_ancestors
+     where deleted_at is not null
+        or visibility in ('private','protected')
+        or cycle
+        or (depth = ${PUBLICATION_TARGET_ACCESS_MAX_DEPTH} and parent_id is not null)
+        or (parent_id is not null and not exists (
+              select 1 from nodes target_ancestor_parent
+               where target_ancestor_parent.collection_id = target_ancestors.collection_id
+                 and target_ancestor_parent.id = target_ancestors.parent_id
+            ))
+  )`;
 }
 
 function accountRestrictExistsSql(

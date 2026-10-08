@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { markServerFeatureAvailable, markServerFeatureUnavailable } from '../../lib/serverFeatureAvailability'
 import {
   ProductApiError,
@@ -10,8 +10,10 @@ import {
 } from '../../api'
 import { initialDraft, ownedSyncCollectionIds, quotedEntityTag } from './fields'
 import type { ConflictDraft } from './types'
+import { privateSessionIdentity, subscribeSession } from '../../api/sessionStore'
 
 export function useSyncCenterData() {
+  const sessionIdentity = useSyncExternalStore(subscribeSession, privateSessionIdentity, privateSessionIdentity)
   const [status, setStatus] = useState<SyncStatusView | null>(null)
   const [conflicts, setConflicts] = useState<SyncConflictSummary[]>([])
   const [drafts, setDrafts] = useState<Record<string, ConflictDraft>>({})
@@ -27,6 +29,7 @@ export function useSyncCenterData() {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [loadErrorKind, setLoadErrorKind] = useState<'auth' | 'unavailable' | 'other' | null>(null)
   const mounted = useRef(true)
+  const renderedIdentityRef = useRef(sessionIdentity)
   const selectedCollection = useRef<string | null>(null)
   const conflictHeading = useRef<HTMLHeadingElement>(null)
   const restoreConflictFocus = useRef(false)
@@ -37,6 +40,7 @@ export function useSyncCenterData() {
   }, [])
 
   const loadTrash = useCallback(async (collectionId: string | null, signal?: AbortSignal): Promise<SyncTrashListItem[]> => {
+    const requestIdentity = sessionIdentity
     selectedCollection.current = collectionId
     setTrashCollectionId(collectionId)
     setTrashError(null)
@@ -48,7 +52,8 @@ export function useSyncCenterData() {
     }
     try {
       const items = await productClient.loadSyncTrash({ collectionId, signal, maxRetries: 0, limit: 20 })
-      if (signal?.aborted || !mounted.current || selectedCollection.current !== collectionId) return items
+      if (signal?.aborted || !mounted.current || selectedCollection.current !== collectionId
+        || privateSessionIdentity() !== requestIdentity) return items
       setTrashItems(items)
       setTrashDetails((current) => Object.fromEntries(items.flatMap((item) => {
         const detail = current[item.deletionId]
@@ -57,7 +62,8 @@ export function useSyncCenterData() {
       return items
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') return []
-      if (!mounted.current || selectedCollection.current !== collectionId) return []
+      if (!mounted.current || selectedCollection.current !== collectionId
+        || privateSessionIdentity() !== requestIdentity) return []
       const apiError = error instanceof ProductApiError ? error : null
       if (apiError?.status === 404 || apiError?.code === 'resource_not_found') {
         setTrashItems([])
@@ -79,7 +85,7 @@ export function useSyncCenterData() {
         : apiError?.recoveryHint ?? "Couldn't load deleted items")
       return []
     }
-  }, [])
+  }, [sessionIdentity])
 
   /* Every load takes a generation. The abort signal alone cannot order the
      refreshes: view.tsx calls load('refresh') with NO signal, so an older read
@@ -87,8 +93,10 @@ export function useSyncCenterData() {
      status — the last-write-wins the signal guard cannot see. */
   const loadGenerationRef = useRef(0)
   const load = useCallback(async (kind: 'initial' | 'refresh', signal?: AbortSignal) => {
+    const requestIdentity = sessionIdentity
     const generation = ++loadGenerationRef.current
     const superseded = () => signal?.aborted === true || generation !== loadGenerationRef.current
+      || privateSessionIdentity() !== requestIdentity
     if (kind === 'initial') setLoading(true)
     else setRefreshing(true)
     setLoadError(null)
@@ -140,14 +148,18 @@ export function useSyncCenterData() {
       if (superseded()) return
       if (mounted.current) { setLoading(false); setRefreshing(false) }
     }
-  }, [applyConflicts, loadTrash])
+  }, [applyConflicts, loadTrash, sessionIdentity])
 
   useEffect(() => {
+    renderedIdentityRef.current = sessionIdentity
     mounted.current = true
+    setStatus(null); setConflicts([]); setDrafts({}); setTrashItems([]); setTrashDetails({});
+    setTrashCollections([]); setTrashCollectionTitles({}); setTrashCollectionId(null)
+    setLoadError(null); setLoadErrorKind(null); setTrashError(null); setTrashErrorKind(null)
     const controller = new AbortController()
     void load('initial', controller.signal)
     return () => { mounted.current = false; controller.abort() }
-  }, [load])
+  }, [load, sessionIdentity])
 
   useEffect(() => {
     if (!restoreConflictFocus.current) return
@@ -162,20 +174,22 @@ export function useSyncCenterData() {
   }
 
   const refreshConflict = async (conflictId: string): Promise<SyncConflictSummary | null> => {
+    const requestIdentity = sessionIdentity
     const items = await productClient.loadSyncConflicts({ maxRetries: 0, limit: 25 })
-    if (!mounted.current) return null
+    if (!mounted.current || privateSessionIdentity() !== requestIdentity) return null
     if (!items.some((item) => item.id === conflictId)) restoreConflictFocus.current = true
     applyConflicts(items)
     return items.find((item) => item.id === conflictId) ?? null
   }
 
   const revealTrashUrl = async (deletionId: string) => {
+    const requestIdentity = sessionIdentity
     try {
       const detail = await productClient.getSyncTrashItem(deletionId, { maxRetries: 0 })
-      if (!mounted.current) return
+      if (!mounted.current || privateSessionIdentity() !== requestIdentity) return
       setTrashDetails((current) => ({ ...current, [deletionId]: detail }))
     } catch (error) {
-      if (!mounted.current) return
+      if (!mounted.current || privateSessionIdentity() !== requestIdentity) return
       const apiError = error instanceof ProductApiError ? error : null
       if (apiError?.status === 404 || apiError?.code === 'resource_not_found' || apiError?.code === 'resource_purged') {
         await loadTrash(selectedCollection.current)
@@ -192,25 +206,26 @@ export function useSyncCenterData() {
     void loadTrash(collectionId)
   }
 
+  const identityReady = renderedIdentityRef.current === sessionIdentity
   return {
-    status,
+    status: identityReady ? status : null,
     setStatus,
-    conflicts,
+    conflicts: identityReady ? conflicts : [],
     setConflicts,
-    drafts,
+    drafts: identityReady ? drafts : {},
     setDrafts,
-    trashItems,
+    trashItems: identityReady ? trashItems : [],
     setTrashItems,
-    trashCollections,
-    trashCollectionTitles,
-    trashCollectionId,
-    trashDetails,
-    trashError,
-    trashErrorKind,
-    loading,
-    refreshing,
-    loadError,
-    loadErrorKind,
+    trashCollections: identityReady ? trashCollections : [],
+    trashCollectionTitles: identityReady ? trashCollectionTitles : {},
+    trashCollectionId: identityReady ? trashCollectionId : null,
+    trashDetails: identityReady ? trashDetails : {},
+    trashError: identityReady ? trashError : null,
+    trashErrorKind: identityReady ? trashErrorKind : null,
+    loading: identityReady ? loading : true,
+    refreshing: identityReady ? refreshing : false,
+    loadError: identityReady ? loadError : null,
+    loadErrorKind: identityReady ? loadErrorKind : null,
     mounted,
     conflictHeading,
     restoreConflictFocus,

@@ -16,11 +16,14 @@
  * alias resolves to the `nodes` row of the target.
  */
 import {
+  buildPublicationTargetAncestorRestrictionSql,
   bookmarkHidePublicExistsSql,
   collectionHidePublicExistsSql,
 } from '../database/collection-control-sql.js';
 
-export const PUBLICATION_TARGET_ACCESS_MAX_DEPTH = 256;
+export { buildPublicationTargetAncestorRestrictionSql } from '../database/collection-control-sql.js';
+
+export { PUBLICATION_TARGET_ACCESS_MAX_DEPTH } from '../database/collection-control-sql.js';
 
 /**
  * Public collection access is separate from owner/member management access.
@@ -45,29 +48,4 @@ export function buildPublicationBookmarkPublicAccessSql(
     and ${nodeAlias}.visibility = 'inherit'
     and not ${bookmarkHidePublicExistsSql(`${nodeAlias}.id`, `${collectionAlias}.id`)}
     and not ${buildPublicationTargetAncestorRestrictionSql(nodeAlias)}`;
-}
-
-export function buildPublicationTargetAncestorRestrictionSql(nodeAlias: string): string {
-  return `exists (
-    with recursive target_ancestors(collection_id,id,parent_id,visibility,deleted_at,path,depth,cycle) as (
-      select ${nodeAlias}.collection_id,${nodeAlias}.id,${nodeAlias}.parent_id,
-             ${nodeAlias}.visibility,${nodeAlias}.deleted_at,array[${nodeAlias}.id],1,false
-      union all
-      select parent.collection_id,parent.id,parent.parent_id,parent.visibility,parent.deleted_at,
-             child.path || parent.id,child.depth+1,parent.id = any(child.path)
-        from nodes parent join target_ancestors child on parent.id = child.parent_id
-       where parent.collection_id = child.collection_id
-         and not child.cycle and child.depth < ${PUBLICATION_TARGET_ACCESS_MAX_DEPTH}
-    )
-    select 1 from target_ancestors
-     where deleted_at is not null
-        or visibility in ('private','protected')
-        or cycle
-        or (depth = ${PUBLICATION_TARGET_ACCESS_MAX_DEPTH} and parent_id is not null)
-        or (parent_id is not null and not exists (
-              select 1 from nodes target_ancestor_parent
-               where target_ancestor_parent.collection_id = target_ancestors.collection_id
-                 and target_ancestor_parent.id = target_ancestors.parent_id
-            ))
-  )`;
 }

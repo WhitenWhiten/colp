@@ -62,6 +62,11 @@ import { appendConflictReportSourceInvalidation } from './report-source-invalida
 export type PostgresSyncConflictResolutionFaultPhase =
   | 'mutation' | SyncOperationEffectFaultPhase | 'conflict_update' | 'before_receipt_finalize';
 
+/** Explicit capability marker for the trusted product-command path that has
+ * already performed its own receipt admission and therefore skips the HTTP
+ * session authority check. It is never accepted by the external resolver. */
+const INTERNAL_SYNC_RESOLUTION_CAPABILITY = 'internal:sync-resolution';
+
 export interface PostgresSyncConflictResolutionOptions {
   readonly conflictPayloadKeyring: SyncConflictPayloadKeyring;
   readonly operationId?: () => string;
@@ -89,6 +94,9 @@ export function createPostgresSyncConflictResolutionApplication(
   assertOptions(options);
   return Object.freeze({
     async resolve(input: SyncConflictResolutionInput): Promise<ConflictResolutionResult> {
+      if (typeof input.origin !== 'string' || input.origin.length < 1 || input.origin.length > 2_048) {
+        deny('resource_not_found');
+      }
       const command = validateSyncConflictResolutionCommand(input);
       let verified;
       try {
@@ -472,6 +480,7 @@ export async function resolveProductConflictInTransaction(
     idempotencyKey: input.commandId, ifMatch: [`"${input.expectedRevision}"`], request });
   const productInput = { credential: {} as SyncConflictResolutionInput['credential'],
     sessionId: conflict.session_id, replicaId: conflict.replica_id, collectionId: conflict.collection_id,
+    origin: INTERNAL_SYNC_RESOLUTION_CAPABILITY,
     conflictId: input.conflictId, idempotencyKey: input.commandId, ifMatch: [`"${input.expectedRevision}"`], request };
   return resolveInTransaction(transaction, productInput, command, options, input.accountId);
 }
@@ -539,6 +548,12 @@ async function assertTransactionalAuthority(transaction: DatabaseTransaction, in
     && session.status === 'active' && session.expires_at > now
     && session.account_id === account.id && session.credential_issuer === input.credential.issuer
     && session.credential_id === input.credential.credentialId
+    // Extension requests must match the exact Origin recorded on the Sync
+    // session.  The product Sync Center is a separate, account-authorized
+    // capability and deliberately enters through the internal adapter below;
+    // it has no extension Origin to present, so it uses the non-forgeable
+    // in-process marker instead of weakening the external route check.
+    && (input.origin === INTERNAL_SYNC_RESOLUTION_CAPABILITY || session.origin === input.origin)
     && !!collection && collection.deleted_at === null && collection.policy_revision === session.policy_revision
     && (role === 'owner' || role === 'editor') && !!pushScope
     && !!replica && replica.account_id === account.id && replica.collection_id === input.collectionId

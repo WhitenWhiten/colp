@@ -133,7 +133,7 @@ export function createInMemoryMcpOauthRevocationStore(
       const effectiveAtSeconds = Math.floor(epoch.effectiveAt.getTime() / 1_000);
       return revokedRows.has(revocationRowKey(query))
         || revokedClients.has(digestMcpOauthRevocationField(query.clientId))
-        || query.issuedAtSeconds < effectiveAtSeconds;
+        || query.issuedAtSeconds <= effectiveAtSeconds;
     },
     async securityEpoch(): Promise<string> {
       return epoch.value;

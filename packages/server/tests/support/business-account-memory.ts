@@ -167,6 +167,7 @@ export function createMemoryBusinessAccountPorts(state: MemoryState, knobs: Memo
       revokePendingUnboundInvitesByEmail: (emailNormalized, now) =>
         revokeIdentityMemoryPendingInvites(state.pendingUnboundInvites, emailNormalized, now),
     },
+    revokeOAuthRefreshTokensForAccount: async () => 0,
   };
 }
 

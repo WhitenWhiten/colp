@@ -82,6 +82,8 @@ export interface BusinessAccountPorts {
   readonly handles: ProfileHandleRepository;
   readonly clock: IdentityClock;
   readonly pendingUnboundInvites: PendingUnboundInvitePurgePort;
+  /** Revoke Better Auth OAuth refresh families with an email security bump. */
+  readonly revokeOAuthRefreshTokensForAccount: (accountId: string) => Promise<number>;
 }
 
 /**

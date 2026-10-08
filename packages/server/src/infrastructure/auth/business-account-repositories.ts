@@ -14,6 +14,7 @@
  * provisional account/profile/handle roll back with it).
  */
 import { isPostgresErrorCode } from '../database/errors.js';
+import { sql } from 'kysely';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
 import {
   createPostgresAccountRepository,
@@ -82,5 +83,19 @@ export function createPostgresBusinessAccountPorts(
     handles: createPostgresProfileHandleRepository(transaction),
     clock: createPostgresIdentityClock(transaction),
     pendingUnboundInvites,
+    async revokeOAuthRefreshTokensForAccount(accountId) {
+      const result = await sql`
+        UPDATE "auth_oauth_refresh_token"
+        SET "revoked" = clock_timestamp()
+        WHERE "userId" IN (
+          SELECT auth_user_id
+          FROM auth_user_account_map
+          WHERE account_id = ${accountId}
+        )
+          AND "revoked" IS NULL
+        RETURNING "id"
+      `.execute(transaction);
+      return result.rows.length;
+    },
   };
 }

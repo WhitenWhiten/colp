@@ -95,6 +95,17 @@ export function parseLinkHealthChecksFilter(raw: unknown): LinkHealthChecksFilte
     }
     filter.collectionId = body.collectionId;
   }
+  // An empty object used to mean "reset every bookmark owned by me".  That
+  // made a cheap authenticated request an unbounded database write and also
+  // let callers repeatedly clear worker leases.  Require an explicit scope;
+  // callers that need a full collection sweep can send collectionId and
+  // continue with another command after the bounded server-side batch.
+  if (filter.nodeIds === undefined && filter.collectionId === undefined) {
+    throw new LinkHealthChecksError(
+      'invalid_document',
+      'The link-health checks body must include nodeIds or collectionId.',
+    );
+  }
   return filter;
 }
 
@@ -125,6 +136,12 @@ export async function enqueueMyLinkHealthChecks(
     throw new LinkHealthChecksError('invalid_request', 'commandId must be a canonical UUID v4.');
   }
   const filter = input.filter ?? {};
+  if (filter.nodeIds === undefined && filter.collectionId === undefined) {
+    throw new LinkHealthChecksError(
+      'invalid_request',
+      'The link-health checks filter must include nodeIds or collectionId.',
+    );
+  }
   const fingerprint = linkHealthChecksFingerprint(filter);
   const binding = {
     principalId: input.actor.principalId,

@@ -72,6 +72,8 @@ const DEFAULT_SERVER_MAX = 3600;
 const DEFAULT_MAX_DEFERRAL = 86_400;
 /** Maximum size of one Feed entity-tag, including weakness marker and quotes. */
 export const MAX_FEED_ENTITY_TAG_LENGTH = 1024;
+/** RFC 3339 hints are tiny control metadata; bound before regex/date parsing. */
+const MAX_NOT_BEFORE_LENGTH = 128;
 /** Largest seconds value whose conversion to milliseconds remains safe. */
 const MAX_SAFE_DELAY_SECONDS = Math.floor(Number.MAX_SAFE_INTEGER / 1000);
 const FEED_ENTITY_TAG_PATTERN = /^(?:W\/)?"[\x21\x23-\x7E\x80-\u00FF]*"$/u;
@@ -371,7 +373,7 @@ function readOptionalNonNegativeNumber(value: unknown, name: string): number | u
 
 function readOptionalNotBefore(value: unknown): number | undefined {
   if (value === undefined) return undefined;
-  if (typeof value !== 'string' || !isRfc3339DateTime(value)) {
+  if (typeof value !== 'string' || value.length > MAX_NOT_BEFORE_LENGTH || !isRfc3339DateTime(value)) {
     throw new TypeError('notBefore must be a valid RFC 3339 date-time string.');
   }
   const parsed = Date.parse(value);

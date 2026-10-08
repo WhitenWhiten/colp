@@ -41,6 +41,7 @@ interface Admission {
   readonly credential: SyncConflictResolutionInput['credential'];
   readonly idempotencyKey: string;
   readonly ifMatch: string;
+  readonly origin: string;
 }
 
 const validators = createValidatorRegistry();
@@ -117,7 +118,7 @@ export function registerSyncConflictRoutes(
         throw new SyncConflictResolutionError('rate_limited');
       }
       if (subjectOutcome.kind === 'failed') throw new SyncConflictResolutionError('service_unavailable');
-      admissions.set(request, Object.freeze({ credential, idempotencyKey, ifMatch }));
+      admissions.set(request, Object.freeze({ credential, idempotencyKey, ifMatch, origin }));
     });
     syncApp.setErrorHandler((error, _request, reply) => sendProblem(reply,
       (error as { readonly code?: unknown }).code === 'FST_ERR_CTP_BODY_TOO_LARGE'
@@ -154,6 +155,7 @@ export function registerSyncConflictRoutes(
           sessionId: query.sessionId,
           replicaId: query.replicaId,
           collectionId: query.collectionId,
+          origin: admission.origin,
           idempotencyKey: admission.idempotencyKey,
           ifMatch: [admission.ifMatch],
           request: document as ConflictResolutionRequest,

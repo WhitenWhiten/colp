@@ -201,8 +201,14 @@ export function createPostgresSyncRecoveryApplication(db: Kysely<DatabaseSchema>
 
     async retire(input: { readonly credential: VerifiedExtensionCredential; readonly sessionId: string }) {
       const binding = digest(`${input.sessionId}\nrecovery-retire`);
+      // Recovery is an internal capability, but retirement still uses the
+      // same Origin-bound transaction authority as the HTTP route. Read the
+      // durable session binding and pass it explicitly so future internal
+      // callers cannot accidentally bypass the Origin check by omission.
+      const session = await db.selectFrom('sync_sessions').select('origin')
+        .where('session_id', '=', input.sessionId).executeTakeFirst();
       await createPostgresReplicaRetirementApplication(db).retireExtension({ credential: input.credential,
-        sessionId: input.sessionId, idempotencyKey: `recovery-${binding}`,
+        sessionId: input.sessionId, origin: session?.origin ?? '', idempotencyKey: `recovery-${binding}`,
         requestFingerprint: 'sync-recovery-explicit-retire-v1' });
       return Object.freeze({ state: 'retired' as const });
     },

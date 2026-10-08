@@ -102,11 +102,52 @@ describeWithPostgres('T-02 Better Auth 1.7 OAuth expand (real PostgreSQL)', () =
     assert.equal(redirectUris?.is_nullable, 'NO');
     const accessUserId = await columnMeta(isolated, 'auth_oauth_access_token', 'userId');
     assert.equal(accessUserId?.is_nullable, 'YES');
+    const refreshRevoked = await columnMeta(isolated, 'auth_oauth_refresh_token', 'revoked');
+    const accessRevoked = await columnMeta(isolated, 'auth_oauth_access_token', 'revoked');
+    assert.equal(refreshRevoked?.data_type, 'timestamp with time zone');
+    assert.equal(accessRevoked?.data_type, 'timestamp with time zone');
     const refreshUserId = await columnMeta(isolated, 'auth_oauth_refresh_token', 'userId');
     assert.equal(refreshUserId?.is_nullable, 'NO');
     const consentScopes = await columnMeta(isolated, 'auth_oauth_consent', 'scopes');
     assert.equal(consentScopes?.data_type, 'jsonb');
     assert.equal(consentScopes?.is_nullable, 'NO');
+
+    // Password creation is wired as INSERT + UPDATE by T-05. Exercise an
+    // OAuth-only account INSERT with a password so trigger functions must not
+    // dereference the unassigned INSERT OLD record.
+    await isolated.runtime.pool.query(
+      `insert into "auth_users" ("id","name","email","emailVerified")
+       values ('u-password-insert-regression','insert','password-insert@example.test',true)`,
+    );
+    await isolated.runtime.pool.query(
+      `insert into "auth_accounts"
+         ("id","accountId","providerId","userId","issuer","password","createdAt","updatedAt")
+       values
+         ('a-password-insert-regression','password-insert-subject','credential',
+          'u-password-insert-regression','local:credential','hash',now(),now())`,
+    );
+    await isolated.runtime.pool.query(
+      `delete from "auth_users" where "id" = 'u-password-insert-regression'`,
+    );
+
+    const passwordSecurityFunction = await isolated.runtime.pool.query<{ definition: string }>(
+      `select pg_get_functiondef('commit_password_security_event()'::regprocedure) definition`,
+    );
+    assert.match(passwordSecurityFunction.rows[0]?.definition ?? '', /TG_OP\s*=\s*'UPDATE'/u);
+    const passwordOauthFunction = await isolated.runtime.pool.query<{ definition: string }>(
+      `select pg_get_functiondef('revoke_password_oauth_grants()'::regprocedure) definition`,
+    );
+    assert.match(passwordOauthFunction.rows[0]?.definition ?? '', /TG_OP\s*=\s*'UPDATE'/u);
+    const securityTrigger = await isolated.runtime.pool.query<{ definition: string }>(
+      `select pg_get_triggerdef(oid) definition from pg_trigger
+       where tgname = 'auth_password_security_commit'`,
+    );
+    assert.match(securityTrigger.rows[0]?.definition ?? '', /AFTER INSERT OR UPDATE OF password/iu);
+    const oauthTrigger = await isolated.runtime.pool.query<{ definition: string }>(
+      `select pg_get_triggerdef(oid) definition from pg_trigger
+       where tgname = 'auth_password_oauth_revoke'`,
+    );
+    assert.match(oauthTrigger.rows[0]?.definition ?? '', /AFTER INSERT OR UPDATE OF password/iu);
   });
 
   test('upgrades the previous head and backfills populated auth_accounts before NOT NULL', async () => {

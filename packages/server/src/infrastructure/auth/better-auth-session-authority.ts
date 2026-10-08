@@ -25,7 +25,7 @@
  */
 import { randomBytes, createHmac } from 'node:crypto';
 import { betterAuth } from 'better-auth';
-import type { Kysely } from 'kysely';
+import { sql, type Kysely } from 'kysely';
 import { isPostgresErrorCode, DatabaseOperationError } from '../database/errors.js';
 import type { DatabaseSchema } from '../database/runtime.js';
 import {
@@ -429,6 +429,20 @@ export function createPostgresBrowserSessionPorts(
     accounts: createPostgresAccountRepository(transaction),
     sessions: createPostgresSessionRepository(transaction),
     clock: createPostgresIdentityClock(transaction),
+    async revokeOAuthRefreshTokensForAccount(accountId) {
+      const result = await sql`
+        UPDATE "auth_oauth_refresh_token"
+        SET "revoked" = clock_timestamp()
+        WHERE "userId" IN (
+          SELECT auth_user_id
+          FROM auth_user_account_map
+          WHERE account_id = ${accountId}
+        )
+          AND "revoked" IS NULL
+        RETURNING "id"
+      `.execute(transaction);
+      return result.rows.length;
+    },
   };
 }
 

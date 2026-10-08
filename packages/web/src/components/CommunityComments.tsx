@@ -20,7 +20,7 @@
    Content-governance: a signed-in reader can report a visible comment
    through the same ReportContentDialog as collections. Tombstones and
    anonymous visitors have no report entry. */
-import { useState } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { isCommunityExposureEnabled, isLive } from '../api'
 import type { CommunityComment, CommunityTargetQuery } from '../api'
@@ -30,6 +30,7 @@ import { profileInitials } from '../lib/initials'
 import { formatRelativeTime } from '../lib/relativeTime'
 import { plural } from '../lib/plural'
 import { useCommunityComments } from '../lib/useCommunityComments'
+import { privateSessionIdentity, subscribeSession } from '../api/sessionStore'
 import { useNearViewport } from '../lib/useNearViewport'
 import { AvatarImage } from './AvatarImage'
 import { CommunityCharCounter } from './CommunityCharCounter'
@@ -48,6 +49,7 @@ export function CommunityComments({ query, enabled = true, className, testId = '
   testId?: string
 }) {
   const { user, isLoggedIn, bootstrapping } = useAuth()
+  const sessionIdentity = useSyncExternalStore(subscribeSession, privateSessionIdentity, privateSessionIdentity)
   const confirm = useConfirm()
   const exposed = isCommunityExposureEnabled()
   /* R15-29: the thread sits far below the fold; read it only as it nears
@@ -62,6 +64,18 @@ export function CommunityComments({ query, enabled = true, className, testId = '
   const [curateTarget, setCurateTarget] = useState<{ comment: CommunityComment; hidden: boolean } | null>(null)
   const [lockTarget, setLockTarget] = useState<boolean | null>(null)
   const [reportCommentId, setReportCommentId] = useState<string | null>(null)
+
+  // Drafts and open management/report dialogs are private viewer state. Clear
+  // them as soon as the session identity changes so an account replacement
+  // cannot inherit another account's text or pending target.
+  useEffect(() => {
+    setDraft('')
+    setReplyDraft(null)
+    setEditDraft(null)
+    setCurateTarget(null)
+    setLockTarget(null)
+    setReportCommentId(null)
+  }, [sessionIdentity])
 
   if (!exposed || !enabled || !query || bootstrapping) return null
   if (!near) return <div ref={sentinelRef} data-comments-sentinel aria-hidden="true" />

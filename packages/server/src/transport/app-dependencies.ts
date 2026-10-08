@@ -118,7 +118,7 @@ export interface AppDependencies {
   readonly linkPreviewStore?: BookmarkFaviconObjectStore;
   /** Live public attribution for that object route. Absent fails closed. */
   readonly linkPreviewPublicAccess?: { isServable(objectId: string, signal?: AbortSignal): Promise<boolean> };
-  readonly faviconPublicAccess?: { isHiddenPublic(objectId: string): Promise<boolean> };
+  readonly faviconPublicAccess?: { isPubliclyAccessible(objectId: string): Promise<boolean> };
   readonly avatarPublicAccess?: { isPublicationRestricted(objectId: string): Promise<boolean> };
   readonly collectionsUnitOfWork?: CollectionsUnitOfWork;
   readonly productCollectionMutationUnitOfWork?: ProductCollectionMutationUnitOfWork;

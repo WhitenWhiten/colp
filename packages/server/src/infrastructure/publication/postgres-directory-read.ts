@@ -7,8 +7,8 @@ import {
 } from '../../modules/publication/index.js';
 import {
   COLLECTION_DISCOVERY_CONTROL_SQL,
-  bookmarkHidePublicExistsSql,
-  collectionVisibleNodeCountSql,
+  accountRestrictPublicationExistsSql,
+  collectionPublicVisibleNodeCountSql,
 } from '../database/collection-control-sql.js';
 import type { DatabaseRuntime } from '../database/index.js';
 import { readBackendPid, withPostgresAbort } from '../database/index.js';
@@ -47,13 +47,7 @@ export function createPostgresPublicationNodeCountReadPort(
   return Object.freeze({
     async loadByPublicationSlug(publicationSlug: string) {
       const result = await runtime.pool.query<{ live_node_count: string | number }>(
-        `select (
-            select count(*)::int
-              from nodes n
-             where n.collection_id = c.id
-               and n.deleted_at is null
-               and not ${bookmarkHidePublicExistsSql('n.id', 'n.collection_id')}
-          ) as live_node_count
+        `select ${collectionPublicVisibleNodeCountSql('c')} as live_node_count
            from collections c
           where publication_slug = $1
           limit 1`,
@@ -138,6 +132,16 @@ export function buildPublicationDirectoryStatement(
     visibility,
     COLLECTION_DISCOVERY_CONTROL_SQL,
   ];
+  if (subjectId === undefined) {
+    // Account publication restriction is an owner-level control. Keep the
+    // subject-id join optional (legacy rows may have no account row), but if
+    // an account exists its active restriction must remove the collection from
+    // every anonymous directory page and cursor traversal. Member reads keep
+    // their existing protected collection semantics.
+    filters.push(`not exists (select 1 from accounts directory_owner
+                              where directory_owner.subject_id = c.owner_subject_id
+                                and ${accountRestrictPublicationExistsSql('directory_owner.id')})`);
+  }
   if (request.filter.tag) {
     // jsonb_exists ('?') returns true for scalar-string tags, so the array-only guard
     // keeps malformed scalar/object payloads out of tag matches.
@@ -168,7 +172,7 @@ export function buildPublicationDirectoryStatement(
                   c.publication_slug,
                   ${COLLECTION_CATALOG_TAGS_SQL} as tags,
                   ${COLLECTION_CATALOG_LANGUAGE_SQL} as language,
-                  ${collectionVisibleNodeCountSql('c')} as node_count,
+                  ${collectionPublicVisibleNodeCountSql('c')} as node_count,
                   c.updated_at,
                   (extract(epoch from c.updated_at) * 1000000)::bigint::text as ordering_updated_at_micros,
                   case when c.visibility = 'protected' then ${subjectId === undefined ? 'false' : 'true'} else false end as protected_authorized

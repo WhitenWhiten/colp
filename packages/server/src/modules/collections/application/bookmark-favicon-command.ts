@@ -200,8 +200,8 @@ export async function uploadBookmarkFavicon(
   }
   if (previous !== null) {
     // The replaced upload leaves the live binding; retire it through the
-    // durable GC retention window (the object was served with a 1-year
-    // immutable cache promise) instead of deleting it immediately.
+    // durable GC retention window instead of deleting it immediately. Public
+    // reads already revoke the displaced binding before serving bytes.
     try {
       await ports.faviconGc.recordRetired({
         objectId: previous.objectId,

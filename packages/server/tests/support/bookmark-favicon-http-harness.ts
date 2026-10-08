@@ -560,6 +560,13 @@ export function createHarness(options: {
         productOrigin: PRODUCT_ORIGIN,
       }),
     browserSessionAuthority: factory.authority,
+    // The in-memory harness does not model PostgreSQL publication joins, but
+    // it does enforce the critical positive live-binding edge. Retired and
+    // deleted bindings therefore exercise the same fail-closed route branch.
+    faviconPublicAccess: {
+      isPubliclyAccessible: async (objectId) => [...collectionsState.bookmarkIcons.values()]
+        .some((binding) => binding.objectId === objectId),
+    },
     ...(options.omitFaviconStore ? {} : { faviconStore }),
     extensionCollectionRoutes: {
       credentialVerifier: createVerifier(extensionSubjects),

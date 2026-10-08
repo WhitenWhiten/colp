@@ -14,6 +14,8 @@ export class SyncRetireError extends Error {
 
 export interface SyncRetireApplicationInput {
   readonly credential: VerifiedExtensionCredential;
+  /** Exact transport Origin, bound to the durable Sync session. */
+  readonly origin: string;
   readonly sessionId: string;
   readonly idempotencyKey: string;
   readonly requestFingerprint: string;

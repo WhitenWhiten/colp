@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
   isProductApiError,
@@ -8,6 +8,7 @@ import {
 } from '../api'
 import { isReadableReplicaExposureEnabled } from '../api/featureFlags'
 import { useAuth } from '../auth/AuthContext'
+import { privateSessionIdentity, subscribeSession } from '../api/sessionStore'
 import { readRouteCache, writeRouteCache } from './routeCache'
 import { hostForUrl, safeExternalUrl } from './publicCollectionTree'
 import type { CollectionKind } from '../api'
@@ -255,11 +256,15 @@ function fromPublic(snapshot: PublicCollectionSnapshot, nodeId: string, allowCon
 export function useResourceNode(nodeId: string, allowContainers = false) {
   const [searchParams] = useSearchParams()
   const { isLoggedIn, bootstrapping } = useAuth()
+  const sessionIdentity = useSyncExternalStore(subscribeSession, privateSessionIdentity, privateSessionIdentity)
   const collectionId = searchParams.get('collectionId')?.trim() ?? ''
   const slug = searchParams.get('slug')?.trim() ?? ''
   const [load, setLoad] = useState<ResourceNodeLoad>(() => restoredNode(nodeId, collectionId, slug, allowContainers))
+  const renderedIdentityRef = useRef(sessionIdentity)
 
   useEffect(() => {
+    renderedIdentityRef.current = sessionIdentity
+    const requestIdentity = sessionIdentity
     if (!nodeId.trim()) {
       setLoad({ status: 'needs-collection' })
       return
@@ -284,7 +289,7 @@ export function useResourceNode(nodeId: string, allowContainers = false) {
             signal: controller.signal,
             maxRetries: 0,
           })
-          if (controller.signal.aborted) return
+          if (controller.signal.aborted || privateSessionIdentity() !== requestIdentity) return
           const next = fromEditor(snapshot, nodeId, allowContainers)
           if (next.status === 'ready') writeRouteCache(nodeCacheKey(nodeId, collectionId, slug, allowContainers), next)
           setLoad(next)
@@ -293,12 +298,13 @@ export function useResourceNode(nodeId: string, allowContainers = false) {
         const snapshot = await productClient.loadPublicCollectionSnapshot(slug, {
           signal: controller.signal,
         })
-        if (controller.signal.aborted) return
+        if (controller.signal.aborted || privateSessionIdentity() !== requestIdentity) return
         const next = fromPublic(snapshot, nodeId, allowContainers)
         if (next.status === 'ready') writeRouteCache(nodeCacheKey(nodeId, collectionId, slug, allowContainers), next)
         setLoad(next)
       } catch (error) {
-        if (controller.signal.aborted || (error instanceof DOMException && error.name === 'AbortError')) return
+        if (controller.signal.aborted || privateSessionIdentity() !== requestIdentity
+          || (error instanceof DOMException && error.name === 'AbortError')) return
         if (isProductApiError(error) && error.isAuthRequired) {
           setLoad({ status: 'auth-required' })
           return
@@ -322,7 +328,7 @@ export function useResourceNode(nodeId: string, allowContainers = false) {
     })()
 
     return () => controller.abort()
-  }, [bootstrapping, collectionId, isLoggedIn, nodeId, slug, allowContainers])
+  }, [bootstrapping, collectionId, isLoggedIn, nodeId, slug, allowContainers, sessionIdentity])
 
-  return load
+  return renderedIdentityRef.current === sessionIdentity ? load : { status: 'loading' }
 }

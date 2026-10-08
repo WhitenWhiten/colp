@@ -268,6 +268,24 @@ test('POST /oauth2/register is mounted; GET is 405; token remains the 200/400 co
   const body = register.json() as { client_id?: unknown };
   assert.equal(typeof body.client_id, 'string');
   assert.ok(String(body.client_id).length > 0);
+
+  const backchannel = await app.inject({
+    method: 'POST',
+    url: `${BASE_PATH}/oauth2/register`,
+    headers: { 'content-type': 'application/json' },
+    payload: JSON.stringify({
+      client_name: 'dcr-backchannel-client',
+      redirect_uris: ['http://127.0.0.1:8943/callback'],
+      token_endpoint_auth_method: 'none',
+      grant_types: ['authorization_code'],
+      response_types: ['code'],
+      application_type: 'native',
+      backchannel_logout_uri: 'https://rp.example.test/logout',
+      backchannel_logout_session_required: true,
+    }),
+  });
+  assert.equal(backchannel.statusCode, 400, 'backchannel logout callbacks must be rejected');
+  assert.match(backchannel.body, /backchannel_logout_disabled/u);
 });
 
 test('testFetchClientMetadataResource is refused when NODE_ENV is not test', () => {

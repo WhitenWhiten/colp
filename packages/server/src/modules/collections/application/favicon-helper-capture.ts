@@ -257,7 +257,8 @@ export async function captureBookmarkFavicon(
   }
   if (previous !== null) {
     // The displaced automatic-capture object is retired through the durable
-    // GC retention window, never deleted immediately (cache promise).
+    // GC retention window, never deleted immediately; public reads revoke the
+    // displaced binding before serving bytes.
     try {
       await ports.gc.recordRetired({
         objectId: previous.objectId,

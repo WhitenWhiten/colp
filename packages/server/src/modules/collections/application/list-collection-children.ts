@@ -90,6 +90,13 @@ export interface CollectionChildrenReadPort {
     readonly after?: CollectionChildrenCursorAfter;
     readonly limit: number;
     /**
+     * Anonymous/public reads must use the same effective visibility projection
+     * as the publication snapshot.  The filter is applied in SQL before the
+     * keyset window, so private/protected descendants cannot be exposed by a
+     * page boundary or a cursor.
+     */
+    readonly publicOnly?: boolean;
+    /**
      * Hidden bookmarks always come back in the page, marked
      * `moderationHidden`, so a public read can render a tombstone instead of
      * silently dropping the row; the caller decides what to do with the mark.
@@ -97,7 +104,11 @@ export interface CollectionChildrenReadPort {
   }): Promise<readonly CollectionChildrenNodeRow[]>;
 
   /** Live node row (deleted_at IS NULL) or null. Used to validate parentId targets. */
-  getLiveNode(collectionId: string, nodeId: string): Promise<CollectionChildrenNodeRow | null>;
+  getLiveNode(
+    collectionId: string,
+    nodeId: string,
+    options?: { readonly publicOnly?: boolean },
+  ): Promise<CollectionChildrenNodeRow | null>;
 }
 
 export interface ListCollectionChildrenPorts {
@@ -272,8 +283,22 @@ export async function listCollectionChildren(
   // ---------------------------------------------------- parent validation --
   const effectiveParentId = parentId === '' ? collection.rootNodeId : parentId;
   if (parentId !== '') {
-    const parent = await ports.children.getLiveNode(collectionId, parentId);
-    if (parent === null || parent.kind !== 'folder') {
+    // Public callers get one publication-projected lookup. A missing,
+    // private/protected, deleted, cyclic, or dangling parent all conceal as
+    // 404, avoiding an existence oracle. Management readers retain the
+    // ordinary validation error for malformed/non-folder ids.
+    const parent = await ports.children.getLiveNode(
+      collectionId,
+      parentId,
+      managementRead ? undefined : { publicOnly: true },
+    );
+    if (parent === null) {
+      if (!managementRead) throw conceal();
+      throw new CollectionChildrenInputError(
+        'parentId must be a live folder in this collection',
+      );
+    }
+    if (parent.kind !== 'folder') {
       throw new CollectionChildrenInputError(
         'parentId must be a live folder in this collection',
       );
@@ -296,6 +321,7 @@ export async function listCollectionChildren(
     sort,
     after,
     limit,
+    ...(managementRead ? {} : { publicOnly: true }),
   });
 
   const iconObjectIds = await loadBookmarkIconObjectIds(

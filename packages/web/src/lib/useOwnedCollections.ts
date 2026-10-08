@@ -41,6 +41,8 @@ export function useOwnedCollections() {
   const cursorRef = useRef<string | null>(restored?.cursor ?? null)
   const generation = useRef(0)
   const controllerRef = useRef<AbortController | null>(null)
+  const lastIdentityRef = useRef(privateIdentity)
+  const renderedIdentityRef = useRef(privateIdentity)
 
   const replaceItems = useCallback((next: OwnedCollectionListItem[]) => {
     const seen = new Set<string>()
@@ -164,6 +166,20 @@ export function useOwnedCollections() {
   }, [cacheCurrent, isLoadingMore, replaceItems])
 
   useEffect(() => {
+    renderedIdentityRef.current = privateIdentity
+    // An account replacement can keep this hook mounted. Clear the previous
+    // actor's painted rows before the new request starts; routeCache's
+    // identity stamp protects future reads, but cannot clear React state.
+    if (lastIdentityRef.current !== privateIdentity) {
+      lastIdentityRef.current = privateIdentity
+      itemsRef.current = []
+      cursorRef.current = null
+      setItems([])
+      setState('loading')
+      setMessage('Loading collections')
+      setHasMore(false)
+      setIsLoadingMore(false)
+    }
     void loadFirstPage()
     return () => {
       controllerRef.current?.abort()
@@ -171,5 +187,14 @@ export function useOwnedCollections() {
     }
   }, [loadFirstPage, privateIdentity])
 
-  return { items, state, message, hasMore, isLoadingMore, reload: loadFirstPage, loadMore }
+  const identityReady = renderedIdentityRef.current === privateIdentity
+  return {
+    items: identityReady ? items : [],
+    state: identityReady ? state : 'loading',
+    message: identityReady ? message : 'Loading collections',
+    hasMore: identityReady ? hasMore : false,
+    isLoadingMore: identityReady ? isLoadingMore : false,
+    reload: loadFirstPage,
+    loadMore,
+  }
 }

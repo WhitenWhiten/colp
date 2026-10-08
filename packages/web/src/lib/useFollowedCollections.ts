@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { isProductApiError, productClient, type FollowedCollectionItem } from '../api'
 import { isAbort } from './libraryTree'
+import { privateSessionIdentity, subscribeSession } from '../api/sessionStore'
 import { readRouteCache, writeRouteCache } from './routeCache'
 
 const FOLLOW_CHANNEL = 'known.collection-follow.v1'
@@ -24,6 +25,7 @@ export type FollowedCollectionsStatus = 'loading' | 'ready' | 'error' | 'unavail
  * `unavailable` mirrors the backend 404 (feature not exposed).
  */
 export function useFollowedCollections(exposed: boolean) {
+  const sessionIdentity = useSyncExternalStore(subscribeSession, privateSessionIdentity, privateSessionIdentity)
   const restored = readRouteCache<FollowedCache>(FOLLOWED_CACHE_KEY)
   const [items, setItems] = useState<FollowedCollectionItem[]>(restored?.items ?? [])
   const [nextCursor, setNextCursor] = useState<string | null>(restored?.nextCursor ?? null)
@@ -31,6 +33,7 @@ export function useFollowedCollections(exposed: boolean) {
   const [loadingMore, setLoadingMore] = useState(false)
   const [moreError, setMoreError] = useState(false)
   const itemsRef = useRef<FollowedCollectionItem[]>([])
+  const renderedIdentityRef = useRef(sessionIdentity)
   const generation = useRef(0)
   const controllerRef = useRef<AbortController | null>(null)
   itemsRef.current = items
@@ -40,6 +43,7 @@ export function useFollowedCollections(exposed: boolean) {
     controllerRef.current?.abort()
     const controller = new AbortController()
     controllerRef.current = controller
+    const requestIdentity = sessionIdentity
     const requestGeneration = ++generation.current
     const keepExisting = itemsRef.current.length > 0
     if (!keepExisting) setStatus('loading')
@@ -48,14 +52,16 @@ export function useFollowedCollections(exposed: boolean) {
         { limit: FOLLOWED_PAGE_LIMIT },
         { signal: controller.signal, maxRetries: 0 },
       )
-      if (controller.signal.aborted || requestGeneration !== generation.current) return
+      if (controller.signal.aborted || requestGeneration !== generation.current
+        || privateSessionIdentity() !== requestIdentity) return
       setItems(page.items)
       setNextCursor(page.nextCursor)
       setMoreError(false)
       setStatus('ready')
       writeRouteCache<FollowedCache>(FOLLOWED_CACHE_KEY, { items: page.items, nextCursor: page.nextCursor })
     } catch (error) {
-      if (controller.signal.aborted || requestGeneration !== generation.current || isAbort(error)) return
+      if (controller.signal.aborted || requestGeneration !== generation.current
+        || privateSessionIdentity() !== requestIdentity || isAbort(error)) return
       if (isProductApiError(error) && (error.status === 404 || error.code === 'resource_not_found')) {
         setStatus('unavailable')
         return
@@ -68,13 +74,14 @@ export function useFollowedCollections(exposed: boolean) {
     } finally {
       if (controllerRef.current === controller) controllerRef.current = null
     }
-  }, [exposed])
+  }, [exposed, sessionIdentity])
 
   const loadMore = useCallback(async () => {
     const cursor = nextCursor
     if (!cursor || loadingMore || controllerRef.current) return
     const controller = new AbortController()
     controllerRef.current = controller
+    const requestIdentity = sessionIdentity
     const requestGeneration = ++generation.current
     setLoadingMore(true)
     setMoreError(false)
@@ -83,7 +90,8 @@ export function useFollowedCollections(exposed: boolean) {
         { cursor },
         { signal: controller.signal, maxRetries: 0 },
       )
-      if (controller.signal.aborted || requestGeneration !== generation.current) return
+      if (controller.signal.aborted || requestGeneration !== generation.current
+        || privateSessionIdentity() !== requestIdentity) return
       setItems((current) => {
         const seen = new Set(current.map((item) => item.collectionId))
         return [...current, ...page.items.filter((item) => !seen.has(item.collectionId))]
@@ -92,15 +100,27 @@ export function useFollowedCollections(exposed: boolean) {
       setMoreError(false)
       setStatus('ready')
     } catch (error) {
-      if (controller.signal.aborted || requestGeneration !== generation.current || isAbort(error)) return
+      if (controller.signal.aborted || requestGeneration !== generation.current
+        || privateSessionIdentity() !== requestIdentity || isAbort(error)) return
       setMoreError(true)
     } finally {
       if (controllerRef.current === controller) controllerRef.current = null
       if (requestGeneration === generation.current) setLoadingMore(false)
     }
-  }, [loadingMore, nextCursor])
+  }, [loadingMore, nextCursor, sessionIdentity])
 
   useEffect(() => {
+    // Keep the previous account's rows hidden for the render between the
+    // session-store update and this effect. The cache is identity stamped,
+    // but the existing state still belongs to the previous account until it
+    // has been replaced below.
+    renderedIdentityRef.current = sessionIdentity
+    const cached = readRouteCache<FollowedCache>(FOLLOWED_CACHE_KEY)
+    setItems(cached?.items ?? [])
+    setNextCursor(cached?.nextCursor ?? null)
+    setStatus(cached ? 'ready' : 'loading')
+    setLoadingMore(false)
+    setMoreError(false)
     if (!exposed) return
     void loadFirstPage()
     const onStorage = (event: StorageEvent) => {
@@ -115,7 +135,16 @@ export function useFollowedCollections(exposed: boolean) {
       controllerRef.current?.abort()
       generation.current += 1
     }
-  }, [exposed, loadFirstPage])
+  }, [exposed, loadFirstPage, sessionIdentity])
 
-  return { items, nextCursor, status, loadingMore, moreError, loadFirstPage, loadMore }
+  const identityReady = renderedIdentityRef.current === sessionIdentity
+  return {
+    items: identityReady ? items : [],
+    nextCursor: identityReady ? nextCursor : null,
+    status: identityReady ? status : 'loading',
+    loadingMore: identityReady ? loadingMore : false,
+    moreError: identityReady ? moreError : false,
+    loadFirstPage,
+    loadMore,
+  }
 }

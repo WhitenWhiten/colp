@@ -21,7 +21,7 @@ export interface SyncSnapshotRouteDependencies {
   readonly path: string;
   readonly credentialVerifier: ExtensionCredentialEvidencePort;
   readonly application: ({
-    query(input: { readonly credential: VerifiedExtensionCredential; readonly request: SyncSnapshotQuery }): Promise<Snapshot | SyncSnapshotV02>;
+    query(input: { readonly credential: VerifiedExtensionCredential; readonly request: SyncSnapshotQuery; readonly origin: string }): Promise<Snapshot | SyncSnapshotV02>;
   } & Partial<SyncSnapshotConflictApplication>);
   readonly allowedOrigins: readonly string[];
   readonly rateLimit: { readonly maxRequests: number; readonly windowMs: number };
@@ -85,7 +85,7 @@ export function registerSyncSnapshotRoutes(app: FastifyInstance, dependencies: S
       if (subjectOutcome.kind === 'failed') throw new SyncBootstrapSnapshotError('service_unavailable');
       const structural = createValidatorRegistry().validate('syncSnapshotQuery', query);
       if (!structural.valid) throw new SyncBootstrapSnapshotError('invalid_query');
-      const snapshot = await dependencies.application.query({ credential, request: query });
+      const snapshot = await dependencies.application.query({ credential, request: query, origin });
       const response = createValidatorRegistry().validate(
         snapshot.protocolVersion === '0.2' ? 'syncSnapshotV02' : 'snapshot', snapshot,
       );

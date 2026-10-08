@@ -83,14 +83,14 @@ describe('BF-03 bookmark favicon HTTP (delete and helper)', () => {
     const bound = [...harness.collectionsState.bookmarkIcons.values()][0]!;
     assert.equal(`${PRODUCT_ORIGIN}/api/v1/favicon/${bound.objectId}`, secondUrl);
     assert.equal(bound.contentType, 'image/x-icon');
-    // The displaced object is retired with a retention window, never deleted
-    // out from under the 1-year immutable cache promise.
+    // The displaced object is retained for asynchronous GC, while the public
+    // route revokes its binding immediately.
     assert.equal(harness.faviconStore.deletes.length, 0);
     assert.ok(harness.faviconStore.objects.has(firstObjectId), 'old object still served during retention');
     const retired = harness.collectionsState.faviconPendingDeletions.get(firstObjectId);
     assert.ok(retired, 'the replaced upload enters the durable GC retirement ledger');
     assert.ok(retired.deletableAt.getTime() > retired.retiredAt.getTime(),
-      'retention window covers the promised cache validity');
+      'retention window protects asynchronous object cleanup');
     assert.ok(harness.collectionsState.bookmarkIcons.has(BOOKMARK_ID));
   });
 

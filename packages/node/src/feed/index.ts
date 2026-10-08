@@ -123,6 +123,8 @@ export {
 } from './atom.js';
 
 export {
+  MAX_WEBSUB_HUBS,
+  MAX_WEBSUB_HUB_URL_LENGTH,
   declareWebSubHubs,
   withWebSubHubs,
   type WebSubDeclareResult,

@@ -108,7 +108,7 @@ import {
 } from './product-client-shared'
 import { timedFetch } from './requestTimeout'
 import { productRequestCredentials } from './product-credentials'
-import { getCsrfToken } from './sessionStore'
+import { getCsrfToken, privateSessionIdentity } from './sessionStore'
 import type { CollectionKind, CollectionVisibility } from './types'
 
 type OwnedCollectionQuery = {
@@ -489,7 +489,11 @@ export function createProductGeneratedClient(
     query: CommunityTargetQuery,
     options?: ReadOptions,
   ): Promise<CommunityTargetView> {
-    const key = JSON.stringify([query.kind, query.id, query.collectionId ?? null, query.seriesId ?? null])
+    // Target authority is viewer-sensitive (`canComment`, `canCurateComments`,
+    // and vote state). Never let an in-flight response for account A satisfy
+    // account B after a logout/re-authentication race.
+    const identity = privateSessionIdentity()
+    const key = JSON.stringify([identity, query.kind, query.id, query.collectionId ?? null, query.seriesId ?? null])
     let shared = inflightTargets.get(key)
     if (!shared) {
       shared = withSameRequestRetry(async () => {
@@ -506,7 +510,11 @@ export function createProductGeneratedClient(
       inflightTargets.set(key, settled)
       shared = settled
     }
-    return abortableWait(shared, options?.signal)
+    const result = await abortableWait(shared, options?.signal)
+    if (privateSessionIdentity() !== identity) {
+      throw new DOMException('Session changed', 'AbortError')
+    }
+    return result
   }
 
   const communityVoteMutationOptions = (options: MutationOptions): MutationOptions => ({

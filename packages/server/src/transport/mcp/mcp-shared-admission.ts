@@ -106,10 +106,12 @@ export function readMcpHeaderPairs(request: FastifyRequest): ReadonlyArray<reado
 export function mcpRateLimitSubject(
   request: FastifyRequest,
   binding: McpAuthorizationBinding,
+  /** Trusted configured MCP origin; never derive this from request Host headers. */
+  registeredOrigin: string,
 ): McpRateLimitSubject {
   const ip = typeof request.ip === 'string' && request.ip.length > 0 ? request.ip : 'unknown';
   if (binding.kind === 'authenticated') {
-    if (!isMcpAudienceForEndpoint(binding.resourceAudience, request.routeOptions?.url)) {
+    if (!isMcpAudienceForEndpoint(binding.resourceAudience, request.routeOptions?.url, registeredOrigin)) {
       throw new McpOauthVerificationError('wrong_audience');
     }
     return {

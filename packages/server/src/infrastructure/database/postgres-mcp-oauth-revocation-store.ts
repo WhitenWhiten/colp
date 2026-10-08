@@ -105,9 +105,10 @@ export function createPostgresMcpOauthRevocationStore(
         throw new Error('MCP OAuth security epoch is not provisioned');
       }
       const effectiveAtSeconds = Math.floor(row.effective_at.getTime() / 1_000);
-      // Incident floor only. Strict less-than, no JWT skew. Account events use
-      // readAccountSecurityBoundary on the account the verifier resolved.
-      return row.revoked === true || query.issuedAtSeconds < effectiveAtSeconds;
+      // Incident floor only. Reject equality as well: JWT iat has second
+      // precision while the durable effective_at boundary has milliseconds.
+      // Account events use readAccountSecurityBoundary on the resolved account.
+      return row.revoked === true || query.issuedAtSeconds <= effectiveAtSeconds;
     },
 
     async readAccountSecurityBoundary(accountId: string): Promise<McpAccountSecurityBoundary | null> {

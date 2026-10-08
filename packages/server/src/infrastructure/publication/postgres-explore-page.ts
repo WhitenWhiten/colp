@@ -8,7 +8,11 @@ import {
 } from '../../modules/publication/index.js';
 import type { DatabaseRuntime } from '../database/index.js';
 import { readBackendPid, withPostgresAbort } from '../database/index.js';
-import { COLLECTION_DELIST_CONTROL_SQL, collectionHidePublicExistsSql, collectionVisibleNodeCountSql } from '../database/collection-control-sql.js';
+import {
+  COLLECTION_DELIST_CONTROL_SQL,
+  collectionHidePublicExistsSql,
+  collectionPublicVisibleNodeCountSql,
+} from '../database/collection-control-sql.js';
 import {
   COLLECTION_CATALOG_LANGUAGE_SQL,
   COLLECTION_CATALOG_TAGS_SQL,
@@ -121,8 +125,8 @@ export function buildExplorePageStatement(
              ), viewed_page as materialized (
                select c.id, c.owner_subject_id, c.title, c.summary, c.kind, c.visibility,
                       c.publication_slug, ${COLLECTION_CATALOG_TAGS_SQL} as tags, ${COLLECTION_CATALOG_LANGUAGE_SQL} as language,
-                      ${collectionVisibleNodeCountSql('c')} as node_count,
-                      c.live_node_count as ordering_node_count,
+                      ${collectionPublicVisibleNodeCountSql('c')} as node_count,
+                      ${collectionPublicVisibleNodeCountSql('c')} as ordering_node_count,
                       ${collectionHidePublicExistsSql('c.id')} as hidden_public, c.updated_at,
                       (extract(epoch from c.updated_at) * 1000000)::bigint::text
                         as ordering_updated_at_micros,
@@ -136,8 +140,8 @@ export function buildExplorePageStatement(
              ), zero_page as materialized (
                select c.id, c.owner_subject_id, c.title, c.summary, c.kind, c.visibility,
                       c.publication_slug, ${COLLECTION_CATALOG_TAGS_SQL} as tags, ${COLLECTION_CATALOG_LANGUAGE_SQL} as language,
-                      ${collectionVisibleNodeCountSql('c')} as node_count,
-                      c.live_node_count as ordering_node_count,
+                      ${collectionPublicVisibleNodeCountSql('c')} as node_count,
+                      ${collectionPublicVisibleNodeCountSql('c')} as ordering_node_count,
                       ${collectionHidePublicExistsSql('c.id')} as hidden_public, c.updated_at,
                       (extract(epoch from c.updated_at) * 1000000)::bigint::text
                         as ordering_updated_at_micros,
@@ -182,8 +186,8 @@ export function buildExplorePageStatement(
                select c.id, c.owner_subject_id, c.title, c.summary, c.kind, c.visibility,
                       c.publication_slug,
                       ${COLLECTION_CATALOG_TAGS_SQL} as tags, ${COLLECTION_CATALOG_LANGUAGE_SQL} as language,
-                      ${collectionVisibleNodeCountSql('c')} as node_count,
-                      c.live_node_count as ordering_node_count,
+                      ${collectionPublicVisibleNodeCountSql('c')} as node_count,
+                      ${collectionPublicVisibleNodeCountSql('c')} as ordering_node_count,
                       ${collectionHidePublicExistsSql('c.id')} as hidden_public,
                       c.updated_at,
                       (extract(epoch from c.updated_at) * 1000000)::bigint::text as ordering_updated_at_micros
@@ -245,7 +249,7 @@ function preferenceHiddenSelect(
 }
 
 function orderBy(sort: ExplorePageSort, ref: 'ranked' | 'c' | 'page'): string {
-  const nodeCount = ref === 'c' ? 'c.live_node_count' : `${ref}.ordering_node_count`;
+  const nodeCount = ref === 'c' ? collectionPublicVisibleNodeCountSql('c') : `${ref}.ordering_node_count`;
   if (sort === 'popular') {
     return `${ref}.view_count desc, ${ref}.updated_at desc, ${ref}.id collate "C" asc`;
   }
@@ -278,9 +282,10 @@ function keysetPredicate(
   }
   if (request.sort === 'links') {
     const nodeCount = parameter(request.after.nodeCount);
-    return `(c.live_node_count < ${nodeCount}
-        or (c.live_node_count = ${nodeCount} and c.updated_at < ${exactTimestamp})
-        or (c.live_node_count = ${nodeCount} and c.updated_at = ${exactTimestamp}
+    const publicNodeCount = collectionPublicVisibleNodeCountSql('c');
+    return `(${publicNodeCount} < ${nodeCount}
+        or (${publicNodeCount} = ${nodeCount} and c.updated_at < ${exactTimestamp})
+        or (${publicNodeCount} = ${nodeCount} and c.updated_at = ${exactTimestamp}
             and c.id collate "C" > ${id}::text collate "C"))`;
   }
   return `c.updated_at <= ${exactTimestamp}

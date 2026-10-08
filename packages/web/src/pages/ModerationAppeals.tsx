@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { isLive, isProductApiError, productClient } from '../api'
 import { useAuth } from '../auth/AuthContext'
 import { useToast } from '../components/AppToast'
@@ -13,6 +13,7 @@ import { humanLabel, MODERATION_ACTION_LABEL, MODERATION_APPEAL_STATUS_LABEL, MO
 import { StatusBadge } from '../components/StatusBadge'
 import { ModerationRow, ModerationStatusFilter, ModerationTable } from '../components/ModerationTable'
 import { formatDate } from '../lib/formatDate'
+import { privateSessionIdentity, subscribeSession } from '../api/sessionStore'
 import '../styles/moderation.css'
 
 const PAGE_LIMIT = 20
@@ -27,6 +28,7 @@ const STATUS_FILTERS: Array<{ value: StatusFilter; label: string }> = [
 
 export function ModerationAppeals() {
   const { isLoggedIn } = useAuth()
+  const sessionIdentity = useSyncExternalStore(subscribeSession, privateSessionIdentity, privateSessionIdentity)
   const { success } = useToast()
   const enabled = isLive('contentGovernance')
   const [items, setItems] = useState<GovernanceAppeal[] | null>(null)
@@ -43,8 +45,20 @@ export function ModerationAppeals() {
   const [busy, setBusy] = useState(false)
   const [attempt, setAttempt] = useState(0)
   const [status, setStatus] = useState<StatusFilter>('all')
+  const renderedIdentityRef = useRef(sessionIdentity)
 
   useEffect(() => {
+    renderedIdentityRef.current = sessionIdentity
+    setItems(null)
+    setActions([])
+    setKnownActions([])
+    setNextCursor(null)
+    setLoadingMore(false)
+    setLoadError(null)
+    setSubmitError(null)
+    setActionId('')
+    setDescription('')
+    setBusy(false)
     if (!isLoggedIn) return
     if (!enabled) {
       setItems([])
@@ -52,13 +66,14 @@ export function ModerationAppeals() {
       return
     }
     const controller = new AbortController()
+    const requestIdentity = sessionIdentity
     setLoadError(null)
     Promise.all([
       productClient.listMyModerationAppeals({ limit: PAGE_LIMIT }, { signal: controller.signal, maxRetries: 0 }),
       productClient.listActionsAffectingMe({ limit: 50 }, { signal: controller.signal, maxRetries: 0 }),
     ])
       .then(([appeals, affecting]) => {
-        if (controller.signal.aborted) return
+        if (controller.signal.aborted || privateSessionIdentity() !== requestIdentity) return
         setItems([...appeals.items])
         setNextCursor(appeals.nextCursor)
         setMoreError(false)
@@ -68,7 +83,7 @@ export function ModerationAppeals() {
         setActionId((current) => current || active[0]?.id || '')
       })
       .catch((err) => {
-        if (controller.signal.aborted) return
+        if (controller.signal.aborted || privateSessionIdentity() !== requestIdentity) return
         if (isProductApiError(err) && err.status === 404) {
           setItems([])
           setActions([])
@@ -77,12 +92,25 @@ export function ModerationAppeals() {
         setLoadError(isProductApiError(err) ? err.recoveryHint : "Couldn't load appeals")
       })
     return () => controller.abort()
-  }, [enabled, isLoggedIn, attempt])
+  }, [enabled, isLoggedIn, attempt, sessionIdentity])
 
-  const visibleItems = (items ?? []).filter((item) => status === 'all' || item.status === status)
+  const identityReady = renderedIdentityRef.current === sessionIdentity
+  const visibleItemsReady = identityReady && items !== null
+  const visibleItems = visibleItemsReady ? (items ?? []).filter((item) => status === 'all' || item.status === status) : []
+  const visibleActions = identityReady ? actions : []
+  const visibleKnownActions = identityReady ? knownActions : []
+  const visibleNextCursor = identityReady ? nextCursor : null
+  const visibleLoadingMore = identityReady ? loadingMore : false
+  const visibleMoreError = identityReady ? moreError : false
+  const visibleLoadError = identityReady ? loadError : null
+  const visibleSubmitError = identityReady ? submitError : null
+  const visibleActionId = identityReady ? actionId : ''
+  const visibleDescription = identityReady ? description : ''
+  const visibleBusy = identityReady ? busy : false
 
   async function submit() {
     if (!actionId) return
+    const requestIdentity = sessionIdentity
     setBusy(true)
     setSubmitError(null)
     try {
@@ -90,31 +118,36 @@ export function ModerationAppeals() {
         { actionId, description },
         { intentId: productClient.mutationIntentKey('moderation-appeal', productClient.newCommandId()), maxRetries: 0 },
       )
+      if (privateSessionIdentity() !== requestIdentity) return
       setItems((current) => [created, ...(current ?? [])])
       setDescription('')
       success('Appeal submitted.')
     } catch (err) {
+      if (privateSessionIdentity() !== requestIdentity) return
       setSubmitError(isProductApiError(err) ? err.recoveryHint : 'Appeal could not be submitted')
     } finally {
-      setBusy(false)
+      if (privateSessionIdentity() === requestIdentity) setBusy(false)
     }
   }
 
   async function loadMore() {
     if (!nextCursor || loadingMore) return
+    const requestIdentity = sessionIdentity
     setLoadingMore(true)
     setMoreError(false)
     try {
       const page = await productClient.listMyModerationAppeals({ limit: PAGE_LIMIT, cursor: nextCursor }, { maxRetries: 0 })
+      if (privateSessionIdentity() !== requestIdentity) return
       setItems((current) => {
         const seen = new Set((current ?? []).map((item) => item.id))
         return [...(current ?? []), ...page.items.filter((item) => !seen.has(item.id))]
       })
       setNextCursor(page.nextCursor)
     } catch {
+      if (privateSessionIdentity() !== requestIdentity) return
       setMoreError(true)
     } finally {
-      setLoadingMore(false)
+      if (privateSessionIdentity() === requestIdentity) setLoadingMore(false)
     }
   }
 
@@ -137,14 +170,14 @@ export function ModerationAppeals() {
           />
         ) : !isLoggedIn ? (
           <RouteState kind="auth" returnTo="/moderation/appeals" />
-        ) : loadError ? (
+        ) : visibleLoadError ? (
           <RouteState
             kind="error"
             title="Couldn't load appeals"
-            description={loadError}
+            description={visibleLoadError}
             onRetry={() => setAttempt((current) => current + 1)}
           />
-        ) : items === null ? (
+        ) : !visibleItemsReady ? (
           <RouteState kind="loading" loadingLabel="Loading appeals" />
         ) : (
           <div className="stack">
@@ -161,14 +194,14 @@ export function ModerationAppeals() {
                 <select
                   id="moderation-appeal-action"
                   className="input"
-                  value={actionId}
+                  value={visibleActionId}
                   onChange={(event) => setActionId(event.target.value)}
                   required
                   data-testid="moderation-appeal-action"
                 >
-                  {actions.length === 0 ? (
+                  {visibleActions.length === 0 ? (
                     <option value="">No active official actions</option>
-                  ) : actions.map((item) => (
+                  ) : visibleActions.map((item) => (
                     <option key={item.id} value={item.id}>
                       {humanLabel(MODERATION_ACTION_LABEL, item.action)} · {formatGovernanceTarget(item.target)}
                     </option>
@@ -180,18 +213,18 @@ export function ModerationAppeals() {
                 <textarea
                   id="moderation-appeal-description"
                   className="input"
-                  value={description}
+                  value={visibleDescription}
                   onChange={(event) => setDescription(event.target.value)}
                   required
                 />
               </div>
-              {submitError ? <p className="field-error" role="alert">{submitError}</p> : null}
-              <button type="submit" className="btn btn-primary" disabled={busy || actions.length === 0}>Submit appeal</button>
+              {visibleSubmitError ? <p className="field-error" role="alert">{visibleSubmitError}</p> : null}
+              <button type="submit" className="btn btn-primary" disabled={visibleBusy || visibleActions.length === 0}>Submit appeal</button>
             </form>
-            {items.length > 0 ? (
+            {visibleItems.length > 0 ? (
               <ModerationStatusFilter value={status} options={STATUS_FILTERS} onChange={setStatus} />
             ) : null}
-            {items.length === 0 ? (
+            {visibleItems.length === 0 ? (
               <EmptyState
                 icon="collection"
                 title="No appeals yet"
@@ -206,7 +239,7 @@ export function ModerationAppeals() {
             ) : (
               <ModerationTable label="My appeals" testId="moderation-appeal-list" subjectLabel="Appeal">
                 {visibleItems.map((item) => {
-                  const action = knownActions.find((candidate) => candidate.id === item.actionId)
+                  const action = visibleKnownActions.find((candidate) => candidate.id === item.actionId)
                   return (
                     <ModerationRow
                       key={item.id}
@@ -224,14 +257,14 @@ export function ModerationAppeals() {
                 })}
               </ModerationTable>
             )}
-            {nextCursor ? (
+            {visibleNextCursor ? (
               <div className="moderation-more">
                 <LoadMoreButton
-                  loading={loadingMore}
+                  loading={visibleLoadingMore}
                   onClick={() => void loadMore()}
                   status="Loading more appeals"
                 />
-                {moreError ? <p className="field-error" role="alert">Couldn't load more appeals.</p> : null}
+                {visibleMoreError ? <p className="field-error" role="alert">Couldn't load more appeals.</p> : null}
               </div>
             ) : null}
           </div>

@@ -1,5 +1,10 @@
 import { requirePromise } from './internal-guards.js';
 
+/** Hard bounds for adapter-controlled browser batch fanout. */
+export const MAX_BROWSER_BATCH_CHANGES = 256;
+export const MAX_BROWSER_BATCH_AFFECTED_FOLDERS_PER_CHANGE = 32;
+export const MAX_BROWSER_BATCH_FOLDERS = 512;
+
 /** A native change with every folder whose index may have changed. */
 export interface SyncBrowserBatchChange<FolderId = string> {
   /** Destination/current folder; retained for source compatibility. */
@@ -46,6 +51,9 @@ export async function applySyncBrowserBatch<Change extends SyncBrowserBatchChang
   options: { readonly grouped?: boolean } = {},
 ): Promise<readonly Item[] | readonly SyncBrowserFolderResult<FolderId, Item>[]> {
   if (!Array.isArray(changes)) throw new TypeError('Browser batch changes must be an array.');
+  if (changes.length > MAX_BROWSER_BATCH_CHANGES) {
+    throw new RangeError(`Browser batch must not contain more than ${MAX_BROWSER_BATCH_CHANGES} changes.`);
+  }
   if (options === null || typeof options !== 'object' || Array.isArray(options)
     || (options.grouped !== undefined && typeof options.grouped !== 'boolean')) {
     throw new TypeError('Browser batch grouped option must be boolean.');
@@ -57,6 +65,9 @@ export async function applySyncBrowserBatch<Change extends SyncBrowserBatchChang
     throw new TypeError('Browser batch driver must provide write and readFolder boundaries.');
   }
 
+  // Validate and collect the entire affected scope before the first write.
+  // This prevents an attacker-controlled batch from causing a large partial
+  // prefix of writes or an unbounded Promise.all fanout after validation.
   const affectedFolders = new Set<FolderId>();
   for (const change of changes) {
     if (change === null || typeof change !== 'object') throw new TypeError('Browser batch change must be an object.');
@@ -67,21 +78,33 @@ export async function applySyncBrowserBatch<Change extends SyncBrowserBatchChang
     if (additional !== undefined && !Array.isArray(additional)) {
       throw new TypeError('Browser batch affectedFolderIds must contain valid folder IDs.');
     }
+    if ((additional?.length ?? 0) > MAX_BROWSER_BATCH_AFFECTED_FOLDERS_PER_CHANGE) {
+      throw new RangeError(`A browser batch change must not affect more than ${MAX_BROWSER_BATCH_AFFECTED_FOLDERS_PER_CHANGE} folders.`);
+    }
     for (const folderId of additional ?? []) {
       if (!hasFolderId(folderId)) throw new TypeError('Browser batch affectedFolderIds must contain valid folder IDs.');
     }
     if (change.sourceFolderId !== undefined && !hasFolderId(change.sourceFolderId)) {
       throw new TypeError('Browser batch sourceFolderId must be a valid folder ID.');
     }
-    // Capture this change's affected scope before starting the asynchronous write.
     affectedFolders.add(change.folderId);
     if (change.sourceFolderId !== undefined) affectedFolders.add(change.sourceFolderId);
     for (const folderId of additional ?? []) affectedFolders.add(folderId);
+    if (affectedFolders.size > MAX_BROWSER_BATCH_FOLDERS) {
+      throw new RangeError(`Browser batch must not affect more than ${MAX_BROWSER_BATCH_FOLDERS} folders.`);
+    }
+  }
+  for (const change of changes) {
     await requirePromise(driver.write(change), 'Browser write boundary');
   }
   const folders = [...affectedFolders];
-  const rereads = await Promise.all(folders.map(folderId =>
-    requirePromise(driver.readFolder(folderId), 'Browser folder read boundary')));
+  // Keep rereads bounded in time and concurrency as well as in cardinality.
+  // A sequential read avoids turning a valid 512-folder batch into a burst
+  // of simultaneous browser/database work.
+  const rereads: Array<readonly Item[]> = [];
+  for (const folderId of folders) {
+    rereads.push(await requirePromise(driver.readFolder(folderId), 'Browser folder read boundary'));
+  }
   if (!grouped) return rereads.flat();
   return Object.freeze(folders.map((folderId, index) => Object.freeze({
     folderId, items: Object.freeze([...rereads[index]!]),

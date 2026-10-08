@@ -99,8 +99,9 @@ export class SharedFaviconCache {
         `, [objectId, claim.hostname, digest, this.options.retentionSeconds]);
         await this.store.put(objectId, image.body, image.mime);
       }
-      // Extend retention BEFORE publishing the replacement. A crash cannot make a
-      // just-displaced URL expire before its public immutable cache lifetime.
+      // Extend retention BEFORE publishing the replacement. A crash cannot
+      // lose the object before asynchronous GC has a durable record; public
+      // object reads still revalidate the current binding.
       if (claim.object_id && claim.object_id !== objectId) {
         await this.pool.query(`UPDATE favicon_shared_objects SET deletable_at=greatest(deletable_at,
           clock_timestamp() + $2 * interval '1 second') WHERE object_id=$1`,

@@ -508,8 +508,8 @@ export async function setBookmarkFaviconSource(
   //   本就保留，失败不能先清空有效绑定"). The CAS path retires the displaced
   //   object with the retention window.
   // - targets `inherit`/`none` deliberately drop the binding; the retired
-  //   object then enters the durable GC retention window (covered cache
-  //   promise) instead of being deleted out from under caches.
+  //   object then enters the durable GC retention window instead of being
+  //   deleted immediately; public reads revoke its binding first.
   const now = await ports.clock.now();
   const previousBinding = await ports.bookmarkIcons.findByNodeId(node.id);
   if (previousBinding !== null && input.sourceMode !== 'online') {

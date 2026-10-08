@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import {
   isProductApiError,
   productClient,
@@ -8,6 +8,7 @@ import {
 } from '../api'
 import { useConfirm, useConfirmLeaveGuard } from '../components/ConfirmModal'
 import { invalidateBookmarkAnnotations } from './useBookmarkAnnotations'
+import { privateSessionIdentity, subscribeSession } from '../api/sessionStore'
 
 export type AnnotationSubjectLocator = {
   collectionId: string
@@ -102,6 +103,7 @@ function intentId(locator: AnnotationSubjectLocator, kind: MutationKind): string
 }
 
 export function useAnnotationWorkflow(locator: AnnotationSubjectLocator | null, noteVisibility?: AnnotationVisibility) {
+  const sessionIdentity = useSyncExternalStore(subscribeSession, privateSessionIdentity, privateSessionIdentity)
   const [annotations, setAnnotations] = useState<AnnotationView[]>([])
   const [note, setNote] = useState<AnnotationView | null>(null)
   /* TL;DR annotations stay out of the combined editable list, but they are
@@ -118,6 +120,7 @@ export function useAnnotationWorkflow(locator: AnnotationSubjectLocator | null, 
   const controllers = useRef(new Set<AbortController>())
   const noteInputRef = useRef<HTMLTextAreaElement>(null)
   const restoreNoteFocus = useRef(false)
+  const renderedIdentityRef = useRef(sessionIdentity)
 
   const setPendingMutation = useCallback((value: PendingMutation | null) => {
     pendingRef.current = value
@@ -151,6 +154,7 @@ export function useAnnotationWorkflow(locator: AnnotationSubjectLocator | null, 
 
   const load = useCallback(async () => {
     if (!locator) return
+    const requestIdentity = sessionIdentity
     const requestGeneration = generation.current
     const controller = controllerForCurrentGeneration()
     setState('loading')
@@ -161,10 +165,12 @@ export function useAnnotationWorkflow(locator: AnnotationSubjectLocator | null, 
         { resourceType: locator.resourceType, resourceId: locator.resourceId },
         { signal: controller.signal, maxRetries: 0 },
       )
-      if (requestGeneration !== generation.current || controller.signal.aborted) return
+      if (requestGeneration !== generation.current || controller.signal.aborted
+        || privateSessionIdentity() !== requestIdentity) return
       replaceFromServer(items)
     } catch (error) {
-      if (isAbort(error) || requestGeneration !== generation.current) return
+      if (isAbort(error) || requestGeneration !== generation.current
+        || privateSessionIdentity() !== requestIdentity) return
       setState('error')
       setMessage(isProductApiError(error) && error.isAuthRequired
         ? 'Sign in to load annotations.'
@@ -172,9 +178,10 @@ export function useAnnotationWorkflow(locator: AnnotationSubjectLocator | null, 
     } finally {
       controllers.current.delete(controller)
     }
-  }, [controllerForCurrentGeneration, locator, replaceFromServer])
+  }, [controllerForCurrentGeneration, locator, replaceFromServer, sessionIdentity])
 
   useEffect(() => {
+    renderedIdentityRef.current = sessionIdentity
     generation.current += 1
     abortOutstanding()
     setAnnotations([])
@@ -183,11 +190,13 @@ export function useAnnotationWorkflow(locator: AnnotationSubjectLocator | null, 
     setDraftState('')
     setBaseline('')
     setPendingMutation(null)
+    setState('loading')
+    setMessage('Loading annotations')
     if (locator) void load()
     return abortOutstanding
     // Primitive locator fields; object identity would reload on every parent render.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- locator ids, not identity
-  }, [abortOutstanding, load, locator?.collectionId, locator?.resourceId, locator?.resourceType, setPendingMutation])
+  }, [abortOutstanding, load, locator?.collectionId, locator?.resourceId, locator?.resourceType, setPendingMutation, sessionIdentity])
 
   const setDraft = useCallback((value: string) => {
     setDraftState(value)
@@ -197,6 +206,7 @@ export function useAnnotationWorkflow(locator: AnnotationSubjectLocator | null, 
 
   const refreshItem = useCallback(async (annotationId: string): Promise<AnnotationView | null> => {
     if (!locator) return null
+    const requestIdentity = sessionIdentity
     const requestGeneration = generation.current
     const controller = controllerForCurrentGeneration()
     try {
@@ -204,16 +214,19 @@ export function useAnnotationWorkflow(locator: AnnotationSubjectLocator | null, 
         signal: controller.signal,
         maxRetries: 0,
       })
-      return requestGeneration === generation.current && !controller.signal.aborted ? current : null
+      return requestGeneration === generation.current && !controller.signal.aborted
+        && privateSessionIdentity() === requestIdentity ? current : null
     } finally {
       controllers.current.delete(controller)
     }
-  }, [controllerForCurrentGeneration, locator])
+  }, [controllerForCurrentGeneration, locator, sessionIdentity])
 
   const refreshAfterConflict = useCallback(async (mutation: PendingMutation): Promise<void> => {
     if (!locator) return
+    const requestIdentity = sessionIdentity
     if (mutation.annotationId) {
       const current = await refreshItem(mutation.annotationId)
+      if (privateSessionIdentity() !== requestIdentity) return
       if (current) {
         setAnnotations((items) => items.map((item) => item.id === current.id ? current : item))
         if (current.type === 'note') setNote(subjectNote([current], noteVisibility))
@@ -228,14 +241,15 @@ export function useAnnotationWorkflow(locator: AnnotationSubjectLocator | null, 
         resourceType: locator.resourceType,
         resourceId: locator.resourceId,
       }, { signal: controller.signal, maxRetries: 0 })
-      if (requestGeneration !== generation.current || controller.signal.aborted) return
+      if (requestGeneration !== generation.current || controller.signal.aborted
+        || privateSessionIdentity() !== requestIdentity) return
       setAnnotations(items.filter((item) => item.type === 'note' || item.type === 'highlight'))
       setNote(subjectNote(items, noteVisibility))
       setTldr(items.find((item) => item.type === 'tldr') ?? null)
     } finally {
       controllers.current.delete(controller)
     }
-  }, [controllerForCurrentGeneration, locator, noteVisibility, refreshItem])
+  }, [controllerForCurrentGeneration, locator, noteVisibility, refreshItem, sessionIdentity])
 
   const complete = useCallback((mutation: PendingMutation, result: AnnotationView | DeleteAnnotationResult) => {
     productClient.abandonAnnotationIntent(mutation.intentId)
@@ -328,6 +342,7 @@ export function useAnnotationWorkflow(locator: AnnotationSubjectLocator | null, 
    */
   const execute = useCallback(async (mutation: PendingMutation): Promise<boolean> => {
     if (!locator) return false
+    const requestIdentity = sessionIdentity
     const requestGeneration = generation.current
     const controller = controllerForCurrentGeneration()
     setPendingMutation(mutation)
@@ -368,20 +383,22 @@ export function useAnnotationWorkflow(locator: AnnotationSubjectLocator | null, 
           { intentId: mutation.intentId, signal: controller.signal, maxRetries: 0, clearIntentOnSuccess: false },
         )
       }
-      if (requestGeneration !== generation.current || controller.signal.aborted) return false
+      if (requestGeneration !== generation.current || controller.signal.aborted
+        || privateSessionIdentity() !== requestIdentity) return false
       complete(mutation, result)
       // The library desk caches note/TL;DR snippets per subject; a saved or
       // deleted annotation must not leave a stale card behind.
       invalidateBookmarkAnnotations(locator.collectionId, locator.resourceId)
       return true
     } catch (error) {
-      if (requestGeneration !== generation.current || controller.signal.aborted) return false
+      if (requestGeneration !== generation.current || controller.signal.aborted
+        || privateSessionIdentity() !== requestIdentity) return false
       await fail(mutation, error)
       return false
     } finally {
       controllers.current.delete(controller)
     }
-  }, [complete, controllerForCurrentGeneration, fail, locator, note, setPendingMutation, tldr])
+  }, [complete, controllerForCurrentGeneration, fail, locator, note, setPendingMutation, tldr, sessionIdentity])
 
   const saveNote = useCallback(async (forceNew = false, visibility?: AnnotationVisibility): Promise<boolean> => {
     if (!locator) return false
@@ -415,11 +432,12 @@ export function useAnnotationWorkflow(locator: AnnotationSubjectLocator | null, 
       run()
       return
     }
+    const requestIdentity = sessionIdentity
     // R9-19: shared destructive confirm (Modal tone="danger") replaces the
     // native window.confirm; the delete only runs after it resolves true.
     void confirm({ title: 'Delete this private note?', body: "This can't be undone.", confirmLabel: 'Delete note' })
-      .then((ok) => { if (ok) run() })
-  }, [confirm, execute, locator, note, state])
+      .then((ok) => { if (ok && privateSessionIdentity() === requestIdentity) run() })
+  }, [confirm, execute, locator, note, sessionIdentity, state])
 
   /**
    * Resolve the TL;DR deletion mutation for saveTldr('')/deleteTldr: reuses
@@ -429,14 +447,16 @@ export function useAnnotationWorkflow(locator: AnnotationSubjectLocator | null, 
    */
   const removeTldr = useCallback(async (forceNew = false): Promise<PendingMutation | null> => {
     if (!locator || !tldr) return null
+    const requestIdentity = sessionIdentity
     const existing = pendingRef.current
     if (!forceNew && existing?.kind === 'delete-tldr' && state === 'unknown') return existing
     if (forceNew && existing) productClient.abandonAnnotationIntent(existing.intentId)
     if (!forceNew && !(await confirm({ title: 'Delete this TL;DR?', body: "This can't be undone.", confirmLabel: 'Delete TL;DR' }))) {
       return null
     }
+    if (privateSessionIdentity() !== requestIdentity) return null
     return tldrDeleteMutation(locator, tldr)
-  }, [confirm, locator, state, tldr])
+  }, [confirm, locator, sessionIdentity, state, tldr])
 
   /**
    * Create/update the subject's TL;DR through the same intent-idempotent
@@ -542,29 +562,31 @@ export function useAnnotationWorkflow(locator: AnnotationSubjectLocator | null, 
     void execute(next)
   }, [annotations, deleteNote, execute, locator, saveNote, setPendingMutation, tldr])
 
+  const identityReady = renderedIdentityRef.current === sessionIdentity
   const highlighted = useMemo(() => new Set(
     annotations.filter((item) => item.type === 'highlight').map((item) => highlightQuote(item.value)),
   ), [annotations])
   const dirty = draft !== baseline || ['saving', 'unknown', 'stale', 'conflict'].includes(state)
+  const visibleDirty = identityReady && dirty
 
   // R9-19: the shared async confirm guards in-app navigation; beforeunload
   // stays browser-native inside the hook.
-  useConfirmLeaveGuard(dirty, {
+  useConfirmLeaveGuard(visibleDirty, {
     title: 'Discard changes?',
     body: 'You have unsaved changes on this page.',
     confirmLabel: 'Discard',
   })
 
   return {
-    annotations,
-    note,
-    tldr,
-    draft,
-    state,
-    message,
-    pending,
-    highlighted,
-    dirty,
+    annotations: identityReady ? annotations : [],
+    note: identityReady ? note : null,
+    tldr: identityReady ? tldr : null,
+    draft: identityReady ? draft : '',
+    state: identityReady ? state : 'loading' as AnnotationSaveState,
+    message: identityReady ? message : 'Loading annotations',
+    pending: identityReady ? pending : null,
+    highlighted: identityReady ? highlighted : new Set<string>(),
+    dirty: visibleDirty,
     noteInputRef,
     setDraft,
     saveNote,

@@ -459,6 +459,7 @@ function createMemoryHarness(now?: Date): MemoryHarness {
         accounts,
         sessions,
         clock: { now: async () => new Date(world.now) },
+        revokeOAuthRefreshTokensForAccount: async () => 0,
       });
     },
   };

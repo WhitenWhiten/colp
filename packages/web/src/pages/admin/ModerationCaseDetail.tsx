@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { isLive, isProductApiError, productClient } from '../../api'
 import { useAuth } from '../../auth/AuthContext'
@@ -10,10 +10,12 @@ import { RouteState } from '../../components/RouteState'
 import type { GovernanceAction, GovernanceEvidence, GovernanceOfficialCase } from '@known/product-v1-client'
 import { formatGovernanceTarget } from '../../lib/governanceTarget'
 import { humanLabel, MODERATION_ACTION_LABEL, MODERATION_ACTION_STATE_LABEL, MODERATION_CATEGORY_LABEL, MODERATION_STATUS_LABEL } from '../../lib/moderationLabels'
+import { privateSessionIdentity, subscribeSession } from '../../api/sessionStore'
 
 export function ModerationCaseDetail() {
   const { caseId = '' } = useParams()
   const { isLoggedIn } = useAuth()
+  const sessionIdentity = useSyncExternalStore(subscribeSession, privateSessionIdentity, privateSessionIdentity)
   const confirm = useConfirm()
   const { success } = useToast()
   const enabled = isLive('contentGovernance')
@@ -26,10 +28,13 @@ export function ModerationCaseDetail() {
   const [actionError, setActionError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [attempt, setAttempt] = useState(0)
+  const renderedIdentityRef = useRef(sessionIdentity)
 
   useEffect(() => {
+    renderedIdentityRef.current = sessionIdentity
     if (!enabled || !isLoggedIn || !caseId) return
     const controller = new AbortController()
+    const requestIdentity = sessionIdentity
     const options = { signal: controller.signal, maxRetries: 0 }
     setLoadError(null)
     setForbidden(false)
@@ -50,13 +55,13 @@ export function ModerationCaseDetail() {
             productClient.getModerationAction(id, options),
           )),
         ])
-        if (controller.signal.aborted) return
+        if (controller.signal.aborted || privateSessionIdentity() !== requestIdentity) return
         setView(result)
         setEvidence(loadedEvidence)
         setActions(loadedActions)
       })
       .catch((err) => {
-        if (controller.signal.aborted) return
+        if (controller.signal.aborted || privateSessionIdentity() !== requestIdentity) return
         if (isProductApiError(err) && (err.status === 403 || err.code === 'insufficient_permission')) {
           setForbidden(true)
           return
@@ -64,10 +69,11 @@ export function ModerationCaseDetail() {
         setLoadError(isProductApiError(err) ? err.recoveryHint : "Couldn't load this case")
       })
     return () => controller.abort()
-  }, [enabled, isLoggedIn, caseId, attempt])
+  }, [enabled, isLoggedIn, caseId, attempt, sessionIdentity])
 
   async function patchCase(status: 'in_review' | 'resolved' | 'dismissed') {
     if (!view) return
+    const requestIdentity = sessionIdentity
     setBusy(true)
     setActionError(null)
     try {
@@ -80,18 +86,22 @@ export function ModerationCaseDetail() {
         current,
         { intentId: productClient.mutationIntentKey('moderation-case', productClient.newCommandId()), maxRetries: 0 },
       )
+      if (privateSessionIdentity() !== requestIdentity) return
       setView(updated)
       setEtag(`"${updated.case.revision}"`)
       success(status === 'in_review' ? 'Review started.' : 'Case updated.')
     } catch (err) {
-      setActionError(isProductApiError(err) ? err.recoveryHint : 'Case could not be updated')
+      if (privateSessionIdentity() === requestIdentity) {
+        setActionError(isProductApiError(err) ? err.recoveryHint : 'Case could not be updated')
+      }
     } finally {
-      setBusy(false)
+      if (privateSessionIdentity() === requestIdentity) setBusy(false)
     }
   }
 
   async function restrict(kind: 'restrict_interaction' | 'restrict_publication') {
     if (!view) return
+    const requestIdentity = sessionIdentity
     const target = view.case.target
     if (target.kind !== 'account') return
     const title = kind === 'restrict_interaction' ? 'Restrict interaction?' : 'Restrict publication?'
@@ -99,6 +109,7 @@ export function ModerationCaseDetail() {
       ? "The account can't comment, vote or follow until this is revoked."
       : "The account's profile and public content stop appearing in Explore, search and feeds until this is revoked."
     if (!(await confirm({ title, body, confirmLabel: 'Restrict' }))) return
+    if (privateSessionIdentity() !== requestIdentity) return
     setBusy(true)
     setActionError(null)
     try {
@@ -111,17 +122,21 @@ export function ModerationCaseDetail() {
         },
         { intentId: productClient.mutationIntentKey('moderation-action', productClient.newCommandId()), maxRetries: 0 },
       )
+      if (privateSessionIdentity() !== requestIdentity) return
       setActions((current) => [...current, created])
       success(kind === 'restrict_interaction' ? 'Interaction restricted.' : 'Publication restricted.')
     } catch (err) {
-      setActionError(isProductApiError(err) ? err.recoveryHint : 'Action could not be created')
+      if (privateSessionIdentity() === requestIdentity) {
+        setActionError(isProductApiError(err) ? err.recoveryHint : 'Action could not be created')
+      }
     } finally {
-      setBusy(false)
+      if (privateSessionIdentity() === requestIdentity) setBusy(false)
     }
   }
 
   async function act(kind: 'delist' | 'hide_public') {
     if (!view) return
+    const requestIdentity = sessionIdentity
     const target = view.case.target
     if (!canHideDelist(target.kind)) return
     const targetTitle = evidence[0]?.title
@@ -133,6 +148,7 @@ export function ModerationCaseDetail() {
       ? 'The content stays in place for its owner but is replaced by a notice for everyone else. You can revoke this later.'
       : 'The content stays visible at its address but is removed from Explore, search and the directory. You can revoke this later.'
     if (!(await confirm({ title, body, confirmLabel }))) return
+    if (privateSessionIdentity() !== requestIdentity) return
     setBusy(true)
     setActionError(null)
     try {
@@ -151,21 +167,26 @@ export function ModerationCaseDetail() {
         body,
         { intentId: productClient.mutationIntentKey('moderation-action', productClient.newCommandId()), maxRetries: 0 },
       )
+      if (privateSessionIdentity() !== requestIdentity) return
       setActions((current) => [...current, created])
       success(kind === 'hide_public' ? 'Content hidden.' : 'Content delisted.')
     } catch (err) {
-      setActionError(isProductApiError(err) ? err.recoveryHint : 'Action could not be created')
+      if (privateSessionIdentity() === requestIdentity) {
+        setActionError(isProductApiError(err) ? err.recoveryHint : 'Action could not be created')
+      }
     } finally {
-      setBusy(false)
+      if (privateSessionIdentity() === requestIdentity) setBusy(false)
     }
   }
 
   async function revoke(action: GovernanceAction) {
+    const requestIdentity = sessionIdentity
     if (!(await confirm({
       title: 'Revoke this action?',
       body: 'The original action is undone and the content returns to its previous state.',
       confirmLabel: 'Revoke',
     }))) return
+    if (privateSessionIdentity() !== requestIdentity) return
     setBusy(true)
     setActionError(null)
     try {
@@ -175,14 +196,26 @@ export function ModerationCaseDetail() {
         `"${action.revision}"`,
         { intentId: productClient.mutationIntentKey('moderation-revoke', productClient.newCommandId()), maxRetries: 0 },
       )
+      if (privateSessionIdentity() !== requestIdentity) return
       setActions((current) => current.map((item) => item.id === revoked.id ? revoked : item))
       success('Action revoked.')
     } catch (err) {
-      setActionError(isProductApiError(err) ? err.recoveryHint : 'Action could not be revoked')
+      if (privateSessionIdentity() === requestIdentity) {
+        setActionError(isProductApiError(err) ? err.recoveryHint : 'Action could not be revoked')
+      }
     } finally {
-      setBusy(false)
+      if (privateSessionIdentity() === requestIdentity) setBusy(false)
     }
   }
+
+  const identityReady = renderedIdentityRef.current === sessionIdentity
+  const visibleView = identityReady ? view : null
+  const visibleEvidence = identityReady ? evidence : []
+  const visibleActions = identityReady ? actions : []
+  const visibleLoadError = identityReady ? loadError : null
+  const visibleForbidden = identityReady ? forbidden : false
+  const visibleActionError = identityReady ? actionError : null
+  const visibleBusy = identityReady ? busy : false
 
   return (
     <PageShell>
@@ -203,63 +236,63 @@ export function ModerationCaseDetail() {
           />
         ) : !isLoggedIn ? (
           <RouteState kind="auth" returnTo={`/admin/moderation/cases/${caseId}`} />
-        ) : forbidden ? (
+        ) : visibleForbidden ? (
           <RouteState
             kind="forbidden"
             title="Official reviewer access is required."
             description="This console is limited to official reviewers."
           />
-        ) : loadError && view === null ? (
+        ) : visibleLoadError && visibleView === null ? (
           <RouteState
             kind="error"
             title="Couldn't load this case"
-            description={loadError}
+            description={visibleLoadError}
             onRetry={() => setAttempt((current) => current + 1)}
           />
-        ) : view === null ? (
+        ) : visibleView === null ? (
           <RouteState kind="loading" loadingLabel="Loading case" />
         ) : (
           <div className="stack" data-testid="admin-moderation-case">
-            {actionError ? <p className="field-error" role="alert">{actionError}</p> : null}
+            {visibleActionError ? <p className="field-error" role="alert">{visibleActionError}</p> : null}
             <p>
-              {evidence[0]?.title ? <strong>{evidence[0].title} · </strong> : null}
-              {formatGovernanceTarget(view.case.target)}
-              {view.case.target.kind === 'bookmark' ? ` · in collection ${view.case.target.collectionId}` : ''}
-              {view.case.target.kind === 'digest_edition' ? ` · in digest ${view.case.target.seriesId}` : ''}
-              {' · '}{humanLabel(MODERATION_CATEGORY_LABEL, view.case.category)} · {humanLabel(MODERATION_STATUS_LABEL, view.case.status)}
+              {visibleEvidence[0]?.title ? <strong>{visibleEvidence[0].title} · </strong> : null}
+              {formatGovernanceTarget(visibleView.case.target)}
+              {visibleView.case.target.kind === 'bookmark' ? ` · in collection ${visibleView.case.target.collectionId}` : ''}
+              {visibleView.case.target.kind === 'digest_edition' ? ` · in digest ${visibleView.case.target.seriesId}` : ''}
+              {' · '}{humanLabel(MODERATION_CATEGORY_LABEL, visibleView.case.category)} · {humanLabel(MODERATION_STATUS_LABEL, visibleView.case.status)}
             </p>
-            {view.case.target.kind === 'account' ? (
-              <p data-testid="admin-moderation-account-locator">{formatGovernanceTarget(view.case.target)}</p>
+            {visibleView.case.target.kind === 'account' ? (
+              <p data-testid="admin-moderation-account-locator">{formatGovernanceTarget(visibleView.case.target)}</p>
             ) : null}
-            <p className="meta">{view.description}</p>
+            <p className="meta">{visibleView.description}</p>
             <ul data-testid="admin-moderation-evidence">
-              {evidence.map((item) => (
+              {visibleEvidence.map((item) => (
                 <li key={item.id}>
                   <p><strong>{item.title}</strong></p>
                   <p>{item.text}{item.truncated ? ' truncated' : ''}</p>
                 </li>
               ))}
             </ul>
-            {canHideDelist(view.case.target.kind) ? (
+            {canHideDelist(visibleView.case.target.kind) ? (
               <div className="row row-wrap">
-                <button type="button" className="btn btn-secondary btn-sm" disabled={busy || view.case.status === 'in_review'} onClick={() => void patchCase('in_review')}>Start review</button>
-                <button type="button" className="btn btn-danger btn-sm" disabled={busy} onClick={() => void act('hide_public')}>Hide public</button>
-                <button type="button" className="btn btn-danger btn-sm" disabled={busy} onClick={() => void act('delist')}>Delist</button>
+                <button type="button" className="btn btn-secondary btn-sm" disabled={visibleBusy || visibleView.case.status === 'in_review'} onClick={() => void patchCase('in_review')}>Start review</button>
+                <button type="button" className="btn btn-danger btn-sm" disabled={visibleBusy} onClick={() => void act('hide_public')}>Hide public</button>
+                <button type="button" className="btn btn-danger btn-sm" disabled={visibleBusy} onClick={() => void act('delist')}>Delist</button>
               </div>
             ) : null}
-            {view.case.target.kind === 'account' ? (
+            {visibleView.case.target.kind === 'account' ? (
               <div className="row row-wrap">
-                <button type="button" className="btn btn-secondary btn-sm" disabled={busy || view.case.status === 'in_review'} onClick={() => void patchCase('in_review')}>Start review</button>
-                <button type="button" className="btn btn-danger btn-sm" disabled={busy} onClick={() => void restrict('restrict_interaction')}>Restrict interaction</button>
-                <button type="button" className="btn btn-danger btn-sm" disabled={busy} onClick={() => void restrict('restrict_publication')}>Restrict publication</button>
+                <button type="button" className="btn btn-secondary btn-sm" disabled={visibleBusy || visibleView.case.status === 'in_review'} onClick={() => void patchCase('in_review')}>Start review</button>
+                <button type="button" className="btn btn-danger btn-sm" disabled={visibleBusy} onClick={() => void restrict('restrict_interaction')}>Restrict interaction</button>
+                <button type="button" className="btn btn-danger btn-sm" disabled={visibleBusy} onClick={() => void restrict('restrict_publication')}>Restrict publication</button>
               </div>
             ) : null}
             <ul data-testid="admin-moderation-actions">
-              {actions.map((action) => (
+              {visibleActions.map((action) => (
                 <li key={action.id}>
                   {humanLabel(MODERATION_ACTION_LABEL, action.action)} · {humanLabel(MODERATION_ACTION_STATE_LABEL, action.state)}
                   {action.state === 'active' ? (
-                    <button type="button" className="btn btn-danger-ghost btn-sm" disabled={busy} onClick={() => void revoke(action)}>Revoke</button>
+                    <button type="button" className="btn btn-danger-ghost btn-sm" disabled={visibleBusy} onClick={() => void revoke(action)}>Revoke</button>
                   ) : null}
                 </li>
               ))}

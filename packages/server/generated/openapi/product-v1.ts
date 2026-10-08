@@ -620,7 +620,7 @@ export interface paths {
         };
         /**
          * Get a public bookmark favicon image by id
-         * @description Anonymous public favicon object bytes. No Product Session and no cookieAuth. faviconId is a 36-character UUID leaf matching /^[a-f0-9-]{36}$/i. Illegal ids and missing objects share the same 404 resource_not_found shape (no existence oracle). Transport may use public-revalidate so admission does not fill no-store; 200 and 404 pin Cache-Control themselves. 200 is public, max-age=31536000, immutable. 404 is public, max-age=60. GET does not look up bookmark_icons; an object may remain 200 until R2 DELETE. No Set-Cookie.
+         * @description Anonymous public favicon object bytes. No Product Session and no cookieAuth. faviconId is a 36-character UUID leaf matching /^[a-f0-9-]{36}$/i. Illegal ids and missing objects share the same 404 resource_not_found shape (no existence oracle). Transport may use public-revalidate so admission does not fill no-store; 200 and 404 pin Cache-Control themselves. 200 is public, max-age=30, must-revalidate. 404 is public, max-age=60. The route confirms the current live bookmark binding and publication state before serving bytes. No Set-Cookie.
          */
         get: operations["getBookmarkFavicon"];
         put?: never;
@@ -11245,7 +11245,7 @@ export interface operations {
             /** @description Favicon image bytes. */
             200: {
                 headers: {
-                    "Cache-Control": components["headers"]["PublicImmutableImageCache"];
+                    "Cache-Control": components["headers"]["PublicRevalidate"];
                     "X-Content-Type-Options": components["headers"]["XContentTypeOptions"];
                     "X-Request-Id": components["headers"]["XRequestId"];
                     [name: string]: unknown;

@@ -329,7 +329,7 @@ describeWithPostgres('LH-02 PostgreSQL link-health worker claim, CAS, and probe'
     const first = await uow.execute((ports) => enqueueMyLinkHealthChecks(ports, {
       actor: { principalId: PRINCIPAL, subjectId: OWNER },
       commandId,
-      filter: {},
+      filter: { collectionId: COLLECTION_ID },
     }));
     assert.equal(first.kind, 'succeeded');
     if (first.kind === 'succeeded') assert.equal(first.queued, 3);
@@ -353,7 +353,7 @@ describeWithPostgres('LH-02 PostgreSQL link-health worker claim, CAS, and probe'
     const replay = await uow.execute((ports) => enqueueMyLinkHealthChecks(ports, {
       actor: { principalId: PRINCIPAL, subjectId: OWNER },
       commandId,
-      filter: {},
+      filter: { collectionId: COLLECTION_ID },
     }));
     assert.equal(replay.kind, 'replay');
     const afterReplay = await isolated.runtime.pool.query<{ status: string }>(

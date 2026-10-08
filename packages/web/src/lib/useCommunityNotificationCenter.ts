@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { CommunityNotification, CommunityNotificationPreference } from '@known/product-v1-client'
 import { productClient } from '../api'
 import { ProductApiError, wrapProductError } from '../api/errors'
+import { privateSessionIdentity, subscribeSession } from '../api/sessionStore'
 import { readRouteCache, writeRouteCache } from './routeCache'
 
 export type CommunityNotificationCenterState = 'flag-off' | 'loading' | 'ready' | 'empty' | 'error' | 'loading-more'
@@ -70,6 +71,8 @@ function validRefreshMessage(value: unknown): value is RefreshMessage {
  * convention).
  */
 export function useCommunityNotificationCenter(input: { enabled: boolean; read?: ReadFilter; limit?: number; includePreference?: boolean }) {
+  const sessionIdentity = useSyncExternalStore(subscribeSession, privateSessionIdentity, privateSessionIdentity)
+  const renderedIdentityRef = useRef(sessionIdentity)
   const generationRef = useRef(0)
   const controllerRef = useRef<AbortController | null>(null)
   const failedReadRef = useRef<ReadOperation>({ type: 'initial' })
@@ -78,10 +81,15 @@ export function useCommunityNotificationCenter(input: { enabled: boolean; read?:
   const inputRef = useRef(input)
   const channelRef = useRef<BroadcastChannel | null>(null)
   inputRef.current = input
+  const resetSnapshot = useCallback(
+    () => restoredSnapshot({ enabled: input.enabled, read: input.read }),
+    [input.enabled, input.read],
+  )
   const [snapshot, setSnapshot] = useState<Snapshot>(() => restoredSnapshot(input))
 
   const executeRead = useCallback(async (generation: number, operation: ReadOperation) => {
     if (!inputRef.current.enabled) return
+    const requestIdentity = privateSessionIdentity()
     controllerRef.current?.abort()
     const controller = new AbortController()
     controllerRef.current = controller
@@ -104,7 +112,8 @@ export function useCommunityNotificationCenter(input: { enabled: boolean; read?:
           ? productClient.getCommunityNotificationPreference({ maxRetries: 0, signal: controller.signal })
           : Promise.resolve(null),
       ])
-      if (generation !== generationRef.current || controller.signal.aborted) return
+      if (generation !== generationRef.current || controller.signal.aborted
+        || privateSessionIdentity() !== requestIdentity) return
       setSnapshot((current) => {
         const items = operation.type === 'more' ? mergeUnique(current.items, page.items) : page.items
         if (operation.type !== 'more') cursorsRef.current.clear()
@@ -128,7 +137,8 @@ export function useCommunityNotificationCenter(input: { enabled: boolean; read?:
         return next
       })
     } catch (reason) {
-      if (controller.signal.aborted || generation !== generationRef.current) return
+      if (controller.signal.aborted || generation !== generationRef.current
+        || privateSessionIdentity() !== requestIdentity) return
       const error = wrapProductError(reason)
       if (error.code === 'invalid_cursor') failedReadRef.current = { type: 'refresh' }
       setSnapshot((current) => current.items.length > 0 && operation.type === 'initial'
@@ -150,6 +160,7 @@ export function useCommunityNotificationCenter(input: { enabled: boolean; read?:
 
   const runMutation = useCallback(async (operation: MutationOperation) => {
     if (!inputRef.current.enabled) return
+    const requestIdentity = privateSessionIdentity()
     failedMutationRef.current = operation
     setSnapshot((current) => ({ ...current, pending: operation.type, mutationError: null }))
     try {
@@ -180,29 +191,37 @@ export function useCommunityNotificationCenter(input: { enabled: boolean; read?:
         }
         const result = await productClient.updateCommunityNotificationPreference(
           { enabled: operation.enabled }, fresh.etag, { intentId: operation.intentId, maxRetries: 0 })
+        if (privateSessionIdentity() !== requestIdentity) return
         setSnapshot((current) => ({ ...current, preference: result }))
       }
       failedMutationRef.current = null
+      if (privateSessionIdentity() !== requestIdentity) return
       await executeRead(generationRef.current, { type: 'refresh' })
       publishRefresh()
-      setSnapshot((current) => ({ ...current, pending: null, mutationError: null }))
+      if (privateSessionIdentity() === requestIdentity) {
+        setSnapshot((current) => ({ ...current, pending: null, mutationError: null }))
+      }
     } catch (reason) {
-      setSnapshot((current) => ({ ...current, pending: null, mutationError: wrapProductError(reason) }))
+      if (privateSessionIdentity() === requestIdentity) {
+        setSnapshot((current) => ({ ...current, pending: null, mutationError: wrapProductError(reason) }))
+      }
     }
   }, [executeRead, publishRefresh])
 
   useEffect(() => {
+    renderedIdentityRef.current = sessionIdentity
     generationRef.current += 1
     const generation = generationRef.current
     controllerRef.current?.abort()
     cursorsRef.current.clear()
+    setSnapshot(resetSnapshot())
     if (!input.enabled) {
       setSnapshot({ ...emptySnapshot, state: 'flag-off' })
       return () => controllerRef.current?.abort()
     }
     void executeRead(generation, { type: 'initial' })
     return () => controllerRef.current?.abort()
-  }, [executeRead, input.enabled, input.includePreference, input.limit, input.read])
+  }, [executeRead, input.enabled, input.includePreference, input.limit, input.read, resetSnapshot, sessionIdentity])
 
   useEffect(() => {
     if (!input.enabled) return
@@ -276,5 +295,9 @@ export function useCommunityNotificationCenter(input: { enabled: boolean; read?:
   }, [runMutation, snapshot.preference])
   const retryMutation = useCallback(() => { if (failedMutationRef.current) void runMutation(failedMutationRef.current) }, [runMutation])
 
-  return { ...snapshot, retry, refresh, loadMore, markOne, markVisibleRead, setPreference, retryMutation }
+  const identityReady = renderedIdentityRef.current === sessionIdentity
+  const visibleSnapshot = identityReady
+    ? snapshot
+    : input.enabled ? emptySnapshot : { ...emptySnapshot, state: 'flag-off' as const }
+  return { ...visibleSnapshot, retry, refresh, loadMore, markOne, markVisibleRead, setPreference, retryMutation }
 }

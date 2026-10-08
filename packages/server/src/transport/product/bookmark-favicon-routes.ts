@@ -26,7 +26,10 @@ import { productRouteMetadata } from '../product-route-manifest.js';
 import { authenticationRequired, requireSessionActor } from '../session-auth.js';
 import { requireMutationActor } from '../mutation-actor.js';
 
-const FAVICON_OBJECT_CACHE_CONTROL = 'public, max-age=31536000, immutable';
+// A favicon can be withdrawn when its bookmark/collection publication state
+// changes. Keep shared caches on a short revalidation window so the positive
+// liveness check is consulted promptly after a withdrawal.
+const FAVICON_OBJECT_CACHE_CONTROL = 'public, max-age=30, must-revalidate';
 const FAVICON_MISSING_CACHE_CONTROL = 'public, max-age=60';
 const FAVICON_ID_PATTERN = /^[a-f0-9-]{36}$/iu;
 const PRODUCT_FAVICON_ROUTE = '/api/v1/collections/:collectionId/nodes/:nodeId/favicon';
@@ -46,8 +49,8 @@ export interface BookmarkFaviconRouteDependencies {
   readonly collectionsUnitOfWork?: CollectionsUnitOfWork;
   readonly extensionCollectionRoutes?: ExtensionCollectionRouteDependencies;
   readonly metrics?: { increment(name: string, value?: number): void };
-  /** Origin check for hide_public on the traceable bookmark (and parent collection). */
-  readonly faviconPublicAccess?: { isHiddenPublic(objectId: string): Promise<boolean> };
+  /** Positive current-public binding check for the requested object. */
+  readonly faviconPublicAccess?: { isPubliclyAccessible(objectId: string): Promise<boolean> };
   /**
    * Optional in-process limiter for public GET /api/v1/favicon/:faviconId.
    * Defaults to a per-process `public-object` family. Not the auth `me`
@@ -223,7 +226,10 @@ export function registerBookmarkFaviconRoutes(
       if (!faviconId || !FAVICON_ID_PATTERN.test(faviconId)) {
         throw faviconNotFound();
       }
-      if (deps.faviconPublicAccess && await deps.faviconPublicAccess.isHiddenPublic(faviconId)) {
+      // A historical object id is never sufficient for public access. The
+      // injected authority must confirm the object is still bound to a live,
+      // publicly visible bookmark/collection/ancestor chain.
+      if (!deps.faviconPublicAccess || !(await deps.faviconPublicAccess.isPubliclyAccessible(faviconId))) {
         throw faviconNotFound();
       }
       const stored = await faviconStore.get(faviconId);

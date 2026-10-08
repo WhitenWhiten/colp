@@ -17,7 +17,7 @@
    settings tag. A 412 abandons the intent, refreshes the affected
    projection, and asks the user to review-and-retry — the same receipt
    discipline as every other Product mutation. */
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import {
   isProductApiError,
   productClient,
@@ -25,6 +25,7 @@ import {
   type CommunityTargetQuery,
   type CommunityTargetView,
 } from '../api'
+import { privateSessionIdentity, subscribeSession } from '../api/sessionStore'
 
 export const COMMUNITY_COMMENTS_PAGE_SIZE = 20
 
@@ -124,6 +125,7 @@ export function useCommunityComments(input: {
   enabled: boolean
 }): CommunityCommentsBoard {
   const { query, enabled } = input
+  const sessionIdentity = useSyncExternalStore(subscribeSession, privateSessionIdentity, privateSessionIdentity)
   const [status, setStatus] = useState<CommunityCommentsStatus>('loading')
   const [view, setView] = useState<CommunityTargetView | null>(null)
   const [roots, setRoots] = useState<readonly CommunityComment[]>([])
@@ -149,6 +151,7 @@ export function useCommunityComments(input: {
      change — an abandoned read must not paint into the new target's board. */
   const authorityController = useRef<AbortController | null>(null)
   const scopeControllers = useRef(new Set<AbortController>())
+  const renderedIdentityRef = useRef(sessionIdentity)
 
   const patchReplies = useCallback((rootId: string, patch: Partial<CommunityRepliesState>) => {
     setReplies((previous) => {
@@ -223,6 +226,7 @@ export function useCommunityComments(input: {
 
   const readAuthority = useCallback(async () => {
     if (!enabled || !query) return
+    const requestIdentity = privateSessionIdentity()
     authorityController.current?.abort()
     const controller = new AbortController()
     authorityController.current = controller
@@ -233,14 +237,16 @@ export function useCommunityComments(input: {
       const resolved = await productClient.resolveCommunityTarget(query, {
         maxRetries: 0, signal: controller.signal,
       })
-      if (controller.signal.aborted || current !== operation.current) return
+      if (controller.signal.aborted || current !== operation.current
+        || privateSessionIdentity() !== requestIdentity) return
       const [page, areaSettings] = await Promise.all([
         loadRoots(resolved, null, controller.signal),
         loadSettings(resolved, controller.signal),
       ])
       /* Late-response guard: an aborted or superseded read must not paint into
          the target that replaced it. */
-      if (controller.signal.aborted || current !== operation.current) return
+      if (controller.signal.aborted || current !== operation.current
+        || privateSessionIdentity() !== requestIdentity) return
       setView(resolved)
       setRoots(page.items)
       setNextCursor(page.nextCursor)
@@ -250,7 +256,8 @@ export function useCommunityComments(input: {
       setStatus('ready')
       setMessage('Comments loaded')
     } catch (cause) {
-      if (controller.signal.aborted || current !== operation.current || isAbortError(cause)) return
+      if (controller.signal.aborted || current !== operation.current
+        || privateSessionIdentity() !== requestIdentity || isAbortError(cause)) return
       if (isUnexposedCommunity(cause)) {
         setStatus('unavailable')
         setView(null)
@@ -269,8 +276,11 @@ export function useCommunityComments(input: {
   }, [query?.kind, query?.id, query?.collectionId, query?.seriesId, enabled, loadRoots, loadSettings]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
+    renderedIdentityRef.current = sessionIdentity
     operation.current += 1
     intent.current = null
+    setView(null)
+    setStatus('loading')
     setRoots([])
     setNextCursor(null)
     setLoadingMore(false)
@@ -279,6 +289,8 @@ export function useCommunityComments(input: {
     setSettingsError(null)
     setOutcome(null)
     setMessage(null)
+    setPending(false)
+    setManagePending(false)
     const abortScope = () => {
       authorityController.current?.abort()
       authorityController.current = null
@@ -286,14 +298,12 @@ export function useCommunityComments(input: {
       scopeControllers.current.clear()
     }
     if (!enabled || !query) {
-      setStatus('loading')
-      setView(null)
       return abortScope
     }
     void readAuthority()
     /* Unmount and every target change cancel every read this scope started. */
     return abortScope
-  }, [queryKey(query ?? { kind: 'collection', id: '' }), enabled, readAuthority]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [queryKey(query ?? { kind: 'collection', id: '' }), enabled, readAuthority, sessionIdentity]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const reload = useCallback(() => { void readAuthority() }, [readAuthority])
 
@@ -303,18 +313,21 @@ export function useCommunityComments(input: {
     // reload or a revision conflict must not append its items into the new list
     // or write its cursor over the new one.
     const current = operation.current
+    const requestIdentity = sessionIdentity
     const controller = new AbortController()
     scopeControllers.current.add(controller)
     setLoadingMore(true)
     setError(null)
     void loadRoots(view, nextCursor, controller.signal)
       .then((page) => {
-        if (controller.signal.aborted || current !== operation.current) return
+        if (controller.signal.aborted || current !== operation.current
+          || privateSessionIdentity() !== requestIdentity) return
         setRoots((previous) => [...previous, ...page.items])
         setNextCursor(page.nextCursor)
       })
       .catch((cause: unknown) => {
-        if (controller.signal.aborted || current !== operation.current || isAbortError(cause)) return
+        if (controller.signal.aborted || current !== operation.current
+          || privateSessionIdentity() !== requestIdentity || isAbortError(cause)) return
         if (isUnexposedCommunity(cause)) {
           setStatus('unavailable')
           return
@@ -325,9 +338,9 @@ export function useCommunityComments(input: {
         scopeControllers.current.delete(controller)
         /* A superseded page still clears the flag; an aborted one (unmount or
            target change) must not write state at all. */
-        if (!controller.signal.aborted) setLoadingMore(false)
+        if (!controller.signal.aborted && privateSessionIdentity() === requestIdentity) setLoadingMore(false)
       })
-  }, [loadingMore, nextCursor, view, loadRoots])
+  }, [loadingMore, nextCursor, view, loadRoots, sessionIdentity])
 
   const loadReplies = useCallback(async (
     rootId: string,
@@ -335,13 +348,14 @@ export function useCommunityComments(input: {
     reset: boolean,
     signal: AbortSignal,
   ) => {
+    const requestIdentity = sessionIdentity
     const page = await productClient.getCommunityCommentReplies(rootId, {
       limit: COMMUNITY_COMMENTS_PAGE_SIZE,
       ...(cursor !== null ? { cursor } : {}),
     }, { signal })
     /* Late-response guard: a thread read abandoned by a target change must not
        repopulate the new target's replies map. */
-    if (signal.aborted) return
+    if (signal.aborted || privateSessionIdentity() !== requestIdentity) return
     patchReplies(rootId, {
       items: reset ? page.items : [...(replies.get(rootId)?.items ?? []), ...page.items],
       nextCursor: page.nextCursor,
@@ -351,7 +365,7 @@ export function useCommunityComments(input: {
       expanded: true,
       loaded: true,
     })
-  }, [patchReplies, replies])
+  }, [patchReplies, replies, sessionIdentity])
 
   const toggleReplies = useCallback((rootId: string) => {
     const current = replies.get(rootId) ?? EMPTY_REPLIES
@@ -367,39 +381,42 @@ export function useCommunityComments(input: {
       return
     }
     const controller = new AbortController()
+    const requestIdentity = sessionIdentity
     scopeControllers.current.add(controller)
     patchReplies(rootId, { loading: true, expanded: true, error: null })
     void loadReplies(rootId, null, true, controller.signal)
       .catch((cause: unknown) => {
-        if (controller.signal.aborted || isAbortError(cause)) return
+        if (controller.signal.aborted || privateSessionIdentity() !== requestIdentity || isAbortError(cause)) return
         patchReplies(rootId, {
           loading: false,
           error: isProductApiError(cause) ? cause.recoveryHint : "Couldn't load replies.",
         })
       })
       .finally(() => { scopeControllers.current.delete(controller) })
-  }, [replies, patchReplies, loadReplies])
+  }, [replies, patchReplies, loadReplies, sessionIdentity])
 
   const loadMoreReplies = useCallback((rootId: string) => {
     const current = replies.get(rootId) ?? EMPTY_REPLIES
     if (current.nextCursor === null || current.loadingMore) return
     const controller = new AbortController()
+    const requestIdentity = sessionIdentity
     scopeControllers.current.add(controller)
     patchReplies(rootId, { loadingMore: true, error: null })
     void loadReplies(rootId, current.nextCursor, false, controller.signal)
       .catch((cause: unknown) => {
-        if (controller.signal.aborted || isAbortError(cause)) return
+        if (controller.signal.aborted || privateSessionIdentity() !== requestIdentity || isAbortError(cause)) return
         patchReplies(rootId, {
           loadingMore: false,
           error: isProductApiError(cause) ? cause.recoveryHint : "Couldn't load more replies.",
         })
       })
       .finally(() => { scopeControllers.current.delete(controller) })
-  }, [replies, patchReplies, loadReplies])
+  }, [replies, patchReplies, loadReplies, sessionIdentity])
 
   const create = useCallback(async (body: string, replyToId: string | null) => {
     const target = view?.target
     if (pending || !enabled || view === null || !target) return null
+    const requestIdentity = sessionIdentity
     setPending(true)
     setError(null)
     /* One intent id per (target generation, reply parent, exact body): an
@@ -413,6 +430,7 @@ export function useCommunityComments(input: {
         { target, body, replyToId },
         { intentId },
       )
+      if (privateSessionIdentity() !== requestIdentity) return null
       if (replyToId === null) {
         setRoots((previous) => [comment, ...previous])
       } else {
@@ -438,7 +456,7 @@ export function useCommunityComments(input: {
       setMessage('Comment posted')
       return comment
     } catch (cause) {
-      if (isAbortError(cause)) return null
+      if (isAbortError(cause) || privateSessionIdentity() !== requestIdentity) return null
       if (isRevisionConflict(cause)) {
         // Stale generation: re-resolve so the next submit is the user's
         // confirmation on the new generation.
@@ -458,9 +476,9 @@ export function useCommunityComments(input: {
       setMessage(hint)
       return null
     } finally {
-      setPending(false)
+      if (privateSessionIdentity() === requestIdentity) setPending(false)
     }
-  }, [pending, enabled, view, replies, patchReplies, readAuthority])
+  }, [pending, enabled, view, replies, patchReplies, readAuthority, sessionIdentity])
 
   /* CS-04: replace one comment everywhere it is projected (root list and
      any loaded reply thread). Tombstones keep their slot — nothing is
@@ -494,9 +512,11 @@ export function useCommunityComments(input: {
      the failure was fully handled. */
   const manageConflict = useCallback(async (cause: unknown, intentId: string, what: string): Promise<boolean> => {
     if (!isPreconditionFailed(cause) && !isRevisionConflict(cause)) return false
+    const requestIdentity = privateSessionIdentity()
     productClient.abandonCommunityCommentManageIntent(intentId)
     intent.current = null
     await readAuthority()
+    if (privateSessionIdentity() !== requestIdentity) return true
     setOutcome(`The ${what} changed; it was refreshed. Review and try again.`)
     setMessage(`The ${what} changed; it was refreshed. Review and try again.`)
     return true
@@ -504,6 +524,7 @@ export function useCommunityComments(input: {
 
   const edit = useCallback(async (comment: CommunityComment, body: string) => {
     if (managePending || !enabled || view === null) return null
+    const requestIdentity = sessionIdentity
     setManagePending(true)
     setError(null)
     const intentId = `community-comment-edit:${comment.id}:${body.trim()}`
@@ -513,6 +534,7 @@ export function useCommunityComments(input: {
          list projections: a fresh single-comment read supplies the tag that
          conditions the write. */
       const current = await productClient.getCommunityCommentWithEtag(comment.id, { maxRetries: 0 })
+      if (privateSessionIdentity() !== requestIdentity) return null
       if (current.etag === null) {
         await readAuthority()
         setOutcome('The comment could not be confirmed; it was refreshed. Try again.')
@@ -522,13 +544,14 @@ export function useCommunityComments(input: {
       const result = await productClient.editCommunityComment(
         comment.id, { body }, current.etag, { intentId },
       )
+      if (privateSessionIdentity() !== requestIdentity) return null
       patchComment(result.data)
       intent.current = null
       setOutcome('Comment updated')
       setMessage('Comment updated')
       return result.data
     } catch (cause) {
-      if (isAbortError(cause)) return null
+      if (isAbortError(cause) || privateSessionIdentity() !== requestIdentity) return null
       if (await manageConflict(cause, intentId, 'comment')) return null
       if (isUnexposedCommunity(cause)) {
         setStatus('unavailable')
@@ -539,18 +562,20 @@ export function useCommunityComments(input: {
       setMessage(hint)
       return null
     } finally {
-      setManagePending(false)
+      if (privateSessionIdentity() === requestIdentity) setManagePending(false)
     }
-  }, [managePending, enabled, view, patchComment, manageConflict, readAuthority])
+  }, [managePending, enabled, view, patchComment, manageConflict, readAuthority, sessionIdentity])
 
   const remove = useCallback(async (comment: CommunityComment) => {
     if (managePending || !enabled || view === null) return null
+    const requestIdentity = sessionIdentity
     setManagePending(true)
     setError(null)
     const intentId = `community-comment-delete:${comment.id}`
     intent.current = intentId
     try {
       const current = await productClient.getCommunityCommentWithEtag(comment.id, { maxRetries: 0 })
+      if (privateSessionIdentity() !== requestIdentity) return null
       if (current.etag === null) {
         await readAuthority()
         setOutcome('The comment could not be confirmed; it was refreshed. Try again.')
@@ -562,13 +587,14 @@ export function useCommunityComments(input: {
       )
       // The permanent tombstone replaces the comment in place; its replies
       // stay readable in the thread.
+      if (privateSessionIdentity() !== requestIdentity) return null
       patchComment(result.data)
       intent.current = null
       setOutcome('Comment deleted')
       setMessage('Comment deleted')
       return result.data
     } catch (cause) {
-      if (isAbortError(cause)) return null
+      if (isAbortError(cause) || privateSessionIdentity() !== requestIdentity) return null
       if (await manageConflict(cause, intentId, 'comment')) return null
       if (isUnexposedCommunity(cause)) {
         setStatus('unavailable')
@@ -579,12 +605,13 @@ export function useCommunityComments(input: {
       setMessage(hint)
       return null
     } finally {
-      setManagePending(false)
+      if (privateSessionIdentity() === requestIdentity) setManagePending(false)
     }
-  }, [managePending, enabled, view, patchComment, manageConflict, readAuthority])
+  }, [managePending, enabled, view, patchComment, manageConflict, readAuthority, sessionIdentity])
 
   const curate = useCallback(async (comment: CommunityComment, hidden: boolean, reason: string) => {
     if (managePending || !enabled || view === null || view.canCurateComments !== true) return false
+    const requestIdentity = sessionIdentity
     setManagePending(true)
     setError(null)
     const intentId = `community-comment-curate:${comment.id}:${hidden}:${reason.trim()}`
@@ -593,6 +620,7 @@ export function useCommunityComments(input: {
       /* The curation overlay is an independent ETag authority: the tag comes
          from its own read, never from the comment's revision. */
       const curation = await productClient.getCommentCuration(comment.id, { maxRetries: 0 })
+      if (privateSessionIdentity() !== requestIdentity) return false
       if (curation.etag === null) {
         await readAuthority()
         setOutcome('The comment could not be confirmed; it was refreshed. Try again.')
@@ -605,13 +633,14 @@ export function useCommunityComments(input: {
       /* The write returns the overlay, not the comment: a fresh single read
          supplies the authoritative tombstone/restored projection. */
       const refreshed = await productClient.getCommunityComment(comment.id, { maxRetries: 0 })
+      if (privateSessionIdentity() !== requestIdentity) return false
       patchComment(refreshed)
       intent.current = null
       setOutcome(hidden ? 'Comment hidden' : 'Comment restored')
       setMessage(hidden ? 'Comment hidden' : 'Comment restored')
       return true
     } catch (cause) {
-      if (isAbortError(cause)) return false
+      if (isAbortError(cause) || privateSessionIdentity() !== requestIdentity) return false
       if (await manageConflict(cause, intentId, 'comment')) return false
       if (isUnexposedCommunity(cause)) {
         setStatus('unavailable')
@@ -622,14 +651,15 @@ export function useCommunityComments(input: {
       setMessage(hint)
       return false
     } finally {
-      setManagePending(false)
+      if (privateSessionIdentity() === requestIdentity) setManagePending(false)
     }
-  }, [managePending, enabled, view, patchComment, manageConflict, readAuthority])
+  }, [managePending, enabled, view, patchComment, manageConflict, readAuthority, sessionIdentity])
 
   const setAreaLocked = useCallback(async (locked: boolean, reason: string) => {
     const target = view?.target
     if (managePending || !enabled || view === null || !target
       || view.canCurateComments !== true) return false
+    const requestIdentity = sessionIdentity
     setManagePending(true)
     setError(null)
     const intentId = `community-comment-settings:${target.kind}:${target.id}:${locked}:${reason.trim()}`
@@ -640,6 +670,7 @@ export function useCommunityComments(input: {
          curator read failed earlier) is re-fetched so the write never goes
          out unconditional. */
       let tag = settings?.etag ?? null
+      if (privateSessionIdentity() !== requestIdentity) return false
       if (tag === null) {
         const fresh = await productClient.getCommunityCommentSettings({
           kind: target.kind,
@@ -659,13 +690,14 @@ export function useCommunityComments(input: {
       const result = await productClient.setCommunityCommentSettings(
         { target, locked, reason }, tag, { intentId },
       )
+      if (privateSessionIdentity() !== requestIdentity) return false
       setSettings({ locked: result.data.locked, reason: result.data.reason, etag: result.etag })
       intent.current = null
       setOutcome(locked ? 'Comment area locked' : 'Comment area unlocked')
       setMessage(locked ? 'Comment area locked' : 'Comment area unlocked')
       return true
     } catch (cause) {
-      if (isAbortError(cause)) return false
+      if (isAbortError(cause) || privateSessionIdentity() !== requestIdentity) return false
       if (await manageConflict(cause, intentId, 'comment area')) return false
       if (isUnexposedCommunity(cause)) {
         setStatus('unavailable')
@@ -676,24 +708,30 @@ export function useCommunityComments(input: {
       setMessage(hint)
       return false
     } finally {
-      setManagePending(false)
+      if (privateSessionIdentity() === requestIdentity) setManagePending(false)
     }
-  }, [managePending, enabled, view, settings, manageConflict, readAuthority])
+  }, [managePending, enabled, view, settings, manageConflict, readAuthority, sessionIdentity])
 
+  const identityReady = renderedIdentityRef.current === sessionIdentity
+  const visible = identityReady
+    ? { status, view, roots, nextCursor, loadingMore, error, pending, managePending, message, outcome, replies, settings, settingsError }
+    : {
+        status: 'loading' as const,
+        view: null,
+        roots: [] as readonly CommunityComment[],
+        nextCursor: null,
+        loadingMore: false,
+        error: null,
+        pending: false,
+        managePending: false,
+        message: null,
+        outcome: null,
+        replies: new Map<string, CommunityRepliesState>() as ReadonlyMap<string, CommunityRepliesState>,
+        settings: null,
+        settingsError: null,
+      }
   return {
-    status,
-    view,
-    roots,
-    nextCursor,
-    loadingMore,
-    error,
-    pending,
-    managePending,
-    message,
-    outcome,
-    replies,
-    settings,
-    settingsError,
+    ...visible,
     reload,
     loadMore,
     toggleReplies,

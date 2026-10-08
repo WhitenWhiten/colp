@@ -125,7 +125,7 @@ describeWithPostgres('account MCP security boundary', () => {
     );
   }
 
-  test('the global floor uses strict less-than and an incident bump does not lower it', async () => {
+  test('the global floor rejects the boundary second and an incident bump does not lower it', async () => {
     const revocation = store();
     const floorAt = new Date('2026-08-20T06:00:00.400Z');
     await anchorFloor(floorAt);
@@ -134,7 +134,7 @@ describeWithPostgres('account MCP security boundary', () => {
       issuer: ISSUER, subject: 'floor-subject', clientId: CLIENT_ID,
       tokenId: 'floor-jti', credentialDigest: 'floor-digest',
     };
-    assert.equal(await revocation.isRevoked({ ...probe, issuedAtSeconds: floor }), false);
+    assert.equal(await revocation.isRevoked({ ...probe, issuedAtSeconds: floor }), true);
     assert.equal(await revocation.isRevoked({ ...probe, issuedAtSeconds: floor - 1 }), true);
     const future = new Date(Date.now() + 86_400_000);
     await anchorFloor(future);
@@ -146,7 +146,7 @@ describeWithPostgres('account MCP security boundary', () => {
     assert.equal(after.effectiveAt.getTime(), future.getTime());
     const futureFloor = Math.floor(future.getTime() / 1_000);
     assert.equal(await revocation.isRevoked({ ...probe, tokenId: 'future-jti', issuedAtSeconds: futureFloor - 1 }), true);
-    assert.equal(await revocation.isRevoked({ ...probe, tokenId: 'future-same', issuedAtSeconds: futureFloor }), false);
+    assert.equal(await revocation.isRevoked({ ...probe, tokenId: 'future-same', issuedAtSeconds: futureFloor }), true);
   });
 
   test('a password change rejects only that account, including same-second iat', async () => {
@@ -230,7 +230,10 @@ describeWithPostgres('account MCP security boundary', () => {
       (error: unknown) => error instanceof McpOauthVerificationError && error.reason === 'revoked',
     );
     assert.equal((await builtIn.verify({ authorization: `Bearer ${aNewBuiltIn}` })).evidence.principalId, 'boundary-acct-a');
-    assert.equal((await external.verify({ authorization: `Bearer ${aSameSecondExternal}` })).evidence.principalId, 'boundary-acct-a');
+    await assert.rejects(
+      () => external.verify({ authorization: `Bearer ${aSameSecondExternal}` }),
+      (error: unknown) => error instanceof McpOauthVerificationError && error.reason === 'revoked',
+    );
     assert.equal((await builtIn.verify({ authorization: `Bearer ${bOldBuiltIn}` })).evidence.principalId, 'boundary-acct-b');
     assert.equal((await external.verify({ authorization: `Bearer ${bOldExternal}` })).evidence.principalId, 'boundary-acct-b');
     const missing = await mint({
