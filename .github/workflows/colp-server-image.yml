@@ -1,0 +1,144 @@
+name: colp-server-image
+
+# Tag pushes only. A pull request must not build, smoke, or publish the image.
+# The tag version has to be a packages/server/CHANGELOG.md section; the check
+# runs before the image build. deploy/compose.yaml keeps ${COLP_IMAGE_TAG:-0.1}.
+# Smoke sets COLP_IMAGE_TAG to this X.Y.Z so the http profile runs the image
+# just built. X.Y.Z, X.Y, and latest are pushed only after deploy/smoke.sh
+# passes. The GitHub release body is that CHANGELOG section.
+on:
+  push:
+    tags:
+      - 'colp-server-v*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: colp-server-image-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  image:
+    permissions:
+      contents: write
+      packages: write
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      COLP_IMAGE: ghcr.io/whitenwhiten/colp-server
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: packages/node/package-lock.json
+
+      - id: release
+        name: Require a CHANGELOG section for this tag
+        env:
+          COLP_RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          tag="$COLP_RELEASE_TAG"
+          node packages/server/scripts/check-changelog-tag.mjs "$tag" > "$RUNNER_TEMP/changelog-section.md"
+          version="${tag#colp-server-v}"
+          if [[ "$version" == "$tag" || -z "$version" ]]; then
+            echo "changelog: tag must start with colp-server-v" >&2
+            exit 1
+          fi
+          minor="$(printf '%s' "$version" | sed -E 's/^([0-9]+)\.([0-9]+)\..*/\1.\2/')"
+          if [[ "$minor" == "$version" || -z "$minor" ]]; then
+            echo "changelog: cannot derive X.Y from ${version}" >&2
+            exit 1
+          fi
+          test -s "$RUNNER_TEMP/changelog-section.md"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "minor=${minor}" >> "$GITHUB_OUTPUT"
+
+      - name: Build the server image
+        env:
+          COLP_VERSION: ${{ steps.release.outputs.version }}
+        run: docker build -f packages/server/Dockerfile -t "$COLP_IMAGE:$COLP_VERSION" .
+
+      - name: Build @know-n/colp for smoke
+        working-directory: packages/node
+        run: |
+          npm ci
+          test ! -d node_modules/esbuild || npm rebuild esbuild --ignore-scripts=false
+          npm run build
+
+      - name: Start the http profile
+        env:
+          COLP_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          secret="$(openssl rand -base64 48 | tr -d '\n')"
+          password="$(openssl rand -hex 24)"
+          umask 077
+          cat > "$RUNNER_TEMP/colp-smoke.env" <<EOF
+          POSTGRES_PASSWORD=${password}
+          COLP_SERVER_SECRET=${secret}
+          COLP_SERVER_ORIGIN=http://127.0.0.1:8080
+          COLP_INSECURE_HTTP=true
+          COLP_IMAGE_TAG=${COLP_VERSION}
+          COLP_HTTP_PORT=8080
+          COLP_ALLOWED_EXTENSION_IDS=
+          COLP_SMTP_URL=
+          COLP_MULTI_USER=false
+          COLP_LOG_LEVEL=info
+          DATABASE_SSL_MODE=disable
+          TRUSTED_INGRESS=10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
+          EOF
+          docker compose \
+            --env-file "$RUNNER_TEMP/colp-smoke.env" \
+            --project-name colp-server-image \
+            --profile http \
+            -f deploy/compose.yaml \
+            up -d --wait --wait-timeout 300
+
+      - name: Run deploy/smoke.sh
+        run: ./deploy/smoke.sh http://127.0.0.1:8080
+
+      - name: Push X.Y.Z, X.Y, and latest
+        env:
+          COLP_VERSION: ${{ steps.release.outputs.version }}
+          COLP_MINOR: ${{ steps.release.outputs.minor }}
+        run: |
+          echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker tag "$COLP_IMAGE:$COLP_VERSION" "$COLP_IMAGE:$COLP_MINOR"
+          docker tag "$COLP_IMAGE:$COLP_VERSION" "$COLP_IMAGE:latest"
+          docker push "$COLP_IMAGE:$COLP_VERSION"
+          docker push "$COLP_IMAGE:$COLP_MINOR"
+          docker push "$COLP_IMAGE:latest"
+
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COLP_RELEASE_TAG: ${{ github.ref_name }}
+          COLP_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          test -s "$RUNNER_TEMP/changelog-section.md"
+          gh release create "$COLP_RELEASE_TAG" \
+            --title "COLP Server ${COLP_VERSION}" \
+            --notes-file "$RUNNER_TEMP/changelog-section.md"
+
+      - name: Stop the smoke stack
+        if: always()
+        continue-on-error: true
+        env:
+          POSTGRES_PASSWORD: down
+          COLP_SERVER_SECRET: down
+          COLP_SERVER_ORIGIN: http://127.0.0.1:8080
+          COLP_INSECURE_HTTP: "true"
+          COLP_ALLOWED_EXTENSION_IDS: ""
+          COLP_SMTP_URL: ""
+          COLP_MULTI_USER: "false"
+          COLP_LOG_LEVEL: info
+          COLP_IMAGE_TAG: 0.1.0
+          COLP_HTTP_PORT: "8080"
+        run: |
+          docker compose \
+            --project-name colp-server-image \
+            --profile http \
+            -f deploy/compose.yaml \
+            down -v --remove-orphans
