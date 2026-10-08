@@ -15,7 +15,7 @@ export function createMcpListenAdmission(
   const keys = (context: Mcp20260728RequestContext): { principal: string; client: string } => {
     const binding = context.binding;
     const principal = binding.kind === 'authenticated'
-      ? `${binding.principalId}\u0000${binding.clientId}\u0000${binding.credentialBindingId}`
+      ? binding.principalId
       : 'anonymous';
     const forwarded = context.transportEvidence.forwardedFor;
     return { principal, client: forwarded !== undefined && forwarded.length > 0 ? forwarded[0]! : 'unknown' };

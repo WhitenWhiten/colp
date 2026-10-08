@@ -355,6 +355,7 @@ function findStructuredUniqueArrayLimit(value: unknown): ErrorObject | undefined
       if (descriptor === undefined || !('value' in descriptor)) continue;
       const child = descriptor.value;
       const childPath = `${current.path}/${key.replaceAll('~', '~0').replaceAll('/', '~1')}`;
+      if (nodeTypes.isProxy(child)) return budgetIssue(childPath);
       if (typeof child === 'string') {
         const remaining = MAX_STRUCTURED_VALIDATION_BYTES - visitedBytes;
         const bytes = structuredValidationUtf8Bytes(child, remaining);

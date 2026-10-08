@@ -17,6 +17,13 @@ function expectDeeplyFrozen(value: unknown, seen = new WeakSet<object>()): void 
 describe('schema validator registry', () => {
   const registry = createValidatorRegistry();
 
+  it('rejects a proxied unique array before reading its length', () => {
+    let calls = 0;
+    const nodes = new Proxy([], { get() { calls += 1; throw new Error('array trap'); } });
+    expect(registry.validate('snapshot', { nodes }).valid).toBe(false);
+    expect(calls).toBe(0);
+  });
+
   it('keeps the canonical schema deeply immutable', () => {
     expectDeeplyFrozen(collectionProtocolSchema);
     expectDeeplyFrozen(collectionProtocolSchemaV02);

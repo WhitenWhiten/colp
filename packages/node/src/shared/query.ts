@@ -59,6 +59,7 @@ export function parseProtocolQuery(
 
   const seen = new Set<string>();
   for (const name of parameters.keys()) {
+    if (errors.length >= QUERY_PARSE_LIMITS.maxErrors) break;
     if (seen.has(name)) continue;
     seen.add(name);
     const kind = contract[name as keyof typeof contract] as QueryValueKind | undefined;
@@ -93,7 +94,10 @@ export function parseProtocolQuery(
   if (errors.length === 0) {
     const structural = validators.validate(contractName as DefinitionName, value);
     if (!structural.valid) {
-      errors.push(...structural.errors.map((error) => `${error.instancePath || '/'} ${error.message ?? 'is invalid'}`));
+      for (const error of structural.errors) {
+        if (errors.length >= QUERY_PARSE_LIMITS.maxErrors) break;
+        errors.push(`${error.instancePath || '/'} ${error.message ?? 'is invalid'}`);
+      }
     }
   }
   return errors.length === 0

@@ -18,6 +18,7 @@
 import { types as nodeTypes } from 'node:util';
 import { isRfc3339DateTime } from '../shared/date-time.js';
 import { immutableJsonData } from '../shared/immutable-json.js';
+import { hasDenseArrayOwnKeys } from '../shared/dense-array-keys.js';
 
 export type SyncTypedMergeFieldResult =
   | { readonly outcome: 'merged'; readonly value: unknown }
@@ -83,6 +84,14 @@ function utf8Bytes(value: string, limit: number): number {
  * - Non-plain objects / mismatched types: unequal (fail closed toward conflict)
  */
 export function deepEqualSyncMergeValue(left: unknown, right: unknown): boolean {
+  try {
+    for (const value of [left, right]) {
+      if (value !== null && typeof value === 'object') assertBoundedMergeGraph(value, 'equality input');
+      else if (typeof value === 'string') addMergeBytes(0, value);
+    }
+  } catch {
+    return false;
+  }
   const pairs = new WeakMap<object, WeakSet<object>>();
   let visited = 0;
   const equal = (a: unknown, b: unknown, depth: number): boolean => {
@@ -208,6 +217,7 @@ export function mergeSyncTypedUpdate({
   const domainKeys = baseKeys.slice().sort();
   const merged: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
   const conflicts: SyncTypedMergeConflict[] = [];
+  const freezeValue = createMergeValueFreezer();
 
   for (const key of domainKeys) {
     const baseValue = ownDataValue(base, key);
@@ -235,7 +245,7 @@ export function mergeSyncTypedUpdate({
       conflicts.push(Object.freeze({ field: field.field, reason: field.reason }));
       continue;
     }
-    merged[key] = freezeMergeValue(field.value);
+    merged[key] = freezeValue(field.value);
   }
 
   if (conflicts.length > 0) {
@@ -353,6 +363,7 @@ function assertPlainMergeObject(
   candidate: unknown,
   label: string,
 ): asserts candidate is Readonly<Record<string, unknown>> {
+  if (nodeTypes.isProxy(candidate)) throw new TypeError(`Typed update merge ${label} cannot contain a Proxy.`);
   if (typeof candidate !== 'object' || candidate === null || Array.isArray(candidate)) {
     throw new TypeError(`Typed update merge ${label} must be a plain object.`);
   }
@@ -409,6 +420,9 @@ function assertBoundedMergeGraph(root: object, label: string): void {
       throw new TypeError(`Typed update merge ${label} must contain only plain objects.`);
     }
     const keys = Reflect.ownKeys(value);
+    if (array && !hasDenseArrayOwnKeys(keys, (value as unknown[]).length)) {
+      throw new TypeError(`Typed update merge ${label} arrays must be dense and contain no extra properties.`);
+    }
     members += array ? Math.max(0, keys.length - 1) : keys.length;
     if (members > MAX_SYNC_MERGE_MEMBERS) throw new RangeError(`Typed update merge ${label} has too many members.`);
     for (const key of keys) {
@@ -437,7 +451,7 @@ function isPlainMergeArray(value: unknown[]): boolean {
   const prototype = Object.getPrototypeOf(value);
   if (prototype !== Array.prototype && prototype !== null) return false;
   const keys = Reflect.ownKeys(value);
-  if (keys.length !== value.length + 1 || keys.some((key) => typeof key !== 'string')) return false;
+  if (!hasDenseArrayOwnKeys(keys, value.length)) return false;
   for (let index = 0; index < value.length; index += 1) {
     const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
     if (descriptor === undefined || !descriptor.enumerable || !('value' in descriptor)) return false;
@@ -492,29 +506,37 @@ function sameKeyList(left: readonly string[], right: readonly string[]): boolean
   return true;
 }
 
-function freezeMergeValue(value: unknown): unknown {
+function createMergeValueFreezer(): (value: unknown) => unknown {
   const active = new WeakSet<object>();
+  const clones = new WeakMap<object, unknown>();
   let nodes = 0;
   const freeze = (candidate: unknown, depth: number): unknown => {
     if (candidate === null || typeof candidate !== 'object') return candidate;
     if (nodeTypes.isProxy(candidate) || depth > MAX_SYNC_MERGE_DEPTH || active.has(candidate)) {
       throw new RangeError('Typed update merge value exceeds its graph budget.');
     }
+    if (clones.has(candidate)) return clones.get(candidate);
     nodes += 1;
     if (nodes > MAX_SYNC_MERGE_NODES) throw new RangeError('Typed update merge value exceeds its node budget.');
     active.add(candidate);
     try {
       if (Array.isArray(candidate)) {
         if (candidate.length > MAX_SYNC_MERGE_MEMBERS) throw new RangeError('Typed update merge array is too large.');
-        return Object.freeze(candidate.map((item) => freeze(item, depth + 1)));
+        const clone: unknown[] = [];
+        for (let index = 0; index < candidate.length; index += 1) clone.push(freeze(candidate[index], depth + 1));
+        const frozen = Object.freeze(clone);
+        clones.set(candidate, frozen);
+        return frozen;
       }
       if (!isPlainDataObject(candidate)) return candidate;
       const clone: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
       for (const key of ownEnumerableStringKeys(candidate)) clone[key] = freeze(ownDataValue(candidate, key), depth + 1);
-      return Object.freeze(clone);
+      const frozen = Object.freeze(clone);
+      clones.set(candidate, frozen);
+      return frozen;
     } finally {
       active.delete(candidate);
     }
   };
-  return freeze(value, 0);
+  return (value) => freeze(value, 0);
 }

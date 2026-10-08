@@ -93,15 +93,20 @@ function toSearchParams(
 ): URLSearchParams {
   if (isProxy(parameters)) throw new TypeError('Feed query parameters must not be a Proxy.');
   if (parameters instanceof URLSearchParams) {
-    if (parameters.size > FEED_QUERY_MAX_PARAMETERS * FEED_QUERY_MAX_VALUES_PER_PARAMETER) {
+    const size = Reflect.apply(Object.getOwnPropertyDescriptor(URLSearchParams.prototype, 'size')!.get!, parameters, []);
+    if (size > FEED_QUERY_MAX_PARAMETERS * FEED_QUERY_MAX_VALUES_PER_PARAMETER) {
       throw new TypeError('Feed query contains too many parameters.');
     }
     let bytes = 0;
     let entries = 0;
     const names = new Set<string>();
-    for (const [name, value] of parameters) {
+    const counts = new Map<string, number>();
+    const search = new URLSearchParams();
+    for (const [name, value] of URLSearchParams.prototype.entries.call(parameters)) {
       names.add(name);
-      if (names.size > FEED_QUERY_MAX_PARAMETERS || parameters.getAll(name).length > FEED_QUERY_MAX_VALUES_PER_PARAMETER) {
+      const count = (counts.get(name) ?? 0) + 1;
+      counts.set(name, count);
+      if (names.size > FEED_QUERY_MAX_PARAMETERS || count > FEED_QUERY_MAX_VALUES_PER_PARAMETER) {
         throw new TypeError('Feed query contains too many parameters.');
       }
       entries += 1;
@@ -110,15 +115,19 @@ function toSearchParams(
       if (entries > FEED_QUERY_MAX_PARAMETERS * FEED_QUERY_MAX_VALUES_PER_PARAMETER || bytes > FEED_QUERY_MAX_BYTES) {
         throw new TypeError('Feed query exceeds its parameter budget.');
       }
+      search.append(name, value);
     }
-    return parameters;
+    return search;
   }
   if (typeof parameters !== 'object' || parameters === null || isProxy(parameters)) {
     throw new TypeError('Feed query parameters must be URLSearchParams or a plain object.');
   }
+  const prototype = Object.getPrototypeOf(parameters);
+  if (prototype !== Object.prototype && prototype !== null) {
+    throw new TypeError('Feed query parameters must have a plain prototype.');
+  }
   const search = new URLSearchParams();
   let names = 0;
-  let entries = 0;
   let bytes = 0;
   for (const name in parameters) {
     if (!Object.prototype.hasOwnProperty.call(parameters, name)) continue;
@@ -126,11 +135,11 @@ function toSearchParams(
     if (descriptor === undefined || !('value' in descriptor)) {
       throw new TypeError('Feed query parameters must contain only data properties.');
     }
-    const raw = descriptor.value as string | readonly string[] | undefined;
-    if (raw === undefined) continue;
     names += 1;
     if (names > FEED_QUERY_MAX_PARAMETERS) throw new TypeError('Feed query has too many parameter names.');
     bytes = addUtf8Bytes(bytes, name);
+    const raw = descriptor.value as string | readonly string[] | undefined;
+    if (raw === undefined) continue;
     if (Array.isArray(raw)) {
       if (isProxy(raw) || (Object.getPrototypeOf(raw) !== Array.prototype && Object.getPrototypeOf(raw) !== null)) {
         throw new TypeError('Feed query array values must be plain and non-Proxy.');
@@ -148,13 +157,11 @@ function toSearchParams(
         }
         const item = itemDescriptor.value;
         if (typeof item === 'string') {
-          entries += 1;
           bytes = addUtf8Bytes(bytes, item);
           search.append(name, item);
         }
       }
     } else if (typeof raw === 'string') {
-      entries += 1;
       bytes = addUtf8Bytes(bytes, raw);
       search.append(name, raw);
     }
