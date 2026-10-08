@@ -31,7 +31,7 @@
     "@fontsource-variable/newsreader": "^5.3.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "react-router-dom": "^7.6.2",
+    "react-router-dom": "^7.18.4",
     "web-vitals": "^5.3.0"
   },
   "devDependencies": {
@@ -46,13 +46,13 @@
     "eslint-plugin-jsx-a11y": "^6.10.2",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-vitest": "^0.5.4",
-    "happy-dom": "^20.14.0",
+    "happy-dom": "^20.14.5",
     "openapi-typescript": "^7.13.0",
     "rollup-plugin-visualizer": "^7.0.1",
     "stylelint": "^17.14.1",
     "typescript": "~5.8.3",
     "vite": "^6.3.5",
     "vitest": "^3.2.4",
-    "yaml": "^2.9.0"
+    "yaml": "^2.9.1"
   }
 }
