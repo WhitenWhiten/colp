@@ -134,7 +134,8 @@ vi.mock('../auth/AuthContext', () => ({
  * main column and put the stream under a counted "Bookmarks" section head,
  * dropping the toolbar's inner row (+3, constant).
  */
-const EXPECTED_ELEMENTS: Record<number, number> = { 100: 1_400, 500: 6_600, 2000: 26_100 }
+// The signed-in export menu is a wrapper plus its button (two elements).
+const EXPECTED_ELEMENTS: Record<number, number> = { 100: 1_402, 500: 6_602, 2000: 26_102 }
 
 describe('public Collection render cost by size', () => {
   beforeEach(setUpCollectionPage)

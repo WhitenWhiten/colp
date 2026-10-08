@@ -1,9 +1,11 @@
 import { Link } from 'react-router-dom'
 import aboutMarkdown from '../../content/agent-public/about.md?raw'
-import { isSelfHostedPathEnabled } from '../lib/edition'
+import { SelfHostedAbout } from '../components/SelfHostedAbout'
+import { isSelfHostedEdition, isSelfHostedPathEnabled } from '../lib/edition'
 import { TrustDocument } from './TrustDocument'
 
 export function About() {
+  if (isSelfHostedEdition()) return <SelfHostedAbout />
   return (
     <TrustDocument
       markdown={aboutMarkdown}
