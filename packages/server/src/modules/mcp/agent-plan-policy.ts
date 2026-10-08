@@ -24,7 +24,6 @@ const REVERSIBLE_OPERATION_TYPES = new Set([
   'move_node',
   'reorder',
   'reorder_children',
-  'delete_subtree',
   'create_annotation',
   'update_annotation',
 ]);
@@ -97,6 +96,20 @@ export function collectionIdFromPlan(planned: Phase4bMcpPlannedChange): string |
   return undefined;
 }
 
+/** Return every collection touched by a plan, including revision fences. */
+export function collectionIdsFromPlan(planned: Phase4bMcpPlannedChange): readonly string[] {
+  const ids = new Set<string>();
+  for (const operation of planned.operations) {
+    if (typeof operation !== 'object' || operation === null) continue;
+    const collectionId = (operation as { readonly collectionId?: unknown }).collectionId;
+    if (typeof collectionId === 'string' && collectionId.length > 0) ids.add(collectionId);
+  }
+  for (const key of Object.keys(planned.baseRevisions)) {
+    if (key.startsWith('content.')) ids.add(key.slice('content.'.length));
+  }
+  return Object.freeze([...ids]);
+}
+
 export function policyCommitIdempotencyKey(planId: string): string {
   const key = `policy:${planId}`;
   return key.length <= 512 ? key : `policy:${planId.slice(0, 500)}`;
@@ -108,13 +121,15 @@ export function createAutoApproveTrustedPlan(
   return async (planned, binding, actions) => {
     const policy = await deps.readPolicy(binding.principalId, binding.clientId);
     if (policy !== 'trusted') return planned;
-    // A trusted client may only auto-commit when the current request carries
-    // the explicit commit capability. Older callers do not expose scopes on
-    // the binding, so absence is intentionally fail-closed and leaves the
-    // plan in the normal owner-approval flow.
+    // Trusted auto-commit is only valid when the presented credential explicitly grants commit authority.
+    // Missing scopes fail closed and keep the normal owner-approval flow.
     const scopes = (binding as unknown as { readonly scopes?: readonly string[] }).scopes;
     if (!Array.isArray(scopes) || !scopes.includes('changes:commit')) return planned;
     if (!planOperationsAreReversible(planned.operations)) return planned;
+    // Undo stores one collection version. Never auto-approve a plan whose
+    // operations span multiple collections: capturing only the first fence
+    // would make Undo silently restore a partial plan.
+    if (collectionIdsFromPlan(planned).length !== 1) return planned;
     const collectionId = collectionIdFromPlan(planned);
     if (collectionId === undefined) return planned;
     const subjectId = requireMcpAccountSubjectId();
