@@ -4,7 +4,7 @@ import { useAuth } from '../auth/AuthContext'
 import { isCommunityExposureEnabled, isNotificationExposureEnabled } from '../api'
 import { useUnreadCount } from '../lib/unreadBadgeStore'
 import { isAppNavActive, loginPath } from '../lib/chrome'
-import { isSelfHostedPathEnabled } from '../lib/edition'
+import { isSelfHostedEdition, isSelfHostedPathEnabled } from '../lib/edition'
 import { prefetchRoute } from './topnav/prefetch'
 
 type TabItem = { to: string; label: string; icon: IconName }
@@ -42,10 +42,13 @@ export function BottomNav() {
           ? { ...tab, to: loginPath(location.pathname, location.search) }
           : tab,
       )).filter((tab) => isSelfHostedPathEnabled(tab.to))
+  const visibleTabs = isSelfHostedEdition() && isLoggedIn
+    ? [...tabs, { to: '/agents', label: 'Agents', icon: 'terminal' as const }]
+    : tabs
 
   return (
     <nav className="bottom-nav" aria-label="Mobile primary">
-      {tabs.map((tab) => {
+      {visibleTabs.map((tab) => {
         const current = isAppNavActive(tab.to, location.pathname)
         const notify = tab.to === '/notifications'
         return (

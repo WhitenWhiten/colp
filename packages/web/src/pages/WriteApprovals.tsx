@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { EmptyState } from '../components/EmptyState'
 import { PageShell } from '../components/PageShell'
+import { isSelfHostedEdition } from '../lib/edition'
 import { libraryFeatureUnavailable } from '../lib/libraryCopy'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
 import { useWriteApprovals } from './write-approvals/data'
@@ -23,7 +24,9 @@ export function WriteApprovals() {
           description={
             <>
               {libraryFeatureUnavailable('MCP write approvals')}{' '}
-              Connecting a client uses <Link to="/mcp">/mcp</Link>, not this page.
+              {isSelfHostedEdition()
+                ? <>Connecting a client uses <Link to="/agents">Agents</Link>, not this page.</>
+                : <>Connecting a client uses <Link to="/mcp">/mcp</Link>, not this page.</>}
             </>
           }
         />

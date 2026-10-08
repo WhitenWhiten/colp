@@ -25,6 +25,7 @@ export function WriteApprovalsView({ data }: { data: WriteApprovalsData }) {
     handleDecision,
     retryRefresh,
     startNewDecision,
+    handleUndo,
   } = data
 
   return (
@@ -157,6 +158,7 @@ export function WriteApprovalsView({ data }: { data: WriteApprovalsData }) {
                 onDecision={(decision, replay) => void handleDecision(approval, decision, replay)}
                 onRefresh={() => void retryRefresh(approval)}
                 onStartNew={() => startNewDecision(approval.planId)}
+                onUndo={(force) => handleUndo(approval, force)}
               />
             ))}
           </div>
