@@ -39,6 +39,7 @@ const AUTH_FAILED_LOCATION = '/login?auth=failed';
 const AUTH_RESTART_LOCATION = '/login?auth=restart';
 export const FIXED_DASHBOARD = '/';
 const OIDC_BROWSER_STATE_COOKIE = '__Host-known_oidc_state';
+const OIDC_BROWSER_STATE_COOKIE_INSECURE = 'known_oidc_state';
 
 /** Callback stages used for failure classification.
  * @deprecated Legacy OIDC callback flow (Task F1 quarantine).
@@ -167,7 +168,10 @@ export function registerLegacyOidcRoutes(app: FastifyInstance, deps: BrowserAuth
         // browser-held state proof an attacker can start OIDC in their own
         // session and deliver the callback to a victim (login CSRF/session
         // swapping), even though state is valid in the database.
-        .header('Set-Cookie', `${OIDC_BROWSER_STATE_COOKIE}=${encodeURIComponent(started.transaction.state)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=600`)
+        .header('Set-Cookie', oidcBrowserStateCookieHeader(
+          deps.config.productOrigin.startsWith('https://'),
+          started.transaction.state,
+        ))
         .header('Location', location)
         .send();
     });
@@ -219,18 +223,20 @@ async function completeOidcCallback(
   if (!state || (hasCode === hasError) || (!hasCode && !hasError)) {
     throw new OidcExchangeError('invalid_callback_shape');
   }
-  const stateCookie = readOidcBrowserStateCookie(request);
+  const secureStateCookie = deps.config.productOrigin.startsWith('https://');
+  const stateCookie = readOidcBrowserStateCookie(request, secureStateCookie);
   if (stateCookie === null || stateCookie !== state) {
     throw new OidcExchangeError('invalid_callback_shape');
   }
-  // Consume the binding before any redirect; replayed callbacks cannot reuse
-  // a browser state cookie after the one-time transaction is consumed.
-  reply.header('Set-Cookie', `${OIDC_BROWSER_STATE_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`);
   if (query.iss !== undefined && query.iss !== deps.config.oidc.issuer) {
     // Pre-exchange validation: do not consume the TX so a correct iss retry
     // of the same browser callback remains possible before code expiry.
     throw new OidcExchangeError('invalid_issuer');
   }
+  // Consume the binding before any redirect; replayed callbacks cannot reuse
+  // a browser state cookie after the one-time transaction is consumed. Keep
+  // this after issuer pre-validation so a valid retry is still possible.
+  reply.header('Set-Cookie', oidcBrowserStateCookieHeader(secureStateCookie, null));
   if (hasError) {
     // Consume transaction if present, then fixed failure redirect.
     await deps.identityUnitOfWork.execute(async (ports) => {
@@ -315,14 +321,25 @@ async function completeOidcCallback(
     .send();
 }
 
-function readOidcBrowserStateCookie(request: FastifyRequest): string | null {
+function oidcBrowserStateCookieName(secure: boolean): string {
+  return secure ? OIDC_BROWSER_STATE_COOKIE : OIDC_BROWSER_STATE_COOKIE_INSECURE;
+}
+
+function oidcBrowserStateCookieHeader(secure: boolean, state: string | null): string {
+  const name = oidcBrowserStateCookieName(secure);
+  const value = state === null ? '' : encodeURIComponent(state);
+  return `${name}=${value}; Path=/; HttpOnly;${secure ? ' Secure;' : ''} SameSite=Lax; Max-Age=${state === null ? 0 : 600}`;
+}
+
+function readOidcBrowserStateCookie(request: FastifyRequest, secure: boolean): string | null {
   const header = request.headers.cookie;
   if (typeof header !== 'string') return null;
+  const expected = oidcBrowserStateCookieName(secure);
   let value: string | null = null;
   for (const part of header.split(';')) {
     const trimmed = part.trim();
     const separator = trimmed.indexOf('=');
-    if (separator < 0 || trimmed.slice(0, separator) !== OIDC_BROWSER_STATE_COOKIE) continue;
+    if (separator < 0 || trimmed.slice(0, separator) !== expected) continue;
     if (value !== null) return null;
     try { value = decodeURIComponent(trimmed.slice(separator + 1)); } catch { return null; }
   }
