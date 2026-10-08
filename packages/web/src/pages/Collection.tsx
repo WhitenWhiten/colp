@@ -1,4 +1,5 @@
 import { SubscribeButton } from '../components/bookmark-subscriptions/SubscribeButton'
+import { CollectionExportMenu } from '../components/CollectionExportMenu'
 import { CollectionTransportNotice, SubscribeInBrowserButton } from '../components/TransportBanner'
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
@@ -497,6 +498,9 @@ export function Collection() {
         <>
           <SubscribeButton sourceType="collection" sourceId={collection.id} />
           <SubscribeInBrowserButton />
+          {isLoggedIn ? (
+            <CollectionExportMenu collectionId={collection.id} slug={collection.slug} />
+          ) : null}
           {collection.kind === 'reading_path' && (
             <Link to={`/path/${slug}`} className="btn btn-ghost btn-sm">Path</Link>
           )}
