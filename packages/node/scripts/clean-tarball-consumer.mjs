@@ -1,35 +1,18 @@
 /** Install and validate an existing tarball; never repack or link checkout dependencies. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { chmod, constants, mkdtemp, mkdir, open, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { chmod, mkdtemp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, isAbsolute, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Readable } from 'node:stream';
 import { createGunzip } from 'node:zlib';
 import { runCleanConsumerNode } from './lib/clean-consumer-sandbox.mjs';
+import { makeConsumerTreeReadable } from './lib/consumer-permissions.mjs';
+export { makeConsumerTreeReadable } from './lib/consumer-permissions.mjs';
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const exactVersion = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u;
 
-// The sandbox runs as uid 65534. npm commonly honors a restrictive host umask
-// when it creates the consumer tree, so normalize only this disposable bind
-// mount to be traversable/readable before Docker starts. The consumer tree is
-// disposable package output, so use the minimum modes that work across Docker
-// rootless/userns configurations for uid 65534; secrets and credentials stay
-// outside this tree with restrictive modes.
-//
-// Do not use chmod(path) here. chmod follows a final symlink, and a package
-// tree is untrusted input. Opening with O_NOFOLLOW and changing the mode on the
-// file descriptor makes a symlink (including one swapped in between readdir
-// and chmod) harmless. O_NONBLOCK also prevents a FIFO in a malformed package
-// from making this verifier hang. Shared regular files are rejected because a
-// hard link can otherwise make chmod mutate an inode outside this tree.
-const noFollow = constants.O_NOFOLLOW ?? 0;
-const nonBlocking = constants.O_NONBLOCK ?? 0;
-const directory = constants.O_DIRECTORY ?? 0;
-const directoryOpenFlags = constants.O_RDONLY | directory | noFollow;
-const fileOpenFlags = constants.O_RDONLY | nonBlocking | noFollow;
-const ignoredEntryErrors = new Set(['ELOOP', 'ENOENT', 'ENXIO', 'ENOTDIR', 'ENODEV']);
 const MAX_EXPANDED_TARBALL_BYTES = 128 * 1024 * 1024;
 const MAX_TARBALL_ENTRIES = 100_000;
 const registryVersionSpec = /^[0-9A-Za-z*^~<>=|().,\-+\s]+$/u;
@@ -50,8 +33,9 @@ function isRegistryDependencySpec(value) {
 }
 
 function tarField(header, offset, length) {
-  const end = header.indexOf(0, offset);
-  return header.subarray(offset, end === -1 ? offset + length : end).toString('utf8').trim();
+  const field = header.subarray(offset, offset + length);
+  const end = field.indexOf(0);
+  return field.subarray(0, end === -1 ? length : end).toString('utf8').trim();
 }
 
 function tarSize(header) {
@@ -73,10 +57,16 @@ export async function inspectCandidateTarball(artifact, expectedName, expectedVe
   Readable.from([artifact]).pipe(gunzip);
   let pending = Buffer.alloc(0);
   let expanded = 0;
+  let decompressedBytes = 0;
+  const paths = new Set();
   let entries = 0;
   let manifest;
   let endBlocks = 0;
   for await (const chunk of gunzip) {
+    decompressedBytes += chunk.length;
+    if (decompressedBytes > MAX_EXPANDED_TARBALL_BYTES) {
+      throw new Error('Candidate tarball exceeds the expanded byte budget.');
+    }
     pending = Buffer.concat([pending, Buffer.from(chunk)]);
     while (pending.length >= 512) {
       const header = pending.subarray(0, 512);
@@ -106,9 +96,12 @@ export async function inspectCandidateTarball(artifact, expectedName, expectedVe
       const name = tarField(header, 0, 100);
       const prefix = tarField(header, 345, 155);
       const path = prefix === '' ? name : `${prefix}/${name}`;
-      if (!path.startsWith('package/') || path.split('/').some(part => part === '..')) {
+      if (!path.startsWith('package/') || path.includes('\\')
+        || path.split('/').some(part => part === '..' || part === '.')) {
         throw new Error('Candidate tarball contains an invalid package path.');
       }
+      if (paths.has(path)) throw new Error('Candidate tarball contains a duplicate package path.');
+      paths.add(path);
       const type = String.fromCharCode(header[156] ?? 0);
       if (type !== '0' && type !== '\0' && type !== '5') {
         throw new Error('Candidate tarball contains a link or unsupported archive entry.');
@@ -141,72 +134,6 @@ export async function inspectCandidateTarball(artifact, expectedName, expectedVe
   }
   return Object.freeze({ manifest, expandedBytes: expanded, entries });
 }
-async function normalizeRegularFile(path) {
-  let handle;
-  try {
-    handle = await open(path, fileOpenFlags);
-  } catch (error) {
-    // Symlinks, sockets and device nodes are not part of a readable package
-    // tree. Leave them untouched; the later isolated import will fail closed
-    // if a required entry is not usable.
-    if (ignoredEntryErrors.has(error?.code)) return;
-    throw error;
-  }
-  try {
-    const info = await handle.stat();
-    if (!info.isFile()) return;
-    if (info.nlink !== 1) {
-      throw new Error(`Refusing to chmod shared package file: ${path}`);
-    }
-    await handle.chmod(0o644);
-  } finally {
-    await handle.close();
-  }
-}
-
-async function normalizeDirectory(handle, path) {
-  await handle.chmod(0o755);
-  for (const entry of await readdir(path, { withFileTypes: true })) {
-    const child = resolve(path, entry.name);
-    let childHandle;
-    try {
-      // O_DIRECTORY|O_NOFOLLOW means a symlink to a directory is rejected
-      // instead of traversed. A path is only used after its parent was opened
-      // and verified as a directory; no package-provided link is followed.
-      childHandle = await open(child, directoryOpenFlags);
-    } catch (error) {
-      if (!ignoredEntryErrors.has(error?.code)) throw error;
-      await normalizeRegularFile(child);
-      continue;
-    }
-    try {
-      await normalizeDirectory(childHandle, child);
-    } finally {
-      await childHandle.close();
-    }
-  }
-}
-
-export async function makeConsumerTreeReadable(root) {
-  // Docker's non-root bind mount requires a no-follow directory walk. On a
-  // platform without these flags, failing closed is safer than silently
-  // falling back to chmod(path), which could follow an untrusted symlink.
-  if (constants.O_NOFOLLOW === undefined || constants.O_DIRECTORY === undefined) {
-    throw new Error('Secure consumer-tree normalization requires O_NOFOLLOW and O_DIRECTORY.');
-  }
-  let handle;
-  try {
-    handle = await open(root, directoryOpenFlags);
-  } catch (error) {
-    throw new Error(`Consumer tree is not a real directory: ${root}`, { cause: error });
-  }
-  try {
-    await normalizeDirectory(handle, root);
-  } finally {
-    await handle.close();
-  }
-}
-
 export function runtimeSpecifiers(packageJson) {
   assert.equal(typeof packageJson.name, 'string');
   assert.ok(packageJson.exports && typeof packageJson.exports === 'object');
@@ -251,9 +178,8 @@ export async function verifyCleanTarball(tarballPath, options = {}) {
     await chmod(temporary, 0o711);
     const consumer = resolve(temporary, 'consumer');
     // npm runs as uid 65534 in the installer container and needs to create
-    // node_modules and its lockfile on this disposable bind mount. The parent
-    // directory is 0711, so this writable mode does not expose the tree to
-    // unrelated host users; it is normalized before read-only probes.
+    // node_modules on this disposable bind mount. Keep directories writable
+    // so the host can delete container-owned files after read-only probes.
     await mkdir(consumer, { mode: 0o777 });
     await chmod(consumer, 0o777);
     // Never let npm read the maintainer's npmrc or credential-bearing
@@ -265,19 +191,24 @@ export async function verifyCleanTarball(tarballPath, options = {}) {
     // credentials and must be world-readable on the disposable bind mount.
     await writeFile(resolve(consumer, 'package.json'), JSON.stringify({ name: 'colp-clean-consumer', private: true, type: 'module' }), { mode: 0o644 });
     await writeFile(resolve(consumer, '.npmrc'), 'ignore-scripts=true\noffline=true\naudit=false\nfund=false\n', { mode: 0o644 });
+    await writeFile(resolve(consumer, '.colp-consumer-permissions.mjs'),
+      await readFile(resolve(packageRoot, 'scripts/lib/consumer-permissions.mjs')), { mode: 0o644 });
     const npmScript = resolve(consumer, '.colp-install.mjs');
     await writeFile(npmScript, [
       "import { spawnSync } from 'node:child_process';",
+      "import { makeConsumerTreeReadable } from './.colp-consumer-permissions.mjs';",
       'const result = spawnSync(\'npm\', process.argv.slice(2), { stdio: \'inherit\' });',
+      "await makeConsumerTreeReadable('/work', { writableDirectories: true });",
       'if (result.error) throw result.error;',
       'process.exit(result.status ?? 1);',
     ].join('\n'), { mode: 0o644 });
-    await runCleanConsumerNode(consumer, ['.colp-install.mjs', 'install', '--offline', '--ignore-scripts', '--no-audit', '--no-fund', '--workspaces=false', './candidate.tgz'], {
+    await runCleanConsumerNode(consumer, ['.colp-install.mjs', 'install', '--offline', '--ignore-scripts', '--no-audit', '--no-fund', '--workspaces=false', '--no-save', '--package-lock=false', './candidate.tgz',
+      'typescript@' + typescript, '@types/node@' + nodeTypes], {
       writable: true,
       npmCache,
       timeoutMs: 600_000,
     });
-    await makeConsumerTreeReadable(consumer);
+    await makeConsumerTreeReadable(consumer, { writableDirectories: true });
     const installed = resolve(consumer, 'node_modules', ...expected.name.split('/'));
     const manifest = JSON.parse(await readFile(resolve(installed, 'package.json'), 'utf8'));
     assert.equal(manifest.name, expected.name);
@@ -304,18 +235,11 @@ export async function verifyCleanTarball(tarballPath, options = {}) {
       // Probe files are created after the npm tree normalization. Normalize
       // again so a restrictive umask cannot leave them unreadable to uid
       // 65534 in the container.
-      await makeConsumerTreeReadable(consumer);
+      await makeConsumerTreeReadable(consumer, { writableDirectories: true });
       const result = await runCleanConsumerNode(consumer, ['probe.' + mode]);
       loadResults.push(JSON.parse(result.stdout));
     }
     assert.deepEqual(loadResults[0], loadResults[1], 'ESM/CJS runtime exports differ.');
-    await runCleanConsumerNode(consumer, ['.colp-install.mjs', 'install', '--offline', '--ignore-scripts', '--no-audit', '--no-fund', '--workspaces=false', '--no-save',
-      'typescript@' + typescript, '@types/node@' + nodeTypes], {
-      writable: true,
-      npmCache,
-      timeoutMs: 600_000,
-    });
-    await makeConsumerTreeReadable(consumer);
     const files = [];
     for (const extension of ['mts', 'cts']) {
       const file = 'strict-consumer.' + extension;
@@ -328,7 +252,7 @@ export async function verifyCleanTarball(tarballPath, options = {}) {
     await writeFile(config, JSON.stringify({ compilerOptions: { target: 'ES2023', module: 'NodeNext',
       moduleResolution: 'NodeNext', lib: ['ES2023'], types: ['node'], strict: true,
       skipLibCheck: false, noEmit: true }, files }));
-    await makeConsumerTreeReadable(consumer);
+    await makeConsumerTreeReadable(consumer, { writableDirectories: true });
     await runCleanConsumerNode(consumer, ['node_modules/typescript/bin/tsc', '-p', 'tsconfig.json'], {
       timeoutMs: 300_000, compiler: true,
     });

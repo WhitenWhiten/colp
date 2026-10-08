@@ -104,6 +104,32 @@ test('candidate tarball inspection validates identity and bounds registry depend
   );
 });
 
+test('candidate inspection respects fixed-width tar fields and rejects duplicate manifests', async () => {
+  const manifest = JSON.stringify({ name: '@know-n/colp', version: '0.1.0' });
+  const fullWidthName = 'package/' + 'a'.repeat(92);
+  const fullWidthEntry = tarEntry(fullWidthName, 'content');
+  fullWidthEntry.write('000000000007', 124, 12, 'ascii');
+  fullWidthEntry.fill(0x20, 148, 156);
+  const checksum = fullWidthEntry.subarray(0, 512).reduce((sum, byte) => sum + byte, 0);
+  fullWidthEntry.write(checksum.toString(8).padStart(6, '0') + '\0 ', 148, 8, 'ascii');
+  const result = await inspectCandidateTarball(tarGzip([
+    tarEntry('package/package.json', manifest), fullWidthEntry,
+  ]), '@know-n/colp', '0.1.0');
+  assert.equal(result.entries, 2);
+  await assert.rejects(inspectCandidateTarball(tarGzip([
+    tarEntry('package/package.json', manifest), tarEntry('package/package.json', manifest),
+  ]), '@know-n/colp', '0.1.0'), /duplicate package path/u);
+  await assert.rejects(inspectCandidateTarball(tarGzip([
+    tarEntry('package/package.json', manifest), tarEntry('package/./package.json', manifest),
+  ]), '@know-n/colp', '0.1.0'), /invalid package path/u);
+});
+
+test('candidate expanded byte budget includes zero padding after the archive terminator', async () => {
+  const paddingBomb = gzipSync(Buffer.alloc(129 * 1024 * 1024));
+  await assert.rejects(inspectCandidateTarball(paddingBomb, '@know-n/colp', '0.1.0'),
+    /expanded byte budget/u);
+});
+
 test('trusted npm commands retain authentication while artifact installs use an isolated environment', async () => {
   const root = await mkdtemp(join(testRoot, '.colp-npm-environment-'));
   const names = ['npm_execpath', 'COLP_TEST_SECRET'];

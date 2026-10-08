@@ -4,9 +4,33 @@ import {
   immutableJsonData,
   immutableJsonSnapshot,
   isJsonSafeNumber,
+  omitUndefinedJsonProperties,
 } from '../../src/shared/immutable-json.js';
 
 const evidence = '[evidence:sync.guards-behavior]';
+
+describe('Publisher optional JSON property normalization', () => {
+  it('omits undefined object properties while detaching nested data', () => {
+    const input = { absent: undefined, nested: { absent: undefined, list: [true] } };
+    const output = omitUndefinedJsonProperties(input, 'publisher-input');
+    expect(output).toEqual({ nested: { list: [true] } });
+    expect(output.nested.list).not.toBe(input.nested.list);
+    expect(() => omitUndefinedJsonProperties([undefined], 'publisher-input')).toThrow(/plain JSON data/u);
+  });
+
+  it('rejects oversized arrays before inspecting their elements', () => {
+    const array = Array.from({ length: 10_001 }, () => 0);
+    Object.defineProperty(array, '0', { enumerable: true, get() { throw new Error('element was read'); } });
+    expect(() => omitUndefinedJsonProperties(array, 'publisher-input')).toThrow(/maximum JSON member count/u);
+  });
+
+  it('bounds aggregate bytes and never invokes object accessors', () => {
+    const text = 'x'.repeat(4 * 1024 * 1024);
+    expect(() => omitUndefinedJsonProperties([text, text], 'publisher-input')).toThrow(/maximum byte budget/u);
+    const object = { get value() { throw new Error('getter was invoked'); } };
+    expect(() => omitUndefinedJsonProperties(object, 'publisher-input')).toThrow(/enumerable data properties/u);
+  });
+});
 
 describe(`SYNC immutableJsonData snapshot helper ${evidence}`, () => {
   it(`rejects cyclic object graphs with a clear cycle error ${evidence}`, () => {

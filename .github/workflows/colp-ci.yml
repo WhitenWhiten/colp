@@ -107,7 +107,7 @@ jobs:
         run: test ! -d node_modules/esbuild || npm rebuild esbuild --ignore-scripts=false
         working-directory: packages/node
       - name: Full test suite with coverage; fail if evidence.json is stale
-        run: node scripts/generate-conformance-evidence.mjs --check --coverage
+        run: xvfb-run --auto-servernum node scripts/generate-conformance-evidence.mjs --check --coverage
         working-directory: packages/node
 
   publisher-coverage:
@@ -202,6 +202,8 @@ jobs:
           node --test scripts/tests/clean-consumer-sandbox.test.mjs
           artifact_dir=$(mktemp -d)
           trap 'rm -rf "$artifact_dir"' EXIT
+          export npm_config_cache="$artifact_dir/npm-cache"
+          node scripts/prepare-clean-consumer-cache.mjs "$npm_config_cache"
           npm pack --ignore-scripts --pack-destination "$artifact_dir" > /dev/null
           for tarball in "$artifact_dir"/*.tgz; do
             node scripts/clean-tarball-consumer.mjs "$tarball"
@@ -214,7 +216,7 @@ jobs:
         working-directory: packages/node
       - name: Packed surface contracts after dist/
         run: |
-          npx vitest run \
+          xvfb-run --auto-servernum npx vitest run \
             tests/mcp/mcp-2026-07-28-sdk-acceptance-e2e.test.ts \
             tests/mcp/mcp-2026-07-28-read-package-surface-contract.test.ts \
             tests/mcp/mcp-2026-07-28-write-package-surface-contract.test.ts \

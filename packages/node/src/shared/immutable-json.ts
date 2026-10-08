@@ -42,6 +42,7 @@ interface SnapshotState {
   readonly maxMembers: number;
   members: number;
   readonly bytes: TextByteBudget;
+  readonly omitUndefinedProperties?: boolean;
 }
 
 /** Whether a JS number is acceptable in protocol JSON clones. */
@@ -81,49 +82,15 @@ export function immutableJsonData<Value>(
  * invokes accessors or retains aliases.
  */
 export function omitUndefinedJsonProperties<Value>(value: Value, label: string): Value {
-  const seen = new Set<object>();
-  let members = 0;
-  const visit = (candidate: unknown, depth: number): unknown => {
-    if (candidate === undefined) return undefined;
-    if (candidate === null || typeof candidate !== 'object') return candidate;
-    if (isProxy(candidate) || seen.has(candidate)) throw new TypeError(`${label} must be acyclic plain JSON data.`);
-    if (depth > DEFAULT_IMMUTABLE_JSON_MAX_DEPTH) throw new TypeError(`${label} exceeds the maximum JSON depth.`);
-    const prototype = Object.getPrototypeOf(candidate);
-    if (Array.isArray(candidate)) {
-      if (prototype !== Array.prototype) throw new TypeError(`${label} must contain ordinary arrays.`);
-      const keys = Reflect.ownKeys(candidate);
-      const length = (Object.getOwnPropertyDescriptor(candidate, 'length')?.value);
-      if (!Number.isSafeInteger(length) || keys.length !== (length as number) + 1) throw new TypeError(`${label} contains a sparse array.`);
-      const output: unknown[] = [];
-      seen.add(candidate);
-      try {
-        for (let index = 0; index < (length as number); index += 1) {
-          const descriptor = Object.getOwnPropertyDescriptor(candidate, String(index));
-          if (descriptor === undefined || !descriptor.enumerable || !('value' in descriptor)
-            || descriptor.value === undefined) throw new TypeError(`${label} arrays cannot contain undefined.`);
-          output.push(visit(descriptor.value, depth + 1));
-        }
-      } finally { seen.delete(candidate); }
-      return output;
-    }
-    if (prototype !== Object.prototype && prototype !== null) throw new TypeError(`${label} must contain plain objects.`);
-    const output: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
-    seen.add(candidate);
-    try {
-      for (const key of Reflect.ownKeys(candidate)) {
-        if (typeof key !== 'string') throw new TypeError(`${label} must not contain symbol keys.`);
-        const descriptor = Object.getOwnPropertyDescriptor(candidate, key);
-        if (descriptor === undefined || !descriptor.enumerable || !('value' in descriptor)) {
-          throw new TypeError(`${label} members must be enumerable data properties.`);
-        }
-        members += 1;
-        if (members > DEFAULT_IMMUTABLE_JSON_MAX_MEMBERS) throw new TypeError(`${label} exceeds the maximum JSON member count.`);
-        if (descriptor.value !== undefined) output[key] = visit(descriptor.value, depth + 1);
-      }
-    } finally { seen.delete(candidate); }
-    return output;
-  };
-  return visit(value, 0) as Value;
+  return snapshotJsonValue(value, {
+    label,
+    seen: new Set<object>(),
+    maxDepth: DEFAULT_IMMUTABLE_JSON_MAX_DEPTH,
+    maxMembers: DEFAULT_IMMUTABLE_JSON_MAX_MEMBERS,
+    members: 0,
+    bytes: new TextByteBudget(DEFAULT_IMMUTABLE_JSON_MAX_BYTES, label),
+    omitUndefinedProperties: true,
+  }, 0) as Value;
 }
 
 /** Deep-readonly variant for public trust boundaries with explicit budgets. */
@@ -264,6 +231,7 @@ function snapshotObject(
     if (descriptor === undefined || !descriptor.enumerable || !('value' in descriptor)) {
       throw new TypeError(`${state.label} members must be enumerable data properties.`);
     }
+    if (state.omitUndefinedProperties && descriptor.value === undefined) continue;
     Object.defineProperty(clone, key, {
       value: snapshotJsonValue(descriptor.value, state, depth + 1),
       enumerable: true,
