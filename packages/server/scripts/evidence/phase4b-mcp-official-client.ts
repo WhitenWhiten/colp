@@ -113,16 +113,23 @@ export function createPhase4bMcpOfficialClient(
   });
   return Object.freeze({
     async connect() {
-      await client.connect(transport);
+      try { await client.connect(transport); } catch (cause) {
+        throw new Error('MCP client connect failed', { cause });
+      }
     },
     async discover() {
       return mergeRawResult(await client.discover(), 'server/discover', rawResultsByMethod);
     },
     async request(method: string, params: Readonly<Record<string, unknown>> = {}) {
-      const result = await client.request({
-        method: method as RequestMethod,
-        params,
-      } as never, { allowInputRequired: true } as never);
+      let result: unknown;
+      try {
+        result = await client.request({
+          method: method as RequestMethod, params,
+        } as never, { allowInputRequired: true } as never);
+      } catch (cause) {
+        const name = typeof params.name === 'string' ? ` ${params.name}` : '';
+        throw new Error(`MCP ${method}${name} failed`, { cause });
+      }
       return mergeRawResult(result, method, rawResultsByMethod);
     },
     async close() {

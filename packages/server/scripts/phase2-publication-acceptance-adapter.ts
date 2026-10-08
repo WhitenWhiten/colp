@@ -80,6 +80,7 @@ export async function createPhase2AcceptanceDeployment(input: {
       OIDC_TEST_PROVIDER_HMAC_SECRET: 'test-oidc-provider-hmac-secret-not-prod-default',
       LOG_LEVEL: 'silent',
     });
+    const metrics = new InMemoryMetrics();
     const cursors = createPublicationCursorKeyring({
       active: { id: 'phase2-acceptance-v2', secret: Buffer.alloc(32, 81).toString('base64') },
       retained: [
