@@ -259,7 +259,7 @@
     "@stryker-mutator/vitest-runner": "^9.6.1",
     "@types/http-link-header": "^1.0.7",
     "@types/node": "^22.20.4",
-    "@vitest/coverage-v8": "^4.1.11",
+    "@vitest/coverage-v8": "^5.0.3",
     "fast-check": "^4.10.2",
     "json-schema-to-typescript": "^15.0.4",
     "publint": "^0.3.24",
