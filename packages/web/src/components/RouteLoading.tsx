@@ -85,6 +85,7 @@ const ROUTES: Array<[RegExp, SkeletonLayout]> = [
   [/^\/classify\/batch\/?$/u, { shell: 'shell', head: workbench({ crumb: true }), body: 'rows' }],
   [/^\/classify\/?$/u, { shell: 'grid', head: workbench({ crumb: true }), body: 'rows' }],
   [/^\/approvals(\/[^/]+)?\/?$/u, { shell: 'shell', head: workbench({ eyebrow: true, action: true }), body: 'rows' }],
+  [/^\/agents\/?$/u, { shell: 'shell', head: workbench({ eyebrow: true, lede: true }), body: 'rows' }],
   [/^\/ai\/organize\/?$/u, { shell: 'grid', head: workbench({ layout: 'stack', crumb: true }), body: 'rows' }],
 ]
 

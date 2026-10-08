@@ -51,7 +51,9 @@ function FooterNav({
 }
 
 function enabledLinks(links: Array<{ to: string; label: string }>) {
-  return links.filter((link) => isSelfHostedPathEnabled(link.to))
+  return links
+    .filter((link) => isSelfHostedPathEnabled(link.to))
+    .map((link) => (isSelfHostedEdition() && link.to === '/mcp' ? { to: '/agents', label: 'Agents' } : link))
 }
 
 export function Footer() {
@@ -82,7 +84,7 @@ export function Footer() {
             <Link to="/about">About</Link>
             <Link to="/contact">Contact</Link>
             {isSelfHostedPathEnabled('/developers') ? <Link to="/developers">Developers</Link> : null}
-            <Link to="/mcp">MCP</Link>
+            {isSelfHostedEdition() ? <Link to="/agents">Agents</Link> : <Link to="/mcp">MCP</Link>}
             <Link to="/privacy">Privacy</Link>
           </nav>
         </div>

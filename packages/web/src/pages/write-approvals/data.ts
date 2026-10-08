@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import { undoApproval } from '../../api/agentsClient'
 import {
   ProductApiError,
   isWriteApprovalsExposureEnabled,
@@ -382,6 +383,15 @@ export function useWriteApprovals() {
     updateDraft(approvalId, idleDraft)
   }, [drafts, updateDraft])
 
+  const handleUndo = useCallback(async (approval: WriteApprovalView, force: boolean) => {
+    const result = await undoApproval(approval.planId, { force })
+    if (!mounted.current) return
+    success(result.noop
+      ? 'The collection was already at the saved version.'
+      : 'Undid the policy-approved plan.')
+    await load('refresh')
+  }, [load, success])
+
   return {
     enabled,
     detailMode,
@@ -399,6 +409,7 @@ export function useWriteApprovals() {
     handleDecision,
     retryRefresh,
     startNewDecision,
+    handleUndo,
   }
 }
 

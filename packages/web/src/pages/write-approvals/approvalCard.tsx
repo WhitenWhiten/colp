@@ -1,8 +1,10 @@
+import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import type {
-  WriteApprovalDecision,
-  WriteApprovalOperationPreview,
-  WriteApprovalView,
+import {
+  ProductApiError,
+  type WriteApprovalDecision,
+  type WriteApprovalOperationPreview,
+  type WriteApprovalView,
 } from '../../api'
 import { DataTable, DataTableCell, DataTableRow } from '../../components/DataTable'
 import { Icon } from '../../components/Icon'
@@ -36,6 +38,11 @@ function RefValue({ id, title }: { id: string | null; title: string | null }) {
   return <>Not available</>
 }
 
+export function approvalApprovedBy(approval: WriteApprovalView): string | null {
+  const value = (approval as WriteApprovalView & { approvedBy?: unknown }).approvedBy
+  return typeof value === 'string' && value.length > 0 ? value : null
+}
+
 export function ApprovalCard({
   approval,
   draft,
@@ -43,6 +50,7 @@ export function ApprovalCard({
   onDecision,
   onRefresh,
   onStartNew,
+  onUndo,
 }: {
   approval: WriteApprovalView
   draft: DecisionDraft
@@ -50,9 +58,29 @@ export function ApprovalCard({
   onDecision: (decision: WriteApprovalDecision, replay?: boolean) => void
   onRefresh: () => void
   onStartNew: () => void
+  onUndo: (force: boolean) => Promise<void>
 }) {
   const location = useLocation()
+  const approvedBy = approvalApprovedBy(approval)
+  const [undoing, setUndoing] = useState(false)
+  const [undoNeedsForce, setUndoNeedsForce] = useState(false)
+  const [undoError, setUndoError] = useState<string | null>(null)
   const allowed = isDecisionAllowed(approval)
+
+  async function undo(force: boolean) {
+    setUndoing(true)
+    setUndoError(null)
+    try {
+      await onUndo(force)
+      setUndoNeedsForce(false)
+    } catch (error) {
+      const apiError = error instanceof ProductApiError ? error : null
+      setUndoNeedsForce(apiError?.status === 409 || apiError?.code === 'mutation_conflict')
+      setUndoError(apiError?.message ?? 'Could not undo this plan.')
+    } finally {
+      setUndoing(false)
+    }
+  }
   const busy = draft.phase === 'submitting'
   const blocked = draft.phase === 'blocked'
   const terminal = !allowed && !busy && draft.phase !== 'unknown'
@@ -177,7 +205,31 @@ export function ApprovalCard({
         </div>
       )}
 
+      <p className="write-approval-approved-by">approvedBy: {approvedBy ?? '—'}</p>
       <footer className="write-approval-actions">
+        {approvedBy === 'policy' && (
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            data-testid="approval-undo"
+            disabled={undoing}
+            onClick={() => void undo(false)}
+          >
+            Undo
+          </button>
+        )}
+        {approvedBy === 'policy' && undoNeedsForce && (
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            data-testid="approval-undo-force"
+            disabled={undoing}
+            onClick={() => void undo(true)}
+          >
+            Undo anyway
+          </button>
+        )}
+        {undoError && <p className="field-error" role="alert">{undoError}</p>}
         {allowed && !busy && !blocked && draft.phase !== 'unknown' && draft.phase !== 'stale' && (
           <>
             <button

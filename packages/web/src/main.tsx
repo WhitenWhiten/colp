@@ -63,6 +63,7 @@ import { isChunkLoadError, reloadOnce } from './lib/lazyWithRetry'
  *   graph.css             → pages/Graph.tsx
  *   sync.css              → pages/Sync.tsx
  *   write-approvals.css   → pages/WriteApprovals.tsx
+ *   agents.css            → pages/Agents.tsx
  *   classify.css          → pages/Classify.tsx
  *   share.css             → pages/Share.tsx, Collection.tsx, ReportSeries.tsx,
  *                           ReportIssue.tsx

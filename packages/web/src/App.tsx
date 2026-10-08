@@ -11,7 +11,7 @@ const About = lazyWithRetry('About', async () => (await import('./pages/About'))
 const Contact = lazyWithRetry('Contact', async () => (await import('./pages/Contact')).Contact)
 const Developers = lazyWithRetry('Developers', async () => (await import('./pages/Developers')).Developers)
 const EmbedGuide = lazyWithRetry('EmbedGuide', async () => (await import('./pages/EmbedGuide')).EmbedGuide)
-const Mcp = lazyWithRetry('Mcp', async () => (await import('./pages/Mcp')).Mcp)
+const Agents = lazyWithRetry('Agents', async () => (await import('./pages/Agents')).Agents)
 const Privacy = lazyWithRetry('Privacy', async () => (await import('./pages/Privacy')).Privacy)
 const Explore = lazyWithRetry('Explore', async () => (await import('./pages/Explore')).Explore)
 const Collection = lazyWithRetry('Collection', async () => (await import('./pages/Collection')).Collection)
@@ -149,7 +149,8 @@ export default function App() {
           <Route path="about" element={<About />} />
           <Route path="contact" element={<Contact />} />
           <Route path="privacy" element={<Privacy />} />
-          <Route path="mcp" element={<Mcp />} />
+          {selfHostedEdition ? <Route path="mcp" element={<Navigate to="/agents" replace />} /> : <Route path="mcp" element={<Agents />} />}
+          {selfHostedEdition && <Route path="agents" element={<Agents />} />}
           {!selfHostedEdition && <Route path="developers" element={<Developers />} />}
           <Route path="embed-guide" element={<EmbedGuide />} />
           <Route path="*" element={<NotFound />} />

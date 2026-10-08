@@ -111,6 +111,9 @@ export function TopNav() {
   const authRoute = isAuthPath(location.pathname)
   const showChrome = !authRoute
   const navItems = (isLoggedIn ? APP_NAV : MARKETING_NAV).filter((item) => isSelfHostedPathEnabled(item.to))
+  const primaryNav = isSelfHostedEdition() && isLoggedIn
+    ? [...navItems, { to: '/agents', label: 'Agents' }]
+    : navItems
   const showLogin = !isLoggedIn && location.pathname !== '/login'
   const showRegister = !isLoggedIn && location.pathname !== '/register'
 
@@ -184,7 +187,7 @@ export function TopNav() {
           <Brand />
           {showChrome && (
             <nav className="nav-links" aria-label="Primary">
-              {navItems.map((l) => (
+              {primaryNav.map((l) => (
                 <NavLink
                   key={l.to}
                   to={l.to}
@@ -194,7 +197,7 @@ export function TopNav() {
                     /* Today is BottomNav's first destination and the desktop
                        primary's first item — keep it in the 720–1099 core row
                        so tablet chrome does not drop the product's lead tab. */
-                    const slot = l.to === '/today' || l.to === '/explore' || l.to === '/library'
+                    const slot = l.to === '/today' || l.to === '/explore' || l.to === '/library' || l.to === '/agents'
                       ? 'nav-link-core'
                       : 'nav-link-rest'
                     return [active, slot].filter(Boolean).join(' ')
