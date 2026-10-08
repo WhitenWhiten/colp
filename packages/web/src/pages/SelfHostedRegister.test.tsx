@@ -81,9 +81,11 @@ describe('SelfHostedRegister', () => {
     expect(document.querySelector('form')).toBeNull()
   })
 
-  it('posts the owner username and password', async () => {
+  it('posts the owner username, password, and setup token', async () => {
     mocks.getRegistrationState.mockResolvedValue({ open: true, reason: 'first-run' })
     await render()
+    expect(document.querySelector('[data-testid="setup-token-help"]')?.textContent).toContain('colp-server setup-token')
+    change(document.querySelector('#register-setup-token') as HTMLInputElement, ' token-from-log ')
     change(document.querySelector('#register-username') as HTMLInputElement, 'alice')
     change(document.querySelector('#register-password') as HTMLInputElement, 'correct-horse')
     const form = document.querySelector('form') as HTMLFormElement
@@ -93,7 +95,27 @@ describe('SelfHostedRegister', () => {
     expect(mocks.signUpWithUsername).toHaveBeenCalledWith({
       username: 'alice',
       password: 'correct-horse',
+      setupToken: 'token-from-log',
       callbackURL: '/library',
     })
+  })
+
+  it('asks for the setup token before posting the owner account', async () => {
+    mocks.getRegistrationState.mockResolvedValue({ open: true, reason: 'first-run' })
+    await render()
+    change(document.querySelector('#register-username') as HTMLInputElement, 'alice')
+    change(document.querySelector('#register-password') as HTMLInputElement, 'correct-horse')
+    const form = document.querySelector('form') as HTMLFormElement
+    await act(async () => {
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+    })
+    expect(mocks.signUpWithUsername).not.toHaveBeenCalled()
+    expect(document.body.textContent).toContain('Enter the setup token from the server log.')
+  })
+
+  it('does not show the setup token on the invite form', async () => {
+    mocks.getRegistrationState.mockResolvedValue({ open: true, reason: 'invite' })
+    await render()
+    expect(document.querySelector('#register-setup-token')).toBeNull()
   })
 })

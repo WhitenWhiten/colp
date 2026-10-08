@@ -42,6 +42,8 @@ export const SPA_DOCUMENT_PREFIXES = [
   'admin',
   'approvals',
   'ai',
+  // COLP Server: Connect Agent page (self-hosted edition only).
+  'agents',
 ] as const
 
 export type SpaDocumentPrefix = (typeof SPA_DOCUMENT_PREFIXES)[number]

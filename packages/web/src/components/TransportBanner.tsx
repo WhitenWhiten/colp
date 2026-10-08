@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { subscribeInBrowserEnabled } from '../lib/edition'
+import { isSelfHostedEdition, subscribeInBrowserEnabled } from '../lib/edition'
 
 export type ManifestTransport = 'https' | 'insecure-http'
 
@@ -49,26 +49,36 @@ export function SubscribeInBrowserButton() {
 }
 
 /**
- * Banner for the public collection page. A failed or unrecognised manifest
- * leaves the page unchanged. Unit tests pass `loadManifest` so the page does
- * not call fetch under the suite's undeclared-request guard.
+ * Persistent banner for every page of the self-hosted web UI, including sign-in
+ * where the password is typed (02-plan §7, D9). A failed or unrecognised
+ * manifest leaves the page unchanged. Unit tests pass `loadManifest` so the
+ * page does not call fetch under the suite's undeclared-request guard.
  */
-export function CollectionTransportNotice({
+export function SiteTransportBanner({
   loadManifest = loadCollectionProtocolManifest,
 }: {
   readonly loadManifest?: () => Promise<unknown>
 } = {}) {
+  if (!isSelfHostedEdition()) return null
+  return <LoadedTransportBanner loadManifest={loadManifest} />
+}
+
+function LoadedTransportBanner({ loadManifest }: { readonly loadManifest: () => Promise<unknown> }) {
   const transport = useManifestTransport(loadManifest)
   return <TransportBanner transport={transport} />
 }
 
+let manifestRequest: Promise<unknown> | undefined
+
+/** One Manifest request per page load; the banner stays mounted across routes. */
 function loadCollectionProtocolManifest(): Promise<unknown> {
   // Vitest replaces fetch with a guard that fails the test. The banner is
   // covered by its own test, which injects the manifest.
   if (import.meta.env.MODE === 'test') return Promise.resolve(undefined)
-  return fetch('/.well-known/collection-protocol')
+  manifestRequest ??= fetch('/.well-known/collection-protocol')
     .then(async (response) => (response.ok ? response.json() as Promise<unknown> : undefined))
     .catch(() => undefined)
+  return manifestRequest
 }
 
 function useManifestTransport(loadManifest: () => Promise<unknown>): ManifestTransport | undefined {

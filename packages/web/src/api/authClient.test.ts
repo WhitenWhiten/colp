@@ -548,5 +548,26 @@ describe('authClient password and email flows', () => {
       callbackURL: '/library',
     })
     expect(getCsrfToken()).toBe('csrf-after-owner')
+    expect(new Headers(call.init?.headers).get('Colp-Setup-Token')).toBeNull()
+  })
+
+  it('signUpWithUsername sends the first-run setup token as a header, not in the body', async () => {
+    const mock = installFetchMock((input, init) => {
+      const { pathname } = requestPathAndSearch({ input, init })
+      if (pathname === '/api/v1/auth/sign-up/email') return jsonResponse({ status: true })
+      if (pathname === '/api/v1/session') return jsonResponse(authenticatedSessionBody('csrf-after-owner'))
+      throw new Error(`unexpected request ${pathname}`)
+    })
+    harness.restoreFetch = mock.restore
+
+    await authClient.signUpWithUsername({
+      username: 'alice',
+      password: 'correct-horse',
+      setupToken: 'token-from-log',
+    })
+
+    const call = mock.calls[0]!
+    expect(new Headers(call.init?.headers).get('Colp-Setup-Token')).toBe('token-from-log')
+    expect(JSON.parse(String(call.init?.body))).not.toHaveProperty('setupToken')
   })
 })

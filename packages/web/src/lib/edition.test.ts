@@ -1,16 +1,38 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   featureFlagsForEdition,
   isSelfHostedPathEnabled,
   parseRegistrationState,
   registrationView,
 } from './edition'
+import { isSettingsSectionAvailable } from './useSettingsDialog'
 
 describe('self-hosted edition paths', () => {
   it('keeps every path when the edition is unset', () => {
     expect(isSelfHostedPathEnabled('/explore')).toBe(true)
     expect(isSelfHostedPathEnabled('/library')).toBe(true)
     expect(isSelfHostedPathEnabled('/notifications')).toBe(true)
+  })
+
+  describe('self-hosted', () => {
+    afterEach(() => vi.unstubAllEnvs())
+
+    it('hides know-n.com documents and keeps the library', () => {
+      vi.stubEnv('VITE_EDITION', 'self-hosted')
+      for (const path of ['/privacy', '/contact', '/embed-guide', '/notifications', '/explore']) {
+        expect(isSelfHostedPathEnabled(path)).toBe(false)
+      }
+      expect(isSelfHostedPathEnabled('/library')).toBe(true)
+      expect(isSelfHostedPathEnabled('/about')).toBe(true)
+    })
+
+    it('hides settings sections for modules the server does not ship', () => {
+      vi.stubEnv('VITE_EDITION', 'self-hosted')
+      expect(isSettingsSectionAvailable('notifications')).toBe(false)
+      expect(isSettingsSectionAvailable('privacy')).toBe(false)
+      expect(isSettingsSectionAvailable('profile')).toBe(true)
+      expect(isSettingsSectionAvailable('security')).toBe(true)
+    })
   })
 })
 

@@ -1,32 +1,8 @@
-/* Shared capture result recipe; extension builds copy this source unchanged. */
+/* Capture page recipe. The summary/chart/table/dialog rules that only the
+   browser extension renders are not part of the COLP Server web package. */
 
 @layer components {
-.capture-summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-3); }
-.capture-summary-card { border-radius: var(--radius); padding: var(--space-4); background: var(--surface); border: 1px solid var(--line-strong); text-align: left; min-height: 88px; }
-.capture-summary-card span, .capture-summary-card strong { display: block; overflow-wrap: anywhere; }
-.capture-summary-card strong { margin-top: var(--space-2); font-size: var(--text-lg); }
-.capture-chart-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); margin-block: var(--space-4); }
-.capture-chart { margin: 0; border: 1px solid var(--line-strong); padding: var(--space-3); min-width: 0; }
-.capture-chart svg { width: 100%; height: auto; }
-.capture-chart-legend { display: flex; flex-wrap: wrap; gap: var(--space-1); }
-.capture-chart-legend .btn { font-size: var(--text-xs); min-height: 44px; white-space: normal; }
-.capture-chart [data-series="saved"], .capture-chart [data-series="positive"] { fill: var(--success); }
-.capture-chart [data-series="failed"], .capture-chart [data-series="negative"] { fill: var(--danger); }
-.capture-chart [data-series="pending"], .capture-chart [data-series="implicit"] { fill: var(--warning-soft); stroke: var(--warning); stroke-dasharray: 3 2; }
-.capture-chart [data-series="unknown"], .capture-chart [data-series="unrated"] { fill: var(--paper-2); stroke: var(--muted); }
-.capture-chart rect { cursor: pointer; }
-.capture-data-table { display: block; max-width: 100%; overflow: auto; border-collapse: collapse; }
-.capture-data-table th, .capture-data-table td { border-bottom: 1px solid var(--line); padding: var(--space-2); text-align: left; }
 [data-capture-view="diagnostics"] pre { white-space: pre-wrap; overflow-wrap: anywhere; }
-@media (max-width: 719px) { .capture-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .capture-chart-grid { grid-template-columns: minmax(0, 1fr); } }
-@media (max-width: 540px) { .capture-summary-card { border-radius: var(--radius); padding: var(--space-2); } }
-
-.capture-summary-grid + .meta { margin-block: var(--space-3); }
-.capture-chart text { fill: var(--muted); font-size: var(--text-xs); }
-.capture-chart-legend [data-series]::before { content: ''; display: block; width: 8px; height: 8px; flex: none; border: 1px solid var(--muted); }
-.capture-chart-legend [data-series="saved"]::before, .capture-chart-legend [data-series="positive"]::before { background: var(--success); border-color: var(--success); }
-.capture-chart-legend [data-series="failed"]::before, .capture-chart-legend [data-series="negative"]::before { background: var(--danger); border-color: var(--danger); }
-.capture-chart-legend [data-series="pending"]::before, .capture-chart-legend [data-series="implicit"]::before { background: var(--warning-soft); border-style: dashed; border-color: var(--warning); }
 
 [data-capture-controls], [data-capture-authorization], [data-capture-learning] { min-width: 0; overflow-wrap: anywhere; }
 [data-capture-controls] .btn, [data-capture-authorization] .btn, [data-capture-learning] .btn { max-width: 100%; min-height: 44px; white-space: normal; overflow-wrap: anywhere; }
@@ -50,9 +26,6 @@
 [data-capture-view="diagnostics"] [data-capture-content] { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 [data-capture-view="diagnostics"] [data-capture-content] > p[role="status"] { flex: 1 1 100%; margin: 0; }
 [data-capture-view="diagnostics"] [data-capture-content] > details { flex: 1 1 100%; }
-.capture-dialog { box-sizing: border-box; max-width: min(30rem, calc(100vw - 32px)); max-height: 85dvh; overflow: auto; padding: var(--space-4); border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--paper); color: var(--ink); }
-.capture-dialog .btn { min-height: 44px; max-width: 100%; white-space: normal; }
-.capture-dialog::backdrop { background: var(--overlay); }
 
 [data-capture-located="true"] { outline: 2px solid var(--ink); outline-offset: 2px; }
 }

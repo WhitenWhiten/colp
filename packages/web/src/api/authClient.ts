@@ -437,6 +437,8 @@ export type SignUpWithUsernameInput = {
   password: string
   email?: string
   inviteCode?: string
+  /** First-run token from the server log; sent as the Colp-Setup-Token header (D27). */
+  setupToken?: string
   callbackURL?: string
 }
 
@@ -456,6 +458,9 @@ async function signUpWithUsername(
       ...(input.callbackURL === undefined ? {} : { callbackURL: input.callbackURL }),
     },
     withCsrf: true,
+    extraHeaders: input.setupToken === undefined || input.setupToken === ''
+      ? undefined
+      : { 'Colp-Setup-Token': input.setupToken },
     signal: options?.signal,
   })
   await refreshProductSession(options?.signal)

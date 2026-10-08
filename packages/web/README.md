@@ -64,36 +64,10 @@ covers both sides of every cut. `visual.responsive.spec.ts` holds the
 Login) per lane; refresh them only on purpose with
 `npx playwright test visual --update-snapshots` and review the image diff.
 
-Full-stack proof is the backend CI check **`real-stack-e2e`**, which
-runs when `full`, `phase2b`, or `real_stack` is true (real-stack specs,
-Playwright real-stack config, `src/api/**`, or frontend lockfile). When
-`phase2b-acceptance` already ran `test:e2e:real-stack`, this named check
-reports that coverage instead of showing skipped. When only `real_stack`
-matches, the job runs the suite itself.
-
-The real-stack Playwright project is separate from the strict mocked suite. It
-starts an isolated, migrated PostgreSQL schema, the Backend API and durable
-outbox worker, and Vite before launching Chromium. Product API requests are not
-intercepted. The browser identity endpoint exists only when all three test-only
-guards are enabled by the harness; backend configuration refuses that endpoint
-outside `NODE_ENV=test`.
-
-Run with Docker/Testcontainers:
-
-```bash
-KNOWN_PG_EVIDENCE_MODE=acceptance npm run test:e2e:real-stack
-```
-
-Run against a PostgreSQL server on a capable host:
-
-```bash
-KNOWN_TEST_DATABASE_URL=postgresql://user:password@host:5432/database KNOWN_PG_EVIDENCE_MODE=acceptance npm run test:e2e:real-stack
-```
-
-Both commands are fail-closed: an unavailable database, migration failure,
-service startup failure, missing browser, or failed assertion returns a nonzero
-exit status. Each run creates and drops a unique schema. Playwright retains a
-trace and screenshot for failures under `test-results/`.
+Full-stack proof for the self-hosted edition is `deploy/smoke.sh` against the
+compose stack (health, readiness, Manifest, and the COLP conformance runner).
+The Know-N real-stack Playwright suite needs Know-N's backend harness
+(`real-stack-e2e.mjs`) and stays in Know-N; see `UPSTREAM.md`.
 
 ### Live vs mock: source of truth
 

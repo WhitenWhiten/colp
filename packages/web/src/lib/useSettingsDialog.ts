@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { isLive } from '../api'
+import { isSelfHostedEdition } from './edition'
 
 export const SETTINGS_PARAM = 'settings'
 export const SETTINGS_SECTIONS = ['profile', 'bookmarks', 'privacy', 'favicon', 'notifications', 'security'] as const
@@ -15,6 +16,9 @@ export const SECURITY_SETTINGS_ERROR_CALLBACK_URL =
     "managed for you" entry. */
 export function isSettingsSectionAvailable(id: SettingsSection): boolean {
   if (id === 'favicon') return isLive('faviconPolicy')
+  // The self-hosted server has no notifications module, public profiles,
+  // follows, or Explore, which these two sections configure.
+  if (isSelfHostedEdition() && (id === 'notifications' || id === 'privacy')) return false
   return true
 }
 

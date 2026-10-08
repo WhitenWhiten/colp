@@ -1,6 +1,6 @@
 import { SubscribeButton } from '../components/bookmark-subscriptions/SubscribeButton'
 import { CollectionExportMenu } from '../components/CollectionExportMenu'
-import { CollectionTransportNotice, SubscribeInBrowserButton } from '../components/TransportBanner'
+import { SubscribeInBrowserButton } from '../components/TransportBanner'
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import {
@@ -617,7 +617,6 @@ export function Collection() {
       data-in-folder={activeFolder ? true : undefined}
       data-testid="public-collection-page"
     >
-      <CollectionTransportNotice />
       <PageHead
         as="header"
         className="collection-masthead page-head--editorial"

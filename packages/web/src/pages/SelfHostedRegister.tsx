@@ -29,6 +29,7 @@ export function SelfHostedRegister() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [inviteCode, setInviteCode] = useState('')
+  const [setupToken, setSetupToken] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -67,6 +68,10 @@ export function SelfHostedRegister() {
       setFormError('Enter an invite code.')
       return
     }
+    if (view === 'owner' && setupToken.trim() === '') {
+      setFormError('Enter the setup token from the server log.')
+      return
+    }
     setBusy(true)
     try {
       await authClient.signUpWithUsername({
@@ -74,6 +79,7 @@ export function SelfHostedRegister() {
         password,
         ...(email.trim() ? { email: email.trim().toLowerCase() } : {}),
         ...(view === 'invite' ? { inviteCode: inviteCode.trim() } : {}),
+        ...(view === 'owner' ? { setupToken: setupToken.trim() } : {}),
         callbackURL: '/library',
       })
       await refreshSession().catch(() => {
@@ -112,9 +118,31 @@ export function SelfHostedRegister() {
                 ? 'Choose a username and a password. Email is optional.'
                 : 'Use the invite code from the server owner. Email is optional.'}
             </p>
+            {view === 'owner' && (
+              <p className="sub" data-testid="setup-token-help">
+                The setup token proves you run this server. Find it with{' '}
+                <code>docker compose logs server | grep "setup token"</code> or{' '}
+                <code>docker compose exec server colp-server setup-token</code>.
+              </p>
+            )}
             {formError && (
               <div className="panel panel-pad auth-alert auth-feedback" role="alert">
                 <p className="auth-alert-text">{formError}</p>
+              </div>
+            )}
+            {view === 'owner' && (
+              <div className="field">
+                <label htmlFor="register-setup-token">Setup token</label>
+                <input
+                  id="register-setup-token"
+                  type="text"
+                  autoComplete="off"
+                  spellCheck={false}
+                  value={setupToken}
+                  onChange={(event) => setSetupToken(event.target.value)}
+                  disabled={busy}
+                  required
+                />
               </div>
             )}
             <div className="field">

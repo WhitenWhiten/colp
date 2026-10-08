@@ -147,12 +147,12 @@ export default function App() {
           <Route path="approvals/:planId" element={<WriteApprovals />} />
           {!selfHostedEdition && <Route path="ai/organize" element={<AiOrganize />} />}
           <Route path="about" element={<About />} />
-          <Route path="contact" element={<Contact />} />
-          <Route path="privacy" element={<Privacy />} />
+          {!selfHostedEdition && <Route path="contact" element={<Contact />} />}
+          {!selfHostedEdition && <Route path="privacy" element={<Privacy />} />}
           {selfHostedEdition ? <Route path="mcp" element={<Navigate to="/agents" replace />} /> : <Route path="mcp" element={<Agents />} />}
           {selfHostedEdition && <Route path="agents" element={<Agents />} />}
           {!selfHostedEdition && <Route path="developers" element={<Developers />} />}
-          <Route path="embed-guide" element={<EmbedGuide />} />
+          {!selfHostedEdition && <Route path="embed-guide" element={<EmbedGuide />} />}
           <Route path="*" element={<NotFound />} />
         </Route>
         {/* Demo tree — mock-only sandboxes preserved for comparison, mounted
