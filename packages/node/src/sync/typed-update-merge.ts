@@ -344,13 +344,22 @@ function normalizeTagsField(
   if (value === undefined) {
     return { status: 'merged', tags: Object.freeze([]) as readonly string[] };
   }
-  if (!Array.isArray(value) || !value.every((item) => typeof item === 'string')) {
-    return {
+  const conflict = () => ({
       status: 'conflict',
       reason: `Tag Observed-Remove requires ${side} tags to be an array of strings when present; observation cannot be proven for non-string-array values.`,
-    };
+    } as const);
+  if (nodeTypes.isProxy(value) || !Array.isArray(value)) return conflict();
+  try {
+    assertBoundedMergeGraph(value, `${side} tags`);
+  } catch {
+    return conflict();
   }
-  return { status: 'merged', tags: value as readonly string[] };
+  const tags: string[] = [];
+  for (let index = 0; index < value.length; index += 1) {
+    if (typeof value[index] !== 'string') return conflict();
+    tags.push(value[index]);
+  }
+  return { status: 'merged', tags: Object.freeze(tags) };
 }
 
 function isPlainDataObject(candidate: object): boolean {

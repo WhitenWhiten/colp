@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deepEqualSyncMergeValue, mergeSyncTypedUpdate } from '../../src/sync/typed-update-merge.js';
+import { deepEqualSyncMergeValue, mergeSyncTagsObservedRemove, mergeSyncTypedUpdate } from '../../src/sync/typed-update-merge.js';
 
 describe('Typed-update merge untrusted graph boundaries', () => {
   it('applies graph limits to the exported equality helper even for identical references', () => {
@@ -48,5 +48,18 @@ describe('Typed-update merge untrusted graph boundaries', () => {
       expect(result.value.rows).not.toBe(rows);
       expect(Object.isFrozen(result.value.rows)).toBe(true);
     }
+  });
+
+  it('merges null-prototype tag arrays and rejects direct tag-helper Proxies without traps', () => {
+    const tags = ['a'];
+    Object.setPrototypeOf(tags, null);
+    const input = { tags };
+    expect(mergeSyncTypedUpdate({ base: input, current: input, incoming: input }))
+      .toMatchObject({ status: 'merged', value: { tags: ['a'] } });
+    let calls = 0;
+    const proxy = new Proxy(tags, { get() { calls += 1; throw new Error('tag trap'); } });
+    expect(mergeSyncTagsObservedRemove({ baseTags: proxy, currentTags: tags, incomingTags: tags }).status)
+      .toBe('conflict');
+    expect(calls).toBe(0);
   });
 });
