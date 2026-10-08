@@ -5,7 +5,15 @@ import { CollectionTransportNotice, SubscribeInBrowserButton, TransportBanner } 
 import { cleanup, mountTree } from '../test/render'
 
 function manifestBody(transport: string): unknown {
-  return { features: { transport } }
+  return {
+    mounts: [{
+      features: {
+        transport,
+        cloud: false,
+        edition: { name: 'colp-server', version: '0.1.0' },
+      },
+    }],
+  }
 }
 
 describe('transport banner', () => {

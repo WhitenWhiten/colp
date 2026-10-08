@@ -3,10 +3,26 @@ import { subscribeInBrowserEnabled } from '../lib/edition'
 
 export type ManifestTransport = 'https' | 'insecure-http'
 
-/** Read `features.transport` from a collection-protocol manifest document. */
+/**
+ * Read `features.transport` from a collection-protocol manifest.
+ * Self-hosted servers write it on the publication mount (`mounts[0].features`).
+ */
 export function manifestTransport(body: unknown): ManifestTransport | undefined {
+  const direct = readTransport(body)
+  if (direct !== undefined) return direct
   if (typeof body !== 'object' || body === null) return undefined
-  const features = (body as { features?: unknown }).features
+  const mounts = (body as { mounts?: unknown }).mounts
+  if (!Array.isArray(mounts)) return undefined
+  for (const mount of mounts) {
+    const transport = readTransport(mount)
+    if (transport !== undefined) return transport
+  }
+  return undefined
+}
+
+function readTransport(value: unknown): ManifestTransport | undefined {
+  if (typeof value !== 'object' || value === null) return undefined
+  const features = (value as { features?: unknown }).features
   if (typeof features !== 'object' || features === null) return undefined
   const transport = (features as { transport?: unknown }).transport
   if (transport === 'https' || transport === 'insecure-http') return transport
