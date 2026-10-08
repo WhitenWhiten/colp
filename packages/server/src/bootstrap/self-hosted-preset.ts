@@ -213,6 +213,16 @@ export function applySelfHostedPreset(env: NodeJS.ProcessEnv): void {
   set(env, 'MCP_WRITE_COMMIT_RATE_LIMIT_WINDOW_MS', '60000');
   set(env, 'KNOWN_CACHE_MODE', 'off');
   set(env, 'KNOWN_CACHE_REQUIRED', 'false');
+  // The bundled Postgres has no TLS. Operators set DATABASE_SSL_MODE=require
+  // when the database is external and speaks TLS.
+  set(env, 'DATABASE_SSL_MODE', 'disable');
+  // Caddy is the only published ingress. Production /ready stays 503 until
+  // TRUSTED_INGRESS is declared. RFC1918 covers the compose network; a public
+  // client cannot connect to the server container directly. An explicit empty
+  // value stays empty and means peer-only.
+  if (env.TRUSTED_INGRESS === undefined) {
+    env.TRUSTED_INGRESS = '10.0.0.0/8,172.16.0.0/12,192.168.0.0/16';
+  }
   if (env.COLP_LOG_LEVEL && !env.LOG_LEVEL) set(env, 'LOG_LEVEL', env.COLP_LOG_LEVEL);
 
   for (const name of FEATURE_NAMES) {

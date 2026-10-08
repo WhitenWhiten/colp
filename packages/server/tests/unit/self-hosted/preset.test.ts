@@ -40,6 +40,30 @@ describe('self-hosted preset', () => {
     expect(() => loadConfig(env)).not.toThrow();
   });
 
+  it('defaults database TLS off and keeps an explicit require', () => {
+    const disabled = baseEnv();
+    applySelfHostedPreset(disabled);
+    expect(disabled.DATABASE_SSL_MODE).toBe('disable');
+    expect(loadConfig(disabled).databaseSsl).toBe(false);
+
+    const required = baseEnv({ DATABASE_SSL_MODE: 'require' });
+    applySelfHostedPreset(required);
+    expect(required.DATABASE_SSL_MODE).toBe('require');
+    expect(loadConfig(required).databaseSsl).toBe(true);
+  });
+
+  it('declares a private-network ingress and keeps an explicit one', () => {
+    const env = baseEnv();
+    applySelfHostedPreset(env);
+    expect(env.TRUSTED_INGRESS).toBe('10.0.0.0/8,172.16.0.0/12,192.168.0.0/16');
+    expect(loadConfig(env).httpSecurity.trustedIngressDeclared).toBe(true);
+
+    const peerOnly = baseEnv({ TRUSTED_INGRESS: '' });
+    applySelfHostedPreset(peerOnly);
+    expect(peerOnly.TRUSTED_INGRESS).toBe('');
+    expect(loadConfig(peerOnly).httpSecurity.trustedIngressDeclared).toBe(true);
+  });
+
   it('still refuses production http when the insecure flag is absent', () => {
     const env = baseEnv({ COLP_SERVER_ORIGIN: 'http://127.0.0.1:8080' });
     applySelfHostedPreset(env);
