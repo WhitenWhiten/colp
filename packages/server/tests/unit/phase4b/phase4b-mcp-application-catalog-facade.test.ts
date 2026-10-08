@@ -68,6 +68,9 @@ const READ_SCOPES = Object.freeze(['mcp:read:public'] as const);
 const WRITE_SCOPES = Object.freeze([
   'mcp:read:public',
   'nodes:write',
+  'collections:create',
+  'collections:write',
+  'annotations:write',
   'access:write',
   'changes:commit',
   'changes:cancel',
