@@ -40,6 +40,9 @@ export const READ_SCOPES = ['mcp:read:public', 'mcp:read:own'] as const;
 export const WRITE_SCOPES = [
   ...READ_SCOPES,
   'nodes:write',
+  'collections:create',
+  'collections:write',
+  'annotations:write',
   'access:write',
   'changes:commit',
   'changes:cancel',
