@@ -58,7 +58,7 @@ export function createPublicationSnapshotSinglePageResponse(
   const copied = copyDataRecord(init, false);
   const supplied = copied.publicProjectionLimits;
   const limits = supplied === undefined ? {} : copyDataRecord(supplied, true);
-  if (Object.keys(limits).some(key => key !== 'maxDepth' && key !== 'maxNodes')) {
+  if (Object.keys(limits).some(key => key !== 'maxDepth' && key !== 'maxNodes' && key !== 'maxBytes')) {
     throw new PublicationPublicProjectionError('invalid_policy');
   }
   for (const value of Object.values(limits)) {
@@ -71,6 +71,7 @@ export function createPublicationSnapshotSinglePageResponse(
     publicProjectionLimits: {
       maxDepth: (limits.maxDepth as number | undefined) ?? budget.maxDepth,
       maxNodes: (limits.maxNodes as number | undefined) ?? budget.maxNodes,
+      ...(limits.maxBytes === undefined ? {} : { maxBytes: limits.maxBytes as number }),
     },
   } as unknown as PublicationSnapshotSinglePageResponseInit);
 }
