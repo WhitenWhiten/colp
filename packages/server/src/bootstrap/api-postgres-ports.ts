@@ -29,6 +29,7 @@ import {
   createPostgresLinkHealthEnqueueUnitOfWork,
   createPostgresExportJobEnqueueUnitOfWork,
   createPostgresExportJobReadPort,
+  createPostgresCollectionExportReadPort,
   createPostgresOrganizePlanMutationUnitOfWork,
   createPostgresOrganizePlanReadPort,
   createPostgresCollectionVersionUnitOfWork,
@@ -369,6 +370,7 @@ export function createApiPostgresAppDependencies(input: {
     classifyInboxAccept: createPostgresClassifyInboxAcceptUnitOfWork(database.db, { ...(reportSourceInvalidation === undefined ? {} : { reportSourceInvalidation }) }),
     linkHealthEnqueue: createPostgresLinkHealthEnqueueUnitOfWork(database.db),
     exportJobReads: createPostgresExportJobReadPort(database.db),
+    collectionExportReads: createPostgresCollectionExportReadPort(database.db),
     exportJobEnqueue: createPostgresExportJobEnqueueUnitOfWork(database.db),
     exportJobStore: config.exportJobs.enabled && config.exportJobs.r2
       ? createR2ExportStore(config.exportJobs.r2)

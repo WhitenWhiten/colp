@@ -73,6 +73,7 @@ export type {
   LinkHealthWorkerRuntime,
 } from './link-health-worker.js';
 export { createPostgresSharedCollectionsReadPort } from './shared-collections-query.js';
+export { createPostgresCollectionExportReadPort } from './collection-export-postgres.js';
 export {
   EXPORT_JOB_ACTIVE_UNIQUE_INDEX,
   createPostgresExportJobEnqueueUnitOfWork,

@@ -1,0 +1,17 @@
+apis:
+  product@draft:
+    root: openapi/product-v1.yaml
+
+extends:
+  - recommended
+
+rules:
+  # OIDC callback is a browser navigation contract whose only success is 303.
+  operation-2xx-response: off
+  # OIDC callback also maps authorization failures to the fixed failure 303.
+  operation-4xx-response: off
+  # This private draft has no declared distribution license yet.
+  info-license: off
+  # NodeView is the authoritative complete union; Phase 1 response DTOs use its
+  # editable subset directly until a route can return Root as a generic Node.
+  no-unused-components: off
