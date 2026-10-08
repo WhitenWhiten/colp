@@ -6,6 +6,7 @@ import { hasWellFormedUtf16 } from '../shared/utf16.js';
 import type { Snapshot } from '../types/index.js';
 import { createPublicationJsonResponse } from './publication-http-utf8.js';
 import { preparePublicationSnapshotWire as prepareSnapshot } from './publication-snapshot-wire.js';
+import type { PublicationSnapshotAccess } from './publication-snapshot-wire.js';
 import type {
   PublicationPublicProjectionLimits,
   PublicationPublicWireOptions,
@@ -55,8 +56,9 @@ class NextUrlLimitError extends Error {}
 export function createPublicationSnapshotNextLinkHeader(
   snapshot: unknown,
   serverNextUrl?: string | null,
+  access: PublicationSnapshotAccess = 'anonymous-public',
 ): string | undefined {
-  const prepared = prepareSnapshot(snapshot);
+  const prepared = prepareSnapshot(snapshot, undefined, access);
   const target = prepareNextTarget(prepared, serverNextUrl);
   return target === undefined ? undefined : formatNextLink(target);
 }
@@ -65,9 +67,19 @@ export function createPublicationSnapshotNextLinkHeader(
 export function mergePublicationSnapshotNextLinkHeaders(
   snapshot: unknown,
   serverNextUrl?: string | null,
-  headers?: PublicationSnapshotNextLinkHeadersInit,
+  headersOrAccess?: PublicationSnapshotNextLinkHeadersInit | PublicationSnapshotAccess,
+  access: PublicationSnapshotAccess = 'anonymous-public',
 ): Headers {
-  const prepared = prepareSnapshot(snapshot);
+  // Keep the existing `(snapshot, nextUrl, headers)` shape while accepting
+  // the convenient `(snapshot, nextUrl, access)` form for authorized pages.
+  const directAccess = headersOrAccess === 'anonymous-public' || headersOrAccess === 'authorized-private'
+    ? headersOrAccess
+    : undefined;
+  const resolvedAccess = directAccess ?? access;
+  const headers: PublicationSnapshotNextLinkHeadersInit | undefined = directAccess === undefined
+    ? headersOrAccess as PublicationSnapshotNextLinkHeadersInit | undefined
+    : undefined;
+  const prepared = prepareSnapshot(snapshot, undefined, resolvedAccess);
   const target = prepareNextTarget(prepared, serverNextUrl);
   const result = copyHeaders(headers);
   mergeNextLink(result, target);
@@ -79,8 +91,10 @@ export function mergePublicationSnapshotNextLinkHeaders(
  * responses may carry rel=next; error responses retain unrelated Links while
  * removing any stale success continuation.
  *
- * Successful publication page bodies are always public-projected before wire
- * emission (publicExtensionNamespaces defaults to [], fail-closed).
+ * Successful publication page bodies are projected before wire emission;
+ * anonymous responses use the public projection and authorized responses use
+ * the safe authorized projection. `publicExtensionNamespaces` defaults to []
+ * (fail-closed) in both modes.
  * A supplied contentDigest is recomputed over the final public representation.
  */
 export function createPublicationSnapshotPageResponse(

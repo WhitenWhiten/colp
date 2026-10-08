@@ -26,10 +26,11 @@ export function assertAnonymousPublicationPrimaryVisibility(input: unknown): voi
     if (visited > MAX_VISIBILITY_GRAPH_NODES) {
       throw new PublicationPublicProjectionError('projection_limit_exceeded');
     }
-    // Redaction removes target content from an individual Node, but it does
-    // not authorize the containing Collection (or another primary resource)
-    // for anonymous delivery.  A private Collection with only redacted
-    // bookmarks still discloses its existence, title, and sidecars.
+    // Redaction is a safe publication placeholder only for a Bookmark. It
+    // may appear in an otherwise public Collection without its target URL,
+    // while a restricted Collection remains ineligible for anonymous output.
+    // Other node kinds are authoritative graph members and cannot use the
+    // redacted placeholder to bypass their own visibility policy.
     if (isRestrictedPrimary(value)) {
       throw new PublicationPublicProjectionError('malformed_input');
     }
@@ -122,7 +123,13 @@ function assertSnapshotGraphVisibility(snapshot: JsonRecord): void {
       }
       trail.push(current.id);
       trailSet.add(current.id);
-      rank = Math.max(rank, current.redacted === true ? 0 : visibilityRank(current.visibility));
+      // A redacted Bookmark is a safe publication placeholder: its target
+      // content is intentionally omitted and its own restricted visibility
+      // does not make an otherwise public Collection disappear. Ancestors
+      // and every other node kind still retain their effective policy.
+      rank = Math.max(rank, current.redacted === true && current.kind === 'bookmark'
+        ? 0
+        : visibilityRank(current.visibility));
       if (current.kind === 'root') break;
       absentId = typeof current.parentId === 'string' ? current.parentId : undefined;
       current = absentId === undefined ? undefined : nodeById.get(absentId);
@@ -210,13 +217,21 @@ function isRestrictedPrimary(value: object): boolean {
   const visibility = ownString(value, 'visibility');
   if (visibility !== 'protected' && visibility !== 'private' && visibility !== 'unlisted') return false;
   const kind = ownString(value, 'kind');
+  const redactedBookmark = kind === 'bookmark' && ownBoolean(value, 'redacted') === true;
   const node = kind !== undefined && nodeKinds.has(kind) && has(value, 'id') && has(value, 'collectionId')
-    && ownBoolean(value, 'redacted') !== true;
+    && !redactedBookmark;
   const collection = kind !== undefined && collectionKinds.has(kind) && has(value, 'id') && has(value, 'rootNodeId');
   const directoryCollection = kind !== undefined && collectionKinds.has(kind)
     && has(value, 'id') && has(value, 'canonicalUrl') && has(value, 'links') && has(value, 'nodeCount');
   const relation = has(value, 'fromNodeId') && has(value, 'toNodeId') && has(value, 'collectionId') && has(value, 'type');
   return node || collection || directoryCollection || relation;
+}
+
+function ownBoolean(value: object, key: string): boolean | undefined {
+  const descriptor = Object.getOwnPropertyDescriptor(value, key);
+  if (descriptor === undefined) return undefined;
+  if (!descriptor.enumerable || !('value' in descriptor)) throw new PublicationPublicProjectionError('malformed_input');
+  return typeof descriptor.value === 'boolean' ? descriptor.value : undefined;
 }
 
 function isPrimaryResource(value: object): boolean {
@@ -225,13 +240,6 @@ function isPrimaryResource(value: object): boolean {
   const collection = kind !== undefined && collectionKinds.has(kind) && has(value, 'id') && has(value, 'rootNodeId');
   const relation = has(value, 'fromNodeId') && has(value, 'toNodeId') && has(value, 'collectionId') && has(value, 'type');
   return node || collection || relation;
-}
-
-function ownBoolean(value: object, key: string): boolean | undefined {
-  const descriptor = Object.getOwnPropertyDescriptor(value, key);
-  if (descriptor === undefined) return undefined;
-  if (!descriptor.enumerable || !('value' in descriptor)) throw new PublicationPublicProjectionError('malformed_input');
-  return typeof descriptor.value === 'boolean' ? descriptor.value : undefined;
 }
 
 function isInheritedNodeDetail(value: unknown): boolean {

@@ -36,9 +36,15 @@ export function cleanConsumerSandboxArguments(consumer, args, name, options = {}
     '--pids-limit=64', `--memory=${memory}`, `--memory-swap=${memory}`, '--cpus=1',
     '--ipc=none',
     '--tmpfs', '/tmp:rw,noexec,nosuid,nodev,size=67108864,mode=1777',
+    ...(options.npmCache === undefined ? [] : [
+      // npm mutates its cache even for --offline installs. Keep the
+      // maintainer's cache read-only and copy it into this disposable,
+      // container-local cache before invoking npm.
+      '--tmpfs', '/npm-cache:rw,noexec,nosuid,nodev,size=512m,mode=1777',
+    ]),
     '--mount', `type=bind,source=${consumer},target=/work${options.writable === true ? '' : ',readonly'}`,
     ...(options.npmCache === undefined ? [] : [
-      '--mount', `type=bind,source=${options.npmCache},target=/npm-cache,readonly`,
+      '--mount', `type=bind,source=${options.npmCache},target=/npm-cache-seed,readonly`,
       '--env=npm_config_cache=/npm-cache',
     ]),
     '--workdir=/work', '--env=HOME=/tmp', '--env=NODE_ENV=production',
@@ -56,8 +62,25 @@ export async function runCleanConsumerNode(consumer, args, options = {}) {
   try {
     await mkdir(join(configuration, 'npm-tmp'), { mode: 0o700 });
     await writeFile(join(configuration, 'config.json'), '{}', { mode: 0o600 });
+    let sandboxArgs = args;
+    if (options.npmCache !== undefined) {
+      // npm's cache is mutable even in --offline mode. The seed cache is
+      // mounted read-only and copied into the disposable tmpfs by this tiny
+      // wrapper before the requested Node program starts.
+      const wrapper = join(consumer, '.colp-clean-cache-wrapper.mjs');
+      await writeFile(wrapper, [
+        "import { cp } from 'node:fs/promises';",
+        "import { spawnSync } from 'node:child_process';",
+        "await cp('/npm-cache-seed', '/npm-cache', { recursive: true });",
+        "const result = spawnSync(process.execPath, process.argv.slice(2), { stdio: 'inherit', env: process.env });",
+        "if (result.error) throw result.error;",
+        "if (result.signal) { process.kill(process.pid, result.signal); }",
+        "process.exit(result.status ?? 1);",
+      ].join('\n'), { mode: 0o644 });
+      sandboxArgs = ['.colp-clean-cache-wrapper.mjs', ...args];
+    }
     return await exec('docker', ['--config', configuration,
-      ...cleanConsumerSandboxArguments(consumer, args, name, options)], {
+      ...cleanConsumerSandboxArguments(consumer, sandboxArgs, name, options)], {
       cwd: consumer, env: environment,
       timeout: options.timeoutMs ?? 120_000, maxBuffer: 16 * 1024 * 1024,
     });

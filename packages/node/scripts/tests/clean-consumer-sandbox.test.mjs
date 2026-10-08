@@ -143,7 +143,9 @@ test('sandbox command has no network, writable checkout, host env, or daemon soc
   });
   assert.ok(installer.includes('type=bind,source=/tmp/consumer,target=/work'));
   assert.ok(!installer.some(arg => arg === 'type=bind,source=/tmp/consumer,target=/work,readonly'));
-  assert.ok(installer.includes('type=bind,source=/var/cache/npm,target=/npm-cache,readonly'));
+  assert.ok(installer.includes('--tmpfs'));
+  assert.ok(installer.includes('/npm-cache:rw,noexec,nosuid,nodev,size=512m,mode=1777'));
+  assert.ok(installer.includes('type=bind,source=/var/cache/npm,target=/npm-cache-seed,readonly'));
   assert.ok(installer.includes('--env=npm_config_cache=/npm-cache'));
 });
 

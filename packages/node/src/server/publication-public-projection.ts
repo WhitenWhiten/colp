@@ -231,6 +231,7 @@ interface ProjectionState {
   readonly ancestors: WeakSet<object>;
   readonly maxDepth: number;
   readonly maxNodes: number;
+  readonly retainRestrictedSidecars: boolean;
   visited: number;
 }
 
@@ -262,9 +263,10 @@ const rootContext: ProjectionContext = {
 export function projectPublicationPublicValue(
   input: unknown,
   options: PublicationPublicProjectionOptions,
+  retainRestrictedSidecars = false,
 ): PublicationPublicValue {
   try {
-    const state = createState(options);
+    const state = createState(options, retainRestrictedSidecars);
     return projectValue(input, state, 0, rootContext);
   } catch (error) {
     if (error instanceof PublicationPublicProjectionError) throw error;
@@ -272,7 +274,11 @@ export function projectPublicationPublicValue(
   }
 }
 
-function createState(options: PublicationPublicProjectionOptions): ProjectionState {
+export function projectPublicationAuthorizedValue(input: unknown, options: PublicationPublicProjectionOptions): PublicationPublicValue {
+  return projectPublicationPublicValue(input, options, true);
+}
+
+function createState(options: PublicationPublicProjectionOptions, retainRestrictedSidecars = false): ProjectionState {
   if (!isPlainObject(options)) {
     throw new PublicationPublicProjectionError('invalid_policy');
   }
@@ -313,6 +319,7 @@ function createState(options: PublicationPublicProjectionOptions): ProjectionSta
     ancestors: new WeakSet<object>(),
     maxDepth,
     maxNodes,
+    retainRestrictedSidecars,
     visited: 0,
   };
 }
@@ -412,19 +419,16 @@ function projectArray(
     if (descriptor === undefined || !descriptor.enumerable || !('value' in descriptor)) {
       throw new PublicationPublicProjectionError('malformed_input');
     }
-    if (context.parentKey === 'annotations') {
-      // Standard annotations: retain public/unlisted; drop private/protected.
+    if (context.parentKey === 'annotations' && !state.retainRestrictedSidecars) {
       if (isPrivateAnnotation(descriptor.value)) { chargeInputBudget(state); continue; }
-    } else if (isNonPublicAnnotationObject(descriptor.value)) {
-      // Filter annotation-shaped objects nested under other carriers.
+    } else if (!state.retainRestrictedSidecars && isNonPublicAnnotationObject(descriptor.value)) {
       chargeInputBudget(state); continue;
     }
-    if (isNonPublicAttachmentObject(descriptor.value)) {
-      // Attachment-shaped values can be nested under arbitrary carriers; a
-      // key-name-only check would leave private URL-bearing records exposed.
+    if (!state.retainRestrictedSidecars && isNonPublicAttachmentObject(descriptor.value)) {
       chargeInputBudget(state); continue;
     }
-    if (context.parentKey === 'attachments' && !isExplicitlyPublicAttachment(descriptor.value)) { chargeInputBudget(state); continue; }
+    if (context.parentKey === 'attachments' && !state.retainRestrictedSidecars
+      && !isExplicitlyPublicAttachment(descriptor.value)) { chargeInputBudget(state); continue; }
     output.push(projectValue(descriptor.value, state, depth + 1, context));
   }
   return Object.freeze(output);
@@ -546,10 +550,7 @@ function projectObject(
   context: ProjectionContext,
 ): PublicationPublicValue {
   if (!isPlainObject(value)) throw new PublicationPublicProjectionError('malformed_input');
-  // Extension members and bare Feed payloads are projected with a synthetic
-  // root context.  A private annotation/attachment at that root cannot be
-  // safely dropped without changing the caller's envelope, so reject it.
-  if (context.parentKey === undefined) {
+  if (context.parentKey === undefined && !state.retainRestrictedSidecars) {
     if (isNonPublicAnnotationObject(value) || isNonPublicAttachmentObject(value)) {
       throw new PublicationPublicProjectionError('malformed_input');
     }
@@ -578,12 +579,13 @@ function projectObject(
       if (hint !== undefined) output[key] = hint;
       continue;
     }
-    if (normalized === 'annotation' && hasOwnVisibility(descriptor.value) && isPrivateAnnotation(descriptor.value)) { chargeInputBudget(state); continue; }
-    // Drop private/protected annotation-shaped values on any object key
-    // (items/notes/sidecars/etc.), without key-name matching.
-    if (normalized !== 'annotation' && isNonPublicAnnotationObject(descriptor.value)) { chargeInputBudget(state); continue; }
-    if (isNonPublicAttachmentObject(descriptor.value)) { chargeInputBudget(state); continue; }
-    if (normalized === 'attachment' && hasOwnVisibility(descriptor.value) && !isExplicitlyPublicAttachment(descriptor.value)) { chargeInputBudget(state); continue; }
+    if (!state.retainRestrictedSidecars
+      && normalized === 'annotation' && hasOwnVisibility(descriptor.value) && isPrivateAnnotation(descriptor.value)) { chargeInputBudget(state); continue; }
+    if (!state.retainRestrictedSidecars
+      && normalized !== 'annotation' && isNonPublicAnnotationObject(descriptor.value)) { chargeInputBudget(state); continue; }
+    if (!state.retainRestrictedSidecars && isNonPublicAttachmentObject(descriptor.value)) { chargeInputBudget(state); continue; }
+    if (!state.retainRestrictedSidecars && normalized === 'attachment'
+      && hasOwnVisibility(descriptor.value) && !isExplicitlyPublicAttachment(descriptor.value)) { chargeInputBudget(state); continue; }
     if (shouldRemoveField(key, normalized, descriptors, context, conflictObject)) { chargeInputBudget(state); continue; }
     if (key === 'extensions') {
       const projected = projectExtensions(descriptor.value, state, depth + 1);
@@ -696,6 +698,7 @@ function projectCredentialHint(value: unknown, state: ProjectionState): Publicat
       if (typeof descriptor.value !== 'string') {
         throw new PublicationPublicProjectionError('malformed_input');
       }
+      if (Buffer.byteLength(descriptor.value, 'utf8') > MAX_PUBLIC_STRING_BYTES) throw new PublicationPublicProjectionError('projection_limit_exceeded');
       hint = descriptor.value;
     }
   }
@@ -729,7 +732,6 @@ function projectExtensions(
     if (!state.allowedExtensions.has(key)) { chargeInputBudget(state); continue; }
     output[key] = projectValue(descriptor.value, state, depth, rootContext);
   }
-  // Preserve an explicitly empty extension map required by wire schemas.
   return keys.length === 0 || Object.keys(output).length !== 0 ? Object.freeze(output) : undefined;
 }
 

@@ -547,6 +547,10 @@ describe(`PUB-0025 public projection safety ${evidence}`, () => {
     });
   });
 
+  it(`rejects an oversized credential keyHint before public materialization ${evidence}`, () => {
+    expectProjectionError(() => project({ credentials: { keyHint: 'x'.repeat(8 * 1024 * 1024 + 1) } }));
+  });
+
   it(`removes a mixed-case secret payload that combines every naming variant in one object ${evidence}`, () => {
     const output = project({
       publicId: 'collection-public',

@@ -189,6 +189,18 @@ describe(`${evidence} SEC-0019 MCP OAuth client security defensive paths (COLP-M
     expect(() => buildOAuthDcrClientMetadata({ redirectUris: [] })).toThrow(TypeError);
     expect(() => buildOAuthDcrClientMetadata({ redirectUris: ['not-a-url'] })).toThrow(TypeError);
     expect(() => buildOAuthDcrClientMetadata({ redirectUris: ['javascript:alert(1)'] })).toThrow(TypeError);
+    for (const redirectUri of [
+      'https://app.example.test/callback#fragment',
+      'http://app.example.test/callback',
+      'file:///tmp/oauth-callback',
+      'ftp://app.example.test/callback',
+      'mailto:oauth@example.test',
+      'com.example.app://callback/oauth',
+      'com.example.app:callback',
+      ' https://app.example.test/callback',
+    ]) {
+      expect(() => buildOAuthDcrClientMetadata({ redirectUris: [redirectUri] })).toThrow(TypeError);
+    }
     expect(() => buildOAuthDcrClientMetadata({ redirectUris: ['https://app.example.test/callback'], deploymentType: 'desktop' })).toThrow(TypeError);
     expect(() => buildOAuthDcrClientMetadata({ redirectUris: ['https://app.example.test/callback'], clientName: 42 })).toThrow(TypeError);
     expect(() => buildOAuthDcrClientMetadata({ redirectUris: ['https://app.example.test/callback'], tokenEndpointAuthMethod: 'client_secret_jwt' })).toThrow(TypeError);

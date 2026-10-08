@@ -308,6 +308,14 @@ describe(`${evidence} SEC-0019 MCP OAuth client security (COLP-MCP-10)`, () => {
       expect(metadata.client_name).toBe('COLP native read client');
     });
 
+    it(`${evidence} accepts a private-use native callback scheme without an authority`, () => {
+      const metadata = buildOAuthDcrClientMetadata({
+        redirectUris: ['com.example.app:/oauth/callback'],
+      });
+      expect(metadata.application_type).toBe('native');
+      expect(metadata.redirect_uris).toEqual(['com.example.app:/oauth/callback']);
+    });
+
     it(`${evidence} rejects DCR bodies that omit or contradict application_type`, () => {
       expect(enforceOAuthDcrApplicationType({}, 'web')).toMatchObject({
         allowed: false,

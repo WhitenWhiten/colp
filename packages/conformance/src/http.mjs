@@ -56,14 +56,19 @@ export function createHttpClient(options = {}) {
   const initialPrivateLiteral = options.initialOrigin === undefined
     ? false
     : isPrivateOrLocalLiteralHostname(new URL(options.initialOrigin).hostname);
-  // Resolve independently of the fetch implementation so wrappers cannot
-  // bypass the runner's egress boundary. Tests and host integrations may
-  // inject a deterministic resolver for an intentionally simulated transport.
+  // The built-in resolver is only a security boundary when the built-in
+  // pinned transport (or an explicitly supplied equivalent) receives the
+  // approved address. A custom fetch owns its own DNS/connection policy;
+  // silently checking it with the default resolver would introduce a
+  // DNS-check/connection race because the fetch can resolve the hostname
+  // again after this check.
   const resolveHost = options.resolveHost
-    ?? (async (hostname) => {
-      const host = hostname.startsWith('[') && hostname.endsWith(']') ? hostname.slice(1, -1) : hostname;
-      return (await lookup(host, { all: true, verbatim: true })).map(({ address }) => address);
-    });
+    ?? (options.fetch === undefined
+      ? async (hostname) => {
+        const host = hostname.startsWith('[') && hostname.endsWith(']') ? hostname.slice(1, -1) : hostname;
+        return (await lookup(host, { all: true, verbatim: true })).map(({ address }) => address);
+      }
+      : undefined);
   let used = 0;
 
   /**
