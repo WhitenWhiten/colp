@@ -13,7 +13,6 @@ import {
 } from '../transport/auth/oidc-provider.js';
 import {
   createDatabaseRuntime,
-  createPostgresMcpWriteApprovalPorts,
   createAttachmentExposurePolicyAdapter,
   createPostgresSharedExposureFactsPort,
   type DatabaseRuntime,
@@ -22,7 +21,7 @@ import {
   createPostgresExtensionOwnerAccountPort,
   createPostgresExtensionOwnerSubjectPort,
 } from '../infrastructure/identity/index.js';
-import { createPhase4bMcpWriteApprovalApi } from '../modules/mcp/index.js';
+import { createPhase4bMcpAgentApprovalApi } from '../infrastructure/collections/index.js';
 import { pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
 import {
@@ -517,9 +516,7 @@ export async function startApi(options: StartApiOptions = {}): Promise<StartedAp
             enabled: true,
             allowedOrigins: config.allowedOrigins,
             identityUnitOfWork: ports.identityUnitOfWork,
-            api: createPhase4bMcpWriteApprovalApi(
-              createPostgresMcpWriteApprovalPorts(database.db),
-            ),
+            api: createPhase4bMcpAgentApprovalApi(database.db, { secretHmacKey: config.accountCredentials.cursorHmacKey?.toString('utf8') }),
             // FIX-M-018: approval policy of the unified MCP limiter (shared
             // across replicas; mcpWriteEnabled implies the limiter exists).
             rateLimiter: mcpRateLimiter!,

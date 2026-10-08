@@ -73,8 +73,8 @@ function isSocialSelect(sql: string): boolean {
   return /left join/iu.test(sql) || /select current_timestamp/iu.test(sql);
 }
 
-/** Feed + public Activity dual-append of the same social.collection-change envelope. */
-const SOCIAL_COLLECTION_CHANGE_HANDLER_ROWS = 2;
+/** The self-hosted edition removes the feed and public activity handlers. */
+const SOCIAL_COLLECTION_CHANGE_HANDLER_ROWS = 0;
 
 /**
  * Analytical classification of the observed outbox-phase SQL slice into the
@@ -556,20 +556,20 @@ describeWithPostgres('R17 outbox and JSON serialization performance evidence', (
       route_lookup: 3,
       id_reserve: 2,
       primary_outbox: 1,
-      social_outbox: 6,
+      social_outbox: 0,
       publication_purge: 0,
       sidecar_cascade: 0,
-      total: 12,
+      total: 6,
     };
-    assert.deepEqual(one.statements, expected, 'N=1 outbox slice must be exactly 12 statements');
-    assert.deepEqual(many.statements, expected, 'N=300 outbox slice must be exactly 12 statements');
+    assert.deepEqual(one.statements, expected, 'N=1 outbox slice must be exactly 6 statements');
+    assert.deepEqual(many.statements, expected, 'N=300 outbox slice must be exactly 6 statements');
     assert.deepEqual(many.statements, one.statements,
       'deleting 1 vs 300 sidecar-less nodes must yield identical outbox-phase statement counts');
     assert.equal(one.outboxRows.get(NODE_DELETED_EVENT_TYPE), 1);
     assert.equal(many.outboxRows.get(NODE_DELETED_EVENT_TYPE), 1,
       'the primary node.deleted domain event count must be independent of N');
-    assert.equal(many.outboxRows.get(SOCIAL_COLLECTION_CHANGE_EVENT_TYPE), 2);
-    assert.equal(many.outboxRows.size, 2, 'a sidecar-less delete emits primary + social event types (two social handlers)');
+    assert.equal(many.outboxRows.get(SOCIAL_COLLECTION_CHANGE_EVENT_TYPE) ?? 0, 0);
+    assert.equal(many.outboxRows.size, 1, 'a sidecar-less delete emits primary + social event types (two social handlers)');
     // N only scales the bounded resource-phase batching, never the outbox phase.
     assert.equal(one.resourceBatches.node, 1);
     assert.equal(many.resourceBatches.node, Math.ceil(300 / 128));
@@ -585,10 +585,10 @@ describeWithPostgres('R17 outbox and JSON serialization performance evidence', (
       assert.equal(m.statements.id_reserve, 2,
         'the primary ID reserve stays constant at 2; cascade ID reserves are attributed to the sidecar stage');
       assert.equal(m.statements.primary_outbox, 1, 'primary outbox stays a single insert');
-      assert.equal(m.statements.social_outbox, 6, 'social outbox stays 6 statements (feed + activity handlers)');
+      assert.equal(m.statements.social_outbox, 0, 'the removed social handlers append no statements');
       assert.equal(m.statements.publication_purge, 0);
       assert.equal(m.statements.sidecar_cascade, 3 * A, 'each annotation cascade is reserve + reserve + insert');
-      assert.equal(m.statements.total, 12 + 3 * A);
+      assert.equal(m.statements.total, 6 + 3 * A);
       assert.equal(m.outboxRows.get(ANNOTATION_DELETED_EVENT_TYPE), A);
       assert.equal(m.outboxRows.get(NODE_DELETED_EVENT_TYPE), 1);
       assert.equal(m.resourceBatches.annotation, Math.ceil(A / 128),
@@ -603,7 +603,7 @@ describeWithPostgres('R17 outbox and JSON serialization performance evidence', (
       'the primary ID reserve is N-independent; cascade ID reserves scale inside sidecar_cascade');
     assert.equal(a300.outboxRows.get(ANNOTATION_DELETED_EVENT_TYPE)! - a128.outboxRows.get(ANNOTATION_DELETED_EVENT_TYPE)!,
       300 - 128);
-    assert.equal(a1.statements.total, 12 + 3 * 1);
+    assert.equal(a1.statements.total, 6 + 3 * 1);
     void a1;
   }, 120_000);
 
@@ -615,10 +615,10 @@ describeWithPostgres('R17 outbox and JSON serialization performance evidence', (
       assert.equal(m.statements.id_reserve, 2,
         'the primary ID reserve stays constant at 2; cascade ID reserves are attributed to the sidecar stage');
       assert.equal(m.statements.primary_outbox, 1);
-      assert.equal(m.statements.social_outbox, 6);
+      assert.equal(m.statements.social_outbox, 0);
       assert.equal(m.statements.publication_purge, 0);
       assert.equal(m.statements.sidecar_cascade, 3 * R, 'each relation cascade is reserve + reserve + insert');
-      assert.equal(m.statements.total, 12 + 3 * R);
+      assert.equal(m.statements.total, 6 + 3 * R);
       assert.equal(m.outboxRows.get(RELATION_DELETED_EVENT_TYPE), R);
       assert.equal(m.outboxRows.get(NODE_DELETED_EVENT_TYPE), 1);
       assert.equal(m.resourceBatches.relation, Math.ceil(R / 128));
@@ -636,15 +636,15 @@ describeWithPostgres('R17 outbox and JSON serialization performance evidence', (
       route_lookup: 3,
       id_reserve: 2,
       primary_outbox: 1,
-      social_outbox: 6,
+      social_outbox: 0,
       publication_purge: 2,
       sidecar_cascade: 0,
-      total: 14,
+      total: 8,
     });
     assert.equal(m.outboxRows.get(NODE_DELETED_EVENT_TYPE), 1);
-    assert.equal(m.outboxRows.get(SOCIAL_COLLECTION_CHANGE_EVENT_TYPE), 2);
+    assert.equal(m.outboxRows.get(SOCIAL_COLLECTION_CHANGE_EVENT_TYPE) ?? 0, 0);
     assert.equal(m.outboxRows.get(PUBLICATION_CACHE_PURGE_EVENT_TYPE), 1);
-    assert.equal(m.outboxRows.size, 3);
+    assert.equal(m.outboxRows.size, 2);
   }, 120_000);
 
   test('sync push route: request fingerprint serialization is deterministic and bounded', async () => {

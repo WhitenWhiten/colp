@@ -510,6 +510,11 @@
     "operationId": "listMyAgents"
   },
   {
+    "method": "POST",
+    "path": "/api/v1/me/agents/keys",
+    "operationId": "issueAgentKey"
+  },
+  {
     "method": "GET",
     "path": "/api/v1/me/agents/{id}/audit",
     "operationId": "listAgentAudit"

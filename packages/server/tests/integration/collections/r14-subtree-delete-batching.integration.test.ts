@@ -591,7 +591,7 @@ describeWithPostgres('R14 batched subtree delete authority and sidecars', () => 
         deleteScope: 'subtree',
       }));
       await assertSubtreeTombstoned(sizeOne, resultOne.allocation.commitOrdinal);
-      await assertOutboxCounts(opOne, 3);
+      await assertOutboxCounts(opOne, 1);
 
       await resetFixture();
       const sizeMax = await insertFlatSubtree(64);
@@ -603,7 +603,7 @@ describeWithPostgres('R14 batched subtree delete authority and sidecars', () => 
       assert.equal(resultMax.allocation.deletedResourceRevisions
         ? Object.keys(resultMax.allocation.deletedResourceRevisions).length : 0, 64);
       await assertSubtreeTombstoned(sizeMax, resultMax.allocation.commitOrdinal);
-      await assertOutboxCounts(opMax, 3);
+      await assertOutboxCounts(opMax, 1);
 
       await resetFixture();
       const sizeOver = await insertFlatSubtree(65);
@@ -677,7 +677,7 @@ describeWithPostgres('R14 batched subtree delete authority and sidecars', () => 
         `annotation batch count for A=${annotationCount}`);
       assert.equal(counts.node, Math.ceil(nodeIds.length / 128));
       await assertSubtreeTombstoned(nodeIds, result.allocation.commitOrdinal);
-      await assertOutboxCounts(operationId, 3 + annotationCount);
+      await assertOutboxCounts(operationId, 1 + annotationCount);
       await assertAnnotationCascades(annotationIds, annotationCount, result.allocation.commitOrdinal, operationId);
     }
   }, 120_000);
@@ -738,7 +738,7 @@ describeWithPostgres('R14 batched subtree delete authority and sidecars', () => 
         `relation batch count for R=${relationCount}`);
       assert.equal(counts.node, Math.ceil(nodeIds.length / 128));
       await assertSubtreeTombstoned(nodeIds, result.allocation.commitOrdinal);
-      await assertOutboxCounts(operationId, 3 + relationCount);
+      await assertOutboxCounts(operationId, 1 + relationCount);
       await assertRelationCascades(relationIds, relationCount, result.allocation.commitOrdinal, operationId);
     }
   }, 120_000);
@@ -847,7 +847,7 @@ describeWithPostgres('R14 batched subtree delete authority and sidecars', () => 
       ['r14-outside-0001'],
     );
     assert.equal(outsideNode.rows[0].deleted, false);
-    await assertOutboxCounts(operationId, 3 + 2);
+    await assertOutboxCounts(operationId, 1 + 2);
   }, 120_000);
 
   test('mid-batch stale sidecar revision fails closed with full rollback and zero writes', async () => {
@@ -929,7 +929,7 @@ describeWithPostgres('R14 batched subtree delete authority and sidecars', () => 
         expectedResourceRevision: 'r14-target-rev',
         deleteScope: 'subtree',
       }));
-      const counts = await assertOutboxCounts(operationId, 3);
+      const counts = await assertOutboxCounts(operationId, 1);
       assert.equal(counts.affectedCount, nodeCount);
       assert.equal(result.allocation.deletedResourceRevisions
         ? Object.keys(result.allocation.deletedResourceRevisions).length : 0, nodeCount);
@@ -1007,7 +1007,7 @@ describeWithPostgres('R14 batched subtree delete authority and sidecars', () => 
     assert.ok(captured.length < 4000,
       `statement count ${captured.length} must stay a loose bound; the per-event outbox appends dominate`);
     await assertSubtreeTombstoned(nodeIds, result.allocation.commitOrdinal);
-    await assertOutboxCounts(operationId, 3 + 300 + 300);
+    await assertOutboxCounts(operationId, 1 + 300 + 300);
     await assertAnnotationCascades(annotationIds, 300, result.allocation.commitOrdinal, operationId);
     await assertRelationCascades(relationIds, 300, result.allocation.commitOrdinal, operationId);
     // Measurements are recorded for the sync-delete budget evidence; only loose bounds assert.

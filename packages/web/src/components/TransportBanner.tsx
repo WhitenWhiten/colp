@@ -4,8 +4,7 @@ import { subscribeInBrowserEnabled } from '../lib/edition'
 export type ManifestTransport = 'https' | 'insecure-http'
 
 /**
- * Read `features.transport` from a collection-protocol manifest.
- * Self-hosted servers write it on the publication mount (`mounts[0].features`).
+ * Read transport from the COLP Server URI extension, or an older server's features.
  */
 export function manifestTransport(body: unknown): ManifestTransport | undefined {
   const direct = readTransport(body)
@@ -22,7 +21,8 @@ export function manifestTransport(body: unknown): ManifestTransport | undefined 
 
 function readTransport(value: unknown): ManifestTransport | undefined {
   if (typeof value !== 'object' || value === null) return undefined
-  const features = (value as { features?: unknown }).features
+  const record = value as Record<string, unknown>
+  const features = record['https://know-n.com/colp/extensions/server'] ?? record.features
   if (typeof features !== 'object' || features === null) return undefined
   const transport = (features as { transport?: unknown }).transport
   if (transport === 'https' || transport === 'insecure-http') return transport

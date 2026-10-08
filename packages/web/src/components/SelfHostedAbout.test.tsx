@@ -15,13 +15,13 @@ describe('self-hosted about', () => {
 
   it('shows server, package, and protocol versions from health and the manifest mount', () => {
     const snapshot = readServerAbout(
-      { status: 'ok', version: { server: '0.1.0', colp: '0.1.0', protocols: ['0.1', '0.2'] } },
+      { status: 'ok', version: { server: '0.1.0', colp: '0.1.1', protocols: ['0.1', '0.2'] } },
       { mounts: [{ features: { edition: { name: 'colp-server', version: '0.1.0' } } }] },
     )
-    expect(snapshot).toEqual({ server: '0.1.0', colp: '0.1.0', protocols: '0.1 0.2' })
+    expect(snapshot).toEqual({ server: '0.1.0', colp: '0.1.1', protocols: '0.1 0.2' })
     mountTree(<SelfHostedAbout snapshot={snapshot} />)
     expect(document.body.textContent).toContain('colp-server 0.1.0')
-    expect(document.body.textContent).toContain('@know-n/colp 0.1.0')
+    expect(document.body.textContent).toContain('@know-n/colp 0.1.1')
     expect(document.body.textContent).toContain('protocols 0.1 0.2')
     expect(document.body.textContent).toContain('powered by Know-N')
     expect(document.querySelector('a[href="/CHANGELOG.md"]')).not.toBeNull()

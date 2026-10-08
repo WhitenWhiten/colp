@@ -1,3 +1,6 @@
+import { createPhase4bMcpResult } from './results.js';
+import type { Phase4bMcpChangePlanService } from './change-plan-service.js';
+import { MCP_OWN_DATA_DEFAULT_BUDGET, snapshotMcpOwnData as snapshotPhase4bData } from './own-data.js';
 /**
  * MCP-W06 host composition for the Modern `2026-07-28` Write Tools mount.
  *
@@ -28,6 +31,7 @@ import {
   type Mcp20260728XMcpHeaderScanResult,
   type McpAuthenticatedAuthorizationBinding,
   type McpChangePlanServiceOptions,
+  type McpChangePlanRevisionPort,
   type McpLowRiskToolDefinition,
   type McpStoredPlan,
   type McpWriteInputBudget,
@@ -193,6 +197,7 @@ const nodeMoveInputSchema = Object.freeze({
   additionalProperties: false,
   properties: Object.freeze({
     nodeId: opaqueIdProperty,
+    collectionId: opaqueIdProperty,
     parentId: opaqueIdProperty,
     position: Object.freeze({
       type: 'integer',
@@ -208,8 +213,11 @@ const nodeMoveOutputSchema = Object.freeze({
   additionalProperties: false,
   properties: Object.freeze({
     planId: Object.freeze({ type: 'string', minLength: 1 }),
-    risk: Object.freeze({ const: 'medium' }),
-    requiresApproval: Object.freeze({ const: true }),
+    risk: Object.freeze({ enum: ['medium', 'high'] }),
+    requiresApproval: Object.freeze({ type: 'boolean' }),
+    status: Object.freeze({ enum: ['pending', 'consumed'] }),
+    approvedBy: Object.freeze({ const: 'policy' }),
+    versionId: Object.freeze({ type: 'string' }),
     impact: Object.freeze({
       type: 'array',
       items: Object.freeze({ type: 'string' }),
@@ -426,6 +434,7 @@ export interface Phase4bMcpWriteToolAdapterBundle {
 export interface Phase4bMcpWriteToolAdapterOptions {
   /** Protocol-neutral COLP Change Plan service options backed by W02/W05 ports. */
   readonly changePlan: McpChangePlanServiceOptions;
+  readonly planCatalog?: Pick<Phase4bMcpChangePlanService, 'plan'>;
   /** W04 low-risk Canonical Node create application service. */
   readonly nodeCreateService: Phase4bMcpLowRiskNodeCreateService;
   /** Private Collection create; always `visibility: private`. */
@@ -490,7 +499,7 @@ export function createPhase4bMcpWriteToolAdapter(
     requestStateKey: readRequiredOwnData(options, 'requestStateKey') as string | Uint8Array,
     cache: Object.freeze({ 'tools/list': Object.freeze({ ttlMs: 0, cacheScope: 'private' }) }),
     ...readOptionalWriteAdapterOptions(options),
-  }));
+  }), options.planCatalog, options.changePlan.revisions);
   return Object.freeze({
     adapter,
     paramDeclarations: PHASE4B_MCP_WRITE_TOOL_PARAM_DECLARATIONS,
@@ -511,6 +520,8 @@ function bindMcpAccountSubject<T>(
 
 function withMcpAccountSubject(
   adapter: Mcp20260728WriteToolAdapter,
+  planCatalog?: Pick<Phase4bMcpChangePlanService, 'plan'>,
+  planRevisions?: McpChangePlanRevisionPort,
 ): Mcp20260728WriteToolAdapter {
   const wrapped: Mcp20260728WriteToolAdapter = {
     listTools: (context, input) =>
@@ -519,7 +530,38 @@ function withMcpAccountSubject(
         return withHostWriteToolDescriptions(listed);
       }),
     callTool: (context, input) =>
-      bindMcpAccountSubject(context, () => adapter.callTool(context, input).catch(rethrowPhase4bMcpWriteAdapterError)),
+      bindMcpAccountSubject(context, async () => {
+        const call = snapshotPhase4bData(input, MCP_OWN_DATA_DEFAULT_BUDGET) as Record<string, unknown>;
+        if (call.name === 'changes.plan' && planRevisions && canCallPhase4bMcpWriteTool(context, 'changes.plan')) {
+          await adapter.listTools(context, {});
+          const args = call.arguments as { operations?: readonly unknown[] };
+          for (const operation of Array.isArray(args?.operations) ? args.operations : []) {
+            if (operation && typeof operation === 'object' && (operation as { type?: string }).type === 'set_visibility') {
+              await planRevisions.resolveBaseRevisions(
+                operation as Parameters<McpChangePlanRevisionPort['resolveBaseRevisions']>[0],
+                requireAuthenticatedWriteBinding(snapshotMcpAuthorizationBinding(context.binding)),
+              );
+            }
+          }
+        }
+        if (planCatalog && (call.name === 'nodes.move' || call.name === 'nodes.delete_subtree')) {
+          await adapter.listTools(context, {});
+          if (!canCallPhase4bMcpWriteTool(context, call.name)) {
+            throw new TypeError('Missing nodes:write scope.');
+          }
+          const args = snapshotPhase4bData(call.arguments, MCP_OWN_DATA_DEFAULT_BUDGET) as Record<string, unknown>;
+          const plan = await planCatalog.plan({
+            ...args, tool: call.name, dryRun: true, reason: call.name,
+          }, requireAuthenticatedWriteBinding(snapshotMcpAuthorizationBinding(context.binding)));
+          return createPhase4bMcpResult({ method: 'tools/call', fields: { structuredContent: {
+            planId: plan.planId, risk: plan.risk, requiresApproval: plan.requiresApproval,
+            impact: plan.operations.map((operation) => (operation as { impact: string }).impact), operations: plan.operations,
+            status: plan.status, ...(plan.approvedBy ? { approvedBy: plan.approvedBy } : {}),
+            ...(plan.versionId ? { versionId: plan.versionId } : {}),
+          } }, cache: { ttlMs: 0, cacheScope: 'private' } }, true);
+        }
+        return adapter.callTool(context, input);
+      }).catch(rethrowPhase4bMcpWriteAdapterError),
     recordOutOfBandApproval: (planId, context) =>
       bindMcpAccountSubject(context, () => adapter.recordOutOfBandApproval(planId, context)),
     transportRequirements: adapter.transportRequirements,
@@ -828,7 +870,8 @@ function createChangeGetDefinition(
 
 function createNodeDeleteSubtreeDefinition(): McpLowRiskToolDefinition {
   const definition: McpLowRiskToolDefinition = {
-    inputSchema: nodeMoveInputSchema,
+    inputSchema: Object.freeze({ type: 'object', additionalProperties: false,
+      properties: { nodeId: opaqueIdProperty, collectionId: opaqueIdProperty }, required: ['nodeId'] }),
     outputSchema: nodeMoveOutputSchema,
     toCanonicalOperations: () => Object.freeze([Object.freeze({
       type: 'delete_subtree',

@@ -14068,6 +14068,58 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/CreditErrorEnvelope'
+  /api/v1/me/agents/keys:
+    post:
+      summary: Issue a named agent key bound to the signed-in account
+      operationId: issueAgentKey
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: Known-Command-Id
+          in: header
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 80
+      responses:
+        '201':
+          description: Key issued; the secret is returned once
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - id
+                  - name
+                  - secret
+                properties:
+                  id:
+                    type: string
+                  name:
+                    type: string
+                  secret:
+                    type: string
+        '400':
+          description: Invalid key request
+        '401':
+          description: Browser sign-in required
+        '412':
+          description: This command already issued a key; its secret cannot be recovered
 components:
   securitySchemes:
     cookieAuth:

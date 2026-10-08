@@ -138,6 +138,8 @@ export async function getPublicationSnapshotPage(
   const includesAnnotations = query.include.includes('annotations');
   const includesRelations = query.include.includes('relations');
   const cursorContextBase = {
+    collectionId: input.collectionId,
+    resourceId: `${ports.origin}/colp/v0.1/collections/${encodeURIComponent(input.collectionId)}/snapshot`,
     principal: principalScope(input.principal),
     ...(query.root ? { root: query.root } : {}),
     ...(query.depth !== undefined ? { depth: query.depth } : {}),

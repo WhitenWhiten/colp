@@ -72,12 +72,12 @@ describeWithPostgres('MCP-W04 low-risk Canonical Node create over PostgreSQL', (
       nodes: before.nodes + 1,
       operations: before.operations + 1,
       audits: before.audits + 1,
-      outbox: before.outbox + 3,
+      outbox: before.outbox + 1,
       receipts: before.receipts + 1,
       resourceRevisions: before.resourceRevisions + 1,
       contentRevisions: before.contentRevisions + 1,
       childrenRevisions: before.childrenRevisions + 1,
-      resourceIdLedger: before.resourceIdLedger + 6,
+      resourceIdLedger: before.resourceIdLedger + 4,
     });
 
     const row = (await runtime.pool.query(

@@ -36,7 +36,7 @@ describe('agent connect copy', () => {
     expect(copy.claude).toContain('claude mcp add --transport http colp')
     expect(copy.claude).toContain(copy.compatUrl)
     expect(copy.codex).toBe(copy.strictUrl)
-    expect(copy.curl).toContain('Authorization: Bearer $KEY')
+    expect(copy.curl).toContain('Authorization: Bearer $ACCESS_TOKEN')
     expect(copy.curl).toContain('MCP-Protocol-Version: 2026-07-28')
     expect(copy.curl).toContain(copy.strictUrl)
   })
@@ -54,7 +54,7 @@ describe('agent directory client', () => {
   })
 
   it('lists agents, reads policy, and loads audit', async () => {
-    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
       const url = String(input)
       if (url.endsWith('/api/v1/me/agents')) return json(200, { agents: [agent] })
       if (url.includes('/policy')) return json(200, { clientId: 'claude-code', policy: 'trusted' })
@@ -136,7 +136,7 @@ describe('agent directory client', () => {
       idleExpiresAt: '2099-01-01T00:00:00.000Z',
       absoluteExpiresAt: '2099-01-01T00:00:00.000Z',
     })
-    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
       const url = String(input)
       if (url.includes('force=true')) {
         return json(200, { planId: 'plan-1', versionId: 'ver-1', restored: true, noop: false })

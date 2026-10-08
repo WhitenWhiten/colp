@@ -1,3 +1,6 @@
+import { recordMcpDeleteSubtreeTombstones } from '../infrastructure/sync/mcp-delete-subtree-tombstone-postgres.js';
+import { createMcpNodePlanState } from '../infrastructure/collections/mcp-node-plan-state.js';
+import { createPostgresAutoApproveTrustedPlan } from '../infrastructure/collections/index.js';
 import { randomUUID } from 'node:crypto';
 import type { Kysely } from 'kysely';
 import type {
@@ -228,6 +231,7 @@ export function createPhase4bMcpWriteComposition(
     commitPlanStore: store.commitPlanStore,
     commitApprovalStore,
     createProductPorts,
+    recordDeleteSubtreeTombstones: recordMcpDeleteSubtreeTombstones,
   });
   const gatewayChangePlanOptions = {
     planStore: store.planStore,
@@ -248,12 +252,9 @@ export function createPhase4bMcpWriteComposition(
       : { planTtlMilliseconds: options.planTtlMilliseconds }),
   } as unknown as McpChangePlanServiceOptions;
   // The gateway mints `changes.plan` with the Phase4b digest that Commit verifies.
-  const changePlanOptions = {
-    ...gatewayChangePlanOptions,
-    planner: createPhase4bMcpGatewayPlanner(gatewayChangePlanOptions),
-  } as unknown as McpChangePlanServiceOptions;
   const serviceOptions: Phase4bMcpChangePlanServiceOptions<DatabaseTransaction> = {
     planner,
+    autoApproveTrustedPlan: createPostgresAutoApproveTrustedPlan(options.db),
     planStore: store.planStore,
     approvalStore,
     commitPlanStore: store.commitPlanStore,
@@ -279,12 +280,29 @@ export function createPhase4bMcpWriteComposition(
       : { planTtlMilliseconds: options.planTtlMilliseconds }),
   };
   const changePlanService = createPhase4bMcpChangePlanService(serviceOptions);
+  const gatewayPlanner = createPhase4bMcpGatewayPlanner(gatewayChangePlanOptions);
+  const changePlanOptions = {
+    ...gatewayChangePlanOptions,
+    planner: {
+      async plan(input: unknown, binding: McpAuthenticatedAuthorizationBinding) {
+        const wire = await gatewayPlanner.plan(input, binding);
+        const stored = await store.planStore.get(wire.planId);
+        if (!stored) throw new Error('The planned change is unavailable.');
+        const approved = await serviceOptions.autoApproveTrustedPlan!(
+          stored as unknown as import('../modules/mcp/change-plan-planner.js').Phase4bMcpPlannedChange,
+          binding, { approve: changePlanService.recordOutOfBandApproval, commit: changePlanService.commit },
+        );
+        return { ...wire, requiresApproval: approved.requiresApproval };
+      },
+    },
+  } as unknown as McpChangePlanServiceOptions;
   const planStatusPort = createPhase4bMcpWritePlanStatusPort(
     store.planStore,
     () => Date.now(),
   );
   const bundle = createPhase4bMcpWriteToolAdapter({
     changePlan: changePlanOptions,
+    planCatalog: changePlanService,
     nodeCreateService,
     collectionCreateService,
     nodeUpdateService,
@@ -389,7 +407,7 @@ async function authorizeAuthoritativeCapability(
   trx: Kysely<DatabaseSchema>,
   collectionId: string,
   binding: McpAuthenticatedAuthorizationBinding,
-  capability: 'read_editor' | 'create_node' | 'update_node' | 'manage_publication',
+  capability: 'read_editor' | 'create_node' | 'update_node' | 'manage_publication' | 'move_node' | 'delete_node',
 ): Promise<void> {
   const decision = await authorizeCapability(
     createPostgresAccessPolicyFactsPort(trx),
@@ -406,6 +424,7 @@ async function authorizeAuthoritativeCapability(
 
 export function createAuthoritativeState(db: Kysely<DatabaseSchema>) {
   return Object.freeze({
+    ...createMcpNodePlanState(db, authorizeAuthoritativeCapability, throwAuthoritativeStateUnavailable),
     async resolveCreateBaseRevisions(
       input: { collectionId: string; parentId: string },
       binding: McpAuthenticatedAuthorizationBinding,
@@ -573,6 +592,11 @@ function createImpactPort() {
         const collectionId = typeof (operation as { collectionId?: unknown }).collectionId === 'string'
           ? (operation as { collectionId: string }).collectionId
           : '';
+        if (type === 'move_node' || type === 'delete_subtree') {
+          if (collectionId) collections.add(collectionId);
+          nodes += type === 'delete_subtree'
+            ? (operation as { subtreeCount: number }).subtreeCount : 1;
+        }
         if (type === 'create_node') {
           if (collectionId) collections.add(collectionId);
           nodes += 1;

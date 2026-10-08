@@ -193,15 +193,15 @@ export function applySelfHostedPreset(env: NodeJS.ProcessEnv): void {
   set(env, 'PUBLICATION_SERVER_UUID', serverUuid);
   set(env, 'MCP_SERVER_UUID', serverUuid);
   set(env, 'MCP_ALLOWED_ORIGINS', canonical);
-  set(env, 'MCP_OAUTH_ISSUER', `${canonical}/`);
-  set(env, 'MCP_OAUTH_AUTHORIZATION_SERVER_METADATA_URL', `${canonical}/.well-known/oauth-authorization-server`);
+  set(env, 'MCP_OAUTH_ISSUER', `${canonical}/api/v1/auth`);
+  set(env, 'MCP_OAUTH_AUTHORIZATION_SERVER_METADATA_URL', `${canonical}/.well-known/oauth-authorization-server/api/v1/auth`);
   set(env, 'MCP_OAUTH_JWKS_URI', `${canonical}/api/v1/auth/jwks`);
   set(env, 'MCP_OAUTH_REVOCATION_STORE', 'postgres');
   set(env, 'KNOWN_EDITION', 'self-hosted');
   set(env, 'BETTER_AUTH_ENABLED', 'true');
   set(env, 'BETTER_AUTH_OAUTH_ISSUER_ENABLED', 'true');
   set(env, 'MCP_OAUTH_AUDIENCE', `${canonical}/collections/-/mcp`);
-  set(env, 'MCP_OAUTH_SCOPES', 'collections:read,collections:write,nodes:read,nodes:write,annotations:read,annotations:write');
+  set(env, 'MCP_OAUTH_SCOPES', 'mcp:read:public,mcp:read:own,collections:read,collections:write,nodes:read,nodes:write,annotations:read,annotations:write,access:write,changes:commit,changes:cancel');
   set(env, 'OIDC_ISSUER', `${canonical}/`);
   set(env, 'OIDC_AUTHORIZATION_ENDPOINT', `${canonical}/api/v1/auth/oauth2/authorize`);
   set(env, 'OIDC_TOKEN_ENDPOINT', `${canonical}/api/v1/auth/oauth2/token`);

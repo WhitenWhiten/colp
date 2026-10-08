@@ -110,10 +110,15 @@ export function agentConnectCopy(origin: string): AgentConnectCopy {
     claude: `claude mcp add --transport http colp "${compatUrl}"`,
     codex: strictUrl,
     curl: [
-      'curl -H "Authorization: Bearer $KEY" -H "MCP-Protocol-Version: 2026-07-28" \\',
+      "# Requires jq. Set KEY to the credential copied at issuance.",
+      "ACCESS_TOKEN=$(curl -fsS -H \"Content-Type: application/json\" \\",
+      "  -d \"{\\\"grant_type\\\":\\\"urn:known:params:oauth:grant-type:account-key\\\",\\\"credential\\\":\\\"$KEY\\\",\\\"audience\\\":\\\"mcp_strict\\\",\\\"scope\\\":\\\"mcp:read:public mcp:read:own nodes:read\\\"}\" \\",
+      `  "${base}/api/v1/auth/key-token" | jq -er .access_token)`,
+      'curl -H "Authorization: Bearer $ACCESS_TOKEN" -H "MCP-Protocol-Version: 2026-07-28" \\',
+      '  -H "MCP-Method: tools/list" \\',
       '  -H "Accept: application/json, text/event-stream" \\',
       '  -H "Content-Type: application/json" \\',
-      '  -d \'{"jsonrpc":"2.0","id":1,"method":"tools/list"}\' \\',
+      "  -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\",\"params\":{\"_meta\":{\"io.modelcontextprotocol/protocolVersion\":\"2026-07-28\",\"io.modelcontextprotocol/clientCapabilities\":{\"tools\":{\"call\":true}},\"io.modelcontextprotocol/clientInfo\":{\"name\":\"script\",\"version\":\"1.0\"}}}}' \\",
       `  "${strictUrl}"`,
     ].join('\n'),
   }

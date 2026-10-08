@@ -430,6 +430,8 @@ async function executeDeleteSubtree<Transaction extends object>(
   }));
   if (canonical === undefined) throw commitFailure('Delete fingerprint is not canonical JSON.');
   const fingerprint = createHash('sha256').update(canonical, 'utf8').digest('hex');
+  const target = await ports.nodes.getNode(operation.collectionId, operation.nodeId);
+  if (!target) throw commitFailure('Delete target is unavailable.');
   const result = await deleteCollectionNode(ports, Object.freeze({
     actor: Object.freeze({
       principalId: binding.principalId,
@@ -444,8 +446,8 @@ async function executeDeleteSubtree<Transaction extends object>(
     collectionId: operation.collectionId,
     nodeId: operation.nodeId,
     ifMatch: nodeRevision,
-    recursive: true,
-    ifContentMatch: contentRevision,
+    recursive: target.kind === 'folder',
+    ...(target.kind === 'folder' ? { ifContentMatch: contentRevision } : {}),
   }));
   if (result.kind !== 'deleted') {
     throw commitFailure(`Delete Plan did not apply (${result.kind}).`);
@@ -504,6 +506,15 @@ async function executeNodeMove(
   ) {
     throw commitFailure('Move Plan does not bind the node and parent revisions.');
   }
+  let afterId: string | null = null;
+  let beforeId: string | null = null;
+  if (operation.position !== undefined) {
+    const siblings = (await ports.nodes.listLiveSiblingPositions(operation.collectionId, operation.parentId))
+      .filter((node) => node.id !== operation.nodeId);
+    if (operation.position > siblings.length) throw commitFailure('Move position is outside the destination.');
+    afterId = siblings[operation.position - 1]?.id ?? null;
+    beforeId = siblings[operation.position]?.id ?? null;
+  }
   const commandId = randomUUID();
   const canonical = canonicalJson(Object.freeze({
     operation: 'nodes.move',
@@ -533,9 +544,8 @@ async function executeNodeMove(
     nodeId: operation.nodeId,
     ifMatch: nodeRevision,
     newParentId: operation.parentId,
-    // Integer position is not a sibling id. Absent position appends via null anchors.
-    afterId: null,
-    beforeId: null,
+    afterId,
+    beforeId,
     baseSourceParentRevision: sourceRevision,
     baseTargetParentRevision: targetRevision,
   }));

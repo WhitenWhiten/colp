@@ -14,8 +14,6 @@ import { version } from '../../../version.js';
 
 const KNOWN_SYNC_RETIRE_MANIFEST_EXTENSION = 'https://known.example/extensions/sync-retire';
 
-const SELF_HOSTED_EDITION_FEATURE_KEYS = ['transport', 'cloud', 'edition'] as const;
-
 export interface SelfHostedManifestFeatures {
   readonly transport: 'https' | 'insecure-http';
   readonly cloud: false;
@@ -42,37 +40,20 @@ export function selfHostedManifestFeatures(
   };
 }
 
-/** Drops G3 edition keys so COLP schema validation still sees a protocol manifest. */
+/** URI-named mount extensions are valid in both COLP 0.1 and 0.2. */
+export const COLP_SERVER_MANIFEST_EXTENSION = 'https://know-n.com/colp/extensions/server';
+
 export function manifestWithoutSelfHostedEditionFeatures<T>(manifest: T): T {
-  const mounts = (manifest as { mounts?: ReadonlyArray<{ features?: object }> }).mounts;
-  if (!mounts?.some((mount) => mountHasEditionFeatures(mount.features))) return manifest;
-  const copy = structuredClone(manifest) as T & {
-    mounts: Array<{ features?: Record<string, unknown> }>;
-  };
-  for (const mount of copy.mounts) {
-    if (mount.features === undefined) continue;
-    for (const key of SELF_HOSTED_EDITION_FEATURE_KEYS) delete mount.features[key];
-  }
-  return copy;
+  return manifest;
 }
 
-/** Writes edition keys onto the publication mount when `KNOWN_EDITION=self-hosted`. */
 export function applySelfHostedManifestFeatures<T>(manifest: T): T {
   const features = selfHostedManifestFeatures();
   if (features === null) return manifest;
-  const copy = structuredClone(manifest) as T & {
-    mounts: Array<{ features: Record<string, unknown> }>;
-  };
+  const copy = structuredClone(manifest) as T & { mounts: Array<Record<string, unknown>> };
   const mount = copy.mounts[0];
-  if (mount === undefined) return manifest;
-  mount.features = { ...mount.features, ...features };
+  if (mount !== undefined) mount[COLP_SERVER_MANIFEST_EXTENSION] = features;
   return copy;
-}
-
-function mountHasEditionFeatures(features: object | undefined): boolean {
-  if (features === undefined) return false;
-  const record = features as Record<string, unknown>;
-  return SELF_HOSTED_EDITION_FEATURE_KEYS.some((key) => Object.hasOwn(record, key));
 }
 
 export const PUBLICATION_MEDIA_TYPES = Object.freeze({

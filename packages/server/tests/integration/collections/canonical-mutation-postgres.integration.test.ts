@@ -541,7 +541,7 @@ describeWithPostgres('PostgreSQL canonical mutation adapters', () => {
     assert.equal(row.commit_ordinal, '2');
     assert.deepEqual(
       [row.resource_revisions, row.operations, row.audit, row.outbox, row.receipt],
-      [1, 1, 1, 3, 1],
+      [1, 1, 1, 1, 1],
     );
     assert.equal(row.operation_actor, PRINCIPAL_ID);
     assert.equal(row.audit_actor, PRINCIPAL_ID);
@@ -566,7 +566,7 @@ describeWithPostgres('PostgreSQL canonical mutation adapters', () => {
       `select (select count(*)::int from operations) operations,
               (select count(*)::int from outbox_events) outbox`,
     );
-    assert.deepEqual(counts.rows[0], { operations: 1, outbox: 3 });
+    assert.deepEqual(counts.rows[0], { operations: 1, outbox: 1 });
   });
 
   test('binds a distinct Product command to one canonical operation and its resource target', async () => {
@@ -691,7 +691,7 @@ describeWithPostgres('PostgreSQL canonical mutation adapters', () => {
       [COLLECTION_ID],
     );
     assert.deepEqual(replayState.rows[0], {
-      title: 'Canonical', ordinal: '2', receipts: 1, operations: 1, outbox: 3,
+      title: 'Canonical', ordinal: '2', receipts: 1, operations: 1, outbox: 1,
     });
     // Eight command cycles already take about 32s on an idle host.
   }, 90_000);
@@ -814,7 +814,7 @@ describeWithPostgres('PostgreSQL canonical mutation adapters', () => {
     assert.equal(row.policy_revision, result.allocation.policyRevision);
     assert.notEqual(row.policy_revision, 'policy-r1');
     assert.equal(row.commit_ordinal, '2');
-    assert.deepEqual([row.policy_evidence, row.outbox], [1, 4]);
+    assert.deepEqual([row.policy_evidence, row.outbox], [1, 2]);
     const routes = await runtime.pool.query(
       `select event_type, handler_name, handler_mode
        from outbox_events e join operations o
@@ -833,16 +833,7 @@ describeWithPostgres('PostgreSQL canonical mutation adapters', () => {
         handler_name: PUBLICATION_CACHE_PURGE_HANDLER_NAME,
         handler_mode: 'delivery_each_event',
       },
-      {
-        event_type: SOCIAL_COLLECTION_CHANGE_EVENT_TYPE,
-        handler_name: SOCIAL_COLLECTION_CHANGE_HANDLER_NAME,
-        handler_mode: SOCIAL_COLLECTION_CHANGE_HANDLER_MODE,
-      },
-      {
-        event_type: SOCIAL_COLLECTION_CHANGE_EVENT_TYPE,
-        handler_name: SOCIAL_PUBLIC_ACTIVITY_HANDLER_NAME,
-        handler_mode: SOCIAL_PUBLIC_ACTIVITY_HANDLER_MODE,
-      },
+
     ]);
     await assertRoutableOutbox([operationId]);
   });
@@ -1336,7 +1327,7 @@ describeWithPostgres('PostgreSQL canonical mutation adapters', () => {
         node_history: testCase.nodeCount,
         operations: 1,
         audit: 1,
-        outbox: 3,
+        outbox: 1,
         affected_ids: evidence.rows[0].affected_ids,
         affected_count: testCase.nodeCount,
         delete_scope: 'subtree',
@@ -1486,7 +1477,7 @@ describeWithPostgres('PostgreSQL canonical mutation adapters', () => {
       [COLLECTION_ID, operationId],
     );
     assert.deepEqual(evidence.rows[0], {
-      ordinal: '2', children_evidence: 2, content_evidence: 1, operations: 1, audit: 1, outbox: 3,
+      ordinal: '2', children_evidence: 2, content_evidence: 1, operations: 1, audit: 1, outbox: 1,
     });
     await assertRoutableOutbox([operationId]);
   });
@@ -1802,7 +1793,7 @@ describeWithPostgres('PostgreSQL canonical mutation adapters', () => {
       [operationId],
     );
     assert.deepEqual(evidence.rows[0], {
-      revisions: crossParent ? 5 : 4, operations: 1, audit: 1, outbox: 3, receipt: 1,
+      revisions: crossParent ? 5 : 4, operations: 1, audit: 1, outbox: 1, receipt: 1,
     });
     await assertRoutableOutbox([operationId]);
   });
@@ -2127,7 +2118,7 @@ describeWithPostgres('PostgreSQL canonical mutation adapters', () => {
       [COLLECTION_ID],
     );
     assert.deepEqual(state.rows[0], {
-      title: 'Concurrent A', summary: 'Concurrent B', ordinal: '3', operations: 2, resource_revisions: 2, outbox: 6,
+      title: 'Concurrent A', summary: 'Concurrent B', ordinal: '3', operations: 2, resource_revisions: 2, outbox: 2,
     });
   }, 30_000);
 

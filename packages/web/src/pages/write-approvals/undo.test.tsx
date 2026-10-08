@@ -73,7 +73,7 @@ describe('approvals Undo', () => {
   })
 
   it('shows approvedBy and undoes a policy-approved plan', async () => {
-    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
       const url = String(input)
       if (url.includes('force=true')) {
         return new Response(JSON.stringify({

@@ -241,7 +241,7 @@ export function AgentsPage({
         <section className="agents-block" aria-labelledby="agents-endpoint">
           <h2 id="agents-endpoint">Endpoint</h2>
           <p className="agents-meta">
-            Hosted agents, OAuth clients, and API-key scripts need HTTPS. Clients that speak MCP 2025-11-25 use the compatibility endpoint. Clients that speak MCP 2026-07-28 use the strict endpoint.
+            Hosted agents and OAuth clients need HTTPS. Local API-key scripts also work on explicitly acknowledged HTTP. Clients that speak MCP 2025-11-25 use the compatibility endpoint. Clients that speak MCP 2026-07-28 use the strict endpoint.
           </p>
           <h3>Claude Code</h3>
           <p className="agents-meta">OAuth. The browser opens this server&apos;s consent page. MCP 2025-11-25 uses the compatibility URL.</p>
@@ -264,14 +264,14 @@ export function AgentsPage({
           </div>
           <h3>API key</h3>
           <p className="agents-meta">
-            For a script that cannot do OAuth. Issue a named key below, copy it once, and send it as a bearer token. The same call fails after revoke.
+            For a script that cannot do OAuth. Issue a named key below, copy it once, exchange it for an access token, and send the token to MCP. The same call fails after revoke.
           </p>
           <pre className="agents-code">{connect.curl}</pre>
         </section>
 
         {!bootstrapping && !isLoggedIn && (
           <EmptyState
-            icon="lock"
+            icon="alert"
             title="Sign in to manage agents"
             description="The endpoint above is this server. Sign in to see clients, change policy, and issue keys."
             action={<Link to={loginPath('/agents')} className="btn btn-primary btn-sm">Sign in</Link>}

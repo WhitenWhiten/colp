@@ -1,3 +1,4 @@
+import { createValidatorRegistry } from '@know-n/colp/schema';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { afterEach, test } from 'vitest';
@@ -189,18 +190,20 @@ test('manifest advertises transport, cloud, and edition only for the self-hosted
 
   process.env.KNOWN_EDITION = 'self-hosted';
   const httpsMode = await app.inject({ method: 'GET', url: '/.well-known/collection-protocol' });
-  assert.equal(httpsMode.json().mounts[0].features.transport, 'https');
-  assert.equal(httpsMode.json().mounts[0].features.cloud, false);
-  assert.deepEqual(httpsMode.json().mounts[0].features.edition, {
+  assert.equal(createValidatorRegistry().validate('manifest', httpsMode.json()).valid, true);
+  assert.equal(httpsMode.json().mounts[0]['https://know-n.com/colp/extensions/server'].transport, 'https');
+  assert.equal(httpsMode.json().mounts[0]['https://know-n.com/colp/extensions/server'].cloud, false);
+  assert.deepEqual(httpsMode.json().mounts[0]['https://know-n.com/colp/extensions/server'].edition, {
     name: 'colp-server',
     version: SERVER_VERSION,
   });
 
   process.env.COLP_INSECURE_HTTP = 'true';
   const insecureMode = await app.inject({ method: 'GET', url: '/.well-known/collection-protocol' });
-  assert.equal(insecureMode.json().mounts[0].features.transport, 'insecure-http');
-  assert.equal(insecureMode.json().mounts[0].features.cloud, false);
-  assert.equal(insecureMode.json().mounts[0].features.edition.version, SERVER_VERSION);
+  assert.equal(createValidatorRegistry().validate('manifest', insecureMode.json()).valid, true);
+  assert.equal(insecureMode.json().mounts[0]['https://know-n.com/colp/extensions/server'].transport, 'insecure-http');
+  assert.equal(insecureMode.json().mounts[0]['https://know-n.com/colp/extensions/server'].cloud, false);
+  assert.equal(insecureMode.json().mounts[0]['https://know-n.com/colp/extensions/server'].edition.version, SERVER_VERSION);
   await app.close();
 });
 

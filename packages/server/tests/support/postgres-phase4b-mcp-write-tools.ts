@@ -1,3 +1,5 @@
+import { createPhase4bMcpGatewayPlanner } from '../../src/modules/mcp/change-plan-gateway-planner.js';
+import { createPhase4bMcpChangePlanDigestVerifier } from '../../src/modules/mcp/change-plan-service.js';
 import { randomBytes, randomUUID } from 'node:crypto';
 import type { Kysely } from 'kysely';
 import type {
@@ -107,6 +109,7 @@ export function createPostgresPhase4bMcpWriteHarness(
   const changePlan: McpChangePlanServiceOptions = Object.freeze({
     planStore: store.planStore,
     approvalStore: store.approvalStore,
+    verifyStoredOperationsDigest: createPhase4bMcpChangePlanDigestVerifier(),
     impact: Object.freeze({
       assessImpact: async () => WRITE_TEST_IMPACT,
     }),
@@ -176,7 +179,7 @@ export function createPostgresPhase4bMcpWriteHarness(
     planTtlMilliseconds: 3_600_000,
   });
   const bundle = createPhase4bMcpWriteToolAdapter({
-    changePlan,
+    changePlan: { ...changePlan, planner: createPhase4bMcpGatewayPlanner(changePlan) } as McpChangePlanServiceOptions,
     nodeCreateService: createPhase4bMcpLowRiskNodeCreateService({ unitOfWork, inspect }),
     collectionCreateService: createPhase4bMcpOwnedCollectionCreateService({ unitOfWork }),
     nodeUpdateService: createPhase4bMcpLowRiskNodeUpdateService({ unitOfWork, inspect }),

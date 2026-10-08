@@ -79,6 +79,7 @@ export async function getPublicationDirectoryPage(
     : `account:${input.principal.principalId}`;
   const filterDigest = createPublicationDirectoryFilterDigest(normalized.filter);
   const cursorContext = {
+    resourceId: `${ports.origin}/colp/v0.1/collections`,
     principal,
     filterDigest,
     sort: DEFAULT_PUBLICATION_DIRECTORY_SORT,

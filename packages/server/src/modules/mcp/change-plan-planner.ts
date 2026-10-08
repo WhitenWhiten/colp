@@ -1119,6 +1119,7 @@ async function settleAuthoritativeState<Value>(
     return await settle(candidate);
   } catch (error) {
     if (error instanceof Phase4bMcpChangePlanPlannerError) throw error;
+    if (error instanceof Error && error.name === 'AuthoritativeStateUnavailableError') throw error;
     throw new Phase4bMcpChangePlanPlannerError(
       'authoritative_state_invalid',
       AUTHORITATIVE_STATE_UNAVAILABLE,
@@ -1438,7 +1439,7 @@ function assertOnlyKeys(
   message: string,
 ): void {
   const keys = Reflect.ownKeys(value).filter((key): key is string => typeof key === 'string');
-  if (keys.length !== allowed.length || keys.some((key) => !allowed.includes(key))) {
+  if (keys.some((key) => !allowed.includes(key))) {
     throw new Phase4bMcpChangePlanPlannerError('open_payload_rejected', message);
   }
 }

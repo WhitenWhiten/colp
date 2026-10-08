@@ -15,28 +15,11 @@ export function readServerAbout(health: unknown, manifest?: unknown): ServerAbou
   const protocols = Array.isArray(record.protocols)
     ? record.protocols.filter((item): item is string => typeof item === 'string').join(' ')
     : ''
-  const editionVersion = readEditionVersion(manifest)
   return {
     server: record.server,
-    colp: editionVersion ?? record.colp,
+    colp: record.colp,
     protocols,
   }
-}
-
-function readEditionVersion(manifest: unknown): string | undefined {
-  if (typeof manifest !== 'object' || manifest === null) return undefined
-  const mounts = (manifest as { mounts?: unknown }).mounts
-  if (!Array.isArray(mounts)) return undefined
-  for (const mount of mounts) {
-    if (typeof mount !== 'object' || mount === null) continue
-    const features = (mount as { features?: unknown }).features
-    if (typeof features !== 'object' || features === null) continue
-    const edition = (features as { edition?: unknown }).edition
-    if (typeof edition !== 'object' || edition === null) continue
-    const version = (edition as { version?: unknown }).version
-    if (typeof version === 'string' && version.length > 0) return version
-  }
-  return undefined
 }
 
 async function loadServerAbout(): Promise<ServerAboutSnapshot | null> {
@@ -44,9 +27,7 @@ async function loadServerAbout(): Promise<ServerAboutSnapshot | null> {
   try {
     const healthResponse = await fetch('/health')
     const health = healthResponse.ok ? await healthResponse.json() as unknown : undefined
-    const manifestResponse = await fetch('/.well-known/collection-protocol')
-    const manifest = manifestResponse.ok ? await manifestResponse.json() as unknown : undefined
-    return readServerAbout(health, manifest)
+    return readServerAbout(health)
   } catch {
     return null
   }

@@ -1,11 +1,11 @@
 #!/bin/sh
-# deploy/compose.yaml mounts colp-web on /srv/web. An empty mount hides the
-# image files there, so seed from /opt/colp-web. A mount that already has
-# index.html is left unchanged. Caddy serves the same volume read-only.
+# deploy/compose.yaml mounts colp-web on /srv/web. Refresh the persistent web volume from the image
+# on every start, including upgrades. This volume holds only shipped assets. Caddy serves the same volume read-only.
 set -eu
 
-if [ ! -e /srv/web/index.html ] && [ -f /opt/colp-web/index.html ]; then
+if [ -f /opt/colp-web/index.html ]; then
   mkdir -p /srv/web
+  find /srv/web -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
   cp -a /opt/colp-web/. /srv/web/
   if [ "$(id -u)" -eq 0 ]; then
     chown -R node:node /srv/web

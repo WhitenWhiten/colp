@@ -1,3 +1,4 @@
+import { truncateFixtureTables } from '../../support/postgres-test-runtime.js';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, test } from 'vitest';
@@ -388,6 +389,7 @@ describeWithPostgres('P3-36 real Product Sync Center HTTP/PostgreSQL', () => {
   }, 120_000);
 
   test('rotates conflict keys with a retained decryption keyring, gates readiness, and drains by re-encryption', async () => {
+    await truncateFixtureTables(runtime.pool, 'truncate table sync_conflicts cascade');
     const keyringV1: SyncConflictPayloadKeyring = { active: { key: CONFLICT_KEY_V1, keyVersion: 1 }, retained: [] };
     const keyringV2: SyncConflictPayloadKeyring = {
       active: { key: CONFLICT_KEY_V2, keyVersion: 2 },
@@ -638,7 +640,7 @@ describeWithPostgres('P3-36 real Product Sync Center HTTP/PostgreSQL', () => {
 });
 
 function incrementResolution(before: Record<string, number>) {
-  return { operations: before.operations + 1, audits: before.audits + 1, outbox: before.outbox + 3,
+  return { operations: before.operations + 1, audits: before.audits + 1, outbox: before.outbox + 1,
     sync_receipts: before.sync_receipts + 1, product_receipts: before.product_receipts + 1,
     // Server resolution has an independent author; browser lane receipts do not change.
     sequence_receipts: before.sequence_receipts };

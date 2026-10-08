@@ -68,6 +68,10 @@ jobs:
           test ! -d node_modules/esbuild || npm rebuild esbuild --ignore-scripts=false
           npm run build
 
+      - name: Install the conformance runner
+        run: npm ci --ignore-scripts
+        working-directory: packages/conformance
+
       - name: Start the http profile
         env:
           COLP_VERSION: ${{ steps.release.outputs.version }}

@@ -10,12 +10,7 @@
 #   GET /.well-known/collection-protocol
 #                 validateManifestSemantics from @know-n/colp/semantic
 #
-# npm run conformance is the repository's anonymous core+publication runner
-# and does not need owner credentials. It is not gated here: a self-hosted
-# Manifest adds features.transport, features.cloud, and features.edition
-# after protocol schema validation (applySelfHostedManifestFeatures). The
-# reference schema rejects those keys, so the runner's PUB-0018 MUST check
-# fails on a healthy server.
+# Includes the anonymous core+publication conformance gate.
 set -euo pipefail
 
 if [[ $# -ne 1 ]]; then
@@ -104,7 +99,7 @@ if (!result || result.valid !== true) {
 const versionLabel = typeof health.version === 'string'
   ? health.version
   : health.version.server;
-console.log(`smoke: ok health version=${versionLabel} ready manifest=/.well-known/collection-protocol`);
+console.log(`smoke: health version=${versionLabel} ready manifest=/.well-known/collection-protocol`);
 
 function parseJson(path, name) {
   const body = readFileSync(path, 'utf8');
@@ -142,3 +137,6 @@ async function loadSemantic(root) {
   }
 }
 EOF
+
+(cd "${repo_root}" && npm run conformance -- "${origin}")
+echo "smoke: ok"

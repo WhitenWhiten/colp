@@ -307,3 +307,5 @@ export { createPostgresClassificationAutoTagRoute } from './classification-auto-
 
 
 export * from './actor-bookmark-read.js';
+
+export { createPhase4bMcpAgentApprovalApi, createPostgresAutoApproveTrustedPlan } from './agent-policy-postgres.js';

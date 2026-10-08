@@ -190,10 +190,11 @@ export function registerMcpWriteApprovalRoutes(
     },
     onRequest: exposure(deps),
   }, async (request, reply) => {
-    await actor(request, deps, false, POLICY);
+    const policyActor = await actor(request, deps, false, POLICY);
     const clientId = readClientId(request);
     const api = policyApi(deps);
     if (api.getAgentPolicy === undefined) throw notFound();
+    await withCancellation(request, deps.timeoutMs, () => assertOwnedAgent(deps, policyActor.id, clientId));
     try {
       const view = await withCancellation(request, deps.timeoutMs, () => api.getAgentPolicy!(clientId));
       return reply.code(200).type('application/json; charset=utf-8').send(view);
@@ -223,6 +224,7 @@ export function registerMcpWriteApprovalRoutes(
     const policy = parsePolicyBody(request.body);
     const api = policyApi(deps);
     if (api.putAgentPolicy === undefined) throw notFound();
+    await withCancellation(request, deps.timeoutMs, () => assertOwnedAgent(deps, account.id, clientId));
     try {
       const view = await withCancellation(request, deps.timeoutMs, () =>
         api.putAgentPolicy!(clientId, policy));
@@ -547,4 +549,13 @@ function unavailable(): ProductHttpError {
     retryAfterSeconds: 1,
     headers: { 'Retry-After': '1' },
   });
+}
+
+async function assertOwnedAgent(deps: McpWriteApprovalRoutesDependencies, accountId: string, clientId: string) {
+  const api = deps.api as Phase4bMcpWriteApprovalApi & {
+    listAgents?: (accountId: string) => Promise<{ agents: readonly { id: string }[] }>;
+  };
+  if (!api.listAgents) throw notFound();
+  const page = await api.listAgents(accountId);
+  if (!page.agents.some((agent) => agent.id === clientId)) throw notFound();
 }

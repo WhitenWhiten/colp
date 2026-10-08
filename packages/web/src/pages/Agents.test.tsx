@@ -51,7 +51,7 @@ describe('Agents page', () => {
     expect(document.body.textContent).toContain('claude mcp add --transport http colp')
     expect(document.body.textContent).toContain('https://colp.example.net/collections/-/mcp-compat')
     expect(document.body.textContent).toContain('https://colp.example.net/collections/-/mcp')
-    expect(document.body.textContent).toContain('Authorization: Bearer $KEY')
+    expect(document.body.textContent).toContain('Authorization: Bearer $ACCESS_TOKEN')
     expect(document.body.textContent).toContain('Codex')
     expect(document.querySelector('[data-testid="agents-page"] h1')?.textContent).toBe('Agents')
   })

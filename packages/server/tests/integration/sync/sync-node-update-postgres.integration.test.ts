@@ -1843,7 +1843,7 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
       const after = await facts(opened.value.replica.replicaId, opened.node.id);
       assert.equal(after.operations, before.operations + 1);
       assert.equal(after.audits, before.audits + 1);
-      assert.equal(after.outbox, before.outbox + 3);
+      assert.equal(after.outbox, before.outbox + 1);
       assert.equal(after.node.title, item.expectedTitle);
       const conflict = (await isolated.runtime.pool.query(`select status,resolution,resolved_by_operation_id,
         resolution_result_json from sync_conflicts where conflict_id=$1`, [opened.conflictId])).rows[0];

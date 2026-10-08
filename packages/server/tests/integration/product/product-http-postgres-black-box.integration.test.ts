@@ -482,7 +482,7 @@ describeWithPostgres('Product HTTP + PostgreSQL black-box lifecycle', () => {
       assert.equal(delivered.rows[0]?.pending, '0');
       assert.ok(BigInt(delivered.rows[0]?.completed ?? '0') >= 7n);
       assert.equal(delivered.rows[0]?.projection_rows, delivered.rows[0]?.projection_completed);
-      assert.equal(delivered.rows[0]?.social_completed, delivered.rows[0]?.projection_completed);
+      assert.equal(delivered.rows[0]?.social_completed, '0');
 
       await app.close();
       primaryAppClosed = true;
@@ -508,7 +508,7 @@ describeWithPostgres('Product HTTP + PostgreSQL black-box lifecycle', () => {
       );
       assert.deepEqual(
         pendingAfterRestart.rows.map((row) => row.state),
-        ['pending', 'pending', 'pending'],
+        ['pending'],
       );
 
       restartedWorker = composeProjectionWorker();
@@ -521,7 +521,7 @@ describeWithPostgres('Product HTTP + PostgreSQL black-box lifecycle', () => {
       );
       assert.deepEqual(
         completedAfterRestart.rows.map((row) => row.state),
-        ['completed', 'completed', 'completed'],
+        ['completed'],
       );
       const projectedAfterRestart = await restartedWorker.projectionSink.repository.getResource(
         restartedCollectionBody.collection.id,
@@ -588,7 +588,7 @@ describeWithPostgres('Product HTTP + PostgreSQL black-box lifecycle', () => {
     }
   }, 30_000);
 
-  test('OIDC /me advertises only its persisted handle and the empty public Profile resolves', async () => {
+  test('OIDC /me advertises its persisted handle and the removed public Profile route stays absent', async () => {
     const app = composeApp();
     try {
       const client = await logIn(app, 'no-preferred-username-profile');
@@ -602,14 +602,7 @@ describeWithPostgres('Product HTTP + PostgreSQL black-box lifecycle', () => {
         method: 'GET',
         url: `/api/v1/profiles/${encodeURIComponent(me.profile.handle)}`,
       });
-      assert.equal(profileResponse.statusCode, 200);
-      const profile = profileResponse.json() as {
-        profile: { handle: string; displayName: string };
-        collections: unknown[];
-      };
-      assert.equal(profile.profile.handle, me.profile.handle);
-      assert.equal(profile.profile.displayName, me.profile.displayName);
-      assert.deepEqual(profile.collections, []);
+      assert.equal(profileResponse.statusCode, 404);
     } finally {
       await app.close();
     }
@@ -653,103 +646,6 @@ describeWithPostgres('Product HTTP + PostgreSQL black-box lifecycle', () => {
       assert.equal(await runtime.pool.query(
         `select 1 from profile_handles where handle = 'rename_must_rollback'`,
       ).then((result) => result.rowCount), 0);
-    } finally {
-      await app.close();
-    }
-  }, 30_000);
-
-  test('serves anonymous public Profile GET, HEAD, and conditional GET over real HTTP and PostgreSQL', async () => {
-    const app = composeApp();
-    try {
-      await logIn(app, 'public-profile-black-box');
-      const identity = await runtime.pool.query<{ account_id: string; subject_id: string }>(
-        `select a.id as account_id, a.subject_id
-           from accounts a
-           join auth_user_account_map m on m.account_id = a.id
-           join auth_users u on u.id = m.auth_user_id
-          where u.email = $1`,
-        ['public-profile-black-box@example.test'],
-      );
-      const account = identity.rows[0];
-      assert.ok(account);
-      const claimed = await createPostgresIdentityUnitOfWork(runtime.db, {
-        oidcTransactionSecrets: config.oidcTransactionSecrets,
-      }).execute((ports) => claimHandle(ports, {
-        accountId: account.account_id,
-        handle: 'public.profile~black-box',
-      }));
-      const row = { ...account, handle: claimed.handle };
-      await runtime.pool.query(
-        `update profiles set display_name = 'Public Profile',
-            avatar_url = 'https://cdn.example.test/profile.png',
-            about = 'I collect bookmarks.'
-          where account_id = $1`,
-        [row.account_id],
-      );
-      const client = await runtime.pool.connect();
-      try {
-        await client.query('begin');
-        await client.query('set constraints all deferred');
-        await client.query(
-          `insert into resource_id_ledger(resource_id, resource_type)
-           values ('profile-http-collection', 'collection'), ('profile-http-root', 'node')`,
-        );
-        await client.query(
-          `insert into collections
-             (id, owner_subject_id, title, summary, kind, visibility, root_node_id,
-              resource_revision, content_revision, policy_revision, publication_slug, published_at, updated_at)
-           values
-             ('profile-http-collection', $1, 'Profile collection', null, 'bookmarks', 'public',
-              'profile-http-root', 'r1', 'c1', 'p1', 'profile-http-collection', current_timestamp, current_timestamp)`,
-          [row.subject_id],
-        );
-        await client.query(
-          `insert into nodes
-             (id, collection_id, kind, is_root, title, resource_revision, children_revision)
-           values ('profile-http-root', 'profile-http-collection', 'folder', true, 'Profile collection', 'r1', 'ch1')`,
-        );
-        await client.query('commit');
-      } catch (error) {
-        await client.query('rollback');
-        throw error;
-      } finally {
-        client.release();
-      }
-
-      const origin = await app.listen({ host: '127.0.0.1', port: 0 });
-      const url = `${origin}/api/v1/profiles/${encodeURIComponent(row.handle)}?limit=20`;
-      const get = await fetch(url, { headers: { accept: 'application/json' } });
-      assert.equal(get.status, 200);
-      const bytes = Buffer.from(await get.arrayBuffer());
-      const etag = get.headers.get('etag');
-      assert.ok(etag);
-      assert.equal(
-        etag,
-        `"sha256-${createHash('sha256').update('known-product-profile\n1.2.0\napplication/json\n').update(bytes).digest('base64url')}"`,
-      );
-      const document = JSON.parse(bytes.toString('utf8')) as {
-        profile: { handle: string; displayName: string };
-        collections: ReadonlyArray<{ id: string }>;
-      };
-      assert.deepEqual(document.profile, {
-        profileId: row.account_id,
-        handle: row.handle,
-        displayName: 'Public Profile',
-        avatarUrl: 'https://cdn.example.test/profile.png',
-        about: 'I collect bookmarks.',
-      });
-      assert.deepEqual(document.collections.map((collection) => collection.id), ['profile-http-collection']);
-
-      const head = await fetch(url, { method: 'HEAD', headers: { accept: 'application/json' } });
-      assert.equal(head.status, 200);
-      assert.equal(await head.text(), '');
-      assert.equal(head.headers.get('etag'), etag);
-      assert.equal(head.headers.get('content-length'), String(bytes.byteLength));
-
-      const notModified = await fetch(url, { headers: { accept: 'application/json', 'if-none-match': etag } });
-      assert.equal(notModified.status, 304);
-      assert.equal(await notModified.text(), '');
-      assert.equal(notModified.headers.get('etag'), etag);
     } finally {
       await app.close();
     }

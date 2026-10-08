@@ -56,7 +56,7 @@ export interface AutoApproveTrustedPlanDeps {
     principalId: string;
     subjectId: string;
     collectionId: string;
-    cause: string;
+    cause: `agent-plan:${string}`;
   }>) => Promise<{ readonly versionId: string }>;
   readonly saveReceipt: (receipt: AgentPlanPolicyReceipt) => Promise<void>;
   readonly audit: (input: Readonly<{
@@ -112,7 +112,7 @@ export function createAutoApproveTrustedPlan(
     const collectionId = collectionIdFromPlan(planned);
     if (collectionId === undefined) return planned;
     const subjectId = requireMcpAccountSubjectId();
-    const cause = `agent-plan:${planned.planId}`;
+    const cause = `agent-plan:${planned.planId}` as const;
     const captured = await deps.captureVersion({
       principalId: binding.principalId,
       subjectId,

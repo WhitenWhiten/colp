@@ -88,22 +88,27 @@ agent appears in the Agents list.
 **Codex and other clients that speak MCP 2026-07-28**: use
 `/collections/-/mcp` instead of `/collections/-/mcp-compat`.
 
-**A script with an API key** (HTTPS only): Agents → **Issue key**, copy it
-once, then run this against the HTTPS origin from section 3 (`tls-auto` or
-`tls-internal`), not against `http://127.0.0.1:8080`:
+**A script with an API key** (HTTPS, or explicitly acknowledged HTTP):
+Agents → **Issue key**, copy the credential once into `KEY`. Exchange it for
+an access token, then send that token to MCP. This example uses `jq`:
+
 ```sh
-curl -H "Authorization: Bearer $KEY" -H "MCP-Protocol-Version: 2026-07-28" \
+ACCESS_TOKEN=$(curl -fsS -H "Content-Type: application/json" \
+  -d "{\"grant_type\":\"urn:known:params:oauth:grant-type:account-key\",\"credential\":\"$KEY\",\"audience\":\"mcp_strict\",\"scope\":\"mcp:read:public mcp:read:own nodes:read\"}" \
+  "$COLP_SERVER_ORIGIN/api/v1/auth/key-token" | jq -er .access_token)
+curl -H "Authorization: Bearer $ACCESS_TOKEN" -H "MCP-Protocol-Version: 2026-07-28" \
+  -H "MCP-Method: tools/list" \
   -H "Accept: application/json, text/event-stream" \
   -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{"tools":{"call":true}},"io.modelcontextprotocol/clientInfo":{"name":"script","version":"1.0"}}}}' \
   "$COLP_SERVER_ORIGIN/collections/-/mcp"
 ```
-The server checks that key by fetching its own JWKS at `COLP_SERVER_ORIGIN`.
-On the plain HTTP profile that origin is `http://127.0.0.1:8080`, which is
-the container itself, not the host port, so the fetch fails and `tools/list`
-returns HTTP 401 `invalid_token`. Use an HTTPS origin the server can reach.
-The same 401 with no `Accept` header is HTTP 406 `mcp_unsupported_accept`;
-send both `application/json` and `text/event-stream`.
+
+The built-in issuer verifies its public keys from the local database, including
+API-key signing keys, so it does not need to reach its public origin from inside
+Docker. External issuers still use their configured JWKS endpoint.
+Hosted OAuth clients still require HTTPS. An HTTP API-key script needs the
+server's `COLP_INSECURE_HTTP=true` opt-in.
 
 **Approval policy.** Each agent starts as *manual*: a plan that changes
 your collection waits on the Approvals page. Switch an agent to *trusted* to

@@ -15,7 +15,7 @@ import { seedClassificationTaxonomy } from '../../support/classification-databas
 import { classificationHttpHarness, classificationAuthHeaders } from '../../support/classification-http-harness.js';
 import { describeWithPostgres, type IsolatedPostgresRuntime } from '../../support/postgres-test-runtime.js';
 
-const golden=JSON.parse(readFileSync(new URL('../../../../docs/plans/active/cross-module/classification-credits/contracts/golden.json',import.meta.url),'utf8')) as {
+const golden=JSON.parse(readFileSync(new URL('../../fixtures/classification-credits-golden.json',import.meta.url),'utf8')) as {
   name:string;value:Record<string,unknown>;
 }[];
 const consent={priceVersion:'bookmark-classify.v1',maxPoints:1};

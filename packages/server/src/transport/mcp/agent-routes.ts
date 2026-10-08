@@ -1,3 +1,4 @@
+import { AccountCredentialCommandError } from '../../modules/auth/index.js';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { observeBestEffort } from '../../infrastructure/async/best-effort.js';
 import { secretsMatch } from '../../modules/identity/index.js';
@@ -17,6 +18,7 @@ const MAX_LIMIT = 100;
 const DEFAULT_LIMIT = 50;
 
 interface AgentDirectoryApi {
+  issueAgentKey?(accountId: string, name: string, commandId: string): Promise<{ id: string; name: string; secret: string }>;
   listAgents?(accountId: string): Promise<{ readonly agents: readonly unknown[] }>;
   listAgentAudit?(
     accountId: string,
@@ -38,6 +40,36 @@ export function registerAgentDirectoryRoutes(
     queryErrorCode: 'invalid_request' as const,
     cacheControl: 'private-no-store' as const,
   };
+  app.post('/api/v1/me/agents/keys', {
+    config: {
+      ...productRouteMetadata('POST', '/api/v1/me/agents/keys'),
+      productTransport: { ...transport, allowedQuery: [], acceptedMediaTypes: ['application/json'], bodyLimitBytes: 1024 },
+    }, onRequest: exposure(deps),
+  }, async (request, reply) => {
+    const { account: owner, session } = await requireBrowserSessionActor(request, deps.identityUnitOfWork, { touch: true });
+    requireAllowedOrigin(request, deps.allowedOrigins);
+    requireCsrfHeader(request, session.csrfTokenHash, deps.csrfMatches ?? secretsMatch);
+    await consume(deps, `/api/v1/me/agents/keys:principal:${owner.id}`);
+    const body = request.body as { name?: unknown } | null;
+    const commandId = request.headers['known-command-id'];
+    if (!body || Object.keys(body).join('|') !== 'name' || typeof body.name !== 'string'
+        || !body.name.trim() || body.name.length > 80
+        || typeof commandId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu.test(commandId)) {
+      throw new ProductHttpError({ statusCode: 400, code: 'invalid_request', message: 'A key name and command ID are required.' });
+    }
+    const api = directoryApi(deps);
+    if (!api.issueAgentKey) throw unavailable();
+    try {
+      const issued = await withTimeout(deps.timeoutMs, () => api.issueAgentKey!(owner.id, body.name as string, commandId));
+      return reply.code(201).type('application/json; charset=utf-8').send(issued);
+    } catch (error) {
+      if (error instanceof AccountCredentialCommandError) {
+        throw new ProductHttpError({ statusCode: productErrorStatus(error.code), code: error.code, message: error.message });
+      }
+      throw error;
+    }
+  });
+
   app.get(LIST, {
     config: {
       ...productRouteMetadata('GET', LIST),

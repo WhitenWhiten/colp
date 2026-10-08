@@ -324,10 +324,10 @@ describeWithPostgres('MCP-W03 registered canonical operation planning over W02 s
       }
     });
 
-    assert.ok(unauthorized instanceof Phase4bMcpChangePlanPlannerError);
-    assert.ok(missing instanceof Phase4bMcpChangePlanPlannerError);
-    assert.equal(unauthorized.code, 'authoritative_state_invalid');
-    assert.equal(missing.code, unauthorized.code);
+    assert.ok(unauthorized instanceof Error);
+    assert.ok(missing instanceof Error);
+    assert.equal(unauthorized.name, 'AuthoritativeStateUnavailableError');
+    assert.equal(missing.name, unauthorized.name);
     assert.equal(missing.message, unauthorized.message);
     assert.doesNotMatch(unauthorized.message, /disappeared/u);
     assert.doesNotMatch(unauthorized.message, new RegExp(fixture.childrenRevision, 'u'));

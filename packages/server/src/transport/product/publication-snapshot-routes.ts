@@ -1,6 +1,7 @@
 import { createValidatorRegistry } from '@know-n/colp/schema';
 import {
   composePublicationHttpRead,
+  projectPublicationPublicWire,
   createPublicationProblemDescriptor,
   mergePublicationAntiDiscoveryHeaders,
   mergePublicationSnapshotNextLinkHeaders,
@@ -111,11 +112,16 @@ export function registerPublicationSnapshotRoutes(
                 : { kind: 'anonymous' },
               query: decoded,
             }, cancellation.signal);
+            if (!session && result.projection !== 'public') {
+              throw new Error('Anonymous snapshots require the public scope projection.');
+            }
+            const wire = session ? result.snapshot : projectPublicationPublicWire(result.snapshot);
             const nextUrl = result.nextCursor === null
               ? null
               : createNextUrl(dependencies.config, collectionId, decoded, result.nextCursor);
             return {
-              value: result.snapshot,
+              value: wire,
+              principalScope: session ? `account:${session.account.id}` : `anonymous:${collectionId}`,
               revision: result.snapshot.revision,
               projectionKey: result.projection === 'member' ? 'member-snapshot' : 'anonymous-public',
               protocolVersion: SNAPSHOT_PROTOCOL_VERSION,
@@ -129,23 +135,26 @@ export function registerPublicationSnapshotRoutes(
                 ...(typeof decoded.pageCursor === 'string' ? { pageCursor: decoded.pageCursor } : {}),
                 pageNumber: result.snapshot.page.sequence,
               },
-              headers: mergePublicationSnapshotNextLinkHeaders(result.snapshot, nextUrl, {
+              headers: mergePublicationSnapshotNextLinkHeaders(wire, nextUrl, {
                 Vary: snapshotVary(request),
-              }),
+              }, 'authorized-private'),
             };
           },
         } as const;
-        const response = session
-          ? await composePublicationHttpRead({
-              ...common,
-              access: 'authorized-private',
-              authorize: () => ({ allowed: true, context: null }),
-              resolveRepresentation: async (decoded) => ({
-                ...await common.resolveRepresentation(decoded),
-                principalScope: `account:${session.account.id}`,
-              }),
-            })
-          : await composePublicationHttpRead({ ...common, access: 'anonymous-public' });
+        // The producer checks the complete database scope, including ancestors
+        // and sidecar endpoints on earlier pages. Serialize that authorized
+        // projection, with public redaction applied to anonymous responses.
+        const response = await composePublicationHttpRead({
+          ...common,
+          access: 'authorized-private',
+          async authorize(decoded) {
+            return { allowed: true, context: await common.resolveRepresentation(decoded) };
+          },
+          resolveRepresentation: (_decoded, representation) => representation,
+        });
+        if (!session && (response.status === 200 || response.status === 304)) {
+          response.headers.set('Cache-Control', 'public, max-age=0, must-revalidate');
+        }
         return sendFetchResponse(reply, response, request);
       } catch (error) {
         const limited = sendPublicationRateLimitProblem(reply, request, error);

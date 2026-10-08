@@ -1,3 +1,6 @@
+import { createLocalIssuerJwks } from '../infrastructure/auth/local-issuer-jwks.js';
+import { createPostgresNodesSearchPorts } from '../infrastructure/search/index.js';
+import { createSearchCursorSigner } from '../modules/search/index.js';
 import { loadConfig, DEFAULT_MCP_WRITE_COMMIT_RATE_LIMIT } from './config.js';
 import { createPhase4bMcpWriteComposition } from './mcp-write-composition.js';
 import { createMcpReadOAuthTransportDependencies, createMcpSecurityEpochReader,
@@ -193,8 +196,14 @@ export async function composeApiMcpSurface(input: {
   const machineCredentialUnitOfWork = config.accountCredentials.enabled
     ? createPostgresAccountCredentialUnitOfWork(database.db, undefined, undefined, { secretHmacKey: config.accountCredentials.cursorHmacKey?.toString('utf8') })
     : null;
+  const builtinIssuer = `${config.productOrigin}${config.betterAuth.basePath}`;
+  const localJwks = config.betterAuth.oauthIssuerEnabled
+    && config.mcp?.oauth.issuer === builtinIssuer
+    && config.mcp.oauth.jwksUri === `${builtinIssuer}/jwks`
+      ? createLocalIssuerJwks(database.db, accountKeyRuntime.publicKeys) : undefined;
+  const activeJwks = jwksProvider ?? localJwks;
   const mcpReadOAuthDependencies = createMcpReadOAuthTransportDependencies(config, {
-    ...(jwksProvider === undefined ? {} : { jwksProvider }),
+    ...(activeJwks === undefined ? {} : { jwksProvider: activeJwks }),
     ...(mcpOauthRevocationStore === undefined
       ? {}
       : { revocationStore: mcpOauthRevocationStore }),
@@ -293,6 +302,16 @@ export async function composeApiMcpSurface(input: {
     });
     grantMcp.bindCollectionPlanStore(mcpWriteComposition.store);
   }
+  const nodesSearch = config.mcp
+    ? createPostgresNodesSearchPorts({
+        db: database.db,
+        sharedExposure: createPostgresSharedExposureFactsPort(database),
+        cursors: createSearchCursorSigner({
+          current: config.productEditorCursor.current,
+          previous: config.productEditorCursor.previous,
+        }),
+      })
+    : undefined;
   const mcpApplicationFacade = config.mcp
     && mcpReadResourceProjection
     && mcpSnapshotResourceProjection
@@ -306,6 +325,7 @@ export async function composeApiMcpSurface(input: {
       readToolAdapter: mcpReadToolAdapter.adapter,
       ...(mcpWriteComposition === undefined ? {} : { writeToolAdapter: mcpWriteComposition.adapter }),
       ...(ownedCollectionsQuery === undefined ? {} : { ownedCollectionsQuery }),
+      ...(nodesSearch === undefined ? {} : { nodesSearch }),
     })
     : undefined;
   return {

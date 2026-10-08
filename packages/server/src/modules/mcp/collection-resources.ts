@@ -440,6 +440,7 @@ async function projectList(
     if (filterDigest !== payload.filterDigest) throw cursorError();
     continuationPolicyRevision = payload.policyRevision;
     const publicationCursor = state.directoryQuery.cursors.directory.sign({
+      resourceId: `${state.directoryQuery.origin}/colp/v0.1/collections`,
       principal: payload.principal,
       filterDigest: payload.filterDigest,
       sort: DEFAULT_PUBLICATION_DIRECTORY_SORT,
@@ -502,6 +503,7 @@ async function buildListPage(
   let nextCursor: string | undefined;
   if (page.nextCursor !== null) {
     const cursorContext = {
+      resourceId: `${state.directoryQuery.origin}/colp/v0.1/collections`,
       principal: principalScopeValue,
       filterDigest,
       sort: DEFAULT_PUBLICATION_DIRECTORY_SORT,

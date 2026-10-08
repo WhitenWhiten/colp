@@ -10,7 +10,7 @@ import {
   type AccountKeyEs256PrivateJwk,
   type AccountKeyTokenRequest,
 } from './token.js';
-import { AccountKeyOAuthError, invalidGrant, invalidRequest } from './oauth-error.js';
+import { AccountKeyOAuthError, invalidGrant, invalidRequest, invalidScope } from './oauth-error.js';
 import type { AccountCredentialCommandPorts } from './types.js';
 
 export interface AccountKeyTokenResponse {
@@ -40,6 +40,12 @@ export async function exchangeAccountKey(
   } catch (error) {
     if (error instanceof AccountCredentialCommandError) throw invalidGrant();
     throw error;
+  }
+  // Browser-issued agent keys inherit a private provisioning parent. They
+  // cannot obtain Product API tokens that would bypass MCP approval policy.
+  if (parsed.audience === 'product' && snapshot.ancestorsRootFirst.some((ancestor) =>
+    ancestor.kind === 'parent' && ancestor.label === 'COLP agent provisioning')) {
+    throw invalidScope('Agent keys are restricted to MCP audiences.');
   }
   let audienceUrl: string;
   try {

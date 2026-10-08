@@ -467,7 +467,15 @@ export function createPostgresSyncSequencePort(
           });
         },
       };
-      const host = createSyncHost({ owner: 'sequence', session: input.session });
+      const host = createSyncHost({ owner: 'sequence', session: input.session,
+        async sequenceOwnershipVerifier(session, key) {
+          const row = await db.selectFrom('sync_replicas').innerJoin('accounts', 'accounts.id', 'sync_replicas.account_id')
+            .select(['accounts.subject_id', 'sync_replicas.collection_id'])
+            .where('sync_replicas.replica_id', '=', key.replicaId).where('accounts.status', '=', 'active').executeTakeFirst();
+          return row !== undefined && session.principal.type === 'user' && row.subject_id === session.principal.id
+            && row.collection_id === key.collectionId && session.collectionId === key.collectionId;
+        },
+      });
       return host.sequence(unitOfWork, request, evaluate);
     };
   return {

@@ -1,3 +1,4 @@
+import { MCP_OWN_DATA_DEFAULT_BUDGET, snapshotMcpOwnData } from './own-data.js';
 /**
  * Host planner for the COLP write gateway's `changes.plan`.
  *
@@ -39,6 +40,16 @@ export function createPhase4bMcpGatewayPlanner(
   });
   const service = createChangePlanService({ ...options, planStore: digestStampingStore });
   return Object.freeze({
-    plan: (request: unknown, binding: McpAuthenticatedAuthorizationBinding) => service.plan(request, binding),
+    async plan(request: unknown, binding: McpAuthenticatedAuthorizationBinding) {
+      const input = snapshotMcpOwnData(request, MCP_OWN_DATA_DEFAULT_BUDGET) as { operations?: readonly unknown[] };
+      // Keep the host's existence-ambiguous revision rejection, before the SDK
+      // sanitizes arbitrary dependency failures into an internal error.
+      for (const operation of input.operations ?? []) {
+        if (operation && typeof operation === 'object' && (operation as { type?: string }).type === 'set_visibility') {
+          await options.revisions.resolveBaseRevisions(operation as Parameters<typeof options.revisions.resolveBaseRevisions>[0], binding);
+        }
+      }
+      return service.plan(input, binding);
+    },
   });
 }

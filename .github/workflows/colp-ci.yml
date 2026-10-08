@@ -41,6 +41,9 @@ jobs:
               - 'packages/node/**'
               - 'packages/conformance/**'
               - 'packages/server/**'
+              - 'packages/web/**'
+              - 'deploy/**'
+              - '.github/workflows/colp-server-image.yml'
               - 'scripts/**'
               - 'protocol/**'
               - '.github/workflows/colp-ci.yml'
@@ -302,6 +305,30 @@ jobs:
       - name: Lint
         run: npm run lint
         working-directory: packages/server
+      - name: Self-hosted composition regressions
+        run: node scripts/with-postgres.mjs --isolated-owner -- npx vitest run --project postgres --fileParallelism=false tests/integration/postgres/self-hosted-mcp-composition.integration.test.ts tests/integration/postgres/agents-api.integration.test.ts
+        working-directory: packages/server
+
+  web:
+    needs: changes
+    if: needs.changes.outputs.full == 'true' || needs.changes.outputs.quality == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: packages/web/package-lock.json
+      - run: npm ci
+        working-directory: packages/web
+      - name: Self-hosted agent, transport, and version regressions
+        run: npx vitest run src/api/agentsClient.test.ts src/pages/Agents.test.tsx src/pages/write-approvals/undo.test.tsx src/components/TransportBanner.test.tsx src/components/SelfHostedAbout.test.tsx
+        working-directory: packages/web
+      - name: Build self-hosted web
+        run: VITE_EDITION=self-hosted npm run build
+        working-directory: packages/web
 
   ci-gate:
     if: always()
@@ -316,6 +343,7 @@ jobs:
       - dependency-audit
       - conformance
       - server
+      - web
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -332,8 +360,9 @@ jobs:
           DEPENDENCY_AUDIT_RESULT: ${{ needs.dependency-audit.result }}
           CONFORMANCE_RESULT: ${{ needs.conformance.result }}
           SERVER_RESULT: ${{ needs.server.result }}
+          WEB_RESULT: ${{ needs.web.result }}
         run: |
-          for result in "$CHANGES_RESULT" "$STATIC_RESULT" "$TEST_RESULT" "$PUBLISHER_RESULT" "$SECURITY_RESULT" "$SYNC_CORE_RESULT" "$PACKAGE_RESULT" "$DEPENDENCY_AUDIT_RESULT" "$CONFORMANCE_RESULT" "$SERVER_RESULT"; do
+          for result in "$CHANGES_RESULT" "$STATIC_RESULT" "$TEST_RESULT" "$PUBLISHER_RESULT" "$SECURITY_RESULT" "$SYNC_CORE_RESULT" "$PACKAGE_RESULT" "$DEPENDENCY_AUDIT_RESULT" "$CONFORMANCE_RESULT" "$SERVER_RESULT" "$WEB_RESULT"; do
             if [[ "$result" != "success" && "$result" != "skipped" ]]; then
               echo "A selected colp-ci job did not pass: $result" >&2
               exit 1

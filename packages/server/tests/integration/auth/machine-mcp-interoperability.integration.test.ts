@@ -1,3 +1,5 @@
+import { createLocalIssuerJwks } from '../../../src/infrastructure/auth/local-issuer-jwks.js';
+import { publicJwkFromPrivate, type AccountKeyEs256PrivateJwk } from '../../../src/modules/auth/index.js';
 import { insertTestParentCredential } from '../../support/account-credential-db-fixture.js';
 import assert from 'node:assert/strict';
 import { generateKeyPairSync, randomUUID } from 'node:crypto';
@@ -97,11 +99,11 @@ function destroyPostgresCursorKeys(ports: ReturnType<typeof createApiPostgresPor
   ports.linkHealthCursorSigner.destroy();
   ports.classifyInboxCursorSigner.destroy();
   ports.collectionVersionCursorSigner.destroy();
-  ports.followCursorKeys.destroy();
-  ports.followedCollectionsCursorKeys.destroy();
-  ports.feedCursorKeys.destroy();
-  ports.publicActivityCursorKeys.destroy();
-  ports.notificationCursorKeys.destroy();
+  ports.followCursorKeys?.destroy();
+  ports.followedCollectionsCursorKeys?.destroy();
+  ports.feedCursorKeys?.destroy();
+  ports.publicActivityCursorKeys?.destroy();
+  ports.notificationCursorKeys?.destroy();
   ports.publicationCursorKeys.destroy();
 }
 
@@ -179,12 +181,7 @@ describeWithPostgres('machine MCP interoperability', () => {
       accessPolicyFacts: ports.accessPolicyFacts,
       publicationSnapshotQuery: ports.publicationSnapshotQuery,
       ownedCollectionsQuery: ports.ownedCollectionsQueryPorts,
-      jwksProvider: {
-        async getKeySet() {
-          if (!jwksHolder.keys) throw new Error('JWKS must be published before verify');
-          return jwksHolder.keys;
-        },
-      },
+      jwksProvider: createLocalIssuerJwks(isolated.runtime.db, [publicJwkFromPrivate(signing.jwk as AccountKeyEs256PrivateJwk)]),
     });
     const app = buildApiApp({
       config,
@@ -394,6 +391,7 @@ describeWithPostgres('machine MCP interoperability', () => {
       assert.equal(listed.statusCode, 200, listed.body);
       const names = toolNames(listed.json());
       assert.ok(names.length > 0, listed.body);
+      assert.ok(names.includes('nodes.search'), listed.body);
       for (const name of PHASE4B_MCP_READ_TOOL_NAMES) {
         assert.equal(names.includes(name), true, `missing ${name}: ${listed.body}`);
       }
