@@ -52,6 +52,11 @@ export interface McpOauthRevocationStore {
    */
   revoke(target: McpOauthRevocationTarget): Promise<void>;
   /**
+   * Revokes every credential for one OAuth client or API-key client id.
+   * Idempotent. Other clients of the same account stay valid.
+   */
+  revokeClient(clientId: string): Promise<void>;
+  /**
    * True when the credential is revoked or was issued before the current
    * epoch boundary. Fail closed: implementations throw on query failure so
    * the verifier can never accept a credential it could not check.
@@ -115,14 +120,20 @@ export function createInMemoryMcpOauthRevocationStore(
     effectiveAt: now(),
   });
   const revokedRows = new Map<string, true>();
+  const revokedClients = new Set<string>();
 
   return Object.freeze({
     async revoke(target: McpOauthRevocationTarget): Promise<void> {
       revokedRows.set(revocationRowKey(target), true);
     },
+    async revokeClient(clientId: string): Promise<void> {
+      revokedClients.add(digestMcpOauthRevocationField(clientId));
+    },
     async isRevoked(query: McpOauthRevocationQuery): Promise<boolean> {
       const effectiveAtSeconds = Math.floor(epoch.effectiveAt.getTime() / 1_000);
-      return revokedRows.has(revocationRowKey(query)) || query.issuedAtSeconds < effectiveAtSeconds;
+      return revokedRows.has(revocationRowKey(query))
+        || revokedClients.has(digestMcpOauthRevocationField(query.clientId))
+        || query.issuedAtSeconds < effectiveAtSeconds;
     },
     async securityEpoch(): Promise<string> {
       return epoch.value;

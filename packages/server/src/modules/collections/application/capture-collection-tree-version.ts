@@ -5,7 +5,13 @@ export const COLLECTION_TREE_VERSION_FIFO_LIMIT = 50;
 export const COLLECTION_VERSION_CHANGES_LIMIT = 50;
 
 export type CollectionTreeVersionKind = 'manual' | 'pre_restore' | 'pre_mutation';
-export type CollectionVersionCause = 'web' | 'sync' | 'agent-plan' | 'restore' | 'undo';
+export type CollectionVersionCause =
+  | 'web'
+  | 'sync'
+  | 'agent-plan'
+  | 'restore'
+  | 'undo'
+  | `agent-plan:${string}`;
 
 export class CollectionVersionNotFoundError extends Error {
   readonly code = 'resource_not_found' as const;

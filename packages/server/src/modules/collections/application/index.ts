@@ -715,6 +715,7 @@ export type {
   CollectionTreeLiveMember,
   CollectionTreeSnapshotNode,
   CollectionTreeVersionKind,
+  CollectionVersionCause,
   CollectionVersionChange,
   CollectionVersionChangeCounts,
   CollectionVersionLockedCollection,

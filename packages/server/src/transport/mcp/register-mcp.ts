@@ -12,6 +12,7 @@ import { registerMcpCompatRoutes } from './mcp-compat-routes.js';
 import { registerMcpProtectedResourceRoutes } from './mcp-protected-resource-routes.js';
 import { registerMcpReadRoutes } from './mcp-read-routes.js';
 import { registerMcpWellKnownDiscoveryRoutes } from './mcp-well-known-routes.js';
+import { registerAgentDirectoryRoutes } from './agent-routes.js';
 import { registerMcpWriteApprovalRoutes } from './mcp-write-approval-routes.js';
 import { createPhase4bMcpApplicationFacadeFromColpAdapters } from './mcp-strict-application-adapter.js';
 import { createConnectionBudget } from './mcp-shared-admission.js';
@@ -33,6 +34,7 @@ export function registerMcpSurfaces(app: FastifyInstance, deps: AppDependencies)
   } = deps;
   if (mcpWriteApprovalRoutes) {
     registerMcpWriteApprovalRoutes(app, mcpWriteApprovalRoutes);
+    registerAgentDirectoryRoutes(app, mcpWriteApprovalRoutes);
   }
   if (mcpWriteOperations) {
     app.get('/ready/features/mcp-write', {

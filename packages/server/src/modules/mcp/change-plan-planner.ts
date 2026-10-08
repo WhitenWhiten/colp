@@ -4,8 +4,9 @@ import { MCP_OWN_DATA_DEFAULT_BUDGET, snapshotMcpOwnData as snapshotPhase4bData 
 /**
  * MCP-W03 registered canonical operation planner.
  *
- * This module maps the frozen `nodes.create` and `nodes.set_visibility`
- * catalog inputs into typed COLP canonical operation objects, resolves risk,
+ * This module maps the frozen `nodes.create`, `nodes.move`, and
+ * `nodes.set_visibility` catalog inputs into typed COLP canonical operation
+ * objects, resolves risk,
  * scopes, base revisions, impact, and a fixed approval summary, and persists
  * durable ready/awaiting Plans through the W02 store port. It never executes
  * canonical writes and never lets model input enter SQL, Outbox, Audit, Tool
@@ -35,10 +36,36 @@ import {
 
 export type Phase4bMcpRiskLevel = 'low' | 'medium' | 'high';
 export type Phase4bMcpPlanMode = 'ready' | 'awaiting_approval';
-export type Phase4bMcpCatalogTool = 'nodes.create' | 'nodes.set_visibility';
+export type Phase4bMcpCatalogTool = 'nodes.create' | 'nodes.move' | 'nodes.delete_subtree' | 'nodes.set_visibility';
 
 export type Phase4bMcpNodeCreateOperation = Extract<Operation, { type: 'create_node' }>;
-export type Phase4bMcpPlanOperation = ChangePlanOperation | Phase4bMcpNodeCreateOperation;
+/** Medium-risk move. Commit calls `moveCollectionNode`; this object does not write. */
+export type Phase4bMcpNodeMoveOperation = Readonly<{
+  type: 'move_node';
+  risk: 'medium';
+  collectionId: string;
+  nodeId: string;
+  parentId: string;
+  position?: number;
+  /** Set when the source parent differs from `parentId`. */
+  sourceParentId?: string;
+  /** Authoritative `move <title> from <path> to <path>`. Model text never enters this. */
+  impact: string;
+}>;
+/** Subtree delete. Risk is high above MCP_DELETE_SUBTREE_THRESHOLD (default 20). */
+export type Phase4bMcpDeleteSubtreeOperation = Readonly<{
+  type: 'delete_subtree';
+  risk: 'medium' | 'high';
+  collectionId: string;
+  nodeId: string;
+  subtreeCount: number;
+  impact: string;
+}>;
+export type Phase4bMcpPlanOperation =
+  | ChangePlanOperation
+  | Phase4bMcpNodeCreateOperation
+  | Phase4bMcpNodeMoveOperation
+  | Phase4bMcpDeleteSubtreeOperation;
 
 export interface Phase4bMcpNodeCreateCatalogInput {
   readonly tool: 'nodes.create';
@@ -61,8 +88,28 @@ export interface Phase4bMcpNodeVisibilityCatalogInput {
   readonly dryRun: true;
 }
 
+export interface Phase4bMcpNodeMoveCatalogInput {
+  readonly tool: 'nodes.move';
+  readonly collectionId?: string;
+  readonly nodeId: string;
+  readonly parentId: string;
+  readonly position?: number;
+  readonly reason: string;
+  readonly dryRun: true;
+}
+
+export interface Phase4bMcpDeleteSubtreeCatalogInput {
+  readonly tool: 'nodes.delete_subtree';
+  readonly collectionId?: string;
+  readonly nodeId: string;
+  readonly reason: string;
+  readonly dryRun: true;
+}
+
 export type Phase4bMcpCatalogInput =
   | Phase4bMcpNodeCreateCatalogInput
+  | Phase4bMcpNodeMoveCatalogInput
+  | Phase4bMcpDeleteSubtreeCatalogInput
   | Phase4bMcpNodeVisibilityCatalogInput;
 
 export type Phase4bMcpStoredPlan = Readonly<{
@@ -112,7 +159,10 @@ export interface Phase4bMcpPlannedChange {
   readonly baseRevisions: Readonly<Record<string, string>>;
   readonly operationsDigest: string;
   readonly operations: readonly Phase4bMcpPlanOperation[];
-  readonly status: 'pending';
+  readonly status: 'pending' | 'consumed';
+  /** Set when a trusted policy committed the plan before it was returned. */
+  readonly approvedBy?: 'policy';
+  readonly versionId?: string;
   readonly target: Phase4bMcpPlanTarget;
 }
 
@@ -127,6 +177,31 @@ export interface Phase4bMcpVisibilityBaseFacts {
   readonly policyRevision: string;
 }
 
+/** Authoritative node title and paths. Never taken from model input. */
+export interface Phase4bMcpMovePlacement {
+  readonly collectionId: string;
+  readonly title: string;
+  readonly fromPath: string;
+  readonly toPath: string;
+  readonly nodeRevision: string;
+  readonly destinationChildrenRevision: string;
+  readonly collectionContentRevision: string;
+  readonly sourceParentId?: string;
+  readonly sourceChildrenRevision?: string;
+  readonly collectionVisibility?: Phase4bMcpCollectionVisibility;
+}
+
+/** Authoritative subtree targeted by nodes.delete_subtree. */
+export interface Phase4bMcpDeleteSubtreeFacts {
+  readonly collectionId: string;
+  readonly title: string;
+  readonly nodeRevision: string;
+  readonly contentRevision: string;
+  readonly parentId: string;
+  readonly parentChildrenRevision: string;
+  readonly subtreeCount: number;
+}
+
 export interface Phase4bMcpAuthoritativeStatePort {
   readonly resolveCreateBaseRevisions: (
     input: Readonly<{ collectionId: string; parentId: string }>,
@@ -136,6 +211,15 @@ export interface Phase4bMcpAuthoritativeStatePort {
     input: Readonly<{ collectionId: string; nodeId: string }>,
     binding: McpAuthenticatedAuthorizationBinding,
   ) => Phase4bMcpVisibilityBaseFacts | PromiseLike<Phase4bMcpVisibilityBaseFacts>;
+  /** Required only when planning `nodes.move`. Create and visibility leave it unset. */
+  readonly resolveMovePlacement?: (
+    input: Readonly<{ collectionId?: string; nodeId: string; parentId: string; position?: number }>,
+    binding: McpAuthenticatedAuthorizationBinding,
+  ) => Phase4bMcpMovePlacement | PromiseLike<Phase4bMcpMovePlacement>;
+  readonly resolveDeleteSubtree?: (
+    input: Readonly<{ collectionId?: string; nodeId: string }>,
+    binding: McpAuthenticatedAuthorizationBinding,
+  ) => Phase4bMcpDeleteSubtreeFacts | PromiseLike<Phase4bMcpDeleteSubtreeFacts>;
 }
 
 export interface Phase4bMcpAuthorizationPolicyPort {
@@ -271,11 +355,35 @@ const SECRET_MARKERS = Object.freeze([
   'privatekey',
   'apikey',
 ]);
+const DELETE_ALLOWED_KEYS = Object.freeze([
+  'tool',
+  'collectionId',
+  'nodeId',
+  'reason',
+  'dryRun',
+] as const);
+
+const MOVE_ALLOWED_KEYS = Object.freeze([
+  'tool',
+  'collectionId',
+  'nodeId',
+  'parentId',
+  'position',
+  'reason',
+  'dryRun',
+] as const);
+
 const RISK_RANK: Readonly<Record<Phase4bMcpRiskLevel, number>> = Object.freeze({
   low: 0,
   medium: 1,
   high: 2,
 });
+
+export function phase4bMcpMoveImpactText(
+  placement: Readonly<Pick<Phase4bMcpMovePlacement, 'title' | 'fromPath' | 'toPath'>>,
+): string {
+  return `move ${placement.title} from ${placement.fromPath} to ${placement.toPath}`;
+}
 
 export interface Phase4bMcpOperationRiskFacts {
   readonly collectionVisibility?: Phase4bMcpCollectionVisibility;
@@ -300,6 +408,8 @@ function phase4bMcpOperationRisk(
   if (operation.type === 'create_node') {
     return phase4bMcpCreateNodeRisk(operation, facts.collectionVisibility);
   }
+  if (operation.type === 'move_node') return 'medium';
+  if (operation.type === 'delete_subtree') return 'risk' in operation ? operation.risk : 'high';
   if (operation.type === 'set_visibility') return 'high';
   throw new Phase4bMcpChangePlanPlannerError(
     'unknown_operation',
@@ -425,11 +535,11 @@ export function createPhase4bMcpChangePlanPlanner(
       assertNoSecretMarkers(snapshot);
       assertKnownKeys(
         snapshot,
-        [...CREATE_ALLOWED_KEYS, ...VISIBILITY_ALLOWED_KEYS],
+        [...CREATE_ALLOWED_KEYS, ...VISIBILITY_ALLOWED_KEYS, ...MOVE_ALLOWED_KEYS, ...DELETE_ALLOWED_KEYS],
         'Catalog input contains unknown fields.',
       );
       const tool = readOwnRequiredString(snapshot, 'tool', 'catalog input');
-      if (tool !== 'nodes.create' && tool !== 'nodes.set_visibility') {
+      if (tool !== 'nodes.create' && tool !== 'nodes.move' && tool !== 'nodes.delete_subtree' && tool !== 'nodes.set_visibility') {
         throw new Phase4bMcpChangePlanPlannerError(
           'unknown_operation',
           'Unknown MCP-W03 catalog operation.',
@@ -454,6 +564,46 @@ export function createPhase4bMcpChangePlanPlanner(
 
       if (tool === 'nodes.create') {
         return planNodeCreate(
+          snapshot,
+          reason,
+          ownedBinding,
+          {
+            planStore,
+            authoritativeState,
+            authorizationPolicy,
+            impact,
+            clock,
+            ids,
+            ttl,
+            budget,
+            serverUuid,
+            approvalBaseUri,
+            approvalUriPolicy,
+          },
+        );
+      }
+      if (tool === 'nodes.delete_subtree') {
+        return planNodeDelete(
+          snapshot,
+          reason,
+          ownedBinding,
+          {
+            planStore,
+            authoritativeState,
+            authorizationPolicy,
+            impact,
+            clock,
+            ids,
+            ttl,
+            budget,
+            serverUuid,
+            approvalBaseUri,
+            approvalUriPolicy,
+          },
+        );
+      }
+      if (tool === 'nodes.move') {
+        return planNodeMove(
           snapshot,
           reason,
           ownedBinding,
@@ -579,6 +729,209 @@ async function planNodeCreate(
     kind: 'collection',
     serverUuid: deps.serverUuid,
     collectionId,
+  }));
+}
+
+export function phase4bMcpDeleteSubtreeImpactText(
+  facts: Readonly<Pick<Phase4bMcpDeleteSubtreeFacts, 'title' | 'subtreeCount'>>,
+): string {
+  return `delete ${facts.title} (${facts.subtreeCount} nodes)`;
+}
+
+function deleteSubtreeThreshold(): number {
+  const raw = process.env.MCP_DELETE_SUBTREE_THRESHOLD;
+  if (raw === undefined || raw.trim() === '') return 20;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < 1 || value > 100_000) {
+    throw new Phase4bMcpChangePlanPlannerError(
+      'invalid_catalog_input',
+      'MCP_DELETE_SUBTREE_THRESHOLD must be an integer from 1 through 100000.',
+    );
+  }
+  return value;
+}
+
+export function phase4bMcpDeleteSubtreeRisk(subtreeCount: number, threshold = deleteSubtreeThreshold()): 'medium' | 'high' {
+  return subtreeCount > threshold ? 'high' : 'medium';
+}
+
+async function planNodeDelete(
+  snapshot: Readonly<Record<string, unknown>>,
+  reason: string,
+  binding: McpAuthenticatedAuthorizationBinding,
+  deps: PlannerDependencies,
+): Promise<Phase4bMcpPlannedChange> {
+  assertOnlyKeys(
+    snapshot,
+    DELETE_ALLOWED_KEYS,
+    'nodes.delete_subtree catalog input contains unknown fields.',
+  );
+  const nodeId = readOwnRequiredString(snapshot, 'nodeId', 'nodes.delete_subtree');
+  assertOpaqueId(nodeId, 'nodeId');
+  const collectionId = readOptionalOpaqueId(snapshot, 'collectionId', 'nodes.delete_subtree');
+  const facts = await resolveDeleteSubtree(
+    deps.authoritativeState,
+    { ...(collectionId !== undefined ? { collectionId } : {}), nodeId },
+    binding,
+    deps.budget,
+  );
+  if (collectionId !== undefined && collectionId !== facts.collectionId) {
+    throw new Phase4bMcpChangePlanPlannerError(
+      'invalid_catalog_input',
+      'nodes.delete_subtree collectionId does not match the authoritative node.',
+    );
+  }
+  if (!Number.isInteger(facts.subtreeCount) || facts.subtreeCount < 1) {
+    throw new Phase4bMcpChangePlanPlannerError(
+      'authoritative_state_invalid',
+      'Delete subtree count must be a positive integer.',
+    );
+  }
+  const risk = phase4bMcpDeleteSubtreeRisk(facts.subtreeCount);
+  const impactText = phase4bMcpDeleteSubtreeImpactText(facts);
+  const now = readClock(deps.clock);
+  const operation: Phase4bMcpDeleteSubtreeOperation = Object.freeze({
+    type: 'delete_subtree',
+    risk,
+    collectionId: facts.collectionId,
+    nodeId,
+    subtreeCount: facts.subtreeCount,
+    impact: impactText,
+  });
+  const operations = Object.freeze([operation]);
+  const baseRevisions = Object.freeze({
+    [`node.${nodeId}`]: facts.nodeRevision,
+    [`children.${facts.parentId}`]: facts.parentChildrenRevision,
+    [`content.${facts.collectionId}`]: facts.contentRevision,
+  });
+  const requiredScopes = await resolveRequiredScopes(
+    operation,
+    Object.freeze(['nodes:write'] as readonly ScopeName[]),
+    deps.authorizationPolicy,
+    binding,
+    deps.budget,
+  );
+  const impact = await resolveImpact(deps.impact, operations, deps.budget);
+  const stored = buildStoredPlan({
+    operations,
+    binding,
+    baseRevisions,
+    requiredScopes,
+    impact,
+    reason,
+    deps,
+    now,
+  });
+  await resolvePlanStoreSave(deps.planStore, stored);
+  return toPlannedChange(stored, Object.freeze({
+    kind: 'node',
+    serverUuid: deps.serverUuid,
+    collectionId: facts.collectionId,
+    nodeId,
+  }));
+}
+
+function readOptionalMovePosition(snapshot: Readonly<Record<string, unknown>>): number | undefined {
+  const descriptor = Object.getOwnPropertyDescriptor(snapshot, 'position');
+  if (descriptor === undefined || !('value' in descriptor)) return undefined;
+  const value = descriptor.value;
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 0 || value > 100_000) {
+    throw new Phase4bMcpChangePlanPlannerError(
+      'invalid_catalog_input',
+      'nodes.move position must be an integer from 0 through 100000.',
+    );
+  }
+  return value;
+}
+
+async function planNodeMove(
+  snapshot: Readonly<Record<string, unknown>>,
+  reason: string,
+  binding: McpAuthenticatedAuthorizationBinding,
+  deps: PlannerDependencies,
+): Promise<Phase4bMcpPlannedChange> {
+  assertOnlyKeys(
+    snapshot,
+    MOVE_ALLOWED_KEYS,
+    'nodes.move catalog input contains unknown fields.',
+  );
+  const nodeId = readOwnRequiredString(snapshot, 'nodeId', 'nodes.move');
+  const parentId = readOwnRequiredString(snapshot, 'parentId', 'nodes.move');
+  assertOpaqueId(nodeId, 'nodeId');
+  assertOpaqueId(parentId, 'parentId');
+  const collectionId = readOptionalOpaqueId(snapshot, 'collectionId', 'nodes.move');
+  const position = readOptionalMovePosition(snapshot);
+  const placement = await resolveMovePlacement(
+    deps.authoritativeState,
+    {
+      ...(collectionId !== undefined ? { collectionId } : {}),
+      nodeId,
+      parentId,
+      ...(position !== undefined ? { position } : {}),
+    },
+    binding,
+    deps.budget,
+  );
+  if (collectionId !== undefined && collectionId !== placement.collectionId) {
+    throw new Phase4bMcpChangePlanPlannerError(
+      'invalid_catalog_input',
+      'nodes.move collectionId does not match the authoritative node.',
+    );
+  }
+  const impactText = phase4bMcpMoveImpactText(placement);
+  const now = readClock(deps.clock);
+  const operation: Phase4bMcpNodeMoveOperation = Object.freeze({
+    type: 'move_node',
+    risk: 'medium',
+    collectionId: placement.collectionId,
+    nodeId,
+    parentId,
+    ...(position !== undefined ? { position } : {}),
+    ...(placement.sourceParentId !== undefined && placement.sourceParentId !== parentId
+      ? { sourceParentId: placement.sourceParentId }
+      : {}),
+    impact: impactText,
+  });
+  const operations = Object.freeze([operation]);
+  const baseRevisions: Record<string, string> = {
+    [`node.${nodeId}`]: placement.nodeRevision,
+    [`children.${parentId}`]: placement.destinationChildrenRevision,
+    [`content.${placement.collectionId}`]: placement.collectionContentRevision,
+  };
+  if (
+    placement.sourceParentId !== undefined
+    && placement.sourceParentId !== parentId
+    && placement.sourceChildrenRevision !== undefined
+  ) {
+    baseRevisions[`children.${placement.sourceParentId}`] = placement.sourceChildrenRevision;
+  }
+  const frozenRevisions = Object.freeze(baseRevisions);
+  const requiredScopes = await resolveRequiredScopes(
+    operation,
+    Object.freeze(['nodes:write'] as readonly ScopeName[]),
+    deps.authorizationPolicy,
+    binding,
+    deps.budget,
+  );
+  const impact = await resolveImpact(deps.impact, operations, deps.budget);
+  const stored = buildStoredPlan({
+    operations,
+    binding,
+    baseRevisions: frozenRevisions,
+    requiredScopes,
+    impact,
+    reason,
+    deps,
+    now,
+    collectionVisibility: placement.collectionVisibility,
+  });
+  await resolvePlanStoreSave(deps.planStore, stored);
+  return toPlannedChange(stored, Object.freeze({
+    kind: 'node',
+    serverUuid: deps.serverUuid,
+    collectionId: placement.collectionId,
+    nodeId,
   }));
 }
 
@@ -771,6 +1124,94 @@ async function settleAuthoritativeState<Value>(
       AUTHORITATIVE_STATE_UNAVAILABLE,
     );
   }
+}
+
+async function resolveDeleteSubtree(
+  port: Phase4bMcpAuthoritativeStatePort,
+  input: Readonly<{ collectionId?: string; nodeId: string }>,
+  binding: McpAuthenticatedAuthorizationBinding,
+  _budget: Required<Phase4bMcpWriteInputBudget>,
+): Promise<Phase4bMcpDeleteSubtreeFacts> {
+  if (port.resolveDeleteSubtree === undefined) {
+    throw new Phase4bMcpChangePlanPlannerError(
+      'authoritative_state_invalid',
+      'Delete subtree resolver is not configured.',
+    );
+  }
+  const candidate = await settleAuthoritativeState(port.resolveDeleteSubtree(input, binding));
+  if (typeof candidate !== 'object' || candidate === null || Array.isArray(candidate)) {
+    throw new Phase4bMcpChangePlanPlannerError(
+      'authoritative_state_invalid',
+      'Delete subtree resolver returned an invalid object.',
+    );
+  }
+  const record = candidate as unknown as Readonly<Record<string, unknown>>;
+  const subtreeCount = record.subtreeCount;
+  if (typeof subtreeCount !== 'number' || !Number.isInteger(subtreeCount) || subtreeCount < 1) {
+    throw new Phase4bMcpChangePlanPlannerError(
+      'authoritative_state_invalid',
+      'Delete subtree count must be a positive integer.',
+    );
+  }
+  return {
+    collectionId: readOwnRequiredString(record, 'collectionId', 'delete subtree'),
+    title: readOwnRequiredString(record, 'title', 'delete subtree'),
+    nodeRevision: readOwnRequiredString(record, 'nodeRevision', 'delete subtree'),
+    contentRevision: readOwnRequiredString(record, 'contentRevision', 'delete subtree'),
+    parentId: readOwnRequiredString(record, 'parentId', 'delete subtree'),
+    parentChildrenRevision: readOwnRequiredString(record, 'parentChildrenRevision', 'delete subtree'),
+    subtreeCount,
+  };
+}
+
+async function resolveMovePlacement(
+  port: Phase4bMcpAuthoritativeStatePort,
+  input: Readonly<{ collectionId?: string; nodeId: string; parentId: string; position?: number }>,
+  binding: McpAuthenticatedAuthorizationBinding,
+  _budget: Required<Phase4bMcpWriteInputBudget>,
+): Promise<Phase4bMcpMovePlacement> {
+  if (port.resolveMovePlacement === undefined) {
+    throw new Phase4bMcpChangePlanPlannerError(
+      'authoritative_state_invalid',
+      'Move placement resolver is not configured.',
+    );
+  }
+  const candidate = await settleAuthoritativeState(port.resolveMovePlacement(input, binding));
+  if (typeof candidate !== 'object' || candidate === null || Array.isArray(candidate)) {
+    throw new Phase4bMcpChangePlanPlannerError(
+      'authoritative_state_invalid',
+      'Move placement resolver returned an invalid object.',
+    );
+  }
+  const record = candidate as unknown as Readonly<Record<string, unknown>>;
+  const sourceParentId = readOptionalOwnString(record, 'sourceParentId');
+  const sourceChildrenRevision = readOptionalOwnString(record, 'sourceChildrenRevision');
+  return {
+    collectionId: readOwnRequiredString(record, 'collectionId', 'move placement'),
+    title: readOwnRequiredString(record, 'title', 'move placement'),
+    fromPath: readOwnRequiredString(record, 'fromPath', 'move placement'),
+    toPath: readOwnRequiredString(record, 'toPath', 'move placement'),
+    nodeRevision: readOwnRequiredString(record, 'nodeRevision', 'move placement'),
+    destinationChildrenRevision: readOwnRequiredString(record, 'destinationChildrenRevision', 'move placement'),
+    collectionContentRevision: readOwnRequiredString(record, 'collectionContentRevision', 'move placement'),
+    ...(sourceParentId !== undefined ? { sourceParentId } : {}),
+    ...(sourceChildrenRevision !== undefined ? { sourceChildrenRevision } : {}),
+  };
+}
+
+function readOptionalOwnString(
+  value: Readonly<Record<string, unknown>>,
+  name: string,
+): string | undefined {
+  const descriptor = Object.getOwnPropertyDescriptor(value, name);
+  if (descriptor === undefined || !('value' in descriptor) || descriptor.value === undefined) return undefined;
+  if (typeof descriptor.value !== 'string' || descriptor.value.length === 0) {
+    throw new Phase4bMcpChangePlanPlannerError(
+      'authoritative_state_invalid',
+      `Move placement ${name} must be a non-empty string.`,
+    );
+  }
+  return descriptor.value;
 }
 
 async function resolveCreateRevisions(

@@ -180,12 +180,16 @@ export async function createCollectionVersion(
   buildCollectionTreeJson(members);
 
   const now = await Promise.resolve(ports.clock.now());
-  const latest = await ports.versions.findLatestManualCreatedAt(
-    input.actor.principalId,
-    input.collectionId,
-  );
-  if (latest && now.getTime() - latest.getTime() < COLLECTION_VERSION_CREATE_COOLDOWN_MS) {
-    throw new CollectionVersionRateLimitError();
+  const cause = input.cause ?? 'web';
+  const agentPlan = cause.startsWith('agent-plan:');
+  if (!agentPlan) {
+    const latest = await ports.versions.findLatestManualCreatedAt(
+      input.actor.principalId,
+      input.collectionId,
+    );
+    if (latest && now.getTime() - latest.getTime() < COLLECTION_VERSION_CREATE_COOLDOWN_MS) {
+      throw new CollectionVersionRateLimitError();
+    }
   }
 
   const claim = await ports.receipts.claim(binding, fingerprint);
@@ -194,8 +198,8 @@ export async function createCollectionVersion(
     const captured = await captureCollectionTreeVersion(ports, {
       accountId: input.actor.principalId,
       collection,
-      kind: 'manual',
-      cause: input.cause ?? 'web',
+      kind: agentPlan ? 'pre_mutation' : 'manual',
+      cause,
       label: input.label,
     });
     const status = captured.kind === 'existing' ? 200 : 201;

@@ -8,6 +8,7 @@
 import type { GetOwnedCollectionsPagePorts } from '../collections/index.js';
 import type { McpApplicationContext } from './application-context.js';
 import {
+  NODES_SEARCH_TOOL_DESCRIPTOR,
   canCallApplicationWriteTool,
   canListApplicationReadTools,
   canListApplicationWriteTools,
@@ -16,6 +17,11 @@ import {
   type McpApplicationResourceTemplateDescriptor,
   type McpApplicationToolDescriptor,
 } from './application-catalog.js';
+import {
+  NODES_SEARCH_TOOL_NAME,
+  callNodesSearchTool,
+  type NodesSearchPorts,
+} from './nodes-search.js';
 import type {
   McpApplicationReadPort,
   McpApplicationWritePort,
@@ -70,6 +76,8 @@ export interface Phase4bMcpApplicationFacadeOptions {
   readonly readPort: McpApplicationReadPort;
   readonly writePort?: McpApplicationWritePort;
   readonly ownedCollectionsQuery?: GetOwnedCollectionsPagePorts;
+  /** Optional `nodes.search`. Absent callers keep the frozen read-tool list. */
+  readonly nodesSearch?: NodesSearchPorts;
 }
 
 export function createPhase4bMcpApplicationFacade(
@@ -82,6 +90,7 @@ export function createPhase4bMcpApplicationFacade(
   const readPort = options.readPort;
   const writePort = options.writePort;
   const ownedCollectionsQuery = options.ownedCollectionsQuery;
+  const nodesSearch = options.nodesSearch;
 
   const listTools = async (
     context: McpApplicationContext,
@@ -96,6 +105,7 @@ export function createPhase4bMcpApplicationFacade(
     const tools: McpApplicationToolDescriptor[] = [];
     if (canRead) {
       tools.push(...await readPort.listTools(context, cursor));
+      if (nodesSearch !== undefined) tools.push(NODES_SEARCH_TOOL_DESCRIPTOR);
     }
     if (canListOwned) {
       tools.push(PHASE4B_MCP_COLLECTIONS_LIST_TOOL);
@@ -131,6 +141,10 @@ export function createPhase4bMcpApplicationFacade(
       return writePort.callTool(context, name, args);
     }
     if (!canListApplicationReadTools(context)) return unknownToolRejected();
+    if (name === NODES_SEARCH_TOOL_NAME) {
+      if (nodesSearch === undefined) return unknownToolRejected();
+      return callNodesSearchTool(nodesSearch, context, args);
+    }
     return readPort.callTool(context, name, args);
   };
 

@@ -4,6 +4,66 @@
  */
 
 export interface paths {
+    "/api/v1/me/agents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List OAuth clients and API keys for the current account
+         * @description Returns OAuth clients from the authorization issuer tables and API keys from account credentials. Each item includes name, kind, scopes, created time, last seen time, and policy. Policy is manual or trusted from agent_policies; a missing policy row means manual.
+         */
+        get: operations["listMyAgents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/agents/{id}/audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List recent plans and direct writes for one agent
+         * @description Recent plans and direct writes from the existing MCP audit records for this OAuth client or API key. Each record includes versionId when one exists, and outcome for the plan status or direct-write result.
+         */
+        get: operations["listAgentAudit"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/agents/{id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke an OAuth client or API key and cancel its pending plans
+         * @description Revokes the OAuth client through the authorization revocation store, or revokes the API key, and cancels that client's pending plans. Requires the browser session Origin and CSRF token. No request body.
+         */
+        post: operations["revokeAgent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/classification-provider-profiles": {
         parameters: {
             query?: never;
@@ -5070,6 +5130,57 @@ export interface components {
             items: components["schemas"]["WriteApprovalView"][];
             nextCursor: null;
         };
+        /**
+         * @description Whether the agent is an OAuth client or an account-credential API key.
+         * @enum {string}
+         */
+        AgentKind: "oauth_client" | "api_key";
+        /**
+         * @description Approval policy from agent_policies. A missing row is reported as manual.
+         * @enum {string}
+         */
+        AgentPolicy: "manual" | "trusted";
+        AgentSummary: {
+            id: string;
+            name: string;
+            kind: components["schemas"]["AgentKind"];
+            scopes: string[];
+            /** Format: date-time */
+            createdAt: string;
+            /**
+             * Format: date-time
+             * @description Last time the agent was seen, or null when it has never been seen.
+             */
+            lastSeenAt: string | null;
+            policy: components["schemas"]["AgentPolicy"];
+        };
+        AgentListResponse: {
+            agents: components["schemas"]["AgentSummary"][];
+        };
+        /**
+         * @description MCP audit record kind.
+         * @enum {string}
+         */
+        AgentAuditKind: "plan" | "direct_write";
+        AgentAuditRecord: {
+            id: string;
+            kind: components["schemas"]["AgentAuditKind"];
+            /** Format: date-time */
+            createdAt: string;
+            summary?: string;
+            /** @description Plan status or direct-write outcome. */
+            outcome: string;
+            /** @description Collection version id when the audit record has one. */
+            versionId: string | null;
+        };
+        AgentAuditResponse: {
+            records: components["schemas"]["AgentAuditRecord"][];
+        };
+        AgentRevokeResponse: {
+            id: string;
+            revoked: boolean;
+            cancelledPlanCount: number;
+        };
         WriteApprovalDecisionRequest: {
             decision: components["schemas"]["WriteApprovalDecision"];
         };
@@ -9247,6 +9358,10 @@ export interface components {
         PlanId: components["schemas"]["OpaqueId"];
         /** @description First-page item limit. The approval page is intentionally bounded. */
         ApprovalLimit: number;
+        /** @description OAuth client id or account-credential API key client id. */
+        AgentId: string;
+        /** @description Maximum number of agent audit records to return. */
+        AgentAuditLimit: number;
         /** @description Case-sensitive opaque Annotation ID. */
         AnnotationId: components["schemas"]["OpaqueId"];
         /** @description Subject resource kind; path Collection remains the authority domain. */
@@ -9403,6 +9518,103 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    listMyAgents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Agents visible to the current account. */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentListResponse"];
+                };
+            };
+            401: components["responses"]["AuthenticationRequired"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    listAgentAudit: {
+        parameters: {
+            query?: {
+                /** @description Maximum number of agent audit records to return. */
+                limit?: components["parameters"]["AgentAuditLimit"];
+            };
+            header?: never;
+            path: {
+                /** @description OAuth client id or account-credential API key client id. */
+                id: components["parameters"]["AgentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Recent audit records for the agent. */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentAuditResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["AuthenticationRequired"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    revokeAgent: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Exact allowed Product Web origin. Duplicate or null values fail. */
+                Origin: components["parameters"]["Origin"];
+                /** @description Session-bound CSRF token returned by getSession. */
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path: {
+                /** @description OAuth client id or account-credential API key client id. */
+                id: components["parameters"]["AgentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The agent was revoked and its pending plans were cancelled. */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentRevokeResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["AuthenticationRequired"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
     listMyClassificationProviderProfiles: {
         parameters: {
             query?: never;

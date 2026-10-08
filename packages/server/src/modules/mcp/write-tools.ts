@@ -3,8 +3,10 @@
  *
  * This module owns the host boundary between the production MCP transport and
  * COLP-MCP-13's `createMcp20260728WriteToolAdapter`. It registers the frozen
- * low-risk node-creation Tool. `nodes.set_visibility` remains a catalog/plan
- * operation, not a direct mounted Tool. It also provides the W02 plan-status
+ * low-risk node-creation Tool. `nodes.move` is mounted beside it but is medium
+ * risk: every call is a change plan, never a direct write.
+ * `nodes.set_visibility` remains a catalog/plan operation, not a direct mounted
+ * Tool. It also provides the W02 plan-status
  * resolver backing server-minted MRTR `requestState`, and keeps dynamic scope
  * filtering in one place so the transport cannot accidentally expose Write Tools
  * to anonymous, read-only, or empty-scope requests.
@@ -99,6 +101,8 @@ export const PHASE4B_MCP_WRITE_MOUNTED_TOOL_NAMES: readonly [
   'collections.create',
   'collections.update',
   'nodes.create',
+  'nodes.move',
+  'nodes.delete_subtree',
   'nodes.update',
   'annotations.create',
   'annotations.update',
@@ -110,6 +114,8 @@ export const PHASE4B_MCP_WRITE_MOUNTED_TOOL_NAMES: readonly [
   PHASE4B_MCP_COLLECTIONS_CREATE_TOOL_NAME,
   PHASE4B_MCP_COLLECTIONS_UPDATE_TOOL_NAME,
   'nodes.create',
+  'nodes.move',
+  'nodes.delete_subtree',
   PHASE4B_MCP_NODES_UPDATE_TOOL_NAME,
   PHASE4B_MCP_ANNOTATIONS_CREATE_TOOL_NAME,
   PHASE4B_MCP_ANNOTATIONS_UPDATE_TOOL_NAME,
@@ -125,6 +131,8 @@ export const PHASE4B_MCP_WRITE_TOOL_REQUIRED_SCOPES: Readonly<
   'collections.create': Object.freeze([PHASE4B_MCP_LOW_RISK_NODE_CREATE_SCOPE]),
   'collections.update': Object.freeze([PHASE4B_MCP_LOW_RISK_NODE_CREATE_SCOPE]),
   'nodes.create': Object.freeze([PHASE4B_MCP_LOW_RISK_NODE_CREATE_SCOPE]),
+  'nodes.move': Object.freeze(['nodes:write']),
+  'nodes.delete_subtree': Object.freeze(['nodes:write']),
   'nodes.update': Object.freeze([PHASE4B_MCP_LOW_RISK_NODE_CREATE_SCOPE]),
   'annotations.create': Object.freeze([PHASE4B_MCP_LOW_RISK_NODE_CREATE_SCOPE]),
   'annotations.update': Object.freeze([PHASE4B_MCP_LOW_RISK_NODE_CREATE_SCOPE]),
@@ -178,6 +186,37 @@ const nodeCreateInputSchema = Object.freeze({
   additionalProperties: false,
   properties: nodeCreateProperties,
   required: Object.freeze(['collectionId', 'node']),
+} as const);
+
+const nodeMoveInputSchema = Object.freeze({
+  type: 'object',
+  additionalProperties: false,
+  properties: Object.freeze({
+    nodeId: opaqueIdProperty,
+    parentId: opaqueIdProperty,
+    position: Object.freeze({
+      type: 'integer',
+      minimum: 0,
+      maximum: 100_000,
+    }),
+  }),
+  required: Object.freeze(['nodeId', 'parentId']),
+} as const);
+
+const nodeMoveOutputSchema = Object.freeze({
+  type: 'object',
+  additionalProperties: false,
+  properties: Object.freeze({
+    planId: Object.freeze({ type: 'string', minLength: 1 }),
+    risk: Object.freeze({ const: 'medium' }),
+    requiresApproval: Object.freeze({ const: true }),
+    impact: Object.freeze({
+      type: 'array',
+      items: Object.freeze({ type: 'string' }),
+    }),
+    operations: Object.freeze({ type: 'array' }),
+  }),
+  required: Object.freeze(['planId', 'risk', 'requiresApproval', 'impact', 'operations']),
 } as const);
 
 const nodeCreateOutputSchema = Object.freeze({
@@ -431,6 +470,8 @@ export function createPhase4bMcpWriteToolAdapter(
       'nodes.create': createNodeCreateDefinition(
         readRequiredOwnData(options, 'nodeCreateService') as Phase4bMcpLowRiskNodeCreateService,
       ),
+      'nodes.move': createNodeMoveDefinition(),
+      'nodes.delete_subtree': createNodeDeleteSubtreeDefinition(),
       [PHASE4B_MCP_NODES_UPDATE_TOOL_NAME]: createNodeUpdateDefinition(
         readRequiredOwnData(options, 'nodeUpdateService') as Phase4bMcpLowRiskNodeUpdateService,
       ),
@@ -780,6 +821,36 @@ function createChangeGetDefinition(
       } catch (error) {
         throw mappedNodeCreateError(error);
       }
+    },
+  };
+  return Object.freeze(definition);
+}
+
+function createNodeDeleteSubtreeDefinition(): McpLowRiskToolDefinition {
+  const definition: McpLowRiskToolDefinition = {
+    inputSchema: nodeMoveInputSchema,
+    outputSchema: nodeMoveOutputSchema,
+    toCanonicalOperations: () => Object.freeze([Object.freeze({
+      type: 'delete_subtree',
+      risk: 'high' as const,
+    })]),
+    invoke: () => {
+      throw new TypeError('nodes.delete_subtree cannot write directly.');
+    },
+  };
+  return Object.freeze(definition);
+}
+
+function createNodeMoveDefinition(): McpLowRiskToolDefinition {
+  const definition: McpLowRiskToolDefinition = {
+    inputSchema: nodeMoveInputSchema,
+    outputSchema: nodeMoveOutputSchema,
+    toCanonicalOperations: () => Object.freeze([Object.freeze({
+      type: 'move_node',
+      risk: 'medium' as const,
+    })]),
+    invoke: () => {
+      throw new TypeError('nodes.move is medium risk and cannot write directly.');
     },
   };
   return Object.freeze(definition);

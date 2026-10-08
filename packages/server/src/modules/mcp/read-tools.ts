@@ -51,6 +51,14 @@ export const PHASE4B_MCP_READ_TOOL_NAMES: readonly [
   'nodes.get',
 ] =
   Object.freeze(['collections.get', 'collections.get_snapshot', 'nodes.get']);
+/** Optional mcp-read tool. Kept off the frozen P4B name tuple. */
+export const PHASE4B_MCP_OPTIONAL_READ_TOOL_NAMES = Object.freeze(['nodes.search'] as const);
+export {
+  NODES_SEARCH_DESCRIPTION,
+  NODES_SEARCH_PROFILE_CLAIM,
+  NODES_SEARCH_TOOL_NAME,
+  nodesSearchDefinition,
+} from './nodes-search.js';
 export const PHASE4B_MCP_READ_TOOL_SNAPSHOT_MIME_TYPE =
   'application/vnd.collection-protocol.snapshot+json' as const;
 export const PHASE4B_MCP_READ_TOOL_REQUIRED_SCOPE_PREFIX = 'mcp:read:' as const;

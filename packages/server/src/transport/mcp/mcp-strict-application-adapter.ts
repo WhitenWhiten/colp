@@ -133,6 +133,9 @@ export function createPhase4bMcpApplicationFacadeFromColpAdapters(
     ...(options.ownedCollectionsQuery === undefined
       ? {}
       : { ownedCollectionsQuery: options.ownedCollectionsQuery }),
+    ...(options.nodesSearch === undefined
+      ? {}
+      : { nodesSearch: options.nodesSearch }),
   });
 }
 

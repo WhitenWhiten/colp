@@ -7,6 +7,12 @@
  */
 import type { McpApplicationContext } from './application-context.js';
 import {
+  NODES_SEARCH_DESCRIPTION,
+  NODES_SEARCH_PROFILE_CLAIM,
+  NODES_SEARCH_TOOL_NAME,
+  nodesSearchDefinition,
+} from './nodes-search.js';
+import {
   collectionsGetDefinition,
   collectionsGetSnapshotDefinition,
   nodesGetDefinition,
@@ -34,6 +40,10 @@ export interface McpApplicationToolDescriptor {
   readonly outputSchema?: Readonly<Record<string, unknown>>;
   readonly annotations?: Readonly<Record<string, unknown>>;
   readonly requiredScopes: readonly string[];
+  /** Optional mcp-read tool (F1): servers MAY implement it; risk is none. */
+  readonly optional?: true;
+  readonly risk?: 'none';
+  readonly profileClaim?: typeof NODES_SEARCH_PROFILE_CLAIM;
   /**
    * True when the tool exists only on the compat surface
    * (`/collections/-/mcp-compat`); strict `/collections/-/mcp` never lists
@@ -87,6 +97,18 @@ export const PHASE4B_MCP_READ_TOOL_CATALOG: readonly McpApplicationToolDescripto
     requiredScopes: readRequiredScopes,
   }),
 ]);
+
+/** Optional read-profile tool. Not part of the frozen three-tool P4B list. */
+export const NODES_SEARCH_TOOL_DESCRIPTOR: McpApplicationToolDescriptor = Object.freeze({
+  name: NODES_SEARCH_TOOL_NAME,
+  description: NODES_SEARCH_DESCRIPTION,
+  inputSchema: nodesSearchDefinition.inputSchema,
+  outputSchema: nodesSearchDefinition.outputSchema,
+  requiredScopes: Object.freeze([NODES_SEARCH_PROFILE_CLAIM.scope]),
+  optional: true,
+  risk: NODES_SEARCH_PROFILE_CLAIM.risk,
+  profileClaim: NODES_SEARCH_PROFILE_CLAIM,
+});
 
 export const PHASE4B_MCP_WRITE_TOOL_SCOPE_CATALOG: Readonly<
   Record<Phase4bMcpWriteToolName, readonly string[]>
