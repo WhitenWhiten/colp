@@ -1,0 +1,140 @@
+/* ——— Agents ——— */
+
+@layer pages {
+.agents-stack {
+  display: grid;
+  gap: var(--space-5);
+  max-width: var(--measure-wide);
+}
+
+/* Each step is a card: a heading, one or two lines of context, then the
+   thing to copy. */
+.agents-block {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.agents-block h2,
+.agents-block h3 {
+  margin: 0;
+  letter-spacing: var(--tracking-tight);
+}
+
+.agents-block h2 {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+}
+
+.agents-block h3 {
+  margin-top: var(--space-3);
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+}
+
+.agents-meta {
+  margin: 0;
+  max-width: var(--measure);
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+}
+
+.agents-code {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-sunken);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.agents-clients {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.agents-client {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-raised);
+}
+
+.agents-client-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.agents-client-head h3 {
+  margin: 0;
+  font-size: var(--text-md);
+}
+
+.agents-policy {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.agents-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.agents-secret {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--warning-soft);
+}
+
+.agents-audit {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.agents-audit li {
+  display: grid;
+  gap: var(--space-1);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--line);
+}
+
+.agents-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+
+.agents-form .field > span {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+/* Same height as the key-name input beside it. */
+.agents-form .btn {
+  min-height: var(--space-8);
+}
+}

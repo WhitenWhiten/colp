@@ -1,0 +1,76 @@
+# COLP Server image (self-hosted). Node 22. No Redis, object storage, or mail server.
+#
+# Stages:
+#   web-build     packages/web production build (VITE_EDITION=self-hosted)
+#   server-build  npm ci, then `npm run build`: tsc plus the esbuild step that
+#                 bundles migrations/*.ts into dist/migrations (D23)
+#   runtime       production dependencies, dist, UI at /srv/web
+#
+# Build context is the repository root: the server stage needs packages/server
+# and the web stage needs packages/web plus packages/server/generated.
+#
+# deploy/compose.yaml mounts the named volume colp-web on /srv/web (Caddy
+# mounts the same volume read-only and serves it). That mount hides the image
+# directory, so the UI is also stored at /opt/colp-web, which is not mounted.
+# The entrypoint refreshes /srv/web from /opt/colp-web on every start,
+# including upgrades, and removes stale shipped assets. The Node process does not serve the UI and this image does not
+# add a second server.
+
+FROM node:22-alpine@sha256:b6f26b36c8ff49624cfdac716b8ea1138d606df02586a77d364bb5536a634f85 AS web-build
+WORKDIR /src/packages/web
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+COPY packages/web/package.json packages/web/package-lock.json packages/web/.npmrc ./
+RUN npm ci --ignore-scripts \
+    && npm rebuild esbuild --ignore-scripts=false
+COPY packages/web/tsconfig.json packages/web/vite.config.ts packages/web/vitest.config.ts packages/web/index.html ./
+COPY packages/web/src ./src
+COPY packages/web/public ./public
+COPY packages/web/content ./content
+COPY packages/web/scripts ./scripts
+COPY packages/server/generated /src/packages/server/generated
+# The About page links these two files; the build itself drops every .md page.
+COPY packages/server/CHANGELOG.md deploy/INSTALL.md /src/docs/
+ENV VITE_EDITION=self-hosted
+RUN npm run build \
+    && cp /src/docs/CHANGELOG.md /src/docs/INSTALL.md dist/
+
+FROM node:22-alpine@sha256:b6f26b36c8ff49624cfdac716b8ea1138d606df02586a77d364bb5536a634f85 AS server-build
+WORKDIR /app
+COPY packages/server/package.json packages/server/package-lock.json ./
+# Lifecycle scripts stay off (repo .npmrc). esbuild still needs its install
+# script for the migrations bundle in `npm run build`. Same idea as Know-N's
+# devops/docker/backend.Dockerfile: migrations/*.ts use syntax Node's type
+# stripping rejects and import from src/, so each file is bundled to plain JS.
+# The runtime (self-hosted.ts, cli) loads that bundle from dist/migrations.
+RUN npm ci --ignore-scripts \
+    && npm rebuild esbuild --ignore-scripts=false
+COPY packages/server/tsconfig.json ./
+COPY packages/server/src ./src
+COPY packages/server/generated ./generated
+COPY packages/server/migrations ./migrations
+COPY packages/server/scripts ./scripts
+RUN npm run build \
+    && test -d dist/migrations \
+    && npm prune --omit=dev
+
+FROM node:22-alpine@sha256:b6f26b36c8ff49624cfdac716b8ea1138d606df02586a77d364bb5536a634f85 AS runtime
+WORKDIR /app
+ENV NODE_ENV=production \
+    HOST=0.0.0.0 \
+    PORT=3000
+RUN apk add --no-cache su-exec \
+    && mkdir -p /srv/web /opt/colp-web
+COPY --from=server-build /app/package.json /app/package-lock.json ./
+COPY --from=server-build /app/node_modules ./node_modules
+COPY --from=server-build /app/dist ./dist
+COPY --from=web-build /src/packages/web/dist /opt/colp-web
+COPY --from=web-build /src/packages/web/dist /srv/web
+COPY packages/server/docker-entrypoint.sh /usr/local/bin/colp-entrypoint
+RUN chmod +x /usr/local/bin/colp-entrypoint \
+    && printf '%s\n' '#!/bin/sh' 'exec node /app/dist/src/cli/index.js "$@"' > /usr/local/bin/colp-server \
+    && chmod +x /usr/local/bin/colp-server
+EXPOSE 3000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=90s --retries=3 \
+    CMD ["node", "-e", "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+ENTRYPOINT ["colp-entrypoint"]
+CMD ["colp-server", "start"]

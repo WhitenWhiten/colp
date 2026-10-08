@@ -1,0 +1,20 @@
+{
+  "$schema": "./performance-thresholds.schema.json",
+  "environment": {
+    "runtime": "node-22",
+    "database": "in-memory-editor-ports",
+    "warmupIterations": 2,
+    "measuredIterations": 20,
+    "concurrency": 4,
+    "nodeCount": 10000,
+    "pageLimit": 200
+  },
+  "thresholds": {
+    "editorPageP95Ms": 500,
+    "fullAssemblyMs": 120000,
+    "maxPageBytes": 4194304,
+    "maxHeapDeltaBytes": 536870912,
+    "sameCollectionLockWaitP95Ms": 5000,
+    "crossCollectionParallelMs": 60000
+  }
+}

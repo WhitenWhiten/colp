@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "environment", "thresholds"],
+  "properties": {
+    "$schema": { "const": "./performance-thresholds.schema.json" },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runtime",
+        "measuredIterations",
+        "warmupIterations",
+        "concurrency",
+        "nodeCount",
+        "pageLimit"
+      ],
+      "properties": {
+        "runtime": { "const": "node-22" },
+        "database": {
+          "type": "string",
+          "description": "Optional label when a probe touches PostgreSQL; pure in-memory runners may omit it."
+        },
+        "warmupIterations": { "type": "integer", "minimum": 0 },
+        "measuredIterations": { "type": "integer", "minimum": 10 },
+        "concurrency": { "type": "integer", "minimum": 1, "maximum": 32 },
+        "nodeCount": { "type": "integer", "minimum": 1, "maximum": 100000 },
+        "pageLimit": { "type": "integer", "minimum": 1, "maximum": 500 }
+      }
+    },
+    "thresholds": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "editorPageP95Ms",
+        "fullAssemblyMs",
+        "maxPageBytes",
+        "maxHeapDeltaBytes",
+        "sameCollectionLockWaitP95Ms",
+        "crossCollectionParallelMs"
+      ],
+      "properties": {
+        "editorPageP95Ms": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Engineering trial p95 for a single revision-fenced Editor page (not an external SLO)."
+        },
+        "fullAssemblyMs": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Wall time ceiling for assembling the full live-node tree at environment.nodeCount (generous for in-memory 10k)."
+        },
+        "maxPageBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum serialized Editor page JSON size in bytes (Product contract: 4 MiB)."
+        },
+        "maxHeapDeltaBytes": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Heap used delta ceiling for the full assembly workload (engineering trial only)."
+        },
+        "sameCollectionLockWaitP95Ms": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "p95 wait observed while contending writers serialize on one Collection."
+        },
+        "crossCollectionParallelMs": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Wall-time ceiling for parallel writers on distinct Collections (must beat a serial estimate)."
+        }
+      }
+    }
+  }
+}

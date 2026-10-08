@@ -1,0 +1,65 @@
+{
+  "bucket": {
+    "success": true,
+    "errors": [],
+    "messages": [],
+    "result": {
+      "name": "known-quarantine-production",
+      "creation_date": "2026-07-25T00:00:00.000Z",
+      "location": "APAC",
+      "storage_class": "Standard",
+      "jurisdiction": "default"
+    }
+  },
+  "managedDomain": {
+    "success": true,
+    "errors": [],
+    "messages": [],
+    "result": {
+      "domain": "known-quarantine-production.example.r2.dev",
+      "enabled": false,
+      "bucketId": "known-quarantine-production"
+    }
+  },
+  "customDomains": {
+    "success": true,
+    "errors": [],
+    "messages": [],
+    "result": {
+      "domains": []
+    }
+  },
+  "lifecycle": {
+    "success": true,
+    "errors": [],
+    "messages": [],
+    "result": {
+      "rules": [
+        {
+          "id": "delete-capability-probes",
+          "enabled": true,
+          "conditions": {
+            "prefix": "capability-probes/"
+          },
+          "deleteObjectsTransition": {
+            "condition": {
+              "type": "Age",
+              "maxAge": 86400
+            }
+          }
+        },
+        {
+          "id": "Default Multipart Abort Rule",
+          "enabled": true,
+          "conditions": {},
+          "abortMultipartUploadsTransition": {
+            "condition": {
+              "type": "Age",
+              "maxAge": 604800
+            }
+          }
+        }
+      ]
+    }
+  }
+}

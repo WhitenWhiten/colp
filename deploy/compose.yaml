@@ -1,0 +1,98 @@
+services:
+  server:
+    image: ghcr.io/whitenwhiten/colp-server:${COLP_IMAGE_TAG:-0.1}
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgres://colp:${POSTGRES_PASSWORD}@db:5432/colp
+      DATABASE_SSL_MODE: ${DATABASE_SSL_MODE:-disable}
+      # "-" (not ":-"): an explicit empty value stays empty and means peer-only.
+      TRUSTED_INGRESS: ${TRUSTED_INGRESS-10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
+      COLP_SERVER_ORIGIN: ${COLP_SERVER_ORIGIN}
+      COLP_SERVER_SECRET: ${COLP_SERVER_SECRET}
+      # Optional settings: an unset value falls back to the server default.
+      COLP_INSECURE_HTTP: ${COLP_INSECURE_HTTP:-false}
+      COLP_ALLOWED_EXTENSION_IDS: ${COLP_ALLOWED_EXTENSION_IDS:-}
+      COLP_MULTI_USER: ${COLP_MULTI_USER:-false}
+      COLP_LOG_LEVEL: ${COLP_LOG_LEVEL:-info}
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      # The entrypoint refreshes /srv/web from the image on every start.
+      - colp-web:/srv/web
+
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: colp
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: colp
+    volumes:
+      - colp-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U colp -d colp"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  caddy-tls-auto:
+    image: caddy:2
+    restart: unless-stopped
+    profiles:
+      - tls-auto
+    environment:
+      COLP_SERVER_ORIGIN: ${COLP_SERVER_ORIGIN}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile.tls-auto:/etc/caddy/Caddyfile
+      - caddy-data:/data
+      - caddy-config:/config
+      - colp-web:/srv/web:ro
+    depends_on:
+      - server
+
+  caddy-tls-internal:
+    image: caddy:2
+    restart: unless-stopped
+    profiles:
+      - tls-internal
+    environment:
+      COLP_SERVER_ORIGIN: ${COLP_SERVER_ORIGIN}
+    ports:
+      - "443:443"
+    volumes:
+      - ./Caddyfile.tls-internal:/etc/caddy/Caddyfile
+      - caddy-data:/data
+      - caddy-config:/config
+      - colp-web:/srv/web:ro
+    depends_on:
+      - server
+
+  caddy-http:
+    image: caddy:2
+    restart: unless-stopped
+    profiles:
+      - http
+    # Plain HTTP is for this machine only (COLP allows http:// on loopback),
+    # so the port is published on 127.0.0.1, not on every interface.
+    ports:
+      - "127.0.0.1:${COLP_HTTP_PORT:-8080}:80"
+    volumes:
+      - ./Caddyfile.http:/etc/caddy/Caddyfile
+      - caddy-data:/data
+      - caddy-config:/config
+      - colp-web:/srv/web:ro
+    depends_on:
+      - server
+
+volumes:
+  colp-db:
+  caddy-data:
+  caddy-config:
+  colp-web:

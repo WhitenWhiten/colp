@@ -1,0 +1,259 @@
+@import url("tokens.generated.css");
+@import url("fonts.css");
+@import url("chrome.css");
+@import url("forms.generated.css");
+
+/* =====================================================================
+   Popup shell: one layout for manual, automatic result and edit.
+   header -> (progress) -> body -> footer. See docs/ui-design.md.
+   ===================================================================== */
+
+/* The panel is light-only like the main site; without this, a dark browser
+   theme inverts form controls against the light popup surface. */
+:root { color-scheme: light; }
+
+html, body { width: 380px; margin: 0; }
+body.pp {
+  display: flex; flex-direction: column; max-height: 600px; overflow: hidden;
+  background: var(--surface-raised); color: var(--ink);
+  font-family: var(--font-sans); font-size: var(--text-sm); line-height: var(--leading-normal);
+  -webkit-font-smoothing: antialiased;
+}
+html { max-height: 600px; overflow: hidden; }
+/* The Settings preview opens in a tab; center the panel in that viewport. */
+html[data-preview] { display: flex; width: 100%; height: 100%; max-height: none; overflow: auto; }
+html[data-preview] body.pp { flex: none; max-width: 100%; margin: auto; }
+img, svg { display: block; }
+
+/* ---- header */
+.pp-head { position: relative; flex: none; display: flex; align-items: center; gap: var(--hair-15); height: 3rem; padding: 0 var(--space-2) 0 var(--space-4); }
+.pp-head .brand-wordmark { display: block; flex: none; width: auto; height: 1.05rem; }
+.pp-head-actions { margin-left: auto; display: flex; align-items: center; gap: var(--hair-15); }
+.icon-btn {
+  display: inline-grid; place-items: center; width: 2rem; height: 2rem; padding: 0;
+  border-radius: var(--radius); color: var(--muted);
+  transition: background var(--duration-fast) var(--ease-quart), color var(--duration-fast) var(--ease-quart);
+}
+.icon-btn:hover { background: var(--paper); color: var(--ink); }
+.icon-btn svg { width: 1.05rem; height: 1.05rem; }
+.pp-avatar-btn { display: inline-grid; place-items: center; width: 2rem; height: 2rem; padding: 0; border-radius: 50%; }
+.pp-avatar-btn .avatar { width: 1.5rem; height: 1.5rem; font-size: var(--text-2xs); }
+.pp-avatar-btn:hover .avatar { box-shadow: 0 0 0 3px var(--paper-2); }
+
+/* The overflow menu carries the two conditional save-lane actions; the
+   <details> itself stays hidden until one is actionable (popup-header.ts). */
+.popup-more { position: relative; flex: none; }
+.popup-more > summary { list-style: none; cursor: pointer; }
+.popup-more > summary::-webkit-details-marker { display: none; }
+.popup-more-menu {
+  position: absolute; top: calc(100% + var(--hair-15)); right: 0; z-index: var(--z-sticky);
+  display: flex; flex-direction: column; min-width: 12rem; padding: var(--hair-35);
+  border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface-raised); box-shadow: var(--shadow-raised);
+}
+.popup-more-menu .menu-item {
+  min-width: 0; padding: var(--hair-35) var(--hair-55); border-radius: var(--radius-xs);
+  color: var(--ink-2); font-size: var(--text-xs); text-align: left; white-space: normal;
+}
+.popup-more-menu .menu-item:hover { background: var(--paper); color: var(--ink); }
+
+/* ---- auto-close progress (automatic result only); frozen once the pointer or focus enters */
+.pp-progress { flex: none; height: 2px; margin: 0 var(--space-4); border-radius: 1px; background: var(--line); overflow: hidden; }
+.pp-progress > span { display: block; height: 100%; background: var(--line-heavy); transform-origin: left; animation: pp-countdown 3s linear forwards; }
+.pp-progress[data-paused] > span { animation-play-state: paused; }
+@keyframes pp-countdown { to { transform: scaleX(0); } }
+
+/* ---- scroll body: the only region that scrolls */
+/* The body and folder list grow and shrink with state and search; a stable
+   gutter keeps rows from changing width as their scrollbar comes and goes. */
+.pp-body { flex: 0 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; scrollbar-gutter: stable; display: grid; gap: var(--space-4); align-content: start; padding: var(--hair-40) var(--space-4) var(--space-4); }
+.pp-body > * { min-width: 0; }
+.capture { display: grid; gap: var(--space-4); min-width: 0; }
+
+/* ---- boot skeleton: same layout as the page block (tile + two bars) */
+#capture:not([hidden]) ~ #capture-boot { display: none; }
+.pp-skeleton { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--space-3); align-items: start; min-height: 8rem; }
+.pp-skeleton .pp-tile { background: var(--paper-2); border-color: transparent; }
+.pp-skeleton-lines { display: grid; gap: var(--hair-55); padding-top: var(--hair-30); }
+.pp-skeleton-lines > span { display: block; height: 0.9rem; border-radius: var(--radius-xs); background: var(--paper-2); animation: pp-pulse var(--duration-loop) var(--ease-out) infinite alternate; }
+.pp-skeleton-lines > span:last-child { width: 55%; height: 0.7rem; }
+@keyframes pp-pulse { from { opacity: 0.55; } to { opacity: 1; } }
+
+/* ---- status line (saved / already saved) */
+.pp-status { display: flex; align-items: center; gap: var(--hair-40); min-height: 1.5rem; color: var(--ink); font-size: var(--text-sm); font-weight: var(--weight-semibold); }
+.pp-status > svg { flex: none; width: 1.1rem; height: 1.1rem; color: var(--success); }
+.pp-status-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pp-status-meta { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-weight: var(--weight-regular); }
+.pp-status-meta:not(:empty)::before { content: '\00b7'; margin-right: var(--hair-40); color: var(--ghost); }
+.pp-status[data-tone="neutral"] > svg { color: var(--muted); }
+.pp-status[data-tone="danger"] > svg { color: var(--danger); }
+
+/* ---- page block: icon tile + editable title (max 3 lines) + domain */
+.pp-page { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--space-3); align-items: start; }
+.pp-tile { display: grid; place-items: center; width: 2.75rem; height: 2.75rem; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--paper); color: var(--faint); }
+.pp-tile img, .pp-tile svg { width: 1.25rem; height: 1.25rem; border-radius: var(--radius-2xs); }
+.pp-page-text { display: grid; gap: var(--hair-15); min-width: 0; }
+.pp-title {
+  display: block; width: calc(100% + var(--hair-90)); margin: calc(-1 * var(--hair-20)) calc(-1 * var(--hair-45));
+  padding: var(--hair-20) var(--hair-45); border: 0; border-radius: var(--radius-xs);
+  background: transparent; color: var(--ink);
+  font: inherit; font-size: var(--text-md); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-tight); line-height: var(--leading-meta);
+  resize: none; field-sizing: content; max-height: calc(3em * var(--leading-meta) + 2 * var(--hair-20)); overflow: hidden;
+  transition: background var(--duration-fast) var(--ease-quart);
+}
+.pp-title:hover { background: var(--paper); }
+.pp-title:focus, .pp-title:focus-visible { outline: none; box-shadow: none; background: var(--paper); overflow: auto; }
+.pp-url {
+  justify-self: start; max-width: 100%; overflow: hidden; padding: 0; border: 0; background: none;
+  color: var(--muted); font-size: var(--text-xs); text-align: left; text-overflow: ellipsis; white-space: nowrap; cursor: text;
+}
+.pp-url:hover { color: var(--ink-2); text-decoration: underline; text-decoration-color: var(--line-heavy); text-underline-offset: 2px; }
+.pp-url:disabled { cursor: default; }
+.pp-url:disabled:hover { color: var(--muted); text-decoration: none; }
+.pp-page-text > input.field-quiet { min-height: 2rem; font-size: var(--text-xs); }
+
+/* ---- field rows: label column + control column */
+.pp-fields { display: grid; grid-template-columns: 3.25rem minmax(0, 1fr); gap: var(--hair-65) var(--space-3); align-items: start; }
+.pp-label { color: var(--muted); font-size: var(--text-sm); line-height: 2.125rem; text-align: right; white-space: nowrap; }
+.pp-control { display: flex; flex-wrap: wrap; align-items: center; gap: var(--hair-40); min-width: 0; min-height: 2.125rem; }
+.pp-control > .field-quiet { flex: 1 1 100%; }
+.pp-control--block { display: block; }
+.pp-suggest { display: flex; flex-wrap: wrap; gap: var(--hair-30); margin-top: var(--hair-30); }
+.pp-suggest[hidden] { display: none; }
+.pp-suggest .chip--suggest { max-width: 100%; }
+
+/* Folder pill: auto width, opens the inline picker. */
+.folder-pill {
+  display: inline-flex; align-items: center; gap: var(--hair-40); max-width: 100%; min-height: 2.125rem;
+  padding: 0 var(--hair-55) 0 var(--hair-65); border: 1px solid transparent; border-radius: var(--radius);
+  background: var(--paper); color: var(--ink); font-size: var(--text-sm); font-weight: var(--weight-medium);
+  transition: background var(--duration-fast) var(--ease-quart);
+}
+.folder-pill:hover { background: var(--paper-2); }
+.folder-pill[aria-expanded="true"] { border-color: var(--line-heavy); background: var(--surface-raised); box-shadow: var(--shadow-ring); }
+.folder-pill > svg { flex: none; width: 0.95rem; height: 0.95rem; color: var(--muted); }
+.folder-pill > .chev { width: 0.75rem; height: 0.75rem; color: var(--faint); }
+#dest-current { display: inline-flex; align-items: center; gap: var(--hair-40); min-width: 0; }
+#dest-placeholder { color: var(--muted); font-weight: var(--weight-regular); white-space: nowrap; }
+#dest-current:has(#dest-folder:not(:empty)) #dest-placeholder { display: none; }
+.folder-pill-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.folder-pill-parent { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-weight: var(--weight-regular); }
+.folder-line { display: inline-flex; flex: 0 1 auto; align-items: center; gap: var(--hair-40); min-width: 0; max-width: 100%; }
+.folder-line > .folder-pill { min-width: 0; }
+.ai-mark { flex: none; display: inline-flex; align-items: center; gap: var(--hair-20); color: var(--muted); font-size: var(--text-xs); white-space: nowrap; }
+.ai-mark svg { width: 0.8rem; height: 0.8rem; }
+/* "Not this one": a quiet icon that spins while the next suggestion runs. */
+.ai-retry {
+  display: inline-grid; place-items: center; width: 1.5rem; height: 1.5rem; padding: 0; border-radius: var(--radius-xs); color: var(--faint);
+  transition: background var(--duration-fast) var(--ease-quart), color var(--duration-fast) var(--ease-quart);
+}
+.ai-retry:hover:not(:disabled) { background: var(--paper); color: var(--ink); }
+.ai-retry:disabled { cursor: default; }
+.ai-retry[aria-busy="true"] { cursor: progress; color: var(--muted); }
+.ai-retry[aria-busy="true"] svg { animation: pp-spin 0.9s linear infinite; }
+@keyframes pp-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .ai-retry[aria-busy="true"] svg { animation: pp-pulse 0.8s ease-in-out infinite alternate; } }
+#folder-suggest { flex: 0 1 auto; min-width: 0; }
+/* Pin: a quiet icon at the end of the folder row. Pressed reads red; where pins are off it stays faint and explains itself. */
+.folder-pin {
+  display: inline-grid; place-items: center; flex: none; width: 1.75rem; height: 1.75rem; margin-left: auto; padding: 0; border-radius: var(--radius-xs); color: var(--faint);
+  transition: background var(--duration-fast) var(--ease-quart), color var(--duration-fast) var(--ease-quart);
+}
+.folder-pin:hover { background: var(--paper); color: var(--ink-2); }
+.folder-pin[aria-pressed="true"] { background: var(--paper); color: var(--danger); }
+.folder-pin[aria-pressed="true"][data-paused] { color: var(--muted); }
+.folder-pin[aria-disabled="true"]:hover { color: var(--muted); }
+.pp-pin-hint { grid-column: 2; margin: calc(-1 * var(--hair-40)) 0 0; color: var(--muted); font-size: var(--text-xs); line-height: var(--leading-body); }
+.pp-pin-hint[hidden] { display: none; }
+.pp-pin-hint .btn-retry { margin-left: 0; color: var(--ink-2); }
+.pp-pin-hint .btn-retry:hover { color: var(--ink); }
+#folder-suggest[aria-busy="true"] { cursor: progress; }
+
+/* Inline folder picker: grows the popup instead of overlaying. */
+.folder-panel { grid-column: 1 / -1; display: grid; border: 1px solid var(--line-strong); border-radius: var(--radius-lg); background: var(--surface-raised); box-shadow: var(--shadow-sm); overflow: hidden; }
+.folder-panel[hidden] { display: none; }
+.folder-search { display: flex; align-items: center; gap: var(--space-2); padding: 0 var(--space-3); border-bottom: 1px solid var(--line); color: var(--faint); }
+.folder-search svg { width: 0.9rem; height: 0.9rem; flex: none; }
+.folder-search input { flex: 1; min-width: 0; height: 2.25rem; padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--ink); font-size: var(--text-sm); outline: none; box-shadow: none; }
+.folder-search input::placeholder { color: var(--faint); }
+.folder-search input:focus-visible { outline: none; box-shadow: none; }
+.folder-list { max-height: 13.5rem; overflow-y: auto; padding: var(--hair-30); scrollbar-width: thin; scrollbar-gutter: stable; }
+.folder-list [role="group"] { display: block; }
+.folder-group { margin: 0; padding: var(--hair-40) var(--hair-55) var(--hair-20); color: var(--muted); font-size: var(--text-xs); }
+.folder-opt {
+  display: flex; align-items: center; gap: var(--space-2); width: 100%; min-height: 2rem;
+  padding: 0 var(--hair-55) 0 calc(var(--hair-55) + var(--depth, 0) * var(--space-4));
+  border-radius: var(--radius-xs); color: var(--ink-2); font-size: var(--text-sm); text-align: left;
+}
+.folder-opt > svg { flex: none; width: 0.9rem; height: 0.9rem; color: var(--faint); }
+.folder-opt > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.folder-opt:hover { background: var(--paper); color: var(--ink); }
+.folder-opt:focus-visible { background: var(--paper); color: var(--ink); }
+.folder-opt[aria-selected="true"] { color: var(--ink); font-weight: var(--weight-medium); }
+.folder-opt[aria-selected="true"]::after {
+  content: ''; flex: none; width: 0.9rem; height: 0.9rem; background: var(--ink);
+  -webkit-mask: var(--check-mask) center / contain no-repeat; mask: var(--check-mask) center / contain no-repeat;
+}
+.folder-dest-empty { margin: 0; padding: var(--hair-55) var(--hair-55); color: var(--muted); font-size: var(--text-xs); }
+.folder-new-form { display: grid; border-top: 1px solid var(--line); }
+.folder-new, .folder-create { display: flex; align-items: center; gap: var(--space-2); width: 100%; min-height: 2.25rem; padding: 0 var(--space-3); color: var(--ink-3); font-size: var(--text-sm); text-align: left; }
+.folder-new:hover { background: var(--paper); color: var(--ink); }
+.folder-new svg, .folder-create > svg { flex: none; width: 0.9rem; height: 0.9rem; }
+.folder-new > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.folder-create { padding-right: var(--hair-30); color: var(--faint); }
+.folder-create input { flex: 1; min-width: 0; height: 2.25rem; padding: 0; border: 0; background: transparent; color: var(--ink); font-size: var(--text-sm); outline: none; box-shadow: none; }
+.folder-create input::placeholder { color: var(--faint); }
+.folder-create .btn { flex: none; min-height: 1.75rem; }
+.folder-panel:focus-within { border-color: var(--line-heavy); }
+:root { --check-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 12.5 4.5 4.5L19 7.5'/%3E%3C/svg%3E"); }
+
+/* The tag field's own focus ring is the kit's; the inner input draws none. */
+.tag-input input:focus-visible { outline: none; box-shadow: none; }
+#note-text { min-height: 3.75rem; }
+
+/* Already saved: other locations + the save-another choice sit quietly under the fields. */
+#capture-existing-locations { display: grid; gap: var(--hair-30); margin-left: calc(3.25rem + var(--space-3)); }
+#capture-existing-locations:empty { display: none; }
+.existence-path { display: flex; align-items: center; gap: var(--hair-30); color: var(--muted); font-size: var(--text-xs); text-decoration: none; overflow-wrap: anywhere; }
+.existence-path svg { flex: none; width: 0.8rem; height: 0.8rem; }
+.existence-path:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 2px; }
+
+/* One quiet status line under the fields; tone only for errors. */
+.pp-note { margin: 0; color: var(--muted); font-size: var(--text-xs); line-height: var(--leading-body); }
+.pp-note[hidden] { display: none; }
+.pp-note[data-tone="error"] { color: var(--danger); }
+.pp-note .btn-retry { margin-left: var(--hair-15); color: var(--ink-2); }
+.pp-note .btn-retry:hover { color: var(--ink); }
+.capture > .inline-alert[hidden] { display: none; }
+/* The missing-access alert puts its action under the sentence instead of squeezing the text. */
+#permission-note { flex-wrap: wrap; }
+#permission-note > p { flex: 1 1 calc(100% - 2rem); }
+#permission-note > .btn { margin: 0 0 0 calc(1rem + var(--hair-55)); }
+
+/* Saved (manual): only the status line and the page remain. A page saved in several places shows just where. */
+body[data-state="saved"] #pp-fields, body[data-state="saved"] #capture-existing-locations,
+body[data-existing="view"] #pp-fields { display: none; }
+/* The result could not start: the alert stands alone. */
+body[data-capture-error] .pp-page, body[data-capture-error] #pp-fields { display: none; }
+
+/* ---- footer: quiet actions left, one primary right */
+.pp-foot { flex: none; display: flex; align-items: center; gap: var(--hair-15); padding: var(--hair-55) var(--space-3) var(--hair-65) var(--space-2); border-top: 1px solid var(--line); background: var(--surface-raised); }
+.pp-foot[hidden] { display: none; }
+.pp-foot-start { display: flex; align-items: center; gap: var(--hair-15); min-width: 0; }
+.pp-foot .btn-ghost { gap: var(--hair-30); min-height: 2rem; padding: 0 var(--hair-55); color: var(--ink-3); font-size: var(--text-sm); font-weight: var(--weight-medium); }
+.pp-foot .btn-ghost svg { width: 0.95rem; height: 0.95rem; color: var(--muted); }
+.pp-foot .btn-ghost:hover svg { color: var(--ink); }
+.pp-foot .btn-ghost[data-danger]:hover { color: var(--danger); background: var(--danger-soft); }
+.pp-foot .btn-ghost[data-danger]:hover svg { color: var(--danger); }
+.pp-foot-end { margin-left: auto; display: flex; align-items: center; gap: var(--space-2); }
+.pp-foot .btn-primary, .pp-foot .btn-secondary { min-height: 2.125rem; padding: 0 var(--space-4); }
+.pp-foot [data-foot] { display: none; }
+.pp-foot[data-mode="manual"] [data-foot~="manual"], .pp-foot[data-mode="result"] [data-foot~="result"],
+.pp-foot[data-mode="existing"] [data-foot~="existing"], .pp-foot[data-mode="saved"] [data-foot~="saved"] { display: inline-flex; }
+/* Missing access / a page that cannot be bookmarked: aria-disabled keeps focus, looks disabled. */
+.btn.btn-save[aria-disabled="true"], .btn.btn-save[aria-disabled="true"]:hover, body[data-unsavable] .btn.btn-save:disabled {
+  cursor: not-allowed; transform: none; color: var(--muted); background: var(--paper-2); border-color: var(--line); box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 0.01ms !important; animation: none !important; }
+}

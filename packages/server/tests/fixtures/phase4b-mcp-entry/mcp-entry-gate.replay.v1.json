@@ -1,0 +1,198 @@
+{
+  "schemaVersion": "known.phase4b.mcp-entry-gate.replay.v1",
+  "frozen": {
+    "endpointPath": "/collections/-/mcp",
+    "protocolVersion": "2026-07-28",
+    "serverInfo": {
+      "name": "known-backend-mcp-entry-fixture",
+      "version": "0.0.0"
+    },
+    "resourceUri": "fixture://ping",
+    "resourceBody": "pong",
+    "hardLimits": {
+      "maxBodyBytes": 65536,
+      "maxHeaderCount": 64,
+      "maxHeaderNameBytes": 128,
+      "maxHeaderValueBytes": 4096,
+      "maxConcurrent": 1,
+      "maxQueue": 2
+    },
+    "legacyRejection": {
+      "rejectedVerbs": ["GET", "DELETE", "PUT", "PATCH", "OPTIONS", "HEAD"],
+      "sessionHeaders": ["mcp-session-id", "last-event-id"],
+      "rejectedMethods": [
+        "initialize",
+        "notifications/initialized",
+        "ping",
+        "logging/setLevel",
+        "notifications/roots/list_changed",
+        "resources/subscribe",
+        "resources/unsubscribe"
+      ]
+    }
+  },
+  "fixedInputs": {
+    "testOnly": true,
+    "clientInfo": {
+      "name": "known-backend-mcp-entry-probe",
+      "version": "0.0.0"
+    },
+    "legacySessionValue": "known-phase4b-legacy-session-marker",
+    "probeHeaderValue": "known-phase4b-probe-header"
+  },
+  "sdkLock": {
+    "client": "2.3.1",
+    "server": "2.3.1",
+    "core": "2.3.1",
+    "legacySdkAbsent": "@modelcontextprotocol/sdk"
+  },
+  "scenarios": [
+    {
+      "id": "discover-modern-post-json",
+      "status": 200,
+      "contentType": "application/json",
+      "supportedVersions": ["2026-07-28"],
+      "envelopeProtocolVersion": "2026-07-28",
+      "headerMethod": "server/discover",
+      "httpMethod": "POST"
+    },
+    {
+      "id": "discover-official-client",
+      "protocolEra": "modern",
+      "negotiatedProtocolVersion": "2026-07-28",
+      "supportedVersions": ["2026-07-28"]
+    },
+    {
+      "id": "resources-read-ping",
+      "resourceText": "pong"
+    },
+    {
+      "id": "listen-sse-ack",
+      "contentType": "text/event-stream",
+      "ackDelivered": true,
+      "closeResolved": true
+    },
+    {
+      "id": "listen-slow-consumer-backpressure",
+      "queued": true,
+      "afterCloseStatus": 200
+    },
+    {
+      "id": "legacy-initialize",
+      "status": 400,
+      "errorCode": -32022,
+      "supportedVersions": ["2026-07-28"]
+    },
+    {
+      "id": "legacy-notification-initialized",
+      "status": 202,
+      "emptyBody": true
+    },
+    {
+      "id": "legacy-session-header",
+      "header": "mcp-session-id",
+      "status": 400,
+      "errorCode": -32022
+    },
+    {
+      "id": "legacy-last-event-id-header",
+      "header": "last-event-id",
+      "status": 400,
+      "errorCode": -32022
+    },
+    {
+      "id": "legacy-method-initialize",
+      "status": 404,
+      "errorCode": -32601
+    },
+    {
+      "id": "legacy-method-ping",
+      "status": 404,
+      "errorCode": -32601
+    },
+    {
+      "id": "legacy-method-logging-set-level",
+      "status": 404,
+      "errorCode": -32601
+    },
+    {
+      "id": "legacy-method-resources-subscribe",
+      "status": 404,
+      "errorCode": -32601
+    },
+    {
+      "id": "legacy-method-resources-unsubscribe",
+      "status": 404,
+      "errorCode": -32601
+    },
+    {
+      "id": "legacy-verb-get",
+      "status": 405
+    },
+    {
+      "id": "legacy-verb-delete",
+      "status": 405
+    },
+    {
+      "id": "hard-limit-body",
+      "status": 413
+    },
+    {
+      "id": "hard-limit-header-count",
+      "status": 431
+    },
+    {
+      "id": "hard-limit-header-length",
+      "status": 431
+    },
+    {
+      "id": "hard-limit-queue",
+      "status": 503
+    },
+    {
+      "id": "fault-fail",
+      "status": 503,
+      "bodyText": "{\"error\":\"injected\"}"
+    },
+    {
+      "id": "fault-malformed-json",
+      "status": 200,
+      "contentType": "application/json",
+      "malformedBody": true
+    },
+    {
+      "id": "fault-hold-abort",
+      "aborted": true
+    },
+    {
+      "id": "restart-shutdown",
+      "beforeStatus": 200,
+      "closedRejected": true,
+      "afterRestartStatus": 200,
+      "generation": 1
+    },
+    {
+      "id": "bounded-queue-fifo",
+      "firstQueued": false,
+      "secondQueued": true,
+      "secondStatus": 200
+    }
+  ],
+  "negativeControls": [
+    "legacy-initialize",
+    "legacy-notification-initialized",
+    "legacy-session-header",
+    "legacy-last-event-id-header",
+    "legacy-method-initialize",
+    "legacy-method-ping",
+    "legacy-method-logging-set-level",
+    "legacy-method-resources-subscribe",
+    "legacy-method-resources-unsubscribe",
+    "legacy-verb-get",
+    "legacy-verb-delete"
+  ],
+  "recordedOutcomes": {
+    "digestAlgorithm": "sha-256",
+    "digest": "e4edb6d8054addcd05653ae88446815c0640445f8e77fc9d31d3c9a705ee7ddd"
+  }
+}

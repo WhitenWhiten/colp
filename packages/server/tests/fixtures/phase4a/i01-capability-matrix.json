@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 4,
+  "decision": {
+    "productionProvider": "cloudflare-r2-private-bucket",
+    "accessMode": "direct-object-api",
+    "uploadedEvidence": "authenticated-explicit-complete-authoritative-r2-head",
+    "objectIdentity": "logical-blob-with-immutable-physical-generation-key",
+    "exposureMode": "owner-private-unscanned",
+    "malwareScanning": "deferred-publication-and-sharing-gate"
+  },
+  "requiredCapabilities": [
+    "conditional_create",
+    "duplicate_create_rejected",
+    "concurrent_create_single_winner",
+    "exact_key_head",
+    "exact_key_read",
+    "conditional_identity_read",
+    "immutable_generation_keys_distinct",
+    "cleanup_candidate_match",
+    "identity_mismatch_refused",
+    "retired_generation_delete",
+    "retired_generation_absent",
+    "active_generation_preserved",
+    "direct_endpoint_tls",
+    "read_credential_write_denied",
+    "managed_encryption_at_rest",
+    "private_bucket",
+    "retention_policy",
+    "provider_error_classes"
+  ],
+  "safety": {
+    "logicalBlobIdentity": "stable-database-blob-id",
+    "physicalGenerationIdentity": "cryptographically-random-opaque-never-reused-exact-object-key",
+    "observedVersionCandidate": "etag-size-required-metadata",
+    "runtimeWrites": "conditional-if-none-match-star-only",
+    "providerPreventsUnconditionalOverwrite": false,
+    "replacement": "new-generation-key-and-database-cas-never-same-key-overwrite",
+    "generationReuse": "permanent-database-tombstone-rejects-reissue",
+    "identityMismatch": "fail-closed-reconcile-no-active-generation-change",
+    "cleanup": "database-fenced-retired-generation-exact-key-delete-confirm-absent",
+    "etagMeaning": "provider-validator-not-content-digest",
+    "publicAccess": "disabled-no-custom-domain-no-r2-dev",
+    "encryption": "cloudflare-managed-at-rest-and-tls-in-transit",
+    "unscannedExposure": "owner-only-forced-download-nosniff-isolated-origin-no-publication-no-sync"
+  },
+  "retention": {
+    "issuedHours": 24,
+    "uploadedPrivateDays": 7,
+    "retiredGenerationTombstone": "permanent",
+    "probeObjectsHours": 24
+  },
+  "recovery": {
+    "rpoMinutes": 5,
+    "rtoMinutes": 60
+  }
+}

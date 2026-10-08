@@ -1,0 +1,1019 @@
+/* Studio, settings, and AI organize.
+   The route container .page-shell lives in page-chrome.css (base); the
+   resource detail page is route-owned by resource-detail.css. */
+
+@layer pages {
+/* Cross-route primitives that used to ride along in loops.css. They stay in
+   the entry because ProgressBar, SavedResourceButton and the split section
+   head are rendered from routes that do not load loops.css (Sync,
+   Collaborators, ResourceDetail). */
+.p0-progress {
+  height: 0.5rem;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--ink) 10%, var(--paper-2));
+}
+
+.p0-progress span {
+  display: block;
+  height: 100%;
+  width: 100%;
+  border-radius: inherit;
+  background: var(--success);
+  transform: scaleX(var(--progress, 0));
+  transform-origin: left center;
+  will-change: transform;
+  transition: transform var(--duration-state) var(--ease-out);
+}
+
+.p0-progress--accent span { background: var(--accent); }
+.p0-progress--warning span { background: var(--warning); }
+.p0-progress--danger span { background: var(--danger); }
+.p0-progress--success span { background: var(--success); }
+
+.section-head--split {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-4);
+  width: auto;
+  margin-inline: 0;
+  margin-bottom: 0;
+}
+
+.section-head--split .section-label {
+  margin-bottom: var(--hair-35);
+}
+
+.section-head--split h2 {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-display);
+}
+
+.section-head--split > span,
+.section-head--split > a {
+  color: var(--faint);
+  font-size: var(--text-xs);
+}
+
+.section-head--split > a:hover {
+  color: var(--ink);
+}
+
+.saved-resource-control { display: inline-flex; align-items: center; gap: var(--space-2); min-width: 5.5rem; max-width: 100%; }
+.saved-resource-control .btn { min-width: 4.5rem; white-space: nowrap; }
+.saved-resource-control .btn svg { width: 1rem; height: 1rem; flex-shrink: 0; }
+.saved-resource-error { color: var(--danger); max-width: 18rem; overflow-wrap: anywhere; }
+
+@media (prefers-reduced-motion: reduce) {
+  .p0-progress span {
+    transition: none;
+  }
+}
+
+@media (max-width: 639px) {
+  /* Column stacking + the desktop `align-items: end` otherwise right-aligns
+     titles such as Following / Replica health. */
+  .section-head--split {
+    align-items: flex-start;
+    justify-content: flex-start;
+    text-align: left;
+  }
+
+  /* One rung under the 28px page title: a 22px bold sans section head
+     outweighed the medium serif h1 above it (Today, Collaborators). */
+  .section-head--split h2 {
+    font-size: var(--text-lg);
+  }
+
+  .saved-resource-control { width: 100%; flex-wrap: wrap; }
+  .saved-resource-control .btn { flex: 1 1 auto; }
+}
+
+/* Agent-public markdown (MCP / About / Developers): long URLs and fenced
+   curl bodies live in this column. pre wrap is the global primitive;
+   the column still needs overflow-wrap for inline backtick tokens in <p>. */
+.trust-doc {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Feed */
+.feed-controls {
+  position: sticky;
+  top: var(--header-h);
+  z-index: var(--z-sticky);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  margin-top: var(--space-4);
+  padding: var(--hair-65) 0;
+  background: color-mix(in srgb, var(--paper) var(--frost-bg-mix), transparent);
+  backdrop-filter: blur(var(--frost-blur)) saturate(var(--frost-saturate));
+  border-bottom: 1px solid var(--line);
+}
+
+.feed-controls .explore-filters {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.feed-controls .feed-count {
+  margin: 0;
+}
+
+.feed-controls .empty-state-actions {
+  margin-top: 0;
+}
+
+.feed-stream {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+}
+
+/* Each update is its own card. A single bordered container with hairline
+   dividers read as one undifferentiated list — the in-card footer hairline
+   and the between-row hairline had the same weight, so an item's source
+   visually detached from its content. */
+.feed-stream-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* Calendar-day separator: a caps whisper with a fading hairline, so long
+   streams read in day-sized bites instead of one undifferentiated pile. */
+.feed-day-sep {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: var(--space-2) 0 0;
+  color: var(--faint);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+
+.feed-day-sep:first-child {
+  margin-top: 0;
+}
+
+.feed-day-sep::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--hairline-fade);
+}
+
+/* Host modifier over the shared .result-row anatomy (cards-ui.css):
+   roomier standalone rows with a scroll offset for anchored jumps. */
+.feed-card {
+  scroll-margin-top: calc(var(--header-h) + var(--space-10));
+  padding: var(--space-4) var(--hair-125);
+}
+
+.feed-stream-container .feed-card:last-child {
+  border-bottom: none;
+}
+
+.feed-card .result-row-title {
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+}
+
+.feed-card .result-row-title a:hover {
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+/* #21: moderation tombstone — the row keeps its slot, actor and time but is
+   inert: no link, no actions, muted placeholder title (not italic: §0.2-3). */
+.feed-card--tombstone .result-row-title {
+  color: var(--muted);
+}
+
+.feed-card-body {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--text-md);
+  line-height: var(--leading-body);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+
+.feed-card-foot {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.feed-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Pointer devices: per-card actions surface on hover/focus. They stay
+   in-flow (opacity only), so rhythm and keyboard access are unchanged;
+   touch keeps them always visible. */
+@media (hover: hover) and (pointer: fine) {
+  .feed-card-actions {
+    opacity: 0;
+    transition: opacity var(--duration-state) var(--ease-quart);
+  }
+
+  .feed-card:hover .feed-card-actions,
+  .feed-card:focus-within .feed-card-actions {
+    opacity: 1;
+  }
+}
+
+@media (min-width: 640px) {
+  .feed-card-foot {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .feed-card-actions {
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+}
+
+/* Creator */
+.creator-stats {
+  display: grid;
+  gap: var(--hair-85);
+  margin: var(--hair-125) auto var(--hair-125);
+  grid-template-columns: 1fr;
+}
+
+.creator-stat {
+  padding: var(--space-4) 0;
+  border-top: 1px solid var(--line);
+}
+
+.creator-stat .label {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.creator-stat .value {
+  margin-top: var(--hair-35);
+  color: var(--ink);
+  font-size: var(--display-sm);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-display);
+  line-height: var(--leading-tight);
+}
+
+/* One insight panel: the weekly trend beside Top bookmarks from 900 up,
+   stacked below. */
+.creator-trend {
+  display: grid;
+  gap: var(--space-6);
+}
+
+/* Creator: iPhone — single column stats */
+@media (max-width: 639px) {
+  .creator-stats {
+    gap: var(--hair-55);
+    margin: var(--space-4) auto;
+  }
+
+  .creator-stats .creator-stat .value {
+    font-size: var(--text-xl);
+  }
+}
+
+
+/* Creator: Tablet — equal two-column KPIs */
+@media (min-width: 640px) and (max-width: 899px) {
+  .creator-stats {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* Creator: Desktop — full layout */
+@media (min-width: 900px) {
+  .creator-stats {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .creator-trend {
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+    align-items: start;
+  }
+}
+
+.insight-list {
+  list-style: none;
+  margin: var(--hair-65) 0 0;
+  padding: 0;
+  max-width: 28rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--hair-45);
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.insight-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: var(--space-3);
+  align-items: center;
+  font-size: var(--text-sm);
+}
+
+.insight-list li > a {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ——— Settings ——— */
+.settings-dialog {
+  position: relative;
+  display: grid;
+  grid-template-columns: 14rem minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  width: var(--settings-dialog-w);
+  height: min(90dvh, 44rem);
+  overflow: hidden;
+  border: 1px solid var(--line-heavy);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-float);
+  /* Same entrance as the default modal window (`rise`, global.css) —
+     the bare chrome skips `.modal-panel`, so the panel motion lives here. */
+  animation: rise var(--duration-enter) var(--ease-out) backwards;
+}
+
+/* Exit mirrors .modal-panel: overlay owns the fade, panel adds the drop. */
+.modal-overlay.is-closing .settings-dialog {
+  animation: modal-panel-out var(--duration-state) var(--ease-quart) forwards;
+}
+
+.settings-dialog-close {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: end;
+  margin-block-start: var(--space-3);
+  margin-inline-end: var(--space-3);
+}
+
+.settings-dialog .settings-nav {
+  grid-column: 1;
+  grid-row: 1 / -1;
+  min-width: 0;
+}
+
+.settings-dialog-body {
+  grid-column: 2;
+  grid-row: 2;
+  min-width: 0;
+  overflow-y: auto;
+  /* Sections differ in length; reserve the bar's gutter so switching between
+     a long and a short one does not reflow the body's width. */
+  scrollbar-gutter: stable;
+  padding: var(--space-6);
+}
+
+/* From 720 the close button floats over the body's top-right corner
+   instead of taking a 44px header row of its own, so each section's title
+   opens at the body padding, level with the nav's first item. */
+@media (min-width: 720px) {
+  .settings-dialog-close {
+    position: absolute;
+    top: var(--space-3);
+    right: var(--space-3);
+    z-index: 1;
+    margin: 0;
+  }
+
+  .settings-dialog-body {
+    grid-row: 1 / -1;
+  }
+}
+
+.settings-dialog-body .settings-section + .settings-section {
+  border-top: 1px solid var(--line);
+  padding-top: var(--space-6);
+}
+
+/* The title bar exists only on the phone sheet; the desktop dialog's
+   sidebar already names every section. */
+.settings-dialog-title {
+  display: none;
+}
+
+/* Phones: a full-screen sheet — a title bar (Settings + close), the
+   section strip on its own full-width row, then the body. The strip used
+   to share the close button's row, which left the sheet untitled and
+   squeezed the tabs against the ✕. The body's top hairline sits under the
+   strip, so the current tab's underline rests on it the way .tab-rail's
+   does (R12-08). */
+@media (max-width: 719px) {
+  .settings-dialog {
+    position: fixed;
+    inset: 0;
+    width: auto;
+    height: auto;
+    padding-top: var(--safe-top);
+    border-radius: 0;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto minmax(0, 1fr);
+  }
+
+  .settings-dialog-title {
+    display: block;
+    grid-column: 1;
+    grid-row: 1;
+    align-self: center;
+    margin: 0;
+    /* Same text edge as the strip labels and the body copy. */
+    padding-inline: var(--space-6);
+    font-size: var(--text-lg);
+    font-weight: var(--weight-semibold);
+    letter-spacing: var(--tracking-tight);
+  }
+
+  .settings-dialog-close {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: center;
+    margin-block: var(--space-2);
+    margin-inline: var(--space-1) var(--space-3);
+  }
+
+  .settings-dialog .settings-nav {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  /* The strip scrolls: SettingsDialog flags the edges that still hide tabs
+     and each gets a visible fade, so a clipped label reads as "more". */
+  .settings-dialog .settings-nav[data-fade-end] {
+    mask-image: linear-gradient(to right, var(--ink) 0, var(--ink) calc(100% - 3rem), transparent);
+    -webkit-mask-image: linear-gradient(to right, var(--ink) 0, var(--ink) calc(100% - 3rem), transparent);
+  }
+
+  .settings-dialog .settings-nav[data-fade-start] {
+    mask-image: linear-gradient(to right, transparent, var(--ink) 3rem, var(--ink) 100%);
+    -webkit-mask-image: linear-gradient(to right, transparent, var(--ink) 3rem, var(--ink) 100%);
+  }
+
+  .settings-dialog .settings-nav[data-fade-start][data-fade-end] {
+    mask-image: linear-gradient(to right, transparent, var(--ink) 3rem, var(--ink) calc(100% - 3rem), transparent);
+    -webkit-mask-image: linear-gradient(to right, transparent, var(--ink) 3rem, var(--ink) calc(100% - 3rem), transparent);
+  }
+
+  .settings-dialog-body {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    padding-bottom: calc(var(--space-6) + var(--safe-bottom));
+    border-top: 1px solid var(--line);
+  }
+}
+
+/* "Go to": page links set apart from the settings sections — a labelled
+   group under a hairline, each link with an outward arrow. */
+.settings-nav-goto {
+  margin-top: var(--hair-65);
+  padding-top: var(--hair-65);
+  border-top: 1px solid var(--line);
+}
+
+.settings-nav-goto-label {
+  margin: 0;
+  padding: var(--hair-35) var(--hair-55);
+}
+
+.settings-nav .settings-nav-goto-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.settings-nav-goto-link svg {
+  flex: none;
+  width: 0.9rem;
+  height: 0.9rem;
+  color: var(--faint);
+}
+
+/* Phones: the group continues the tab strip after a hairline. */
+@media (max-width: 719px) {
+  .settings-nav-goto {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: var(--space-1);
+    margin: 0 0 0 var(--space-2);
+    padding: 0 0 0 var(--space-2);
+    border-top: none;
+    border-left: 1px solid var(--line);
+  }
+
+  .settings-nav-goto-label {
+    display: none;
+  }
+}
+
+/* Form hook kept for JSX + contract tests; controls fill the dialog column. */
+.settings-form {
+  width: 100%;
+}
+
+/* One settings concern = one single-column section. Head above, controls below. */
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.settings-section-head {
+  display: grid;
+  gap: var(--hair-15);
+}
+
+/* The heading keeps no UA margin: its 1em top/bottom (15px) opened a gap
+   under the dialog chrome and split the title from its one-line lede. */
+.settings-section-head > :is(h1, h2, h3, h4),
+.settings-section-head .meta {
+  margin: 0;
+}
+
+/* A titled group of controls inside a settings section (Bookmarks ›
+   Browser subscriptions): no UA border, inset or min-content floor; the
+   legend reads as a .section-label and the group keeps the section's
+   rhythm. Scoped by class — global fieldset chrome is untouched. */
+.settings-fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.settings-fieldset > legend {
+  padding: 0;
+}
+
+
+.settings-fieldset > .meta {
+  margin: 0;
+}
+
+.settings-facts {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.settings-facts > div {
+  display: grid;
+  gap: var(--hair-15);
+}
+
+.settings-facts dt {
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+
+.settings-facts dd {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-body);
+}
+
+.settings-danger {
+  margin-top: var(--space-2);
+  padding: var(--space-5);
+  border: 1px solid color-mix(in srgb, var(--danger) 28%, var(--line-strong));
+  border-radius: var(--radius-lg);
+  border-left-width: 3px;
+  border-left-color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.settings-danger .settings-toggle-label {
+  color: var(--danger);
+}
+
+.settings-toggle-label {
+  display: block;
+  font-size: var(--text-md);
+}
+
+/* Trailing action of a settings column: end of the column, not its start, so
+   it reads as the step after the last field rather than a stray control
+   under the first one. `width` because `.btn` is inline-flex and a
+   column-flex parent would otherwise stretch it. */
+.settings-save-btn {
+  margin-top: var(--space-4);
+  align-self: flex-end;
+  width: auto;
+}
+
+/* Narrow phones: full-bleed for a thumb, like the auth action rows. */
+@media (max-width: 540px) {
+  .settings-save-btn {
+    align-self: stretch;
+    width: 100%;
+  }
+}
+
+/* Settings dialog navigation. Card/sticky page chrome is retired; the
+   sidebar is a pane divider inside .settings-dialog. Sheet (≤ 44rem)
+   reuses the two-column segmented row. */
+
+.settings-avatar-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.settings-avatar-preview {
+  width: 4.5rem;
+  height: 4.5rem;
+  font-size: var(--text-lg);
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-sm), var(--inset-highlight);
+}
+
+/* Fills the rest of the profile column beside the preview. `min-width: 0`
+   because the dashed card is a flex item with its own content: a floor wide
+   enough for the copy would push the preview onto its own line as soon as the
+   column got any narrower. */
+.settings-avatar-upload {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-width: 0;
+  flex: 1 1 10rem;
+}
+
+.avatar-upload-status {
+  font-size: var(--text-xs);
+  color: var(--muted);
+  padding-left: var(--space-1);
+}
+
+.settings-nav {
+  border: none;
+  border-right: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  padding: var(--space-3);
+  position: static;
+  overflow: auto;
+}
+
+.settings-nav .tree-item {
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+
+.settings-nav .tree-item[aria-current='true'] {
+  background: color-mix(in srgb, var(--ink) 5%, var(--surface));
+  color: var(--ink);
+  font-weight: var(--weight-semibold);
+  box-shadow: inset 2px 0 0 var(--ink);
+}
+
+/* Phones: one swipeable tab strip at reading size instead of a 2×5 grid of
+   ellipsized 12px labels that pushed the first field ~250px down (R12-08).
+   Labels keep their natural width; the current section is underlined like
+   .tab-rail and SettingsDialog scrolls it into view. */
+@media (max-width: 719px) {
+  .settings-nav {
+    position: static;
+    display: flex;
+    gap: var(--space-1);
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    /* + the items' --space-2 padding = the body's --space-6 text edge */
+    padding: 0 var(--space-5);
+    border-right: none;
+  }
+
+  .settings-nav .tree-item {
+    position: relative;
+    flex: none;
+    width: auto;
+    min-height: 2.75rem;
+    padding: 0 var(--space-2);
+    border-radius: 0;
+    white-space: nowrap;
+    font-size: var(--text-sm);
+    letter-spacing: normal;
+  }
+
+  .settings-nav .tree-item:focus-visible {
+    outline-offset: -1px;
+  }
+
+  .settings-nav .tree-item:hover {
+    background: transparent;
+  }
+
+  .settings-nav .tree-item[aria-current='true'] {
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .settings-nav .tree-item[aria-current='true']::after {
+    content: '';
+    position: absolute;
+    inset: auto var(--space-2) 0;
+    height: 2px;
+    background: var(--ink);
+  }
+}
+
+/* AI organize */
+.ai-plan-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hair-55);
+}
+
+.ai-plan-row {
+  display: grid;
+  grid-template-columns: 2rem 1fr;
+  gap: var(--space-3);
+  align-items: start;
+  width: 100%;
+  /* R9-35: one-per-screen confirmation cards, not an inbox stream — cap the
+     row at a review measure instead of spreading "folder → folder · N items"
+     across the full 90rem shell. width:100% keeps it filling narrower shells. */
+  max-width: 52rem;
+  text-align: left;
+  padding: var(--hair-90) var(--space-4);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  transition: border-color var(--duration-fast) var(--ease-quart), background var(--duration-fast) var(--ease-quart);
+}
+
+.ai-plan-row[aria-checked='true'] {
+  border-color: var(--ink);
+  background: color-mix(in srgb, var(--accent-soft) 40%, var(--surface));
+}
+
+.ai-plan-check {
+  width: 1.35rem;
+  height: 1.35rem;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line-heavy);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-bold);
+}
+
+.ai-plan-body strong {
+  font-size: var(--text-md);
+  letter-spacing: var(--tracking-tight);
+}
+
+.ai-plan-body p {
+  margin: var(--hair-30) 0 0;
+  font-size: var(--text-sm);
+  color: var(--muted);
+  line-height: var(--leading-copy);
+}
+
+.ai-plan-check svg {
+  width: 0.85em;
+  height: 0.85em;
+}
+
+.ai-plan-arrow {
+  display: inline-block;
+  margin-inline: var(--hair-35);
+  vertical-align: -0.15em;
+  width: 0.85em;
+  height: 0.85em;
+}
+
+.ai-plan-actions {
+  margin-top: var(--hair-110);
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.ai-plan-error {
+  flex-basis: 100%;
+  margin: var(--space-2) 0 0;
+}
+
+/* The collection pick is a "Collection:" SelectMenu pill (toolbar
+   grammar); the native select truncates long titles. */
+.ai-collection-pick {
+  max-width: 100%;
+  margin-bottom: var(--space-4);
+}
+
+/* AI chat */
+.chat-layout {
+  margin-top: var(--hair-110);
+  display: flex;
+  flex-direction: column;
+  gap: var(--hair-85);
+  max-width: 44rem;
+}
+
+.chat-starters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hair-40);
+}
+
+.chat-log {
+  min-height: 18rem;
+  max-height: 28rem;
+  overflow: auto;
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.chat-bubble {
+  max-width: 92%;
+  padding: var(--space-3) var(--hair-90);
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+}
+
+.chat-bubble p {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-md);
+  line-height: var(--leading-body);
+}
+
+.chat-bubble--user {
+  align-self: flex-end;
+  /* Lit paper, not solid ink — long threads stay light; solid ink is
+     reserved for the send action. */
+  background: var(--surface-raised);
+  border-color: var(--line-strong);
+  box-shadow: var(--inset-highlight);
+}
+
+.chat-bubble--user .meta {
+  color: var(--faint);
+}
+
+.chat-bubble--assistant {
+  align-self: flex-start;
+  background: var(--surface);
+}
+
+.chat-compose {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.chat-compose .field {
+  flex: 1;
+  min-width: 0;
+}
+
+.chat-compose input {
+  width: 100%;
+  min-width: 0;
+  /* The compose bar fills its row beside the send button — opt out of the
+     .field default measure cap (global.css) so no dead strip opens between
+     input and button. */
+  max-width: none;
+}
+
+/* —— Creator analytics —— */
+.week-chart {
+  display: grid;
+  gap: var(--space-3);
+  width: 100%;
+  max-width: 100%;
+  margin-top: var(--space-6);
+}
+
+.week-sparkline {
+  display: block;
+  width: 100%;
+  height: 7.5rem;
+}
+
+.week-sparkline-area {
+  fill: color-mix(in srgb, var(--ink) 10%, transparent);
+}
+
+.week-sparkline-line {
+  stroke: var(--ink-3);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.week-sparkline-legend {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(4rem, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--line);
+  padding-top: var(--space-2);
+}
+
+.week-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--hair-15);
+  min-width: 0;
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+.week-bar-value {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+  font-size: var(--text-2xs);
+}
+
+/* —— AI citations —— */
+.chat-cites {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hair-35);
+  margin-top: var(--space-2);
+}
+
+.chat-cites a {
+  font-size: var(--text-caption);
+}
+
+.chat-ctx {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hair-40);
+  margin-bottom: var(--space-3);
+}
+
+  /* ——— Rehomed from page-layouts.css (R9-12) ——— */
+.feed-count {
+    margin: var(--hair-65) 0 0;
+  }
+  .creator-stats .meta {
+    margin-top: var(--hair-35);
+  }
+
+  .creator-trend h2 {
+    margin: var(--space-1) 0 0;
+    font-size: var(--text-lg);
+  }
+
+  .creator-trend .insight-list {
+    margin-top: var(--space-2);
+  }
+
+/* R15-18: short viewports unstick the page toolbar (see nav.css). */
+@media (max-height: 26rem) {
+  .feed-controls {
+    position: relative;
+    top: auto;
+  }
+}
+}

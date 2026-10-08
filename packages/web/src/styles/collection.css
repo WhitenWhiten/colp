@@ -1,0 +1,1496 @@
+/* ——— Public Collection + list / compact streams ——— */
+
+@layer pages {
+/* ——— Public Collection ———
+   A library page on one board track: the masthead spans it and, from 900px,
+   a collection with folders splits it into a sticky Contents sidebar and
+   the main column (toolbar → folder head → the layer's Folders and
+   Bookmarks sections). Every descendant that lays out on the track —
+   masthead, body, comments, skeleton — reads --board-width, so loading and
+   ready pages keep one width. */
+.collection-page {
+  --board-width: min(100%, 76rem);
+  --collection-outline-w: 14rem;
+  --collection-outline-gap: var(--space-6);
+  /* Column floor shared by the folder cards and the bookmark board
+     (.result-board), so the two groups line up on one set of tracks. */
+  --result-card-min: 17rem;
+  padding-bottom: var(--hair-200);
+}
+
+@media (min-width: 1100px) {
+  .collection-page {
+    --collection-outline-w: 16rem;
+    --collection-outline-gap: var(--space-8);
+  }
+}
+
+.public-collection-empty .eyebrow {
+  margin: 0;
+  letter-spacing: 0;
+}
+
+.public-collection-empty > p:last-child {
+  max-width: var(--measure);
+  margin: 0;
+  color: var(--muted);
+}
+
+.public-collection-empty {
+  padding-block: var(--space-8);
+  border-block: 1px solid var(--line-strong);
+}
+
+/* ——— Masthead ———
+   Copy (kicker → serif title → summary → byline) and the action row
+   stack in the first track; from 900 the figures take a second track
+   beside them, bottom-aligned with the actions. The head's padding puts
+   its content on the board column the toolbar and stream share. */
+.collection-masthead {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  column-gap: var(--space-8);
+  margin-bottom: 0;
+  padding: var(--space-6) max(var(--gutter), calc((100% - var(--board-width)) / 2)) var(--space-5);
+  border-bottom: none;
+  background: transparent;
+}
+
+.collection-masthead .page-head-copy {
+  min-width: 0;
+}
+
+.collection-masthead .page-head-copy > .eyebrow {
+  margin: var(--space-3) 0 var(--space-2);
+}
+
+.collection-kicker {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Title and summary share one measure: without a cap the display title ran
+   the full board width while the .lede stopped at --measure, so the head
+   read as a full-bleed line over a half-width paragraph. */
+.collection-masthead .display {
+  max-width: var(--measure-wide);
+  /* R7-21: board view has no line-clamp; unbreakable titles must wrap
+     inside the measure instead of painting into the actions column. */
+  overflow-wrap: anywhere;
+}
+
+/* Masthead summary clamps to two lines; ClampedText reveals the toggle only
+   when the summary actually truncates, and [data-expanded] lifts the clamp. */
+/* p.collection-masthead-lede (0,2,1) ties .page-head p:not(.eyebrow) and
+   wins on stylesheet order so the summary keeps the wide measure. */
+.collection-masthead p.collection-masthead-lede {
+  max-width: var(--measure-wide);
+  margin-top: var(--space-3);
+  font-size: var(--text-lede);
+  line-height: var(--leading-prose);
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.collection-masthead-summary[data-expanded] .collection-masthead-lede {
+  display: block;
+  overflow: visible;
+  -webkit-line-clamp: unset;
+  line-clamp: unset;
+}
+
+.collection-masthead-summary-toggle {
+  display: inline-block;
+  margin-top: var(--space-1);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-normal);
+  color: var(--muted);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  transition: color var(--duration-fast) var(--ease-quart);
+}
+
+.collection-masthead-summary-toggle:hover {
+  color: var(--ink);
+}
+
+@media (pointer: coarse) {
+  .collection-masthead-summary-toggle {
+    min-height: 2.75rem;
+  }
+}
+
+/* Byline: curator (avatar + name, the profile link) then freshness. */
+/* The inline clip hides the separator dot when the date wraps to a line of
+   its own (it would otherwise lead the line); the clip margin keeps focus
+   rings. The curator hover card is portalled, so nothing else is clipped. */
+.collection-byline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--hair-45) var(--space-4);
+  overflow-x: clip;
+  overflow-clip-margin: var(--space-1);
+  margin-top: var(--space-4);
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-ui);
+}
+
+.collection-byline-curator {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hair-45);
+  min-width: 0;
+}
+
+.collection-byline-curator a {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hair-45);
+  min-width: 0;
+  color: var(--ink);
+}
+
+.collection-byline-curator a:hover strong {
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.collection-byline-curator strong {
+  font-weight: var(--weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+.collection-curator-avatar {
+  width: 1.5rem;
+  height: 1.5rem;
+  flex-shrink: 0;
+  font-size: var(--text-3xs);
+}
+
+/* A dot joins freshness to the curator; alone, the date needs none. It
+   sits in the flex gap before the date, outside its box: on one line it
+   separates curator and date; wrapped, it falls left of the byline and is
+   clipped. */
+.collection-byline-curator + .collection-byline-date {
+  position: relative;
+}
+
+.collection-byline-curator + .collection-byline-date::before {
+  content: "·";
+  position: absolute;
+  right: calc(100% + var(--space-4) / 2);
+  transform: translateX(50%);
+  color: var(--faint);
+}
+
+.collection-masthead .page-head-actions {
+  margin-top: var(--space-5);
+}
+
+/* Follow + vote lead; the quiet tools (Subscribe, Path, Graph, Embed,
+   Report) sit behind a hairline so the row reads as two groups. */
+.collection-masthead .social-actions-links {
+  padding-inline-start: var(--space-2);
+  border-inline-start: 1px solid var(--line);
+}
+
+.canvas-toolbar {
+  border-bottom: 1px solid var(--line);
+  background: var(--paper);
+  padding: var(--hair-55) var(--gutter);
+}
+
+.canvas-toolbar-inner {
+  width: var(--board-width);
+  margin-inline: auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* ——— Figures ——— numerals over their nouns, hairline-divided. */
+.collection-figures {
+  display: flex;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.collection-figures li {
+  display: grid;
+  gap: var(--hair-30);
+  align-content: start;
+  min-width: 0;
+  padding-inline: var(--space-5);
+  border-inline-start: 1px solid var(--line);
+}
+
+.collection-figures li:first-child {
+  padding-inline-start: 0;
+  border-inline-start: 0;
+}
+
+.collection-figures strong {
+  color: var(--ink);
+  font-family: var(--font-serif);
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-none);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.collection-figures span {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-meta);
+}
+
+@media (min-width: 900px) {
+  .collection-masthead {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .collection-masthead .page-head-copy,
+  .collection-masthead .page-head-actions {
+    grid-column: 1;
+  }
+
+  .collection-masthead .page-head-stats {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    align-self: end;
+    padding-bottom: var(--hair-20);
+  }
+}
+
+@media (max-width: 899px) {
+  .collection-masthead .page-head-stats {
+    margin-top: var(--space-5);
+  }
+}
+
+/* Phones: the first screen carries the whole identity — kicker, title,
+   summary, byline, actions and figures — and still reaches content. */
+@media (max-width: 639px) {
+  .collection-masthead {
+    padding: var(--space-3) var(--gutter) var(--space-4);
+  }
+
+  .collection-masthead .page-head-copy > .eyebrow {
+    margin-top: var(--space-2);
+  }
+
+  /* The subject title stays a head: the page-title floor, three lines
+     before it clamps (user titles run long, CJK titles break mid-phrase
+     at two). */
+  .collection-masthead .display {
+    font-size: var(--text-2xl);
+    max-width: none;
+    /* R7-21: wrap inside long unbreakable tokens instead of clipping them. */
+    overflow-wrap: anywhere;
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    /* Clamp-safe leading (see --leading-clamp). */
+    line-height: var(--leading-clamp);
+  }
+
+  .collection-masthead p.collection-masthead-lede {
+    font-size: var(--text-md);
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+  }
+
+  .collection-byline {
+    margin-top: var(--space-3);
+  }
+
+  .collection-masthead .page-head-actions {
+    margin-top: var(--space-4);
+  }
+
+  /* Follow is the one primary action: it takes the row beside the vote
+     pill; the tools become one scrolling line of pill buttons. */
+  .collection-masthead .social-actions .follow-btn {
+    flex: 1 1 auto;
+  }
+
+  /* The tools gather in one tray — a hairline-bordered strip that
+     scrolls sideways when the labels outrun 390px, instead of wrapping
+     loose ghost links over three lines. */
+  .collection-masthead .social-actions-links {
+    flex-wrap: nowrap;
+    gap: 0;
+    padding: var(--hair-15);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .collection-masthead .social-actions-links > *,
+  .collection-masthead .subscribe-control {
+    flex-shrink: 0;
+  }
+
+  .collection-masthead .subscribe-control {
+    flex-wrap: nowrap;
+  }
+
+  /* Figures: one ruled row of equal columns. */
+  .collection-masthead .page-head-stats {
+    margin-top: var(--space-4);
+    padding-block: var(--space-3);
+    border-block: 1px solid var(--line);
+  }
+
+  .collection-figures li {
+    flex: 1 1 0;
+    justify-items: center;
+    padding-inline: var(--space-2);
+    text-align: center;
+  }
+
+  .collection-figures li:first-child {
+    padding-inline-start: var(--space-2);
+  }
+
+  .collection-figures strong {
+    font-size: var(--text-xl);
+  }
+}
+
+/* ——— Body: the Contents sidebar beside the main column ———
+   The body carries the board-track padding once, and a fading hairline on
+   the track closes the masthead above both columns. */
+.collection-body {
+  padding-inline: max(var(--gutter), calc((100% - var(--board-width)) / 2));
+  background-image: var(--hairline-fade);
+  background-origin: content-box;
+  background-position: top left;
+  background-repeat: no-repeat;
+  background-size: 100% 1px;
+}
+
+/* The toolbar reads this column's width, not the viewport's: beside the
+   sidebar it gets a different share of the track at every width. */
+.collection-main {
+  container: collection-main / inline-size;
+  min-width: 0;
+}
+
+@media (min-width: 900px) {
+  .collection-body[data-has-outline] {
+    display: grid;
+    grid-template-columns: var(--collection-outline-w) minmax(0, 1fr);
+    column-gap: var(--collection-outline-gap);
+    align-items: start;
+  }
+}
+
+/* ——— Contents ———
+   The whole tree as a jump-anywhere index: the collection heads it, every
+   row counts the bookmarks filed anywhere below it, and the row the
+   visitor stands in carries the Library rail's ink bar. A sidebar from
+   900px — pinned under the header, scrolling on its own; below that the
+   same tree opens as a sheet from the toolbar's Contents button. */
+.collection-body > .collection-outline {
+  display: none;
+}
+
+@media (min-width: 900px) {
+  .collection-body > .collection-outline {
+    display: block;
+    position: sticky;
+    top: var(--header-h);
+    max-height: calc(100dvh - var(--header-h));
+    padding-block: var(--space-4) var(--space-6);
+    overflow-y: auto;
+    /* Expanding the tree past the viewport must not narrow its rows. */
+    scrollbar-gutter: stable;
+    overscroll-behavior: contain;
+  }
+}
+
+.collection-outline-head {
+  margin: 0 0 var(--space-2);
+  padding-inline: var(--hair-45);
+}
+
+.collection-outline-tree,
+.collection-outline-branch {
+  display: grid;
+  gap: var(--hair-15);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Nested levels hang off a guide drawn under their parent's chevron; the
+   rows start on it, so the current row's bar lands on the guide. */
+.collection-outline-branch {
+  margin: var(--hair-15) 0 0 var(--hair-85);
+  border-inline-start: 1px solid var(--line);
+}
+
+/* Chevron | name, with the count laid over the end of the name's own
+   cell: everything past the chevron is one button — one hit area, one
+   focus ring. */
+.collection-outline-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: var(--hair-15);
+  min-height: 2rem;
+  padding-inline-start: var(--hair-20);
+  border-radius: var(--radius-sm);
+  color: var(--ink-2);
+  transition:
+    background var(--duration-fast) var(--ease-quart),
+    color var(--duration-fast) var(--ease-quart);
+  /* Rows disclosed by a chevron mount fresh — a fast fade keeps a branch
+     from popping in. */
+  animation: collection-outline-row-in var(--duration-fast) var(--ease-quart);
+}
+
+@keyframes collection-outline-row-in {
+  from {
+    opacity: 0;
+    transform: translateY(-0.15rem);
+  }
+}
+
+.collection-outline-row:hover {
+  background: color-mix(in srgb, var(--ink) 4%, transparent);
+  color: var(--ink);
+}
+
+/* The chain down to the current folder stays in ink. */
+.collection-outline-row[data-on-trail] {
+  color: var(--ink);
+}
+
+/* The row the visitor stands in: the Library rail's wash and ink bar
+   (square on the bar's side). */
+.collection-outline-row[data-current] {
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+  background: color-mix(in srgb, var(--ink) 5%, var(--surface));
+  color: var(--ink);
+}
+
+.collection-outline-row[data-current]::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: 2px;
+  background: var(--ink);
+}
+
+/* Inside a branch the bar covers the guide instead of doubling it. */
+.collection-outline-branch .collection-outline-row[data-current]::before {
+  inset-inline-start: -1px;
+}
+
+.collection-outline-toggle {
+  display: grid;
+  place-items: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--faint);
+}
+
+button.collection-outline-toggle {
+  cursor: pointer;
+  transition:
+    color var(--duration-fast) var(--ease-quart),
+    background var(--duration-fast) var(--ease-quart);
+}
+
+button.collection-outline-toggle:hover {
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+  color: var(--ink);
+}
+
+.collection-outline-toggle svg {
+  width: 0.85rem;
+  height: 0.85rem;
+  transition: transform var(--duration-fast) var(--ease-quart);
+}
+
+.collection-outline-toggle[aria-expanded='true'] svg {
+  transform: rotate(90deg);
+}
+
+.collection-outline-row--root .collection-outline-toggle {
+  color: var(--muted);
+}
+
+.collection-outline-row--root .collection-outline-toggle svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+/* One line per row; the full name stays on title=. The end padding clears
+   the count laid over this cell. */
+.collection-outline-link {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: stretch;
+  min-width: 0;
+  padding: var(--hair-30) var(--space-8) var(--hair-30) var(--hair-20);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-ui);
+  text-align: start;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* The collection and its top-level folders anchor the tree; deeper rows
+   read their level from the guides. */
+.collection-outline-row--root .collection-outline-link,
+.collection-outline-link[data-depth='0'] {
+  color: var(--ink);
+}
+
+.collection-outline-row[data-current] .collection-outline-link {
+  font-weight: var(--weight-semibold);
+}
+
+.collection-outline-count {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: end;
+  padding-inline-end: var(--space-2);
+  color: var(--faint);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--leading-ui);
+  pointer-events: none;
+}
+
+.collection-outline-row[data-current] .collection-outline-count {
+  color: var(--ink-2);
+}
+
+/* The sheet is a tap target list first: taller rows on every pointer. */
+.collection-outline--sheet .collection-outline-row {
+  min-height: 2.5rem;
+}
+
+/* Touch target: 2.75rem (44px), same convention as the Library rail. */
+@media (pointer: coarse) {
+  .collection-outline-row {
+    min-height: 2.75rem;
+  }
+
+  .collection-outline-toggle {
+    width: 2.25rem;
+    height: 2.75rem;
+  }
+}
+
+/* ——— Toolbar ———
+   Heads the main column: Contents (below 900px), the filter, a search's
+   tally, then the order and view rails at the row's end. From 640px it pins
+   under the header — Collection.tsx toggles .is-sticky / .is-stuck from the
+   sentinel above it; on phones it stays in the flow. */
+.collection-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding-block: var(--space-4) var(--space-3);
+}
+
+.collection-toolbar.is-sticky {
+  position: sticky;
+  top: var(--header-h);
+  z-index: var(--z-sticky);
+  background: color-mix(in srgb, var(--paper) var(--frost-bg-mix), transparent);
+  backdrop-filter: blur(var(--frost-blur)) saturate(var(--frost-saturate));
+  transition: box-shadow var(--duration-state) var(--ease-quart);
+}
+
+.toolbar-sentinel {
+  height: 1px;
+}
+
+/* Pinned, the bar draws its rule as a shadow, so it gains no height. */
+.collection-toolbar.is-sticky.is-stuck {
+  box-shadow: var(--shadow-xs);
+}
+
+.collection-contents-trigger {
+  flex-shrink: 0;
+}
+
+.collection-contents-trigger svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+@media (min-width: 900px) {
+  .collection-contents-trigger {
+    display: none;
+  }
+}
+
+.collection-inline-search {
+  flex: 1 1 14rem;
+  min-width: min(100%, 12rem);
+  max-width: 24rem;
+}
+
+/* Order and view rails, pushed to the row's end. The group is the
+   containing block for the visually hidden option names: absolutely
+   positioned, they would otherwise escape the phone scroller's clip and
+   widen the page. */
+.collection-toolbar-controls {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-inline-start: auto;
+}
+
+.collection-view-switch button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hair-35);
+}
+
+.collection-view-switch svg {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+}
+
+/* The view rail shows its glyphs; each option still carries its name
+   (visually hidden text + title). A column wide enough for the whole row
+   spells the names out. */
+.collection-view-name {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@container collection-main (min-width: 60rem) {
+  .collection-view-name {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip-path: none;
+  }
+}
+
+/* A narrow column keeps "Curator's": both rails stay on one row. */
+@container collection-main (max-width: 44rem) {
+  .collection-sort-tail {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+/* ——— Folder trail + folder head ———
+   Inside a folder the trail leads the layer — the explicit way up — and the
+   head names the folder like a chapter: title, the curator's description,
+   and what is filed below it. Page-level layout only: the trail's chrome is
+   the shared .folder-trail (pages-shared.css). */
+.collection-main > .collection-trail {
+  margin: var(--space-2) 0 0;
+}
+
+.collection-layer-head {
+  margin-top: var(--space-4);
+}
+
+.collection-layer-title {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--font-serif);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-serif-display);
+  line-height: var(--leading-snug);
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+
+.collection-layer-desc {
+  max-width: var(--measure-wide);
+  margin: var(--hair-45) 0 0;
+  color: var(--ink-2);
+  font-size: var(--text-md);
+  line-height: var(--leading-prose);
+  overflow-wrap: anywhere;
+}
+
+.collection-layer-meta {
+  margin-top: var(--space-2);
+}
+
+/* ——— The layer: Folders, then Bookmarks ——— */
+.collection-content {
+  min-width: 0;
+  padding-bottom: var(--space-8);
+}
+
+.collection-section {
+  margin-top: var(--space-5);
+}
+
+.collection-section + .collection-section {
+  margin-top: var(--space-6);
+}
+
+.collection-section-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--hair-45);
+  margin: 0 0 var(--space-3);
+}
+
+.collection-section-count {
+  color: var(--faint);
+  font-weight: var(--weight-medium);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Search results replace the layer, so they take the first section's
+   place under the toolbar. */
+.collection-content > .resource-stream {
+  margin-top: var(--space-4);
+}
+
+/* Shared shells (FolderEntries, ResourceList, the empty states, the sorted
+   layer's skeleton) center themselves on the board track elsewhere; in the
+   column they fill it edge to edge. */
+.collection-content .collection-folder-board,
+.collection-content .collection-folder-rows,
+.collection-content .collection-skeleton-board,
+.collection-content .collection-filter-empty {
+  width: auto;
+  max-width: none;
+  margin-inline: 0;
+}
+
+.collection-content .collection-folder-board,
+.collection-content .collection-folder-rows {
+  margin-block: 0;
+}
+
+.collection-content .collection-skeleton-board {
+  margin-top: var(--space-4);
+}
+
+/* ——— Folder cards (public layer) ———
+   The board's column tracks, so folder and bookmark cards line up; the
+   card is the bookmark card's chrome with a folder's head — an accent icon
+   tile beside the name over its bookmark count. Rich cards (the layer's
+   whole content, or a few beside bookmarks) add the description and the
+   first bookmarks inside. The Library desk styles its own folder layer. */
+.collection-content .collection-folder-board {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--result-card-min)), 1fr));
+  gap: var(--hair-85);
+}
+
+.collection-content .collection-folder-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-content: start;
+  align-items: center;
+  column-gap: var(--space-3);
+  row-gap: var(--hair-15);
+  min-height: 0;
+  padding: var(--space-3) var(--space-4);
+  box-shadow: none;
+  transition:
+    border-color var(--duration-state) var(--ease-quart),
+    box-shadow var(--duration-state) var(--ease-quart);
+}
+
+.collection-content .collection-folder-card:hover {
+  border-color: var(--line-heavy);
+  box-shadow: var(--shadow-raised);
+}
+
+.collection-content .collection-folder-card .collection-folder-icon {
+  grid-row: 1 / span 2;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.collection-content .collection-folder-card .collection-folder-name,
+.collection-content .collection-folder-card .collection-folder-count {
+  grid-column: 2;
+}
+
+.collection-content .collection-folder-card .collection-folder-name {
+  align-self: end;
+  font-size: var(--text-md);
+  line-height: var(--leading-ui);
+}
+
+.collection-content .collection-folder-card .collection-folder-count {
+  align-self: start;
+  color: var(--muted);
+}
+
+.collection-folder-board--rich .collection-folder-card {
+  padding: var(--space-4);
+}
+
+.collection-folder-detail {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  margin-top: var(--space-3);
+}
+
+.collection-folder-desc {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-copy);
+}
+
+/* The peek: favicon + title per bookmark on a hairline-ruled stack. */
+.collection-folder-peek {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+
+.collection-folder-peek-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading-ui);
+}
+
+.collection-folder-peek-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.collection-folder-peek-icon img {
+  width: 1rem;
+  height: 1rem;
+  border-radius: var(--radius-2xs);
+}
+
+.collection-folder-peek-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.collection-folder-peek-more,
+.collection-folder-peek-empty {
+  color: var(--faint);
+  font-size: var(--text-xs);
+}
+
+.collection-folder-peek-empty {
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+
+/* ——— Folder rows (public list / compact layers) ———
+   One joined shell with hairline dividers — the bookmark list's own
+   language — instead of loose bordered strips. */
+.collection-content .collection-folder-rows {
+  gap: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  /* The rows round their own corners; clipping here would cut focus rings. */
+  overflow: visible;
+}
+
+.collection-content .collection-folder-row {
+  min-height: 3rem;
+  padding: var(--space-2) var(--space-4);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.collection-content .collection-folder-row + .collection-folder-row {
+  border-top: 1px solid var(--line);
+}
+
+/* The hover wash follows the shell's corners without clipping focus rings. */
+.collection-content .collection-folder-row:first-child {
+  border-start-start-radius: var(--radius-lg);
+  border-start-end-radius: var(--radius-lg);
+}
+
+.collection-content .collection-folder-row:last-child {
+  border-end-start-radius: var(--radius-lg);
+  border-end-end-radius: var(--radius-lg);
+}
+
+.collection-content .collection-folder-row:hover {
+  background: color-mix(in srgb, var(--ink) 3%, transparent);
+}
+
+.collection-content .collection-folder-row .collection-folder-icon {
+  color: var(--accent);
+}
+
+.collection-content .collection-folder-rows--compact .collection-folder-row {
+  min-height: 2.75rem;
+  padding-block: var(--hair-30);
+}
+
+/* ——— Shared folder layer (FolderEntries) ———
+   Base anatomy for the public page and the Library desk; the public layer
+   above and library.css specialise it. */
+.collection-folder-board {
+  width: var(--board-width);
+  max-width: calc(100% - 2 * var(--gutter));
+  margin: var(--hair-125) auto 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
+  gap: var(--hair-85);
+}
+
+.collection-folder-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 2.75rem;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-xs);
+  color: inherit;
+}
+
+.collection-folder-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--muted);
+}
+
+.collection-folder-name {
+  flex: 1;
+  min-width: 0;
+  font-weight: var(--weight-semibold);
+  font-size: var(--text-md);
+  line-height: var(--leading-ui);
+  overflow-wrap: anywhere;
+}
+
+/* Long folder titles stay bounded so folder entries keep one silhouette:
+   cards clamp at two lines, rows ellipsize on one (see the row rule below). */
+.collection-folder-card .collection-folder-name {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.collection-folder-count {
+  flex-shrink: 0;
+  color: var(--faint);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+/* List/compact: folders as row links above the resource stream. */
+.collection-folder-rows {
+  width: var(--board-width);
+  max-width: calc(100% - 2 * var(--gutter));
+  margin: var(--space-3) auto 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.collection-folder-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 2.75rem;
+  padding: var(--hair-45) var(--hair-85);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: inherit;
+  transition:
+    border-color var(--duration-fast) var(--ease-quart),
+    background var(--duration-fast) var(--ease-quart);
+}
+
+.collection-folder-row:hover {
+  border-color: var(--line-strong);
+  background: var(--surface-raised);
+}
+
+.collection-folder-row .collection-folder-name {
+  font-size: var(--text-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.collection-folder-chevron {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  color: var(--faint);
+}
+
+/* Compact: joined rows in one bordered shell, echoing the compact stream. */
+.collection-folder-rows--compact {
+  gap: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.collection-folder-rows--compact .collection-folder-row {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.collection-folder-rows--compact .collection-folder-row:hover {
+  background: color-mix(in srgb, var(--ink) 4%, transparent);
+}
+
+.collection-folder-rows--compact .collection-folder-row + .collection-folder-row {
+  border-top: 1px solid var(--line);
+}
+
+@media (max-width: 639px) {
+  /* Folder cards: two-up, stacked contents (the Library desk gallery; the
+     public layer lists them — see Phones below); the row form keeps its
+     full 2.75rem touch height. Trail crumbs wrap via the shared .breadcrumb. */
+  .collection-folder-board {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--hair-45);
+  }
+
+  /* Icon beside a name-over-count stack: half the height of the old
+     icon-on-top tile, so the folder layer does not own the first screen. */
+  .collection-folder-card {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    column-gap: var(--space-2);
+    row-gap: var(--hair-15);
+    align-items: center;
+    padding: var(--hair-65) var(--space-3);
+  }
+
+  .collection-folder-card .collection-folder-icon {
+    grid-row: 1 / span 2;
+  }
+
+  .collection-folder-card .collection-folder-name {
+    font-size: var(--text-sm);
+  }
+}
+
+/* ——— Resource stream (ResourceList collectionView chrome) ——— */
+.resource-stream {
+  min-width: 0;
+}
+
+.resource-stream-inner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* S1c moderation tombstone: the server keeps a hidden bookmark in position
+   with an inert title — muted italic, the same language as the comment
+   tombstone (.community-comment-text--tombstone in page-layouts.css). */
+.library-bookmark--hidden h3,
+.result-card--hidden .result-card-title {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.compact-icon {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.compact-icon img,
+.compact-icon .domain-mark {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.collection-filter-empty {
+  width: var(--board-width);
+  max-width: calc(100% - 2 * var(--gutter));
+  margin: var(--space-6) auto var(--space-8);
+}
+
+/* CS-03 mounts the comments panel straight under .collection-page, so this
+   surface supplies the bound the other shells give it: the shared text
+   measure, starting on the board track's left edge (the .collection-body
+   padding formula) — the line the Contents sidebar and masthead start on. */
+.collection-page .community-comments {
+  width: min(var(--measure-wide), 100% - 2 * var(--gutter));
+  max-width: none;
+  margin-inline: max(var(--gutter), (100% - var(--board-width)) / 2) 0;
+}
+
+/* ——— Resource links: in-app detail primary, external original secondary ———
+   The card/row main link now navigates to /r/:id; the original URL keeps a
+   small ↗ affordance (target=_blank + noopener noreferrer stay on it). */
+.collection-resource-external {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-width: 2rem;
+  min-height: 2rem;
+  border-radius: var(--radius-sm);
+  color: var(--faint);
+  transition:
+    color var(--duration-fast) var(--ease-quart),
+    background var(--duration-fast) var(--ease-quart);
+}
+
+.collection-resource-external:hover {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+}
+
+.collection-resource-external svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+/* R7-07: "Save to my library" shares the external link's quiet affordance. */
+.collection-resource-save {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-width: 2rem;
+  min-height: 2rem;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--faint);
+  cursor: pointer;
+  transition:
+    color var(--duration-fast) var(--ease-quart),
+    background var(--duration-fast) var(--ease-quart);
+}
+
+.collection-resource-save:hover {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+}
+
+.collection-resource-save svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+/* Card form: the save/external pair docks inside the shared .result-card-top
+   rail via .result-card-top-actions (cards-ui.css owns the docking margins,
+   including the wider coarse-pointer pull for the 2.75rem targets). */
+
+@media (pointer: coarse) {
+  .collection-resource-external,
+  .collection-resource-save {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+}
+
+.journal-actions .btn:disabled,
+.profile-actions .btn:disabled {
+  cursor: not-allowed;
+}
+
+/* ——— Drill-down masthead: compact once the visitor stands in a folder ———
+   The trail names the location; the editorial masthead (summary, chips,
+   display-size title) would push the layer content down on every hop.
+   The root view keeps the full form. */
+.collection-page[data-in-folder] .collection-masthead {
+  padding-block: var(--space-4);
+}
+
+.collection-page[data-in-folder] .collection-masthead .display {
+  font-size: var(--text-2xl);
+  max-width: none;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+  overflow: hidden;
+  /* R7-21: wrap inside long unbreakable tokens instead of clipping them. */
+  overflow-wrap: anywhere;
+  /* Clamp-safe leading (see --leading-clamp). */
+  line-height: var(--leading-clamp);
+}
+
+.collection-page[data-in-folder] .collection-masthead .eyebrow,
+.collection-page[data-in-folder] .collection-masthead-summary,
+.collection-page[data-in-folder] .collection-byline {
+  display: none;
+}
+
+/* Phones inside a folder: the one-line title and its action row; the
+   figures describe the whole collection and wait at the root. */
+@media (max-width: 639px) {
+  .collection-page[data-in-folder] .collection-masthead {
+    padding-block: var(--space-2) var(--space-3);
+  }
+
+  .collection-page[data-in-folder] .collection-masthead .page-head-actions {
+    margin-top: var(--space-3);
+  }
+
+  .collection-page[data-in-folder] .page-head-stats {
+    display: none;
+  }
+}
+
+/* ——— Loading skeleton (CollectionSkeleton) ———
+   Masthead-height placeholder plus card frames so the resolved snapshot
+   does not jump the layout. Geometry only: the bones are the shared
+   .skeleton-block (skeleton.css), the same visible grey and shimmer as the
+   route fallback that hands off to this skeleton. */
+.collection-skeleton-masthead .section-label {
+  margin: 0 0 var(--space-3);
+  letter-spacing: 0;
+}
+
+.collection-skeleton-title {
+  height: 2.6rem;
+  width: min(30rem, 85%);
+}
+
+.collection-skeleton-lede {
+  height: 1.05rem;
+  width: min(38rem, 95%);
+  margin-top: var(--space-3);
+}
+
+.collection-skeleton-stats {
+  height: 0.9rem;
+  width: min(24rem, 70%);
+  margin-top: var(--space-4);
+}
+
+.collection-skeleton-board {
+  width: var(--board-width);
+  max-width: calc(100% - 2 * var(--gutter));
+  margin: var(--hair-125) auto var(--space-8);
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr));
+  gap: var(--hair-85);
+}
+
+.collection-skeleton-card {
+  height: 9.5rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+/* ——— Phones ——— */
+@media (max-width: 639px) {
+  /* At the root the figures' ruled row already closes the masthead. */
+  .collection-page:not([data-in-folder]) .collection-body {
+    background-image: none;
+  }
+
+  /* The filter takes the first row; Contents, a search's tally and both
+     rails share the next as one line that scrolls sideways, like the
+     Explore filter row. */
+  .collection-toolbar {
+    padding-block: var(--space-3) var(--space-2);
+  }
+
+  .collection-inline-search {
+    order: -1;
+    flex: 1 1 100%;
+    min-width: 0;
+    max-width: none;
+  }
+
+  .collection-toolbar-controls {
+    flex: 1 1 0;
+    flex-wrap: nowrap;
+    min-width: 0;
+    margin-inline: 0 calc(-1 * var(--gutter));
+    padding-inline-end: var(--gutter);
+    overflow-x: auto;
+  }
+
+  .collection-toolbar-controls > * {
+    flex-shrink: 0;
+  }
+
+  /* Static here: the folder trail is the one pinned row, so the frost has
+     nothing to blur. */
+  .collection-toolbar.is-sticky,
+  .collection-toolbar.is-sticky.is-stuck {
+    position: static;
+    box-shadow: none;
+    backdrop-filter: none;
+  }
+
+  .collection-main > .collection-trail {
+    position: sticky;
+    top: var(--header-h);
+    z-index: var(--z-sticky);
+    margin-inline: calc(-1 * var(--gutter));
+    padding: var(--space-2) var(--gutter);
+    border-bottom: 1px solid var(--line);
+    background: color-mix(in srgb, var(--paper) var(--frost-bg-mix), transparent);
+    backdrop-filter: blur(var(--frost-blur)) saturate(var(--frost-saturate));
+  }
+
+  .collection-layer-head {
+    margin-top: var(--space-3);
+  }
+
+  .collection-section {
+    margin-top: var(--space-4);
+  }
+
+  .collection-section + .collection-section {
+    margin-top: var(--space-5);
+  }
+
+  /* Compact folder cards become one joined list: a name gets the row
+     instead of half a screen. Rich cards stack one per row. */
+  .collection-content .collection-folder-board {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-2);
+  }
+
+  .collection-content .collection-folder-board:not(.collection-folder-board--rich) {
+    gap: 0;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+  }
+
+  .collection-content .collection-folder-board:not(.collection-folder-board--rich) .collection-folder-card {
+    min-height: 3.25rem;
+    padding: var(--space-2) var(--space-3);
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .collection-content .collection-folder-board:not(.collection-folder-board--rich) .collection-folder-card + .collection-folder-card {
+    border-top: 1px solid var(--line);
+  }
+
+  .collection-content .collection-folder-board:not(.collection-folder-board--rich) .collection-folder-card:hover {
+    background: color-mix(in srgb, var(--ink) 3%, transparent);
+    box-shadow: none;
+  }
+
+  .collection-content .collection-folder-board:not(.collection-folder-board--rich) > :first-child {
+    border-start-start-radius: var(--radius-lg);
+    border-start-end-radius: var(--radius-lg);
+  }
+
+  .collection-content .collection-folder-board:not(.collection-folder-board--rich) > :last-child {
+    border-end-start-radius: var(--radius-lg);
+    border-end-end-radius: var(--radius-lg);
+  }
+
+  .collection-content .collection-folder-board:not(.collection-folder-board--rich) .collection-folder-icon {
+    width: 2rem;
+    height: 2rem;
+  }
+
+  .collection-folder-board--rich .collection-folder-card {
+    padding: var(--space-3);
+  }
+}
+
+/* R15-18: short viewports unstick the page chrome (see nav.css). */
+@media (max-height: 26rem) {
+  .collection-toolbar.is-sticky,
+  .collection-main > .collection-trail,
+  .collection-body > .collection-outline {
+    position: relative;
+    top: auto;
+  }
+
+  .collection-body > .collection-outline {
+    max-height: none;
+  }
+}
+}

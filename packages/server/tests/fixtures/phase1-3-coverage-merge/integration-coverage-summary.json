@@ -1,0 +1,14 @@
+{
+  "total": {
+    "lines": { "total": 100, "covered": 60, "skipped": 0, "pct": 60 },
+    "statements": { "total": 100, "covered": 60, "skipped": 0, "pct": 60 },
+    "functions": { "total": 10, "covered": 6, "skipped": 0, "pct": 60 },
+    "branches": { "total": 10, "covered": 6, "skipped": 0, "pct": 60 }
+  },
+  "src/infrastructure/sync/postgres/sync-pull-postgres.ts": {
+    "lines": { "total": 100, "covered": 60, "skipped": 0, "pct": 60 },
+    "statements": { "total": 100, "covered": 60, "skipped": 0, "pct": 60 },
+    "functions": { "total": 10, "covered": 6, "skipped": 0, "pct": 60 },
+    "branches": { "total": 10, "covered": 6, "skipped": 0, "pct": 60 }
+  }
+}

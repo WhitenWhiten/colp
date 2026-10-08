@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://known.example/schemas/phase5/remediation/r5-17-dependency-binding.schema.json",
+  "title": "Phase 5 remediation R5-17 closed schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "task",
+    "runtimeRootEnv",
+    "lockPathField",
+    "publicCommand",
+    "dependencies",
+    "rules"
+  ],
+  "properties": {
+    "format": {
+      "const": "known.phase5.remediation.r5-17.v1"
+    },
+    "task": {
+      "const": "R5-17"
+    },
+    "runtimeRootEnv": {
+      "const": "KNOWN_PHASE5_EVIDENCE_ROOT"
+    },
+    "lockPathField": {
+      "const": "relativePath"
+    },
+    "publicCommand": {
+      "const": "npm run verify:phase5:free-social-dependencies"
+    },
+    "dependencies": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "followAcceptance",
+        "feedAcceptance",
+        "notificationAcceptance",
+        "feedOperations",
+        "notificationOperations"
+      ],
+      "properties": {
+        "followAcceptance": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["task", "relativePath"],
+          "properties": {
+            "task": { "const": "P5-07" },
+            "relativePath": { "const": "p5-07/phase5-follow-acceptance.json" }
+          }
+        },
+        "feedAcceptance": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["task", "relativePath"],
+          "properties": {
+            "task": { "const": "P5-15" },
+            "relativePath": { "const": "p5-15/phase5-feed-acceptance.json" }
+          }
+        },
+        "notificationAcceptance": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["task", "relativePath"],
+          "properties": {
+            "task": { "const": "P5-23" },
+            "relativePath": { "const": "p5-23/phase5-notification-acceptance.json" }
+          }
+        },
+        "feedOperations": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["task", "relativePath"],
+          "properties": {
+            "task": { "const": "P5-24" },
+            "relativePath": { "const": "p5-24/phase5-feed-operations-status.json" }
+          }
+        },
+        "notificationOperations": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["task", "relativePath"],
+          "properties": {
+            "task": { "const": "P5-25" },
+            "relativePath": { "const": "p5-25/phase5-notification-operations-status.json" }
+          }
+        }
+      }
+    },
+    "rules": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fiveDependenciesRequired",
+        "relativePathOnly",
+        "hardBoundLockDigest",
+        "failClosedOnMissingDependency",
+        "failClosedOnReplacedDependency",
+        "failClosedOnDigestMismatch",
+        "failClosedOnWrongAncestry",
+        "failClosedOnWrongSourceBinding",
+        "pathIndependentAcrossEvidenceRoots",
+        "forbidPersonalAbsolutePaths",
+        "forbidAuthoritativeStatusUpdate"
+      ],
+      "properties": {
+        "fiveDependenciesRequired": { "const": true },
+        "relativePathOnly": { "const": true },
+        "hardBoundLockDigest": { "const": true },
+        "failClosedOnMissingDependency": { "const": true },
+        "failClosedOnReplacedDependency": { "const": true },
+        "failClosedOnDigestMismatch": { "const": true },
+        "failClosedOnWrongAncestry": { "const": true },
+        "failClosedOnWrongSourceBinding": { "const": true },
+        "pathIndependentAcrossEvidenceRoots": { "const": true },
+        "forbidPersonalAbsolutePaths": { "const": true },
+        "forbidAuthoritativeStatusUpdate": { "const": true }
+      }
+    }
+  }
+}

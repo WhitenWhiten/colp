@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" fill="none" role="img" aria-labelledby="title">
+  <title id="title">Know-N icon</title>
+  <defs><linearGradient id="n-diagonal" x1="10.95" y1="7.4" x2="22.3" y2="24.6" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#6b9dcd"/><stop offset="0.25" stop-color="#6b9dcd"/><stop offset="0.25" stop-color="#5b90c6"/><stop offset="0.5" stop-color="#5b90c6"/><stop offset="0.5" stop-color="#386695"/><stop offset="0.75" stop-color="#386695"/><stop offset="0.75" stop-color="#123f68"/><stop offset="1" stop-color="#123f68"/></linearGradient></defs>
+  <g transform="matrix(1 0 0 1 0 0)"><g transform="translate(-.625 0)">
+      <g fill="#5b90c6">
+        <rect x="8.24" y="3.62" width="1.7" height="1.7" rx=".48" opacity=".70"/>
+        <rect x="7.12" y="2.15" width="1.15" height="1.15" rx=".36" opacity=".38"/>
+        <rect x="11.15" y="2.36" width=".9" height=".9" rx=".30" opacity=".28"/>
+      </g>
+      <g fill="#386695">
+        <rect x="23.32" y="26.6" width="1.7" height="1.7" rx=".48" opacity=".60"/>
+        <rect x="24.9" y="28.65" width="1.15" height="1.15" rx=".36" opacity=".34"/>
+        <rect x="21.4" y="28.95" width=".9" height=".9" rx=".30" opacity=".26"/>
+      </g>
+      <path d="M8.2 24.6 10.95 7.4 22.3 24.6 25.05 7.4" fill="none" stroke="#101b27" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M10.95 7.4 22.3 24.6" fill="none" stroke="url(#n-diagonal)" stroke-width="4" stroke-linecap="round"/>
+    </g></g>
+</svg>

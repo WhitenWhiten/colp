@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="438" height="128" viewBox="0 0 438 128" fill="none" role="img" aria-labelledby="title">
+  <title id="title">Know-N</title>
+  <defs><linearGradient id="n-diagonal" x1="10.95" y1="7.4" x2="22.3" y2="24.6" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#6b9dcd"/><stop offset="0.25" stop-color="#6b9dcd"/><stop offset="0.25" stop-color="#5b90c6"/><stop offset="0.5" stop-color="#5b90c6"/><stop offset="0.5" stop-color="#386695"/><stop offset="0.75" stop-color="#386695"/><stop offset="0.75" stop-color="#123f68"/><stop offset="1" stop-color="#123f68"/></linearGradient></defs>
+  <g stroke="#101b27" stroke-linecap="round" stroke-linejoin="round" transform="matrix(1 0 -.16 1 15.68 0)">
+    <path d="M14 28 V98" stroke-width="15.8"/>
+    <path d="M54 28 17 64 M26 57 58 98" stroke-width="15.2"/>
+    <path d="M74.1 98 V50 C74.1 45.64 77.64 42.1 82 42.1 C85 42.1 87.4 43.7 88.7 46 C94 42.2 100.2 40.5 108 40.5 C125.5 40.5 134 52.3 134 70.4 V98 C134 102.36 130.46 105.9 126.1 105.9 C121.73 105.9 118.2 102.36 118.2 98 V71.5 C118.2 60.6 114.1 55.4 104.3 55.4 C95.4 55.4 89.9 61.7 89.9 71.9 V98 C89.9 102.36 86.36 105.9 82 105.9 C77.64 105.9 74.1 102.36 74.1 98 Z" fill="#101b27" stroke="none"/>
+    <path d="M179 40 C199 40 212.5 52.5 212.5 73.5 C212.5 94.5 199.5 107 179 107 C158.5 107 145.5 94.5 145.5 73.5 C145.5 52.5 158.5 40 179 40 Z M179 54.5 C168.2 54.5 161.4 61.7 161.4 73.5 C161.4 85.3 168.2 92.5 179 92.5 C189.8 92.5 196.6 85.3 196.6 73.5 C196.6 61.7 189.8 54.5 179 54.5 Z" fill="#101b27" fill-rule="evenodd" stroke="none"/>
+    <path d="M230 49 242.3 96.8 C243.1 99.8 244.5 100.2 245.7 97.2 L258.7 57.6 C259.6 55.1 261.4 55.1 262.3 57.6 L275.9 97.2 C277 100.2 278.6 99.8 279.4 96.8 L293 49" stroke-width="14.8"/>
+  </g>
+  <path d="M317.5 73 H333" stroke="#101b27" stroke-width="8.5" stroke-linecap="round"/>
+  <g transform="matrix(4.069767 0 0 4.069767 323.171511 -2.116279)"><g transform="translate(-.625 0)">
+      <g fill="#5b90c6">
+        <rect x="8.24" y="3.62" width="1.7" height="1.7" rx=".48" opacity=".70"/>
+        <rect x="7.12" y="2.15" width="1.15" height="1.15" rx=".36" opacity=".38"/>
+        <rect x="11.15" y="2.36" width=".9" height=".9" rx=".30" opacity=".28"/>
+      </g>
+      <g fill="#386695">
+        <rect x="23.32" y="26.6" width="1.7" height="1.7" rx=".48" opacity=".60"/>
+        <rect x="24.9" y="28.65" width="1.15" height="1.15" rx=".36" opacity=".34"/>
+        <rect x="21.4" y="28.95" width=".9" height=".9" rx=".30" opacity=".26"/>
+      </g>
+      <path d="M8.2 24.6 10.95 7.4 22.3 24.6 25.05 7.4" fill="none" stroke="#101b27" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M10.95 7.4 22.3 24.6" fill="none" stroke="url(#n-diagonal)" stroke-width="4" stroke-linecap="round"/>
+    </g></g>
+</svg>

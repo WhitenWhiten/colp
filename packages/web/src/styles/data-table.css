@@ -1,0 +1,63 @@
+/* Shared ops-table primitive (R10-18) — components/DataTable.tsx.
+   Entry-loaded components layer: every route that renders an ops table
+   (library health, sync replicas/trash, write approvals, digest issues) paints the same
+   chrome — caps columnheader row, hairline-separated grid rows, and the
+   ≤899px collapse that stacks each row into a block.
+
+   A surface owns only its column template: set --data-table-cols on the
+   host class so the head row and every body row share one grid. Page files
+   may re-grid rows inside their own ≤899px rules (library-health does). */
+
+@layer components {
+.data-table {
+  min-width: 0;
+}
+
+.data-table-head .data-table-row,
+.data-table-body .data-table-row {
+  display: grid;
+  grid-template-columns: var(--data-table-cols, minmax(0, 1fr));
+  gap: var(--space-3);
+  align-items: center;
+  min-width: 0;
+}
+
+.data-table-cell {
+  min-width: 0;
+}
+
+.data-table-head .data-table-cell {
+  color: var(--faint);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+
+.data-table-head .data-table-row {
+  min-height: 2.6rem;
+}
+
+.data-table-body .data-table-row {
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--line);
+}
+
+/* Full-width spill cell — URL reveals and intent messages under a row. */
+.data-table-cell--full {
+  grid-column: 1 / -1;
+}
+
+/* ≤899px: the columnheader row leaves the visual flow and each body row
+   stacks to a single column (roles still carry the table semantics). */
+@media (max-width: 899px) {
+  .data-table-head {
+    display: none;
+  }
+
+  .data-table-body .data-table-row {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+  }
+}
+}

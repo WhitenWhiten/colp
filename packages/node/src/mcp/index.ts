@@ -280,6 +280,27 @@ export {
 export type { McpHttpUriPolicyPort } from './http-uri-policy.js';
 
 export {
+  DEFAULT_MCP_DELETE_SUBTREE_THRESHOLD,
+  McpPolicyApprovalError,
+  approveByPolicy,
+  classifyDeleteSubtreeRisk,
+  nodesDeleteSubtreeInputSchema,
+  nodesMoveInputSchema,
+  nodesSearchOutputSchema,
+  nodesSearchInputSchema,
+  nodesSearchToolDefinition,
+  resolveNodeWriteToolOptions,
+  validateNodesDeleteSubtreeInput,
+  validateNodesMoveInput,
+  validateNodesSearchInput,
+  validateNodesSearchOutput,
+  type McpAgentApprovalPolicy,
+  type McpNodeWriteToolOptions,
+  type McpPlanApprovedBy,
+  type ResolvedMcpNodeWriteToolOptions,
+} from './node-tools.js';
+
+export {
   BAGGAGE_META_KEY,
   CLIENT_CAPABILITIES_META_KEY,
   CLIENT_INFO_META_KEY,

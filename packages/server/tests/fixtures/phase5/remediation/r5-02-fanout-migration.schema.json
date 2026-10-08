@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://known.example/schemas/phase5/remediation/r5-02-fanout-migration.schema.json",
+  "title": "Phase 5 remediation R5-02 closed schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "task",
+    "migration",
+    "watermarkTable",
+    "columns",
+    "fanoutTupleConstraint",
+    "index",
+    "retainedPageIndexes",
+    "productionReaders"
+  ],
+  "properties": {
+    "format": {
+      "const": "known.phase5.remediation.r5-02.v1"
+    },
+    "task": {
+      "const": "R5-02"
+    },
+    "migration": {
+      "const": "202607311000_social_feed_fanout_continuation"
+    },
+    "watermarkTable": {
+      "const": "social_feed_watermarks"
+    },
+    "columns": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "items": {
+        "enum": [
+          "fanout_source_event_id",
+          "fanout_commit_ordinal",
+          "fanout_after_recipient_profile_id",
+          "fanout_candidate_count",
+          "fanout_started_at"
+        ]
+      },
+      "uniqueItems": true
+    },
+    "fanoutTupleConstraint": {
+      "const": "social_feed_watermarks_fanout_tuple"
+    },
+    "index": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "columns", "include"],
+      "properties": {
+        "name": { "const": "follows_target_actor_fanout_idx" },
+        "columns": {
+          "const": ["target_profile_id", "actor_profile_id ASC"]
+        },
+        "include": {
+          "const": ["followed_at"]
+        }
+      }
+    },
+    "retainedPageIndexes": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+        "enum": ["follows_actor_page_idx", "follows_target_page_idx"]
+      },
+      "uniqueItems": true
+    },
+    "productionReaders": {
+      "const": "ignore-new-columns"
+    }
+  }
+}

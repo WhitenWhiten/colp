@@ -1,0 +1,27 @@
+{
+  "format": "known.phase5.social-collection-change.consumer.n-minus-1.v1",
+  "contractVersion": 1,
+  "eventType": "social.collection-change",
+  "consumerVersion": 1,
+  "acceptedEventVersions": [1],
+  "rejectedEventVersions": [2],
+  "cases": [
+    {
+      "id": "v1-requires-authoritative-recheck",
+      "secretMarker": "P508_N_MINUS_1_MARKER_07_DO_NOT_EMIT",
+      "producerVisibility": "public",
+      "currentDiscoverability": "public",
+      "expectedDisposition": "recheck_required",
+      "event": {
+        "event_id": "FRUVFRUVFRUVFRUVFRUVFQ",
+        "event_type": "social.collection-change",
+        "event_version": 1,
+        "aggregate_identity": { "aggregate_type": "collection", "aggregate_id": "FhYWFhYWFhYWFhYWFhYWFg", "aggregate_scope": "FhYWFhYWFhYWFhYWFhYWFg" },
+        "aggregate_revision": "publication-revision-100",
+        "commit_ordinal": "100",
+        "occurred_at": "2026-07-29T10:00:00.000Z",
+        "payload": { "collectionId": "FhYWFhYWFhYWFhYWFhYWFg", "ownerProfileId": "IiIiIiIiIiIiIiIiIiIiIg", "publicationRevision": "publication-revision-100", "discoverabilityRecheckKey": "publication.collection:FhYWFhYWFhYWFhYWFhYWFg" }
+      }
+    }
+  ]
+}

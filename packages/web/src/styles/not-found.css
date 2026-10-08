@@ -1,0 +1,288 @@
+/* not-found.css — the absence poster, shared by the 404 page and the
+   full-page unavailable states (AbsenceStage). A full-bleed stage, not an
+   editorial column: the 404 puts three giant serif digits mid-screen; an
+   unavailable subject puts its serif italic title in that same field. The
+   words pinned to the four corners and one sentence with text links along
+   the bottom are the same frame. The only ornament on 404 is a restrained
+   pointer parallax — the page's rAF lerp writes --nf-x/--nf-y (-1…1) on
+   the stage and each digit translates by its own depth; with no fine
+   pointer the digits simply hold their printed stagger. */
+
+@layer pages {
+/* The stage fills the main region between the topnav and the document
+   footer. --bottom-nav-h is 0 on desktop and the tab-bar height at ≤719px,
+   so the same expression fills the visible area on every breakpoint.
+   --nf-foot-reserve is the band the digits inset and the short-height
+   override share — the space left for the foot. */
+.not-found-stage {
+  --nf-x: 0;
+  --nf-y: 0;
+  --nf-foot-reserve: calc(var(--gutter) + 8rem);
+  position: relative;
+  min-height: calc(100dvh - var(--header-h) - var(--bottom-nav-h));
+  overflow: clip;
+}
+
+/* Corner frame — mono micro-labels that read "404 Page Not Found" in
+   z-order. Decorative only (the frame is aria-hidden); --faint keeps them
+   quiet but still legible on paper. */
+.not-found-corner {
+  position: absolute;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  line-height: var(--leading-none);
+  color: var(--faint);
+  user-select: none;
+}
+
+.not-found-corner--tl {
+  top: calc(var(--gutter) + var(--safe-top));
+  left: calc(var(--gutter) + var(--safe-left));
+}
+
+.not-found-corner--tr {
+  top: calc(var(--gutter) + var(--safe-top));
+  right: calc(var(--gutter) + var(--safe-right));
+}
+
+.not-found-corner--bl {
+  bottom: calc(var(--gutter) + var(--safe-bottom));
+  left: calc(var(--gutter) + var(--safe-left));
+}
+
+.not-found-corner--br {
+  right: calc(var(--gutter) + var(--safe-right));
+  bottom: calc(var(--gutter) + var(--safe-bottom));
+}
+
+/* The poster visual: Newsreader at sizes the display scale was never
+   meant for. vw- AND svh-bound so the digits stay giant on phones without
+   ever spilling past a short landscape stage — the min() cap does the
+   height breakpoint's job without a media query. The 8rem floor keeps
+   them poster-size even on the narrowest viewport. */
+.not-found-digits {
+  /* Absolutely positioned so the poster can never push the stage past the
+     viewport — on a short landscape screen it clips inside the stage
+     instead of growing the document under the foot. */
+  position: absolute;
+  inset: var(--gutter) var(--gutter) var(--nf-foot-reserve);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-serif);
+  font-size: clamp(8rem, 40vw, 28rem); /* off-scale: poster glyph sized by the stage, not a page-display rung */
+  font-size: clamp(8rem, min(52vw, 56svh), 32rem); /* off-scale: same poster glyph, height-bound for short viewports */
+  font-weight: var(--weight-regular);
+  line-height: var(--leading-none);
+  letter-spacing: var(--tracking-serif-display);
+  color: var(--ink);
+  user-select: none;
+}
+
+/* translate carries the printed stagger (percentages scale with the
+   glyph, so the same offsets read correctly from 8rem to 30rem);
+   transform carries only the pointer parallax so the two never fight. */
+.not-found-digit {
+  transform: translate3d(
+    calc(var(--nf-x) * var(--nf-depth-x, 0rem)),
+    calc(var(--nf-y) * var(--nf-depth-y, 0rem)),
+    0
+  );
+}
+
+/* 4 rides high-left, the italic 0 sinks center, the last 4 lifts right —
+   a shallow wave that keeps "404" legible while reading composed, not set. */
+.not-found-digit--a {
+  translate: -4% -13%;
+  --nf-depth-x: 1rem;
+  --nf-depth-y: 0.75rem;
+}
+
+.not-found-digit--b {
+  translate: 0 8%;
+  font-style: italic;
+  --nf-depth-x: -1.4rem;
+  --nf-depth-y: 1rem;
+}
+
+.not-found-digit--c {
+  translate: 4% -4%;
+  --nf-depth-x: 0.65rem;
+  --nf-depth-y: -0.55rem;
+}
+
+/* Bottom band: one serif-italic line, one sentence naming the attempted
+   path, two text links. Sits a hairline above the bottom corners, which
+   occupy the true screen edge. */
+.not-found-foot {
+  position: absolute;
+  inset-inline: var(--gutter);
+  bottom: calc(var(--gutter) + var(--hair-200) + var(--safe-bottom));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--hair-45);
+  text-align: center;
+}
+
+.not-found-title {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: var(--text-xl);
+  font-weight: var(--weight-regular);
+  letter-spacing: var(--tracking-serif-display);
+  line-height: var(--leading-snug);
+  color: var(--ink);
+}
+
+/* Unavailable subjects borrow the digit field. The title stays italic serif
+   from .not-found-title; this rule only places it and sizes it between a
+   page head and the 404 numerals. */
+.not-found-title.not-found-mark {
+  position: absolute;
+  inset: var(--gutter) var(--gutter) var(--nf-foot-reserve);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  max-width: 12em;
+  height: auto;
+  margin: auto;
+  padding-inline: var(--space-4);
+  text-align: center;
+  text-wrap: balance;
+  font-size: clamp(2.25rem, 5.5vw, 4.25rem); /* off-scale: poster title between a page head and the 404 digits */
+}
+
+button.not-found-exit {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.not-found-lede {
+  margin: 0;
+  max-width: var(--measure);
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+}
+
+/* The attempted path sits inside the sentence: monospace so it reads as
+   an address, ink so it carries weight, and wrapping anywhere because a
+   pasted URL has no break points. */
+.not-found-path {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.not-found-exits {
+  display: flex;
+  align-items: center;
+  gap: var(--hair-90);
+  margin-top: var(--hair-30);
+}
+
+.not-found-exit {
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  text-decoration: underline;
+  text-decoration-color: var(--line-heavy);
+  text-underline-offset: 0.18em;
+  transition: color var(--duration-fast) var(--ease-quart), text-decoration-color var(--duration-fast) var(--ease-quart);
+}
+
+.not-found-exit:hover {
+  color: var(--accent-ink);
+  text-decoration-color: var(--accent-ink);
+}
+
+@media (pointer: coarse) {
+  .not-found-exit,
+  button.not-found-exit {
+    min-height: 2.75rem;
+  }
+}
+
+.not-found-exit-sep {
+  color: var(--ghost);
+}
+
+@media (min-width: 720px) {
+  /* Tablet and up: deepen the wave — the stage can afford real stagger. */
+  .not-found-digit--a {
+    translate: -5% -15%;
+  }
+
+  .not-found-digit--b {
+    translate: 0 10%;
+  }
+
+  .not-found-digit--c {
+    translate: 5% -5%;
+  }
+}
+
+@media (min-width: 1100px) {
+  /* Desktop: the poster reads at full drama — digits tighten toward
+     overprint and the stagger widens into a proper cascade. */
+  .not-found-digits {
+    letter-spacing: var(--tracking-display);
+  }
+
+  .not-found-digit--a {
+    translate: -7% -18%;
+  }
+
+  .not-found-digit--b {
+    translate: 0 12%;
+  }
+
+  .not-found-digit--c {
+    translate: 7% -6%;
+  }
+}
+
+@media (max-height: 26rem) {
+  /* Phone landscape: the registered short-height cut. The digits shrink
+     well past their 56svh cap so the wave clears the stage's top edge, and
+     the foot reserve folds down so the copy band cannot crowd them. */
+  .not-found-stage {
+    --nf-foot-reserve: calc(var(--gutter) + 6rem);
+  }
+
+  .not-found-digits {
+    font-size: clamp(6rem, min(42vw, 42svh), 12rem); /* off-scale: short-stage poster glyph, height-bound */
+  }
+
+  .not-found-digit--a {
+    translate: -4% -10%;
+  }
+
+  .not-found-digit--b {
+    translate: 0 7%;
+  }
+
+  .not-found-digit--c {
+    translate: 4% -3%;
+  }
+
+  .not-found-foot {
+    bottom: calc(var(--gutter) + var(--hair-90) + var(--safe-bottom));
+  }
+
+  .not-found-title.not-found-mark {
+    font-size: clamp(1.75rem, 5vw, 2.5rem); /* off-scale: short-stage poster title */
+  }
+}
+}

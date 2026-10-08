@@ -1,0 +1,67 @@
+/* Dashboard canvas widget — Sticky note — writing surface (R8-01 chapter split).
+   Owns only this widget's .desk-X content rules — shared chrome (fill
+   padding, card-head tint, .desk-widget-head/-title) lives in
+   dashboard-desk.css; tile base in cards.css; color themes + the
+   widget-intrinsic skins (wash / terminal) in desk-themes.css (R10-26).
+   Route-owned: imported by pages/Dashboard.tsx after dashboard-desk.css. */
+
+@layer components {
+/* ═══════════════════════════════════════════
+   Sticky note — writing surface
+   ═══════════════════════════════════════════ */
+/* R10-26: the sticky note ships .tile-theme-wash (desk-themes.css) tinted
+   with its own paper — a picked .tile-theme-* replaces the gradient. */
+.tile-sticky {
+  --tile-wash-tint: var(--sticky-paper);
+}
+
+.desk-mark-sticky {
+  background: color-mix(in srgb, var(--sticky-mark) 80%, transparent);
+}
+
+.desk-sticky-hint {
+  font-weight: var(--weight-medium);
+  text-transform: uppercase;
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-caps);
+  color: var(--faint);
+}
+
+.desk-sticky-body {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  resize: none;
+  border: 1px solid var(--line);
+  color: var(--ink);
+  font-family: var(--font-serif);
+  outline: none;
+  transition: border-color var(--duration-fast) var(--ease-quart),
+    box-shadow var(--duration-fast) var(--ease-quart);
+  background: var(--paper-2);
+  font-size: var(--text-md);
+  line-height: var(--leading-normal);
+  padding: var(--hair-65) var(--hair-70);
+  border-radius: var(--radius);
+}
+
+.desk-sticky-body:focus {
+  border-color: var(--ink);
+  box-shadow: var(--shadow-ring);
+}
+
+.desk-sticky-status {
+  font-size: var(--text-xs);
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.desk-sticky-status.is-saved {
+  color: var(--success);
+}
+
+.desk-sticky-body::placeholder {
+  color: var(--faint);
+  font-style: italic;
+}
+}

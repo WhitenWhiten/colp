@@ -1,0 +1,10 @@
+{
+  "rules": {
+    "no-duplicate-selectors": true,
+    "declaration-property-value-disallowed-list": {
+      "font-size": ["/px/"],
+      "line-height": ["/px/"],
+      "border-radius": ["999px", "9999px", "99rem", "99px", "100rem", "1000px"]
+    }
+  }
+}

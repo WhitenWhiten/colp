@@ -1,0 +1,53 @@
+/* Dashboard canvas widget — Clock (R8-01 chapter split).
+   Owns only this widget's .desk-X content rules — shared chrome (fill
+   padding, card-head tint, .desk-widget-head/-title) lives in
+   dashboard-desk.css; tile base in cards.css; color themes + the
+   widget-intrinsic skins (wash / terminal) in desk-themes.css (R10-26).
+   Route-owned: imported by pages/Dashboard.tsx after dashboard-desk.css. */
+
+@layer components {
+/* ═══════════════════════════════════════════
+   Clock
+   ═══════════════════════════════════════════ */
+.desk-mark-clock {
+  color: var(--ink-2);
+}
+
+.desk-clock {
+  justify-content: center;
+  gap: var(--hair-20);
+  text-align: left;
+  padding-top: var(--hair-55);
+}
+
+.desk-clock-kicker {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-caps);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--faint);
+}
+
+.desk-clock-time {
+  display: block;
+  font-size: clamp(1.85rem, 8cqi, 2.55rem); /* off-scale: container-query clock digits, not viewport display */
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-display);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--leading-tight);
+  color: var(--ink);
+}
+
+.desk-clock-date {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-md);
+  font-weight: var(--weight-medium);
+  color: var(--ink-2);
+  letter-spacing: var(--tracking-tight);
+}
+
+.desk-clock-zone {
+  margin: var(--hair-15) 0 0;
+}
+}

@@ -1,0 +1,414 @@
+/* ——— Auth / Onboarding page chrome ———
+   Shared lazy-route stylesheet for the auth pages (SHARED_ROUTE_STYLESHEETS
+   in css-layers.contract.test.ts): Login, Register, PasswordReset,
+   EmailVerification, AuthRecovery, Consent, Onboarding.
+
+   Split out of auth.css (R9-04/R9-33). auth.css stays entry-loaded because
+   the globally mounted Settings dialog renders account-security sections
+   (components/auth/*) that consume .auth-card, .auth-notice/.auth-alert*,
+   .auth-action-row, .auth-cta-stack, .auth-otp-row/.auth-otp-send
+   (PasswordField) and the .security-* blocks — those selectors live there.
+   Everything here is consumed only by the seven lazy auth routes above. */
+
+@layer pages {
+.auth-page {
+  min-height: calc(100dvh - var(--header-h));
+  display: grid;
+  place-items: center;
+  padding: var(--hair-200) var(--gutter);
+  /* Soft accent light from the top, same as the landing hero's. */
+  background: var(--wash-hero);
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hair-90);
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Card-context spacing (moved out of polish.css, R9-27 — page chrome, not
+   a pattern). Chrome for .auth-card/.auth-notice/.auth-alert themselves is
+   entry-loaded in auth.css because the settings dialog mounts them. */
+.auth-form > .btn {
+  width: 100%;
+}
+
+.auth-card .auth-tabs {
+  margin-top: var(--hair-125);
+  margin-bottom: var(--hair-125);
+}
+
+.auth-card .auth-notice {
+  box-shadow: var(--inset-highlight);
+}
+
+.auth-card .auth-alert {
+  margin-bottom: var(--hair-85);
+}
+
+.auth-alt {
+  margin-top: var(--hair-125);
+  text-align: center;
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+
+.auth-alt a {
+  color: var(--ink);
+  font-weight: var(--weight-semibold);
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+/* Self-hosted sign-in: the operator resets passwords from the CLI. */
+.auth-hint {
+  margin-top: var(--hair-125);
+  font-size: var(--text-sm);
+  line-height: var(--leading-copy);
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.auth-hint code {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--ink-2);
+}
+
+/* Local authentication UI (Task D2): login/register/reset/verify/recovery.
+   The method rail reuses the shared .view-switch base (shared-chrome.css);
+   only the auth-page deltas live here: full-width wrapping rail, even tab
+   split, form-scale height, long-label truncation, tablist state. */
+.auth-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  width: 100%;
+  min-width: 0;
+}
+
+.auth-tab {
+  flex: 1 1 5rem;
+  min-width: 0;
+  min-height: 2.25rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.auth-tab:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+@media (pointer: coarse) {
+  .auth-tab {
+    min-height: 2.75rem;
+  }
+}
+
+.auth-inline-link {
+  margin: 0;
+  min-height: 1.25rem;
+  font-size: var(--text-sm);
+  text-align: right;
+}
+
+.auth-inline-link a {
+  color: var(--accent-ink);
+  font-weight: var(--weight-semibold);
+}
+
+/* Overlay both secret fields so Password / Email-code swaps do not jump.
+   Column is minmax(0, 1fr) so the hidden OTP row (input + Send code) cannot
+   inflate the card past its padding — UA input min-width would otherwise
+   shove Password past the right edge on 390px. */
+.auth-secret-slot {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  width: 100%;
+  min-width: 0;
+}
+
+.auth-secret-slot > .field {
+  grid-area: 1 / 1;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.auth-secret-slot > .field[data-inactive] {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.auth-secret-slot input {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.auth-oauth-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+/* R7-25: chrome comes from .btn.btn-secondary (global.css owner); this
+   class only rounds the pill and fixes the square icon geometry. */
+.auth-oauth-btn {
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  border-radius: var(--radius-pill);
+}
+
+.auth-oauth-letter {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 1.15rem;
+  block-size: 1.15rem;
+  font-size: var(--text-md);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-display);
+  line-height: var(--leading-none);
+}
+
+.auth-oauth-btn svg {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+.auth-pending {
+  display: grid;
+  gap: var(--hair-85);
+}
+
+.auth-pending h2 {
+  margin: 0;
+  font-size: var(--text-lg);
+  letter-spacing: var(--tracking-display);
+}
+
+.auth-pending .sub {
+  margin: 0;
+}
+
+.auth-success {
+  display: grid;
+  gap: var(--hair-85);
+  justify-items: start;
+}
+
+.auth-success .sub {
+  margin: 0;
+}
+
+/* ——— Onboarding ——— */
+.onboarding-page {
+  padding: var(--page-pad-y) var(--gutter) var(--page-pad-bottom);
+}
+
+.onboarding-inner {
+  width: min(100%, 40rem);
+  margin-inline: auto;
+}
+
+.steps {
+  display: flex;
+  gap: var(--space-2);
+  margin: var(--hair-150) 0 var(--hair-200);
+}
+
+.step-dot {
+  flex: 1;
+  height: 0.28rem;
+  border-radius: var(--radius-pill);
+  background: var(--line-strong);
+}
+
+.step-dot.is-active,
+.step-dot.is-done {
+  background: var(--ink);
+}
+
+/* R7-27: chrome from .panel.panel-raised; local rule keeps the roomier pad. */
+.onboard-card {
+  padding: var(--space-6) var(--hair-150);
+}
+
+/* Back / Continue close the card under a hairline, apart from the step's
+   own action (e.g. Get the extension) instead of stacked against it. */
+.onboard-nav {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+
+.onboard-card h2 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-xl);
+  letter-spacing: var(--tracking-display);
+}
+
+.onboard-card p {
+  margin: 0 0 var(--hair-125);
+  color: var(--ink-2);
+  font-size: var(--text-md);
+}
+
+.pick-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-bottom: var(--hair-125);
+}
+
+.pick-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--hair-85);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  transition: border-color var(--duration-fast) var(--ease-quart);
+}
+
+.pick-item:hover,
+.pick-item[aria-pressed='true'] {
+  border-color: var(--ink);
+}
+
+.pick-item[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--accent-soft) 50%, var(--surface));
+}
+
+/* OAuth consent scopes: one row card per grant — icon, bold permission
+   name, quiet description, raw scope chip. The name carries the visual
+   weight so the grant is scannable; the raw scope stays for verification. */
+.auth-consent-scopes {
+  margin: 0 0 var(--hair-150);
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.auth-consent-scope {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--hair-85) var(--hair-90);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-raised);
+}
+
+.auth-consent-scope-icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: var(--radius-xs);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+
+.auth-consent-scope-icon svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.auth-consent-scope-body {
+  display: grid;
+  gap: var(--hair-15);
+  min-width: 0;
+}
+
+.auth-consent-scope-name {
+  color: var(--ink);
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+  line-height: var(--leading-snug);
+}
+
+.auth-consent-scope-desc {
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+}
+
+.auth-consent-scope-raw {
+  width: fit-content;
+  max-width: 100%;
+  padding: 0 var(--hair-40);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-2xs);
+  background: var(--paper-2);
+  color: var(--faint);
+  font-size: var(--text-xs);
+  overflow-wrap: anywhere;
+}
+
+/* An unrecognized scope has no name/description — the raw token is the row. */
+.auth-consent-scope-raw--solo {
+  padding: var(--hair-20) var(--hair-45);
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.auth-consent-account {
+  margin: 0 0 var(--hair-125);
+  padding-top: var(--hair-125);
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.auth-consent-account strong {
+  color: var(--ink-2);
+  font-weight: var(--weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+.auth-consent-redirect code {
+  font-size: var(--text-sm);
+  word-break: break-all;
+}
+
+.auth-consent-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hair-65);
+}
+
+.auth-consent-actions .btn {
+  flex: 1 1 8rem;
+}
+
+  /* ——— Rehomed from page-layouts.css (R9-12) ——— */
+.onboard-card > .meta {
+    margin-bottom: var(--hair-65);
+  }
+
+  /* Suggested-collection rows: the text column may shrink so long titles
+     truncate to one line instead of wrapping and breaking the row rhythm. */
+  .pick-item > span:not(.avatar) {
+    min-width: 0;
+  }
+
+  .pick-item strong {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}

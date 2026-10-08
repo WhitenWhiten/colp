@@ -1,0 +1,47 @@
+/* Reading typography (R10-04): the one serif long-form recipe — title,
+   body, meta — shared by the replica reader, the path reader's stage card
+   and resource-detail's head. Components layer so a page rule (pages
+   layer) always wins: pages keep only geometry — measure, margins, and
+   the --compact density step the guided path uses. */
+
+@layer components {
+.reading-shell {
+  max-width: var(--measure-wide);
+  margin-inline: auto;
+}
+
+.reading-title {
+  font-family: var(--font-serif);
+  font-size: var(--display-md);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-serif-display);
+  line-height: var(--leading-heading);
+  text-wrap: pretty;
+  /* Reading heads are often one URL with no wrap points. */
+  overflow-wrap: anywhere;
+}
+
+.reading-title--compact {
+  font-size: var(--text-xl);
+}
+
+.reading-body {
+  max-width: var(--measure);
+  font-family: var(--font-serif);
+  font-size: var(--text-lg);
+  line-height: var(--leading-prose);
+  overflow-wrap: anywhere;
+}
+
+.reading-body--compact {
+  font-size: var(--text-md);
+  line-height: var(--leading-normal);
+}
+
+.reading-meta {
+  color: var(--muted);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  line-height: var(--leading-meta);
+}
+}

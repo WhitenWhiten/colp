@@ -1,0 +1,1063 @@
+/*
+ * page-layouts.css — entry-loaded structure for cross-route component
+ * surfaces whose style owner cannot hold them (L03 boundary).
+ *
+ * After the R9-12 rehoming this file only keeps rules for components that
+ * mount on ANY route — they cannot live in a route stylesheet:
+ *
+ *   .follow-btn-*   components/FollowWorkflowButton.tsx — the
+ *                   content-measured width stack shared by every surface
+ *                   that renders a follow button
+ *   .social-actions components/SocialActions.tsx — the Follow + vote pill
+ *                   (+ quiet links) cluster every followable masthead
+ *                   renders (collection, digest series, digest issue)
+ *   .virtual-list-* components/VirtualList.tsx — custom-property-driven
+ *                   windowing positions
+ *   .explore-count  the count line shared by Explore, Library and Reports
+ *
+ * Per-page layout was returned to its owner: tree/edit residuals →
+ * workbench-chrome.css; .benefit-* + .extension-* → extension.css;
+ * .path-* → path-reader.css; .graph-side → graph.css; .creator-* +
+ * .feed-count → studio.css; .share-* + .section-head--flush → share.css;
+ * .reader-page breadcrumb → reader.css; .onboard-* + .pick-* →
+ * auth-pages.css; .summary--full + .card-title--fill + .video-fallback +
+ * .tile-theme-swatch → cards-ui.css; .canvas-bg-swatch →
+ * canvas-background.css; desk widget heads → widget-habits/reading/
+ * heatmap.css; row vocabulary → global.css; library residuals →
+ * library.css.
+ *
+ * FROZEN: no new single-declaration margin classes. Use utilities.css
+ * (.mt-2, .gap-4, .mt-hair-55, …). Rules here are multi-declaration or
+ * descendant structure for cross-route components only.
+ */
+
+@layer pages {
+  /* Count line shared by Explore, Library and Reports (moved out of
+     polish.css, R9-27 — it is layout, not a motion pattern). */
+  .explore-count {
+    margin-top: var(--hair-85);
+    font-size: var(--text-caption);
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .explore-count strong {
+    color: var(--ink);
+    font-weight: var(--weight-bold);
+  }
+
+  /* ——— L03: layout classes moved out of JSX (dynamic-style boundary) ———
+     Only dynamic layout (coordinates, percentage progress, CSS custom
+     properties, view-transition names, controlled animation delay) may stay
+     inline in TSX; everything else lives here. See ARCHITECTURE.md. */
+
+  /* Follow button: stable content-derived width (not a fixed-rem escape
+     hatch). Hidden measure spans share one grid cell with the live label,
+     so the button keeps the widest workflow label's rendered width —
+     font/zoom responsive, no jitter between Follow/Unfollow/Checking…. */
+  .follow-btn {
+    max-inline-size: 100%;
+    padding-inline: var(--space-3);
+  }
+
+  .follow-btn-stack {
+    display: grid;
+    text-align: center;
+  }
+
+  .follow-btn-measure,
+  .follow-btn-label {
+    grid-area: 1 / 1;
+  }
+
+  .follow-btn-measure {
+    visibility: hidden;
+  }
+
+  /* Terminal intent failure (e.g. following your own digest): the reason is
+     shown next to the button, mirroring .saved-resource-error in studio.css. */
+  .follow-error {
+    color: var(--danger);
+    max-width: 18rem;
+    overflow-wrap: anywhere;
+  }
+
+  /* Masthead social cluster (components/SocialActions.tsx): Follow, the
+     vote pill, then quiet links, packed at intrinsic width on one centre
+     line. It renders inside .page-head-actions on the collection, digest
+     series and digest issue heads, so it lives here rather than in any one
+     route stylesheet. Every control shares the .btn-sm height of the
+     Subscribe / Embed / Graph links beside it, so the row reads as one
+     strip whatever state the follow button is in. */
+  .social-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2) var(--space-3);
+    min-width: 0;
+  }
+
+  /* Empty stand-in while the cluster's data loads (ReportIssue): one
+     control row tall, the same height as .btn-sm and the vote pill. */
+  .social-actions--pending {
+    min-height: 2rem;
+  }
+
+  .social-actions-links {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-1);
+  }
+
+  /* Bookmark-subscription control (components/bookmark-subscriptions/
+     SubscribeButton.tsx): "Subscribe to bookmarks" and its chevron options
+     menu (Extension setup, Unsubscribe on all browsers…) read as one split
+     control. Two worded subscription buttons side by side crowded every
+     masthead they joined (collection, digest, library header), and a gear
+     suggested settings when its only action was unsubscribing. */
+  .subscribe-control {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--hair-15);
+  }
+
+  .subscribe-options {
+    padding-inline: var(--hair-30);
+    color: var(--muted);
+  }
+
+  .subscribe-options[aria-expanded='true'] {
+    color: var(--ink);
+  }
+
+  .subscribe-options-menu .subscribe-options-danger {
+    color: var(--danger);
+  }
+
+  .subscribe-options-menu .subscribe-options-danger:hover {
+    background: var(--danger-soft);
+  }
+
+  @media (pointer: coarse) {
+    .subscribe-options-menu a,
+    .subscribe-options-menu button {
+      display: flex;
+      align-items: center;
+      min-height: 2.75rem;
+    }
+  }
+
+  /* Its two dialogs (portaled to body) share one anatomy: a one-line lede,
+     a body framed between hairlines — the setup Stepper (serif index +
+     title/body, as on /extension), or SourceExitDialog's affected-browser
+     rows — then a right-aligned action footer. Not bare sentences, a
+     bulleted <ul> and a left-hugging button row. */
+  .subscribe-setup-lede {
+    margin: 0;
+    color: var(--ink-2);
+    font-size: var(--text-sm);
+    line-height: var(--leading-normal);
+    text-wrap: pretty;
+  }
+
+  .subscribe-setup-steps {
+    margin-top: var(--space-4);
+    border-block: 1px solid var(--line);
+  }
+
+  .subscribe-setup-steps .stepper-title {
+    margin-bottom: var(--hair-20);
+  }
+
+  .subscription-exit-status {
+    margin: var(--space-4) 0 0;
+    color: var(--muted);
+    font-size: var(--text-sm);
+    line-height: var(--leading-normal);
+  }
+
+  .subscription-exit-targets {
+    margin: var(--space-4) 0 0;
+    padding: 0;
+    list-style: none;
+    border-block: 1px solid var(--line);
+  }
+
+  .subscription-exit-target {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--space-2) var(--space-3);
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .subscription-exit-target:last-child {
+    border-bottom: 0;
+  }
+
+  .subscription-exit-target > svg {
+    width: 1.1rem;
+    height: 1.1rem;
+    color: var(--faint);
+  }
+
+  .subscription-exit-target-body {
+    display: grid;
+    gap: var(--hair-15);
+    min-width: 0;
+  }
+
+  .subscription-exit-target-body strong {
+    overflow-wrap: anywhere;
+    font-size: var(--text-sm);
+    font-weight: var(--weight-bold);
+  }
+
+  .subscription-exit-target-body span {
+    color: var(--muted);
+    font-size: var(--text-xs);
+  }
+
+  .subscription-exit-note {
+    margin: var(--space-3) 0 0;
+    color: var(--muted);
+    font-size: var(--text-xs);
+    line-height: var(--leading-normal);
+    text-wrap: pretty;
+  }
+
+  .subscribe-setup-alert {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+    margin: var(--space-4) 0 0;
+    line-height: var(--leading-normal);
+  }
+
+  .subscribe-setup-alert svg {
+    flex-shrink: 0;
+    width: 1rem;
+    height: 1rem;
+    margin-top: 0.15em;
+  }
+
+  .subscribe-setup-actions {
+    justify-content: flex-end;
+    margin-top: var(--space-5);
+  }
+
+  /* Phones: the action badge drops under the browser name instead of
+     squeezing it into a two-word column. */
+  @media (max-width: 639px) {
+    .subscription-exit-target {
+      grid-template-columns: auto minmax(0, 1fr);
+      align-items: start;
+    }
+
+    .subscription-exit-target > svg {
+      margin-top: 0.1em;
+    }
+
+    .subscription-exit-target > .badge {
+      grid-column: 2;
+    }
+  }
+
+  /* Whitespace-stable label: a wrapping "Sign in to follow" would change
+     the row's height between the anonymous and signed-in states. Follow
+     takes .btn-sm geometry here: a full-size .btn towered over the small
+     ghost links it sits beside. */
+  .social-actions .follow-btn {
+    min-height: 2rem;
+    font-size: var(--text-xs);
+    white-space: nowrap;
+  }
+
+  /* The vote pill follows suit: .btn-sm height and type instead of the
+     masthead's inherited body size. */
+  .social-actions .community-vote-btn {
+    min-height: 2rem;
+    padding-inline: var(--space-2);
+    font-size: var(--text-xs);
+  }
+
+  .social-actions .community-vote-btn--skeleton {
+    inline-size: 6rem;
+    min-height: 2rem;
+  }
+
+  /* Touch keeps the 44px floor global.css gives every .btn-sm. */
+  @media (pointer: coarse) {
+    .social-actions .follow-btn,
+    .social-actions .community-vote-btn,
+    .social-actions .community-vote-btn--skeleton {
+      min-height: 2.75rem;
+    }
+  }
+
+  @media (max-width: 639px) {
+    /* Phones: the cluster stays a left-aligned strip of intrinsic-width
+       controls at touch height — no stretching or centring, so it lines
+       up with the byline underneath. */
+    .social-actions {
+      gap: var(--space-2);
+    }
+
+    .social-actions .btn,
+    .social-actions .community-vote-btn {
+      min-height: 2.75rem;
+    }
+
+    .social-actions .community-vote-btn--skeleton,
+    .social-actions--pending {
+      min-height: 2.75rem;
+    }
+
+    .social-actions-links {
+      flex-basis: 100%;
+    }
+  }
+
+  /* CS-01 community vote control (components/CommunityVoteControl.tsx): a
+     two-button up/down group with live counts. Like .follow-btn it mounts
+     on several routes (collection, resource, digest series, digest issue),
+     so it lives here rather than in any one route stylesheet. */
+  .community-vote {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .community-vote-group {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-pill);
+    overflow: hidden;
+  }
+
+  .community-vote-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: var(--space-1) var(--space-3);
+    /* Same height as .btn so the pill sits flush with Follow. */
+    min-height: 2.35rem;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+  }
+
+  .community-vote-btn + .community-vote-btn {
+    border-left: 1px solid var(--line);
+  }
+
+  .community-vote-btn svg {
+    width: 1em;
+    height: 1em;
+  }
+
+  .community-vote-btn:hover:not(:disabled) {
+    background: var(--surface);
+    color: var(--ink);
+  }
+
+  .community-vote--loading {
+    opacity: 0.7;
+  }
+
+  .community-vote-btn--up.is-active {
+    color: var(--accent);
+    background: var(--accent-soft);
+  }
+
+  .community-vote-btn--down.is-active {
+    color: var(--danger);
+    background: var(--danger-soft);
+  }
+
+  .community-vote-btn:disabled {
+    cursor: not-allowed;
+    color: var(--faint);
+  }
+
+  /* Anonymous visitors: the arrows lead to sign-in, so the pill reads as
+     one clickable control — hovering either half lifts the whole group. */
+  .community-vote--signin .community-vote-group:hover {
+    border-color: var(--line-strong);
+  }
+
+  /* Touch: the pill matches the 44px .btn floor from global.css. */
+  @media (pointer: coarse) {
+    .community-vote-btn,
+    .community-vote-btn--skeleton {
+      min-height: 2.75rem;
+    }
+  }
+
+  .community-vote-btn--skeleton {
+    inline-size: 7rem;
+    min-height: 2.35rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-pill);
+  }
+
+  .community-vote-count {
+    font-weight: var(--weight-bold);
+  }
+
+  /* CS-02 community hot board (components/CommunityHotBoard.tsx): the
+     ranked list Explore renders under the Hot segment. Items arrive in
+     strict server order; the row anatomy is rank · title/meta · score. */
+  .community-hot-board {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    margin-top: var(--space-4);
+  }
+
+  .community-hot-list {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-top: 1px solid var(--line);
+  }
+
+  .community-hot-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    /* Same register as compact bookmark rows: enough inline room that the
+       rank numeral does not hug the list edge. */
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .community-hot-rank {
+    flex: none;
+    inline-size: 2rem;
+    text-align: right;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .community-hot-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    min-width: 0;
+  }
+
+  .community-hot-title {
+    font-weight: var(--weight-bold);
+    overflow-wrap: anywhere;
+  }
+
+  .community-hot-meta {
+    color: var(--muted);
+  }
+
+  .community-hot-score {
+    flex: none;
+    margin-left: auto;
+    color: var(--accent);
+    font-weight: var(--weight-bold);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .community-hot-error {
+    color: var(--danger);
+  }
+
+  .community-vote-message {
+    color: var(--danger);
+    max-width: 18rem;
+    overflow-wrap: anywhere;
+    font-size: var(--text-caption);
+  }
+
+  /* CS-03 community comments panel (components/CommunityComments.tsx):
+     mounts below the vote control on every commentable surface (collection,
+     bookmark detail, digest series, digest issue), so it lives here rather
+     than in any one route stylesheet. Roots are an ordered list; an expanded
+     thread nests inside the root body so replies line up with the root's
+     text, and a rail under the root avatar ties the thread to its parent. */
+  .community-comments {
+    --comment-avatar: 2rem;
+    --comment-gap: var(--space-3);
+    --comment-card-pad: var(--space-4);
+    margin-top: var(--space-8);
+    padding-top: var(--space-5);
+    border-top: 1px solid var(--line);
+    max-inline-size: var(--measure-wide);
+  }
+
+  .community-comments--loading {
+    opacity: 0.7;
+  }
+
+  .community-comments-title {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin: 0 0 var(--space-4);
+    font-size: var(--text-lg);
+    font-weight: var(--weight-semibold);
+  }
+
+  /* Count sits in a quiet pill beside the heading, not as loose grey text. */
+  .community-comments-count {
+    display: inline-flex;
+    align-items: center;
+    min-width: var(--hair-150);
+    padding: var(--hair-15) var(--space-2);
+    border-radius: var(--radius-pill);
+    background: var(--surface-sunken);
+    color: var(--muted);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-semibold);
+    font-variant-numeric: tabular-nums;
+    justify-content: center;
+  }
+
+  .community-comments-note {
+    margin: var(--space-3) 0 0;
+    color: var(--muted);
+    font-size: var(--text-sm);
+  }
+
+  /* The note doubles as the error line; danger separates it from status text. */
+  .community-comments-note[role='alert'] {
+    color: var(--danger);
+  }
+
+  /* Curator strip: the lock notice reads left, the lock toggle sits right. */
+  .community-comments-settings {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2) var(--space-3);
+    margin-bottom: var(--space-3);
+  }
+
+  .community-comments-settings > .community-comments-note {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+    flex: 1 1 16rem;
+    min-width: 0;
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .community-comments-settings > .community-comments-note svg {
+    flex: 0 0 auto;
+    width: 1rem;
+    height: 1rem;
+    margin-top: var(--hair-15);
+  }
+
+  /* A locked area gets a notice panel, not a loose grey line. */
+  .community-comments-settings--locked {
+    padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background: var(--surface-sunken);
+  }
+
+  .community-comments-settings > .btn {
+    margin-left: auto;
+  }
+
+  /* CS-03/CS-04: every composer is the same rounded box — avatar, input,
+     then a footer row wrapping to full width for the code-point counter and
+     the actions (4000 body code points, 1000 reason code points; astral
+     characters count once even though they occupy two UTF-16 code units).
+     Anonymous readers get the same frame with a placeholder line and the
+     sign-in link instead of the input. */
+  .community-comments-composer {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: var(--space-2) var(--comment-gap);
+  }
+
+  .community-composer {
+    padding: var(--space-3);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    transition:
+      border-color var(--duration-state) var(--ease-quart),
+      box-shadow var(--duration-state) var(--ease-quart);
+  }
+
+  .community-composer:focus-within {
+    border-color: var(--line-heavy);
+    box-shadow: var(--shadow-ring);
+  }
+
+  .community-composer-avatar {
+    width: var(--comment-avatar);
+    height: var(--comment-avatar);
+    flex: 0 0 auto;
+  }
+
+  /* Anonymous reader: a neutral person mark, not an empty ink disc (R12-15). */
+  .community-composer-avatar--guest svg {
+    width: 1rem;
+    height: 1rem;
+  }
+
+  /* The field grows with its text instead of showing a resize grip; the top
+     pad centres the first line on the avatar. */
+  .community-comments-input {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 4.5rem;
+    max-height: 18rem;
+    padding: var(--hair-30) 0;
+    border: 0;
+    background: transparent;
+    color: var(--ink);
+    font: inherit;
+    font-size: var(--text-md);
+    line-height: var(--leading-body);
+    field-sizing: content;
+    resize: none;
+  }
+
+  .community-comments-input::placeholder {
+    color: var(--faint);
+  }
+
+  .community-composer-placeholder {
+    flex: 1 1 0;
+    min-width: 0;
+    margin: 0;
+    align-self: center;
+    color: var(--muted);
+    font-size: var(--text-sm);
+  }
+
+  /* Footer starts under the input (past the avatar column): counter left,
+     actions right. In a narrow nested reply the actions wrap below the
+     counter instead of pushing out of the card. */
+  .community-composer-foot {
+    flex: 1 1 100%;
+    min-width: 0;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: center;
+    gap: var(--space-2);
+    padding-left: calc(var(--comment-avatar) + var(--comment-gap));
+  }
+
+  .community-composer-foot > .community-comments-counter {
+    margin-right: auto;
+  }
+
+  /* An idle, empty root composer folds to one line; focusing it (or typing)
+     unfolds the field and brings back the counter and Post. Reply and edit
+     composers never fold — their Cancel must stay reachable. */
+  .community-comments-composer:not(.community-comments-composer--reply):not(:focus-within):has(> .community-comments-input:placeholder-shown) {
+    align-items: center;
+  }
+
+  .community-comments-composer:not(.community-comments-composer--reply):not(:focus-within):has(> .community-comments-input:placeholder-shown) > .community-comments-input {
+    min-height: 0;
+  }
+
+  .community-comments-composer:not(.community-comments-composer--reply):not(:focus-within):has(> .community-comments-input:placeholder-shown) > .community-composer-foot {
+    display: none;
+  }
+
+  /* The guest frame keeps Sign in on the placeholder's line. */
+  .community-composer--guest {
+    flex-wrap: nowrap;
+    align-items: center;
+  }
+
+  .community-composer--guest > .community-composer-foot {
+    flex: 0 0 auto;
+    padding-left: 0;
+  }
+
+  .community-comments-composer--reply {
+    margin-top: var(--space-2);
+  }
+
+  .community-comments-cta {
+    white-space: nowrap;
+  }
+
+  .community-comments-counter {
+    color: var(--faint);
+    font-size: var(--text-xs);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .community-comments-counter--over {
+    color: var(--danger);
+    font-weight: var(--weight-semibold);
+  }
+
+  .community-comments-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin: var(--space-4) 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .community-comment {
+    position: relative;
+    display: flex;
+    gap: var(--comment-gap);
+    scroll-margin-top: calc(var(--header-h) + var(--space-8));
+  }
+
+  /* Each root thread is its own card on the page, the same surface family
+     as the composer above it; replies live inside their root's card. */
+  .community-comments-list > .community-comment {
+    padding: var(--comment-card-pad);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    box-shadow: var(--shadow-xs);
+  }
+
+  /* A removed root keeps its slot (surviving replies still hang off it) but
+     drops the card surface, so it reads as a gap, not as content. */
+  .community-comments-list > .community-comment--tombstone {
+    background: transparent;
+    box-shadow: none;
+  }
+
+  /* Thread rail: from under the root avatar down to its last reply. */
+  .community-comment:has(> .community-comment-body > .community-comment-thread)::before {
+    content: '';
+    position: absolute;
+    left: calc(var(--comment-card-pad) + var(--comment-avatar) / 2);
+    top: calc(var(--comment-card-pad) + var(--comment-avatar) + var(--space-2));
+    bottom: var(--comment-card-pad);
+    border-left: 1px solid var(--line-strong);
+  }
+
+  /* A linked root lights its whole card; a linked reply tints its body. */
+  .community-comments-list > .community-comment:target {
+    border-color: var(--accent);
+    box-shadow: var(--shadow-ring-accent);
+  }
+
+  /* The halo is an outline in the same tint (it follows the radius and
+     adds no literal shadow to the elevation budget). */
+  .community-comment-thread > .community-comment:target > .community-comment-body {
+    border-radius: var(--radius);
+    background: var(--accent-soft);
+    outline: var(--space-2) solid var(--accent-soft);
+  }
+
+  /* Composers opened inside a card sit a step down from the card's surface
+     and lift to it while focused. */
+  .community-comment .community-composer {
+    background: var(--paper);
+  }
+
+  .community-comment .community-composer:focus-within {
+    background: var(--surface);
+  }
+
+  .community-comments-empty {
+    margin-top: var(--space-3);
+    padding: var(--space-5) var(--space-4);
+    border: 1px dashed var(--line-strong);
+    border-radius: var(--radius-lg);
+    text-align: center;
+  }
+
+  /* Author discs stay soft so a page of comments is not a column of black
+     dots; photos still fill the disc. The hairline ring is an inset
+     outline, not a literal shadow. */
+  .community-comment-avatar,
+  .community-composer-avatar {
+    background: var(--surface-sunken);
+    color: var(--muted);
+    outline: 1px solid var(--line);
+    outline-offset: -1px;
+    font-size: var(--text-2xs);
+    font-weight: var(--weight-semibold);
+  }
+
+  .community-comment-avatar {
+    width: var(--comment-avatar);
+    height: var(--comment-avatar);
+    flex: 0 0 auto;
+  }
+
+  .community-comment--tombstone > .community-comment-avatar {
+    opacity: 0.55;
+  }
+
+  .community-comment-body {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--hair-20);
+  }
+
+  /* Comment head: author (→ parent on nested replies) · relative time, on
+     one line — long names ellipsize (the full name and @handle stay in the
+     title) and the time never shrinks. */
+  .community-comment-head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: var(--comment-avatar);
+    font-size: var(--text-sm);
+    line-height: var(--leading-ui);
+  }
+
+  .community-comment-author {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--ink);
+    font-weight: var(--weight-semibold);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .community-comment-head .dot-sep {
+    width: 0.18rem;
+    height: 0.18rem;
+    border-radius: 50%;
+    background: var(--ghost);
+    display: inline-block;
+    flex: 0 0 auto;
+  }
+
+  .community-comment-when {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    white-space: nowrap;
+  }
+
+  .community-comment-time {
+    color: var(--faint);
+  }
+
+  /* The parent name gives way first (the author keeps its width longest),
+     but never below the arrow plus a few letters. */
+  .community-comment-replying {
+    flex: 0 1000 auto;
+    min-width: 3.5rem;
+    overflow: hidden;
+    color: var(--muted);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .community-comment-replying svg {
+    width: 0.9em;
+    height: 0.9em;
+    margin-right: var(--hair-15);
+    color: var(--faint);
+    vertical-align: -0.1em;
+  }
+
+  /* Body text starts right under the head; the head's min-height already
+     centres the name on the avatar, so pull the text up to meet it. */
+  .community-comment-text {
+    margin: calc(-1 * var(--space-1)) 0 0;
+    font-size: var(--text-md);
+    line-height: var(--leading-prose);
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+  }
+
+  /* Tombstones read as a placeholder chip, not as the comment's own words. */
+  .community-comment-text--tombstone {
+    align-self: flex-start;
+    margin-top: 0;
+    padding: var(--hair-15) var(--space-2);
+    border-radius: var(--radius-pill);
+    background: var(--surface-sunken);
+    color: var(--muted);
+    font-size: var(--text-sm);
+  }
+
+  /* Action row: ghost chips whose text lines up with the body's left edge. */
+  .community-comment-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0 var(--hair-20);
+    margin: var(--hair-20) 0 0 calc(-1 * var(--space-2));
+  }
+
+  .community-comment-action {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--hair-30);
+    min-height: var(--hair-200);
+    padding: 0 var(--space-2);
+    border: 0;
+    border-radius: var(--radius-pill);
+    background: transparent;
+    color: var(--faint);
+    font: inherit;
+    font-size: var(--text-xs);
+    font-weight: var(--weight-medium);
+    cursor: pointer;
+    transition:
+      background-color var(--duration-fast) var(--ease-quart),
+      color var(--duration-fast) var(--ease-quart);
+  }
+
+  .community-comment-action svg {
+    width: 1.1em;
+    height: 1.1em;
+  }
+
+  .community-comment-action:hover:not(:disabled),
+  .community-comment-action[aria-expanded='true'] {
+    background: var(--surface-sunken);
+    color: var(--ink);
+  }
+
+  .community-comment-action:disabled {
+    cursor: default;
+    opacity: 0.5;
+  }
+
+  /* R15-17: keep the global ink outline under the accent halo. */
+  .community-comment-action:focus-visible {
+    box-shadow: var(--shadow-ring-accent);
+  }
+
+  /* Reply and the thread toggle lead the row; manage/report stay quieter. */
+  .community-comment-action--primary {
+    color: var(--muted);
+  }
+
+  .community-comment-action--thread {
+    color: var(--accent);
+    font-weight: var(--weight-semibold);
+  }
+
+  .community-comment-action--thread:hover:not(:disabled),
+  .community-comment-action--thread[aria-expanded='true'] {
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+
+  .community-comment-thread {
+    --comment-avatar: 1.5rem;
+    --comment-gap: var(--space-2);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    margin: var(--space-3) 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .community-comment-thread .community-comment-avatar {
+    font-size: var(--text-3xs);
+  }
+
+  /* Thread paging reads as one more chip, aligned with the action rows. */
+  .community-comment-thread-more {
+    margin-left: calc(-1 * var(--space-2));
+  }
+
+  .community-comments-more {
+    width: 100%;
+    margin-top: var(--space-5);
+    justify-content: center;
+  }
+
+  @media (pointer: coarse) {
+    .community-comment-action { min-height: 2.75rem; }
+  }
+
+  /* Phone content cut: a composer opened inside a card drops its avatar (it
+     is always the viewer) so a nested reply keeps Cancel and Reply on one
+     line. */
+  @media (max-width: 639px) {
+    .community-comment .community-composer-avatar {
+      display: none;
+    }
+
+    .community-comment .community-composer-foot {
+      padding-left: 0;
+    }
+
+    .community-comment .community-composer {
+      padding: var(--space-2) var(--space-3);
+    }
+  }
+
+  @media (max-width: 719px) {
+    .community-comments {
+      --comment-card-pad: var(--space-3);
+      /* Tab bar already includes --safe-bottom; sit on --bottom-nav-h. */
+      padding-bottom: var(--bottom-nav-h);
+    }
+  }
+
+  /* Virtual list: dynamic positions/sizes flow through custom properties */
+  .virtual-list {
+    overflow: auto;
+    max-height: 70vh;
+    /* R15-46: opts back in to a thin bar (global.css hides in-page bars);
+       a 70vh window over 50+ rows has no other length or position cue. */
+    scrollbar-width: thin;
+    scrollbar-color: var(--line-heavy) transparent;
+  }
+
+  .virtual-list::-webkit-scrollbar {
+    display: block;
+    width: 0.5rem;
+  }
+
+  .virtual-list-spacer {
+    position: relative;
+    height: var(--vl-total);
+    /* Flex-based resource lists must retain the full virtual scroll range. */
+    flex-shrink: 0;
+  }
+
+  .virtual-list-item {
+    position: absolute;
+    top: var(--vl-top);
+    left: 0;
+    right: 0;
+    height: var(--vl-item-h);
+  }
+
+  /* Measured rows must NOT have their height imposed: `MeasuredList` reads the
+     wrapper's rect to learn how tall the row actually is, so a fixed height here
+     makes it measure the estimate it just set and every row freezes at that value
+     — tall comfort rows then overlap the next row. `height: auto` lets the content
+     decide, which is what the measurement needs. */
+  .virtual-list-item--measured {
+    height: auto;
+  }
+
+}

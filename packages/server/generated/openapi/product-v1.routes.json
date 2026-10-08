@@ -1,0 +1,1327 @@
+[
+  {
+    "method": "POST",
+    "path": "/api/v1/attachments/complete",
+    "operationId": "completeAttachmentUpload"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/attachments/issue",
+    "operationId": "issueAttachmentUpload"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/attachments/{blobId}",
+    "operationId": "getAttachmentStatus"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/attachments/{blobId}/download",
+    "operationId": "admitAttachmentDownload"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/attachments/{blobId}/finalize",
+    "operationId": "finalizeAttachment"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/attachments/{blobId}/replacement",
+    "operationId": "issueAttachmentReplacement"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/attachments/{blobId}/retire",
+    "operationId": "retireAttachment"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/auth/credential-children",
+    "operationId": "listChildrenWithParentKey"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/auth/credential-children",
+    "operationId": "issueChildWithParentKey"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/auth/credential-children/{credentialId}",
+    "operationId": "getChildWithParentKey"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/auth/credential-children/{credentialId}/revoke",
+    "operationId": "revokeChildWithParentKey"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/auth/credential-children/{credentialId}/rotate",
+    "operationId": "rotateChildWithParentKey"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/auth/key-token",
+    "operationId": "exchangeAccountKey"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/auth/oidc/callback",
+    "operationId": "completeOidcAuthorization"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/auth/oidc/start",
+    "operationId": "startOidcAuthorization"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/avatar/{avatarId}",
+    "operationId": "getAvatar"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/client-events",
+    "operationId": "recordClientEvents"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/collections",
+    "operationId": "listOwnedCollections"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/collections",
+    "operationId": "createCollection"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/collections/{collectionId}",
+    "operationId": "getPublicCollectionPage"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/v1/collections/{collectionId}",
+    "operationId": "updateCollection"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/collections/{collectionId}/annotations",
+    "operationId": "listAnnotations"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/collections/{collectionId}/annotations",
+    "operationId": "createAnnotation"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/collections/{collectionId}/annotations/{annotationId}",
+    "operationId": "deleteAnnotation"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/collections/{collectionId}/annotations/{annotationId}",
+    "operationId": "getAnnotation"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/v1/collections/{collectionId}/annotations/{annotationId}",
+    "operationId": "updateAnnotation"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/collections/{collectionId}/capture-decisions",
+    "operationId": "findCaptureDecision"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/collections/{collectionId}/capture-decisions",
+    "operationId": "classifyCapturedBookmark"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/collections/{collectionId}/capture-decisions/{decisionId}",
+    "operationId": "getCaptureDecision"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/collections/{collectionId}/capture-decisions/{decisionId}/apply",
+    "operationId": "applyCaptureDecision"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/collections/{collectionId}/capture-decisions/{decisionId}/correct",
+    "operationId": "correctCaptureDecision"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/collections/{collectionId}/capture-decisions/{decisionId}/feedback",
+    "operationId": "recordCaptureFeedback"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/collections/{collectionId}/capture-decisions/{decisionId}/undo",
+    "operationId": "undoCaptureDecision"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/collections/{collectionId}/catalog",
+    "operationId": "getCollectionCatalog"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/v1/collections/{collectionId}/catalog",
+    "operationId": "updateCollectionCatalog"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/collections/{collectionId}/children",
+    "operationId": "listCollectionChildren"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/collections/{collectionId}/classification-runs",
+    "operationId": "createCollectionClassificationRun"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/collections/{collectionId}/classification-runs/{runId}",
+    "operationId": "getCollectionClassificationRun"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/collections/{collectionId}/classification-runs/{runId}/apply",
+    "operationId": "applyCollectionClassificationRun"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/collections/{collectionId}/classification-runs/{runId}/cancel",
+    "operationId": "cancelCollectionClassificationRun"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/collections/{collectionId}/classification-settings",
+    "operationId": "getCollectionClassificationSettings"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/v1/collections/{collectionId}/classification-settings",
+    "operationId": "updateCollectionClassificationSettings"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/collections/{collectionId}/classification/preview",
+    "operationId": "previewCollectionBookmarkClassification"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/collections/{collectionId}/editor",
+    "operationId": "getCollectionEditorPage"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/collections/{collectionId}/follow",
+    "operationId": "unfollowCollection"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/collections/{collectionId}/follow",
+    "operationId": "getCollectionFollowState"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/collections/{collectionId}/follow",
+    "operationId": "followCollection"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/collections/{collectionId}/link-preview-requests",
+    "operationId": "requestCollectionLinkPreviews"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/collections/{collectionId}/members",
+    "operationId": "listCollectionMembers"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/collections/{collectionId}/members/invites",
+    "operationId": "inviteCollectionMember"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/collections/{collectionId}/members/invites/{inviteId}",
+    "operationId": "revokeCollectionInvite"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/collections/{collectionId}/members/{subjectId}",
+    "operationId": "removeCollectionMember"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/v1/collections/{collectionId}/members/{subjectId}",
+    "operationId": "updateCollectionMemberRole"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/collections/{collectionId}/nodes",
+    "operationId": "createCollectionNode"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/collections/{collectionId}/nodes/{nodeId}",
+    "operationId": "deleteCollectionNode"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/v1/collections/{collectionId}/nodes/{nodeId}",
+    "operationId": "updateCollectionNode"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/collections/{collectionId}/nodes/{nodeId}/classification-confirmations",
+    "operationId": "confirmCollectionBookmarkClassification"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/collections/{collectionId}/nodes/{nodeId}/favicon",
+    "operationId": "deleteBookmarkFavicon"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/collections/{collectionId}/nodes/{nodeId}/favicon",
+    "operationId": "uploadBookmarkFavicon"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/collections/{collectionId}/nodes/{nodeId}/favicon-refresh",
+    "operationId": "refreshBookmarkFavicon"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/collections/{collectionId}/nodes/{nodeId}/favicon-source",
+    "operationId": "getBookmarkFaviconSource"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/collections/{collectionId}/nodes/{nodeId}/favicon-source",
+    "operationId": "setBookmarkFaviconSource"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/collections/{collectionId}/nodes/{nodeId}/move",
+    "operationId": "moveCollectionNode"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/collections/{collectionId}/nodes/{nodeId}/preview-image-mode",
+    "operationId": "getBookmarkPreviewMode"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/collections/{collectionId}/nodes/{nodeId}/preview-image-mode",
+    "operationId": "setBookmarkPreviewMode"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/collections/{collectionId}/nodes/{nodeId}/readable",
+    "operationId": "getNodeReadableReplica"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/collections/{collectionId}/nodes/{nodeId}/readable",
+    "operationId": "enqueueNodeReadableExtract"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/collections/{collectionId}/organize-plans",
+    "operationId": "createCollectionOrganizePlan"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/collections/{collectionId}/organize-plans/{planId}",
+    "operationId": "getCollectionOrganizePlan"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/collections/{collectionId}/organize-plans/{planId}/apply",
+    "operationId": "applyCollectionOrganizePlan"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/collections/{collectionId}/relations",
+    "operationId": "listRelations"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/collections/{collectionId}/relations",
+    "operationId": "createRelation"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/collections/{collectionId}/relations/{relationId}",
+    "operationId": "deleteRelation"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/collections/{collectionId}/relations/{relationId}",
+    "operationId": "getRelation"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/v1/collections/{collectionId}/relations/{relationId}",
+    "operationId": "updateRelation"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/collections/{collectionId}/versions",
+    "operationId": "listCollectionVersions"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/collections/{collectionId}/versions",
+    "operationId": "createCollectionVersion"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/collections/{collectionId}/versions/{versionId}",
+    "operationId": "getCollectionVersion"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/collections/{collectionId}/versions/{versionId}/restore",
+    "operationId": "restoreCollectionVersion"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/community/comment-settings",
+    "operationId": "getCommunityCommentSettings"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/community/comment-settings",
+    "operationId": "setCommunityCommentSettings"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/community/comments",
+    "operationId": "listCommunityComments"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/community/comments",
+    "operationId": "createCommunityComment"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/community/comments/{commentId}",
+    "operationId": "deleteCommunityComment"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/community/comments/{commentId}",
+    "operationId": "getCommunityComment"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/v1/community/comments/{commentId}",
+    "operationId": "editCommunityComment"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/community/comments/{commentId}/curation",
+    "operationId": "getCommentCuration"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/community/comments/{commentId}/curation",
+    "operationId": "setCommentCuration"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/community/comments/{commentId}/replies",
+    "operationId": "listCommunityCommentReplies"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/community/ranking",
+    "operationId": "listCommunityRanking"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/community/target",
+    "operationId": "resolveCommunityTarget"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/community/vote",
+    "operationId": "setCommunityVote"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/explore/collections",
+    "operationId": "listExploreCollections"
+  },
+  {
+    "method": "HEAD",
+    "path": "/api/v1/explore/collections",
+    "operationId": "headExploreCollections"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/favicon/{faviconId}",
+    "operationId": "getBookmarkFavicon"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/link-preview/{previewId}",
+    "operationId": "getLinkPreviewObject"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/mcp/approvals",
+    "operationId": "listWriteApprovals"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/mcp/approvals/{planId}",
+    "operationId": "getWriteApproval"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/mcp/approvals/{planId}/decision",
+    "operationId": "decideWriteApproval"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me",
+    "operationId": "getMe"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/v1/me",
+    "operationId": "updateMe"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/agents",
+    "operationId": "listMyAgents"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/agents/keys",
+    "operationId": "issueAgentKey"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/agents/{id}/audit",
+    "operationId": "listAgentAudit"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/agents/{id}/revoke",
+    "operationId": "revokeAgent"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/avatar",
+    "operationId": "uploadMyAvatar"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/bookmark-captures",
+    "operationId": "getCaptureHistory"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/bookmark-captures",
+    "operationId": "reportCaptureTask"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/bookmark-captures/aggregate",
+    "operationId": "getCaptureStatistics"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/bookmark-preferences",
+    "operationId": "getMyBookmarkPreferences"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/v1/me/bookmark-preferences",
+    "operationId": "updateMyBookmarkPreferences"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/bookmark-subscription-actions",
+    "operationId": "listMyBookmarkSubscriptionActions"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/bookmark-subscription-actions/{actionId}/ack",
+    "operationId": "acknowledgeMyBookmarkSubscriptionAction"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/bookmark-subscription-capabilities",
+    "operationId": "getMyBookmarkSubscriptionCapabilities"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/bookmark-subscription-exit-previews",
+    "operationId": "createMyBookmarkSubscriptionExitPreview"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/bookmark-subscription-exits",
+    "operationId": "createMyBookmarkSubscriptionExit"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/bookmark-subscription-mappings",
+    "operationId": "listMyBookmarkMappings"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/bookmark-subscription-mappings/{mappingId}",
+    "operationId": "getMyBookmarkSubscriptionMapping"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/v1/me/bookmark-subscription-mappings/{mappingId}",
+    "operationId": "updateMyBookmarkSubscriptionMapping"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/bookmark-subscription-mappings/{mappingId}/access",
+    "operationId": "getMyBookmarkSubscriptionAccess"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/bookmark-subscription-mappings/{mappingId}/node-access-checks",
+    "operationId": "checkMyBookmarkSubscriptionNodeAccess"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/bookmark-subscription-mappings/{mappingId}/projection",
+    "operationId": "getMyBookmarkSubscriptionProjection"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/bookmark-subscription-snapshots",
+    "operationId": "createMyBookmarkSubscriptionSnapshot"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/bookmark-subscription-snapshots/{snapshotId}/nodes",
+    "operationId": "listMyBookmarkSubscriptionSnapshotNodes"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/bookmark-subscription-sources",
+    "operationId": "listMyBookmarkSubscriptionSources"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/bookmark-subscription-sources/{sourceType}/{sourceId}",
+    "operationId": "getMyBookmarkSubscriptionSource"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/bookmark-subscriptions",
+    "operationId": "listMyBookmarkSubscriptions"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/bookmark-subscriptions",
+    "operationId": "createMyBookmarkSubscription"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/bookmark-subscriptions/{subscriptionId}",
+    "operationId": "getMyBookmarkSubscription"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/bookmark-subscriptions/{subscriptionId}/mappings",
+    "operationId": "listMyBookmarkSubscriptionMappings"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/bookmark-subscriptions/{subscriptionId}/mappings",
+    "operationId": "createMyBookmarkSubscriptionMapping"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/capture-capabilities",
+    "operationId": "getMyCaptureCapabilities"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/capture-learning",
+    "operationId": "getCaptureLearning"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/capture-learning/clear",
+    "operationId": "clearCaptureLearning"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/catalog-preferences",
+    "operationId": "getMyCatalogPreferences"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/v1/me/catalog-preferences",
+    "operationId": "updateMyCatalogPreferences"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/classification-provider-profiles",
+    "operationId": "listMyClassificationProviderProfiles"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/classification-provider-profiles",
+    "operationId": "createMyClassificationProviderProfile"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/me/classification-provider-profiles/{profileId}",
+    "operationId": "deleteMyClassificationProviderProfile"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/v1/me/classification-provider-profiles/{profileId}",
+    "operationId": "updateMyClassificationProviderProfile"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/classification-provider-profiles/{profileId}/test",
+    "operationId": "testMyClassificationProviderProfile"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/classify-inbox",
+    "operationId": "getMyClassifyInbox"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/classify-inbox/{nodeId}/accept",
+    "operationId": "acceptMyClassifyInboxItem"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/classify-inbox/{nodeId}/skip",
+    "operationId": "skipMyClassifyInboxItem"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/collaboration-invites",
+    "operationId": "listMyCollaborationInvites"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/collaboration-invites/{inviteId}/accept",
+    "operationId": "acceptCollaborationInvite"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/collaboration-invites/{inviteId}/decline",
+    "operationId": "declineCollaborationInvite"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/community-notification-preferences",
+    "operationId": "getMyCommunityNotificationPreference"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/me/community-notification-preferences",
+    "operationId": "putMyCommunityNotificationPreference"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/community-notifications",
+    "operationId": "listMyCommunityNotifications"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/community-notifications/read",
+    "operationId": "markMyCommunityNotificationsRead"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/credential-grants",
+    "operationId": "listCredentialGrants"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/credential-grants",
+    "operationId": "createCredentialGrant"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/credential-grants/{grantId}",
+    "operationId": "getCredentialGrant"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/credential-grants/{grantId}/authorize-plan",
+    "operationId": "authorizePlanWithCredentialGrant"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/credential-grants/{grantId}/revoke",
+    "operationId": "revokeCredentialGrant"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/credential-identity",
+    "operationId": "getCredentialIdentity"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/credential-plans/{planKind}/{planId}",
+    "operationId": "getCredentialPlan"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/credits",
+    "operationId": "getMyCredits"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/credits/ledger",
+    "operationId": "listMyCreditLedger"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/credits/ledger/{entryId}",
+    "operationId": "getMyCreditLedgerEntry"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/export-jobs",
+    "operationId": "listMyExportJobs"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/export-jobs",
+    "operationId": "createMyExportJob"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/export-jobs/{jobId}",
+    "operationId": "getMyExportJob"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/export-jobs/{jobId}/download",
+    "operationId": "downloadMyExportJob"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/favicon-jobs",
+    "operationId": "createMyFaviconJob"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/favicon-jobs/{jobId}",
+    "operationId": "getMyFaviconJob"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/favicon-jobs/{jobId}/retry",
+    "operationId": "retryMyFaviconJob"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/favicon-policy",
+    "operationId": "getMyFaviconPolicy"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/v1/me/favicon-policy",
+    "operationId": "updateMyFaviconPolicy"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/followed-collections",
+    "operationId": "listFollowedCollections"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/followed-reports",
+    "operationId": "listFollowedReports"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/followed-reports/issues",
+    "operationId": "listFollowedReportIssues"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/library-order",
+    "operationId": "getMyLibraryOrder"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/me/library-order/{section}",
+    "operationId": "updateMyLibraryOrder"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/link-health",
+    "operationId": "getMyLinkHealth"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/link-health/checks",
+    "operationId": "enqueueMyLinkHealthChecks"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/moderation-actions",
+    "operationId": "listActionsAffectingMe"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/moderation-appeals",
+    "operationId": "listMyModerationAppeals"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/moderation-reports",
+    "operationId": "listMyModerationReports"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/moderation-reports/{caseId}",
+    "operationId": "getMyModerationReport"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/notification-preferences",
+    "operationId": "getMyNotificationPreferences"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/me/notification-preferences",
+    "operationId": "updateMyNotificationPreferences"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/notifications",
+    "operationId": "listMyNotifications"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/notifications/read",
+    "operationId": "markMyNotificationsRead"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/publishing-insights",
+    "operationId": "getMyPublishingInsights"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/report-readers/{reportId}",
+    "operationId": "getMyReportReader"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/report-readers/{reportId}/editions/{editionId}",
+    "operationId": "getMyReportEditionReader"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/reports",
+    "operationId": "listMyReports"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/shared-collections",
+    "operationId": "listSharedCollections"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/moderation/actions",
+    "operationId": "createModerationAction"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/moderation/actions/{actionId}",
+    "operationId": "getModerationAction"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/moderation/actions/{actionId}/revoke",
+    "operationId": "revokeModerationAction"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/moderation/appeals",
+    "operationId": "listModerationAppeals"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/moderation/appeals",
+    "operationId": "createModerationAppeal"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/moderation/appeals/{appealId}",
+    "operationId": "getModerationAppeal"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/moderation/appeals/{appealId}/decision",
+    "operationId": "decideModerationAppeal"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/moderation/cases",
+    "operationId": "listModerationCases"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/moderation/cases/{caseId}",
+    "operationId": "getModerationCase"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/v1/moderation/cases/{caseId}",
+    "operationId": "updateModerationCase"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/moderation/cases/{caseId}/evidence/{evidenceId}",
+    "operationId": "getModerationEvidence"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/moderation/reports",
+    "operationId": "submitModerationReport"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/notification-preferences",
+    "operationId": "getNotificationPreferences"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/notification-preferences/{channel}",
+    "operationId": "updateNotificationPreference"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/notifications",
+    "operationId": "listNotifications"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/notifications/read",
+    "operationId": "markNotificationsRead"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/notifications/{notificationId}/read",
+    "operationId": "markNotificationRead"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/profiles/{handle}",
+    "operationId": "getPublicProfile"
+  },
+  {
+    "method": "HEAD",
+    "path": "/api/v1/profiles/{handle}",
+    "operationId": "headPublicProfile"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/profiles/{handle}/activity",
+    "operationId": "listPublicProfileActivity"
+  },
+  {
+    "method": "HEAD",
+    "path": "/api/v1/profiles/{handle}/activity",
+    "operationId": "headPublicProfileActivity"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/profiles/{profileId}/follow",
+    "operationId": "unfollowProfile"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/profiles/{profileId}/follow",
+    "operationId": "followProfile"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/profiles/{profileId}/followers",
+    "operationId": "listProfileFollowers"
+  },
+  {
+    "method": "HEAD",
+    "path": "/api/v1/profiles/{profileId}/followers",
+    "operationId": "headProfileFollowers"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/profiles/{profileId}/following",
+    "operationId": "listProfileFollowing"
+  },
+  {
+    "method": "HEAD",
+    "path": "/api/v1/profiles/{profileId}/following",
+    "operationId": "headProfileFollowing"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/public-collections/{slug}/insight-events",
+    "operationId": "recordPublicCollectionInsightEvent"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/public-reports",
+    "operationId": "listPublicReports"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/public-reports/{slug}",
+    "operationId": "getPublicReport"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/public-reports/{slug}/issues",
+    "operationId": "listPublicReportIssues"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/public-reports/{slug}/issues/{editionId}",
+    "operationId": "getPublicReportIssue"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/reading-progress",
+    "operationId": "listReadingProgress"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/reading-progress/{resourceType}/{resourceId}",
+    "operationId": "resetReadingProgress"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/reading-progress/{resourceType}/{resourceId}",
+    "operationId": "getReadingProgress"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/reading-progress/{resourceType}/{resourceId}",
+    "operationId": "putReadingProgress"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/reports",
+    "operationId": "createReport"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/reports/{reportId}",
+    "operationId": "archiveReport"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/reports/{reportId}",
+    "operationId": "getReport"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/v1/reports/{reportId}",
+    "operationId": "updateReport"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/reports/{reportId}/catalog",
+    "operationId": "getReportCatalog"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/v1/reports/{reportId}/catalog",
+    "operationId": "updateReportCatalog"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/reports/{reportId}/follow",
+    "operationId": "unfollowReport"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/reports/{reportId}/follow",
+    "operationId": "getReportFollowState"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/reports/{reportId}/follow",
+    "operationId": "followReport"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/reports/{reportId}/issues",
+    "operationId": "listReportIssues"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/reports/{reportId}/issues",
+    "operationId": "attachReportIssue"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/reports/{reportId}/issues/{editionId}",
+    "operationId": "detachReportIssue"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/reports/{reportId}/issues/{editionId}",
+    "operationId": "getReportIssue"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/v1/reports/{reportId}/issues/{editionId}",
+    "operationId": "updateReportIssue"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/reports/{reportId}/issues/{editionId}/publish",
+    "operationId": "publishReportIssue"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/reports/{reportId}/issues/{editionId}/withdraw",
+    "operationId": "withdrawReportIssue"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/reports/{reportId}/members",
+    "operationId": "listReportMembers"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/reports/{reportId}/members/{subjectId}",
+    "operationId": "removeReportMember"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/reports/{reportId}/members/{subjectId}",
+    "operationId": "updateReportMember"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/reports/{reportId}/schedule",
+    "operationId": "deleteReportSchedule"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/reports/{reportId}/schedule",
+    "operationId": "getReportSchedule"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/reports/{reportId}/schedule",
+    "operationId": "putReportSchedule"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/saved-resources",
+    "operationId": "listSavedResources"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/saved-resources/{resourceType}/{resourceId}",
+    "operationId": "unsaveResource"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/saved-resources/{resourceType}/{resourceId}",
+    "operationId": "saveResource"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/search",
+    "operationId": "searchResources"
+  },
+  {
+    "method": "HEAD",
+    "path": "/api/v1/search",
+    "operationId": "headSearchResources"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/session",
+    "operationId": "deleteSession"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/session",
+    "operationId": "getSession"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/sync/conflicts",
+    "operationId": "listSyncConflicts"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/sync/conflicts/{conflictId}/resolution",
+    "operationId": "resolveSyncConflict"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/sync/replicas/{replicaId}",
+    "operationId": "retireSyncReplica"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/sync/status",
+    "operationId": "getSyncStatus"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/sync/trash",
+    "operationId": "listSyncTrash"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/sync/trash/empty",
+    "operationId": "emptySyncTrash"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/sync/trash/restore-batch",
+    "operationId": "restoreSyncTrashBatch"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/sync/trash/{deletionId}",
+    "operationId": "getSyncTrashItem"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/sync/trash/{deletionId}/restore",
+    "operationId": "restoreSyncTrashItem"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/sync/trash/{deletionId}/restore-subtree",
+    "operationId": "restoreSyncTrashSubtree"
+  }
+]

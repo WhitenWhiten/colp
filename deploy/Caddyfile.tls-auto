@@ -1,0 +1,13 @@
+{$COLP_SERVER_ORIGIN} {
+	@proxied path /api/* /collections/* /.well-known/* /colp/* /health /ready
+	handle @proxied {
+		reverse_proxy server:3000 {
+			header_up X-Forwarded-Proto https
+		}
+	}
+	handle {
+		root * /srv/web
+		try_files {path} /index.html
+		file_server
+	}
+}

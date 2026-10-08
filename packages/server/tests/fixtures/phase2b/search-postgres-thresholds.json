@@ -1,0 +1,16 @@
+{
+  "$schema": "./search-postgres-thresholds.schema.json",
+  "version": "phase2b-search-postgres-v1",
+  "collectionCount": 8,
+  "nodesPerCollection": 10000,
+  "queryLimit": 20,
+  "warmupRuns": 2,
+  "measuredRuns": 5,
+  "concurrentClients": 4,
+  "concurrentRunsPerClient": 3,
+  "concurrentP95Ms": 500,
+  "warmP95Ms": 250,
+  "coldLandmarkMs": 500,
+  "planExecutionMs": 250,
+  "parallelWorkers": 0
+}

@@ -1,0 +1,252 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://known.example/schemas/phase5/remediation/r5-08-social-capacity.schema.json",
+  "title": "Phase 5 remediation R5-08 closed schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "task",
+    "environment",
+    "method",
+    "seed",
+    "fanout",
+    "feed",
+    "withdrawal",
+    "corners",
+    "pass"
+  ],
+  "properties": {
+    "format": {
+      "const": "known.phase5.remediation.r5-08.v1"
+    },
+    "task": {
+      "const": "R5-08"
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "node",
+        "os",
+        "postgresVersion"
+      ],
+      "properties": {
+        "node": { "type": "string", "minLength": 1 },
+        "os": { "type": "string", "minLength": 1 },
+        "postgresVersion": { "type": "string", "minLength": 1 }
+      }
+    },
+    "method": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "warmupIterations",
+        "measuredIterations",
+        "jit",
+        "analyze",
+        "fanoutScannedFollowRowsMax",
+        "fanoutSharedBufferBlocksMax",
+        "feedScannedRowsMax",
+        "feedSharedBufferBlocksMax"
+      ],
+      "properties": {
+        "warmupIterations": { "const": 5 },
+        "measuredIterations": { "const": 30 },
+        "jit": { "const": "off" },
+        "analyze": { "const": true },
+        "fanoutScannedFollowRowsMax": { "const": 2000 },
+        "fanoutSharedBufferBlocksMax": { "const": 20000 },
+        "feedScannedRowsMax": { "const": 2500 },
+        "feedSharedBufferBlocksMax": { "const": 30000 }
+      }
+    },
+    "seed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fanoutFollows",
+        "fanoutEligibleBeforeEvent",
+        "fanoutLateFollows",
+        "fanoutInactiveFollows",
+        "feedItems",
+        "feedUnfollowItems",
+        "feedPrivateDeletedItems",
+        "feedValidItems"
+      ],
+      "properties": {
+        "fanoutFollows": { "type": "integer", "minimum": 100000 },
+        "fanoutEligibleBeforeEvent": { "type": "integer", "minimum": 1 },
+        "fanoutLateFollows": { "type": "integer", "minimum": 1 },
+        "fanoutInactiveFollows": { "type": "integer", "minimum": 1 },
+        "feedItems": { "const": 100000 },
+        "feedUnfollowItems": { "const": 90000 },
+        "feedPrivateDeletedItems": { "const": 5000 },
+        "feedValidItems": { "const": 5000 }
+      }
+    },
+    "fanout": {
+      "$ref": "#/$defs/surfaceEvidence"
+    },
+    "feed": {
+      "$ref": "#/$defs/surfaceEvidence"
+    },
+    "withdrawal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "beforeVisibleCount",
+        "withdrawnCount",
+        "afterVisibleCount",
+        "beforeQueryIds",
+        "afterQueryIds",
+        "afterPlan"
+      ],
+      "properties": {
+        "beforeVisibleCount": { "type": "integer", "minimum": 0 },
+        "withdrawnCount": { "type": "integer", "minimum": 1 },
+        "afterVisibleCount": { "type": "integer", "minimum": 0 },
+        "beforeQueryIds": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "afterQueryIds": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "afterPlan": {
+          "$ref": "#/$defs/planSample"
+        }
+      }
+    },
+    "corners": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "validAtPageTail",
+        "allStale",
+        "singleValid",
+        "cursorBoundaryWithdrawal",
+        "analyzeBefore",
+        "analyzeAfter"
+      ],
+      "properties": {
+        "validAtPageTail": { "$ref": "#/$defs/cornerEvidence" },
+        "allStale": { "$ref": "#/$defs/cornerEvidence" },
+        "singleValid": { "$ref": "#/$defs/cornerEvidence" },
+        "cursorBoundaryWithdrawal": { "$ref": "#/$defs/cornerEvidence" },
+        "analyzeBefore": { "$ref": "#/$defs/planSample" },
+        "analyzeAfter": { "$ref": "#/$defs/planSample" }
+      }
+    },
+    "pass": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "seed",
+        "fanoutPlans",
+        "feedPlans",
+        "resultSets",
+        "withdrawal",
+        "corners",
+        "overall"
+      ],
+      "properties": {
+        "seed": { "type": "boolean" },
+        "fanoutPlans": { "type": "boolean" },
+        "feedPlans": { "type": "boolean" },
+        "resultSets": { "type": "boolean" },
+        "withdrawal": { "type": "boolean" },
+        "corners": { "type": "boolean" },
+        "overall": { "type": "boolean" }
+      }
+    }
+  },
+  "$defs": {
+    "latencySummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["samplesMs", "p95Ms"],
+      "properties": {
+        "samplesMs": {
+          "type": "array",
+          "minItems": 30,
+          "maxItems": 30,
+          "items": { "type": "number", "exclusiveMinimum": 0 }
+        },
+        "p95Ms": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "planSample": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "label",
+        "indexNames",
+        "hasSort",
+        "sortedRowsMax",
+        "hasFeedSequentialScan",
+        "hasFollowsSequentialScan",
+        "resultRows",
+        "expectedResultIds",
+        "actualResultIds",
+        "scannedFeedRows",
+        "scannedFollowRows",
+        "rowsRemovedByFilter",
+        "sharedBufferBlocks",
+        "executionMs"
+      ],
+      "properties": {
+        "label": { "type": "string", "minLength": 1 },
+        "indexNames": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "hasSort": { "type": "boolean" },
+        "sortedRowsMax": { "type": "integer", "minimum": 0 },
+        "hasFeedSequentialScan": { "type": "boolean" },
+        "hasFollowsSequentialScan": { "type": "boolean" },
+        "resultRows": { "type": "integer", "minimum": 0 },
+        "expectedResultIds": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "actualResultIds": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "scannedFeedRows": { "type": "integer", "minimum": 0 },
+        "scannedFollowRows": { "type": "integer", "minimum": 0 },
+        "rowsRemovedByFilter": { "type": "integer", "minimum": 0 },
+        "sharedBufferBlocks": { "type": "integer", "minimum": 0 },
+        "executionMs": { "type": "number", "minimum": 0 }
+      }
+    },
+    "surfaceEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["plans", "latency"],
+      "properties": {
+        "plans": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/planSample" }
+        },
+        "latency": { "$ref": "#/$defs/latencySummary" }
+      }
+    },
+    "cornerEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["plan", "resultIds"],
+      "properties": {
+        "plan": { "$ref": "#/$defs/planSample" },
+        "resultIds": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}

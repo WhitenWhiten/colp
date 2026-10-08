@@ -2,7 +2,7 @@
   "schemaVersion": 2,
   "protocolVersion": "0.1",
   "packageVersion": "0.1.1",
-  "requirementsDigest": "sha256:bded8bcb9dbb0dfae8cc799867a0d44d68f1cd722b0fd23cf0bdcbd610a0be18",
+  "requirementsDigest": "sha256:a130541d0d530f76856a68ffa5abd7ad78e157e6e1a13ee8071b096cab195002",
   "passedRequirementIds": [
     "CORE-0001",
     "CORE-0002",
@@ -170,6 +170,9 @@
     "MCP-0022",
     "MCP-0023",
     "MCP-0024",
+    "MCP-0025",
+    "MCP-0026",
+    "MCP-0027",
     "CORE-0038",
     "CORE-0039",
     "CORE-0040",

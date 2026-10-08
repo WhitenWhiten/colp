@@ -1,0 +1,554 @@
+/*
+ * Design Tokens — Know-N
+ *
+ * Architecture:
+ *   tokens.css    → Design tokens (colors, spacing, typography, shadows)
+ *   global.css    → Reset, layout shell, nav, buttons, typography helpers, forms
+ *   cards.css     → Freeform board, canvas tiles, resource cards
+ *   source-skins.css → Per-source card skins + tile density container queries
+ *   cards-ui.css  → Card UI system (collection cards, board tile chrome, library rows)
+ *   landing.css / explore.css / collection.css / profile.css / dashboard.css
+ *                 → Page-specific domains split from the former pages.css drawer
+ *   graph.css / sync.css / write-approvals.css / classify.css / extension.css / pages-shared.css
+ *   library.css   → Library desk, link stack, edit collection
+ *   auth.css      → Auth / onboarding
+ *   interactions.css → Hover/active/focus micro-interactions, animations
+ *   polish.css    → Motion, density, page-enter transitions
+ *   share.css     → Share / promo pages
+ *   demos.css     → Remaining demo surfaces
+ *   today.css / collection-history.css / reader.css / library-health.css / data-export.css
+ *                 → Product loops (the former loops.css)
+ *   collab.css    → Collaboration, update review, notifications
+ *   studio.css    → Creator studio, settings, resource detail, AI organize
+ *   desk-themes.css   → Desk widget color themes (paper / mist / ink module palettes)
+ *   dashboard-desk.css → Shared desk chrome + stacked tile reset
+ *   widget-*.css      → One file per desk widget: tile chrome + local tokens + .desk-* content
+ *                       (the former dashboard-widgets.css)
+ *   canvas-background.css → Canvas dot-grid background pattern
+ *   utilities.css     → Spacing utilities (--space-* / --hair-*)
+ *   page-layouts.css  → Page layout rules
+ */
+
+
+@layer tokens, base, components, pages, patterns, utilities, edition, print;
+
+@layer tokens {
+/* R15-31: metric-matched local fallbacks, so the swap to the web fonts
+   barely moves text. Values from the font files (hhea ascent/descent and
+   capsize's letter-frequency average width) against Arial and Times New
+   Roman; Liberation Sans/Serif share those metrics on Linux. */
+@font-face {
+  font-family: "Instrument Sans Fallback";
+  src: local("Arial"), local("Liberation Sans"), local("Helvetica");
+  size-adjust: 102.5%;
+  ascent-override: 94.6%;
+  descent-override: 24.4%;
+  line-gap-override: 0%;
+}
+
+@font-face {
+  font-family: "Newsreader Fallback";
+  src: local("Times New Roman"), local("Liberation Serif"), local("Times");
+  size-adjust: 100.4%;
+  ascent-override: 73.2%;
+  descent-override: 26.4%;
+  line-gap-override: 0%;
+}
+
+:root {
+  /* ──────────────────────────────────────────────
+     Surface palette — light-only. The app is color-scheme: light; do not
+     add a global dark theme. Desk-themes (.tile-theme-ink and siblings)
+     are local tile palettes on canvas cards, not application dark mode.
+     ────────────────────────────────────────────── */
+  --paper: rgb(244 245 246);
+  --paper-2: rgb(236 237 239);
+  --surface: rgb(253 254 254);
+  --surface-raised: rgb(255 255 255);
+  --surface-sunken: rgb(239 240 242);
+
+  /* ──────────────────────────────────────────────
+     Text ladder: primary / secondary body / chrome / whisper
+     ────────────────────────────────────────────── */
+  --ink: rgb(6 7 10);
+  --ink-2: rgb(51 53 58);
+  --ink-3: rgb(75 77 81);
+  --muted: rgb(97 99 103);      /* ~5.5:1 on --paper, AA-safe */
+  --faint: rgb(104 106 110);    /* ~5.0:1 on --paper / ~4.6:1 on --paper-2, AA for informational text */
+  --ghost: rgb(138 140 143);    /* decorative only: watermarks, fleurons, empty-state art */
+
+  /* ──────────────────────────────────────────────
+     Border / divider lines
+     ────────────────────────────────────────────── */
+  --line: rgb(6 7 10 / 0.06);
+  --line-strong: rgb(6 7 10 / 0.12);
+  --line-heavy: rgb(6 7 10 / 0.24);
+  /* R15-43 (R13 D-12 option A): the boundary of a form control — input,
+     select, checkbox, radio, switch — must reach 3:1 against the surface
+     it sits on (1.4.11); --line-strong was 1.30:1. */
+  --line-control: rgb(6 7 10 / 0.45);
+  /* Hairline that must not follow a tile's local ink flip (book covers,
+     theme swatches). Not --ink and not --line. */
+  --edge-fixed: rgb(19 22 27 / 0.14);
+
+  /* ──────────────────────────────────────────────
+     Accent (slate blue — cool but visible)
+     ────────────────────────────────────────────── */
+  --accent: rgb(56 102 149);
+  --accent-ink: rgb(17 58 95);
+  --accent-soft: rgb(236 243 250);
+  /* Section wash — the hero family's quietest rung: accent-soft eased
+     halfway back toward paper. For page-head bands and gentle section
+     alternation; never behind dense body text. */
+  --wash-accent: color-mix(in srgb, var(--accent-soft) 55%, var(--paper));
+  /* Hero wash (R10-23) — the single "accent light from the top" recipe for
+     hero surfaces, auth pages, and closing bands. Paint over --paper
+     (background: var(--wash-hero), var(--paper)); it is translucent by
+     design so the same glow reads on any page surface. */
+  --wash-hero: radial-gradient(
+    ellipse 65% 50% at 50% 0%,
+    color-mix(in srgb, var(--accent) 6%, transparent),
+    transparent 62%
+  );
+
+  /* Source brand accents — assigned locally as --source-accent: var(--source-*).
+     Shared hues reuse one token (wikipedia/x/notion, medium/nytimes, scholar/coursera).
+     Do not invent a 40th skin; add a token only when a live source rule needs it. */
+  --source-github: rgb(109 157 206);
+  --source-youtube: rgb(204 40 35);
+  --source-bilibili: rgb(18 146 192);
+  --source-wikipedia: rgb(20 22 25);
+  --source-zhihu: rgb(0 116 202);
+  --source-douban: rgb(33 118 60);
+  --source-arxiv: rgb(157 53 51);
+  --source-spotify: rgb(48 189 68);
+  --source-figma: rgb(0 124 238);
+  --source-producthunt: rgb(212 79 19);
+  --source-medium: rgb(76 71 60);
+  --source-stackoverflow: rgb(232 127 37);
+  --source-npm: rgb(204 42 27);
+  --source-huggingface: rgb(113 77 29);
+  --source-reddit: rgb(205 72 5);
+  --source-hackernews: rgb(212 96 0);
+  --source-xiaohongshu: rgb(197 52 67);
+  --source-wechat: rgb(28 135 66);
+  --source-dribbble: rgb(209 78 149);
+  --source-vimeo: rgb(0 126 179);
+  --source-substack: rgb(135 78 0);
+  --source-nature: rgb(51 115 68);
+  --source-scholar: rgb(0 121 186);
+  --source-openreview: rgb(18 74 123);
+  --source-paperswithcode: rgb(0 110 131);
+  --source-distill: rgb(103 83 23);
+  --source-lesswrong: rgb(181 80 0);
+  --source-arena: rgb(56 102 149);
+  --source-techcrunch: rgb(28 136 45);
+  --source-theverge: rgb(167 79 187);
+  --source-reuters: rgb(199 122 65);
+  --source-sspai: rgb(189 65 63);
+  --source-ted: rgb(204 39 46);
+  --source-bluesky: rgb(0 131 196);
+  --source-lobsters: rgb(178 57 43);
+  --source-smashing: rgb(207 117 45);
+  --source-acm: rgb(0 73 133);
+
+  /* ──────────────────────────────────────────────
+     Semantic colors
+     ────────────────────────────────────────────── */
+  --focus: rgb(31 85 135);
+  --success: rgb(25 112 55);
+  --success-soft: rgb(232 241 235);
+  --danger: rgb(157 53 51);
+  --danger-soft: rgb(245 235 235);
+  --warning: rgb(133 92 0);
+  --warning-soft: rgb(244 240 229);
+
+  /* Sticky note — paper is the tile wash, mark is the desk glyph. */
+  --sticky-paper: rgb(248 242 220);
+  --sticky-mark: rgb(239 229 192);
+
+  /* Reading highlight — muted marker tint. Always apply mixed
+     ~15–20% on a surface, never at full strength. */
+  --hl-mark: rgb(215 195 136);        /* sand */
+
+  /* ──────────────────────────────────────────────
+     Domain-mark palette — host-monogram badge tints, 3 tokens.
+     Sole consumer: .domain-mark--a/b/c. Tile themes may redeclare.
+     ────────────────────────────────────────────── */
+  --domain-mark-a: rgb(70 117 164);   /* cool slate blue */
+  --domain-mark-b: rgb(51 115 68);    /* muted green */
+  --domain-mark-c: rgb(134 96 50);    /* warm sand */
+
+  /* ──────────────────────────────────────────────
+     Typography
+     ────────────────────────────────────────────── */
+  --font-sans: "Instrument Sans Variable", "Instrument Sans Fallback", "Instrument Sans", "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  --font-serif: "Newsreader Variable", "Newsreader Fallback", "Newsreader", "Georgia", "Songti SC", "Noto Serif SC", serif;
+  --font-mono: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, monospace;
+
+  /* Type scale — clear steps, not near-neighbors.
+     --text-3xs / --text-2xs are decorative only (avatar initials, badge
+     dots, heatmap ticks). Readable labels (chips, stats, search kinds,
+     widget kickers/roles, settings nav) use --text-xs or larger.
+     R12-02: 12px is the readable floor — Han strokes blur at 11px on
+     standard-DPI screens. --text-caption was a near-neighbor 0.5px above
+     --text-xs; it stays as an alias so its 48 consumers keep their role
+     name, the way --radius-sm aliases --radius-xs. */
+  --text-3xs: 0.58rem;    /* ~9  — avatar initials, badge dots */
+  --text-2xs: 0.62rem;    /* ~10 — decorative micro marks only */
+  --text-xs: 0.75rem;     /* 12 — captions, badges, functional labels */
+  --text-caption: var(--text-xs); /* alias — stats rows, secondary captions */
+  --text-sm: 0.8125rem;   /* 13 — meta, chrome */
+  --text-md: 0.9375rem;   /* 15 — dense UI body */
+  --text-base: 1rem;      /* 16 — default body */
+  --text-lg: 1.125rem;    /* 18 — section intros */
+  --text-xl: 1.375rem;    /* 22 — card titles */
+  --text-2xl: 1.75rem;    /* 28 — page titles (min) */
+  --text-3xl: 2.5rem;     /* 40 — display */
+
+  /* Display scale (R10-02) — the only fluid headline sizes. Page heads,
+     section heads, mastheads and heroes pick a rung instead of writing a
+     local clamp(); a `font-size: clamp(` outside this file must carry an
+     `off-scale:` exemption (display-scale.contract.test.ts). */
+  --display-sm: clamp(1.5rem, 1.1rem + 1.6vw, 2rem);     /* workbench / form page heads, section heads */
+  --display-md: clamp(1.85rem, 1.3rem + 2.2vw, 2.65rem); /* standard PageHead */
+  --display-lg: clamp(2.4rem, 1.6rem + 3.4vw, 3.85rem);  /* hero / masthead */
+  /* Lede fluid size — between --text-md and --text-lg. */
+  --text-lede: clamp(var(--text-md), 1.15vw, 1.05rem);
+
+  /* Font-weight ladder — four stops only. Do not introduce new weights. */
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  /* Line height scale — inversely proportional to font size. These rungs
+     are the only permitted line-height values outside an `off-scale:`
+     comment (check-style-drift literalLineHeight gate). */
+  --leading-none: 1;      /* single-line resets: icons, badges, big numerals */
+  --leading-tight: 1.05;  /* display type */
+  --leading-snug: 1.15;
+  --leading-heading: 1.2; /* h3/labels, card titles */
+  /* Minimum leading for line-clamp containers: Newsreader's natural line box
+     is 1.17em and Instrument Sans's is 1.22em, so anything tighter lets glyph
+     ink escape its line box — overflow:hidden then shears the first line's
+     ascenders, and the next line's ink bleeds a few px past the clamp
+     boundary. 1.25 leaves >=0.015em of half-leading to absorb rounding. */
+  --leading-clamp: 1.25;
+  --leading-ui: 1.3;      /* compact UI text */
+  --leading-meta: 1.35;   /* meta/eyebrow lines */
+  --leading-copy: 1.4;    /* secondary copy */
+  --leading-body: 1.45;   /* body text */
+  --leading-normal: 1.5;
+  --leading-prose: 1.55;  /* ledes, long-form prose */
+  --leading-relaxed: 1.65;
+
+  /* ──────────────────────────────────────────────
+     Layout
+     ────────────────────────────────────────────── */
+  --gutter: clamp(1rem, 2.8vw, 2.35rem);
+  /* Pure max-inline-size. Gutter is applied once by the page/chrome wrapper,
+     never baked into the shell width — otherwise padding + this token double.
+     Three tracks — pick by role; do not interpolate. Same 96rem cap on
+     --shell-wide and --shell-grid is intentional (role, not a different number):
+     --shell-wide — chrome only (topnav, footer)
+     --shell      — reading / marketing content (Landing, Share, Sync, Profile, auth, …)
+     --shell-grid — dense workbench / discovery grids (Explore, Library desk/layout, .page-shell--grid) */
+  --shell: min(100%, 90rem);
+  --shell-wide: min(100%, 96rem);
+  --shell-grid: min(100%, 96rem);
+  --board-width: var(--shell);
+  /* Device safe-area insets; 0px on screens without a notch/home indicator. */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  /* R7-14: the chrome height folds in the notch inset (0 on flat screens),
+     so every top-anchored offset (sticky toolbars, hero, sidebars) clears
+     the status bar for free. The topnav pads its content row to match. */
+  --header-h: calc(3.35rem + var(--safe-top));
+  /* Mobile tab bar (R11-06): tab row + home indicator. 0px on desktop so
+     stacking offsets can always add the token. `.app-shell--tabs` at ≤719px
+     assigns `calc(header row + --safe-bottom)`. */
+  --bottom-nav-h: 0px;
+  /* Frost recipe (R10-22) — the single frosted-glass formula: in-page
+     toolbars pinned under --header-h and the topnav share it. Sticky
+     chrome consumes it as:
+       background: color-mix(in srgb, var(--paper) var(--frost-bg-mix), transparent);
+       backdrop-filter: blur(var(--frost-blur)) saturate(var(--frost-saturate));
+       border-bottom: 1px solid var(--line);
+     Modal/search veils do NOT frost — they are the plain --overlay scrim
+     (a blurred page smears text behind a dialog). A backdrop-filter also
+     makes its element the containing block for position: fixed
+     descendants, so never frost a bar that can host a dialog or menu
+     unless it is actually sticky over content. */
+  --frost-blur: 14px;
+  --frost-saturate: 1.05;
+  --frost-bg-mix: 88%;
+  --measure: 38rem;
+  --measure-wide: 46rem;
+  /* Settings dialog is the only width authority for account settings. */
+  --settings-dialog-w: min(96vw, 56rem);
+  --page-pad-y: 2.25rem;
+  --page-pad-y-mobile: var(--hair-150);
+  --page-pad-bottom: 4rem;
+  /* Sans display tracking (R12-01): Instrument Sans already sets tight at
+     display sizes; past about -0.025em the negative tracking eats the word
+     space too and headlines read as one word ("Fourmoves"). */
+  --tracking-display: -0.022em;
+  /* Serif display (Newsreader) tightens far less than sans — hairline
+     strokes clog when over-tracked. Use for every serif headline. */
+  --tracking-serif-display: -0.01em;
+  --tracking-tight: -0.015em;
+  --tracking-ui: 0.01em;
+  --tracking-caps: 0.08em;
+  --overlay: rgb(10 11 14 / 0.32);
+  --shadow-primary-hover: 0 4px 16px rgb(6 7 10 / 0.18), 0 1px 4px rgb(6 7 10 / 0.1);
+
+  /* ──────────────────────────────────────────────
+     Spacing: two prefixes so the numbers cannot collide.
+     --space-* is the coarse scale (not a strict 4px grid —
+     --space-5 is 1.35rem). --hair-* is fine inset/gap (name = rem × 100).
+     Selection rule (R9-24): rhythm BETWEEN blocks/shells → --space-*;
+     inset/gap INSIDE a component → --hair-*. The two scales overlap at
+     0.4–0.75rem on purpose — that band is where optical tuning lives.
+     Every rung is load-bearing (33–242 uses each); do not merge rungs
+     that differ by a sub-pixel step — the delta is the design.
+     ────────────────────────────────────────────── */
+  --space-0: 0;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.35rem;
+  --space-6: 1.85rem;
+  --space-8: 2.75rem;
+  --space-10: 3.75rem;
+  --space-12: 5rem;
+
+  /* Fine inset/gap. Do not invent --space-15; that is 0.15rem hair, not 15×4px. */
+  --hair-15: 0.15rem;
+  --hair-20: 0.2rem;
+  --hair-30: 0.3rem;
+  --hair-35: 0.35rem;
+  --hair-40: 0.4rem;
+  --hair-45: 0.45rem;
+  --hair-55: 0.55rem;
+  --hair-65: 0.65rem;
+  --hair-70: 0.7rem;
+  --hair-85: 0.85rem;
+  --hair-90: 0.9rem;
+  --hair-110: 1.1rem;
+  --hair-125: 1.25rem;
+  --hair-150: 1.5rem;
+  /* R8-11 rungs — the two gaps live usage forced into the open:
+     --hair-160 is the desk-widget body bottom pad (13 widgets shipped 1.6rem);
+     --hair-200 is the de-facto page/section rhythm (2rem) that sat unowned
+     between --space-6 and --space-8. Do not interpolate between rungs. */
+  --hair-160: 1.6rem;
+  --hair-200: 2rem;
+
+  /* ──────────────────────────────────────────────
+     Border radius
+     ────────────────────────────────────────────── */
+  --radius-2xs: 0.125rem;  /* 2px — micro marks, code chips, micro badges */
+  --radius-xs: 0.25rem;    /* 4px — compact controls, small icon containers */
+  --radius-sm: var(--radius-xs); /* alias — do not invent a third compact radius */
+  --radius: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-pill: 999px;   /* fully rounded caps — chips, badges, pills */
+
+  /* ──────────────────────────────────────────────
+     Z-index layers — the only sanctioned stacking values.
+     Local in-component layering (0–20) may stay numeric;
+     anything floating above page flow must use these.
+
+     Registered exception: cards.css `.tile.is-moving/.is-resizing` keeps
+     a numeric `z-index: 150 !important`. Tiles carry an unbounded inline
+     `z-index` (layout.z bring-to-front), which only `!important` can
+     outrank; 150 sits deliberately between --z-sticky and --z-overlay so
+     a dragged tile floats above siblings but never over global chrome.
+     ────────────────────────────────────────────── */
+  --z-sticky: 50;     /* sticky in-page toolbars / filter bars */
+  --z-overlay: 200;   /* global chrome, dropdowns, drawers, floating widgets */
+  --z-modal: 500;     /* full-screen dialogs & modal backdrops */
+  --z-toast: 1000;    /* toasts, skip-link, portaled pickers — always on top */
+
+  /* ──────────────────────────────────────────────
+     Easing & duration — motion vocabulary (M01)
+     Durations are semantic, by interaction type:
+       fast    → micro feedback (press, row tint, kbd)
+       state   → state changes (color, border, shadow)
+       spatial → spatial moves (lift, slide, scale)
+       enter   → entrances & overlays (page, palette, toast)
+     New motion code must use only these duration tokens
+     plus --duration-loop / --duration-ambient for repeating motion
+     and the easing trio below.
+     ────────────────────────────────────────────── */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --duration-fast: 120ms;
+  --duration-state: 180ms;
+  --duration-spatial: 320ms;
+  --duration-enter: 400ms;
+  --duration-loop: 1.2s;   /* ambient loops: loading sweeps, progress bars */
+  --duration-ambient: 3s;  /* slow decorative loops: empty-state float, status pulse */
+
+  /* ──────────────────────────────────────────────
+     Shadows
+     ────────────────────────────────────────────── */
+  --shadow-xs: 0 1px 0 rgb(6 7 10 / 0.04);
+  --shadow-sm: 0 0.12rem 0.4rem rgb(6 7 10 / 0.05), 0 1px 0 rgb(6 7 10 / 0.03);
+  --shadow-md: 0 0.4rem 1.1rem rgb(6 7 10 / 0.08), 0 0.08rem 0.2rem rgb(6 7 10 / 0.03);
+  --shadow-float: 0 0.9rem 2.2rem rgb(6 7 10 / 0.12), 0 0.18rem 0.45rem rgb(6 7 10 / 0.04);
+  --shadow-ring: 0 0 0 3px color-mix(in srgb, var(--ink) 8%, transparent);
+
+  /* Elevation ladder — pick from these instead of ad-hoc shadows:
+     static surfaces     → hairline border only (no shadow)
+     interactive hover   → --shadow-raised (contact + ambient layers)
+     floating overlays   → --shadow-float */
+  --shadow-raised: 0 1px 2px rgb(6 7 10 / 0.05), 0 0.4rem 1.2rem rgb(6 7 10 / 0.07);
+  /* Anchored popovers (save-folder picker, collist card pop): a hairline ring
+     that reads on any tile skin plus a deep ambient layer. The accent variant
+     marks a pinned / active popover. */
+  --shadow-popover: 0 0 0 1px color-mix(in srgb, var(--ink) 4%, transparent), 0 14px 36px color-mix(in srgb, var(--ink) 14%, transparent);
+  --shadow-popover-accent: 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent), 0 16px 40px color-mix(in srgb, var(--ink) 16%, transparent);
+
+  /* Rings — the only sanctioned focus/hover halos:
+     --shadow-ring        neutral 3px (default :focus-visible halo)
+     --shadow-ring-accent accent 3px (search / icon-button focus)
+     --shadow-ring-soft   neutral 2px (icon-button hover) */
+  --shadow-ring-accent: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
+  --shadow-ring-soft: 0 0 0 2px color-mix(in srgb, var(--ink) 6%, transparent);
+  /* Small lift for avatars / secondary buttons on hover. */
+  --shadow-lift: 0 2px 8px color-mix(in srgb, var(--ink) 15%, transparent);
+
+  /* Desk themes (desk-themes.css) re-scope this ladder per palette; they may
+     override these names inside a theme scope but must not add new ones. */
+
+  /* Top-edge "lit surface" highlight for raised/floating layers */
+  --inset-highlight: inset 0 1px 0 rgb(255 255 255 / 0.55);
+
+  /* Editorial section separator: a hairline that fades out at both ends.
+     Use as a 100% x 1px background-image instead of a hard border. */
+  --hairline-fade: linear-gradient(
+    90deg,
+    transparent,
+    var(--line-strong) 16%,
+    var(--line-strong) 84%,
+    transparent
+  );
+
+  /* Localized paper grain — monochrome SVG turbulence tile at print-like
+     3.2% opacity. Paint as the topmost background-image layer on hero /
+     auth / empty-state surfaces only; never blend over body text. */
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)' opacity='0.032'/%3E%3C/svg%3E");
+
+  /* Ordered-dither micro texture — the landing hero field's static echo:
+     an 8×8 Bayer 3/8 tile (2px dots, ink at 5.5%). Same discipline as
+     --grain: a masked background-image layer on heroes, page heads,
+     empty states, and closing/footer bands only. Never behind body
+     text, never animated, never at full strength — shape it with
+     mask-image fades and per-use opacity on a pseudo-element. */
+  --dither: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8'%3E%3Cg fill='rgb(6,7,10)' fill-opacity='0.055'%3E%3Crect width='2' height='2'/%3E%3Crect x='4' y='0' width='2' height='2'/%3E%3Crect x='2' y='2' width='2' height='2'/%3E%3Crect x='0' y='4' width='2' height='2'/%3E%3Crect x='4' y='4' width='2' height='2'/%3E%3Crect x='6' y='6' width='2' height='2'/%3E%3C/g%3E%3C/svg%3E");
+
+  /* The same Bayer tile inverted for ink surfaces (paper dots at 7%):
+     the motif's dark-register voice for the rare ink band (share strip).
+     Same discipline as --dither — masked pseudo-element layers only. */
+  --dither-paper: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8'%3E%3Cg fill='rgb(243,245,248)' fill-opacity='0.07'%3E%3Crect width='2' height='2'/%3E%3Crect x='4' y='0' width='2' height='2'/%3E%3Crect x='2' y='2' width='2' height='2'/%3E%3Crect x='0' y='4' width='2' height='2'/%3E%3Crect x='4' y='4' width='2' height='2'/%3E%3Crect x='6' y='6' width='2' height='2'/%3E%3C/g%3E%3C/svg%3E");
+
+  /* Shared paper dot-grid — one recipe for canvas / graph / promo stages.
+     Cell size + dot radius + ink opacity; do not invent a second density. */
+  --dot-grid-cell: 16px;
+  --dot-grid-dot: 0.55px;
+  --dot-grid-ink: 10%;
+  --dot-grid: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--ink) var(--dot-grid-ink), transparent) var(--dot-grid-dot),
+    transparent calc(var(--dot-grid-dot) + 0.1px)
+  );
+
+  /* Custom select arrow — replaces the native chevron wherever a select
+     carries field chrome. Paint as a no-repeat background-image at
+     right var(--hair-65) center, size ~0.65rem. */
+  --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='5 8 14 8'%3E%3Cpath d='m6.5 9.5 5.5 5 5.5-5' fill='none' stroke='%23616367' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+
+  /* Checkbox tick — a mask shape (colour comes from the painting rule), so
+     the checked mark follows the theme instead of a baked-in fill. */
+  --check-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='m1.75 6.25 2.9 2.9 5.6-6' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+
+  /* Search-field clear (×) and date-field calendar — mask shapes for the
+     WebKit input parts, painted --muted by the form recipe. */
+  --clear-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='m3 3 6 6M9 3 3 9' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+  --calendar-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23000' stroke-width='1.4' stroke-linecap='round'%3E%3Crect x='2.5' y='3.5' width='11' height='10' rx='2'/%3E%3Cpath d='M2.5 7h11M5.5 2v3M10.5 2v3'/%3E%3C/svg%3E");
+
+  /* ──────────────────────────────────────────────
+     Breakpoints (use in @media via raw pixel values.
+     Custom properties cannot be used in @media.)
+
+     Content scale (--bp-*):
+     --bp-sm: 640px   phone / small tablet
+     --bp-md: 900px   content desktop start (3-col Explore, 2-col heroes,
+                      main+rail grids: today/updates/export/inbox layouts)
+     --bp-lg: 1100px  large content / full chrome (search field, burger off)
+
+     Chrome scale (second track — do not invent a third, e.g. 1060):
+     --bp-chrome-sm: 720px  nav-links appear; Library two-column sidebar;
+                            settings nav/dialog collapse below it (719)
+     Full chrome (⌘K field + burger hidden) aligns with --bp-lg (1100px).
+     768 still has burger + compact search; 1280 is complete chrome.
+     Compact Explore may use 4 columns at 1100; default density never does.
+
+     Paired bands are mutually exclusive: a max-width query uses X-1
+     (639/719/899/1099) against the min-width: X counterpart — never
+     max-width: Xpx at a scale value (both would match at exactly X).
+
+     Registered local cut points (do not spread further):
+     - 540/541px — topnav CTA chrome micro-cut (nav.css). Below 540
+       the secondary CTA, bell, account and tools drop into the drawer;
+       compact search stays in the bar so search is never drawer-only.
+       541–1099 keeps the primary CTA (Get started) visible and hides only
+       Log in until full chrome at 1100. auth.css reuses the same
+       narrow-phone cut for full-bleed action-row buttons.
+
+     Allowed @media pixel set (DS-02): 540, 541, 639, 640, 719, 720,
+     899, 900, 1099, 1100. Absorb new cuts onto this set; do not
+     register a one-off without a one-line reason here and in the test.
+     Width cuts must be px on this set — rem/em width queries would slip
+     past the allowlist (a 44rem cut is an undocumented 704px track).
+     ────────────────────────────────────────────── */
+}
+
+/* ──────────────────────────────────────────────
+   Self-hosted edition (COLP Server). main.tsx and self-hosted-dist.mjs set
+   data-edition on <html>. Colours, lines, and shadows are Know-N's, unchanged.
+   The edition only changes type and texture: headings are sans at a tool
+   scale (the serif token resolves to the sans stack), and the paper grain
+   is off. Component rules that need more than a token live in edition.css.
+   ────────────────────────────────────────────── */
+:root[data-edition='self-hosted'] {
+  --font-serif: var(--font-sans);
+  --display-sm: clamp(1.25rem, 1.1rem + 0.5vw, 1.5rem);
+  --display-md: clamp(1.5rem, 1.3rem + 0.8vw, 1.875rem);
+  --display-lg: clamp(1.75rem, 1.4rem + 1.4vw, 2.375rem);
+  --tracking-display: -0.02em;
+  --tracking-serif-display: -0.02em;
+
+  --page-pad-y: var(--hair-200);
+
+  /* Texture is decoration for the cloud marketing pages; a tool stays flat. */
+  --grain: none;
+  --dither: none;
+  --wash-hero: none;
+}
+
+/* R15-43: under prefers-contrast: more, control boundaries step up with the
+   other line tokens (global.css owns the rest of that override). */
+@media (prefers-contrast: more) {
+  :root {
+    --line-control: rgb(6 7 10 / 0.62);
+  }
+}
+}

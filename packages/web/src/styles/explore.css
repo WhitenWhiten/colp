@@ -1,0 +1,166 @@
+/* ——— Explore ——— */
+
+@layer pages {
+/* ——— Explore ——— */
+/* Page padding comes from .page-shell (page-chrome.css): Explore renders
+   PageShell variant="bare" — children own their own --shell-grid tracks. */
+
+/* First row: page head left, select menus right. */
+.explore-bar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+  width: var(--shell-grid);
+  margin: 0 auto var(--space-4);
+}
+
+.explore-bar .page-head { margin: 0; }
+
+.explore-bar-actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+/* Second row: kind tabs span the grid track. */
+.explore-page .tab-rail {
+  width: var(--shell-grid);
+  margin: 0 auto var(--space-5);
+}
+
+/* Explore itself no longer renders .explore-filters (the topic rail moved
+   into the Filters SelectMenu), but the class is shared by Feed,
+   Notifications, Search and CommunityNotificationsPanel — its rules stay
+   here because main.tsx imports this sheet globally. */
+.explore-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hair-35);
+  margin-top: var(--space-2);
+}
+
+/* Explore: iPhone — tighter padding, single column */
+@media (max-width: 639px) {
+  .explore-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  /* Sort / Topic / Language stay one row that scrolls under the same end
+     fade as the chip rails below, instead of wrapping Language onto an
+     orphan second line. The pickers are native selects (top layer / OS
+     sheet), so the scrollport cannot clip them. */
+  .explore-bar-actions {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    overscroll-behavior-inline: contain;
+    margin-inline: calc(-1 * var(--space-4));
+    /* Block padding keeps the focus ring inside the scrollport. */
+    padding: var(--hair-20) var(--space-4);
+    mask-image: linear-gradient(to right, var(--ink) 0, var(--ink) calc(100% - 1.75rem), transparent);
+    -webkit-mask-image: linear-gradient(to right, var(--ink) 0, var(--ink) calc(100% - 1.75rem), transparent);
+  }
+
+  .explore-bar-actions::-webkit-scrollbar {
+    display: none;
+  }
+
+  .explore-bar-actions > .select-menu {
+    flex-shrink: 0;
+  }
+
+  .explore-filters {
+    width: auto;
+    max-width: none;
+    box-sizing: border-box;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    /* Hover-clip budget (same as .extensibility-grid): the scrollport and the
+       end-fade mask both cut at the border box, so the pills' -1px hover lift
+       needs top headroom or its top edge gets sliced off. */
+    padding-top: var(--hair-15);
+    padding-bottom: var(--hair-20);
+    overscroll-behavior-inline: contain;
+    mask-image: linear-gradient(to right, var(--ink) 0, var(--ink) calc(100% - 1.75rem), transparent);
+    -webkit-mask-image: linear-gradient(to right, var(--ink) 0, var(--ink) calc(100% - 1.75rem), transparent);
+  }
+
+  /* Bleed matches the host's ≤639 padding. Explore and page-shell (Feed /
+     Notifications) use --space-4; Search shares the shell but keeps its
+     filters in-flow under the results hairline. */
+  .explore-page .explore-filters,
+  .page-shell:not(.search-product-page) .explore-filters {
+    margin-inline: calc(-1 * var(--space-4));
+    padding-inline: var(--space-4);
+  }
+
+  .explore-filters::-webkit-scrollbar {
+    display: none;
+  }
+
+  .collection-grid {
+    gap: var(--space-3);
+  }
+}
+
+/* Default .collection-grid columns live next to the base rule below
+   (single source: <640 → 1, 640–899 → 2, ≥900 → 3). */
+
+.collection-grid {
+  width: var(--shell-grid);
+  margin-inline: auto;
+  display: grid;
+  gap: var(--hair-110);
+  grid-template-columns: 1fr;
+  margin-bottom: var(--space-8);
+}
+
+/* Default Explore columns (content scale --bp-sm / --bp-md). Later
+   rules in this file must not redeclare .collection-grid columns. */
+@media (min-width: 640px) and (max-width: 899px) {
+  .collection-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 900px) {
+  .collection-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* The in-page loading grid sits in the same bare shell as .collection-grid,
+   so it takes the same --shell-grid track instead of the full page width. */
+.explore-page .route-loading-grid {
+  width: var(--shell-grid);
+  margin-inline: auto;
+  margin-bottom: var(--space-8);
+}
+
+@media (max-width: 639px) {
+  .explore-page .route-loading-grid {
+    gap: var(--space-3);
+  }
+}
+
+.explore-end-notice,
+.explore-more {
+  width: var(--shell-grid);
+  margin-inline: auto;
+  text-align: center;
+  padding: var(--space-4) 0 var(--space-8);
+  color: var(--faint);
+}
+
+/* .result-card--collection chrome is owned by cards-ui.css.
+   Desc type is `.collection-card-desc` / `.collection-card-body > p:not(.collection-card-stats)` in cards-ui. */
+
+/* .collection-card-foot layout is owned by cards-ui.css; its numeric/weight
+   declarations moved there too, so this duplicate was removed entirely. */
+
+/* .curator-row (CollectionCard / Feed avatar + name) is owned by cards-ui.css. */
+}

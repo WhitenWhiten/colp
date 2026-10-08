@@ -1,0 +1,48 @@
+{
+  "format": "known.phase5.free-social-evidence-lock.v1",
+  "schemaVersion": 1,
+  "dependencies": {
+    "followAcceptance": {
+      "task": "P5-07",
+      "commit": "2a4c035752e165b6ccdea17c00f8b9bf1208601f",
+      "relativePath": "p5-07/phase5-follow-acceptance.json",
+      "fileSha256": "da3472018557ebe055cdb07aec81e8dc75e18ed64f2242d6cd2f2f1a23b835b6",
+      "evidenceDigest": "04455624fc27e8d3f361f191f8545206068ca65a907f5c16d1cae0eaea3e502f"
+    },
+    "feedAcceptance": {
+      "task": "P5-15",
+      "commit": "2a4c035752e165b6ccdea17c00f8b9bf1208601f",
+      "relativePath": "p5-15/phase5-feed-acceptance.json",
+      "fileSha256": "800603089efccfca44a0d0169bc274e7dc0f91244332df7ee8dd3871373dd740",
+      "evidenceDigest": "337b69a43d92147164fda8c20b7d4c18577920f9f3ea002369249095f143f7aa"
+    },
+    "notificationAcceptance": {
+      "task": "P5-23",
+      "commit": "2a4c035752e165b6ccdea17c00f8b9bf1208601f",
+      "relativePath": "p5-23/phase5-notification-acceptance.json",
+      "fileSha256": "85e818160bc02171cbd95fe8973dbf6248d91b7ecc0359d5074a64be75ade659",
+      "evidenceDigest": "c1c44e61add79c9a3b2c35b4adc215741f191b4aab52ba17d42fd65d2ebcd088"
+    },
+    "feedOperations": {
+      "task": "P5-24",
+      "commit": "2a4c035752e165b6ccdea17c00f8b9bf1208601f",
+      "relativePath": "p5-24/phase5-feed-operations-status.json",
+      "fileSha256": "97e677d908eea5cf585be161ef403bdfbb3ac3b61e704aad6dee11f01ce48246",
+      "capacityDigest": "2c1083c2d833b82a81d6b6fc7bd0c7ad0cc236e458ed63cc8d55902c7f0046bd",
+      "migrationDigest": "2efa433f3154d891fbe4c62c657b9e4c78aac6bdec2cbf62d69a16fdfc797178",
+      "feedOperationsSourceDigest": "64ceed510770ae9bcd93d3523b4607641016853f4050aace53353c0785fb5afe",
+      "runbookDigest": "b44158fd24af55f00a95dcf9fd03a072fde2f11bd80ae31e072645a02fb08457"
+    },
+    "notificationOperations": {
+      "task": "P5-25",
+      "commit": "2a4c035752e165b6ccdea17c00f8b9bf1208601f",
+      "relativePath": "p5-25/phase5-notification-operations-status.json",
+      "fileSha256": "235d5be3c33af1adb3be9168332767b6777e19d21e95661b8550d16aa441b41f",
+      "capacityDigest": "05ea630634611b54c9973a093dc12b80ce964c5dcb3ad286b9b76c91e820f58e",
+      "migrationHead": "202608011000_nodes_live_sibling_position_c_idx",
+      "migrationDigest": "2efa433f3154d891fbe4c62c657b9e4c78aac6bdec2cbf62d69a16fdfc797178",
+      "notificationAcceptanceSourceDigest": "a8987b779b2cfb47c7df6230a5affde8da23d4df186521999a577a0174c2f76b",
+      "runbookDigest": "287d51544b328af80d535ec0a45720e62cc54c74af900d30810bbb4cbc4151a0"
+    }
+  }
+}

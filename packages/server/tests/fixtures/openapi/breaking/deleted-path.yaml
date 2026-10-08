@@ -1,0 +1,14 @@
+openapi: 3.1.0
+info:
+  title: Breaking check fixture
+  version: 1.0.1
+paths: {}
+components:
+  schemas:
+    Widget:
+      type: object
+      additionalProperties: false
+      properties:
+        id: { type: string }
+        state: { type: string, enum: [active, archived] }
+      required: [id, state]

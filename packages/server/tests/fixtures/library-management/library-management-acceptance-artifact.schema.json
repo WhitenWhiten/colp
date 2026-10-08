@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://known.example.test/schemas/library-management-acceptance-artifact.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "accepted", "createdAt", "sourceRevision", "sourceDigest", "sourceFileCount", "contracts", "environment", "collectionList", "gates", "artifactDigest"],
+  "properties": {
+    "format": { "const": "known.library-management.backend-acceptance.v2" },
+    "accepted": { "const": true },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "sourceRevision": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "sourceDigest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "sourceFileCount": { "type": "integer", "minimum": 1 },
+    "contracts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["migrationHead", "migrationVersions", "migrationDigest", "openapiVersion", "clientContractVersion", "openapiBundleDigest", "backendClientDigest"],
+      "properties": {
+        "migrationHead": { "type": "string", "pattern": "^[0-9]{12}_[a-z0-9_-]+$" },
+        "migrationVersions": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[0-9]{12}_[a-z0-9_-]+$" }
+        },
+        "migrationDigest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "openapiVersion": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+        "clientContractVersion": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+        "openapiBundleDigest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "backendClientDigest": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["postgresql", "node", "os", "cpu"],
+      "properties": {
+        "postgresql": { "type": "string", "minLength": 1 },
+        "node": { "type": "string", "minLength": 1 },
+        "os": { "type": "string", "minLength": 1 },
+        "cpu": { "type": "string", "minLength": 1 }
+      }
+    },
+    "collectionList": { "const": true },
+    "gates": {
+      "type": "array",
+      "minItems": 9,
+      "maxItems": 9,
+      "prefixItems": [
+        { "$ref": "#/$defs/gates/migration" },
+        { "$ref": "#/$defs/gates/openapi" },
+        { "$ref": "#/$defs/gates/acceptance-contract" },
+        { "$ref": "#/$defs/gates/backend-unit" },
+        { "$ref": "#/$defs/gates/backend-integration" },
+        { "$ref": "#/$defs/gates/backend-typecheck" },
+        { "$ref": "#/$defs/gates/backend-lint" },
+        { "$ref": "#/$defs/gates/backend-imports" },
+        { "$ref": "#/$defs/gates/backend-build" }
+      ],
+      "items": false
+    },
+    "artifactDigest": { "type": "string", "pattern": "^[A-Za-z0-9_-]{43}$" }
+  },
+  "$defs": {
+    "gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "status", "command", "durationMs", "resultSummary", "outputDigest"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "status": { "const": "passed" },
+        "command": { "type": "string", "minLength": 1 },
+        "durationMs": { "type": "number", "minimum": 0 },
+        "resultSummary": { "type": "string", "minLength": 1 },
+        "outputDigest": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "gates": {
+      "migration": { "$ref": "#/$defs/gate", "type": "object", "properties": { "id": { "const": "migration" } } },
+      "openapi": { "$ref": "#/$defs/gate", "type": "object", "properties": { "id": { "const": "openapi" } } },
+      "acceptance-contract": { "$ref": "#/$defs/gate", "type": "object", "properties": { "id": { "const": "acceptance-contract" } } },
+      "backend-unit": { "$ref": "#/$defs/gate", "type": "object", "properties": { "id": { "const": "backend-unit" } } },
+      "backend-integration": { "$ref": "#/$defs/gate", "type": "object", "properties": { "id": { "const": "backend-integration" } } },
+      "backend-typecheck": { "$ref": "#/$defs/gate", "type": "object", "properties": { "id": { "const": "backend-typecheck" } } },
+      "backend-lint": { "$ref": "#/$defs/gate", "type": "object", "properties": { "id": { "const": "backend-lint" } } },
+      "backend-imports": { "$ref": "#/$defs/gate", "type": "object", "properties": { "id": { "const": "backend-imports" } } },
+      "backend-build": { "$ref": "#/$defs/gate", "type": "object", "properties": { "id": { "const": "backend-build" } } }
+    }
+  }
+}

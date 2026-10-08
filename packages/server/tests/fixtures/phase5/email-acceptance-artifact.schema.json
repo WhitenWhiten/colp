@@ -1,0 +1,890 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://known.local/schemas/phase5/email-acceptance-artifact.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "accepted",
+    "completedAt",
+    "bindingMode",
+    "negativeControlMode",
+    "evidenceBundle",
+    "source",
+    "contracts",
+    "migration",
+    "worker",
+    "api",
+    "featureFlag",
+    "configSummary",
+    "browser",
+    "targetAttestation",
+    "metrics",
+    "environment",
+    "gates",
+    "gateDigest",
+    "negativeControls",
+    "negativeControlDigest",
+    "claims",
+    "evidenceDigest"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "known.phase5.email-acceptance.v1"
+    },
+    "accepted": {
+      "const": true
+    },
+    "completedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "bindingMode": {
+      "const": "exact-commit"
+    },
+    "negativeControlMode": {
+      "const": "real-temporary-source-corruption"
+    },
+    "evidenceBundle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "relativePath",
+        "runtimeRootEnv"
+      ],
+      "properties": {
+        "relativePath": {
+          "const": "p5-31/phase5-email-acceptance.json"
+        },
+        "runtimeRootEnv": {
+          "const": "KNOWN_PHASE5_EVIDENCE_ROOT"
+        }
+      }
+    },
+    "source": {
+      "$ref": "#/$defs/source"
+    },
+    "contracts": {
+      "$ref": "#/$defs/contracts"
+    },
+    "migration": {
+      "$ref": "#/$defs/migration"
+    },
+    "worker": {
+      "$ref": "#/$defs/worker"
+    },
+    "api": {
+      "$ref": "#/$defs/api"
+    },
+    "featureFlag": {
+      "$ref": "#/$defs/featureFlag"
+    },
+    "browser": {
+      "$ref": "#/$defs/browser"
+    },
+    "targetAttestation": {
+      "$ref": "#/$defs/targetAttestation"
+    },
+    "metrics": {
+      "$ref": "#/$defs/metrics"
+    },
+    "environment": {
+      "$ref": "#/$defs/environment"
+    },
+    "gates": {
+      "$ref": "#/$defs/gates"
+    },
+    "gateDigest": {
+      "$ref": "#/$defs/digest"
+    },
+    "negativeControls": {
+      "$ref": "#/$defs/negativeControls"
+    },
+    "negativeControlDigest": {
+      "$ref": "#/$defs/digest"
+    },
+    "claims": {
+      "$ref": "#/$defs/claims"
+    },
+    "evidenceDigest": {
+      "$ref": "#/$defs/digest"
+    },
+    "configSummary": {
+      "$ref": "#/$defs/configSummary"
+    }
+  },
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "expectedCommit",
+        "checkoutCommit",
+        "backendCommit",
+        "frontendCommit",
+        "colpCommit",
+        "sourceTreeDigestStart",
+        "sourceTreeDigestEnd",
+        "sourceFileCount",
+        "cleanStart",
+        "cleanEnd"
+      ],
+      "properties": {
+        "expectedCommit": {
+          "$ref": "#/$defs/commit"
+        },
+        "checkoutCommit": {
+          "$ref": "#/$defs/commit"
+        },
+        "backendCommit": {
+          "$ref": "#/$defs/commit"
+        },
+        "frontendCommit": {
+          "$ref": "#/$defs/commit"
+        },
+        "colpCommit": {
+          "$ref": "#/$defs/commit"
+        },
+        "sourceTreeDigestStart": {
+          "$ref": "#/$defs/digest"
+        },
+        "sourceTreeDigestEnd": {
+          "$ref": "#/$defs/digest"
+        },
+        "sourceFileCount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "cleanStart": {
+          "const": true
+        },
+        "cleanEnd": {
+          "const": true
+        }
+      }
+    },
+    "contracts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "adapterContract",
+        "eventContractVersion",
+        "artifactSchemaDigest"
+      ],
+      "properties": {
+        "adapterContract": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "provider",
+            "apiVersion",
+            "replayManifestDigest",
+            "fixtureReplayDigest",
+            "fixtureReplayEvidenceDigest"
+          ],
+          "properties": {
+            "provider": {
+              "const": "alibaba-cloud-directmail"
+            },
+            "apiVersion": {
+              "type": "string",
+              "minLength": 1
+            },
+            "replayManifestDigest": {
+              "$ref": "#/$defs/digest"
+            },
+            "fixtureReplayDigest": {
+              "$ref": "#/$defs/digest"
+            },
+            "fixtureReplayEvidenceDigest": {
+              "$ref": "#/$defs/digest"
+            }
+          }
+        },
+        "eventContractVersion": {
+          "$ref": "#/$defs/digest"
+        },
+        "artifactSchemaDigest": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    },
+    "migration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "suppressionMigrationFile",
+        "migrationHead",
+        "migrationDigest",
+        "allMigrationsDigest"
+      ],
+      "properties": {
+        "suppressionMigrationFile": {
+          "const": "202608020800_notification_email_suppressions.ts"
+        },
+        "migrationHead": {
+          "type": "string",
+          "pattern": "^[0-9]{12}_[a-z0-9_-]+$"
+        },
+        "migrationDigest": {
+          "$ref": "#/$defs/digest"
+        },
+        "allMigrationsDigest": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    },
+    "worker": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workerRegistryDigest",
+        "workerRuntimeDigest",
+        "handlerMode",
+        "reconcileDigest"
+      ],
+      "properties": {
+        "workerRegistryDigest": {
+          "$ref": "#/$defs/digest"
+        },
+        "workerRuntimeDigest": {
+          "$ref": "#/$defs/digest"
+        },
+        "handlerMode": {
+          "const": "delivery_each_event"
+        },
+        "reconcileDigest": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    },
+    "api": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "callbackRoute",
+        "openapiVersion",
+        "openapiDigest",
+        "generatedClientDigest",
+        "preferenceEmailChannel"
+      ],
+      "properties": {
+        "callbackRoute": {
+          "const": "/api/v1/email/callbacks/delivery"
+        },
+        "openapiVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "openapiDigest": {
+          "$ref": "#/$defs/digest"
+        },
+        "generatedClientDigest": {
+          "$ref": "#/$defs/digest"
+        },
+        "preferenceEmailChannel": {
+          "const": true
+        }
+      }
+    },
+    "featureFlag": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "featureFlag",
+        "productionDefault",
+        "exercisedOn",
+        "exercisedOff"
+      ],
+      "properties": {
+        "featureFlag": {
+          "const": "KNOWN_FEATURE_EMAIL"
+        },
+        "productionDefault": {
+          "const": false
+        },
+        "exercisedOn": {
+          "const": true
+        },
+        "exercisedOff": {
+          "const": true
+        }
+      }
+    },
+    "browser": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "browserSpecDigest",
+        "browserConfigDigest",
+        "browserArtifactDigest"
+      ],
+      "properties": {
+        "browserSpecDigest": {
+          "$ref": "#/$defs/digest"
+        },
+        "browserConfigDigest": {
+          "$ref": "#/$defs/digest"
+        },
+        "browserArtifactDigest": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    },
+    "targetAttestation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "fixtureReplayDigest",
+        "sourceBoundOnly"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "attested",
+            "not-attested"
+          ]
+        },
+        "reason": {
+          "const": "credentials not provisioned"
+        },
+        "provider": {
+          "const": "alibaba-cloud-directmail"
+        },
+        "apiVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "endpoint": {
+          "type": "string",
+          "minLength": 1
+        },
+        "regionId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "probeEvidence": {
+          "$ref": "#/$defs/probeEvidence"
+        },
+        "probeOutputDigest": {
+          "$ref": "#/$defs/digest"
+        },
+        "verifiedSenderAccountDigest": {
+          "$ref": "#/$defs/digest"
+        },
+        "attestedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "fixtureReplayDigest": {
+          "$ref": "#/$defs/digest"
+        },
+        "sourceBoundOnly": {
+          "type": "boolean"
+        }
+      }
+    },
+    "probeEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evidence",
+        "schemaVersion",
+        "deliveryKeyTag",
+        "send",
+        "lookup"
+      ],
+      "properties": {
+        "evidence": {
+          "const": "email_adapter_target_probe"
+        },
+        "schemaVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "deliveryKeyTag": {
+          "type": "string",
+          "minLength": 1
+        },
+        "send": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "classification",
+            "providerMessageId",
+            "requestId",
+            "errorCategory"
+          ],
+          "properties": {
+            "classification": {
+              "type": "string",
+              "minLength": 1
+            },
+            "providerMessageId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "requestId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "errorCategory": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        "lookup": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "classification",
+            "outcome",
+            "requestId",
+            "errorCategory"
+          ],
+          "properties": {
+            "classification": {
+              "type": "string",
+              "minLength": 1
+            },
+            "outcome": {
+              "type": "string",
+              "minLength": 1
+            },
+            "requestId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "errorCategory": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "metricNames",
+        "cardinality"
+      ],
+      "properties": {
+        "metricNames": {
+          "type": "array",
+          "minItems": 8,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^notifications\\.(email_delivery|optional_delivery)\\.[a-z0-9_.]+$"
+          }
+        },
+        "cardinality": {
+          "const": "low"
+        }
+      }
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "nodeVersion",
+        "os",
+        "postgresVersion"
+      ],
+      "properties": {
+        "nodeVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "os": {
+          "type": "string",
+          "minLength": 1
+        },
+        "postgresVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "playwrightVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "chromiumVersion": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "evidenceClass": {
+      "type": "string",
+      "enum": [
+        "supporting",
+        "verified"
+      ]
+    },
+    "gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "status",
+        "command",
+        "startedAt",
+        "completedAt",
+        "durationMs",
+        "exitCode",
+        "resultSummary",
+        "outputDigest",
+        "evidenceClass"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "const": "passed"
+        },
+        "command": {
+          "type": "string",
+          "minLength": 1
+        },
+        "startedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "completedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "durationMs": {
+          "type": "number",
+          "minimum": 0
+        },
+        "exitCode": {
+          "const": 0
+        },
+        "resultSummary": {
+          "type": "string",
+          "minLength": 1
+        },
+        "outputDigest": {
+          "$ref": "#/$defs/digest"
+        },
+        "evidenceClass": {
+          "$ref": "#/$defs/evidenceClass"
+        }
+      }
+    },
+    "gates": {
+      "type": "array",
+      "minItems": 8,
+      "maxItems": 8,
+      "prefixItems": [
+        {
+          "$ref": "#/$defs/gate",
+          "type": "object",
+          "properties": {
+            "id": {
+              "const": "adapter-contract"
+            }
+          }
+        },
+        {
+          "$ref": "#/$defs/gate",
+          "type": "object",
+          "properties": {
+            "id": {
+              "const": "worker-delivery"
+            }
+          }
+        },
+        {
+          "$ref": "#/$defs/gate",
+          "type": "object",
+          "properties": {
+            "id": {
+              "const": "preference-command"
+            }
+          }
+        },
+        {
+          "$ref": "#/$defs/gate",
+          "type": "object",
+          "properties": {
+            "id": {
+              "const": "http-client"
+            }
+          }
+        },
+        {
+          "$ref": "#/$defs/gate",
+          "type": "object",
+          "properties": {
+            "id": {
+              "const": "openapi"
+            }
+          }
+        },
+        {
+          "$ref": "#/$defs/gate",
+          "type": "object",
+          "properties": {
+            "id": {
+              "const": "browser"
+            }
+          }
+        },
+        {
+          "$ref": "#/$defs/gate",
+          "type": "object",
+          "properties": {
+            "id": {
+              "const": "secret-privacy"
+            }
+          }
+        },
+        {
+          "$ref": "#/$defs/gate",
+          "type": "object",
+          "properties": {
+            "id": {
+              "const": "notification-regression"
+            }
+          }
+        }
+      ],
+      "items": false
+    },
+    "negativeControl": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "injection",
+        "outcome",
+        "observationDigest"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "injection": {
+          "type": "string",
+          "minLength": 1
+        },
+        "outcome": {
+          "const": "failed_closed"
+        },
+        "observationDigest": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    },
+    "negativeControls": {
+      "type": "array",
+      "minItems": 11,
+      "maxItems": 11,
+      "prefixItems": [
+        {
+          "$ref": "#/$defs/negativeControl",
+          "type": "object",
+          "properties": {
+            "id": {
+              "const": "missing-adapter-contract-module"
+            }
+          }
+        },
+        {
+          "$ref": "#/$defs/negativeControl",
+          "type": "object",
+          "properties": {
+            "id": {
+              "const": "missing-worker-registration"
+            }
+          }
+        },
+        {
+          "$ref": "#/$defs/negativeControl",
+          "type": "object",
+          "properties": {
+            "id": {
+              "const": "missing-suppression-migration"
+            }
+          }
+        },
+        {
+          "$ref": "#/$defs/negativeControl",
+          "type": "object",
+          "properties": {
+            "id": {
+              "const": "missing-preference-route"
+            }
+          }
+        },
+        {
+          "$ref": "#/$defs/negativeControl",
+          "type": "object",
+          "properties": {
+            "id": {
+              "const": "generated-client-drift"
+            }
+          }
+        },
+        {
+          "$ref": "#/$defs/negativeControl",
+          "type": "object",
+          "properties": {
+            "id": {
+              "const": "feature-flag-not-exercised"
+            }
+          }
+        },
+        {
+          "$ref": "#/$defs/negativeControl",
+          "type": "object",
+          "properties": {
+            "id": {
+              "const": "browser-source-mismatch"
+            }
+          }
+        },
+        {
+          "$ref": "#/$defs/negativeControl",
+          "type": "object",
+          "properties": {
+            "id": {
+              "const": "missing-target-attestation"
+            }
+          }
+        },
+        {
+          "$ref": "#/$defs/negativeControl",
+          "type": "object",
+          "properties": {
+            "id": {
+              "const": "missing-replay-digest"
+            }
+          }
+        },
+        {
+          "$ref": "#/$defs/negativeControl",
+          "type": "object",
+          "properties": {
+            "id": {
+              "const": "secret-marker-leakage"
+            }
+          }
+        },
+        {
+          "$ref": "#/$defs/negativeControl",
+          "type": "object",
+          "properties": {
+            "id": {
+              "const": "callback-surface-missing"
+            }
+          }
+        }
+      ],
+      "items": false
+    },
+    "claims": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "emailDeliveryEligible",
+        "emailCapabilityIndependent",
+        "phase5Verified",
+        "deploymentProven",
+        "targetAttested",
+        "marketingAutomation",
+        "billingEmail",
+        "colpProfile"
+      ],
+      "properties": {
+        "emailDeliveryEligible": {
+          "const": true
+        },
+        "emailCapabilityIndependent": {
+          "const": true
+        },
+        "phase5Verified": {
+          "const": false
+        },
+        "deploymentProven": {
+          "const": false
+        },
+        "targetAttested": {
+          "type": "boolean"
+        },
+        "marketingAutomation": {
+          "const": false
+        },
+        "billingEmail": {
+          "const": false
+        },
+        "colpProfile": {
+          "const": false
+        }
+      }
+    },
+    "configSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "featureFlag",
+        "productionDefault",
+        "provider",
+        "endpointDefault",
+        "regionDefault",
+        "tagPrefixDefault",
+        "secrets"
+      ],
+      "properties": {
+        "featureFlag": {
+          "const": "KNOWN_FEATURE_EMAIL"
+        },
+        "productionDefault": {
+          "const": false
+        },
+        "provider": {
+          "const": "alibaba-cloud-directmail"
+        },
+        "endpointDefault": {
+          "const": "https://dm.aliyuncs.com/"
+        },
+        "regionDefault": {
+          "const": "cn-hangzhou"
+        },
+        "tagPrefixDefault": {
+          "const": "known-delivery-"
+        },
+        "secrets": {
+          "const": "environment-only"
+        }
+      }
+    }
+  }
+}

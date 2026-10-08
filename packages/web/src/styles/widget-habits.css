@@ -1,0 +1,153 @@
+/* Dashboard canvas widget — Habits (R8-01 chapter split).
+   Owns only this widget's .desk-X content rules — shared chrome (fill
+   padding, card-head tint, .desk-widget-head/-title) lives in
+   dashboard-desk.css; tile base in cards.css; color themes + the
+   widget-intrinsic skins (wash / terminal) in desk-themes.css (R10-26).
+   Route-owned: imported by pages/Dashboard.tsx after dashboard-desk.css. */
+
+@layer components {
+/* ═══════════════════════════════════════════
+   Habits
+   ═══════════════════════════════════════════ */
+.desk-mark-habits {
+  font-size: var(--text-xs);
+}
+
+.desk-habits {
+  gap: var(--space-2);
+}
+
+.desk-habits-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hair-45);
+}
+
+.desk-habits-bar {
+  height: 0.28rem;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+  overflow: hidden;
+}
+
+.desk-habits-bar > span {
+  display: block;
+  height: 100%;
+  /* scaleX instead of width: value changes stay on the compositor
+     (same recipe as .p0-progress / .reader-progress). */
+  width: 100%;
+  transform: scaleX(var(--progress, 0));
+  transform-origin: left;
+  background: var(--ink);
+  border-radius: inherit;
+  transition: transform var(--duration-state) var(--ease-quart);
+}
+
+.desk-habits-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--hair-20);
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.desk-habit-row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--hair-55);
+  align-items: center;
+  text-align: left;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: transparent;
+  padding: var(--hair-40) var(--hair-45);
+  font: inherit;
+  color: var(--ink);
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-quart);
+}
+
+.desk-habit-row:hover {
+  background: color-mix(in srgb, var(--ink) 3.5%, transparent);
+}
+
+.desk-habit-check {
+  width: 1.15rem;
+  height: 1.15rem;
+  border: 1.5px solid var(--line-heavy);
+  border-radius: var(--radius-sm);
+  display: grid;
+  place-items: center;
+  color: var(--paper);
+  background: transparent;
+  flex-shrink: 0;
+}
+
+.desk-habit-check svg {
+  width: 0.75em;
+  height: 0.75em;
+}
+
+.desk-habit-row.is-done .desk-habit-check {
+  background: var(--ink);
+  border-color: var(--ink);
+}
+
+.desk-habit-label {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-tight);
+  line-height: var(--leading-ui);
+}
+
+.desk-habit-row.is-done .desk-habit-label {
+  color: var(--muted);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.desk-habits-add {
+  display: flex;
+  gap: var(--hair-35);
+  margin-top: auto;
+  padding-top: var(--hair-45);
+  border-top: 1px solid var(--line);
+}
+
+.desk-habits-add input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-sm);
+  padding: var(--hair-40) var(--hair-55);
+  outline: none;
+}
+
+.desk-habits-add input:focus {
+  border-color: var(--ink);
+  box-shadow: var(--shadow-ring);
+}
+
+/* R7-17: micro controls ride into the phone dashboard stack unchanged — on
+   touch they need the shared 44px target (the glyph keeps its size; the hit
+   area grows). */
+@media (pointer: coarse) {
+  .desk-habit-row {
+    min-height: 2.75rem;
+  }
+}
+
+  /* ——— Rehomed from page-layouts.css (R9-12) ——— */
+.desk-habits-head .meta {
+  margin: var(--hair-15) 0 0;
+}
+}

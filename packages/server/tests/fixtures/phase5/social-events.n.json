@@ -1,0 +1,46 @@
+{
+  "fixtureVersion": 1,
+  "contractVersion": 1,
+  "events": [
+    {
+      "event_id": "018f0e3d-1111-7111-8111-111111111111",
+      "event_type": "social.follow-created",
+      "event_version": 1,
+      "aggregate_identity": { "aggregate_type": "profile-follow", "aggregate_id": "EREREREREREREREREREREQ", "aggregate_scope": "IiIiIiIiIiIiIiIiIiIiIg" },
+      "aggregate_revision": "1",
+      "commit_ordinal": "101",
+      "occurred_at": "2026-07-28T12:00:00.000Z",
+      "payload": { "actorProfileId": "EREREREREREREREREREREQ", "targetProfileId": "IiIiIiIiIiIiIiIiIiIiIg" }
+    },
+    {
+      "event_id": "018f0e3d-2222-7222-8222-222222222222",
+      "event_type": "social.follow-removed",
+      "event_version": 1,
+      "aggregate_identity": { "aggregate_type": "profile-follow", "aggregate_id": "EREREREREREREREREREREQ", "aggregate_scope": "IiIiIiIiIiIiIiIiIiIiIg" },
+      "aggregate_revision": "2",
+      "commit_ordinal": "102",
+      "occurred_at": "2026-07-28T12:01:00.000Z",
+      "payload": { "actorProfileId": "EREREREREREREREREREREQ", "targetProfileId": "IiIiIiIiIiIiIiIiIiIiIg" }
+    },
+    {
+      "event_id": "FRUVFRUVFRUVFRUVFRUVFQ",
+      "event_type": "social.collection-change",
+      "event_version": 2,
+      "aggregate_identity": { "aggregate_type": "collection", "aggregate_id": "FBQUFBQUFBQUFBQUFBQUFA", "aggregate_scope": "FBQUFBQUFBQUFBQUFBQUFA" },
+      "aggregate_revision": "publication-revision-12",
+      "commit_ordinal": "103",
+      "occurred_at": "2026-07-28T12:02:00.000Z",
+      "payload": { "collectionId": "FBQUFBQUFBQUFBQUFBQUFA", "ownerProfileId": "IiIiIiIiIiIiIiIiIiIiIg", "publicationRevision": "publication-revision-12", "discoverabilityRecheckKey": "publication.collection:FBQUFBQUFBQUFBQUFBQUFA", "producerDiscoverability": "public_candidate" }
+    },
+    {
+      "event_id": "018f0e3d-4444-7444-8444-444444444444",
+      "event_type": "social.feed-item-published",
+      "event_version": 1,
+      "aggregate_identity": { "aggregate_type": "social-feed-item", "aggregate_id": "018f0e3d-dddd-7ddd-8ddd-dddddddddddd", "aggregate_scope": "EREREREREREREREREREREQ" },
+      "aggregate_revision": "1",
+      "commit_ordinal": "104",
+      "occurred_at": "2026-07-28T12:03:00.000Z",
+      "payload": { "feedItemId": "018f0e3d-dddd-7ddd-8ddd-dddddddddddd", "recipientProfileId": "EREREREREREREREREREREQ", "sourceEventId": "018f0e3d-3333-7333-8333-333333333333", "collectionId": "018f0e3d-cccc-7ccc-8ccc-cccccccccccc", "discoverabilityRecheckKey": "publication.collection:018f0e3d-cccc-7ccc-8ccc-cccccccccccc" }
+    }
+  ]
+}

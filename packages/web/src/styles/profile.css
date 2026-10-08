@@ -1,0 +1,847 @@
+/* ——— Profile ——— */
+
+@layer pages {
+/* ——— Profile ——— */
+.profile-page {
+  padding: var(--hair-200) var(--gutter) var(--page-pad-bottom);
+}
+
+/* One column for hero, tabs, and panels — no mixed shell/board widths */
+.profile-inner {
+  width: var(--shell);
+  max-width: 100%;
+  margin-inline: auto;
+}
+
+.profile-modebar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--hair-65);
+  margin-bottom: var(--hair-110);
+}
+
+.profile-modebar-label {
+  color: var(--faint);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+
+/* The display-mode switch rides on the shared .view-switch pill base
+   (shared-chrome.css) — the sunken square recipe was retired (R8-04).
+   R10-20: it is a tablist (role="tab" / aria-selected), not a rail. */
+
+/* Hero = the shared .page-head--masthead grid (R10-03) in the same
+   editorial + social register as the collection and digest mastheads:
+   avatar column, serif name, @handle, clamped bio, the social cluster on
+   the trailing edge, and the stat row spanning below between the fading
+   hairlines. Profile adds only its own measure and the bio clamp. */
+.profile-hero .display {
+  max-width: var(--measure-wide);
+  overflow-wrap: anywhere;
+}
+
+/* The @handle is user-chosen and only bounded at claim length; block +
+   max-width is what lets .handle-text's ellipsis engage. */
+.profile-handle {
+  display: block;
+  max-width: 100%;
+  font-variant-numeric: tabular-nums;
+}
+
+/* p.lede (0,2,1) is needed to outrank .page-head p:not(.eyebrow). Three
+   lines clamped; ClampedText reveals the toggle only when the bio truncates
+   and [data-expanded] lifts the clamp (same recipe as the collection
+   masthead summary). */
+.profile-hero p.lede {
+  margin-top: var(--space-3);
+  max-width: var(--measure-wide);
+  font-size: var(--text-lede);
+  line-height: var(--leading-prose);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.profile-bio-wrap[data-expanded] .profile-bio {
+  display: block;
+  overflow: visible;
+  -webkit-line-clamp: unset;
+  line-clamp: unset;
+}
+
+.profile-bio-toggle {
+  display: inline-block;
+  margin-top: var(--space-1);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-quart);
+}
+
+.profile-bio-toggle:hover {
+  color: var(--ink);
+}
+
+@media (pointer: coarse) {
+  .profile-bio-toggle {
+    min-height: 2.75rem;
+  }
+}
+
+/* Stat row rides the masthead stats strip, which already supplies the
+   vertical rhythm; the shared .stat-row anatomy does the rest. */
+.profile-stats {
+  margin: 0;
+  color: var(--muted);
+}
+
+/* Follower / following counts are also jumps to their tabs: a button that
+   reads exactly like its static sibling until hovered. */
+.profile-stat-btn {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--hair-30);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-quart);
+}
+
+.profile-stat-btn:hover {
+  color: var(--ink);
+}
+
+@media (pointer: coarse) {
+  .profile-stat-btn {
+    min-height: 2.75rem;
+  }
+}
+
+.profile-inner .tab-rail { margin-bottom: var(--space-5); }
+
+.profile-panel {
+  width: 100%;
+  min-width: 0;
+}
+
+.profile-panel-title {
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-base);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-tight);
+  color: var(--ink);
+}
+
+/* Grid fills profile column; override --shell-grid width */
+.profile-collection-grid.collection-grid {
+  width: 100%;
+  max-width: none;
+  margin-inline: 0;
+}
+
+.profile-public-card-shell {
+  min-width: 0;
+}
+
+.profile-public-card-shell .result-card--collection {
+  height: 100%;
+}
+
+.profile-people {
+  width: 100%;
+  display: grid;
+}
+
+.profile-people-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--line);
+  color: inherit;
+  text-decoration: none;
+}
+
+.profile-people-row:hover,
+.profile-people-row:focus-visible {
+  color: var(--accent-ink);
+}
+
+.profile-people-row .profile-public-avatar,
+.profile-people-row .profile-public-avatar img,
+.profile-people-row .profile-public-avatar-fallback {
+  width: var(--space-8);
+  height: var(--space-8);
+}
+
+.profile-people-row .profile-public-avatar-fallback {
+  font-size: var(--text-sm);
+}
+
+.profile-people-copy {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+.profile-people-name {
+  color: var(--ink);
+  font-weight: var(--weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+.profile-people-handle {
+  color: var(--faint);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+/* Journal display: a personal publication view built from the same profile data */
+.profile-page--journal {
+  padding-top: var(--hair-110);
+}
+
+.profile-page--journal .profile-modebar {
+  margin-bottom: var(--hair-200);
+}
+
+.journal-profile {
+  --journal-rule: color-mix(in srgb, var(--ink) 18%, var(--line));
+}
+
+.journal-masthead {
+  border-top: 2px solid var(--ink);
+}
+
+.journal-masthead-rule {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--hair-55) 0;
+  border-bottom: 1px solid var(--journal-rule);
+  color: var(--faint);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+
+/* Nameplate = the shared .page-head--masthead grid (R10-03): the copy
+   column holds kicker / name / bio, the monogram rides the actions
+   column, and the toolbar spans below as the stats strip. The name sits
+   on the --display-lg rung (the hero / masthead ceiling) so the journal
+   keeps its serif voice at the scale the rest of the app already uses. */
+.journal-intro {
+  margin-bottom: 0;
+  column-gap: var(--space-8);
+  padding: var(--space-8) 0 0;
+}
+
+.journal-intro .eyebrow {
+  margin-bottom: var(--space-4);
+}
+
+/* h1.display (0,2,1) outranks .page-head .display so the serif nameplate
+   keeps its own scale, weight, and measure. */
+.journal-intro h1.display {
+  max-width: var(--measure);
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: var(--display-lg);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-serif-display);
+  overflow-wrap: anywhere;
+}
+
+/* p.journal-bio (0,2,1) ties .page-head p:not(.eyebrow) and wins on
+   stylesheet order: the bio reads as the standfirst under the name. */
+.journal-intro p.journal-bio {
+  max-width: var(--measure-wide);
+  margin: var(--space-4) 0 0;
+  color: var(--ink-2);
+  font-size: var(--text-lede);
+  line-height: var(--leading-prose);
+  text-wrap: pretty;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+/* The monogram matches the hero avatar's disc so the two displays share
+   one identity mark; the serif glyph is the journal's only flourish. */
+.journal-monogram {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 5.5rem;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border: 1px solid var(--line-heavy);
+  border-radius: 50%;
+  background: var(--surface-sunken);
+  color: var(--ink-2);
+  font-family: var(--font-serif);
+  font-size: var(--text-2xl);
+  letter-spacing: var(--tracking-serif-display);
+}
+
+.journal-monogram img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Inside the masthead stats strip the shared hairlines are the chrome;
+   the toolbar carries only the row: stats leading, actions trailing. */
+.journal-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-5);
+}
+
+.journal-stats {
+  margin: 0;
+  color: var(--muted);
+}
+
+.journal-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.journal-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(15rem, 19rem);
+  gap: var(--space-10);
+  padding-top: var(--space-10);
+}
+
+.journal-main {
+  min-width: 0;
+}
+
+.section-head--journal {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding-bottom: var(--space-3);
+  border-bottom: 2px solid var(--ink);
+}
+
+.section-head--journal p,
+.section-head--journal span {
+  margin: 0;
+}
+
+.section-head--journal p {
+  font-family: var(--font-serif);
+  font-size: var(--display-sm);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-serif-display);
+}
+
+.section-head--journal span {
+  color: var(--faint);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-caps);
+}
+
+.journal-entry-list {
+  border-bottom: 1px solid var(--journal-rule);
+}
+
+.journal-entry {
+  display: grid;
+  grid-template-columns: var(--space-8) minmax(0, 1fr) auto;
+  gap: var(--space-4);
+  padding: var(--space-6) 0;
+  border-bottom: 1px solid var(--journal-rule);
+  color: inherit;
+}
+
+.journal-entry:last-child {
+  border-bottom: 0;
+}
+
+.journal-entry-index {
+  padding-top: var(--hair-30);
+  color: var(--faint);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.journal-entry-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--hair-35) var(--space-4);
+  margin-bottom: var(--space-3);
+  color: var(--faint);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-ui);
+  text-transform: uppercase;
+}
+
+.journal-entry h2 {
+  margin: 0;
+  max-width: var(--measure);
+  font-family: var(--font-serif);
+  font-size: var(--display-md);
+  font-weight: var(--weight-medium);
+  /* Clamp-safe leading: tighter leading lets Newsreader's ascenders escape
+     the line box and overflow:hidden shears them (see --leading-clamp). */
+  line-height: var(--leading-clamp);
+  letter-spacing: var(--tracking-serif-display);
+  transition: color var(--duration-state) var(--ease-quart);
+  /* Two-line cap keeps entry heights even across the list. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+
+.journal-entry article > p {
+  max-width: var(--measure-wide);
+  margin: var(--space-3) 0 0;
+  color: var(--ink-2);
+  font-size: var(--text-md);
+  line-height: var(--leading-prose);
+  text-wrap: pretty;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+
+.journal-entry-arrow {
+  display: inline-flex;
+  align-self: center;
+  color: var(--faint);
+  font-size: var(--text-lg);
+  transition:
+    transform var(--duration-state) var(--ease-quart),
+    color var(--duration-state) var(--ease-quart);
+}
+
+.journal-entry:hover h2,
+.journal-entry:hover .journal-entry-arrow {
+  color: var(--accent-ink);
+}
+
+.journal-entry:hover .journal-entry-arrow {
+  transform: translate(0.2rem, -0.2rem);
+}
+
+/* Section rules span the column, so the block goes full width and only the
+   message inside stays centred on its own measure. */
+.journal-empty {
+  width: 100%;
+  border-bottom: 1px solid var(--journal-rule);
+}
+
+/* The journal keeps its serif voice even when there is nothing to list. */
+.journal-empty h3 {
+  font-family: var(--font-serif);
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-semibold);
+}
+
+.journal-empty a {
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  text-decoration: underline;
+  text-decoration-color: var(--line-heavy);
+  text-underline-offset: 0.25em;
+}
+
+/* Sidebar: the shape of what is published and who the curator reads —
+   the bio already sits in the nameplate, so it is not repeated here. */
+.journal-sidebar {
+  align-self: start;
+  padding-left: var(--space-6);
+  border-left: 1px solid var(--journal-rule);
+}
+
+.journal-sidebar section {
+  padding: 0 0 var(--space-6);
+  margin-bottom: var(--space-6);
+  border-bottom: 1px solid var(--journal-rule);
+}
+
+.journal-sidebar section:last-child {
+  padding-bottom: 0;
+  margin-bottom: 0;
+  border-bottom: 0;
+}
+
+.journal-sidebar h2 {
+  margin: 0 0 var(--hair-85);
+  color: var(--faint);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+
+.journal-sidebar p {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
+}
+
+.journal-sidebar p.journal-sidebar-empty {
+  color: var(--faint);
+}
+
+/* Kind breakdown: label left, tabular count right, hairline between rows. */
+.journal-kinds {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-sm);
+  color: var(--ink-2);
+}
+
+.journal-kinds li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--hair-45) 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.journal-kinds li:last-child {
+  border-bottom: 0;
+}
+
+.journal-kinds strong {
+  color: var(--ink);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Following preview reuses the people row at sidebar density. */
+.journal-people {
+  display: grid;
+}
+
+.journal-people .profile-people-row {
+  padding: var(--space-2) 0;
+}
+
+.journal-people .profile-people-row:last-child {
+  border-bottom: 0;
+}
+
+.journal-people .profile-public-avatar,
+.journal-people .profile-public-avatar img,
+.journal-people .profile-public-avatar-fallback {
+  width: var(--space-6);
+  height: var(--space-6);
+}
+
+.journal-people .profile-public-avatar-fallback {
+  font-size: var(--text-xs);
+}
+
+.journal-people .profile-people-name,
+.journal-people .profile-people-handle {
+  font-size: var(--text-sm);
+}
+
+.journal-sidebar-link {
+  display: inline-block;
+  margin-top: var(--space-3);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  text-decoration: underline;
+  text-decoration-color: var(--line-heavy);
+  text-underline-offset: 0.25em;
+  cursor: pointer;
+  transition: text-decoration-color var(--duration-fast) var(--ease-quart);
+}
+
+.journal-sidebar-link:hover {
+  text-decoration-color: var(--ink);
+}
+
+@media (max-width: 899px) {
+  .journal-layout {
+    grid-template-columns: 1fr;
+    gap: var(--space-8);
+    padding-top: var(--space-8);
+  }
+
+  .journal-sidebar {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-8);
+    padding: var(--space-8) 0 0;
+    border-top: 1px solid var(--journal-rule);
+    border-left: 0;
+  }
+
+  .journal-sidebar section {
+    padding-bottom: 0;
+    margin-bottom: 0;
+    border-bottom: 0;
+  }
+}
+
+@media (max-width: 639px) {
+  /* The tabs name themselves; the caps label only crowded the row. */
+  .profile-modebar {
+    margin-bottom: var(--space-3);
+  }
+
+  .profile-modebar-label {
+    display: none;
+  }
+
+  .journal-masthead-rule span:first-child {
+    display: none;
+  }
+
+  .journal-masthead-rule {
+    justify-content: flex-end;
+  }
+
+  .journal-intro {
+    padding-top: var(--space-6);
+  }
+
+  /* Single column stacks monogram → kicker → name → bio; the masthead's
+     actions row moves above the copy on phones. */
+  .journal-intro .page-head-actions {
+    grid-row: 1;
+  }
+
+  /* The shared phone rule collapses display titles to --text-xl with a
+     two-line clamp; the journal nameplate keeps one rung more room. */
+  .journal-intro .display-md {
+    font-size: var(--text-2xl);
+  }
+
+  .journal-monogram {
+    width: 4.25rem;
+  }
+
+  .journal-intro .eyebrow {
+    margin-bottom: 0;
+  }
+
+  .journal-intro p.journal-bio {
+    margin-top: var(--space-3);
+  }
+
+  .journal-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .journal-entry {
+    grid-template-columns: var(--space-6) minmax(0, 1fr);
+    padding-block: var(--space-5);
+  }
+
+  .journal-entry-arrow {
+    display: none;
+  }
+
+  .journal-entry-meta {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .journal-sidebar {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Public Profile Product projection */
+.profile-public-state {
+  display: grid;
+  min-height: 18rem;
+  place-content: center;
+  justify-items: start;
+  gap: var(--space-4);
+}
+
+.profile-public-state h1,
+.profile-public-state p {
+  margin: 0;
+}
+
+.profile-public-state p {
+  max-width: 34rem;
+  color: var(--ink-2);
+}
+
+.profile-public-avatar,
+.profile-public-avatar img,
+.profile-public-avatar-fallback {
+  display: grid;
+  width: 5.5rem;
+  height: 5.5rem;
+  border-radius: 50%;
+}
+
+.profile-public-avatar {
+  overflow: hidden;
+  background: var(--surface-sunken);
+}
+
+.profile-public-avatar img {
+  object-fit: cover;
+}
+
+.profile-public-avatar-fallback {
+  place-items: center;
+  color: var(--ink-2);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-bold);
+}
+
+.profile-public-empty {
+  width: 100%;
+  border-bottom: 1px solid var(--line);
+}
+
+.profile-public-page-error p {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.profile-public-load-more {
+  margin-top: var(--hair-125);
+}
+
+.profile-public-page-error {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding-top: var(--space-4);
+}
+
+@media (max-width: 639px) {
+  .profile-page {
+    padding-top: var(--space-4);
+  }
+
+  .profile-public-avatar,
+  .profile-public-avatar img,
+  .profile-public-avatar-fallback {
+    width: 4.25rem;
+    height: 4.25rem;
+  }
+
+  /* Identity row: the avatar beside the name and @handle (the contact-card
+     shape), then bio, actions and stats at full width. Stacked, the
+     avatar spent a whole row above a name that fits beside it. */
+  .profile-hero.page-head--masthead {
+    grid-template-columns: auto minmax(0, 1fr);
+    column-gap: var(--space-4);
+    row-gap: 0;
+  }
+
+  .profile-hero .page-head-copy {
+    display: contents;
+  }
+
+  .profile-hero .page-head-copy > *,
+  .profile-hero.page-head--masthead .page-head-actions,
+  .profile-hero.page-head--masthead .page-head-stats {
+    grid-column: 1 / -1;
+  }
+
+  .profile-hero.page-head--masthead .page-head-avatar {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    align-self: center;
+  }
+
+  .profile-hero .page-head-copy > h1 {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: end;
+  }
+
+  .profile-hero .page-head-copy > .page-head-aftertitle {
+    grid-column: 2;
+    grid-row: 2;
+    align-self: start;
+  }
+
+  .profile-hero.page-head--masthead .page-head-actions {
+    margin-top: var(--space-4);
+  }
+
+  .profile-hero.page-head--masthead .page-head-stats {
+    align-self: start;
+    margin-top: var(--space-4);
+  }
+
+  /* Follow takes the row; Share stays beside it instead of wrapping to a
+     line of its own. */
+  .profile-actions {
+    flex: 1 1 100%;
+    flex-wrap: nowrap;
+  }
+
+  .profile-actions .follow-btn {
+    flex: 1 1 auto;
+  }
+
+  .profile-actions .social-actions-links {
+    flex-basis: auto;
+  }
+
+  .profile-public-page-error {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+}

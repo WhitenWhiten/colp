@@ -1,0 +1,130 @@
+{
+  "schemaVersion": 1,
+  "strategy": "per-surface-counter-ratchet",
+  "sourceRoot": "src",
+  "calibration": {
+    "marginPercentagePoints": 2,
+    "rationale": "Each floor is the measured merged unit/PostgreSQL coverage rounded down, minus a two-point instrumentation cushion."
+  },
+  "fileMinimums": {
+    "lines": 0,
+    "branches": 0,
+    "functions": 0,
+    "statements": 0
+  },
+  "newFileMinimums": {
+    "lines": 40,
+    "branches": 15,
+    "functions": 25,
+    "statements": 40
+  },
+  "fileOverrides": {
+    "src/modules/attachments/rate-limit-route-policy.ts": {
+      "lines": 92,
+      "branches": 92,
+      "functions": 95,
+      "statements": 92
+    },
+    "src/modules/attachments/rotate-attachments-credentials.ts": {
+      "lines": 93,
+      "branches": 91,
+      "functions": 95,
+      "statements": 93
+    },
+    "src/modules/mcp/change-plan-service.ts": {
+      "lines": 76,
+      "branches": 60,
+      "functions": 87,
+      "statements": 76
+    },
+    "src/modules/mcp/write-approval-api.ts": {
+      "lines": 75,
+      "branches": 74,
+      "functions": 88,
+      "statements": 75
+    },
+    "src/infrastructure/rate-limit/email-callback-rate-limit-store.ts": {
+      "lines": 82,
+      "branches": 75,
+      "functions": 85,
+      "statements": 82
+    },
+    "src/modules/notifications/application/notification-read-command.ts": {
+      "lines": 95,
+      "branches": 87,
+      "functions": 95,
+      "statements": 95
+    },
+    "src/modules/social/application/follow-command.ts": {
+      "lines": 88,
+      "branches": 81,
+      "functions": 95,
+      "statements": 88
+    },
+    "src/modules/social/application/collection-follow-command.ts": {
+      "lines": 86,
+      "branches": 79,
+      "functions": 95,
+      "statements": 86
+    }
+  },
+  "fileMinimumsRationale": "Existing files are protected by their product-surface aggregate. Files added after this snapshot must independently reach 40/15/25/40 so low-coverage growth cannot hide behind the aggregate.",
+  "surfaces": {
+    "attachments": {
+      "measured": {
+        "lines": 88.74,
+        "branches": 83.75,
+        "functions": 94.09,
+        "statements": 88.74
+      },
+      "minimums": {
+        "lines": 86.74,
+        "branches": 81.75,
+        "functions": 92.09,
+        "statements": 86.74
+      }
+    },
+    "mcp": {
+      "measured": {
+        "lines": 86.17,
+        "branches": 77.7,
+        "functions": 95.21,
+        "statements": 86.17
+      },
+      "minimums": {
+        "lines": 84.17,
+        "branches": 75.7,
+        "functions": 93.21,
+        "statements": 84.17
+      }
+    },
+    "notifications": {
+      "measured": {
+        "lines": 86.43,
+        "branches": 85.17,
+        "functions": 92.76,
+        "statements": 86.43
+      },
+      "minimums": {
+        "lines": 84.43,
+        "branches": 83.17,
+        "functions": 90.76,
+        "statements": 84.43
+      }
+    },
+    "social": {
+      "measured": {
+        "lines": 91.53,
+        "branches": 81.67,
+        "functions": 96.85,
+        "statements": 91.53
+      },
+      "minimums": {
+        "lines": 89.53,
+        "branches": 79.67,
+        "functions": 94.85,
+        "statements": 89.53
+      }
+    }
+  }
+}

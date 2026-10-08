@@ -1,0 +1,206 @@
+/*
+ * Print stylesheet — Collection as an editorial reading-list document.
+ * Loaded from index.html with media="print" so it stays out of the JS
+ * render-blocking bundle. Repeat the layer-order statement so this file
+ * can parse before tokens.css without flipping print to the lowest layer.
+ */
+@layer tokens, base, components, pages, patterns, utilities, edition, print;
+
+@layer print {
+@media print {
+  /* ── Strip web chrome ─────────────────────────── */
+  .topnav,
+  .site-footer,
+  /* Fixed-position skip link stays in the print flow unless stripped. */
+  a.skip-link,
+  .scroll-progress,
+  /* .scroll-to-top-btn hides itself in print (owner: polish.css) */
+  .page-head-actions,
+  .collection-toolbar,
+  .toolbar-sentinel,
+  .collection-outline,
+  nav.collection-trail,
+  .collection-inline-search,
+  .view-switch,
+  .collection-count-chip,
+  body .toast,
+  /* .mobile-drawer / .nav-burger live inside .topnav (already stripped) */
+  .offline-banner,
+  /* ── R10-33: workbench chrome on the reading/detail surfaces ──
+     Toolbars, action rows, and editing affordances are screen-only.
+     Element-qualified so these keys stay off the screen stylesheets'
+     selector text (cross-file duplicates are style-drift failures). */
+  header.reader-toolbar,
+  div.reader-state-actions,
+  div.annotation-actions,
+  div.reader-citation-actions,
+  span.saved-resource-control,
+  /* .page-head-actions is already stripped above; the stats strip's wrapper
+     goes too or its fading hairlines print around an empty band. */
+  header.resource-head div.page-head-stats,
+  button.resource-title-toggle,
+  form.relation-form,
+  div.relation-form-actions,
+  div.relation-row-actions,
+  div.path-stage-actions,
+  div.journal-toolbar,
+  div.profile-actions,
+  div.profile-inner .tab-rail {
+    display: none !important;
+  }
+
+  /* ── Paper reset: ink on white, no screen textures ─ */
+  :root {
+    --paper: #fff;
+    --surface: #fff;
+    /* Screen grain/dither/chevron tokens are SVG data-URIs. Neutralize them
+       so print does not decode those payloads for a paper document. */
+    --grain: none;
+    --dither: none;
+    --dither-paper: none;
+    --select-chevron: none;
+  }
+
+  body {
+    background: var(--surface-raised);
+    color: #000;
+    font-size: 11pt;
+  }
+
+  *,
+  *::before,
+  *::after {
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  /* ── Masthead → document masthead ─────────────── */
+  .page-head,
+  .collection-masthead {
+    padding-bottom: 12pt;
+    margin-bottom: 18pt;
+    border-bottom: 2.5pt solid #000;
+    /* Hard divider replaces the screen-only wash/fading hairlines. */
+    background-image: none;
+  }
+
+  .page-head h1,
+  .collection-masthead h1,
+  .collection-masthead .display {
+    font-size: 26pt;
+    max-width: none;
+  }
+
+  /* nav.breadcrumb keeps this off the mobile hide rule's selector text —
+     identical selectors across files are style-drift duplicates. */
+  .page-head .eyebrow,
+  .collection-masthead .eyebrow,
+  .collection-masthead nav.breadcrumb {
+    letter-spacing: var(--tracking-caps);
+  }
+
+  /* Masthead grids (avatar | copy | actions) flatten to a column in print.
+     Element-qualified selectors: the .page-head--masthead keys are owned
+     by page-chrome.css and cross-file duplicates are style-drift failures. */
+  div.page-head--masthead,
+  header.page-head--masthead {
+    display: block !important;
+  }
+
+  /* Reading layout: the two tracks + sticky rail are screen geometry —
+     print is one flow (head → info card → reading column). */
+  div.resource-layout {
+    display: block !important;
+  }
+
+  /* Public collection: the Contents sidebar is stripped above, so its grid
+     track goes too and the main column prints full width. */
+  div.collection-body {
+    display: block !important;
+    background-image: none;
+  }
+
+  aside.resource-aside {
+    position: static !important;
+    max-height: none !important;
+    overflow: visible !important;
+    margin-bottom: 12pt;
+  }
+
+  /* The expand toggle is stripped above; print the full title. */
+  .resource-head span.resource-title-text {
+    display: block !important;
+    overflow: visible !important;
+    -webkit-line-clamp: unset !important;
+    line-clamp: unset !important;
+  }
+
+  span.collection-kicker {
+    margin-bottom: 6pt;
+  }
+
+  ul.collection-figures {
+    margin-top: 10pt;
+    color: #333;
+    font-size: 9pt;
+  }
+
+  ul.collection-figures strong {
+    font-size: 11pt;
+  }
+
+  /* ── Resource directory: grid → numbered list ─── */
+  .resource-stream,
+  .resource-stream-inner,
+  .resource-stream .result-board {
+    display: block !important;
+  }
+
+  .resource-stream {
+    counter-reset: res;
+  }
+
+  .resource-stream [data-collection-resource] {
+    break-inside: avoid;
+    margin: 0 0 10pt;
+    padding: 0 0 10pt;
+    border: none !important;
+    border-bottom: 0.5pt solid #999 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    counter-increment: res;
+  }
+
+  .resource-stream [data-collection-resource]::before {
+    content: counter(res, decimal-leading-zero) '.';
+    float: left;
+    margin-right: 8pt;
+    font-family: var(--font-serif);
+    color: #666;
+  }
+
+  .resource-stream .result-card-top {
+    font-size: 8pt;
+    color: #666;
+  }
+
+  /* ── URL disclosure: links must be readable ───── */
+  [data-collection-resource] a[href^='http']::after {
+    content: ' — ' attr(href);
+    font-size: 9pt;
+    color: #555;
+    word-break: break-all;
+  }
+
+  /* ── Page numbers ─────────────────────────────── */
+  @page {
+    margin: 2.2cm 1.8cm;
+
+    @bottom-right {
+      content: counter(page) ' / ' counter(pages);
+      font-size: 9pt;
+      color: #666;
+    }
+  }
+}
+}

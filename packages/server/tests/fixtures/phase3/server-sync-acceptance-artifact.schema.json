@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://known.example/schemas/phase3/server-sync-acceptance-artifact.v2.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "schemaVersion", "runnerVersion", "probeVersion", "accepted", "profileClaimed", "deploymentProven", "source", "migrations", "colp", "runtime", "routes", "ports", "probes", "steps", "stepCount", "negativeControls", "telemetry", "evidenceDigest"],
+  "properties": {
+    "format": { "const": "known.phase3.server-sync-acceptance.v2" },
+    "schemaVersion": { "const": 2 },
+    "runnerVersion": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "probeVersion": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "accepted": { "const": true },
+    "profileClaimed": { "const": false },
+    "deploymentProven": { "const": false },
+    "source": { "$ref": "#/$defs/digestBinding" },
+    "migrations": {
+      "type": "object", "additionalProperties": false,
+      "required": ["latest", "files", "chainDigest"],
+      "properties": {
+        "latest": { "type": "string", "pattern": "^[0-9]+_[a-z0-9_]+$" },
+        "files": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "pattern": "^[0-9]+_[a-z0-9_]+\\.ts$" } },
+        "chainDigest": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "colp": {
+      "type": "object", "additionalProperties": false,
+      "required": ["packageVersion", "packageDigest", "lockDigest", "conformanceDigest"],
+      "properties": {
+        "packageVersion": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "packageDigest": { "$ref": "#/$defs/sha256" },
+        "lockDigest": { "$ref": "#/$defs/sha256" },
+        "conformanceDigest": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "runtime": {
+      "type": "object", "additionalProperties": false,
+      "required": ["engine", "instanceId", "nonce", "configDigest", "startedAt", "finishedAt"],
+      "properties": {
+        "engine": { "const": "postgresql" },
+        "instanceId": { "type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$" },
+        "nonce": { "type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$" },
+        "configDigest": { "$ref": "#/$defs/sha256" },
+        "startedAt": { "type": "string", "format": "date-time" },
+        "finishedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "routes": { "type": "array", "minItems": 8, "items": { "$ref": "#/$defs/routeFact" } },
+    "ports": { "type": "array", "minItems": 11, "items": { "$ref": "#/$defs/compositionFact" } },
+    "probes": { "type": "array", "minItems": 8, "items": { "$ref": "#/$defs/probeFact" } },
+    "steps": { "type": "array", "minItems": 18, "items": { "$ref": "#/$defs/stepFact" } },
+    "stepCount": { "type": "integer", "minimum": 18 },
+    "negativeControls": { "type": "array", "minItems": 32, "items": { "$ref": "#/$defs/negativeFact" } },
+    "telemetry": {
+      "type": "object", "additionalProperties": false,
+      "required": ["endpoints", "outcomes", "surfaces", "sentinelDigest", "scannedBytes", "leaks"],
+      "properties": {
+        "endpoints": { "type": "array", "minItems": 10, "uniqueItems": true, "items": { "enum": ["manifest", "session", "snapshot", "push", "conflict", "pull", "ack", "purge", "recovery", "retire"] } },
+        "outcomes": { "type": "array", "minItems": 8, "uniqueItems": true, "items": { "enum": ["success", "problem", "internal", "timeout", "abort", "retry", "replay", "concurrency"] } },
+        "surfaces": { "type": "array", "minItems": 5, "maxItems": 5, "uniqueItems": true, "items": { "enum": ["logs", "traces", "metrics", "problems", "artifact"] } },
+        "sentinelDigest": { "$ref": "#/$defs/sha256" },
+        "scannedBytes": { "type": "integer", "minimum": 1 },
+        "leaks": { "const": 0 }
+      }
+    },
+    "evidenceDigest": { "type": "string", "pattern": "^[A-Za-z0-9_-]{43}$" }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "digestBinding": {
+      "type": "object", "additionalProperties": false,
+      "required": ["commit", "treeDigest"],
+      "properties": { "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" }, "treeDigest": { "$ref": "#/$defs/sha256" } }
+    },
+    "routeFact": {
+      "type": "object", "additionalProperties": false,
+      "required": ["key", "method", "routeTemplate", "uriDigest", "discoveredAt"],
+      "properties": {
+        "key": { "enum": ["manifest", "syncSessions", "syncSnapshot", "syncPush", "syncConflict", "syncPull", "syncAck", "syncRetire"] },
+        "method": { "enum": ["GET", "POST", "DELETE"] },
+        "routeTemplate": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "uriDigest": { "$ref": "#/$defs/sha256" },
+        "discoveredAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "compositionFact": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "source", "observationDigest", "observedAt"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 }, "source": { "enum": ["runtime-composition", "database-observation", "http-observation"] },
+        "observationDigest": { "$ref": "#/$defs/sha256" }, "observedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "probeFact": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "outcome", "observationDigest", "startedAt", "finishedAt"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 }, "outcome": { "const": "passed" }, "observationDigest": { "$ref": "#/$defs/sha256" },
+        "startedAt": { "type": "string", "format": "date-time" }, "finishedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "stepFact": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "scenario", "sequence", "runtimeNonce", "previousDigest", "endpoint", "outcome", "problem", "transaction", "generationBefore", "generationAfter", "boundaryBefore", "boundaryAfter", "startedAt", "finishedAt", "counts", "digest"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9_]+$" }, "scenario": { "type": "string", "pattern": "^[a-z0-9_]+$" },
+        "sequence": { "type": "integer", "minimum": 1 }, "runtimeNonce": { "type": "string" }, "previousDigest": { "$ref": "#/$defs/sha256" },
+        "endpoint": { "type": "object", "additionalProperties": false, "required": ["key", "method", "routeTemplate", "uriDigest"], "properties": { "key": { "type": "string" }, "method": { "enum": ["GET", "POST", "DELETE", "JOB"] }, "routeTemplate": { "type": "string" }, "uriDigest": { "$ref": "#/$defs/sha256" } } },
+        "outcome": { "enum": ["success", "problem", "internal", "timeout", "abort", "retry", "replay", "concurrency"] },
+        "problem": { "type": ["string", "null"], "maxLength": 96 }, "transaction": { "$ref": "#/$defs/sha256" },
+        "generationBefore": { "type": ["string", "null"], "maxLength": 128 }, "generationAfter": { "type": ["string", "null"], "maxLength": 128 },
+        "boundaryBefore": { "type": ["string", "null"], "maxLength": 128 }, "boundaryAfter": { "type": ["string", "null"], "maxLength": 128 },
+        "startedAt": { "type": "string", "format": "date-time" }, "finishedAt": { "type": "string", "format": "date-time" },
+        "counts": { "type": "object", "additionalProperties": { "type": "integer", "minimum": 0 } }, "digest": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "negativeFact": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "targetKind", "target", "injection", "outcome", "observationDigest", "startedAt", "finishedAt"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9:_-]+$" }, "targetKind": { "enum": ["route", "port", "credential", "migration", "database", "artifact", "source", "colp", "config", "step"] },
+        "target": { "type": "string", "minLength": 1 }, "injection": { "type": "string", "minLength": 1 }, "outcome": { "const": "failed_closed" },
+        "observationDigest": { "$ref": "#/$defs/sha256" }, "startedAt": { "type": "string", "format": "date-time" }, "finishedAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}

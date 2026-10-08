@@ -1,0 +1,804 @@
+/* ——— Page head, filters, empty states (base layer) ———
+ *
+ * Shared content-page chrome split out of global.css (R8-12): .page-head
+ * (editorial / split variants and the 639px clamps), the .filter-btn
+ * filter chips with their coarse-pointer hit areas, and the frameless
+ * .empty-state family with its medallion illustrations and loading dots.
+ * Pure move — rules keep @layer base and their original relative order.
+ * Also hosts the route container .page-shell (moved from studio.css so the
+ * shell does not depend on a business-page stylesheet).
+ */
+
+@layer base {
+/* ——— Page head, filters, empty states (shared chrome) ———
+   V-SYS-05: at --bp-sm (639px) titles clamp to two lines. Product split-head
+   ledes also clamp to two lines; editorial/trust ledes stay unclamped.
+   Page-head CTAs share the row when they fit, then wrap — labels stay
+   fully visible (never clipped by overflow or min-width: 0). */
+.page-head {
+  margin-bottom: var(--space-6);
+  padding-bottom: var(--hair-15);
+}
+
+.page-head h1,
+.page-head .display {
+  margin: 0;
+  font-size: var(--display-md);
+  letter-spacing: var(--tracking-display);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-snug);
+  color: var(--ink);
+  /* Pretty, not balance: collection and digest titles filled only half the
+     head when balance split them into two even lines. */
+  text-wrap: pretty;
+  max-width: var(--measure);
+  /* One title measure — the page-shell inner used to fight this with a
+     second cap. Mobile clamp below repeats wrap next to overflow:hidden. */
+  overflow-wrap: anywhere;
+}
+
+/* Long user titles (R12-04): a collection, bookmark or digest title past
+   ~48 Latin columns steps down one display rung, so the head stays a head
+   instead of a four-line tower. Phones keep their own two-line clamp. */
+@media (min-width: 640px) {
+  .page-head .display--long {
+    font-size: var(--display-sm);
+  }
+}
+
+/* Reading, sharing, and discovery titles use Newsreader. Workbench,
+   settings, and form pages keep Instrument Sans from the page-head default. */
+.page-head--editorial .display {
+  font-family: var(--font-serif);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-serif-display);
+}
+
+.page-head .lede,
+.page-head p:not(.eyebrow) {
+  margin: var(--hair-55) 0 0;
+  color: var(--ink-2);
+  font-size: var(--text-md);
+  font-weight: var(--weight-regular);
+  max-width: var(--measure);
+  text-wrap: pretty;
+  line-height: var(--leading-normal);
+}
+
+.page-head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--hair-45) var(--space-2);
+  margin-top: var(--hair-85);
+}
+
+.page-head--split {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: var(--hair-150) 2.5rem;
+  padding-bottom: var(--hair-150);
+  /* Editorial section divider: fading hairline. Persistent chrome
+     (topnav, sticky bars, rails) keeps a hard border. */
+  border-bottom: 0;
+  background-image: var(--hairline-fade);
+  background-size: 100% 1px;
+  background-repeat: no-repeat;
+  background-position: bottom left;
+}
+
+.page-head--split .page-head-copy {
+  max-width: 48rem;
+}
+
+/* No .page-head--split .breadcrumb margin here: pages-shared.css owns
+   .breadcrumb in a later layer, so a margin declared here never wins. */
+
+.page-head--split .lede {
+  margin-top: var(--space-3);
+}
+
+/* Masthead (R10-03): the one avatar + copy + actions grid for collection,
+   profile and journal heads. The stats strip spans the copy + actions
+   columns between fading hairlines. Without an avatar the leading column
+   collapses; without actions the trailing one does. */
+.page-head--masthead {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  column-gap: var(--space-5);
+  align-items: start;
+  padding-bottom: var(--hair-150);
+}
+
+.page-head--masthead .page-head-avatar {
+  grid-column: 1;
+}
+
+.page-head--masthead .page-head-copy {
+  grid-column: 2;
+  min-width: 0;
+}
+
+.page-head--masthead .page-head-actions {
+  grid-column: 3;
+  margin-top: 0;
+  justify-content: flex-end;
+}
+
+.page-head--masthead .page-head-stats {
+  grid-column: 2 / -1;
+  margin-top: var(--hair-85);
+  padding-block: var(--hair-45);
+  background-image: var(--hairline-fade), var(--hairline-fade);
+  background-size: 100% 1px;
+  background-repeat: no-repeat;
+  background-position: top left, bottom left;
+}
+
+/* Masthead without an avatar (collection, digest, reader heads): drop the
+   empty leading track. Its column-gap alone pushed the copy 21.6px off the
+   edge the toolbar and body share (R12-07). */
+.page-head--masthead.page-head--no-avatar {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.page-head--no-avatar .page-head-copy {
+  grid-column: 1;
+}
+
+.page-head--no-avatar .page-head-actions {
+  grid-column: 2;
+}
+
+.page-head--no-avatar .page-head-stats {
+  grid-column: 1 / -1;
+}
+
+/* Social masthead (collection / digest series / digest issue): the head's
+   actions slot is the SocialActions cluster — Follow, vote, then quiet
+   links. As a side column it claimed up to half the track and squeezed the
+   title into a narrow ragged column (worst on the 46rem digest reading
+   column, where the title wrapped every two words). It is a toolbar for
+   the thing the title names, so at every width it sits under the copy,
+   left-aligned on the title's edge, and the stats strip follows below. */
+@media (min-width: 640px) {
+  .page-head--masthead.page-head--social .page-head-actions {
+    grid-column: 2 / -1;
+    grid-row: 2;
+    justify-content: flex-start;
+    margin-top: var(--space-4);
+  }
+
+  .page-head--masthead.page-head--social.page-head--no-avatar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .page-head--masthead.page-head--social.page-head--no-avatar .page-head-actions {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Workbench head (R10-16): ops and settings pages subtract the editorial
+   ornaments — no dither bloom, no fading hairline — and set a compact
+   title that clamps at two lines. Hosts keep only true page rules (the
+   desk's hard divider, the approvals head's flush margin). Declared after
+   --split/--masthead so the ornament subtraction wins same-specificity
+   source order. */
+.page-head--workbench {
+  margin-bottom: var(--space-4);
+  padding-bottom: 0;
+}
+
+.page-head--workbench::before {
+  content: none;
+}
+
+.page-head--workbench.page-head--split,
+.page-head--workbench.page-head--masthead {
+  background-image: none;
+}
+
+/* The split head's 48rem copy cap stopped workbench titles (a digest or
+   collection name on a 96rem shell) mid-page. The copy grows to the
+   actions instead; the lede keeps its own --measure. It sizes from its
+   content: with a zero basis the actions never wrapped and squeezed a long
+   title into half the row, so now they drop under the copy whenever the
+   title and lede cannot keep their natural width beside them. */
+.page-head--workbench .page-head-copy {
+  min-width: 0;
+  max-width: none;
+  flex: 1 1 auto;
+}
+
+.page-head--workbench .eyebrow {
+  margin-bottom: var(--space-2);
+}
+
+.page-head--workbench h1,
+.page-head--workbench .display {
+  max-width: none;
+  font-size: var(--text-2xl);
+  line-height: var(--leading-clamp);
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+/* The quiet line between title and lede — @handle, byline, counts. */
+.page-head-aftertitle {
+  margin-top: var(--hair-35);
+  color: var(--faint);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+@media (max-width: 639px) {
+  /* First-screen budget: wrap the title; split-head ledes stay two lines. */
+  .page-head.page-head--split {
+    margin-bottom: var(--space-3);
+    padding-bottom: var(--space-3);
+    gap: var(--space-2);
+  }
+
+  /* R14: the copy takes the whole row so actions wrap below it instead of
+     squeezing the title into a narrow column. */
+  .page-head--workbench.page-head--split .page-head-copy {
+    flex-basis: 100%;
+  }
+
+  /* Masthead stacks: avatar above copy, actions below, stats full width. */
+  .page-head.page-head--masthead {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: var(--space-3);
+    padding-bottom: var(--space-3);
+  }
+
+  .page-head--masthead .page-head-avatar,
+  .page-head--masthead .page-head-copy,
+  .page-head--masthead .page-head-actions,
+  .page-head--masthead .page-head-stats {
+    grid-column: 1;
+  }
+
+  .page-head--masthead .page-head-actions {
+    justify-content: flex-start;
+    margin-top: 0;
+  }
+
+  /* --text-2xl is the page-title floor (tokens.css). At --text-xl a serif
+     head (Today, Feed, Explore) drew smaller than the 22px bold sans
+     section heads under it and the page lost its top rung. */
+  .page-head .display {
+    font-size: var(--text-2xl);
+    max-width: none;
+    /* R7-21: wrap inside long unbreakable tokens instead of clipping them. */
+    overflow-wrap: anywhere;
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    /* Clamp-safe leading (see --leading-clamp). */
+    line-height: var(--leading-clamp);
+  }
+
+  .page-head--split .lede {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .page-head-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+  }
+
+  .page-head-actions > .btn {
+    flex: 1 1 auto;
+    width: auto;
+    min-height: 2.75rem;
+    height: auto;
+    padding-block: var(--space-2);
+    padding-inline: var(--space-2);
+    font-size: var(--text-sm);
+    line-height: var(--leading-snug);
+    justify-content: center;
+    white-space: normal;
+    text-align: center;
+  }
+
+  /* Compact head actions (meta + Capture a tab) stay intrinsic width.
+     Growing them turns ghost/sm controls into a full-bleed, borderless bar. */
+  .page-head-actions > .btn-sm,
+  .page-head-actions > .btn-ghost {
+    flex: 0 0 auto;
+    width: auto;
+    white-space: nowrap;
+  }
+}
+
+.filter-btn {
+  flex-shrink: 0;
+  min-height: 2rem;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-none);
+  transition: background var(--duration-fast) var(--ease-quart), border-color var(--duration-fast) var(--ease-quart);
+}
+.filter-btn:hover { border-color: var(--ink); }
+.filter-btn[aria-checked='true'],
+.filter-btn[aria-pressed='true'] {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+}
+.filter-btn[aria-disabled='true'] { opacity: 0.45; cursor: default; }
+
+/* Touch targets: 2.75rem (44px) minimum for compact chrome controls.
+   Only selectors owned by this file live here (style-drift gate);
+   .library-nav-toggle (library.css), .collist-read-btn/.collist-notes-btn
+   (cards.css) carry the same coarse override in their owner files; .nav-icon-btn lives in nav.css;
+   .view-switch button lives in shared-chrome.css and covers the auth tabs
+   and the profile mode switch, which ride on that base. */
+@media (pointer: coarse) {
+  .filter-btn {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+}
+
+/* Empty states are frameless: a region with nothing in it should read as
+   deliberate whitespace around a quiet message, not as a panel that failed
+   to load its contents. Page files add rules (a section hairline, a row
+   layout) but must not re-introduce a card around the message. */
+.empty-state {
+  width: min(100%, 34rem);
+  margin: 0 auto;
+  padding: var(--space-10) var(--space-5);
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: none;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.empty-state--board {
+  width: var(--board-width);
+  max-width: 100%;
+  margin: var(--hair-200) auto 0;
+}
+
+.empty-state--compact {
+  padding: var(--space-5) var(--space-4);
+  gap: var(--space-2);
+}
+
+.empty-state--compact .empty-state-icon {
+  width: 3rem;
+  height: 3rem;
+  margin-bottom: 0;
+}
+
+.empty-state--compact .empty-state-icon svg {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+/* Line-art icons and animated illustrations share one medallion so every
+   empty state carries the same optical weight, whichever art it uses. */
+.empty-state-icon,
+.empty-state-illustration {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 5rem;
+  height: 5rem;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--ink) 4%, transparent);
+  color: var(--ghost);
+  margin-bottom: var(--space-2);
+}
+
+.empty-state-icon svg {
+  width: 2.5rem;
+  height: 2.5rem;
+}
+
+/* A failed load keeps the same silhouette but a warm medallion, so it is
+   never mistaken for an ordinary "nothing here yet". */
+.empty-state[role='alert'] .empty-state-icon {
+  background: color-mix(in srgb, var(--danger) 9%, transparent);
+  color: color-mix(in srgb, var(--danger) 60%, var(--ghost));
+}
+
+.empty-state .eyebrow {
+  margin: 0;
+}
+
+.empty-state h3,
+.empty-state h1 {
+  margin: 0;
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-display);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.empty-state h3 { font-size: var(--text-lg); }
+.empty-state h1 { font-size: var(--text-2xl); font-weight: var(--weight-semibold); }
+
+.empty-state-text {
+  margin: 0;
+  line-height: var(--leading-normal);
+  color: var(--muted);
+  font-size: var(--text-md);
+  max-width: 32rem;
+  text-wrap: pretty;
+  overflow-wrap: anywhere;
+}
+
+.loading-state {
+  flex-direction: row;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-6) var(--space-4);
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.loading-state p {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.loading-state-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--faint);
+  animation: loading-pulse var(--duration-loop) var(--ease-quart) infinite;
+}
+
+@keyframes loading-pulse {
+  0%, 100% { opacity: 0.35; transform: scale(0.85); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+.empty-state-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: center;
+  margin-top: var(--space-3);
+}
+
+.empty-state-illustration-shape {
+  position: absolute;
+  border-radius: var(--radius-xs);
+  background: color-mix(in srgb, var(--ink) 7%, var(--surface));
+  border: 1.5px solid var(--line-strong);
+  animation: empty-float var(--duration-ambient) var(--ease-out) infinite alternate;
+}
+
+/* motion-exempt: stagger cascade — empty-state illustration delays have no token equivalent.
+   Coordinates are optically centred inside the 5rem medallion: each set
+   fits within the disc so the art never crops against the circle. */
+.empty-state-illustration--books .empty-state-illustration-shape:nth-child(1) {
+  width: 1.5rem; height: 2.1rem; top: 1.45rem; left: 0.75rem;
+}
+.empty-state-illustration--books .empty-state-illustration-shape:nth-child(2) {
+  width: 1.35rem; height: 1.8rem; top: 1.75rem; left: 2rem;
+  animation-delay: 200ms;
+  opacity: 0.7;
+}
+.empty-state-illustration--books .empty-state-illustration-shape:nth-child(3) {
+  width: 1.2rem; height: 1.5rem; top: 2.05rem; left: 3.05rem;
+  animation-delay: var(--duration-enter);
+  opacity: 0.5;
+}
+
+.empty-state-illustration--search .empty-state-illustration-shape:nth-child(1) {
+  width: 2.25rem; height: 2.25rem; border-radius: 50%; top: 1.35rem; left: 1rem;
+}
+.empty-state-illustration--search .empty-state-illustration-shape:nth-child(2) {
+  width: 1.15rem; height: 1.5px; top: 3.22rem; left: 3rem;
+  transform: rotate(45deg);
+  animation-delay: 300ms;
+}
+.empty-state-illustration--search .empty-state-illustration-shape:nth-child(3) {
+  width: 0.6rem; height: 0.6rem; border-radius: 50%; top: 1.88rem; left: 1.6rem;
+  animation-delay: 150ms;
+}
+
+.empty-state-illustration--network .empty-state-illustration-shape:nth-child(1) {
+  width: 0.75rem; height: 0.75rem; border-radius: 50%; top: 1.56rem; left: 1.2rem;
+}
+.empty-state-illustration--network .empty-state-illustration-shape:nth-child(2) {
+  width: 0.75rem; height: 0.75rem; border-radius: 50%; top: 1.2rem; left: 3.05rem;
+  animation-delay: 200ms;
+}
+.empty-state-illustration--network .empty-state-illustration-shape:nth-child(3) {
+  width: 0.75rem; height: 0.75rem; border-radius: 50%; top: 3.05rem; left: 2.3rem;
+  animation-delay: var(--duration-enter);
+}
+
+@keyframes empty-float {
+  from { transform: translateY(0); }
+  to { transform: translateY(-4px); }
+}
+
+.empty-state-suggestions {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+  width: 100%;
+  max-width: 28rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading-state-dot,
+  .empty-state-illustration-shape {
+    animation: none !important;
+  }
+}
+
+/* ——— Section head + primary action row ———
+   Used by ~20 routes and settings sections, so they live in base rather than
+   in the marketing stylesheet that first defined them (landing.css is now a
+   route-owned chunk). Modifiers stay with their pages: `--split` in
+   studio.css, `--journal` in profile.css, the Landing bands in landing.css. */
+.section-head {
+  width: var(--shell);
+  margin-inline: auto;
+  margin-bottom: var(--hair-200);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hair-85) var(--space-4);
+  justify-content: space-between;
+  align-items: end;
+}
+
+.section-head .display {
+  max-width: 22ch;
+}
+
+.section-head .section-label {
+  margin-bottom: var(--hair-65);
+}
+
+/* Row of primary/secondary CTAs under a hero, page head or trust document. */
+.cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hair-65);
+  margin-top: var(--hair-160);
+}
+
+@media (max-width: 639px) {
+  .section-head {
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+    text-align: left;
+  }
+
+  .section-head .btn {
+    align-self: flex-start;
+  }
+
+  /* Full-width stacked CTAs on phones. */
+  .cta-row {
+    flex-direction: column;
+  }
+
+  .cta-row .btn {
+    width: 100%;
+    min-width: 0;
+    min-height: 3rem;
+    padding-inline: var(--space-4);
+    white-space: nowrap;
+    text-align: center;
+  }
+}
+
+/* ——— Page shell (components/PageShell.tsx) ———
+   The one route container: outer padding + a centred inner track.
+   Variants pick the track — --shell (reading), --shell-grid (dense
+   workbench), --measure-wide (narrow single column). Lives in base so route
+   files (pages layer) can specialise it without fighting the cascade. */
+.page-shell {
+  padding: var(--page-pad-y) var(--gutter) var(--page-pad-bottom);
+}
+
+.page-shell-inner {
+  width: var(--shell);
+  margin-inline: auto;
+  max-width: 100%;
+}
+
+.page-shell--grid .page-shell-inner {
+  width: var(--shell-grid);
+}
+
+.page-shell--narrow .page-shell-inner {
+  width: var(--measure-wide);
+}
+
+.page-shell-inner + .page-shell-inner {
+  margin-top: var(--space-6);
+}
+
+.page-shell > .page-shell-inner:first-child .display,
+.page-shell > .page-shell-inner:first-child h1 {
+  max-width: var(--measure);
+}
+
+/* Workbench heads keep their titles uncapped (see .page-head--workbench
+   .display): a digest name on a 96rem shell otherwise stopped at 38rem
+   while the head, actions and tabs ran the full track. */
+.page-shell > .page-shell-inner:first-child .page-head--workbench .display {
+  max-width: none;
+}
+
+.page-shell > .page-shell-inner:first-child .lede {
+  margin-top: var(--space-3);
+  max-width: var(--measure);
+}
+
+@media (max-width: 639px) {
+  /* Phones: tighter page padding on every PageShell route; clip so a wide
+     table or chip row cannot scroll the whole document sideways. */
+  .page-shell {
+    padding: var(--page-pad-y-mobile) var(--space-4) 3rem;
+    overflow-x: clip;
+  }
+}
+
+/* ——— Tabs: primary navigation dimension inside a page ——— */
+.tab-rail {
+  display: flex;
+  gap: var(--space-5);
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tab-rail::-webkit-scrollbar { display: none; }
+.tab-rail button {
+  position: relative;
+  flex-shrink: 0;
+  min-height: 2rem;
+  padding: var(--space-2) 0 var(--space-3);
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-none);
+  white-space: nowrap;
+  transition: color var(--duration-fast) var(--ease-quart);
+}
+.tab-rail button:focus-visible { outline-offset: -1px; }
+.tab-rail button:hover { color: var(--ink); }
+
+@media (pointer: coarse) {
+  .tab-rail button { min-height: 2.75rem; }
+}
+.tab-rail button[aria-selected='true'] {
+  color: var(--ink);
+  font-weight: var(--weight-semibold);
+}
+.tab-rail button[aria-selected='true']::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 -1px 0;
+  height: 2px;
+  background: var(--ink);
+}
+
+.tab-rail .tab-count {
+  margin-left: var(--space-1);
+  color: var(--faint);
+  font-weight: var(--weight-regular);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ——— Select menu: sort / secondary filters ——— */
+.select-menu {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 2rem;
+  padding: 0 var(--space-2) 0 var(--space-3);
+  border: 1px solid var(--line-control);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-none);
+  transition: border-color var(--duration-fast) var(--ease-quart);
+}
+.select-menu:hover { border-color: var(--ink); }
+.select-menu:has(select:disabled) { opacity: 0.45; }
+.select-menu:has(select:focus-visible) { border-color: var(--ink); box-shadow: var(--shadow-ring); }
+.select-menu-prefix { color: var(--muted); font-weight: var(--weight-regular); margin-right: var(--space-1); }
+.select-menu-btn {
+  appearance: none;
+  min-width: 0;
+  max-width: 12rem;
+  padding: 0 var(--space-4) 0 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  /* R15-48: the select fills its pill, so the whole 44px pill is the tap
+     target rather than a 13px line inside it. */
+  align-self: stretch;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.select-menu-btn:focus-visible { outline: none; box-shadow: none; } /* the pill carries the ink border and ring (R15-17) */
+.select-menu > svg {
+  position: absolute;
+  right: var(--space-2);
+  width: 0.85rem;
+  height: 0.85rem;
+  color: var(--muted);
+  pointer-events: none;
+}
+@media (pointer: coarse) {
+  .select-menu { min-height: 2.75rem; }
+  /* Reach over the pill's 1px border so the whole 44px pill hits the
+     select (R15-48); the transparent select leaves the border visible. */
+  .select-menu-btn { margin-block: -1px; }
+}
+/* The open list (global.css customizable select) hangs off the whole pill,
+   prefix included, not just the inner select. anchor-scope keeps each
+   toolbar menu anchored to its own pill. */
+@supports (appearance: base-select) {
+  .select-menu { anchor-name: --select-menu; anchor-scope: --select-menu; }
+  /* base-select adds a 24px min block size, which drops the value off the
+     prefix's line (global.css centres it). It also drops the native
+     inner inset, so the select's clip edge would sit on the first glyph and
+     shave its antialiasing ("M" of "Most bookmarks"): pad the edge out and
+     pull the box back so the text stays put. Chrome 149+ ignores overflow on
+     a base-select, so clip-path keeps an overlong value off the chevron. */
+  .select-menu-btn {
+    appearance: base-select;
+    min-block-size: 100%;
+    padding-inline-start: var(--hair-15);
+    margin-inline-start: calc(-1 * var(--hair-15));
+    clip-path: inset(calc(-1 * var(--hair-40)) var(--space-4) calc(-1 * var(--hair-40)) 0);
+  }
+  .select-menu-btn::picker(select) { position-anchor: --select-menu; }
+}
+
+/* Quiet section label — the non-caps replacement for .eyebrow outside
+   PageHead (T6). */
+.section-label {
+  margin: 0 0 var(--space-2);
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-ui);
+}
+}

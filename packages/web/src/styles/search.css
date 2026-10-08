@@ -1,0 +1,438 @@
+/* ——— Search ———
+   components layer: ⌘K search palette overlay (SearchPalette).
+   pages layer: search product workspace (Search page).
+   Moved verbatim from polish.css — selectors and declarations unchanged. */
+
+@layer components {
+/* Search palette */
+.search-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: grid;
+  place-items: start center;
+  padding: 10vh var(--gutter) var(--hair-200);
+  background: var(--overlay);
+  animation: fade-in var(--duration-state) var(--ease-out);
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fade-out {
+  to { opacity: 0; }
+}
+
+/* Exit transform only — the fading overlay owns the opacity ramp. */
+@keyframes search-palette-out {
+  to { transform: translateY(10px); }
+}
+
+/* Exit phase (useExitAnimation via Modal's .is-closing): reverse of the
+   enter — overlay fades, palette sinks back. Inert while leaving. */
+.search-overlay.is-closing {
+  animation: fade-out var(--duration-state) var(--ease-quart) forwards;
+  pointer-events: none;
+}
+
+.search-overlay.is-closing .search-palette {
+  animation: search-palette-out var(--duration-state) var(--ease-quart) forwards;
+}
+
+.search-palette {
+  width: min(100%, 36rem);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-float), var(--inset-highlight);
+  overflow: hidden;
+  animation: rise var(--duration-enter) var(--ease-out);
+}
+
+.search-palette-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--hair-70) var(--hair-85);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-raised);
+}
+
+.search-palette-head input {
+  flex: 1;
+  min-height: 2.35rem;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+  outline: none;
+  font-size: var(--text-md);
+  letter-spacing: 0;
+}
+
+.search-palette-head input:focus,
+.search-palette-head input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+/* Command-palette convention keeps the input itself bare; the palette frame
+   takes the focus cue instead — same ink border + ring recipe as
+   .search-field:focus-within, so keyboard users still see where focus is. */
+.search-palette:focus-within {
+  border-color: var(--ink);
+  box-shadow: var(--shadow-float), var(--shadow-ring);
+}
+
+.search-palette-head input::placeholder {
+  color: var(--faint);
+}
+
+.search-results {
+  max-height: min(22rem, 52vh);
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: var(--hair-35) var(--hair-40) var(--space-2);
+  scroll-behavior: smooth;
+}
+
+/* Palette rows are .result-row modifiers (R10-01): same DOM + anatomy, only
+   the sizing differs — a kind-rail floor, no hairline (the scroll box owns
+   separation) and one-line ellipsized titles. Element-qualified so these
+   win over the shared .result-row base in the same layer. */
+button.search-result {
+  width: 100%;
+  grid-template-columns: minmax(4.25rem, auto) minmax(0, 1fr) auto;
+  gap: var(--hair-20) var(--hair-70);
+  align-items: center;
+  padding: var(--hair-55) var(--hair-70);
+  border-bottom: 0;
+  border-radius: var(--radius);
+  text-align: left;
+  transition: background var(--duration-fast) var(--ease-quart);
+}
+
+button.search-result:hover {
+  background: color-mix(in srgb, var(--ink) 5.5%, transparent);
+}
+
+/* R10-21: the keyboard cursor (aria-activedescendant) uses the same
+   accent family as the hit highlight — one warm wash for "this hit". */
+button.search-result.is-active,
+a.search-product-result.is-active {
+  background: var(--wash-accent);
+}
+
+.search-result.is-active .result-row-title {
+  color: var(--ink);
+}
+
+.search-result .result-row-title {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0;
+  line-height: var(--leading-clamp);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  unicode-bidi: plaintext;
+}
+
+.search-result .search-snippet {
+  font-size: var(--text-xs);
+  color: var(--muted);
+  line-height: var(--leading-ui);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.search-result .meta {
+  opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease-quart);
+}
+
+.search-result.is-active .meta,
+.search-result:hover .meta {
+  opacity: 1;
+}
+
+.search-empty {
+  padding: var(--space-6) var(--space-4);
+  text-align: center;
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.search-empty p {
+  margin: 0;
+}
+
+.search-palette .empty-state {
+  padding: var(--hair-125) var(--space-3);
+}
+
+.search-palette .empty-state-icon {
+  width: 2.5rem;
+  height: 2.5rem;
+  margin-bottom: 0;
+}
+
+.search-palette .empty-state-icon svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.search-palette .empty-state h3 {
+  font-size: var(--text-sm);
+}
+
+.search-input-icon {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: var(--text-base);
+}
+
+.search-palette-status {
+  min-height: 7rem;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.search-snippet {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  unicode-bidi: plaintext;
+}
+
+.search-hit {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  color: inherit;
+  font-weight: inherit;
+  padding: 0 0.12em;
+  border-radius: 0;
+}
+
+/* R7-13: the Cancel tap target exists for phones only. */
+.search-palette-cancel {
+  display: none;
+}
+
+/* R7-13: phones get a full-screen search sheet — a floating desktop card
+   under the software keyboard wasted half the viewport. The input grows to
+   a 44px target and the head clears the notch. */
+@media (max-width: 639px), (max-height: 26rem) {
+  .search-overlay {
+    padding: 0;
+    place-items: stretch;
+  }
+
+  .search-palette {
+    width: 100%;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    border: 0;
+    border-radius: 0;
+    padding-left: var(--safe-left);
+    padding-right: var(--safe-right);
+  }
+
+  .search-palette-head {
+    padding-top: calc(var(--hair-70) + var(--safe-top));
+  }
+
+  .search-palette-head input {
+    min-height: 2.75rem;
+    font-size: var(--text-base);
+  }
+
+  .search-results {
+    max-height: none;
+    flex: 1 1 auto;
+    /* Fullscreen palette is z-modal and covers the tab bar; do not add
+       --bottom-nav-h on top of the home-indicator pad. */
+    padding-bottom: calc(var(--space-2) + var(--safe-bottom));
+  }
+
+  .search-palette-cancel {
+    display: inline-flex;
+  }
+
+  .search-palette-head kbd,
+  .search-palette-foot {
+    display: none;
+  }
+
+  button.search-result {
+    grid-template-columns: minmax(4.25rem, auto) minmax(0, 1fr);
+  }
+
+  .search-result .meta {
+    display: none;
+  }
+}
+
+.search-palette-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hair-65) var(--space-4);
+  padding: var(--hair-55) var(--hair-90);
+  border-top: 1px solid var(--line);
+  background: color-mix(in srgb, var(--paper) 55%, var(--surface));
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.search-palette-foot span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hair-30);
+}
+
+.search-palette-foot kbd {
+  min-width: 1.15rem;
+  height: 1.15rem;
+}
+}
+
+@layer pages {
+/* Search product workspace */
+.search-product-page {
+  min-width: 0;
+}
+
+/* The head is a stock PageHead (R8-03): title type/leading/tracking come
+   from the .page-head base in page-chrome.css. What stays here is the page
+   difference — a hairline separating the head from the results list. */
+.search-product-header {
+  padding-bottom: var(--hair-150);
+  border-bottom: 1px solid var(--line);
+}
+
+/* The header's own padding is the gap to its hairline; the shared page-head
+   bottom margin stacked another ~30px of blank above it. */
+.search-product-header > .page-head {
+  margin-bottom: 0;
+}
+
+.search-product-form {
+  width: min(100%, 42rem);
+  margin-top: var(--hair-125);
+}
+
+.search-product-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+.search-product-results {
+  min-width: 0;
+  padding-top: var(--hair-125);
+}
+
+.search-product-summary {
+  min-height: 2rem;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-2);
+}
+
+.search-product-summary h2 {
+  margin: 0;
+  font-size: var(--text-base);
+  letter-spacing: 0;
+}
+
+.search-product-summary span {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.search-product-list {
+  min-width: 0;
+  border-top: 1px solid var(--line);
+}
+
+/* Full-page hits share the .result-row anatomy (R10-01): the page only
+   restyles column sizing — a fixed 5.5rem kind rail and a bounded meta
+   column. */
+.search-product-result {
+  min-height: 4.75rem;
+  grid-template-columns: 5.5rem minmax(0, 1fr) auto;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--hair-90) var(--space-2);
+  color: inherit;
+}
+
+.search-product-result .search-snippet {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-body);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.search-product-result .result-row-meta {
+  max-width: 14rem;
+  overflow-wrap: anywhere;
+  justify-content: flex-end;
+  text-align: right;
+}
+
+.search-product-more {
+  min-height: 4.5rem;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+/* R7-13: the 640–899 band keeps the kind chip but stacks the meta under the
+   copy — the desktop three-column row squeezed titles on portrait tablets. */
+@media (min-width: 640px) and (max-width: 899px) {
+  .search-product-result {
+    grid-template-columns: 5.5rem minmax(0, 1fr);
+  }
+
+  .search-product-result .result-row-meta {
+    grid-column: 2;
+    max-width: none;
+    justify-content: flex-start;
+    text-align: left;
+  }
+}
+
+@media (max-width: 639px) {
+  .search-product-page {
+    overflow-x: clip;
+  }
+
+  /* The kind chip reads as the hit's kicker: tight over its title. */
+  .search-product-result {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--hair-35);
+  }
+
+  .search-product-result .result-row-meta {
+    max-width: none;
+    text-align: left;
+  }
+}
+}

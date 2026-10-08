@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Developers on Know-N</title>
+    <meta name="description" content="This page is a discovery index for agents and people who want to read published collections with software." />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+      :root { color-scheme: light; }
+      body {
+        margin: 0;
+        padding: 3rem 1.25rem 4rem;
+        background: rgb(243 245 248);
+        color: rgb(6 7 10);
+        font-family: "Instrument Sans", "Segoe UI", "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+        line-height: 1.6;
+      }
+      body > * { max-width: 38rem; margin-left: auto; margin-right: auto; overflow-wrap: anywhere; }
+      h1 { font-size: 1.75rem; letter-spacing: -0.02em; margin: 0 auto 1rem; }
+      h2 { font-size: 1.15rem; margin: 2rem auto 0.5rem; }
+      p, li { color: rgb(51 53 58); }
+      a { color: rgb(56 102 149); }
+      nav p { margin: 0.35rem auto; }
+      pre {
+        max-width: 100%;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+      }
+    </style>
+  </head>
+  <body>
+<h1>Developers on Know-N</h1>
+<p>This page is a discovery index for agents and people who want to read published collections with software. It is not a protocol specification and it is not a server. Wire details live on the pages linked below.</p>
+<p>Know-N publishes collections that an owner chose to share. Anonymous software can read those collections. Writing into a private library still needs a signed-in account and a consented client.</p>
+<h2>Collection Protocol</h2>
+<p>Published collections are described by Collection Protocol (COLP). Start at the well-known document:</p>
+<ul>
+<li>`GET https://know-n.com/.well-known/collection-protocol`</li>
+</ul>
+<p>That document names the directory, collection metadata, and snapshot URLs. Use it to list public collections and to fetch a snapshot the owner already published. It is not a general search API and it is not a way to write into a private library.</p>
+<p>Do not copy or restate the COLP specification on this page. The well-known document is the discovery entry; the protocol package is the contract.</p>
+<h2>MCP connection</h2>
+<p>Agents that speak Model Context Protocol should read <a href="/mcp">MCP on Know-N</a>. The protocol endpoint is `POST https://know-n.com/collections/-/mcp`. `GET /developers`, `GET /mcp`, and Settings do not host that server. Do not POST JSON-RPC to this page.</p>
+<p>Anonymous MCP can list and read published collections as resources. Tools that touch a signed-in library need OAuth consent. The walkthrough, required headers, DCR registration, and Client ID Metadata Document rules are on `/mcp`.</p>
+<h2>Public snapshots and markdown</h2>
+<p>A published collection has several read surfaces on this origin:</p>
+<ul>
+<li>HTML card and no-JS summary: `GET https://know-n.com/c/{slug}`</li>
+<li>The same URL with `Accept: text/markdown` returns a flattened markdown tree (folder headings and bookmark links). Responses `Vary` on `Accept`.</li>
+<li>Share and path wrappers (`/share/{slug}`, `/path/{slug}`) point their canonical URL at `/c/{slug}`.</li>
+<li>COLP snapshots remain under `/colp/v0.1/collections/{id}/snapshot` after you resolve the collection from the well-known directory.</li>
+</ul>
+<p>Unknown slugs return HTTP 404. Unlisted collections are readable but are not in the collections sitemap.</p>
+<h2>Crawl and agent files</h2>
+<ul>
+<li>Sitemap index: `GET https://know-n.com/sitemap.xml` (static pages plus public collections)</li>
+<li>Agent guidance: `GET https://know-n.com/llms.txt`</li>
+<li>This index as markdown: `GET https://know-n.com/developers` with `Accept: text/markdown`</li>
+</ul>
+<h2>What this page is not</h2>
+<p>This page does not replace COLP, MCP, or the trust pages. It does not accept API keys. It does not document Product `/api/v1` session routes. If you need the MCP wire format, go to `/mcp`. If you need the collection protocol itself, start at `/.well-known/collection-protocol`.</p>
+<h2>Embed cards that match a website</h2>
+<p>Agents can generate styled iframe cards for published collections, the latest issue of a News Digest series, or a fixed Digest issue. Read the <a href="/embed-guide">embed styling guide</a> before generating markup: it describes how to inspect the host site's design, choose supported appearance parameters, export the iframe and host CSS, and validate the result while preserving Know-N attribution. No API key or collection write is required.</p>
+<p>For plain-text agent access, use <a href="/embed-guide.md">the Markdown guide</a>, or request /embed-guide with Accept: text/markdown. The HTML guide is included in the static sitemap.</p>
+  </body>
+</html>
