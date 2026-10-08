@@ -14,3 +14,5 @@ A2 copied these because `npm run test:unit` could not load Vitest projects witho
 
 - `vitest.workspace-projects.ts` — imported by `vitest.unit.config.ts` and the other project configs
 - `scripts/vitest-project-files.mjs` — imported by `vitest.workspace-projects.ts`
+
+A6 image (`packages/server/Dockerfile`): the web UI is built with `VITE_EDITION=self-hosted` and stored at `/srv/web`. Caddy serves it. `deploy/compose.yaml` mounts the named volume `colp-web` on `/srv/web` (read-only in each Caddy service). The Node process does not serve those files. An empty mount hides the image directory, so the same tree is also at `/opt/colp-web` and the entrypoint copies it into `/srv/web` only when that mount has no `index.html`. No second server, Redis, object storage, or mail server. Migrations are esbuild-bundled to `dist-migrations/` (D23) so the runtime image does not need TypeScript. The process is `node dist/src/bootstrap/self-hosted.js`.
