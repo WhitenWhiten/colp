@@ -290,6 +290,7 @@ export function assertPhase4bMcpIJsonLimitConfig(limits: McpReadIJsonLimitConfig
  * only other way production accepts an http MCP origin. Boot-time composition
  * must pass the same object `loadConfig` used, or re-assert defaults to
  * production-strict unless that acknowledgement is set in the process environment.
+ * The self-hosted built-in issuer may use its own private HTTPS origin.
  */
 export interface McpReadFeatureConfigAssertOptions {
   readonly production?: boolean;
@@ -297,6 +298,7 @@ export interface McpReadFeatureConfigAssertOptions {
   readonly oauthIssuerEnabled?: boolean;
   readonly nodeEnv?: string;
   readonly insecureHttp?: boolean;
+  readonly selfHosted?: boolean;
 }
 
 /** Same P4 mapping `loadMcpReadFeatureConfig` / API boot use for re-assert. */
@@ -304,12 +306,14 @@ export function mcpReadFeatureConfigAssertOptions(input: {
   readonly nodeEnv: string;
   readonly oauthIssuerEnabled: boolean;
   readonly insecureHttp?: boolean;
+  readonly selfHosted?: boolean;
 }): McpReadFeatureConfigAssertOptions {
   return Object.freeze({
     production: input.nodeEnv === 'production',
     oauthIssuerEnabled: input.oauthIssuerEnabled,
     nodeEnv: input.nodeEnv,
     insecureHttp: input.insecureHttp ?? process.env.COLP_INSECURE_HTTP === 'true',
+    selfHosted: input.selfHosted ?? process.env.KNOWN_EDITION === 'self-hosted',
   });
 }
 
@@ -325,7 +329,15 @@ export function assertMcpReadFeatureConfig(
   const insecureHttp = options.insecureHttp ?? process.env.COLP_INSECURE_HTTP === 'true';
   const allowSameOriginLoopback =
     options.oauthIssuerEnabled === true && options.nodeEnv === 'test';
-  const oauthEndpointMode = (allowSameOriginLoopback || insecureHttp) ? 'relaxed' : 'strict';
+  // The built-in issuer uses the operator's own HTTPS origin, including a
+  // LAN IP or localhost with Caddy's internal CA. External issuers stay strict.
+  const selfHosted = options.selfHosted ?? process.env.KNOWN_EDITION === 'self-hosted';
+  const ownIssuer = selfHosted && options.oauthIssuerEnabled === true
+    && [config.oauth.issuer, config.oauth.audience, config.oauth.authorizationServerMetadataUrl,
+      ...(config.oauth.jwksUri === null ? [] : [config.oauth.jwksUri])].every(value => {
+      try { return new URL(value).origin === config.origin; } catch { return false; }
+    });
+  const oauthEndpointMode = (allowSameOriginLoopback || insecureHttp || ownIssuer) ? 'relaxed' : 'strict';
   const httpAllowed = (hostname: string): boolean => isLoopback(hostname);
   if (config.protocolVersion !== PHASE4B_MCP_CONFIG_PROTOCOL_VERSION) {
     throw new Error(`MCP read protocolVersion is fixed to ${PHASE4B_MCP_CONFIG_PROTOCOL_VERSION}`);

@@ -110,3 +110,15 @@ Self-hosted sync and search (2026-10-08, public-only):
   `202610240000_search_member_recall_without_opt_in` rebuilds the two
   collection member recall GINs without it in their predicate. Know-N still
   requires the opt-in for member search; port search changes with this in mind.
+
+I2 browser acceptance (2026-10-08):
+
+- Restored the server-sync and sync-push acceptance suites and their production
+  HTTP/PostgreSQL runners. The conformance binding reads the published
+  `dist/conformance/index.js`; source-only generated JSON is not in the npm
+  artifact. That binding correction is also applied in Know-N.
+- Public-only: the self-hosted built-in MCP issuer accepts private HTTPS when
+  issuer, audience, metadata, and JWKS all stay on the configured server origin.
+  The same assertion applies at config load and runtime re-assertion. Cloud
+  production policy stays strict, and HTTP still requires the explicit
+  acknowledgement and a loopback origin.

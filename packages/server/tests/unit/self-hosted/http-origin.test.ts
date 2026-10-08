@@ -3,6 +3,7 @@ import { afterEach, test } from 'vitest';
 import { loadConfig } from '../../../src/bootstrap/config.js';
 import { applySelfHostedPreset } from '../../../src/bootstrap/self-hosted-preset.js';
 import { selfHostedManifestFeatures } from '../../../src/modules/publication/index.js';
+import { assertMcpReadFeatureConfig, mcpReadFeatureConfigAssertOptions } from '../../../src/modules/mcp/index.js';
 
 /**
  * D26: COLP endpoints are HTTPS and the protocol allows http only on loopback
@@ -47,6 +48,21 @@ test('loopback http origins, including IPv6, pass the preset and production load
     const next = env(origin, { COLP_INSECURE_HTTP: 'true' });
     assert.doesNotThrow(() => applySelfHostedPreset(next), origin);
     assert.doesNotThrow(() => loadConfig(next), origin);
+  }
+});
+
+test('production TLS accepts the built-in issuer on localhost and LAN IPs, including re-assertion', () => {
+  for (const origin of ['https://localhost:5443', 'https://127.0.0.1', 'https://192.168.1.20', 'https://[::1]']) {
+    const next = env(origin);
+    applySelfHostedPreset(next);
+    const config = loadConfig(next);
+    assert.ok(config.mcp);
+    const options = mcpReadFeatureConfigAssertOptions({ nodeEnv: 'production', oauthIssuerEnabled: true,
+      selfHosted: true, insecureHttp: false });
+    assert.doesNotThrow(() => assertMcpReadFeatureConfig(config.mcp!, options), origin);
+    assert.throws(() => assertMcpReadFeatureConfig(config.mcp!, { ...options, selfHosted: false }), /production policy/u);
+    assert.throws(() => assertMcpReadFeatureConfig({ ...config.mcp!, oauth: { ...config.mcp!.oauth,
+      jwksUri: 'https://127.0.0.1:9999/api/v1/auth/jwks' } }, options), /production policy/u);
   }
 });
 

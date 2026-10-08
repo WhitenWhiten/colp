@@ -406,6 +406,7 @@ export function loadMcpReadFeatureConfig(
       nodeEnv,
       oauthIssuerEnabled: options.oauthIssuerEnabled === true,
       insecureHttp: env.COLP_INSECURE_HTTP === 'true',
+      selfHosted: env.KNOWN_EDITION === 'self-hosted',
     }),
     expectedServerUuid: publicationServerUuid,
   });

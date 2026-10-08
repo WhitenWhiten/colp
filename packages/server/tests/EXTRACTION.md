@@ -19,6 +19,10 @@ Restored from Know-N because they cover shipped promises (2026-10-08):
   (sync over HTTP), with their harness in `scripts/acceptance` and
   `scripts/evidence`. A committed node update writes one outbox event here
   (Know-N also writes feed and public-activity rows).
+- `phase3/phase3-server-sync-acceptance` and `phase3/phase3-sync-push-acceptance`,
+  including their production HTTP/PostgreSQL adapters and fail-closed controls.
+  The server acceptance binds to the published COLP conformance entry rather
+  than source-only generated JSON files.
 - `phase2/phase2-publication-acceptance` (publication, 10k Snapshot, cache
   partition, cursor rotation, fences, 410 retention, purge). The runner omits
   Know-N's real-stack browser probe, which drives Know-N's web e2e.
