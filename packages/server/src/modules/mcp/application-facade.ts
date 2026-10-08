@@ -18,6 +18,7 @@ import {
   type McpApplicationToolDescriptor,
 } from './application-catalog.js';
 import {
+  NODES_SEARCH_PROFILE_CLAIM,
   NODES_SEARCH_TOOL_NAME,
   callNodesSearchTool,
   type NodesSearchPorts,
@@ -105,7 +106,9 @@ export function createPhase4bMcpApplicationFacade(
     const tools: McpApplicationToolDescriptor[] = [];
     if (canRead) {
       tools.push(...await readPort.listTools(context, cursor));
-      if (nodesSearch !== undefined) tools.push(NODES_SEARCH_TOOL_DESCRIPTOR);
+      if (nodesSearch !== undefined && context.scopes.includes(NODES_SEARCH_PROFILE_CLAIM.scope)) {
+        tools.push(NODES_SEARCH_TOOL_DESCRIPTOR);
+      }
     }
     if (canListOwned) {
       tools.push(PHASE4B_MCP_COLLECTIONS_LIST_TOOL);
@@ -142,7 +145,9 @@ export function createPhase4bMcpApplicationFacade(
     }
     if (!canListApplicationReadTools(context)) return unknownToolRejected();
     if (name === NODES_SEARCH_TOOL_NAME) {
-      if (nodesSearch === undefined) return unknownToolRejected();
+      if (nodesSearch === undefined || !context.scopes.includes(NODES_SEARCH_PROFILE_CLAIM.scope)) {
+        return unknownToolRejected();
+      }
       return callNodesSearchTool(nodesSearch, context, args);
     }
     return readPort.callTool(context, name, args);
@@ -213,73 +218,3 @@ function resourceDescriptorFromProjection(
   return Object.freeze({
     uri: entry.uri,
     name: entry.name,
-    mimeType: entry.mimeType,
-    ...(entry.description === undefined ? {} : { description: entry.description }),
-  });
-}
-
-function resourceContentFromProjection(
-  entry: Readonly<{ readonly mimeType: string }>,
-): McpApplicationResourceContents['contents'][number] {
-  const raw = entry as Readonly<Record<string, unknown>>;
-  return Object.freeze({
-    mimeType: String(raw.mimeType),
-    ...(typeof raw.uri === 'string' ? { uri: raw.uri } : {}),
-    ...(typeof raw.text === 'string' ? { text: raw.text } : {}),
-    ...(typeof raw.blob === 'string' ? { blob: raw.blob } : {}),
-  });
-}
-
-function templateDescriptorFromIdentity(
-  template: Readonly<{
-    readonly uriTemplate: string;
-    readonly name: string;
-    readonly title: string;
-    readonly mimeType: string;
-  }>,
-): McpApplicationResourceTemplateDescriptor {
-  return Object.freeze({
-    uriTemplate: template.uriTemplate,
-    name: template.name,
-    title: template.title,
-    mimeType: template.mimeType,
-  });
-}
-
-function unknownToolRejected(): McpApplicationToolResult {
-  return Object.freeze({
-    kind: 'rejected',
-    stableCode: 'unknown_tool',
-    safeMessage: 'Unknown tool.',
-    retryable: false,
-  });
-}
-
-function toTrustedReadContext(context: McpApplicationContext) {
-  return Object.freeze({
-    binding: bindingFromPrincipal(context.principal),
-    scope: context.scopes,
-    budget: context.budgets,
-    abortSignal: context.abortSignal,
-    authorization: context.authorization,
-  });
-}
-
-function bindingFromPrincipal(principal: McpApplicationContext['principal']) {
-  if (principal.kind === 'anonymous') {
-    return Object.freeze({
-      kind: 'anonymous' as const,
-      principalId: 'public' as const,
-      resourceAudience: principal.resourceAudience,
-      securityEpoch: principal.securityEpoch,
-    });
-  }
-  return Object.freeze({
-    kind: 'authenticated' as const,
-    principalId: principal.principalId,
-    clientId: principal.clientId,
-    credentialBindingId: principal.credentialBindingId,
-    resourceAudience: principal.resourceAudience,
-    securityEpoch: principal.securityEpoch,
-  });
-}
