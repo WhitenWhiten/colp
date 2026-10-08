@@ -132,14 +132,14 @@ export const PHASE4B_MCP_WRITE_MOUNTED_TOOL_NAMES: readonly [
 export const PHASE4B_MCP_WRITE_TOOL_REQUIRED_SCOPES: Readonly<
   Record<Phase4bMcpWriteToolName, readonly string[]>
 > = Object.freeze({
-  'collections.create': Object.freeze([PHASE4B_MCP_LOW_RISK_NODE_CREATE_SCOPE]),
-  'collections.update': Object.freeze([PHASE4B_MCP_LOW_RISK_NODE_CREATE_SCOPE]),
+  'collections.create': Object.freeze(['collections:create']),
+  'collections.update': Object.freeze(['collections:write']),
   'nodes.create': Object.freeze([PHASE4B_MCP_LOW_RISK_NODE_CREATE_SCOPE]),
   'nodes.move': Object.freeze(['nodes:write']),
   'nodes.delete_subtree': Object.freeze(['nodes:write']),
   'nodes.update': Object.freeze([PHASE4B_MCP_LOW_RISK_NODE_CREATE_SCOPE]),
-  'annotations.create': Object.freeze([PHASE4B_MCP_LOW_RISK_NODE_CREATE_SCOPE]),
-  'annotations.update': Object.freeze([PHASE4B_MCP_LOW_RISK_NODE_CREATE_SCOPE]),
+  'annotations.create': Object.freeze(['annotations:write']),
+  'annotations.update': Object.freeze(['annotations:write']),
   'changes.plan': Object.freeze(['nodes:write', 'access:write']),
   'changes.commit': Object.freeze(['nodes:write', 'access:write', 'changes:commit']),
   'changes.cancel': Object.freeze(['changes:cancel']),
