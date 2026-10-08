@@ -17,7 +17,7 @@ export * from './publication-snapshot-delivery-policy-core.js';
 
 // An exact issued plan owns its default output budget. A copied object cannot
 // use these limits to bypass the underlying single-page capability check.
-const projectionBudgets = new WeakMap<object, Required<PublicationPublicProjectionLimits>>();
+const projectionBudgets = new WeakMap<object, Readonly<{ maxDepth: number; maxNodes: number }>>();
 
 /** Choose delivery and bind a compatible default projection budget to a single-page plan. */
 export function planPublicationSnapshotDelivery(
@@ -92,3 +92,4 @@ function copyDataRecord(value: unknown, policy: boolean): Record<string, unknown
   }
   return result;
 }
+

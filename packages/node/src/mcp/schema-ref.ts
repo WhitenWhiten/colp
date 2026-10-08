@@ -1,5 +1,6 @@
 import { collectionProtocolSchema } from '../schema/index.js';
 import type { McpToolSchema } from './tool-input.js';
+import { isProxy } from 'node:util/types';
 
 export interface CanonicalMcpSchemaReference extends McpToolSchema {
   readonly $ref: string;
@@ -8,6 +9,11 @@ export interface CanonicalMcpSchemaReference extends McpToolSchema {
 const CANONICAL_SCHEMA_ID = collectionProtocolSchema.$id;
 const CANONICAL_DEFS_HASH = '#/$defs/';
 const LOCAL_DEFS_POINTER = '#/$defs/';
+const MAX_SCHEMA_DEPTH = 64;
+const MAX_SCHEMA_NODES = 10_000;
+const MAX_SCHEMA_MEMBERS = 100_000;
+const MAX_SCHEMA_WIDTH = 2_048;
+const MAX_SCHEMA_BYTES = 8 * 1024 * 1024;
 
 /** Creates an MCP schema reference without exposing or reproducing a canonical definition body. */
 export function createCanonicalMcpSchemaReference(
@@ -59,6 +65,7 @@ export function materializeClosedMcpToolSchema(
   if (typeof schema !== 'object' || schema === null || Array.isArray(schema)) {
     throw new TypeError('A JSON Schema object is required to materialize MCP tool schemas.');
   }
+  assertSchemaWithinBudget(schema);
   const rewritten = rewriteCanonicalRefs(schema);
   const defs = referencedCanonicalDefs(rewritten);
   const closed = defs === undefined
@@ -66,6 +73,49 @@ export function materializeClosedMcpToolSchema(
     : { ...(rewritten as Record<string, unknown>), $defs: defs };
   assertNoCanonicalHttpRef(closed);
   return closed as Readonly<Record<string, unknown>>;
+}
+
+/** Reject hostile schema graphs before recursive ref rewriting can overflow or loop. */
+function assertSchemaWithinBudget(root: object): void {
+  const active = new WeakSet<object>();
+  const visited = new WeakSet<object>();
+  const stack: Array<{ value: object; depth: number; exit?: boolean }> = [{ value: root, depth: 0 }];
+  let nodes = 0;
+  let members = 0;
+  let bytes = 0;
+  while (stack.length > 0) {
+    const current = stack.pop()!;
+    if (isProxy(current.value)) throw new RangeError('MCP tool schema contains a Proxy.');
+    if (current.exit) { active.delete(current.value); continue; }
+    if (active.has(current.value)) throw new RangeError('MCP tool schema must not contain cycles.');
+    if (visited.has(current.value)) continue;
+    if (current.depth > MAX_SCHEMA_DEPTH) throw new RangeError('MCP tool schema exceeds maximum depth.');
+    visited.add(current.value);
+    active.add(current.value);
+    stack.push({ value: current.value, depth: current.depth, exit: true });
+    nodes += 1;
+    if (nodes > MAX_SCHEMA_NODES) throw new RangeError('MCP tool schema exceeds node budget.');
+    const keys = Reflect.ownKeys(current.value);
+    if (keys.length > MAX_SCHEMA_WIDTH) throw new RangeError('MCP tool schema exceeds object width budget.');
+    members += keys.length;
+    if (members > MAX_SCHEMA_MEMBERS) throw new RangeError('MCP tool schema exceeds member budget.');
+    for (const key of keys) {
+      if (typeof key !== 'string') throw new TypeError('MCP tool schema must not contain symbol keys.');
+      bytes += Buffer.byteLength(key, 'utf8');
+      if (bytes > MAX_SCHEMA_BYTES) throw new RangeError('MCP tool schema exceeds byte budget.');
+      const descriptor = Object.getOwnPropertyDescriptor(current.value, key);
+      if (descriptor === undefined || !descriptor.enumerable || !('value' in descriptor)) {
+        throw new TypeError('MCP tool schema must contain enumerable data properties.');
+      }
+      const child = descriptor.value;
+      if (typeof child === 'string') {
+        bytes += Buffer.byteLength(child, 'utf8');
+        if (bytes > MAX_SCHEMA_BYTES) throw new RangeError('MCP tool schema exceeds byte budget.');
+      } else if (child !== null && typeof child === 'object') {
+        stack.push({ value: child, depth: current.depth + 1 });
+      }
+    }
+  }
 }
 
 function rewriteCanonicalRefs(value: unknown): unknown {
@@ -154,3 +204,4 @@ function assertNoCanonicalHttpRef(value: unknown): void {
     assertNoCanonicalHttpRef(child);
   }
 }
+

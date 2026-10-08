@@ -20,6 +20,7 @@ const queryContracts = {
   syncPullQuery: { sessionId: 'string', cursor: 'string', limit: 'integer' },
   syncSnapshotQuery: { sessionId: 'string', pageCursor: 'string', limit: 'integer' },
 } as const satisfies Readonly<Record<string, Readonly<Record<string, QueryValueKind>>>>;
+const forbiddenQueryNames = new Set(['__proto__', 'constructor', 'prototype']);
 
 export type QueryContractName = keyof typeof queryContracts;
 
@@ -51,7 +52,9 @@ export function parseProtocolQuery(
 ): QueryParseResult {
   const contract = queryContracts[contractName];
   const errors: string[] = [];
-  const value: Record<string, unknown> = {};
+  // A null-prototype record prevents a numeric/unknown `__proto__` parameter
+  // from changing the accumulator or confusing the closed contract check.
+  const value: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
 
   if (parameters.size > QUERY_PARSE_LIMITS.maxParameters) {
     return { valid: false, code: 'invalid_query', errors: Object.freeze(['Query contains too many parameters']) };
@@ -62,6 +65,10 @@ export function parseProtocolQuery(
     if (errors.length >= QUERY_PARSE_LIMITS.maxErrors) break;
     if (seen.has(name)) continue;
     seen.add(name);
+    if (forbiddenQueryNames.has(name)) {
+      errors.push(`Unknown query parameter: ${name}`);
+      continue;
+    }
     const kind = contract[name as keyof typeof contract] as QueryValueKind | undefined;
     if (kind === undefined) {
       errors.push(`Unknown query parameter: ${name}`);
@@ -104,3 +111,4 @@ export function parseProtocolQuery(
     ? { valid: true, value: Object.freeze(value) }
     : { valid: false, code: 'invalid_query', errors: Object.freeze(errors) };
 }
+

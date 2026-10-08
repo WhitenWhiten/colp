@@ -14,10 +14,13 @@ export interface PublicationPublicProjectionLimits {
   readonly maxDepth?: number;
   /** Maximum number of visited JSON values. Defaults to 100_000. */
   readonly maxNodes?: number;
+  /** Maximum UTF-8 bytes emitted by the materialized public wire value. Defaults to 64 MiB. */
+  readonly maxBytes?: number;
 }
 
 /** Strings larger than this are rejected before stringify/parse materialization. */
 const MAX_PUBLIC_STRING_BYTES = 8 * 1024 * 1024;
+const DEFAULT_MAX_PUBLIC_WIRE_BYTES = 64 * 1024 * 1024;
 
 export interface PublicationPublicProjectionOptions {
   /** Exact HTTPS extension namespaces audited as safe for public output. */
@@ -110,8 +113,10 @@ export function projectPublicationPublicWire(
   input: unknown,
   options?: PublicationPublicWireOptions,
 ): PublicationPublicValue {
+  const resolved = resolvePublicationPublicProjectionOptions(options);
   return materializePublicationPublicWire(
-    projectPublicationPublicValue(input, resolvePublicationPublicProjectionOptions(options)),
+    projectPublicationPublicValue(input, resolved),
+    resolved.limits,
   );
 }
 
@@ -125,8 +130,27 @@ export function projectPublicationPublicWire(
  */
 export function materializePublicationPublicWire(
   projected: PublicationPublicValue,
+  limits: PublicationPublicProjectionLimits = {},
 ): PublicationPublicValue {
-  const materialized: unknown = JSON.parse(JSON.stringify(projected));
+  const maxBytes = limits.maxBytes ?? DEFAULT_MAX_PUBLIC_WIRE_BYTES;
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > DEFAULT_MAX_PUBLIC_WIRE_BYTES) {
+    throw new PublicationPublicProjectionError('invalid_policy');
+  }
+  let encoded: string;
+  try {
+    encoded = JSON.stringify(projected);
+  } catch {
+    throw new PublicationPublicProjectionError('malformed_input');
+  }
+  if (encoded === undefined || Buffer.byteLength(encoded, 'utf8') > maxBytes) {
+    throw new PublicationPublicProjectionError('projection_limit_exceeded');
+  }
+  let materialized: unknown;
+  try {
+    materialized = JSON.parse(encoded);
+  } catch {
+    throw new PublicationPublicProjectionError('malformed_input');
+  }
   return freezeJsonValue(materialized);
 }
 
@@ -297,6 +321,10 @@ function createState(options: PublicationPublicProjectionOptions, retainRestrict
   const maxNodes = readLimit(
     limitsValue === undefined ? undefined : readOptionalPolicyDataProperty(limitsValue, 'maxNodes'),
     DEFAULT_MAX_NODES,
+  );
+  const maxBytes = readLimit(
+    limitsValue === undefined ? undefined : readOptionalPolicyDataProperty(limitsValue, 'maxBytes'),
+    DEFAULT_MAX_PUBLIC_WIRE_BYTES,
   );
   const allowedExtensions = new Set<string>();
   if (Reflect.ownKeys(namespaces).some((key) => typeof key === 'symbol'
@@ -740,3 +768,4 @@ function isPlainObject(value: unknown): value is object & Record<string, unknown
   const prototype = Object.getPrototypeOf(value) as unknown;
   return prototype === Object.prototype || prototype === null;
 }
+

@@ -19,6 +19,7 @@ import { isProxy } from 'node:util/types';
 export const DEFAULT_IMMUTABLE_JSON_MAX_DEPTH = 64;
 export const DEFAULT_IMMUTABLE_JSON_MAX_MEMBERS = 10_000;
 export const DEFAULT_IMMUTABLE_JSON_MAX_BYTES = 8 * 1024 * 1024;
+export const MAX_IMMUTABLE_JSON_MAX_BYTES = 64 * 1024 * 1024;
 
 export interface ImmutableJsonLimits {
   readonly maxDepth?: number;
@@ -102,8 +103,8 @@ export function immutableJsonSnapshot<Value>(
   const maxDepth = limits.maxDepth ?? DEFAULT_IMMUTABLE_JSON_MAX_DEPTH;
   const maxMembers = limits.maxMembers ?? DEFAULT_IMMUTABLE_JSON_MAX_MEMBERS;
   const maxBytes = limits.maxBytes ?? DEFAULT_IMMUTABLE_JSON_MAX_BYTES;
-  if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > DEFAULT_IMMUTABLE_JSON_MAX_BYTES) {
-    throw new RangeError(`${label} maxBytes must be between 1 and ${DEFAULT_IMMUTABLE_JSON_MAX_BYTES}.`);
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > MAX_IMMUTABLE_JSON_MAX_BYTES) {
+    throw new RangeError(`${label} maxBytes must be between 1 and ${MAX_IMMUTABLE_JSON_MAX_BYTES}.`);
   }
   if (!Number.isSafeInteger(maxDepth) || maxDepth < 0) {
     throw new TypeError(`${label} maxDepth must be a non-negative safe integer.`);
@@ -248,3 +249,4 @@ function reserveMembers(state: SnapshotState, count: number): void {
   }
   state.members += count;
 }
+

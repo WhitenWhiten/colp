@@ -69,12 +69,23 @@ export async function applySyncBrowserBatch<Change extends SyncBrowserBatchChang
   // This prevents an attacker-controlled batch from causing a large partial
   // prefix of writes or an unbounded Promise.all fanout after validation.
   const affectedFolders = new Set<FolderId>();
+  const validatedChanges: Change[] = [];
   for (const change of changes) {
     if (change === null || typeof change !== 'object') throw new TypeError('Browser batch change must be an object.');
-    if (!('folderId' in change) || !hasFolderId(change.folderId)) {
+    const folderDescriptor = Object.getOwnPropertyDescriptor(change, 'folderId');
+    if (folderDescriptor === undefined || !('value' in folderDescriptor) || !folderDescriptor.enumerable
+      || !hasFolderId(folderDescriptor.value)) {
       throw new TypeError('Browser batch change must include a folderId.');
     }
-    const additional = change.affectedFolderIds;
+    const sourceDescriptor = Object.getOwnPropertyDescriptor(change, 'sourceFolderId');
+    if (sourceDescriptor !== undefined && (!('value' in sourceDescriptor) || !sourceDescriptor.enumerable)) {
+      throw new TypeError('Browser batch sourceFolderId must be a data property.');
+    }
+    const additionalDescriptor = Object.getOwnPropertyDescriptor(change, 'affectedFolderIds');
+    if (additionalDescriptor !== undefined && (!('value' in additionalDescriptor) || !additionalDescriptor.enumerable)) {
+      throw new TypeError('Browser batch affectedFolderIds must be a data property.');
+    }
+    const additional = additionalDescriptor?.value as readonly FolderId[] | undefined;
     if (additional !== undefined && !Array.isArray(additional)) {
       throw new TypeError('Browser batch affectedFolderIds must contain valid folder IDs.');
     }
@@ -84,17 +95,34 @@ export async function applySyncBrowserBatch<Change extends SyncBrowserBatchChang
     for (const folderId of additional ?? []) {
       if (!hasFolderId(folderId)) throw new TypeError('Browser batch affectedFolderIds must contain valid folder IDs.');
     }
-    if (change.sourceFolderId !== undefined && !hasFolderId(change.sourceFolderId)) {
+    const sourceFolderId = sourceDescriptor?.value as FolderId | undefined;
+    if (sourceFolderId !== undefined && !hasFolderId(sourceFolderId)) {
       throw new TypeError('Browser batch sourceFolderId must be a valid folder ID.');
     }
-    affectedFolders.add(change.folderId);
-    if (change.sourceFolderId !== undefined) affectedFolders.add(change.sourceFolderId);
+    affectedFolders.add(folderDescriptor.value as FolderId);
+    if (sourceFolderId !== undefined) affectedFolders.add(sourceFolderId);
     for (const folderId of additional ?? []) affectedFolders.add(folderId);
     if (affectedFolders.size > MAX_BROWSER_BATCH_FOLDERS) {
       throw new RangeError(`Browser batch must not affect more than ${MAX_BROWSER_BATCH_FOLDERS} folders.`);
     }
+
+    // Snapshot the validated change before yielding to asynchronous writes.
+    // Passing the caller-owned object lets a mutation after validation change
+    // the folder scope or payload that the driver actually persists.
+    const snapshot: Record<string, unknown> = {};
+    for (const key of Reflect.ownKeys(change)) {
+      if (typeof key !== 'string') throw new TypeError('Browser batch change must not contain symbol properties.');
+      const descriptor = Object.getOwnPropertyDescriptor(change, key);
+      if (descriptor === undefined || !descriptor.enumerable || !('value' in descriptor)) {
+        throw new TypeError('Browser batch change members must be enumerable data properties.');
+      }
+      snapshot[key] = key === 'affectedFolderIds' && Array.isArray(descriptor.value)
+        ? Object.freeze([...descriptor.value])
+        : descriptor.value;
+    }
+    validatedChanges.push(Object.freeze(snapshot) as Change);
   }
-  for (const change of changes) {
+  for (const change of validatedChanges) {
     await requirePromise(driver.write(change), 'Browser write boundary');
   }
   const folders = [...affectedFolders];
@@ -112,3 +140,4 @@ export async function applySyncBrowserBatch<Change extends SyncBrowserBatchChang
 }
 export type SyncBrowserBatchAdapter<Change extends SyncBrowserBatchChange<FolderId>, FolderId, Item> =
   SyncBrowserBatchDriver<Change, FolderId, Item>;
+
