@@ -218,3 +218,73 @@ function resourceDescriptorFromProjection(
   return Object.freeze({
     uri: entry.uri,
     name: entry.name,
+    mimeType: entry.mimeType,
+    ...(entry.description === undefined ? {} : { description: entry.description }),
+  });
+}
+
+function resourceContentFromProjection(
+  entry: Readonly<{ readonly mimeType: string }>,
+): McpApplicationResourceContents['contents'][number] {
+  const raw = entry as Readonly<Record<string, unknown>>;
+  return Object.freeze({
+    mimeType: String(raw.mimeType),
+    ...(typeof raw.uri === 'string' ? { uri: raw.uri } : {}),
+    ...(typeof raw.text === 'string' ? { text: raw.text } : {}),
+    ...(typeof raw.blob === 'string' ? { blob: raw.blob } : {}),
+  });
+}
+
+function templateDescriptorFromIdentity(
+  template: Readonly<{
+    readonly uriTemplate: string;
+    readonly name: string;
+    readonly title: string;
+    readonly mimeType: string;
+  }>,
+): McpApplicationResourceTemplateDescriptor {
+  return Object.freeze({
+    uriTemplate: template.uriTemplate,
+    name: template.name,
+    title: template.title,
+    mimeType: template.mimeType,
+  });
+}
+
+function unknownToolRejected(): McpApplicationToolResult {
+  return Object.freeze({
+    kind: 'rejected',
+    stableCode: 'unknown_tool',
+    safeMessage: 'Unknown tool.',
+    retryable: false,
+  });
+}
+
+function toTrustedReadContext(context: McpApplicationContext) {
+  return Object.freeze({
+    binding: bindingFromPrincipal(context.principal),
+    scope: context.scopes,
+    budget: context.budgets,
+    abortSignal: context.abortSignal,
+    authorization: context.authorization,
+  });
+}
+
+function bindingFromPrincipal(principal: McpApplicationContext['principal']) {
+  if (principal.kind === 'anonymous') {
+    return Object.freeze({
+      kind: 'anonymous' as const,
+      principalId: 'public' as const,
+      resourceAudience: principal.resourceAudience,
+      securityEpoch: principal.securityEpoch,
+    });
+  }
+  return Object.freeze({
+    kind: 'authenticated' as const,
+    principalId: principal.principalId,
+    clientId: principal.clientId,
+    credentialBindingId: principal.credentialBindingId,
+    resourceAudience: principal.resourceAudience,
+    securityEpoch: principal.securityEpoch,
+  });
+}
