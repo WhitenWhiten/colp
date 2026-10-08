@@ -215,8 +215,8 @@ describe(`CORE-0031 exact-version unknown top-level fields ${evidence}`, () => {
     }
     for (const [name, definition] of Object.entries(schema.$defs)) visit(definition, `#/$defs/${name}`);
 
-    expect(Object.keys(schema.$defs)).toHaveLength(186);
-    expect(closed).toHaveLength(164);
+    expect(Object.keys(schema.$defs)).toHaveLength(191);
+    expect(closed).toHaveLength(169);
     expect(open).toHaveLength(13);
     expect(open.sort()).toEqual(Object.keys(reviewedOpenObjects).sort());
     expect(Object.keys(reviewedOpenObjects)).not.toContain('#/$defs/extensions/additionalProperties');

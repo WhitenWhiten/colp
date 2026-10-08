@@ -253,7 +253,8 @@ describe(`CORE-0044 URL hash MUST NOT become any object ID ${evidence}`, () => {
     // External/native/principal/JSON-RPC identifiers have separate contracts; all protocol
     // object IDs and references transitively use one of these audited opaqueId references.
     // CORE-0027's closed Snapshot-only Node projection repeats nine opaque ID carriers.
-    expect(opaqueIdReferencePaths).toHaveLength(200);
+    // F2 adds sixteen opaque ID references on the nodes.search, move, and delete_subtree defs.
+    expect(opaqueIdReferencePaths).toHaveLength(216);
     expect(opaqueIdReferencePaths).toEqual(expect.arrayContaining([
       '$defs/globalResourceIdentity/properties/serverUuid',
       '$defs/globalResourceIdentity/properties/id',

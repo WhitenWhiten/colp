@@ -6,6 +6,7 @@ export default {
   mutate: [
     'src/mcp/write-tools.ts',
     'src/mcp/write-tool-options.ts',
+    'src/mcp/node-tools.ts',
     'src/mcp/risk-aggregation.ts',
     'src/mcp/secret-redaction.ts',
     'src/mcp/shared/secret-markers.ts',

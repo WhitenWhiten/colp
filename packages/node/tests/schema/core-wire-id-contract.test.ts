@@ -179,7 +179,7 @@ describe(`CORE-0015 complete schema wiring ${evidence}`, () => {
   it('audits every property, item, nullable branch, conditional branch, and map reference', () => {
     const audit = auditWireIdSchema();
 
-    expect(Object.keys(collectionProtocolSchema.$defs)).toHaveLength(186);
+    expect(Object.keys(collectionProtocolSchema.$defs)).toHaveLength(191);
     expect(collectionProtocolSchema.$defs.globalResourceType.enum).toHaveLength(7);
     expect(collectionProtocolSchema.$defs.globalResourceIdentity.required).toEqual([
       'serverUuid',
@@ -192,42 +192,42 @@ describe(`CORE-0015 complete schema wiring ${evidence}`, () => {
       { $ref: '#/$defs/canonicalResourceUri' },
     ]);
     // CORE-0027 adds the reviewed Snapshot-only Node projection's nine ID references.
-    expect(audit.referencePaths).toHaveLength(200);
+    expect(audit.referencePaths).toHaveLength(216);
     expect(audit.referencesBySlot).toEqual({
       0: 1,
       ackedCursor: 1,
       acknowledgedCursor: 1,
-      afterId: 3,
+      afterId: 4,
       baseChildrenRevision: 1,
       baseConflictRevision: 1,
-      baseRevision: 18,
+      baseRevision: 20,
       baseRevisions: 1,
-      baseSourceParentRevision: 1,
-      baseTargetParentRevision: 1,
+      baseSourceParentRevision: 2,
+      baseTargetParentRevision: 2,
       batchId: 3,
-      beforeId: 3,
+      beforeId: 4,
       browserProfileId: 1,
       childIds: 1,
-      collectionId: 25,
+      collectionId: 29,
       collectionRevision: 1,
       collections: 2,
       conflictId: 2,
       currentRevision: 1,
-      cursor: 9,
+      cursor: 11,
       deleteCursor: 1,
       deleteRevision: 2,
       dependencies: 1,
       eventCursor: 1,
       fromNodeId: 2,
       generation: 2,
-      id: 16,
+      id: 17,
       incomingOpId: 1,
       lastCursor: 1,
       lastRevision: 1,
       leaseId: 1,
-      newParentId: 2,
+      newParentId: 3,
       nextCursor: 9,
-      nodeId: 2,
+      nodeId: 3,
       opId: 2,
       operationId: 2,
       pageCursor: 2,
@@ -248,7 +248,7 @@ describe(`CORE-0015 complete schema wiring ${evidence}`, () => {
       sourceNodeIds: 1,
       sourceParentRevision: 1,
       syncCursor: 1,
-      targetId: 8,
+      targetId: 9,
       targetNodeId: 5,
       targetParentRevision: 1,
       toNodeId: 2,

@@ -98,6 +98,7 @@ export type ChangePlan = {
   requiresApproval: boolean;
   approvalMethod?: string;
   approvalUri?: HttpUrl;
+  approvedBy?: 'user' | 'policy';
   summary: string;
   impact: ChangePlanImpact;
   requiredScopes: ScopeName[];
@@ -376,6 +377,11 @@ export interface ColpContracts {
   nodeMoveRequest: MoveOperationPayload;
   nodeMoveResult: NodeMoveResult;
   nodeVisibility: NodeVisibility;
+  nodesDeleteSubtreeInput: NodesDeleteSubtreeInput;
+  nodesMoveInput: NodesMoveInput;
+  nodesSearchHit: NodesSearchHit;
+  nodesSearchInput: NodesSearchInput;
+  nodesSearchResult: NodesSearchResult;
   opaqueId: OpaqueId;
   operation: Operation;
   operationResult: OperationResult;
@@ -1290,6 +1296,37 @@ export interface NodeMoveResult {
   targetParentRevision: OpaqueId;
   position: OrderKey;
   warnings: Warning[];
+}
+export interface NodesDeleteSubtreeInput {
+  collectionId: OpaqueId;
+  targetId: OpaqueId;
+  baseRevision: OpaqueId;
+}
+export interface NodesMoveInput {
+  collectionId: OpaqueId;
+  nodeId: OpaqueId;
+  baseRevision: OpaqueId;
+  newParentId: OpaqueId;
+  afterId?: null | OpaqueId;
+  beforeId?: null | OpaqueId;
+  baseSourceParentRevision: OpaqueId;
+  baseTargetParentRevision: OpaqueId;
+}
+export interface NodesSearchHit {
+  id: OpaqueId;
+  collectionId: OpaqueId;
+  folderPath: string;
+  linkStatus: null | ('pending' | 'healthy' | 'redirect' | 'broken');
+}
+export interface NodesSearchInput {
+  query: string;
+  collectionId?: OpaqueId;
+  cursor?: OpaqueId;
+  limit?: number;
+}
+export interface NodesSearchResult {
+  nodes: NodesSearchHit[];
+  cursor: null | OpaqueId;
 }
 export interface Problem {
   type: AbsoluteUri;

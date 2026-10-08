@@ -1,7 +1,7 @@
 {
   "protocolVersion": "0.1",
   "packageVersion": "0.1.0",
-  "requirementsDigest": "sha256:bded8bcb9dbb0dfae8cc799867a0d44d68f1cd722b0fd23cf0bdcbd610a0be18",
+  "requirementsDigest": "sha256:a130541d0d530f76856a68ffa5abd7ad78e157e6e1a13ee8071b096cab195002",
   "requirements": [
     {
       "id": "CORE-0001",
@@ -2276,6 +2276,47 @@
       ],
       "tests": [
         "mcp.legacy-semantics-rejected"
+      ]
+    },
+    {
+      "id": "MCP-0025",
+      "level": "MAY",
+      "profile": "mcp-read",
+      "source": "docs/05-mcp-profile.md#colp-section-10",
+      "requirement": "A server MAY expose `nodes.search`. The tool has risk none and scope `nodes:read`. Its input is `query` plus optional `collectionId`, `cursor`, and `limit`.",
+      "implementation": [
+        "mcp"
+      ],
+      "tests": [
+        "mcp.nodes-search"
+      ]
+    },
+    {
+      "id": "MCP-0026",
+      "level": "MUST_NOT",
+      "profile": "mcp-write",
+      "source": "docs/05-mcp-profile.md#colp-section-13-2",
+      "requirement": "Approval MAY be granted by an owner-configured policy recorded as `approvedBy: \"policy\"`. Operations that expose or purge data MUST NOT be policy-approved. Expose means `set_visibility` to `public` or `unlisted`. Purge means emptying trash, purging tombstones, or deleting a collection.",
+      "implementation": [
+        "mcp",
+        "security"
+      ],
+      "tests": [
+        "mcp.policy-approval"
+      ]
+    },
+    {
+      "id": "MCP-0027",
+      "level": "MUST",
+      "profile": "mcp-write",
+      "source": "docs/05-mcp-profile.md#colp-section-12",
+      "requirement": "The `nodes.delete_subtree` safety threshold MUST be host-configurable with a default of 20. Above the threshold the operation is high risk; at or below it, the operation is medium risk.",
+      "implementation": [
+        "mcp",
+        "security"
+      ],
+      "tests": [
+        "mcp.delete-subtree-threshold"
       ]
     },
     {
