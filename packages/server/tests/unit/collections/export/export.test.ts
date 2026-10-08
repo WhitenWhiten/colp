@@ -219,5 +219,7 @@ test('OpenAPI export operation is no longer pending', () => {
   assert.equal(operation['x-colp-server-pending'], undefined);
   const ok = operation.responses as { '200': { headers: { 'Content-Disposition': { required: boolean } } } };
   assert.equal(ok['200'].headers['Content-Disposition'].required, true);
-  assert.equal(document.paths['/api/v1/me/agents']?.get?.['x-colp-server-pending'], true);
+  assert.equal(document.paths['/api/v1/me/agents']?.get?.operationId, 'listMyAgents');
+  assert.equal(document.paths['/api/v1/me/agents']?.get?.['x-colp-server-pending'], undefined);
+  assert.equal(document.paths['/api/v1/me/agents/{clientId}/policy']?.get?.['x-colp-server-pending'], true);
 });

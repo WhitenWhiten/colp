@@ -506,6 +506,21 @@ export const PRODUCT_ROUTE_MANIFEST = [
     "operationId": "updateMe"
   },
   {
+    "method": "GET",
+    "path": "/api/v1/me/agents",
+    "operationId": "listMyAgents"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/agents/{id}/audit",
+    "operationId": "listAgentAudit"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/agents/{id}/revoke",
+    "operationId": "revokeAgent"
+  },
+  {
     "method": "POST",
     "path": "/api/v1/me/avatar",
     "operationId": "uploadMyAvatar"

@@ -93,6 +93,8 @@ export interface RestoreCollectionVersionInput {
   readonly collectionId: string;
   readonly versionId: string;
   readonly ifMatch: string;
+  /** Undo passes `undo`. Omitted restores record `restore`. */
+  readonly cause?: 'undo' | 'restore';
 }
 
 export type RestoreCollectionVersionResult =
@@ -191,7 +193,13 @@ export async function restoreCollectionVersion(
   const claim = await ports.receipts.claim(binding, fingerprint);
   if (claim.kind !== 'claimed') return mapClaim(claim);
 
-  const preRestoreVersionId = await capturePreRestore(ports, input.actor.principalId, collection, target);
+  const preRestoreVersionId = await capturePreRestore(
+    ports,
+    input.actor.principalId,
+    collection,
+    target,
+    input.cause,
+  );
   const equivalent = isEquivalentTree(target.treeJson, live);
   const actor = {
     principalId: input.actor.principalId,
@@ -294,6 +302,7 @@ async function capturePreRestore(
   accountId: string,
   collection: CollectionVersionLockedCollection,
   target: CollectionVersionRecord,
+  cause?: 'undo' | 'restore',
 ): Promise<string | null> {
   const existing = await ports.versions.getByCollectionAndRevision(
     accountId,
@@ -306,7 +315,7 @@ async function capturePreRestore(
       accountId,
       collection,
       kind: 'pre_restore',
-      cause: 'restore',
+      cause: cause ?? 'restore',
       label: 'Before restore',
       restoringVersionId: target.versionId,
     });

@@ -8,7 +8,7 @@ import type {
   WriteApprovalDecision,
   WriteApprovalDecisionInput,
 } from '../../modules/mcp/index.js';
-import { WriteApprovalApiError } from '../../modules/mcp/index.js';
+import { AgentPlanUndoError, WriteApprovalApiError } from '../../modules/mcp/index.js';
 import type { McpRateLimiter } from '../../infrastructure/rate-limit/index.js';
 import {
   readKnownCommandId,
@@ -26,7 +26,10 @@ import { productErrorStatus } from '../product-codes.js';
 const LIST = '/api/v1/mcp/approvals';
 const ITEM = '/api/v1/mcp/approvals/:planId';
 const DECISION = '/api/v1/mcp/approvals/:planId/decision';
+const UNDO = '/api/v1/mcp/approvals/:planId/undo';
+const POLICY = '/api/v1/me/agents/:clientId/policy';
 const PLAN_ID_PATTERN = /^[A-Za-z0-9._~-]{1,128}$/u;
+const CLIENT_ID_PATTERN = /^[A-Za-z0-9._~-]{1,256}$/u;
 const MAX_LIST_LIMIT = 100;
 
 export interface McpWriteApprovalRoutesDependencies {
@@ -175,6 +178,96 @@ export function registerMcpWriteApprovalRoutes(
       throw mapWriteApprovalError(error);
     }
   });
+
+  app.get(POLICY, {
+    config: {
+      productTransport: {
+        ...privateTransport,
+        allowedQuery: [],
+        acceptedMediaTypes: [],
+        bodyLimitBytes: 1,
+      },
+    },
+    onRequest: exposure(deps),
+  }, async (request, reply) => {
+    await actor(request, deps, false, POLICY);
+    const clientId = readClientId(request);
+    const api = policyApi(deps);
+    if (api.getAgentPolicy === undefined) throw notFound();
+    try {
+      const view = await withCancellation(request, deps.timeoutMs, () => api.getAgentPolicy!(clientId));
+      return reply.code(200).type('application/json; charset=utf-8').send(view);
+    } catch (error) {
+      throw mapWriteApprovalError(error);
+    }
+  });
+
+  app.put(POLICY, {
+    config: {
+      productTransport: {
+        ...privateTransport,
+        allowedQuery: [],
+        acceptedMediaTypes: ['application/json'],
+        bodyLimitBytes: 1_024,
+      },
+    },
+    onRequest: exposure(deps),
+  }, async (request, reply) => {
+    const { account, session } = await requireBrowserSessionActor(
+      request, deps.identityUnitOfWork, { touch: true },
+    );
+    requireAllowedOrigin(request, deps.allowedOrigins);
+    requireCsrfHeader(request, session.csrfTokenHash, deps.csrfMatches ?? secretsMatch);
+    await consumeApproval(deps, `${POLICY}:principal:${account.id}`);
+    const clientId = readClientId(request);
+    const policy = parsePolicyBody(request.body);
+    const api = policyApi(deps);
+    if (api.putAgentPolicy === undefined) throw notFound();
+    try {
+      const view = await withCancellation(request, deps.timeoutMs, () =>
+        api.putAgentPolicy!(clientId, policy));
+      return reply.code(200).type('application/json; charset=utf-8').send(view);
+    } catch (error) {
+      throw mapWriteApprovalError(error);
+    }
+  });
+
+  app.post(UNDO, {
+    config: {
+      productTransport: {
+        ...privateTransport,
+        allowedQuery: ['force'],
+        acceptedMediaTypes: ['application/json'],
+        bodyLimitBytes: 1_024,
+      },
+    },
+    onRequest: exposure(deps),
+  }, async (request, reply) => {
+    const { account, session } = await requireBrowserSessionActor(
+      request, deps.identityUnitOfWork, { touch: true },
+    );
+    requireAllowedOrigin(request, deps.allowedOrigins);
+    requireCsrfHeader(request, session.csrfTokenHash, deps.csrfMatches ?? secretsMatch);
+    await consumeApproval(deps, `${UNDO}:principal:${account.id}`);
+    const planId = readPlanId(request);
+    const commandId = readKnownCommandId(request);
+    const force = parseForce(request.query as Readonly<Record<string, string>>);
+    parseEmptyUndoBody(request.body);
+    const api = policyApi(deps);
+    if (api.undo === undefined) throw notFound();
+    try {
+      const result = await withCancellation(request, deps.timeoutMs, () => api.undo!({
+        accountId: account.id,
+        subjectId: account.subjectId,
+        planId,
+        force,
+        commandId,
+      }));
+      return reply.code(200).type('application/json; charset=utf-8').send(result);
+    } catch (error) {
+      throw mapWriteApprovalError(error);
+    }
+  });
 }
 
 function exposure(deps: McpWriteApprovalRoutesDependencies) {
@@ -274,6 +367,7 @@ async function withCancellation<Result>(
 
 export function mapWriteApprovalError(error: unknown): ProductHttpError {
   if (error instanceof ProductHttpError) return error;
+  if (error instanceof AgentPlanUndoError) return mapUndoError(error);
   if (error instanceof WriteApprovalApiError) {
     switch (error.code) {
       case 'plan_not_found':
@@ -321,6 +415,86 @@ export function mapWriteApprovalError(error: unknown): ProductHttpError {
     statusCode: productErrorStatus('internal_error'),
     code: 'internal_error',
     message: 'The approval request could not be completed.',
+    recovery: 'same_request',
+  });
+}
+
+interface AgentPolicyApprovalMethods {
+  getAgentPolicy?(clientId: string): Promise<{ readonly clientId: string; readonly policy: 'manual' | 'trusted' }>;
+  putAgentPolicy?(
+    clientId: string,
+    policy: 'manual' | 'trusted',
+  ): Promise<{ readonly clientId: string; readonly policy: 'manual' | 'trusted' }>;
+  undo?(input: Readonly<{
+    accountId: string;
+    subjectId: string;
+    planId: string;
+    force: boolean;
+    commandId: string;
+  }>): Promise<unknown>;
+}
+
+function policyApi(deps: McpWriteApprovalRoutesDependencies): AgentPolicyApprovalMethods {
+  return deps.api as Phase4bMcpWriteApprovalApi & AgentPolicyApprovalMethods;
+}
+
+function readClientId(request: FastifyRequest): string {
+  const value = (request.params as { clientId?: string }).clientId;
+  if (typeof value !== 'string' || !CLIENT_ID_PATTERN.test(value)) throw invalidRequest();
+  return value;
+}
+
+function parsePolicyBody(body: unknown): 'manual' | 'trusted' {
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) throw invalidDocument();
+  const record = body as Readonly<Record<string, unknown>>;
+  if (Object.keys(record).join('|') !== 'policy') throw invalidDocument();
+  if (record.policy !== 'manual' && record.policy !== 'trusted') throw invalidDocument();
+  return record.policy;
+}
+
+function parseForce(query: Readonly<Record<string, string>>): boolean {
+  const raw = query.force;
+  if (raw === undefined || raw === 'false') return false;
+  if (raw === 'true') return true;
+  throw invalidRequest();
+}
+
+function parseEmptyUndoBody(body: unknown): void {
+  if (body === undefined || body === null) return;
+  if (typeof body !== 'object' || Array.isArray(body)) throw invalidDocument();
+  if (Object.keys(body as Readonly<Record<string, unknown>>).length !== 0) throw invalidDocument();
+}
+
+async function consumeApproval(
+  deps: McpWriteApprovalRoutesDependencies,
+  facts: string,
+): Promise<void> {
+  const outcome = await deps.rateLimiter.consume({ policy: 'approval', facts });
+  if (outcome.kind === 'denied') throw rateLimited(outcome.decision.retryAfterSeconds);
+  if (outcome.kind === 'failed') throw unavailable();
+}
+
+function mapUndoError(error: AgentPlanUndoError): ProductHttpError {
+  if (error.code === 'not_found') {
+    return new ProductHttpError({
+      statusCode: productErrorStatus('resource_not_found'),
+      code: 'resource_not_found',
+      message: error.message,
+      recovery: 'none',
+    });
+  }
+  if (error.code === 'newer_version' || error.code === 'sync_tombstone_conflict') {
+    return new ProductHttpError({
+      statusCode: productErrorStatus('mutation_conflict'),
+      code: 'mutation_conflict',
+      message: error.message,
+      recovery: 'refresh_and_retry',
+    });
+  }
+  return new ProductHttpError({
+    statusCode: productErrorStatus('internal_error'),
+    code: 'internal_error',
+    message: error.message,
     recovery: 'same_request',
   });
 }

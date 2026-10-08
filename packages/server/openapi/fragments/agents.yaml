@@ -1,0 +1,240 @@
+# Agent list, audit, and revoke.
+# Merged into openapi/product-v1.yaml. C3 and A7 import this fragment.
+# Policy read/write stays on /api/v1/me/agents/{clientId}/policy (E4).
+openapi: 3.1.0
+info:
+  title: Known agent directory fragment
+  version: 1.91.0
+  description: >
+    OAuth clients and account-credential API keys for the current account,
+    their recent MCP plans and direct writes, and revocation.
+paths:
+  /api/v1/me/agents:
+    get:
+      operationId: listMyAgents
+      summary: List OAuth clients and API keys for the current account
+      description: >
+        Returns OAuth clients from the authorization issuer tables and API keys
+        from account credentials. Each item includes name, kind, scopes, created
+        time, last seen time, and policy. Policy is `manual` or `trusted` from
+        `agent_policies`; a missing policy row means `manual`.
+      tags:
+        - Agents
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Agents visible to the current account.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentListResponse'
+        '401':
+          description: Authentication is required.
+  /api/v1/me/agents/{id}/audit:
+    get:
+      operationId: listAgentAudit
+      summary: List recent plans and direct writes for one agent
+      description: >
+        Recent plans and direct writes from the existing MCP audit records for
+        this OAuth client or API key. Each record includes `versionId` when one
+        exists, and `outcome` for the plan status or direct-write result.
+      tags:
+        - Agents
+      security:
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AgentId'
+        - $ref: '#/components/parameters/AgentAuditLimit'
+      responses:
+        '200':
+          description: Recent audit records for the agent.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentAuditResponse'
+        '401':
+          description: Authentication is required.
+        '404':
+          description: The agent was not found for this account.
+  /api/v1/me/agents/{id}/revoke:
+    post:
+      operationId: revokeAgent
+      summary: Revoke an OAuth client or API key and cancel its pending plans
+      description: >
+        Revokes the OAuth client through the authorization revocation store, or
+        revokes the API key, and cancels that client's pending plans. Requires
+        the browser session Origin and CSRF token.
+      tags:
+        - Agents
+      security:
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AgentId'
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CsrfToken'
+      responses:
+        '200':
+          description: The agent was revoked and its pending plans were cancelled.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentRevokeResponse'
+        '401':
+          description: Authentication is required.
+        '403':
+          description: Origin or CSRF validation failed.
+        '404':
+          description: The agent was not found for this account.
+components:
+  parameters:
+    AgentId:
+      name: id
+      in: path
+      required: true
+      description: OAuth client id or account-credential API key client id.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 256
+    AgentAuditLimit:
+      name: limit
+      in: query
+      required: false
+      description: Maximum number of audit records to return.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+    Origin:
+      name: Origin
+      in: header
+      required: true
+      schema:
+        type: string
+    CsrfToken:
+      name: X-CSRF-Token
+      in: header
+      required: true
+      schema:
+        type: string
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: __Host-known_session
+  schemas:
+    AgentKind:
+      type: string
+      description: Whether the agent is an OAuth client or an account-credential API key.
+      enum:
+        - oauth_client
+        - api_key
+    AgentPolicy:
+      type: string
+      description: >
+        Approval policy from `agent_policies`. A missing row is reported as `manual`.
+      enum:
+        - manual
+        - trusted
+    AgentSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - name
+        - kind
+        - scopes
+        - createdAt
+        - lastSeenAt
+        - policy
+      properties:
+        id:
+          type: string
+          minLength: 1
+        name:
+          type: string
+        kind:
+          $ref: '#/components/schemas/AgentKind'
+        scopes:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+        lastSeenAt:
+          type: [string, 'null']
+          format: date-time
+          description: Last time the agent was seen, or null when it has never been seen.
+        policy:
+          $ref: '#/components/schemas/AgentPolicy'
+    AgentListResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - agents
+      properties:
+        agents:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentSummary'
+    AgentAuditKind:
+      type: string
+      description: MCP audit record kind.
+      enum:
+        - plan
+        - direct_write
+    AgentAuditRecord:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - kind
+        - createdAt
+        - outcome
+        - versionId
+      properties:
+        id:
+          type: string
+          minLength: 1
+        kind:
+          $ref: '#/components/schemas/AgentAuditKind'
+        createdAt:
+          type: string
+          format: date-time
+        summary:
+          type: string
+        outcome:
+          type: string
+          description: Plan status or direct-write outcome.
+        versionId:
+          type: [string, 'null']
+          description: Collection version id when the audit record has one.
+    AgentAuditResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - records
+      properties:
+        records:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentAuditRecord'
+    AgentRevokeResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - revoked
+        - cancelledPlanCount
+      properties:
+        id:
+          type: string
+          minLength: 1
+        revoked:
+          type: boolean
+        cancelledPlanCount:
+          type: integer
+          minimum: 0

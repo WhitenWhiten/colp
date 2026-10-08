@@ -518,6 +518,20 @@ function safeOperationPreviews(plan: McpStoredPlan): readonly WriteApprovalOpera
         nodeSummary: null,
       });
     }
+    if (type === 'move_node') {
+      return Object.freeze({
+        type,
+        collectionId,
+        nodeId: typeof operation.nodeId === 'string' ? operation.nodeId : null,
+        visibility: null,
+        nodeSummary: Object.freeze({
+          kind: null,
+          title: null,
+          url: null,
+          visibility: null,
+        }),
+      });
+    }
     if (type === 'create_node') {
       const payload = asRecord(operation.payload);
       const node = asRecord(payload.node);

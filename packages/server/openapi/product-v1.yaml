@@ -259,6 +259,14 @@ tags:
     description: Private server-authoritative Replica and Conflict management.
   - name: WriteApproval
     description: Private current-account MCP Write Plan and Approval decisions.
+  - name: Agents
+    description: >-
+      Private current-account OAuth clients and account-credential API keys.
+      Lists name, kind, scopes, created time, last seen time, and approval
+      policy (`manual` or `trusted`; a missing `agent_policies` row is
+      `manual`). Audit reads recent MCP plans and direct writes. Revoke
+      disconnects one agent and cancels its pending plans. Policy read/write
+      remains GET/PUT /api/v1/me/agents/{clientId}/policy.
   - name: Attachments
     description: >-
       Owner-private Attachment product surface (Phase 4A). Physical keys and
@@ -353,6 +361,88 @@ tags:
       deleted targets share the same 404 resource_not_found.
 
 paths:
+  /api/v1/me/agents:
+    get:
+      tags: [ Agents ]
+      operationId: listMyAgents
+      summary: List OAuth clients and API keys for the current account
+      description: >-
+        Returns OAuth clients from the authorization issuer tables and API keys
+        from account credentials. Each item includes name, kind, scopes, created
+        time, last seen time, and policy. Policy is manual or trusted from
+        agent_policies; a missing policy row means manual.
+      security: [ { cookieAuth: [] } ]
+      responses:
+        '200':
+          description: Agents visible to the current account.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/PrivateNoStore' }
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AgentListResponse' }
+        '401': { $ref: '#/components/responses/AuthenticationRequired' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/v1/me/agents/{id}/audit:
+    get:
+      tags: [ Agents ]
+      operationId: listAgentAudit
+      summary: List recent plans and direct writes for one agent
+      description: >-
+        Recent plans and direct writes from the existing MCP audit records for
+        this OAuth client or API key. Each record includes versionId when one
+        exists, and outcome for the plan status or direct-write result.
+      security: [ { cookieAuth: [] } ]
+      parameters:
+        - $ref: '#/components/parameters/AgentId'
+        - $ref: '#/components/parameters/AgentAuditLimit'
+      responses:
+        '200':
+          description: Recent audit records for the agent.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/PrivateNoStore' }
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AgentAuditResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/AuthenticationRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/v1/me/agents/{id}/revoke:
+    post:
+      tags: [ Agents ]
+      operationId: revokeAgent
+      summary: Revoke an OAuth client or API key and cancel its pending plans
+      description: >-
+        Revokes the OAuth client through the authorization revocation store, or
+        revokes the API key, and cancels that client's pending plans. Requires
+        the browser session Origin and CSRF token. No request body.
+      security: [ { cookieAuth: [] } ]
+      parameters:
+        - $ref: '#/components/parameters/AgentId'
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CsrfToken'
+      responses:
+        '200':
+          description: The agent was revoked and its pending plans were cancelled.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/PrivateNoStore' }
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AgentRevokeResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/AuthenticationRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/v1/me/classification-provider-profiles:
     get:
       tags:
@@ -12548,6 +12638,26 @@ components:
         minimum: 1
         maximum: 100
         default: 100
+    AgentId:
+      name: id
+      in: path
+      required: true
+      description: OAuth client id or account-credential API key client id.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 256
+        pattern: '^[A-Za-z0-9._~-]+$'
+    AgentAuditLimit:
+      name: limit
+      in: query
+      required: false
+      description: Maximum number of agent audit records to return.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
     AnnotationId:
       name: annotationId
       in: path
@@ -15531,6 +15641,79 @@ components:
           maxItems: 100
           items: { $ref: '#/components/schemas/WriteApprovalView' }
         nextCursor: { type: 'null' }
+    AgentKind:
+      type: string
+      description: Whether the agent is an OAuth client or an account-credential API key.
+      enum: [ oauth_client, api_key ]
+    AgentPolicy:
+      type: string
+      description: Approval policy from agent_policies. A missing row is reported as manual.
+      enum: [ manual, trusted ]
+    AgentSummary:
+      type: object
+      additionalProperties: false
+      required: [ id, name, kind, scopes, createdAt, lastSeenAt, policy ]
+      properties:
+        id: { type: string, minLength: 1, maxLength: 256 }
+        name: { type: string, maxLength: 256 }
+        kind: { $ref: '#/components/schemas/AgentKind' }
+        scopes:
+          type: array
+          maxItems: 64
+          items: { type: string, minLength: 1, maxLength: 128 }
+        createdAt: { type: string, format: date-time }
+        lastSeenAt:
+          type: [ string, 'null' ]
+          format: date-time
+          description: Last time the agent was seen, or null when it has never been seen.
+        policy: { $ref: '#/components/schemas/AgentPolicy' }
+    AgentListResponse:
+      type: object
+      additionalProperties: false
+      required: [ agents ]
+      properties:
+        agents:
+          type: array
+          maxItems: 200
+          items: { $ref: '#/components/schemas/AgentSummary' }
+    AgentAuditKind:
+      type: string
+      description: MCP audit record kind.
+      enum: [ plan, direct_write ]
+    AgentAuditRecord:
+      type: object
+      additionalProperties: false
+      required: [ id, kind, createdAt, outcome, versionId ]
+      properties:
+        id: { type: string, minLength: 1, maxLength: 256 }
+        kind: { $ref: '#/components/schemas/AgentAuditKind' }
+        createdAt: { type: string, format: date-time }
+        summary: { type: string, maxLength: 512 }
+        outcome:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: Plan status or direct-write outcome.
+        versionId:
+          type: [ string, 'null' ]
+          description: Collection version id when the audit record has one.
+    AgentAuditResponse:
+      type: object
+      additionalProperties: false
+      required: [ records ]
+      properties:
+        records:
+          type: array
+          maxItems: 100
+          items: { $ref: '#/components/schemas/AgentAuditRecord' }
+    AgentRevokeResponse:
+      type: object
+      additionalProperties: false
+      required: [ id, revoked, cancelledPlanCount ]
+      properties:
+        id: { type: string, minLength: 1, maxLength: 256 }
+        revoked: { type: boolean }
+        cancelledPlanCount: { type: integer, minimum: 0 }
     WriteApprovalDecisionRequest:
       type: object
       additionalProperties: false

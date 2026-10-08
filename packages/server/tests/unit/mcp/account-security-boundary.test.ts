@@ -146,6 +146,7 @@ test('production composition checks the resolved account and test mode does not'
   const memory = createInMemoryMcpOauthRevocationStore({ now: () => new Date(boundaryAt.getTime() - 3_600_000) });
   const store: McpOauthRevocationStore = {
     revoke: (target) => memory.revoke(target),
+    revokeClient: (clientId) => memory.revokeClient(clientId),
     isRevoked: (query) => memory.isRevoked(query),
     securityEpoch: () => memory.securityEpoch(),
     bumpSecurityEpoch: (value) => memory.bumpSecurityEpoch(value),

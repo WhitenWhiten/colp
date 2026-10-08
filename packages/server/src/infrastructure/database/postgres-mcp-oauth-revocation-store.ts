@@ -58,6 +58,15 @@ export function createPostgresMcpOauthRevocationStore(
       `.execute(db);
     },
 
+    async revokeClient(clientId: string): Promise<void> {
+      const clientIdDigest = digestMcpOauthRevocationField(clientId);
+      await sql`
+        INSERT INTO mcp_oauth_client_revocations (client_id_digest, revoked_at)
+        VALUES (${clientIdDigest}, current_timestamp)
+        ON CONFLICT (client_id_digest) DO NOTHING
+      `.execute(db);
+    },
+
     async isRevoked(query: McpOauthRevocationQuery): Promise<boolean> {
       const issuerDigest = digestMcpOauthRevocationField(query.issuer);
       const subjectDigest = digestMcpOauthRevocationField(query.subject);
@@ -72,13 +81,19 @@ export function createPostgresMcpOauthRevocationStore(
         readonly effective_at: Date | null;
       }>`
         SELECT
-          EXISTS (
-            SELECT 1 FROM mcp_oauth_revocations
-            WHERE issuer_digest = ${issuerDigest}
-              AND subject_digest = ${subjectDigest}
-              AND client_id_digest = ${clientIdDigest}
-              AND token_id_digest = ${tokenIdDigest}
-              AND credential_digest = ${credentialDigest}
+          (
+            EXISTS (
+              SELECT 1 FROM mcp_oauth_revocations
+              WHERE issuer_digest = ${issuerDigest}
+                AND subject_digest = ${subjectDigest}
+                AND client_id_digest = ${clientIdDigest}
+                AND token_id_digest = ${tokenIdDigest}
+                AND credential_digest = ${credentialDigest}
+            )
+            OR EXISTS (
+              SELECT 1 FROM mcp_oauth_client_revocations
+              WHERE client_id_digest = ${clientIdDigest}
+            )
           ) AS revoked,
           EXISTS (SELECT 1 FROM mcp_oauth_security_epoch WHERE id = 1) AS epoch_present,
           (SELECT effective_at FROM mcp_oauth_security_epoch WHERE id = 1) AS effective_at
