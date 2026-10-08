@@ -102,6 +102,7 @@ import {
   createVisitorHashPort,
 } from '../infrastructure/publication/index.js';
 import { createPostgresAccessPolicyFactsPort } from '../infrastructure/access-policy/index.js';
+import { collectionHidePublicExistsSql } from '../infrastructure/database/collection-control-sql.js';
 import { createWebShellCache, toPublicShellMarkdownNode } from '../infrastructure/http/index.js';
 import { createPostgresSearchAuthorityPort, createPostgresSearchCandidatePort } from '../infrastructure/search/index.js';
 import { createSearchCursorSigner, createSearchFirstPageCache, createSearchTelemetry,
@@ -147,6 +148,9 @@ export interface ApiPostgresPorts {
   readonly accessPolicyFacts: ReturnType<typeof createPostgresAccessPolicyFactsPort>;
   readonly publicationDirectoryReads: ReturnType<typeof createPostgresPublicationDirectoryReadPort>;
   readonly publicationMetadataReads: ReturnType<typeof createPostgresPublicationMetadataReadPort>;
+  readonly publicationCollectionControl: {
+    readonly collectionControl: (collectionId: string) => Promise<{ readonly hidePublic: boolean }>;
+  };
   readonly publicationSnapshotQuery: {
     readonly reads: ReturnType<typeof createPostgresPublicationSnapshotReadPort>;
     readonly annotations: ReturnType<typeof createPostgresPublicationAnnotationReadPort>;
@@ -268,6 +272,20 @@ export function createApiPostgresPorts(input: {
   const accessPolicyFacts = createPostgresAccessPolicyFactsPort(database.db);
   const publicationDirectoryReads = createPostgresPublicationDirectoryReadPort(database);
   const publicationMetadataReads = createPostgresPublicationMetadataReadPort(database);
+  // Keep the collection-level moderation gate in the production composition.
+  // The application queries intentionally accept an optional control port so
+  // small hosts can omit moderation, but the Postgres server must never do so:
+  // otherwise public metadata/snapshots can survive an active hide_public.
+  const publicationCollectionControl = Object.freeze({
+    async collectionControl(collectionId: string): Promise<{ readonly hidePublic: boolean }> {
+      const result = await database.pool.query<{ hide_public: boolean }>(
+        `select ${collectionHidePublicExistsSql('c.id')} as hide_public
+           from collections c where c.id = $1`,
+        [collectionId],
+      );
+      return Object.freeze({ hidePublic: result.rows[0]?.hide_public === true });
+    },
+  });
   const publicationSnapshotQuery = {
     reads: createPostgresPublicationSnapshotReadPort(database),
     annotations: createPostgresPublicationAnnotationReadPort(database, {
@@ -278,6 +296,7 @@ export function createApiPostgresPorts(input: {
     cursors: publicationCursorKeys,
     origin: config.publication.origin,
     sharedExposure: createPostgresSharedExposureFactsPort(database),
+    collectionControl: publicationCollectionControl,
   };
   const ownedCollectionsQueryPorts = {
     reads: createPostgresOwnedCollectionsReadPort(database.db),
@@ -325,6 +344,7 @@ export function createApiPostgresPorts(input: {
     accessPolicyFacts,
     publicationDirectoryReads,
     publicationMetadataReads,
+    publicationCollectionControl,
     publicationSnapshotQuery,
     ownedCollectionsQueryPorts,
     sharedCollectionsQueryPorts,
@@ -395,6 +415,7 @@ export function createApiPostgresAppDependencies(input: {
     publicationMetadataQuery: {
       reads: ports.publicationMetadataReads,
       origin: config.publication.origin,
+      collectionControl: ports.publicationCollectionControl,
     },
     publicationSitemapQuery: createPostgresPublicationSitemapReadPort(database),
     profileSitemapQuery: composeProfileSitemapQuery({

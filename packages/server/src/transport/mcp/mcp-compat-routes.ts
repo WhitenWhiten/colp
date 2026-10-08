@@ -121,9 +121,9 @@ export function registerMcpCompatRoutes(
     const auth = mcpCompatAuthFromAuthorizationPresent(
       typeof request.headers.authorization === 'string' && request.headers.authorization.length > 0,
     );
-    const methodFamily = classifyMcpCompatMethodFamily(request.body);
-    const handshake = handshakeRecord(request.body);
-    const handle = operations.beginRequest({ controller });
+    let methodFamily: Phase4bMcpCompatRequestFinish['methodFamily'] = 'other';
+    let handshake: Phase4bMcpCompatRequestFinish['handshake'];
+    let handle: Phase4bMcpCompatOperationHandle | undefined;
     const observer = createMcpCompatExecutionObserver();
     let release = (): void => {};
     let hijacked = false;
@@ -146,6 +146,12 @@ export function registerMcpCompatRoutes(
         trustedHost,
       );
       release = admitted.release;
+      // Parse classification and start lifecycle accounting only after the
+      // connection/rate-limit admission has succeeded. Rejected requests must
+      // not spend body-derived metric work or occupy an operation slot first.
+      methodFamily = classifyMcpCompatMethodFamily(request.body);
+      handshake = handshakeRecord(request.body);
+      handle = operations.beginRequest({ controller });
       applyMcpSecurityHeaders(reply, String(request.id), admitted.allowedOrigin);
       const dispatched = await dispatchMcpCompatLegacyPost({
         request,
@@ -174,12 +180,14 @@ export function registerMcpCompatRoutes(
       return sendMcpAdmissionError(request, reply, error, config);
     } finally {
       try {
-        completeCompatOperation(handle, observer, {
-          methodFamily,
-          auth,
-          handshake,
-          aborted: controller.signal.aborted,
-        });
+        if (handle !== undefined) {
+          completeCompatOperation(handle, observer, {
+            methodFamily,
+            auth,
+            handshake,
+            aborted: controller.signal.aborted,
+          });
+        }
       } finally {
         release();
         clearTimeout(timeout);

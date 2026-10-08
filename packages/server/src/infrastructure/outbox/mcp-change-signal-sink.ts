@@ -114,9 +114,11 @@ async function publishSignals(
       resourceUri: identity.collectionNode(collectionId, nodeId),
     });
   }
-  // Any committed collection/node/policy/visibility mutation can change what a
-  // principal may list, so a list invalidation hint is always safe to emit.
-  await source.publish({ type: 'resource-list-changed' });
+  // Do not broadcast a global list invalidation for every private mutation.
+  // The signal is observable by anonymous MCP listeners and would turn
+  // private edits into a cross-tenant activity side channel. Resource-specific
+  // hints above remain scoped to the committed collection/node; list callers
+  // revalidate their bounded cache TTL.
 }
 
 function readString(value: object, name: string): string | undefined {

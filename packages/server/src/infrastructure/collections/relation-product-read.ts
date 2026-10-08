@@ -26,12 +26,46 @@ export function createPostgresRelationReadPort(transaction: DatabaseTransaction,
   return {
     async loadLiveNode(input) {
       const row = await transaction.selectFrom('nodes').innerJoin('collections', 'collections.id', 'nodes.collection_id')
-        .select(['nodes.id', 'nodes.collection_id', 'nodes.visibility', 'nodes.deleted_at',
+        .select(['nodes.id', 'nodes.collection_id', 'nodes.deleted_at',
           'collections.visibility as collection_visibility', 'collections.deleted_at as collection_deleted_at'])
+        .select(sql<'private' | 'protected' | 'unlisted' | 'public'>`
+          CASE
+            WHEN nodes.visibility <> 'inherit' THEN nodes.visibility
+            WHEN EXISTS (
+              WITH RECURSIVE ancestors AS (
+                SELECT parent.id, parent.parent_id, parent.visibility, parent.deleted_at,
+                       ARRAY[parent.id]::text[] AS path
+                  FROM nodes parent
+                 WHERE parent.collection_id = nodes.collection_id AND parent.id = nodes.parent_id
+                UNION ALL
+                SELECT parent.id, parent.parent_id, parent.visibility, parent.deleted_at,
+                       child.path || parent.id::text
+                  FROM nodes parent JOIN ancestors child ON parent.id = child.parent_id
+                 WHERE parent.collection_id = nodes.collection_id AND NOT parent.id = ANY(child.path)
+              )
+              SELECT 1 FROM ancestors
+               WHERE deleted_at IS NOT NULL OR visibility = 'private'
+            ) THEN 'private'
+            WHEN EXISTS (
+              WITH RECURSIVE ancestors AS (
+                SELECT parent.id, parent.parent_id, parent.visibility, parent.deleted_at,
+                       ARRAY[parent.id]::text[] AS path
+                  FROM nodes parent
+                 WHERE parent.collection_id = nodes.collection_id AND parent.id = nodes.parent_id
+                UNION ALL
+                SELECT parent.id, parent.parent_id, parent.visibility, parent.deleted_at,
+                       child.path || parent.id::text
+                  FROM nodes parent JOIN ancestors child ON parent.id = child.parent_id
+                 WHERE parent.collection_id = nodes.collection_id AND NOT parent.id = ANY(child.path)
+              )
+              SELECT 1 FROM ancestors WHERE visibility = 'protected'
+            ) THEN 'protected'
+            ELSE collections.visibility
+          END`.as('visibility'))
         .where('nodes.id', '=', input.nodeId).where('nodes.collection_id', '=', input.collectionId).executeTakeFirst();
       if (!row || row.deleted_at || row.collection_deleted_at) return null;
       return { id: row.id, collectionId: row.collection_id,
-        visibility: row.visibility === 'inherit' ? row.collection_visibility : row.visibility };
+        visibility: row.visibility };
     },
     async loadLiveById(input) {
       const row = await transaction.selectFrom('relations').selectAll().where('collection_id', '=', input.collectionId)
@@ -44,10 +78,40 @@ export function createPostgresRelationReadPort(transaction: DatabaseTransaction,
         .innerJoin('nodes as relation_to', 'relation_to.id', 'relations.to_node_id')
         .innerJoin('collections as relation_collection', 'relation_collection.id', 'relations.collection_id')
         .selectAll('relations').select([
-          sql<'private' | 'protected' | 'unlisted' | 'public'>`CASE WHEN relation_from.visibility = 'inherit'
-            THEN relation_collection.visibility ELSE relation_from.visibility END`.as('from_visibility'),
-          sql<'private' | 'protected' | 'unlisted' | 'public'>`CASE WHEN relation_to.visibility = 'inherit'
-            THEN relation_collection.visibility ELSE relation_to.visibility END`.as('to_visibility'),
+          sql<'private' | 'protected' | 'unlisted' | 'public'>`CASE
+            WHEN relation_from.visibility <> 'inherit' THEN relation_from.visibility
+            WHEN EXISTS (WITH RECURSIVE ancestors AS (
+              SELECT p.id,p.parent_id,p.visibility,p.deleted_at,ARRAY[p.id]::text[] path
+                FROM nodes p WHERE p.collection_id = relation_from.collection_id AND p.id = relation_from.parent_id
+              UNION ALL SELECT p.id,p.parent_id,p.visibility,p.deleted_at,a.path || p.id::text
+                FROM nodes p JOIN ancestors a ON p.id = a.parent_id
+               WHERE p.collection_id = relation_from.collection_id AND NOT p.id = ANY(a.path)
+            ) SELECT 1 FROM ancestors WHERE deleted_at IS NOT NULL OR visibility = 'private') THEN 'private'
+            WHEN EXISTS (WITH RECURSIVE ancestors AS (
+              SELECT p.id,p.parent_id,p.visibility,p.deleted_at,ARRAY[p.id]::text[] path
+                FROM nodes p WHERE p.collection_id = relation_from.collection_id AND p.id = relation_from.parent_id
+              UNION ALL SELECT p.id,p.parent_id,p.visibility,p.deleted_at,a.path || p.id::text
+                FROM nodes p JOIN ancestors a ON p.id = a.parent_id
+               WHERE p.collection_id = relation_from.collection_id AND NOT p.id = ANY(a.path)
+            ) SELECT 1 FROM ancestors WHERE visibility = 'protected') THEN 'protected'
+            ELSE relation_collection.visibility END`.as('from_visibility'),
+          sql<'private' | 'protected' | 'unlisted' | 'public'>`CASE
+            WHEN relation_to.visibility <> 'inherit' THEN relation_to.visibility
+            WHEN EXISTS (WITH RECURSIVE ancestors AS (
+              SELECT p.id,p.parent_id,p.visibility,p.deleted_at,ARRAY[p.id]::text[] path
+                FROM nodes p WHERE p.collection_id = relation_to.collection_id AND p.id = relation_to.parent_id
+              UNION ALL SELECT p.id,p.parent_id,p.visibility,p.deleted_at,a.path || p.id::text
+                FROM nodes p JOIN ancestors a ON p.id = a.parent_id
+               WHERE p.collection_id = relation_to.collection_id AND NOT p.id = ANY(a.path)
+            ) SELECT 1 FROM ancestors WHERE deleted_at IS NOT NULL OR visibility = 'private') THEN 'private'
+            WHEN EXISTS (WITH RECURSIVE ancestors AS (
+              SELECT p.id,p.parent_id,p.visibility,p.deleted_at,ARRAY[p.id]::text[] path
+                FROM nodes p WHERE p.collection_id = relation_to.collection_id AND p.id = relation_to.parent_id
+              UNION ALL SELECT p.id,p.parent_id,p.visibility,p.deleted_at,a.path || p.id::text
+                FROM nodes p JOIN ancestors a ON p.id = a.parent_id
+               WHERE p.collection_id = relation_to.collection_id AND NOT p.id = ANY(a.path)
+            ) SELECT 1 FROM ancestors WHERE visibility = 'protected') THEN 'protected'
+            ELSE relation_collection.visibility END`.as('to_visibility'),
         ]).where('relations.collection_id', '=', input.collectionId)
         .where(input.direction === 'outgoing' ? 'relations.from_node_id' : 'relations.to_node_id', '=', input.nodeId)
         .where('relations.deleted_at', 'is', null).where('relation_from.deleted_at', 'is', null)
