@@ -523,39 +523,12 @@
 
 /* ──────────────────────────────────────────────
    Self-hosted edition (COLP Server). main.tsx and self-hosted-dist.mjs set
-   data-edition on <html>; the Know-N values above stay as they are for the
-   copied cloud UI. Warm paper, white working surfaces, near-black ink, and
-   one deep green accent for primary actions and the active place. Headings
-   are sans at a tool scale; the serif token resolves to the sans stack.
-   Contrast: --muted 5.6:1 and --faint 5.1:1 on --paper, --accent 6.4:1 on
-   white, --line-control 3.1:1 on white (1.4.11).
-   Component rules that need more than a token live in edition.css.
+   data-edition on <html>. Colours, lines, and shadows are Know-N's, unchanged.
+   The edition only changes type and texture: headings are sans at a tool
+   scale (the serif token resolves to the sans stack), and the paper grain
+   is off. Component rules that need more than a token live in edition.css.
    ────────────────────────────────────────────── */
 :root[data-edition='self-hosted'] {
-  --paper: rgb(246 245 241);
-  --paper-2: rgb(237 235 229);
-  --surface: rgb(255 255 255);
-  --surface-raised: rgb(255 255 255);
-  --surface-sunken: rgb(241 239 234);
-
-  --ink: rgb(25 26 23);
-  --ink-2: rgb(52 54 49);
-  --ink-3: rgb(74 76 70);
-  --muted: rgb(98 99 93);
-  --faint: rgb(104 105 99);
-  --ghost: rgb(146 147 141);
-
-  --line: rgb(25 26 23 / 0.08);
-  --line-strong: rgb(25 26 23 / 0.13);
-  --line-heavy: rgb(25 26 23 / 0.24);
-  --line-control: rgb(25 26 23 / 0.47);
-  --edge-fixed: rgb(25 26 23 / 0.14);
-
-  --accent: rgb(29 107 87);
-  --accent-ink: rgb(17 77 62);
-  --accent-soft: rgb(229 241 235);
-  --focus: rgb(29 107 87);
-
   --font-serif: var(--font-sans);
   --display-sm: clamp(1.25rem, 1.1rem + 0.5vw, 1.5rem);
   --display-md: clamp(1.5rem, 1.3rem + 0.8vw, 1.875rem);
@@ -564,14 +537,6 @@
   --tracking-serif-display: -0.02em;
 
   --page-pad-y: var(--hair-200);
-  --overlay: rgb(25 26 23 / 0.28);
-  --shadow-primary-hover: 0 2px 8px rgb(17 77 62 / 0.22);
-  --shadow-xs: 0 1px 0 rgb(25 26 23 / 0.04);
-  --shadow-sm: 0 1px 2px rgb(25 26 23 / 0.06);
-  --shadow-md: 0 4px 12px rgb(25 26 23 / 0.07), 0 1px 2px rgb(25 26 23 / 0.04);
-  --shadow-raised: 0 1px 2px rgb(25 26 23 / 0.05), 0 4px 14px rgb(25 26 23 / 0.06);
-  --shadow-float: 0 12px 32px rgb(25 26 23 / 0.14), 0 2px 6px rgb(25 26 23 / 0.05);
-  --shadow-ring: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
 
   /* Texture is decoration for the cloud marketing pages; a tool stays flat. */
   --grain: none;
@@ -584,10 +549,6 @@
 @media (prefers-contrast: more) {
   :root {
     --line-control: rgb(6 7 10 / 0.62);
-  }
-
-  :root[data-edition='self-hosted'] {
-    --line-control: rgb(25 26 23 / 0.66);
   }
 }
 }

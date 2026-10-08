@@ -59,9 +59,9 @@ who may override whom:
   (set by `main.tsx` and written into `index.html` by
   `scripts/self-hosted-dist.mjs`), so it matches a strict subset of the base
   rule it restyles: no base rule becomes dead and the cloud UI renders as
-  before. Palette, type scale, and shadows for the edition are tokens in the
-  same scoped block of `tokens.css`; `edition.css` holds only what a token
-  cannot express.
+  before. The edition keeps Know-N's colours and shadows; its type scale and
+  texture tokens are in the same scoped block of `tokens.css`, and
+  `edition.css` holds only layout and type rules a token cannot express.
 
 `scripts/check-style-drift.mjs` reports every remaining cross-layer overlap
 (a declaration that can never win because a covering rule sits in a later

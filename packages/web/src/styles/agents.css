@@ -43,14 +43,14 @@
   line-height: var(--leading-normal);
 }
 
-/* Commands read as terminal text: ink panel, paper type. */
 .agents-code {
   margin: 0;
   padding: var(--space-3) var(--space-4);
   overflow: auto;
+  border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: var(--ink);
-  color: var(--paper);
+  background: var(--surface-sunken);
+  color: var(--ink);
   font-family: var(--font-mono);
   font-size: var(--text-sm);
   line-height: var(--leading-normal);
@@ -69,7 +69,7 @@
   padding: var(--space-4);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: var(--surface-sunken);
+  background: var(--surface-raised);
 }
 
 .agents-client-head {

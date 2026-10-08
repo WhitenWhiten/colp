@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="32" height="32">
   <title>COLP Server</title>
-  <rect width="16" height="16" rx="3.5" fill="#1d6b57"/>
+  <rect width="16" height="16" rx="3.5" fill="#06070a"/>
   <path transform="translate(8 8) scale(0.78) translate(-8 -7.9)" d="M4.75 2.25h6.5a.5.5 0 0 1 .5.5v10.6a.3.3 0 0 1-.47.25L8 11.4l-3.28 2.2a.3.3 0 0 1-.47-.25V2.75a.5.5 0 0 1 .5-.5Z" fill="#ffffff"/>
 </svg>
