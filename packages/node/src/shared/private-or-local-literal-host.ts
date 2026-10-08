@@ -143,6 +143,16 @@ function isPrivateOrLocalIPv6(hextets: Uint16Array): boolean {
     return isPrivateOrLocalIPv4([a, b, c, d]);
   }
 
+  // Deprecated IPv4-compatible form ::w.x.y.z. Some URL/HTTP stacks still
+  // normalize it as an IPv4 destination, so apply the embedded IPv4 policy.
+  if (isZeroPrefix(6)) {
+    const a = hextets[6]! >> 8;
+    const b = hextets[6]! & 0xff;
+    const c = hextets[7]! >> 8;
+    const d = hextets[7]! & 0xff;
+    return isPrivateOrLocalIPv4([a, b, c, d]);
+  }
+
   // RFC 6052 / RFC 8215 NAT64 well-known prefix.  A translated address can
   // look globally routable while carrying an RFC1918, loopback, or metadata
   // IPv4 destination; classify the embedded address before allowing egress.

@@ -235,6 +235,15 @@ test('fails closed when a resolver is paired with an unpinned custom fetch', () 
   assert.throws(() => createHttpClient({ pinnedFetch: 'not-a-function' }), /pinnedFetch must be a function/u);
 });
 
+test('rejects non-finite or non-positive request and redirect budgets', () => {
+  for (const value of [0, Number.NaN, Number.POSITIVE_INFINITY]) {
+    assert.throws(() => createHttpClient({ maxRequests: value }), /maxRequests must be a positive safe integer/u);
+  }
+  for (const value of [-1, Number.NaN, Number.POSITIVE_INFINITY]) {
+    assert.throws(() => createHttpClient({ maxRedirects: value }), /maxRedirects must be a non-negative safe integer/u);
+  }
+});
+
 test('pinned transport connects to the approved address while preserving the URL Host', async () => {
   let observedHost;
   const server = createServer((request, response) => {

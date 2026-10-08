@@ -19,9 +19,9 @@
     "src/security/sender-constraint.ts": 731,
     "src/semantic/snapshot.ts": 780,
     "src/server/node-write-guard.ts": 985,
-    "src/server/publication-public-projection.ts": 727,
+    "src/server/publication-public-projection.ts": 742,
     "src/sync/pull.ts": 890,
-    "src/sync/push-transaction.ts": 1037,
+    "src/sync/push-transaction.ts": 1050,
     "src/sync/session-bootstrap.ts": 761,
     "src/sync/session.ts": 690,
     "src/sync/composition.ts": 620

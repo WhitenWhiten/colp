@@ -419,6 +419,11 @@ function projectArray(
       // Filter annotation-shaped objects nested under other carriers.
       chargeInputBudget(state); continue;
     }
+    if (isNonPublicAttachmentObject(descriptor.value)) {
+      // Attachment-shaped values can be nested under arbitrary carriers; a
+      // key-name-only check would leave private URL-bearing records exposed.
+      chargeInputBudget(state); continue;
+    }
     if (context.parentKey === 'attachments' && !isExplicitlyPublicAttachment(descriptor.value)) { chargeInputBudget(state); continue; }
     output.push(projectValue(descriptor.value, state, depth + 1, context));
   }
@@ -487,6 +492,15 @@ function isNonPublicAnnotationObject(value: unknown): boolean {
   return isPrivateAnnotation(value);
 }
 
+/** Private/protected or ambiguous attachment-shaped values under any carrier. */
+function isNonPublicAttachmentObject(value: unknown): boolean {
+  if (!isPlainObject(value)
+    || !hasOwnDataProperty(value, 'rel')
+    || !hasOwnDataProperty(value, 'url')) return false;
+  const visibility = readOptionalStringOwnDataProperty(value, 'visibility');
+  return visibility !== 'public' && visibility !== 'unlisted';
+}
+
 function hasOwnDataProperty(value: object, key: string): boolean {
   const descriptor = Object.getOwnPropertyDescriptor(value, key);
   if (descriptor === undefined) return false;
@@ -536,9 +550,7 @@ function projectObject(
   // root context.  A private annotation/attachment at that root cannot be
   // safely dropped without changing the caller's envelope, so reject it.
   if (context.parentKey === undefined) {
-    if (isNonPublicAnnotationObject(value)
-      || (hasOwnVisibility(value) && !isExplicitlyPublicAttachment(value)
-        && hasOwnDataProperty(value, 'rel') && hasOwnDataProperty(value, 'url'))) {
+    if (isNonPublicAnnotationObject(value) || isNonPublicAttachmentObject(value)) {
       throw new PublicationPublicProjectionError('malformed_input');
     }
   }
@@ -570,6 +582,7 @@ function projectObject(
     // Drop private/protected annotation-shaped values on any object key
     // (items/notes/sidecars/etc.), without key-name matching.
     if (normalized !== 'annotation' && isNonPublicAnnotationObject(descriptor.value)) { chargeInputBudget(state); continue; }
+    if (isNonPublicAttachmentObject(descriptor.value)) { chargeInputBudget(state); continue; }
     if (normalized === 'attachment' && hasOwnVisibility(descriptor.value) && !isExplicitlyPublicAttachment(descriptor.value)) { chargeInputBudget(state); continue; }
     if (shouldRemoveField(key, normalized, descriptors, context, conflictObject)) { chargeInputBudget(state); continue; }
     if (key === 'extensions') {

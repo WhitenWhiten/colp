@@ -68,6 +68,21 @@ describe('Push-owned Sequence continuity [evidence:sync.composition]', () => {
       .toEqual({ nextSequence: 3 });
   });
 
+  it('keeps durable state monotonic for reverse-ordered contiguous operations', async () => {
+    const unit = new DurableContractHandle();
+    const ordered = request(true, 2);
+    const reversed = Object.freeze({
+      ...ordered,
+      operations: Object.freeze([...ordered.operations].reverse()),
+    }) as unknown as PushTransactionRequest;
+    await expect(coordinatePushTransaction(unit, reversed, async (item) => plan('applied', item.operation.sequence)))
+      .resolves.toMatchObject({ results: [{ sequence: 2 }, { sequence: 1 }] });
+    expect(unit.backend.state.laneStates.get(JSON.stringify(['replica-1', 'collection-1'])))
+      .toEqual({ nextSequence: 3 });
+    await expect(coordinatePushTransaction(unit, one(3), async () => plan('applied', 3)))
+      .resolves.toMatchObject({ results: [{ sequence: 3, status: 'applied' }] });
+  });
+
   it('fails closed when a marked production adapter omits the lane store', async () => {
     const base = new DurableContractHandle();
     const unit: SyncUnitOfWork<Operation, OperationResult, Conflict, Audit, Outbox, TestTransaction> = {

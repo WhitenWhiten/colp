@@ -42,8 +42,8 @@ export class ResponseTooLargeError extends Error {}
 export function createHttpClient(options = {}) {
   const timeoutMs = positiveSafeInteger(options.timeoutMs ?? 10_000, 'timeoutMs');
   const maxBytes = positiveSafeInteger(options.maxBytes ?? 16 * 1024 * 1024, 'maxBytes');
-  const maxRequests = options.maxRequests ?? 200;
-  const maxRedirects = options.maxRedirects ?? 5;
+  const maxRequests = positiveSafeInteger(options.maxRequests ?? 200, 'maxRequests');
+  const maxRedirects = nonNegativeSafeInteger(options.maxRedirects ?? 5, 'maxRedirects');
   const fetchImpl = options.fetch ?? globalThis.fetch;
   const pinnedFetch = options.pinnedFetch ?? (options.fetch === undefined ? createPinnedFetch() : undefined);
   if (options.pinnedFetch !== undefined && typeof options.pinnedFetch !== 'function') {
@@ -311,6 +311,13 @@ async function readBounded(response, maxBytes) {
 function positiveSafeInteger(value, name) {
   if (!Number.isSafeInteger(value) || value < 1) {
     throw new RangeError(`${name} must be a positive safe integer.`);
+  }
+  return value;
+}
+
+function nonNegativeSafeInteger(value, name) {
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new RangeError(`${name} must be a non-negative safe integer.`);
   }
   return value;
 }

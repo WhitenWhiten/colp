@@ -631,11 +631,24 @@ async function commitOperation<
         'Production Push requires a transactional Sequence lane state store.',
       );
     }
-    const nextSequence = plan.status === 'deferred'
+    const candidateNextSequence = plan.status === 'deferred'
       ? item.operation.sequence
       : item.operation.sequence === Number.MAX_SAFE_INTEGER
         ? (() => { throw new RangeError('Push terminal Sequence cannot advance beyond safe integer range.'); })()
         : item.operation.sequence + 1;
+    // An atomic batch may contain contiguous operations in a different
+    // request order (for example, a replay followed by a new operation). The
+    // lane cursor is durable state, so preserve monotonicity when a later
+    // commit in that batch has a smaller candidate nextSequence.
+    const current = await requirePromise(
+      store.load(laneForItem(item)),
+      'Push Sequence lane-state read-before-save',
+    );
+    const currentNextSequence = current?.nextSequence ?? continuity.nextSequence;
+    if (!Number.isSafeInteger(currentNextSequence) || currentNextSequence < 1) {
+      throw new PushSequenceStateUnavailableError('Push Sequence lane state is invalid.');
+    }
+    const nextSequence = Math.max(currentNextSequence, candidateNextSequence);
     await requirePromise(
       store.save(laneForItem(item), { nextSequence }),
       'Push Sequence lane-state save',
