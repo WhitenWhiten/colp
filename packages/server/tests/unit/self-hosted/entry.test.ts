@@ -106,6 +106,10 @@ describe('self-hosted entry', () => {
         migrationCommand = command;
         return { command, results: [] };
       },
+      prepareInstance: async (database) => {
+        expect(database).toBe(migrator);
+        return { ownerMissing: true };
+      },
       startApi: async (options) => {
         seenByApi = options.database;
         expect(options.readiness).toBe(gate);
@@ -128,7 +132,13 @@ describe('self-hosted entry', () => {
       },
       registerShutdown: () => () => {},
     };
+    const warnings: string[] = [];
+    const originalWarn = app.log.warn.bind(app.log);
+    app.log.warn = ((message: unknown) => { warnings.push(String(message)); }) as typeof app.log.warn;
     const running = await startSelfHosted(deps);
+    app.log.warn = originalWarn;
+    expect(warnings.some((line) => line.includes('First run')
+      && line.includes(String(deps.env?.COLP_SETUP_TOKEN)))).toBe(true);
     expect(migrationCommand).toBe('latest');
     expect(listened).toBe(true);
     expect(seenByApi).toBe(runtime);

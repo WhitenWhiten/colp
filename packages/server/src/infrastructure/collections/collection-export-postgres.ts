@@ -5,7 +5,7 @@ import type {
   ExportCollectionSource,
   ExportNodeSource,
   ExportRelationSource,
-} from '../../modules/collections/application/export-collection.js';
+} from '../../modules/collections/index.js';
 import type { DatabaseSchema } from '../database/runtime.js';
 
 export function createPostgresCollectionExportReadPort(

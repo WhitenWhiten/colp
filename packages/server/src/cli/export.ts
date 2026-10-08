@@ -3,15 +3,17 @@ import { join, resolve, sep } from 'node:path';
 import type { Kysely } from 'kysely';
 import { applySelfHostedPreset } from '../bootstrap/self-hosted-preset.js';
 import { loadConfig } from '../bootstrap/config.js';
-import { createDatabaseRuntime } from '../infrastructure/database/runtime.js';
-import type { DatabaseSchema } from '../infrastructure/database/runtime.js';
-import { maintenanceDatabaseRuntimeOptions } from '../infrastructure/database/maintenance-options.js';
-import { createPostgresCollectionExportReadPort } from '../infrastructure/collections/collection-export-postgres.js';
+import {
+  createDatabaseRuntime,
+  maintenanceDatabaseRuntimeOptions,
+  type DatabaseSchema,
+} from '../infrastructure/database/index.js';
+import { createPostgresCollectionExportReadPort } from '../infrastructure/collections/index.js';
 import {
   buildCollectionExport,
   ExportCollectionError,
-} from '../modules/collections/application/export-collection.js';
-import { serializeNetscapeBookmarkHtml } from '../modules/collections/application/netscape-serializer.js';
+} from '../modules/collections/index.js';
+import { serializeNetscapeBookmarkHtml } from '../modules/collections/index.js';
 import { version } from '../version.js';
 
 export class ExportCliError extends Error {

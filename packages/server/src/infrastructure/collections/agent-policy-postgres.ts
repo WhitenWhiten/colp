@@ -1,4 +1,3 @@
-import { issueAgentKey } from './agent-key-postgres.js';
 /**
  * Postgres adapter for E4 agent policy, trusted auto-approval, and Undo.
  */
@@ -27,6 +26,7 @@ import {
 import { createAgentDirectoryApi } from './agent-directory-postgres.js';
 import type { AgentAuditRecord, AgentRevokeResult, AgentSummary } from './agent-directory-postgres.js';
 import { createPostgresCollectionVersionUnitOfWork } from './collection-tree-version-postgres.js';
+import { readMcpPlanCommitRevision } from './mcp-plan-commit-revisions-postgres.js';
 
 const CLIENT_ID = /^[A-Za-z0-9._~-]{1,256}$/u;
 
@@ -52,8 +52,12 @@ export interface AgentUndoResult {
 
 export interface AgentApprovalApi extends Phase4bMcpWriteApprovalApi {
   readonly issueAgentKey?: (accountId: string, name: string, commandId: string) => Promise<{ id: string; name: string; secret: string }>;
-  readonly getAgentPolicy: (clientId: string) => Promise<AgentPolicyView>;
-  readonly putAgentPolicy: (clientId: string, policy: AgentPolicyName) => Promise<AgentPolicyView>;
+  readonly getAgentPolicy: (principalId: string, clientId: string) => Promise<AgentPolicyView>;
+  readonly putAgentPolicy: (
+    principalId: string,
+    clientId: string,
+    policy: AgentPolicyName,
+  ) => Promise<AgentPolicyView>;
   readonly undo: (input: AgentUndoInput) => Promise<AgentUndoResult>;
   readonly listAgents: (accountId: string) => Promise<{ readonly agents: readonly AgentSummary[] }>;
   readonly listAgentAudit: (
@@ -68,7 +72,7 @@ export function createPostgresAutoApproveTrustedPlan(
   db: Kysely<DatabaseSchema>,
 ): AutoApproveTrustedPlan {
   return createAutoApproveTrustedPlan({
-    readPolicy: (clientId) => readAgentPolicy(db, clientId),
+    readPolicy: (principalId, clientId) => readAgentPolicy(db, principalId, clientId),
     captureVersion: (input) => captureAgentPlanCollectionVersion(
       (work) => createPostgresCollectionVersionUnitOfWork(db).execute(
         (ports) => work(ports as RestoreCollectionVersionPorts),
@@ -98,17 +102,26 @@ export function createPostgresAutoApproveTrustedPlan(
   });
 }
 
+export type IssueAgentKey = (
+  accountId: string,
+  name: string,
+  commandId: string,
+) => Promise<{ id: string; name: string; secret: string }>;
+
+/**
+ * Key issuance is an account-credential write owned by infrastructure:auth;
+ * bootstrap injects it so this collections adapter does not import auth.
+ */
 export function createPhase4bMcpAgentApprovalApi(
   db: Kysely<DatabaseSchema>,
-  options: { secretHmacKey?: string } = {},
+  options: { issueAgentKey?: IssueAgentKey } = {},
 ): AgentApprovalApi {
   const ports = createPostgresMcpWriteApprovalPorts(db);
   const base = createPhase4bMcpWriteApprovalApi(ports);
   const directory = createAgentDirectoryApi(db);
   return Object.freeze<AgentApprovalApi>({
     ...base,
-    ...(options.secretHmacKey ? { issueAgentKey: (accountId: string, name: string, commandId: string) =>
-      issueAgentKey(db, options.secretHmacKey!, accountId, name, commandId) } : {}),
+    ...(options.issueAgentKey ? { issueAgentKey: options.issueAgentKey } : {}),
     listAgents: (accountId) => directory.list(accountId),
     listAgentAudit: (accountId, agentId, limit) => directory.audit(accountId, agentId, limit),
     revokeAgent: (accountId, agentId) => directory.revoke(accountId, agentId),
@@ -122,43 +135,50 @@ export function createPhase4bMcpAgentApprovalApi(
       const receipt = await readPolicyReceipt(db, view.planId);
       return withReceipt(view, receipt);
     },
-    getAgentPolicy: (clientId) => readAgentPolicyView(db, clientId),
-    putAgentPolicy: (clientId, policy) => writeAgentPolicy(db, clientId, policy),
+    getAgentPolicy: (principalId, clientId) => readAgentPolicyView(db, principalId, clientId),
+    putAgentPolicy: (principalId, clientId, policy) => writeAgentPolicy(db, principalId, clientId, policy),
     undo: (input) => undoApprovedPlan(db, base, input),
   });
 }
 
+/** Policy is per account: one OAuth client id can belong to several accounts. */
 export async function readAgentPolicy(
   db: Kysely<DatabaseSchema>,
+  principalId: string,
   clientId: string,
 ): Promise<AgentPolicyName> {
+  assertPrincipalId(principalId);
   assertClientId(clientId);
   const result = await sql<{ policy: string }>`
-    SELECT policy FROM agent_policies WHERE client_id = ${clientId}
+    SELECT policy FROM agent_policies
+    WHERE principal_id = ${principalId} AND client_id = ${clientId}
   `.execute(db);
   return result.rows[0]?.policy === 'trusted' ? 'trusted' : 'manual';
 }
 
 async function readAgentPolicyView(
   db: Kysely<DatabaseSchema>,
+  principalId: string,
   clientId: string,
 ): Promise<AgentPolicyView> {
-  return { clientId, policy: await readAgentPolicy(db, clientId) };
+  return { clientId, policy: await readAgentPolicy(db, principalId, clientId) };
 }
 
 export async function writeAgentPolicy(
   db: Kysely<DatabaseSchema>,
+  principalId: string,
   clientId: string,
   policy: AgentPolicyName,
 ): Promise<AgentPolicyView> {
+  assertPrincipalId(principalId);
   assertClientId(clientId);
   if (policy !== 'manual' && policy !== 'trusted') {
     throw new TypeError('Agent policy must be manual or trusted.');
   }
   await sql`
-    INSERT INTO agent_policies (client_id, policy, updated_at)
-    VALUES (${clientId}, ${policy}, current_timestamp)
-    ON CONFLICT (client_id) DO UPDATE
+    INSERT INTO agent_policies (principal_id, client_id, policy, updated_at)
+    VALUES (${principalId}, ${clientId}, ${policy}, current_timestamp)
+    ON CONFLICT (principal_id, client_id) DO UPDATE
       SET policy = EXCLUDED.policy, updated_at = current_timestamp
   `.execute(db);
   return { clientId, policy };
@@ -178,6 +198,7 @@ async function undoApprovedPlan(
   if (receipt === undefined) {
     throw new AgentPlanUndoError('not_found', 'This plan has no saved version to undo.');
   }
+  const committedContentRevision = await readMcpPlanCommitRevision(db, input.planId, receipt.collectionId);
   const restored = await createPostgresCollectionVersionUnitOfWork(db).execute((ports) =>
     undoAgentPlanVersion(ports as RestoreCollectionVersionPorts, {
       principalId: input.accountId,
@@ -186,6 +207,7 @@ async function undoApprovedPlan(
       versionId: receipt.versionId,
       commandId: input.commandId,
       force: input.force,
+      committedContentRevision,
     }));
   return {
     planId: input.planId,
@@ -273,4 +295,8 @@ async function savePolicyReceipt(
 
 function assertClientId(clientId: string): void {
   if (!CLIENT_ID.test(clientId)) throw new TypeError('Agent client id is invalid.');
+}
+
+function assertPrincipalId(principalId: string): void {
+  if (!CLIENT_ID.test(principalId)) throw new TypeError('Agent owner id is invalid.');
 }

@@ -76,7 +76,7 @@ import type { ProfileSitemapQueryPort, PublicationSitemapQueryPort } from './col
 import type { ProductPublicInsightRouteDependencies } from './product/product-public-insight-routes.js';
 import type { ProductPublishingInsightsRouteDependencies } from './product/product-publishing-insights-routes.js';
 import type { ProductCollaborationRouteDependencies } from './product/product-collaboration-routes.js';
-import type { PublicProfileProjection } from '../bootstrap/public-profile-projection.js';
+import type { ProductPublicProfileQuery } from './public-profile-shell-routes.js';
 import type { SyncSessionRouteDependencies } from './colp-sync/sync-session-routes.js';
 import type { SyncSnapshotRouteDependencies } from './colp-sync/sync-snapshot-routes.js';
 import type { SyncPushRouteDependencies } from './colp-sync/sync-push-routes.js';
@@ -164,7 +164,7 @@ export interface AppDependencies {
     ): Promise<Result>;
   };
   readonly exportJobReads?: ExportJobReadPort;
-  readonly collectionExportReads?: import('../modules/collections/application/export-collection.js').CollectionExportReadPort;
+  readonly collectionExportReads?: import('../modules/collections/index.js').CollectionExportReadPort;
   readonly exportJobEnqueue?: {
     execute<Result>(
       work: (ports: CreateMyExportJobPorts) => Promise<Result>,
@@ -316,9 +316,7 @@ export interface AppDependencies {
   readonly productPublicInsight?: ProductPublicInsightRouteDependencies;
   readonly productPublishingInsights?: ProductPublishingInsightsRouteDependencies;
   readonly productCollaboration?: ProductCollaborationRouteDependencies;
-  readonly publicProfileQuery?: {
-    get(input: { readonly handle: string; readonly limit?: number }): Promise<PublicProfileProjection>;
-  };
+  readonly publicProfileQuery?: ProductPublicProfileQuery;
   readonly searchQuery?: SearchProductQuery;
   /** Only a process-local token issued after P2-16 and official COLP gates pass. */
   readonly publicationProfileClaims?: Phase2PublicationProfileClaims;

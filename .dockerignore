@@ -15,7 +15,6 @@ packages/conformance
 packages/server/tests
 packages/server/openapi
 packages/web/e2e
-packages/web/e2e-real-stack
 packages/web/docs
 packages/web/upstream-fixtures
 protocol

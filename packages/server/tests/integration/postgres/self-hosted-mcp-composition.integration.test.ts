@@ -34,7 +34,7 @@ describeWithPostgres('self-hosted production MCP composition', () => {
   afterAll(async () => { await isolated?.close(); });
 
   async function fixture() {
-    await isolated.runtime.pool.query('delete from agent_policies where client_id = $1', [BINDING.clientId]);
+    await isolated.runtime.pool.query('delete from agent_policies where principal_id = $1 and client_id = $2', [OWNER, BINDING.clientId]);
     const tree = await createMcpWriteFixture(isolated.runtime, BINDING, SCOPES);
     const result = await composition.adapter.callTool(nodeCreateContext(BINDING, SCOPES), {
       name: 'nodes.create', arguments: { collectionId: tree.collectionId, parentId: tree.rootId,
@@ -77,7 +77,7 @@ describeWithPostgres('self-hosted production MCP composition', () => {
 
   test('trusted move auto-commits with a version receipt and Undo restores the original parent', async () => {
     const tree = await fixture();
-    await isolated.runtime.pool.query("insert into agent_policies(client_id, policy) values ($1, 'trusted')", [BINDING.clientId]);
+    await isolated.runtime.pool.query("insert into agent_policies(principal_id, client_id, policy) values ($1, $2, 'trusted')", [OWNER, BINDING.clientId]);
     const result = await composition.adapter.callTool(nodeCreateContext(BINDING, SCOPES), {
       name: 'nodes.move', arguments: { nodeId: tree.nodeId, parentId: tree.folderId },
     });

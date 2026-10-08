@@ -30,7 +30,7 @@ A2 copied these because `npm run test:unit` could not load Vitest projects witho
 - `vitest.workspace-projects.ts` — imported by `vitest.unit.config.ts` and the other project configs
 - `scripts/vitest-project-files.mjs` — imported by `vitest.workspace-projects.ts`
 
-A6 image (`packages/server/Dockerfile`): the web UI is built with `VITE_EDITION=self-hosted` and stored at `/srv/web`. Caddy serves it. `deploy/compose.yaml` mounts the named volume `colp-web` on `/srv/web` (read-only in each Caddy service). The Node process does not serve those files. An empty mount hides the image directory, so the same tree is also at `/opt/colp-web` and the entrypoint refreshes `/srv/web` on every start so upgrades replace the frontend and remove stale assets. No second server, Redis, object storage, or mail server. Migrations are esbuild-bundled to `dist-migrations/` (D23) so the runtime image does not need TypeScript. The process is `node dist/src/bootstrap/self-hosted.js`.
+A6 image (`packages/server/Dockerfile`): the web UI is built with `VITE_EDITION=self-hosted` and stored at `/srv/web`. Caddy serves it. `deploy/compose.yaml` mounts the named volume `colp-web` on `/srv/web` (read-only in each Caddy service). The Node process does not serve those files. An empty mount hides the image directory, so the same tree is also at `/opt/colp-web` and the entrypoint refreshes `/srv/web` on every start so upgrades replace the frontend and remove stale assets. No second server, Redis, object storage, or mail server. Migrations are esbuild-bundled to `dist/migrations/` by `npm run build` (D23) so the runtime image does not need TypeScript. The image runs `colp-server start`, which loads `dist/src/bootstrap/self-hosted.js`.
 
 
 Execution audit fixes (2026-10-08): completed the missing production wiring for
@@ -72,3 +72,29 @@ The same route repair and its HTTP regression assertions are back-ported.
 Shared runtime repairs are back-ported in Know-N integration commit
 `903b86113` (2026-10-08), verified with owner-bound key and production MCP
 composition regressions. Self-hosted extraction/deploy/web changes stay here.
+
+Drift and bug fixes from the 2026-10-08 execution review (07):
+
+- Migration order. Kysely runs with `allowUnorderedMigrations` off, so a
+  migration whose name sorts before the newest applied one makes every
+  installed server refuse to start. A migration ported from Know-N keeps its
+  name only when it sorts after the public head; otherwise rename it past the
+  head and record the rename here. `202610230300_agent_policy_owner_and_commit_revision`
+  is identical in both trees. `202610230400_colp_single_owner_guard` is
+  public-only (D27).
+- Shared runtime changes back-ported to the Know-N integration branch:
+  agent policy keyed by `(principal_id, client_id)`; the plan commit records
+  each touched collection's content revision in `mcp_plan_commit_revisions`
+  inside the commit transaction, and Undo refuses with `newer_changes` when
+  the live revision moved (unless forced); agent key issuance moved to
+  `infrastructure/auth` and is injected by bootstrap; facade exports that keep
+  `check-import-boundaries` green; test fixtures for `@know-n/colp` 0.1.1
+  (cursor scope `collectionId`/`resourceId`, listen authorization, Replica
+  ownership verifier, loopback egress policy).
+- Public-only: setup token and single-owner trigger, loopback-only HTTP (D26),
+  `COLP_MULTI_USER` refusal, deterministic automation signer, CLI symlink
+  entry, backup/restore rewrite, web edition assets, and the restored
+  integration suites listed in `tests/EXTRACTION.md`. The restored
+  `phase2-publication-acceptance` runner omits Know-N's real-stack browser
+  probe.
+

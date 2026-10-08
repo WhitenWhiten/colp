@@ -73,6 +73,7 @@ export const AUTH_ROUTE_MANIFEST: readonly AuthRouteManifestEntry[] = Object.fre
     rateLimitFamily: 'sign-up',
     scope: 'better-auth',
     status: 'registered',
+    note: 'Self-hosted first-run needs the Colp-Setup-Token header (D27); 403 setup_token_required otherwise.',
   }),
   Object.freeze({
     method: 'GET',

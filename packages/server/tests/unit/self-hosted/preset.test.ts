@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, createPrivateKey, createPublicKey } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { applySelfHostedPreset, SECRET_NAMES } from '../../../src/bootstrap/self-hosted-preset.js';
 import { loadConfig } from '../../../src/bootstrap/config.js';
@@ -31,13 +31,12 @@ describe('self-hosted preset', () => {
     expect(() => loadConfig(env)).not.toThrow();
   });
 
-  it('lets production loadConfig pass for an acknowledged LAN http origin', () => {
+  it('refuses a LAN http origin even when insecure HTTP is acknowledged (D26)', () => {
     const env = baseEnv({
       COLP_SERVER_ORIGIN: 'http://192.168.1.20:8080',
       COLP_INSECURE_HTTP: 'true',
     });
-    applySelfHostedPreset(env);
-    expect(() => loadConfig(env)).not.toThrow();
+    expect(() => applySelfHostedPreset(env)).toThrow(/tls-internal/);
   });
 
   it('defaults database TLS off and keeps an explicit require', () => {
@@ -94,7 +93,7 @@ describe('self-hosted preset', () => {
     expect(() => applySelfHostedPreset({
       COLP_SERVER_ORIGIN: 'http://192.168.1.20:8080',
       COLP_SERVER_SECRET: SECRET,
-    })).toThrow(/COLP_INSECURE_HTTP/);
+    })).toThrow(/only on 127\.0\.0\.1/);
   });
 
   it('is stable for the same origin', () => {
@@ -106,5 +105,35 @@ describe('self-hosted preset', () => {
     expect(left.PUBLICATION_SERVER_UUID).toMatch(/^[0-9a-f-]{36}$/u);
     expect(createHash('sha256').update(String(left.BETTER_AUTH_SECRET)).digest('hex'))
       .toBe(createHash('sha256').update(String(right.BETTER_AUTH_SECRET)).digest('hex'));
+  });
+
+  it('refuses COLP_MULTI_USER=true until invite codes ship (D27)', () => {
+    expect(() => applySelfHostedPreset(baseEnv({ COLP_MULTI_USER: 'true' }))).toThrow(/invite codes/);
+    expect(() => applySelfHostedPreset(baseEnv({ COLP_MULTI_USER: 'false' }))).not.toThrow();
+  });
+
+  it('derives a stable setup token that differs per secret', () => {
+    const left = baseEnv();
+    const right = baseEnv();
+    const other = baseEnv({ COLP_SERVER_SECRET: Buffer.alloc(32, 8).toString('base64') });
+    for (const env of [left, right, other]) applySelfHostedPreset(env);
+    expect(left.COLP_SETUP_TOKEN).toMatch(/^[A-Za-z0-9_-]{43}$/u);
+    expect(left.COLP_SETUP_TOKEN).toBe(right.COLP_SETUP_TOKEN);
+    expect(left.COLP_SETUP_TOKEN).not.toBe(other.COLP_SETUP_TOKEN);
+  });
+
+  it('derives the API-key signer, so a restart keeps the same valid P-256 key', () => {
+    const left = baseEnv();
+    const right = baseEnv();
+    applySelfHostedPreset(left);
+    applySelfHostedPreset(right);
+    expect(left.AUTOMATION_ES256_PRIVATE_JWK).toBe(right.AUTOMATION_ES256_PRIVATE_JWK);
+    const jwk = JSON.parse(String(left.AUTOMATION_ES256_PRIVATE_JWK)) as Record<string, string>;
+    const privateKey = createPrivateKey({ key: jwk, format: 'jwk' });
+    const publicJwk = createPublicKey(privateKey).export({ format: 'jwk' }) as Record<string, string>;
+    expect(publicJwk.x).toBe(jwk.x);
+    expect(publicJwk.y).toBe(jwk.y);
+    expect(jwk.kid).toBe('self-hosted-v1');
+    expect(() => loadConfig(left)).not.toThrow();
   });
 });

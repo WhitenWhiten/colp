@@ -5,13 +5,13 @@ import { resolve } from 'node:path';
 export const API_COMPOSITION_RELATIVE_FILES = [
   'src/bootstrap/api.ts',
   'src/bootstrap/api-account-services.ts',
-  'src/bootstrap/api-attachments-composition.ts',
   'src/bootstrap/api-auth-mailbox.ts',
   'src/bootstrap/api-email-composition.ts',
   'src/bootstrap/api-lifecycle.ts',
   'src/bootstrap/api-mcp-oauth-composition.ts',
   'src/bootstrap/api-mcp-surface-composition.ts',
   'src/bootstrap/api-postgres-ports.ts',
+  'src/bootstrap/api-rate-limit-composition.ts',
 ] as const;
 
 export function readApiCompositionSource(backendRoot: string): string {

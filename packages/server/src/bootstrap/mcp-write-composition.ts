@@ -1,6 +1,5 @@
-import { recordMcpDeleteSubtreeTombstones } from '../infrastructure/sync/mcp-delete-subtree-tombstone-postgres.js';
-import { createMcpNodePlanState } from '../infrastructure/collections/mcp-node-plan-state.js';
-import { createPostgresAutoApproveTrustedPlan } from '../infrastructure/collections/index.js';
+import { recordMcpDeleteSubtreeTombstones } from '../infrastructure/sync/index.js';
+import { createMcpNodePlanState, createPostgresAutoApproveTrustedPlan, recordMcpPlanCommitRevisions } from '../infrastructure/collections/index.js';
 import { randomUUID } from 'node:crypto';
 import type { Kysely } from 'kysely';
 import type {
@@ -232,6 +231,7 @@ export function createPhase4bMcpWriteComposition(
     commitApprovalStore,
     createProductPorts,
     recordDeleteSubtreeTombstones: recordMcpDeleteSubtreeTombstones,
+    recordCommittedContentRevisions: recordMcpPlanCommitRevisions,
   });
   const gatewayChangePlanOptions = {
     planStore: store.planStore,
@@ -289,7 +289,7 @@ export function createPhase4bMcpWriteComposition(
         const stored = await store.planStore.get(wire.planId);
         if (!stored) throw new Error('The planned change is unavailable.');
         const approved = await serviceOptions.autoApproveTrustedPlan!(
-          stored as unknown as import('../modules/mcp/change-plan-planner.js').Phase4bMcpPlannedChange,
+          stored as unknown as import('../modules/mcp/index.js').Phase4bMcpPlannedChange,
           binding, { approve: changePlanService.recordOutOfBandApproval, commit: changePlanService.commit },
         );
         return { ...wire, requiresApproval: approved.requiresApproval };

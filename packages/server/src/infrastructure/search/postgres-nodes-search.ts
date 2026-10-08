@@ -16,8 +16,8 @@ import type {
   NodesSearchCardPort,
   NodesSearchLinkHealth,
   NodesSearchPorts,
-} from '../../modules/mcp/nodes-search.js';
-import type { SharedExposureFactsPort } from '../../modules/exposure/deny-by-default.js';
+} from '../../modules/mcp/index.js';
+import type { SharedExposureFactsPort } from '../../modules/exposure/index.js';
 
 const TYPE_ORDER: Readonly<Record<SearchCandidateResourceType, number>> = Object.freeze({
   collection: 0,

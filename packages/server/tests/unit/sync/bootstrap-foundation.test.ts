@@ -65,7 +65,8 @@ test('COLP is consumed through the public workspace package dependency', () => {
   };
   const colp = Object.entries(dependencies).find(([name]) => name === '@know-n/colp');
   assert.ok(colp, 'a COLP public package dependency is required');
-  assert.equal(colp[1], '0.1.0');
+  // Exact pin, and the same version the release reports in /health.
+  assert.equal(colp[1], version.colp);
 
   const sourceFiles = [
     ...['src', 'worker'].flatMap((directory) => {

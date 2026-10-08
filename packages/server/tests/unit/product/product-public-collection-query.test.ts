@@ -450,6 +450,7 @@ test('continues atomically with a Product-only, principal-bound cursor', async (
   assert.equal(second.page.hasMore, false);
   for (const cursor of [
     queryPorts.cursors.snapshot.sign({
+      collectionId: 'published', resourceId: 'https://colp.example/colp/v0.1/collections/published/snapshot',
       revision: 'c1.p1', comparatorVersion: 'parent-position-id-v1',
       principal: 'anonymous', pageSize: 2, nextPosition: 'x',
     }),

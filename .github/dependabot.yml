@@ -27,6 +27,38 @@ updates:
         exclude-patterns:
           - "@modelcontextprotocol/*"
 
+  # COLP Server (packages/server, packages/web) follows Know-N upstream; see
+  # packages/server/UPSTREAM.md. Security and patch updates are still proposed here so the
+  # self-hosted image does not wait for the next upstream sync.
+  - package-ecosystem: npm
+    directory: /packages/server
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    groups:
+      server-patch:
+        update-types: [patch]
+
+  - package-ecosystem: npm
+    directory: /packages/web
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    groups:
+      web-patch:
+        update-types: [patch]
+
+  - package-ecosystem: docker
+    directory: /packages/server
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+
   - package-ecosystem: github-actions
     directory: /
     schedule:

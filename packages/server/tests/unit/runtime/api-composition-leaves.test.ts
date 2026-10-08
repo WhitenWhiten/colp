@@ -1,11 +1,6 @@
 import assert from 'node:assert/strict';
 import { afterEach, describe, test } from 'vitest';
 import { composeApiAccountServices } from '../../../src/bootstrap/api-account-services.js';
-import {
-  composeApiAttachments,
-  resolveApiAttachmentSecret,
-  resolveApiDeliveryCapabilitySecret,
-} from '../../../src/bootstrap/api-attachments-composition.js';
 import { composeApiEmail } from '../../../src/bootstrap/api-email-composition.js';
 import { composeApiMcpSurface } from '../../../src/bootstrap/api-mcp-surface-composition.js';
 import {
@@ -182,13 +177,6 @@ describe('API composition leaves', () => {
     assert.equal(mcp.mcpRateLimiter, undefined);
     assert.equal(mcp.mcpApplicationFacade, undefined);
 
-    const attachments = await composeApiAttachments({
-      config, database, identityUnitOfWork: identity, metrics, metricsLogger,
-    });
-    assert.equal(attachments.attachmentRoutes, undefined);
-    assert.equal(attachments.attachmentsObjectStorage, undefined);
-    assert.equal((await attachments.attachmentsCapabilityReadiness()).status, 'disabled');
-
     const email = composeApiEmail({ config, database, metrics, metricsLogger });
     assert.equal(email.authMailboxSink, undefined);
     assert.equal(email.emailProvider, undefined);
@@ -357,24 +345,6 @@ describe('API composition leaves', () => {
       accountId: 'account-1', deletedAt: new Date('2026-09-01T00:00:00.000Z'),
     }]);
     assert.deepEqual(deletedAuthUsers, ['auth-user-1']);
-  });
-
-  test('attachment and delivery secret resolvers reject empty or missing refs and trim resolved values', async () => {
-    await assert.rejects(resolveApiAttachmentSecret('///'), /invalid R2 secret ref/u);
-    await assert.rejects(resolveApiAttachmentSecret('known/r2/primary'), /ATTACHMENTS_R2_PRIMARY/u);
-    process.env.ATTACHMENTS_R2_PRIMARY_ACCESS_KEY_ID = '  access-id  ';
-    process.env.ATTACHMENTS_R2_PRIMARY_SECRET_ACCESS_KEY = '  access-secret  ';
-    assert.deepEqual(await resolveApiAttachmentSecret('known/r2/primary'), {
-      accessKeyId: 'access-id', secretAccessKey: 'access-secret',
-    });
-
-    await assert.rejects(resolveApiDeliveryCapabilitySecret('///'), /invalid delivery capability secret ref/u);
-    await assert.rejects(
-      resolveApiDeliveryCapabilitySecret('known/delivery/primary'),
-      /ATTACHMENTS_DELIVERY_CAPABILITY_PRIMARY/u,
-    );
-    process.env.ATTACHMENTS_DELIVERY_CAPABILITY_PRIMARY = '  delivery-secret  ';
-    assert.equal(await resolveApiDeliveryCapabilitySecret('known/delivery/primary'), 'delivery-secret');
   });
 
   test('enabled product email composes one memory callback limiter without querying PostgreSQL', async () => {

@@ -59,3 +59,5 @@ export * from './application-facade.js';
 // the direct/plan paths use; re-export the single authority instead of letting
 // composition reach into the module internal.
 export { MCP_OWN_DATA_DEFAULT_BUDGET } from './own-data.js';
+// E3: infrastructure:search implements the nodes.search ports through this facade.
+export type { NodesSearchCardPort, NodesSearchLinkHealth, NodesSearchPorts } from './nodes-search.js';

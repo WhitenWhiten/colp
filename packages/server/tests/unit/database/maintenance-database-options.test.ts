@@ -55,12 +55,12 @@ describe('maintenance database runtime options (PGC-02 / T-05)', () => {
     assert.doesNotMatch(migrator, /\bloadConfig\(\)/u);
   });
 
-  test('the delivery process reads the standard database pool env config', () => {
+  test('the self-hosted entry runs migrations on maintenance options and serves on the pool config', () => {
     const text = readFileSync(
-      resolve(import.meta.dirname, '../../../src/bootstrap/delivery-main.ts'),
+      resolve(import.meta.dirname, '../../../src/bootstrap/self-hosted.ts'),
       'utf8',
     );
-    assert.match(text, /database: loadDatabasePoolConfig\(env\)/);
+    assert.match(text, /if \(role === 'migrator'\) \{\s*return createDatabaseRuntime\(config\.databaseUrl, \{\s*\.\.\.shared,\s*\.\.\.maintenanceDatabaseRuntimeOptions\(env\),/u);
     assert.match(text, /statementTimeoutMs: config\.database\.statementTimeoutMs/);
   });
 });

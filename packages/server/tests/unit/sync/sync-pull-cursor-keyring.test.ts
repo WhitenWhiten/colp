@@ -87,9 +87,11 @@ test('P3-20 Sync cursor has an isolated purpose and never exposes deployment sec
     active: { id: 'current', secret: currentSecret }, retained: [],
   });
   assert.equal(publication.snapshot.verify(cursor, {
+    collectionId: 'collection-1', resourceId: 'https://colp.example/colp/v0.1/collections/collection-1/snapshot',
     revision: 'r1', comparatorVersion: 'parent-position-id-v1', principal: 'anonymous', pageSize: 2,
   }).valid, false);
   const publicationCursor = publication.snapshot.sign({
+    collectionId: 'collection-1', resourceId: 'https://colp.example/colp/v0.1/collections/collection-1/snapshot',
     revision: 'r1', comparatorVersion: 'parent-position-id-v1', principal: 'anonymous', pageSize: 2,
     nextPosition: 'next',
   });

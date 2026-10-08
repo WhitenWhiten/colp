@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Kysely } from 'kysely';
 import type { DatabaseSchema } from '../database/index.js';
-import { createPostgresAccountCredentialUnitOfWork } from '../auth/account-credentials-postgres.js';
+import { createPostgresAccountCredentialUnitOfWork } from './account-credentials-postgres.js';
 import { createChildCredential, issueAccountCredentialSecret, AccountCredentialCommandError } from '../../modules/auth/index.js';
 
 /** Issue a child credential bound to the owner, without exposing a provisioning parent. */

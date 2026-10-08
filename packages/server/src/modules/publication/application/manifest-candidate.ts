@@ -33,8 +33,12 @@ export function selfHostedManifestFeatures(
   env: NodeJS.ProcessEnv = process.env,
 ): SelfHostedManifestFeatures | null {
   if (env.KNOWN_EDITION !== 'self-hosted') return null;
+  // The scheme decides: a loopback http origin needs no acknowledgement, but
+  // its traffic is still unencrypted.
+  const origin = env.COLP_SERVER_ORIGIN ?? env.PUBLICATION_ORIGIN ?? '';
+  const insecure = env.COLP_INSECURE_HTTP === 'true' || origin.trim().toLowerCase().startsWith('http:');
   return {
-    transport: env.COLP_INSECURE_HTTP === 'true' ? 'insecure-http' : 'https',
+    transport: insecure ? 'insecure-http' : 'https',
     cloud: false,
     edition: { name: 'colp-server', version: colpServerPackageVersion() },
   };

@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { existsSync, realpathSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { resolve, sep } from 'node:path';
 import { applySelfHostedPreset } from './self-hosted-preset.js';
@@ -13,10 +13,14 @@ import {
   type StoppableRuntime,
 } from './process-lifecycle.js';
 import { createLogger } from '../infrastructure/telemetry/index.js';
-import { createDatabaseRuntime, type DatabaseRuntime } from '../infrastructure/database/index.js';
-import { maintenanceDatabaseRuntimeOptions } from '../infrastructure/database/maintenance-options.js';
-import { runMigrations } from '../infrastructure/database/migrations.js';
+import {
+  createDatabaseRuntime,
+  maintenanceDatabaseRuntimeOptions,
+  runMigrations,
+  type DatabaseRuntime,
+} from '../infrastructure/database/index.js';
 import type { ReadinessProbe } from '../infrastructure/health.js';
+import { firstRunMessage, prepareColpInstance } from '../infrastructure/auth/colp-instance-settings.js';
 
 /**
  * Link health is on and its unset default is 4. Together with the outbox
@@ -46,6 +50,10 @@ export interface SelfHostedDependencies {
   readonly loadConfig?: (env: NodeJS.ProcessEnv) => AppConfig;
   readonly runMigrations?: typeof runMigrations;
   readonly createDatabase?: (config: AppConfig, role: 'migrator' | 'runtime') => DatabaseRuntime;
+  /** Arms the single-owner guard after migrations; reports a missing owner. */
+  readonly prepareInstance?: (database: DatabaseRuntime, env: NodeJS.ProcessEnv) => Promise<{
+    readonly ownerMissing: boolean;
+  }>;
   readonly startApi?: (options: StartApiOptions) => Promise<StartedApi>;
   readonly createWorkerProcess?: (
     config: AppConfig,
@@ -116,6 +124,7 @@ export async function startSelfHosted(deps: SelfHostedDependencies = {}): Promis
     role: 'migrator' | 'runtime',
   ) => defaultCreateDatabase(next, role, env));
   const migrator = createDatabase(config, 'migrator');
+  let ownerMissing = false;
   try {
     // runMigrations holds Known's reentrant migration advisory lock.
     const directory = migrationDirectory();
@@ -123,6 +132,9 @@ export async function startSelfHosted(deps: SelfHostedDependencies = {}): Promis
     await (directory === undefined
       ? migrate(migrator.db, 'latest')
       : migrate(migrator.db, 'latest', directory));
+    const prepare = deps.prepareInstance ?? ((database: DatabaseRuntime, next: NodeJS.ProcessEnv) =>
+      prepareColpInstance(database.db, { singleOwner: next.COLP_MULTI_USER !== 'true' }));
+    ({ ownerMissing } = await prepare(migrator, env));
   } catch (error) {
     await migrator.close();
     throw error;
@@ -164,6 +176,11 @@ export async function startSelfHosted(deps: SelfHostedDependencies = {}): Promis
     worker = await openWorker(config, database);
     await worker.start();
     if (deps.listen !== false) await api.listen();
+    if (ownerMissing) {
+      // D27: the setup token is how the operator, and only the operator,
+      // creates the owner account on a freshly exposed origin.
+      api.app.log.warn(firstRunMessage(config.publication.origin, env.COLP_SETUP_TOKEN ?? ''));
+    }
   } catch (error) {
     try { await closeAll(); } catch { /* report the startup error */ }
     throw error;
@@ -187,7 +204,17 @@ export async function startSelfHosted(deps: SelfHostedDependencies = {}): Promis
   };
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+function invokedDirectly(): boolean {
+  const entry = process.argv[1];
+  if (entry === undefined) return false;
+  try {
+    return import.meta.url === pathToFileURL(realpathSync(resolve(entry))).href;
+  } catch {
+    return false;
+  }
+}
+
+if (invokedDirectly()) {
   const processLogger = createLogger(process.env.LOG_LEVEL?.trim() || 'info');
   registerFatalProcessHandlers({ logger: processLogger });
   startSelfHosted().catch((error: unknown) => {

@@ -1,4 +1,4 @@
-import { createHash, generateKeyPairSync, hkdfSync } from 'node:crypto';
+import { createECDH, createHash, hkdfSync } from 'node:crypto';
 
 /**
  * Self-hosted preset (G1).
@@ -170,12 +170,20 @@ export function applySelfHostedPreset(env: NodeJS.ProcessEnv): void {
   if (url.username || url.password || url.search || url.hash || (url.pathname !== '/' && url.pathname !== '')) {
     throw new Error('COLP_SERVER_ORIGIN must be an exact origin');
   }
-  const loopback = url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '::1';
-  if (url.protocol === 'http:' && !loopback && env.COLP_INSECURE_HTTP !== 'true') {
-    throw new Error('COLP_INSECURE_HTTP must be true when COLP_SERVER_ORIGIN is http:// and not loopback');
+  // URL.hostname keeps the brackets of an IPv6 literal.
+  const loopback = url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '[::1]';
+  // COLP endpoints must be HTTPS; the protocol allows http only on loopback
+  // (protocol/docs/02, D26). A LAN without a domain uses tls-internal.
+  if (url.protocol === 'http:' && !loopback) {
+    throw new Error('COLP_SERVER_ORIGIN may use http:// only on 127.0.0.1, localhost, or [::1]; on a LAN use https:// with the tls-internal profile');
   }
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
     throw new Error('COLP_SERVER_ORIGIN must be http or https');
+  }
+  // D4/D27: more accounts open only through invite codes, which arrive in
+  // 0.3.0. Until then the switch would open public sign-up, so it is refused.
+  if (env.COLP_MULTI_USER?.trim() === 'true') {
+    throw new Error('COLP_MULTI_USER=true needs invite codes, which arrive in 0.3.0; set it to false');
   }
 
   const canonical = url.origin;
@@ -231,7 +239,10 @@ export function applySelfHostedPreset(env: NodeJS.ProcessEnv): void {
   for (const name of KEY_ID_NAMES) set(env, name, 'self-hosted-v1');
   set(env, 'BETTER_AUTH_SESSION_TOKEN_KEYS', `1:${derive(secret, 'BETTER_AUTH_SESSION_TOKEN_KEYS')}`);
   set(env, 'BETTER_AUTH_SESSION_TOKEN_LEGACY_READ_UNTIL', new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString());
-  set(env, 'AUTOMATION_ES256_PRIVATE_JWK', automationEs256PrivateJwk());
+  set(env, 'AUTOMATION_ES256_PRIVATE_JWK', automationEs256PrivateJwk(secret));
+  // D27: the first sign-up must present this token. It is derived, so the log
+  // line and `colp-server setup-token` agree without storage.
+  set(env, 'COLP_SETUP_TOKEN', deriveUrl(secret, 'COLP_SETUP_TOKEN'));
   const base64urlSecrets = new Set([
     'GOVERNANCE_CURSOR_HMAC_KEY',
     'AUTOMATION_CURSOR_HMAC_KEY',
@@ -270,10 +281,31 @@ function deriveUrl(secret: Buffer, info: string): string {
   return Buffer.from(deriveBytes(secret, info)).toString('base64url');
 }
 
-function automationEs256PrivateJwk(): string {
-  const { privateKey } = generateKeyPairSync('ec', { namedCurve: 'P-256' });
-  const jwk = privateKey.export({ format: 'jwk' }) as { x?: string; y?: string; d?: string };
-  return JSON.stringify({ kid: 'self-hosted-v1', kty: 'EC', crv: 'P-256', x: jwk.x, y: jwk.y, d: jwk.d });
+/**
+ * The API-key token signer is derived from the secret, so a restart or an
+ * upgrade keeps the same key under the same kid and live tokens stay valid.
+ * A derived scalar outside the P-256 range is skipped with a counter.
+ */
+function automationEs256PrivateJwk(secret: Buffer): string {
+  for (let counter = 0; counter < 16; counter += 1) {
+    const d = Buffer.from(deriveBytes(secret, `AUTOMATION_ES256_PRIVATE_JWK/${counter}`));
+    const ecdh = createECDH('prime256v1');
+    try {
+      ecdh.setPrivateKey(d);
+    } catch {
+      continue;
+    }
+    const point = ecdh.getPublicKey();
+    return JSON.stringify({
+      kid: 'self-hosted-v1',
+      kty: 'EC',
+      crv: 'P-256',
+      x: point.subarray(1, 33).toString('base64url'),
+      y: point.subarray(33, 65).toString('base64url'),
+      d: d.toString('base64url'),
+    });
+  }
+  throw new Error('COLP_SERVER_SECRET did not derive a P-256 key');
 }
 
 function deriveBytes(secret: Buffer, info: string): ArrayBuffer {

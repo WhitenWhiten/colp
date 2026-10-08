@@ -25,6 +25,10 @@ import {
   createPhase4bMcpChangePlanService,
   type Phase4bMcpChangePlanServiceOptions,
 } from '../../../src/modules/mcp/change-plan-service.js';
+import {
+  createAutoApproveTrustedPlan,
+  type AgentPlanPolicyReceipt,
+} from '../../../src/modules/mcp/agent-plan-policy.js';
 import { runWithMcpAccountSubjectId } from '../../../src/modules/mcp/account-context.js';
 import { createMcpChangePlanRateLimitPort } from '../../../src/bootstrap/mcp-write-composition.js';
 import {
@@ -599,8 +603,13 @@ function createMemoryCoordinator(
   });
 }
 
-function createHarness() {
+function createHarness(policy?: 'manual' | 'trusted') {
   const planStore = createInMemoryPlanStore();
+  const capturedCauses: string[] = [];
+  const policyReceipts: AgentPlanPolicyReceipt[] = [];
+  const audits: string[] = [];
+  const policyLookups: string[] = [];
+  const committedRevisions: { planId: string; collectionIds: readonly string[] }[] = [];
   const approvalStore = createInMemoryApprovalStore();
   const state = createMemoryState();
   const legacyUnitOfWork: CollectionsUnitOfWork = Object.freeze({
@@ -648,6 +657,27 @@ function createHarness() {
     clock: Object.freeze({ now: () => now }),
     ids: Object.freeze({ nextPlanId: () => 'plan-w05-colf-1' }),
     planTtlMilliseconds: 60_000,
+    recordCommittedContentRevisions: async (_transaction, facts) => {
+      committedRevisions.push({ planId: facts.planId, collectionIds: [...facts.collectionIds] });
+    },
+    ...(policy === undefined ? {} : {
+      autoApproveTrustedPlan: createAutoApproveTrustedPlan({
+        readPolicy: async (principalId, clientId) => {
+          policyLookups.push(`${principalId}/${clientId}`);
+          return policy;
+        },
+        captureVersion: async (input) => {
+          capturedCauses.push(input.cause);
+          return { versionId: 'version-e4' };
+        },
+        saveReceipt: async (receipt) => {
+          policyReceipts.push(receipt);
+        },
+        audit: async () => {
+          audits.push('auto-approved');
+        },
+      }),
+    }),
   });
   const service = createPhase4bMcpChangePlanService(options);
   const wrapped = Object.freeze({
@@ -667,6 +697,11 @@ function createHarness() {
     advance(ms: number) {
       now = new Date(now.getTime() + ms);
     },
+    capturedCauses,
+    policyReceipts,
+    audits,
+    policyLookups,
+    committedRevisions,
   };
 }
 
@@ -865,4 +900,57 @@ test('MCP-W05 focused package scripts are exact', async () => {
     packageJson.scripts['test:mcp:change-plan-service:postgres'],
     'node scripts/with-postgres.mjs -- npm run test:mcp:change-plan-service:postgres:inner',
   );
+});
+
+test('E4 trusted reversible plan commits without approval', async () => {
+  const { service, planStore, state, capturedCauses, policyReceipts, audits } = createHarness('trusted');
+  const before = state.nodes.size;
+  const planned = await runWithMcpAccountSubjectId(BINDING.principalId, () =>
+    service.plan(CREATE_CATALOG_INPUT, BINDING));
+  assert.equal((await planStore.get(planned.planId))?.status, 'consumed');
+  assert.equal(state.nodes.size, before + 1);
+  assert.deepEqual(capturedCauses, [`agent-plan:${planned.planId}`]);
+  assert.equal(policyReceipts[0]?.approvedBy, 'policy');
+  assert.equal(policyReceipts[0]?.versionId, 'version-e4');
+  assert.deepEqual(audits, ['auto-approved']);
+  assert.equal((planned as { readonly approvedBy?: string }).approvedBy, 'policy');
+});
+
+test('E4 policy is read for the plan principal and client, not the client alone', async () => {
+  const { service, policyLookups } = createHarness('trusted');
+  await runWithMcpAccountSubjectId(BINDING.principalId, () =>
+    service.plan(CREATE_CATALOG_INPUT, BINDING));
+  assert.deepEqual(policyLookups, [`${BINDING.principalId}/${BINDING.clientId}`]);
+});
+
+test('E4 commit records the touched collection inside the commit transaction', async () => {
+  const { service, committedRevisions } = createHarness('trusted');
+  const planned = await runWithMcpAccountSubjectId(BINDING.principalId, () =>
+    service.plan(CREATE_CATALOG_INPUT, BINDING));
+  assert.equal(committedRevisions.length, 1);
+  assert.equal(committedRevisions[0]?.planId, planned.planId);
+  assert.ok((committedRevisions[0]?.collectionIds.length ?? 0) > 0);
+});
+
+test('E4 trusted plan with set_visibility waits for the owner', async () => {
+  const { service, planStore, state, capturedCauses, policyReceipts } = createHarness('trusted');
+  const before = state.nodes.get('node-1')?.visibility;
+  const planned = await service.plan(CATALOG_INPUT, BINDING);
+  assert.equal(planned.requiresApproval, true);
+  assert.equal(planned.mode, 'awaiting_approval');
+  assert.equal((await planStore.get(planned.planId))?.status, 'pending');
+  assert.equal(state.nodes.get('node-1')?.visibility, before);
+  assert.deepEqual(capturedCauses, []);
+  assert.equal(policyReceipts.length, 0);
+});
+
+test('E4 manual policy leaves a reversible plan pending', async () => {
+  const { service, planStore, state, capturedCauses } = createHarness('manual');
+  const before = state.nodes.size;
+  const planned = await service.plan(CREATE_CATALOG_INPUT, BINDING);
+  assert.equal(planned.requiresApproval, false);
+  assert.equal(planned.mode, 'ready');
+  assert.equal((await planStore.get(planned.planId))?.status, 'pending');
+  assert.equal(state.nodes.size, before);
+  assert.deepEqual(capturedCauses, []);
 });

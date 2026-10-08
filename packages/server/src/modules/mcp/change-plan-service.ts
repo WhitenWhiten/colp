@@ -100,6 +100,10 @@ export interface Phase4bMcpChangePlanServiceOptions<
    * Missing means every plan keeps the manual approval flow.
    */
   readonly autoApproveTrustedPlan?: AutoApproveTrustedPlan;
+  /** Passed to the built coordinator when `commitCoordinator` is absent. */
+  readonly recordDeleteSubtreeTombstones?: Phase4bMcpChangePlanCommitCoordinatorOptions<Transaction>['recordDeleteSubtreeTombstones'];
+  /** Passed to the built coordinator when `commitCoordinator` is absent. */
+  readonly recordCommittedContentRevisions?: Phase4bMcpChangePlanCommitCoordinatorOptions<Transaction>['recordCommittedContentRevisions'];
 }
 
 export interface Phase4bMcpChangePlanService<
@@ -148,6 +152,20 @@ export interface Phase4bMcpChangePlanCommitCoordinatorOptions<
     transaction: Transaction,
     facts: McpDeleteSubtreeTombstoneFacts,
   ) => Promise<void>;
+  /**
+   * Records each touched collection's content revision inside the commit
+   * transaction, so Undo can tell whether anything changed afterwards.
+   */
+  readonly recordCommittedContentRevisions?: (
+    transaction: Transaction,
+    facts: McpCommittedContentRevisionFacts,
+  ) => Promise<void>;
+}
+
+/** Collections a committed plan changed, read back inside its transaction. */
+export interface McpCommittedContentRevisionFacts {
+  readonly planId: string;
+  readonly collectionIds: readonly string[];
 }
 
 /** Identity of one MCP subtree delete, used to append sync trash tombstones. */
@@ -214,6 +232,7 @@ export function createPhase4bMcpChangePlanCommitCoordinator<
         plansByTransaction,
         options.createProductPorts,
         options.recordDeleteSubtreeTombstones,
+        options.recordCommittedContentRevisions,
       ),
   });
 
@@ -307,6 +326,12 @@ export function createPhase4bMcpChangePlanService<
         commitPlanStore: resolved.commitPlanStore,
         commitApprovalStore: resolved.commitApprovalStore,
         createProductPorts: resolved.createProductPorts,
+        ...(resolved.recordDeleteSubtreeTombstones === undefined
+          ? {}
+          : { recordDeleteSubtreeTombstones: resolved.recordDeleteSubtreeTombstones }),
+        ...(resolved.recordCommittedContentRevisions === undefined
+          ? {}
+          : { recordCommittedContentRevisions: resolved.recordCommittedContentRevisions }),
       });
 
   const changePlanOptions: McpChangePlanServiceOptions<Transaction> = Object.freeze({
@@ -424,8 +449,12 @@ function readServiceOptions<Transaction extends object>(
       'verifyStoredOperationsDigest.verify',
     );
   }
-  if (objectOptions.autoApproveTrustedPlan !== undefined) {
-    assertOwnDataFunction(objectOptions.autoApproveTrustedPlan, 'autoApproveTrustedPlan');
+  for (const name of [
+    'autoApproveTrustedPlan',
+    'recordDeleteSubtreeTombstones',
+    'recordCommittedContentRevisions',
+  ] as const) {
+    if (objectOptions[name] !== undefined) assertOwnDataFunction(objectOptions[name], name);
   }
   return Object.freeze({
     ...(options as unknown as ResolvedPhase4bMcpChangePlanServiceOptions<Transaction>),

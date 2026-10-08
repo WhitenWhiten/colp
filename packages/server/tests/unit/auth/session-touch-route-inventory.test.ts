@@ -214,7 +214,7 @@ function readAuth(region: string, fileSource: string): ReadAuth {
 
   const direct = literalsIn(
     routeRegion,
-    /(?:requireSessionActor|requireMutationActor)\s*\([\s\S]*?\{[\s\S]*?touch:\s*(true|false)/g,
+    /(?:requireSessionActor|requireBrowserSessionActor|requireMutationActor)\s*\([\s\S]*?\{[\s\S]*?touch:\s*(true|false)/g,
   );
   const collab = literalsIn(routeRegion, /collaborationActor\s*\([\s\S]*?touch:\s*(true|false)/g);
   const actorArg = literalsIn(routeRegion, /\bactor\s*\(\s*request\s*,\s*\w+\s*,\s*(true|false)\s*,/g);
@@ -230,16 +230,17 @@ function readAuth(region: string, fileSource: string): ReadAuth {
   }
 
   // Route files may wrap the session pin in a local `*Actor(request, deps)`
-  // helper (e.g. owned-collection-routes' requireOwnedCollectionActor).
+  // helper (e.g. owned-collection-routes' requireOwnedCollectionActor) or an
+  // `account(request, deps, family)` helper (agent-routes).
   // Follow that indirection so renaming the seam cannot silently drop a pin.
   for (const call of routeRegion.matchAll(
-    /\b(\w*[Aa]ctor\w*)\s*\(\s*request\s*,\s*deps\s*\)/g,
+    /\b(\w*(?:[Aa]ctor|[Aa]ccount)\w*)\s*\(\s*request\s*,\s*deps\s*[,)]/g,
   )) {
     const body = functionBodyNamed(fileSource, call[1]!);
     if (body === null) continue;
     found.push(...literalsIn(
       body,
-      /(?:requireSessionActor|requireMutationActor)\s*\([\s\S]*?\{[\s\S]*?touch:\s*(true|false)/g,
+      /(?:requireSessionActor|requireBrowserSessionActor|requireMutationActor)\s*\([\s\S]*?\{[\s\S]*?touch:\s*(true|false)/g,
     ));
   }
 
@@ -267,7 +268,7 @@ function readAuth(region: string, fileSource: string): ReadAuth {
       const body = functionBodyNamed(fileSource, handler[1]);
       if (body) return readAuth(body, fileSource);
     }
-    if (/\b(?:requireSessionActor|requireMutationActor)\s*\(/.test(routeRegion)) {
+    if (/\b(?:requireSessionActor|requireBrowserSessionActor|requireMutationActor)\s*\(/.test(routeRegion)) {
       return { kind: 'unresolved', evidence: 'session actor without an explicit touch literal' };
     }
     return { kind: 'none' };
@@ -466,6 +467,7 @@ const SESSION_GATED_GET_GOLD = [
   '/api/v1/collections/:collectionId/classification-settings',
   '/api/v1/collections/:collectionId/children',
   '/api/v1/collections/:collectionId/editor',
+  '/api/v1/collections/:collectionId/export',
   '/api/v1/collections/:collectionId/members',
   '/api/v1/collections/:collectionId/organize-plans/:planId',
   '/api/v1/collections/:collectionId/versions',
@@ -485,6 +487,9 @@ const SESSION_GATED_GET_GOLD = [
   '/api/v1/me/capture-learning',
   '/api/v1/me/classify-inbox',
   '/api/v1/me/collaboration-invites',
+  '/api/v1/me/credits',
+  '/api/v1/me/credits/ledger',
+  '/api/v1/me/credits/ledger/:entryId',
   '/api/v1/me/export-jobs',
   '/api/v1/me/export-jobs/:jobId',
   '/api/v1/me/export-jobs/:jobId/download',
@@ -494,6 +499,9 @@ const SESSION_GATED_GET_GOLD = [
   '/api/v1/me/link-health',
   '/api/v1/me/publishing-insights',
   '/api/v1/me/shared-collections',
+  '/api/v1/me/agents',
+  '/api/v1/me/agents/:id/audit',
+  '/api/v1/me/agents/:clientId/policy',
   '/api/v1/session',
   '/api/v1/sync/conflicts',
   '/api/v1/sync/status',

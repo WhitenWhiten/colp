@@ -22,7 +22,7 @@ import {
   assertSharedExposureScopeIneligible,
   type DenyByDefaultExposure,
   type SharedExposureFactsPort,
-} from '../exposure/deny-by-default.js';
+} from '../exposure/index.js';
 import {
   PublicationDirectoryCursorError,
   PublicationMetadataNotFoundError,

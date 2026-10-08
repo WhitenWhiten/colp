@@ -14,13 +14,13 @@ test('worker process cleanup attempts worker and object storage after metrics fa
     await closeWorkerProcessResources({
       metricsServer: { close: close('metricsServer', true) },
       worker: { stop: close('worker', true) },
-      attachmentsObjectStorage: { close: close('attachmentsObjectStorage') },
+      faviconObjectStore: { close: close('faviconObjectStore') },
     });
   } catch (error: unknown) {
     reported = error;
   }
 
-  assert.deepEqual(calls, ['metricsServer', 'worker', 'attachmentsObjectStorage']);
+  assert.deepEqual(calls, ['metricsServer', 'worker', 'faviconObjectStore']);
   assert.ok(reported instanceof AggregateError);
   assert.equal(reported.errors.length, 2);
   assert.match(reported.message, /metricsServer, worker/u);

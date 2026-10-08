@@ -1,7 +1,7 @@
 import { sql, type Kysely } from 'kysely';
 import type { McpAuthenticatedAuthorizationBinding } from '@know-n/colp/mcp';
 import type { DatabaseSchema } from '../database/index.js';
-import type { Phase4bMcpAuthoritativeStatePort } from '../../modules/mcp/change-plan-planner.js';
+import type { Phase4bMcpAuthoritativeStatePort } from '../../modules/mcp/index.js';
 
 /** Read placement and subtree facts in one snapshot, after checking write authority. */
 export function createMcpNodePlanState(

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { randomBytes } from 'node:crypto';
-import { existsSync } from 'node:fs';
+import { existsSync, realpathSync } from 'node:fs';
 import { resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { applySelfHostedPreset } from '../bootstrap/self-hosted-preset.js';
@@ -8,10 +8,14 @@ import { loadConfig } from '../bootstrap/config.js';
 import { composeBetterAuthComposition } from '../bootstrap/composition.js';
 import { registerFatalProcessHandlers } from '../bootstrap/process-lifecycle.js';
 import { startSelfHosted } from '../bootstrap/self-hosted.js';
-import { createDatabaseRuntime, type DatabaseRuntime } from '../infrastructure/database/runtime.js';
-import { maintenanceDatabaseRuntimeOptions } from '../infrastructure/database/maintenance-options.js';
-import { runMigrations } from '../infrastructure/database/migrations.js';
-import type { BetterAuthInstance } from '../infrastructure/auth/better-auth-runtime.js';
+import {
+  createDatabaseRuntime,
+  maintenanceDatabaseRuntimeOptions,
+  runMigrations,
+  type DatabaseRuntime,
+} from '../infrastructure/database/index.js';
+import { COLP_SETUP_TOKEN_HEADER, type BetterAuthInstance } from '../infrastructure/auth/better-auth-runtime.js';
+import { prepareColpInstance } from '../infrastructure/auth/colp-instance-settings.js';
 import type { AuthEmailSender } from '../modules/auth/index.js';
 import { createLogger } from '../infrastructure/telemetry/index.js';
 import { version } from '../version.js';
@@ -23,13 +27,6 @@ const NETWORK_CODES = new Set([
   '08000', '08001', '08003', '08004', '08006', '08007',
   '57P01', '57P02', '57P03',
 ]);
-
-/**
- * The HTTP sign-up endpoint refuses passwords shorter than 8 characters.
- * The operator CLI accepts the password confirmed twice and still hashes it
- * with that endpoint, so the in-process minimum is lowered for this call only.
- */
-const OPERATOR_PASSWORD_MINIMUM = 1;
 
 class CliExit extends Error {
   constructor(readonly code: number, message: string) {
@@ -53,6 +50,8 @@ type Command =
   | { readonly kind: 'start' }
   | { readonly kind: 'migrate' }
   | { readonly kind: 'version' }
+  | { readonly kind: 'setup-token' }
+  | { readonly kind: 'ready' }
   | { readonly kind: 'export'; readonly username: string; readonly out: string }
   | CreateUserCommand
   | ResetPasswordCommand;
@@ -156,7 +155,7 @@ function parseCommand(argv: readonly string[]): Command {
   rejectPasswordArgument(argv);
   const args = argv.slice(2);
   if (args.length === 0) {
-    throw new CliExit(2, 'usage: colp-server <start|migrate|create-user|reset-password|export|--version>');
+    throw new CliExit(2, 'usage: colp-server <start|migrate|create-user|reset-password|export|setup-token|ready|--version>');
   }
   const head = args[0];
   if (head === '--version') {
@@ -178,6 +177,14 @@ function parseCommand(argv: readonly string[]): Command {
   if (head === 'migrate') {
     if (args.length !== 1) throw new CliExit(2, 'usage: colp-server migrate');
     return { kind: 'migrate' };
+  }
+  if (head === 'ready') {
+    if (args.length !== 1) throw new CliExit(2, 'usage: colp-server ready');
+    return { kind: 'ready' };
+  }
+  if (head === 'setup-token') {
+    if (args.length !== 1) throw new CliExit(2, 'usage: colp-server setup-token');
+    return { kind: 'setup-token' };
   }
   if (head === 'create-user') {
     const flags = parseFlags(args.slice(1), new Set(['username', 'email']));
@@ -285,6 +292,7 @@ async function migrate(): Promise<void> {
     await (directory === undefined
       ? runMigrations(database.db, 'latest')
       : runMigrations(database.db, 'latest', directory));
+    await prepareColpInstance(database.db, { singleOwner: process.env.COLP_MULTI_USER !== 'true' });
   } finally {
     await database.close();
   }
@@ -311,8 +319,6 @@ async function withAuth(work: (auth: BetterAuthInstance) => Promise<void>): Prom
     });
     const auth = composition.betterAuth;
     if (auth === undefined) throw new CliExit(2, 'Better Auth is not enabled');
-    const ctx = await auth.$context;
-    ctx.password.config.minPasswordLength = OPERATOR_PASSWORD_MINIMUM;
     await work(auth);
   } finally {
     await database.close();
@@ -340,7 +346,8 @@ function throwAuthFailure(error: unknown): never {
   if (code === 'INVALID_USERNAME' || code === 'USERNAME_TOO_SHORT' || code === 'USERNAME_TOO_LONG') {
     throw new CliExit(2, 'invalid username');
   }
-  if (code === 'PASSWORD_TOO_SHORT' || code === 'PASSWORD_TOO_LONG' || code === 'INVALID_PASSWORD') {
+  if (code === 'PASSWORD_TOO_SHORT') throw new CliExit(2, 'password must be at least 8 characters');
+  if (code === 'PASSWORD_TOO_LONG' || code === 'INVALID_PASSWORD') {
     throw new CliExit(2, 'invalid password');
   }
   throw error;
@@ -360,8 +367,10 @@ async function createUser(username: string, email: string | undefined, password:
       password,
       username: username.trim(),
     };
+    // The operator has the shell, so the CLI presents the first-run token itself.
+    const headers = new Headers({ [COLP_SETUP_TOKEN_HEADER]: process.env.COLP_SETUP_TOKEN ?? '' });
     try {
-      await auth.api.signUpEmail({ body });
+      await auth.api.signUpEmail({ body, headers });
     } catch (error: unknown) {
       throwAuthFailure(error);
     }
@@ -397,6 +406,24 @@ async function resetPassword(username: string, password: string): Promise<void> 
   });
 }
 
+/**
+ * Asks the server in this container for /ready. Scripts call it through
+ * `docker compose exec`, so the check does not depend on the host trusting
+ * Caddy's certificate or reaching the public origin.
+ */
+async function checkReady(): Promise<void> {
+  const port = process.env.PORT?.trim() || '3000';
+  let status: number;
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/ready`, { signal: AbortSignal.timeout(5_000) });
+    status = response.status;
+  } catch {
+    throw new CliExit(1, 'not ready: the server is not answering yet');
+  }
+  if (status !== 200) throw new CliExit(1, `not ready: /ready returned ${status}`);
+  process.stdout.write('ready\n');
+}
+
 async function start(): Promise<void> {
   const processLogger = createLogger(process.env.LOG_LEVEL?.trim() || 'info');
   registerFatalProcessHandlers({ logger: processLogger });
@@ -405,6 +432,15 @@ async function start(): Promise<void> {
 
 async function main(): Promise<boolean> {
   const command = parseCommand(process.argv);
+  if (command.kind === 'ready') {
+    await checkReady();
+    return false;
+  }
+  if (command.kind === 'setup-token') {
+    applySelfHostedPreset(process.env);
+    process.stdout.write(`${process.env.COLP_SETUP_TOKEN ?? ''}\n`);
+    return false;
+  }
   if (command.kind === 'version') {
     process.stdout.write(`colp-server ${version.server}\n`);
     process.stdout.write(`@know-n/colp ${version.colp}\n`);
@@ -438,8 +474,18 @@ async function main(): Promise<boolean> {
   return false;
 }
 
-const invoked = process.argv[1] !== undefined
-  && import.meta.url === pathToFileURL(resolve(process.argv[1])).href;
+/** npm `bin` links point here, so compare real paths, not the link path. */
+function invokedDirectly(): boolean {
+  const entry = process.argv[1];
+  if (entry === undefined) return false;
+  try {
+    return import.meta.url === pathToFileURL(realpathSync(resolve(entry))).href;
+  } catch {
+    return false;
+  }
+}
+
+const invoked = invokedDirectly();
 
 if (invoked) {
   void main().then((keepAlive) => {

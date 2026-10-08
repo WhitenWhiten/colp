@@ -107,7 +107,7 @@ async function listAgents(
         SELECT 1 FROM "auth_oauth_consent" consent
         WHERE consent."clientId" = c."clientId" AND consent."userId" = m.auth_user_id
       )
-    LEFT JOIN agent_policies p ON p.client_id = c."clientId"
+    LEFT JOIN agent_policies p ON p.client_id = c."clientId" AND p.principal_id = ${accountId}
     WHERE m.account_id = ${accountId}
       AND c.disabled IS DISTINCT FROM true
     ORDER BY c."clientId"
@@ -127,7 +127,7 @@ async function listAgents(
            cred.last_used_at AS last_seen_at,
            COALESCE(p.policy, 'manual') AS policy
     FROM account_credentials cred
-    LEFT JOIN agent_policies p ON p.client_id = cred.mcp_client_id
+    LEFT JOIN agent_policies p ON p.client_id = cred.mcp_client_id AND p.principal_id = ${accountId}
     WHERE cred.manager_account_id = ${accountId}
       AND cred.kind = 'child'
       AND cred.state = 'active'

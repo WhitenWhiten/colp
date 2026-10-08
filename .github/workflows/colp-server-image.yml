@@ -4,8 +4,12 @@ name: colp-server-image
 # The tag version has to be a packages/server/CHANGELOG.md section; the check
 # runs before the image build. deploy/compose.yaml keeps ${COLP_IMAGE_TAG:-0.1}.
 # Smoke sets COLP_IMAGE_TAG to this X.Y.Z so the http profile runs the image
-# just built. X.Y.Z, X.Y, and latest are pushed only after deploy/smoke.sh
-# passes. The GitHub release body is that CHANGELOG section.
+# just built. Images are pushed only after deploy/smoke.sh passes, for
+# linux/amd64 and linux/arm64. The GitHub release body is that CHANGELOG section.
+#
+# A pre-release tag (X.Y.Z-rc1) pushes only its own tag and creates a
+# pre-release: it must never move X.Y, which compose follows, or latest.
+# latest moves only to the highest final version.
 on:
   push:
     tags:
@@ -24,7 +28,7 @@ jobs:
       contents: write
       packages: write
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 120
     env:
       COLP_IMAGE: ghcr.io/whitenwhiten/colp-server
     steps:
@@ -53,8 +57,11 @@ jobs:
             exit 1
           fi
           test -s "$RUNNER_TEMP/changelog-section.md"
+          prerelease=false
+          if [[ "$version" == *-* ]]; then prerelease=true; fi
           echo "version=${version}" >> "$GITHUB_OUTPUT"
           echo "minor=${minor}" >> "$GITHUB_OUTPUT"
+          echo "prerelease=${prerelease}" >> "$GITHUB_OUTPUT"
 
       - name: Build the server image
         env:
@@ -87,7 +94,6 @@ jobs:
           COLP_IMAGE_TAG=${COLP_VERSION}
           COLP_HTTP_PORT=8080
           COLP_ALLOWED_EXTENSION_IDS=
-          COLP_SMTP_URL=
           COLP_MULTI_USER=false
           COLP_LOG_LEVEL=info
           DATABASE_SSL_MODE=disable
@@ -103,26 +109,39 @@ jobs:
       - name: Run deploy/smoke.sh
         run: ./deploy/smoke.sh http://127.0.0.1:8080
 
-      - name: Push X.Y.Z, X.Y, and latest
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Push the image for amd64 and arm64
         env:
           COLP_VERSION: ${{ steps.release.outputs.version }}
           COLP_MINOR: ${{ steps.release.outputs.minor }}
+          COLP_PRERELEASE: ${{ steps.release.outputs.prerelease }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
-          docker tag "$COLP_IMAGE:$COLP_VERSION" "$COLP_IMAGE:$COLP_MINOR"
-          docker tag "$COLP_IMAGE:$COLP_VERSION" "$COLP_IMAGE:latest"
-          docker push "$COLP_IMAGE:$COLP_VERSION"
-          docker push "$COLP_IMAGE:$COLP_MINOR"
-          docker push "$COLP_IMAGE:latest"
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          tags=(--tag "$COLP_IMAGE:$COLP_VERSION")
+          if [[ "$COLP_PRERELEASE" != true ]]; then
+            tags+=(--tag "$COLP_IMAGE:$COLP_MINOR")
+            highest="$(git ls-remote --tags --refs origin 'refs/tags/colp-server-v*' \
+              | sed 's#.*refs/tags/colp-server-v##' | grep -v -- '-' | sort -V | tail -n 1)"
+            if [[ "$highest" == "$COLP_VERSION" ]]; then tags+=(--tag "$COLP_IMAGE:latest"); fi
+          fi
+          printf 'pushing:'; printf ' %s' "${tags[@]}"; printf '\n'
+          docker buildx build --platform linux/amd64,linux/arm64 \
+            -f packages/server/Dockerfile "${tags[@]}" --push .
 
       - name: Create the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
           COLP_RELEASE_TAG: ${{ github.ref_name }}
           COLP_VERSION: ${{ steps.release.outputs.version }}
+          COLP_PRERELEASE: ${{ steps.release.outputs.prerelease }}
         run: |
           test -s "$RUNNER_TEMP/changelog-section.md"
-          gh release create "$COLP_RELEASE_TAG" \
+          prerelease=()
+          if [[ "$COLP_PRERELEASE" == true ]]; then prerelease=(--prerelease); fi
+          gh release create "$COLP_RELEASE_TAG" "${prerelease[@]}" \
             --title "COLP Server ${COLP_VERSION}" \
             --notes-file "$RUNNER_TEMP/changelog-section.md"
 
@@ -135,7 +154,6 @@ jobs:
           COLP_SERVER_ORIGIN: http://127.0.0.1:8080
           COLP_INSECURE_HTTP: "true"
           COLP_ALLOWED_EXTENSION_IDS: ""
-          COLP_SMTP_URL: ""
           COLP_MULTI_USER: "false"
           COLP_LOG_LEVEL: info
           COLP_IMAGE_TAG: 0.1.0

@@ -66,7 +66,6 @@ test('API cleanup attempts every resource and reports all close failures togethe
     mcpCollectionResourceCursorKeys: destroyable('mcpCollectionResourceCursorKeys'),
     publicationCursorKeys: destroyable('publicationCursorKeys'),
     mcpChangeSignalSource: closeable('mcpChangeSignalSource'),
-    attachmentRateLimit: closeable('attachmentRateLimit'),
     authRateLimiter: closeable('authRateLimiter'),
     searchRateLimiter: closeable('searchRateLimiter'),
     exploreDirectoryRateLimiter: closeable('exploreDirectoryRateLimiter'),
@@ -84,7 +83,6 @@ test('API cleanup attempts every resource and reports all close failures togethe
     emailCallbackRateLimiter: closeable('emailCallbackRateLimiter'),
     avatarStore: closeable('avatarStore'),
     faviconStore: closeable('faviconStore'),
-    attachmentsObjectStorage: closeable('attachmentsObjectStorage'),
     cacheComposition: closeable('cacheComposition'),
     database: closeable('database'),
   } satisfies ApiRuntimeResources;
@@ -115,7 +113,6 @@ test('API cleanup attempts every resource and reports all close failures togethe
     'mcpCollectionResourceCursorKeys',
     'publicationCursorKeys',
     'mcpChangeSignalSource',
-    'attachmentRateLimit',
     'authRateLimiter',
     'searchRateLimiter',
     'exploreDirectoryRateLimiter',
@@ -130,7 +127,6 @@ test('API cleanup attempts every resource and reports all close failures togethe
     'emailCallbackRateLimiter',
     'faviconStore',
     'avatarStore',
-    'attachmentsObjectStorage',
     'cacheComposition',
     'database',
   ]);

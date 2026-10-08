@@ -1,5 +1,5 @@
 import type { JsonObject } from '../../modules/collections/index.js';
-import { NODE_DELETION_PURGE_RETENTION_MS } from '../../modules/collections/application/delete-collection-node.js';
+import { NODE_DELETION_PURGE_RETENTION_MS } from '../../modules/collections/index.js';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
 import {
   createPostgresSyncNodeTombstonePort,

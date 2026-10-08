@@ -309,3 +309,5 @@ export { createPostgresClassificationAutoTagRoute } from './classification-auto-
 export * from './actor-bookmark-read.js';
 
 export { createPhase4bMcpAgentApprovalApi, createPostgresAutoApproveTrustedPlan } from './agent-policy-postgres.js';
+export { readMcpPlanCommitRevision, recordMcpPlanCommitRevisions } from './mcp-plan-commit-revisions-postgres.js';
+export { createMcpNodePlanState } from './mcp-node-plan-state.js';

@@ -16,6 +16,7 @@ import {
   runMigrations,
 } from '../../../src/infrastructure/database/index.js';
 import { createPhase4bMcpAgentApprovalApi } from '../../../src/infrastructure/collections/index.js';
+import { issueAgentKey } from '../../../src/infrastructure/auth/agent-key-postgres.js';
 import { createPostgresIdentityUnitOfWork } from '../../../src/infrastructure/identity/index.js';
 import { createMemoryMcpRateLimiter } from '../../../src/infrastructure/rate-limit/index.js';
 import { buildApiApp } from '../../../src/transport/app.js';
@@ -86,8 +87,8 @@ describeWithPostgres('E5 agent directory over PostgreSQL', () => {
     });
     await insertApiKey(keyId);
     await sql`
-      INSERT INTO agent_policies (client_id, policy, updated_at)
-      VALUES (${oauthId}, 'trusted', current_timestamp)
+      INSERT INTO agent_policies (principal_id, client_id, policy, updated_at)
+      VALUES (${owner.accountId}, ${oauthId}, 'trusted', current_timestamp)
     `.execute(isolated.runtime.db);
     versionedPlanId = await savePlan(oauthId, '2026-08-04T00:00:00.000Z');
     await sql`
@@ -130,7 +131,10 @@ describeWithPostgres('E5 agent directory over PostgreSQL', () => {
         enabled: true,
         allowedOrigins: [ORIGIN],
         identityUnitOfWork: identity,
-        api: createPhase4bMcpAgentApprovalApi(isolated.runtime.db, { secretHmacKey: 'agent-api-test-hmac-key-0123456789' }),
+        api: createPhase4bMcpAgentApprovalApi(isolated.runtime.db, {
+          issueAgentKey: (accountId, name, commandId) => issueAgentKey(
+            isolated.runtime.db, 'agent-api-test-hmac-key-0123456789', accountId, name, commandId),
+        }),
         rateLimiter: createMemoryMcpRateLimiter({ approval: { maxRequests: 100, windowMs: 60_000 } }),
         timeoutMs: 5_000,
       },

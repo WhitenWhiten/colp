@@ -42,7 +42,10 @@ import { executeMcpNodeCreate } from './node-create-execution.js';
 import { parseMcpNodeCreatePayload } from './node-create-payload.js';
 import { projectLowRiskNodeCreateOutput } from './low-risk-node-create.js';
 import { requireMcpAccountSubjectId } from './account-context.js';
-import type { McpDeleteSubtreeTombstoneFacts } from './change-plan-service.js';
+import type {
+  McpCommittedContentRevisionFacts,
+  McpDeleteSubtreeTombstoneFacts,
+} from './change-plan-service.js';
 
 export function revisionDrift(message: string): McpChangePlanError {
   return new McpChangePlanError('revision_drift', message);
@@ -61,6 +64,10 @@ export async function executeCanonicalPlanOperations<Transaction extends object>
   recordDeleteSubtreeTombstones?: (
     transaction: Transaction,
     facts: McpDeleteSubtreeTombstoneFacts,
+  ) => Promise<void>,
+  recordCommittedContentRevisions?: (
+    transaction: Transaction,
+    facts: McpCommittedContentRevisionFacts,
   ) => Promise<void>,
 ): Promise<readonly OperationResult[]> {
   const ownedBinding = requireAuthenticatedWriteBinding(
@@ -98,7 +105,23 @@ export async function executeCanonicalPlanOperations<Transaction extends object>
     }
     results.push(result);
   }
+  if (recordCommittedContentRevisions !== undefined) {
+    await recordCommittedContentRevisions(transaction, {
+      planId: plan.planId,
+      collectionIds: planCollectionIds(operations),
+    });
+  }
   return Object.freeze(results);
+}
+
+function planCollectionIds(operations: readonly unknown[]): readonly string[] {
+  const ids = new Set<string>();
+  for (const operation of operations) {
+    if (typeof operation !== 'object' || operation === null) continue;
+    const collectionId = (operation as { readonly collectionId?: unknown }).collectionId;
+    if (typeof collectionId === 'string' && collectionId.length > 0) ids.add(collectionId);
+  }
+  return Object.freeze([...ids]);
 }
 
 async function executeNodeCreate(

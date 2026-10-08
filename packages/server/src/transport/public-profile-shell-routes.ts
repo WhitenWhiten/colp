@@ -20,9 +20,31 @@ import {
   exploreDirectoryAccountSubject,
   exploreDirectoryAnonymousSubject,
 } from './product/explore-directory-rate-limit.js';
-import type { PublicProfileProjection as ProductPublicProfileProjection } from '../bootstrap/public-profile-projection.js';
 
-interface ProductPublicProfileQuery {
+/** The public Profile read this shell renders; bootstrap supplies the query. */
+export interface ProductPublicProfileProjection {
+  readonly profile: Readonly<{
+    profileId: string;
+    handle: string;
+    displayName: string;
+    avatarUrl: string | null;
+    about: string;
+  }>;
+  readonly collections: readonly Readonly<{
+    id: string;
+    slug: string;
+    title: string;
+    summary: string | null;
+    kind: 'bookmarks' | 'reading_path' | 'knowledge_collection' | 'mixed';
+    updatedAt: string;
+  }>[];
+  readonly page: Readonly<{
+    cursor: string | null;
+    hasMore: boolean;
+  }>;
+}
+
+export interface ProductPublicProfileQuery {
   get(input: { readonly handle: string; readonly limit?: number }): Promise<ProductPublicProfileProjection>;
 }
 import {

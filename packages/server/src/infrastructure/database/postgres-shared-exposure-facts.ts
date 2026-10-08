@@ -17,8 +17,8 @@ import type {
   SharedExposureBlobFacts,
   SharedExposureFactsPort,
   SharedExposureFactsScope,
-} from '../../modules/exposure/deny-by-default.js';
-import { assertSharedExposureFactsScope } from '../../modules/exposure/deny-by-default.js';
+} from '../../modules/exposure/index.js';
+import { assertSharedExposureFactsScope } from '../../modules/exposure/index.js';
 
 export function createPostgresSharedExposureFactsPort(
   runtime: DatabaseRuntime,

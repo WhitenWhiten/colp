@@ -196,7 +196,7 @@ export function registerMcpWriteApprovalRoutes(
     if (api.getAgentPolicy === undefined) throw notFound();
     await withCancellation(request, deps.timeoutMs, () => assertOwnedAgent(deps, policyActor.id, clientId));
     try {
-      const view = await withCancellation(request, deps.timeoutMs, () => api.getAgentPolicy!(clientId));
+      const view = await withCancellation(request, deps.timeoutMs, () => api.getAgentPolicy!(policyActor.id, clientId));
       return reply.code(200).type('application/json; charset=utf-8').send(view);
     } catch (error) {
       throw mapWriteApprovalError(error);
@@ -227,7 +227,7 @@ export function registerMcpWriteApprovalRoutes(
     await withCancellation(request, deps.timeoutMs, () => assertOwnedAgent(deps, account.id, clientId));
     try {
       const view = await withCancellation(request, deps.timeoutMs, () =>
-        api.putAgentPolicy!(clientId, policy));
+        api.putAgentPolicy!(account.id, clientId, policy));
       return reply.code(200).type('application/json; charset=utf-8').send(view);
     } catch (error) {
       throw mapWriteApprovalError(error);
@@ -422,8 +422,12 @@ export function mapWriteApprovalError(error: unknown): ProductHttpError {
 }
 
 interface AgentPolicyApprovalMethods {
-  getAgentPolicy?(clientId: string): Promise<{ readonly clientId: string; readonly policy: 'manual' | 'trusted' }>;
+  getAgentPolicy?(
+    principalId: string,
+    clientId: string,
+  ): Promise<{ readonly clientId: string; readonly policy: 'manual' | 'trusted' }>;
   putAgentPolicy?(
+    principalId: string,
     clientId: string,
     policy: 'manual' | 'trusted',
   ): Promise<{ readonly clientId: string; readonly policy: 'manual' | 'trusted' }>;
@@ -485,7 +489,8 @@ function mapUndoError(error: AgentPlanUndoError): ProductHttpError {
       recovery: 'none',
     });
   }
-  if (error.code === 'newer_version' || error.code === 'sync_tombstone_conflict') {
+  if (error.code === 'newer_version' || error.code === 'newer_changes'
+    || error.code === 'sync_tombstone_conflict') {
     return new ProductHttpError({
       statusCode: productErrorStatus('mutation_conflict'),
       code: 'mutation_conflict',

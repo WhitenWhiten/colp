@@ -34,3 +34,5 @@ export { REPLICA_LEASE_BOUNDS, TOMBSTONE_RETENTION_BOUNDS } from '../../modules/
 // re-exported so composition roots can type their adapter wiring without
 // importing the sync module facade directly.
 export type { AttachmentExposurePolicyPort } from '../../modules/sync/index.js';
+// E2: bootstrap composes the MCP subtree-delete tombstone writer through this surface.
+export { recordMcpDeleteSubtreeTombstones } from './mcp-delete-subtree-tombstone-postgres.js';

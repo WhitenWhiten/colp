@@ -949,6 +949,8 @@ test('host signal source provides monotonic frozen signals and bounded overflow 
 
   const adapter = createMcp20260728SubscriptionsListenAdapter({
     signalSource: source as McpChangeSignalSourcePort,
+    // @know-n/colp 0.1.1 denies listen when no authorization is configured.
+    authorization: { isAuthorized: () => true },
     capabilities: PHASE4B_MCP_DISCOVERY_CAPABILITIES,
     maxQueueSize: 2,
     maxRatePerWindow: 10,

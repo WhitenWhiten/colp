@@ -12,6 +12,12 @@ import { createPostgresMcpChangePlanStore, createPostgresProductCommandReceiptPo
 import { createPostgresCanonicalMutationPorts, createPostgresCanonicalMutationUnitOfWork, createPostgresCollectionWritePort, createPostgresCollectionsClock, createPostgresNodeWritePort, type PostgresCanonicalMutationFaultInjector } from '../../../src/infrastructure/collections/index.js';
 import { createPostgresAccessPolicyFactsPort } from '../../../src/infrastructure/access-policy/index.js';
 import {
+  createPhase4bMcpAgentApprovalApi,
+  createPostgresAutoApproveTrustedPlan,
+  recordMcpPlanCommitRevisions,
+} from '../../../src/infrastructure/collections/index.js';
+import { AgentPlanUndoError } from '../../../src/modules/mcp/agent-plan-policy.js';
+import {
   createCanonicalMutationApplication,
   createOwnedCollectionCanonical,
   type CreateOwnedCollectionInput,
@@ -192,7 +198,9 @@ describeWithPostgres('MCP-W05 approved Change Plan Commit over PostgreSQL', () =
     await truncateFixtureTables(runtime.pool, `truncate table product_command_receipts, outbox_events, audit_events,
       operations, policy_revisions, content_revisions, children_revisions, resource_revisions,
       collection_policies, collection_members, nodes, collections, resource_id_ledger,
-      profiles, accounts, mcp_commit_receipts, mcp_approvals, mcp_change_plans cascade`);
+      profiles, accounts, mcp_commit_receipts, mcp_approvals, mcp_change_plans,
+      mcp_plan_policy_receipts, mcp_plan_commit_revisions, agent_policies,
+      collection_version_restore_receipts, collection_tree_versions cascade`);
     await runtime.pool.query(
       `insert into accounts(id, subject_id, status, security_epoch)
        values ($1, $1, 'active', 0)`,
@@ -431,6 +439,9 @@ describeWithPostgres('MCP-W05 approved Change Plan Commit over PostgreSQL', () =
       ),
     );
     const serviceOptions: Phase4bMcpChangePlanServiceOptions = Object.freeze({
+      autoApproveTrustedPlan: createPostgresAutoApproveTrustedPlan(runtime.db),
+      recordCommittedContentRevisions: recordMcpPlanCommitRevisions as unknown as NonNullable<
+        Phase4bMcpChangePlanServiceOptions['recordCommittedContentRevisions']>,
       planner,
       planStore: store.planStore,
       approvalStore: store.approvalStore,
@@ -888,4 +899,224 @@ describeWithPostgres('MCP-W05 approved Change Plan Commit over PostgreSQL', () =
     );
     assert.deepEqual(await counts(), afterApproval);
   });
+
+  test('E4 trusted reversible plan commits without approval and Undo restores the pre-commit tree', async () => {
+    const fixture = await createFixture();
+    await runtime.pool.query(
+      `insert into agent_policies (principal_id, client_id, policy) values ($1, $2, 'trusted')`,
+      [PRINCIPAL_ID, BINDING.clientId],
+    );
+    const harness = createHarness();
+    const before = await liveTitles(fixture.collectionId);
+    const planned = await runWithMcpAccountSubjectId(BINDING.principalId, () =>
+      harness.service.plan(createPlanInput(fixture), BINDING));
+    assert.equal((await harness.store.planStore.get(planned.planId))?.status, 'consumed');
+    assert.equal((planned as { readonly approvedBy?: string }).approvedBy, 'policy');
+    const committed = await liveTitles(fixture.collectionId);
+    assert.equal(committed.includes('W05 planned bookmark'), true);
+    assert.equal(committed.length, before.length + 1);
+    const version = (await runtime.pool.query<{ version_id: string; cause: string }>(
+      `select version_id, cause from collection_tree_versions where collection_id = $1`,
+      [fixture.collectionId],
+    )).rows[0];
+    assert.ok(version);
+    assert.equal(version.cause, `agent-plan:${planned.planId}`);
+    const receipt = (await runtime.pool.query<{ approved_by: string; version_id: string }>(
+      `select approved_by, version_id from mcp_plan_policy_receipts where plan_id = $1`,
+      [planned.planId],
+    )).rows[0];
+    assert.equal(receipt?.approved_by, 'policy');
+    assert.equal(receipt?.version_id, version.version_id);
+    const audit = (await runtime.pool.query<{ details: { decision?: string } }>(
+      `select payload.details_json as details
+         from audit_events event
+         join audit_event_payloads payload on payload.event_id = event.hot_payload_id
+        where event.event_type = 'mcp.approval_decision'
+        order by event.id desc limit 1`,
+    )).rows[0];
+    assert.equal(audit?.details.decision, 'auto-approved');
+
+    const api = createPhase4bMcpAgentApprovalApi(runtime.db);
+    const undone = await api.undo({
+      accountId: PRINCIPAL_ID,
+      subjectId: PRINCIPAL_ID,
+      planId: planned.planId,
+      force: false,
+      commandId: randomUUID(),
+    });
+    assert.equal(undone.restored, true);
+    const restored = await liveTitles(fixture.collectionId);
+    assert.deepEqual(restored.sort(), before.sort());
+  });
+
+  test('E4 trusted set_visibility waits and a missing policy stays manual', async () => {
+    const fixture = await createFixture();
+    await runtime.pool.query(
+      `insert into agent_policies (principal_id, client_id, policy) values ($1, $2, 'trusted')`,
+      [PRINCIPAL_ID, BINDING.clientId],
+    );
+    const visibility = (await runtime.pool.query<{ visibility: string }>(
+      `select visibility from nodes where id = $1`,
+      [fixture.nodeId],
+    )).rows[0]?.visibility;
+    const trusted = createHarness();
+    const waiting = await trusted.service.plan(planInput(fixture), BINDING);
+    assert.equal(waiting.requiresApproval, true);
+    assert.equal((await trusted.store.planStore.get(waiting.planId))?.status, 'pending');
+    assert.equal((await runtime.pool.query<{ visibility: string }>(
+      `select visibility from nodes where id = $1`,
+      [fixture.nodeId],
+    )).rows[0]?.visibility, visibility);
+    assert.equal((await runtime.pool.query(
+      `select count(*)::int as n from mcp_plan_policy_receipts`,
+    )).rows[0]?.n, 0);
+
+    await runtime.pool.query(`delete from agent_policies where client_id = $1`, [BINDING.clientId]);
+    const manualFixture = await createFixture();
+    const before = await liveTitles(manualFixture.collectionId);
+    const manual = createHarness();
+    const pending = await manual.service.plan(createPlanInput(manualFixture), BINDING);
+    assert.equal((await manual.store.planStore.get(pending.planId))?.status, 'pending');
+    assert.deepEqual(await liveTitles(manualFixture.collectionId), before);
+  });
+
+  test('E4 Undo refuses a newer version unless forced and refuses a sync tombstone conflict', async () => {
+    const fixture = await createFixture();
+    await runtime.pool.query(
+      `insert into agent_policies (principal_id, client_id, policy) values ($1, $2, 'trusted')`,
+      [PRINCIPAL_ID, BINDING.clientId],
+    );
+    const harness = createHarness();
+    const planned = await runWithMcpAccountSubjectId(BINDING.principalId, () =>
+      harness.service.plan(createPlanInput(fixture), BINDING));
+    await runtime.pool.query(
+      `insert into collection_tree_versions (
+         version_id, account_id, collection_id, content_revision, kind, label, etag,
+         node_count, tree_json, created_at, cause
+       )
+       select 'newer-version-e4', account_id, collection_id, 'newer-content-revision', kind, label, etag,
+              node_count, tree_json, created_at + interval '1 second', 'web'
+         from collection_tree_versions
+        where collection_id = $1`,
+      [fixture.collectionId],
+    );
+    const api = createPhase4bMcpAgentApprovalApi(runtime.db);
+    await assert.rejects(
+      api.undo({
+        accountId: PRINCIPAL_ID,
+        subjectId: PRINCIPAL_ID,
+        planId: planned.planId,
+        force: false,
+        commandId: randomUUID(),
+      }),
+      (error: unknown) => error instanceof AgentPlanUndoError && error.code === 'newer_version',
+    );
+    assert.equal((await liveTitles(fixture.collectionId)).includes('W05 planned bookmark'), true);
+    const forced = await api.undo({
+      accountId: PRINCIPAL_ID,
+      subjectId: PRINCIPAL_ID,
+      planId: planned.planId,
+      force: true,
+      commandId: randomUUID(),
+    });
+    assert.equal(forced.restored, true);
+    assert.equal((await liveTitles(fixture.collectionId)).includes('W05 planned bookmark'), false);
+
+    const again = await createFixture();
+    const againPlan = await runWithMcpAccountSubjectId(BINDING.principalId, () =>
+      harness.service.plan(createPlanInput(again), BINDING));
+    await runtime.pool.query(
+      `update nodes set deleted_at = current_timestamp where id = $1`,
+      [again.nodeId],
+    );
+    await assert.rejects(
+      api.undo({
+        accountId: PRINCIPAL_ID,
+        subjectId: PRINCIPAL_ID,
+        planId: againPlan.planId,
+        force: true,
+        commandId: randomUUID(),
+      }),
+      (error: unknown) => error instanceof AgentPlanUndoError
+        && error.code === 'sync_tombstone_conflict'
+        && error.message.includes('sync tombstone'),
+    );
+    assert.equal((await liveTitles(again.collectionId)).includes('W05 planned bookmark'), true);
+  });
+
+  test('E4 Undo refuses when the collection changed after the plan unless forced', async () => {
+    const fixture = await createFixture();
+    await runtime.pool.query(
+      `insert into agent_policies (principal_id, client_id, policy) values ($1, $2, 'trusted')`,
+      [PRINCIPAL_ID, BINDING.clientId],
+    );
+    const harness = createHarness();
+    const planned = await runWithMcpAccountSubjectId(BINDING.principalId, () =>
+      harness.service.plan(createPlanInput(fixture), BINDING));
+    const recorded = (await runtime.pool.query<{ content_revision: string }>(
+      `select content_revision from mcp_plan_commit_revisions where plan_id = $1 and collection_id = $2`,
+      [planned.planId, fixture.collectionId],
+    )).rows[0]?.content_revision;
+    const live = (await runtime.pool.query<{ content_revision: string }>(
+      `select content_revision from collections where id = $1`,
+      [fixture.collectionId],
+    )).rows[0]?.content_revision;
+    assert.equal(recorded, live);
+    // A later change that creates no version: a manual plan of another client,
+    // like a browser sync or a web edit.
+    const otherClient = { ...BINDING, clientId: 'client-2' };
+    const later = await runWithMcpAccountSubjectId(BINDING.principalId, () =>
+      harness.service.plan(createPlanInput(fixture), otherClient));
+    await harness.service.recordOutOfBandApproval(later.planId, otherClient);
+    await harness.service.commit(later.planId, otherClient, randomUUID());
+    assert.equal((await liveTitles(fixture.collectionId)).filter((title) => title === 'W05 planned bookmark').length, 2);
+    const api = createPhase4bMcpAgentApprovalApi(runtime.db);
+    await assert.rejects(
+      api.undo({
+        accountId: PRINCIPAL_ID,
+        subjectId: PRINCIPAL_ID,
+        planId: planned.planId,
+        force: false,
+        commandId: randomUUID(),
+      }),
+      (error: unknown) => error instanceof AgentPlanUndoError && error.code === 'newer_changes',
+    );
+    assert.equal((await liveTitles(fixture.collectionId)).includes('W05 planned bookmark'), true);
+    const forced = await api.undo({
+      accountId: PRINCIPAL_ID,
+      subjectId: PRINCIPAL_ID,
+      planId: planned.planId,
+      force: true,
+      commandId: randomUUID(),
+    });
+    assert.equal(forced.restored, true);
+    assert.equal((await liveTitles(fixture.collectionId)).includes('W05 planned bookmark'), false);
+  });
+
+  test('E4 a trusted policy of another account does not auto-approve this account', async () => {
+    const fixture = await createFixture();
+    await runtime.pool.query(
+      `insert into agent_policies (principal_id, client_id, policy) values ($1, $2, 'trusted')`,
+      ['another-account', BINDING.clientId],
+    );
+    const before = await liveTitles(fixture.collectionId);
+    const harness = createHarness();
+    const planned = await runWithMcpAccountSubjectId(BINDING.principalId, () =>
+      harness.service.plan(createPlanInput(fixture), BINDING));
+    assert.equal((await harness.store.planStore.get(planned.planId))?.status, 'pending');
+    assert.deepEqual(await liveTitles(fixture.collectionId), before);
+    const api = createPhase4bMcpAgentApprovalApi(runtime.db);
+    assert.equal((await api.getAgentPolicy(PRINCIPAL_ID, BINDING.clientId)).policy, 'manual');
+    assert.equal((await api.getAgentPolicy('another-account', BINDING.clientId)).policy, 'trusted');
+  });
+
+  async function liveTitles(collectionId: string): Promise<string[]> {
+    const rows = (await runtime.pool.query<{ title: string }>(
+      `select title from nodes
+        where collection_id = $1 and deleted_at is null and not is_root
+        order by title`,
+      [collectionId],
+    )).rows;
+    return rows.map((row) => row.title);
+  }
 });

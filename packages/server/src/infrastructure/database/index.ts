@@ -246,7 +246,7 @@ export {
 export { createPostgresSharedExposureFactsPort } from './postgres-shared-exposure-facts.js';
 export { createAttachmentExposurePolicyAdapter } from './attachment-exposure-policy-adapter.js';
 export type { AttachmentExposurePolicyAdapter } from './attachment-exposure-policy-adapter.js';
-export type { SharedExposureFactsPort, SharedExposureFactsScope } from '../../modules/exposure/deny-by-default.js';
+export type { SharedExposureFactsPort, SharedExposureFactsScope } from '../../modules/exposure/index.js';
 export {
   assertNoLegacyMcpSessionFields,
   buildPostgresMcpChangePlanRow,
@@ -301,3 +301,6 @@ export { isConcurrentCatalogRaceError } from './concurrent-catalog.js';
 // replicas `recovery_required` acquire the Replica rows before the Collection
 // row through the single lock-order module instead of re-deriving the SELECT.
 export { lockCollectionForReplicaInvalidation } from './lock-order.js';
+// Self-hosted entry and CLI open the maintenance (migrator) runtime.
+export { maintenanceDatabaseRuntimeOptions } from './maintenance-options.js';
+export { isAvatarPublicationRestricted, isFaviconHiddenPublic } from './publication-object-controls.js';

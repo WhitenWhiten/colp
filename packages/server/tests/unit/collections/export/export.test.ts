@@ -221,5 +221,7 @@ test('OpenAPI export operation is no longer pending', () => {
   assert.equal(ok['200'].headers['Content-Disposition'].required, true);
   assert.equal(document.paths['/api/v1/me/agents']?.get?.operationId, 'listMyAgents');
   assert.equal(document.paths['/api/v1/me/agents']?.get?.['x-colp-server-pending'], undefined);
-  assert.equal(document.paths['/api/v1/me/agents/{clientId}/policy']?.get?.['x-colp-server-pending'], true);
+  // The per-agent policy routes shipped with 0.1.0 (trusted auto-approve + Undo).
+  assert.equal(document.paths['/api/v1/me/agents/{clientId}/policy']?.get?.operationId, 'getAgentPolicy');
+  assert.equal(document.paths['/api/v1/me/agents/{clientId}/policy']?.get?.['x-colp-server-pending'], undefined);
 });

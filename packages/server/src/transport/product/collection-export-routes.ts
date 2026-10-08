@@ -4,7 +4,7 @@ import {
   ExportCollectionError,
   renderCollectionExport,
   type CollectionExportReadPort,
-} from '../../modules/collections/application/export-collection.js';
+} from '../../modules/collections/index.js';
 import { ProductHttpError } from '../product-error.js';
 import { requireSessionActor } from '../session-auth.js';
 

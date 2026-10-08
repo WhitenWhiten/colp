@@ -59,10 +59,11 @@ import { createPostgresLinkPreviewPublicAccess } from '../infrastructure/collect
 import {
   isAvatarPublicationRestricted,
   isFaviconHiddenPublic,
-} from '../infrastructure/database/publication-object-controls.js';
+} from '../infrastructure/database/index.js';
 import { closeApiRuntimeResources } from './api-lifecycle.js';
 import { composeLedgerArchiveColdReaders } from './ledger-archive-reader-composition.js';
 import { createPostgresAccountCredentialUnitOfWork } from '../infrastructure/auth/account-credentials-postgres.js';
+import { issueAgentKey } from '../infrastructure/auth/agent-key-postgres.js';
 import { createAccountCredentialCursorCodec, createCredentialGrantCursorCodec } from '../modules/auth/index.js';
 import { consumeProductAdmission } from '../transport/http-security.js';
 
@@ -96,6 +97,16 @@ export interface StartedApi {
   readonly database: DatabaseRuntime;
   listen(): Promise<void>;
   stop(): Promise<void>;
+}
+
+/** Named agent keys use the same secret HMAC key as account-credential exchange. */
+function agentKeyIssuer(db: DatabaseRuntime['db'], config: AppConfig) {
+  const secretHmacKey = config.accountCredentials.cursorHmacKey?.toString('utf8');
+  if (!secretHmacKey) return {};
+  return {
+    issueAgentKey: (accountId: string, name: string, commandId: string) =>
+      issueAgentKey(db, secretHmacKey, accountId, name, commandId),
+  };
 }
 
 export async function startApi(options: StartApiOptions = {}): Promise<StartedApi> {
@@ -516,7 +527,7 @@ export async function startApi(options: StartApiOptions = {}): Promise<StartedAp
             enabled: true,
             allowedOrigins: config.allowedOrigins,
             identityUnitOfWork: ports.identityUnitOfWork,
-            api: createPhase4bMcpAgentApprovalApi(database.db, { secretHmacKey: config.accountCredentials.cursorHmacKey?.toString('utf8') }),
+            api: createPhase4bMcpAgentApprovalApi(database.db, agentKeyIssuer(database.db, config)),
             // FIX-M-018: approval policy of the unified MCP limiter (shared
             // across replicas; mcpWriteEnabled implies the limiter exists).
             rateLimiter: mcpRateLimiter!,

@@ -321,12 +321,12 @@ export function assertMcpReadFeatureConfig(
   const production = options.production === true;
   // ADR P4: NODE_ENV=test + built-in issuer may use same-origin loopback
   // issuer/JWKS. COLP_INSECURE_HTTP is the self-hosted acknowledgement that
-  // the product origin itself is http, including on a LAN address.
+  // the product origin itself is http; that origin is always loopback (D26).
   const insecureHttp = options.insecureHttp ?? process.env.COLP_INSECURE_HTTP === 'true';
   const allowSameOriginLoopback =
     options.oauthIssuerEnabled === true && options.nodeEnv === 'test';
   const oauthEndpointMode = (allowSameOriginLoopback || insecureHttp) ? 'relaxed' : 'strict';
-  const httpAllowed = (hostname: string): boolean => insecureHttp || isLoopback(hostname);
+  const httpAllowed = (hostname: string): boolean => isLoopback(hostname);
   if (config.protocolVersion !== PHASE4B_MCP_CONFIG_PROTOCOL_VERSION) {
     throw new Error(`MCP read protocolVersion is fixed to ${PHASE4B_MCP_CONFIG_PROTOCOL_VERSION}`);
   }

@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { S3Client } from '@aws-sdk/client-s3';
 import { afterEach, describe, test, vi } from 'vitest';
-import { composeApiAttachments } from '../../../src/bootstrap/api-attachments-composition.js';
 import { composeApiMcpSurface } from '../../../src/bootstrap/api-mcp-surface-composition.js';
 import { loadConfig } from '../../support/test-config.js';
 import type { DatabaseRuntime } from '../../../src/infrastructure/database/index.js';
@@ -169,58 +168,5 @@ describe('partial API composition resource cleanup', () => {
     assert.match(database.listener.statements[1] ?? '', /^UNLISTEN mcp_sig_/u);
     assert.deepEqual(database.listener.releases, [false]);
     assert.deepEqual(database.closeCalls, ['close']);
-  });
-
-  test('Attachments closes all six acquired S3 clients when delivery-secret resolution fails', async () => {
-    process.env.ATTACHMENTS_R2_RW_ACCESS_KEY_ID = 'attachments-write-access-id';
-    process.env.ATTACHMENTS_R2_RW_SECRET_ACCESS_KEY = 'attachments-write-access-secret';
-    process.env.ATTACHMENTS_R2_RO_ACCESS_KEY_ID = 'attachments-read-access-id';
-    process.env.ATTACHMENTS_R2_RO_SECRET_ACCESS_KEY = 'attachments-read-access-secret';
-    delete process.env.ATTACHMENTS_DELIVERY_CAPABILITY_PRIMARY;
-    const destroy = vi.spyOn(S3Client.prototype, 'destroy');
-    destroy.mockImplementationOnce(() => { throw new Error('first close failed'); });
-    const config = loadConfig({
-      ...testEnv(),
-      ...deliveryProcessEnv({
-        ATTACHMENTS_R2_RW_SECRET_REF: 'known/r2/rw',
-        ATTACHMENTS_R2_RO_SECRET_REF: 'known/r2/ro',
-      }),
-    } as Record<string, string>);
-    const database = listeningDatabase();
-
-    await assert.rejects(
-      composeApiAttachments({
-        config,
-        database,
-        identityUnitOfWork: identityUnitOfWork(),
-        metrics: new InMemoryMetrics(),
-        metricsLogger: createLogger('silent'),
-      }),
-      /ATTACHMENTS_DELIVERY_CAPABILITY_PRIMARY is required/u,
-    );
-    assert.equal(destroy.mock.calls.length, 6, 'best-effort cleanup must attempt every acquired S3 client');
-    assert.deepEqual(database.closeCalls, [], 'Attachments does not own the shared database runtime');
-  });
-
-  test('avatar-only R2 stores close both clients exactly once', async () => {
-    process.env.AVATAR_R2_ENDPOINT = 'https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com';
-    process.env.AVATAR_R2_BUCKET = 'known-public-profile-media';
-    process.env.AVATAR_R2_ACCESS_KEY_ID = 'avatar-access-id';
-    process.env.AVATAR_R2_SECRET_ACCESS_KEY = 'avatar-access-secret';
-    const destroy = vi.spyOn(S3Client.prototype, 'destroy');
-    const composed = await composeApiAttachments({
-      config: loadConfig(testEnv()),
-      database: listeningDatabase(),
-      identityUnitOfWork: identityUnitOfWork(),
-      metrics: new InMemoryMetrics(),
-      metricsLogger: createLogger('silent'),
-    });
-    assert.ok(composed.avatarStore?.close);
-    assert.ok(composed.faviconStore?.close);
-    await composed.avatarStore.close();
-    await composed.faviconStore.close();
-    await composed.avatarStore.close();
-    await composed.faviconStore.close();
-    assert.equal(destroy.mock.calls.length, 4);
   });
 });

@@ -7,6 +7,7 @@ import { betterAuth, type BetterAuthOptions, type BetterAuthPlugin } from 'bette
 import { APIError, createAuthEndpoint, createAuthMiddleware } from 'better-auth/api';
 import { expireCookie } from 'better-auth/cookies';
 import { emailOTP, jwt, twoFactor, username } from 'better-auth/plugins';
+import { timingSafeEqual } from 'node:crypto';
 import type { Kysely } from 'kysely';
 import {
   AUTH_OTP_MAX_ATTEMPTS,
@@ -580,9 +581,29 @@ function isSelfHostedEdition(): boolean {
   return process.env.KNOWN_EDITION === 'self-hosted';
 }
 
-/** `COLP_MULTI_USER=true` is the only value that skips the single-owner gate. */
+/**
+ * `COLP_MULTI_USER=true` is the only value that skips the single-owner gate.
+ * The self-hosted preset refuses it until invite codes ship (0.3.0, D27), so
+ * only test suites reach this branch.
+ */
 function isColpMultiUser(): boolean {
   return process.env.COLP_MULTI_USER === 'true';
+}
+
+/** Header that carries the first-run setup token (D27). */
+export const COLP_SETUP_TOKEN_HEADER = 'colp-setup-token';
+
+/**
+ * The first self-hosted sign-up must present the setup token the preset
+ * derives from COLP_SERVER_SECRET. Whoever reaches a fresh public origin first
+ * cannot claim the owner account without access to the server's log or shell.
+ */
+function setupTokenMatches(presented: string | null): boolean {
+  const expected = process.env.COLP_SETUP_TOKEN?.trim() ?? '';
+  if (expected === '' || presented === null) return false;
+  const left = Buffer.from(presented.trim(), 'utf8');
+  const right = Buffer.from(expected, 'utf8');
+  return left.length === right.length && timingSafeEqual(left, right);
 }
 
 /**
@@ -640,14 +661,20 @@ function buildProductAuthHooks(input: {
     before: createAuthMiddleware(async (ctx) => {
       if (typeof ctx.path === 'string' && ctx.path.startsWith('/sign-up/')) {
         if (ctx.path === '/sign-up/email') fillSelfHostedOptionalSignupEmail(ctx.body);
-        if (!isColpMultiUser()) {
-          const existingUsers = await ctx.context.adapter.count({ model: 'user' });
-          if (existingUsers > 0) {
-            throw APIError.from('FORBIDDEN', {
-              code: 'registration_closed',
-              message: 'Registration is closed.',
-            });
-          }
+        const existingUsers = await ctx.context.adapter.count({ model: 'user' });
+        if (!isColpMultiUser() && existingUsers > 0) {
+          throw APIError.from('FORBIDDEN', {
+            code: 'registration_closed',
+            message: 'Registration is closed.',
+          });
+        }
+        if (isSelfHostedEdition() && existingUsers === 0
+            && !setupTokenMatches(headerValue(ctx, COLP_SETUP_TOKEN_HEADER))) {
+          throw APIError.from('FORBIDDEN', {
+            code: 'setup_token_required',
+            message: 'Enter the setup token from the server log (docker compose logs server), '
+              + 'or run: docker compose exec server colp-server setup-token',
+          });
         }
       }
       if (isOAuthCallbackPath(ctx.path)) {

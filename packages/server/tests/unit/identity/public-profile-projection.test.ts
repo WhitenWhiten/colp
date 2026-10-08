@@ -250,7 +250,7 @@ test('profile cursor has an independent purpose and binds canonical handle, page
     const first = await getPublicProfileProjection(queryPorts, { handle: 'Alice', limit: 1 });
     assert.ok(first.page.cursor);
     const directoryCursor = queryPorts.cursors.directory.sign({
-      principal: 'anonymous', filterDigest: 'x', sort: 'x', limit: 1,
+      resourceId: 'https://colp.example/colp/v0.1/collections', principal: 'anonymous', filterDigest: 'x', sort: 'x', limit: 1,
       protocolVersion: '0.1', nextPosition: 'x',
     });
     const productCursor = queryPorts.cursors.product.sign({

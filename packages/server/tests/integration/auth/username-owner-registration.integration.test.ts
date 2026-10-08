@@ -12,13 +12,17 @@ import {
   openBetterAuthPostgres,
   type BetterAuthPostgresFixture,
 } from '../../support/better-auth-postgres.js';
+import { up as applySingleOwnerGuard } from '../../../migrations/202610230400_colp_single_owner_guard.js';
 
 const TRUSTED_ORIGIN = 'https://app.example.test';
 const BASE_PATH = '/api/v1/auth';
 const PASSWORD = 'password-123'; // secret-scan: allow 'password-123'
+const SETUP_TOKEN = 'g2-first-run-setup-token-0123456789abcdefghij';
+const SETUP = { 'colp-setup-token': SETUP_TOKEN };
 
 const previousMultiUser = process.env.COLP_MULTI_USER;
 const previousEdition = process.env.KNOWN_EDITION;
+const previousSetupToken = process.env.COLP_SETUP_TOKEN;
 
 function enabledEnv(): Record<string, string> {
   return {
@@ -42,6 +46,7 @@ describe('G2 username sign-in and single owner', () => {
   beforeAll(async () => {
     delete process.env.COLP_MULTI_USER;
     process.env.KNOWN_EDITION = 'self-hosted';
+    process.env.COLP_SETUP_TOKEN = SETUP_TOKEN;
     const config = loadConfig(enabledEnv());
     const built = buildBetterAuthConfig(config.betterAuth);
     assert.ok(built, 'enabled config must produce Better Auth settings');
@@ -62,13 +67,15 @@ describe('G2 username sign-in and single owner', () => {
     else process.env.COLP_MULTI_USER = previousMultiUser;
     if (previousEdition === undefined) delete process.env.KNOWN_EDITION;
     else process.env.KNOWN_EDITION = previousEdition;
+    if (previousSetupToken === undefined) delete process.env.COLP_SETUP_TOKEN;
+    else process.env.COLP_SETUP_TOKEN = previousSetupToken;
   });
 
-  function post(path: string, body: unknown) {
+  function post(path: string, body: unknown, extra: Record<string, string> = {}) {
     return app.inject({
       method: 'POST',
       url: `${BASE_PATH}${path}`,
-      headers: { 'content-type': 'application/json', origin: TRUSTED_ORIGIN },
+      headers: { 'content-type': 'application/json', origin: TRUSTED_ORIGIN, ...extra },
       payload: JSON.stringify(body),
     });
   }
@@ -96,7 +103,7 @@ describe('G2 username sign-in and single owner', () => {
       email,
       username: 'owner',
       password: PASSWORD,
-    });
+    }, SETUP);
     assert.equal(signUp.statusCode, 200, signUp.body);
 
     assert.deepEqual(await registrationState(), { open: false, reason: 'closed' });
@@ -144,7 +151,7 @@ describe('G2 username sign-in and single owner', () => {
     await fixture.pool.query('delete from "auth_users"');
     assert.deepEqual(await registrationState(), { open: true, reason: 'first-run' });
 
-    const signUp = await post('/sign-up/email', { username: 'solo', password: PASSWORD });
+    const signUp = await post('/sign-up/email', { username: 'solo', password: PASSWORD }, SETUP);
     assert.equal(signUp.statusCode, 200, signUp.body);
     const stored = await fixture.pool.query<{ email: string; username: string }>(
       'select email, username from "auth_users" where username = $1',
@@ -161,5 +168,43 @@ describe('G2 username sign-in and single owner', () => {
     assert.equal(second.statusCode, 403);
     assert.equal((second.json() as { code?: string }).code, 'registration_closed');
     assert.deepEqual(await registrationState(), { open: false, reason: 'closed' });
+  });
+
+  test('the first sign-up needs the setup token (D27)', async () => {
+    delete process.env.COLP_MULTI_USER;
+    await fixture.pool.query('delete from "auth_users"');
+    const missing = await post('/sign-up/email', { username: 'early', password: PASSWORD });
+    assert.equal(missing.statusCode, 403, missing.body);
+    assert.equal((missing.json() as { code?: string }).code, 'setup_token_required');
+    const wrong = await post('/sign-up/email', { username: 'early', password: PASSWORD },
+      { 'colp-setup-token': `${SETUP_TOKEN}x` });
+    assert.equal(wrong.statusCode, 403);
+    assert.equal((wrong.json() as { code?: string }).code, 'setup_token_required');
+    assert.equal((await fixture.pool.query('select count(*)::int as n from "auth_users"')).rows[0].n, 0);
+    assert.deepEqual(await registrationState(), { open: true, reason: 'first-run' });
+    const right = await post('/sign-up/email', { username: 'early', password: PASSWORD }, SETUP);
+    assert.equal(right.statusCode, 200, right.body);
+  });
+
+  test('concurrent first sign-ups create exactly one owner (D27)', async () => {
+    delete process.env.COLP_MULTI_USER;
+    await applySingleOwnerGuard(fixture.db as never);
+    try {
+      await fixture.pool.query(
+        'insert into colp_instance_settings (singleton, single_owner) values (true, true)',
+      );
+      for (let round = 0; round < 3; round += 1) {
+        await fixture.pool.query('delete from "auth_users"');
+        const results = await Promise.all(['racer_a', 'racer_b', 'racer_c'].map((name) =>
+          post('/sign-up/email', { username: `${name}_${round}`, password: PASSWORD }, SETUP)));
+        assert.equal(results.filter((res) => res.statusCode === 200).length, 1,
+          results.map((res) => `${res.statusCode} ${res.body}`).join(' | '));
+        assert.equal((await fixture.pool.query('select count(*)::int as n from "auth_users"')).rows[0].n, 1);
+      }
+    } finally {
+      await fixture.pool.query('drop trigger if exists auth_users_single_owner_guard on "auth_users"');
+      await fixture.pool.query('drop function if exists colp_single_owner_guard()');
+      await fixture.pool.query('drop table if exists colp_instance_settings');
+    }
   });
 });

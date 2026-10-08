@@ -13,12 +13,15 @@ const oldSecret = Buffer.alloc(32, 31).toString('base64');
 const currentSecret = Buffer.alloc(32, 47).toString('base64');
 
 const snapshotContext = {
+  collectionId: 'collection-1',
+  resourceId: 'https://colp.example/colp/v0.1/collections/collection-1/snapshot',
   revision: 'content-1.policy-1',
   comparatorVersion: 'parent-position-id-v1',
   principal: 'anonymous',
   pageSize: 100,
 };
 const directoryContext = {
+  resourceId: 'https://colp.example/colp/v0.1/collections',
   principal: 'anonymous',
   filterDigest: createPublicationDirectoryFilterDigest({}),
   sort: DEFAULT_PUBLICATION_DIRECTORY_SORT,
@@ -71,6 +74,7 @@ test('cursor scopes and derived purposes cannot be replayed', () => {
   });
   const snapshot = keys.snapshot.sign({ ...snapshotContext, nextPosition: 'next' });
   assert.equal(keys.snapshot.verify(snapshot, { ...snapshotContext, principal: 'member-1' }).valid, false);
+  assert.equal(keys.snapshot.verify(snapshot, { ...snapshotContext, collectionId: 'collection-2' }).valid, false);
   assert.equal(keys.snapshot.verify(snapshot, { ...snapshotContext, comparatorVersion: 'parent-position-id-v2' }).valid, false);
   assert.equal(keys.directory.verify(snapshot, directoryContext).valid, false);
 

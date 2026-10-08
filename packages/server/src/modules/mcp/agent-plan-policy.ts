@@ -51,7 +51,7 @@ export interface AutoApproveTrustedPlanActions {
 }
 
 export interface AutoApproveTrustedPlanDeps {
-  readonly readPolicy: (clientId: string) => Promise<AgentPolicyName>;
+  readonly readPolicy: (principalId: string, clientId: string) => Promise<AgentPolicyName>;
   readonly captureVersion: (input: Readonly<{
     principalId: string;
     subjectId: string;
@@ -106,7 +106,7 @@ export function createAutoApproveTrustedPlan(
   deps: AutoApproveTrustedPlanDeps,
 ): AutoApproveTrustedPlan {
   return async (planned, binding, actions) => {
-    const policy = await deps.readPolicy(binding.clientId);
+    const policy = await deps.readPolicy(binding.principalId, binding.clientId);
     if (policy !== 'trusted') return planned;
     if (!planOperationsAreReversible(planned.operations)) return planned;
     const collectionId = collectionIdFromPlan(planned);
@@ -152,6 +152,7 @@ export function createAutoApproveTrustedPlan(
 export type AgentPlanUndoCode =
   | 'not_found'
   | 'newer_version'
+  | 'newer_changes'
   | 'sync_tombstone_conflict'
   | 'restore_failed';
 
@@ -171,6 +172,9 @@ export const SYNC_TOMBSTONE_UNDO_MESSAGE =
 export const NEWER_VERSION_UNDO_MESSAGE =
   'A newer collection version exists. Undo was refused. Retry with force=true to restore this version anyway.';
 
+export const NEWER_CHANGES_UNDO_MESSAGE =
+  'The collection changed after this plan. Undo would also revert those changes, so it was refused. Retry with force=true to restore the saved version anyway.';
+
 export async function undoAgentPlanVersion(
   ports: RestoreCollectionVersionPorts,
   input: Readonly<{
@@ -180,6 +184,11 @@ export async function undoAgentPlanVersion(
     versionId: string;
     commandId?: string;
     force: boolean;
+    /**
+     * Content revision recorded inside the plan's commit transaction. Null
+     * when none was recorded; Undo then needs force.
+     */
+    committedContentRevision: string | null;
   }>,
 ): Promise<{ readonly versionId: string; readonly noop: boolean }> {
   const listed = await ports.versions.list(input.principalId, input.collectionId, { limit: 50 });
@@ -194,6 +203,11 @@ export async function undoAgentPlanVersion(
   }
   const locked = await ports.versions.lockOwnedLive(input.collectionId, input.subjectId);
   if (!locked) throw new AgentPlanUndoError('not_found', 'The collection was not found.');
+  // Sync and web edits do not create versions, so the version check above
+  // cannot see them. The live revision must still be the one this plan left.
+  if (!input.force && locked.contentRevision !== input.committedContentRevision) {
+    throw new AgentPlanUndoError('newer_changes', NEWER_CHANGES_UNDO_MESSAGE);
+  }
   try {
     const outcome = await restoreCollectionVersion(ports, {
       actor: { principalId: input.principalId, subjectId: input.subjectId },

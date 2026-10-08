@@ -323,8 +323,8 @@ function parseBetterAuthOauthIssuer(env: NodeJS.ProcessEnv): BetterAuthOauthIssu
   const hostname = parsed.hostname.toLowerCase();
   const loopback = hostname === 'localhost' || hostname === '[::1]' || hostname === '::1'
     || /^127(?:\.\d{1,3}){3}$/u.test(hostname);
-  // Acknowledged insecure HTTP may publish the MCP audience on a LAN origin.
-  if (parsed.protocol !== 'https:' && !(parsed.protocol === 'http:' && (loopback || env.COLP_INSECURE_HTTP === 'true'))) {
+  // Plain http only on loopback, acknowledged or not (protocol 02, D26).
+  if (parsed.protocol !== 'https:' && !(parsed.protocol === 'http:' && loopback)) {
     throw new Error('MCP_OAUTH_AUDIENCE must use HTTPS (HTTP is allowed only for loopback)');
   }
   const scopes = (env.MCP_OAUTH_SCOPES ?? '').split(',').map((item) => item.trim()).filter(Boolean);
