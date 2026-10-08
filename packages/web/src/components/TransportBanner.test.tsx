@@ -1,14 +1,11 @@
 // @vitest-environment happy-dom
 import { act } from 'react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { CollectionTransportNotice, SubscribeInBrowserButton, TransportBanner } from './TransportBanner'
 import { cleanup, mountTree } from '../test/render'
 
-function manifestResponse(transport: string): Response {
-  return new Response(JSON.stringify({ features: { transport } }), {
-    status: 200,
-    headers: { 'content-type': 'application/json' },
-  })
+function manifestBody(transport: string): unknown {
+  return { features: { transport } }
 }
 
 describe('transport banner', () => {
@@ -18,15 +15,13 @@ describe('transport banner', () => {
   })
   afterEach(() => {
     cleanup()
-    vi.unstubAllGlobals()
     document.body.innerHTML = ''
   })
 
   it('shows the insecure-http warning and hides Subscribe in browser', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => manifestResponse('insecure-http')))
-    mountTree(<><CollectionTransportNotice /><SubscribeInBrowserButton /></>)
+    const loadManifest = () => Promise.resolve(manifestBody('insecure-http'))
+    mountTree(<><CollectionTransportNotice loadManifest={loadManifest} /><SubscribeInBrowserButton /></>)
     await act(async () => {
-      await Promise.resolve()
       await Promise.resolve()
     })
     expect(document.body.textContent).toContain('Credentials and bookmarks travel unencrypted')
@@ -35,10 +30,9 @@ describe('transport banner', () => {
   })
 
   it('renders nothing for an https manifest', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => manifestResponse('https')))
-    mountTree(<><CollectionTransportNotice /><SubscribeInBrowserButton /></>)
+    const loadManifest = () => Promise.resolve(manifestBody('https'))
+    mountTree(<><CollectionTransportNotice loadManifest={loadManifest} /><SubscribeInBrowserButton /></>)
     await act(async () => {
-      await Promise.resolve()
       await Promise.resolve()
     })
     expect(document.querySelector('[data-testid="transport-banner"]')).toBeNull()

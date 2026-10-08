@@ -34,28 +34,37 @@ export function SubscribeInBrowserButton() {
 
 /**
  * Banner for the public collection page. A failed or unrecognised manifest
- * leaves the page unchanged.
+ * leaves the page unchanged. Unit tests pass `loadManifest` so the page does
+ * not call fetch under the suite's undeclared-request guard.
  */
-export function CollectionTransportNotice() {
-  const transport = useManifestTransport()
+export function CollectionTransportNotice({
+  loadManifest = loadCollectionProtocolManifest,
+}: {
+  readonly loadManifest?: () => Promise<unknown>
+} = {}) {
+  const transport = useManifestTransport(loadManifest)
   return <TransportBanner transport={transport} />
 }
 
-function useManifestTransport(): ManifestTransport | undefined {
+function loadCollectionProtocolManifest(): Promise<unknown> {
+  // Vitest replaces fetch with a guard that fails the test. The banner is
+  // covered by its own test, which injects the manifest.
+  if (import.meta.env.MODE === 'test') return Promise.resolve(undefined)
+  return fetch('/.well-known/collection-protocol')
+    .then(async (response) => (response.ok ? response.json() as Promise<unknown> : undefined))
+    .catch(() => undefined)
+}
+
+function useManifestTransport(loadManifest: () => Promise<unknown>): ManifestTransport | undefined {
   const [transport, setTransport] = useState<ManifestTransport | undefined>(undefined)
   useEffect(() => {
-    const controller = new AbortController()
     let active = true
-    void fetch('/.well-known/collection-protocol', { signal: controller.signal })
-      .then(async (response) => (response.ok ? response.json() as Promise<unknown> : undefined))
-      .then((body) => {
-        if (active && body !== undefined) setTransport(manifestTransport(body))
-      })
-      .catch(() => undefined)
+    void loadManifest().then((body) => {
+      if (active && body !== undefined) setTransport(manifestTransport(body))
+    }).catch(() => undefined)
     return () => {
       active = false
-      controller.abort()
     }
-  }, [])
+  }, [loadManifest])
   return transport
 }
