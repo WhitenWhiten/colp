@@ -109,16 +109,22 @@ export async function applySyncBrowserBatch<Change extends SyncBrowserBatchChang
     // Snapshot the validated change before yielding to asynchronous writes.
     // Passing the caller-owned object lets a mutation after validation change
     // the folder scope or payload that the driver actually persists.
-    const snapshot: Record<string, unknown> = {};
+    const snapshot: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
     for (const key of Reflect.ownKeys(change)) {
       if (typeof key !== 'string') throw new TypeError('Browser batch change must not contain symbol properties.');
       const descriptor = Object.getOwnPropertyDescriptor(change, key);
       if (descriptor === undefined || !descriptor.enumerable || !('value' in descriptor)) {
         throw new TypeError('Browser batch change members must be enumerable data properties.');
       }
-      snapshot[key] = key === 'affectedFolderIds' && Array.isArray(descriptor.value)
+      const snapshotValue = key === 'affectedFolderIds' && Array.isArray(descriptor.value)
         ? Object.freeze([...descriptor.value])
         : descriptor.value;
+      Object.defineProperty(snapshot, key, {
+        value: snapshotValue,
+        enumerable: true,
+        configurable: false,
+        writable: false,
+      });
     }
     validatedChanges.push(Object.freeze(snapshot) as Change);
   }

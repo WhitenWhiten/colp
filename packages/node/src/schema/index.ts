@@ -469,9 +469,14 @@ export function validateWireDocument<Value, Issue>(
 function thawJsonSnapshot(value: unknown): unknown {
   if (value === null || typeof value !== 'object') return value;
   if (Array.isArray(value)) return value.map(thawJsonSnapshot);
-  const copy: Record<string, unknown> = {};
+  const copy: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
   for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
-    copy[key] = thawJsonSnapshot(child);
+    Object.defineProperty(copy, key, {
+      value: thawJsonSnapshot(child),
+      enumerable: true,
+      configurable: true,
+      writable: true,
+    });
   }
   return copy;
 }
