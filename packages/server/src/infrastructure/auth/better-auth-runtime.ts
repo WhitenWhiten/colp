@@ -668,7 +668,17 @@ function buildProductAuthHooks(input: {
         const candidate = (ctx.context as unknown as {
           readonly session?: { readonly session?: { readonly id?: unknown } };
         }).session?.session?.id;
-        if (typeof candidate === 'string' && candidate.length > 0) {
+        // The session id is the binding between Better Auth's cookie and the
+        // product revocation/epoch table. If the hook context does not expose
+        // it, fail closed instead of silently bypassing the authoritative
+        // session check.
+        if (typeof candidate !== 'string' || candidate.length === 0) {
+          throw APIError.from('UNAUTHORIZED', {
+            code: 'session_context_unavailable',
+            message: 'The browser session could not be verified.',
+          });
+        }
+        {
           const row = await input.db.selectFrom('known_auth_session_metadata')
             .select(['revoked_at', 'security_epoch', 'account_id'])
             .where('auth_session_id', '=', candidate)
