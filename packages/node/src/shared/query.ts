@@ -2,6 +2,13 @@ import type { DefinitionName, ValidatorRegistry } from '../schema/index.js';
 
 type QueryValueKind = 'boolean' | 'integer' | 'string' | 'string[]';
 
+/** Hard ceilings applied before materializing query values or diagnostics. */
+export const QUERY_PARSE_LIMITS = Object.freeze({
+  maxParameters: 64,
+  maxValuesPerParameter: 32,
+  maxErrors: 32,
+});
+
 const queryContracts = {
   auditQuery: { cursor: 'string', limit: 'integer', action: 'string', result: 'string', from: 'string', to: 'string' },
   cursorPageQuery: { cursor: 'string', limit: 'integer' },
@@ -46,13 +53,26 @@ export function parseProtocolQuery(
   const errors: string[] = [];
   const value: Record<string, unknown> = {};
 
-  for (const name of new Set(parameters.keys())) {
+  if (parameters.size > QUERY_PARSE_LIMITS.maxParameters) {
+    return { valid: false, code: 'invalid_query', errors: Object.freeze(['Query contains too many parameters']) };
+  }
+
+  const seen = new Set<string>();
+  for (const name of parameters.keys()) {
+    if (errors.length >= QUERY_PARSE_LIMITS.maxErrors) break;
+    if (seen.has(name)) continue;
+    seen.add(name);
     const kind = contract[name as keyof typeof contract] as QueryValueKind | undefined;
     if (kind === undefined) {
       errors.push(`Unknown query parameter: ${name}`);
       continue;
     }
     const values = parameters.getAll(name);
+    if (values.length > QUERY_PARSE_LIMITS.maxValuesPerParameter) {
+      errors.push(`Query parameter ${name} has too many values`);
+      if (errors.length >= QUERY_PARSE_LIMITS.maxErrors) break;
+      continue;
+    }
     if (kind !== 'string[]' && values.length !== 1) {
       errors.push(`Query parameter ${name} must appear once`);
       continue;
@@ -68,12 +88,16 @@ export function parseProtocolQuery(
     } catch (error) {
       errors.push(error instanceof Error ? error.message : String(error));
     }
+    if (errors.length >= QUERY_PARSE_LIMITS.maxErrors) break;
   }
 
   if (errors.length === 0) {
     const structural = validators.validate(contractName as DefinitionName, value);
     if (!structural.valid) {
-      errors.push(...structural.errors.map((error) => `${error.instancePath || '/'} ${error.message ?? 'is invalid'}`));
+      for (const error of structural.errors) {
+        if (errors.length >= QUERY_PARSE_LIMITS.maxErrors) break;
+        errors.push(`${error.instancePath || '/'} ${error.message ?? 'is invalid'}`);
+      }
     }
   }
   return errors.length === 0

@@ -12,8 +12,40 @@ export interface PublicationSnapshotNextLinkInput {
   readonly validators: ValidatorRegistry;
 }
 
+export const MAX_PUBLICATION_LINK_HEADER_BYTES = 64 * 1024;
+
+/**
+ * Count UTF-8 bytes without allocating an encoded copy.  The early return is
+ * intentional: an untrusted header that is already over the limit must not be
+ * scanned or materialized in full before it is rejected.  Lone UTF-16
+ * surrogates follow TextEncoder's replacement-character (three-byte) rule.
+ */
+function utf8ByteLength(value: string, limit: number): number {
+  let bytes = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    const width = code <= 0x7f
+      ? 1
+      : code <= 0x7ff
+        ? 2
+        : code >= 0xd800 && code <= 0xdbff
+          && index + 1 < value.length
+          && value.charCodeAt(index + 1) >= 0xdc00
+          && value.charCodeAt(index + 1) <= 0xdfff
+          ? (index += 1, 4)
+          : 3;
+    bytes += width;
+    if (bytes > limit) return bytes;
+  }
+  return bytes;
+}
+
 /** Selects and scope-checks the sole server-provided Publication Snapshot continuation. */
 export function publicationSnapshotNextUrl(input: PublicationSnapshotNextLinkInput): URL | undefined {
+  if (input.linkHeader !== null
+    && utf8ByteLength(input.linkHeader, MAX_PUBLICATION_LINK_HEADER_BYTES) > MAX_PUBLICATION_LINK_HEADER_BYTES) {
+    throw new TypeError('Snapshot Link header exceeds the supported byte limit.');
+  }
   const nextLinks = input.linkHeader === null ? [] : LinkHeader.parse(input.linkHeader).rel('next');
   if (!input.hasMore) {
     if (nextLinks.length > 0) throw new TypeError('Final Snapshot page unexpectedly supplies rel=next.');

@@ -7,6 +7,16 @@ const evidence = 'http.query-codec';
 const validators = createValidatorRegistry();
 
 describe(`Feed query decode [evidence:${evidence}]`, () => {
+  it('rejects a Proxy prototype before enumeration and ignores URLSearchParams overrides', () => {
+    let calls = 0;
+    const parameters = Object.create(new Proxy({}, { ownKeys() { calls += 1; return []; } }));
+    expect(() => decodeFeedQuery(parameters, validators)).toThrow(/prototype/u);
+    const search = new URLSearchParams('limit=1');
+    Object.defineProperty(search, Symbol.iterator, { get() { calls += 1; throw new Error('iterator trap'); } });
+    Object.defineProperty(search, 'size', { get() { calls += 1; throw new Error('size trap'); } });
+    expect(decodeFeedQuery(search, validators)).toEqual({ valid: true, value: { limit: 1 } });
+    expect(calls).toBe(0);
+  });
   it(`[success] decodes cursor and limit [evidence:${evidence}]`, () => {
     const result = decodeFeedQuery(new URLSearchParams('cursor=feed_01&limit=50'), validators);
     expect(result.valid).toBe(true);

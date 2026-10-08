@@ -363,7 +363,7 @@ describe('MCP 2026-07-28 Plan/Approval desession contract (COLP-MCP-05)', () => 
     });
 
     it('rejects commit when the current rate-limit decision denies [evidence:mcp.plan-desession]', async () => {
-      const rateLimit = { allow: vi.fn(async () => false) };
+      const rateLimit = { allowPlan: vi.fn(async () => true), allow: vi.fn(async () => false) };
       const { service, executor } = createService({ rateLimit });
       const plan = await service.plan(planRequest(), bindingA);
       await service.recordOutOfBandApproval(plan.planId, bindingA);
