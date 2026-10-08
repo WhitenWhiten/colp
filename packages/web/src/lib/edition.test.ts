@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  brandedTitle,
   featureFlagsForEdition,
   isSelfHostedPathEnabled,
+  productName,
   parseRegistrationState,
   registrationView,
 } from './edition'
@@ -30,9 +32,31 @@ describe('self-hosted edition paths', () => {
       vi.stubEnv('VITE_EDITION', 'self-hosted')
       expect(isSettingsSectionAvailable('notifications')).toBe(false)
       expect(isSettingsSectionAvailable('privacy')).toBe(false)
+      expect(isSettingsSectionAvailable('favicon')).toBe(false)
       expect(isSettingsSectionAvailable('profile')).toBe(true)
       expect(isSettingsSectionAvailable('security')).toBe(true)
     })
+
+    it('does not mount export jobs, onboarding, or the mailed flows', () => {
+      vi.stubEnv('VITE_EDITION', 'self-hosted')
+      for (const path of ['/export', '/onboarding', '/reset-password', '/verify-email', '/creator', '/credits']) {
+        expect(isSelfHostedPathEnabled(path)).toBe(false)
+      }
+      expect(isSelfHostedPathEnabled('/login')).toBe(true)
+      expect(isSelfHostedPathEnabled('/extension')).toBe(true)
+    })
+
+    it('names the product COLP Server in visible text and titles', () => {
+      vi.stubEnv('VITE_EDITION', 'self-hosted')
+      expect(productName()).toBe('COLP Server')
+      expect(brandedTitle('Library')).toBe('Library — COLP Server')
+      expect(brandedTitle('')).toBe('COLP Server')
+    })
+  })
+
+  it('keeps the Know-N name when the edition is unset', () => {
+    expect(productName()).toBe('Know-N')
+    expect(brandedTitle('Library')).toBe('Library — Know-N')
   })
 })
 

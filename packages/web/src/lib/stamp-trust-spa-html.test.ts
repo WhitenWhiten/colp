@@ -275,7 +275,11 @@ describe('stamp-trust-spa-html', () => {
       '/share': readFileSync(join(webRoot, 'src', 'pages', 'share', 'ProductShare.tsx'), 'utf8'),
     }
     const useDocumentTitle = readFileSync(join(webRoot, 'src', 'lib', 'useDocumentTitle.ts'), 'utf8')
-    expect(useDocumentTitle).toMatch(/`\$\{title\} — Know-N`/)
+    const edition = readFileSync(join(webRoot, 'src', 'lib', 'edition.ts'), 'utf8')
+    // The hook titles through brandedTitle(); the cloud product name is Know-N.
+    expect(useDocumentTitle).toContain('document.title = brandedTitle(title)')
+    expect(edition).toMatch(/`\$\{title\} — \$\{productName\(\)\}`/)
+    expect(edition).toContain("isSelfHostedEdition() ? 'COLP Server' : 'Know-N'")
     expect(pages.map((page) => page.canonicalPath)).toEqual(['/login', '/register', '/share'])
     for (const page of pages) {
       expect(pageSource[page.canonicalPath]).toContain(`useDocumentTitle('${page.documentTitle}')`)

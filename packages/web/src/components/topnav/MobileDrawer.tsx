@@ -2,7 +2,7 @@ import { NavLink } from 'react-router-dom'
 import { Icon } from '../Icon'
 import { SITE_SEARCH_PLACEHOLDER } from '../../lib/searchCopy'
 import { prefetchRoute } from './prefetch'
-import { isSelfHostedPathEnabled } from '../../lib/edition'
+import { isSelfHostedEdition, isSelfHostedPathEnabled } from '../../lib/edition'
 import type { ToolItem } from './ToolsMenu'
 
 type Props = {
@@ -106,7 +106,7 @@ export function MobileDrawer({
           </>
         ) : (
           <div className="mobile-drawer-grid">
-            {showLogin && <NavLink to={loginTo}>Log in</NavLink>}
+            {showLogin && <NavLink to={loginTo}>{isSelfHostedEdition() ? 'Sign in' : 'Log in'}</NavLink>}
             {showRegister && <NavLink to="/register">Get started</NavLink>}
           </div>
         )}

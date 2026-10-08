@@ -1,8 +1,10 @@
+const SELF_HOSTED = import.meta.env.VITE_EDITION === 'self-hosted'
+
 /** Site-wide search (topnav, ⌘K, /search). */
-export const SITE_SEARCH_PLACEHOLDER = 'Search Know-N…'
+export const SITE_SEARCH_PLACEHOLDER = SELF_HOSTED ? 'Search your library…' : 'Search Know-N…'
 
 /** Product Search heading. PRODUCT.md: library, not workspace. */
-export const SEARCH_PAGE_TITLE = 'Search Know-N'
+export const SEARCH_PAGE_TITLE = SELF_HOSTED ? 'Search' : 'Search Know-N'
 
 /** Library and public collection bookmark filters share this copy. */
 export const BOOKMARK_FILTER_PLACEHOLDER = 'Filter by title, description, host, or folder…'

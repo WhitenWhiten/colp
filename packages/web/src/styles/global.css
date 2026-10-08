@@ -267,6 +267,12 @@ button {
   height: 2rem;
 }
 
+.root-error-name {
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+}
+
 /* R15-14: the footer sits outside the route's Suspense and loading states,
    so a short loading state would let it rise into the first viewport and be
    pushed out again (the dominant layout shift on /explore and /c/:slug).

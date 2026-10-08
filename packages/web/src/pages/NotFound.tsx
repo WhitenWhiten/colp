@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { isSelfHostedPathEnabled } from '../lib/edition'
+import { isSelfHostedPathEnabled, brandedTitle } from '../lib/edition'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
 import { usePageMeta } from '../lib/usePageMeta'
 import '../styles/not-found.css'
@@ -13,7 +13,7 @@ export function NotFound() {
   const stageRef = useRef<HTMLDivElement>(null)
 
   useDocumentTitle('Page not found')
-  usePageMeta({ canonicalPath: null, robots: 'noindex' }, 'Page not found — Know-N')
+  usePageMeta({ canonicalPath: null, robots: 'noindex' }, brandedTitle('Page not found'))
 
   /* Pointer parallax, kept deliberately slight: the stage publishes
      --nf-x/--nf-y (-1…1, eased toward the pointer in a rAF lerp) and each

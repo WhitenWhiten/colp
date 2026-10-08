@@ -9,6 +9,7 @@ import { SEARCH_PAGE_TITLE, SITE_SEARCH_PLACEHOLDER } from '../lib/searchCopy'
 import { useSearchKeyboard } from '../lib/useSearchKeyboard'
 import { searchResultHref, useProductSearch } from '../lib/useProductSearch'
 import { loginPath } from '../lib/chrome'
+import { isSelfHostedEdition } from '../lib/edition'
 
 type Props = { open: boolean; onClose: () => void }
 
@@ -52,7 +53,7 @@ export function SearchPalette({ open, onClose }: Props) {
     <Modal
       open={open}
       onClose={onClose}
-      label="Search Know-N"
+      label={isSelfHostedEdition() ? 'Search' : 'Search Know-N'}
       chrome="bare"
       overlayClassName="search-overlay"
       initialFocus='[data-testid="search-palette-input"]'

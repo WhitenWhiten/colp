@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { brandedTitle, productName } from './edition'
 
 type PublishedTitle = { title: string; seq: number }
 
@@ -20,16 +21,13 @@ export function subscribeDocumentTitle(listener: (published: PublishedTitle) => 
   }
 }
 
-/** Sets `document.title` to `{title} — Know-N`, restoring the previous title on cleanup.
-    The self-hosted edition uses COLP; the Know-N suffix stays for the cloud copy. */
+/** Sets `document.title` to `{title} — {productName}` (brandedTitle), restoring
+    the previous title on cleanup. */
 export function useDocumentTitle(title: string) {
   useEffect(() => {
     const prev = document.title
-    const branded = import.meta.env.VITE_EDITION === 'self-hosted'
-      ? (title ? `${title} — COLP` : 'COLP')
-      : (title ? `${title} — Know-N` : 'Know-N')
-    document.title = branded
-    latest = { title: title || (import.meta.env.VITE_EDITION === 'self-hosted' ? 'COLP' : 'Know-N'), seq: latest.seq + 1 }
+    document.title = brandedTitle(title)
+    latest = { title: title || productName(), seq: latest.seq + 1 }
     for (const listener of listeners) listener(latest)
     return () => {
       document.title = prev

@@ -4,6 +4,7 @@ import { useAuth } from '../../auth/AuthContext'
 import { useToast } from '../AppToast'
 import { Icon } from '../Icon'
 import { canonicalSiteOrigin } from '../../lib/chrome'
+import { isSelfHostedEdition } from '../../lib/edition'
 
 /** Matches UpdateMeRequest.about / ProfileView.about maxLength. */
 const ABOUT_MAX = 2000
@@ -29,6 +30,8 @@ export function ProfileSection({ onDirtyChange }: { onDirtyChange?: (dirty: bool
   const { user, bootstrapping, runAuthMutation } = useAuth()
   const { success } = useToast()
   const publicHost = canonicalSiteOrigin().replace(/^https?:\/\//u, '')
+  // No public profile pages, and no object storage for avatar uploads.
+  const selfHosted = isSelfHostedEdition()
 
   useEffect(() => {
     if (!user) return
@@ -110,9 +113,9 @@ export function ProfileSection({ onDirtyChange }: { onDirtyChange?: (dirty: bool
   return (
     <section className="settings-section">
       <div className="settings-section-head">
-        <h3 className="settings-toggle-label">Public profile</h3>
+        <h3 className="settings-toggle-label">{selfHosted ? 'Profile' : 'Public profile'}</h3>
         <p className="meta">
-          How you appear to other people on {publicHost}.
+          {selfHosted ? 'Your name and handle on this server.' : `How you appear to other people on ${publicHost}.`}
         </p>
       </div>
       <form
@@ -128,11 +131,13 @@ export function ProfileSection({ onDirtyChange }: { onDirtyChange?: (dirty: bool
           <label htmlFor="set-handle">Handle</label>
           <input id="set-handle" value={handle} maxLength={HANDLE_CLAIM_MAX} disabled={bootstrapping || !user || savingProfile} aria-invalid={!!fieldErrors['/handle']} aria-describedby={fieldErrors['/handle'] ? 'set-handle-hint set-handle-error' : 'set-handle-hint'} onChange={(e) => { setHandle(e.target.value); setProfileDirty(true) }} />
           <span className="field-hint" id="set-handle-hint">
-            {publicHost}/u/{handle.trim() || '…'} · this is yours to change whenever you like
+            {selfHosted
+              ? 'Shown in your account menu. Change it whenever you like.'
+              : `${publicHost}/u/${handle.trim() || '…'} · this is yours to change whenever you like`}
           </span>
           {fieldErrors['/handle'] && <span className="field-error" id="set-handle-error" role="alert" data-testid="field-error">{fieldErrors['/handle']}</span>}
         </div>
-        <div className="field">
+        {!selfHosted && <div className="field">
           <label htmlFor="set-about">About</label>
           <textarea
             id="set-about"
@@ -145,8 +150,8 @@ export function ProfileSection({ onDirtyChange }: { onDirtyChange?: (dirty: bool
             onChange={(e) => { setAbout(e.target.value); setProfileDirty(true) }}
           />
           {fieldErrors['/about'] && <span className="field-error" id="set-about-error" role="alert" data-testid="field-error">{fieldErrors['/about']}</span>}
-        </div>
-        <div className="field">
+        </div>}
+        {!selfHosted && <div className="field">
           <label htmlFor="set-avatar-file">Avatar</label>
           <div className="settings-avatar-row">
             <span className="avatar avatar-lg settings-avatar-preview" aria-hidden data-testid="settings-avatar-preview">
@@ -167,7 +172,7 @@ export function ProfileSection({ onDirtyChange }: { onDirtyChange?: (dirty: bool
             </div>
           </div>
           {fieldErrors['/avatarUrl'] && <span className="field-error" id="set-avatar-error" role="alert" data-testid="field-error">{fieldErrors['/avatarUrl']}</span>}
-        </div>
+        </div>}
         {profileError && <p className="field-error" role="alert">{profileError}</p>}
         <button type="submit" className="btn btn-primary settings-save-btn" disabled={bootstrapping || !user || savingProfile || uploadingAvatar}>
           {savingProfile ? 'Saving…' : 'Save profile'}

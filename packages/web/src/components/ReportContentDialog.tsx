@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { isLive, isProductApiError, productClient } from '../api'
 import { useAuth } from '../auth/AuthContext'
 import { loginPath } from '../lib/chrome'
+import { isSelfHostedEdition } from '../lib/edition'
 import { useToast } from './AppToast'
 import { Modal } from './Modal'
 import type { GovernanceReportInput } from '@known/product-v1-client'
@@ -141,12 +142,20 @@ export function ReportContentDialog({ target, label, onClose }: Props) {
 
 /** The "Report" control plus its dialog, for any governance target. Shown to
     every visitor: the dialog itself picks the in-app form or the guest path. */
-export function ReportButton({ target, label, testId, className = 'btn btn-ghost btn-sm' }: {
+export function ReportButton(props: ReportButtonProps) {
+  // The self-hosted server has no moderation queue to receive a report.
+  if (isSelfHostedEdition()) return null
+  return <ReportControl {...props} />
+}
+
+type ReportButtonProps = {
   target: GovernanceReportInput['target']
   label: string
   testId: string
   className?: string
-}) {
+}
+
+function ReportControl({ target, label, testId, className = 'btn btn-ghost btn-sm' }: ReportButtonProps) {
   const [open, setOpen] = useState(false)
   return (
     <>

@@ -3,6 +3,16 @@ export function isSelfHostedEdition(): boolean {
   return import.meta.env.VITE_EDITION === 'self-hosted'
 }
 
+/** The name the visible UI uses for this service (D15). Wire names stay Know-N's. */
+export function productName(): string {
+  return isSelfHostedEdition() ? 'COLP Server' : 'Know-N'
+}
+
+/** Tab title: `{title} — {productName}`, or the name alone. */
+export function brandedTitle(title: string): string {
+  return title ? `${title} — ${productName()}` : productName()
+}
+
 /**
  * D8 turns this on. Until then the public collection page does not offer
  * "Subscribe in browser".
@@ -39,6 +49,12 @@ const REMOVED_EXACT_OR_CHILD = [
   '/demos',
   '/dashboard',
   '/creator',
+  // Export is the per-collection Export menu (D21); the job page needs object storage.
+  '/export',
+  // Know-N onboarding and the mailed flows; this server sends no email (D28).
+  '/onboarding',
+  '/reset-password',
+  '/verify-email',
 ] as const
 
 const REMOVED_LIBRARY = ['/library/digests', '/library/following'] as const

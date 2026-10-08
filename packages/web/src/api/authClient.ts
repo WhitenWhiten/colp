@@ -104,6 +104,13 @@ export type SignInWithPasswordInput = {
   callbackURL?: string
 }
 
+/** Self-hosted accounts have a username; email is optional (G2). */
+export type SignInWithUsernameInput = {
+  username: string
+  password: string
+  rememberMe?: boolean
+}
+
 export type SignUpWithPasswordInput = {
   name: string
   email: string
@@ -415,6 +422,25 @@ async function signInWithPassword(
       password: input.password,
       ...(input.rememberMe === undefined ? {} : { rememberMe: input.rememberMe }),
       ...(input.callbackURL === undefined ? {} : { callbackURL: input.callbackURL }),
+    },
+    withCsrf: true,
+    signal: options?.signal,
+  })
+  await refreshProductSession(options?.signal)
+  return { status: true }
+}
+
+async function signInWithUsername(
+  input: SignInWithUsernameInput,
+  options?: AuthCallOptions,
+): Promise<AuthStatusResult> {
+  await authRequest<unknown>({
+    method: 'POST',
+    path: '/sign-in/username',
+    body: {
+      username: input.username,
+      password: input.password,
+      ...(input.rememberMe === undefined ? {} : { rememberMe: input.rememberMe }),
     },
     withCsrf: true,
     signal: options?.signal,
@@ -1053,6 +1079,7 @@ async function verifyTwoFactorOtp(
 export const authClient = Object.freeze({
   getRegistrationState,
   signInWithPassword,
+  signInWithUsername,
   signUpWithPassword,
   signUpWithUsername,
   changePassword,

@@ -17,7 +17,7 @@ import { ServiceStatusBanner } from './ServiceStatusBanner'
 import { SiteTransportBanner } from './TransportBanner'
 import { UnreadBadgeFeedHost } from './UnreadBadgeFeedHost'
 import { isAuthPath } from '../lib/chrome'
-import { isSelfHostedEdition } from '../lib/edition'
+import { productName } from '../lib/edition'
 import { isLibraryDeskPath, isLibraryDeskToDesk, libraryDeskKey } from '../lib/libraryDesk'
 import { navigateWithViewTransition } from '../lib/viewTransitions'
 import { requestInternalNavigation } from '../lib/navigationGuard'
@@ -132,7 +132,7 @@ export function Layout() {
     if (!navigatedRef.current) return
     const since = titleMark.seq
     const announce = (title: string) => setRouteAnnouncement(
-      title.replace(/\s+[—–-]\s+(?:Know-N|COLP)\s*$/u, '').trim() || (isSelfHostedEdition() ? 'COLP' : 'Know-N'))
+      title.replace(/\s+[—–-]\s+(?:Know-N|COLP Server)\s*$/u, '').trim() || productName())
     const current = latestDocumentTitle()
     if (current.seq > since) {
       announce(current.title)

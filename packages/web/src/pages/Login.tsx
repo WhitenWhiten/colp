@@ -9,6 +9,8 @@ import { useAuth } from '../auth/AuthContext'
 import { authClient } from '../api/authClient'
 import { isProductApiError } from '../api/errors'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
+import { isSelfHostedEdition } from '../lib/edition'
+import { SelfHostedLogin } from './SelfHostedLogin'
 import { loginReasonMessage } from './loginReason'
 import { safeReturnTo } from './safeReturnTo'
 import '../styles/auth-pages.css'
@@ -59,6 +61,11 @@ type SuspectFields = {
 }
 
 export function Login() {
+  if (isSelfHostedEdition()) return <SelfHostedLogin />
+  return <CloudLogin />
+}
+
+function CloudLogin() {
   useDocumentTitle('Sign in')
   const [mode, setMode] = useState<LoginMode>('password')
   const [email, setEmail] = useState('')

@@ -7,11 +7,18 @@ import { Icon } from '../Icon'
 import { Modal } from '../Modal'
 import { BodyPortal } from '../BodyPortal'
 import { Stepper } from '../Stepper'
+import { isSelfHostedEdition, subscribeInBrowserEnabled } from '../../lib/edition'
 
 /** The control mounts in masthead action rows and list entries, so it only ever
     renders buttons in place: the hand-off result goes to a toast and the setup
     guidance to a dialog, never as loose text beside the button. */
 export function SubscribeButton(source: BookmarkSubscriptionSource) {
+  // D8 turns browser subscriptions on for the self-hosted edition.
+  if (isSelfHostedEdition() && !subscribeInBrowserEnabled) return null
+  return <SubscribeControl {...source} />
+}
+
+function SubscribeControl(source: BookmarkSubscriptionSource) {
   const location = useLocation()
   const { toast } = useToast()
   const [opening, setOpening] = useState(false)

@@ -77,7 +77,7 @@ Authorities → Import).
 
 ## 5. Connect a browser
 
-1. Install the Known extension from the Chrome Web Store.
+1. Install the Know-N extension from the Chrome Web Store.
 2. Extension → Options → Account → **Server**: enter your origin. Grant the
    permission for that origin when asked. The server's name appears.
 3. Sign in with your username and password.

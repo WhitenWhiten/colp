@@ -5,6 +5,7 @@ import type {
   SyncTrashListItem,
 } from '../../api'
 import type { StatusTone } from '../../components/StatusBadge'
+import { productName } from '../../lib/edition'
 
 export type Resolution = ProductSyncConflictResolution['resolution']
 export type IntentPhase = 'idle' | 'submitting' | 'unknown' | 'stale' | 'refresh_required' | 'blocked' | 'invalid'
@@ -28,7 +29,7 @@ export type FrozenRestore = { intentId: string; ifMatch: string }
 export type RestoreDraft = { phase: RestorePhase; message: string | null; frozen: FrozenRestore | null }
 
 export const RESOLUTIONS: ReadonlyArray<{ value: Resolution; label: string; detail: string }> = [
-  { value: 'server', label: 'Keep the Know-N version', detail: 'Keep the value saved in Know-N.' },
+  { value: 'server', label: `Keep the ${productName()} version`, detail: `Keep the value saved in ${productName()}.` },
   { value: 'incoming', label: 'Keep the browser version', detail: 'Use the change made in the browser.' },
   { value: 'custom', label: 'Custom value', detail: 'Type the value to keep.' },
   { value: 'both', label: 'Keep both', detail: 'Keep both as separate items.' },

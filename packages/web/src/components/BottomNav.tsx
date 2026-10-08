@@ -39,7 +39,7 @@ export function BottomNav() {
     ? sessionTabs(user?.handle)
     : GUEST_TABS.map((tab) =>
         tab.to === '/login'
-          ? { ...tab, to: loginPath(location.pathname, location.search) }
+          ? { ...tab, to: loginPath(location.pathname, location.search), label: isSelfHostedEdition() ? 'Sign in' : tab.label }
           : tab,
       )).filter((tab) => isSelfHostedPathEnabled(tab.to))
   const visibleTabs = isSelfHostedEdition() && isLoggedIn

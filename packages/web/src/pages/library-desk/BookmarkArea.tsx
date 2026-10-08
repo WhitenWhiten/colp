@@ -6,7 +6,7 @@ import { FolderEntries } from '../../components/FolderEntries'
 import { Icon, SaveMarkGlyph } from '../../components/Icon'
 import { ResourceList, type ResourceListItem } from '../../components/ResourceList'
 import { isLive } from '../../api'
-import { isSelfHostedPathEnabled } from '../../lib/edition'
+import { isSelfHostedEdition, isSelfHostedPathEnabled } from '../../lib/edition'
 import {
   childrenOf,
   flattenBookmarks,
@@ -268,7 +268,8 @@ export function BookmarkArea({
      decorative trailing bookmark glyph inside the link read as a save button
      but navigated instead. Followed (public) snapshots stay read-only. */
   const savedMark = (node: BookmarkNode): ReactNode => {
-    if (selectedFollowedSlug) return null
+    // Saved resources are a cloud feature the self-hosted server does not have.
+    if (selectedFollowedSlug || isSelfHostedEdition()) return null
     const isSaved = savedMarks.isSaved(node.id)
     return (
       <button

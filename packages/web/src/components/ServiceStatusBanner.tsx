@@ -1,4 +1,5 @@
 import { useAuth } from '../auth/AuthContext'
+import { productName } from '../lib/edition'
 
 /**
  * R15-23: the browser is online but the session read failed (API outage or
@@ -10,7 +11,7 @@ export function ServiceStatusBanner() {
   if (sessionState !== 'offline') return null
   return (
     <div className="offline-banner" role="status">
-      Can&apos;t reach Know-N. Retrying…
+      Can&apos;t reach {productName()}. Retrying…
     </div>
   )
 }

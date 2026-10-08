@@ -2,6 +2,7 @@ import type { CSSProperties, ComponentPropsWithoutRef, ReactNode } from 'react'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
 import { usePageMeta, type PageMeta } from '../lib/usePageMeta'
 import { isLongDisplayTitle } from '../lib/displayTitle'
+import { brandedTitle } from '../lib/edition'
 
 type PageHeadProps = {
   eyebrow?: ReactNode
@@ -25,7 +26,7 @@ type PageHeadProps = {
       Both map to a .page-head--* modifier in page-chrome.css. */
   variant?: 'editorial' | 'workbench'
   as?: 'div' | 'header'
-  /** Tab title segment; rendered as `{documentTitle} — Know-N`. Required so a new PageHead cannot ship a silent “Know-N” tab. */
+  /** Tab title segment; rendered as `{documentTitle} — {productName}`. Required so a new PageHead cannot ship a bare product-name tab. */
   documentTitle: string
   className?: string
   style?: CSSProperties
@@ -87,6 +88,6 @@ export function PageHead({
 }
 
 function PageMetaRuntime({ meta, documentTitle }: { meta: PageMeta; documentTitle: string }) {
-  usePageMeta(meta, documentTitle ? `${documentTitle} — Know-N` : 'Know-N')
+  usePageMeta(meta, brandedTitle(documentTitle))
   return null
 }

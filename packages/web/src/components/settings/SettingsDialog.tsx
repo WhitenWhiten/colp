@@ -15,6 +15,7 @@ import { Icon } from '../Icon'
 import { Modal } from '../Modal'
 import { useConfirm } from '../ConfirmModal'
 import { useNotificationCenter } from '../../lib/useNotificationCenter'
+import { isSelfHostedEdition, isSelfHostedPathEnabled } from '../../lib/edition'
 import { useSettingsDialog, type SettingsSection } from '../../lib/useSettingsDialog'
 import { FaviconSection } from './FaviconSection'
 import { NotificationsSection } from './NotificationsSection'
@@ -45,6 +46,10 @@ export function SettingsDialog() {
     includePreference: true,
   })
   const mfaLive = isLive('mfa')
+  // This server sends no email and has no sign-in providers (D28), so only
+  // password, sessions, and account deletion apply.
+  const selfHosted = isSelfHostedEdition()
+  const goToLinks = GO_TO_LINKS.filter((link) => isSelfHostedPathEnabled(link.to))
   const navRef = useRef<HTMLElement | null>(null)
   // R14-45: profile edits survive a section switch or dialog close until
   // the user confirms the discard.
@@ -137,7 +142,7 @@ export function SettingsDialog() {
               in the ?settings= URL param, so navigating away closes it. */}
           <div className="settings-nav-goto" role="group" aria-labelledby="settings-nav-goto-label">
             <p className="section-label settings-nav-goto-label" id="settings-nav-goto-label">Go to</p>
-            {GO_TO_LINKS.map((link) => (
+            {goToLinks.map((link) => (
               <Link key={link.to} to={link.to} className="tree-item settings-nav-goto-link">
                 <span>{link.label}</span>
                 <Icon name="arrow-up-right" />
@@ -157,17 +162,18 @@ export function SettingsDialog() {
               <div className="settings-section-head">
                 <h3 className="settings-toggle-label">Account security</h3>
                 <p className="meta">
-                  Password, email verification, change email, sign-in providers
-                  {mfaLive ? ', two-factor authentication,' : ','} and sessions.
+                  {selfHosted
+                    ? 'Password, sessions, and account deletion.'
+                    : <>Password, email verification, change email, sign-in providers{mfaLive ? ', two-factor authentication,' : ','} and sessions.</>}
                 </p>
               </div>
               <hr className="divider" />
               <div className="security-sections" data-testid="security-sections">
-                <EmailVerificationSection />
-                <EmailChangeSection />
+                {!selfHosted && <EmailVerificationSection />}
+                {!selfHosted && <EmailChangeSection />}
                 <PasswordChangeSection />
                 {mfaLive && <MfaSection />}
-                <ProviderLinkSection />
+                {!selfHosted && <ProviderLinkSection />}
                 <SessionSection />
                 <AccountDeleteSection />
               </div>

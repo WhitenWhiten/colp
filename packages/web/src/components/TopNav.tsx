@@ -104,9 +104,10 @@ export function TopNav() {
     .filter((item) => TOOL_EXPOSURE[item.to]?.() ?? true)
     .map((item) => (item.to === '/sync' && syncUnavailable ? { ...item, unavailable: true } : item))
   const governanceTools = GOVERNANCE_TOOLS.filter((item) => isSelfHostedPathEnabled(item.to))
+  // A self-hosted guest can only sign in; the tools need the owner's session.
   const toolItems = isLoggedIn
     ? (isLive('contentGovernance') ? [...sessionTools, ...governanceTools] : sessionTools)
-    : GUEST_TOOLS.filter((item) => isSelfHostedPathEnabled(item.to))
+    : (isSelfHostedEdition() ? [] : GUEST_TOOLS)
 
   const authRoute = isAuthPath(location.pathname)
   const showChrome = !authRoute
@@ -115,7 +116,8 @@ export function TopNav() {
     ? [...navItems, { to: '/agents', label: 'Agents' }]
     : navItems
   const showLogin = !isLoggedIn && location.pathname !== '/login'
-  const showRegister = !isLoggedIn && location.pathname !== '/register'
+  // Self-hosted sign-up is first-run only; the sign-in page links to it then.
+  const showRegister = !isLoggedIn && !isSelfHostedEdition() && location.pathname !== '/register'
 
   useEffect(() => {
     const sync = () => setScrolled(window.scrollY > 8)
@@ -238,7 +240,7 @@ export function TopNav() {
               </button>
             )}
 
-            {showChrome && (
+            {showChrome && toolItems.length > 0 && (
               <ToolsMenu
                 items={toolItems}
                 open={toolsOpen}
@@ -284,8 +286,11 @@ export function TopNav() {
             ) : (
               <>
                 {showLogin && (
-                  <Link to={loginPath(location.pathname, location.search)} className="btn btn-ghost btn-sm">
-                    Log in
+                  <Link
+                    to={loginPath(location.pathname, location.search)}
+                    className={isSelfHostedEdition() ? 'btn btn-primary btn-sm' : 'btn btn-ghost btn-sm'}
+                  >
+                    {isSelfHostedEdition() ? 'Sign in' : 'Log in'}
                   </Link>
                 )}
                 {showRegister && (

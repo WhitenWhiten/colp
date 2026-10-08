@@ -189,6 +189,7 @@ const SHARED_ROUTE_STYLESHEETS: Record<string, string[]> = {
     'AuthRecovery.tsx',
     'Consent.tsx',
     'Onboarding.tsx',
+    'SelfHostedLogin.tsx',
     'SelfHostedRegister.tsx',
   ],
   // Collaboration + update review (.collab-*), notification list (.notif-*)

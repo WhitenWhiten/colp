@@ -34,6 +34,7 @@ import {
   useResourceNode,
 } from '../lib/useResourceNode'
 import { safeExternalUrl } from '../lib/publicCollectionTree'
+import { productName } from '../lib/edition'
 // Route-owned stylesheet (see main.tsx); ships with this route chunk.
 import '../styles/not-found.css'
 import '../styles/reader.css'
@@ -177,7 +178,7 @@ function ReplicaState({ presentation, status, host, originalHref, onRetry }: {
     case 'failed':
       role = 'alert'
       title = failureTitle(presentation.failureCode)
-      text = "Know-N couldn't build a readable copy of this page. Try again, or read it at the source."
+      text = `${productName()} couldn't build a readable copy of this page. Try again, or read it at the source.`
       actions = <>{retry}{openOriginal(false)}</>
       break
     case 'unsupported':
@@ -669,7 +670,7 @@ export function Reader() {
             <div className="reader-citation-actions">
               {originalHref
                 ? <a href={originalHref} target="_blank" rel="noreferrer" className="btn btn-secondary btn-sm">Open original</a>
-                : <span className="meta">Written in Know-N. There is no original page.</span>}
+                : <span className="meta">Written in {productName()}. There is no original page.</span>}
               <button type="button" className="btn btn-ghost btn-sm" onClick={() => { void copyTextToClipboard(originalHref ? `${node.title} — ${originalHref}` : node.title).then(() => success('Citation copied'), () => error("Couldn't copy the citation")) }}>Copy citation</button>
             </div>
           </section>

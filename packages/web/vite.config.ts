@@ -10,6 +10,13 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, rootDir, '')
   const apiProxy = env.VITE_API_PROXY || 'http://127.0.0.1:3000'
   const analyze = mode === 'analyze'
+  // Same-origin /api → Product backend so Session cookies + CSRF work in dev.
+  // The other server paths match deploy/Caddyfile.* (About reads /health;
+  // agents and the extension use /collections, /.well-known, and /colp).
+  const backend = { target: apiProxy, changeOrigin: true, secure: false }
+  const proxy = Object.fromEntries(
+    ['/api', '/collections', '/.well-known', '/colp', '/health', '/ready'].map((path) => [path, backend]),
+  )
 
   return {
     plugins: [
@@ -45,25 +52,12 @@ export default defineConfig(({ mode }) => {
       allowedHosts: ['know-n.com', '192.168.31.160', 'localhost'],
       port: 5173,
       strictPort: false,
-      proxy: {
-        // Same-origin /api → Product backend so Session cookies + CSRF work in dev
-        '/api': {
-          target: apiProxy,
-          changeOrigin: true,
-          secure: false,
-        },
-      },
+      proxy,
     },
     preview: {
       host: true,
       port: 4173,
-      proxy: {
-        '/api': {
-          target: apiProxy,
-          changeOrigin: true,
-          secure: false,
-        },
-      },
+      proxy,
     },
   }
 })

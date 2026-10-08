@@ -15,6 +15,7 @@ import {
   layoutConnectedNodes,
   WIDTH,
 } from './layout'
+import { brandedTitle } from '../../lib/edition'
 
 export function useGraphState(slug: string) {
   const { load, retry } = useGraphSnapshot(slug)
@@ -62,7 +63,7 @@ export function useGraphState(slug: string) {
       : load.status === 'ready' && collection && published
         ? { canonicalPath: `/c/${encodeURIComponent(collection.slug)}` }
         : { canonicalPath: null, robots: 'noindex' },
-    `${documentTitle} — Know-N`,
+    brandedTitle(documentTitle),
   )
 
   const types = useMemo(

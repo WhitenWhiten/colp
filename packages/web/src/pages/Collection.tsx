@@ -69,6 +69,7 @@ import {
 import { CollectionResources, SaveResourcePicker } from './collection/resources'
 import { CollectionFolderLayer, CollectionOutline, CollectionSection } from './collection/outline'
 import { EmbedShareButton } from './share/EmbedShareButton'
+import { brandedTitle, isSelfHostedPathEnabled } from '../lib/edition'
 import '../styles/library.css'
 import '../styles/not-found.css'
 import '../styles/share.css'
@@ -87,7 +88,7 @@ const VIEW_ICONS: Record<ViewMode, IconName> = {
 export function Collection() {
   const { slug = '' } = useParams<{ slug: string }>()
   const [searchParams, setSearchParams] = useSearchParams()
-  const { bootstrapping, isLoggedIn } = useAuth()
+  const { bootstrapping, isLoggedIn, user } = useAuth()
   const { load, retry } = usePublicCollectionSnapshot(slug)
   const content = useMemo(
     () => load.status === 'ready' ? flattenPublicCollection(load.snapshot) : null,
@@ -143,7 +144,7 @@ export function Collection() {
             ogImagePath: collectionOgImagePath(readyCollection.slug, readyCollection.updatedAt),
           }
         : { canonicalPath: null, robots: 'noindex' },
-    `${documentTitle} — Know-N`,
+    brandedTitle(documentTitle),
   )
 
   /* react-router hands back a new setSearchParams on every URL change. The
@@ -507,7 +508,7 @@ export function Collection() {
           <Link to={`/graph/${slug}`} className="btn btn-ghost btn-sm">Graph</Link>
           {/* The embed card loads the snapshot anonymously, so a member-only
               projection has nothing to embed. */}
-          {collection.access === 'public' && (
+          {collection.access === 'public' && isSelfHostedPathEnabled('/share') && (
             <EmbedShareButton
               path={`/share/${encodeURIComponent(collection.slug)}`}
               title={collection.title}
@@ -623,12 +624,18 @@ export function Collection() {
         style={{ viewTransitionName: `collection-${collection.id}` }}
         documentTitle={documentTitle}
         breadcrumb={
-          <Breadcrumb items={[{ label: 'Explore', to: '/explore' }, { label: collection.title }]} />
+          <Breadcrumb items={[
+            isSelfHostedPathEnabled('/explore') ? { label: 'Explore', to: '/explore' } : { label: 'Library', to: '/library' },
+            { label: collection.title },
+          ]} />
         }
         eyebrow={
           <span className="collection-kicker">
             <span>{kindLabel(collection.kind)}</span>
-            {collection.access === 'member' ? <span className="chip chip--kind">Shared with you</span> : null}
+            {/* The member projection is also what the owner reads. */}
+            {collection.access === 'member' && !(user && collection.owner?.handle === user.handle)
+              ? <span className="chip chip--kind">Shared with you</span>
+              : null}
           </span>
         }
         title={collection.title}

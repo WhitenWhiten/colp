@@ -36,6 +36,7 @@ import { AnnotationText } from '../components/annotation-markdown'
 import '../styles/not-found.css'
 import '../styles/resource-detail.css'
 import { UGC_REL } from '../lib/ugcRel'
+import { brandedTitle, productName } from '../lib/edition'
 
 const RELATION_TYPES: RelationType[] = ['related', 'precedes', 'follows', 'supports', 'contradicts', 'duplicate_of', 'derived_from', 'mentions', 'custom']
 const RELATION_TYPE_LABEL: Record<RelationType, string> = {
@@ -68,12 +69,12 @@ function annotationBodyText(annotation: AnnotationView): string {
 
 function ResourceStateMeta({ title, meta }: { title: string; meta: PageMeta }) {
   useDocumentTitle(title)
-  usePageMeta(meta, `${title} — Know-N`)
+  usePageMeta(meta, brandedTitle(title))
   return null
 }
 
 const RESOURCE_DESCRIPTION_PREFIX = 'Read “'
-const RESOURCE_DESCRIPTION_SUFFIX = '” in a curated Know-N collection.'
+const RESOURCE_DESCRIPTION_SUFFIX = `” in a curated ${productName()} collection.`
 
 function resourcePageDescription(title: string): string {
   const titleMax = PAGE_META_DESCRIPTION_MAX
@@ -371,7 +372,7 @@ function ResourceDetailContent() {
                 )}
                 {readerEnabled && !isContainer && <Link to={readerHref} className="btn btn-primary">
                   <Icon name="book" />
-                  Read in Know-N
+                  Read in {productName()}
                 </Link>}
                 {/* R7-04: the flag-off fallback must not claim a library write. */}
                 {!isContainer && (isLive('savedResources')

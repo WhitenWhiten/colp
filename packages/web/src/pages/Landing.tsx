@@ -1,4 +1,5 @@
-import { Link } from 'react-router-dom'
+import { Link, Navigate } from 'react-router-dom'
+import { useAuth } from '../auth/AuthContext'
 import { CollectionCard } from '../components/CollectionCard'
 import { DitherField } from '../components/DitherField'
 import { Icon } from '../components/Icon'
@@ -180,6 +181,18 @@ function useHeroCovered(hero: RefObject<HTMLElement | null>, content: RefObject<
 }
 
 export function Landing() {
+  if (isSelfHostedEdition()) return <SelfHostedHome />
+  return <CloudLanding />
+}
+
+/** A personal server has no marketing page: `/` opens the library or sign-in. */
+function SelfHostedHome() {
+  const { isLoggedIn, bootstrapping } = useAuth()
+  if (bootstrapping) return null
+  return <Navigate to={isLoggedIn ? '/library' : '/login'} replace />
+}
+
+function CloudLanding() {
   useDocumentTitle('Online bookmark library')
   const bandRef = useRef<HTMLDivElement>(null)
   const heroRef = useRef<HTMLElement>(null)

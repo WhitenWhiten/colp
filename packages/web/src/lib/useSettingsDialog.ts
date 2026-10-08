@@ -15,10 +15,11 @@ export const SECURITY_SETTINGS_ERROR_CALLBACK_URL =
     is off — the Favicon section would otherwise degrade to a dead
     "managed for you" entry. */
 export function isSettingsSectionAvailable(id: SettingsSection): boolean {
-  if (id === 'favicon') return isLive('faviconPolicy')
   // The self-hosted server has no notifications module, public profiles,
-  // follows, or Explore, which these two sections configure.
-  if (isSelfHostedEdition() && (id === 'notifications' || id === 'privacy')) return false
+  // follows, or Explore, which notifications and privacy configure. Its
+  // favicons are automatic (no object storage), so that section is empty.
+  if (isSelfHostedEdition() && (id === 'notifications' || id === 'privacy' || id === 'favicon')) return false
+  if (id === 'favicon') return isLive('faviconPolicy')
   return true
 }
 

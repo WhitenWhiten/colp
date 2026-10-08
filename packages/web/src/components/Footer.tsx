@@ -82,10 +82,29 @@ export function Footer() {
             </button>
             {user && isSelfHostedPathEnabled(`/u/${user.handle}`) ? <Link to={`/u/${user.handle}`}>Profile</Link> : null}
             <Link to="/about">About</Link>
-            <Link to="/contact">Contact</Link>
+            {isSelfHostedPathEnabled('/contact') ? <Link to="/contact">Contact</Link> : null}
             {isSelfHostedPathEnabled('/developers') ? <Link to="/developers">Developers</Link> : null}
             {isSelfHostedEdition() ? <Link to="/agents">Agents</Link> : <Link to="/mcp">MCP</Link>}
-            <Link to="/privacy">Privacy</Link>
+            {isSelfHostedPathEnabled('/privacy') ? <Link to="/privacy">Privacy</Link> : null}
+          </nav>
+        </div>
+      </footer>
+    )
+  }
+
+  // A visitor on someone's server (a shared collection link) can only sign in.
+  if (isSelfHostedEdition()) {
+    return (
+      <footer className="site-footer site-footer--app">
+        <div className="site-footer-inner site-footer-inner--app">
+          <p className="site-footer-brand">
+            <strong><BrandName /></strong>
+            <span>{tagline}</span>
+            {poweredBy}
+          </p>
+          <nav aria-label="Footer">
+            <Link to={loginPath(location.pathname, location.search)}>Sign in</Link>
+            <Link to="/about">About</Link>
           </nav>
         </div>
       </footer>

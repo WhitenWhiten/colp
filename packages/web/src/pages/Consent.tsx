@@ -9,6 +9,7 @@ import { isProductApiError } from '../api/errors'
 import { consentScopeMeta } from '../lib/oauthScopes'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
 import { safeReturnTo } from './safeReturnTo'
+import { productName } from '../lib/edition'
 import '../styles/auth-pages.css'
 
 export { consentScopeLabel } from '../lib/oauthScopes'
@@ -171,7 +172,7 @@ export function Consent() {
         <p className="section-label">Authorization</p>
         <h1>Allow {displayName}?</h1>
         <p className="sub">
-          {displayName} is requesting access to your Know-N account with these permissions:
+          {displayName} is requesting access to your {productName()} account with these permissions:
         </p>
         {scopes.length > 0 ? (
           <ul className="auth-consent-scopes">

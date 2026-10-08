@@ -4,6 +4,7 @@ import { loginPath } from '../lib/chrome'
 import { libraryFeatureUnavailable } from '../lib/libraryCopy'
 import type { RouteFailureKind } from '../lib/classifyRouteError'
 import { EmptyState, LoadingState } from './EmptyState'
+import { productName } from '../lib/edition'
 
 type RouteStateIcon = 'alert' | 'book' | 'search' | 'collection' | 'link' | 'folder' | 'bell' | 'compass'
 
@@ -47,7 +48,7 @@ export function RouteState({
         role="alert"
         icon="alert"
         titleAs={titleAs}
-        title="Know-N is unavailable right now"
+        title={`${productName()} is unavailable right now`}
         description="We can't confirm your session. Retrying automatically; your library is safe."
         action={
           <button type="button" className="btn btn-secondary btn-sm" onClick={() => void refreshSession()}>

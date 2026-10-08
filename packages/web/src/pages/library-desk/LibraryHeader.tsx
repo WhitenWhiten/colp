@@ -80,7 +80,9 @@ export function LibraryHeader({
     ? 'Saved bookmarks and reading progress, in one place.'
     : selectedFolder
       ? `${plural(bookmarkCount, 'bookmark')} in ${collection?.title ?? 'this collection'}.`
-      : collection?.summary || 'Bookmarks in this collection.'
+      : collection
+        ? collection.summary || 'Bookmarks in this collection.'
+        : 'Collections you own and collections shared with you.'
 
   const onMobileChange = (value: string) => {
     if (value === 'reading') {

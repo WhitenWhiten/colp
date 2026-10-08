@@ -12,6 +12,7 @@ import { SearchResultRow, searchResultMeta } from '../components/SearchResultRow
 import { SEARCH_PAGE_TITLE, SITE_SEARCH_PLACEHOLDER } from '../lib/searchCopy'
 import { useSearchKeyboard } from '../lib/useSearchKeyboard'
 import { searchResultHref, useProductSearch } from '../lib/useProductSearch'
+import { productName } from '../lib/edition'
 
 const filters: { label: string; value?: SearchResourceType }[] = [
   { label: 'All' }, { label: 'Collections', value: 'collection' }, { label: 'Bookmarks', value: 'node' },
@@ -94,7 +95,7 @@ export function Search() {
           title={SEARCH_PAGE_TITLE}
           documentTitle="Search"
           meta={{
-            description: 'Search collections, profiles, bookmarks, and annotations on Know-N.',
+            description: `Search collections, profiles, bookmarks, and annotations on ${productName()}.`,
             canonicalPath: null,
             robots: 'noindex',
           }}

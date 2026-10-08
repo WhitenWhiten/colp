@@ -122,10 +122,10 @@ export default function App() {
           <Route path="login" element={<Login />} />
           <Route path="consent" element={<Consent />} />
           <Route path="register" element={<Register />} />
-          <Route path="reset-password" element={<PasswordReset />} />
-          <Route path="verify-email" element={<EmailVerification />} />
+          {!selfHostedEdition && <Route path="reset-password" element={<PasswordReset />} />}
+          {!selfHostedEdition && <Route path="verify-email" element={<EmailVerification />} />}
           <Route path="auth/recovery" element={<AuthRecovery />} />
-          <Route path="onboarding" element={<Onboarding />} />
+          {!selfHostedEdition && <Route path="onboarding" element={<Onboarding />} />}
           <Route path="graph/:slug" element={<Graph />} />
           {!selfHostedEdition && <Route path="creator" element={<Creator />} />}
           {!selfHostedEdition && <Route path="export" element={<DataExport />} />}

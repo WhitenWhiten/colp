@@ -4,6 +4,7 @@ import { productClient, ProductApiError } from '../../api'
 import { useAuth } from '../../auth/AuthContext'
 import { getApiBaseUrl } from '../../api/config'
 import { RouteState } from '../RouteState'
+import { isSelfHostedEdition } from '../../lib/edition'
 
 type Remote = Awaited<ReturnType<typeof productClient.getBookmarkPreferences>>
 type Pending = { patch: BookmarkPreferencesPatch; etag: string; intentId: string }
@@ -105,8 +106,12 @@ function AccountBookmarkPreferences({ accountId }: { accountId: string }) {
   }
   const value = cache ? { ...cache.current.preferences, ...cache.pending?.patch } : null
   const disabled = busy || Boolean(cache?.conflict) || Boolean(cache?.pending)
+  // The self-hosted server has no classification and no bookmark subscriptions until D8.
+  const cloud = !isSelfHostedEdition()
   return <section className="stack gap-1" aria-label="Bookmark preferences">
-    <div className="settings-section-head"><h3 className="settings-toggle-label">Bookmarks</h3><p className="meta">Account preferences sync to supported devices. The browser extension captures pages only when you click it. Configure browser folders and classification spending authorization in the extension.</p></div>
+    <div className="settings-section-head"><h3 className="settings-toggle-label">Bookmarks</h3><p className="meta">{cloud
+      ? 'Account preferences sync to supported devices. The browser extension captures pages only when you click it. Configure browser folders and classification spending authorization in the extension.'
+      : 'These preferences sync to the browser extension. The extension saves a page only when you click it. Choose browser folders in the extension.'}</p></div>
     {value && <>
       <div className="field"><label htmlFor="pref-capture-mode">Capture mode</label><select id="pref-capture-mode" value={value.captureMode ?? 'manual'} disabled={disabled} onChange={event => void save({ captureMode: event.target.value as 'manual' | 'automatic' })}>
         <option value="manual">Manual</option><option value="automatic">Automatic (requires extension authorization)</option>
@@ -119,10 +124,10 @@ function AccountBookmarkPreferences({ accountId }: { accountId: string }) {
       </select></div>
       <div className="option-group">
         <label className="option-row"><input type="checkbox" checked={value.foldersFirst} disabled={disabled} onChange={event => void save({ foldersFirst: event.target.checked })} /><span>Folders first</span></label>
-        <label className="option-row"><input type="checkbox" checked={value.learnFromCorrections ?? true} disabled={disabled} onChange={event => void save({ learnFromCorrections: event.target.checked })} /><span>Use my classification corrections</span></label>
-        <label className="option-row"><input type="checkbox" checked={value.resumeClassificationWhenOnline ?? true} disabled={disabled} onChange={event => void save({ resumeClassificationWhenOnline: event.target.checked })} /><span>Resume authorized, unstarted classification when online</span></label>
+        {cloud && <label className="option-row"><input type="checkbox" checked={value.learnFromCorrections ?? true} disabled={disabled} onChange={event => void save({ learnFromCorrections: event.target.checked })} /><span>Use my classification corrections</span></label>}
+        {cloud && <label className="option-row"><input type="checkbox" checked={value.resumeClassificationWhenOnline ?? true} disabled={disabled} onChange={event => void save({ resumeClassificationWhenOnline: event.target.checked })} /><span>Resume authorized, unstarted classification when online</span></label>}
       </div>
-      <fieldset className="settings-fieldset" disabled={disabled}>
+      {cloud && <fieldset className="settings-fieldset" disabled={disabled}>
         <legend className="section-label">Browser subscriptions</legend>
         <p className="meta">Exit defaults apply to mappings that still inherit each policy. Content defaults only affect new mappings.</p>
         {(['subscriptionOnUnfollow', 'subscriptionOnUnsubscribe'] as const).map(name => <div className="field" key={name}><label htmlFor={`pref-${name}`}>{labels[name]}</label><select id={`pref-${name}`} value={value[name] ?? ''} disabled={disabled || value[name] === undefined} onChange={event => void save({ [name]: event.target.value as 'keep' | 'remove' })}>
@@ -136,7 +141,7 @@ function AccountBookmarkPreferences({ accountId }: { accountId: string }) {
         </select></div>
         {value.subscriptionDefaultDigestMode === 'recent' && <div className="field"><label htmlFor="pref-sub-recent-limit">Number of recent issues</label><input id="pref-sub-recent-limit" type="number" min={1} max={20} step={1} defaultValue={value.subscriptionDefaultEditionLimit} disabled={disabled || value.subscriptionDefaultEditionLimit === undefined} onBlur={event => { const count = Number(event.target.value); const valid = Number.isInteger(count) && count >= 1 && count <= 20; event.target.setAttribute('aria-invalid', String(!valid)); if (valid && count !== value.subscriptionDefaultEditionLimit) void save({ subscriptionDefaultEditionLimit: count }); else if (!valid) setMessage({ kind: 'error', text: 'Choose a whole number from 1 to 20.' }) }} /></div>}
         <p className="meta">Choose mount and preservation folders in the extension. Native folder IDs stay in that browser.</p>
-      </fieldset>
+      </fieldset>}
     </>}
     {message !== null && (
       <p
