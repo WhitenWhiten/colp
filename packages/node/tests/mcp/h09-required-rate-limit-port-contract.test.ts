@@ -211,7 +211,7 @@ describe('H-09 required host rate-limit decision port', () => {
     '%s uses an explicit allowing host decision port during Commit',
     async (surface) => {
       const allow = vi.fn(async () => true);
-      const { options, executor } = changePlanOptions({ allow });
+      const { options, executor } = changePlanOptions({ allowPlan: async () => true, allow });
       const gateway = await createGatewaySurface(surface, options);
       const planId = await planAndApprove(gateway);
 
@@ -231,7 +231,7 @@ describe('H-09 required host rate-limit decision port', () => {
     '%s uses an explicit denying host decision port and does not execute Commit operations',
     async (surface) => {
       const allow = vi.fn(async () => false);
-      const { options, executor } = changePlanOptions({ allow });
+      const { options, executor } = changePlanOptions({ allowPlan: async () => true, allow });
       const gateway = await createGatewaySurface(surface, options);
       const planId = await planAndApprove(gateway);
 

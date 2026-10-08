@@ -33,6 +33,7 @@ import {
 } from '@modelcontextprotocol/core';
 
 import { Mcp20260728RequestError } from '../../src/mcp/2026-07-28/request-context.js';
+import { MCP_20260728_MAX_LISTEN_REQUEST_ID_LENGTH } from '../../src/mcp/2026-07-28/subscriptions.js';
 import {
   SERVER_INFO_META_KEY,
   SUBSCRIPTION_ID_META_KEY,
@@ -111,6 +112,16 @@ describe('MCP 2026-07-28 subscriptions/listen: request validation [evidence:mcp.
     const context = createContext('subscriptions/listen', { _meta: meta(), notifications: {} });
     expect(() => adapter.listen(context, { notifications: {} }, '')).toThrow(TypeError);
     expect(() => adapter.listen(context, { notifications: {} }, 1.5)).toThrow(TypeError);
+  });
+
+  it('validates request id size before opening a source subscription', async () => {
+    const { adapter, memory } = harness();
+    const boundary = openSession(adapter, { toolsListChanged: true }, {}, 'x'.repeat(MCP_20260728_MAX_LISTEN_REQUEST_ID_LENGTH));
+    boundary.close();
+    await boundary.closed;
+    const oversizedId = 'x'.repeat(300_000);
+    expect(() => openSession(adapter, { toolsListChanged: true }, {}, oversizedId)).toThrow(TypeError);
+    expect(memory.listenerCount()).toBe(0);
   });
 });
 

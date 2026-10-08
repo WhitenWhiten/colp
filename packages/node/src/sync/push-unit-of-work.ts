@@ -63,6 +63,17 @@ export interface StoredOperationReceipt<Result> extends SequenceReceipt<Result> 
   readonly sequenceScope: string;
 }
 
+/** Durable continuity state for a Push-owned Sequence lane. */
+export interface PushSequenceLaneState {
+  readonly nextSequence: number;
+}
+
+/** Transactional lane state required by the production Push owner. */
+export interface PushSequenceLaneStore {
+  load(lane: PushSequenceLane): Promise<PushSequenceLaneState | undefined>;
+  save(lane: PushSequenceLane, state: PushSequenceLaneState): Promise<void>;
+}
+
 /**
  * Transaction surface the Push coordinator actually uses. Replica, purge
  * boundary and deletion-watermark ports belong to the lifecycle and
@@ -71,6 +82,8 @@ export interface StoredOperationReceipt<Result> extends SequenceReceipt<Result> 
 export interface SyncTransaction<Operation, Result, Conflict, Audit, Outbox>
   extends SyncOperationReuseTransaction {
   readonly receipts: OperationReceiptStore<Result>;
+  /** Optional for unsafe compatibility fixtures; production Push requires it. */
+  readonly sequenceLanes?: PushSequenceLaneStore;
   appendOperation(operation: Operation): Promise<void>;
   saveConflict(conflict: Conflict): Promise<void>;
   allocateCursor(): Promise<string>;
@@ -125,6 +138,8 @@ export interface SyncUnitOfWork<
    * Push and Sequence. Do not nest the other owner on the same request boundary.
    */
   readonly operationIdReservationOwner: 'push';
+  /** Production Push adapters set this marker after implementing sequenceLanes. */
+  readonly pushSequenceContinuity?: true;
   /**
    * Run `work` in one transaction. Resolve only after commit is known to have
    * succeeded. Reject if the commit outcome is uncertain; callers retry

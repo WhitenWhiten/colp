@@ -17,6 +17,9 @@ export {
 
 export {
   AtomicPushNotCommittableError,
+  PushSequenceBlockedError,
+  PushSequenceGapError,
+  PushSequenceStateUnavailableError,
   PushOperationReuseError,
   type PushArtifactBuilder,
   type PushDeniedOperation,
@@ -253,6 +256,9 @@ export {
 } from './sidecar.js';
 
 export {
+  TOMBSTONE_PURGE_MAX_DELETED_MEMBERS,
+  TOMBSTONE_PURGE_MAX_REPLICA_STATES,
+  tombstonePurgeReadBudget,
   coordinateTombstonePurge,
   type DeletionWatermark,
   type TombstoneDeletedMember,
@@ -262,6 +268,7 @@ export {
   type TombstonePurgeIdentity,
   type TombstonePurgeReplicaState,
   type TombstonePurgeRequest,
+  type TombstonePurgeReadBudget,
   type TombstonePurgeResult,
   type TombstonePurgeTransaction,
   type TombstonePurgeUnitOfWork,
@@ -373,6 +380,8 @@ export type {
   PushExecutionScope,
   PushReceiptWriteCondition,
   PushSequenceLane,
+  PushSequenceLaneState,
+  PushSequenceLaneStore,
   StoredOperationReceipt,
   SyncTransaction,
   SyncUnitOfWork,

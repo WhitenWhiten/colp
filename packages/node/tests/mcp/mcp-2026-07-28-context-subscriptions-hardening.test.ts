@@ -207,6 +207,7 @@ describe('MCP 2026-07-28 subscriptions/listen — host configuration hardening',
     tools: Object.freeze({ listChanged: true }),
     prompts: Object.freeze({ listChanged: true }),
   });
+  const trustedAuthorization = Object.freeze({ isAuthorized: () => true, isResourceAuthorized: () => true });
 
   function listenContext(overrides: Readonly<Record<string, unknown>> = {}) {
     return requireMcp20260728RequestContext(createMcp20260728RequestContext(
@@ -260,7 +261,7 @@ describe('MCP 2026-07-28 subscriptions/listen — host configuration hardening',
 
   it('rejects malformed listen params, missing notifications and bad request ids', () => {
     const memory = signalSource();
-    const adapter = createMcp20260728SubscriptionsListenAdapter({ signalSource: memory.source, capabilities });
+    const adapter = createMcp20260728SubscriptionsListenAdapter({ signalSource: memory.source, capabilities, authorization: trustedAuthorization });
     const context = listenContext();
     expect(() => adapter.listen(context, 'nope', 'listen-1')).toThrowError(expect.objectContaining({ kind: 'invalid_params' }));
     expect(() => adapter.listen(context, [], 'listen-1')).toThrowError(expect.objectContaining({ kind: 'invalid_params' }));
@@ -274,11 +275,19 @@ describe('MCP 2026-07-28 subscriptions/listen — host configuration hardening',
     expect(session.subscriptionId).toBe('listen-ok');
   });
 
+  it('fails closed when a host omits the authorization recheck port', () => {
+    const memory = signalSource();
+    const adapter = createMcp20260728SubscriptionsListenAdapter({ signalSource: memory.source, capabilities });
+    expect(() => adapter.listen(listenContext(), { notifications: { toolsListChanged: true } }, 'missing-auth'))
+      .toThrow(/authorization recheck denied/i);
+    expect(memory.publish).not.toThrow();
+  });
+
   it('ends the stream immediately when the request is already aborted', async () => {
     const controller = new AbortController();
     controller.abort();
     const memory = signalSource();
-    const adapter = createMcp20260728SubscriptionsListenAdapter({ signalSource: memory.source, capabilities });
+    const adapter = createMcp20260728SubscriptionsListenAdapter({ signalSource: memory.source, capabilities, authorization: trustedAuthorization });
     const context = listenContext({ abortSignal: controller.signal });
     const session = adapter.listen(context, { notifications: { toolsListChanged: true } }, 'listen-abort');
     const items: unknown[] = [];
@@ -290,7 +299,7 @@ describe('MCP 2026-07-28 subscriptions/listen — host configuration hardening',
 
   it('wakes a waiting next() consumer when a signal arrives and on teardown', async () => {
     const memory = signalSource();
-    const adapter = createMcp20260728SubscriptionsListenAdapter({ signalSource: memory.source, capabilities });
+    const adapter = createMcp20260728SubscriptionsListenAdapter({ signalSource: memory.source, capabilities, authorization: trustedAuthorization });
     const session = adapter.listen(listenContext(), { notifications: { toolsListChanged: true } }, 'listen-wait');
     const iterator = session.notifications[Symbol.asyncIterator]();
     const pending = iterator.next();
@@ -307,7 +316,7 @@ describe('MCP 2026-07-28 subscriptions/listen — host configuration hardening',
 
   it('ignores signals published after the stream ended and returns early from iterator.return()', async () => {
     const memory = signalSource();
-    const adapter = createMcp20260728SubscriptionsListenAdapter({ signalSource: memory.source, capabilities });
+    const adapter = createMcp20260728SubscriptionsListenAdapter({ signalSource: memory.source, capabilities, authorization: trustedAuthorization });
     const session = adapter.listen(listenContext(), { notifications: { toolsListChanged: true } }, 'listen-end');
     const iterator = session.notifications[Symbol.asyncIterator]();
     const returnResult = await iterator.return?.();

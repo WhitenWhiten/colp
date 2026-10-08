@@ -4,6 +4,12 @@ export const SYNC_TRANSPORT_BUDGET_MAX_BYTES = 16 * 1024 * 1024;
 export const SYNC_TRANSPORT_BUDGET_EXTENSION =
   'https://know-n.com/colp/extensions/sync-transport-budget';
 export const SYNC_TRANSPORT_BUDGET_HEADER = 'Known-Sync-Transport-Budget';
+/**
+ * The negotiated budget header is a tiny fixed-shape JSON object.  Bound its
+ * wire representation before invoking JSON.parse so a peer cannot force an
+ * unbounded parse/allocation with a long ignored suffix or a giant number.
+ */
+export const SYNC_TRANSPORT_BUDGET_HEADER_MAX_BYTES = 1024;
 
 export const SYNC_TRANSPORT_BUDGET_KEYS = Object.freeze([
   'effectAggregateBytes',
@@ -95,6 +101,10 @@ export function encodeSyncTransportBudgetHeader(budget: SyncTransportBudget): st
 
 export function parseSyncTransportBudgetHeader(header: string | null | undefined): SyncTransportBudget {
   if (header === null || header === undefined || header === '') return legacySyncTransportBudget();
+  if (typeof header !== 'string') throw new TypeError('SyncTransportBudget header is invalid.');
+  if (new TextEncoder().encode(header).byteLength > SYNC_TRANSPORT_BUDGET_HEADER_MAX_BYTES) {
+    throw new TypeError('SyncTransportBudget header exceeds its byte budget.');
+  }
   let document: unknown;
   try { document = JSON.parse(header) as unknown; }
   catch { throw new TypeError('SyncTransportBudget header is invalid.'); }

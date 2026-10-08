@@ -840,7 +840,7 @@ describe('publication client', () => {
     });
 
     await client.getCollection(metadataCollectionId);
-    await expect(client.getCollection(metadataCollectionId)).rejects.toThrow('did not carry');
+    await expect(client.getCollection(metadataCollectionId)).rejects.toThrow(/(?:did not carry|origin-bound)/u);
   });
 
   it('partitions cache keys by protocol, static headers, and explicit principal identity', async () => {

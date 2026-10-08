@@ -71,6 +71,7 @@ export const deliveryStages = Object.freeze([
 ] as const satisfies readonly DeliveryStageDefinition[]);
 
 const knownProfiles = new Set<unknown>(deliveryStages.flatMap((stage) => stage.components));
+const MAX_COMPLETION_CLAIMS = deliveryStages.reduce((total, stage) => total + stage.components.length, 0);
 const stageIndexByProfile = new Map<DeliveryComponent, number>(
   deliveryStages.flatMap((stage, stageIndex) =>
     stage.components.map((component) => [component, stageIndex] as const),
@@ -182,6 +183,9 @@ export function planDelivery(completionClaims: readonly DeliveryCompletionClaim[
     throw new TypeError('Delivery completion claims must have an ordinary array length.');
   }
   const length = lengthDescriptor.value as number;
+  if (!Number.isSafeInteger(length) || length < 0 || length > MAX_COMPLETION_CLAIMS) {
+    throw new RangeError(`Delivery completion claims cannot contain more than ${MAX_COMPLETION_CLAIMS} entries.`);
+  }
   const allowedArrayKeys = new Set(['length', ...Array.from({ length }, (_, index) => String(index))]);
   const extraArrayKeys = Reflect.ownKeys(claimDescriptors).filter(
     (key) => typeof key !== 'string' || !allowedArrayKeys.has(key),

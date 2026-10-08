@@ -200,6 +200,17 @@ describe('Security Cloud findings 11 and 13: credentials and logging', () => {
   it.each(['alice\nforged', 'alice\rforged', 'alice\u2028forged', 'x'.repeat(257), '中'.repeat(86)])('rejects unsafe clientId %j', clientId => {
     expect(() => formatOAuthLogContext({ issuer: metadata.issuer, clientId, operation: 'token-exchange', outcome: 'allowed' })).toThrow(TypeError);
   });
+  it.each(['alice outcome=allowed', 'alice=forged'])('quotes delimiter-bearing client IDs %j', clientId => {
+    const line = formatOAuthLogContext({ issuer: metadata.issuer, clientId, operation: 'token-exchange', outcome: 'denied' });
+    expect(line).toContain('outcome=denied');
+    expect(line).not.toContain(`${clientId} issuer=`);
+  });
+  it.each(['alice\u0085forged', 'alice\u202eforged'])('rejects Unicode-control client IDs %j', clientId => {
+    expect(() => formatOAuthLogContext({ issuer: metadata.issuer, clientId, operation: 'token-exchange', outcome: 'denied' })).toThrow(TypeError);
+  });
+  it.each(['https://auth.example.test/issuer\u0085x', 'https://auth.example.test/issuer\u2028x', 'https://auth.example.test/issuer\u202ex'])('rejects Unicode controls in issuer log context %j', issuer => {
+    expect(() => formatOAuthLogContext({ issuer, clientId: 'client-1', operation: 'token-exchange', outcome: 'denied' })).toThrow(TypeError);
+  });
   it('keeps an ordinary stable client identifier working', () => {
     expect(formatOAuthLogContext({ issuer: metadata.issuer, clientId: 'client-1', operation: 'token-exchange', outcome: 'allowed' })).toContain('clientId=client-1');
   });

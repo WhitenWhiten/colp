@@ -12,6 +12,7 @@ export const MAX_ANONYMOUS_DIRECTORY_CANDIDATES = 10_000;
 
 const MAX_ANONYMOUS_DIRECTORY_JSON_DEPTH = 64;
 const MAX_ANONYMOUS_DIRECTORY_JSON_VALUES = 1_000_000;
+const MAX_ANONYMOUS_DIRECTORY_JSON_BYTES = 64 * 1024 * 1024;
 const INVALID_INPUT_MESSAGE = 'Anonymous Directory input is invalid.';
 const CANDIDATE_LIMIT_MESSAGE = 'Anonymous Directory candidate limit exceeded.';
 const NON_PUBLIC_PAGE_MESSAGE = 'Anonymous Directory page contains a non-public collection.';
@@ -48,6 +49,7 @@ class NonPublicPageError extends Error {}
 
 interface JsonInspectionState {
   values: number;
+  bytes: number;
   readonly ancestors: WeakSet<object>;
 }
 
@@ -62,6 +64,10 @@ export function selectAnonymousDirectoryCandidates(
 ): AnonymousDirectoryCandidateSet {
   return withSanitizedDirectoryErrors(() => {
     const candidateValues = inspectCandidateArray(candidates);
+    // Keep one validation/clone budget for the whole request. Resetting it for
+    // every record multiplies the cost of a maximum-sized catalog before
+    // query, sorting, or pagination can reduce it.
+    const inspectionState: JsonInspectionState = { values: 0, bytes: 0, ancestors: new WeakSet<object>() };
 
     const publicCollections: Readonly<DirectoryCollection>[] = [];
     for (const sourceCandidate of candidateValues) {
@@ -69,7 +75,7 @@ export function selectAnonymousDirectoryCandidates(
       if (visibility === 'unlisted' || visibility === 'protected' || visibility === 'private') continue;
       if (visibility !== 'public') throw new TypeError(INVALID_INPUT_MESSAGE);
 
-      const candidate = immutableJson(sourceCandidate);
+      const candidate = immutableJson(sourceCandidate, inspectionState);
       if (!isCanonicalDirectoryCollection(candidate)) throw new TypeError(INVALID_INPUT_MESSAGE);
       publicCollections.push(candidate);
     }
@@ -230,10 +236,19 @@ function isExactPageInput(value: unknown): value is {
     && (nextCursor.value === null || typeof nextCursor.value === 'string');
 }
 
-function immutableJson(value: unknown): unknown {
-  // Valid JSON-data graphs remain JSON-data under structuredClone; skip a second walk.
-  assertJsonData(value, 0, { values: 0, ancestors: new WeakSet<object>() });
+function immutableJson(value: unknown, state: JsonInspectionState): unknown {
+  // Valid JSON-data graphs remain JSON-data under structuredClone; keep the
+  // aggregate budget across all candidates in this request.
+  const beforeCloneBytes = state.bytes;
+  assertJsonData(value, 0, state);
+  const sourceBytes = state.bytes - beforeCloneBytes;
+  // Reserve room for the detached copy before allocating it. This rejects an
+  // oversized candidate before structuredClone can duplicate its strings.
+  if (state.bytes > MAX_ANONYMOUS_DIRECTORY_JSON_BYTES - sourceBytes) {
+    throw new TypeError(INVALID_INPUT_MESSAGE);
+  }
   const clone: unknown = structuredClone(value);
+  assertJsonData(clone, 0, state);
   const frozen = deepFreeze(clone);
   markIssuedImmutable(frozen);
   return frozen;
@@ -291,7 +306,10 @@ function inspectExactArray(value: unknown, maximumLength: number): readonly unkn
 
 function assertJsonData(value: unknown, depth: number, state: JsonInspectionState): void {
   state.values += 1;
-  if (state.values > MAX_ANONYMOUS_DIRECTORY_JSON_VALUES || depth > MAX_ANONYMOUS_DIRECTORY_JSON_DEPTH) {
+  if (typeof value === 'string') state.bytes += Buffer.byteLength(value, 'utf8');
+  if (state.values > MAX_ANONYMOUS_DIRECTORY_JSON_VALUES
+    || state.bytes > MAX_ANONYMOUS_DIRECTORY_JSON_BYTES
+    || depth > MAX_ANONYMOUS_DIRECTORY_JSON_DEPTH) {
     throw new TypeError(INVALID_INPUT_MESSAGE);
   }
   if (value === null || typeof value === 'string' || typeof value === 'boolean') return;
@@ -318,6 +336,8 @@ function assertJsonData(value: unknown, depth: number, state: JsonInspectionStat
   state.ancestors.add(value);
   for (const key of keys) {
     if (isArray && key === 'length') continue;
+    state.bytes += Buffer.byteLength(key as string, 'utf8');
+    if (state.bytes > MAX_ANONYMOUS_DIRECTORY_JSON_BYTES) throw new TypeError(INVALID_INPUT_MESSAGE);
     const descriptor = Object.getOwnPropertyDescriptor(value, key);
     if (descriptor === undefined || !descriptor.enumerable || !('value' in descriptor)) {
       throw new TypeError(INVALID_INPUT_MESSAGE);

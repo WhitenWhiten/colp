@@ -5,6 +5,7 @@ import {
   type DeletionWatermark,
   type TombstonePurgeBoundary,
   type TombstonePurgeCandidate,
+  type TombstonePurgeReadBudget,
   type TombstonePurgeReplicaState,
   type TombstonePurgeRequest,
   type TombstonePurgeTransaction,
@@ -141,6 +142,7 @@ class DurablePurgeHandle implements TombstonePurgeUnitOfWork {
   rejectAfterCommitOnce = false;
   mutatePortInputs = false;
   readonly trace: string[] = [];
+  readonly readBudgets: TombstonePurgeReadBudget[] = [];
 
   constructor(readonly backend = new SharedDurablePurgeBackend()) {}
 
@@ -179,7 +181,8 @@ class DurablePurgeHandle implements TombstonePurgeUnitOfWork {
       if (this.mutatePortInputs) Object.assign(value, { adapterMutation: true });
     };
     return {
-      loadCandidate: async (value) => {
+      loadCandidate: async (value, budget) => {
+        this.readBudgets.push(budget);
         maybeMutate(value);
         this.trace.push('read:candidate');
         return draft.tombstone === undefined ? undefined : structuredClone(draft.candidate);
@@ -188,7 +191,8 @@ class DurablePurgeHandle implements TombstonePurgeUnitOfWork {
         this.trace.push('read:time');
         return this.backend.authoritativeTime;
       },
-      listReplicaStates: async (collectionId) => {
+      listReplicaStates: async (collectionId, budget) => {
+        this.readBudgets.push(budget);
         this.trace.push('read:replicas');
         return structuredClone(this.backend.replicas.filter((entry) => entry.collectionId === collectionId));
       },
@@ -286,6 +290,9 @@ describe(`SYNC-0006 durable Tombstone purge coordinator ${evidence}`, () => {
     expect(Object.isFrozen(result.purgeBoundary)).toBe(true);
     expect(Object.isFrozen(result.deletionWatermarks)).toBe(true);
     expect(result.deletionWatermarks.every(Object.isFrozen)).toBe(true);
+    expect(handle.readBudgets.length).toBeGreaterThanOrEqual(2);
+    expect(handle.readBudgets.every((budget) => budget.maxDeletedMembers === 100_000
+      && budget.maxReplicaStates === 100_000)).toBe(true);
   });
 
   it.each([

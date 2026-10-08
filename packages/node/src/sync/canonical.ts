@@ -21,6 +21,29 @@ export const AUTHORITATIVE_EFFECT_PAGE_MAX_BYTES = 262_144;
 export const AUTHORITATIVE_EFFECT_MAX_DEPTH = 32;
 export const AUTHORITATIVE_EFFECT_MAX_MEMBERS = 10_000;
 export const AUTHORITATIVE_EFFECT_SERIES_MAX_MEMBERS = 524_288;
+export const AUTHORITATIVE_MEMBER_MAX_STRING_BYTES = 1_024;
+export const AUTHORITATIVE_MEMBER_MAX_BYTES = 16 * 1024 * 1024;
+
+/** Count UTF-8 bytes up to the member limit without allocating an encoded copy. */
+function utf8Bytes(value: string, limit: number): number {
+  let bytes = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    const width = code <= 0x7f
+      ? 1
+      : code <= 0x7ff
+        ? 2
+        : code >= 0xd800 && code <= 0xdbff
+          && index + 1 < value.length
+          && value.charCodeAt(index + 1) >= 0xdc00
+          && value.charCodeAt(index + 1) <= 0xdfff
+          ? (index += 1, 4)
+          : 3;
+    bytes += width;
+    if (bytes > limit) return bytes;
+  }
+  return bytes;
+}
 
 export const EFFECT_PAGE_TEMPLATE_VARIABLES = Object.freeze(['effectId', 'pageNumber'] as const);
 
@@ -72,6 +95,7 @@ export function canonicalAuthoritativeMemberDigest(members: unknown): string {
   // or relaxing the generic/inline JSON depth and member budgets.
   const hash = sha256.create();
   const encoder = new TextEncoder();
+  let memberBytes = 0;
   hash.update(encoder.encode('['));
   for (let index = 0; index < length; index += 1) {
     const member = Object.getOwnPropertyDescriptor(members, String(index));
@@ -79,7 +103,16 @@ export function canonicalAuthoritativeMemberDigest(members: unknown): string {
       || typeof member.value !== 'string') {
       throw new TypeError(`${label} must contain only dense string data properties.`);
     }
-    hash.update(encoder.encode(`${index === 0 ? '' : ','}${JSON.stringify(member.value)}`));
+    const rawBytes = utf8Bytes(member.value, AUTHORITATIVE_MEMBER_MAX_STRING_BYTES);
+    if (rawBytes > AUTHORITATIVE_MEMBER_MAX_STRING_BYTES) {
+      throw new RangeError(`${label} exceeds the member string or aggregate byte limit.`);
+    }
+    const encoded = encoder.encode(`${index === 0 ? '' : ','}${JSON.stringify(member.value)}`);
+    if (memberBytes > AUTHORITATIVE_MEMBER_MAX_BYTES - encoded.byteLength) {
+      throw new RangeError(`${label} exceeds the member string or aggregate byte limit.`);
+    }
+    memberBytes += encoded.byteLength;
+    hash.update(encoded);
   }
   hash.update(encoder.encode(']'));
   return formatContentDigest(hash.digest());

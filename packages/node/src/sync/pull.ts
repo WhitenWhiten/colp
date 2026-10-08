@@ -1,4 +1,8 @@
-import { snapshotPullEventStorePage } from './pull-page-budget.js';
+import {
+  snapshotPullEventStorePage,
+  SYNC_PULL_PAGE_MAX_BYTES,
+  SYNC_PULL_PAGE_MAX_MEMBERS,
+} from './pull-page-budget.js';
 
 import { createValidatorRegistry } from '../schema/index.js';
 import { principalTypes } from '../shared/protocol-vocabulary.js';
@@ -151,6 +155,9 @@ export interface SyncPullEventReadRequest {
   readonly protocolVersion: string;
   readonly afterCommitOrdinal: string;
   readonly limit: number;
+  /** Hard caps the adapter must apply while reading/materializing the page. */
+  readonly maxMembers: number;
+  readonly maxBytes: number;
 }
 
 export interface SyncPullEventPage {
@@ -190,6 +197,12 @@ export class SyncPullLogTruncatedError extends Error {
  * gone. Returning the remaining events would skip the purged ones silently.
  */
 export interface SyncPullEventStore {
+  /**
+   * The adapter must enforce `maxMembers`/`maxBytes` before materializing a
+   * page. The coordinator snapshots the returned prefix defensively, but the
+   * read contract prevents an unbounded store allocation from reaching that
+   * boundary in the first place.
+   */
   readCommittedAfter(request: SyncPullEventReadRequest): Promise<SyncPullEventPage>;
 }
 
@@ -702,6 +715,8 @@ export async function coordinateSyncPull(
     protocolVersion: request.protocolVersion,
     afterCommitOrdinal: startOrdinal.wire,
     limit: request.limit,
+    maxMembers: SYNC_PULL_PAGE_MAX_MEMBERS,
+    maxBytes: SYNC_PULL_PAGE_MAX_BYTES,
   });
   let pageRaw: SyncPullEventPage;
   try {

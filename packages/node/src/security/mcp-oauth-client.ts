@@ -251,14 +251,58 @@ function isNativeRedirectUri(redirectUri: string): boolean {
 }
 
 function assertDcrRedirectUri(redirectUri: string): URL {
+  // Keep the registered value byte-stable. URL parsing otherwise trims some
+  // whitespace and drops an empty trailing fragment, which would make the
+  // value sent to the authorization server differ from the value validated
+  // here. Fragments are never sent in an OAuth redirect request and must not
+  // be part of a registered redirect URI.
+  if (/[\u0000-\u0020\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069\\]/u.test(redirectUri)
+    || redirectUri.includes('#')) {
+    throw new TypeError('DCR redirectUri must not contain whitespace, control characters, backslashes, or a fragment');
+  }
   let url: URL;
   try {
     url = new URL(redirectUri);
   } catch {
     throw new TypeError('DCR redirectUri must be an absolute URL');
   }
-  if (url.protocol === 'javascript:' || url.protocol === 'data:') {
-    throw new TypeError('DCR redirectUri must not use a scriptable scheme');
+  if (url.username !== '' || url.password !== '') {
+    throw new TypeError('DCR redirectUri must not contain userinfo');
+  }
+  if (url.hash !== '') {
+    throw new TypeError('DCR redirectUri must not contain a fragment');
+  }
+  if (url.protocol === 'https:') {
+    if (url.hostname === '') throw new TypeError('HTTPS DCR redirectUri must include a host');
+    return url;
+  }
+  if (url.protocol === 'http:') {
+    // RFC 8252 permits HTTP only for the loopback interface. Public HTTP
+    // callbacks are vulnerable to network interception and are not valid
+    // native redirect targets for this client.
+    if (!isLoopbackHost(url.hostname)) {
+      throw new TypeError('HTTP DCR redirectUri must use a loopback host');
+    }
+    return url;
+  }
+
+  // Only private-use/native callback schemes are accepted outside HTTP(S).
+  // Reject URI schemes that identify a resource or hand the callback to an
+  // unrelated OS handler, even when they happen to parse as absolute URLs.
+  const forbiddenSchemes = new Set([
+    'blob:',
+    'data:',
+    'file:',
+    'ftp:',
+    'javascript:',
+    'mailto:',
+    'tel:',
+    'urn:',
+    'ws:',
+    'wss:',
+  ]);
+  if (forbiddenSchemes.has(url.protocol) || url.hostname !== '' || !url.pathname.startsWith('/')) {
+    throw new TypeError('DCR redirectUri must use HTTPS, loopback HTTP, or a private-use callback scheme');
   }
   return url;
 }
@@ -824,7 +868,8 @@ export function formatOAuthLogContext(context: OAuthLogSafeContext): string {
     throw new TypeError('log issuer must be a non-empty string');
   }
   if (typeof clientId !== 'string' || clientId.length === 0 || clientId.length > 256
-    || Buffer.byteLength(clientId, 'utf8') > 256 || /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/u.test(clientId)) {
+    || Buffer.byteLength(clientId, 'utf8') > 256
+    || /[\u0000-\u001f\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069]/u.test(clientId)) {
     throw new TypeError('log clientId must be a non-empty, control-free identifier of at most 256 UTF-8 bytes');
   }
   if (typeof operation !== 'string' || !OAUTH_LOG_OPERATIONS.has(operation as OAuthLogOperation)) {
@@ -841,7 +886,17 @@ export function formatOAuthLogContext(context: OAuthLogSafeContext): string {
   }
   const reasonSuffix =
     reason !== undefined && OAUTH_LOG_SAFE_REASONS.has(reason) ? ` reason=${reason}` : '';
-  return `oauth clientId=${clientId} issuer=${canonicalIssuer} operation=${operation} outcome=${outcome}${reasonSuffix}`;
+  return `oauth clientId=${formatOAuthLogValue(clientId)} issuer=${formatOAuthLogValue(canonicalIssuer)} operation=${operation} outcome=${outcome}${reasonSuffix}`;
+}
+
+function formatOAuthLogValue(value: string): string {
+  // Keep ordinary identifiers readable while quoting every value that could
+  // introduce a second key/value field or a visual/log-record delimiter.
+  if (/^[A-Za-z0-9._~:/%+\-]+$/u.test(value)) return value;
+  return JSON.stringify(value).replace(
+    /[\u0000-\u001f\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069]/gu,
+    (character) => `\\u${character.codePointAt(0)!.toString(16).padStart(4, '0')}`,
+  );
 }
 
 // =====================================================================

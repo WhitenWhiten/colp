@@ -9,13 +9,13 @@ The runner acts like an anonymous COLP client. It starts at `/.well-known/collec
 Requires **Node.js 22 or later**. Run the CLI directly from npm:
 
 ```bash
-npx --yes --package=@know-n/colp-conformance@0.1.0 colp-conformance https://your-server.example
+npx --yes --package=@know-n/colp-conformance@0.1.1 colp-conformance https://your-server.example
 ```
 
 For repeated use, install it in your project:
 
 ```bash
-npm install --save-dev @know-n/colp-conformance@0.1.0
+npm install --save-dev @know-n/colp-conformance@0.1.1
 npx colp-conformance https://your-server.example --json
 ```
 

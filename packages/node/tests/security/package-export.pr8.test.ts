@@ -155,7 +155,7 @@ describe('security public surface (PR8 package-export smoke)', () => {
 
     // Registry metadata does not change which Profiles the package implements.
     expect(packageJson.private).not.toBe(true);
-    expect(packageJson.version).toBe('0.1.0');
+    expect(packageJson.version).toBe('0.1.1');
     expect([...supportedProfiles]).toEqual([
       'core',
       'publication',

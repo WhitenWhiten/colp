@@ -27,6 +27,8 @@ const CURSOR_PATTERN = /^fdc1\.p([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]{43})$/u;
  * The exclusive checkpoint is the opaque position encoded in the cursor body.
  */
 export interface FeedCursorContext {
+  /** Stable feed/mount identity.  This must remain unique across server mounts that share an HMAC key. */
+  readonly resourceId: string;
   readonly principalId: string;
   readonly feedId: string;
   readonly filterDigest: string;
@@ -228,6 +230,7 @@ const invalidCursorScope = Object.freeze({
 } as const);
 
 interface NormalizedScope {
+  readonly resourceId: Buffer;
   readonly principalId: Buffer;
   readonly feedId: Buffer;
   readonly filterDigest: Buffer;
@@ -240,6 +243,7 @@ function normalizeScope(scope: FeedCursorScope): NormalizedScope {
     throw new TypeError('Feed cursor scope must be an object.');
   }
   return {
+    resourceId: encodeField('resourceId', scope.resourceId),
     principalId: encodeField('principalId', scope.principalId),
     feedId: encodeField('feedId', scope.feedId),
     filterDigest: encodeField('filterDigest', scope.filterDigest),
@@ -285,6 +289,7 @@ function decodePosition(cursor: string): string {
 function computeMac(key: Buffer, scope: NormalizedScope): Buffer {
   const mac = createHmac('sha256', key);
   updateFrame(mac, CONTEXT);
+  updateFrame(mac, scope.resourceId);
   updateFrame(mac, scope.principalId);
   updateFrame(mac, scope.feedId);
   updateFrame(mac, scope.filterDigest);
@@ -316,6 +321,7 @@ function borrowKey(value: FeedCursorHmacKey): Buffer {
 }
 
 function destroyNormalizedScope(scope: NormalizedScope): void {
+  scope.resourceId.fill(0);
   scope.principalId.fill(0);
   scope.feedId.fill(0);
   scope.filterDigest.fill(0);

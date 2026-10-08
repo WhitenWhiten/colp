@@ -15,8 +15,10 @@
  *   (protocol §10.2); unparseable values fail closed to conflict.
  */
 
+import { types as nodeTypes } from 'node:util';
 import { isRfc3339DateTime } from '../shared/date-time.js';
 import { immutableJsonData } from '../shared/immutable-json.js';
+import { hasDenseArrayOwnKeys } from '../shared/dense-array-keys.js';
 
 export type SyncTypedMergeFieldResult =
   | { readonly outcome: 'merged'; readonly value: unknown }
@@ -48,6 +50,32 @@ export type SyncTagsMergeResult =
   | { readonly status: 'merged'; readonly tags: readonly string[] }
   | { readonly status: 'conflict'; readonly reason: string };
 
+const MAX_SYNC_MERGE_DEPTH = 64;
+const MAX_SYNC_MERGE_NODES = 10_000;
+const MAX_SYNC_MERGE_MEMBERS = 100_000;
+const MAX_SYNC_MERGE_BYTES = 16 * 1024 * 1024;
+
+/** Count UTF-8 bytes without allocating a copy of an untrusted string. */
+function utf8Bytes(value: string, limit: number): number {
+  let bytes = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    const width = code <= 0x7f
+      ? 1
+      : code <= 0x7ff
+        ? 2
+        : code >= 0xd800 && code <= 0xdbff
+          && index + 1 < value.length
+          && value.charCodeAt(index + 1) >= 0xdc00
+          && value.charCodeAt(index + 1) <= 0xdfff
+          ? (index += 1, 4)
+          : 3;
+    bytes += width;
+    if (bytes > limit) return bytes;
+  }
+  return bytes;
+}
+
 /**
  * Deep equality for merge decisions.
  * - Primitives / null: Object.is
@@ -56,36 +84,48 @@ export type SyncTagsMergeResult =
  * - Non-plain objects / mismatched types: unequal (fail closed toward conflict)
  */
 export function deepEqualSyncMergeValue(left: unknown, right: unknown): boolean {
-  if (Object.is(left, right)) return true;
-  if (typeof left !== typeof right) return false;
-  if (left === null || right === null) return left === right;
-  if (typeof left !== 'object' || typeof right !== 'object') return false;
-
-  if (Array.isArray(left) || Array.isArray(right)) {
-    if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) {
-      return false;
+  try {
+    for (const value of [left, right]) {
+      if (value !== null && typeof value === 'object') assertBoundedMergeGraph(value, 'equality input');
+      else if (typeof value === 'string') addMergeBytes(0, value);
     }
-    for (let index = 0; index < left.length; index += 1) {
-      if (!deepEqualSyncMergeValue(left[index], right[index])) return false;
-    }
-    return true;
-  }
-
-  if (!isPlainDataObject(left) || !isPlainDataObject(right)) {
+  } catch {
     return false;
   }
-
-  const leftKeys = ownEnumerableStringKeys(left);
-  const rightKeys = ownEnumerableStringKeys(right);
-  if (leftKeys.length !== rightKeys.length) return false;
-  const rightSet = new Set(rightKeys);
-  for (const key of leftKeys) {
-    if (!rightSet.has(key)) return false;
-    if (!deepEqualSyncMergeValue(ownDataValue(left, key), ownDataValue(right, key))) {
-      return false;
+  const pairs = new WeakMap<object, WeakSet<object>>();
+  let visited = 0;
+  const equal = (a: unknown, b: unknown, depth: number): boolean => {
+    if (Object.is(a, b)) return true;
+    if (depth > MAX_SYNC_MERGE_DEPTH || typeof a !== typeof b) return false;
+    if (a === null || b === null || typeof a !== 'object' || typeof b !== 'object') return false;
+    if (nodeTypes.isProxy(a) || nodeTypes.isProxy(b)) return false;
+    const seen = pairs.get(a) ?? new WeakSet<object>();
+    if (seen.has(b)) return true;
+    seen.add(b);
+    pairs.set(a, seen);
+    visited += 1;
+    if (visited > MAX_SYNC_MERGE_NODES) return false;
+    if (Array.isArray(a) || Array.isArray(b)) {
+      if (!Array.isArray(a) || !Array.isArray(b)
+        || !isPlainMergeArray(a) || !isPlainMergeArray(b)
+        || a.length !== b.length || a.length > MAX_SYNC_MERGE_MEMBERS) return false;
+      for (let index = 0; index < a.length; index += 1) {
+        if (!equal(a[index], b[index], depth + 1)) return false;
+      }
+      return true;
     }
-  }
-  return true;
+    if (!isPlainDataObject(a) || !isPlainDataObject(b)) return false;
+    if (!hasOnlyEnumerableDataProperties(a) || !hasOnlyEnumerableDataProperties(b)) return false;
+    const leftKeys = ownEnumerableStringKeys(a);
+    const rightKeys = ownEnumerableStringKeys(b);
+    if (leftKeys.length !== rightKeys.length || leftKeys.length > MAX_SYNC_MERGE_MEMBERS) return false;
+    const rightSet = new Set(rightKeys);
+    for (const key of leftKeys) {
+      if (!rightSet.has(key) || !equal(ownDataValue(a, key), ownDataValue(b, key), depth + 1)) return false;
+    }
+    return true;
+  };
+  return equal(left, right, 0);
 }
 
 /**
@@ -177,6 +217,7 @@ export function mergeSyncTypedUpdate({
   const domainKeys = baseKeys.slice().sort();
   const merged: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
   const conflicts: SyncTypedMergeConflict[] = [];
+  const freezeValue = createMergeValueFreezer();
 
   for (const key of domainKeys) {
     const baseValue = ownDataValue(base, key);
@@ -204,7 +245,7 @@ export function mergeSyncTypedUpdate({
       conflicts.push(Object.freeze({ field: field.field, reason: field.reason }));
       continue;
     }
-    merged[key] = freezeMergeValue(field.value);
+    merged[key] = freezeValue(field.value);
   }
 
   if (conflicts.length > 0) {
@@ -303,13 +344,22 @@ function normalizeTagsField(
   if (value === undefined) {
     return { status: 'merged', tags: Object.freeze([]) as readonly string[] };
   }
-  if (!Array.isArray(value) || !value.every((item) => typeof item === 'string')) {
-    return {
+  const conflict = () => ({
       status: 'conflict',
       reason: `Tag Observed-Remove requires ${side} tags to be an array of strings when present; observation cannot be proven for non-string-array values.`,
-    };
+    } as const);
+  if (nodeTypes.isProxy(value) || !Array.isArray(value)) return conflict();
+  try {
+    assertBoundedMergeGraph(value, `${side} tags`);
+  } catch {
+    return conflict();
   }
-  return { status: 'merged', tags: value as readonly string[] };
+  const tags: string[] = [];
+  for (let index = 0; index < value.length; index += 1) {
+    if (typeof value[index] !== 'string') return conflict();
+    tags.push(value[index]);
+  }
+  return { status: 'merged', tags: Object.freeze(tags) };
 }
 
 function isPlainDataObject(candidate: object): boolean {
@@ -322,6 +372,7 @@ function assertPlainMergeObject(
   candidate: unknown,
   label: string,
 ): asserts candidate is Readonly<Record<string, unknown>> {
+  if (nodeTypes.isProxy(candidate)) throw new TypeError(`Typed update merge ${label} cannot contain a Proxy.`);
   if (typeof candidate !== 'object' || candidate === null || Array.isArray(candidate)) {
     throw new TypeError(`Typed update merge ${label} must be a plain object.`);
   }
@@ -339,6 +390,90 @@ function assertPlainMergeObject(
       );
     }
   }
+  assertBoundedMergeGraph(candidate, label);
+}
+
+function assertBoundedMergeGraph(root: object, label: string): void {
+  const seen = new WeakSet<object>();
+  const active = new WeakSet<object>();
+  const pending: Array<{ value: object; depth: number; exit?: boolean }> = [{ value: root, depth: 0 }];
+  let nodes = 0;
+  let members = 0;
+  let bytes = 0;
+  while (pending.length > 0) {
+    const item = pending.pop()!;
+    const { value, depth } = item;
+    if (item.exit === true) {
+      active.delete(value);
+      continue;
+    }
+    if (active.has(value)) throw new RangeError(`Typed update merge ${label} cannot contain cycles.`);
+    if (seen.has(value)) continue;
+    if (depth > MAX_SYNC_MERGE_DEPTH || nodeTypes.isProxy(value)) {
+      throw new RangeError(`Typed update merge ${label} exceeds its graph depth budget.`);
+    }
+    seen.add(value);
+    active.add(value);
+    pending.push({ value, depth, exit: true });
+    nodes += 1;
+    if (nodes > MAX_SYNC_MERGE_NODES) throw new RangeError(`Typed update merge ${label} is too large.`);
+    const array = Array.isArray(value);
+    const prototype = Object.getPrototypeOf(value);
+    if (array) {
+      if (prototype !== Array.prototype && prototype !== null) throw new TypeError(`Typed update merge ${label} arrays must be plain.`);
+      const length = Object.getOwnPropertyDescriptor(value, 'length')?.value;
+      if (typeof length !== 'number' || !Number.isSafeInteger(length) || length > MAX_SYNC_MERGE_MEMBERS) {
+        throw new RangeError(`Typed update merge ${label} array is too large.`);
+      }
+    } else if (prototype !== Object.prototype && prototype !== null) {
+      throw new TypeError(`Typed update merge ${label} must contain only plain objects.`);
+    }
+    const keys = Reflect.ownKeys(value);
+    if (array && !hasDenseArrayOwnKeys(keys, (value as unknown[]).length)) {
+      throw new TypeError(`Typed update merge ${label} arrays must be dense and contain no extra properties.`);
+    }
+    members += array ? Math.max(0, keys.length - 1) : keys.length;
+    if (members > MAX_SYNC_MERGE_MEMBERS) throw new RangeError(`Typed update merge ${label} has too many members.`);
+    for (const key of keys) {
+      if (array && key === 'length') continue;
+      if (typeof key !== 'string') throw new TypeError(`Typed update merge ${label} must not contain symbol keys.`);
+      const descriptor = Object.getOwnPropertyDescriptor(value, key);
+      if (descriptor === undefined || !descriptor.enumerable || !('value' in descriptor)) {
+        throw new TypeError(`Typed update merge ${label} contains an accessor.`);
+      }
+      bytes = addMergeBytes(bytes, key);
+      const child = descriptor.value;
+      if (typeof child === 'string') bytes = addMergeBytes(bytes, child);
+      if (child !== null && typeof child === 'object') pending.push({ value: child, depth: depth + 1 });
+    }
+  }
+}
+
+function addMergeBytes(total: number, value: string): number {
+  const remaining = MAX_SYNC_MERGE_BYTES - total;
+  const size = utf8Bytes(value, remaining);
+  if (size > remaining) throw new RangeError('Typed update merge value exceeds its byte budget.');
+  return total + size;
+}
+
+function isPlainMergeArray(value: unknown[]): boolean {
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Array.prototype && prototype !== null) return false;
+  const keys = Reflect.ownKeys(value);
+  if (!hasDenseArrayOwnKeys(keys, value.length)) return false;
+  for (let index = 0; index < value.length; index += 1) {
+    const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
+    if (descriptor === undefined || !descriptor.enumerable || !('value' in descriptor)) return false;
+  }
+  return true;
+}
+
+function hasOnlyEnumerableDataProperties(value: object): boolean {
+  return Reflect.ownKeys(value).every((key) => {
+    if (typeof key !== 'string') return false;
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    return descriptor !== undefined && descriptor.enumerable && 'value' in descriptor;
+  });
 }
 
 function ownEnumerableStringKeys(object: object): string[] {
@@ -380,15 +515,37 @@ function sameKeyList(left: readonly string[], right: readonly string[]): boolean
   return true;
 }
 
-function freezeMergeValue(value: unknown): unknown {
-  if (value === null || typeof value !== 'object') return value;
-  if (Array.isArray(value)) {
-    return Object.freeze(value.map((item) => freezeMergeValue(item)));
-  }
-  if (!isPlainDataObject(value)) return value;
-  const clone: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
-  for (const key of ownEnumerableStringKeys(value)) {
-    clone[key] = freezeMergeValue(ownDataValue(value, key));
-  }
-  return Object.freeze(clone);
+function createMergeValueFreezer(): (value: unknown) => unknown {
+  const active = new WeakSet<object>();
+  const clones = new WeakMap<object, unknown>();
+  let nodes = 0;
+  const freeze = (candidate: unknown, depth: number): unknown => {
+    if (candidate === null || typeof candidate !== 'object') return candidate;
+    if (nodeTypes.isProxy(candidate) || depth > MAX_SYNC_MERGE_DEPTH || active.has(candidate)) {
+      throw new RangeError('Typed update merge value exceeds its graph budget.');
+    }
+    if (clones.has(candidate)) return clones.get(candidate);
+    nodes += 1;
+    if (nodes > MAX_SYNC_MERGE_NODES) throw new RangeError('Typed update merge value exceeds its node budget.');
+    active.add(candidate);
+    try {
+      if (Array.isArray(candidate)) {
+        if (candidate.length > MAX_SYNC_MERGE_MEMBERS) throw new RangeError('Typed update merge array is too large.');
+        const clone: unknown[] = [];
+        for (let index = 0; index < candidate.length; index += 1) clone.push(freeze(candidate[index], depth + 1));
+        const frozen = Object.freeze(clone);
+        clones.set(candidate, frozen);
+        return frozen;
+      }
+      if (!isPlainDataObject(candidate)) return candidate;
+      const clone: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
+      for (const key of ownEnumerableStringKeys(candidate)) clone[key] = freeze(ownDataValue(candidate, key), depth + 1);
+      const frozen = Object.freeze(clone);
+      clones.set(candidate, frozen);
+      return frozen;
+    } finally {
+      active.delete(candidate);
+    }
+  };
+  return (value) => freeze(value, 0);
 }

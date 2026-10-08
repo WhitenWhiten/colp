@@ -58,6 +58,14 @@ export function projectFeedNodeBookmark(
     return Object.freeze(structuredClone(node)) as unknown as FeedNode;
   }
 
+  // FeedNode projection deliberately omits authoritative visibility fields.
+  // Reject a restricted source before that omission can turn a private
+  // Bookmark into an apparently public summary (including redacted ones).
+  const sourceVisibility = (node as Record<string, unknown>).visibility;
+  if (sourceVisibility === 'private' || sourceVisibility === 'protected' || sourceVisibility === 'unlisted') {
+    throw new TypeError('Restricted Feed Bookmark cannot be projected anonymously.');
+  }
+
   const projected: Record<string, unknown> = {
     id: node.id,
     kind: 'bookmark',

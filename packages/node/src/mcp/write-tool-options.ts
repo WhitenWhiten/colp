@@ -66,6 +66,9 @@ export function resolveChangePlanOptions<
   if (changePlan.planTtlMilliseconds !== undefined) {
     (base as { planTtlMilliseconds?: number }).planTtlMilliseconds = changePlan.planTtlMilliseconds;
   }
+  if (changePlan.maxConcurrentPlans !== undefined) {
+    (base as { maxConcurrentPlans?: number }).maxConcurrentPlans = changePlan.maxConcurrentPlans;
+  }
   if (reveal !== undefined) {
     (base as { revealUriForKey?: (keyId: string) => string }).revealUriForKey = reveal;
   }

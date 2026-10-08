@@ -6,6 +6,9 @@ import { authenticatedBinding } from './authenticated-binding-fixture.js';
 
 const notifications = { toolsListChanged: true };
 const capabilities = { tools: { listChanged: true } };
+// The production adapter is fail-closed when a host omits its recheck port.
+// Lifecycle tests model a trusted host explicitly.
+const trustedAuthorization = { isAuthorized: () => true };
 const signal = { type: 'tool-list-changed' as const, sequence: 1, timestamp: 0 };
 
 function context(abortSignal?: AbortSignal) {
@@ -31,7 +34,7 @@ describe('subscription acquisition and teardown ordering', () => {
     const addAbortListener = vi.spyOn(ctx.abortSignal, 'addEventListener');
     const unsubscribe = vi.fn();
     let emit!: () => void;
-    const adapter = createMcp20260728SubscriptionsListenAdapter({ capabilities, maxNotifications: 1,
+    const adapter = createMcp20260728SubscriptionsListenAdapter({ capabilities, authorization: trustedAuthorization, maxNotifications: 1,
       signalSource: { subscribe(listener) {
         emit = () => { listener(signal); listener({ ...signal, sequence: 2 }); };
         if (synchronous) emit();
@@ -73,12 +76,12 @@ describe('subscription acquisition and teardown ordering', () => {
 
   it('keeps a synchronously populated live subscription until explicit close', async () => {
     const unsubscribe = vi.fn();
-    const adapter = createMcp20260728SubscriptionsListenAdapter({ capabilities,
+    const adapter = createMcp20260728SubscriptionsListenAdapter({ capabilities, authorization: trustedAuthorization,
       signalSource: { subscribe(listener) { listener(signal); return { unsubscribe }; } },
     });
     const session = adapter.listen(context(), { notifications }, 'live');
     expect(unsubscribe).not.toHaveBeenCalled();
-    expect(vi.getTimerCount()).toBe(1);
+    expect(vi.getTimerCount()).toBe(2);
     expect((await session.notifications[Symbol.asyncIterator]().next()).done).toBe(false);
     session.close();
     await expect(session.closed).resolves.toMatchObject({ reason: 'closed' });
@@ -93,7 +96,7 @@ describe('subscription acquisition and teardown ordering', () => {
     let close!: () => void;
     let listener!: McpChangeSignalListener;
     const unsubscribe = vi.fn(() => { close(); throw hostError; });
-    const adapter = createMcp20260728SubscriptionsListenAdapter({ capabilities,
+    const adapter = createMcp20260728SubscriptionsListenAdapter({ capabilities, authorization: trustedAuthorization,
       signalSource: { subscribe(value) { listener = value; return { unsubscribe }; } },
     });
     const session = adapter.listen(ctx, { notifications }, 'cleanup-error');
@@ -112,7 +115,7 @@ describe('subscription acquisition and teardown ordering', () => {
   it('cleans up an abort occurring before subscribe returns', async () => {
     const controller = new AbortController();
     const unsubscribe = vi.fn();
-    const adapter = createMcp20260728SubscriptionsListenAdapter({ capabilities,
+    const adapter = createMcp20260728SubscriptionsListenAdapter({ capabilities, authorization: trustedAuthorization,
       signalSource: { subscribe() { controller.abort(); return { unsubscribe }; } },
     });
     const session = adapter.listen(context(controller.signal), { notifications }, 'aborted');

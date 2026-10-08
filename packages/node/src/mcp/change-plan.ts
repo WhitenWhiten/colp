@@ -31,6 +31,7 @@ import {
   type ResolvedMcpHttpUriPolicy,
 } from './http-uri-policy.js';
 import { redactCommitStructuredContent } from './secret-redaction.js';
+import { allowChangePlanAdmission, readChangePlanRateLimitPort } from './change-plan-rate-limit.js';
 import {
   resolveMcpWriteInputBudget,
   snapshotMcpData,
@@ -106,7 +107,6 @@ export interface McpChangePlanStorePort {
   readonly get: (planId: string) => McpStoredPlan | undefined | PromiseLike<McpStoredPlan | undefined>;
   readonly update: (plan: McpStoredPlan) => void | PromiseLike<void>;
 }
-
 /**
  * Host-owned approval store. Approval is server-bound: the model never supplies
  * an approve boolean or approval secret through Tool input.
@@ -447,9 +447,8 @@ export interface McpChangePlanCommitCoordinatorPort<
  * auditable decision port; the library never supplies an allow-all default.
  */
 export interface McpChangePlanRateLimitPort {
-  readonly allow: (
-    input: Readonly<{ planId: string; binding: McpAuthenticatedAuthorizationBinding }>,
-  ) => boolean | PromiseLike<boolean>;
+  readonly allowPlan?: (input: Readonly<{ binding: McpAuthenticatedAuthorizationBinding }>) => boolean | PromiseLike<boolean>;
+  readonly allow: (input: Readonly<{ planId: string; binding: McpAuthenticatedAuthorizationBinding }>) => boolean | PromiseLike<boolean>;
 }
 
 /**
@@ -493,6 +492,8 @@ export interface McpChangePlanServiceOptions<
   readonly clock?: McpChangePlanClockPort;
   readonly ids?: McpChangePlanIdPort;
   readonly planTtlMilliseconds?: number;
+  /** Aggregate cap on concurrent plan admission/assessment work. */
+  readonly maxConcurrentPlans?: number;
   /** Required when a Plan contains create_key or rotate_key. */
   readonly revealUriForKey?: (keyId: string) => string;
   /** Shared MCP write-input budget when this service is used without the gateway. */
@@ -523,6 +524,7 @@ export interface McpChangePlanService {
 }
 
 const DEFAULT_TTL_MS = 15 * 60 * 1000;
+export const MCP_CHANGE_PLAN_DEFAULT_MAX_CONCURRENT_PLANS = 128 as const;
 export const MCP_CHANGE_PLAN_UNTRUSTED_NOTE_MAX_LENGTH = 1000;
 const untrustedNoteControlCharacter = /[\u0000-\u001F\u007F]/u;
 
@@ -536,9 +538,17 @@ export function createChangePlanService<
   const ids = ports.ids ?? { nextPlanId: () => `plan_${randomUUID().replace(/-/gu, '')}` };
   const ttl = ports.planTtlMilliseconds ?? DEFAULT_TTL_MS;
   const inputBudget = ports.inputBudget;
+  const maxConcurrentPlans = ports.maxConcurrentPlans ?? MCP_CHANGE_PLAN_DEFAULT_MAX_CONCURRENT_PLANS;
+  let activePlans = 0;
 
   const plan = async (request: unknown, binding: McpAuthenticatedAuthorizationBinding): Promise<ChangePlan> => {
-    const ownedBinding = readBinding(binding);
+    if (activePlans >= maxConcurrentPlans) {
+      throw new McpChangePlanError('rate_limited', 'Change plan aggregate admission limit reached.');
+    }
+    activePlans += 1;
+    try {
+      const ownedBinding = readBinding(binding);
+      if (await allowChangePlanAdmission(ports.rateLimit, ownedBinding) !== true) throw new McpChangePlanError('rate_limited', 'Rate limit does not allow plan assessment.');
     const typedRequest = validatePlanRequest(request, inputBudget);
     const operations = typedRequest.operations;
     assertKeyRevealCapability(operations, ports.revealUriForKey);
@@ -623,7 +633,10 @@ export function createChangePlanService<
         : {}),
     };
 
-    return snapshotMcpData(result, inputBudget) as ChangePlan;
+      return snapshotMcpData(result, inputBudget) as ChangePlan;
+    } finally {
+      activePlans -= 1;
+    }
   };
 
   const recordOutOfBandApproval = async (
@@ -1445,12 +1458,17 @@ async function resolveImpact(
 }
 
 function impactExceeds(planned: ChangePlanImpact, live: ChangePlanImpact): boolean {
+  // `privateFieldsExcluded` is a protection set, not an ordinary count.  A
+  // live assessment that omits any field excluded by the approved plan would
+  // expose more private data even when all numeric counters are unchanged.
+  const liveExcluded = new Set(live.privateFieldsExcluded);
   return (
     live.collections > planned.collections
     || live.nodes > planned.nodes
     || live.annotations > planned.annotations
     || live.attachments > planned.attachments
     || live.relations > planned.relations
+    || planned.privateFieldsExcluded.some((field) => !liveExcluded.has(field))
   );
 }
 
@@ -1696,7 +1714,7 @@ type ResolvedServiceOptions<
     };
     executor: { receiver: object; execute: McpChangePlanExecutorPort<Transaction>['execute'] };
   };
-  readonly rateLimit: { receiver: object; allow: McpChangePlanRateLimitPort['allow'] };
+  readonly rateLimit: { receiver: object; allow: McpChangePlanRateLimitPort['allow']; allowPlan?: McpChangePlanRateLimitPort['allowPlan'] };
   readonly verifyStoredOperationsDigest?: {
     receiver: object;
     verify: McpChangePlanStoredDigestPort['verify'];
@@ -1707,6 +1725,7 @@ type ResolvedServiceOptions<
   readonly clock?: McpChangePlanClockPort;
   readonly ids?: McpChangePlanIdPort;
   readonly planTtlMilliseconds?: number;
+  readonly maxConcurrentPlans: number;
   readonly revealUriForKey?: (keyId: string) => string;
   readonly inputBudget: Required<McpWriteInputBudget>;
 };
@@ -1753,11 +1772,12 @@ function readServiceOptions<
     authorizationPolicy: readPort(options, 'authorizationPolicy', ['requiredScopesForOperation']) as
       ResolvedServiceOptions<Transaction>['authorizationPolicy'],
     commitCoordinator: readCommitCoordinator<Transaction>(options),
-    rateLimit: readPort(options, 'rateLimit', ['allow']) as ResolvedServiceOptions<Transaction>['rateLimit'],
+    rateLimit: readChangePlanRateLimitPort(options, readPort),
     approvalBaseUri,
     uriPolicy,
     uriPolicyPort,
     inputBudget: resolveMcpWriteInputBudget(readOptionalInputBudget(options)),
+    maxConcurrentPlans: readOptionalPositiveInteger(options, 'maxConcurrentPlans', MCP_CHANGE_PLAN_DEFAULT_MAX_CONCURRENT_PLANS),
   };
 
   const verifyStoredOperationsDigest = readOptionalPort(options, 'verifyStoredOperationsDigest');
@@ -1889,6 +1909,15 @@ function readOptionalPort(options: object, name: string): undefined | never {
     throw new TypeError(`${name} must be an own data property when provided.`);
   }
   return descriptor.value as never;
+}
+
+function readOptionalPositiveInteger(options: object, name: string, fallback: number): number {
+  const descriptor = Object.getOwnPropertyDescriptor(options, name);
+  if (descriptor === undefined) return fallback;
+  if (!('value' in descriptor) || typeof descriptor.value !== 'number' || !Number.isSafeInteger(descriptor.value) || descriptor.value < 1) {
+    throw new TypeError(`${name} must be a positive safe integer when provided.`);
+  }
+  return descriptor.value;
 }
 
 function readOptionalNumber(options: object, name: string): number | undefined {

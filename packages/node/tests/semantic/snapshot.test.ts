@@ -175,6 +175,26 @@ describe('snapshot semantics [evidence:publication.bookmark-url-safety] [evidenc
     if (!objectLimited.valid) expect(objectLimited.issues[0]?.code).toBe('snapshot_assembly_object_budget');
   });
 
+  it('applies bounded page and byte defaults before page identity or flattening', async () => {
+    const complete = await fixture('collection-snapshot.json');
+    const first = structuredClone(complete);
+    first.nodes = first.nodes.slice(0, 1);
+    first.annotations = [];
+    first.page = { nextCursor: 'page-2', hasMore: true, sequence: 1 };
+    const second = structuredClone(complete);
+    second.nodes = second.nodes.slice(1);
+    second.annotations = [];
+    second.page = { nextCursor: null, hasMore: false, sequence: 2 };
+
+    const pageLimited = assembleSnapshotPages([first, second], { maxPages: 1 });
+    expect(pageLimited.valid).toBe(false);
+    if (!pageLimited.valid) expect(pageLimited.issues[0]?.code).toBe('snapshot_assembly_page_budget');
+
+    const byteLimited = assembleSnapshotPages([first], { maxBytes: 1 });
+    expect(byteLimited.valid).toBe(false);
+    if (!byteLimited.valid) expect(byteLimited.issues[0]?.code).toBe('snapshot_assembly_byte_budget');
+  });
+
   it('rejects empty, changed, and cropped page assemblies', async () => {
     expect(assembleSnapshotPages([]).valid).toBe(false);
     const first = await fixture('collection-snapshot.json');

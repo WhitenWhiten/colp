@@ -97,7 +97,7 @@ COLP is split into composable conformance profiles. A server declares in its Man
 Requires **Node.js 22 or later**. Install the reference implementation in your application:
 
 ```bash
-npm install @know-n/colp@0.1.0
+npm install @know-n/colp@0.1.1
 ```
 
 The package includes TypeScript declarations and supports ESM and CommonJS. Save this example as `colp-demo.mjs` to try the package without a server:
@@ -120,7 +120,7 @@ Import APIs from their subpaths, such as `@know-n/colp/client`, `@know-n/colp/se
 To check a running COLP server without cloning this repository:
 
 ```bash
-npx --yes --package=@know-n/colp-conformance@0.1.0 colp-conformance https://your-server.example
+npx --yes --package=@know-n/colp-conformance@0.1.1 colp-conformance https://your-server.example
 ```
 
 Replace the URL with your server's origin or Manifest URL. See the [runner README](packages/conformance/README.md) for options and programmatic usage. The packages are [@know-n/colp](https://www.npmjs.com/package/@know-n/colp) and [@know-n/colp-conformance](https://www.npmjs.com/package/@know-n/colp-conformance).
@@ -209,7 +209,7 @@ The server is [one file](packages/node/examples/publication-server.mjs) built on
 | Serve COLP from your own server | The [Publication quickstart](packages/node/docs/PUBLICATION_QUICKSTART.md) and the [example server](packages/node/examples/publication-server.mjs) |
 | Accept writes, sync browsers, or connect AI assistants | The [package guides](packages/node/docs/README.md#guides) |
 | Implement COLP in another language | [Where to start](protocol/README.md#where-to-start) in the protocol README |
-| Check that a server conforms | [`colp-conformance`](packages/conformance/README.md): `npx --yes --package=@know-n/colp-conformance@0.1.0 colp-conformance https://your-server.example` |
+| Check that a server conforms | [`colp-conformance`](packages/conformance/README.md): `npx --yes --package=@know-n/colp-conformance@0.1.1 colp-conformance https://your-server.example` |
 | Contribute | [CONTRIBUTING.md](CONTRIBUTING.md) |
 
 The package is protocol logic without a server: it validates wire documents, decides what each request may do, and coordinates durable writes and sync exchanges, while your application supplies HTTP routes, authentication, and storage through small port interfaces.

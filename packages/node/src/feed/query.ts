@@ -5,6 +5,7 @@ import {
   type ValidatorRegistry,
 } from '../schema/index.js';
 import { parseProtocolQuery, type QueryParseResult } from '../shared/query.js';
+import { hasDenseArrayOwnKeys } from '../shared/dense-array-keys.js';
 import type { FeedQuery } from '../types/index.js';
 
 export type FeedQueryDecodeResult =
@@ -12,6 +13,38 @@ export type FeedQueryDecodeResult =
   | { readonly valid: false; readonly code: 'invalid_query'; readonly errors: readonly string[] };
 
 let defaultValidators: ReturnType<typeof createValidatorRegistry> | undefined;
+
+const FEED_QUERY_MAX_PARAMETERS = 16;
+const FEED_QUERY_MAX_VALUES_PER_PARAMETER = 8;
+const FEED_QUERY_MAX_BYTES = 16 * 1024;
+
+/** UTF-8 accounting that does not allocate a copy of an untrusted string. */
+function utf8Bytes(value: string, limit: number): number {
+  let bytes = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    const width = code <= 0x7f
+      ? 1
+      : code <= 0x7ff
+        ? 2
+        : code >= 0xd800 && code <= 0xdbff
+          && index + 1 < value.length
+          && value.charCodeAt(index + 1) >= 0xdc00
+          && value.charCodeAt(index + 1) <= 0xdfff
+          ? (index += 1, 4)
+          : 3;
+    bytes += width;
+    if (bytes > limit) return bytes;
+  }
+  return bytes;
+}
+
+function addUtf8Bytes(total: number, value: string): number {
+  const remaining = FEED_QUERY_MAX_BYTES - total;
+  const size = utf8Bytes(value, remaining);
+  if (size > remaining) throw new TypeError('Feed query exceeds its parameter budget.');
+  return total + size;
+}
 
 function validatorsOrDefault(validators?: ValidatorRegistry): ValidatorRegistry {
   if (validators !== undefined) return validators;
@@ -58,20 +91,78 @@ export function decodeFeedQuery(
 function toSearchParams(
   parameters: URLSearchParams | Readonly<Record<string, string | readonly string[] | undefined>>,
 ): URLSearchParams {
+  if (isProxy(parameters)) throw new TypeError('Feed query parameters must not be a Proxy.');
   if (parameters instanceof URLSearchParams) {
-    return parameters;
+    const size = Reflect.apply(Object.getOwnPropertyDescriptor(URLSearchParams.prototype, 'size')!.get!, parameters, []);
+    if (size > FEED_QUERY_MAX_PARAMETERS * FEED_QUERY_MAX_VALUES_PER_PARAMETER) {
+      throw new TypeError('Feed query contains too many parameters.');
+    }
+    let bytes = 0;
+    let entries = 0;
+    const names = new Set<string>();
+    const counts = new Map<string, number>();
+    const search = new URLSearchParams();
+    for (const [name, value] of URLSearchParams.prototype.entries.call(parameters)) {
+      names.add(name);
+      const count = (counts.get(name) ?? 0) + 1;
+      counts.set(name, count);
+      if (names.size > FEED_QUERY_MAX_PARAMETERS || count > FEED_QUERY_MAX_VALUES_PER_PARAMETER) {
+        throw new TypeError('Feed query contains too many parameters.');
+      }
+      entries += 1;
+      bytes = addUtf8Bytes(bytes, name);
+      bytes = addUtf8Bytes(bytes, value);
+      if (entries > FEED_QUERY_MAX_PARAMETERS * FEED_QUERY_MAX_VALUES_PER_PARAMETER || bytes > FEED_QUERY_MAX_BYTES) {
+        throw new TypeError('Feed query exceeds its parameter budget.');
+      }
+      search.append(name, value);
+    }
+    return search;
   }
   if (typeof parameters !== 'object' || parameters === null || isProxy(parameters)) {
     throw new TypeError('Feed query parameters must be URLSearchParams or a plain object.');
   }
+  const prototype = Object.getPrototypeOf(parameters);
+  if (prototype !== Object.prototype && prototype !== null) {
+    throw new TypeError('Feed query parameters must have a plain prototype.');
+  }
   const search = new URLSearchParams();
-  for (const [name, raw] of Object.entries(parameters)) {
+  let names = 0;
+  let bytes = 0;
+  for (const name in parameters) {
+    if (!Object.prototype.hasOwnProperty.call(parameters, name)) continue;
+    const descriptor = Object.getOwnPropertyDescriptor(parameters, name);
+    if (descriptor === undefined || !('value' in descriptor)) {
+      throw new TypeError('Feed query parameters must contain only data properties.');
+    }
+    names += 1;
+    if (names > FEED_QUERY_MAX_PARAMETERS) throw new TypeError('Feed query has too many parameter names.');
+    bytes = addUtf8Bytes(bytes, name);
+    const raw = descriptor.value as string | readonly string[] | undefined;
     if (raw === undefined) continue;
     if (Array.isArray(raw)) {
-      for (const item of raw) {
-        if (typeof item === 'string') search.append(name, item);
+      if (isProxy(raw) || (Object.getPrototypeOf(raw) !== Array.prototype && Object.getPrototypeOf(raw) !== null)) {
+        throw new TypeError('Feed query array values must be plain and non-Proxy.');
+      }
+      const lengthDescriptor = Object.getOwnPropertyDescriptor(raw, 'length');
+      const length = lengthDescriptor !== undefined && 'value' in lengthDescriptor ? lengthDescriptor.value : undefined;
+      if (typeof length !== 'number' || !Number.isSafeInteger(length) || length > FEED_QUERY_MAX_VALUES_PER_PARAMETER
+        || !hasDenseArrayOwnKeys(Reflect.ownKeys(raw), length)) {
+        throw new TypeError('Feed query has too many or malformed values.');
+      }
+      for (let index = 0; index < length; index += 1) {
+        const itemDescriptor = Object.getOwnPropertyDescriptor(raw, String(index));
+        if (itemDescriptor === undefined || !itemDescriptor.enumerable || !('value' in itemDescriptor)) {
+          throw new TypeError('Feed query array values must contain only data properties.');
+        }
+        const item = itemDescriptor.value;
+        if (typeof item === 'string') {
+          bytes = addUtf8Bytes(bytes, item);
+          search.append(name, item);
+        }
       }
     } else if (typeof raw === 'string') {
+      bytes = addUtf8Bytes(bytes, raw);
       search.append(name, raw);
     }
   }

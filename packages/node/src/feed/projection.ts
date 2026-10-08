@@ -8,6 +8,7 @@ import { immutableJsonSnapshot } from '../shared/immutable-json.js';
 import { projectFeedNodeBookmark } from './bookmark-url.js';
 import { discriminateFeedEvent } from './event-contracts.js';
 import type { ValidatorRegistry } from '../schema/index.js';
+import { assertAnonymousPublicationPrimaryVisibility } from '../server/publication-anonymous-visibility.js';
 
 export type FeedProjectionResult =
   | { readonly ok: true; readonly value: PublicationPublicValue }
@@ -64,18 +65,25 @@ export function projectFeedEvent(
         });
       }
       const projected = projectPublicationPublicWire(event, toWireOptions(options));
+      assertAnonymousPublicationPrimaryVisibility(projected);
       assertNoForbiddenFeedFields(projected);
       return Object.freeze({ ok: true, value: projected });
     }
 
     // Bare event data / node payload path.
     const clone = structuredClone(snapshot) as Record<string, unknown>;
+    // Check authoritative visibility before Bookmark projection can discard
+    // the source node's collection and visibility fields.  A bare Feed value
+    // has no event contract that can provide an effective-visibility proof;
+    // an inherited or restricted primary Node must therefore fail closed.
+    assertAnonymousPublicationPrimaryVisibility(clone);
     if (isPlainObject(clone.node)) {
       clone.node = projectFeedNodeBookmark(clone.node, {
         mode: options.bookmarkMode ?? 'omit',
       });
     }
     const projected = projectPublicationPublicWire(clone, toWireOptions(options));
+    assertAnonymousPublicationPrimaryVisibility(projected);
     assertNoForbiddenFeedFields(projected);
     return Object.freeze({ ok: true, value: projected });
   } catch (error) {

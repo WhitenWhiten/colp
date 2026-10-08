@@ -48,6 +48,7 @@ test('bounded reads cancel a pinned response and close the socket', async () => 
     const http = createHttpClient({
       resolveHost: async () => ['93.184.216.34'],
       fetch: (target, init) => transport(target, init, '127.0.0.1'),
+      pinnedFetch: (target, init) => transport(target, init, '127.0.0.1'),
       maxBytes: 4,
     });
     await assert.rejects(http.request(url), ResponseTooLargeError);

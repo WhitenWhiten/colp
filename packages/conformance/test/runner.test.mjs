@@ -175,6 +175,10 @@ test('checks a DNS answer before the first conformance request', async () => {
       calls.push(String(url));
       return new Response('{}');
     },
+    pinnedFetch: async (url, init) => {
+      calls.push(String(url));
+      return new Response('{}');
+    },
   });
 
   await assert.rejects(
@@ -182,6 +186,79 @@ test('checks a DNS answer before the first conformance request', async () => {
     /DNS-resolved private or local target/u,
   );
   assert.deepEqual(calls, []);
+});
+
+test('charges DNS resolution to the request budget and applies the request deadline', async (t) => {
+  // AbortSignal.timeout deliberately does not keep the event loop alive.
+  // This simulated resolver has no DNS socket, so give the test a handle until
+  // its deadline fires, then release it even if an assertion fails.
+  const keepAlive = setInterval(() => {}, 1000);
+  t.after(() => clearInterval(keepAlive));
+  let resolveStarted = false;
+  let fetchCalled = false;
+  const http = createHttpClient({
+    timeoutMs: 20,
+    maxRequests: 1,
+    resolveHost: async () => {
+      resolveStarted = true;
+      await new Promise(() => {});
+    },
+    fetch: async () => {
+      fetchCalled = true;
+      return new Response('{}');
+    },
+    pinnedFetch: async () => {
+      fetchCalled = true;
+      return new Response('{}');
+    },
+  });
+
+  await assert.rejects(
+    http.request('https://public.example/.well-known/collection-protocol'),
+    /could not resolve the target host/u,
+  );
+  assert.equal(resolveStarted, true);
+  assert.equal(fetchCalled, false);
+  assert.equal(http.requestCount, 1);
+  await assert.rejects(
+    http.request('https://public.example/.well-known/collection-protocol'),
+    /Request budget of 1 exhausted/u,
+  );
+  assert.equal(http.requestCount, 1);
+});
+
+test('fails closed when a resolver is paired with an unpinned custom fetch', () => {
+  assert.throws(() => createHttpClient({
+    resolveHost: async () => ['93.184.216.34'],
+    fetch: async () => new Response('{}'),
+  }), /pinnedFetch/u);
+  assert.throws(() => createHttpClient({ pinnedFetch: 'not-a-function' }), /pinnedFetch must be a function/u);
+});
+
+test('does not apply the built-in resolver to an unpinned custom fetch', async () => {
+  const calls = [];
+  const http = createHttpClient({
+    // .invalid is deliberately not DNS-resolvable. A custom transport may
+    // still provide its own deterministic routing, but it must not be paired
+    // with an implicit resolver whose result it cannot pin to the connection.
+    fetch: async (url) => {
+      calls.push(String(url));
+      return new Response('{}');
+    },
+  });
+
+  const response = await http.request('https://custom-transport.invalid/manifest');
+  assert.equal(response.status, 200);
+  assert.deepEqual(calls, ['https://custom-transport.invalid/manifest']);
+});
+
+test('rejects non-finite or non-positive request and redirect budgets', () => {
+  for (const value of [0, Number.NaN, Number.POSITIVE_INFINITY]) {
+    assert.throws(() => createHttpClient({ maxRequests: value }), /maxRequests must be a positive safe integer/u);
+  }
+  for (const value of [-1, Number.NaN, Number.POSITIVE_INFINITY]) {
+    assert.throws(() => createHttpClient({ maxRedirects: value }), /maxRedirects must be a non-negative safe integer/u);
+  }
 });
 
 test('pinned transport connects to the approved address while preserving the URL Host', async () => {
@@ -225,7 +302,14 @@ test('uses manual redirects and rejects a private Location before the next reque
     initialOrigin: 'https://public.example',
     resolveHost: async () => ['93.184.216.34'],
     fetch: async (url, init) => {
-      calls.push({ url: String(url), redirect: init.redirect });
+      calls.push({ url: String(url), redirect: init.redirect, host: init.headers.get('host') });
+      return new Response(null, {
+        status: 302,
+        headers: { Location: 'http://127.0.0.1:9/internal' },
+      });
+    },
+    pinnedFetch: async (url, init, address) => {
+      calls.push({ url: String(url), redirect: init.redirect, address });
       return new Response(null, {
         status: 302,
         headers: { Location: 'http://127.0.0.1:9/internal' },
@@ -237,7 +321,23 @@ test('uses manual redirects and rejects a private Location before the next reque
     http.request('https://public.example/start'),
     /private or local target/u,
   );
-  assert.deepEqual(calls, [{ url: 'https://public.example/start', redirect: 'manual' }]);
+  assert.deepEqual(calls, [{ url: 'https://public.example/start', redirect: 'manual', address: '93.184.216.34' }]);
+});
+
+test('rejects an HTTPS to HTTP redirect before issuing the downgraded request', async () => {
+  const calls = [];
+  const http = createHttpClient({
+    resolveHost: async () => ['93.184.216.34'],
+    pinnedFetch: async (url, init, address) => {
+      calls.push({ url: String(url), redirect: init.redirect, address });
+      return new Response(null, {
+        status: 302,
+        headers: { Location: 'http://public.example/final' },
+      });
+    },
+  });
+  await assert.rejects(http.request('https://public.example/start'), /must not downgrade/u);
+  assert.deepEqual(calls, [{ url: 'https://public.example/start', redirect: 'manual', address: '93.184.216.34' }]);
 });
 
 test('applies a smaller per-request cap for cumulative Snapshot budgets', async () => {
@@ -246,6 +346,7 @@ test('applies a smaller per-request cap for cumulative Snapshot budgets', async 
     initialOrigin: 'https://public.example',
     resolveHost: async () => ['93.184.216.34'],
     fetch: async () => new Response('0123456789'),
+    pinnedFetch: async () => new Response('0123456789'),
   });
   await assert.rejects(
     http.request('https://public.example/snapshot', { maxBytes: 5 }),

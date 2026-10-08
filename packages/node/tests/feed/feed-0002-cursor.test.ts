@@ -18,6 +18,7 @@ const evidence = 'feed.cursor';
 
 function context(overrides: Partial<FeedCursorContext> = {}): FeedCursorContext {
   return {
+    resourceId: 'mount-a/feed',
     principalId: 'principal-a',
     feedId: 'collection-1/feed',
     filterDigest: createFeedFilterDigest({}),
@@ -79,6 +80,14 @@ describe(`FEED-0002 feed cursor contracts [evidence:${evidence}]`, () => {
     const key = createFeedCursorHmacKey(randomBytes(32));
     const cursor = createFeedCursor({ ...context(), position: 'evt-9' }, key);
     const result = verifyFeedCursor(cursor, context({ feedId: 'other/feed' }), key);
+    expect(result).toEqual({ valid: false, code: 'invalid_cursor_scope' });
+    key.destroy();
+  });
+
+  it(`[negative] rejects cross-mount reuse when the feed id is repeated [evidence:${evidence}]`, () => {
+    const key = createFeedCursorHmacKey(randomBytes(32));
+    const cursor = createFeedCursor({ ...context(), position: 'evt-9' }, key);
+    const result = verifyFeedCursor(cursor, context({ resourceId: 'mount-b/feed' }), key);
     expect(result).toEqual({ valid: false, code: 'invalid_cursor_scope' });
     key.destroy();
   });

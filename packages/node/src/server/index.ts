@@ -22,6 +22,7 @@ export * from './publication-http-read.js';
 export * from './publication-http-read-request.js';
 export * from './publication-query.js';
 export * from './publication-public-projection.js';
+export * from './publication-anonymous-visibility.js';
 export * from './publication-bookmark-url-guard.js';
 export {
   validatePublicationEndpointDto,

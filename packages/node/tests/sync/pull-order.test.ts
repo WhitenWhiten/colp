@@ -304,6 +304,8 @@ describe('SYNC-0005 authoritative Pull order', () => {
       protocolVersion: '0.1',
       afterCommitOrdinal: '100',
       limit: 2,
+      maxMembers: 100_000,
+      maxBytes: 1_048_576,
     }]);
 
     const secondEvents = new DurableEventHandle(backend);
@@ -320,6 +322,8 @@ describe('SYNC-0005 authoritative Pull order', () => {
       protocolVersion: '0.1',
       afterCommitOrdinal: '102',
       limit: 2,
+      maxMembers: 100_000,
+      maxBytes: 1_048_576,
     }]);
   });
 

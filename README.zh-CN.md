@@ -99,7 +99,7 @@ COLP 拆分为可组合的一致性 Profile。服务器只在 Manifest 中声明
 需要 **Node.js 22 或更高版本**。在你的应用项目中安装参考实现：
 
 ```bash
-npm install @know-n/colp@0.1.0
+npm install @know-n/colp@0.1.1
 ```
 
 包内附带 TypeScript 类型声明，同时支持 ESM 和 CommonJS。将下面的示例保存为 `colp-demo.mjs`，无需服务器即可试用：
@@ -122,7 +122,7 @@ node colp-demo.mjs
 无需克隆仓库，也可以检查一个运行中的 COLP 服务器：
 
 ```bash
-npx --yes --package=@know-n/colp-conformance@0.1.0 colp-conformance https://your-server.example
+npx --yes --package=@know-n/colp-conformance@0.1.1 colp-conformance https://your-server.example
 ```
 
 将 URL 替换为你的服务器地址或 Manifest URL。命令选项和编程调用方式见 [测试工具 README](packages/conformance/README.md)。npm 包为 [@know-n/colp](https://www.npmjs.com/package/@know-n/colp) 和 [@know-n/colp-conformance](https://www.npmjs.com/package/@know-n/colp-conformance)。
@@ -211,7 +211,7 @@ curl -i http://127.0.0.1:8080/.well-known/collection-protocol
 | 在自己的服务器上提供 COLP | [Publication 快速上手](packages/node/docs/PUBLICATION_QUICKSTART.md) 与 [示例服务器](packages/node/examples/publication-server.mjs) |
 | 接受写入、同步浏览器或接入 AI 助手 | [包的使用指南](packages/node/docs/README.md#guides) |
 | 用另一种语言实现 COLP | 协议导读中的 [从哪里开始](protocol/README.zh-CN.md#从哪里开始) |
-| 检查服务器是否符合规范 | [`colp-conformance`](packages/conformance/README.md)：`npx --yes --package=@know-n/colp-conformance@0.1.0 colp-conformance https://your-server.example` |
+| 检查服务器是否符合规范 | [`colp-conformance`](packages/conformance/README.md)：`npx --yes --package=@know-n/colp-conformance@0.1.1 colp-conformance https://your-server.example` |
 | 参与贡献 | [CONTRIBUTING.md](CONTRIBUTING.md) |
 
 这个包是不含服务器的协议逻辑：它校验 Wire 文档、判断每个请求能做什么，并协调持久化写入与同步交换；HTTP 路由、认证与存储由你的应用通过少量端口接口提供。

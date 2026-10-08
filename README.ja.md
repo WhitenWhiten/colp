@@ -99,7 +99,7 @@ COLP は組み合わせ可能な適合プロファイルに分かれています
 **Node.js 22 以降**が必要です。アプリケーションのプロジェクトで参照実装をインストールします：
 
 ```bash
-npm install @know-n/colp@0.1.0
+npm install @know-n/colp@0.1.1
 ```
 
 TypeScript の型定義が含まれ、ESM と CommonJS の両方に対応しています。次の例を `colp-demo.mjs` として保存すると、サーバーなしで試せます：
@@ -122,7 +122,7 @@ API は `@know-n/colp/client`、`@know-n/colp/server`、`@know-n/colp/semantic` 
 リポジトリをクローンせずに、稼働中の COLP サーバーを検査できます：
 
 ```bash
-npx --yes --package=@know-n/colp-conformance@0.1.0 colp-conformance https://your-server.example
+npx --yes --package=@know-n/colp-conformance@0.1.1 colp-conformance https://your-server.example
 ```
 
 URL を自分のサーバーのオリジンまたは Manifest URL に置き換えてください。オプションとプログラムからの使い方は [ランナー README](packages/conformance/README.md) にあります。npm パッケージは [@know-n/colp](https://www.npmjs.com/package/@know-n/colp) と [@know-n/colp-conformance](https://www.npmjs.com/package/@know-n/colp-conformance) です。
@@ -211,7 +211,7 @@ curl -i http://127.0.0.1:8080/.well-known/collection-protocol
 | 自分のサーバーで COLP を提供する | [Publication クイックスタート](packages/node/docs/PUBLICATION_QUICKSTART.md) と [サンプルサーバー](packages/node/examples/publication-server.mjs) |
 | 書き込みを受け付ける、ブラウザーを同期する、AI アシスタントと連携する | [パッケージのガイド](packages/node/docs/README.md#guides) |
 | 別の言語で COLP を実装する | プロトコル README の [どこから読むか](protocol/README.ja.md#どこから読むか) |
-| サーバーが仕様に適合しているか確かめる | [`colp-conformance`](packages/conformance/README.md)：`npx --yes --package=@know-n/colp-conformance@0.1.0 colp-conformance https://your-server.example` |
+| サーバーが仕様に適合しているか確かめる | [`colp-conformance`](packages/conformance/README.md)：`npx --yes --package=@know-n/colp-conformance@0.1.1 colp-conformance https://your-server.example` |
 | コントリビュートする | [CONTRIBUTING.md](CONTRIBUTING.md) |
 
 このパッケージは、サーバーを含まないプロトコルロジックです。ワイヤードキュメントを検証し、各リクエストに何が許されるかを判断し、永続的な書き込みと同期のやり取りを調整します。HTTP のルーティング、認証、ストレージは、アプリケーションが小さなポートインターフェースを通じて提供します。

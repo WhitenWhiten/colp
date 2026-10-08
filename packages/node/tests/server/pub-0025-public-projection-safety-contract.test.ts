@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  assertAnonymousPublicationPrimaryVisibility,
   projectPublicationPublicValue,
   PublicationPublicProjectionError,
 } from '../../src/server/index.js';
@@ -14,6 +15,12 @@ function project(input: unknown, limits?: { readonly maxDepth?: number; readonly
     publicExtensionNamespaces: [publicNamespace],
     ...(limits === undefined ? {} : { limits }),
   });
+}
+
+function projectAnonymous(input: unknown) {
+  const output = project(input);
+  assertAnonymousPublicationPrimaryVisibility(output);
+  return output;
 }
 
 function expectProjectionError(action: () => unknown): void {
@@ -42,7 +49,7 @@ describe(`PUB-0025 public projection safety ${evidence}`, () => {
     expect((output as typeof input).tags).not.toBe(input.tags);
   });
 
-  it(`removes native and profile identifiers plus local paths from source references at nested array boundaries ${evidence}`, () => {
+  it(`removes the entire synchronization source-reference carrier at nested array boundaries ${evidence}`, () => {
     const input = {
       pages: [{
         nodes: [{
@@ -73,13 +80,6 @@ describe(`PUB-0025 public projection safety ${evidence}`, () => {
     expect(project(input)).toEqual({
       pages: [{ nodes: [{
         id: 'node-public',
-        sourceRefs: [{
-          system: 'browser',
-          adapterVersion: '4.2.0',
-          replicaId: 'replica-public',
-          nativeParentId: 'native-parent-secret',
-          capturedAt: '2026-07-18T00:00:00Z',
-        }],
       }] }],
       importMetadata: { label: 'Public import label' },
     });
@@ -247,13 +247,6 @@ describe(`PUB-0025 public projection safety ${evidence}`, () => {
           urlHash: 'sha256:deadbeef',
         },
       ],
-      collections: [{
-        id: 'collection-private',
-        kind: 'bookmarks',
-        visibility: 'private',
-        title: 'Private collection',
-        rootNodeId: 'root-1',
-      }],
       access: {
         visibility: 'private',
         revision: 'access-revision-private',
@@ -262,6 +255,42 @@ describe(`PUB-0025 public projection safety ${evidence}`, () => {
     };
 
     expect(project(input)).toEqual(input);
+  });
+
+  it(`fails closed for schema-shaped restricted primary resources ${evidence}`, () => {
+    expectProjectionError(() => projectAnonymous({
+      id: 'node-private',
+      collectionId: 'collection-1',
+      kind: 'bookmark',
+      parentId: 'root-1',
+      visibility: 'private',
+      title: 'Private bookmark',
+      url: 'https://private.example/bookmark',
+    }));
+    expectProjectionError(() => projectAnonymous({
+      id: 'collection-protected',
+      kind: 'knowledge_collection',
+      rootNodeId: 'root-1',
+      visibility: 'protected',
+      title: 'Protected collection',
+    }));
+    expectProjectionError(() => projectAnonymous({
+      id: 'directory-private',
+      kind: 'knowledge_collection',
+      canonicalUrl: 'https://private.example/collections/c',
+      links: {},
+      nodeCount: 1,
+      visibility: 'private',
+      title: 'Private directory item',
+    }));
+    expectProjectionError(() => projectAnonymous({
+      id: 'relation-protected',
+      collectionId: 'collection-1',
+      type: 'related',
+      fromNodeId: 'node-1',
+      toNodeId: 'node-2',
+      visibility: 'protected',
+    }));
   });
 
   it(`retains public annotation shapes while still stripping non-public ones alongside private nodes ${evidence}`, () => {
@@ -516,6 +545,10 @@ describe(`PUB-0025 public projection safety ${evidence}`, () => {
         label: 'security-label',
       },
     });
+  });
+
+  it(`rejects an oversized credential keyHint before public materialization ${evidence}`, () => {
+    expectProjectionError(() => project({ credentials: { keyHint: 'x'.repeat(8 * 1024 * 1024 + 1) } }));
   });
 
   it(`removes a mixed-case secret payload that combines every naming variant in one object ${evidence}`, () => {
@@ -795,6 +828,48 @@ describe(`PUB-0025 public projection safety ${evidence}`, () => {
 
     expectProjectionError(() => project(deep, { maxDepth: 2, maxNodes: 100 }));
     expectProjectionError(() => project(wide, { maxDepth: 10, maxNodes: 8 }));
+  });
+
+  it(`charges discarded annotation elements against the input budget ${evidence}`, () => {
+    const privateAnnotations = {
+      annotations: Array.from({ length: 4 }, (_, index) => ({
+        id: `private-${index}`,
+        type: 'note',
+        visibility: 'private',
+        value: `private note ${index}`,
+      })),
+    };
+
+    // The annotations are removed before recursive projection. They still
+    // require array/key/descriptor inspection and therefore must consume the
+    // same maxNodes budget as retained input.
+    expectProjectionError(() => project(privateAnnotations, { maxDepth: 10, maxNodes: 5 }));
+  });
+
+  it(`charges redacted object fields and unallowlisted extensions before skipping them ${evidence}`, () => {
+    const removableFields = Object.fromEntries(
+      Array.from({ length: 8 }, (_, index) => [`secret-${index}`, `secret-value-${index}`]),
+    );
+    expectProjectionError(() => project(removableFields, { maxDepth: 10, maxNodes: 8 }));
+
+    const unallowlisted = {
+      extensions: {
+        [privateNamespace]: Object.fromEntries(
+          Array.from({ length: 8 }, (_, index) => [`field-${index}`, index]),
+        ),
+      },
+    };
+    expectProjectionError(() => project(unallowlisted, { maxDepth: 10, maxNodes: 2 }));
+  });
+
+  it(`charges unsupported credential containers before discarding them ${evidence}`, () => {
+    // Credential containers are reduced to keyHint only. A non-plain value
+    // is still input inspected by the redaction boundary and must advance
+    // maxNodes before it is dropped.
+    expectProjectionError(() => project({ credentials: new Date('2026-07-18T00:00:00Z') }, {
+      maxDepth: 10,
+      maxNodes: 1,
+    }));
   });
 
   it(`does not reflect secret input values or hostile proxy diagnostics in projection errors ${evidence}`, () => {

@@ -52,6 +52,8 @@ const includeSet = fc.uniqueArray(fc.constantFrom(...includeValues), {
 });
 
 const snapshotScope = fc.record({
+  collectionId: boundedText(),
+  resourceId: boundedText(),
   revision: boundedText(),
   principal: boundedText(),
   root: fc.option(boundedText(), { nil: undefined }),
@@ -62,6 +64,7 @@ const snapshotScope = fc.record({
 }) as fc.Arbitrary<PublicationSnapshotCursorScope>;
 
 const directoryScope = fc.record({
+  resourceId: boundedText(),
   principal: boundedText(),
   filterDigest: boundedText(),
   sort: boundedText(),
@@ -199,6 +202,8 @@ describe('Publication property invariants', () => {
     expect(Buffer.byteLength(nextPosition, 'utf8')).toBe(58);
     const snapshotKey = createPublicationSnapshotCursorHmacKey(new Uint8Array(keyLength).fill(0x53));
     const snapshot: PublicationSnapshotCursorScope = {
+      collectionId: '集合😀',
+      resourceId: '资源😀',
       revision: '版本😀',
       principal: '用户é',
       root: '根😀',
@@ -213,6 +218,7 @@ describe('Publication property invariants', () => {
 
     const directoryKey = createPublicationDirectoryCursorHmacKey(new Uint8Array(keyLength).fill(0x44));
     const directory: PublicationDirectoryCursorScope = {
+      resourceId: '目录😀',
       principal: '用户😀',
       filterDigest: '筛选é',
       sort: '更新😀',

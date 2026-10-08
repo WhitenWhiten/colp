@@ -1,7 +1,6 @@
 import { isProxy } from 'node:util/types';
 
 import {
-  cloneAndFreezeJsonData,
   validateWireDocument,
   type DefinitionName,
   type ValidatorRegistry,
@@ -26,10 +25,12 @@ import {
   createPublicationProblemDescriptor,
   PUBLICATION_PROBLEM_CONTENT_TYPE,
 } from './publication-problems.js';
+import { assertAnonymousPublicationPrimaryVisibility } from './publication-anonymous-visibility.js';
 import {
   projectPublicationPublicWire,
   type PublicationPublicWireOptions,
 } from './publication-public-projection.js';
+import { projectPublicationAuthorizedWire } from './publication-authorized-projection.js';
 import type {
   PublicationEtagJsonValue,
   PublicationEtagQueryContract,
@@ -39,6 +40,7 @@ import type {
 import type { ProblemCode } from './problems.js';
 import type { Snapshot } from '../types/index.js';
 import { finalizePublicationSnapshotWire } from './publication-snapshot-wire.js';
+import { assertPublicationSnapshotBookmarkUrls } from './publication-bookmark-url-guard.js';
 
 export type PublicationHttpReadEndpoint = 'manifest' | 'directory' | 'metadata' | 'snapshot' | 'node';
 export type PublicationHttpReadMethod = 'GET' | 'HEAD';
@@ -159,9 +161,15 @@ export async function composePublicationHttpRead<Context = unknown>(
   try {
     const representation = inspectRepresentation(selected);
     assertPrincipalPartition(safeInput.access, representation);
-    let projected = safeInput.access === 'anonymous-public'
+    let projected: unknown = safeInput.access === 'anonymous-public'
       ? projectPublicationPublicWire(representation.value, safeInput.publicProjection)
-      : cloneAndFreezeJsonData(representation.value);
+      : projectPublicationAuthorizedWire(representation.value);
+    if (safeInput.access === 'anonymous-public') {
+      // Public redaction removes secrets and sidecars, while this separate
+      // graph guard rejects restricted primary resources whose references
+      // cannot safely be dropped from an anonymous response.
+      assertAnonymousPublicationPrimaryVisibility(projected);
+    }
     const validation = validateWireDocument<unknown, never>(
       safeInput.validators,
       responseDefinitionFor(safeInput.endpoint),
@@ -172,7 +180,8 @@ export async function composePublicationHttpRead<Context = unknown>(
       throw new TypeError('Publication HTTP read representation is not wire-valid.');
     }
     if (safeInput.endpoint === 'snapshot') {
-      projected = finalizePublicationSnapshotWire(projected as Readonly<Snapshot>);
+      assertPublicationSnapshotBookmarkUrls(projected as Readonly<Snapshot>);
+      projected = finalizePublicationSnapshotWire(projected as Readonly<Snapshot>) as unknown as typeof projected;
     }
     const bytes = publicationUtf8JsonBytes(projected);
     const mediaType = representation.negotiatedMediaType ?? PUBLICATION_JSON_MEDIA_TYPE;

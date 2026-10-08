@@ -17,6 +17,13 @@ function expectDeeplyFrozen(value: unknown, seen = new WeakSet<object>()): void 
 describe('schema validator registry', () => {
   const registry = createValidatorRegistry();
 
+  it('rejects a proxied unique array before reading its length', () => {
+    let calls = 0;
+    const nodes = new Proxy([], { get() { calls += 1; throw new Error('array trap'); } });
+    expect(registry.validate('snapshot', { nodes }).valid).toBe(false);
+    expect(calls).toBe(0);
+  });
+
   it('keeps the canonical schema deeply immutable', () => {
     expectDeeplyFrozen(collectionProtocolSchema);
     expectDeeplyFrozen(collectionProtocolSchemaV02);
@@ -135,6 +142,24 @@ describe('schema validator registry', () => {
     });
     expect(result.valid).toBe(false);
     expect(result.errors.some((error) => error.keyword === 'maxItems')).toBe(true);
+  });
+
+  it('rejects oversized parsed graphs before schema traversal', () => {
+    let nested: Record<string, unknown> = {};
+    for (let index = 0; index < 130; index += 1) nested = { next: nested };
+    const deep = registry.validate('opaqueId', nested);
+    expect(deep.valid).toBe(false);
+    expect(deep.errors[0]?.keyword).toBe('x-colp-budget');
+
+    const wide: Record<string, unknown> = {};
+    for (let index = 0; index < 100_001; index += 1) wide[`k${index}`] = index;
+    const broad = registry.validate('opaqueId', wide);
+    expect(broad.valid).toBe(false);
+    expect(broad.errors[0]?.keyword).toBe('x-colp-budget');
+
+    const broadArray = registry.validate('opaqueId', new Array(100_001));
+    expect(broadArray.valid).toBe(false);
+    expect(broadArray.errors[0]?.keyword).toBe('x-colp-budget');
   });
 });
 

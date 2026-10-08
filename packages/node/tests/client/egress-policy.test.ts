@@ -259,6 +259,7 @@ describe('ColpClient default literal-host egress on GET redirects', () => {
     const client = new ColpClient({
       manifestUrl: 'https://public.example/.well-known/collection-protocol',
       fetch: fetch as typeof globalThis.fetch,
+      pinnedFetch: vi.fn(async () => new Response('{}')),
       resolveHost,
       credentialProvider: credentials,
     });
@@ -282,6 +283,7 @@ describe('ColpClient default literal-host egress on GET redirects', () => {
     const client = new ColpClient({
       manifestUrl,
       fetch: fetch as typeof globalThis.fetch,
+      pinnedFetch: async (url, init) => (fetch as unknown as typeof globalThis.fetch)(url, init),
       resolveHost,
     });
 

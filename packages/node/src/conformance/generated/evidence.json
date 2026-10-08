@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "protocolVersion": "0.1",
-  "packageVersion": "0.1.0",
+  "packageVersion": "0.1.1",
   "requirementsDigest": "sha256:a130541d0d530f76856a68ffa5abd7ad78e157e6e1a13ee8071b096cab195002",
   "passedRequirementIds": [
     "CORE-0001",

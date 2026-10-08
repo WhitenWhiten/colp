@@ -4,29 +4,41 @@ import canonicalize from 'canonicalize';
 import { cloneAndFreezeJsonData, createValidatorRegistry } from '../schema/index.js';
 import type { Snapshot } from '../types/index.js';
 import { assertPublicationSnapshotBookmarkUrls } from './publication-bookmark-url-guard.js';
+import { assertAnonymousPublicationPrimaryVisibility } from './publication-anonymous-visibility.js';
 import { rememberPublicationJsonBytes } from './publication-prepared-json.js';
 import {
   projectPublicationPublicWire, PublicationPublicProjectionError,
   type PublicationPublicWireOptions,
 } from './publication-public-projection.js';
+import { projectPublicationAuthorizedWire } from './publication-authorized-projection.js';
 
 const validators = createValidatorRegistry();
 const MAX_SNAPSHOT_BYTES = 64 * 1_024 * 1_024;
 const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 class SnapshotLimitError extends Error {}
 
+export type PublicationSnapshotAccess = 'anonymous-public' | 'authorized-private';
+
 /** Internal receive/produce boundary; final content identity is computed after public projection. */
 export function preparePublicationSnapshotWire(
   value: unknown,
   projectionOptions?: PublicationPublicWireOptions,
+  access: PublicationSnapshotAccess = 'anonymous-public',
 ): Readonly<Snapshot> {
   try {
+    if (access !== 'anonymous-public' && access !== 'authorized-private') throw new TypeError();
     assertBoundedDataGraph(value);
     const snapshot = cloneAndFreezeJsonData(value) as Readonly<Snapshot>;
     if (!validators.validate('snapshot', snapshot).valid || snapshot.mode !== 'publication') throw new TypeError();
     assertPublicationSnapshotBookmarkUrls(snapshot);
     assertPage(snapshot);
-    const projected = projectPublicationPublicWire(snapshot, projectionOptions);
+    // Authorized callers receive the safe publication projection, including
+    // ACL-approved restricted sidecars. Synchronization metadata, secrets,
+    // crawl bodies, local paths, and unallowlisted extensions remain removed.
+    const projected = access === 'anonymous-public'
+      ? projectPublicationPublicWire(snapshot, projectionOptions)
+      : projectPublicationAuthorizedWire(snapshot, projectionOptions);
+    if (access === 'anonymous-public') assertAnonymousPublicationPrimaryVisibility(projected);
     if (!validators.validate('snapshot', projected).valid) throw new TypeError();
     return finalizePublicationSnapshotWire(projected as unknown as Readonly<Snapshot>);
   } catch (error) {

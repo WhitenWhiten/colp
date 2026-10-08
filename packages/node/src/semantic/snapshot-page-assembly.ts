@@ -129,16 +129,29 @@ export type AssembledSnapshotPages =
  * memory allowance during the final `flatMap` operations.
  */
 export interface SnapshotAssemblyBudget {
+  /** Maximum number of pages that may be merged. The default is a hard ceiling. */
+  readonly maxPages?: number;
+  /** Maximum aggregate UTF-8 bytes estimated from canonical page JSON. */
+  readonly maxBytes?: number;
   readonly maxMembers?: number;
   readonly maxObjects?: number;
 }
 
-function resolveBudget(name: keyof SnapshotAssemblyBudget, value: number | undefined): number | undefined {
-  if (value === undefined) return undefined;
-  if (!Number.isSafeInteger(value) || value < 1) {
+export const DEFAULT_SNAPSHOT_ASSEMBLY_MAX_PAGES = 100 as const;
+export const DEFAULT_SNAPSHOT_ASSEMBLY_MAX_BYTES = 64 * 1024 * 1024;
+export const DEFAULT_SNAPSHOT_ASSEMBLY_MAX_MEMBERS = 100_000 as const;
+export const DEFAULT_SNAPSHOT_ASSEMBLY_MAX_OBJECTS = 100_000 as const;
+
+function resolveBudget(
+  name: keyof SnapshotAssemblyBudget,
+  value: number | undefined,
+  fallback: number,
+): number {
+  const resolved = value ?? fallback;
+  if (!Number.isSafeInteger(resolved) || resolved < 1 || resolved > fallback) {
     throw new RangeError(`Snapshot assembly ${name} must be a positive safe integer.`);
   }
-  return value;
+  return resolved;
 }
 
 function snapshotPageMemberCount(page: Snapshot): number {
@@ -158,6 +171,8 @@ export function assembleSnapshotPagePayload(
   pages: readonly Snapshot[],
   options: {
     readonly extensionSecurityPolicy?: ExtensionSecurityPolicy;
+    readonly maxPages?: number;
+    readonly maxBytes?: number;
     readonly maxMembers?: number;
     readonly maxObjects?: number;
   } = {},
@@ -165,11 +180,44 @@ export function assembleSnapshotPagePayload(
   if (pages.length === 0) {
     return { valid: false, issues: [issue('empty_snapshot_assembly', '/', 'No pages supplied.')] };
   }
-  const maxMembers = resolveBudget('maxMembers', options.maxMembers);
-  const maxObjects = resolveBudget('maxObjects', options.maxObjects);
+  const maxPages = resolveBudget('maxPages', options.maxPages, DEFAULT_SNAPSHOT_ASSEMBLY_MAX_PAGES);
+  const maxBytes = resolveBudget('maxBytes', options.maxBytes, DEFAULT_SNAPSHOT_ASSEMBLY_MAX_BYTES);
+  const maxMembers = resolveBudget('maxMembers', options.maxMembers, DEFAULT_SNAPSHOT_ASSEMBLY_MAX_MEMBERS);
+  const maxObjects = resolveBudget('maxObjects', options.maxObjects, DEFAULT_SNAPSHOT_ASSEMBLY_MAX_OBJECTS);
+  if (pages.length > maxPages) {
+    return {
+      valid: false,
+      issues: [issue(
+        'snapshot_assembly_page_budget',
+        '/pages',
+        `Snapshot page assembly contains ${pages.length} pages, exceeding the limit of ${maxPages}.`,
+      )],
+    };
+  }
+  let byteCount = 0;
+  for (const [index, page] of pages.entries()) {
+    const canonical = canonicalize(page);
+    if (canonical === undefined) {
+      return {
+        valid: false,
+        issues: [issue('snapshot_assembly_byte_budget', `/pages/${index}`, 'Snapshot page could not be represented as canonical JSON.')],
+      };
+    }
+    byteCount += new TextEncoder().encode(canonical).byteLength;
+    if (byteCount > maxBytes) {
+      return {
+        valid: false,
+        issues: [issue(
+          'snapshot_assembly_byte_budget',
+          `/pages/${index}`,
+          `Snapshot page assembly exceeds the byte limit of ${maxBytes}.`,
+        )],
+      };
+    }
+  }
   const memberCount = pages.reduce((total, page) => total + snapshotPageMemberCount(page), 0);
   const objectCount = memberCount + 1;
-  if (maxMembers !== undefined && memberCount > maxMembers) {
+  if (memberCount > maxMembers) {
     return {
       valid: false,
       issues: [issue(
@@ -179,7 +227,7 @@ export function assembleSnapshotPagePayload(
       )],
     };
   }
-  if (maxObjects !== undefined && objectCount > maxObjects) {
+  if (objectCount > maxObjects) {
     return {
       valid: false,
       issues: [issue(

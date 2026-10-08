@@ -253,6 +253,20 @@ describe('MCP 2026-07-28 request context: envelope version [evidence:mcp.request
     })).toThrowError(expectWire('unsupported_protocol_version', -32022));
   });
 
+  it('does not reflect an oversized unsupported protocol-version claim', () => {
+    const secret = `unsupported-${'x'.repeat(100_000)}`;
+    try {
+      createContext({
+        headers: [header('mcp-method', 'server/discover')],
+        body: { method: 'server/discover', params: { _meta: meta({ [PROTOCOL_VERSION_META_KEY]: secret }) } },
+      });
+      throw new Error('Expected unsupported protocol version.');
+    } catch (error) {
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).not.toContain(secret);
+    }
+  });
+
   it('rejects a missing MCP-Protocol-Version header as -32020 (MCP-U-07)', () => {
     expect(() => createContext({
       headers: [header('mcp-method', 'server/discover')],

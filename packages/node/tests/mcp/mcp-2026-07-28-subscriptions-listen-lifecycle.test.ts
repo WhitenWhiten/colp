@@ -93,7 +93,11 @@ describe('MCP 2026-07-28 subscriptions/listen: bounded queue, rate, lifetime, bu
   it.each([2_147_483_646, 2_147_483_647])('honors supported long lifetime %s without timer overflow', async maxLifetimeMs => {
     vi.useFakeTimers();
     try {
-      const { adapter, memory } = harness({ maxLifetimeMs });
+      // Keep this test focused on the upper-bound lifetime timer. The
+      // production default idle timeout is intentionally much shorter, so
+      // opt into the same upper bound here to avoid conflating the two
+      // independent teardown policies.
+      const { adapter, memory } = harness({ maxLifetimeMs, idleTimeoutMs: 2_147_483_647 });
       const session = openSession(adapter, { toolsListChanged: true });
       await vi.advanceTimersByTimeAsync(1);
       expect(memory.listenerCount()).toBe(1);
@@ -119,6 +123,33 @@ describe('MCP 2026-07-28 subscriptions/listen: bounded queue, rate, lifetime, bu
     expect(teardown.delivered).toBe(4);
     expect(teardown.overflow).toBe(6);
     expect(await readAll(session)).toHaveLength(4);
+  });
+
+  it('releases an idle stream before its maximum lifetime', async () => {
+    vi.useFakeTimers();
+    try {
+      const { adapter, memory } = harness({ maxLifetimeMs: 60_000, idleTimeoutMs: 1_000 });
+      const session = openSession(adapter, { toolsListChanged: true });
+      expect(memory.listenerCount()).toBe(1);
+      await vi.advanceTimersByTimeAsync(999);
+      expect(memory.listenerCount()).toBe(1);
+      await vi.advanceTimersByTimeAsync(1);
+      await expect(session.closed).resolves.toMatchObject({ reason: 'idle-timeout', graceful: true });
+      expect(memory.listenerCount()).toBe(0);
+    } finally { vi.clearAllTimers(); vi.useRealTimers(); }
+  });
+
+  it('bounds one authenticated principal and releases the admission slot', async () => {
+    const { adapter, memory } = harness({ maxConcurrentSessions: 4, maxConcurrentSessionsPerPrincipal: 1 });
+    const first = openSession(adapter, { toolsListChanged: true }, {}, 'principal-1');
+    expect(() => openSession(adapter, { toolsListChanged: true }, {}, 'principal-2'))
+      .toThrow('per-principal admission limit reached');
+    first.close();
+    await expect(first.closed).resolves.toMatchObject({ reason: 'closed' });
+    expect(memory.listenerCount()).toBe(0);
+    const second = openSession(adapter, { toolsListChanged: true }, {}, 'principal-3');
+    second.close();
+    await expect(second.closed).resolves.toMatchObject({ reason: 'closed' });
   });
 
   it('rate-limits notification delivery within a window', async () => {

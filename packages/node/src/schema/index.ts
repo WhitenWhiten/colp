@@ -4,6 +4,7 @@ import {
   type Options as AjvOptions,
   type ValidateFunction,
 } from 'ajv/dist/2020.js';
+import { types as nodeTypes } from 'node:util';
 import addFormatsImport, { type FormatsPlugin } from 'ajv-formats';
 import { parseTemplate } from 'url-template';
 
@@ -65,6 +66,36 @@ let canonicalValidators: ReadonlyMap<DefinitionName, ValidateFunction> | undefin
 /** The protocol bound shared by object-valued `uniqueItems` arrays. */
 export const MAX_STRUCTURED_UNIQUE_ITEMS = 512;
 const structuredUniqueArrayKeys = new Set(['creators', 'sourceRefs', 'hubs']);
+// The graph walk is bounded, but valid publication Snapshots may contain
+// tens of thousands of independently represented nodes. Keep the bound high
+// enough for those documents while retaining a deterministic fail-closed cap.
+const MAX_STRUCTURED_VALIDATION_NODES = 1_000_000;
+const MAX_STRUCTURED_VALIDATION_DEPTH = 128;
+const MAX_STRUCTURED_VALIDATION_PATH_LENGTH = 16_384;
+const MAX_STRUCTURED_VALIDATION_MEMBERS = 1_000_000;
+const MAX_STRUCTURED_VALIDATION_OBJECT_MEMBERS = 100_000;
+const MAX_STRUCTURED_VALIDATION_BYTES = 64 * 1024 * 1024;
+
+/** Count UTF-8 bytes up to the remaining validation budget without allocating. */
+function structuredValidationUtf8Bytes(value: string, limit: number): number {
+  let bytes = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    const width = code <= 0x7f
+      ? 1
+      : code <= 0x7ff
+        ? 2
+        : code >= 0xd800 && code <= 0xdbff
+          && index + 1 < value.length
+          && value.charCodeAt(index + 1) >= 0xdc00
+          && value.charCodeAt(index + 1) <= 0xdfff
+          ? (index += 1, 4)
+          : 3;
+    bytes += width;
+    if (bytes > limit) return bytes;
+  }
+  return bytes;
+}
 
 /** Format-level assertion for RFC 6570 Level 1 templates. */
 export function isLevelOneUriTemplate(value: string): boolean {
@@ -200,6 +231,7 @@ export function createValidatorRegistry(ajv?: Ajv2020): ValidatorRegistry {
       throw new RangeError(`Unknown Collection Protocol schema definition: ${name}`);
     }
 
+    /* c8 ignore next -- getCanonicalValidators compiles every known definition atomically. */
     throw new Error(`Collection Protocol validator was not compiled: ${name}`);
   }
 
@@ -265,28 +297,71 @@ function findStructuredUniqueArrayLimit(value: unknown): ErrorObject | undefined
     value: value as object,
     path: '',
   }];
+  let visitedNodes = 0;
+  let visitedMembers = 0;
+  let visitedBytes = 0;
+  const budgetIssue = (path: string): ErrorObject => ({
+    instancePath: path,
+    schemaPath: '#/maxProperties',
+    keyword: 'x-colp-budget',
+    params: { limit: MAX_STRUCTURED_VALIDATION_NODES },
+    message: 'must stay within the structured validation graph budget',
+  });
   while (stack.length > 0) {
     const current = stack.pop()!;
+    // The walk runs before Ajv and therefore must reject Proxies before any
+    // own-key, length, or descriptor operation can invoke a user trap.
+    if (nodeTypes.isProxy(current.value)) return budgetIssue(current.path);
     if (seen.has(current.value)) continue;
     seen.add(current.value);
+    visitedNodes += 1;
+    if (visitedNodes > MAX_STRUCTURED_VALIDATION_NODES
+      || current.path.length > MAX_STRUCTURED_VALIDATION_PATH_LENGTH
+      || current.path.split('/').length > MAX_STRUCTURED_VALIDATION_DEPTH) {
+      return budgetIssue(current.path);
+    }
     if (Array.isArray(current.value)) {
+      visitedMembers += current.value.length;
+      if (current.value.length > MAX_STRUCTURED_VALIDATION_OBJECT_MEMBERS
+        || visitedMembers > MAX_STRUCTURED_VALIDATION_MEMBERS) return budgetIssue(current.path);
       for (let index = current.value.length - 1; index >= 0; index -= 1) {
         const descriptor = Object.getOwnPropertyDescriptor(current.value, String(index));
-        if (descriptor !== undefined && 'value' in descriptor && descriptor.value !== null
-          && typeof descriptor.value === 'object') {
-          stack.push({ value: descriptor.value, path: `${current.path}/${index}` });
+        if (descriptor !== undefined && 'value' in descriptor) {
+          const child = descriptor.value;
+          const childPath = `${current.path}/${index}`;
+          if (typeof child === 'string') {
+            const remaining = MAX_STRUCTURED_VALIDATION_BYTES - visitedBytes;
+            const bytes = structuredValidationUtf8Bytes(child, remaining);
+            if (bytes > remaining) return budgetIssue(childPath);
+            visitedBytes += bytes;
+          }
+          if (child !== null && typeof child === 'object') {
+            stack.push({ value: child, path: childPath });
+          }
         }
       }
       continue;
     }
-    for (const key of Object.keys(current.value)) {
-      // Extension payloads are intentionally opaque and may use these names
-      // without inheriting the core schema's unique-array contract.
-      if (key === 'extensions') continue;
+    const keys = Object.keys(current.value);
+    visitedMembers += keys.length;
+    if (keys.length > MAX_STRUCTURED_VALIDATION_OBJECT_MEMBERS
+      || visitedMembers > MAX_STRUCTURED_VALIDATION_MEMBERS) return budgetIssue(current.path);
+    for (const key of keys) {
+      const keyRemaining = MAX_STRUCTURED_VALIDATION_BYTES - visitedBytes;
+      const keyBytes = structuredValidationUtf8Bytes(key, keyRemaining);
+      if (keyBytes > keyRemaining) return budgetIssue(current.path);
+      visitedBytes += keyBytes;
       const descriptor = Object.getOwnPropertyDescriptor(current.value, key);
       if (descriptor === undefined || !('value' in descriptor)) continue;
       const child = descriptor.value;
       const childPath = `${current.path}/${key.replaceAll('~', '~0').replaceAll('/', '~1')}`;
+      if (nodeTypes.isProxy(child)) return budgetIssue(childPath);
+      if (typeof child === 'string') {
+        const remaining = MAX_STRUCTURED_VALIDATION_BYTES - visitedBytes;
+        const bytes = structuredValidationUtf8Bytes(child, remaining);
+        if (bytes > remaining) return budgetIssue(childPath);
+        visitedBytes += bytes;
+      }
       if (structuredUniqueArrayKeys.has(key) && Array.isArray(child)
         && child.length > MAX_STRUCTURED_UNIQUE_ITEMS) {
         return {

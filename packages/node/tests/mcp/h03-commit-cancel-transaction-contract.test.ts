@@ -343,6 +343,7 @@ function createHarness(options: Readonly<{
     },
     authorizationPolicy: { requiredScopesForOperation: async () => [] },
     rateLimit: {
+      allowPlan: async () => true,
       allow: async () => {
         await pause('rate-limit');
         return true;

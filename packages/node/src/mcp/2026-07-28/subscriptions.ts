@@ -1,5 +1,10 @@
 import { isListenAuthorized } from './subscription-authority.js';
 import { validateMcp20260728ListenParams } from './subscription-filter.js';
+import {
+  createMcpListenAdmission,
+  type McpListenAdmissionFailure,
+} from './subscriptions-admission.js';
+import { Mcp20260728ListenStream } from './subscriptions-stream.js';
 
 /**
  * Modern MCP 2026-07-28 subscriptions/listen adapter.
@@ -21,8 +26,7 @@ import { validateMcp20260728ListenParams } from './subscription-filter.js';
 import { types as nodeTypes } from 'node:util';
 
 import { snapshotMcpData } from '../safe-data.js';
-import type { McpChangeSignal, McpChangeSignalSourcePort, McpChangeSignalSubscription } from '../shared/change-signal.js';
-import { snapshotMcpChangeSignal } from '../shared/change-signal.js';
+import type { McpChangeSignalSourcePort, McpChangeSignalSubscription } from '../shared/change-signal.js';
 import {
   requireMcp20260728RequestContext,
   type Mcp20260728RequestContext,
@@ -82,6 +86,7 @@ export type Mcp20260728ListenClosedReason =
   | 'aborted'
   | 'unauthorized'
   | 'lifetime-expired'
+  | 'idle-timeout'
   | 'notification-budget-exhausted';
 
 /** Deterministic teardown summary hosts can log / use to decide the final result. */
@@ -132,6 +137,14 @@ export interface Mcp20260728SubscriptionsListenAdapterOptions {
   /** Positive integer, at most 2,147,483,647 ms (the runtime timer limit). */
   readonly maxLifetimeMs?: number;
   readonly maxNotifications?: number;
+  /** Aggregate cap on concurrently open listen streams. */
+  readonly maxConcurrentSessions?: number;
+  /** Per-principal cap; prevents one authenticated subject monopolizing the adapter. */
+  readonly maxConcurrentSessionsPerPrincipal?: number;
+  /** Per-forwarded-client-address cap; absent addresses share a conservative bucket. */
+  readonly maxConcurrentSessionsPerIp?: number;
+  /** Idle stream timeout, refreshed by source activity and consumer reads. */
+  readonly idleTimeoutMs?: number;
 }
 
 export interface Mcp20260728SubscriptionsListenAdapter {
@@ -157,6 +170,11 @@ export const DEFAULT_MCP_LISTEN_MAX_RATE_PER_WINDOW = 1000 as const;
 export const DEFAULT_MCP_LISTEN_RATE_WINDOW_MS = 1000 as const;
 export const DEFAULT_MCP_LISTEN_MAX_LIFETIME_MS = 1_800_000 as const;
 export const DEFAULT_MCP_LISTEN_MAX_NOTIFICATIONS = 10_000 as const;
+export const DEFAULT_MCP_LISTEN_MAX_CONCURRENT_SESSIONS = 256 as const;
+export const DEFAULT_MCP_LISTEN_MAX_CONCURRENT_SESSIONS_PER_PRINCIPAL = 32 as const;
+export const DEFAULT_MCP_LISTEN_MAX_CONCURRENT_SESSIONS_PER_IP = 64 as const;
+export const DEFAULT_MCP_LISTEN_IDLE_TIMEOUT_MS = 300_000 as const;
+export const MCP_20260728_MAX_LISTEN_REQUEST_ID_LENGTH = 16_384 as const;
 
 const LISTEN_TYPE_CAPABILITY_PATHS: Readonly<Record<Mcp20260728ListenOptInType, readonly [string, string]>> = Object.freeze({
   toolsListChanged: ['tools', 'listChanged'],
@@ -217,6 +235,26 @@ export function createMcp20260728SubscriptionsListenAdapter(
   const maxLifetimeMs = readLimit(options, 'maxLifetimeMs', DEFAULT_MCP_LISTEN_MAX_LIFETIME_MS);
   if (maxLifetimeMs > 2_147_483_647) throw new RangeError('maxLifetimeMs must not exceed 2147483647.');
   const maxNotifications = readLimit(options, 'maxNotifications', DEFAULT_MCP_LISTEN_MAX_NOTIFICATIONS);
+  const maxConcurrentSessions = readLimit(options, 'maxConcurrentSessions', DEFAULT_MCP_LISTEN_MAX_CONCURRENT_SESSIONS);
+  const maxConcurrentSessionsPerPrincipal = readLimit(
+    options,
+    'maxConcurrentSessionsPerPrincipal',
+    DEFAULT_MCP_LISTEN_MAX_CONCURRENT_SESSIONS_PER_PRINCIPAL,
+  );
+  const maxConcurrentSessionsPerIp = readLimit(
+    options,
+    'maxConcurrentSessionsPerIp',
+    DEFAULT_MCP_LISTEN_MAX_CONCURRENT_SESSIONS_PER_IP,
+  );
+  const idleTimeoutMs = readLimit(options, 'idleTimeoutMs', DEFAULT_MCP_LISTEN_IDLE_TIMEOUT_MS);
+  if (idleTimeoutMs > 2_147_483_647) throw new RangeError('idleTimeoutMs must not exceed 2147483647.');
+  // Admission is process-wide for this adapter instance. A per-stream queue
+  // limit alone still permits an unbounded number of long-lived listeners.
+  const admission = createMcpListenAdmission(
+    maxConcurrentSessions,
+    maxConcurrentSessionsPerPrincipal,
+    maxConcurrentSessionsPerIp,
+  );
 
   const listen = (
     context: Mcp20260728RequestContext,
@@ -225,10 +263,27 @@ export function createMcp20260728SubscriptionsListenAdapter(
   ): Mcp20260728SubscriptionsListenSession => {
     const ctx = requireMcp20260728RequestContext(context);
     const subscriptionId = requireRequestId(requestId);
-    const filter = validateMcp20260728ListenParams(input, capabilities, isMcp20260728ListenTypeSupported);
+    const admissionResult = admission.acquire(ctx);
+    if (typeof admissionResult === 'string') {
+      const messages: Readonly<Record<McpListenAdmissionFailure, string>> = {
+        aggregate: 'MCP subscriptions/listen aggregate session admission limit reached.',
+        principal: 'MCP subscriptions/listen per-principal admission limit reached.',
+        client: 'MCP subscriptions/listen per-client admission limit reached.',
+      };
+      throw new TypeError(messages[admissionResult]);
+    }
+    const releaseAdmission = admissionResult;
+    let filter: Mcp20260728SubscriptionFilter;
+    try {
+      filter = validateMcp20260728ListenParams(input, capabilities, isMcp20260728ListenTypeSupported);
+    } catch (error) {
+      releaseAdmission();
+      throw error;
+    }
     const authorized = (candidate: Mcp20260728RequestContext): boolean =>
       isListenAuthorized(candidate, filter.resourceSubscriptions, authorization);
     if (!authorized(ctx)) {
+      releaseAdmission();
       throw new TypeError('MCP listen authorization recheck denied the request at listen start.');
     }
     const stream = new Mcp20260728ListenStream({
@@ -241,9 +296,23 @@ export function createMcp20260728SubscriptionsListenAdapter(
       rateWindowMs,
       maxLifetimeMs,
       maxNotifications,
+      idleTimeoutMs,
+      buildNotification: buildListenNotification,
     });
-    const subscription = signalSource.subscribe((raw) => stream.onSignal(raw));
-    stream.start(subscription);
+    // Build every response value before opening the source subscription. The
+    // SDK snapshot boundary is deliberately bounded, so a caller-controlled
+    // request id (or another response field) may fail validation here. Doing
+    // this after subscribe would leave the source listener and lifetime timer
+    // alive when the response construction throws.
+    let result: Mcp20260728ListenResult;
+    let acknowledged: Mcp20260728ListenNotification;
+    try {
+      result = buildListenResult(subscriptionId, serverInfo);
+      acknowledged = buildAckNotification(subscriptionId, filter);
+    } catch (error) {
+      releaseAdmission();
+      throw error;
+    }
     const iterable: AsyncIterable<Mcp20260728ListenNotification> = {
       [Symbol.asyncIterator]: () => ({
         next: () => stream.next(),
@@ -253,10 +322,51 @@ export function createMcp20260728SubscriptionsListenAdapter(
         },
       }),
     };
+    let subscription: McpChangeSignalSubscription;
+    let subscribing = true;
+    let synchronousSignalFailure: unknown;
+    const onSignal = (raw: unknown): void => {
+      try {
+        stream.onSignal(raw);
+      } catch (error) {
+        // A hostile source may publish synchronously from subscribe(). Close
+        // the stream even though its handle is not installed yet; start()
+        // will immediately unsubscribe the returned handle. Preserve the
+        // historical throw for already-open streams so hosts still observe a
+        // malformed signal as a source error.
+        stream.close();
+        if (subscribing) {
+          synchronousSignalFailure = error;
+          return;
+        }
+        throw error;
+      }
+    };
+    try {
+      subscription = signalSource.subscribe(onSignal);
+      subscribing = false;
+    } catch (error) {
+      subscribing = false;
+      releaseAdmission();
+      throw error;
+    }
+    if (synchronousSignalFailure !== undefined) {
+      releaseAdmission();
+      try { subscription.unsubscribe(); } catch { /* source cleanup is best effort */ }
+      throw synchronousSignalFailure;
+    }
+    stream.closed.then(() => releaseAdmission()).catch(() => releaseAdmission());
+    try {
+      stream.start(subscription);
+    } catch (error) {
+      releaseAdmission();
+      try { subscription.unsubscribe(); } catch { /* source cleanup is best effort */ }
+      throw error;
+    }
     return Object.freeze({
       subscriptionId,
-      result: buildListenResult(subscriptionId, serverInfo),
-      acknowledged: buildAckNotification(subscriptionId, filter),
+      result,
+      acknowledged,
       notifications: iterable,
       close: () => stream.close(),
       closed: stream.closed,
@@ -267,9 +377,11 @@ export function createMcp20260728SubscriptionsListenAdapter(
 }
 
 function requireRequestId(value: unknown): string | number {
-  if (typeof value === 'string' && value.length > 0) return value;
+  if (typeof value === 'string'
+    && value.length > 0
+    && value.length <= MCP_20260728_MAX_LISTEN_REQUEST_ID_LENGTH) return value;
   if (typeof value === 'number' && Number.isSafeInteger(value)) return value;
-  throw new TypeError('MCP subscriptions/listen request id must be a non-empty string or a safe integer.');
+  throw new TypeError(`MCP subscriptions/listen request id must be a non-empty string of at most ${MCP_20260728_MAX_LISTEN_REQUEST_ID_LENGTH} characters or a safe integer.`);
 }
 
 function buildAckNotification(
@@ -318,200 +430,6 @@ function buildListenNotification(
   });
 }
 
-interface Mcp20260728ListenStreamOptions {
-  readonly context: Mcp20260728RequestContext;
-  readonly subscriptionId: string | number;
-  readonly filter: Mcp20260728SubscriptionFilter;
-  readonly isAuthorized: (context: Mcp20260728RequestContext) => boolean;
-  readonly maxQueueSize: number;
-  readonly maxRatePerWindow: number;
-  readonly rateWindowMs: number;
-  readonly maxLifetimeMs: number;
-  readonly maxNotifications: number;
-}
-
-/**
- * One listen stream: bounded queue + async iterator, rate window, lifetime
- * timer, abort listener, per-send authorization recheck and deterministic
- * teardown. All request-scoped state lives here and is released on end.
- */
-class Mcp20260728ListenStream {
-  private readonly context: Mcp20260728RequestContext;
-  private readonly subscriptionId: string | number;
-  private readonly filter: Mcp20260728SubscriptionFilter;
-  private readonly resourceUris: ReadonlySet<string>;
-  private readonly isAuthorized: (context: Mcp20260728RequestContext) => boolean;
-  private readonly maxQueueSize: number;
-  private readonly maxRatePerWindow: number;
-  private readonly rateWindowMs: number;
-  private readonly maxLifetimeMs: number;
-  private readonly maxNotifications: number;
-  private readonly queue: Mcp20260728ListenNotification[] = [];
-  private readonly waiters: Array<() => void> = [];
-
-  private sourceSubscription: McpChangeSignalSubscription | undefined;
-  private abortListener: (() => void) | undefined;
-  private lifetimeTimer: ReturnType<typeof setTimeout> | undefined;
-  private ended = false;
-  private received = 0;
-  private delivered = 0;
-  private overflow = 0;
-  private rateLimited = 0;
-  private rateWindowStart = Date.now();
-  private rateWindowCount = 0;
-  private closedResolve!: (teardown: Mcp20260728ListenTeardown) => void;
-
-  readonly closed: Promise<Mcp20260728ListenTeardown>;
-
-  constructor(options: Mcp20260728ListenStreamOptions) {
-    this.context = options.context;
-    this.subscriptionId = options.subscriptionId;
-    this.filter = options.filter;
-    this.resourceUris = new Set(options.filter.resourceSubscriptions ?? []);
-    this.isAuthorized = options.isAuthorized;
-    this.maxQueueSize = options.maxQueueSize;
-    this.maxRatePerWindow = options.maxRatePerWindow;
-    this.rateWindowMs = options.rateWindowMs;
-    this.maxLifetimeMs = options.maxLifetimeMs;
-    this.maxNotifications = options.maxNotifications;
-    this.closed = new Promise<Mcp20260728ListenTeardown>((resolve) => {
-      this.closedResolve = resolve;
-    });
-  }
-
-  start(subscription: McpChangeSignalSubscription): void {
-    // A source may synchronously publish enough signals to end this stream
-    // before subscribe returns its handle. Do not resurrect closed resources.
-    if (this.ended) {
-      subscription.unsubscribe();
-      return;
-    }
-    this.sourceSubscription = subscription;
-    this.abortListener = () => this.teardown('aborted', true);
-    this.context.abortSignal.addEventListener('abort', this.abortListener, { once: true });
-    if (this.context.abortSignal.aborted) {
-      this.teardown('aborted', true);
-      return;
-    }
-    this.lifetimeTimer = setTimeout(() => {
-      this.lifetimeTimer = undefined;
-      this.teardown('lifetime-expired', false);
-    }, this.maxLifetimeMs);
-    if (typeof (this.lifetimeTimer as { unref?: () => void }).unref === 'function') {
-      (this.lifetimeTimer as { unref: () => void }).unref();
-    }
-  }
-
-  close(): void {
-    this.teardown('closed', false);
-  }
-
-  onSignal(raw: unknown): void {
-    if (this.ended) return;
-    const signal = snapshotMcpChangeSignal(raw);
-    if (!this.isAuthorized(this.context)) {
-      this.teardown('unauthorized', true);
-      return;
-    }
-    const mapped = this.mapSignal(signal);
-    if (mapped === undefined) return;
-    this.received += 1;
-    if (this.delivered >= this.maxNotifications) {
-      this.teardown('notification-budget-exhausted', false);
-      return;
-    }
-    const now = Date.now();
-    if (now - this.rateWindowStart >= this.rateWindowMs) {
-      this.rateWindowStart = now;
-      this.rateWindowCount = 0;
-    }
-    if (this.rateWindowCount >= this.maxRatePerWindow) {
-      this.rateLimited += 1;
-      return;
-    }
-    if (this.queue.length >= this.maxQueueSize) {
-      this.overflow += 1;
-      return;
-    }
-    const notification = buildListenNotification(mapped.method, {
-      _meta: { [SUBSCRIPTION_ID_META_KEY]: this.subscriptionId },
-      ...mapped.params,
-    });
-    this.queue.push(notification);
-    this.delivered += 1;
-    this.rateWindowCount += 1;
-    const waiter = this.waiters.shift();
-    if (waiter !== undefined) waiter();
-  }
-
-  async next(): Promise<IteratorResult<Mcp20260728ListenNotification>> {
-    for (;;) {
-      if (!this.isAuthorized(this.context)) {
-        this.teardown('unauthorized', true);
-        return { done: true, value: undefined };
-      }
-      const item = this.queue.shift();
-      if (item !== undefined) return { value: item, done: false };
-      if (this.ended) return { done: true, value: undefined };
-      await new Promise<void>((resolve) => {
-        this.waiters.push(resolve);
-      });
-    }
-  }
-
-  private mapSignal(
-    signal: McpChangeSignal,
-  ): { readonly method: Mcp20260728ListenNotificationMethod; readonly params: Readonly<Record<string, unknown>> } | undefined {
-    switch (signal.type) {
-      case 'resource-updated': {
-        if (!this.resourceUris.has(signal.resourceUri as string)) return undefined;
-        return { method: 'notifications/resources/updated', params: { uri: signal.resourceUri as string } };
-      }
-      case 'resource-list-changed':
-        return this.filter.resourcesListChanged === true
-          ? { method: 'notifications/resources/list_changed', params: {} }
-          : undefined;
-      case 'tool-list-changed':
-        return this.filter.toolsListChanged === true
-          ? { method: 'notifications/tools/list_changed', params: {} }
-          : undefined;
-      case 'prompt-list-changed':
-        return this.filter.promptsListChanged === true
-          ? { method: 'notifications/prompts/list_changed', params: {} }
-          : undefined;
-    }
-  }
-
-  private teardown(reason: Mcp20260728ListenClosedReason, abrupt: boolean): void {
-    if (this.ended) return;
-    this.ended = true;
-    const subscription = this.sourceSubscription;
-    this.sourceSubscription = undefined;
-    if (this.lifetimeTimer !== undefined) {
-      clearTimeout(this.lifetimeTimer);
-      this.lifetimeTimer = undefined;
-    }
-    if (this.abortListener !== undefined) {
-      this.context.abortSignal.removeEventListener('abort', this.abortListener);
-      this.abortListener = undefined;
-    }
-    if (abrupt) this.queue.length = 0;
-    while (this.waiters.length > 0) {
-      this.waiters.shift()!();
-    }
-    this.closedResolve(Object.freeze({
-      reason,
-      graceful: !abrupt,
-      received: this.received,
-      delivered: this.delivered,
-      overflow: this.overflow,
-      rateLimited: this.rateLimited,
-    }));
-    // Settle local resources before invoking host code, which may throw or
-    // reenter close. The host error still reaches the initiating caller.
-    subscription?.unsubscribe();
-  }
-}
 
 function readSignalSource(options: Mcp20260728SubscriptionsListenAdapterOptions): McpChangeSignalSourcePort {
   const raw = readOwnValue(options, 'signalSource', configError);
@@ -529,7 +447,12 @@ function readCapabilities(options: Mcp20260728SubscriptionsListenAdapterOptions)
 
 function readAuthorization(options: Mcp20260728SubscriptionsListenAdapterOptions): Mcp20260728AuthorizationRecheckPort {
   const raw = readOptionalOwnData(options, 'authorization');
-  if (raw === undefined) return Object.freeze({ isAuthorized: () => true });
+  // Authorization is a security boundary.  A host that does not provide an
+  // explicit recheck port must never accidentally turn a listen stream into
+  // an anonymous capability.  Fixtures and trusted hosts should pass an
+  // explicit port (the test harness does so); production omission is a
+  // deterministic deny.
+  if (raw === undefined) return Object.freeze({ isAuthorized: () => false });
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw) || nodeTypes.isProxy(raw)) throw configError();
   const isAuthorized = readOwnData(raw as object, 'isAuthorized', configError);
   if (typeof isAuthorized !== 'function') throw configError();
@@ -554,7 +477,8 @@ function readServerInfo(options: Mcp20260728SubscriptionsListenAdapterOptions): 
 
 function readLimit(
   options: Mcp20260728SubscriptionsListenAdapterOptions,
-  name: 'maxQueueSize' | 'maxRatePerWindow' | 'rateWindowMs' | 'maxLifetimeMs' | 'maxNotifications',
+  name: 'maxQueueSize' | 'maxRatePerWindow' | 'rateWindowMs' | 'maxLifetimeMs' | 'maxNotifications'
+    | 'maxConcurrentSessions' | 'maxConcurrentSessionsPerPrincipal' | 'maxConcurrentSessionsPerIp' | 'idleTimeoutMs',
   fallback: number,
 ): number {
   const raw = readOptionalOwnData(options, name);

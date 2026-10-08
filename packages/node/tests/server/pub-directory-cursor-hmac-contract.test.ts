@@ -22,6 +22,7 @@ const baselineFilter = Object.freeze({
 } as const);
 
 const baseline = Object.freeze({
+  resourceId: 'directory/mount-a',
   principal: 'principal-secret-alice',
   filterDigest: createPublicationDirectoryFilterDigest(baselineFilter),
   sort: DEFAULT_PUBLICATION_DIRECTORY_SORT,
@@ -82,6 +83,7 @@ describe(`Directory cursor HMAC server [evidence:${evidence}]`, () => {
   });
 
   it.each([
+    ['resource identity', { resourceId: 'directory/mount-b' }],
     ['principal', { principal: 'principal-secret-bob' }],
     ['limit', { limit: 51 }],
     ['query filterDigest', {
