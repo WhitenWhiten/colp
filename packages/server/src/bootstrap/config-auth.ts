@@ -159,7 +159,10 @@ export function loadOidcRuntimeConfig(
     throw new Error('OIDC_REDIRECT_URI must not contain userinfo');
   }
   if (nodeEnv === 'production') {
-    if (redirectUrl.protocol !== 'https:') {
+    // COLP_INSECURE_HTTP acknowledges that the product origin, including this
+    // callback, is plain HTTP. TLS mode stays strict when the flag is absent.
+    const insecureHttp = env.COLP_INSECURE_HTTP === 'true';
+    if (redirectUrl.protocol !== 'https:' && !(insecureHttp && redirectUrl.protocol === 'http:')) {
       throw new Error('OIDC_REDIRECT_URI must use https in production');
     }
     if (redirectUrl.origin !== productOriginUrl.origin) {
