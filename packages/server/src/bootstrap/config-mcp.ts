@@ -88,6 +88,7 @@ export function loadMcpWriteFeatureConfig(
   } catch {
     throw new Error('MCP_WRITE_APPROVAL_BASE_URI must be an absolute HTTP(S) URL');
   }
+  const insecureHttp = env.COLP_INSECURE_HTTP === 'true';
   if (
     parsed.href !== approvalBaseUri
     || parsed.username
@@ -95,7 +96,7 @@ export function loadMcpWriteFeatureConfig(
     || parsed.search
     || parsed.hash
     || (parsed.protocol !== 'https:'
-      && !(parsed.protocol === 'http:' && nodeEnv !== 'production'))
+      && !(parsed.protocol === 'http:' && (nodeEnv !== 'production' || insecureHttp)))
   ) {
     throw new Error('MCP_WRITE_APPROVAL_BASE_URI must be an exact HTTP(S) origin path without query, fragment, or userinfo');
   }
@@ -404,6 +405,7 @@ export function loadMcpReadFeatureConfig(
     ...mcpReadFeatureConfigAssertOptions({
       nodeEnv,
       oauthIssuerEnabled: options.oauthIssuerEnabled === true,
+      insecureHttp: env.COLP_INSECURE_HTTP === 'true',
     }),
     expectedServerUuid: publicationServerUuid,
   });

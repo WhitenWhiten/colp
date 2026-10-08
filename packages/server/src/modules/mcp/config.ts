@@ -285,26 +285,31 @@ export function assertPhase4bMcpIJsonLimitConfig(limits: McpReadIJsonLimitConfig
 
 /**
  * Re-assert options for MCP Read feature config. ADR P4's loopback allowance
- * is `oauthIssuerEnabled === true && nodeEnv === 'test'` only — do not add a
- * second flag. Boot-time composition must pass the same object `loadConfig`
- * used, or re-assert defaults to production-strict.
+ * is `oauthIssuerEnabled === true && nodeEnv === 'test'` only. Self-hosted
+ * `COLP_INSECURE_HTTP=true` is a separate operator acknowledgement and is the
+ * only other way production accepts an http MCP origin. Boot-time composition
+ * must pass the same object `loadConfig` used, or re-assert defaults to
+ * production-strict unless that acknowledgement is set in the process environment.
  */
 export interface McpReadFeatureConfigAssertOptions {
   readonly production?: boolean;
   readonly expectedServerUuid?: string;
   readonly oauthIssuerEnabled?: boolean;
   readonly nodeEnv?: string;
+  readonly insecureHttp?: boolean;
 }
 
 /** Same P4 mapping `loadMcpReadFeatureConfig` / API boot use for re-assert. */
 export function mcpReadFeatureConfigAssertOptions(input: {
   readonly nodeEnv: string;
   readonly oauthIssuerEnabled: boolean;
+  readonly insecureHttp?: boolean;
 }): McpReadFeatureConfigAssertOptions {
   return Object.freeze({
     production: input.nodeEnv === 'production',
     oauthIssuerEnabled: input.oauthIssuerEnabled,
     nodeEnv: input.nodeEnv,
+    insecureHttp: input.insecureHttp ?? process.env.COLP_INSECURE_HTTP === 'true',
   });
 }
 
@@ -315,10 +320,13 @@ export function assertMcpReadFeatureConfig(
 ): void {
   const production = options.production === true;
   // ADR P4: NODE_ENV=test + built-in issuer may use same-origin loopback
-  // issuer/JWKS. Production (and issuer-off) keep assertOidcEndpointUrl strict.
+  // issuer/JWKS. COLP_INSECURE_HTTP is the self-hosted acknowledgement that
+  // the product origin itself is http, including on a LAN address.
+  const insecureHttp = options.insecureHttp ?? process.env.COLP_INSECURE_HTTP === 'true';
   const allowSameOriginLoopback =
     options.oauthIssuerEnabled === true && options.nodeEnv === 'test';
-  const oauthEndpointMode = allowSameOriginLoopback ? 'relaxed' : 'strict';
+  const oauthEndpointMode = (allowSameOriginLoopback || insecureHttp) ? 'relaxed' : 'strict';
+  const httpAllowed = (hostname: string): boolean => insecureHttp || isLoopback(hostname);
   if (config.protocolVersion !== PHASE4B_MCP_CONFIG_PROTOCOL_VERSION) {
     throw new Error(`MCP read protocolVersion is fixed to ${PHASE4B_MCP_CONFIG_PROTOCOL_VERSION}`);
   }
@@ -326,10 +334,10 @@ export function assertMcpReadFeatureConfig(
     throw new Error(`MCP endpoint path is frozen at ${PHASE4B_MCP_CONFIG_ENDPOINT_PATH}`);
   }
   const origin = parseExactOrigin(config.origin, 'MCP origin');
-  if (origin.protocol !== 'https:' && !(origin.protocol === 'http:' && isLoopback(origin.hostname))) {
+  if (origin.protocol !== 'https:' && !(origin.protocol === 'http:' && httpAllowed(origin.hostname))) {
     throw new Error('MCP origin must use https (http is allowed only for loopback)');
   }
-  if (production && origin.protocol !== 'https:') {
+  if (production && origin.protocol !== 'https:' && !insecureHttp) {
     throw new Error('MCP origin must use https in production');
   }
   if (config.endpoint !== `${config.origin}${PHASE4B_MCP_CONFIG_ENDPOINT_PATH}`) {
@@ -347,10 +355,10 @@ export function assertMcpReadFeatureConfig(
   }
   for (const originValue of config.allowedOrigins) {
     const allowed = parseExactOrigin(originValue, 'MCP allowed origin');
-    if (allowed.protocol !== 'https:' && !(allowed.protocol === 'http:' && isLoopback(allowed.hostname))) {
+    if (allowed.protocol !== 'https:' && !(allowed.protocol === 'http:' && httpAllowed(allowed.hostname))) {
       throw new Error('MCP allowed origins must use https (http is allowed only for loopback)');
     }
-    if (production && allowed.protocol !== 'https:') {
+    if (production && allowed.protocol !== 'https:' && !insecureHttp) {
       throw new Error('MCP allowed origins must use https in production');
     }
   }

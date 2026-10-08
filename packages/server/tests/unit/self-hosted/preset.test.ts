@@ -22,6 +22,30 @@ describe('self-hosted preset', () => {
     expect(() => loadConfig(env)).not.toThrow();
   });
 
+  it('lets production loadConfig pass for an acknowledged loopback http origin', () => {
+    const env = baseEnv({
+      COLP_SERVER_ORIGIN: 'http://127.0.0.1:8080',
+      COLP_INSECURE_HTTP: 'true',
+    });
+    applySelfHostedPreset(env);
+    expect(() => loadConfig(env)).not.toThrow();
+  });
+
+  it('lets production loadConfig pass for an acknowledged LAN http origin', () => {
+    const env = baseEnv({
+      COLP_SERVER_ORIGIN: 'http://192.168.1.20:8080',
+      COLP_INSECURE_HTTP: 'true',
+    });
+    applySelfHostedPreset(env);
+    expect(() => loadConfig(env)).not.toThrow();
+  });
+
+  it('still refuses production http when the insecure flag is absent', () => {
+    const env = baseEnv({ COLP_SERVER_ORIGIN: 'http://127.0.0.1:8080' });
+    applySelfHostedPreset(env);
+    expect(() => loadConfig(env)).toThrow(/https/);
+  });
+
   it('derives a distinct value for every secret', () => {
     const env = baseEnv();
     applySelfHostedPreset(env);
