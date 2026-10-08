@@ -4,6 +4,12 @@ export function isSelfHostedEdition(): boolean {
 }
 
 /**
+ * D8 turns this on. Until then the public collection page does not offer
+ * "Subscribe in browser".
+ */
+export const subscribeInBrowserEnabled = false
+
+/**
  * First path segments the self-hosted edition does not mount.
  * Activity lives on Today and public profiles; comments and votes are the
  * community surfaces. Follow is `/library/following` plus the follow flags.

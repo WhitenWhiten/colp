@@ -1,4 +1,5 @@
 import { SubscribeButton } from '../components/bookmark-subscriptions/SubscribeButton'
+import { CollectionTransportNotice, SubscribeInBrowserButton } from '../components/TransportBanner'
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import {
@@ -495,6 +496,7 @@ export function Collection() {
       links={
         <>
           <SubscribeButton sourceType="collection" sourceId={collection.id} />
+          <SubscribeInBrowserButton />
           {collection.kind === 'reading_path' && (
             <Link to={`/path/${slug}`} className="btn btn-ghost btn-sm">Path</Link>
           )}
@@ -611,6 +613,7 @@ export function Collection() {
       data-in-folder={activeFolder ? true : undefined}
       data-testid="public-collection-page"
     >
+      <CollectionTransportNotice />
       <PageHead
         as="header"
         className="collection-masthead page-head--editorial"
