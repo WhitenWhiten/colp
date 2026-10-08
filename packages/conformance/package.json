@@ -1,6 +1,6 @@
 {
   "name": "@know-n/colp-conformance",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "license": "Apache-2.0",
   "description": "Black-box conformance runner for servers implementing The Collection Protocol (COLP)",

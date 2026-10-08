@@ -15,7 +15,7 @@ Practical wiring guide for integrators who compose COLP Security guards at a req
 | What this package surface is | A **library / port layer**: fail-closed decision functions, request-boundary composition helpers, and typed ports (rate limit, credential restrictions, OAuth provenance, DPoP/mTLS, publisher admission). |
 | What it is **not** | A framework middleware stack, HTTP server, or standalone Security Profile. Exporting `./security` alone does not create a deployment Publisher claim. |
 | Conformance | Package Profile evidence is **repository-tracked and checked against a fresh test run in CI**; each deployment must separately pass its black-box probes. |
-| Package status | Package is configured for public publication as `@know-n/colp`, version `0.1.0`. Registry publication requires the release checks and accepted artifact. Framework route/middleware ownership remains with the host and is not a package-completeness criterion. |
+| Package status | Package is configured for public publication as `@know-n/colp`, version `0.1.1`. Registry publication requires the release checks and accepted artifact. Framework route/middleware ownership remains with the host and is not a package-completeness criterion. |
 | Residual trust | Misclassified *deployment evidence* (wrong `networkExposure`, untrusted “TLS terminated” signals) can still under-enforce. That residual is deployment trust, not a free caller flag on composition APIs. |
 
 Atomic guards remain internal implementation details available through their source modules for low-level tests. `enforceHttpsEndpoint` and `enforceOriginGuard` are intentionally absent from the public `./security` subpath. Production handlers use composition APIs that derive remote/applicability from trusted evidence.

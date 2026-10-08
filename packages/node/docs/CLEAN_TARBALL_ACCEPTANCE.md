@@ -10,7 +10,7 @@ pack a candidate and pass that **existing** artifact to:
 ```sh
 export npm_config_cache="$(mktemp -d)/npm-cache"
 node scripts/prepare-clean-consumer-cache.mjs "$npm_config_cache"
-node scripts/clean-tarball-consumer.mjs /absolute/path/know-n-colp-0.1.0.tgz
+node scripts/clean-tarball-consumer.mjs /absolute/path/know-n-colp-0.1.1.tgz
 ```
 
 The script copies the exact tarball bytes into an isolated temporary consumer,

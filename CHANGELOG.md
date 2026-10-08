@@ -4,6 +4,38 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-07
+
+A security patch release. It hardens the trust boundaries that untrusted input reaches first — anonymous Publication reads, MCP subscription and Change Plan admission, Feed and Sync parsing, and the conformance runner's network access — closing authorization, resource-exhaustion, SSRF, and secret-handling findings from parallel security reviews. There are no specification changes.
+
+### Node.js package
+
+- Added `assertAnonymousPublicationPrimaryVisibility` (`server`), an anonymous-public primary-resource guard that runs after public projection and before schema validation, ETag generation, caching, and serialization. It fails closed on restricted Nodes, Collections, Directory entries, and Relations; on Snapshot ancestry inherited through a restricted or unknown ancestor; on restricted sidecars, cycles, and duplicate IDs; and on Annotation or Attachment subjects that point at an unknown Collection. Anonymous visibility checks for Snapshot, Directory, Feed, and Node resources now fail closed by default, including direct-builder and unlisted-publication paths.
+- Authorized Publication HTTP reads are routed through the authorized projection instead of the anonymous path.
+- The public-projection budget now meters discarded input as well as retained output — sparse-array holes, redacted fields, filtered annotations and attachments, unallowlisted extensions, and unsupported credential containers — and attachments on arbitrary object carriers, `sourceRefs`, and nested carriers are filtered out before they can reach an anonymous response.
+- Directory, discovery, and snapshot-cursor paths pre-reserve UTF-8 byte budgets before cloning candidates, share check state across a request, and bind cursors to their Collection, Mount, and resource identities.
+- Feed and Feed-query decoding caps parameters, repeated values, diagnostics, bytes, sparse arrays, accessors, and Proxies, and snapshots queries through native `URLSearchParams` methods; Snapshot pagination `Link` headers are bounded before parsing.
+- MCP `subscriptions/listen` applies per-principal and per-client admission buckets plus an idle timeout on top of the existing lifetime, queue, rate, notification, and authorization bounds (`DEFAULT_MCP_LISTEN_MAX_CONCURRENT_SESSIONS`). The result and acknowledgement are built before subscribing, and request IDs are capped at 16,384 characters so oversized IDs cannot leave listeners or timers alive.
+- MCP Change Plan admission now runs before validation, assessment, or store work, behind an aggregate concurrent-plan cap (`MCP_CHANGE_PLAN_DEFAULT_MAX_CONCURRENT_PLANS`) and an optional host `allowPlan` decision that falls back to the existing explicit rate port.
+- MCP output scanning recognizes the native `colp_live_` and `colp_test_` API-key markers.
+- Sync Sequence verifies replica ownership and enforces Push continuity with the new `PushSequenceBlockedError`, `PushSequenceGapError`, and `PushSequenceStateUnavailableError`, with durable lane state behind the `PushSequenceLaneStore`/`PushSequenceLaneState` ports. The Push lane cursor advances monotonically and accepts legal reverse-continuous atomic batches without rolling back.
+- `coordinateTombstonePurge` accepts a `TombstonePurgeReadBudget` capped by `TOMBSTONE_PURGE_MAX_DELETED_MEMBERS` and `TOMBSTONE_PURGE_MAX_REPLICA_STATES`, and Pull operation/tombstone limits and atomic batch handling are enforced.
+- Typed-update merge bounds equality, cloning, and graph traversal and rejects Proxies, accessors, Symbols, sparse arrays, subclasses, excessive depth/node/member/byte counts, and cycles; authoritative member strings and aggregate digest bytes are bounded before encoding or hashing.
+- `ColpClient` now connects to the DNS-approved address instead of only checking answers: the default Node transport is a `pinnedFetch` (`PinnedNodeFetch`), and `resolveHost` (`ClientHostResolver`) must be paired with a transport that enforces address pinning — passing a plain custom `fetch` together with `resolveHost` is rejected. The private/local address policy additionally covers IPv6 special addresses and IPv4-compatible and NAT64 forms.
+- Schema validation counts primitive strings inside arrays toward the structured-validation byte budget, and schema, publisher, and Node-write graph traversals are bounded with Proxy/accessor-safe structured-data walks (depth, node, member, UTF-8 byte, and cycle accounting).
+- The MCP OAuth client fixes loopback/redirect handling and log injection, and the mutable-integrity verifier binds the target URI. Publisher normalization is bounded.
+
+### Conformance runner
+
+- Redirect handling charges each hop before DNS, applies one per-hop timeout signal to both DNS and transport, and consumes late resolver completion without starting a fetch after timeout.
+- The runner rejects invalid `maxRequests`/`maxRedirects`, refuses HTTPS downgrades, and validates offline consumers.
+
+### Repository
+
+- The protocol example validator's Python dependencies are pinned and installed binary-only, with `pip check` enforced in CI.
+- The clean-tarball consumer sandbox enforces network isolation, records cache provenance, and bounds publisher normalization.
+- The large-prefix Sync regression test is allowed to finish under coverage.
+
 ## [0.1.0] - 2026-10-07
 
 ### Specification
