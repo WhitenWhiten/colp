@@ -50,15 +50,31 @@ export function SelfHostedAbout({
     }
   }, [snapshot])
   const view = snapshot !== undefined ? snapshot : loaded
+  const versions = [
+    { id: 'server', label: 'colp-server', value: view?.server },
+    { id: 'colp', label: '@know-n/colp', value: view?.colp },
+    { id: 'protocols', label: 'COLP protocol versions', value: view?.protocols || undefined },
+  ]
   return (
     <article className="self-hosted-about" data-testid="self-hosted-about">
-      <h1>About</h1>
-      <p>colp-server {view?.server ?? 'unavailable'}</p>
-      <p>@know-n/colp {view?.colp ?? 'unavailable'}</p>
-      <p>protocols {view?.protocols || 'unavailable'}</p>
-      <p><a href="/CHANGELOG.md">CHANGELOG</a></p>
-      <p><a href="/INSTALL.md">INSTALL.md</a></p>
-      <p>powered by Know-N</p>
+      <h1>About this server</h1>
+      <p className="self-hosted-about-lede">
+        COLP Server keeps your bookmarks on a machine you run. It speaks the Collection
+        Protocol, so the browser extension and your agents read and sync the same collections.
+      </p>
+      <dl className="self-hosted-about-versions">
+        {versions.map((row) => (
+          <div key={row.id}>
+            <dt>{row.label}</dt>
+            <dd data-testid={`about-${row.id}`}>{row.value ?? 'unavailable'}</dd>
+          </div>
+        ))}
+      </dl>
+      <ul className="self-hosted-about-links">
+        <li><a href="/CHANGELOG.md">Changelog</a></li>
+        <li><a href="/INSTALL.md">Install and upgrade guide</a></li>
+      </ul>
+      <p className="self-hosted-about-powered">powered by Know-N</p>
     </article>
   )
 }

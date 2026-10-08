@@ -4,7 +4,7 @@
  * render-blocking bundle. Repeat the layer-order statement so this file
  * can parse before tokens.css without flipping print to the lowest layer.
  */
-@layer tokens, base, components, pages, patterns, utilities, print;
+@layer tokens, base, components, pages, patterns, utilities, edition, print;
 
 @layer print {
 @media print {

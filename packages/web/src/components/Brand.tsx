@@ -17,9 +17,29 @@ export function BrandMark({ className }: { className?: string }) {
   )
 }
 
+/** COLP Server mark (public/colp-mark.svg), also the self-hosted favicon. */
+function ColpMark() {
+  return (
+    <img
+      className="brand-glyph"
+      src="/colp-mark.svg"
+      alt=""
+      width={28}
+      height={28}
+      draggable={false}
+      aria-hidden="true"
+    />
+  )
+}
+
 export function BrandName() {
   if (isSelfHostedEdition()) {
-    return <span className="brand-name">COLP</span>
+    return (
+      <span className="brand-name">
+        <ColpMark />
+        <span>COLP <span className="brand-name-sub">Server</span></span>
+      </span>
+    )
   }
   return (
     // R15-39: the name lives on the image (alt), not an aria-label on a span.
@@ -31,7 +51,7 @@ export function BrandName() {
 
 export function Brand({ to = '/' }: { to?: string }) {
   return (
-    <Link to={to} className="brand" aria-label={isSelfHostedEdition() ? 'COLP home' : 'Know-N home'}>
+    <Link to={to} className="brand" aria-label={isSelfHostedEdition() ? 'COLP Server home' : 'Know-N home'}>
       <BrandName />
     </Link>
   )

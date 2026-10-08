@@ -3,41 +3,59 @@
 @layer pages {
 .agents-stack {
   display: grid;
-  gap: var(--space-6);
-  margin-top: var(--space-4);
+  gap: var(--space-5);
+  max-width: var(--measure-wide);
 }
 
+/* Each step is a card: a heading, one or two lines of context, then the
+   thing to copy. */
 .agents-block {
   display: grid;
   gap: var(--space-3);
+  padding: var(--space-5);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
 }
 
 .agents-block h2,
 .agents-block h3 {
   margin: 0;
+  letter-spacing: var(--tracking-tight);
+}
+
+.agents-block h2 {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
 }
 
 .agents-block h3 {
-  font-size: var(--text-md, var(--text-sm));
+  margin-top: var(--space-3);
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
 }
 
 .agents-meta {
   margin: 0;
+  max-width: var(--measure);
   color: var(--muted);
   font-size: var(--text-sm);
+  line-height: var(--leading-normal);
 }
 
+/* Commands read as terminal text: ink panel, paper type. */
 .agents-code {
   margin: 0;
-  padding: var(--space-3);
+  padding: var(--space-3) var(--space-4);
   overflow: auto;
-  border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: var(--surface-sunken);
-  color: var(--ink);
+  background: var(--ink);
+  color: var(--paper);
   font-family: var(--font-mono);
   font-size: var(--text-sm);
+  line-height: var(--leading-normal);
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .agents-clients {
@@ -51,7 +69,7 @@
   padding: var(--space-4);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: var(--surface-raised);
+  background: var(--surface-sunken);
 }
 
 .agents-client-head {
@@ -64,7 +82,7 @@
 
 .agents-client-head h3 {
   margin: 0;
-  font-size: var(--text-lg);
+  font-size: var(--text-md);
 }
 
 .agents-policy {
@@ -108,5 +126,15 @@
   flex-wrap: wrap;
   align-items: flex-end;
   gap: var(--space-3);
+}
+
+.agents-form .field > span {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+/* Same height as the key-name input beside it. */
+.agents-form .btn {
+  min-height: var(--space-8);
 }
 }

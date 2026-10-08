@@ -29,6 +29,7 @@ export const KNOW_N_PUBLIC_FILES = Object.freeze([
 export const SELF_HOSTED_ROBOTS = 'User-agent: *\nDisallow: /\n'
 export const SELF_HOSTED_TITLE = 'COLP Server'
 export const SELF_HOSTED_DESCRIPTION = 'A self-hosted COLP bookmark server.'
+export const SELF_HOSTED_ICON = '/colp-mark.svg'
 
 const FALLBACK = [
   '<div id="agent-public-fallback" hidden>',
@@ -45,7 +46,14 @@ function isKnowNPage(name) {
 
 export function neutralIndexHtml(html) {
   let out = html
+    // The self-hosted design is scoped to this attribute (src/styles/edition.css);
+    // main.tsx sets it too, but the first paint happens before that module runs.
+    .replace(/<html(?![^>]*\sdata-edition=)([^>]*)>/u, '<html$1 data-edition="self-hosted">')
     .replace(/<title>[\s\S]*?<\/title>/u, `<title>${SELF_HOSTED_TITLE}</title>`)
+    // The tab shows the COLP Server mark, not the Know-N N.
+    .replace(/\s*<link rel="icon" href="\/favicon\.ico"[^>]*>/u, '')
+    .replace(/\s*<link rel="apple-touch-icon"[^>]*>/u, '')
+    .replace(/<link rel="icon" type="image\/svg\+xml" href="\/favicon\.svg"/u, `<link rel="icon" type="image/svg+xml" href="${SELF_HOSTED_ICON}"`)
     .replace(/\s*<meta name="description" content="[^"]*"\s*\/?>/u,
       `\n    <meta name="description" content="${SELF_HOSTED_DESCRIPTION}" />\n    <meta name="robots" content="noindex, nofollow" />`)
     .replace(/\s*<meta property="og:[^"]+" content="[^"]*"\s*\/?>/gu, '')

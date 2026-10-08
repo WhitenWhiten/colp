@@ -36,11 +36,11 @@ order is declared at the top of `tokens.css` — the first stylesheet loaded by
 `src/main.tsx`:
 
 ```css
-@layer tokens, base, components, pages, patterns, utilities, print;
+@layer tokens, base, components, pages, patterns, utilities, edition, print;
 ```
 
 Later layers win for normal declarations regardless of specificity. The order
-`tokens < base < components < pages < patterns < utilities < print` encodes
+`tokens < base < components < pages < patterns < utilities < edition < print` encodes
 who may override whom:
 
 - **components below pages** — a page file may specialise component chrome
@@ -54,6 +54,14 @@ who may override whom:
   must look the same on every route, so a page cannot dull them. Anything a
   page legitimately needs to tune (e.g. `.btn:disabled` opacity) belongs in
   `base`, not `patterns`.
+- **edition above utilities** — the self-hosted design (COLP Server). Every
+  rule in `edition.css` is scoped to `:root[data-edition='self-hosted']`
+  (set by `main.tsx` and written into `index.html` by
+  `scripts/self-hosted-dist.mjs`), so it matches a strict subset of the base
+  rule it restyles: no base rule becomes dead and the cloud UI renders as
+  before. Palette, type scale, and shadows for the edition are tokens in the
+  same scoped block of `tokens.css`; `edition.css` holds only what a token
+  cannot express.
 
 `scripts/check-style-drift.mjs` reports every remaining cross-layer overlap
 (a declaration that can never win because a covering rule sits in a later
@@ -116,6 +124,7 @@ src/styles/
 ├── canvas-background.css   # components layer — canvas dot-grid background pattern
 ├── page-layouts.css        # pages layer — cross-route component layout (.follow-btn, .social-actions masthead cluster, .community-vote) (frozen: no new single-declaration margin classes)
 ├── utilities.css           # utilities layer — live spacing helpers (production-referenced only)
+├── edition.css             # edition layer — self-hosted design, every rule under :root[data-edition='self-hosted']
 └── print.css               # print layer — loaded from index.html with media="print"
 ```
 

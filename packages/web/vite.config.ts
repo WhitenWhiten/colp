@@ -12,10 +12,11 @@ export default defineConfig(({ mode }) => {
   const analyze = mode === 'analyze'
   // Same-origin /api → Product backend so Session cookies + CSRF work in dev.
   // The other server paths match deploy/Caddyfile.* (About reads /health;
-  // agents and the extension use /collections, /.well-known, and /colp).
+  // agents and the extension use /collections, /.well-known, and /colp/).
+  // Keys are prefixes: '/colp/' keeps /colp-mark.svg on the dev server.
   const backend = { target: apiProxy, changeOrigin: true, secure: false }
   const proxy = Object.fromEntries(
-    ['/api', '/collections', '/.well-known', '/colp', '/health', '/ready'].map((path) => [path, backend]),
+    ['/api/', '/collections/', '/.well-known/', '/colp/', '/health', '/ready'].map((path) => [path, backend]),
   )
 
   return {

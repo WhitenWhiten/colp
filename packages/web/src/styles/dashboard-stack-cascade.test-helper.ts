@@ -17,7 +17,7 @@
  * chapters' own later components-layer specialization.
  *
  * Layer-order authority: the `@layer` statement in tokens.css
- *   (`@layer tokens, base, components, pages, patterns, utilities, print`).
+ *   (`@layer tokens, base, components, pages, patterns, utilities, edition, print`).
  *
  * Flattening therefore:
  *  1. Parses rules with their `@layer`
@@ -33,7 +33,7 @@ import { resolve } from 'node:path'
 const stylesDir = resolve(import.meta.dirname)
 
 /** Single layer-order authority: the `@layer` statement in tokens.css; later entries win across layers. */
-export const LAYER_ORDER = ['tokens', 'base', 'components', 'pages', 'patterns', 'utilities', 'print'] as const
+export const LAYER_ORDER = ['tokens', 'base', 'components', 'pages', 'patterns', 'utilities', 'edition', 'print'] as const
 
 /** Desk widget chapters, one file each, in the order pages/Dashboard.tsx
  *  imports them (the cascade order inside @layer components). */

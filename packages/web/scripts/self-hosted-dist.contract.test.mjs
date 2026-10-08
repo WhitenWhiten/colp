@@ -21,6 +21,9 @@ const INDEX = `<!doctype html>
     <meta property="og:site_name" content="Know-N" />
     <meta property="og:url" content="https://know-n.com/" />
     <meta name="twitter:image" content="https://know-n.com/og-cover.png" />
+    <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>Online bookmark library — Know-N</title>
     <link rel="canonical" href="https://know-n.com/" />
     <link rel="alternate" type="text/plain" title="llms.txt" href="https://know-n.com/llms.txt" />
@@ -58,6 +61,9 @@ test('self-hosted build removes know-n.com files and neutralises index.html', ()
     const html = readFileSync(join(dir, 'index.html'), 'utf8')
     assert.doesNotMatch(html, /know-n\.com|Know-N/u)
     assert.match(html, /<title>COLP Server<\/title>/u)
+    assert.match(html, /<html lang="en" data-edition="self-hosted">/u)
+    assert.match(html, /<link rel="icon" type="image\/svg\+xml" href="\/colp-mark\.svg" \/>/u)
+    assert.doesNotMatch(html, /favicon\.ico|apple-touch-icon/u)
     assert.match(html, /<meta name="robots" content="noindex, nofollow" \/>/u)
   } finally {
     rmSync(dir, { recursive: true, force: true })

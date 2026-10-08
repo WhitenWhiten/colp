@@ -16,13 +16,15 @@ const stylesDir = resolve(import.meta.dirname)
 const entryPath = resolve(import.meta.dirname, '../main.tsx')
 
 /** Stable layer order, declared once at the top of tokens.css. */
-const LAYER_ORDER = ['tokens', 'base', 'components', 'pages', 'patterns', 'utilities', 'print']
+const LAYER_ORDER = ['tokens', 'base', 'components', 'pages', 'patterns', 'utilities', 'edition', 'print']
 
 /** File → layer owner(s) (mirrors ARCHITECTURE.md). Most files own exactly
  *  one layer; search.css carries the ⌘K palette (components) and the search
  *  product page (pages) as two sibling top-level @layer blocks. */
 const OWNER_MAP: Record<string, string | string[]> = {
   'tokens.css': 'tokens',
+  // Self-hosted design: every rule is scoped to :root[data-edition='self-hosted'].
+  'edition.css': 'edition',
   'global.css': 'base',
   'nav.css': 'base',
   'skeleton.css': 'base',
@@ -112,6 +114,7 @@ const EXPECTED_ENTRY_IMPORTS = [
   './styles/page-layouts.css',
   './styles/interactions.css',
   './styles/utilities.css',
+  './styles/edition.css',
 ]
 
 /** Route-owned stylesheets: imported by exactly one lazy page module (relative

@@ -89,7 +89,7 @@ export function Extension() {
               Preview capture popup
             </Link>
           )}
-          <Link to="/sync" className="btn btn-ghost btn-lg">
+          <Link to="/sync" className={selfHosted ? 'btn btn-secondary btn-lg' : 'btn btn-ghost btn-lg'}>
             Open sync center
           </Link>
         </div>

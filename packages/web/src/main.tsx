@@ -3,12 +3,13 @@ import { createRoot } from 'react-dom/client'
 import App from './App'
 import { RootErrorBoundary } from './components/RootErrorBoundary'
 import { installClientTelemetry, reportClientError } from './lib/clientTelemetry'
+import { isSelfHostedEdition } from './lib/edition'
 import { isChunkLoadError, reloadOnce } from './lib/lazyWithRetry'
 
 /*
  * CSS Architecture — explicit cascade layers (order declared in tokens.css):
  *
- *   tokens < base < components < pages < patterns < utilities < print
+ *   tokens < base < components < pages < patterns < utilities < edition < print
  *
  * Components sit below pages so a route file can specialise component chrome;
  * patterns (motion / hover feedback) sit above pages so they read the same on
@@ -135,6 +136,12 @@ import './styles/reading.css'
 import './styles/page-layouts.css'
 import './styles/interactions.css'
 import './styles/utilities.css'
+import './styles/edition.css'
+
+// The self-hosted design (edition.css, edition tokens in tokens.css) is scoped
+// to this attribute. self-hosted-dist.mjs also writes it into index.html so the
+// first paint, before this module runs, already uses it.
+if (isSelfHostedEdition()) document.documentElement.dataset.edition = 'self-hosted'
 
 // R15-13: errors and Web Vitals to /api/v1/client-events (production only).
 installClientTelemetry()
