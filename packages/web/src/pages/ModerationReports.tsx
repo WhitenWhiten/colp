@@ -1,4 +1,4 @@
-import { useEffect, useState, useSyncExternalStore } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { isLive, isProductApiError, productClient } from '../api'
 import { useAuth } from '../auth/AuthContext'
 import { EmptyState } from '../components/EmptyState'
@@ -43,8 +43,10 @@ export function ModerationReports() {
   const [error, setError] = useState<string | null>(null)
   const [attempt, setAttempt] = useState(0)
   const [status, setStatus] = useState<StatusFilter>('all')
+  const renderedIdentityRef = useRef(sessionIdentity)
 
   useEffect(() => {
+    renderedIdentityRef.current = sessionIdentity
     setItems(null)
     setNextCursor(null)
     setLoadingMore(false)
@@ -77,6 +79,14 @@ export function ModerationReports() {
       })
     return () => controller.abort()
   }, [enabled, isLoggedIn, attempt, status, sessionIdentity])
+
+  const identityReady = renderedIdentityRef.current === sessionIdentity
+  const visibleItemsReady = identityReady && items !== null
+  const visibleItems = visibleItemsReady ? items ?? [] : []
+  const visibleNextCursor = identityReady ? nextCursor : null
+  const visibleLoadingMore = identityReady ? loadingMore : false
+  const visibleMoreError = identityReady ? moreError : false
+  const visibleError = identityReady ? error : null
 
   async function loadMore() {
     if (!nextCursor || loadingMore) return
@@ -118,21 +128,21 @@ export function ModerationReports() {
           />
         ) : !isLoggedIn ? (
           <RouteState kind="auth" returnTo="/moderation/reports" />
-        ) : error ? (
+        ) : visibleError ? (
           <RouteState
             kind="error"
             title="Couldn't load reports"
-            description={error}
+            description={visibleError}
             onRetry={() => setAttempt((current) => current + 1)}
           />
         ) : (
           <div className="stack">
-            {status !== 'all' || items === null || items.length > 0 ? (
+            {status !== 'all' || !visibleItemsReady || visibleItems.length > 0 ? (
               <ModerationStatusFilter value={status} options={STATUS_FILTERS} onChange={setStatus} />
             ) : null}
-            {items === null ? (
+            {!visibleItemsReady ? (
               <RouteState kind="loading" loadingLabel="Loading reports" />
-            ) : items.length === 0 ? (
+            ) : visibleItems.length === 0 ? (
               <EmptyState
                 icon="collection"
                 title={status === 'all' ? 'No reports yet' : 'No reports with this status'}
@@ -140,7 +150,7 @@ export function ModerationReports() {
               />
             ) : (
               <ModerationTable label="My content reports" testId="moderation-report-list">
-                {items.map((item) => (
+                {visibleItems.map((item) => (
                   <ModerationRow
                     key={item.id}
                     title={governanceTargetKind(item.target)}
@@ -157,14 +167,14 @@ export function ModerationReports() {
                 ))}
               </ModerationTable>
             )}
-            {nextCursor ? (
+            {visibleNextCursor ? (
               <div className="moderation-more">
                 <LoadMoreButton
-                  loading={loadingMore}
+                  loading={visibleLoadingMore}
                   onClick={() => void loadMore()}
                   status="Loading more reports"
                 />
-                {moreError ? <p className="field-error" role="alert">Couldn't load more reports.</p> : null}
+                {visibleMoreError ? <p className="field-error" role="alert">Couldn't load more reports.</p> : null}
               </div>
             ) : null}
           </div>

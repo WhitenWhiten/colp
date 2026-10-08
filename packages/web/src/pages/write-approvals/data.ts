@@ -409,7 +409,7 @@ export function useWriteApprovals() {
     enabled,
     detailMode,
     invalidPlanId,
-    missingDetail,
+    missingDetail: identityReady ? missingDetail : false,
     authPending: enabled && (bootstrapping || !isLoggedIn),
     approvals: identityReady ? approvals : [],
     loading: identityReady ? loading : true,

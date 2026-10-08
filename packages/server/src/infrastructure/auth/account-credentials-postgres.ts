@@ -138,6 +138,11 @@ export function createPostgresAccountCredentialPorts(
     credentials: createPostgresAccountCredentialStore(transaction),
     accounts: {
       findAccountById: (id) => accounts.findById(id),
+      lockAccountById: async (id) => {
+        const row = await transaction.selectFrom('accounts').selectAll()
+          .where('id', '=', id).forUpdate().executeTakeFirst();
+        return row ? (await createPostgresAccountRepository(transaction).findById(row.id)) : null;
+      },
       insertAccount: (account) => accounts.insert(account),
       insertProfile: (profile) => profiles.insert(profile),
       ensureHandle: (accountId) => ensureAccountHandle({ accounts, handles, clock }, accountId),

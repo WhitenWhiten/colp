@@ -191,6 +191,9 @@ export {
 } from './typed-update-merge.js';
 
 export {
+  MAX_BROWSER_BATCH_CHANGES,
+  MAX_BROWSER_BATCH_AFFECTED_FOLDERS_PER_CHANGE,
+  MAX_BROWSER_BATCH_FOLDERS,
   applySyncBrowserBatch,
   type SyncBrowserBatchAdapter,
   type SyncBrowserBatchChange,

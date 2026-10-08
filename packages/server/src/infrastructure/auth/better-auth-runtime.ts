@@ -659,6 +659,18 @@ function buildProductAuthHooks(input: {
   };
   return {
     before: createAuthMiddleware(async (ctx) => {
+      // OAuth Provider 1.7.1 dispatches registered backchannel logout URIs
+      // with the process-global fetch.  It has no egress injection seam, so
+      // accepting that metadata would leave a DNS-rebinding SSRF primitive in
+      // the session-delete hook.  Backchannel logout is deliberately disabled
+      // for this issuer; the database migration also clears legacy values and
+      // installs a write-time CHECK so direct adapter writes cannot re-enable it.
+      if (isOAuthBackchannelLogoutMutation(ctx.path, ctx.body)) {
+        throw APIError.from('BAD_REQUEST', {
+          code: 'oauth_backchannel_logout_disabled',
+          message: 'OAuth backchannel logout callbacks are not supported.',
+        });
+      }
       if (typeof ctx.path === 'string' && ctx.path.startsWith('/sign-up/')) {
         if (ctx.path === '/sign-up/email') fillSelfHostedOptionalSignupEmail(ctx.body);
         const existingUsers = await ctx.context.adapter.count({ model: 'user' });
@@ -756,6 +768,27 @@ function buildProductAuthHooks(input: {
   };
 }
 
+const OAUTH_BACKCHANNEL_LOGOUT_MUTATION_PATHS = new Set([
+  '/oauth2/register',
+  '/oauth2/create-client',
+  '/oauth2/update-client',
+  '/admin/oauth2/create-client',
+  '/admin/oauth2/update-client',
+]);
+
+/** Reject every HTTP write path that could persist a backchannel callback. */
+function isOAuthBackchannelLogoutMutation(path: unknown, body: unknown): boolean {
+  if (typeof path !== 'string' || !OAUTH_BACKCHANNEL_LOGOUT_MUTATION_PATHS.has(path)) return false;
+  if (body === null || typeof body !== 'object') return false;
+  const record = body as Record<string, unknown>;
+  const update = record.update;
+  const candidate = update !== null && typeof update === 'object'
+    ? update as Record<string, unknown>
+    : record;
+  return Object.hasOwn(candidate, 'backchannel_logout_uri')
+    || Object.hasOwn(candidate, 'backchannel_logout_session_required');
+}
+
 
 /**
  * Construct the Better Auth runtime. Returns `null` when disabled — the
@@ -785,8 +818,54 @@ export function createBetterAuthRuntime<DB>(
       mountBetterAuthAllowlist(app, auth, input.config, dcrCapacityGuard, input.metrics);
     },
     handle(request) {
-      return dispatchBetterAuthWithLoopbackRedirectContext(request, (next) => auth.handler(next));
+      return dispatchBetterAuthWithLoopbackRedirectContext(request, async (next) => {
+        const response = await auth.handler(next);
+        return redactDisabledOAuthBackchannelMetadata(response, next.url, input.config.basePath);
+      });
     },
     auth,
   };
+}
+
+/**
+ * Better Auth 1.7.1 derives these two fields from `disableJwtPlugin` and has
+ * no option to override them independently.  This runtime intentionally keeps
+ * JWT access tokens for MCP, while the application rejects backchannel callback
+ * registration and the migration forbids stored targets.  Keep discovery
+ * honest so clients do not retry an unsupported callback capability.
+ */
+export async function redactDisabledOAuthBackchannelMetadata(
+  response: Response,
+  requestUrl: string,
+  basePath: string,
+): Promise<Response> {
+  let pathname: string;
+  try {
+    pathname = new URL(requestUrl).pathname;
+  } catch {
+    return response;
+  }
+  if (pathname !== `/.well-known/oauth-authorization-server${basePath}`) return response;
+  const contentType = response.headers.get('content-type') ?? '';
+  if (!contentType.toLowerCase().startsWith('application/json')) return response;
+  let metadata: unknown;
+  try {
+    metadata = JSON.parse(await response.clone().text());
+  } catch {
+    return response;
+  }
+  if (metadata === null || typeof metadata !== 'object' || Array.isArray(metadata)) return response;
+  const body = {
+    ...(metadata as Record<string, unknown>),
+    backchannel_logout_supported: false,
+    backchannel_logout_session_supported: false,
+  };
+  const headers = new Headers(response.headers);
+  headers.delete('content-length');
+  headers.delete('content-encoding');
+  return new Response(JSON.stringify(body), {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
 }

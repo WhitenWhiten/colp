@@ -548,9 +548,12 @@ async function assertTransactionalAuthority(transaction: DatabaseTransaction, in
     && session.status === 'active' && session.expires_at > now
     && session.account_id === account.id && session.credential_issuer === input.credential.issuer
     && session.credential_id === input.credential.credentialId
-    // The browser Origin is part of the durable session binding. The
-    // application contract requires callers to provide it explicitly.
-    && session.origin === input.origin
+    // Extension requests must match the exact Origin recorded on the Sync
+    // session.  The product Sync Center is a separate, account-authorized
+    // capability and deliberately enters through the internal adapter below;
+    // it has no extension Origin to present, so it uses the non-forgeable
+    // in-process marker instead of weakening the external route check.
+    && (input.origin === INTERNAL_SYNC_RESOLUTION_CAPABILITY || session.origin === input.origin)
     && !!collection && collection.deleted_at === null && collection.policy_revision === session.policy_revision
     && (role === 'owner' || role === 'editor') && !!pushScope
     && !!replica && replica.account_id === account.id && replica.collection_id === input.collectionId

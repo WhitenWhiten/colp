@@ -1,4 +1,4 @@
-import { mkdir, stat, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, stat, writeFile } from 'node:fs/promises';
 import { join, resolve, sep } from 'node:path';
 import type { Kysely } from 'kysely';
 import { applySelfHostedPreset } from '../bootstrap/self-hosted-preset.js';
@@ -110,6 +110,10 @@ async function prepareDirectory(outDir: string): Promise<string> {
     if (!(error instanceof Error) || !('code' in error) || error.code !== 'ENOENT') throw error;
   }
   await mkdir(directory, { recursive: true });
+  // Exports contain private collection content. Tighten an existing output
+  // directory as well as newly-created paths; callers can relax permissions
+  // explicitly after the command completes.
+  await chmod(directory, 0o700);
   return directory;
 }
 
@@ -118,6 +122,7 @@ async function writeInside(directory: string, name: string, body: string): Promi
   const root = directory.endsWith(sep) ? directory : `${directory}${sep}`;
   if (!file.startsWith(root)) throw new ExportCliError(2, 'export filename escaped the output directory');
   await writeFile(file, body, 'utf8');
+  await chmod(file, 0o600);
 }
 
 function uniqueSlug(base: string, id: string, used: Set<string>): string {

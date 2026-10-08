@@ -246,11 +246,13 @@ export function useRelationWorkflow(locator: RelationLocator | null, draftDirty 
 
   const remove = useCallback(async (relation: RelationView, intentScope = 'delete-relation') => {
     if (!canEdit || !locator) return false
+    const requestIdentity = sessionIdentity
     // R9-19: shared destructive confirm (Modal tone="danger") replaces the
     // native window.confirm.
     if (!(await confirm({ title: 'Delete this relation?', body: "This can't be undone.", confirmLabel: 'Delete relation' }))) return false
+    if (privateSessionIdentity() !== requestIdentity) return false
     return executeDelete({ relation, intentId: productClient.mutationIntentKey(intentScope, productClient.newCommandId()) })
-  }, [canEdit, confirm, executeDelete, locator])
+  }, [canEdit, confirm, executeDelete, locator, sessionIdentity])
 
   const executeReplacement = useCallback(async (pending: PendingReplacement) => {
     if (!canEdit || !locator) return
@@ -289,12 +291,14 @@ export function useRelationWorkflow(locator: RelationLocator | null, draftDirty 
 
   const replaceEndpoint = useCallback(async () => {
     if (!canEdit || !locator || !editing || !editDraft.replacementEndpointId || editDraft.replacementEndpointId === locator.nodeId) return
+    const requestIdentity = sessionIdentity
     if (!nodes.some((node) => node.id === editDraft.replacementEndpointId)) { setState('error'); setMessage('Choose a bookmark from this collection.'); return }
     if (!(await confirm({
       title: 'Replace the linked bookmark?',
       body: 'Deletes the current relation and creates a new one.',
       confirmLabel: 'Replace',
     }))) return
+    if (privateSessionIdentity() !== requestIdentity) return
     await executeReplacement({
       relation: editing,
       endpointId: editDraft.replacementEndpointId,
@@ -305,7 +309,7 @@ export function useRelationWorkflow(locator: RelationLocator | null, draftDirty 
       createIntentId: productClient.mutationIntentKey('replace-create', productClient.newCommandId()),
       phase: 'delete',
     })
-  }, [canEdit, confirm, editDraft, editing, executeReplacement, locator, nodes])
+  }, [canEdit, confirm, editDraft, editing, executeReplacement, locator, nodes, sessionIdentity])
 
   const dirty = !!editing && (editDraft.type !== editing.type || editDraft.label !== (editing.label ?? '') || editDraft.visibility !== editing.visibility || editDraft.replacementEndpointId !== (editing.fromNodeId === locator?.nodeId ? editing.toNodeId : editing.fromNodeId))
   dirtyRef.current = dirty

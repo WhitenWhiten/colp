@@ -158,6 +158,7 @@ interface PushState {
   outbox: Outbox[];
   operationClaims: Map<string, SyncOperationClaim>;
   reuseAudits: Map<string, SyncOperationReuseAudit>;
+  laneStates: Map<string, number>;
 }
 
 function emptyPushState(): PushState {
@@ -170,6 +171,7 @@ function emptyPushState(): PushState {
     outbox: [],
     operationClaims: new Map(),
     reuseAudits: new Map(),
+    laneStates: new Map(),
   };
 }
 
@@ -187,6 +189,7 @@ function clonePushState(state: PushState): PushState {
     reuseAudits: new Map(
       [...state.reuseAudits].map(([key, value]) => [key, structuredClone(value)]),
     ),
+    laneStates: new Map(state.laneStates),
   };
 }
 
@@ -201,6 +204,7 @@ class TrackingPushUnitOfWork implements SyncUnitOfWork<
   TestPushTransaction
 > {
   readonly operationIdReservationOwner = 'push' as const;
+  readonly pushSequenceContinuity = true as const;
   executeCount = 0;
   readonly backend = { state: emptyPushState() };
 
@@ -249,6 +253,10 @@ class TrackingPushUnitOfWork implements SyncUnitOfWork<
         save: async (receipt) => {
           draft.receipts.push(structuredClone(receipt));
         },
+      },
+      sequenceLanes: {
+        load: async (lane) => ({ nextSequence: draft.laneStates.get(JSON.stringify(lane)) ?? 1 }),
+        save: async (lane, state) => { draft.laneStates.set(JSON.stringify(lane), state.nextSequence); },
       },
       appendOperation: async (operation) => {
         draft.operations.push(structuredClone(operation));

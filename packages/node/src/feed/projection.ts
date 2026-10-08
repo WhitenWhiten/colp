@@ -23,6 +23,13 @@ export type FeedProjectionErrorCode =
 export interface FeedProjectionOptions extends PublicationPublicWireOptions {
   readonly validators?: ValidatorRegistry;
   readonly bookmarkMode?: 'omit' | 'redact';
+  /**
+   * Host authorization proof for anonymous publication. Feed events carry no
+   * authoritative collection/node visibility, so public projection refuses to
+   * run unless the host resolves the event against its current publication
+   * policy and returns exactly true.
+   */
+  readonly publicVisibility?: (event: unknown) => boolean;
 }
 
 /**
@@ -57,6 +64,7 @@ export function projectFeedEvent(
       if (!discriminated.valid) {
         return Object.freeze({ ok: false, code: 'event_contract_failed' });
       }
+      assertPublicVisibilityProof(discriminated.event, options.publicVisibility);
       const event = structuredClone(discriminated.event) as unknown as Record<string, unknown>;
       const data = event.data as Record<string, unknown>;
       if (isPlainObject(data.node)) {
@@ -70,7 +78,9 @@ export function projectFeedEvent(
       return Object.freeze({ ok: true, value: projected });
     }
 
-    // Bare event data / node payload path.
+    // Bare event data / node payload path. This path has no event contract
+    // carrying visibility, so it still requires the host's authorization proof.
+    assertPublicVisibilityProof(snapshot, options.publicVisibility);
     const clone = structuredClone(snapshot) as Record<string, unknown>;
     // Check authoritative visibility before Bookmark projection can discard
     // the source node's collection and visibility fields.  A bare Feed value
@@ -137,6 +147,24 @@ const FORBIDDEN_SUBSTRINGS = Object.freeze([
   'filepath',
   'sidecar',
 ]);
+
+function assertPublicVisibilityProof(
+  event: unknown,
+  prove: ((event: unknown) => boolean) | undefined,
+): void {
+  if (typeof prove !== 'function') {
+    throw new PublicationPublicProjectionError('malformed_input');
+  }
+  let isPublic: boolean;
+  try {
+    isPublic = prove(event);
+  } catch {
+    throw new PublicationPublicProjectionError('malformed_input');
+  }
+  if (isPublic !== true) {
+    throw new PublicationPublicProjectionError('malformed_input');
+  }
+}
 
 function assertNoForbiddenFeedFields(value: PublicationPublicValue, path = ''): void {
   if (value === null || typeof value !== 'object') return;

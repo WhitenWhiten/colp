@@ -17,6 +17,7 @@
  */
 import type { ServerResponse } from 'node:http';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import { parseIJson } from '@know-n/colp/server';
 import {
   createMcp20260728SubscriptionsListenAdapter,
   ListResourcesResultSchema,
@@ -388,8 +389,12 @@ export function registerMcpReadRoutes(
     },
   }, async (request, reply) => {
     const requestId = String(request.id);
-    const listenRequest = isListenBody(request.body);
-    const requestMethod = readBodyMethod(request.body);
+    // Classify the one long-lived MCP method with a bounded byte scan.  This
+    // preserves the listen-specific connection budget and operation lifetime
+    // without running the full JSON parser before concurrency admission.
+    const rawClassification = classifyRawMcpBody(request.body);
+    let listenRequest = rawClassification.listen;
+    let requestMethod = rawClassification.method;
     const controller = new AbortController();
     const operation = operations.beginRequest({
       kind: listenRequest ? 'listen' : 'request',
@@ -482,6 +487,15 @@ export function registerMcpReadRoutes(
         return;
       }
       try {
+        // The application JSON parser deliberately returned raw bytes for
+        // this route. Parse only after a request-budget slot is acquired, so
+        // malformed/deep JSON cannot consume unbounded CPU ahead of MCP
+        // concurrency admission.
+        const admittedBody = parseAdmittedMcpBody(request.body, config.budgets.strictIJson);
+        (request as FastifyRequest & { body: unknown }).body = admittedBody;
+        listenRequest = isListenBody(admittedBody);
+        requestMethod = readBodyMethod(admittedBody);
+        if (listenRequest && negotiation === 'json') sse = true;
         const authorization = singleMcpHeader(pairs, 'authorization');
         const bodyPreview = request.body;
         const previewMethod = isPlainObject(bodyPreview) && typeof bodyPreview.method === 'string'
@@ -771,6 +785,42 @@ export function registerMcpReadRoutes(
       });
     }
   });
+}
+
+function parseAdmittedMcpBody(
+  body: unknown,
+  limits: McpReadFeatureConfig['budgets']['strictIJson'],
+): unknown {
+  if (!Buffer.isBuffer(body) || body.byteLength === 0) {
+    throw new ProductHttpError({
+      statusCode: 400, code: 'invalid_json', message: 'The JSON body is invalid.',
+    });
+  }
+  try {
+    const source = new TextDecoder('utf-8', { fatal: true }).decode(body);
+    return parseIJson(source, limits);
+  } catch {
+    throw new ProductHttpError({
+      statusCode: 400, code: 'invalid_json', message: 'The JSON body is invalid.',
+    });
+  }
+}
+
+function classifyRawMcpBody(body: unknown): { readonly listen: boolean; readonly method: string } {
+  if (!Buffer.isBuffer(body) || body.byteLength === 0) {
+    return { listen: false, method: 'unknown' };
+  }
+  try {
+    const source = new TextDecoder('utf-8', { fatal: true }).decode(body);
+    // Valid MCP requests use a top-level JSON-RPC `method` string.  A false
+    // negative only selects the stricter request budget; it cannot bypass the
+    // post-admission parser or authorize a request.
+    const match = /(?:^|[,{])\s*"method"\s*:\s*"([^"\\]*)"/u.exec(source);
+    const method = match?.[1] ?? 'unknown';
+    return { listen: method === 'subscriptions/listen', method };
+  } catch {
+    return { listen: false, method: 'unknown' };
+  }
 }
 
 function readBodyMethod(body: unknown): string {

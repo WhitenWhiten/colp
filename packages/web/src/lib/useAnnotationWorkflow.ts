@@ -120,6 +120,7 @@ export function useAnnotationWorkflow(locator: AnnotationSubjectLocator | null, 
   const controllers = useRef(new Set<AbortController>())
   const noteInputRef = useRef<HTMLTextAreaElement>(null)
   const restoreNoteFocus = useRef(false)
+  const renderedIdentityRef = useRef(sessionIdentity)
 
   const setPendingMutation = useCallback((value: PendingMutation | null) => {
     pendingRef.current = value
@@ -180,6 +181,7 @@ export function useAnnotationWorkflow(locator: AnnotationSubjectLocator | null, 
   }, [controllerForCurrentGeneration, locator, replaceFromServer, sessionIdentity])
 
   useEffect(() => {
+    renderedIdentityRef.current = sessionIdentity
     generation.current += 1
     abortOutstanding()
     setAnnotations([])
@@ -188,6 +190,8 @@ export function useAnnotationWorkflow(locator: AnnotationSubjectLocator | null, 
     setDraftState('')
     setBaseline('')
     setPendingMutation(null)
+    setState('loading')
+    setMessage('Loading annotations')
     if (locator) void load()
     return abortOutstanding
     // Primitive locator fields; object identity would reload on every parent render.
@@ -219,8 +223,10 @@ export function useAnnotationWorkflow(locator: AnnotationSubjectLocator | null, 
 
   const refreshAfterConflict = useCallback(async (mutation: PendingMutation): Promise<void> => {
     if (!locator) return
+    const requestIdentity = sessionIdentity
     if (mutation.annotationId) {
       const current = await refreshItem(mutation.annotationId)
+      if (privateSessionIdentity() !== requestIdentity) return
       if (current) {
         setAnnotations((items) => items.map((item) => item.id === current.id ? current : item))
         if (current.type === 'note') setNote(subjectNote([current], noteVisibility))
@@ -235,14 +241,15 @@ export function useAnnotationWorkflow(locator: AnnotationSubjectLocator | null, 
         resourceType: locator.resourceType,
         resourceId: locator.resourceId,
       }, { signal: controller.signal, maxRetries: 0 })
-      if (requestGeneration !== generation.current || controller.signal.aborted) return
+      if (requestGeneration !== generation.current || controller.signal.aborted
+        || privateSessionIdentity() !== requestIdentity) return
       setAnnotations(items.filter((item) => item.type === 'note' || item.type === 'highlight'))
       setNote(subjectNote(items, noteVisibility))
       setTldr(items.find((item) => item.type === 'tldr') ?? null)
     } finally {
       controllers.current.delete(controller)
     }
-  }, [controllerForCurrentGeneration, locator, noteVisibility, refreshItem])
+  }, [controllerForCurrentGeneration, locator, noteVisibility, refreshItem, sessionIdentity])
 
   const complete = useCallback((mutation: PendingMutation, result: AnnotationView | DeleteAnnotationResult) => {
     productClient.abandonAnnotationIntent(mutation.intentId)
@@ -425,11 +432,12 @@ export function useAnnotationWorkflow(locator: AnnotationSubjectLocator | null, 
       run()
       return
     }
+    const requestIdentity = sessionIdentity
     // R9-19: shared destructive confirm (Modal tone="danger") replaces the
     // native window.confirm; the delete only runs after it resolves true.
     void confirm({ title: 'Delete this private note?', body: "This can't be undone.", confirmLabel: 'Delete note' })
-      .then((ok) => { if (ok) run() })
-  }, [confirm, execute, locator, note, state])
+      .then((ok) => { if (ok && privateSessionIdentity() === requestIdentity) run() })
+  }, [confirm, execute, locator, note, sessionIdentity, state])
 
   /**
    * Resolve the TL;DR deletion mutation for saveTldr('')/deleteTldr: reuses
@@ -439,14 +447,16 @@ export function useAnnotationWorkflow(locator: AnnotationSubjectLocator | null, 
    */
   const removeTldr = useCallback(async (forceNew = false): Promise<PendingMutation | null> => {
     if (!locator || !tldr) return null
+    const requestIdentity = sessionIdentity
     const existing = pendingRef.current
     if (!forceNew && existing?.kind === 'delete-tldr' && state === 'unknown') return existing
     if (forceNew && existing) productClient.abandonAnnotationIntent(existing.intentId)
     if (!forceNew && !(await confirm({ title: 'Delete this TL;DR?', body: "This can't be undone.", confirmLabel: 'Delete TL;DR' }))) {
       return null
     }
+    if (privateSessionIdentity() !== requestIdentity) return null
     return tldrDeleteMutation(locator, tldr)
-  }, [confirm, locator, state, tldr])
+  }, [confirm, locator, sessionIdentity, state, tldr])
 
   /**
    * Create/update the subject's TL;DR through the same intent-idempotent
@@ -552,29 +562,31 @@ export function useAnnotationWorkflow(locator: AnnotationSubjectLocator | null, 
     void execute(next)
   }, [annotations, deleteNote, execute, locator, saveNote, setPendingMutation, tldr])
 
+  const identityReady = renderedIdentityRef.current === sessionIdentity
   const highlighted = useMemo(() => new Set(
     annotations.filter((item) => item.type === 'highlight').map((item) => highlightQuote(item.value)),
   ), [annotations])
   const dirty = draft !== baseline || ['saving', 'unknown', 'stale', 'conflict'].includes(state)
+  const visibleDirty = identityReady && dirty
 
   // R9-19: the shared async confirm guards in-app navigation; beforeunload
   // stays browser-native inside the hook.
-  useConfirmLeaveGuard(dirty, {
+  useConfirmLeaveGuard(visibleDirty, {
     title: 'Discard changes?',
     body: 'You have unsaved changes on this page.',
     confirmLabel: 'Discard',
   })
 
   return {
-    annotations,
-    note,
-    tldr,
-    draft,
-    state,
-    message,
-    pending,
-    highlighted,
-    dirty,
+    annotations: identityReady ? annotations : [],
+    note: identityReady ? note : null,
+    tldr: identityReady ? tldr : null,
+    draft: identityReady ? draft : '',
+    state: identityReady ? state : 'loading' as AnnotationSaveState,
+    message: identityReady ? message : 'Loading annotations',
+    pending: identityReady ? pending : null,
+    highlighted: identityReady ? highlighted : new Set<string>(),
+    dirty: visibleDirty,
     noteInputRef,
     setDraft,
     saveNote,

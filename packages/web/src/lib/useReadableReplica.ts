@@ -75,8 +75,12 @@ export function useReadableReplica(input: {
   paramsRef.current = input
   const retryImplRef = useRef<(force: boolean) => void>(() => {})
   const autoPostedRef = useRef(false)
+  const renderedIdentityRef = useRef(sessionIdentity)
 
   useEffect(() => {
+    // Hide the previous account's replica for the render between the session
+    // notification and this effect replacing its cache/read.
+    renderedIdentityRef.current = sessionIdentity
     const requestIdentity = sessionIdentity
     const controller = new AbortController()
     let interval: number | undefined
@@ -117,6 +121,7 @@ export function useReadableReplica(input: {
       interval = window.setInterval(() => {
         pollCount += 1
         if (pollCount > POLL_MAX) {
+          if (privateSessionIdentity() !== requestIdentity) return
           exhausted = true
           stopPolling()
           setSnapshot((prev) => ({ ...prev, pollExhausted: true }))
@@ -127,6 +132,7 @@ export function useReadableReplica(input: {
     }
 
     const apply = (view: ReadableReplicaView) => {
+      if (privateSessionIdentity() !== requestIdentity) return
       if (view.status !== 'pending') exhausted = false
       const next = {
         ...fromView(view),
@@ -156,12 +162,14 @@ export function useReadableReplica(input: {
           // (the previous enqueue is still cooling down). Poll for that
           // result instead of parking the page on `none` forever; a replica
           // that is already readable stays on screen while we look.
+          if (privateSessionIdentity() !== requestIdentity) return
           setSnapshot((prev) => (prev.status === 'ready'
             ? prev
             : { ...prev, status: 'pending', sections: [], pollExhausted: false }))
           startPolling()
           return
         }
+        if (privateSessionIdentity() !== requestIdentity) return
         setSnapshot((prev) => ({ ...prev, status: 'failed', sections: [] }))
         stopPolling()
       }
@@ -202,5 +210,9 @@ export function useReadableReplica(input: {
     retryImplRef.current(force)
   }, [])
 
-  return { ...snapshot, retry }
+  const identityReady = renderedIdentityRef.current === sessionIdentity
+  return {
+    ...(identityReady ? snapshot : input.enabled ? { ...idle, status: 'none' as const } : idle),
+    retry,
+  }
 }

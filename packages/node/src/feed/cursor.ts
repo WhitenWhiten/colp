@@ -13,6 +13,9 @@ const MIN_KEY_BYTES = 32;
 const MAX_KEY_BYTES = 1024;
 const MAX_SCOPE_FIELD_BYTES = 4096;
 const MAX_CURSOR_LENGTH = 256;
+/** Bound attacker-controlled Feed filter key count and canonical digest size. */
+const MAX_FILTER_FIELDS = 128;
+const MAX_FILTER_DIGEST_BYTES = 16_384;
 /** Feed-only namespace; deliberately distinct from Sync and Publication cursors. */
 const CURSOR_PREFIX = 'fdc1.p';
 const MAC_BYTES = 32;
@@ -96,26 +99,52 @@ export function createFeedFilterDigest(
   if (typeof filter !== 'object' || filter === null || Array.isArray(filter) || isProxy(filter)) {
     throw new TypeError('Feed filter must be a plain object.');
   }
-  const names = Object.keys(filter).sort();
+  const names = Object.keys(filter);
+  if (names.length > MAX_FILTER_FIELDS) {
+    throw new RangeError(`Feed filter must not contain more than ${MAX_FILTER_FIELDS} fields.`);
+  }
+  names.sort();
   const parts: Buffer[] = [];
+  let aggregateBytes = 0;
+  const charge = (part: Buffer): void => {
+    aggregateBytes += part.byteLength;
+    if (aggregateBytes > MAX_FILTER_DIGEST_BYTES) {
+      throw new RangeError(`Feed filter digest must not exceed ${MAX_FILTER_DIGEST_BYTES} bytes.`);
+    }
+  };
+  const append = (part: Buffer): void => {
+    charge(part);
+    parts.push(part);
+  };
   try {
     // Always frame a version tag so the empty-filter digest is non-empty and
     // stable (required by cursor scope field non-empty rules).
-    parts.push(Buffer.from('feed-filter-v1', 'utf8'));
+    append(Buffer.from('feed-filter-v1', 'utf8'));
     for (const name of names) {
+      // Validate every key, including keys whose value is undefined.  The
+      // undefined marker remains compatible with the existing digest format,
+      // while preventing unbounded key material from bypassing the bounds.
+      const nameBytes = encodeField('filterField', name);
       const value = filter[name];
       if (value === undefined) {
-        parts.push(Buffer.from([0]));
+        // Undefined values intentionally retain the legacy digest marker and
+        // do not alter the digest, but the key still consumes the aggregate
+        // budget while it is being inspected.
+        charge(nameBytes);
+        append(Buffer.from([0]));
+        nameBytes.fill(0);
         continue;
       }
-      const nameBytes = encodeField('filterField', name);
       const valueBytes = encodeField(name, value);
-      parts.push(Buffer.from([1]));
+      append(Buffer.from([1]));
       const nameLength = Buffer.allocUnsafe(4);
       nameLength.writeUInt32BE(nameBytes.byteLength);
       const valueLength = Buffer.allocUnsafe(4);
       valueLength.writeUInt32BE(valueBytes.byteLength);
-      parts.push(nameLength, nameBytes, valueLength, valueBytes);
+      append(nameLength);
+      append(nameBytes);
+      append(valueLength);
+      append(valueBytes);
     }
     return Buffer.concat(parts).toString('base64url');
   } finally {

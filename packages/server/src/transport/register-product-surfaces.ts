@@ -427,6 +427,13 @@ export function registerProductSurfaces(
       identityUnitOfWork,
       origin: config.publication.origin,
       reads: collectionExportReads,
+      // Collection exports and export jobs both materialize user-owned
+      // documents; use the same bounded admission domain so a caller cannot
+      // bypass the export budget through the synchronous endpoint.
+      rateLimiter: resolveProductRouteRateLimiter(
+        'export-job', exportJobRateLimiter, config.exportJobs.rateLimit,
+      ),
+      timeoutMs: config.exportJobs?.timeoutMs ?? 2_000,
     });
   }
   if (identityUnitOfWork && exportJobReads && exportJobEnqueue && exportJobStore) {

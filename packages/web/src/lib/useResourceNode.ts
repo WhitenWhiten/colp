@@ -1,4 +1,4 @@
-import { useEffect, useState, useSyncExternalStore } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
   isProductApiError,
@@ -260,8 +260,10 @@ export function useResourceNode(nodeId: string, allowContainers = false) {
   const collectionId = searchParams.get('collectionId')?.trim() ?? ''
   const slug = searchParams.get('slug')?.trim() ?? ''
   const [load, setLoad] = useState<ResourceNodeLoad>(() => restoredNode(nodeId, collectionId, slug, allowContainers))
+  const renderedIdentityRef = useRef(sessionIdentity)
 
   useEffect(() => {
+    renderedIdentityRef.current = sessionIdentity
     const requestIdentity = sessionIdentity
     if (!nodeId.trim()) {
       setLoad({ status: 'needs-collection' })
@@ -301,7 +303,8 @@ export function useResourceNode(nodeId: string, allowContainers = false) {
         if (next.status === 'ready') writeRouteCache(nodeCacheKey(nodeId, collectionId, slug, allowContainers), next)
         setLoad(next)
       } catch (error) {
-        if (controller.signal.aborted || (error instanceof DOMException && error.name === 'AbortError')) return
+        if (controller.signal.aborted || privateSessionIdentity() !== requestIdentity
+          || (error instanceof DOMException && error.name === 'AbortError')) return
         if (isProductApiError(error) && error.isAuthRequired) {
           setLoad({ status: 'auth-required' })
           return
@@ -327,5 +330,5 @@ export function useResourceNode(nodeId: string, allowContainers = false) {
     return () => controller.abort()
   }, [bootstrapping, collectionId, isLoggedIn, nodeId, slug, allowContainers, sessionIdentity])
 
-  return load
+  return renderedIdentityRef.current === sessionIdentity ? load : { status: 'loading' }
 }

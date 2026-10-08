@@ -28,7 +28,7 @@ export interface ExplorePagePosition {
   readonly micros: string;
   readonly id: string;
   readonly viewCount?: number;
-  /** Links sort key. This is raw live_node_count, not the displayed node count. */
+  /** Links sort key. This is the same public-visible count as nodeCount. */
   readonly nodeCount?: number;
 }
 
@@ -59,7 +59,7 @@ export interface ExplorePageRecord {
   readonly ownerAccountId?: string;
   /** Displayed public node count. Not the links sort key. */
   readonly nodeCount: number;
-  /** Raw live_node_count. Links SQL, resume cursor, and output cursor use this. */
+  /** Public-visible links ordering count used by SQL and continuation cursors. */
   readonly orderingNodeCount: number;
   /**
    * Set when a personal preference window was read. True means the row is

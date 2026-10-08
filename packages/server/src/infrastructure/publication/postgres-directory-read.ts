@@ -8,8 +8,7 @@ import {
 import {
   COLLECTION_DISCOVERY_CONTROL_SQL,
   accountRestrictPublicationExistsSql,
-  bookmarkHidePublicExistsSql,
-  collectionVisibleNodeCountSql,
+  collectionPublicVisibleNodeCountSql,
 } from '../database/collection-control-sql.js';
 import type { DatabaseRuntime } from '../database/index.js';
 import { readBackendPid, withPostgresAbort } from '../database/index.js';
@@ -48,13 +47,7 @@ export function createPostgresPublicationNodeCountReadPort(
   return Object.freeze({
     async loadByPublicationSlug(publicationSlug: string) {
       const result = await runtime.pool.query<{ live_node_count: string | number }>(
-        `select (
-            select count(*)::int
-              from nodes n
-             where n.collection_id = c.id
-               and n.deleted_at is null
-               and not ${bookmarkHidePublicExistsSql('n.id', 'n.collection_id')}
-          ) as live_node_count
+        `select ${collectionPublicVisibleNodeCountSql('c')} as live_node_count
            from collections c
           where publication_slug = $1
           limit 1`,
@@ -179,7 +172,7 @@ export function buildPublicationDirectoryStatement(
                   c.publication_slug,
                   ${COLLECTION_CATALOG_TAGS_SQL} as tags,
                   ${COLLECTION_CATALOG_LANGUAGE_SQL} as language,
-                  ${collectionVisibleNodeCountSql('c')} as node_count,
+                  ${collectionPublicVisibleNodeCountSql('c')} as node_count,
                   c.updated_at,
                   (extract(epoch from c.updated_at) * 1000000)::bigint::text as ordering_updated_at_micros,
                   case when c.visibility = 'protected' then ${subjectId === undefined ? 'false' : 'true'} else false end as protected_authorized

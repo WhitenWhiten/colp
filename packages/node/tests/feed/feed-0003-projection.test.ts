@@ -32,7 +32,7 @@ function nodeCreated(url = 'https://example.com/article'): Record<string, unknow
 describe(`FEED-0003 feed projection MUST_NOT private fields [evidence:${evidence}]`, () => {
   it(`[success] projects a safe node.created event [evidence:${evidence}]`, () => {
     const input = nodeCreated();
-    const result = projectFeedEvent(input, { validators });
+    const result = projectFeedEvent(input, { validators, publicVisibility: () => true });
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.value).toEqual(input);
@@ -42,6 +42,13 @@ describe(`FEED-0003 feed projection MUST_NOT private fields [evidence:${evidence
       expect(Object.isFrozen(data)).toBe(true);
       expect(Object.isFrozen(data.node)).toBe(true);
     }
+  });
+
+  it(`[regression] refuses anonymous projection without host visibility proof [evidence:${evidence}]`, () => {
+    expect(projectFeedEvent(nodeCreated(), { validators })).toEqual({
+      ok: false,
+      code: 'projection_failed',
+    });
   });
 
   it(`[negative] strips credentials and secret-like fields from projection input [evidence:${evidence}]`, () => {
@@ -54,6 +61,7 @@ describe(`FEED-0003 feed projection MUST_NOT private fields [evidence:${evidence
     };
     const result = projectFeedEvent(payload, {
       publicExtensionNamespaces: [],
+      publicVisibility: () => true,
     });
     expect(result).toEqual({
       ok: true,
@@ -71,7 +79,7 @@ describe(`FEED-0003 feed projection MUST_NOT private fields [evidence:${evidence
       nativeSourceId: 'filesystem:/Users/alice/private',
       node: { id: 'n1', kind: 'folder' },
     };
-    const result = projectFeedEvent(payload, { publicExtensionNamespaces: [] });
+    const result = projectFeedEvent(payload, { publicExtensionNamespaces: [], publicVisibility: () => true });
     expect(result).toEqual({ ok: false, code: 'projection_failed' });
   });
 
@@ -82,7 +90,7 @@ describe(`FEED-0003 feed projection MUST_NOT private fields [evidence:${evidence
         'https://private.example/ns': { secret: true },
       },
     };
-    const result = projectFeedEvent(payload, { publicExtensionNamespaces: [] });
+    const result = projectFeedEvent(payload, { publicExtensionNamespaces: [], publicVisibility: () => true });
     expect(result).toEqual({ ok: true, value: { collectionId: 'collection-1' } });
   });
 
@@ -106,7 +114,7 @@ describe(`FEED-0003 feed projection MUST_NOT private fields [evidence:${evidence
           url: 'https://private.example/secret',
           visibility,
         },
-      });
+      }, { publicVisibility: () => true });
       expect(result).toEqual({ ok: false, code: 'projection_failed' });
     }
   });
@@ -124,6 +132,7 @@ describe(`FEED-0003 feed projection MUST_NOT private fields [evidence:${evidence
     const events = [nodeCreated(), nodeCreated('https://example.com/b')];
     const result = projectFeedEvents(events, {
       validators,
+      publicVisibility: () => true,
     });
     expect(result.ok).toBe(true);
     if (result.ok) {
@@ -146,6 +155,7 @@ describe(`FEED-0003 feed projection MUST_NOT private fields [evidence:${evidence
     };
     expect(projectFeedEvent(payload, {
       publicExtensionNamespaces: ['https://public.example/ns'],
+      publicVisibility: () => true,
     })).toEqual({
       ok: true,
       value: {

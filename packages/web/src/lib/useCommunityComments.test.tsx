@@ -10,6 +10,7 @@ import type {
 } from '../api'
 import { useCommunityComments } from './useCommunityComments'
 import { cleanup, mountTree, waitForDom } from '../test/render'
+import { applySessionView, clearSession } from '../api/sessionStore'
 
 const mocks = vi.hoisted(() => ({
   resolveCommunityTarget: vi.fn(),
@@ -108,6 +109,7 @@ function el(testId: string): HTMLElement | null {
 describe('useCommunityComments', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    clearSession()
     latest = undefined
     document.body.innerHTML = '<div id="root"></div>'
     ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -115,7 +117,7 @@ describe('useCommunityComments', () => {
       data: { locked: false, reason: null }, etag: 'settings-etag-1',
     })
   })
-  afterEach(() => { cleanup(); document.body.innerHTML = '' })
+  afterEach(() => { cleanup(); clearSession(); document.body.innerHTML = '' })
 
   function render(query: CommunityTargetQuery) { mountTree(<Probe query={query} />) }
 
@@ -144,6 +146,30 @@ describe('useCommunityComments', () => {
     /* And its late answer paints nothing: the hook is still in its initial
        state, not the resolved view the abandoned read carried. */
     expect(latest?.status).toBe('loading')
+    expect(latest?.view).toBeNull()
+    expect(latest?.roots).toEqual([])
+  })
+
+  it('drops a late authority answer after the private session identity changes', async () => {
+    const resolvers: ((value: CommunityTargetView) => void)[] = []
+    mocks.resolveCommunityTarget.mockImplementation(() => (
+      new Promise<CommunityTargetView>((resolve) => { resolvers.push(resolve) })
+    ))
+    render(QUERY)
+    await waitForDom(() => resolvers.length > 0)
+    const oldResolver = resolvers.at(-1)!
+    act(() => {
+      applySessionView({
+        authenticated: true,
+        csrfToken: 'csrf-a',
+        idleExpiresAt: '2099-01-01T00:00:00.000Z',
+        absoluteExpiresAt: '2099-01-02T00:00:00.000Z',
+      })
+    })
+    await act(async () => {
+      oldResolver(view(TARGET))
+      await Promise.resolve()
+    })
     expect(latest?.view).toBeNull()
     expect(latest?.roots).toEqual([])
   })

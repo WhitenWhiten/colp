@@ -198,7 +198,7 @@ describe(`CFI-006 redacted Feed Bookmark contract [evidence:${evidence}]`, () =>
 
     const result = projectFeedEvent(
       { collectionId: 'collection-1', revision: 'revision-1', node },
-      { bookmarkMode: 'redact' },
+      { bookmarkMode: 'redact', publicVisibility: () => true },
     );
     expect(result.ok).toBe(true);
     if (result.ok) {

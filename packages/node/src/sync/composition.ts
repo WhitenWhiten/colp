@@ -466,17 +466,17 @@ export async function coordinateSessionBoundPush<
       detail: 'Every Push Operation and Sequence lane must match the verified Collection Session.',
     });
   }
-  for (const replicaId of new Set(request.operations.map((item) => item.operation.replicaId))) {
-    await assertPushReplicaOwnership(ownershipVerifier ?? gate.pushOwnershipVerifier, session,
-      { replicaId, collectionId: session.collectionId });
-  }
-  if (gate.enforcePushContinuity && unitOfWork.pushSequenceContinuity !== true) {
+  if (unitOfWork.pushSequenceContinuity !== true) {
     throw new SyncSessionGateDeniedError({
       state: 'request_binding_mismatch',
       detail:
         'Production Push requires a transactional Sequence lane state store '
         + '(pushSequenceContinuity marker).',
     });
+  }
+  for (const replicaId of new Set(request.operations.map((item) => item.operation.replicaId))) {
+    await assertPushReplicaOwnership(ownershipVerifier ?? gate.pushOwnershipVerifier, session,
+      { replicaId, collectionId: session.collectionId });
   }
   const result = await coordinatePushTransaction(unitOfWork, request, preflight);
   return Object.freeze({ session, result });

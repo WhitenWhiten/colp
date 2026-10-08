@@ -62,6 +62,25 @@ export function collectionVisibleNodeCountSql(alias = 'collection'): string {
   ), 0))`;
 }
 
+/**
+ * Count only nodes that can actually appear in an anonymous public
+ * projection.  `live_node_count` is maintained for private owner views and
+ * therefore includes private/protected descendants and nodes below a
+ * restricted ancestor.  Reusing it in a public directory or cursor leaks
+ * the size of unpublished parts of a collection.
+ */
+export function collectionPublicVisibleNodeCountSql(alias = 'collection'): string {
+  const ancestorRestriction = buildPublicationTargetAncestorRestrictionSql('n');
+  return `(select count(*)::int
+             from nodes n
+            where n.collection_id = ${alias}.id
+              and n.deleted_at is null
+              and n.visibility = 'inherit'
+              and not ${ancestorRestriction}
+              and not ${collectionHidePublicExistsSql(alias)}
+              and not ${bookmarkHidePublicExistsSql('n.id', 'n.collection_id')})`;
+}
+
 /** Public snapshot/Reader/COLP: hide_public on this bookmark node. */
 export function bookmarkHidePublicExistsSql(nodeIdSql: string, collectionIdSql: string): string {
   return `exists (

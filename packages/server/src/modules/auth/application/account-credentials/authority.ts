@@ -89,6 +89,11 @@ export async function loadCredentialAuthority(
   }
   if (ancestors.length === 0) return null;
   const ancestorsRootFirst = Object.freeze([...ancestors].reverse());
+  // A child credential remains bound to its manager even when its delegated
+  // account is still active.  The manager lifecycle is therefore part of
+  // credential authority: deletion must invalidate the child immediately.
+  const manager = await ports.accounts.findAccountById(credential.managerAccountId);
+  if (!manager || manager.status !== 'active' || manager.deletedAt !== null) return null;
   const account = await ports.accounts.findAccountById(credential.accountId);
   if (!account || account.status !== 'active' || account.deletedAt !== null) return null;
   if (account.subjectId !== credential.subjectId) return null;

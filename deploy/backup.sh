@@ -3,6 +3,10 @@
 # of the COLP database to colp-backup-<timestamp>.dump in the caller's
 # directory. The file appears only when the dump finished.
 set -euo pipefail
+# Database dumps contain the complete private library. Keep both the partial
+# file and the final artifact owner-readable even when the caller's umask is
+# permissive.
+umask 077
 
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 

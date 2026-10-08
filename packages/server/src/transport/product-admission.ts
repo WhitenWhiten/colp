@@ -187,6 +187,17 @@ export function installProductAdmission(
         if (!Buffer.isBuffer(body) || body.byteLength === 0) {
           throw invalidJson();
         }
+        // MCP admission must happen before JSON parsing.  The route performs
+        // its bounded request-budget admission on this raw, byte-limited
+        // buffer, then invokes the strict parser only for an admitted call.
+        // Returning the buffer here keeps malformed or deeply nested JSON
+        // from consuming parser CPU while all connection slots are busy.
+        const route = request.routeOptions.url;
+        if (limits !== undefined && typeof route === 'string'
+            && (route === '/collections/-/mcp' || route.endsWith('/collections/-/mcp'))) {
+          done(null, body);
+          return;
+        }
         if (limits === undefined) {
           done(null, JSON.parse(body.toString('utf8')));
           return;

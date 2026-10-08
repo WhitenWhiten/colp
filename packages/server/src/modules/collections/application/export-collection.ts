@@ -94,6 +94,7 @@ export interface CollectionExportReadPort {
   loadForPrincipal(input: {
     readonly collectionId: string;
     readonly subjectId: string;
+    readonly signal?: AbortSignal;
   }): Promise<ExportCollectionSource | null>;
   listOwnedIds(ownerSubjectId: string): Promise<readonly string[]>;
 }

@@ -36,6 +36,17 @@ test('CIMD transport accepts HTTPS GET and HEAD and leaves redirects with the ca
   ]);
 });
 
+test('CIMD transport enforces a deadline when the connector ignores AbortSignal', async () => {
+  const fetchImpl = createProductionCimdFetch(
+    () => new Promise<Response>(() => undefined),
+    { timeoutMs: 10 },
+  );
+  await assert.rejects(
+    fetchImpl(PUBLIC_CIMD),
+    (error: unknown) => error instanceof DOMException && error.name === 'TimeoutError',
+  );
+});
+
 test('CIMD transport refuses HTTP, POST, and hardened-egress denials without echoing targets', async () => {
   const fetchImpl = createProductionCimdFetch(async () => {
     throw new Error('connect must not run');

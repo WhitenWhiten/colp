@@ -3,6 +3,10 @@ import { isProxy } from 'node:util/types';
 import { isHttpsNamespaceUri } from '../schema/uri.js';
 import type { WebSubHub } from '../types/index.js';
 
+/** Canonical Feed schema bounds for WebSub hub declarations. */
+export const MAX_WEBSUB_HUBS = 512;
+export const MAX_WEBSUB_HUB_URL_LENGTH = 4096;
+
 export type WebSubDeclareResult =
   | { readonly ok: true; readonly hubs: readonly WebSubHub[] }
   | { readonly ok: false; readonly code: 'malformed_hub' | 'unsafe_hub_url' | 'duplicate_hub' };
@@ -17,11 +21,14 @@ export function declareWebSubHubs(hubUrls: readonly string[]): WebSubDeclareResu
   if (!Array.isArray(hubUrls) || isProxy(hubUrls)) {
     throw new TypeError('hubUrls must be an ordinary array.');
   }
+  if (hubUrls.length > MAX_WEBSUB_HUBS) {
+    return Object.freeze({ ok: false, code: 'malformed_hub' });
+  }
 
   const hubs: WebSubHub[] = [];
   const seen = new Set<string>();
   for (const url of hubUrls) {
-    if (typeof url !== 'string' || url.length === 0) {
+    if (typeof url !== 'string' || url.length === 0 || url.length > MAX_WEBSUB_HUB_URL_LENGTH) {
       return Object.freeze({ ok: false, code: 'malformed_hub' });
     }
     // WebSub hubs require HTTPS (schema $defs.httpsUrl / isHttpsNamespaceUri host).

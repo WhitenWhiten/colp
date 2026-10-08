@@ -151,6 +151,7 @@ export function Today() {
   const [focusStatus, setFocusStatus] = useState<FocusStatus>(restoredFocus?.status ?? 'loading')
   const [focusItems, setFocusItems] = useState<FocusItem[]>(restoredFocus?.items ?? [])
   const focusItemsRef = useRef<FocusItem[]>(restoredFocus?.items ?? [])
+  const renderedIdentityRef = useRef(sessionIdentity)
 
   const publishFocus = useCallback((items: FocusItem[], status: CachedFocus['status']) => {
     focusItemsRef.current = items
@@ -160,7 +161,13 @@ export function Today() {
   }, [])
   const [focusNonce, setFocusNonce] = useState(0)
   const todayLabel = formatWeekdayDate()
-  const conflictCount = syncConflicts?.length ?? 0
+  const identityReady = renderedIdentityRef.current === sessionIdentity
+  const visibleFocusStatus = identityReady
+    ? focusStatus
+    : bootstrapping ? 'loading' : isLoggedIn ? 'loading' : 'auth'
+  const visibleFocusItems = identityReady ? focusItems : []
+  const visibleSyncConflicts = identityReady ? syncConflicts : []
+  const conflictCount = visibleSyncConflicts?.length ?? 0
   // Dismissed for this session until the conflict count changes.
   const syncDismissed = dismissedCount === conflictCount
   const dismissSyncNotice = () => {
@@ -200,6 +207,7 @@ export function Today() {
 
   useEffect(() => {
     const requestIdentity = sessionIdentity
+    renderedIdentityRef.current = sessionIdentity
     focusItemsRef.current = focusCacheItems ?? []
     setFocusItems(focusCacheItems ?? [])
     setFocusStatus(focusCacheStatus ?? 'loading')
@@ -252,7 +260,7 @@ export function Today() {
           .map(fromSaved)
         publishFocus(savedItems, savedItems.length > 0 ? 'saved' : 'empty')
       } catch (reason) {
-        if (controller.signal.aborted) return
+        if (controller.signal.aborted || privateSessionIdentity() !== requestIdentity) return
         // A failed revalidation keeps the queue already on screen.
         if (focusItemsRef.current.length > 0) return
         setFocusItems([])
@@ -293,12 +301,12 @@ export function Today() {
           )}
           <div className="section-head section-head--split">
             <div><p className="section-label">Focus queue</p><h2>Continue where your attention already is</h2></div>
-            {focusStatus === 'progress' && <span>{focusItems.length} in progress</span>}
-            {focusStatus === 'saved' && <span>{focusItems.length} saved</span>}
+            {visibleFocusStatus === 'progress' && <span>{visibleFocusItems.length} in progress</span>}
+            {visibleFocusStatus === 'saved' && <span>{visibleFocusItems.length} saved</span>}
           </div>
           <div className="today-task-list">
-            {focusStatus === 'loading' && <LoadingState label="Loading your queue…" />}
-            {focusStatus === 'auth' && (
+            {visibleFocusStatus === 'loading' && <LoadingState label="Loading your queue…" />}
+            {visibleFocusStatus === 'auth' && (
               <RouteState
                 kind="auth"
                 icon="book"
@@ -307,7 +315,7 @@ export function Today() {
                 returnTo="/today"
               />
             )}
-            {focusStatus === 'flag-off' && (
+            {visibleFocusStatus === 'flag-off' && (
               <EmptyState
                 icon="book"
                 title="Nothing in progress"
@@ -315,7 +323,7 @@ export function Today() {
                 action={<Link to="/library?view=reading" className="btn btn-secondary btn-sm">Open reading library</Link>}
               />
             )}
-            {focusStatus === 'error' && (
+            {visibleFocusStatus === 'error' && (
               <EmptyState
                 role="alert"
                 icon="alert"
@@ -324,7 +332,7 @@ export function Today() {
                 action={<button type="button" className="btn btn-secondary btn-sm" onClick={() => setFocusNonce((value) => value + 1)}>Try again</button>}
               />
             )}
-            {(focusStatus === 'empty') && (
+            {(visibleFocusStatus === 'empty') && (
               <EmptyState
                 icon="book"
                 title="Nothing in progress"
@@ -332,7 +340,7 @@ export function Today() {
                 action={<Link to="/library?view=reading" className="btn btn-secondary btn-sm">Open reading library</Link>}
               />
             )}
-            {(focusStatus === 'progress' || focusStatus === 'saved') && focusItems.map((item) => (
+            {(visibleFocusStatus === 'progress' || visibleFocusStatus === 'saved') && visibleFocusItems.map((item) => (
               <TodayFocusRow
                 key={`${item.resourceType}:${item.resourceId}`}
                 item={item}

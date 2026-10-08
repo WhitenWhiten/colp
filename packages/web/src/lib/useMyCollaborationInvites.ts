@@ -42,6 +42,7 @@ export function useMyCollaborationInvites() {
   const controllerRef = useRef<AbortController | null>(null)
   const itemsRef = useRef<InviteItem[]>(restored?.items ?? [])
   const lastIdentityRef = useRef(privateIdentity)
+  const renderedIdentityRef = useRef(privateIdentity)
 
   const replaceItems = useCallback((next: InviteItem[], nextMessage: string) => {
     itemsRef.current = next
@@ -113,6 +114,7 @@ export function useMyCollaborationInvites() {
   }, [replaceItems])
 
   useEffect(() => {
+    renderedIdentityRef.current = privateIdentity
     if (lastIdentityRef.current !== privateIdentity) {
       lastIdentityRef.current = privateIdentity
       itemsRef.current = []
@@ -129,6 +131,7 @@ export function useMyCollaborationInvites() {
   }, [load, privateIdentity])
 
   const accept = useCallback(async (inviteId: string): Promise<MembershipResult> => {
+    const requestIdentity = privateIdentity
     setPendingInviteId(inviteId)
     try {
       const result = await productClient.acceptCollaborationInvite(inviteId, {
@@ -138,13 +141,15 @@ export function useMyCollaborationInvites() {
         ),
       })
       await load()
+      if (identity() !== requestIdentity) return result
       return result
     } finally {
-      setPendingInviteId((current) => current === inviteId ? null : current)
+      if (identity() === requestIdentity) setPendingInviteId((current) => current === inviteId ? null : current)
     }
   }, [load])
 
   const decline = useCallback(async (inviteId: string): Promise<void> => {
+    const requestIdentity = privateIdentity
     setPendingInviteId(inviteId)
     try {
       await productClient.declineCollaborationInvite(inviteId, {
@@ -155,9 +160,18 @@ export function useMyCollaborationInvites() {
       })
       await load()
     } finally {
-      setPendingInviteId((current) => current === inviteId ? null : current)
+      if (identity() === requestIdentity) setPendingInviteId((current) => current === inviteId ? null : current)
     }
   }, [load])
 
-  return { items, state, message, pendingInviteId, reload: load, accept, decline }
+  const identityReady = renderedIdentityRef.current === privateIdentity
+  return {
+    items: identityReady ? items : [],
+    state: identityReady ? state : 'loading',
+    message: identityReady ? message : 'Loading invitations',
+    pendingInviteId: identityReady ? pendingInviteId : null,
+    reload: load,
+    accept,
+    decline,
+  }
 }

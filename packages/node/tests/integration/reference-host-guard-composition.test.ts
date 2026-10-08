@@ -25,6 +25,8 @@ import {
   type ActiveSyncSessionRecord,
   type CreateSyncSessionInput,
   type PushPreparedOperation,
+  type PushSequenceLane,
+  type PushSequenceLaneState,
   type PushTransactionRequest,
   type StoredOperationReceipt,
   type SyncOperationClaim,
@@ -135,6 +137,7 @@ interface PushState {
   conflicts: Conflict[];
   audits: Audit[];
   outbox: Outbox[];
+  laneStates: Map<string, number>;
 }
 
 class TrackingPushUnitOfWork implements SyncUnitOfWork<
@@ -146,6 +149,7 @@ class TrackingPushUnitOfWork implements SyncUnitOfWork<
   TestTransaction
 > {
   public readonly operationIdReservationOwner = 'push' as const;
+  public readonly pushSequenceContinuity = true as const;
   public executeCount = 0;
   public readonly state: PushState = {
     operations: [],
@@ -156,6 +160,7 @@ class TrackingPushUnitOfWork implements SyncUnitOfWork<
     conflicts: [],
     audits: [],
     outbox: [],
+    laneStates: new Map(),
   };
 
   public async execute<Result>(work: (transaction: TestTransaction) => Promise<Result>): Promise<Result> {
@@ -196,6 +201,14 @@ class TrackingPushUnitOfWork implements SyncUnitOfWork<
         ),
         save: async (receipt: StoredOperationReceipt<OperationResult>) => {
           draft.receipts.push(structuredClone(receipt));
+        },
+      },
+      sequenceLanes: {
+        load: async (lane: PushSequenceLane) => ({
+          nextSequence: draft.laneStates.get(JSON.stringify(lane)) ?? 1,
+        }),
+        save: async (lane: PushSequenceLane, state: PushSequenceLaneState) => {
+          draft.laneStates.set(JSON.stringify(lane), state.nextSequence);
         },
       },
       appendOperation: async (operation: Operation) => {
