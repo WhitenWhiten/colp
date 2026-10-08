@@ -96,6 +96,9 @@ function assertSchemaWithinBudget(root: object): void {
     nodes += 1;
     if (nodes > MAX_SCHEMA_NODES) throw new RangeError('MCP tool schema exceeds node budget.');
     const keys = Reflect.ownKeys(current.value);
+    if (Array.isArray(current.value) && current.value.length > MAX_SCHEMA_WIDTH) {
+      throw new RangeError('MCP tool schema exceeds array width budget.');
+    }
     if (keys.length > MAX_SCHEMA_WIDTH) throw new RangeError('MCP tool schema exceeds object width budget.');
     members += keys.length;
     if (members > MAX_SCHEMA_MEMBERS) throw new RangeError('MCP tool schema exceeds member budget.');
@@ -104,9 +107,12 @@ function assertSchemaWithinBudget(root: object): void {
       bytes += Buffer.byteLength(key, 'utf8');
       if (bytes > MAX_SCHEMA_BYTES) throw new RangeError('MCP tool schema exceeds byte budget.');
       const descriptor = Object.getOwnPropertyDescriptor(current.value, key);
-      if (descriptor === undefined || !descriptor.enumerable || !('value' in descriptor)) {
+      const isArrayLength = Array.isArray(current.value) && key === 'length';
+      if (descriptor === undefined || !('value' in descriptor)
+        || (!isArrayLength && !descriptor.enumerable)) {
         throw new TypeError('MCP tool schema must contain enumerable data properties.');
       }
+      if (isArrayLength) continue;
       const child = descriptor.value;
       if (typeof child === 'string') {
         bytes += Buffer.byteLength(child, 'utf8');
