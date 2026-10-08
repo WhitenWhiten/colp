@@ -4,7 +4,7 @@
 openapi: 3.1.0
 info:
   title: Known agent directory fragment
-  version: 1.91.0
+  version: 1.92.0
   description: >
     OAuth clients and account-credential API keys for the current account,
     their recent MCP plans and direct writes, and revocation.

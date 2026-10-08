@@ -303,4 +303,4 @@ export { isConcurrentCatalogRaceError } from './concurrent-catalog.js';
 export { lockCollectionForReplicaInvalidation } from './lock-order.js';
 // Self-hosted entry and CLI open the maintenance (migrator) runtime.
 export { maintenanceDatabaseRuntimeOptions } from './maintenance-options.js';
-export { isAvatarPublicationRestricted, isFaviconHiddenPublic } from './publication-object-controls.js';
+export { isAvatarPublicationRestricted, isFaviconHiddenPublic, isFaviconPubliclyAccessible } from './publication-object-controls.js';

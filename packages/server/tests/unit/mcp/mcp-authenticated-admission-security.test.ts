@@ -13,8 +13,8 @@ for (const path of [strict, compat]) {
   test(`shared admission rejects the other resource before ${path} can consume quota or dispatch`, () => {
     const request = { ip: '127.0.0.1', routeOptions: { url: path } } as FastifyRequest;
     const other = path === strict ? compat : strict;
-    assert.equal(mcpRateLimitSubject(request, binding(path)).policy, 'request');
-    assert.throws(() => mcpRateLimitSubject(request, binding(other)),
+    assert.equal(mcpRateLimitSubject(request, binding(path), 'https://known.test').policy, 'request');
+    assert.throws(() => mcpRateLimitSubject(request, binding(other), 'https://known.test'),
       (error: unknown) => error instanceof McpOauthVerificationError && error.reason === 'wrong_audience');
   });
 }

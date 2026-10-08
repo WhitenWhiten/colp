@@ -143,3 +143,51 @@ test('assertMcpReadFeatureConfig rejects drifted nested compat', () => {
     /supportedProtocolVersions must be exactly \["2025-11-25"\]/u,
   );
 });
+
+test('assertMcpReadFeatureConfig rejects a foreign OAuth audience', () => {
+  const mcp = loadConfig(onEnv()).mcp!;
+  const foreignAudience = {
+    ...mcp,
+    oauth: {
+      ...mcp.oauth,
+      audience: 'https://foreign.example.test/collections/-/mcp',
+    },
+  };
+
+  assert.throws(
+    () => assertMcpReadFeatureConfig(foreignAudience),
+    /MCP OAuth audience must share the configured MCP origin/u,
+  );
+});
+
+test('assertMcpReadFeatureConfig retains the fixed OAuth audience endpoint path', () => {
+  const mcp = loadConfig(onEnv()).mcp!;
+  const pathDrift = {
+    ...mcp,
+    oauth: {
+      ...mcp.oauth,
+      audience: 'https://collections.example.test/collections/-/other',
+    },
+  };
+
+  assert.throws(
+    () => assertMcpReadFeatureConfig(pathDrift),
+    /MCP OAuth audience must match the configured MCP endpoint path \/collections\/-\/mcp/u,
+  );
+});
+
+test('assertMcpReadFeatureConfig allows an external issuer with a same-origin audience', () => {
+  const mcp = loadConfig(onEnv()).mcp!;
+  const externalIssuer = {
+    ...mcp,
+    oauth: {
+      ...mcp.oauth,
+      issuer: 'https://oauth.example.test/issuer',
+      authorizationServerMetadataUrl: 'https://oauth.example.test/.well-known/oauth-authorization-server',
+      jwksUri: 'https://oauth.example.test/issuer/jwks',
+      audience: 'https://collections.example.test/collections/-/mcp',
+    },
+  };
+
+  assert.doesNotThrow(() => assertMcpReadFeatureConfig(externalIssuer));
+});

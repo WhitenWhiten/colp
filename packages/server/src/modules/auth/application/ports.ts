@@ -200,6 +200,8 @@ export interface BrowserSessionAuthorityPorts {
   /** Legacy product sessions (revoke-all only; never an authentication authority). */
   readonly sessions: SessionRepository;
   readonly clock: IdentityClock;
+  /** Revoke every Better Auth OAuth refresh family in the same epoch transaction. */
+  readonly revokeOAuthRefreshTokensForAccount: (accountId: string) => Promise<number>;
 }
 
 /** Module-owned unit of work for browser session authority flows. */

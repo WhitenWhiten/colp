@@ -6,6 +6,8 @@ import type { VerifiedExtensionCredential } from '../identity/index.js';
 
 export interface SyncConflictResolutionInput {
   readonly credential: VerifiedExtensionCredential;
+  /** Exact transport Origin, bound to the durable Sync session. */
+  readonly origin: string;
   readonly sessionId: string;
   readonly replicaId: string;
   readonly collectionId: string;

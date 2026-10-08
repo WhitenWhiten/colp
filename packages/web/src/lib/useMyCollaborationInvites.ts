@@ -41,6 +41,7 @@ export function useMyCollaborationInvites() {
   const generation = useRef(0)
   const controllerRef = useRef<AbortController | null>(null)
   const itemsRef = useRef<InviteItem[]>(restored?.items ?? [])
+  const lastIdentityRef = useRef(privateIdentity)
 
   const replaceItems = useCallback((next: InviteItem[], nextMessage: string) => {
     itemsRef.current = next
@@ -112,6 +113,14 @@ export function useMyCollaborationInvites() {
   }, [replaceItems])
 
   useEffect(() => {
+    if (lastIdentityRef.current !== privateIdentity) {
+      lastIdentityRef.current = privateIdentity
+      itemsRef.current = []
+      setItems([])
+      setState('loading')
+      setMessage('Loading invitations')
+      setPendingInviteId(null)
+    }
     void load()
     return () => {
       controllerRef.current?.abort()

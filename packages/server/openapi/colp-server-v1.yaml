@@ -2,7 +2,7 @@ openapi: 3.1.0
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 info:
   title: Known Product API
-  version: 1.91.0
+  version: 1.92.0
   description: "Version 1.70.0 intentionally removes browser credential
     management: parent keys are provisioned only through the database for
     official bots. Credential child and grant management require a valid parent
@@ -208,7 +208,11 @@ info:
     client contract. info.version 1.90.0 additively adds optional pinned on
     BookmarkNodeView and PublicCollectionNode, and 1.91.0 on
     FaviconOrderingBrowseNode, marking bookmarks the owner pinned in a browser
-    extension, preserving every accepted 1.89.0 Product client contract."
+    extension, preserving every accepted 1.89.0 Product client contract.
+    info.version 1.92.0 intentionally tightens anonymous favicon publication
+    semantics: successful responses use a short public max-age with
+    must-revalidate and require a current live public bookmark binding, so
+    publication revocation is not pinned in shared caches."
 servers:
   - url: /
 tags:
@@ -1496,9 +1500,10 @@ paths:
         /^[a-f0-9-]{36}$/i. Illegal ids and missing objects share the same 404
         resource_not_found shape (no existence oracle). Transport may use
         public-revalidate so admission does not fill no-store; 200 and 404 pin
-        Cache-Control themselves. 200 is public, max-age=31536000, immutable.
-        404 is public, max-age=60. GET does not look up bookmark_icons; an
-        object may remain 200 until R2 DELETE. No Set-Cookie.
+        Cache-Control themselves. 200 is public, max-age=30, must-revalidate.
+        404 is public, max-age=60. The route confirms the current live
+        bookmark binding and publication state before serving bytes. No
+        Set-Cookie.
       security: []
       parameters:
         - $ref: "#/components/parameters/FaviconId"
@@ -1507,7 +1512,7 @@ paths:
           description: Favicon image bytes.
           headers:
             Cache-Control:
-              $ref: "#/components/headers/PublicImmutableImageCache"
+              $ref: "#/components/headers/PublicRevalidate"
             X-Content-Type-Options:
               $ref: "#/components/headers/XContentTypeOptions"
             X-Request-Id:
@@ -7320,6 +7325,8 @@ paths:
           $ref: "#/components/responses/AuthenticationRequired"
         "404":
           $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "500":
           $ref: "#/components/responses/InternalError"
   /api/v1/me/agents:

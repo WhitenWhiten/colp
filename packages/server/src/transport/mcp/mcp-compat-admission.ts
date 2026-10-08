@@ -351,7 +351,7 @@ export async function admitMcpCompatPost(
     dropAuthorizationHeader(request);
 
     const rateOutcome = await requestRateLimiter.consume(
-      mcpRateLimitSubject(request, trusted.binding),
+      mcpRateLimitSubject(request, trusted.binding, config.origin),
     );
     if (rateOutcome.kind === 'denied') {
       reply.header('Retry-After', String(rateOutcome.decision.retryAfterSeconds));

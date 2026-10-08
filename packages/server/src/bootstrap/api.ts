@@ -58,7 +58,7 @@ import { createApiPostgresPorts, createApiPostgresAppDependencies } from './api-
 import { createPostgresLinkPreviewPublicAccess } from '../infrastructure/collections/index.js';
 import {
   isAvatarPublicationRestricted,
-  isFaviconHiddenPublic,
+  isFaviconPubliclyAccessible,
 } from '../infrastructure/database/index.js';
 import { closeApiRuntimeResources } from './api-lifecycle.js';
 import { composeLedgerArchiveColdReaders } from './ledger-archive-reader-composition.js';
@@ -424,7 +424,7 @@ export async function startApi(options: StartApiOptions = {}): Promise<StartedAp
     identityUnitOfWork: ports.identityUnitOfWork,
     avatarStore,
     ...publicObjects.publicObjectStores,
-    faviconPublicAccess: { isHiddenPublic: (objectId) => isFaviconHiddenPublic(database.db, objectId) },
+    faviconPublicAccess: { isPubliclyAccessible: (objectId) => isFaviconPubliclyAccessible(database.db, objectId) },
     linkPreviewPublicAccess: { isServable: (objectId, signal) => createPostgresLinkPreviewPublicAccess(database.db, { cancelBackend: database.cancelBackend }).isServable(objectId, signal) },
     avatarPublicAccess: { isPublicationRestricted: (objectId) => isAvatarPublicationRestricted(database.db, objectId) },
     authRateLimiter,

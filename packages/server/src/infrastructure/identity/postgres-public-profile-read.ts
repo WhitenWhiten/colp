@@ -1,6 +1,7 @@
 import { CompiledQuery } from 'kysely';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
 import type { DatabaseRuntime } from '../database/index.js';
+import { accountRestrictPublicationExistsSql } from '../database/collection-control-sql.js';
 import {
   ABOUT_MAX,
   isCanonicalPublicProfileHandle,
@@ -17,12 +18,17 @@ interface PublicProfileFactsRow {
   avatar_url: string | null;
   about: string;
   owner_subject_id: string;
+  restrict_publication?: boolean;
 }
 
 export function createPostgresPublicProfileFactsReadPort(
   runtime: Pick<DatabaseRuntime, 'pool'>,
-): PublicProfileFactsReadPort & PublicProfileOwnerFactsReadPort {
+): PublicProfileFactsReadPort & PublicProfileOwnerFactsReadPort & PublicProfileAccountControlPort {
   return publicProfileFactsReader((text, values) => runtime.pool.query<PublicProfileFactsRow>(text, values));
+}
+
+export interface PublicProfileAccountControlPort {
+  accountControl(accountId: string): Promise<{ readonly restrictPublication: boolean }>;
 }
 
 /** Identity normalization with reads owned by the caller's database snapshot. */
@@ -32,6 +38,19 @@ export function createPostgresTransactionPublicProfileFactsReadPort(transaction:
 
 function publicProfileFactsReader(query: (text: string, values: unknown[]) => Promise<{ rows: PublicProfileFactsRow[] }>) {
   return Object.freeze({
+    async accountControl(accountId: string) {
+      if (typeof accountId !== 'string' || accountId.length === 0) {
+        throw new TypeError('Public Profile account lookup requires an account id');
+      }
+      const result = await query(
+        `select ${accountRestrictPublicationExistsSql('a.id')} as restrict_publication
+           from accounts a
+          where a.id = $1
+          limit 1`,
+        [accountId],
+      );
+      return Object.freeze({ restrictPublication: result.rows[0]?.restrict_publication === true });
+    },
     async findByCanonicalHandle(canonicalHandle: string) {
       if (!isCanonicalPublicProfileHandle(canonicalHandle)) {
         throw new TypeError('Public Profile facts lookup requires a canonical handle');
@@ -53,6 +72,7 @@ function publicProfileFactsReader(query: (text: string, values: unknown[]) => Pr
         `${publicProfileFactsSelect()} where a.subject_id = $1
            and a.status = 'active'
            and a.deleted_at is null
+           and not ${accountRestrictPublicationExistsSql('a.id')}
          limit 1`,
         [ownerSubjectId],
       );
@@ -81,6 +101,7 @@ function publicProfileFactsReader(query: (text: string, values: unknown[]) => Pr
           where a.subject_id = any($1::text[])
             and a.status = 'active'
             and a.deleted_at is null
+            and not ${accountRestrictPublicationExistsSql('a.id')}
           order by a.subject_id, lower(h.handle)`,
         [unique],
       );
@@ -109,6 +130,7 @@ export function buildPublicProfileFactsStatement(canonicalHandle: string): Publi
     text: `${publicProfileFactsSelect()} where lower(h.handle) collate "C" = $1 collate "C"
               and a.status = 'active'
               and a.deleted_at is null
+              and not ${accountRestrictPublicationExistsSql('a.id')}
             limit 1`,
     values: Object.freeze([canonicalHandle] as const),
   });

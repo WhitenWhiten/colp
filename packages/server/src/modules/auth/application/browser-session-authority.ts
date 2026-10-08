@@ -754,6 +754,7 @@ export function createBrowserSessionAuthority(
         }
         const now = await ports.clock.now();
         const securityEpoch = await ports.accounts.bumpSecurityEpoch(accountId);
+        await ports.revokeOAuthRefreshTokensForAccount(accountId);
         // BA session rows die with their metadata rows (FK cascade); the
         // security_epoch bump is the durable revoke fact that invalidates
         // every downstream binding (sync sessions / MCP approvals snapshot it).
@@ -775,6 +776,7 @@ export function createBrowserSessionAuthority(
         }
         const now = await ports.clock.now();
         const securityEpoch = await ports.accounts.bumpSecurityEpoch(mapping.accountId);
+        await ports.revokeOAuthRefreshTokensForAccount(mapping.accountId);
         await ports.store.revokeOthersForAccount(mapping.accountId, currentAuthSessionId, now);
         await ports.store.alignMetadataEpoch(currentAuthSessionId, securityEpoch);
         const revokedAuthSessions = await ports.store.deleteAuthSessionsForAccountExcept(

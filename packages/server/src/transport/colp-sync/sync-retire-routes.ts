@@ -105,6 +105,7 @@ export function registerSyncRetireRoutes(
         await dependencies.application.retireExtension({
           credential: admission.credential,
           sessionId: admission.sessionId,
+          origin: admission.origin,
           idempotencyKey: admission.idempotencyKey,
           requestFingerprint: createHash('sha256').update([
             'DELETE', dependencies.path, admission.origin, admission.sessionId,

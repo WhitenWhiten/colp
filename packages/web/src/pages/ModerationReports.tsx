@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import { isLive, isProductApiError, productClient } from '../api'
 import { useAuth } from '../auth/AuthContext'
 import { EmptyState } from '../components/EmptyState'
@@ -10,6 +10,7 @@ import { StatusBadge } from '../components/StatusBadge'
 import { ModerationRow, ModerationStatusFilter, ModerationTable } from '../components/ModerationTable'
 import type { GovernanceMyCase } from '@known/product-v1-client'
 import { formatDate } from '../lib/formatDate'
+import { privateSessionIdentity, subscribeSession } from '../api/sessionStore'
 import { governanceTargetHref, governanceTargetKind, governanceTargetMeta } from '../lib/governanceTarget'
 import {
   MODERATION_CATEGORY_LABEL,
@@ -33,6 +34,7 @@ const statusQuery = (status: StatusFilter) => (status === 'all' ? {} : { status 
 
 export function ModerationReports() {
   const { isLoggedIn } = useAuth()
+  const sessionIdentity = useSyncExternalStore(subscribeSession, privateSessionIdentity, privateSessionIdentity)
   const enabled = isLive('contentGovernance')
   const [items, setItems] = useState<GovernanceMyCase[] | null>(null)
   const [nextCursor, setNextCursor] = useState<string | null>(null)
@@ -43,24 +45,30 @@ export function ModerationReports() {
   const [status, setStatus] = useState<StatusFilter>('all')
 
   useEffect(() => {
+    setItems(null)
+    setNextCursor(null)
+    setLoadingMore(false)
+    setMoreError(false)
+    setError(null)
     if (!isLoggedIn) return
     if (!enabled) {
       setItems([])
       return
     }
     const controller = new AbortController()
+    const requestIdentity = sessionIdentity
     setError(null)
     setItems(null)
     setNextCursor(null)
     productClient.listMyModerationReports({ ...statusQuery(status), limit: PAGE_LIMIT }, { signal: controller.signal, maxRetries: 0 })
       .then((page) => {
-        if (controller.signal.aborted) return
+        if (controller.signal.aborted || privateSessionIdentity() !== requestIdentity) return
         setItems([...page.items])
         setNextCursor(page.nextCursor)
         setMoreError(false)
       })
       .catch((err) => {
-        if (controller.signal.aborted) return
+        if (controller.signal.aborted || privateSessionIdentity() !== requestIdentity) return
         if (isProductApiError(err) && err.status === 404) {
           setItems([])
           return
@@ -68,23 +76,26 @@ export function ModerationReports() {
         setError(isProductApiError(err) ? err.recoveryHint : "Couldn't load reports")
       })
     return () => controller.abort()
-  }, [enabled, isLoggedIn, attempt, status])
+  }, [enabled, isLoggedIn, attempt, status, sessionIdentity])
 
   async function loadMore() {
     if (!nextCursor || loadingMore) return
+    const requestIdentity = sessionIdentity
     setLoadingMore(true)
     setMoreError(false)
     try {
       const page = await productClient.listMyModerationReports({ ...statusQuery(status), limit: PAGE_LIMIT, cursor: nextCursor }, { maxRetries: 0 })
+      if (privateSessionIdentity() !== requestIdentity) return
       setItems((current) => {
         const seen = new Set((current ?? []).map((item) => item.id))
         return [...(current ?? []), ...page.items.filter((item) => !seen.has(item.id))]
       })
       setNextCursor(page.nextCursor)
     } catch {
+      if (privateSessionIdentity() !== requestIdentity) return
       setMoreError(true)
     } finally {
-      setLoadingMore(false)
+      if (privateSessionIdentity() === requestIdentity) setLoadingMore(false)
     }
   }
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { Link } from 'react-router-dom'
 import {
   isFeedExposureEnabled,
@@ -30,6 +30,7 @@ import { ResourcePrimaryLink } from '../components/ResourcePrimaryLink'
 import { readRouteCache, writeRouteCache } from '../lib/routeCache'
 import { useFollowedReportIssues } from '../lib/useFollowedReportIssues'
 import { useProductFeed } from '../lib/useProductFeed'
+import { privateSessionIdentity, subscribeSession } from '../api/sessionStore'
 // Shared product-loop stylesheet (see main.tsx); ships with this route chunk.
 import '../styles/today.css'
 
@@ -134,6 +135,7 @@ function TodayFocusRow({ item, progressEnabled }: { item: FocusItem; progressEna
 
 export function Today() {
   const { isLoggedIn, bootstrapping } = useAuth()
+  const sessionIdentity = useSyncExternalStore(subscribeSession, privateSessionIdentity, privateSessionIdentity)
   const [dismissedCount, setDismissedCount] = useState<number | null>(() => {
     try {
       const stored = sessionStorage.getItem(SYNC_NOTICE_DISMISSED_KEY)
@@ -144,6 +146,8 @@ export function Today() {
   })
   const [syncConflicts, setSyncConflicts] = useState<SyncConflictSummary[] | null>(null)
   const restoredFocus = readRouteCache<CachedFocus>(FOCUS_CACHE_KEY)
+  const focusCacheItems = restoredFocus?.items
+  const focusCacheStatus = restoredFocus?.status
   const [focusStatus, setFocusStatus] = useState<FocusStatus>(restoredFocus?.status ?? 'loading')
   const [focusItems, setFocusItems] = useState<FocusItem[]>(restoredFocus?.items ?? [])
   const focusItemsRef = useRef<FocusItem[]>(restoredFocus?.items ?? [])
@@ -176,6 +180,8 @@ export function Today() {
   const feedPreview = feed.items.filter((item) => item.kind === 'collection_change').slice(0, 3)
 
   useEffect(() => {
+    const requestIdentity = sessionIdentity
+    setSyncConflicts([])
     // Sync conflicts belong to a signed-in account; don't ask for them first.
     if (!isLoggedIn || bootstrapping) {
       setSyncConflicts([])
@@ -184,15 +190,19 @@ export function Today() {
     const controller = new AbortController()
     void productClient.loadSyncConflicts({ signal: controller.signal, maxRetries: 0, limit: 25 })
       .then((items) => {
-        if (!controller.signal.aborted) setSyncConflicts(items)
+        if (!controller.signal.aborted && privateSessionIdentity() === requestIdentity) setSyncConflicts(items)
       })
       .catch(() => {
-        if (!controller.signal.aborted) setSyncConflicts([])
+        if (!controller.signal.aborted && privateSessionIdentity() === requestIdentity) setSyncConflicts([])
       })
     return () => controller.abort()
-  }, [isLoggedIn, bootstrapping])
+  }, [isLoggedIn, bootstrapping, sessionIdentity])
 
   useEffect(() => {
+    const requestIdentity = sessionIdentity
+    focusItemsRef.current = focusCacheItems ?? []
+    setFocusItems(focusCacheItems ?? [])
+    setFocusStatus(focusCacheStatus ?? 'loading')
     if (bootstrapping) {
       setFocusStatus('loading')
       setFocusItems([])
@@ -219,7 +229,7 @@ export function Today() {
           { status: 'in_progress', limit: 5 },
           { signal: controller.signal, maxRetries: 0 },
         )
-        if (controller.signal.aborted) return
+        if (controller.signal.aborted || privateSessionIdentity() !== requestIdentity) return
         const inProgress = page.items
           .filter((item) => item.target.availability === 'available')
           .map(fromProgress)
@@ -235,7 +245,7 @@ export function Today() {
           { resourceType: 'node', limit: 5 },
           { signal: controller.signal, maxRetries: 0 },
         )
-        if (controller.signal.aborted) return
+        if (controller.signal.aborted || privateSessionIdentity() !== requestIdentity) return
         const savedItems = saved
           .filter((item) => item.target.availability === 'available')
           .slice(0, 5)
@@ -250,7 +260,7 @@ export function Today() {
       }
     })()
     return () => controller.abort()
-  }, [bootstrapping, focusNonce, isLoggedIn, progressEnabled, publishFocus, savedEnabled])
+  }, [bootstrapping, focusCacheItems, focusCacheStatus, focusNonce, isLoggedIn, progressEnabled, publishFocus, savedEnabled, sessionIdentity])
 
   /* R9-15: grid (96rem) is deliberate — /today is a two-column dashboard
      (today-layout: main + rail). /feed and /notifications stay on the

@@ -7,6 +7,7 @@ import {
 } from '../../modules/publication/index.js';
 import {
   COLLECTION_DISCOVERY_CONTROL_SQL,
+  accountRestrictPublicationExistsSql,
   bookmarkHidePublicExistsSql,
   collectionVisibleNodeCountSql,
 } from '../database/collection-control-sql.js';
@@ -138,6 +139,16 @@ export function buildPublicationDirectoryStatement(
     visibility,
     COLLECTION_DISCOVERY_CONTROL_SQL,
   ];
+  if (subjectId === undefined) {
+    // Account publication restriction is an owner-level control. Keep the
+    // subject-id join optional (legacy rows may have no account row), but if
+    // an account exists its active restriction must remove the collection from
+    // every anonymous directory page and cursor traversal. Member reads keep
+    // their existing protected collection semantics.
+    filters.push(`not exists (select 1 from accounts directory_owner
+                              where directory_owner.subject_id = c.owner_subject_id
+                                and ${accountRestrictPublicationExistsSql('directory_owner.id')})`);
+  }
   if (request.filter.tag) {
     // jsonb_exists ('?') returns true for scalar-string tags, so the array-only guard
     // keeps malformed scalar/object payloads out of tag matches.

@@ -14,17 +14,34 @@ const OPAQUE_ID = /^[A-Za-z0-9._~-]{1,128}$/u;
 const ORDER_KEY = /^[0-9A-Za-z_-]{1,128}$/u;
 const validators = createValidatorRegistry();
 
+/**
+ * Synchronous collection exports are intentionally smaller than the
+ * asynchronous library export.  The read port performs a database-side
+ * preflight before materializing rows and rejects a source above these caps.
+ */
+export const COLLECTION_EXPORT_MAX_BYTES = 32 * 1024 * 1024;
+export const COLLECTION_EXPORT_MAX_NODES = 50_000;
+export const COLLECTION_EXPORT_MAX_ANNOTATIONS = 25_000;
+export const COLLECTION_EXPORT_MAX_RELATIONS = 25_000;
+
 export const COLLECTION_EXPORT_JSON_TYPE =
   'application/vnd.collection-protocol.snapshot+json; charset=utf-8';
 export const COLLECTION_EXPORT_HTML_TYPE = 'text/html; charset=utf-8';
 
 export class ExportCollectionError extends Error {
-  readonly code: 'not_found' | 'invalid';
+  readonly code: 'not_found' | 'invalid' | 'capacity';
 
-  constructor(code: 'not_found' | 'invalid', message: string) {
+  constructor(code: 'not_found' | 'invalid' | 'capacity', message: string) {
     super(message);
     this.name = 'ExportCollectionError';
     this.code = code;
+  }
+}
+
+export class CollectionExportCapacityError extends ExportCollectionError {
+  constructor(message = 'collection export exceeds the supported size limit') {
+    super('capacity', message);
+    this.name = 'CollectionExportCapacityError';
   }
 }
 
@@ -146,12 +163,16 @@ export function renderCollectionExport(
 ): RenderedCollectionExport {
   const built = buildCollectionExport(source, input);
   const html = input.format === 'html';
+  const body = html
+    ? serializeNetscapeBookmarkHtml(built.snapshot)
+    : `${JSON.stringify(built.snapshot, null, 2)}\n`;
+  if (Buffer.byteLength(body, 'utf8') > COLLECTION_EXPORT_MAX_BYTES) {
+    throw new CollectionExportCapacityError();
+  }
   return {
     filename: `${built.filenameSlug}.${html ? 'html' : 'json'}`,
     contentType: html ? COLLECTION_EXPORT_HTML_TYPE : COLLECTION_EXPORT_JSON_TYPE,
-    body: html
-      ? serializeNetscapeBookmarkHtml(built.snapshot)
-      : `${JSON.stringify(built.snapshot, null, 2)}\n`,
+    body,
     entry: built.entry,
   };
 }

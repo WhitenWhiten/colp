@@ -2,10 +2,11 @@ import { sql, type Kysely } from 'kysely';
 export async function up(db: Kysely<unknown>): Promise<void> {
   await sql`CREATE FUNCTION revoke_password_oauth_grants() RETURNS trigger LANGUAGE plpgsql AS $$
   BEGIN
-    IF NEW.password IS DISTINCT FROM OLD.password THEN
-      UPDATE auth_oauth_refresh_token SET revoked=clock_timestamp() WHERE "userId"=NEW."userId" AND revoked IS NULL;
-      UPDATE auth_oauth_access_token SET revoked=clock_timestamp() WHERE "userId"=NEW."userId" AND revoked IS NULL;
+    IF TG_OP = 'UPDATE' THEN
+      IF NEW.password IS NOT DISTINCT FROM OLD.password THEN RETURN NEW; END IF;
     END IF;
+    UPDATE auth_oauth_refresh_token SET revoked=clock_timestamp() WHERE "userId"=NEW."userId" AND revoked IS NULL;
+    UPDATE auth_oauth_access_token SET revoked=clock_timestamp() WHERE "userId"=NEW."userId" AND revoked IS NULL;
     RETURN NEW;
   END $$`.execute(db);
   await sql`CREATE TRIGGER auth_password_oauth_revoke AFTER UPDATE OF password ON auth_accounts

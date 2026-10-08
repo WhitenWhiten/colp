@@ -28,7 +28,7 @@ const PNG = Buffer.from(
 );
 const HTML = Buffer.from('<html><head><title>not an image</title></head><body>polluted</body></html>');
 
-const IMMUTABLE_CACHE = 'public, max-age=31536000, immutable';
+const FAVICON_PUBLIC_CACHE = 'public, max-age=30, must-revalidate';
 const SHORT_PUBLIC_CACHE = 'public, max-age=60';
 const PUBLIC_REVALIDATE = 'public, no-cache, must-revalidate';
 
@@ -59,7 +59,7 @@ function assertShortPublicMissingCache(cacheControl: unknown): void {
   assert.equal(cacheControl, SHORT_PUBLIC_CACHE);
   assert.notEqual(cacheControl, 'private, no-store');
   assert.notEqual(cacheControl, 'no-store');
-  assert.notEqual(cacheControl, IMMUTABLE_CACHE);
+  assert.notEqual(cacheControl, FAVICON_PUBLIC_CACHE);
   assert.notEqual(cacheControl, PUBLIC_REVALIDATE);
 }
 
@@ -70,9 +70,13 @@ describe('BF-02 public favicon GET through the R2 adapter', () => {
     await Promise.all(apps.splice(0).map((app) => app.close()));
   });
 
-  function buildApp(endpoint: string): ReturnType<typeof buildApiApp> {
+  function buildApp(endpoint: string, accessible = true): ReturnType<typeof buildApiApp> {
     const app = buildApiApp({
       config,
+      // This transport test uses an isolated R2 fault server and has no
+      // database publication fixture. Inject the positive admission seam
+      // explicitly; production wires the PostgreSQL implementation.
+      faviconPublicAccess: { isPubliclyAccessible: async () => accessible },
       faviconStore: createR2FaviconStore({
         endpoint,
         region: 'auto',
@@ -86,7 +90,23 @@ describe('BF-02 public favicon GET through the R2 adapter', () => {
     return app;
   }
 
-  test('anonymous valid PNG GetObject is served on GET /api/v1/favicon/:id with immutable cache', async () => {
+  test('withdrawn or retired object is denied before the object store is read', async () => {
+    const fault = await startFaultServer(() => ({
+      status: 500,
+      headers: { 'content-type': 'text/plain' },
+      body: Buffer.from('must not be reached'),
+    }));
+    try {
+      const app = buildApp(fault.url, false);
+      const response = await app.inject({ method: 'GET', url: `/api/v1/favicon/${FAVICON_ID}` });
+      assert.equal(response.statusCode, 404, response.body);
+      assert.equal(fault.requests.length, 0, 'denied object must not trigger an R2 read');
+    } finally {
+      await fault.close();
+    }
+  });
+
+  test('anonymous valid PNG GetObject is served on GET /api/v1/favicon/:id with short revalidation cache', async () => {
     const fault = await startFaultServer((request) => (request.method === 'GET'
       ? {
           status: 200,
@@ -100,7 +120,7 @@ describe('BF-02 public favicon GET through the R2 adapter', () => {
       assert.equal(response.statusCode, 200, response.body);
       assert.equal(response.headers['content-type'], 'image/png');
       assert.deepEqual(response.rawPayload, PNG);
-      assert.equal(response.headers['cache-control'], IMMUTABLE_CACHE);
+      assert.equal(response.headers['cache-control'], FAVICON_PUBLIC_CACHE);
       assert.notEqual(response.headers['cache-control'], 'no-store');
       assert.notEqual(response.headers['cache-control'], PUBLIC_REVALIDATE);
       assert.equal(response.headers['x-content-type-options'], 'nosniff');
@@ -128,7 +148,7 @@ describe('BF-02 public favicon GET through the R2 adapter', () => {
       assert.equal(response.statusCode, 200, response.body);
       assert.equal(response.headers['content-type'], 'image/png');
       assert.deepEqual(response.rawPayload, PNG);
-      assert.equal(response.headers['cache-control'], IMMUTABLE_CACHE);
+      assert.equal(response.headers['cache-control'], FAVICON_PUBLIC_CACHE);
       assertNoSetCookie(response.headers);
     } finally {
       await fault.close();

@@ -164,8 +164,10 @@ async function applyVerifiedProductEmail(
   if (current !== null) {
     const now = await ports.clock.now();
     await ports.pendingUnboundInvites.revokePendingUnboundInvitesByEmail(current, now);
-    // revokeAll cannot join this transaction; it bumps through the same primitive.
+    // Keep the account epoch bump and OAuth refresh-family revocation in this transaction;
+    // browser sessions are handled by the surrounding security-event bridge.
     securityEpoch = await ports.accounts.bumpSecurityEpoch(resolved.account.id);
+    await ports.revokeOAuthRefreshTokensForAccount(resolved.account.id);
   }
   return { ...resolved, account: { ...resolved.account, email: normalized, securityEpoch } };
 }

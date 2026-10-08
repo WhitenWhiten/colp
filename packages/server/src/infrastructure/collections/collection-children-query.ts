@@ -1,5 +1,6 @@
 import { sql } from 'kysely';
 import { bookmarkHidePublicExistsSql } from '../database/collection-control-sql.js';
+import { buildPublicationTargetAncestorRestrictionSql } from '../publication/target-access-facts.js';
 import { bookmarkPinnedSql } from './bookmark-pin-sql.js';
 import type {
   CollectionChildrenNodeRow,
@@ -83,9 +84,7 @@ export interface PostgresCollectionChildrenPortsOptions {
 export function createPostgresCollectionChildrenPorts(
   transaction: DatabaseTransaction,
   _options: PostgresCollectionChildrenPortsOptions = {},
-): CollectionChildrenReadPort & {
-  getLiveNode(collectionId: string, nodeId: string): Promise<CollectionChildrenNodeRow | null>;
-} {
+): CollectionChildrenReadPort {
   const listLiveChildren: CollectionChildrenReadPort['listLiveChildren'] = async (input) => {
     const fetchLimit = input.limit + 1;
     let query = transaction
@@ -97,6 +96,16 @@ export function createPostgresCollectionChildrenPorts(
       .where(sql<boolean>`NOT is_root`)
       .where('kind', 'in', ['folder', 'bookmark'])
       .where('deleted_at', 'is', null);
+
+    // A public collection can contain private/protected nodes and folders.
+    // Apply the effective publication projection in the database before the
+    // keyset limit/order so pagination cannot reveal an otherwise hidden row
+    // (or use a hidden folder as a subtree traversal oracle).
+    if (input.publicOnly) {
+      query = query
+        .where('visibility', '=', 'inherit')
+        .where(sql<boolean>`not ${sql.raw(buildPublicationTargetAncestorRestrictionSql('nodes'))}`);
+    }
 
     if (input.after) {
       if (input.sort === 'created_asc') {
@@ -138,18 +147,20 @@ export function createPostgresCollectionChildrenPorts(
     return rows.map((row) => mapRow(row));
   };
 
-  const getLiveNode: (
-    collectionId: string,
-    nodeId: string,
-  ) => Promise<CollectionChildrenNodeRow | null> = async (collectionId, nodeId) => {
-    const row = await transaction
+  const getLiveNode: CollectionChildrenReadPort['getLiveNode'] = async (collectionId, nodeId, options) => {
+    let query = transaction
       .selectFrom('nodes')
       .select([...NODE_COLUMNS, sql<boolean>`kind = 'bookmark' and ${sql.raw(bookmarkHidePublicExistsSql('nodes.id', 'nodes.collection_id'))}`.as('moderation_hidden'),
         sql<boolean>`${sql.raw(bookmarkPinnedSql('nodes'))}`.as('pinned')])
       .where('collection_id', '=', collectionId)
       .where('id', '=', nodeId)
-      .where('deleted_at', 'is', null)
-      .executeTakeFirst();
+      .where('deleted_at', 'is', null);
+    if (options?.publicOnly) {
+      query = query
+        .where('visibility', '=', 'inherit')
+        .where(sql<boolean>`not ${sql.raw(buildPublicationTargetAncestorRestrictionSql('nodes'))}`);
+    }
+    const row = await query.executeTakeFirst();
     return row ? mapRow(row) : null;
   };
 

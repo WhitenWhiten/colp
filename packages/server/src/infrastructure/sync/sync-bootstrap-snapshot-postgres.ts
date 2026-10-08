@@ -104,25 +104,28 @@ export function createPostgresSyncBootstrapSnapshotApplication(
   if (!Number.isSafeInteger(maxSnapshotBytes) || maxSnapshotBytes < 1) throw new TypeError('Invalid Sync Snapshot byte limit.');
   return Object.freeze({
     async listOpenConflicts(input: { readonly credential: VerifiedExtensionCredential; readonly sessionId: string;
-      readonly snapshotId: string; readonly offset: number; readonly limit: number }) {
+      readonly snapshotId: string; readonly offset: number; readonly limit: number; readonly origin: string }) {
+      requireOrigin(input.origin);
       return withSnapshotClient(runtime.pool, async (client) => {
-        const authority = await loadAuthority(client, input.sessionId, input.credential);
+        const authority = await loadAuthority(client, input.sessionId, input.credential, input.origin);
         if (!authority) throw new SyncBootstrapSnapshotError('resource_not_found');
         return readSnapshotOpenConflictPage(client, authority, input);
       });
     },
     async confirmOpenConflicts(input: { readonly credential: VerifiedExtensionCredential; readonly sessionId: string;
-      readonly snapshotId: string; readonly conflictDigest: string }) {
+      readonly snapshotId: string; readonly conflictDigest: string; readonly origin: string }) {
+      requireOrigin(input.origin);
       return withSnapshotClient(runtime.pool, async (client) => {
-        const authority = await loadAuthority(client, input.sessionId, input.credential);
+        const authority = await loadAuthority(client, input.sessionId, input.credential, input.origin);
         if (!authority) throw new SyncBootstrapSnapshotError('resource_not_found');
         return confirmSnapshotOpenConflicts(client, authority, input);
       });
     },
-    async query(input: { readonly credential: VerifiedExtensionCredential; readonly request: import('@know-n/colp/types').SyncSnapshotQuery }) {
+    async query(input: { readonly credential: VerifiedExtensionCredential; readonly request: import('@know-n/colp/types').SyncSnapshotQuery; readonly origin: string }) {
       try {
+        requireOrigin(input.origin);
         if (options.pullCursorKeyring?.destroyed) throw new SyncBootstrapSnapshotError('service_unavailable');
-        const authority = createPostgresAuthority(runtime, input.credential,
+        const authority = createPostgresAuthority(runtime, input.credential, input.origin,
           options.cursorTtlMs ?? 900_000, options.cursorKeyId ?? 'v1', options.cursorSecret,
           options.pullCursorKeyring, options.recoveryProofRetentionMs, options.recovery,
           maxSnapshotNodes, maxSnapshotBytes);
@@ -139,6 +142,7 @@ export function createPostgresSyncBootstrapSnapshotApplication(
 function createPostgresAuthority(
   runtime: Pick<DatabaseRuntime, 'pool'>,
   credential: VerifiedExtensionCredential,
+  origin: string,
   ttl: number,
   cursorKeyId: string,
   cursorSecret: string | Uint8Array,
@@ -158,7 +162,7 @@ function createPostgresAuthority(
         await client.query('select pg_advisory_lock(hashtextextended($1, 0))', [input.sessionId]);
         lockHeld = true;
         await client.query('begin isolation level repeatable read');
-        const authority = await loadAuthority(client, input.sessionId, credential);
+        const authority = await loadAuthority(client, input.sessionId, credential, origin);
         if (!authority) throw new SyncBootstrapSnapshotError('resource_not_found');
         if (input.snapshotId) {
           const stored = await loadStored(client, input.snapshotId, authority, cursorKeyId,
@@ -192,7 +196,7 @@ function createPostgresAuthority(
         await client.query('select pg_advisory_lock(hashtextextended($1, 0))', [input.sessionId]);
         lockHeld = true;
         await client.query('begin');
-        const authority = await loadAuthority(client, input.sessionId, credential);
+        const authority = await loadAuthority(client, input.sessionId, credential, origin);
         if (!authority) throw new SyncBootstrapSnapshotError('authentication_required');
         if (authority.replica_state !== 'active' && authority.replica_state !== 'recovery_required') {
           throw new SyncBootstrapSnapshotError(authority.replica_state === 'retired' ? 'replica_retired' : 'stale_replica');
@@ -274,15 +278,28 @@ export const SYNC_BOOTSTRAP_SNAPSHOT_AUTHORITY_SQL = `select s.session_id,s.acco
 export const SYNC_BOOTSTRAP_SNAPSHOT_REPLICA_LOCK_SQL =
   `select replica_id from sync_replicas where replica_id=$1 for update`;
 
-async function loadAuthority(client: PoolClient, sessionId: string, credential: VerifiedExtensionCredential): Promise<AuthorityRow | null> {
+async function loadAuthority(client: PoolClient, sessionId: string, credential: VerifiedExtensionCredential,
+  origin: string): Promise<AuthorityRow | null> {
   await client.query(SYNC_BOOTSTRAP_SNAPSHOT_SESSION_LOCK_SQL, [sessionId]);
-  const result = await client.query<AuthorityRow>(SYNC_BOOTSTRAP_SNAPSHOT_AUTHORITY_SQL,
-    [sessionId, credential.issuer, credential.credentialId, credential.subject, credential.credentialDigest]);
+  // Every application authority check is bound to the exact Origin recorded
+  // when the session was issued. There is no legacy five-parameter bypass.
+  const authoritySql = `${SYNC_BOOTSTRAP_SNAPSHOT_AUTHORITY_SQL.replace(/\s*for update of a\s*$/u, '')}
+      and s.origin=$6 for update of a`;
+  const params = [sessionId, credential.issuer, credential.credentialId, credential.subject,
+    credential.credentialDigest, origin];
+  const result = await client.query<AuthorityRow>(authoritySql, params);
   const row = result.rows[0];
   if (!row) return null;
   // A lifecycle bump that committed after this repeatable-read snapshot raises 40001 here.
   await client.query(SYNC_BOOTSTRAP_SNAPSHOT_REPLICA_LOCK_SQL, [row.replica_id]);
   return row;
+}
+
+function requireOrigin(origin: unknown): asserts origin is string {
+  if (typeof origin !== 'string' || origin.length < 1 || origin.length > 2_048) {
+    // Omitted Origin must fail closed before any database authority lookup.
+    throw new SyncBootstrapSnapshotError('resource_not_found');
+  }
 }
 
 async function materialize(

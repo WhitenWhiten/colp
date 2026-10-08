@@ -82,6 +82,9 @@ async function retireExtensionTransaction(
     && session.collection_id === replica.collection_id
     && session.credential_issuer === input.credential.issuer
     && session.credential_id === input.credential.credentialId
+    // Bind retirement to the exact Origin recorded when this Sync session was
+    // issued. The application contract requires callers to provide it.
+    && session.origin === input.origin
     && session.oauth_client_id === input.credential.clientId
     && credential.account_id === account.id
     && credential.subject === input.credential.subject
@@ -171,7 +174,8 @@ async function retireExtensionTransaction(
 
 function validateInput(input: SyncRetireApplicationInput): void {
   validateVerifiedExtensionCredential(input.credential);
-  if (!TOKEN.test(input.sessionId) || !TOKEN.test(input.idempotencyKey)
+  if (typeof input.origin !== 'string' || input.origin.length < 1 || input.origin.length > 2_048
+      || !TOKEN.test(input.sessionId) || !TOKEN.test(input.idempotencyKey)
       || typeof input.requestFingerprint !== 'string' || input.requestFingerprint.length < 1
       || input.requestFingerprint.length > 4_096) deny('internal_error');
 }

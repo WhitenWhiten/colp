@@ -50,7 +50,15 @@ describe('POST /api/v1/me/link-health/checks', () => {
     assertProductErrorEnvelope(response, 403, 'csrf_failed');
   });
 
-  test('empty body marks only this owner pending and skips foreign ids', async () => {
+  test('empty body is rejected instead of sweeping every owned bookmark', async () => {
+    const { app, owner } = await harness({ enabled: true, seeds: [] });
+    const response = await app.inject({
+      method: 'POST', url: CHECKS, headers: mutationHeaders(owner, randomUUID()), payload: {},
+    });
+    assertProductErrorEnvelope(response, 422, 'invalid_document');
+  });
+
+  test('collection filter marks only this owner pending and skips foreign ids', async () => {
     const { app, owner, healthRows } = await harness({
       enabled: true,
       seeds: [
@@ -73,7 +81,8 @@ describe('POST /api/v1/me/link-health/checks', () => {
       ],
     });
     const response = await app.inject({
-      method: 'POST', url: CHECKS, headers: mutationHeaders(owner, randomUUID()), payload: {},
+      method: 'POST', url: CHECKS, headers: mutationHeaders(owner, randomUUID()),
+      payload: { collectionId: 'col-1' },
     });
     assert.equal(response.statusCode, 200);
     assert.equal(response.headers['cache-control'], 'private, no-store');
@@ -99,14 +108,16 @@ describe('POST /api/v1/me/link-health/checks', () => {
     });
     const commandId = randomUUID();
     const first = await app.inject({
-      method: 'POST', url: CHECKS, headers: mutationHeaders(owner, commandId), payload: {},
+      method: 'POST', url: CHECKS, headers: mutationHeaders(owner, commandId),
+      payload: { collectionId: 'col-1' },
     });
     assert.equal(first.statusCode, 200);
     assert.deepEqual(first.json(), { queued: 1 });
     healthRows[0]!.status = 'healthy';
     healthRows[0]!.checkedAt = NOW;
     const replay = await app.inject({
-      method: 'POST', url: CHECKS, headers: mutationHeaders(owner, commandId), payload: {},
+      method: 'POST', url: CHECKS, headers: mutationHeaders(owner, commandId),
+      payload: { collectionId: 'col-1' },
     });
     assert.equal(replay.statusCode, 200);
     assert.deepEqual(replay.json(), { queued: 1 });
@@ -121,11 +132,13 @@ describe('POST /api/v1/me/link-health/checks', () => {
       rateLimiter: createFixedWindowRateLimiter({ maxRequests: 1, windowMs: 60_000 }),
     });
     const allowed = await app.inject({
-      method: 'POST', url: CHECKS, headers: mutationHeaders(owner, randomUUID()), payload: {},
+      method: 'POST', url: CHECKS, headers: mutationHeaders(owner, randomUUID()),
+      payload: { collectionId: 'col-1' },
     });
     assert.equal(allowed.statusCode, 200);
     const limited = await app.inject({
-      method: 'POST', url: CHECKS, headers: mutationHeaders(owner, randomUUID()), payload: {},
+      method: 'POST', url: CHECKS, headers: mutationHeaders(owner, randomUUID()),
+      payload: { collectionId: 'col-1' },
     });
     assertProductErrorEnvelope(limited, 429, 'rate_limited');
   });

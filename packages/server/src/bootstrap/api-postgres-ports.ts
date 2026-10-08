@@ -488,6 +488,11 @@ export function createApiPostgresAppDependencies(input: {
       collections: createPostgresPublicationDirectoryReadPort(database),
       cursors: publicationCursorKeys,
       sharedExposure: createPostgresSharedExposureFactsPort(database),
+      // Keep the projection-level gate wired even though the profile facts
+      // reader also applies the SQL predicate.  This makes the account
+      // restriction an explicit production dependency and protects alternate
+      // facts ports from silently omitting the owner control.
+      accountControl: publicProfileFacts,
     }),
     searchQuery: { execute: (searchInput: Parameters<typeof executeSearchQuery>[1]) => executeSearchQuery(searchPorts, searchInput),
       loadCatalogDisplayTargets: createPostgresSearchCatalogDisplayTargetPort(database).load },

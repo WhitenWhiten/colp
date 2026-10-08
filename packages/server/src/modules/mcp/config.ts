@@ -375,7 +375,19 @@ export function assertMcpReadFeatureConfig(
     }
   }
   assertOidcEndpointUrl('MCP OAuth issuer', config.oauth.issuer, oauthEndpointMode);
-  assertOidcEndpointUrl('MCP OAuth audience', config.oauth.audience, oauthEndpointMode);
+  const audience = assertOidcEndpointUrl('MCP OAuth audience', config.oauth.audience, oauthEndpointMode);
+  if (audience.origin !== origin.origin) {
+    throw new Error('MCP OAuth audience must share the configured MCP origin');
+  }
+  if (
+    audience.pathname !== PHASE4B_MCP_CONFIG_ENDPOINT_PATH
+    || audience.search !== ''
+    || audience.hash !== ''
+  ) {
+    throw new Error(
+      `MCP OAuth audience must match the configured MCP endpoint path ${PHASE4B_MCP_CONFIG_ENDPOINT_PATH}`,
+    );
+  }
   assertOidcEndpointUrl('MCP OAuth authorization server metadata URL', config.oauth.authorizationServerMetadataUrl, oauthEndpointMode);
   if (config.oauth.jwksUri === null) {
     if (production) throw new Error('MCP OAuth JWKS URI is required in production');

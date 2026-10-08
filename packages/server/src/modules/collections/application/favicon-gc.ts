@@ -3,8 +3,9 @@
  *
  * Objects leave live reference when a refresh CAS switches the binding. The
  * exit is recorded durably with `deletable_at = retired_at +
- * FAVICON_HISTORY_RETENTION_SECONDS`, so the promised immutable cache window
- * is never undercut. The GC loop then:
+ * FAVICON_HISTORY_RETENTION_SECONDS`. Public reads are revalidated against
+ * the current binding, so retention is only for asynchronous object cleanup.
+ * The GC loop then:
  *
  *   1. claims only records whose retention window has passed (lease + SKIP
  *      LOCKED, so duplicate consumption is impossible);

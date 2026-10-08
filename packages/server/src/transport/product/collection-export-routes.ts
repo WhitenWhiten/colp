@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { IdentityUnitOfWork } from '../../modules/identity/index.js';
 import {
+  CollectionExportCapacityError,
   ExportCollectionError,
   renderCollectionExport,
   type CollectionExportReadPort,
@@ -34,13 +35,13 @@ export function registerCollectionExportRoutes(
     const collectionId = (request.params as { collectionId?: unknown }).collectionId;
     if (typeof collectionId !== 'string' || !OPAQUE_ID.test(collectionId)) throw notFound();
     const format = readFormat(request.query);
-    const source = await deps.reads.loadForPrincipal({
-      collectionId,
-      subjectId: account.subjectId,
-    });
-    if (source === null) throw notFound();
     let rendered;
     try {
+      const source = await deps.reads.loadForPrincipal({
+        collectionId,
+        subjectId: account.subjectId,
+      });
+      if (source === null) throw notFound();
       rendered = renderCollectionExport(source, {
         principalId: account.id,
         origin: deps.origin,
@@ -48,6 +49,14 @@ export function registerCollectionExportRoutes(
       });
     } catch (error: unknown) {
       if (error instanceof ExportCollectionError && error.code === 'not_found') throw notFound();
+      if (error instanceof CollectionExportCapacityError) {
+        throw new ProductHttpError({
+          statusCode: 413,
+          code: 'payload_too_large',
+          message: error.message,
+          recovery: 'user_action',
+        });
+      }
       throw new ProductHttpError({
         statusCode: 500,
         code: 'internal_error',

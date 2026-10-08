@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { undoApproval } from '../../api/agentsClient'
 import {
@@ -14,6 +14,7 @@ import { useToast } from '../../components/AppToast'
 import { readRouteCache, writeRouteCache } from '../../lib/routeCache'
 import { LOGIN_REASON_APPROVAL_REQUIRED } from '../loginReason'
 import { idleDraft, isDecisionAllowed, type DecisionDraft } from './types'
+import { privateSessionIdentity, subscribeSession } from '../../api/sessionStore'
 
 // Mirrors the Product API `planId` path contract enforced by
 // Known-Backend/src/routes/mcp-write-approval-routes.ts and its OpenAPI schema.
@@ -37,6 +38,7 @@ export function useWriteApprovals() {
   const planId = detailMode && PLAN_ID_PATTERN.test(routePlanId) ? routePlanId : null
   const invalidPlanId = detailMode && planId === null
   const { isLoggedIn, bootstrapping } = useAuth()
+  const sessionIdentity = useSyncExternalStore(subscribeSession, privateSessionIdentity, privateSessionIdentity)
   const location = useLocation()
   const navigate = useNavigate()
   const returnTo = `${location.pathname}${location.search}${location.hash}`
@@ -58,6 +60,7 @@ export function useWriteApprovals() {
      that do not resolve still render — as quiet .meta code, not chrome. */
   const [collectionTitles, setCollectionTitles] = useState<ReadonlyMap<string, string>>(new Map())
   const mounted = useRef(true)
+  const renderedIdentityRef = useRef(sessionIdentity)
   const approvalsRef = useRef(approvals)
   approvalsRef.current = approvals
   const authRedirected = useRef(false)
@@ -78,6 +81,7 @@ export function useWriteApprovals() {
   }, [])
 
   const load = useCallback(async (kind: 'initial' | 'refresh', signal?: AbortSignal) => {
+    const requestIdentity = sessionIdentity
     if (!enabled || bootstrapping || !isLoggedIn || invalidPlanId) {
       if (mounted.current) {
         setLoading(false)
@@ -101,7 +105,7 @@ export function useWriteApprovals() {
             { limit: 100 },
             { signal, maxRetries: 0 },
           )).items
-      if (signal?.aborted || !mounted.current) return
+      if (signal?.aborted || !mounted.current || privateSessionIdentity() !== requestIdentity) return
       setApprovals(planId ? items.filter((item) => item.planId === planId) : items)
       if (!planId) writeRouteCache(APPROVALS_CACHE_KEY, items)
       if (planId && items[0]?.planId !== planId) {
@@ -112,7 +116,7 @@ export function useWriteApprovals() {
       // See src/pages/sync/data.ts: the success path guards on the signal, so the
       // catch must too, or a rejected request from the superseded mount pass
       // still drives setLoadError / setMissingDetail / redirectToLogin.
-      if (signal?.aborted) return
+      if (signal?.aborted || privateSessionIdentity() !== requestIdentity) return
       if (error instanceof DOMException && error.name === 'AbortError') return
       if (!mounted.current) return
       const apiError = error instanceof ProductApiError ? error : null
@@ -143,7 +147,7 @@ export function useWriteApprovals() {
         setRefreshing(false)
       }
     }
-  }, [bootstrapping, detailMode, enabled, invalidPlanId, isLoggedIn, planId, redirectToLogin])
+  }, [bootstrapping, detailMode, enabled, invalidPlanId, isLoggedIn, planId, redirectToLogin, sessionIdentity])
 
   useEffect(() => {
     if (!enabled || bootstrapping || isLoggedIn) return
@@ -151,7 +155,9 @@ export function useWriteApprovals() {
   }, [bootstrapping, enabled, isLoggedIn, redirectToLogin])
 
   useEffect(() => {
+    renderedIdentityRef.current = sessionIdentity
     mounted.current = true
+    setApprovals([]); setDrafts({}); setCollectionTitles(new Map()); setMissingDetail(false)
     const controller = new AbortController()
     if (enabled && !bootstrapping && isLoggedIn && !invalidPlanId) {
       void load('initial', controller.signal)
@@ -161,25 +167,27 @@ export function useWriteApprovals() {
       mounted.current = false
       controller.abort()
     }
-  }, [bootstrapping, enabled, invalidPlanId, isLoggedIn, load])
+  }, [bootstrapping, enabled, invalidPlanId, isLoggedIn, load, sessionIdentity])
 
   useEffect(() => {
     if (!enabled || bootstrapping || !isLoggedIn) return
     const controller = new AbortController()
+    const requestIdentity = sessionIdentity
     productClient.loadOwnedCollections({ limit: 100 }, { signal: controller.signal, maxRetries: 0 })
       .then((items) => {
-        if (!controller.signal.aborted && mounted.current) {
+        if (!controller.signal.aborted && mounted.current && privateSessionIdentity() === requestIdentity) {
           setCollectionTitles(new Map(items.map((item) => [item.collection.id, item.collection.title])))
         }
       })
       .catch(() => { /* unresolved ids degrade to muted code */ })
     return () => controller.abort()
-  }, [bootstrapping, enabled, isLoggedIn])
+  }, [bootstrapping, enabled, isLoggedIn, sessionIdentity])
 
   const refreshApproval = useCallback(async (approvalId: string): Promise<WriteApprovalView | null> => {
+    const requestIdentity = sessionIdentity
     try {
       const view = await productClient.getWriteApproval(approvalId, { maxRetries: 0 })
-      if (!mounted.current) return null
+      if (!mounted.current || privateSessionIdentity() !== requestIdentity) return null
       setApprovals((items) => items.map((item) => item.planId === approvalId ? view : item))
       const cached = readRouteCache<WriteApprovalView[]>(APPROVALS_CACHE_KEY)
       if (cached?.some((item) => item.planId === approvalId)) {
@@ -204,13 +212,14 @@ export function useWriteApprovals() {
       }
       throw error
     }
-  }, [detailMode, planId, redirectToLogin])
+  }, [detailMode, planId, redirectToLogin, sessionIdentity])
 
   const handleDecision = useCallback(async (
     approval: WriteApprovalView,
     decision: WriteApprovalDecision,
     replay = false,
   ) => {
+    const requestIdentity = sessionIdentity
     const currentDraft = drafts[approval.planId] ?? idleDraft
     let frozen = replay ? currentDraft.frozen : null
     if (!frozen) {
@@ -236,10 +245,10 @@ export function useWriteApprovals() {
       productClient.abandonWriteApprovalIntent(frozen.intentId)
       try {
         const latest = await refreshApproval(approval.planId)
-        if (!mounted.current) return
+        if (!mounted.current || privateSessionIdentity() !== requestIdentity) return
         if (latest) updateDraft(latest.planId, idleDraft)
       } catch {
-        if (mounted.current) {
+        if (mounted.current && privateSessionIdentity() === requestIdentity) {
           updateDraft(approval.planId, {
             phase: 'blocked',
             message: 'Decision saved. Refresh to see the latest status.',
@@ -250,7 +259,7 @@ export function useWriteApprovals() {
       }
       success(frozen.decision === 'approve' ? 'Plan approved' : 'Plan denied')
     } catch (error) {
-      if (!mounted.current) return
+      if (!mounted.current || privateSessionIdentity() !== requestIdentity) return
       if (error instanceof DOMException && error.name === 'AbortError') return
       const apiError = error instanceof ProductApiError
         ? error
@@ -283,7 +292,7 @@ export function useWriteApprovals() {
         productClient.abandonWriteApprovalIntent(frozen.intentId)
         try {
           await refreshApproval(approval.planId)
-          if (mounted.current) updateDraft(approval.planId, idleDraft)
+          if (mounted.current && privateSessionIdentity() === requestIdentity) updateDraft(approval.planId, idleDraft)
         } catch {
           updateDraft(approval.planId, {
             phase: 'blocked',
@@ -303,7 +312,7 @@ export function useWriteApprovals() {
         productClient.abandonWriteApprovalIntent(frozen.intentId)
         try {
           const latest = await refreshApproval(approval.planId)
-          if (!mounted.current) return
+          if (!mounted.current || privateSessionIdentity() !== requestIdentity) return
           if (!latest) {
             updateDraft(approval.planId, idleDraft)
             return
@@ -349,12 +358,13 @@ export function useWriteApprovals() {
         desiredDecision: decision,
       })
     }
-  }, [drafts, redirectToLogin, refreshApproval, success, updateDraft])
+  }, [drafts, redirectToLogin, refreshApproval, success, updateDraft, sessionIdentity])
 
   const retryRefresh = useCallback(async (approval: WriteApprovalView) => {
+    const requestIdentity = sessionIdentity
     try {
       const latest = await refreshApproval(approval.planId)
-      if (!mounted.current) return
+      if (!mounted.current || privateSessionIdentity() !== requestIdentity) return
       if (!latest) {
         updateDraft(approval.planId, idleDraft)
         return
@@ -368,6 +378,7 @@ export function useWriteApprovals() {
         desiredDecision: drafts[approval.planId]?.desiredDecision ?? null,
       })
     } catch {
+      if (privateSessionIdentity() !== requestIdentity) return
       updateDraft(approval.planId, {
         phase: 'refresh_required',
         message: "Couldn't load the latest approval. Try refreshing it again.",
@@ -375,7 +386,7 @@ export function useWriteApprovals() {
         desiredDecision: drafts[approval.planId]?.desiredDecision ?? null,
       })
     }
-  }, [drafts, refreshApproval, updateDraft])
+  }, [drafts, refreshApproval, updateDraft, sessionIdentity])
 
   const startNewDecision = useCallback((approvalId: string) => {
     const frozen = drafts[approvalId]?.frozen
@@ -384,27 +395,29 @@ export function useWriteApprovals() {
   }, [drafts, updateDraft])
 
   const handleUndo = useCallback(async (approval: WriteApprovalView, force: boolean) => {
+    const requestIdentity = sessionIdentity
     const result = await undoApproval(approval.planId, { force })
-    if (!mounted.current) return
+    if (!mounted.current || privateSessionIdentity() !== requestIdentity) return
     success(result.noop
       ? 'The collection was already at the saved version.'
       : 'Undid the policy-approved plan.')
     await load('refresh')
-  }, [load, success])
+  }, [load, success, sessionIdentity])
 
+  const identityReady = renderedIdentityRef.current === sessionIdentity
   return {
     enabled,
     detailMode,
     invalidPlanId,
     missingDetail,
     authPending: enabled && (bootstrapping || !isLoggedIn),
-    approvals,
-    loading,
-    refreshing,
-    loadError,
-    loadErrorKind,
-    drafts,
-    collectionTitles,
+    approvals: identityReady ? approvals : [],
+    loading: identityReady ? loading : true,
+    refreshing: identityReady ? refreshing : false,
+    loadError: identityReady ? loadError : null,
+    loadErrorKind: identityReady ? loadErrorKind : null,
+    drafts: identityReady ? drafts : {},
+    collectionTitles: identityReady ? collectionTitles : new Map(),
     load,
     handleDecision,
     retryRefresh,

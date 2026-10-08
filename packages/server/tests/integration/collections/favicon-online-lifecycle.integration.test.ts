@@ -592,7 +592,7 @@ describeWithPostgres('FO-02 favicon online lifecycle (HTTP → durable job → w
       const get = await apiRaw('GET', `${address}/api/v1/favicon/${objectId}`, {});
       assert.equal(get.status, 200);
       assert.equal(get.headers['content-type'], 'image/png');
-      assert.equal(get.headers['cache-control'], 'public, max-age=31536000, immutable');
+      assert.equal(get.headers['cache-control'], 'public, max-age=30, must-revalidate');
       const raw = get.rawBody as string;
       const fetched: Buffer = Buffer.from(raw, 'latin1');
       assert.equal(createHash('sha256').update(fetched).digest('hex'),
@@ -1320,7 +1320,8 @@ describeWithPostgres('FO-02 favicon online lifecycle (HTTP → durable job → w
       await expectConsistent(PNG_V1, v1Binding.object_id, 'v1 initial');
 
       // Version switch to V2: the new effective object serves identical bytes
-      // for all three roles (old object retired, still within retention).
+      // for all three roles; the old object's public binding is revoked even
+      // while its durable GC retention row remains.
       provider.behavior = { status: 200, body: PNG_V2 };
       assertIconJobAccepted((await enqueueRefresh(PRIVATE_COLLECTION, node, address, owner.cookie, owner.csrfToken)).json);
       await runWorkerOnce(makeWorker(store, provider, 'fo02-bytes-w2'));
@@ -1411,8 +1412,8 @@ describeWithPostgres('FO-02 favicon online lifecycle (HTTP → durable job → w
       assert.equal((await isolated.runtime.pool.query(
         `select count(*)::int n from favicon_pending_deletions where object_id = $1`, [uploadedObjectId])).rows[0]?.n, 1,
         'the displaced upload is retired with retention');
-      const stillServed = await apiRaw('GET', `${address}/api/v1/favicon/${uploadedObjectId}`, {});
-      assert.equal(stillServed.status, 200, 'retired object stays fetchable during the retention window');
+      const retired = await apiRaw('GET', `${address}/api/v1/favicon/${uploadedObjectId}`, {});
+      assert.equal(retired.status, 404, 'retired object is no longer publicly readable after the binding swap');
     } finally { await app.close(); }
   });
 

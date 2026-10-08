@@ -468,16 +468,16 @@ describeWithPostgres('FO-01 favicon policy and icon source Product HTTP', () => 
         `select source_mode from bookmark_icon_sources where node_id = $1`, [bookmarkId])).rows[0] as
         { source_mode: string };
       assert.equal(noneRow.source_mode, 'none');
-      // The deleted upload is retired with its retention window, never
-      // deleted out from under the immutable cache promise.
+      // The deleted upload is retained for asynchronous GC, but its public
+      // binding is revoked immediately.
       const retired = (await isolated.runtime.pool.query(
         `select object_id, deletable_at > retired_at as has_window
          from favicon_pending_deletions where object_id = $1`, [view.iconVersion])).rows[0] as
         { object_id: string; has_window: boolean } | undefined;
       assert.ok(retired, 'Product delete must enter the durable GC retirement ledger');
       assert.equal(retired.has_window, true);
-      const stillServed = await api('GET', `${address}/api/v1/favicon/${view.iconVersion}`, {});
-      assert.equal(stillServed.status, 200, 'retired object stays fetchable during the retention window');
+      const retiredResponse = await api('GET', `${address}/api/v1/favicon/${view.iconVersion}`, {});
+      assert.equal(retiredResponse.status, 404, 'retired object is no longer publicly readable after deletion');
     } finally { await app.close(); }
   });
 
@@ -671,8 +671,8 @@ describeWithPostgres('FO-01 favicon policy and icon source Product HTTP', () => 
       const retiredAfter = (await isolated.runtime.pool.query(
         `select count(*)::int n from favicon_pending_deletions where object_id = $1`, [uploadedObjectId])).rows[0]?.n;
       assert.equal(retiredAfter, 1, 'switch away must retire the old object with retention');
-      const stillServed = await api('GET', `${address}/api/v1/favicon/${uploadedObjectId}`, {});
-      assert.equal(stillServed.status, 200, 'retired object stays fetchable during the retention window');
+      const retired = await api('GET', `${address}/api/v1/favicon/${uploadedObjectId}`, {});
+      assert.equal(retired.status, 404, 'retired object is no longer publicly readable after the binding is cleared');
     } finally { await app.close(); }
   });
 
@@ -727,8 +727,8 @@ describeWithPostgres('FO-01 favicon policy and icon source Product HTTP', () => 
       assert.equal((await isolated.runtime.pool.query(
         `select count(*)::int n from favicon_pending_deletions where object_id = $1`, [objectId])).rows[0]?.n, 1,
         'explicit none retires the old object with retention');
-      const stillServed = await api('GET', `${address}/api/v1/favicon/${objectId}`, {});
-      assert.equal(stillServed.status, 200, 'retired object stays fetchable during the retention window');
+      const retired = await api('GET', `${address}/api/v1/favicon/${objectId}`, {});
+      assert.equal(retired.status, 404, 'retired object is no longer publicly readable after the binding is cleared');
     } finally { await app.close(); }
   });
 

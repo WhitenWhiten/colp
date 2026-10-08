@@ -487,19 +487,20 @@ test('epoch bump retires tokens issued before the bump and accepts tokens issued
   );
 });
 
-test('an incident bump does not lower the floor and same-second iat is not revoked', async () => {
+test('an incident bump does not lower the floor and boundary-second iat is revoked', async () => {
   let current = new Date('2026-08-05T09:00:00.000Z');
   const store = createInMemoryMcpOauthRevocationStore({ now: () => current });
   const target = revocationTarget('raw-token-floor');
   const floor = Math.floor(current.getTime() / 1_000);
-  assert.equal(await store.isRevoked({ ...target, issuedAtSeconds: floor }), false);
+  assert.equal(await store.isRevoked({ ...target, issuedAtSeconds: floor }), true);
+  assert.equal(await store.isRevoked({ ...target, issuedAtSeconds: floor + 1 }), false);
   assert.equal(await store.isRevoked({ ...target, issuedAtSeconds: floor - 1 }), true);
   current = new Date('2026-08-05T08:00:00.000Z');
   const bumped = await store.bumpSecurityEpoch('incident-name');
   assert.equal(bumped.value, 'incident-name');
   assert.equal(bumped.effectiveAt.toISOString(), '2026-08-05T09:00:00.000Z');
   assert.equal(await store.isRevoked({ ...target, issuedAtSeconds: floor - 1 }), true);
-  assert.equal(await store.isRevoked({ ...target, issuedAtSeconds: floor }), false);
+  assert.equal(await store.isRevoked({ ...target, issuedAtSeconds: floor }), true);
 });
 
 test('a revoked signed token fails immediately and an epoch bump retires old tokens while new tokens succeed', async () => {

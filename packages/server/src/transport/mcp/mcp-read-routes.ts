@@ -497,7 +497,7 @@ export function registerMcpReadRoutes(
           controller.signal,
           requiredScopes,
         );
-        const rateOutcome = await requestRateLimiter.consume(mcpRateLimitSubject(request, trusted.binding));
+        const rateOutcome = await requestRateLimiter.consume(mcpRateLimitSubject(request, trusted.binding, config.origin));
         if (rateOutcome.kind === 'denied') {
           operationOutcome = 'problem';
           operationCategory = 'transport';

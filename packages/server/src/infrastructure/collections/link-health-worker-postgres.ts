@@ -36,6 +36,14 @@ interface ClaimRow {
   lease_owner: string;
 }
 
+/**
+ * A single user command must never turn into an unbounded write.  The
+ * collection and owner filters are intentionally still optional for backwards
+ * compatibility with the existing client, so the database write itself is
+ * capped.  Clients can issue another command to continue a large sweep.
+ */
+export const LINK_HEALTH_CHECKS_MAX_QUEUE_ROWS = 500;
+
 export function createPostgresLinkHealthChecksWritePort(
   transaction: DatabaseTransaction | Kysely<DatabaseSchema>,
 ): LinkHealthChecksWritePort {
@@ -47,6 +55,44 @@ export function createPostgresLinkHealthChecksWritePort(
     }): Promise<number> {
       if (input.nodeIds !== undefined && input.nodeIds.length === 0) return 0;
       const result = await sql<{ node_id: string }>`
+        WITH candidates AS (
+          SELECT h.node_id, h.collection_id
+          FROM collection_link_health AS h
+          INNER JOIN nodes AS n ON n.id = h.node_id AND h.collection_id = n.collection_id
+          INNER JOIN collections AS c ON c.id = n.collection_id
+          WHERE c.deleted_at IS NULL
+            AND n.deleted_at IS NULL
+            AND n.kind = 'bookmark'
+            AND n.url IS NOT NULL
+            AND n.url <> ''
+            -- Never reset a row while a worker owns a live lease.  An
+            -- expired lease is eligible for the next bounded sweep.
+            AND (h.lease_until IS NULL OR h.lease_until < current_timestamp)
+            AND (
+              (
+                ${input.collectionId ?? null}::text IS NULL
+                AND c.owner_subject_id = ${input.ownerSubjectId}
+              )
+              OR (
+                ${input.collectionId ?? null}::text IS NOT NULL
+                AND n.collection_id = ${input.collectionId ?? null}
+                AND (
+                  c.owner_subject_id = ${input.ownerSubjectId}
+                  OR EXISTS (
+                    SELECT 1
+                    FROM collection_members AS m
+                    WHERE m.collection_id = c.id
+                      AND m.subject_id = ${input.ownerSubjectId}
+                      AND m.role = 'editor'
+                  )
+                )
+              )
+            )
+            AND (${input.nodeIds ?? null}::text[] IS NULL OR n.id = ANY(${input.nodeIds ?? null}::text[]))
+          ORDER BY h.node_id COLLATE "C" ASC
+          FOR UPDATE OF h SKIP LOCKED
+          LIMIT ${LINK_HEALTH_CHECKS_MAX_QUEUE_ROWS}
+        )
         UPDATE collection_link_health AS h
         SET status = 'pending',
             http_status = NULL,
@@ -55,36 +101,9 @@ export function createPostgresLinkHealthChecksWritePort(
             error_class = NULL,
             lease_owner = NULL,
             lease_until = NULL
-        FROM nodes AS n
-        INNER JOIN collections AS c ON c.id = n.collection_id
-        WHERE h.node_id = n.id
-          AND h.collection_id = n.collection_id
-          AND c.deleted_at IS NULL
-          AND n.deleted_at IS NULL
-          AND n.kind = 'bookmark'
-          AND n.url IS NOT NULL
-          AND n.url <> ''
-          AND (
-            (
-              ${input.collectionId ?? null}::text IS NULL
-              AND c.owner_subject_id = ${input.ownerSubjectId}
-            )
-            OR (
-              ${input.collectionId ?? null}::text IS NOT NULL
-              AND n.collection_id = ${input.collectionId ?? null}
-              AND (
-                c.owner_subject_id = ${input.ownerSubjectId}
-                OR EXISTS (
-                  SELECT 1
-                  FROM collection_members AS m
-                  WHERE m.collection_id = c.id
-                    AND m.subject_id = ${input.ownerSubjectId}
-                    AND m.role = 'editor'
-                )
-              )
-            )
-          )
-          AND (${input.nodeIds ?? null}::text[] IS NULL OR n.id = ANY(${input.nodeIds ?? null}::text[]))
+        FROM candidates
+        WHERE h.node_id = candidates.node_id
+          AND h.collection_id = candidates.collection_id
         RETURNING h.node_id
       `.execute(transaction);
       return result.rows.length;

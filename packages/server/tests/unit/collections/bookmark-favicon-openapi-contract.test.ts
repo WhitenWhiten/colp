@@ -249,14 +249,14 @@ test('GET favicon is anonymous; POST/DELETE require Session CSRF Command-Id and 
   assert.equal(parameterRefs(get).has('#/components/parameters/IfMatch'), false);
 });
 
-test('GET 200 pins PublicImmutableImageCache and GET 404 uses FaviconNotFound short cache', () => {
+test('GET 200 pins PublicRevalidate and GET 404 uses FaviconNotFound short cache', () => {
   const document = readDocument();
   const get = document.paths[GET_PATH]?.get;
   assert.ok(get);
   const ok = get.responses?.['200'];
   assert.ok(ok);
   assert.equal(typeof ok.$ref, 'undefined', 'GET 200 must be inline so Cache-Control is pinned on the operation');
-  assert.equal(cacheControlRef(ok), '#/components/headers/PublicImmutableImageCache');
+  assert.equal(cacheControlRef(ok), '#/components/headers/PublicRevalidate');
   assert.notEqual(cacheControlRef(ok), '#/components/headers/PublicOrPrivateCache');
   assert.equal(
     ((ok.headers as UnknownRecord)['X-Content-Type-Options'] as UnknownRecord)?.$ref,
@@ -282,11 +282,8 @@ test('GET 200 pins PublicImmutableImageCache and GET 404 uses FaviconNotFound sh
     '#/components/headers/XRequestId',
   );
 
-  const immutable = document.components.headers.PublicImmutableImageCache;
   const short = document.components.headers.PublicShortCache;
-  assert.ok(immutable);
   assert.ok(short);
-  assert.equal((immutable.schema as UnknownRecord).const, 'public, max-age=31536000, immutable');
   assert.equal((short.schema as UnknownRecord).const, 'public, max-age=60');
 });
 

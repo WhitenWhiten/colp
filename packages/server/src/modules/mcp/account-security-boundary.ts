@@ -2,8 +2,9 @@
  * Account MCP security boundary.
  *
  * Built-in tokens are judged by `known_account_epoch` equality. Issuers that
- * do not send that claim use `iat < floor(security_epoch_bumped_at)` with no
- * JWT skew. The same second is not revoked; this does not order milliseconds.
+ * do not send that claim use `iat <= floor(security_epoch_bumped_at)` with no
+ * JWT skew. Equality is rejected because the signed token only has second
+ * precision while the durable boundary is millisecond precision.
  * A missing row, an inactive account, or a failed read is revoked.
  */
 export interface McpAccountSecurityBoundary {
@@ -38,7 +39,7 @@ export function isMcpAccountSecurityBoundaryRevoked(input: {
     }
   }
   if (!(bumpedAt instanceof Date) || Number.isNaN(bumpedAt.getTime())) return true;
-  return input.issuedAtSeconds < Math.floor(bumpedAt.getTime() / 1_000);
+  return input.issuedAtSeconds <= Math.floor(bumpedAt.getTime() / 1_000);
 }
 
 export async function mcpAccountSecurityBoundaryVerdict(input: {
