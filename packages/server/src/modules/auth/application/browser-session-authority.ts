@@ -159,9 +159,8 @@ export type BrowserSessionCookieParseResult =
  * §3.2/R3), so the authority MUST reject them itself.
  */
 function acceptedBrowserSessionCookieNames(): ReadonlySet<string> {
-  if (process.env.COLP_INSECURE_HTTP === 'true') {
-    return new Set([BROWSER_SESSION_COOKIE_NAME, 'known_session']);
-  }
+  // Only the name this mode writes (see transport/session-cookie.ts).
+  if (process.env.COLP_INSECURE_HTTP === 'true') return new Set(['known_session']);
   return new Set([BROWSER_SESSION_COOKIE_NAME]);
 }
 

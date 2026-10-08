@@ -13,7 +13,7 @@ import {
 } from '../../modules/search/index.js';
 import type { IdentityUnitOfWork } from '../../modules/identity/index.js';
 import { optionalSessionActor, authenticationRequired } from '../session-auth.js';
-import { readSessionCookie } from '../session-cookie.js';
+import { readSessionCookie, writtenSessionCookieName } from '../session-cookie.js';
 import { ProductHttpError } from '../product-error.js';
 import { productErrorStatus } from '../product-codes.js';
 import { productRouteMetadata } from '../product-route-manifest.js';
@@ -167,7 +167,9 @@ async function resolvePrincipal(request: FastifyRequest,
   principal: SearchPrincipal; accountCreatedAt?: Date;
 }> {
   const rawSession = readSessionCookie(request);
-  const namedSessionCookies = (request.headers.cookie ?? '').match(/(?:^|;)\s*__Host-known_session=/gu) ?? [];
+  const sessionCookieName = writtenSessionCookieName();
+  const namedSessionCookies = (request.headers.cookie ?? '').split(';')
+    .filter((part) => part.trimStart().startsWith(`${sessionCookieName}=`));
   if (namedSessionCookies.length > 1) throw invalidRequest('The Session cookie must occur once.');
   const hasNamedSessionCookie = namedSessionCookies.length === 1;
   const authenticated = await optionalSessionActor(request, identityUnitOfWork);

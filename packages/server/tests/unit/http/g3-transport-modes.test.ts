@@ -10,6 +10,7 @@ import {
   buildBetterAuthConfig,
 } from '../../../src/modules/auth/better-auth-config.js';
 import { parseSessionCookieField } from '../../../src/transport/session-cookie.js';
+import { parseBrowserSessionCookie } from '../../../src/modules/auth/application/browser-session-authority.js';
 import {
   INSECURE_HTTP_TRANSPORT_WARNING,
   installHttpSecurity,
@@ -95,6 +96,21 @@ test('cookie name stays frozen unless insecure HTTP is opted in', () => {
     parseSessionCookieField('__Host-known_session=token.sig').kind,
     'present',
   );
+});
+
+test('each mode reads only the session cookie name it writes', () => {
+  // Cookies ignore the port: on http://localhost another app's
+  // __Host-known_session arrives next to ours and must not make it ambiguous.
+  const both = '__Host-known_session=other.sig; known_session=ours.sig';
+  process.env.COLP_INSECURE_HTTP = 'true';
+  assert.deepEqual(parseSessionCookieField(both), { kind: 'present', raw: 'ours.sig' });
+  assert.deepEqual(parseBrowserSessionCookie(both), { kind: 'present', value: 'ours.sig' });
+  assert.equal(parseSessionCookieField('__Host-known_session=other.sig').kind, 'absent');
+  assert.equal(parseBrowserSessionCookie('__Host-known_session=other.sig').kind, 'absent');
+  assert.equal(parseSessionCookieField('known_session=a.sig; known_session=b.sig').kind, 'parse-error');
+  delete process.env.COLP_INSECURE_HTTP;
+  assert.deepEqual(parseSessionCookieField(both), { kind: 'present', raw: 'other.sig' });
+  assert.deepEqual(parseBrowserSessionCookie(both), { kind: 'present', value: 'other.sig' });
 });
 
 test('tls mode rejects insecure-acknowledged evidence', () => {

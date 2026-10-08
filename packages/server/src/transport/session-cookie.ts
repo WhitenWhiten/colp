@@ -45,12 +45,13 @@ export type SessionCookieParseResult =
  * which product admission maps to 400 so ambiguous cookies fail closed.
  * Manual parse: only our cookie name; avoid depending on @fastify/cookie.
  */
-/** TLS reads only `__Host-known_session`. Insecure HTTP also accepts `known_session`. */
+/**
+ * Each mode reads only the name it writes. Cookies ignore the port, so on
+ * http://localhost another app's `__Host-known_session` reaches this server;
+ * accepting both names would turn that into a 400 on every request.
+ */
 function acceptedSessionCookieNames(): ReadonlySet<string> {
-  if (process.env.COLP_INSECURE_HTTP === 'true') {
-    return new Set([SESSION_COOKIE_NAME, 'known_session']);
-  }
-  return new Set([SESSION_COOKIE_NAME]);
+  return new Set([writtenSessionCookieName()]);
 }
 
 export function parseSessionCookieField(header: string): SessionCookieParseResult {
