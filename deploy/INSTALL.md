@@ -22,8 +22,9 @@ server, PostgreSQL, and Caddy.
 
 Plain HTTP means your password, session, and bookmarks travel unencrypted on
 your network. The server logs a warning on every start, the web UI shows a
-banner, and the extension asks you to confirm twice. Hosted AI agents and
-OAuth clients require HTTPS; local agents with API keys work over HTTP.
+banner, and the extension asks you to confirm before it saves the origin.
+Hosted AI agents, OAuth clients, and API-key scripts need HTTPS. The plain
+HTTP profile is for the browser on this machine.
 
 ## 3. Install
 
@@ -87,8 +88,9 @@ agent appears in the Agents list.
 **Codex and other clients that speak MCP 2026-07-28**: use
 `/collections/-/mcp` instead of `/collections/-/mcp-compat`.
 
-**A script with an API key** (works over HTTP too): Agents → **Issue key**,
-copy it once, then:
+**A script with an API key** (HTTPS only): Agents → **Issue key**, copy it
+once, then run this against the HTTPS origin from section 3 (`tls-auto` or
+`tls-internal`), not against `http://127.0.0.1:8080`:
 ```sh
 curl -H "Authorization: Bearer $KEY" -H "MCP-Protocol-Version: 2026-07-28" \
   -H "Accept: application/json, text/event-stream" \
@@ -96,6 +98,12 @@ curl -H "Authorization: Bearer $KEY" -H "MCP-Protocol-Version: 2026-07-28" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' \
   "$COLP_SERVER_ORIGIN/collections/-/mcp"
 ```
+The server checks that key by fetching its own JWKS at `COLP_SERVER_ORIGIN`.
+On the plain HTTP profile that origin is `http://127.0.0.1:8080`, which is
+the container itself, not the host port, so the fetch fails and `tools/list`
+returns HTTP 401 `invalid_token`. Use an HTTPS origin the server can reach.
+The same 401 with no `Accept` header is HTTP 406 `mcp_unsupported_accept`;
+send both `application/json` and `text/event-stream`.
 
 **Approval policy.** Each agent starts as *manual*: a plan that changes
 your collection waits on the Approvals page. Switch an agent to *trusted* to
@@ -198,7 +206,7 @@ call; nothing keeps working elsewhere.
 | Browser shows certificate error (tls-internal) | | Section 4.1 on that profile |
 | Extension says "not a COLP server" | `curl $ORIGIN/.well-known/collection-protocol` returns HTML | Caddy profile mismatch; check `docker compose --profile <p> ps` |
 | Extension sign-in fails on HTTP | cookie rejected | Confirm `COLP_INSECURE_HTTP=true` on the server and the `http://` origin in the extension |
-| Claude Code cannot complete OAuth | redirect blocked | OAuth needs HTTPS; use an API key over HTTP |
+| Claude Code cannot complete OAuth | redirect blocked | OAuth needs the HTTPS origin from section 3. An API key on `http://127.0.0.1:8080` returns 401 `invalid_token` |
 | Sync shows a conflict | Sync center | Pick a side; nothing is lost |
 | Deleted bookmarks by mistake | Sync center → Trash | Restore |
 | Agent did something wrong | Approvals → the plan → Undo; or collection → History → Restore | |
