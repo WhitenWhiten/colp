@@ -490,14 +490,14 @@ function authorizeAndMap(principal: SearchPrincipal, candidate: SearchCandidate,
       || !isClosedAuthorityFact(fact)) return null;
     switch (fact.resourceType) {
     case 'collection': {
-      if (fact.collectionId !== fact.resourceId || fact.deleted !== false || fact.allowSearchIndexing !== true
-        || !canReadCollection(principal, fact)) return null;
+      if (fact.collectionId !== fact.resourceId || fact.deleted !== false
+        || !discoverable(principal, fact) || !canReadCollection(principal, fact)) return null;
       return Object.freeze({ resourceType: 'collection', resourceId: fact.resourceId,
         title: safeRequiredText(fact.title), snippet: safeSnippet(fact.snippetSource), rank: candidate.rank });
     }
     case 'node': {
-      if (fact.collectionDeleted !== false || fact.deleted !== false || fact.allowSearchIndexing !== true
-        || !canReadCollection(principal, fact)
+      if (fact.collectionDeleted !== false || fact.deleted !== false
+        || !discoverable(principal, fact) || !canReadCollection(principal, fact)
         || (!isMember(principal, fact) && (fact.visibility !== 'inherit' || fact.ancestorRestricted))) return null;
       return Object.freeze({ resourceType: 'node', resourceId: fact.resourceId, collectionId: fact.collectionId,
         title: safeRequiredText(fact.title), urlHost: safeHost(fact.urlHost),
@@ -513,8 +513,7 @@ function authorizeAndMap(principal: SearchPrincipal, candidate: SearchCandidate,
     case 'annotation': {
       const member = isMember(principal, fact);
       if (fact.collectionDeleted !== false || fact.deleted !== false || fact.subjectDeleted !== false
-        || fact.allowSearchIndexing !== true
-        || !canReadCollection(principal, fact)) return null;
+        || !discoverable(principal, fact) || !canReadCollection(principal, fact)) return null;
       if (member) {
         if (fact.visibility === 'private'
           && (principal.kind !== 'account' || principal.principalId !== fact.creatorPrincipalId)) return null;
@@ -562,6 +561,17 @@ function isClosedAuthorityFact(fact: SearchAuthorityFact): boolean {
     && typeof fact.snippetSource === 'string'
     && (fact.subjectType !== 'collection' || fact.subjectId === fact.collectionId)
     && (fact.subjectVisibility === null || ['inherit', 'protected', 'private'].includes(fact.subjectVisibility));
+}
+
+/**
+ * `allowSearchIndexing` is the public discovery opt-in. It hides a collection
+ * from people outside it; owners and members find it either way.
+ */
+function discoverable(principal: SearchPrincipal, facts: {
+  readonly collectionId: string; readonly ownerSubjectId: string; readonly membershipRole: MembershipRole | null;
+  readonly allowSearchIndexing: boolean;
+}): boolean {
+  return facts.allowSearchIndexing === true || isMember(principal, facts);
 }
 
 function canReadCollection(principal: SearchPrincipal, facts: {

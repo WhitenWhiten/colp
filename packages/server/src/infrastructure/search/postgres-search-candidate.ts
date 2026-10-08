@@ -103,6 +103,9 @@ export function createPostgresSearchCandidatePort(
             OR c.search_vector @@ plainto_tsquery('english'::regconfig, ${query})
           )
       `;
+      // allow_search_indexing is the public discovery opt-in. Owners and
+      // members search everything they can read, so the member branches
+      // do not filter on it (migration 202610240000).
       const collectionMemberBranch = sql`
         WITH search_hits AS MATERIALIZED (
           SELECT c.id, c.title, c.owner_subject_id,
@@ -112,7 +115,7 @@ export function createPostgresSearchCandidatePort(
               ts_rank_cd(c.search_vector, plainto_tsquery('english'::regconfig, ${query}))
             ) AS raw_rank
           FROM collections c
-          WHERE c.deleted_at IS NULL AND c.allow_search_indexing=true
+          WHERE c.deleted_at IS NULL
             AND (
               ${query} OPERATOR(public.<%) c.search_text
               OR c.search_vector @@ plainto_tsquery('english'::regconfig, ${query})
@@ -230,7 +233,7 @@ export function createPostgresSearchCandidatePort(
           n.snippet_source, n.raw_rank
         FROM search_hits n
         JOIN collections c ON c.id=n.collection_id
-        WHERE c.deleted_at IS NULL AND c.allow_search_indexing=true
+        WHERE c.deleted_at IS NULL
           AND ${isCollectionMember}
       `;
       const profileBranch = sql`
@@ -356,7 +359,7 @@ export function createPostgresSearchCandidatePort(
         FROM search_hits hit
         JOIN annotations a ON a.id=hit.id
         JOIN collections c ON c.id=a.collection_id
-        WHERE c.deleted_at IS NULL AND c.allow_search_indexing=true
+        WHERE c.deleted_at IS NULL
           AND ${isCollectionMember}
           AND (a.visibility <> 'private' OR a.creator_principal_id=${verifiedPrincipalId})
       `;

@@ -171,6 +171,35 @@ test('re-authorizes anonymous, owner, member, and outsider projections from curr
   ]);
 });
 
+test('treats allowSearchIndexing as the public discovery opt-in, not a limit on owner and member search', async () => {
+  const candidates = [
+    collectionCandidate('own-private', 1), collectionCandidate('own-public-optout', 0.99),
+    nodeCandidate('own-node', 'own-private', 0.98), annotationCandidate('own-note', 'own-private', 0.97),
+  ];
+  const optedOut = { allowSearchIndexing: false };
+  const facts = (membershipRole: 'viewer' | null) => new Map<string, SearchAuthorityFact>([
+    ['collection:own-private', collectionFact('own-private', { ...optedOut, visibility: 'private', membershipRole })],
+    ['collection:own-public-optout', collectionFact('own-public-optout', { ...optedOut, membershipRole })],
+    ['node:own-node', nodeFact('own-node', 'own-private', { ...optedOut, collectionVisibility: 'private', membershipRole })],
+    ['annotation:own-note', annotationFact('own-note', 'own-private', {
+      ...optedOut, collectionVisibility: 'private', visibility: 'private', membershipRole,
+    })],
+  ]);
+  const ids = async (principal: SearchPrincipal, membershipRole: 'viewer' | null) => {
+    const result = await executeSearchQuery(harness(candidates, facts(membershipRole)).ports,
+      { principal, query: 'safe', pageSize: 20 });
+    return result.items.map((item) => `${item.resourceType}:${item.resourceId}`);
+  };
+  assert.deepEqual(await ids(OWNER, null), [
+    'collection:own-private', 'collection:own-public-optout', 'node:own-node', 'annotation:own-note',
+  ]);
+  assert.deepEqual(await ids(MEMBER, 'viewer'), [
+    'collection:own-private', 'collection:own-public-optout', 'node:own-node',
+  ]);
+  assert.deepEqual(await ids(OUTSIDER, null), []);
+  assert.deepEqual(await ids(ANONYMOUS, null), []);
+});
+
 test('fails closed for stale candidates and maps snippets and DTO fields only from authorized facts', async () => {
   const candidates = [collectionCandidate('private-now', 1), collectionCandidate('deleted', 0.99),
     collectionCandidate('optout', 0.98), nodeCandidate('deleted-node', 'public', 0.97),

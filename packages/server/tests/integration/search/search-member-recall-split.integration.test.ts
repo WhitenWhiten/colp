@@ -220,7 +220,7 @@ WITH verified_actor AS MATERIALIZED (
   FROM collections c
   WHERE c.deleted_at IS NULL
     AND (c.visibility='public' OR c.id IN (SELECT collection_id FROM actor_collections))
-    AND c.allow_search_indexing=true
+    AND (c.allow_search_indexing=true OR c.id IN (SELECT collection_id FROM actor_collections))
     AND ($1 OPERATOR(public.<%) c.search_text
       OR c.search_vector @@ plainto_tsquery('english'::regconfig, $1))
   UNION ALL
@@ -232,7 +232,7 @@ WITH verified_actor AS MATERIALIZED (
   LEFT JOIN nodes root_node ON root_node.collection_id=c.id AND root_node.id=c.root_node_id
   WHERE c.deleted_at IS NULL
     AND (c.visibility='public' OR c.id IN (SELECT collection_id FROM actor_collections))
-    AND c.allow_search_indexing=true
+    AND (c.allow_search_indexing=true OR c.id IN (SELECT collection_id FROM actor_collections))
     AND n.deleted_at IS NULL AND NOT n.is_root
     AND (c.id IN (SELECT collection_id FROM actor_collections)
       OR (c.visibility='public' AND n.visibility='inherit' AND (
@@ -267,7 +267,7 @@ WITH verified_actor AS MATERIALIZED (
     AND subject_node.collection_id=a.collection_id AND subject_node.id=a.subject_id
   WHERE a.deleted_at IS NULL AND a.type <> 'reading_state' AND c.deleted_at IS NULL
     AND (c.visibility='public' OR c.id IN (SELECT collection_id FROM actor_collections))
-    AND c.allow_search_indexing=true
+    AND (c.allow_search_indexing=true OR c.id IN (SELECT collection_id FROM actor_collections))
     AND ((c.id IN (SELECT collection_id FROM actor_collections)
         AND (a.visibility <> 'private' OR a.creator_principal_id=(SELECT principal_id FROM verified_actor)))
       OR (c.visibility='public' AND NOT (c.id IN (SELECT collection_id FROM actor_collections))
@@ -389,8 +389,10 @@ async function expectedRecallSets(): Promise<Readonly<Record<string, ReadonlySet
   return {
     anonymous: new Set([collection('c-public'), collection('c-public-owned'), node('n-public'),
       annotation('a-public'), annotation('a-subject-node-visible')]),
+    // c-optout is the owner's: the discovery opt-out hides it from everyone else.
     owner: new Set([collection('c-public'), collection('c-public-owned'), collection('c-protected'),
-      collection('c-private'), node('n-public'), node('n-ancestor-restricted'),
+      collection('c-private'), collection('c-optout'), annotation('a-optout'),
+      node('n-public'), node('n-ancestor-restricted'),
       node('n-protected-collection'), node('n-private-collection'),
       annotation('a-public'), annotation('a-protected'), annotation('a-private-noncreator'),
       annotation('a-subject-node-visible'), annotation('a-subject-node-restricted')]),

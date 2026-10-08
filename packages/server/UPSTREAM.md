@@ -98,3 +98,15 @@ Drift and bug fixes from the 2026-10-08 execution review (07):
   `phase2-publication-acceptance` runner omits Know-N's real-stack browser
   probe.
 
+
+Self-hosted sync and search (2026-10-08, public-only):
+
+- The preset turns on Sync Sessions. `parseExtensionAuthConfig` takes
+  `allowLoopbackHttp`, the sync retire Manifest extension accepts a loopback
+  http href, and the product route coverage check is skipped when
+  `KNOWN_EDITION=self-hosted` (it lists Know-N's full route table).
+- `allow_search_indexing` is only the public discovery opt-in. The owner and
+  member search branches and the authority recheck no longer require it, and
+  `202610240000_search_member_recall_without_opt_in` rebuilds the two
+  collection member recall GINs without it in their predicate. Know-N still
+  requires the opt-in for member search; port search changes with this in mind.
