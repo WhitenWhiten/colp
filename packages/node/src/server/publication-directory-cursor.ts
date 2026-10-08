@@ -36,6 +36,8 @@ export interface PublicationDirectoryCursorFilter {
 }
 
 export interface PublicationDirectoryCursorContext {
+  /** Stable directory/mount identity.  It prevents a cursor from one endpoint from replaying on another endpoint with the same query. */
+  readonly resourceId: string;
   readonly principal: string;
   /**
    * Canonical filter/query summary for the active Directory (or Discovery)
@@ -193,6 +195,7 @@ const invalidCursorScope = Object.freeze({
 const FILTER_FIELD_NAMES = ['tag', 'creator', 'kind', 'updatedSince', 'q'] as const;
 
 interface NormalizedScope {
+  readonly resourceId: Buffer;
   readonly principal: Buffer;
   readonly filterDigest: Buffer;
   readonly sort: Buffer;
@@ -206,12 +209,13 @@ function normalizeScope(scope: PublicationDirectoryCursorScope): NormalizedScope
     throw new TypeError('Publication Directory cursor scope must be an object.');
   }
   const principal = encodeField('principal', scope.principal);
+  const resourceId = encodeField('resourceId', scope.resourceId);
   const filterDigest = encodeField('filterDigest', scope.filterDigest);
   const sort = encodeField('sort', scope.sort);
   const limit = encodeInteger('limit', scope.limit, false);
   const protocolVersion = encodeField('protocolVersion', scope.protocolVersion);
   const nextPosition = encodeField('nextPosition', scope.nextPosition);
-  return { principal, filterDigest, sort, limit, protocolVersion, nextPosition };
+  return { resourceId, principal, filterDigest, sort, limit, protocolVersion, nextPosition };
 }
 
 function encodeField(name: string, value: string): Buffer {
@@ -256,6 +260,7 @@ function decodePosition(cursor: string): string {
 function computeMac(key: Buffer, scope: NormalizedScope): Buffer {
   const mac = createHmac('sha256', key);
   updateFrame(mac, CONTEXT);
+  updateFrame(mac, scope.resourceId);
   updateFrame(mac, scope.principal);
   updateFrame(mac, scope.filterDigest);
   updateFrame(mac, scope.sort);
@@ -286,6 +291,7 @@ function borrowKey(value: PublicationDirectoryCursorHmacKey): Buffer {
 }
 
 function destroyNormalizedScope(scope: NormalizedScope): void {
+  scope.resourceId.fill(0);
   scope.principal.fill(0);
   scope.filterDigest.fill(0);
   scope.sort.fill(0);

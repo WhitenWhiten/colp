@@ -78,7 +78,7 @@ describe('in-memory reference Sync adapters', () => {
     const session = await requireVerifiedSyncSession(sessions, {
       sessionId: 'session-1', binding, authorization, terminatedAt: now,
     });
-    const host = createSyncHost({ owner: 'sequence', session });
+    const host = createSyncHost({ owner: 'sequence', session, sequenceOwnershipVerifier: () => true });
     const unitOfWork = createInMemorySequenceUnitOfWork<Result>();
 
     await expect(host.sequence(unitOfWork, request(), applied))

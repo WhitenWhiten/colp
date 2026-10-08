@@ -141,6 +141,49 @@ describe('Pinned Node fetch over real sockets', () => {
 });
 
 describe('Pinned transport capability and stream boundaries', () => {
+  it('fails closed when a resolver is paired with an unpinned custom fetch', () => {
+    expect(() => new ColpClient({
+      manifestUrl: 'https://public.example/.well-known/collection-protocol',
+      fetch: (async () => new Response('{}')) as typeof globalThis.fetch,
+      resolveHost: async () => ['93.184.216.34'],
+    })).toThrow(/cannot be combined with a custom fetch/u);
+  });
+
+  it('fails closed when a resolver is supplied without a runtime pinning transport', () => {
+    const spy = vi.spyOn(process, 'getBuiltinModule').mockImplementation(() => undefined);
+    try {
+      expect(() => new ColpClient({
+        manifestUrl: 'https://public.example/.well-known/collection-protocol',
+        resolveHost: async () => ['93.184.216.34'],
+      })).toThrow(/requires a transport that enforces address pinning/u);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('passes the original URL and approved address to an explicit pinned transport', async () => {
+    const manifest = await readFile(new URL('../../fixtures/protocol/examples/public-manifest.json', import.meta.url), 'utf8');
+    const observed: Array<{ url: string; address: string | undefined; host: string | null }> = [];
+    const fallback = vi.fn(async () => new Response('{}')) as typeof globalThis.fetch;
+    const pinned = vi.fn(async (url: URL, init: RequestInit, address?: string) => {
+      observed.push({ url: url.href, address, host: new Headers(init.headers).get('host') });
+      return new Response(manifest, { headers: { 'content-type': 'application/json', etag: '"manifest"' } });
+    });
+    const client = new ColpClient({
+      manifestUrl: 'https://public.example/.well-known/collection-protocol',
+      fetch: fallback,
+      pinnedFetch: pinned,
+      resolveHost: async () => ['93.184.216.34'],
+    });
+    await client.discover(true);
+    expect(fallback).not.toHaveBeenCalled();
+    expect(observed).toEqual([{
+      url: 'https://public.example/.well-known/collection-protocol',
+      address: '93.184.216.34',
+      host: null,
+    }]);
+  });
+
   it.each(['node:http', 'node:https', 'node:stream'])('falls back when %s is unavailable', missing => {
     const builtin = process.getBuiltinModule.bind(process);
     const spy = vi.spyOn(process, 'getBuiltinModule').mockImplementation((specifier: string) => specifier === missing ? undefined : builtin(specifier));

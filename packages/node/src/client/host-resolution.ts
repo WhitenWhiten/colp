@@ -86,6 +86,8 @@ export function defaultPinnedNodeFetch(): PinnedNodeFetch | undefined {
     const secure = url.protocol === 'https:';
     const module = secure ? https : http;
     const headers = new Headers(init.headers);
+    // Keep a caller-supplied Host header for virtual hosting, while defaulting
+    // to the original URL authority. TLS SNI is always derived from the URL.
     if (!headers.has('host')) headers.set('Host', url.host);
     const address = approvedAddress ?? (url.hostname.startsWith('[') && url.hostname.endsWith(']')
       ? url.hostname.slice(1, -1)

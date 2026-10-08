@@ -49,7 +49,7 @@ describe(`PUB-0025 public projection safety ${evidence}`, () => {
     expect((output as typeof input).tags).not.toBe(input.tags);
   });
 
-  it(`removes native and profile identifiers plus local paths from source references at nested array boundaries ${evidence}`, () => {
+  it(`removes the entire synchronization source-reference carrier at nested array boundaries ${evidence}`, () => {
     const input = {
       pages: [{
         nodes: [{
@@ -80,13 +80,6 @@ describe(`PUB-0025 public projection safety ${evidence}`, () => {
     expect(project(input)).toEqual({
       pages: [{ nodes: [{
         id: 'node-public',
-        sourceRefs: [{
-          system: 'browser',
-          adapterVersion: '4.2.0',
-          replicaId: 'replica-public',
-          nativeParentId: 'native-parent-secret',
-          capturedAt: '2026-07-18T00:00:00Z',
-        }],
       }] }],
       importMetadata: { label: 'Public import label' },
     });
@@ -552,6 +545,10 @@ describe(`PUB-0025 public projection safety ${evidence}`, () => {
         label: 'security-label',
       },
     });
+  });
+
+  it(`rejects an oversized credential keyHint before public materialization ${evidence}`, () => {
+    expectProjectionError(() => project({ credentials: { keyHint: 'x'.repeat(8 * 1024 * 1024 + 1) } }));
   });
 
   it(`removes a mixed-case secret payload that combines every naming variant in one object ${evidence}`, () => {

@@ -56,8 +56,11 @@ const examples = [
       const directoryBytes = new Uint8Array(32).fill(29);
       const first = example.restorePublicationCursorKeys(snapshotBytes, directoryBytes);
       const second = example.restorePublicationCursorKeys(snapshotBytes, directoryBytes);
-      const snapshot = { revision: 'r1', principal: 'alice', pageSize: 10, nextPosition: 'node-2' };
-      const directory = { principal: 'alice', filterDigest: api.createPublicationDirectoryFilterDigest(),
+      const snapshot = {
+        collectionId: 'collection-1', resourceId: 'publication/mount-a',
+        revision: 'r1', principal: 'alice', pageSize: 10, nextPosition: 'node-2',
+      };
+      const directory = { resourceId: 'directory/mount-a', principal: 'alice', filterDigest: api.createPublicationDirectoryFilterDigest(),
         sort: api.DEFAULT_PUBLICATION_DIRECTORY_SORT, limit: 10, protocolVersion: '0.1', nextPosition: 'c2' };
       const snapshotCursor = api.createPublicationSnapshotCursor(snapshot, first.snapshot);
       const directoryCursor = api.createPublicationDirectoryCursor(directory, first.directory);

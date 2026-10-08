@@ -94,6 +94,23 @@ describe(`FEED-0003 feed projection MUST_NOT private fields [evidence:${evidence
     if (!result.ok) expect(result.code).toBe('event_contract_failed');
   });
 
+  it(`[negative] rejects restricted bare Nodes before Bookmark projection drops visibility [evidence:${evidence}]`, () => {
+    for (const visibility of ['private', 'protected', 'unlisted'] as const) {
+      const result = projectFeedEvent({
+        collectionId: 'collection-1',
+        node: {
+          id: 'node-restricted',
+          collectionId: 'collection-1',
+          kind: 'bookmark',
+          title: 'private title',
+          url: 'https://private.example/secret',
+          visibility,
+        },
+      });
+      expect(result).toEqual({ ok: false, code: 'projection_failed' });
+    }
+  });
+
   it(`[boundary] projectFeedEvents fails closed on any bad item (no partial list) [evidence:${evidence}]`, () => {
     const good = nodeCreated();
     const bad = nodeCreated();

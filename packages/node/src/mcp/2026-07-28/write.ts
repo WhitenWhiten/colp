@@ -339,6 +339,7 @@ export type {
 } from '../write-tools.js';
 export type { McpWriteInputBudget } from '../safe-data.js';
 export {
+  MCP_CHANGE_PLAN_DEFAULT_MAX_CONCURRENT_PLANS,
   McpChangePlanError,
   createChangePlanService,
   type McpApprovalBeginResult,

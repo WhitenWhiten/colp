@@ -210,10 +210,10 @@ export function decodeMcp20260728ParamValue(value: string): string | undefined {
 }
 
 export function headerMismatch(
-  message: string,
+  _message: string,
   data?: Readonly<Record<string, unknown>>,
 ): Mcp20260728RequestError {
-  return new Mcp20260728RequestError('header_mismatch', `Bad Request: the request headers and body disagree: ${message}`, data);
+  return new Mcp20260728RequestError('header_mismatch', 'Bad Request: the request headers and body disagree.', data);
 }
 
 /**
@@ -432,9 +432,7 @@ function parseEnvelope(
   // validated — is a header fault (-32020, decision §6.1 as amended
   // 2026-08-27).
   if (headerVersion !== undefined && typeof claimedVersion === 'string' && headerVersion !== claimedVersion) {
-    throw headerMismatch(
-      `the request protocol version ${String(claimedVersion)} disagrees with the MCP-Protocol-Version header ${headerVersion}`,
-    );
+    throw headerMismatch('the request protocol version and MCP-Protocol-Version header disagree');
   }
   if (typeof claimedVersion !== 'string') {
     throw new Mcp20260728RequestError(
@@ -446,8 +444,8 @@ function parseEnvelope(
   if (claimedVersion !== MCP_PROTOCOL_VERSION) {
     throw new Mcp20260728RequestError(
       'unsupported_protocol_version',
-      `Unsupported protocol version: ${claimedVersion}`,
-      { supported: supportedMcpProtocolVersions, requested: claimedVersion },
+      'Unsupported protocol version.',
+      { supported: supportedMcpProtocolVersions },
     );
   }
   if (headerVersion === undefined) {
@@ -587,12 +585,15 @@ function stripHttpOws(value: string): string {
 
 function validateMethodHeader(headers: Mcp20260728RequestHeaders, method: string): void {
   if (headers.method === undefined) {
-    throw headerMismatch(`the body names method ${method} but the required Mcp-Method header is absent`, {
+    throw headerMismatch('the required Mcp-Method header is absent', {
       requiredHeaders: MCP_20260728_REQUIRED_HEADERS_HINT,
     });
   }
   if (headers.method !== method) {
-    throw headerMismatch(`the body names method ${method} but the Mcp-Method header names ${headers.method}`);
+    // Keep caller-controlled method strings out of wire-facing errors.  The
+    // transport already has the stable -32020 code and does not need to echo
+    // arbitrary body/header content (which may contain secrets or controls).
+    throw headerMismatch('the Mcp-Method header and body method disagree');
   }
 }
 
@@ -605,7 +606,7 @@ function validateNameHeader(headers: Mcp20260728RequestHeaders, body: Readonly<{
   const nameHeader = headers.name;
   if (nameHeader === undefined) {
     if (bodyValue === undefined) return;
-    throw headerMismatch(`the body carries params.${sourceField}="${bodyValue}" but the required Mcp-Name header is absent`, {
+    throw headerMismatch(`the body ${sourceField} and required Mcp-Name header disagree`, {
       requiredHeaders: MCP_20260728_REQUIRED_HEADERS_HINT,
     });
   }
@@ -615,7 +616,7 @@ function validateNameHeader(headers: Mcp20260728RequestHeaders, body: Readonly<{
     throw headerMismatch(`the Mcp-Name header carries an invalid Base64 sentinel value`);
   }
   if (bodyValue !== undefined && decoded !== bodyValue) {
-    throw headerMismatch(`the body carries params.${sourceField}="${bodyValue}" but the Mcp-Name header names "${decoded}"`);
+    throw headerMismatch(`the body ${sourceField} and Mcp-Name header disagree`);
   }
 }
 
@@ -800,8 +801,8 @@ export function requireMcp20260728RequestContext(value: unknown): Mcp20260728Req
   if (protocolVersion !== MCP_PROTOCOL_VERSION) {
     throw new Mcp20260728RequestError(
       'unsupported_protocol_version',
-      `Unsupported protocol version: ${String(protocolVersion)}`,
-      { supported: supportedMcpProtocolVersions, requested: protocolVersion },
+      'Unsupported protocol version.',
+      { supported: supportedMcpProtocolVersions },
     );
   }
   const clientCapabilities = readOwnValue(record, 'clientCapabilities');
@@ -1013,10 +1014,11 @@ function mcpParamPrimitiveToString(value: unknown): string | undefined {
   }
   return undefined;
 }
-function paramHeaderMismatch(header: string, body: string): Mcp20260728RequestError {
-  return new Mcp20260728RequestError('header_mismatch', `Bad Request: the request headers and body disagree: ${body}`, {
-    mismatch: { header, body },
-  });
+function paramHeaderMismatch(_header: string, _body: string): Mcp20260728RequestError {
+  // Never reflect body values in a wire error.  In addition to reducing
+  // response amplification, this prevents secrets/control characters from
+  // crossing the error boundary when a header/body comparison fails.
+  return new Mcp20260728RequestError('header_mismatch', 'Bad Request: the request headers and body disagree');
 }
 
 /**

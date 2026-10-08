@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { isIP } from 'node:net';
 import {
   abortable, ColpClientLimitError, resolveClientRequestLimits, withRequestBudget,
   type ClientRequestLimits, type ClientRequestOptions,
@@ -160,7 +161,7 @@ export {
   type LocalResourceReferenceContext,
 } from '../shared/resource-identity.js';
 export type FetchImplementation = typeof globalThis.fetch;
-export type { ClientHostResolver } from './host-resolution.js';
+export type { ClientHostResolver, PinnedNodeFetch } from './host-resolution.js';
 export const supportedClientProtocolVersions = ['0.1'] as const;
 export type SupportedClientProtocolVersion = (typeof supportedClientProtocolVersions)[number];
 function parseClientHeaders(
@@ -223,6 +224,13 @@ export type MountSelector = (
 export interface ColpClientOptions {
   readonly manifestUrl: string | URL;
   readonly fetch?: FetchImplementation;
+  /**
+   * Explicit transport that connects to the supplied approved address while
+   * retaining the original URL authority for Host and TLS SNI. When supplied
+   * together with resolveHost, this is the only transport that receives the
+   * DNS approval. A plain fetch cannot provide the same guarantee.
+   */
+  readonly pinnedFetch?: PinnedNodeFetch;
   /** Optional transport resolver used to reject DNS answers in private ranges. */
   readonly resolveHost?: ClientHostResolver;
   readonly protocolVersion?: SupportedClientProtocolVersion;
@@ -683,13 +691,31 @@ export class ColpClient {
   #mount?: ManifestMount;
 
   constructor(options: ColpClientOptions) {
+    if (options.pinnedFetch !== undefined && typeof options.pinnedFetch !== 'function') {
+      throw new TypeError('pinnedFetch must be a function when provided.');
+    }
+    if (options.fetch !== undefined && options.resolveHost !== undefined && options.pinnedFetch === undefined) {
+      // A plain Fetch implementation cannot receive the approved address (or
+      // preserve TLS SNI while connecting to it).  Accepting a resolver beside
+      // such a transport would create a DNS-check/connection race, so require
+      // callers to use the built-in pinned Node transport or an equivalent
+      // transport boundary instead of silently treating the resolver as a
+      // security control.
+      throw new TypeError('resolveHost cannot be combined with a custom fetch unless the transport enforces address pinning.');
+    }
     this.#fetch = options.fetch ?? globalThis.fetch;
-    this.#pinnedFetch = options.fetch === undefined ? defaultPinnedNodeFetch() : undefined;
+    const pinnedFetch = options.pinnedFetch
+      ?? (options.fetch === undefined ? defaultPinnedNodeFetch() : undefined);
     // A supplied fetch implementation owns its own DNS/connection policy. Use
     // the built-in resolver only for the default Node fetch path, while still
     // allowing custom transports to opt into the same check explicitly.
-    this.#hostResolver = options.resolveHost
+    const hostResolver = options.resolveHost
       ?? (options.fetch === undefined ? defaultClientHostResolver() : undefined);
+    if (hostResolver !== undefined && pinnedFetch === undefined) {
+      throw new TypeError('resolveHost requires a transport that enforces address pinning.');
+    }
+    this.#pinnedFetch = pinnedFetch;
+    this.#hostResolver = hostResolver;
     this.#manifestUrl = normalizeUrl(new URL(options.manifestUrl));
     validateRequestUrl(this.#manifestUrl);
 
@@ -1154,7 +1180,9 @@ export class ColpClient {
         }
         if (
           addresses.length === 0
-          || addresses.some((address) => isPrivateOrLocalAddress(address))
+          || addresses.some((address) => typeof address !== 'string'
+            || isIP(address) === 0
+            || isPrivateOrLocalAddress(address))
         ) {
           throw new TypeError(
             `Egress policy denied ${policy.purpose} request URL: DNS resolved to a private or local address.`,
@@ -1219,7 +1247,7 @@ export class ColpClient {
       );
       policy.signal?.throwIfAborted();
       const response = await abortable(
-        (this.#pinnedFetch !== undefined && approvedAddress !== undefined
+        (this.#pinnedFetch !== undefined
           ? this.#pinnedFetch(current, {
             method: policy.operation?.method ?? 'GET',
             headers: requestHeaders.headers,
@@ -1377,6 +1405,20 @@ export class ColpClient {
       policy,
       conditionalEtag,
     );
+    // A redirect crosses the cache key's request URL boundary.  Never bind a
+    // response from the final origin to the original URL, and never satisfy a
+    // redirected 304 from the original URL's representation (which could be
+    // a stale entry written by an older client).  Delete the old entry so a
+    // subsequent request cannot replay it.
+    const redirectedResponse = finalUrl.href !== url.href;
+    const responseCacheKey = redirectedResponse ? undefined : cacheKey;
+    if (redirectedResponse && this.#cache !== undefined && cacheKey !== undefined) {
+      await abortable(Promise.resolve(this.#cache.delete(cacheKey)), policy.signal);
+      if (response.status === 304) {
+        cancelResponseBody(response, new TypeError('Redirected responses cannot revalidate the original cache entry.'));
+        throw new TypeError('Received a redirected 304 response without an origin-bound cache entry.');
+      }
+    }
 
     if (response.status === 304 && !allowedStatuses.includes(304)) {
       cancelResponseBody(response, new TypeError(`Unexpected HTTP 304 for ${definition}.`));
@@ -1421,7 +1463,7 @@ export class ColpClient {
           `Cached response exceeds the response byte limit of ${policy.maxBytes}.`,
         );
       }
-      await abortable(updatePublicationResponseCache(this.#cache, cacheKey, response.headers), policy.signal);
+      await abortable(updatePublicationResponseCache(this.#cache, responseCacheKey, response.headers), policy.signal);
       return {
         value: detachedSnapshot(cached.representation as Readonly<Value>),
         headers: response.headers,
@@ -1496,7 +1538,7 @@ export class ColpClient {
     policy.signal?.throwIfAborted();
     const representation = immutableSnapshot(validation.value);
     await abortable(
-      updatePublicationResponseCache(this.#cache, cacheKey, response.headers, representation),
+      updatePublicationResponseCache(this.#cache, responseCacheKey, response.headers, representation),
       policy.signal,
     );
     return {

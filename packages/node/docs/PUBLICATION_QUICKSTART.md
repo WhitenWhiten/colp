@@ -181,6 +181,12 @@ Snapshot and Directory cursors are HMAC-bound capabilities, so a client cannot f
 
 Both constructors take a `Uint8Array` of 32 to 1024 bytes and copy it into a process-local handle that cannot be read back. Use independently generated secret material for the two purposes. A successful verification returns `{ valid: true, nextPosition }`; malformed cursors, wrong keys, and mismatched scope return `{ valid: false, code: 'invalid_cursor_scope' }`.
 
+The signed Snapshot scope must include the canonical `collectionId` and
+`resourceId` for the active publication mount. The Directory scope must include
+its canonical `resourceId`. These identities are part of the MAC, so a cursor
+cannot be replayed against another collection, mount, or directory that uses
+the same key.
+
 Restore the handles at worker startup from your secret store, then reuse them for their active lifetime. This startup module accepts bytes the host has already loaded; it does not generate fresh keys on every request or restart:
 
 <!-- colp-consumer: publication-cursor-keys -->

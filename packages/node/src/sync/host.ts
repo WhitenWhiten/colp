@@ -62,6 +62,8 @@ export interface SequenceSyncHostConfig {
   readonly session: VerifiedSyncSession;
   /** Durable principal → Replica binding used by the lifecycle façade. */
   readonly ownershipVerifier?: ReplicaLifecycleOwnershipVerifier;
+  /** Required durable principal → Replica lane binding used by Sequence writes; missing evidence denies the write. */
+  readonly sequenceOwnershipVerifier?: PushReplicaOwnershipVerifier;
 }
 
 export interface PushSyncHostConfig {
@@ -180,7 +182,13 @@ export function createSyncHost(config: SyncHostConfig): SequenceSyncHost | PushS
 
   if (config.owner === 'sequence') {
     const sequence: SequenceSyncHost['sequence'] = (unitOfWork, request, evaluate) =>
-      coordinateSessionBoundSequence(gate, unitOfWork, request, evaluate);
+      coordinateSessionBoundSequence(
+        gate,
+        unitOfWork,
+        request,
+        evaluate,
+        config.sequenceOwnershipVerifier,
+      );
     return Object.freeze({
       owner: 'sequence' as const,
       session: config.session,
@@ -191,8 +199,9 @@ export function createSyncHost(config: SyncHostConfig): SequenceSyncHost | PushS
   }
 
   const pushOwnershipVerifier = config.pushOwnershipVerifier;
+  const pushGate = { ...gate, enforcePushContinuity: true as const };
   const push: PushSyncHost['push'] = (unitOfWork, request, preflight) =>
-    coordinateSessionBoundPush(gate, unitOfWork, request, preflight, pushOwnershipVerifier);
+    coordinateSessionBoundPush(pushGate, unitOfWork, request, preflight, pushOwnershipVerifier);
   return Object.freeze({
     owner: 'push' as const,
     session: config.session,

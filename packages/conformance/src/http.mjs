@@ -6,6 +6,7 @@
  */
 
 import { lookup } from 'node:dns/promises';
+import { isIP } from 'node:net';
 import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 import { Readable } from 'node:stream';
@@ -33,28 +34,41 @@ export class ResponseTooLargeError extends Error {}
 
 /**
  * @param {{ timeoutMs?: number, maxBytes?: number, maxRequests?: number,
- *   maxRedirects?: number, fetch?: typeof fetch, initialOrigin?: string,
+ *   maxRedirects?: number, fetch?: typeof fetch,
+ *   pinnedFetch?: (url: URL, init: RequestInit, approvedAddress?: string) => Promise<Response>,
+ *   initialOrigin?: string,
  *   resolveHost?: (hostname: string) => Promise<readonly string[]> }} [options]
  */
 export function createHttpClient(options = {}) {
   const timeoutMs = positiveSafeInteger(options.timeoutMs ?? 10_000, 'timeoutMs');
   const maxBytes = positiveSafeInteger(options.maxBytes ?? 16 * 1024 * 1024, 'maxBytes');
-  const maxRequests = options.maxRequests ?? 200;
-  const maxRedirects = options.maxRedirects ?? 5;
+  const maxRequests = positiveSafeInteger(options.maxRequests ?? 200, 'maxRequests');
+  const maxRedirects = nonNegativeSafeInteger(options.maxRedirects ?? 5, 'maxRedirects');
   const fetchImpl = options.fetch ?? globalThis.fetch;
-  const pinnedFetch = options.fetch === undefined ? createPinnedFetch() : undefined;
+  const pinnedFetch = options.pinnedFetch ?? (options.fetch === undefined ? createPinnedFetch() : undefined);
+  if (options.pinnedFetch !== undefined && typeof options.pinnedFetch !== 'function') {
+    throw new TypeError('pinnedFetch must be a function when provided.');
+  }
+  if (options.fetch !== undefined && options.resolveHost !== undefined && options.pinnedFetch === undefined) {
+    throw new TypeError('resolveHost cannot be combined with a custom fetch unless pinnedFetch is provided.');
+  }
   const initialOrigin = options.initialOrigin === undefined ? undefined : new URL(options.initialOrigin).origin;
   const initialPrivateLiteral = options.initialOrigin === undefined
     ? false
     : isPrivateOrLocalLiteralHostname(new URL(options.initialOrigin).hostname);
-  // Resolve independently of the fetch implementation so wrappers cannot
-  // bypass the runner's egress boundary. Tests and host integrations may
-  // inject a deterministic resolver for an intentionally simulated transport.
+  // The built-in resolver is only a security boundary when the built-in
+  // pinned transport (or an explicitly supplied equivalent) receives the
+  // approved address. A custom fetch owns its own DNS/connection policy;
+  // silently checking it with the default resolver would introduce a
+  // DNS-check/connection race because the fetch can resolve the hostname
+  // again after this check.
   const resolveHost = options.resolveHost
-    ?? (async (hostname) => {
-      const host = hostname.startsWith('[') && hostname.endsWith(']') ? hostname.slice(1, -1) : hostname;
-      return (await lookup(host, { all: true, verbatim: true })).map(({ address }) => address);
-    });
+    ?? (options.fetch === undefined
+      ? async (hostname) => {
+        const host = hostname.startsWith('[') && hostname.endsWith(']') ? hostname.slice(1, -1) : hostname;
+        return (await lookup(host, { all: true, verbatim: true })).map(({ address }) => address);
+      }
+      : undefined);
   let used = 0;
 
   /**
@@ -78,6 +92,7 @@ export function createHttpClient(options = {}) {
     }
     headers.set('Collection-Protocol-Version', PROTOCOL_VERSION);
     let currentUrl = new URL(url);
+    let previousUrl = null;
     let redirects = 0;
     while (true) {
       // Charge every hop before doing DNS or transport work. Otherwise a
@@ -91,6 +106,7 @@ export function createHttpClient(options = {}) {
         initialPrivateLiteral,
         resolveHost,
         signal: requestSignal,
+        previousUrl,
       });
       const requestInit = {
         method,
@@ -101,7 +117,7 @@ export function createHttpClient(options = {}) {
         redirect: 'manual',
         signal: requestSignal,
       };
-      const response = pinnedFetch !== undefined && approvedAddress !== undefined
+      const response = pinnedFetch !== undefined
         ? await pinnedFetch(currentUrl, requestInit, approvedAddress)
         : await fetchImpl(currentUrl, requestInit);
       if (response.redirected || (response.url !== '' && new URL(response.url).href !== currentUrl.href)) {
@@ -128,6 +144,15 @@ export function createHttpClient(options = {}) {
       }
       const nextUrl = new URL(location, currentUrl);
       nextUrl.hash = '';
+      if (currentUrl.protocol === 'https:' && nextUrl.protocol === 'http:') {
+        if (isPrivateOrLocalLiteralHostname(nextUrl.hostname)) {
+          throw new TypeError(
+            'Conformance egress policy denied a private or local target; HTTPS navigation downgrade is also forbidden.',
+          );
+        }
+        throw new TypeError('Conformance navigation must not downgrade HTTPS to HTTP.');
+      }
+      previousUrl = currentUrl;
       currentUrl = nextUrl;
       redirects += 1;
     }
@@ -149,6 +174,9 @@ async function assertEgressTarget(url, policy) {
   if (url.protocol !== 'https:' && url.protocol !== 'http:') {
     throw new TypeError(`Conformance request URLs must use HTTP(S), got ${url.protocol}.`);
   }
+  if (policy.previousUrl?.protocol === 'https:' && url.protocol === 'http:') {
+    throw new TypeError('Conformance navigation must not downgrade HTTPS to HTTP.');
+  }
   const privateLiteral = isPrivateOrLocalLiteralHostname(url.hostname);
   const initialLocalTarget = policy.initialOrigin !== undefined
     && url.origin === policy.initialOrigin
@@ -167,7 +195,8 @@ async function assertEgressTarget(url, policy) {
     } catch (error) {
       throw new TypeError('Conformance egress policy could not resolve the target host.', { cause: error });
     }
-    if (addresses.length === 0 || addresses.some((address) => isPrivateOrLocalAddress(address))) {
+    if (addresses.length === 0 || addresses.some((address) => typeof address !== 'string'
+      || isIP(address) === 0 || isPrivateOrLocalAddress(address))) {
       throw new TypeError('Conformance egress policy denied a DNS-resolved private or local target.');
     }
     return addresses[0];
@@ -287,6 +316,13 @@ async function readBounded(response, maxBytes) {
 function positiveSafeInteger(value, name) {
   if (!Number.isSafeInteger(value) || value < 1) {
     throw new RangeError(`${name} must be a positive safe integer.`);
+  }
+  return value;
+}
+
+function nonNegativeSafeInteger(value, name) {
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new RangeError(`${name} must be a non-negative safe integer.`);
   }
   return value;
 }

@@ -27,6 +27,9 @@ export {
 export {
   AtomicPushNotCommittableError,
   PushOperationReuseError,
+  PushSequenceBlockedError,
+  PushSequenceGapError,
+  PushSequenceStateUnavailableError,
   coordinatePushTransaction,
   type PushArtifactBuilder,
   type PushCommitContext,

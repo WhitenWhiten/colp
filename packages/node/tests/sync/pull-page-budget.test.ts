@@ -12,6 +12,7 @@ import {
   type SyncPullEventStore,
   type SyncPullRequestContext,
 } from '../../src/sync/index.js';
+import { snapshotPullEventStorePage } from '../../src/sync/pull-page-budget.js';
 import { SYNC_PULL_PAGE_MAX_BYTES, SYNC_PULL_PAGE_MAX_MEMBERS } from '../../src/sync/pull.js';
 import { coordinateSyncPull } from '../../src/sync/unsafe.js';
 
@@ -101,6 +102,8 @@ class RecordingPullStore implements SyncPullCursorStore, SyncPullEventStore {
   async readCommittedAfter(candidate: SyncPullEventReadRequest): Promise<SyncPullEventPage> {
     await Promise.resolve();
     expect(candidate.limit).toBeGreaterThan(0);
+    expect(candidate.maxMembers).toBeGreaterThan(candidate.limit);
+    expect(candidate.maxBytes).toBeGreaterThan(0);
     this.readCalls += 1;
     const remaining = this.stored.entries.filter(entry => BigInt(entry.commitOrdinal) > BigInt(candidate.afterCommitOrdinal));
     const entries = remaining.slice(0, candidate.limit);
@@ -227,6 +230,31 @@ describe(`U-17 Pull whole-page budget ${evidence}`, () => {
     expect(poisonedStore.persistedCursor).toBe('cursor-start');
     expect(poisonedStore.resolveCalls).toBe(1);
     expect(calls).toBe(0);
+  });
+
+  it('fails closed when nested arrays or objects contain non-enumerable data', async () => {
+    const arrayPayload = entry(1) as unknown as Record<string, unknown>;
+    const operation = (arrayPayload.event as { operation: { payload: Record<string, unknown> } }).operation;
+    const hiddenArray = ['safe', 'hidden'];
+    Object.defineProperty(hiddenArray, '1', { enumerable: false, value: 'hidden' });
+    operation.payload.hiddenArray = hiddenArray;
+    const arrayResult = await pull(page([arrayPayload as unknown as SyncPullCommittedEvent, entry(2)]), 2);
+    expect(arrayResult.error).toBeInstanceOf(TypeError);
+    expect(arrayResult.store.persistedCursor).toBe('cursor-start');
+
+    const objectPayload = entry(1) as unknown as Record<string, unknown>;
+    const objectOperation = (objectPayload.event as { operation: { payload: Record<string, unknown> } }).operation;
+    Object.defineProperty(objectOperation.payload, 'hiddenObject', { enumerable: false, value: 'hidden' });
+    const objectResult = await pull(page([objectPayload as unknown as SyncPullCommittedEvent, entry(2)]), 2);
+    expect(objectResult.error).toBeInstanceOf(TypeError);
+    expect(objectResult.store.persistedCursor).toBe('cursor-start');
+  });
+
+  it('rejects extra own keys on the event array before measuring the page', async () => {
+    const malformed = page([entry(1), entry(2)]);
+    Object.defineProperty(malformed.entries, 'extra', { enumerable: true, value: entry(3) });
+    expect(() => snapshotPullEventStorePage(malformed, 2))
+      .toThrow('Sync Pull event store entries must be a plain dense array.');
   });
 
   it('pages individually valid member-heavy events without relaxing per-event budgets', async () => {

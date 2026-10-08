@@ -246,7 +246,13 @@ class Probe {
       if (!this.#record('PUB-0034', link !== undefined, `GET ${exchange.url}: hasMore is true but there is no Link rel="next"`)) {
         return;
       }
-      next = new URL(link.href, exchange.finalUrl).href;
+      const nextUrl = new URL(link.href, exchange.finalUrl);
+      if (new URL(exchange.finalUrl).protocol === 'https:' && nextUrl.protocol === 'http:') {
+        this.#record('PUB-0034', false,
+          `GET ${exchange.finalUrl}: rel="next" must not downgrade HTTPS to HTTP`);
+        return;
+      }
+      next = nextUrl.href;
     }
 
     if (pages.length > 1) {

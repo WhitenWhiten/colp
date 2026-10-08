@@ -50,6 +50,21 @@ describe(`${evidence} SEC-0018 mutable publisher integrity`, () => {
     const ok = await allowed();
     expect(ok).toMatchObject({ disposition: 'enforced', reason: 'mutable_integrity' });
   });
+  it(`${evidence} binds signatures to the exact resource URI`, async () => {
+    let binding: unknown;
+    const verifier = {
+      signatureVerification: {
+        verify: async (_claims: unknown, context: unknown) => {
+          binding = context;
+          return (context as { readonly uri?: unknown }).uri === target;
+        },
+      },
+    };
+    await allowed(base, verifier);
+    expect(binding).toEqual({ uri: target });
+    expect(Object.isFrozen(binding)).toBe(true);
+    await denied({ ...base, uri: 'https://publisher.example.test/items/i-2' }, verifier);
+  });
   it(`${evidence} rejects historical URIs with query, fragment, default-port, host-case, dot-segment, and empty components`, async () => {
     const h = { ...base, resourceType: 'historical-release', immutable: true, releaseId: 'rel-1', revision: '7' };
     for (const uri of [`${target}/releases/rel-1/revisions/7?x=1`, `${target}/releases/rel-1/revisions/7#f`, `https://publisher.example.test:443/items/i-1/releases/rel-1/revisions/7`, `https://PUBLISHER.example.test/items/i-1/releases/rel-1/revisions/7`, `https://publisher.example.test/items/./i-1/releases/rel-1/revisions/7`, `${target}/releases//revisions/7`]) await denied({ ...h, uri });

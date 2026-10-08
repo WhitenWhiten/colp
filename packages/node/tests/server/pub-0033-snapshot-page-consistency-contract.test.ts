@@ -461,6 +461,8 @@ describe(`PUB-0033 paginated Snapshot page consistency ${evidence}`, () => {
   it(`preserves PUB-0004 cursor binding while adding a page-output guard ${evidence}`, () => {
     const key = createPublicationSnapshotCursorHmacKey(new Uint8Array(32).fill(0x33));
     const cursorScope = deepFreeze({
+      collectionId: 'collection-cursor-bound',
+      resourceId: 'publication/mount-a',
       revision: 'revision-cursor-bound',
       principal,
       root: 'root-node',
@@ -472,6 +474,8 @@ describe(`PUB-0033 paginated Snapshot page consistency ${evidence}`, () => {
     const token = createPublicationSnapshotCursor(cursorScope, key);
 
     expect(verifyPublicationSnapshotCursor(token, {
+      collectionId: cursorScope.collectionId,
+      resourceId: cursorScope.resourceId,
       revision: cursorScope.revision,
       principal: 'principal:publication:bob',
       root: cursorScope.root,

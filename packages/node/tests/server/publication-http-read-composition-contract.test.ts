@@ -372,6 +372,15 @@ describe(`Publication HTTP read composition boundary ${evidence}`, () => {
         },
       });
 
+      if (endpoint === 'node') {
+        // Node Detail carries inherited visibility semantics.  Without an
+        // authoritative Collection/parent resolver, an omitted visibility
+        // cannot be proven public and the anonymous boundary must fail closed.
+        expect(response.status).toBe(500);
+        expect(await bodyText(response)).not.toContain('Radix Primitives');
+        return;
+      }
+
       expect(response.status).toBe(200);
       expect(await bodyJson(response)).toEqual(fixture(endpoint));
       expect(response.headers.get('etag')).toMatch(/^"pub\.r1\.[A-Za-z0-9_-]{43}"$/u);

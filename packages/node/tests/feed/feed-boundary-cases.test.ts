@@ -109,6 +109,13 @@ describe('Feed coverage boundary cases', () => {
 
   it('covers bookmark projection guards and assertion no-op paths', () => {
     expect(() => projectFeedNodeBookmark(null)).toThrow(TypeError);
+    expect(() => projectFeedNodeBookmark({
+      id: 'private-bookmark',
+      kind: 'bookmark',
+      title: 'private',
+      url: 'https://private.example/secret',
+      visibility: 'private',
+    } as never)).toThrow(TypeError);
     expect(() => projectFeedNodeBookmark({ id: 'x', kind: 'folder', ['x' as never]: 1 })).not.toThrow();
     expect(() => projectFeedNodeBookmark({ id: 'x', kind: 'bookmark', [Symbol('x')]: 1 })).toThrow(TypeError);
     expect(projectFeedNodeBookmark({ id: 'x', kind: 'bookmark', title: 'T' })).toEqual({ id: 'x', kind: 'bookmark', title: 'T' });
@@ -176,7 +183,7 @@ describe('Feed coverage boundary cases', () => {
     expect(createFeedFilterDigest({ empty: undefined })).toBeTruthy();
     expect(() => createFeedCursorHmacKey(new Uint8Array(31))).toThrow(TypeError);
     const key = createFeedCursorHmacKey(new Uint8Array(32));
-    const context = { principalId: 'p', feedId: 'f', filterDigest: 'd', protocolVersion: '0.1' };
+    const context = { resourceId: 'mount-a/feed', principalId: 'p', feedId: 'f', filterDigest: 'd', protocolVersion: '0.1' };
     const cursor = createFeedCursor({ ...context, position: 'pos' }, key);
     expect(verifyFeedCursor(cursor, context, key).valid).toBe(true);
     expect(verifyFeedCursor('fdc1.pbad.bad', context, key).valid).toBe(false);

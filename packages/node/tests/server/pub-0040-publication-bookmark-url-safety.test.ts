@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import { validateSnapshotSemantics } from '../../src/semantic/index.js';
 import {
+  assertAnonymousPublicationPrimaryVisibility,
   assertPublicationSnapshotBookmarkUrls,
   createPublicationSnapshotNextLinkHeader,
   createPublicationSnapshotPageResponse,
@@ -183,11 +184,83 @@ describe(`PUB-0040 Publication Bookmark URL safety ${evidence}`, () => {
     async (visibility) => {
       const value = redactedSnapshot(visibility);
       assertPublicationSnapshotBookmarkUrls(value);
-      const response = createPublicationSnapshotPageResponse(value, { method: 'GET' });
+      const response = createPublicationSnapshotPageResponse(value, { method: 'GET', access: 'authorized-private' });
       const body = await response.json() as Snapshot;
       expect(body.nodes.find((node) => node.kind === 'bookmark')).not.toHaveProperty('url');
     },
   );
+
+  it(`preserves authorized-private snapshot fields instead of applying anonymous projection ${evidence}`, async () => {
+    const value = redactedSnapshot('private');
+    value.collection.visibility = 'public';
+    value.collection.extensions = {
+      'https://private.example/extensions/device-state': { deviceId: 'private-device' },
+    };
+    const publicAnnotation = value.annotations[0];
+    if (publicAnnotation === undefined) throw new TypeError('Fixture annotation missing.');
+    value.annotations.push({
+      ...publicAnnotation,
+      id: 'annotation-private-authorized',
+      value: 'Private authorized note',
+      visibility: 'private',
+    });
+
+    const response = createPublicationSnapshotPageResponse(value, {
+      method: 'GET',
+      access: 'authorized-private',
+      publicExtensionNamespaces: ['https://private.example/extensions/device-state'],
+    });
+    const body = await response.json() as Snapshot;
+    expect(body.collection.extensions).toEqual({
+      'https://private.example/extensions/device-state': { deviceId: 'private-device' },
+    });
+    expect(body.annotations.some((annotation) => annotation.id === 'annotation-private-authorized'
+      && annotation.visibility === 'private')).toBe(true);
+
+    // A redacted Bookmark is a safe placeholder in an otherwise public
+    // Collection, so the anonymous response remains valid while omitting its
+    // target URL.
+    const anonymous = createPublicationSnapshotPageResponse(value, { method: 'GET' });
+    expect(anonymous.status).toBe(200);
+    const anonymousBody = await anonymous.json() as Snapshot;
+    const anonymousBookmark = anonymousBody.nodes.find((node) => node.kind === 'bookmark');
+    expect(anonymousBookmark).toMatchObject({ redacted: true, visibility: 'private' });
+    expect(anonymousBookmark).not.toHaveProperty('url');
+  });
+
+  it.each(['protected', 'private'] as const)(
+    `rejects an anonymous redacted non-bookmark %s node ${evidence}`,
+    (visibility) => {
+      const value = fixture();
+      const bookmark = value.nodes.find((node) => node.kind === 'bookmark');
+      if (bookmark === undefined || bookmark.kind !== 'bookmark') throw new TypeError('Fixture bookmark missing.');
+      const index = value.nodes.indexOf(bookmark);
+      value.nodes[index] = {
+        id: bookmark.id,
+        collectionId: bookmark.collectionId,
+        kind: 'folder',
+        parentId: bookmark.parentId,
+        position: bookmark.position,
+        title: bookmark.title,
+        redacted: true,
+        visibility,
+        createdAt: bookmark.createdAt,
+        updatedAt: bookmark.updatedAt,
+        revision: bookmark.revision,
+      } as unknown as Snapshot['nodes'][number];
+      value.page = { sequence: 1, hasMore: false, nextCursor: null };
+      value.complete = true;
+
+      expect(() => assertAnonymousPublicationPrimaryVisibility(value)).toThrow(TypeError);
+      expect(() => createPublicationSnapshotPageResponse(value, { method: 'GET' })).toThrow(TypeError);
+    },
+  );
+
+  it(`allows authorized-private next-link helpers to handle restricted redacted snapshots ${evidence}`, () => {
+    const value = redactedSnapshot('private');
+    expect(createPublicationSnapshotNextLinkHeader(value, undefined, 'authorized-private')).toBeUndefined();
+    expect(mergePublicationSnapshotNextLinkHeaders(value, undefined, 'authorized-private').get('Link')).toBeNull();
+  });
 
   it(`guards every exported Snapshot response/header serialization entry ${evidence}`, async () => {
     const unsafe = bookmarkSnapshot('https://alice:secret@example.test/private');

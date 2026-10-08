@@ -3,6 +3,8 @@ import type { Operation, OperationResult } from '../../src/types/index.js';
 import {
   PushReceiptConditionFailedError,
   type PushPreparedOperation,
+  type PushSequenceLane,
+  type PushSequenceLaneState,
   type PushTransactionRequest,
   type StoredOperationReceipt,
   type SyncTransaction,
@@ -25,6 +27,7 @@ export interface DurableState {
   readonly outbox: Outbox[];
   readonly operationClaims: Map<string, any>;
   readonly reuseAudits: Map<string, any>;
+  readonly laneStates: Map<string, PushSequenceLaneState>;
 }
 
 export type FailurePoint = 'cursor' | 'operation' | 'receipt' | 'conflict' | 'audit' | 'outbox' | undefined;
@@ -34,7 +37,7 @@ export interface TestTransaction extends SyncTransaction<Operation, OperationRes
 }
 
 export function emptyState(): DurableState {
-  return { business: [], operations: [], receipts: [], conflicts: [], cursors: [], audits: [], outbox: [], operationClaims: new Map(), reuseAudits: new Map() };
+  return { business: [], operations: [], receipts: [], conflicts: [], cursors: [], audits: [], outbox: [], operationClaims: new Map(), reuseAudits: new Map(), laneStates: new Map() };
 }
 
 function cloneState(state: DurableState): DurableState {
@@ -47,6 +50,7 @@ export class SharedDurableBackend {
 
 export class DurableContractHandle implements SyncUnitOfWork<Operation, OperationResult, Conflict, Audit, Outbox, TestTransaction> {
   readonly operationIdReservationOwner = 'push' as const;
+  readonly pushSequenceContinuity = true as const;
   readonly trace: string[] = [];
   executeCount = 0;
   failure: FailurePoint;
@@ -111,6 +115,14 @@ export class DurableContractHandle implements SyncUnitOfWork<Operation, Operatio
           } else {
             throw new PushReceiptConditionFailedError(condition);
           }
+        },
+      },
+      sequenceLanes: {
+        load: async (lane: PushSequenceLane) => structuredClone(
+          draft.laneStates.get(JSON.stringify([lane.replicaId, lane.sequenceScope])),
+        ),
+        save: async (lane: PushSequenceLane, state: PushSequenceLaneState) => {
+          draft.laneStates.set(JSON.stringify([lane.replicaId, lane.sequenceScope]), structuredClone(state));
         },
       },
       putBusiness: async (value) => {

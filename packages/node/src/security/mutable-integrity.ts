@@ -37,7 +37,17 @@ export interface MutableIntegrityClaims {
 }
 
 export interface MutableIntegritySignatureVerificationPort {
-  verify(claims: Readonly<Record<string, unknown>>): Promise<boolean>;
+  /** Verify the canonical claim envelope together with its exact resource URI.
+   *
+   * The URI is passed as a separate, frozen binding context so adapters can
+   * include it in their signature input without mutating the five-component
+   * claims object. A verifier that ignores this context is adapter-invalid: a
+   * signature must never be replayable at another resource URI.
+   */
+  verify(
+    claims: Readonly<Record<string, unknown>>,
+    binding: Readonly<{ readonly uri: string }>,
+  ): Promise<boolean>;
 }
 
 export interface MutableIntegrityClockPort {
@@ -159,7 +169,7 @@ function snapshotClaims(value: unknown): Readonly<Record<string, unknown>> {
   return Object.freeze(result);
 }
 
-function snapshotMethod(ports: unknown, portName: 'signatureVerification' | 'clock', methodName: 'verify' | 'now'): (arg?: unknown) => unknown {
+function snapshotMethod(ports: unknown, portName: 'signatureVerification' | 'clock', methodName: 'verify' | 'now'): (...args: unknown[]) => unknown {
   const portField = ownData(ports, portName);
   if (!portField.found || !isPlainRecord(portField.value)) throw new TypeError('port missing');
   const port = portField.value;
@@ -169,7 +179,7 @@ function snapshotMethod(ports: unknown, portName: 'signatureVerification' | 'clo
     if (descriptor !== undefined) {
       if (!('value' in descriptor) || typeof descriptor.value !== 'function' || nodeTypes.isProxy(descriptor.value)) throw new TypeError('invalid port method');
       const method = descriptor.value as (...args: unknown[]) => unknown;
-      return (arg?: unknown) => Reflect.apply(method, port, arg === undefined ? [] : [arg]);
+      return (...args: unknown[]) => Reflect.apply(method, port, args);
     }
     owner = Object.getPrototypeOf(owner) as object | null;
   }
@@ -226,7 +236,7 @@ export async function enforceMutableResourceIntegrity(portsOrInput: unknown, inp
     const maxStaleField = ownData(input, 'maxStaleSeconds');
     const maxStale = safeInteger(maxStaleField.found ? maxStaleField.value : ownData(ports, 'maxStaleSeconds').value);
     if (maxStale <= 0 || maxStale > MAX_MUTABLE_STALE_SECONDS) throw new TypeError('invalid staleness bound');
-    let verify: (arg?: unknown) => unknown;
+    let verify: (claims?: unknown, binding?: unknown) => unknown;
     let nowMethod: (arg?: unknown) => unknown;
     try {
       verify = snapshotMethod(ports, 'signatureVerification', 'verify');
@@ -236,7 +246,11 @@ export async function enforceMutableResourceIntegrity(portsOrInput: unknown, inp
     }
     let verifiedResult: unknown;
     try {
-      verifiedResult = await nativePromise(verify(claims));
+      // Bind verification to the exact resource URI.  Keeping the URI out of
+      // the five-component claims object preserves canonical claim ordering,
+      // while the frozen context gives the verifier an unambiguous signature
+      // input binding and prevents cross-resource replay.
+      verifiedResult = await nativePromise(verify(claims, Object.freeze({ uri: uriField.value as string })));
     } catch {
       return denied('port_failure');
     }

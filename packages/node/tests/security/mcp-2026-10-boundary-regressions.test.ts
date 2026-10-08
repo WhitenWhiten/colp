@@ -29,6 +29,12 @@ describe('Security Cloud 2026-10 MCP/SSRF boundaries', () => {
     'ff02::1',
     '2001:db8::1',
     '2001:2::1',
+    'fec0::1',
+    '64:ff9b:1::a00:1',
+    '64:ff9b::a00:1',
+    '::ffff:0:a00:1',
+    '::192.168.1.1',
+    '::169.254.169.254',
   ])('rejects non-global literal %s', (host) => {
     expect(isPrivateOrLocalLiteralHostname(host)).toBe(true);
     expect(isPrivateOrLocalAddress(host)).toBe(true);

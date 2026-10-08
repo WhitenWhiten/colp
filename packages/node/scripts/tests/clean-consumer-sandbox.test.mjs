@@ -1,13 +1,134 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { gzipSync } from 'node:zlib';
 import { chmod, link, lstat, mkdtemp, mkdir, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { makeConsumerTreeReadable } from '../clean-tarball-consumer.mjs';
-import { cleanConsumerSandboxArguments, runCleanConsumerNode } from '../lib/clean-consumer-sandbox.mjs';
+import { inspectCandidateTarball, makeConsumerTreeReadable } from '../clean-tarball-consumer.mjs';
+import { cleanConsumerImage, cleanConsumerSandboxArguments, runCleanConsumerNode } from '../lib/clean-consumer-sandbox.mjs';
 import { isolatedProcessEnvironment, runNpm } from '../lib/npm-command.mjs';
 
 const testRoot = process.env.TMPDIR ?? process.cwd();
+
+function tarEntry(path, body, type = '0') {
+  const payload = Buffer.from(body);
+  const header = Buffer.alloc(512);
+  header.write(path, 0, 100, 'utf8');
+  header.write('0000644\0', 100, 8, 'ascii');
+  header.write('0000000\0', 108, 8, 'ascii');
+  header.write('0000000\0', 116, 8, 'ascii');
+  header.write(payload.length.toString(8).padStart(11, '0') + '\0', 124, 12, 'ascii');
+  header.write('00000000000\0', 136, 12, 'ascii');
+  header.fill(0x20, 148, 156);
+  header.write(type, 156, 1, 'ascii');
+  header.write('ustar\0', 257, 6, 'ascii');
+  header.write('00', 263, 2, 'ascii');
+  const checksum = header.reduce((sum, byte) => sum + byte, 0);
+  header.write(checksum.toString(8).padStart(6, '0') + '\0 ', 148, 8, 'ascii');
+  const padding = Buffer.alloc((512 - (payload.length % 512)) % 512);
+  return Buffer.concat([header, payload, padding]);
+}
+
+function tarGzip(entries) {
+  return gzipSync(Buffer.concat([...entries, Buffer.alloc(1024)]));
+}
+
+test('candidate tarball inspection validates identity and bounds registry dependencies', async () => {
+  const manifest = JSON.stringify({
+    name: '@know-n/colp',
+    version: '0.1.0',
+    dependencies: { ajv: '^8.20.0' },
+  });
+  const info = await inspectCandidateTarball(
+    tarGzip([tarEntry('package/package.json', manifest), tarEntry('package/dist/index.js', 'export {};')]),
+    '@know-n/colp',
+    '0.1.0',
+  );
+  assert.equal(info.manifest.name, '@know-n/colp');
+  assert.equal(info.entries, 2);
+  assert.ok(info.expandedBytes >= 1024);
+
+  await assert.rejects(
+    inspectCandidateTarball(
+      tarGzip([tarEntry('package/package.json', JSON.stringify({
+        name: '@know-n/colp', version: '0.1.0', dependencies: { evil: 'https://attacker.invalid/pkg.tgz' },
+      }))]),
+      '@know-n/colp',
+      '0.1.0',
+    ),
+    /non-registry source/u,
+  );
+  for (const spec of [
+    'foo@https://attacker.invalid/pkg.tgz',
+    'github:user/repo',
+    'user/repo',
+    'gitlab:user/repo',
+    'bitbucket:user/repo',
+    'gist:user/id',
+    '../local',
+    './local',
+    'npm:@scope/pkg@https://attacker.invalid/pkg.tgz',
+  ]) {
+    await assert.rejects(
+      inspectCandidateTarball(
+        tarGzip([tarEntry('package/package.json', JSON.stringify({
+          name: '@know-n/colp', version: '0.1.0', dependencies: { evil: spec },
+        }))]),
+        '@know-n/colp',
+        '0.1.0',
+      ),
+      /non-registry source/u,
+      `dependency spec ${spec} must be rejected`,
+    );
+  }
+  await assert.rejects(
+    inspectCandidateTarball(
+      tarGzip([tarEntry('package/package.json', manifest), tarEntry('package/../escape.js', 'escape')]),
+      '@know-n/colp',
+      '0.1.0',
+    ),
+    /invalid package path/u,
+  );
+  await assert.rejects(
+    inspectCandidateTarball(
+      tarGzip([tarEntry('package/package.json', manifest), tarEntry('package/link', '', '2')]),
+      '@know-n/colp',
+      '0.1.0',
+    ),
+    /link or unsupported/u,
+  );
+  const missingEndBlocks = gzipSync(Buffer.concat([tarEntry('package/package.json', manifest)]));
+  await assert.rejects(
+    inspectCandidateTarball(missingEndBlocks, '@know-n/colp', '0.1.0'),
+    /end-of-archive/u,
+  );
+});
+
+test('candidate inspection respects fixed-width tar fields and rejects duplicate manifests', async () => {
+  const manifest = JSON.stringify({ name: '@know-n/colp', version: '0.1.0' });
+  const fullWidthName = 'package/' + 'a'.repeat(92);
+  const fullWidthEntry = tarEntry(fullWidthName, 'content');
+  fullWidthEntry.write('000000000007', 124, 12, 'ascii');
+  fullWidthEntry.fill(0x20, 148, 156);
+  const checksum = fullWidthEntry.subarray(0, 512).reduce((sum, byte) => sum + byte, 0);
+  fullWidthEntry.write(checksum.toString(8).padStart(6, '0') + '\0 ', 148, 8, 'ascii');
+  const result = await inspectCandidateTarball(tarGzip([
+    tarEntry('package/package.json', manifest), fullWidthEntry,
+  ]), '@know-n/colp', '0.1.0');
+  assert.equal(result.entries, 2);
+  await assert.rejects(inspectCandidateTarball(tarGzip([
+    tarEntry('package/package.json', manifest), tarEntry('package/package.json', manifest),
+  ]), '@know-n/colp', '0.1.0'), /duplicate package path/u);
+  await assert.rejects(inspectCandidateTarball(tarGzip([
+    tarEntry('package/package.json', manifest), tarEntry('package/./package.json', manifest),
+  ]), '@know-n/colp', '0.1.0'), /invalid package path/u);
+});
+
+test('candidate expanded byte budget includes zero padding after the archive terminator', async () => {
+  const paddingBomb = gzipSync(Buffer.alloc(129 * 1024 * 1024));
+  await assert.rejects(inspectCandidateTarball(paddingBomb, '@know-n/colp', '0.1.0'),
+    /expanded byte budget/u);
+});
 
 test('trusted npm commands retain authentication while artifact installs use an isolated environment', async () => {
   const root = await mkdtemp(join(testRoot, '.colp-npm-environment-'));
@@ -41,6 +162,17 @@ test('sandbox command has no network, writable checkout, host env, or daemon soc
   for (const required of ['--memory=1g', '--memory-swap=1g', '--max-old-space-size=768', '--network=none', '--read-only']) {
     assert.ok(compiler.includes(required), required);
   }
+  assert.match(cleanConsumerImage(), /^node@sha256:[a-f0-9]{64}$/u);
+  const installer = cleanConsumerSandboxArguments('/tmp/consumer', ['.colp-install.mjs'], 'colp-clean-1234', {
+    writable: true,
+    npmCache: '/var/cache/npm',
+  });
+  assert.ok(installer.includes('type=bind,source=/tmp/consumer,target=/work'));
+  assert.ok(!installer.some(arg => arg === 'type=bind,source=/tmp/consumer,target=/work,readonly'));
+  assert.ok(installer.includes('--tmpfs'));
+  assert.ok(installer.includes('/npm-cache:rw,noexec,nosuid,nodev,size=512m,mode=1777'));
+  assert.ok(installer.includes('type=bind,source=/var/cache/npm,target=/npm-cache-seed,readonly'));
+  assert.ok(installer.includes('--env=npm_config_cache=/npm-cache'));
 });
 
 test('child environment drops synthetic credentials, hooks, and Docker remote settings', () => {

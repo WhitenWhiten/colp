@@ -11,6 +11,8 @@ import {
 const evidence = 'http.snapshot.cursor-scope';
 const keyBytes = Uint8Array.from({ length: 32 }, (_, index) => index + 1);
 const baseline = Object.freeze({
+  collectionId: 'collection-1',
+  resourceId: 'snapshot-1',
   revision: 'revision-secret-1042',
   principal: 'principal-secret-alice',
   root: 'root-secret-node',
@@ -55,6 +57,19 @@ describe(`PUB-0004 Snapshot cursor scope server [evidence:${evidence}]`, () => {
     expect(Buffer.from(token, 'base64url').toString('utf8')).not.toContain(baseline.revision);
     expect(Buffer.from(token, 'base64url').toString('utf8')).not.toContain(baseline.principal);
     expect(Buffer.from(token, 'base64url').toString('utf8')).not.toContain(baseline.root);
+  });
+
+  it('binds collection and resource identities into the cursor MAC', () => {
+    const signingKey = key();
+    const scoped = { ...baseline, collectionId: 'collection-3', resourceId: 'snapshot-3' };
+    const token = createPublicationSnapshotCursor(scoped, signingKey);
+    const scopedContext = context(scoped);
+    expect(verifyPublicationSnapshotCursor(token, scopedContext, signingKey)).toEqual({
+      valid: true,
+      nextPosition: baseline.nextPosition,
+    });
+    expect(verifyPublicationSnapshotCursor(token, { ...scopedContext, collectionId: 'collection-2' }, signingKey)).toEqual(invalid);
+    expect(verifyPublicationSnapshotCursor(token, { ...scopedContext, resourceId: 'snapshot-2' }, signingKey)).toEqual(invalid);
   });
 
   it.each([

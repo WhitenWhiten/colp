@@ -110,6 +110,7 @@ describe('MCP change-signal port: adapter integration (COLP-MCP-11)', () => {
     tools: Object.freeze({ listChanged: true }),
     prompts: Object.freeze({ listChanged: true }),
   });
+  const trustedAuthorization = Object.freeze({ isAuthorized: () => true, isResourceAuthorized: () => true });
 
   function createSignalSource(): {
     readonly source: McpChangeSignalSourcePort;
@@ -150,6 +151,7 @@ describe('MCP change-signal port: adapter integration (COLP-MCP-11)', () => {
     const adapter = createMcp20260728SubscriptionsListenAdapter({
       signalSource: memory.source,
       capabilities,
+      authorization: trustedAuthorization,
     });
     return { memory, adapter };
   }

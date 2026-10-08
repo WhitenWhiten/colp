@@ -51,6 +51,18 @@ describe('OAuth discovery authority binding', () => {
       { expectedIssuer: issuer }).allowed).toBe(true);
   });
 
+  it.each([
+    ['authorization_endpoint', 'http://127.0.0.1:8081/authorize'],
+    ['token_endpoint', 'http://localhost:8080/token'],
+    ['registration_endpoint', 'http://127.0.0.1:8081/register'],
+  ])('rejects a loopback HTTP %s on a different local origin', (field, value) => {
+    const issuer = 'http://127.0.0.1:8080';
+    expect(validate({ ...metadata(), issuer, [field]: value }, { expectedIssuer: issuer })).toMatchObject({
+      allowed: false,
+      reason: field === 'registration_endpoint' ? 'invalid_registration_endpoint' : `insecure_${field}`,
+    });
+  });
+
   it('rejects executable options without invoking getters', () => {
     let invoked = false;
     expect(validate(metadata(), { get expectedIssuer() { invoked = true; return expectedIssuer; } }))

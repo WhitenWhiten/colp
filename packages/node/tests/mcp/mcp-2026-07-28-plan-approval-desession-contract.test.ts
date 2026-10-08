@@ -159,6 +159,24 @@ function otherBinding(
 }
 
 describe('MCP 2026-07-28 Plan/Approval desession contract (COLP-MCP-05)', () => {
+  it('enforces the aggregate plan admission cap and releases it after failures', async () => {
+    const gate: { resolve?: (value: ReturnType<typeof sampleImpact>) => void } = {};
+    const pending = new Promise<ReturnType<typeof sampleImpact>>((resolve) => { gate.resolve = resolve; });
+    const { service, impact } = createService({ maxConcurrentPlans: 1 });
+    impact.assessImpact.mockImplementationOnce(async () => pending);
+
+    const first = service.plan(planRequest(), bindingA);
+    await expect(service.plan(planRequest(), bindingA)).rejects.toMatchObject({ code: 'rate_limited' });
+    gate.resolve?.(sampleImpact());
+    await expect(first).resolves.toMatchObject({ planId: 'plan_01JZTEST' });
+
+    // The finally path must release the slot even when the first request
+    // completes through an exceptional validation branch.
+    impact.assessImpact.mockRejectedValueOnce(new Error('impact backend unavailable'));
+    await expect(service.plan(planRequest(), bindingA)).rejects.toMatchObject({ code: 'invalid_plan_request' });
+    await expect(service.plan(planRequest(), bindingA)).resolves.toMatchObject({ planId: 'plan_01JZTEST' });
+  });
+
   describe('binding equality dimensions', () => {
     const mismatchCases = [
       { label: 'principal', overrides: { principalId: 'user-other' } },

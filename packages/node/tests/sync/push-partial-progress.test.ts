@@ -164,7 +164,7 @@ describe('atomic Push reuse denial', () => {
     expect(local).not.toBeInstanceOf(PushOperationReuseError);
     expect(db.state.business).toEqual([]);
 
-    await push(batch(sessionId, false, [item('op-x', 2)]));
+    await push(batch(sessionId, false, [item('op-x', 1)]));
     const stored = await denial(push(batch(sessionId, true, [item('op-1', 1), item('op-3', 2)])));
     expect(stored).toBeInstanceOf(SyncOperationReuseError);
     expect(stored).not.toBeInstanceOf(PushOperationReuseError);

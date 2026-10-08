@@ -780,6 +780,23 @@ describe(`Sync composition & export layering ${evidence}`, () => {
       expect(evaluate).not.toHaveBeenCalled();
     });
 
+    it('requires durable Sequence Replica ownership before entering storage', async () => {
+      const store = new DurableMemorySessionStore();
+      const input = collectionInput();
+      await createSyncSession(store, input);
+      const verified = await requireVerifiedSyncSession(store, verification(input));
+      const unitOfWork = new TrackingSequenceUnitOfWork();
+      const evaluate = vi.fn(async () => ({ status: 'applied' as const, result: { status: 'applied' as const } }));
+
+      await expect(coordinateSessionBoundSequence({ kind: 'verified', session: verified }, unitOfWork,
+        sequenceRequest(), evaluate)).rejects.toMatchObject({ denial: { state: 'request_binding_mismatch' } });
+      await expect(coordinateSessionBoundSequence({
+        kind: 'verified', session: verified, sequenceOwnershipVerifier: () => false,
+      }, unitOfWork, sequenceRequest(), evaluate)).rejects.toMatchObject({ denial: { state: 'request_binding_mismatch' } });
+      expect(unitOfWork.executeCount).toBe(0);
+      expect(evaluate).not.toHaveBeenCalled();
+    });
+
     it('accepts the Collection persistence scope key for the verified Session', async () => {
       const store = new DurableMemorySessionStore();
       const input = collectionInput();
@@ -789,7 +806,7 @@ describe(`Sync composition & export layering ${evidence}`, () => {
       const evaluate = vi.fn(async () => ({ status: 'applied' as const, result: { status: 'applied' as const } }));
       const persistenceKey = collectionSequenceScopeKey(verified.collectionId!);
       expect(sequenceScopeMatchesCollection(persistenceKey, verified.collectionId!)).toBe(true);
-      await expect(coordinateSessionBoundSequence({ kind: 'verified', session: verified }, unitOfWork,
+      await expect(coordinateSessionBoundSequence({ kind: 'verified', session: verified, sequenceOwnershipVerifier: () => true }, unitOfWork,
         { ...sequenceRequest(), sequenceScope: persistenceKey }, evaluate)).rejects.toThrow();
       expect(unitOfWork.executeCount).toBe(1);
     });

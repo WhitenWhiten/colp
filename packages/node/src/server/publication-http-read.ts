@@ -40,6 +40,7 @@ import type {
 import type { ProblemCode } from './problems.js';
 import type { Snapshot } from '../types/index.js';
 import { finalizePublicationSnapshotWire } from './publication-snapshot-wire.js';
+import { assertPublicationSnapshotBookmarkUrls } from './publication-bookmark-url-guard.js';
 
 export type PublicationHttpReadEndpoint = 'manifest' | 'directory' | 'metadata' | 'snapshot' | 'node';
 export type PublicationHttpReadMethod = 'GET' | 'HEAD';
@@ -179,6 +180,7 @@ export async function composePublicationHttpRead<Context = unknown>(
       throw new TypeError('Publication HTTP read representation is not wire-valid.');
     }
     if (safeInput.endpoint === 'snapshot') {
+      assertPublicationSnapshotBookmarkUrls(projected as Readonly<Snapshot>);
       projected = finalizePublicationSnapshotWire(projected as Readonly<Snapshot>);
     }
     const bytes = publicationUtf8JsonBytes(projected);

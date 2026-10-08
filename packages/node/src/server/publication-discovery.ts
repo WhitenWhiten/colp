@@ -23,6 +23,7 @@ export const MAX_PUBLICATION_ANTI_DISCOVERY_HEADER_BYTES = 64 * 1024;
 
 const MAX_JSON_DEPTH = 64;
 const MAX_JSON_VALUES = 1_000_000;
+const MAX_JSON_BYTES = 64 * 1024 * 1024;
 const MAX_CURSOR_LENGTH = 8_192;
 const MAX_HEADER_COUNT = 128;
 const MAX_HEADER_NAME_LENGTH = 256;
@@ -84,12 +85,16 @@ export function selectPublicationDiscoveryCandidates<Value>(
     assertChannel(channel);
     if (typeof validate !== 'function') throw new TypeError();
     const source = inspectCandidateArray(candidates);
+    // Share one inspection budget across every candidate in this request so
+    // ten thousand individually valid records cannot each consume the full
+    // per-record graph budget before filtering/pagination.
+    const inspectionState = { values: 0, bytes: 0, ancestors: new WeakSet<object>() };
     const items: Readonly<Value>[] = [];
     for (const candidate of source) {
       const visibility = readOwnVisibility(candidate);
       if (visibility === 'unlisted' || visibility === 'protected' || visibility === 'private') continue;
       if (visibility !== 'public') throw new TypeError();
-      const detached = immutableJson(candidate);
+      const detached = immutableJson(candidate, inspectionState);
       if (!safeValidate(validate, detached)) throw new TypeError();
       items.push(detached);
     }
@@ -280,10 +285,16 @@ function safeValidate<Value>(validate: PublicationDiscoveryValidator<Value>, val
   }
 }
 
-function immutableJson(value: unknown): Readonly<never> {
-  inspectJson(value, 0, { values: 0, ancestors: new WeakSet<object>() });
+function immutableJson(
+  value: unknown,
+  state: { values: number; bytes: number; ancestors: WeakSet<object> },
+): Readonly<never> {
+  const beforeCloneBytes = state.bytes;
+  inspectJson(value, 0, state);
+  const sourceBytes = state.bytes - beforeCloneBytes;
+  if (state.bytes > MAX_JSON_BYTES - sourceBytes) throw new TypeError();
   const clone: unknown = structuredClone(value);
-  inspectJson(clone, 0, { values: 0, ancestors: new WeakSet<object>() });
+  inspectJson(clone, 0, state);
   const frozen = deepFreeze(clone);
   markIssuedImmutable(frozen);
   return frozen as Readonly<never>;
@@ -309,9 +320,10 @@ function markIssuedImmutable(value: unknown): void {
   }
 }
 
-function inspectJson(value: unknown, depth: number, state: { values: number; ancestors: WeakSet<object> }): void {
+function inspectJson(value: unknown, depth: number, state: { values: number; bytes: number; ancestors: WeakSet<object> }): void {
   state.values += 1;
-  if (depth > MAX_JSON_DEPTH || state.values > MAX_JSON_VALUES) throw new TypeError();
+  if (typeof value === 'string') state.bytes += Buffer.byteLength(value, 'utf8');
+  if (depth > MAX_JSON_DEPTH || state.values > MAX_JSON_VALUES || state.bytes > MAX_JSON_BYTES) throw new TypeError();
   if (value === null || typeof value === 'string' || typeof value === 'boolean') return;
   if (typeof value === 'number') {
     if (!Number.isFinite(value) || (Number.isInteger(value) && !Number.isSafeInteger(value))) throw new TypeError();
@@ -330,6 +342,8 @@ function inspectJson(value: unknown, depth: number, state: { values: number; anc
   state.ancestors.add(value);
   for (const key of keys) {
     if (array && key === 'length') continue;
+    state.bytes += Buffer.byteLength(key as string, 'utf8');
+    if (state.bytes > MAX_JSON_BYTES) throw new TypeError();
     const descriptor = Object.getOwnPropertyDescriptor(value, key);
     if (descriptor === undefined || !descriptor.enumerable || !('value' in descriptor)) throw new TypeError();
     inspectJson(descriptor.value, depth + 1, state);

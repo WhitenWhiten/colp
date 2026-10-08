@@ -91,6 +91,10 @@ export type SessionBoundVerifyInput =
       /** Optional lifecycle-only ownership verifier for direct composition. */
       readonly ownershipVerifier?: ReplicaLifecycleOwnershipVerifier;
       readonly pushOwnershipVerifier?: PushReplicaOwnershipVerifier;
+      /** Required for Sequence writes to prove the requested Replica lane. */
+      readonly sequenceOwnershipVerifier?: PushReplicaOwnershipVerifier;
+      /** Internal production-host marker; direct composition remains unsafe. */
+      readonly enforcePushContinuity?: true;
     }
   | {
       readonly kind: 'verified';
@@ -98,6 +102,10 @@ export type SessionBoundVerifyInput =
       /** Optional lifecycle-only ownership verifier for direct composition. */
       readonly ownershipVerifier?: ReplicaLifecycleOwnershipVerifier;
       readonly pushOwnershipVerifier?: PushReplicaOwnershipVerifier;
+      /** Required for Sequence writes to prove the requested Replica lane. */
+      readonly sequenceOwnershipVerifier?: PushReplicaOwnershipVerifier;
+      /** Internal production-host marker; direct composition remains unsafe. */
+      readonly enforcePushContinuity?: true;
     };
 
 async function resolveVerifiedSession(gate: SessionBoundVerifyInput): Promise<VerifiedSyncSession> {
@@ -423,8 +431,10 @@ export function assertSyncPushBatchBoundToSession(
  * prove each Replica's ownership before any receipt or claim lookup and call
  * `coordinatePushTransaction`. Missing ownership evidence denies the request.
  *
- * Does **not** run Sequence continuity. Hosts that need gap/blocked semantics
- * must use Sequence as the sole opId owner for that path instead of Push.
+ * Push production adapters must advertise and implement transactional lane
+ * continuity (`pushSequenceContinuity: true` plus `transaction.sequenceLanes`).
+ * The session-bound façade fails closed when that capability is absent. Bare
+ * `coordinatePushTransaction` remains an unsafe fixture-level primitive.
  *
  * Does **not** rewrite `batchId`. Mint ids with {@link bindSyncPushBatchId}.
  * Bare `coordinatePushTransaction` does not enforce this binding. A legacy
@@ -459,6 +469,14 @@ export async function coordinateSessionBoundPush<
   for (const replicaId of new Set(request.operations.map((item) => item.operation.replicaId))) {
     await assertPushReplicaOwnership(ownershipVerifier ?? gate.pushOwnershipVerifier, session,
       { replicaId, collectionId: session.collectionId });
+  }
+  if (gate.enforcePushContinuity && unitOfWork.pushSequenceContinuity !== true) {
+    throw new SyncSessionGateDeniedError({
+      state: 'request_binding_mismatch',
+      detail:
+        'Production Push requires a transactional Sequence lane state store '
+        + '(pushSequenceContinuity marker).',
+    });
   }
   const result = await coordinatePushTransaction(unitOfWork, request, preflight);
   return Object.freeze({ session, result });
@@ -496,11 +514,12 @@ export async function coordinateSessionBoundPull(
 
 /**
  * Session-bound Sequence: verify Session (unless already branded), require
- * `sync:push` and its Collection lane binding (mutating Sequence evaluation), then call
- * `coordinateSequenceOperation`.
+ * `sync:push`, its Collection lane binding, and durable Replica ownership
+ * (mutating Sequence evaluation), then call `coordinateSequenceOperation`.
  *
- * The generic Session model has no Replica identity: the host must verify
- * request.replicaId against its durable Session/Replica binding inside its UoW.
+ * The generic Session model has no Replica identity: the host must provide
+ * a verifier that proves request.replicaId against its durable Session/Replica
+ * binding before the UoW is opened.
  * Instance bootstrap uses coordinateSessionBootstrap, not this Collection lane.
  * Sequence remains the sole opId reservation owner for this path. Do not also
  * call Push for the same operation boundary.
@@ -516,6 +535,7 @@ export async function coordinateSessionBoundSequence<
     context: SequenceEvaluationContext<Result>,
     transaction: Transaction,
   ) => Promise<SequenceEvaluation<Result>>,
+  ownershipVerifier?: PushReplicaOwnershipVerifier,
 ): Promise<{ readonly session: VerifiedSyncSession; readonly result: SequenceCoordinatorResult<Result> }> {
   const session = await resolveVerifiedSession(gate);
   assertSessionScope(session, 'sync:push');
@@ -524,6 +544,11 @@ export async function coordinateSessionBoundSequence<
     throw new SyncSessionGateDeniedError({ state: 'request_binding_mismatch',
       detail: 'Sequence lane must match the verified Collection Session.' });
   }
+  await assertPushReplicaOwnership(
+    ownershipVerifier ?? gate.sequenceOwnershipVerifier ?? gate.pushOwnershipVerifier,
+    session,
+    { replicaId: request.replicaId, collectionId: session.collectionId },
+  );
   const result = await coordinateSequenceOperation(unitOfWork, request, evaluate);
   return Object.freeze({ session, result });
 }

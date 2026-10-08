@@ -42,6 +42,7 @@ interface SnapshotState {
   readonly maxMembers: number;
   members: number;
   readonly bytes: TextByteBudget;
+  readonly omitUndefinedProperties?: boolean;
 }
 
 /** Whether a JS number is acceptable in protocol JSON clones. */
@@ -69,6 +70,26 @@ export function immutableJsonData<Value>(
     maxMembers: DEFAULT_IMMUTABLE_JSON_MAX_MEMBERS,
     members: 0,
     bytes: new TextByteBudget(DEFAULT_IMMUTABLE_JSON_MAX_BYTES, label),
+  }, 0) as Value;
+}
+
+/**
+ * Remove explicitly-undefined optional object members before the strict JSON
+ * snapshot.  Publisher request builders receive in-memory DTOs where callers
+ * commonly spell omitted protocol fields as `field: undefined`; JSON wire
+ * semantics omit those members.  The sanitizer keeps the same descriptor,
+ * prototype, cycle, depth, and member checks as the snapshot path, and never
+ * invokes accessors or retains aliases.
+ */
+export function omitUndefinedJsonProperties<Value>(value: Value, label: string): Value {
+  return snapshotJsonValue(value, {
+    label,
+    seen: new Set<object>(),
+    maxDepth: DEFAULT_IMMUTABLE_JSON_MAX_DEPTH,
+    maxMembers: DEFAULT_IMMUTABLE_JSON_MAX_MEMBERS,
+    members: 0,
+    bytes: new TextByteBudget(DEFAULT_IMMUTABLE_JSON_MAX_BYTES, label),
+    omitUndefinedProperties: true,
   }, 0) as Value;
 }
 
@@ -210,6 +231,7 @@ function snapshotObject(
     if (descriptor === undefined || !descriptor.enumerable || !('value' in descriptor)) {
       throw new TypeError(`${state.label} members must be enumerable data properties.`);
     }
+    if (state.omitUndefinedProperties && descriptor.value === undefined) continue;
     Object.defineProperty(clone, key, {
       value: snapshotJsonValue(descriptor.value, state, depth + 1),
       enumerable: true,

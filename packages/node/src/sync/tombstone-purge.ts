@@ -5,6 +5,21 @@ import type { ReplicaLifecycle } from './index.js';
 import { immutableJsonData, immutableJsonSnapshot } from '../shared/immutable-json.js';
 import { lifecycleOrdinal as canonicalOrdinal } from './replica-lifecycle-parsing.js';
 
+/** Aggregate bounds applied before copying host-owned purge collections. */
+export const TOMBSTONE_PURGE_MAX_DELETED_MEMBERS = 100_000 as const;
+export const TOMBSTONE_PURGE_MAX_REPLICA_STATES = 100_000 as const;
+
+/** Bounds an adapter read before it materializes host-owned purge collections. */
+export interface TombstonePurgeReadBudget {
+  readonly maxDeletedMembers: typeof TOMBSTONE_PURGE_MAX_DELETED_MEMBERS;
+  readonly maxReplicaStates: typeof TOMBSTONE_PURGE_MAX_REPLICA_STATES;
+}
+
+export const tombstonePurgeReadBudget: TombstonePurgeReadBudget = Object.freeze({
+  maxDeletedMembers: TOMBSTONE_PURGE_MAX_DELETED_MEMBERS,
+  maxReplicaStates: TOMBSTONE_PURGE_MAX_REPLICA_STATES,
+});
+
 export interface TombstonePurgeRequest {
   readonly collectionId: string;
   readonly targetId: string;
@@ -54,9 +69,21 @@ export interface TombstonePurgeIdentity {
 }
 
 export interface TombstonePurgeTransaction {
-  loadCandidate(request: TombstonePurgeRequest): Promise<TombstonePurgeCandidate | undefined>;
+  /**
+   * Implementations must apply `budget` in the storage query/decoder before
+   * materializing candidate members. The coordinator repeats the cap while
+   * validating the returned value as a defensive boundary.
+   */
+  loadCandidate(
+    request: TombstonePurgeRequest,
+    budget: TombstonePurgeReadBudget,
+  ): Promise<TombstonePurgeCandidate | undefined>;
   readAuthoritativeTime(): Promise<string>;
-  listReplicaStates(collectionId: string): Promise<readonly TombstonePurgeReplicaState[]>;
+  /** Apply budget before materializing replica-state rows. */
+  listReplicaStates(
+    collectionId: string,
+    budget: TombstonePurgeReadBudget,
+  ): Promise<readonly TombstonePurgeReplicaState[]>;
   loadPurgeBoundary(collectionId: string): Promise<TombstonePurgeBoundary>;
   advancePurgedThrough(boundary: TombstonePurgeBoundary): Promise<void>;
   /** Watermarks MUST remain durable for the complete lifetime of their serverUuid. */
@@ -205,6 +232,9 @@ function immutableCandidate(value: unknown, request: TombstonePurgeRequest): Tom
   if (!Array.isArray(candidate.deletedMembers)) {
     throw new TypeError('Tombstone deletedMembers must be an array.');
   }
+  if (candidate.deletedMembers.length > TOMBSTONE_PURGE_MAX_DELETED_MEMBERS) {
+    throw new RangeError(`Tombstone deletedMembers exceeds the aggregate limit of ${TOMBSTONE_PURGE_MAX_DELETED_MEMBERS}.`);
+  }
   const seen = new Set<string>();
   const deletedMembers = candidate.deletedMembers.map((value, index) => {
     const member = exactDataObject(
@@ -239,6 +269,9 @@ function immutableCandidate(value: unknown, request: TombstonePurgeRequest): Tom
 
 function immutableReplicaStates(value: unknown, collectionId: string): readonly TombstonePurgeReplicaState[] {
   if (!Array.isArray(value)) throw new TypeError('Tombstone purge Replica states must be an array.');
+  if (value.length > TOMBSTONE_PURGE_MAX_REPLICA_STATES) {
+    throw new RangeError(`Tombstone purge Replica states exceeds the aggregate limit of ${TOMBSTONE_PURGE_MAX_REPLICA_STATES}.`);
+  }
   const seen = new Set<string>();
   return Object.freeze(value.map((entry, index) => {
     const state = exactDataObject(
@@ -349,7 +382,7 @@ export async function coordinateTombstonePurge<
     }
 
     const candidateRaw = await requirePromise(
-      transaction.loadCandidate(mutableData(request)),
+      transaction.loadCandidate(mutableData(request), tombstonePurgeReadBudget),
       'Tombstone purge candidate load',
     );
     if (candidateRaw === undefined) {
@@ -363,7 +396,7 @@ export async function coordinateTombstonePurge<
     );
     const now = authoritativeInstant(nowRaw, 'Tombstone purge authoritative time');
     const replicaStates = immutableReplicaStates(await requirePromise(
-      transaction.listReplicaStates(request.collectionId),
+      transaction.listReplicaStates(request.collectionId, tombstonePurgeReadBudget),
       'Tombstone purge Replica-state load',
     ), request.collectionId);
     const currentBoundary = immutableBoundary(await requirePromise(
