@@ -564,13 +564,30 @@ function createAuthorizationPolicy() {
   return Object.freeze({
     async requiredScopesForOperation(operation: unknown) {
       const type = (operation as { type?: unknown }).type;
-      if (type === 'create_node') {
-        return Object.freeze(['nodes:write'] as readonly ScopeName[]);
+      switch (type) {
+        case 'create_node':
+        case 'move_node':
+          return Object.freeze(['nodes:write'] as readonly ScopeName[]);
+        case 'delete_subtree':
+          return Object.freeze(['nodes:delete'] as readonly ScopeName[]);
+        case 'set_visibility':
+        case 'set_access_policy':
+          return Object.freeze(['access:write'] as readonly ScopeName[]);
+        case 'delete_collection':
+          return Object.freeze(['collections:delete'] as readonly ScopeName[]);
+        case 'create_key':
+        case 'rotate_key':
+        case 'revoke_key':
+          return Object.freeze(['keys:write'] as readonly ScopeName[]);
+        case 'set_rate_limit':
+          return Object.freeze(['rate_limits:write'] as readonly ScopeName[]);
+        case 'publish_release':
+          return Object.freeze(['release:publish'] as readonly ScopeName[]);
+        case 'sync_mirror':
+          return Object.freeze(['sync:push'] as readonly ScopeName[]);
+        default:
+          return Object.freeze([] as readonly ScopeName[]);
       }
-      if (type === 'set_visibility') {
-        return Object.freeze(['access:write'] as readonly ScopeName[]);
-      }
-      return Object.freeze([] as readonly ScopeName[]);
     },
   });
 }
