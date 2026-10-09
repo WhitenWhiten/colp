@@ -98,6 +98,7 @@ export interface McpChangePlanHostPlannerOption {
     readonly plan: (
       request: unknown,
       binding: McpAuthenticatedAuthorizationBinding,
+      authorizedScopes?: readonly string[],
     ) => Promise<ChangePlan> | ChangePlan;
   };
 }
