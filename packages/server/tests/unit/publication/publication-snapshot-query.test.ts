@@ -347,3 +347,17 @@ test('shrinks a page at a raw-node boundary to stay within the 4 MiB wire budget
   assert.ok(second.byteLength <= PUBLICATION_SNAPSHOT_MAX_BYTES);
   assert.equal(first.snapshot.nodes.length + second.snapshot.nodes.length, 301);
 });
+
+test('authenticated non-members select public filtering before any candidate scan', async () => {
+  const requests: Parameters<PublicationSnapshotReadPort['loadPage']>[0][] = [];
+  const base = reader([node('a'), node('b'), node('d')]);
+  const queryPorts = ports({ async loadPage(request) { requests.push(request); return base.loadPage(request); } });
+  const principal = { kind: 'account' as const, principalId: 'outsider', subjectId: 'outsider' };
+  const first = await getPublicationSnapshotPage(queryPorts, { collectionId: 'c', principal, query: { limit: 2 } });
+  assert.equal(requests[0]?.metadataOnly, true);
+  assert.equal(requests[1]?.projection, 'public');
+  assert.ok(first.nextCursor);
+  await getPublicationSnapshotPage(queryPorts, { collectionId: 'c', principal,
+    query: { limit: 2, pageCursor: first.nextCursor } });
+  assert.equal(requests.at(-1)?.projection, 'public');
+});

@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto';
 import { isIP } from 'node:net';
+import { MAX_PUBLICATION_MANIFEST_RESPONSE_BYTES, assertManifestEndpointTemplateBudget, assertPublisherEndpointOrigin, validateIntegerOption } from './manifest-budget.js';
+export { MAX_PUBLICATION_MANIFEST_RESPONSE_BYTES } from './manifest-budget.js';
 import {
   abortable, ColpClientLimitError, resolveClientRequestLimits, withRequestBudget,
   type ClientRequestLimits, type ClientRequestOptions,
@@ -32,7 +34,6 @@ import {
 import {
   assembleSnapshotPages,
   endpointContracts,
-  MAX_PUBLICATION_ENDPOINT_TEMPLATE_BYTES,
   type EndpointContract,
   type HttpOperationContract,
   type SemanticIssue,
@@ -424,15 +425,6 @@ function invalidWireDocumentError(
 }
 
 const redirectStatuses = new Set([301, 302, 303, 307, 308]);
-/** Manifest responses are bounded by the discovery route's wire contract. */
-export const MAX_PUBLICATION_MANIFEST_RESPONSE_BYTES = 65_536;
-
-function validateIntegerOption(name: string, value: number, minimum: number): number {
-  if (!Number.isSafeInteger(value) || value < minimum) {
-    throw new RangeError(`${name} must be a safe integer greater than or equal to ${minimum}.`);
-  }
-  return value;
-}
 
 function resolveSnapshotLimits(options: Partial<SnapshotRetrievalLimits> | undefined): SnapshotRetrievalLimits {
   return Object.freeze({
@@ -1068,12 +1060,10 @@ export class ColpClient {
 
     const source = mount.endpoints[key];
     if (typeof source !== 'string') throw new RangeError(`Manifest endpoint ${key} is missing.`);
-    if (source.length > MAX_PUBLICATION_ENDPOINT_TEMPLATE_BYTES
-      || new TextEncoder().encode(source).byteLength > MAX_PUBLICATION_ENDPOINT_TEMPLATE_BYTES) {
-      throw new TypeError('Manifest endpoint template exceeds its byte budget.');
-    }
+    assertManifestEndpointTemplateBudget(source);
     const url = normalizeUrl(new URL(parseTemplate(source).expand(values)));
     rejectDowngrade(new URL(mount.baseUrl), url);
+    assertPublisherEndpointOrigin(url, mount.baseUrl);
     validateRequestUrl(url);
     return { url, operation, definition: operation.response as DefinitionName, mount };
   }

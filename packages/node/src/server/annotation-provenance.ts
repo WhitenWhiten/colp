@@ -288,7 +288,7 @@ function clone<Value>(value: Value): Value {
 function mutableClone(value: unknown): unknown {
   if (Array.isArray(value)) return value.map((entry) => mutableClone(entry));
   if (value !== null && typeof value === 'object') {
-    const copy: Record<string, unknown> = {};
+    const copy: Record<string, unknown> = Object.create(null);
     for (const [key, child] of Object.entries(value)) copy[key] = mutableClone(child);
     return copy;
   }

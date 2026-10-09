@@ -44,6 +44,7 @@ export function buildPublicationSitemapStatement(): {
               and c.publication_slug is not null
               and c.published_at is not null
               and c.visibility = $1
+              and c.allow_search_indexing
               and ${SEED_COLLECTION_EXCLUSION_SQL}
               and ${COLLECTION_DISCOVERY_CONTROL_SQL}
               and not exists (

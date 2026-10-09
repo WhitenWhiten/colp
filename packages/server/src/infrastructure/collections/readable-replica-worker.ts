@@ -27,7 +27,7 @@ export interface ReadableReplicaWorkerLoopLogger {
 }
 
 export interface ReadableReplicaHostGate {
-  run(host: string, work: () => Promise<void>): Promise<void>;
+  run(host: string, work: () => Promise<void>, signal?: AbortSignal): Promise<void>;
 }
 
 export interface ReadableReplicaHostGateDiagnostics extends ReadableReplicaHostGate {
@@ -79,6 +79,7 @@ export class ReadableReplicaWorkerLoop {
   private readonly leaseDurationMs: number;
   private readonly now: () => Date;
   private readonly hostGate: ReadableReplicaHostGate;
+  private readonly connectionHostGate: ReadableReplicaHostGate;
   private readonly extractor: ReadableArticleExtractor;
   private running = false;
   private loopPromise: Promise<void> | undefined;
@@ -96,6 +97,9 @@ export class ReadableReplicaWorkerLoop {
     this.leaseDurationMs = options.leaseDurationMs ?? 120_000;
     this.now = options.now ?? (() => new Date());
     this.hostGate = options.hostGate ?? createReadableReplicaHostGate(options.perHostGapMs ?? 2_000);
+    // Connection gates are never nested in another connection gate. A claim
+    // may hold its origin gate across redirects without creating A/B deadlocks.
+    this.connectionHostGate = createReadableReplicaHostGate(options.perHostGapMs ?? 2_000);
     this.extractor = options.extractor ?? createMozillaReadableArticleExtractor();
     if (!Number.isInteger(this.probeTimeoutMs) || this.probeTimeoutMs < 1
       || !Number.isInteger(this.connectTimeoutMs) || this.connectTimeoutMs < 1
@@ -183,8 +187,7 @@ export class ReadableReplicaWorkerLoop {
         ...(this.options.resolve === undefined ? {} : { resolve: this.options.resolve }),
         ...(this.options.connect === undefined ? {} : { connect: this.options.connect }),
         signal: controller.signal,
-        hostGate: this.hostGate,
-        initialHost: hostnameFromBookmarkUrl(claim.url) ?? '',
+        hostGate: this.connectionHostGate,
       });
       if (controller.signal.aborted) return;
       if (fetched.kind === 'failure' && fetched.hopUrls.length > 0) {

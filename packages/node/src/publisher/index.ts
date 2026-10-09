@@ -202,8 +202,9 @@ export function createCanonicalRequestDigest(input: CanonicalRequestDigestInput)
   // byte ceiling first so oversized caller-controlled strings cannot turn the
   // digest helper into an unbounded allocation path.
   const boundedCanonicalInput = immutableJsonSnapshot(canonicalInput, 'Canonical request digest input', {
-    maxDepth: 64,
-    maxMembers: 100_000,
+    // Body/query each retain their I-JSON contract; allow the envelope and array length slots.
+    maxDepth: 130,
+    maxMembers: 400_010,
     maxBytes: 8 * 1024 * 1024,
   });
   const canonical = canonicalize(boundedCanonicalInput);

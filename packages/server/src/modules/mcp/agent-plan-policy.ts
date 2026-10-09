@@ -146,6 +146,10 @@ export function createAutoApproveTrustedPlan(
       return planned;
     }
     if (planned.requiresApproval) await actions.approve(planned.planId, binding);
+    // Approval may await external work; a downgrade during that await must
+    // still prevent policy-driven commit.
+    if (deps.assertTrustedPolicy !== undefined
+      && !(await deps.assertTrustedPolicy(binding.principalId, binding.clientId))) return planned;
     await actions.commit(planned.planId, binding, policyCommitIdempotencyKey(planned.planId));
     await deps.saveReceipt({
       planId: planned.planId,

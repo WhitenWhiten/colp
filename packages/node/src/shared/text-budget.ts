@@ -31,6 +31,12 @@ export class TextByteBudget {
     const quotes = mode === 'json' ? 2 : 0;
     if (text.length > this.remaining - quotes) this.charge(this.remaining + 1);
     this.charge(quotes);
+    // Native scanning avoids a method call per byte for large ordinary JSON
+    // strings while retaining allocation-free accounting and exact escapes.
+    if (mode === 'json' && !/[\x00-\x1f"\\\x80-\uffff]/.test(text)) {
+      this.charge(text.length);
+      return;
+    }
     for (let index = 0; index < text.length; index += 1) {
       const code = text.charCodeAt(index);
       if (mode === 'json') {

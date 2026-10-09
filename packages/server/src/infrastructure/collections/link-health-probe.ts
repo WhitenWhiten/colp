@@ -35,7 +35,7 @@ export interface ProbeBookmarkUrlOptions {
 }
 
 export interface ProbeHostGate {
-  run(host: string, work: () => Promise<void>): Promise<void>;
+  run(host: string, work: () => Promise<void>, signal?: AbortSignal): Promise<void>;
 }
 
 export interface ProbeBookmarkUrlResult {
@@ -135,7 +135,7 @@ function wrapConnect(
       const targetHost = hostnameFromBookmarkUrl(target.url.href) ?? '';
       if (hostGate !== undefined && targetHost !== '' && targetHost !== initialHost) {
         let response: Response | undefined;
-        await hostGate.run(targetHost, async () => { response = await connectOnce(); });
+        await hostGate.run(targetHost, async () => { response = await connectOnce(); }, requestSignal);
         return response!;
       }
       return await connectOnce();

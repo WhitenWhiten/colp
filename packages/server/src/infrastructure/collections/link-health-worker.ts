@@ -21,7 +21,7 @@ export interface LinkHealthWorkerLoopLogger {
 }
 
 export interface LinkHealthHostGate {
-  run(host: string, work: () => Promise<void>): Promise<void>;
+  run(host: string, work: () => Promise<void>, signal?: AbortSignal): Promise<void>;
 }
 
 export interface LinkHealthHostGateDiagnostics extends LinkHealthHostGate {
@@ -70,6 +70,7 @@ export class LinkHealthWorkerLoop {
   private readonly leaseDurationMs: number;
   private readonly now: () => Date;
   private readonly hostGate: LinkHealthHostGate;
+  private readonly connectionHostGate: LinkHealthHostGate;
   private running = false;
   private loopPromise: Promise<void> | undefined;
   private pollTimer: NodeJS.Timeout | undefined;
@@ -85,6 +86,9 @@ export class LinkHealthWorkerLoop {
     this.leaseDurationMs = options.leaseDurationMs ?? 60_000;
     this.now = options.now ?? (() => new Date());
     this.hostGate = options.hostGate ?? createLinkHealthHostGate(options.perHostGapMs ?? 1_000);
+    // Connection gates are never nested in another connection gate. A claim
+    // may hold its origin gate across redirects without creating A/B deadlocks.
+    this.connectionHostGate = createLinkHealthHostGate(options.perHostGapMs ?? 1_000);
     if (!Number.isInteger(this.probeTimeoutMs) || this.probeTimeoutMs < 1
       || !Number.isInteger(this.connectTimeoutMs) || this.connectTimeoutMs < 1
       || !Number.isInteger(this.concurrency) || this.concurrency < 1 || this.concurrency > 4
@@ -170,8 +174,7 @@ export class LinkHealthWorkerLoop {
         ...(this.options.resolve === undefined ? {} : { resolve: this.options.resolve }),
         ...(this.options.connect === undefined ? {} : { connect: this.options.connect }),
         signal: controller.signal,
-        hostGate: this.hostGate,
-        initialHost: hostnameFromBookmarkUrl(claim.url) ?? '',
+        hostGate: this.connectionHostGate,
       });
       if (controller.signal.aborted) return;
       const written = await this.options.repository.completeProbe({

@@ -237,6 +237,9 @@ export function buildPublicationSnapshotCandidateStatement(
          select count(*) from nodes preceding
           where preceding.collection_id = $1
             and not preceding.is_root and preceding.deleted_at is null
+            ${request.projection === 'public' ? `and preceding.visibility = 'inherit'
+            and not ${buildPublicationTargetAncestorRestrictionSql('preceding')}
+            and not ${bookmarkHidePublicExistsSql('preceding.id', 'preceding.collection_id')}` : ''}
             and coalesce(preceding.parent_id, ''::text) collate "C" = $2::text collate "C"
             and (coalesce(preceding.position_token, ''::text) collate "C", preceding.id collate "C")
               <= ($3::text collate "C", $4::text collate "C")
@@ -296,6 +299,8 @@ function buildScopedCandidateStatement(
     : `case when coalesce(n.parent_id, ''::text) collate "C" = $4::text collate "C" then (
          select count(*) from scoped preceding
           where preceding.scope_depth > 0
+            ${request.projection === 'public' ? `and preceding.visibility = 'inherit'
+            and not preceding.ancestor_restricted and not preceding.moderation_hidden` : ''}
             and coalesce(preceding.parent_id, ''::text) collate "C" = $4::text collate "C"
             and (coalesce(preceding.position_token, ''::text) collate "C", preceding.id collate "C")
               <= ($5::text collate "C", $6::text collate "C")

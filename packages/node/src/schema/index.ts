@@ -222,10 +222,34 @@ export function createValidatorRegistry(ajv?: Ajv2020): ValidatorRegistry {
     ...Object.keys(schemaV02.$defs),
   ] as DefinitionName[]);
 
+  const boundedValidators = new Map<DefinitionName, ValidateFunction>();
   function get(name: DefinitionName): ValidateFunction {
+    const cached = boundedValidators.get(name);
+    if (cached !== undefined) return cached;
     const existing = validators.get(name);
     if (existing !== undefined) {
-      return existing;
+      const bounded = ((value: unknown) => {
+        let snapshot: unknown;
+        try {
+          snapshot = immutableJsonSnapshot(value, 'Schema input', {
+            maxDepth: MAX_STRUCTURED_VALIDATION_DEPTH,
+            maxMembers: MAX_STRUCTURED_VALIDATION_MEMBERS,
+            maxBytes: MAX_STRUCTURED_VALIDATION_BYTES,
+          });
+        } catch {
+          bounded.errors = [{ instancePath: '', schemaPath: '#/x-colp-boundary',
+            keyword: 'x-colp-boundary', params: {}, message: 'Schema input must be bounded plain JSON data.' }];
+          return false;
+        }
+        const issue = findStructuredUniqueArrayLimit(snapshot);
+        if (issue !== undefined) { bounded.errors = [issue]; return false; }
+        const valid = existing(snapshot);
+        bounded.errors = existing.errors ?? null;
+        return valid;
+      }) as ValidateFunction;
+      bounded.schema = existing.schema;
+      boundedValidators.set(name, bounded);
+      return bounded;
     }
 
     if (!(name in schema.$defs) && !(name in schemaV02.$defs)) {
@@ -242,7 +266,7 @@ export function createValidatorRegistry(ajv?: Ajv2020): ValidatorRegistry {
     validate(name: DefinitionName, value: unknown): ValidationResult {
       const bounded = findStructuredUniqueArrayLimit(value);
       if (bounded !== undefined) return { valid: false, errors: [bounded] };
-      const validator = get(name);
+      const validator = validators.get(name) ?? get(name);
       if (validator(value)) {
         return { valid: true, errors: [] };
       }
@@ -458,13 +482,12 @@ export function validateWireDocument<Value, Issue>(
   // can still mutate that candidate while it is running. Semantics must use
   // the already-snapshotted value rather than the caller alias so a raw
   // wrapper cannot bypass semantic checks through mutation or accessors.
-  const semantic = validateSemantics(
-    (trustedValidatorRegistries.has(validators) ? value : snapshot) as Value,
-  );
+  const validatedValue = (trustedValidatorRegistries.has(validators) ? value : snapshot) as Value;
+  const semantic = validateSemantics(validatedValue);
   if (!semantic.valid) {
     return { valid: false, stage: 'semantic', issues: semantic.issues };
   }
-  return { valid: true, value: value as Value };
+  return { valid: true, value: validatedValue };
 }
 
 /** Parses I-JSON, then runs schema/format and semantic validation exactly once. */

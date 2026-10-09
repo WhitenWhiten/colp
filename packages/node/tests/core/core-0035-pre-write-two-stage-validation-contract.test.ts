@@ -51,6 +51,26 @@ const validObjectFamilies = [
 ] as const satisfies readonly (readonly [string, DefinitionName, string])[];
 
 describe(`CORE-0035 pre-write two-stage validation contract ${evidence}`, () => {
+  it('returns the same detached value that semantics checked when a wrapper mutates the source alias', () => {
+    const delegate = createValidatorRegistry();
+    const input = fixture('publisher-annotation-create.json');
+    const originalBody = input.value;
+    const wrapper: ValidatorRegistry = {
+      definitionNames: delegate.definitionNames, get: delegate.get,
+      validate(name, value) { input.value = 'changed after snapshot'; return delegate.validate(name, value); },
+    };
+    let checked: unknown;
+    const result = validateWireDocument(wrapper, 'annotationCreate', input, (value) => {
+      checked = value;
+      return { valid: true, issues: [] };
+    });
+    expect(result.valid).toBe(true);
+    if (!result.valid) return;
+    expect(result.value).toBe(checked);
+    expect(result.value).not.toBe(input);
+    expect((result.value as typeof input).value).toEqual(originalBody);
+  });
+
   it.each(validObjectFamilies)(
     'structurally and semantically validates a %s exactly once before its write',
     async (_label, definition, fixtureName) => {
