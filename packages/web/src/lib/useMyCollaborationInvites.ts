@@ -146,7 +146,7 @@ export function useMyCollaborationInvites() {
     } finally {
       if (identity() === requestIdentity) setPendingInviteId((current) => current === inviteId ? null : current)
     }
-  }, [load])
+  }, [load, privateIdentity])
 
   const decline = useCallback(async (inviteId: string): Promise<void> => {
     const requestIdentity = privateIdentity
@@ -162,7 +162,7 @@ export function useMyCollaborationInvites() {
     } finally {
       if (identity() === requestIdentity) setPendingInviteId((current) => current === inviteId ? null : current)
     }
-  }, [load])
+  }, [load, privateIdentity])
 
   const identityReady = renderedIdentityRef.current === privateIdentity
   return {

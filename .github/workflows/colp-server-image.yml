@@ -3,9 +3,9 @@ name: colp-server-image
 # Tag pushes only. A pull request must not build, smoke, or publish the image.
 # The tag version has to be a packages/server/CHANGELOG.md section; the check
 # runs before the image build. deploy/compose.yaml keeps ${COLP_IMAGE_TAG:-0.1}.
-# Smoke sets COLP_IMAGE_TAG to this X.Y.Z so the http profile runs the image
-# just built. Images are pushed only after deploy/smoke.sh passes, for
-# linux/amd64 and linux/arm64. The GitHub release body is that CHANGELOG section.
+# A staged multi-platform manifest is built once and smoked by digest on
+# linux/amd64 and linux/arm64. Release tags promote that exact manifest only
+# after both smoke checks pass. The GitHub release body is that CHANGELOG section.
 #
 # A pre-release tag (X.Y.Z-rc1) pushes only its own tag and creates a
 # pre-release: it must never move X.Y, which compose follows, or latest.
@@ -63,10 +63,20 @@ jobs:
           echo "minor=${minor}" >> "$GITHUB_OUTPUT"
           echo "prerelease=${prerelease}" >> "$GITHUB_OUTPUT"
 
-      - name: Build the server image
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - id: candidate
+        name: Build one candidate manifest for both platforms
         env:
-          COLP_VERSION: ${{ steps.release.outputs.version }}
-        run: docker build -f packages/server/Dockerfile -t "$COLP_IMAGE:$COLP_VERSION" .
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker buildx build --platform linux/amd64,linux/arm64 \
+            -f packages/server/Dockerfile --tag "$COLP_IMAGE:candidate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            --metadata-file "$RUNNER_TEMP/image-metadata.json" --push .
+          digest="$(jq -er '."containerimage.digest"' "$RUNNER_TEMP/image-metadata.json")"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
 
       - name: Build @know-n/colp for smoke
         working-directory: packages/node
@@ -79,9 +89,10 @@ jobs:
         run: npm ci --ignore-scripts
         working-directory: packages/conformance
 
-      - name: Start the http profile
+      - name: Smoke the exact candidate digest on both platforms
         env:
           COLP_VERSION: ${{ steps.release.outputs.version }}
+          COLP_CANDIDATE_DIGEST: ${{ steps.candidate.outputs.digest }}
         run: |
           secret="$(openssl rand -base64 48 | tr -d '\n')"
           password="$(openssl rand -hex 24)"
@@ -99,27 +110,30 @@ jobs:
           DATABASE_SSL_MODE=disable
           TRUSTED_INGRESS=10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
           EOF
-          docker compose \
-            --env-file "$RUNNER_TEMP/colp-smoke.env" \
-            --project-name colp-server-image \
-            --profile http \
-            -f deploy/compose.yaml \
-            up -d --wait --wait-timeout 300
+          for platform in linux/amd64 linux/arm64; do
+            cat > "$RUNNER_TEMP/colp-image-override.yaml" <<EOF
+          services:
+            server:
+              image: ${COLP_IMAGE}@${COLP_CANDIDATE_DIGEST}
+              platform: ${platform}
+          EOF
+            docker compose --env-file "$RUNNER_TEMP/colp-smoke.env" \
+              --project-name colp-server-image --profile http -f deploy/compose.yaml \
+              -f "$RUNNER_TEMP/colp-image-override.yaml" up -d --wait --wait-timeout 300
+            ./deploy/smoke.sh http://127.0.0.1:8080
+            docker compose --env-file "$RUNNER_TEMP/colp-smoke.env" \
+              --project-name colp-server-image --profile http -f deploy/compose.yaml \
+              -f "$RUNNER_TEMP/colp-image-override.yaml" down -v --remove-orphans
+          done
 
-      - name: Run deploy/smoke.sh
-        run: ./deploy/smoke.sh http://127.0.0.1:8080
-
-      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
-      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-
-      - name: Push the image for amd64 and arm64
+      - name: Promote the tested manifest without rebuilding
         env:
           COLP_VERSION: ${{ steps.release.outputs.version }}
           COLP_MINOR: ${{ steps.release.outputs.minor }}
           COLP_PRERELEASE: ${{ steps.release.outputs.prerelease }}
           GH_TOKEN: ${{ github.token }}
+          COLP_CANDIDATE_DIGEST: ${{ steps.candidate.outputs.digest }}
         run: |
-          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
           tags=(--tag "$COLP_IMAGE:$COLP_VERSION")
           if [[ "$COLP_PRERELEASE" != true ]]; then
             tags+=(--tag "$COLP_IMAGE:$COLP_MINOR")
@@ -128,8 +142,9 @@ jobs:
             if [[ "$highest" == "$COLP_VERSION" ]]; then tags+=(--tag "$COLP_IMAGE:latest"); fi
           fi
           printf 'pushing:'; printf ' %s' "${tags[@]}"; printf '\n'
-          docker buildx build --platform linux/amd64,linux/arm64 \
-            -f packages/server/Dockerfile "${tags[@]}" --push .
+          docker buildx imagetools create "${tags[@]}" "$COLP_IMAGE@$COLP_CANDIDATE_DIGEST"
+          published="$(docker buildx imagetools inspect "$COLP_IMAGE:$COLP_VERSION" --format '{{.Manifest.Digest}}')"
+          test "$published" = "$COLP_CANDIDATE_DIGEST"
 
       - name: Create the GitHub release
         env:

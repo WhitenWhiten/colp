@@ -291,7 +291,7 @@ export function createPhase4bMcpWriteComposition(
         if (!stored) throw new Error('The planned change is unavailable.');
         const approved = await serviceOptions.autoApproveTrustedPlan!(
           stored as unknown as import('../modules/mcp/index.js').Phase4bMcpPlannedChange,
-          binding, { canCommit: await serviceOptions.scopes.hasScopes(['changes:commit'], binding),
+          binding, { canCommit: await serviceOptions.scopes.hasScopes(['changes:commit' as ScopeName], binding),
             approve: changePlanService.recordOutOfBandApproval, commit: changePlanService.commit },
         );
         return { ...wire, requiresApproval: approved.requiresApproval };

@@ -8,6 +8,7 @@
  * must not depend on identityUnitOfWork.
  */
 import assert from 'node:assert/strict';
+import http from 'node:http';
 import { afterEach, describe, test } from 'vitest';
 import { loadConfig } from '../../support/test-config.js';
 import { createR2FaviconStore } from '../../../src/infrastructure/collections/index.js';
@@ -131,6 +132,36 @@ describe('BF-02 public favicon GET through the R2 adapter', () => {
       );
     } finally {
       await fault.close();
+    }
+  });
+
+  test('anonymous favicon deadline and disconnect abort the object-store signal', async () => {
+    for (const disconnect of [false, true]) {
+      let started!: () => void;
+      let cancelled!: () => void;
+      const start = new Promise<void>(resolve => { started = resolve; });
+      const aborted = new Promise<void>(resolve => { cancelled = resolve; });
+      const app = buildApiApp({
+        config: { ...config, httpSecurity: { ...config.httpSecurity, requestTimeoutMs: 150 } },
+        faviconPublicAccess: { isPubliclyAccessible: async () => true },
+        faviconStore: { put: async () => undefined, delete: async () => undefined,
+          get: async (_id, options) => new Promise<never>((_resolve, reject) => {
+            started();
+            assert.ok(options?.signal);
+            options.signal.addEventListener('abort', () => { cancelled(); reject(options.signal!.reason); }, { once: true });
+          }),
+        },
+      });
+      apps.push(app);
+      const origin = await app.listen({ host: '127.0.0.1', port: 0 });
+      const request = http.get(`${origin}/api/v1/favicon/${FAVICON_ID}`);
+      const done = new Promise<void>(resolve => { request.once('error', () => resolve()); request.once('close', () => resolve()); });
+      try {
+        await start;
+        if (disconnect) request.destroy();
+        await aborted;
+        await done;
+      } finally { request.destroy(); await app.close(); }
     }
   });
 

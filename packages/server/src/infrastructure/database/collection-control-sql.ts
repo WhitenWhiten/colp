@@ -77,7 +77,7 @@ export function collectionPublicVisibleNodeCountSql(alias = 'collection'): strin
               and n.deleted_at is null
               and n.visibility = 'inherit'
               and not ${ancestorRestriction}
-              and not ${collectionHidePublicExistsSql(alias)}
+              and not ${collectionHidePublicExistsSql(`${alias}.id`)}
               and not ${bookmarkHidePublicExistsSql('n.id', 'n.collection_id')})`;
 }
 

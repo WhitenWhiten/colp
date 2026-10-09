@@ -1,3 +1,4 @@
+import { buildProductNodeVisibilitySql } from '../database/product-node-visibility-sql.js';
 import { createValidatorRegistry } from '@know-n/colp/schema';
 import type { Annotation } from '@know-n/colp/types';
 import { sql, type Kysely, type Selectable } from 'kysely';
@@ -82,44 +83,7 @@ export function createPostgresAnnotationReadPort(
         .innerJoin('collections', 'collections.id', 'nodes.collection_id')
         .select(['nodes.id', 'nodes.collection_id', 'nodes.deleted_at',
           'collections.visibility as collection_visibility', 'collections.deleted_at as collection_deleted_at'])
-        .select(sql<'private' | 'protected' | 'unlisted' | 'public'>`
-          CASE
-            WHEN nodes.visibility <> 'inherit' THEN nodes.visibility
-            WHEN EXISTS (
-              WITH RECURSIVE ancestors AS (
-                SELECT parent.id, parent.parent_id, parent.visibility, parent.deleted_at,
-                       ARRAY[parent.id]::text[] AS path
-                  FROM nodes parent
-                 WHERE parent.collection_id = nodes.collection_id
-                   AND parent.id = nodes.parent_id
-                UNION ALL
-                SELECT parent.id, parent.parent_id, parent.visibility, parent.deleted_at,
-                       child.path || parent.id::text
-                  FROM nodes parent JOIN ancestors child ON parent.id = child.parent_id
-                 WHERE parent.collection_id = nodes.collection_id
-                   AND NOT parent.id = ANY(child.path)
-              )
-              SELECT 1 FROM ancestors
-               WHERE deleted_at IS NOT NULL OR visibility = 'private'
-            ) THEN 'private'
-            WHEN EXISTS (
-              WITH RECURSIVE ancestors AS (
-                SELECT parent.id, parent.parent_id, parent.visibility, parent.deleted_at,
-                       ARRAY[parent.id]::text[] AS path
-                  FROM nodes parent
-                 WHERE parent.collection_id = nodes.collection_id
-                   AND parent.id = nodes.parent_id
-                UNION ALL
-                SELECT parent.id, parent.parent_id, parent.visibility, parent.deleted_at,
-                       child.path || parent.id::text
-                  FROM nodes parent JOIN ancestors child ON parent.id = child.parent_id
-                 WHERE parent.collection_id = nodes.collection_id
-                   AND NOT parent.id = ANY(child.path)
-              )
-              SELECT 1 FROM ancestors WHERE visibility = 'protected'
-            ) THEN 'protected'
-            ELSE collections.visibility
-          END`.as('visibility'))
+        .select(sql<'private' | 'protected' | 'unlisted' | 'public'>`${sql.raw(buildProductNodeVisibilitySql('nodes', 'collections'))}`.as('visibility'))
         .where('nodes.id', '=', input.resourceId).where('nodes.collection_id', '=', input.collectionId)
         .executeTakeFirst();
       if (!row || row.deleted_at !== null || row.collection_deleted_at !== null) return null;
