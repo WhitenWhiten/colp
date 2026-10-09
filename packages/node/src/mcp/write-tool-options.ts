@@ -105,7 +105,7 @@ export interface McpChangePlanHostPlannerOption {
 
 export function readHostPlanner(
   changePlan: object,
-): ((request: unknown, binding: McpAuthenticatedAuthorizationBinding) => Promise<ChangePlan>) | undefined {
+): ((request: unknown, binding: McpAuthenticatedAuthorizationBinding, authorizedScopes?: readonly string[]) => Promise<ChangePlan>) | undefined {
   const descriptor = Object.getOwnPropertyDescriptor(changePlan, 'planner');
   if (descriptor === undefined) return undefined;
   // Like the digest verifier, a configured planner must never degrade to the
