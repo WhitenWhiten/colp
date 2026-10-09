@@ -241,7 +241,7 @@ describeWithPostgres('R07 Pull authority late-lock races', () => {
       snapshotSeen();
       await gate;
     }));
-    const pending = port.read({ credential: scope.credential, sessionId: scope.session.sessionId,
+    const pending = port.read({ origin: ORIGIN, credential: scope.credential, sessionId: scope.session.sessionId,
       collectionId: COLLECTION, replicaId: scope.replica.replicaId, cursor: null, limit: 50 });
     await atSnapshot;
     await mutate();
@@ -337,7 +337,7 @@ describeWithPostgres('R07 Pull authority late-lock races', () => {
         await secondGate;
       }
     }));
-    const pending = port.read({ credential: scope.credential, sessionId: scope.session.sessionId,
+    const pending = port.read({ origin: ORIGIN, credential: scope.credential, sessionId: scope.session.sessionId,
       collectionId: COLLECTION, replicaId: scope.replica.replicaId, cursor: null, limit: 50 });
     await atSnapshot;
     // A concurrent Ack extends the Replica lease without touching any cursor-binding fact.
@@ -353,7 +353,7 @@ describeWithPostgres('R07 Pull authority late-lock races', () => {
     assert.ok(after.evidence > before.evidence && after.proofs > before.proofs,
       JSON.stringify({ before, after }));
     // The continuation also survives a concurrent Ack lease extension.
-    const pendingResumed = port.read({ credential: scope.credential, sessionId: scope.session.sessionId,
+    const pendingResumed = port.read({ origin: ORIGIN, credential: scope.credential, sessionId: scope.session.sessionId,
       collectionId: COLLECTION, replicaId: scope.replica.replicaId, cursor: page.nextCursor, limit: 50 });
     await atSecondSnapshot;
     await isolated.runtime.pool.query(
@@ -383,7 +383,7 @@ describeWithPostgres('R07 Pull authority late-lock races', () => {
       snapshotSeen();
       await gate;
     }));
-    const pending = port.read({ credential: scope.credential, sessionId: scope.session.sessionId,
+    const pending = port.read({ origin: ORIGIN, credential: scope.credential, sessionId: scope.session.sessionId,
       collectionId: COLLECTION, replicaId: scope.replica.replicaId, cursor: null, limit: 50 });
     await atSnapshot;
     // A concurrent content change advances Collection content_revision without
@@ -400,7 +400,7 @@ describeWithPostgres('R07 Pull authority late-lock races', () => {
       .select('collection_revision').where('replica_id', '=', scope.replica.replicaId)
       .executeTakeFirstOrThrow();
     assert.equal(evidence.collection_revision, 'content-r2');
-    const resumed = await port.read({ credential: scope.credential, sessionId: scope.session.sessionId,
+    const resumed = await port.read({ origin: ORIGIN, credential: scope.credential, sessionId: scope.session.sessionId,
       collectionId: COLLECTION, replicaId: scope.replica.replicaId, cursor: page.nextCursor, limit: 50 });
     assert.equal(resumed.events.length, 0);
     await isolated.runtime.pool.query(
@@ -423,7 +423,7 @@ describeWithPostgres('R07 Pull authority late-lock races', () => {
       snapshotSeen();
       await gate;
     }));
-    const pending = port.read({ credential: scope.credential, sessionId: scope.session.sessionId,
+    const pending = port.read({ origin: ORIGIN, credential: scope.credential, sessionId: scope.session.sessionId,
       collectionId: COLLECTION, replicaId: scope.replica.replicaId, cursor: null, limit: 50 });
     await atSnapshot;
     // editor -> viewer keeps the member authorized (any membership role satisfies
@@ -435,7 +435,7 @@ describeWithPostgres('R07 Pull authority late-lock races', () => {
     release();
     const page = await pending;
     assert.ok(page.events.length > 0);
-    const resumed = await port.read({ credential: scope.credential, sessionId: scope.session.sessionId,
+    const resumed = await port.read({ origin: ORIGIN, credential: scope.credential, sessionId: scope.session.sessionId,
       collectionId: COLLECTION, replicaId: scope.replica.replicaId, cursor: page.nextCursor, limit: 50 });
     assert.equal(resumed.events.length, 0);
     await isolated.runtime.pool.query(
@@ -457,12 +457,12 @@ describeWithPostgres('R07 Pull authority late-lock races', () => {
       snapshotSeen();
       await gate;
     }));
-    const first = await port.read({ credential: scope.credential, sessionId: scope.session.sessionId,
+    const first = await port.read({ origin: ORIGIN, credential: scope.credential, sessionId: scope.session.sessionId,
       collectionId: COLLECTION, replicaId: scope.replica.replicaId, cursor: null, limit: 1_000 });
     assert.equal(first.hasMore, false);
     const before = await evidenceCounts(scope.replica.replicaId);
     armed = true;
-    const pending = port.read({ credential: scope.credential, sessionId: scope.session.sessionId,
+    const pending = port.read({ origin: ORIGIN, credential: scope.credential, sessionId: scope.session.sessionId,
       collectionId: COLLECTION, replicaId: scope.replica.replicaId, cursor: first.nextCursor, limit: 1_000 });
     await atSnapshot;
     await isolated.runtime.pool.query(
@@ -497,7 +497,7 @@ describeWithPostgres('R07 Pull authority late-lock races', () => {
         await gate;
       }),
     });
-    const first = await port.read({ credential: scope.credential, sessionId: scope.session.sessionId,
+    const first = await port.read({ origin: ORIGIN, credential: scope.credential, sessionId: scope.session.sessionId,
       collectionId: COLLECTION, replicaId: scope.replica.replicaId, cursor: null, limit: 1_000 });
     const digest = createHash('sha256').update(first.nextCursor, 'utf8').digest('hex');
     await createPostgresSyncAckApplication(isolated.runtime.db, {
@@ -509,7 +509,7 @@ describeWithPostgres('R07 Pull authority late-lock races', () => {
     });
     cursorNow += 120_000;
     armed = true;
-    const pending = port.read({ credential: scope.credential, sessionId: scope.session.sessionId,
+    const pending = port.read({ origin: ORIGIN, credential: scope.credential, sessionId: scope.session.sessionId,
       collectionId: COLLECTION, replicaId: scope.replica.replicaId, cursor: first.nextCursor, limit: 1_000 });
     await atSnapshot;
     await isolated.runtime.pool.query(
@@ -550,7 +550,7 @@ describeWithPostgres('R07 Pull authority late-lock races', () => {
         await new Promise<void>((resolve) => setImmediate(resolve));
       }
     }));
-    await assert.rejects(port.read({ credential: scope.credential, sessionId: scope.session.sessionId,
+    await assert.rejects(port.read({ origin: ORIGIN, credential: scope.credential, sessionId: scope.session.sessionId,
       collectionId: COLLECTION, replicaId: scope.replica.replicaId, cursor: null, limit: 10 }),
     (error: unknown) => error instanceof SyncPullReadError && error.code === 'replica_expired');
     assert.deepEqual(await evidenceCounts(scope.replica.replicaId), before);
@@ -572,9 +572,9 @@ describeWithPostgres('R07 Pull authority late-lock races', () => {
     });
     const readerA = reader(barrier);
     const readerB = reader(barrier);
-    const inputA = { credential: first.credential, sessionId: first.session.sessionId,
+    const inputA = { origin: ORIGIN, credential: first.credential, sessionId: first.session.sessionId,
       collectionId: COLLECTION, replicaId: first.replica.replicaId, cursor: null, limit: 100 };
-    const inputB = { credential: second.credential, sessionId: second.session.sessionId,
+    const inputB = { origin: ORIGIN, credential: second.credential, sessionId: second.session.sessionId,
       collectionId: COLLECTION, replicaId: second.replica.replicaId, cursor: null, limit: 100 };
     const [pageA, pageB] = await Promise.all([readerA.port.read(inputA), readerB.port.read(inputB)]);
     assert.equal(arrived, 2);
@@ -609,7 +609,7 @@ describeWithPostgres('R07 Pull authority late-lock races', () => {
       snapshotSeen();
       await pullGate;
     }));
-    const pendingPull = port.read({ credential: scope.credential, sessionId: scope.session.sessionId,
+    const pendingPull = port.read({ origin: ORIGIN, credential: scope.credential, sessionId: scope.session.sessionId,
       collectionId: COLLECTION, replicaId: scope.replica.replicaId, cursor: null, limit: 10 });
     await atSnapshot;
     const pushOpId = `push-during-pull-${randomUUID()}`;
@@ -644,7 +644,7 @@ describeWithPostgres('R07 Pull authority late-lock races', () => {
       faultInjector: { async afterPhase(phase) {
         if (phase === 'replica') { enteredRetire(); await retireBlocked; }
       } },
-    }).retireExtension({ credential: scope.credential, sessionId: scope.session.sessionId,
+    }).retireExtension({ origin: ORIGIN, credential: scope.credential, sessionId: scope.session.sessionId,
       idempotencyKey: `retire-order-${randomUUID()}`, requestFingerprint: 'retire-order-race' });
     let releasePull!: () => void;
     const pullGate = new Promise<void>((resolve) => { releasePull = resolve; });
@@ -655,7 +655,7 @@ describeWithPostgres('R07 Pull authority late-lock races', () => {
       snapshotSeen();
       await pullGate;
     }));
-    const pendingPull = port.read({ credential: scope.credential, sessionId: scope.session.sessionId,
+    const pendingPull = port.read({ origin: ORIGIN, credential: scope.credential, sessionId: scope.session.sessionId,
       collectionId: COLLECTION, replicaId: scope.replica.replicaId, cursor: null, limit: 10 });
     await atSnapshot;
     releasePull();
@@ -681,7 +681,7 @@ describeWithPostgres('R07 Pull authority late-lock races', () => {
     await blocker.query('select session_id from sync_sessions where session_id=$1 for update', [scope.session.sessionId]);
     const controller = new AbortController();
     const { keys, port } = reader();
-    const pending = port.read({ credential: scope.credential, sessionId: scope.session.sessionId,
+    const pending = port.read({ origin: ORIGIN, credential: scope.credential, sessionId: scope.session.sessionId,
       collectionId: COLLECTION, replicaId: scope.replica.replicaId, cursor: null, limit: 10,
       signal: controller.signal, timeoutMs: 5_000 });
     await new Promise<void>((resolve) => setImmediate(resolve));
@@ -709,7 +709,7 @@ describeWithPostgres('R07 Pull authority late-lock races', () => {
         },
       },
     });
-    const pending = port.read({ credential: scope.credential, sessionId: scope.session.sessionId,
+    const pending = port.read({ origin: ORIGIN, credential: scope.credential, sessionId: scope.session.sessionId,
       collectionId: COLLECTION, replicaId: scope.replica.replicaId, cursor: null, limit: 10, timeoutMs: 50 });
     await assert.rejects(pending);
     assert.deepEqual(await evidenceCounts(scope.replica.replicaId), before);

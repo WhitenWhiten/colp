@@ -173,7 +173,8 @@ describeWithPostgres('Phase 2 PostgreSQL Publication Directory evidence', () => 
   test('plans the exact production wide SELECT through the Directory index with bounded work', async () => {
     const statement = buildPublicationDirectoryStatement({ principal: 'anonymous', filter: {}, limit: 50 });
     // The cached count is adjusted for public moderation before it is exposed.
-    assert.match(statement.text, /c\.live_node_count\b/u);
+    assert.match(statement.text, /select count\(\*\)::int/u);
+    assert.match(statement.text, /n\.visibility = 'inherit'/u);
     assert.doesNotMatch(statement.text, /select count\(\*\) from nodes/i);
     assert.match(statement.text, /ordering_updated_at_micros/u);
     const explained = await isolated.runtime.pool.query<{ 'QUERY PLAN': readonly ExplainPlan[] }>(
