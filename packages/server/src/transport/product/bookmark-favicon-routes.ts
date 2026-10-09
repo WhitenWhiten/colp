@@ -228,7 +228,7 @@ export function registerBookmarkFaviconRoutes(
       }
       // A historical object id is never sufficient for public access. The
       // injected authority must confirm the object is still bound to a live,
-      // publicly visible bookmark/collection/ancestor chain.
+      // publicly visible bookmark/collection/ancestor chain or an allowlisted shared site logo.
       if (!deps.faviconPublicAccess || !(await deps.faviconPublicAccess.isPubliclyAccessible(faviconId))) {
         throw faviconNotFound();
       }

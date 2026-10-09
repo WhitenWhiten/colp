@@ -98,6 +98,8 @@ export interface McpOauthRevocationInput {
   readonly credentialDigest: string;
   /** Signed token iat in epoch seconds; revocation stores use it for epoch boundaries. */
   readonly issuedAtSeconds: number;
+  /** Optional signed incident epoch from the built-in issuer. */
+  readonly issuedSecurityEpoch?: string;
 }
 
 export interface McpOauthResolvedAccount {
