@@ -11,6 +11,16 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 
 export const MCP_ACCOUNT_SUBJECT_ID_AUTHORIZATION_KEY = 'accountSubjectId' as const;
 
+const mcpGrantedScopesStorage = new AsyncLocalStorage<readonly string[]>();
+
+export function runWithMcpGrantedScopes<T>(scopes: readonly string[], work: () => T): T {
+  return mcpGrantedScopesStorage.run(Object.freeze([...scopes]), work);
+}
+
+export function readMcpGrantedScopes(): readonly string[] | undefined {
+  return mcpGrantedScopesStorage.getStore();
+}
+
 const mcpAccountSubjectIdStorage = new AsyncLocalStorage<string>();
 
 export function runWithMcpAccountSubjectId<T>(

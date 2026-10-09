@@ -366,6 +366,7 @@ export function createPhase4bMcpChangePlanService<
       const planned = await resolved.planner.plan(input, ownedBinding);
       if (resolved.autoApproveTrustedPlan === undefined) return planned;
       return resolved.autoApproveTrustedPlan(planned, ownedBinding, {
+        canCommit: await resolved.scopes.hasScopes(['changes:commit'], ownedBinding),
         approve: colpService.recordOutOfBandApproval,
         commit: colpService.commit,
       });
