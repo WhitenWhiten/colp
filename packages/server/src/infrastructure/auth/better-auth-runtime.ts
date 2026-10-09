@@ -293,7 +293,9 @@ export function buildBetterAuthOptions<DB>(input: BetterAuthRuntimeInput<DB>): B
       sendOnSignIn: false,
       // P1: after the mailbox proof, mint a session so Congratulations +
       // Continue works. Library / mutations still refuse unverified occupancy.
-      autoSignInAfterVerification: true,
+      // Verification links must not replace the browser's current session.
+      // The user can sign in explicitly after the mailbox is verified.
+      autoSignInAfterVerification: false,
       // Verification email through the C1 sender; absent sender =>
       // /send-verification-email reports VERIFICATION_EMAIL_NOT_ENABLED.
       ...(emailDelivery.sendVerificationEmail !== null
