@@ -620,10 +620,9 @@ describeWithPostgres('C2 local auth flows: Argon2id + digest-only OTP/reset/veri
     assert.equal(await userIdForEmail(email), null, 'login OTP must never create a user');
   });
 
-  test('sign-up OTP intent refuses an existing email without sending', async () => {
-    // P6 register anchor: WITH x-known-auth-intent: sign-up the already-registered
-    // copy stays. Deleting the header check must fail this test. Same mailbox
-    // without the header stays HTTP 200 (login non-enumeration).
+  test('sign-up OTP intent keeps the send response non-enumerating for an existing email', async () => {
+    // P6 register anchor: the signup-intent header must not create a status or
+    // body oracle. Occupancy is enforced later by the explicit verify step.
     const email = uniqueEmail('otp-signup-existing');
     const signup = await signUp(email);
     assert.equal(signup.statusCode, 200);
@@ -636,9 +635,9 @@ describeWithPostgres('C2 local auth flows: Argon2id + digest-only OTP/reset/veri
       ...JSON_POST_HEADERS,
       [SIGNUP_OTP_INTENT_HEADER]: SIGNUP_OTP_INTENT_VALUE,
     });
-    assert.equal(send.statusCode, 422);
-    assertBaCodeAndProductWire(send, 'USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL', PRODUCT_SIGNUP_OCCUPANCY);
-    assert.equal(sink.sentCount, mailBefore, 'must not deliver a sign-up OTP to an existing mailbox');
+    assert.equal(send.statusCode, 200);
+    assert.deepEqual(send.body, loginSend.body, 'signup and login sends must be byte-identical');
+    assert.equal(sink.sentCount, mailBefore + 1, 'the existing mailbox receives the normal login OTP');
   });
 
   test('sign-up OTP intent still sends for an unknown email', async () => {
@@ -702,19 +701,44 @@ describeWithPostgres('C2 local auth flows: Argon2id + digest-only OTP/reset/veri
     assert.equal(await userIdForEmail(email), null, 'login-shaped verify must not create');
   });
 
-  test('sign-up OTP verify refuses an existing email', async () => {
+  test('sign-up OTP verify refuses an existing email only after mailbox proof', async () => {
     const email = uniqueEmail('otp-signup-verify-existing');
     const signup = await signUp(email);
     assert.equal(signup.statusCode, 200);
     const usersBefore = await isolated.runtime.pool.query<{ n: number }>(
       `select count(*)::int n from "auth_users" where email = $1`, [email],
     );
-    const verify = await post('/sign-in/email-otp', { email, otp: '123456', name: 'Ada Lovelace' }, {
+    // P6: a guessed OTP must not disclose occupancy. Registered and
+    // unregistered mailboxes both answer INVALID_OTP.
+    const guessed = await post('/sign-in/email-otp', { email, otp: '123456', name: 'Ada Lovelace' }, {
+      ...JSON_POST_HEADERS,
+      [SIGNUP_OTP_INTENT_HEADER]: SIGNUP_OTP_INTENT_VALUE,
+    });
+    assert.equal(guessed.statusCode, 400);
+    assertBaCodeAndProductWire(guessed, 'INVALID_OTP', PRODUCT_INVALID_OTP);
+    const unknownEmail = uniqueEmail('otp-signup-verify-unknown');
+    const unknown = await post('/sign-in/email-otp', { email: unknownEmail, otp: '123456', name: 'Ada Lovelace' }, {
+      ...JSON_POST_HEADERS,
+      [SIGNUP_OTP_INTENT_HEADER]: SIGNUP_OTP_INTENT_VALUE,
+    });
+    assert.equal(unknown.statusCode, 400);
+    assert.deepEqual(unknown.json(), guessed.json(), 'occupancy must not change the wrong-OTP response');
+
+    // With the delivered code the mailbox is proven; the occupancy answer is
+    // then acceptable UX and still refuses to create a second account.
+    const send = await post('/email-otp/send-verification-otp', { email, type: 'sign-in' }, {
+      ...JSON_POST_HEADERS,
+      [SIGNUP_OTP_INTENT_HEADER]: SIGNUP_OTP_INTENT_VALUE,
+    });
+    assert.equal(send.statusCode, 200);
+    const otp = lastOtpFor(email);
+    const verify = await post('/sign-in/email-otp', { email, otp, name: 'Ada Lovelace' }, {
       ...JSON_POST_HEADERS,
       [SIGNUP_OTP_INTENT_HEADER]: SIGNUP_OTP_INTENT_VALUE,
     });
     assert.equal(verify.statusCode, 422);
     assertBaCodeAndProductWire(verify, 'USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL', PRODUCT_SIGNUP_OCCUPANCY);
+    assert.equal(sessionCookie(verify), null);
     const usersAfter = await isolated.runtime.pool.query<{ n: number }>(
       `select count(*)::int n from "auth_users" where email = $1`, [email],
     );

@@ -553,6 +553,17 @@ describe('publication metadata cache decorator', () => {
     assert.equal(store.callsOf('set').length, 0, 'a failing origin must never write the cache');
   });
 
+  test('a failed owner lifecycle fence never serves a cached metadata hit', async () => {
+    const { reader } = makeFixture();
+    const handle = makePorts(() => record({ title: 'origin-after-delete' }));
+    await reader(handle.ports, anonymousIdInput);
+    handle.setFresh(false);
+    const result = await reader(handle.ports, anonymousIdInput);
+    assert.equal(result.kind, 'metadata');
+    if (result.kind === 'metadata') assert.equal(result.metadata.collection.title, 'origin-after-delete');
+    assert.equal(handle.loadCount(), 2);
+  });
+
   test('a request abort reaches the origin read port, rejects with CacheAbortError and never writes', async () => {
     const { store, reader } = makeFixture();
     const controller = new AbortController();

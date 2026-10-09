@@ -203,7 +203,7 @@ export function registerLegacyOidcRoutes(app: FastifyInstance, deps: BrowserAuth
           },
           'oidc callback failed',
         );
-        return failAuthRedirect(reply, classified.redirect);
+        return failAuthRedirect(reply, classified.redirect, request);
       }
     });
   }
@@ -409,8 +409,15 @@ async function issueSessionForOidcClaims(
 function failAuthRedirect(
   reply: FastifyReply,
   kind: OidcAuthRedirectKind = 'failed',
+  request?: FastifyRequest,
 ): FastifyReply {
-  clearSessionCookie(reply);
+  // A malformed or forged callback is an unsolicited request. Do not turn
+  // it into a logout by expiring a valid session cookie that belongs to the
+  // browser. Clearing is retained for the no-session case so the legacy
+  // flow still removes a stale cookie after a failed login attempt.
+  if (request === undefined || readSessionCookie(request) === null) {
+    clearSessionCookie(reply);
+  }
   const location = kind === 'restart' ? AUTH_RESTART_LOCATION : AUTH_FAILED_LOCATION;
   return reply
     .code(303)

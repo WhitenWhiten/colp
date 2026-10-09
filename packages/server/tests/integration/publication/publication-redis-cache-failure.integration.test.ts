@@ -37,7 +37,6 @@ import {
   composeApi,
   insertPublishedCollection,
   newE2ETestScope,
-  restoreRedisServer,
   startRedisE2EContainer,
   waitForCacheHealth,
   waitUntil,
@@ -147,11 +146,8 @@ describeWithPostgres('publication Redis cache failure degradation and recovery (
       assert.equal(serve.counters.metadata.calls.load, 0, 'baseline warm hit loads origin zero times');
       assert.equal(serve.store.counts.set, 0, 'baseline warm hit does not write Redis');
 
-      // Stop the redis-server *process* inside the test-exclusive container.
-      const shutdown = await redis.container.exec(['redis-cli', 'shutdown', 'nosave']);
-      if (shutdown.exitCode !== 0) {
-        throw new Error(`redis-cli shutdown failed (exit ${shutdown.exitCode}): ${shutdown.output}`);
-      }
+      // Stop the redis-server *process* of the test-exclusive backend.
+      await redis.shutdownServer();
       try {
         // Synchronize on the real disconnect: poll until a command rejects fast.
         await waitUntil(
@@ -207,8 +203,8 @@ describeWithPostgres('publication Redis cache failure degradation and recovery (
         const capability = await serve.cacheComposition.capabilityReadiness();
         assert.equal(capability.status, 'degraded', 'capability readiness must stay degraded during the outage');
       } finally {
-        // Restore the redis-server process inside the same container.
-        await restoreRedisServer(redis.container);
+        // Restore the redis-server process on the same address.
+        await redis.restoreServer();
       }
 
       // Recovery: the health probe returns to healthy (the probe is the
@@ -264,8 +260,7 @@ describeWithPostgres('publication Redis cache failure degradation and recovery (
       await waitForCacheHealth(serve);
       assert.ok(serve.store);
       const fixture = await insertPublishedCollection({ pool: runtime.pool, ownerSubjectId: scope.ownerSubject });
-      const shutdown = await redis.container.exec(['redis-cli', 'shutdown', 'nosave']);
-      if (shutdown.exitCode !== 0) throw new Error(`redis-cli shutdown failed: ${shutdown.output}`);
+      await redis.shutdownServer();
       try {
         await waitUntil(
           async () => {
@@ -311,7 +306,7 @@ describeWithPostgres('publication Redis cache failure degradation and recovery (
           'open breaker must skip the epoch Redis read');
       } finally {
         releaseLoads();
-        await restoreRedisServer(redis.container);
+        await redis.restoreServer();
       }
     } finally {
       await serve.close();

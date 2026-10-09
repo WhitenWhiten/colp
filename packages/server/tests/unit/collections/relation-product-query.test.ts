@@ -149,6 +149,19 @@ describe('P2B-12 Relation Product query', () => {
     ]);
   });
 
+  test('redacts extension namespaces for an authenticated outsider on a public collection', async () => {
+    const publicRow = row('public-with-extension', '2026-07-25T09:00:00.000Z', {
+      visibility: 'public', extensions: { internal: { traceId: 'secret' } },
+    });
+    const result = await getProductRelation(ports([publicRow], {
+      role: null, subjectId: 'outsider', visibility: 'public',
+    }), {
+      collectionId: COLLECTION_ID, relationId: publicRow.id,
+      actor: { principalId: 'principal-outsider', subjectId: 'outsider' },
+    });
+    assert.deepEqual(result.extensions, {});
+  });
+
   test('pushes endpoint visibility into the bounded branch so concealed rows cannot consume the page', async () => {
     const hidden = { ...row('hidden', '2026-07-25T09:00:00.000Z', { visibility: 'public' }),
       fromVisibility: 'private' as const, toVisibility: 'public' as const };

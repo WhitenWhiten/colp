@@ -22,7 +22,10 @@
  * no FLUSHALL/FLUSHDB is ever issued.
  */
 import assert from 'node:assert/strict';
+import { type ChildProcess, execFile, spawn } from 'node:child_process';
 import { randomBytes, randomUUID } from 'node:crypto';
+import { connect, createServer } from 'node:net';
+import { dirname, join } from 'node:path';
 import type { FastifyInstance } from 'fastify';
 import type { Pool } from 'pg';
 import { GenericContainer, type StartedTestContainer } from 'testcontainers';
@@ -50,6 +53,7 @@ import { createDatabaseRuntime, type DatabaseRuntime } from '../../src/infrastru
 import { createPostgresIdentityUnitOfWork } from '../../src/infrastructure/identity/index.js';
 import {
   createPostgresPublicationAnnotationReadPort,
+  createPostgresPublicationCollectionControlPort,
   createPostgresPublicationDirectoryReadPort,
   createPostgresPublicationMetadataReadPort,
   createPostgresPublicationRelationReadPort,
@@ -124,14 +128,27 @@ export function newE2ETestScope(): E2ETestScope {
   };
 }
 
-/** Test-exclusive Redis container with a keep-alive shell (T12 pattern). */
+/**
+ * Test-exclusive Redis server (T12 pattern). Backed by a Testcontainers
+ * keep-alive container by default; `KNOWN_TEST_REDIS_SERVER=<path to
+ * redis-server>` instead spawns a dedicated native process on a free loopback
+ * port for environments without Docker. Both backends are private to the
+ * suite and never reuse a developer's REDIS_URL.
+ */
 export interface RedisE2EContainer {
   readonly url: string;
-  readonly container: StartedTestContainer;
+  /** Output of `redis-cli INFO server` against the private instance (evidence only). */
+  serverInfo(): Promise<string>;
+  /** Stops only the redis-server process; the backend stays available for `restoreServer`. */
+  shutdownServer(): Promise<void>;
+  /** Restarts the redis-server process on the same address. */
+  restoreServer(): Promise<void>;
   stop(): Promise<void>;
 }
 
 export async function startRedisE2EContainer(): Promise<RedisE2EContainer> {
+  const nativeBinary = process.env.KNOWN_TEST_REDIS_SERVER?.trim();
+  if (nativeBinary) return startNativeRedisE2EServer(nativeBinary);
   let started: StartedTestContainer;
   try {
     started = await new GenericContainer(REDIS_IMAGE)
@@ -150,10 +167,95 @@ export async function startRedisE2EContainer(): Promise<RedisE2EContainer> {
   const port = started.getMappedPort(6379);
   return {
     url: `redis://127.0.0.1:${port}`,
-    container: started,
+    async serverInfo() {
+      const info = await started.exec(['redis-cli', 'INFO', 'server']);
+      if (info.exitCode !== 0) throw new Error(`redis-cli INFO failed (exit ${info.exitCode}): ${info.output}`);
+      return info.output;
+    },
+    async shutdownServer() {
+      // Stop the redis-server *process* inside the test-exclusive container.
+      const shutdown = await started.exec(['redis-cli', 'shutdown', 'nosave']);
+      if (shutdown.exitCode !== 0) {
+        throw new Error(`redis-cli shutdown failed (exit ${shutdown.exitCode}): ${shutdown.output}`);
+      }
+    },
+    async restoreServer() {
+      const restore = await started.exec(['redis-server', '--daemonize', 'yes']);
+      if (restore.exitCode !== 0) {
+        throw new Error(`redis-server restart failed (exit ${restore.exitCode}): ${restore.output}`);
+      }
+    },
     async stop() {
       await started.stop();
     },
+  };
+}
+
+async function freeLoopbackPort(): Promise<number> {
+  return new Promise((resolvePort, reject) => {
+    const probe = createServer();
+    probe.once('error', reject);
+    probe.listen(0, '127.0.0.1', () => {
+      const address = probe.address();
+      probe.close(() => {
+        if (address === null || typeof address === 'string') reject(new Error('no port'));
+        else resolvePort(address.port);
+      });
+    });
+  });
+}
+
+async function waitForRedisPort(port: number, expectOpen: boolean): Promise<void> {
+  await waitUntil(
+    () => new Promise<boolean>((resolveOpen) => {
+      const socket = connect({ host: '127.0.0.1', port });
+      socket.once('connect', () => { socket.destroy(); resolveOpen(expectOpen); });
+      socket.once('error', () => { socket.destroy(); resolveOpen(!expectOpen); });
+    }),
+    20_000,
+    `redis-server ${expectOpen ? 'listening' : 'stopped'} on ${port}`,
+    50,
+  );
+}
+
+async function startNativeRedisE2EServer(binary: string): Promise<RedisE2EContainer> {
+  const port = await freeLoopbackPort();
+  let child: ChildProcess | null = null;
+  const spawnServer = async (): Promise<void> => {
+    child = spawn(binary, [
+      '--port', String(port), '--bind', '127.0.0.1', '--save', '', '--appendonly', 'no',
+      '--loglevel', 'warning',
+    ], { stdio: 'ignore' });
+    const spawned = child;
+    const exited = new Promise<never>((_, reject) => {
+      spawned.once('error', reject);
+      spawned.once('exit', (code) => reject(new Error(`redis-server exited early (code ${code})`)));
+    });
+    await Promise.race([waitForRedisPort(port, true), exited]);
+    spawned.removeAllListeners('error');
+    spawned.removeAllListeners('exit');
+  };
+  const killServer = async (): Promise<void> => {
+    const running = child;
+    child = null;
+    if (running === null || running.exitCode !== null) return;
+    const exited = new Promise<void>((resolveExit) => running.once('exit', () => resolveExit()));
+    running.kill('SIGKILL');
+    await exited;
+    await waitForRedisPort(port, false);
+  };
+  await spawnServer();
+  const cliBinary = join(dirname(binary), 'redis-cli');
+  return {
+    url: `redis://127.0.0.1:${port}`,
+    serverInfo: () => new Promise<string>((resolveInfo, reject) => {
+      execFile(cliBinary, ['-h', '127.0.0.1', '-p', String(port), 'INFO', 'server'], (error, stdout) => {
+        if (error) reject(error); else resolveInfo(stdout);
+      });
+    }),
+    shutdownServer: killServer,
+    restoreServer: spawnServer,
+    stop: killServer,
   };
 }
 
@@ -223,13 +325,27 @@ export class CountingCacheStore implements CacheStore {
   }
 }
 
+/**
+ * Counting wrappers count only the origin loads (plan §6.4 T13). The optional
+ * public-cache freshness fences (`isPublicCacheCurrent` /
+ * `arePublicCacheCollectionsCurrent`) are forwarded verbatim and *not*
+ * counted: they are the authoritative revision/owner check a warm hit must
+ * still perform, and the cache adapters fail closed to origin when the method
+ * is absent. Forwarding conditionally keeps that `undefined` semantics for
+ * inner ports that do not implement the fence.
+ */
 export class CountingMetadataReadPort implements PublicationMetadataReadPort {
   readonly calls = { load: 0 };
+  readonly isPublicCacheCurrent: PublicationMetadataReadPort['isPublicCacheCurrent'];
 
   constructor(
     readonly inner: PublicationMetadataReadPort,
     private readonly beforeLoad?: () => Promise<void>,
-  ) {}
+  ) {
+    this.isPublicCacheCurrent = inner.isPublicCacheCurrent === undefined
+      ? undefined
+      : (collectionId, revision) => inner.isPublicCacheCurrent!(collectionId, revision);
+  }
 
   async load(
     input: Parameters<PublicationMetadataReadPort['load']>[0],
@@ -242,8 +358,13 @@ export class CountingMetadataReadPort implements PublicationMetadataReadPort {
 
 export class CountingDirectoryReadPort implements PublicationDirectoryReadPort {
   readonly calls = { loadPage: 0 };
+  readonly arePublicCacheCollectionsCurrent: PublicationDirectoryReadPort['arePublicCacheCollectionsCurrent'];
 
-  constructor(readonly inner: PublicationDirectoryReadPort) {}
+  constructor(readonly inner: PublicationDirectoryReadPort) {
+    this.arePublicCacheCollectionsCurrent = inner.arePublicCacheCollectionsCurrent === undefined
+      ? undefined
+      : (collectionIds) => inner.arePublicCacheCollectionsCurrent!(collectionIds);
+  }
 
   loadPage(request: PublicationDirectoryReadRequest): Promise<readonly PublicationDirectoryRecord[]> {
     this.calls.loadPage += 1;
@@ -253,8 +374,13 @@ export class CountingDirectoryReadPort implements PublicationDirectoryReadPort {
 
 export class CountingSnapshotReadPort implements PublicationSnapshotReadPort {
   readonly calls = { loadPage: 0 };
+  readonly isPublicCacheCurrent: PublicationSnapshotReadPort['isPublicCacheCurrent'];
 
-  constructor(readonly inner: PublicationSnapshotReadPort) {}
+  constructor(readonly inner: PublicationSnapshotReadPort) {
+    this.isPublicCacheCurrent = inner.isPublicCacheCurrent === undefined
+      ? undefined
+      : (collectionId, revision) => inner.isPublicCacheCurrent!(collectionId, revision);
+  }
 
   loadPage(request: PublicationSnapshotReadRequest): Promise<PublicationSnapshotReadPage> {
     this.calls.loadPage += 1;
@@ -348,6 +474,10 @@ export function composeApi(
   const directoryPort = new CountingDirectoryReadPort(createPostgresPublicationDirectoryReadPort(runtime));
   const snapshotPort = new CountingSnapshotReadPort(createPostgresPublicationSnapshotReadPort(runtime));
   const accessPolicy = createPostgresAccessPolicyFactsPort(runtime.db);
+  // Same authoritative hide/restrict control the production composition
+  // (api-postgres-ports) injects; the cache freshness fences consult it on
+  // every warm hit and fail closed to origin without it.
+  const collectionControl = createPostgresPublicationCollectionControlPort(runtime);
   const metrics = new InMemoryMetrics();
   const compositionOptions = {
     ...(cacheOptions.breakerFailureThreshold === undefined
@@ -408,6 +538,7 @@ export function composeApi(
       accessPolicy,
       cursors: ctx.cursorKeys,
       origin: config.publication.origin,
+      collectionControl,
       // P4A-R06: exposure-eligibility gate over logical blob facts (deny-by-default).
       sharedExposure: createPostgresSharedExposureFactsPort(runtime),
     },
@@ -420,6 +551,7 @@ export function composeApi(
     publicationMetadataQuery: {
       reads: metadataPort,
       origin: config.publication.origin,
+      collectionControl,
     },
     ...(cacheComposition.snapshotReader === undefined
       ? {}
@@ -778,12 +910,6 @@ export function signal(): AbortSignal {
 }
 
 /** Restores the redis-server process inside the keep-alive container. */
-export async function restoreRedisServer(container: StartedTestContainer): Promise<void> {
-  const restore = await container.exec(['redis-server', '--daemonize', 'yes']);
-  if (restore.exitCode !== 0) {
-    throw new Error(`redis-server restart failed (exit ${restore.exitCode}): ${restore.output}`);
-  }
-}
 
 
 

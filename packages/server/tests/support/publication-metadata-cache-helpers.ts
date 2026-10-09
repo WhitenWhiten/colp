@@ -83,11 +83,13 @@ export interface PortsHandle {
   readonly ports: PublicationMetadataQueryPorts;
   loadCount(): number;
   setFail(flag: boolean): void;
+  setFresh(flag: boolean): void;
 }
 
 export function makePorts(current: () => PublicationMetadataRecord | null): PortsHandle {
   let loads = 0;
   let fail = false;
+  let fresh = true;
   const ports: PublicationMetadataQueryPorts = {
     reads: {
       async load() {
@@ -95,14 +97,17 @@ export function makePorts(current: () => PublicationMetadataRecord | null): Port
         if (fail) throw new Error('postgres unavailable');
         return current();
       },
+      async isPublicCacheCurrent() { return fresh; },
     },
     origin: ORIGIN,
     now: () => NOW_DATE,
+    collectionControl: { async collectionControl() { return { hidePublic: false, restrictPublication: false }; } },
   };
   return {
     ports,
     loadCount: () => loads,
     setFail: (flag) => { fail = flag; },
+    setFresh: (flag) => { fresh = flag; },
   };
 }
 

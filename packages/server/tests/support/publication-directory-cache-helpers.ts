@@ -116,11 +116,13 @@ export interface PortsHandle {
   readonly ports: PublicationDirectoryQueryPorts;
   loadCount(): number;
   setFail(flag: boolean): void;
+  setFresh(flag: boolean): void;
 }
 
 export function makePorts(options: { readonly maxPageSize?: number } = {}): PortsHandle {
   let loads = 0;
   let fail = false;
+  let fresh = true;
   const reads: PublicationDirectoryReadPort = {
     async loadPage(request) {
       loads += 1;
@@ -142,6 +144,7 @@ export function makePorts(options: { readonly maxPageSize?: number } = {}): Port
       }
       return selected.slice(0, request.limit + 1);
     },
+    async arePublicCacheCollectionsCurrent() { return fresh; },
   };
   const ports: PublicationDirectoryQueryPorts = {
     reads,
@@ -152,7 +155,12 @@ export function makePorts(options: { readonly maxPageSize?: number } = {}): Port
     }),
     ...(options.maxPageSize !== undefined ? { maxPageSize: options.maxPageSize } : {}),
   };
-  return { ports, loadCount: () => loads, setFail: (flag) => { fail = flag; } };
+  return {
+    ports,
+    loadCount: () => loads,
+    setFail: (flag) => { fail = flag; },
+    setFresh: (flag) => { fresh = flag; },
+  };
 }
 
 export interface Fixture {

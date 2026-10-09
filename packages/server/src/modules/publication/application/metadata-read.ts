@@ -23,4 +23,10 @@ export interface PublicationMetadataReadPort {
     | { readonly collectionId: string; readonly publicationSlug?: never }
     | { readonly collectionId?: never; readonly publicationSlug: string }
   ) & { readonly actorSubjectId?: string; readonly signal?: AbortSignal }): Promise<PublicationMetadataRecord | null>;
+  /**
+   * Optional authoritative fence for anonymous cache hits. Implementations
+   * must verify the owner account is active and the collection revision still
+   * matches the cached public value.
+   */
+  isPublicCacheCurrent?(collectionId: string, revision: string): Promise<boolean>;
 }

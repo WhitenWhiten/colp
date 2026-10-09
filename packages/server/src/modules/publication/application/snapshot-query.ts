@@ -235,7 +235,8 @@ export async function getPublicationSnapshotPage(
     }
   }
 
-  if (projection === 'public' && read.root !== null && !isPubliclyVisible(read.root)) {
+  if (projection === 'public' && read.root !== null
+    && (!isPubliclyVisible(read.root) || read.root.moderationHidden)) {
     if (isContinuation) throw new PublicationSnapshotExpiredError();
     throw new PublicationNotFoundError();
   }
@@ -252,7 +253,7 @@ export async function getPublicationSnapshotPage(
   });
   const attachments = projectEligibleSnapshotAttachments(exposure);
   const rootNodes = sequence === 1 && read.root
-    && (projection === 'member' || isPubliclyVisible(read.root))
+    && (projection === 'member' || (isPubliclyVisible(read.root) && !read.root.moderationHidden))
     ? [mapSnapshotNode(read.root)]
     : [];
   const nodeSteps: StreamStep[] = [];

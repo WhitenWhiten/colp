@@ -10,6 +10,7 @@ import type { DatabaseRuntime } from '../database/index.js';
 import { readBackendPid, withPostgresAbort } from '../database/index.js';
 import {
   COLLECTION_DELIST_CONTROL_SQL,
+  COLLECTION_OWNER_LIVE_SQL,
   collectionHidePublicExistsSql,
   collectionPublicVisibleNodeCountSql,
 } from '../database/collection-control-sql.js';
@@ -92,6 +93,10 @@ export function buildExplorePageStatement(
     'c.publication_slug is not null',
     'c.published_at is not null',
     `c.visibility = 'public'`,
+    // Publication must end when the owning account is disabled or deleted;
+    // otherwise an owner lifecycle transition leaves the collection in Explore.
+    // Legacy rows without an owner account row stay listed.
+    COLLECTION_OWNER_LIVE_SQL,
     COLLECTION_DELIST_CONTROL_SQL,
   ];
   if (request.filter.tag) {

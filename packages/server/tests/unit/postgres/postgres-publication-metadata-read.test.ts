@@ -29,6 +29,13 @@ test('loads active or deleted metadata locator facts with optional membership in
   assert.match(captured?.sql ?? '', /left join collection_members/u);
   assert.match(captured?.sql ?? '', /left join nodes root/u);
   assert.match(captured?.sql ?? '', /c\.deleted_at/u);
+  // Owner lifecycle fence: a missing owner row is legal (owner_subject_id is
+  // not a foreign key), so the fence is a coalesce'd scalar subquery rather
+  // than a mandatory exists/join on an active account row.
+  assert.match(captured?.sql ?? '', /coalesce\(\(\s*select owner_account\.status = 'active' and owner_account\.deleted_at is null/u);
+  assert.match(captured?.sql ?? '', /from accounts owner_account/u);
+  assert.match(captured?.sql ?? '', /\), true\)/u);
+  assert.doesNotMatch(captured?.sql ?? '', /join accounts/u);
   assert.deepEqual(captured?.values, ['c', 'member']);
 
   await createPostgresPublicationMetadataReadPort(runtime).load({ publicationSlug: 'canonical-c' });

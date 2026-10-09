@@ -60,6 +60,7 @@ import {
   type PublicationSnapshotCacheReader,
   type PublicationSnapshotCacheResult,
 } from '../infrastructure/publication/index.js';
+import { RedisPublicationCacheInvalidator } from '../infrastructure/outbox/index.js';
 import type { Metrics } from '../infrastructure/telemetry/index.js';
 import {
   asCollectionBookmarkCountLookup,
@@ -133,6 +134,8 @@ export interface ApiCacheComposition {
   readonly directoryReader: PublicationDirectoryCacheReader | undefined;
   /** Cached (or shadow-wrapped) Snapshot reader; undefined when off/domain-disabled. */
   readonly snapshotReader: PublicationSnapshotCacheReader | undefined;
+  /** Synchronous publication epoch rotator used by account lifecycle writes. */
+  readonly publicationCacheInvalidator: RedisPublicationCacheInvalidator | undefined;
   /**
    * Bind the process-local bookmark-count decorator to an origin COUNT port.
    * Undefined when mode=off or the domain flag is false. The returned cache
@@ -347,6 +350,7 @@ export function createApiCacheComposition(options: CacheCompositionOptions): Api
       metadataReader: undefined,
       directoryReader: undefined,
       snapshotReader: undefined,
+      publicationCacheInvalidator: undefined,
       bookmarkCountCache: undefined,
       reportCache: undefined,
       readiness: async (): Promise<CacheReadinessState> => 'disabled',
@@ -482,6 +486,7 @@ export function createApiCacheComposition(options: CacheCompositionOptions): Api
     metadataReader,
     directoryReader,
     snapshotReader,
+    publicationCacheInvalidator: new RedisPublicationCacheInvalidator({ store, key }),
     bookmarkCountCache,
     reportCache,
     readiness,

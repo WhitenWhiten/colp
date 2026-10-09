@@ -108,7 +108,7 @@ export async function getProductAnnotation(
   const facts = await loadAccessibleFacts(ports, input.collectionId, input.actor.subjectId);
   if (!subjectAccessible(subject, facts, input.actor.subjectId)
     || !canRead(row, facts, subject, input.actor.principalId, input.actor.subjectId)) throw notFound();
-  return mapRow(row);
+  return mapRow(row, !isMemberProjection(facts, input.actor.subjectId));
 }
 
 export async function getProductAnnotationPage(
@@ -165,7 +165,8 @@ export async function getProductAnnotationPage(
     comparatorVersion: PRODUCT_ANNOTATION_COMPARATOR_VERSION, policyRevision: facts.policyRevision,
     after: { updatedAt: formatUtcDateTime(last.updatedAt), id: last.id }, issuedAt, expiresAt,
   }) : null;
-  return Object.freeze({ annotations: Object.freeze(visible.map(mapRow)), page: Object.freeze({
+  const publicProjection = !isMemberProjection(facts, input.actor.subjectId);
+  return Object.freeze({ annotations: Object.freeze(visible.map((row) => mapRow(row, publicProjection))), page: Object.freeze({
     returnedCount: visible.length, hasMore, nextCursor,
   }) });
 }
@@ -204,7 +205,10 @@ function canRead(row: ProductAnnotationRow, facts: ResourcePolicyFacts,
   return true;
 }
 
-export function toProductAnnotationView(payload: Readonly<Annotation>): ProductAnnotationView {
+export function toProductAnnotationView(
+  payload: Readonly<Annotation>,
+  publicProjection = false,
+): ProductAnnotationView {
   return Object.freeze({
     id: payload.id, collectionId: payload.collectionId,
     subject: Object.freeze({ type: payload.subject.type, id: payload.subject.id }),
@@ -213,26 +217,35 @@ export function toProductAnnotationView(payload: Readonly<Annotation>): ProductA
     creator: payload.creator ? Object.freeze({ id: payload.creator.id, name: payload.creator.name }) : null,
     provenance: payload.provenance ? Object.freeze({
       kind: payload.provenance.kind,
-      ...(payload.provenance.provider !== undefined ? { provider: payload.provenance.provider } : {}),
-      ...(payload.provenance.model !== undefined ? { model: payload.provenance.model } : {}),
+      // Provider/model/source-node provenance is an internal enrichment fact.
+      // Anonymous publication keeps only the protocol-safe audit markers,
+      // matching the Snapshot public projection.
+      ...(!publicProjection && payload.provenance.provider !== undefined
+        ? { provider: payload.provenance.provider } : {}),
+      ...(!publicProjection && payload.provenance.model !== undefined
+        ? { model: payload.provenance.model } : {}),
       ...(payload.provenance.generatedAt !== undefined
-        ? { generatedAt: payload.provenance.generatedAt }
-        : {}),
-      ...(payload.provenance.sourceNodeIds !== undefined
-        ? { sourceNodeIds: Object.freeze([...payload.provenance.sourceNodeIds]) }
-        : {}),
+        ? { generatedAt: payload.provenance.generatedAt } : {}),
+      ...(!publicProjection && payload.provenance.sourceNodeIds !== undefined
+        ? { sourceNodeIds: Object.freeze([...payload.provenance.sourceNodeIds]) } : {}),
       ...(payload.provenance.editedByHuman !== undefined
-        ? { editedByHuman: payload.provenance.editedByHuman }
-        : {}),
+        ? { editedByHuman: payload.provenance.editedByHuman } : {}),
     }) : null,
     revision: payload.revision,
     createdAt: payload.createdAt, updatedAt: payload.updatedAt,
-    extensions: Object.freeze({ ...(payload.extensions ?? {}) }),
+    // Extension namespaces are owner/member data. Returning an empty map for
+    // an outsider prevents private provider metadata from crossing the public
+    // collection boundary while preserving the stable DTO shape.
+    extensions: Object.freeze(publicProjection ? {} : { ...(payload.extensions ?? {}) }),
   });
 }
 
-function mapRow(row: ProductAnnotationRow): ProductAnnotationView {
-  return toProductAnnotationView(row.payload);
+function mapRow(row: ProductAnnotationRow, publicProjection = false): ProductAnnotationView {
+  return toProductAnnotationView(row.payload, publicProjection);
+}
+
+function isMemberProjection(facts: ResourcePolicyFacts, actorSubjectId: string): boolean {
+  return facts.ownerSubjectId === actorSubjectId || facts.membershipRole !== null;
 }
 
 function normalizeLimit(limit: number | undefined): number {

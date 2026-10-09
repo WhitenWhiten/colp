@@ -11,6 +11,7 @@ import {
   uploadAvatar as commitAvatarUpload,
   prepareAvatarUpload,
   AVATAR_MAX_BYTES,
+  AVATAR_MAX_DIMENSION,
   createTestSessionRotationSecrets,
   type AvatarObjectStore,
   type IdentityPorts,
@@ -137,6 +138,23 @@ describe('avatar image validation', () => {
     assert.throws(() => assertAvatarImage(Buffer.alloc(0), 'image/png'), /cannot be empty/);
     assert.throws(() => assertAvatarImage(Buffer.from('not png'), 'image/png'), /does not match/);
     assert.throws(() => assertAvatarImage(Buffer.alloc(AVATAR_MAX_BYTES + 1), 'image/png'), /at most/);
+  });
+
+  test('rejects image headers whose decoded dimensions exceed the pixel budget', () => {
+    const huge = Buffer.from(PNG);
+    huge.writeUInt32BE(AVATAR_MAX_DIMENSION + 1, 16);
+    assert.throws(() => assertAvatarImage(huge, 'image/png'), /dimensions/);
+  });
+
+  test('applies the dimension budget to lossless WebP headers', () => {
+    const huge = Buffer.alloc(25);
+    huge.write('RIFF', 0, 'ascii');
+    huge.write('WEBP', 8, 'ascii');
+    huge.write('VP8L', 12, 'ascii');
+    huge.writeUInt32LE(5, 16);
+    huge[20] = 0x2f;
+    huge.writeUInt32LE(AVATAR_MAX_DIMENSION, 21);
+    assert.throws(() => assertAvatarImage(huge, 'image/webp'), /dimensions/);
   });
 });
 

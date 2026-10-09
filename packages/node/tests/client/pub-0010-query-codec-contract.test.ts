@@ -370,8 +370,6 @@ describe(`PUB-0010 client Publication query codec [evidence:${evidence}]`, () =>
     ['directory fixed literal CR', 'directory', 'https://cdn.example/catalog.json?q=before\rafter', (client: ColpClient) => client.getDirectory()],
     ['directory fixed literal C0', 'directory', 'https://cdn.example/catalog.json?q=before\u0000after', (client: ColpClient) => client.getDirectory()],
     ['directory fixed literal C1', 'directory', 'https://cdn.example/catalog.json?q=before\u0085after', (client: ColpClient) => client.getDirectory()],
-    ['directory fixed malformed high surrogate', 'directory', 'https://cdn.example/catalog.json?q=before\ud800after', (client: ColpClient) => client.getDirectory()],
-    ['directory fixed malformed low surrogate', 'directory', 'https://cdn.example/catalog.json?q=before\udc00after', (client: ColpClient) => client.getDirectory()],
   ])(
     'performs only Manifest I/O for %s [evidence:http.query-codec]',
     async (_name, endpoint, endpointUrl, invoke) => {
@@ -397,6 +395,40 @@ describe(`PUB-0010 client Publication query codec [evidence:${evidence}]`, () =>
       expect(JSON.stringify({ message: (thrown as Error).message })).not.toContain('private');
       expect(requested).toEqual([manifestUrl]);
       expect(JSON.stringify(requested)).not.toContain('fixed-secret');
+    },
+  );
+
+  it.each([
+    ['high surrogate', 'https://cdn.example/catalog.json?q=before\ud800after&token=fixed-secret'],
+    ['low surrogate', 'https://cdn.example/catalog.json?q=before\udc00after&token=fixed-secret'],
+  ])(
+    'rejects a Manifest carrying an unpaired UTF-16 %s at the I-JSON parse boundary with only Manifest I/O [evidence:http.query-codec]',
+    async (_name, endpointUrl) => {
+      // RFC 7493 I-JSON strings are Unicode scalar sequences. A Manifest whose
+      // fixed endpoint query escapes a lone surrogate is rejected by the wire
+      // parser before any query codec or endpoint I/O runs, so the codec-level
+      // invalid_query contract above remains the only reflecting-safe path.
+      const document = await manifest();
+      document.mounts[0].endpoints.directory = endpointUrl;
+      const requested: string[] = [];
+      const fetch = vi.fn(async (input: string | URL | Request) => {
+        requested.push(href(input));
+        return Response.json(document);
+      });
+      const client = new ColpClient({ manifestUrl, fetch: fetch as typeof globalThis.fetch });
+
+      let thrown: unknown;
+      try {
+        await client.getDirectory();
+      } catch (error) {
+        thrown = error;
+      }
+      expect(thrown).toBeInstanceOf(TypeError);
+      expect((thrown as Error).message).toMatch(/could not be parsed as I-JSON/u);
+      expect((thrown as Error).message).toMatch(/unpaired UTF-16 surrogate/u);
+      expect((thrown as Error).message).not.toMatch(/\bmust (?:be|match|have)\b/iu);
+      expect(JSON.stringify({ message: (thrown as Error).message })).not.toContain('fixed-secret');
+      expect(requested).toEqual([manifestUrl]);
     },
   );
 

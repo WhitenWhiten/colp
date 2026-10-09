@@ -4,6 +4,29 @@ import { parse } from 'lossless-json';
 
 const prototypeKeys = new Set(['__proto__', 'constructor', 'prototype']);
 
+/**
+ * I-JSON strings are Unicode scalar strings. JavaScript strings can still
+ * contain an unpaired UTF-16 surrogate (including one introduced by a JSON
+ * `\uXXXX` escape), so reject those values at the parser boundary instead of
+ * allowing them to be re-encoded differently by downstream serializers.
+ */
+function assertJsonUnicodeScalars(value: string): void {
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code >= 0xd800 && code <= 0xdbff) {
+      const next = value.charCodeAt(index + 1);
+      if (next >= 0xdc00 && next <= 0xdfff) {
+        index += 1;
+        continue;
+      }
+      throw new SyntaxError('I-JSON string contains an unpaired UTF-16 surrogate.');
+    }
+    if (code >= 0xdc00 && code <= 0xdfff) {
+      throw new SyntaxError('I-JSON string contains an unpaired UTF-16 surrogate.');
+    }
+  }
+}
+
 /** Absolute safety ceiling; HTTP hosts may impose a smaller request budget. */
 export const MAX_I_JSON_SOURCE_BYTES = 64 * 1024 * 1024;
 
@@ -89,6 +112,8 @@ export function parseIJson(source: string, limits: IJsonParseLimits = {}): unkno
     source,
     (key, value) => {
       if (prototypeKeys.has(key)) throw prohibitedMemberNameError(key);
+      assertJsonUnicodeScalars(key);
+      if (typeof value === 'string') assertJsonUnicodeScalars(value);
       return value;
     },
     {
@@ -109,6 +134,10 @@ export function parseIJson(source: string, limits: IJsonParseLimits = {}): unkno
   );
 
   const inspect = (item: unknown): void => {
+    if (typeof item === 'string') {
+      assertJsonUnicodeScalars(item);
+      return;
+    }
     if (typeof item !== 'object' || item === null) return;
     if (Array.isArray(item)) {
       item.forEach(inspect);
@@ -120,6 +149,7 @@ export function parseIJson(source: string, limits: IJsonParseLimits = {}): unkno
     }
     for (const [key, child] of Object.entries(item)) {
       if (prototypeKeys.has(key)) throw prohibitedMemberNameError(key);
+      assertJsonUnicodeScalars(key);
       inspect(child);
     }
   };

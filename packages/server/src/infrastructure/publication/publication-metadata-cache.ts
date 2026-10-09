@@ -206,11 +206,17 @@ export function createPublicationMetadataCache(
     switch (result.kind) {
       case 'cache_hit': {
         if (isNegativeMarker(result.value)) throw new PublicationMetadataNotFoundError();
+        if (!(await isCurrentPublicMetadata(ports, result.value))) {
+          return getPublicationCollectionMetadata(ports, input, requestSignal);
+        }
         return result.value;
       }
       case 'stale_hit': {
         // serveStale is forced false, so this branch is defensive only.
         if (isNegativeMarker(result.value)) throw new PublicationMetadataNotFoundError();
+        if (!(await isCurrentPublicMetadata(ports, result.value))) {
+          return getPublicationCollectionMetadata(ports, input, requestSignal);
+        }
         return result.value;
       }
       case 'origin':
@@ -231,6 +237,26 @@ export function createPublicationMetadataCache(
         throw new CacheFallbackRejectedError('publication metadata');
     }
   };
+}
+
+/** Never trust a public metadata hit across an owner lifecycle or revision change. */
+async function isCurrentPublicMetadata(
+  ports: PublicationMetadataQueryPorts,
+  value: PublicationMetadataResult,
+): Promise<boolean> {
+  if (value.kind !== 'metadata') return true;
+  try {
+    const collectionId = value.metadata.collection.id;
+    if (ports.collectionControl === undefined) return false;
+    const control = await ports.collectionControl.collectionControl(collectionId);
+    if (control.hidePublic || control.restrictPublication === true) return false;
+    if (ports.reads.isPublicCacheCurrent === undefined) return false;
+    return await ports.reads.isPublicCacheCurrent(collectionId, value.metadata.collection.revision);
+  } catch {
+    // A freshness check failure must fail open to the authoritative query, not
+    // serve a potentially stale private publication from Redis.
+    return false;
+  }
 }
 
 type OriginOutcome =

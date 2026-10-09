@@ -17,8 +17,10 @@ import {
   type PublicationSnapshotReadRequest,
 } from '../../modules/publication/index.js';
 import {
+  COLLECTION_OWNER_LIVE_SQL,
   bookmarkHidePublicExistsSql,
   buildPublicationTargetAncestorRestrictionSql,
+  collectionOwnerLiveSql,
 } from '../database/collection-control-sql.js';
 import { nodeExtensionFlagSql } from '../database/node-extension-sql.js';
 
@@ -112,7 +114,8 @@ export function createPostgresPublicationSnapshotReadPort(
                       where ma.target_kind = 'bookmark' and ma.parent_id = collections.id
                         and ma.state = 'active' and ma.action = 'hide_public') as bookmark_hide_digest
                from collections
-              where id = $1`,
+              where id = $1
+                and ${collectionOwnerLiveSql('collections.owner_subject_id')}`,
             [request.collectionId],
           ),
           signal,
@@ -170,6 +173,23 @@ export function createPostgresPublicationSnapshotReadPort(
       } finally {
         client.release();
       }
+    },
+    async isPublicCacheCurrent(collectionId: string, revision: string): Promise<boolean> {
+      // Owner fence mirrors loadPage(): a missing owner row keeps the entry
+      // current, an existing disabled/deleted owner row retires it.
+      const result = await runtime.pool.query<{ current: boolean }>(
+        `select (
+           c.deleted_at is null
+           and c.publication_slug is not null
+           and c.published_at is not null
+           and c.content_revision::text || '.' || c.policy_revision::text = $2
+           and ${COLLECTION_OWNER_LIVE_SQL}
+         ) as current
+           from collections c
+          where c.id = $1`,
+        [collectionId, revision],
+      );
+      return result.rows[0]?.current === true;
     },
   });
 }

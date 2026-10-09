@@ -7,6 +7,7 @@ import {
 } from '../../modules/publication/index.js';
 import {
   COLLECTION_DISCOVERY_CONTROL_SQL,
+  COLLECTION_OWNER_LIVE_SQL,
   accountRestrictPublicationExistsSql,
   collectionPublicVisibleNodeCountSql,
 } from '../database/collection-control-sql.js';
@@ -96,6 +97,30 @@ export function createPostgresPublicationDirectoryReadPort(
         client.release();
       }
     },
+    async arePublicCacheCollectionsCurrent(collectionIds: readonly string[]): Promise<boolean> {
+      if (collectionIds.length === 0) return true;
+      // Same owner fence as the page statement: a missing owner row is a
+      // legal legacy state and keeps the cached entry current; an existing
+      // disabled/deleted owner row retires it.
+      const result = await runtime.pool.query<{ count: string }>(
+        `select count(*)::text as count
+           from collections c
+          where c.id = any($1::text[])
+            and c.deleted_at is null
+            and c.publication_slug is not null
+            and c.published_at is not null
+            and c.visibility = 'public'
+            and ${COLLECTION_OWNER_LIVE_SQL}
+            and ${COLLECTION_DISCOVERY_CONTROL_SQL}
+            and not exists (
+              select 1 from accounts restricted_owner
+               where restricted_owner.subject_id = c.owner_subject_id
+                 and ${accountRestrictPublicationExistsSql('restricted_owner.id')}
+            )`,
+        [collectionIds],
+      );
+      return result.rows[0]?.count === String(collectionIds.length);
+    },
   });
 }
 
@@ -129,6 +154,12 @@ export function buildPublicationDirectoryStatement(
     'c.deleted_at is null',
     'c.publication_slug is not null',
     'c.published_at is not null',
+    // A directory entry whose owner account row exists and is disabled or
+    // deleted is retired. The predicate is kept before ordering/pagination so
+    // a disabled owner cannot leave a gap or remain reachable through a
+    // continuation cursor. Legacy rows without an owner account row stay
+    // listed (owner_subject_id is not a foreign key).
+    COLLECTION_OWNER_LIVE_SQL,
     visibility,
     COLLECTION_DISCOVERY_CONTROL_SQL,
   ];

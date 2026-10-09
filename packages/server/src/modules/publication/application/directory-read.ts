@@ -41,6 +41,8 @@ export interface PublicationDirectoryRecord {
 
 export interface PublicationDirectoryReadPort {
   loadPage(request: PublicationDirectoryReadRequest): Promise<readonly PublicationDirectoryRecord[]>;
+  /** Optional batch owner/lifecycle fence for anonymous directory cache hits. */
+  arePublicCacheCollectionsCurrent?(collectionIds: readonly string[]): Promise<boolean>;
 }
 
 export class PublicationDirectoryAnchorNotFoundError extends Error {

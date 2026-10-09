@@ -136,9 +136,11 @@ function buildMetadataHarness(
           loaderCalls += 1;
           return current;
         },
+        async isPublicCacheCurrent() { return true; },
       },
       origin: ORIGIN,
       now: () => NOW,
+      collectionControl: { async collectionControl() { return { hidePublic: false, restrictPublication: false }; } },
     },
     ...(ownComposition.metadataReader === undefined
       ? {}
@@ -201,6 +203,7 @@ function buildDirectoryHarness(config: AppConfig, store: RecordingCacheStore, me
           loaderCalls += 1;
           return rows.slice(0, request.limit + 1);
         },
+        async arePublicCacheCollectionsCurrent() { return true; },
       },
     },
     ...(composition.directoryReader === undefined
@@ -271,6 +274,7 @@ function buildSnapshotHarness(config: AppConfig, store: RecordingCacheStore, met
     origin: ORIGIN,
     // P4A-R06: deny-by-default exposure gate over logical blob facts; no blobs in this unit harness.
     sharedExposure: Object.freeze({ async listBlobFacts() { return []; } }),
+    collectionControl: { async collectionControl() { return { hidePublic: false, restrictPublication: false }; } },
     accessPolicy: {
       async loadCollectionFacts() {
         return {
@@ -288,6 +292,7 @@ function buildSnapshotHarness(config: AppConfig, store: RecordingCacheStore, met
           candidates: records.slice(0, request.limit + 1),
         };
       },
+      async isPublicCacheCurrent() { return true; },
     },
     annotations: {
       async loadPage() {

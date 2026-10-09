@@ -49,23 +49,27 @@ export function createPostgresSearchCatalogDisplayTargetPort(
              from collections c
              join accounts a on a.subject_id = c.owner_subject_id
             where c.id = any($1::text[])
+              and a.status = 'active' and a.deleted_at is null
            union all
            select 'node', n.id, a.id, ${COLLECTION_CATALOG_TAGS_SQL}, ${COLLECTION_CATALOG_LANGUAGE_SQL}
              from nodes n
              join collections c on c.id = n.collection_id
              join accounts a on a.subject_id = c.owner_subject_id
             where n.id = any($2::text[])
+              and a.status = 'active' and a.deleted_at is null
            union all
            select 'profile', h.handle, a.id, '[]'::jsonb, null
              from profile_handles h
              join accounts a on a.id = h.account_id
             where h.handle = any($3::text[])
+              and a.status = 'active' and a.deleted_at is null
            union all
            select 'annotation', an.id, a.id, ${COLLECTION_CATALOG_TAGS_SQL}, ${COLLECTION_CATALOG_LANGUAGE_SQL}
              from annotations an
              join collections c on c.id = an.collection_id
              join accounts a on a.subject_id = c.owner_subject_id
             where an.id = any($4::text[])
+              and a.status = 'active' and a.deleted_at is null
          ) targets`,
         [collectionIds, nodeIds, profileHandles, annotationIds],
       );

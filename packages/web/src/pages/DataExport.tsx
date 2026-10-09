@@ -15,6 +15,7 @@ import { PageHead } from '../components/PageHead'
 import { PageShell } from '../components/PageShell'
 
 import { RouteState } from '../components/RouteState'
+import { useAuth } from '../auth/AuthContext'
 import { formatMediumInstant } from '../lib/formatDate'
 import { libraryFeatureUnavailable } from '../lib/libraryCopy'
 import { isAbort } from '../lib/libraryTree'
@@ -97,6 +98,10 @@ function UnavailableState() {
 
 export function DataExport() {
   const enabled = isExportJobsExposureEnabled()
+  const { isLoggedIn, user } = useAuth()
+  const identityKey = isLoggedIn ? user?.accountId ?? null : null
+  const identityRef = useRef<string | null>(identityKey)
+  identityRef.current = identityKey
   const { toast, error: showError } = useToast()
   const loadFailed = useRef(false)
   // Only jobs seen in flight during this visit may toast when they fail;
@@ -135,6 +140,20 @@ export function DataExport() {
   const reload = route.reload
   const setJobs = route.setData
   const hasInflightJob = Boolean(inflightJob)
+
+  // Export responses contain private collection data. Abort every in-flight
+  // request and discard pending UI state when the browser session ends or a
+  // different account is loaded in the same tab.
+  useEffect(() => {
+    for (const controller of controllers.current) controller.abort()
+    controllers.current.clear()
+    activeDownload.current?.abort()
+    pendingDownload.current = null
+    setDownloading(false)
+    setCreating(false)
+    setCreateError(null)
+    setJobs([])
+  }, [identityKey, setJobs])
   const refresh = useCallback(() => {
     if (!refreshPromise.current) {
       refreshPromise.current = reload({ silent: true }).finally(() => { refreshPromise.current = null })
@@ -168,6 +187,7 @@ export function DataExport() {
 
   const create = useCallback(async () => {
     if (!canCreate) return
+    const identityAtStart = identityKey
     const controller = new AbortController()
     controllers.current.add(controller)
     setCreating(true)
@@ -178,12 +198,12 @@ export function DataExport() {
         maxRetries: 0,
         signal: controller.signal,
       })
-      if (controller.signal.aborted) return
+      if (controller.signal.aborted || identityRef.current !== identityAtStart) return
       pendingDownload.current = { jobId: job.jobId, format }
       setJobs([job, ...jobs.filter((item) => item.jobId !== job.jobId)])
       await refresh()
     } catch (err) {
-      if (controller.signal.aborted) return
+      if (controller.signal.aborted || identityRef.current !== identityAtStart) return
       if (isProductApiError(err) && (err.isCommandInProgress || err.code === 'command_in_progress')) {
         toast('An export is already in progress')
         await refresh()
@@ -192,28 +212,29 @@ export function DataExport() {
       setCreateError("Couldn't create the export. Try again.")
     } finally {
       controllers.current.delete(controller)
-      if (!controller.signal.aborted) setCreating(false)
+      if (!controller.signal.aborted && identityRef.current === identityAtStart) setCreating(false)
     }
-  }, [canCreate, format, refresh, setJobs, jobs, toast])
+  }, [canCreate, format, identityKey, refresh, setJobs, jobs, toast])
 
   const download = useCallback(async (jobId: string, selectedFormat: ExportFormat) => {
     if (activeDownload.current) return
+    const identityAtStart = identityKey
     const controller = new AbortController()
     activeDownload.current = controller
     controllers.current.add(controller)
     setDownloading(true)
     try {
       const doc = await productClient.downloadMyExportJob(jobId, { signal: controller.signal })
-      if (controller.signal.aborted) return
+      if (controller.signal.aborted || identityRef.current !== identityAtStart) return
       await saveLibraryExport(doc, jobId, selectedFormat, controller.signal)
     } catch {
-      if (!controller.signal.aborted) showError('Could not download this export. Try Download again.')
+      if (!controller.signal.aborted && identityRef.current === identityAtStart) showError('Could not download this export. Try Download again.')
     } finally {
       activeDownload.current = null
       controllers.current.delete(controller)
-      if (!controller.signal.aborted) setDownloading(false)
+      if (!controller.signal.aborted && identityRef.current === identityAtStart) setDownloading(false)
     }
-  }, [showError])
+  }, [identityKey, showError])
 
   useEffect(() => {
     for (const job of jobs) {

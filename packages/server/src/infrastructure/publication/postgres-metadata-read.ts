@@ -1,5 +1,6 @@
 import type { DatabaseRuntime } from '../database/index.js';
 import { readBackendPid, withPostgresAbort } from '../database/index.js';
+import { COLLECTION_OWNER_LIVE_SQL } from '../database/collection-control-sql.js';
 import { COLLECTION_CATALOG_LANGUAGE_SQL, COLLECTION_CATALOG_TAGS_SQL } from './postgres-directory-read.js';
 import type {
   PublicationMetadataReadPort,
@@ -45,7 +46,8 @@ export function createPostgresPublicationMetadataReadPort(
             and root.is_root and root.deleted_at is null
            left join collection_members member
              on member.collection_id = c.id and member.subject_id = $2
-          where ${input.collectionId !== undefined ? 'c.id' : 'c.publication_slug'} = $1`;
+          where ${input.collectionId !== undefined ? 'c.id' : 'c.publication_slug'} = $1
+            and ${COLLECTION_OWNER_LIVE_SQL}`;
       const values: unknown[] = [input.collectionId ?? input.publicationSlug, actor];
       if (input.signal === undefined) {
         // Fast path (zero extra round trips): the pooled query hides the client.
@@ -74,6 +76,23 @@ export function createPostgresPublicationMetadataReadPort(
       } finally {
         client.release();
       }
+    },
+    async isPublicCacheCurrent(collectionId: string, revision: string): Promise<boolean> {
+      // Owner fence mirrors load(): a missing owner row keeps the entry
+      // current, an existing disabled/deleted owner row retires it.
+      const result = await runtime.pool.query<{ current: boolean }>(
+        `select (
+           c.deleted_at is null
+           and c.publication_slug is not null
+           and c.published_at is not null
+           and c.content_revision::text || '.' || c.policy_revision::text = $2
+           and ${COLLECTION_OWNER_LIVE_SQL}
+         ) as current
+           from collections c
+          where c.id = $1`,
+        [collectionId, revision],
+      );
+      return result.rows[0]?.current === true;
     },
   });
 }

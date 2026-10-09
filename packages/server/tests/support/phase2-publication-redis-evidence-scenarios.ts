@@ -21,7 +21,6 @@ import {
   currentResourceRevision,
   drainOutbox,
   mutationHeaders,
-  restoreRedisServer,
   signal,
   strongEtag,
   waitForOutboxSettled,
@@ -224,10 +223,7 @@ export async function runOutageBreakerRecoveryScenario(
   const warm = await getJson(serve, url);
   assertEqualBytes(warm, reference, 'pre-outage response equals the off reference');
 
-  const shutdown = await redis.container.exec(['redis-cli', 'shutdown', 'nosave']);
-  if (shutdown.exitCode !== 0) {
-    throw new Error(`redis-cli shutdown failed (exit ${shutdown.exitCode}): ${shutdown.output}`);
-  }
+  await redis.shutdownServer();
   let breakerOpenedAtMs = 0;
   let redisCommandsWhileOpen = -1;
 
@@ -352,7 +348,7 @@ export async function runOutageBreakerRecoveryScenario(
       pass: false,
     };
   } finally {
-    await restoreRedisServer(redis.container);
+    await redis.restoreServer();
   }
 
   // Recovery: the production store returns healthy and a domain request is the

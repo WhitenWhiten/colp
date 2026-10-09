@@ -530,5 +530,14 @@ describe('publication directory cache decorator', () => {
     assert.equal(store.callsOf('setIfAbsent').length, 1, 'the miss still used the refresh lock');
     assert.equal(store.callsOf('releaseIfOwner').length, 1, 'the acquired lock must still be released');
   });
+
+  test('a failed owner lifecycle fence never serves a cached directory hit', async () => {
+    const { reader } = makeFixture();
+    const handle = makePorts();
+    await reader(handle.ports, { principal: ANONYMOUS });
+    handle.setFresh(false);
+    await reader(handle.ports, { principal: ANONYMOUS });
+    assert.equal(handle.loadCount(), 2);
+  });
 });
 

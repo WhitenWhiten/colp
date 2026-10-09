@@ -107,6 +107,8 @@ export interface PublicationSnapshotReadPage {
 
 export interface PublicationSnapshotReadPort {
   loadPage(request: PublicationSnapshotReadRequest): Promise<PublicationSnapshotReadPage>;
+  /** Optional owner/lifecycle and revision fence for anonymous cache hits. */
+  isPublicCacheCurrent?(collectionId: string, revision: string): Promise<boolean>;
 }
 
 export interface PublicationAnnotationPosition {

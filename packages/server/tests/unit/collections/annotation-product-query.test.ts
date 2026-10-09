@@ -89,6 +89,24 @@ describe('P2B-07 Product Annotation query', () => {
     assert.equal('policyRevision' in result, false);
   });
 
+  test('redacts provenance providers and extension namespaces for a non-member public reader', async () => {
+    const publicRow = row({ payload: { ...row().payload, visibility: 'public', provenance: {
+      kind: 'ai', provider: 'internal-provider', model: 'secret-model',
+      generatedAt: '2026-07-24T00:00:00.000Z', sourceNodeIds: ['private-source'], editedByHuman: false,
+    }, extensions: { internal: { traceId: 'secret' } } } });
+    const result = await getProductAnnotation(ports({ rows: [publicRow], subjectVisibility: 'public', facts: {
+      collectionId: COLLECTION_ID, ownerSubjectId: 'subject-owner', visibility: 'public',
+      policyRevision: 'policy-1', membershipRole: null, deleted: false,
+    } }), {
+      collectionId: COLLECTION_ID, annotationId: publicRow.id,
+      actor: { principalId: 'principal-outsider', subjectId: 'subject-outsider' },
+    });
+    assert.deepEqual(result.provenance, {
+      kind: 'ai', generatedAt: '2026-07-24T00:00:00.000Z', editedByHuman: false,
+    });
+    assert.deepEqual(result.extensions, {});
+  });
+
   test('private annotations are visible only to their creator, including against owner/editor roles', async () => {
     const privateRow = row({ payload: { ...row().payload, visibility: 'private' } });
     const creator = await getProductAnnotation(ports({ rows: [privateRow] }), {
