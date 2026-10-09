@@ -1,3 +1,5 @@
+import { KNOWN_FAVICON_DOMAINS } from '../../../src/modules/collections/index.js';
+import { isFaviconPubliclyAccessible } from '../../../src/infrastructure/database/publication-object-controls.js';
 /**
  * FO-01 favicon policy/source Product HTTP (real PostgreSQL + real bootstrap
  * composition). Covers all four FO-01 operations end-to-end:
@@ -134,6 +136,7 @@ describeWithPostgres('FO-01 favicon policy and icon source Product HTTP', () => 
       productCollectionMutationUnitOfWork: createPostgresCanonicalMutationUnitOfWork(
         isolated.runtime.db, { productOrigin: ORIGIN }),
       browserSessionAuthority: factory.authority,
+      faviconPublicAccess: { isPubliclyAccessible: objectId => isFaviconPubliclyAccessible(isolated.runtime.db, objectId, KNOWN_FAVICON_DOMAINS) },
       faviconStore: createMemoryFaviconObjectStore(),
     });
   }
@@ -709,7 +712,10 @@ describeWithPostgres('FO-01 favicon policy and icon source Product HTTP', () => 
       assert.equal((await isolated.runtime.pool.query(
         `select count(*)::int n from favicon_pending_deletions where object_id = $1`, [objectId])).rows[0]?.n, 0,
         'nothing is retired while the binding is still live');
+      const originalVisibility = (await isolated.runtime.pool.query('select visibility,publication_slug,published_at from collections where id=$1', [collectionId])).rows[0];
+      await isolated.runtime.pool.query("update collections set visibility='public',publication_slug='ci-favicon-'||md5(id),published_at=now() where id=$1", [collectionId]);
       const served = await api('GET', `${address}/api/v1/favicon/${objectId}`, {});
+      await isolated.runtime.pool.query('update collections set visibility=$2,publication_slug=$3,published_at=$4 where id=$1', [collectionId, originalVisibility.visibility, originalVisibility.publication_slug, originalVisibility.published_at]);
       assert.equal(served.status, 200);
 
       // Explicit none drops the binding and retires the object with retention.

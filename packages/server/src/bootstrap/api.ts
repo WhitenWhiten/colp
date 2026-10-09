@@ -1,3 +1,4 @@
+import { KNOWN_FAVICON_DOMAINS } from '../modules/collections/index.js';
 import { createPersistentAvatarStore } from '../infrastructure/identity/index.js';
 import { createPostgresAccountDeletionStore } from '../infrastructure/auth/business-account-unit-of-work.js';
 import { loadConfig, sanitizedRuntimeCapacity, type AppConfig } from './config.js';
@@ -424,7 +425,7 @@ export async function startApi(options: StartApiOptions = {}): Promise<StartedAp
     identityUnitOfWork: ports.identityUnitOfWork,
     avatarStore,
     ...publicObjects.publicObjectStores,
-    faviconPublicAccess: { isPubliclyAccessible: (objectId) => isFaviconPubliclyAccessible(database.db, objectId) },
+    faviconPublicAccess: { isPubliclyAccessible: (objectId) => isFaviconPubliclyAccessible(database.db, objectId, KNOWN_FAVICON_DOMAINS) },
     linkPreviewPublicAccess: { isServable: (objectId, signal) => createPostgresLinkPreviewPublicAccess(database.db, { cancelBackend: database.cancelBackend }).isServable(objectId, signal) },
     avatarPublicAccess: { isPublicationRestricted: (objectId) => isAvatarPublicationRestricted(database.db, objectId) },
     authRateLimiter,

@@ -1,3 +1,5 @@
+import { KNOWN_FAVICON_DOMAINS } from '../../../src/modules/collections/index.js';
+import { isFaviconPubliclyAccessible } from '../../../src/infrastructure/database/publication-object-controls.js';
 /**
  * FO-02 favicon online lifecycle (real PostgreSQL + real bootstrap routes +
  * real worker loops with an injected controlled provider).
@@ -263,6 +265,7 @@ describeWithPostgres('FO-02 favicon online lifecycle (HTTP → durable job → w
       productCollectionMutationUnitOfWork: createPostgresCanonicalMutationUnitOfWork(
         isolated.runtime.db, { productOrigin: ORIGIN }),
       browserSessionAuthority: factory.authority,
+      faviconPublicAccess: { isPubliclyAccessible: objectId => isFaviconPubliclyAccessible(isolated.runtime.db, objectId, KNOWN_FAVICON_DOMAINS) },
       faviconStore: store ?? createTestFaviconStore(),
     });
   }
@@ -589,7 +592,9 @@ describeWithPostgres('FO-02 favicon online lifecycle (HTTP → durable job → w
       assert.equal(view.iconUrl, `${ORIGIN}/api/v1/favicon/${objectId}`);
 
       // HTTP byte read-back: the pinned object serves exactly the provider bytes.
+      await isolated.runtime.pool.query("update collections set visibility='public',publication_slug='ci-favicon-'||md5(id),published_at=now() where id=$1", [PRIVATE_COLLECTION]);
       const get = await apiRaw('GET', `${address}/api/v1/favicon/${objectId}`, {});
+      await isolated.runtime.pool.query("update collections set visibility='private',publication_slug=null,published_at=null where id=$1", [PRIVATE_COLLECTION]);
       assert.equal(get.status, 200);
       assert.equal(get.headers['content-type'], 'image/png');
       assert.equal(get.headers['cache-control'], 'public, max-age=30, must-revalidate');
@@ -1273,7 +1278,7 @@ describeWithPostgres('FO-02 favicon online lifecycle (HTTP → durable job → w
       assert.equal(privateBody.iconUrl, `${ORIGIN}/api/v1/favicon/${binding.object_id}`);
       assert.equal(privateBody.directUrl, 'https://favicone.com/vis.example.org');
       const get = await api('GET', `${address}/api/v1/favicon/${binding.object_id}`, {});
-      assert.equal(get.status, 200);
+      assert.equal(get.status, 404);
     } finally { await app.close(); }
   });
 
@@ -1397,7 +1402,10 @@ describeWithPostgres('FO-02 favicon online lifecycle (HTTP → durable job → w
       assert.equal(failView.status, 'failed');
       assert.equal(failView.iconVersion, uploadedObjectId);
       assert.equal(failView.iconUrl, `${ORIGIN}/api/v1/favicon/${uploadedObjectId}`);
+      const originalVisibility = (await isolated.runtime.pool.query('select visibility,publication_slug,published_at from collections where id=$1', [PRIVATE_COLLECTION])).rows[0];
+      await isolated.runtime.pool.query("update collections set visibility='public',publication_slug='ci-favicon-'||md5(id),published_at=now() where id=$1", [PRIVATE_COLLECTION]);
       const oldServed = await apiRaw('GET', `${address}/api/v1/favicon/${uploadedObjectId}`, {});
+      await isolated.runtime.pool.query('update collections set visibility=$2,publication_slug=$3,published_at=$4 where id=$1', [PRIVATE_COLLECTION, originalVisibility.visibility, originalVisibility.publication_slug, originalVisibility.published_at]);
       assert.equal(oldServed.status, 200);
       assert.equal(oldServed.headers['content-type'], 'image/png');
 

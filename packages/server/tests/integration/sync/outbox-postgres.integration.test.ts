@@ -39,6 +39,8 @@ describeWithPostgres('PostgreSQL outbox lease and delivery state', () => {
       maxConnections: 4,
       applicationName: 'known-outbox-integration-test',
     });
+    // Bootstrap migrations may enqueue unrelated durable security events.
+    await runtime.pool.query('delete from outbox_events');
     repository = new PostgresOutboxRepository(runtime.pool);
   });
 

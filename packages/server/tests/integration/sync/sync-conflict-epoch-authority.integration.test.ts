@@ -95,8 +95,7 @@ describeWithPostgres('COLP conflict resolution re-authorizes the account securit
     // The entry check is what makes the window narrow; it is not a substitute for
     // the locked re-check, because it already committed before this transaction.
     const issuer = createPostgresSyncSessionIssuer(isolated.runtime.db, issuerOptions());
-    await assert.rejects(issuer.verify({
-      credential, sessionId, collectionId: COLLECTION, replicaId,
+    await assert.rejects(issuer.verify({ credential, sessionId, collectionId: COLLECTION, replicaId,
     }));
   });
 
@@ -115,7 +114,7 @@ describeWithPostgres('COLP conflict resolution re-authorizes the account securit
     let outcome: 'resolved' | 'refused' = 'resolved';
     let error = '';
     try {
-      await application.resolve({
+      await application.resolve({ origin: ORIGIN,
         credential, sessionId, replicaId, collectionId: COLLECTION, conflictId,
         idempotencyKey: `epoch-${conflictId}`, ifMatch: ['"conflict-r1"'],
         request: { resolution, baseConflictRevision: 'conflict-r1' },

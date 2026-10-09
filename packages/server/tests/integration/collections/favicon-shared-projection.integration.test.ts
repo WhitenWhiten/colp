@@ -1,3 +1,5 @@
+import { KNOWN_FAVICON_DOMAINS } from '../../../src/modules/collections/index.js';
+import { isFaviconPubliclyAccessible } from '../../../src/infrastructure/database/publication-object-controls.js';
 /**
  * Shared-cache projection and deferred provider admission for the online
  * favicon chain. Split from favicon-online-lifecycle so that suite stays
@@ -256,6 +258,7 @@ describeWithPostgres('shared favicon projection on the online lifecycle', () => 
       productCollectionMutationUnitOfWork: createPostgresCanonicalMutationUnitOfWork(
         isolated.runtime.db, { productOrigin: ORIGIN }),
       browserSessionAuthority: sessionAuthority,
+      faviconPublicAccess: { isPubliclyAccessible: objectId => isFaviconPubliclyAccessible(isolated.runtime.db, objectId, KNOWN_FAVICON_DOMAINS) },
       faviconStore: store ?? createTestFaviconStore(),
     });
   }
@@ -329,7 +332,10 @@ describeWithPostgres('shared favicon projection on the online lifecycle', () => 
       const projected = await findBookmarkIconObjectIdsByNodeIds(isolated.runtime.db, [first, second]);
       assert.equal(projected.get(first), objectId);
       assert.equal(projected.get(second), objectId);
+      const originalVisibility = (await isolated.runtime.pool.query('select visibility,publication_slug,published_at from collections where id=$1', [COLLECTION])).rows[0];
+      await isolated.runtime.pool.query("update collections set visibility='public',publication_slug='ci-favicon-'||md5(id),published_at=now() where id=$1", [COLLECTION]);
       const bytes = await api('GET', `${address}/api/v1/favicon/${objectId}`, {});
+      await isolated.runtime.pool.query('update collections set visibility=$2,publication_slug=$3,published_at=$4 where id=$1', [COLLECTION, originalVisibility.visibility, originalVisibility.publication_slug, originalVisibility.published_at]);
       assert.equal(bytes.status, 200);
       assert.deepEqual(bytes.rawBody, PNG_V1);
 

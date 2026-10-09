@@ -88,7 +88,7 @@ describeWithPostgres('Conflict resolution preserves Pull integrity and concurren
     const keys = createSyncPullCursorKeyring({ active: { id: 'dismiss-pull', secret: Buffer.alloc(32, 37).toString('base64') }, retained: [], ttlMs: 60000 });
     try {
       const port = createPostgresSyncPullReadPort(isolated.runtime.db, keys);
-      const input = { credential, sessionId, collectionId: COLLECTION, replicaId, cursor: null, limit: 1 };
+      const input = { origin: ORIGIN, credential, sessionId, collectionId: COLLECTION, replicaId, cursor: null, limit: 1 };
       const opened = await port.read(input);
       assert.equal(opened.events[0]?.kind, 'conflict');
       const result = await resolve(conflictId, 'server');
@@ -141,7 +141,7 @@ describeWithPostgres('Conflict resolution preserves Pull integrity and concurren
     const keys = createSyncPullCursorKeyring({ active: { id: 'legacy-dismiss-pull', secret: Buffer.alloc(32, 38).toString('base64') }, retained: [], ttlMs: 60000 });
     try {
       const port = createPostgresSyncPullReadPort(isolated.runtime.db, keys);
-      const input = { credential, sessionId, collectionId: COLLECTION, replicaId, cursor: null, limit: 1 };
+      const input = { origin: ORIGIN, credential, sessionId, collectionId: COLLECTION, replicaId, cursor: null, limit: 1 };
       const opened = await port.read(input);
       const resolved = await port.read({ ...input, cursor: opened.nextCursor });
       assert.equal(resolved.events.length, 1);
@@ -167,7 +167,7 @@ describeWithPostgres('Conflict resolution preserves Pull integrity and concurren
     let outcome: 'resolved' | 'refused' = 'resolved';
     let error = '';
     try {
-      await application.resolve({
+      await application.resolve({ origin: ORIGIN,
         credential, sessionId, replicaId, collectionId: COLLECTION, conflictId,
         idempotencyKey: `epoch-${conflictId}`, ifMatch: ['"conflict-r1"'],
         request: { resolution, baseConflictRevision: 'conflict-r1' },

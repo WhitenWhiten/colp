@@ -17,6 +17,8 @@ import { createIsolatedPostgresRuntime, describeWithPostgres,
   type IsolatedPostgresRuntime } from '../../support/postgres-test-runtime.js';
 import { seedRecoveryFixture, type RecoveryFixture } from '../../support/sync-recovery-fixture.js';
 
+const ORIGIN = 'chrome-extension://abcdefghijklmnopabcdefghijklmnop';
+
 const KEYRING = { active: { key: Buffer.alloc(32, 71), keyVersion: 7 }, retained: [] } as const;
 const PULL_LIMIT = 100;
 
@@ -38,7 +40,7 @@ describeWithPostgres('P1-6 snapshot open conflict recovery', () => {
       await insertDismissedConflict(fixture, targetId, 'conflict-dismissed', 'op-dismissed', 48, 'op-dismiss', 50);
       await setCommitOrdinal(fixture.collectionId, 50);
       const snapshot = await snapshotApp(keys).query({
-        credential: fixture.credential, request: { sessionId: fixture.sessionId, limit: PULL_LIMIT },
+        origin: ORIGIN, credential: fixture.credential, request: { sessionId: fixture.sessionId, limit: PULL_LIMIT },
       });
       assert.equal('conflicts' in snapshot, false);
       const cursor = await isolated.runtime.db.selectFrom('sync_pull_cursor_evidence')
@@ -83,35 +85,35 @@ describeWithPostgres('P1-6 snapshot open conflict recovery', () => {
         ...fixture.options, pullCursorKeyring: keys, recoveryProofRetentionMs: 2_592_000_000,
       });
       const snapshot = await snapshotApp(keys, recovery).query({
-        credential: fixture.credential, request: { sessionId: fixture.sessionId, limit: PULL_LIMIT },
+        origin: ORIGIN, credential: fixture.credential, request: { sessionId: fixture.sessionId, limit: PULL_LIMIT },
       });
       const capability = snapshot.protocolVersion === '0.2' ? snapshot.recoveryCapability : undefined;
       assert.equal(typeof capability, 'string');
-      const ackInput = {
+      const ackInput = { origin: ORIGIN,
         credential: fixture.credential, idempotencyKey: 'recover-conflicts', sessionId: fixture.sessionId,
         capability: capability!, requestCursor: snapshot.syncCursor, explicitCapability: true,
         requestFingerprint: 'recover-conflicts',
       };
       await assert.rejects(recovery.bootstrapAcknowledge(ackInput), (error: unknown) =>
         error instanceof SyncAckError && error.code === 'unsupported_version');
-      const first = await snapshotApp(keys).listOpenConflicts({
+      const first = await snapshotApp(keys).listOpenConflicts({ origin: ORIGIN,
         credential: fixture.credential, sessionId: fixture.sessionId, snapshotId: snapshot.snapshotId!, offset: 0, limit: 1,
       });
-      const second = await snapshotApp(keys).listOpenConflicts({
+      const second = await snapshotApp(keys).listOpenConflicts({ origin: ORIGIN,
         credential: fixture.credential, sessionId: fixture.sessionId, snapshotId: snapshot.snapshotId!, offset: 1, limit: 1,
       });
-      const restarted = await snapshotApp(keys).listOpenConflicts({
+      const restarted = await snapshotApp(keys).listOpenConflicts({ origin: ORIGIN,
         credential: fixture.credential, sessionId: fixture.sessionId, snapshotId: snapshot.snapshotId!, offset: 0, limit: 1,
       });
       assert.deepEqual(restarted.conflicts.map((conflict) => conflict.id), first.conflicts.map((conflict) => conflict.id));
       assert.deepEqual([...first.conflicts, ...second.conflicts].map((conflict) => conflict.id),
         ['conflict-page-a', 'conflict-page-b']);
       assert.equal(second.nextOffset, null);
-      await assert.rejects(snapshotApp(keys).confirmOpenConflicts({
+      await assert.rejects(snapshotApp(keys).confirmOpenConflicts({ origin: ORIGIN,
         credential: fixture.credential, sessionId: fixture.sessionId, snapshotId: snapshot.snapshotId!,
         conflictDigest: '0'.repeat(64),
       }), /scope|digest/iu);
-      await snapshotApp(keys).confirmOpenConflicts({
+      await snapshotApp(keys).confirmOpenConflicts({ origin: ORIGIN,
         credential: fixture.credential, sessionId: fixture.sessionId, snapshotId: snapshot.snapshotId!,
         conflictDigest: first.conflictDigest,
       });
@@ -142,14 +144,14 @@ describeWithPostgres('P1-6 snapshot open conflict recovery', () => {
         ...fixture.options, pullCursorKeyring: keys, recoveryProofRetentionMs: 2_592_000_000,
       });
       const snapshot = await snapshotApp(keys, recovery).query({
-        credential: fixture.credential, request: { sessionId: fixture.sessionId, limit: PULL_LIMIT },
+        origin: ORIGIN, credential: fixture.credential, request: { sessionId: fixture.sessionId, limit: PULL_LIMIT },
       });
-      const page = await snapshotApp(keys).listOpenConflicts({
+      const page = await snapshotApp(keys).listOpenConflicts({ origin: ORIGIN,
         credential: fixture.credential, sessionId: fixture.sessionId, snapshotId: snapshot.snapshotId!, offset: 0, limit: 50,
       });
       assert.equal(page.conflictCount, 0);
       const capability = snapshot.protocolVersion === '0.2' ? snapshot.recoveryCapability : undefined;
-      const acked = await recovery.bootstrapAcknowledge({
+      const acked = await recovery.bootstrapAcknowledge({ origin: ORIGIN,
         credential: fixture.credential, idempotencyKey: 'recover-empty', sessionId: fixture.sessionId,
         capability: capability!, requestCursor: snapshot.syncCursor, explicitCapability: true,
         requestFingerprint: 'recover-empty',
@@ -192,7 +194,7 @@ async function pullEvents(keys: ReturnType<typeof cursorKeys>, fixture: Recovery
   const events = [];
   let next: string | null = cursor;
   for (let page = 0; page < 10 && next; page += 1) {
-    const result = await port.read({
+    const result = await port.read({ origin: ORIGIN,
       credential: fixture.credential, sessionId: fixture.sessionId, collectionId: fixture.collectionId,
       replicaId: fixture.replicaId, cursor: next, limit: PULL_LIMIT,
     });
@@ -206,7 +208,7 @@ async function listAll(keys: ReturnType<typeof cursorKeys>, fixture: RecoveryFix
   const conflicts = [];
   let offset = 0;
   for (let page = 0; page < 10; page += 1) {
-    const result = await snapshotApp(keys).listOpenConflicts({
+    const result = await snapshotApp(keys).listOpenConflicts({ origin: ORIGIN,
       credential: fixture.credential, sessionId: fixture.sessionId, snapshotId, offset, limit: 1,
     });
     conflicts.push(...result.conflicts);
@@ -332,7 +334,7 @@ async function resolve(fixture: RecoveryFixture, conflictId: string) {
   let outcome: 'resolved' | 'refused' = 'resolved';
   let error = '';
   try {
-    await application.resolve({
+    await application.resolve({ origin: ORIGIN,
       credential: fixture.credential, sessionId: fixture.sessionId, replicaId: fixture.replicaId,
       collectionId: fixture.collectionId, conflictId, idempotencyKey: `resolve-${conflictId}`,
       ifMatch: ['"conflict-r1"'], request: { resolution: 'server', baseConflictRevision: 'conflict-r1' },

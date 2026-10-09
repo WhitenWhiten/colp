@@ -9,13 +9,15 @@ const UUID_OBJECT_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0
 
 /**
  * Public favicon admission is a positive check against the current live
- * bookmark binding.  Historical object attribution is deliberately ignored:
+ * bookmark binding or the allowlisted shared site-logo cache. Shared logos
+ * have no account attribution. Historical object attribution is ignored:
  * an object URL is only readable while it is still bound to a live bookmark
  * in a public collection whose node and ancestor chain are publicly visible.
  */
 export async function isFaviconPubliclyAccessible(
   db: Kysely<DatabaseSchema>,
   objectId: string,
+  sharedHostnames: readonly string[] = [],
 ): Promise<boolean> {
   if (!UUID_OBJECT_PATTERN.test(objectId)) return false;
   const ancestorRestriction = buildPublicationTargetAncestorRestrictionSql('n');
@@ -53,6 +55,10 @@ export async function isFaviconPubliclyAccessible(
               AND ma.state = 'active'
               AND ma.action = 'hide_public'
          )
+    ) OR EXISTS (
+      SELECT 1 FROM favicon_shared_domains shared
+       WHERE shared.object_id = ${objectId}::uuid
+         AND shared.hostname = ANY(${[...sharedHostnames]}::text[])
     ) AS accessible
   `.execute(db);
   return result.rows[0]?.accessible === true;

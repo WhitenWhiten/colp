@@ -115,6 +115,7 @@ async function buildApp(options: {
   });
   registerBookmarkFaviconRoutes(app, {
     config,
+    faviconPublicAccess: { isPubliclyAccessible: async () => true },
     ...(options.includeFavicon === false ? {} : { faviconStore: memoryFaviconStore() }),
     ...(options.publicObjectRateLimiter
       ? { publicObjectRateLimiter: options.publicObjectRateLimiter }

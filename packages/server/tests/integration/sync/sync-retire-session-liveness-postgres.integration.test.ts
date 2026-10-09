@@ -10,6 +10,8 @@ import {
   type SyncSessionPostgresHarness,
 } from '../../support/sync-session-postgres.js';
 
+const ORIGIN = 'chrome-extension://abcdefghijklmnopabcdefghijklmnop';
+
 describeWithPostgres('retire requires a live Session and lifecycle equality on an active Replica', () => {
   let harness: SyncSessionPostgresHarness;
 
@@ -27,7 +29,7 @@ describeWithPostgres('retire requires a live Session and lifecycle equality on a
     assert.equal(aligned.replica_status, 'active');
     assert.equal(aligned.same_lifecycle, true);
     const application = createPostgresReplicaRetirementApplication(harness.isolated.runtime.db);
-    const request = {
+    const request = { origin: ORIGIN,
       credential: harness.evidence('owner'), sessionId: issued.envelope.sessionId,
       idempotencyKey: `retire-live-${randomUUID()}`, requestFingerprint: 'retire-live-v1',
     };
@@ -130,7 +132,7 @@ describeWithPostgres('retire requires a live Session and lifecycle equality on a
     assert.equal(drifted.session_status, 'active');
     assert.equal(drifted.replica_status, 'recovery_required');
     assert.equal(drifted.same_lifecycle, false);
-    await application.retireExtension({
+    await application.retireExtension({ origin: ORIGIN,
       credential: harness.evidence('owner'), sessionId: recoveryIssued.envelope.sessionId,
       idempotencyKey: `retire-recovery-${randomUUID()}`, requestFingerprint: 'retire-recovery-drift',
     });
@@ -142,7 +144,7 @@ describeWithPostgres('retire requires a live Session and lifecycle equality on a
     const live = await facts(harness, expiredIssued.envelope.sessionId);
     assert.equal(live.session_status, 'active');
     assert.equal(live.same_lifecycle, true);
-    await application.retireExtension({
+    await application.retireExtension({ origin: ORIGIN,
       credential: harness.evidence('owner'), sessionId: expiredIssued.envelope.sessionId,
       idempotencyKey: `retire-expired-replica-${randomUUID()}`,
       requestFingerprint: 'retire-expired-replica',
@@ -152,7 +154,7 @@ describeWithPostgres('retire requires a live Session and lifecycle equality on a
 });
 
 function retireInput(harness: SyncSessionPostgresHarness, sessionId: string, fingerprint: string) {
-  return {
+  return { origin: ORIGIN,
     credential: harness.evidence('owner'), sessionId,
     idempotencyKey: `retire-${randomUUID()}`, requestFingerprint: fingerprint,
   };

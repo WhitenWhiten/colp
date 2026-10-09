@@ -1,3 +1,5 @@
+import { KNOWN_FAVICON_DOMAINS } from '../../../src/modules/collections/index.js';
+import { isFaviconPubliclyAccessible } from '../../../src/infrastructure/database/publication-object-controls.js';
 /**
  * FO-03 favicon bulk policy (real PostgreSQL + real bootstrap routes + real
  * worker loops with an injected controlled provider).
@@ -243,6 +245,7 @@ describeWithPostgres('FO-03 favicon bulk policy (batch strategies + recoverable 
       productCollectionMutationUnitOfWork: createPostgresCanonicalMutationUnitOfWork(
         isolated.runtime.db, { productOrigin: ORIGIN }),
       browserSessionAuthority: factory.authority,
+      faviconPublicAccess: { isPubliclyAccessible: objectId => isFaviconPubliclyAccessible(isolated.runtime.db, objectId, KNOWN_FAVICON_DOMAINS) },
       faviconStore: store,
     });
   }
@@ -1664,7 +1667,10 @@ describeWithPostgres('FO-03 favicon bulk policy (batch strategies + recoverable 
         { node_id: string };
       const binding = (await isolated.runtime.pool.query(
         `select object_id from bookmark_icons where node_id = $1`, [node.node_id])).rows[0] as { object_id: string };
+      const originalVisibility = (await isolated.runtime.pool.query('select visibility,publication_slug,published_at from collections where id=$1', [COLLECTION])).rows[0];
+      await isolated.runtime.pool.query("update collections set visibility='public',publication_slug='ci-favicon-'||md5(id),published_at=now() where id=$1", [COLLECTION]);
       const fetched = await apiRaw('GET', `${address}/api/v1/favicon/${binding.object_id}`, {});
+      await isolated.runtime.pool.query('update collections set visibility=$2,publication_slug=$3,published_at=$4 where id=$1', [COLLECTION, originalVisibility.visibility, originalVisibility.publication_slug, originalVisibility.published_at]);
       assert.equal(fetched.status, 200);
       assert.equal(createHash('sha256').update(fetched.rawBody).digest('hex'),
         createHash('sha256').update(PNG_V1).digest('hex'));
