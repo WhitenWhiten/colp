@@ -142,6 +142,21 @@ export function buildPublicationDirectoryStatement(
     filters.push(`not exists (select 1 from accounts directory_owner
                               where directory_owner.subject_id = ${creatorParameter ?? 'c.owner_subject_id'}
                                 and ${accountRestrictPublicationExistsSql('directory_owner.id')})`);
+  } else {
+    // Authenticated directory readers may still see their own collections and
+    // collections where they are members. Everyone else must obey the owner's
+    // account-wide publication restriction; otherwise authentication alone
+    // bypasses the anonymous directory gate.
+    const requesterParameter = parameter(subjectId);
+    filters.push(`(
+      c.owner_subject_id = ${requesterParameter}
+      or exists (select 1 from collection_members member
+                  where member.collection_id = c.id
+                    and member.subject_id = ${requesterParameter})
+      or not exists (select 1 from accounts directory_owner
+                      where directory_owner.subject_id = c.owner_subject_id
+                        and ${accountRestrictPublicationExistsSql('directory_owner.id')})
+    )`);
   }
   if (request.filter.tag) {
     // jsonb_exists ('?') returns true for scalar-string tags, so the array-only guard
