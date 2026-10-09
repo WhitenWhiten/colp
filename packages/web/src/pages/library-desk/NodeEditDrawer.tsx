@@ -214,7 +214,7 @@ export function NodeEditDrawer({
       )}
       <NodeAnnotationFields
         idPrefix="nd"
-        disabled={!canEdit}
+        disabled={!canEdit || drawer.annotation.state === 'loading'}
         tldr={drawer.tldrDraft}
         note={drawer.annotation.draft}
         tldrVisibility={drawer.tldrVisibility}

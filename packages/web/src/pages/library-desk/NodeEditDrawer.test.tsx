@@ -272,6 +272,7 @@ describe('Node edit drawer', () => {
 
   it('creates the TL;DR on first save with the visibility the switch shows', async () => {
     mountDrawer()
+    await waitForDom(() => !control('nd-tldr').disabled)
     type('nd-tldr', 'A trustworthy one-liner')
     setVisibility('TL;DR', 'Public')
     await save()
@@ -304,6 +305,7 @@ describe('Node edit drawer', () => {
 
   it('saves note text and its visibility through the same workflow', async () => {
     mountDrawer()
+    await waitForDom(() => !control('nd-note').disabled)
     type('nd-note', 'Keep this one for the framing')
     setVisibility('Note', 'Public')
     await save()
@@ -314,6 +316,19 @@ describe('Node edit drawer', () => {
       value: 'Keep this one for the framing',
       visibility: 'public',
     })
+  })
+
+  it('waits for the initial annotations before enabling note editing', async () => {
+    let complete: (items: AnnotationView[]) => void = () => undefined
+    mocks.loadAnnotations.mockReturnValue(new Promise<AnnotationView[]>(resolve => { complete = resolve }))
+    mountDrawer()
+    expect(control('nd-note').disabled).toBe(true)
+    expect(control('nd-tldr').disabled).toBe(true)
+    await act(async () => complete([]))
+    expect(control('nd-note').disabled).toBe(false)
+    type('nd-note', 'Keep this draft')
+    await save()
+    expect(mocks.createAnnotation.mock.calls[0]![2]).toMatchObject({ value: 'Keep this draft' })
   })
 
   it('reloads the Gallery snapshot after hiding a preview', async () => {

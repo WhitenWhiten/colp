@@ -3,10 +3,13 @@ import { Breadcrumb } from '../components/Breadcrumb'
 import { PageHead } from '../components/PageHead'
 import { PageShell } from '../components/PageShell'
 import { Stepper } from '../components/Stepper'
+import { isSelfHostedEdition } from '../lib/edition'
+import { SelfHostedImport } from './SelfHostedImport'
 // Shared product-loop stylesheet (see main.tsx); ships with this route chunk.
 import '../styles/import.css'
 
 export function Import() {
+  if (isSelfHostedEdition()) return <SelfHostedImport />
   return (
     <PageShell variant="grid">
       <div className="import-handoff" data-extension-handoff>
