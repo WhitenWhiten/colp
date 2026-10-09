@@ -14,6 +14,8 @@ import {
   authEmailIdempotencyKey,
   isOAuthCallbackPath,
   otpEmailPurpose,
+  withServerAccountIssuer,
+  withoutAccountIssuerUpdate,
   type AuthOtpType,
   type BusinessAccountUnitOfWork,
 } from '../../modules/auth/index.js';
@@ -252,6 +254,22 @@ export function buildBetterAuthOptions<DB>(input: BetterAuthRuntimeInput<DB>): B
       modelName: BETTER_AUTH_MODEL_NAMES.account,
       // G1/contract: implicit same-email linking stays disabled.
       accountLinking: { disableImplicitLinking: true },
+      // Better Auth 1.7.3+ no longer declares/writes `account.issuer`
+      // (#11153 reverted the 1.7.0–1.7.2 issuer key). Migration 202609230100
+      // keeps the column NOT NULL + UNIQUE (issuer, accountId) as a
+      // repo-owned identity attribute, so the field is re-declared here and
+      // assigned by the `account.create.before` hook below. `input: false`:
+      // request bodies can never supply it; `returned: true` keeps it on
+      // adapter reads (adopt/link evidence).
+      additionalFields: {
+        issuer: {
+          type: 'string',
+          required: true,
+          input: false,
+          returned: true,
+          fieldName: 'issuer',
+        },
+      },
     },
     verification: {
       modelName: BETTER_AUTH_MODEL_NAMES.verification,
@@ -307,18 +325,25 @@ export function buildBetterAuthOptions<DB>(input: BetterAuthRuntimeInput<DB>): B
     },
     hooks: productHooks,
     ...(config.social ? { socialProviders: config.social } : {}),
-    ...((establishment.userCreateAfter !== null || establishment.sessionCreateAfter !== null
-        || establishment.accountCreateAfter !== null)
-      ? {
-          databaseHooks: {
-            ...(establishment.userCreateAfter !== null ? { user: { create: { after: establishment.userCreateAfter } } } : {}),
-            ...(establishment.sessionCreateAfter !== null ? { session: { create: { after: establishment.sessionCreateAfter } } } : {}),
-            ...(establishment.accountCreateAfter !== null
-              ? { account: { create: { after: establishment.accountCreateAfter } } }
-              : {}),
-          },
-        }
-      : {}),
+    databaseHooks: {
+      ...(establishment.userCreateAfter !== null ? { user: { create: { after: establishment.userCreateAfter } } } : {}),
+      ...(establishment.sessionCreateAfter !== null ? { session: { create: { after: establishment.sessionCreateAfter } } } : {}),
+      account: {
+        create: {
+          // Server-owned issuer on EVERY account insert (sign-up credential,
+          // set-password, social callback, explicit link, adopt). Overwrites
+          // any caller-supplied value; throws (fail closed) on a blank providerId.
+          before: async (account) => ({ data: withServerAccountIssuer(account) }),
+          ...(establishment.accountCreateAfter !== null
+            ? { after: establishment.accountCreateAfter }
+            : {}),
+        },
+        update: {
+          // `issuer` is derived, never editable through an update payload.
+          before: async (update) => ({ data: withoutAccountIssuerUpdate(update) }),
+        },
+      },
+    },
     plugins: [
       username({ displayUsername: false }),
       colpRegistrationStatePlugin(),

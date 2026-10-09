@@ -7,7 +7,7 @@ type AdapterCall<Method extends (...args: never[]) => unknown> =
   (...args: Parameters<Method>) => ReturnType<Method>;
 
 /**
- * Better Auth 1.7.1 callback boundary. Only this request's context is replaced.
+ * Better Auth 1.7.x callback boundary. Only this request's context is replaced.
  * The SDK first creates a user, then an account, then the callback session;
  * adoption must revoke the old sessions before the last step.
  */
@@ -56,11 +56,11 @@ export function applyOAuthOccupancyAdoptToAdapter(
       adapter: {
         findAccounts: (userId) => adapter.findAccounts(userId),
         deleteAccount: (id) => adapter.deleteAccount(id),
-        linkAccount: async (data) => {
-          linked = await adapter.linkAccount({
-            ...account,
-            issuer: typeof data.issuer === 'string' ? data.issuer : account.issuer,
-          });
+        linkAccount: async () => {
+          // Better Auth 1.7.3+ keys accounts by (providerId, accountId) and
+          // no longer carries `issuer` on the SDK account input; the runtime
+          // `account.create.before` hook assigns the server-owned issuer.
+          linked = await adapter.linkAccount(account);
           return linked;
         },
         updateUser: (userId, data) => adapter.updateUser(userId, data),

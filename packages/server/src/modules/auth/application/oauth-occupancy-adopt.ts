@@ -204,10 +204,9 @@ export async function executeOAuthOccupancyAdopt(
     linked = await withoutProviderLinkEpoch(input.userId, () => input.adapter.linkAccount({
       userId: input.userId,
       providerId: input.account.providerId,
-      // Better Auth 1.7 scopes account identity by (issuer, accountId).
-      issuer: typeof input.account.issuer === 'string' && input.account.issuer.length > 0
-        ? input.account.issuer
-        : `local:oauth:${encodeURIComponent(providerId)}`,
+      // `issuer` is server-owned: the runtime `account.create.before` hook
+      // derives it from providerId (modules/auth account-issuer.ts). Nothing
+      // from the SDK callback payload is forwarded as an issuer.
       accountId: providerAccountId,
       accessToken: input.account.accessToken,
       refreshToken: input.account.refreshToken,
