@@ -244,6 +244,8 @@ export function buildPublicationSnapshotCandidateStatement(
             and (coalesce(preceding.position_token, ''::text) collate "C", preceding.id collate "C")
               <= ($3::text collate "C", $4::text collate "C")
        ) else 0::bigint end`;
+  // Public predicates already establish both flags before pagination. Do not
+  // repeat the ancestor walk and moderation probe for every returned row.
   return Object.freeze({
     text: `select id, collection_id, parent_id, kind, is_root, title, url, description,
             tags, visibility, position_token, resource_revision, created_at, updated_at,
@@ -251,7 +253,7 @@ export function buildPublicationSnapshotCandidateStatement(
               partition by coalesce(parent_id, ''::text) collate "C"
               order by coalesce(position_token, ''::text) collate "C", id collate "C"
             )) - 1 + ${ordinalOffset})::text, 20, '0') as publication_position,
-              exists (
+            ${request.projection === 'public' ? 'false' : `exists (
               with recursive ancestors as (
                 select parent.id, parent.parent_id, parent.visibility
                   from nodes parent where parent.collection_id = nodes.collection_id and parent.id = nodes.parent_id
@@ -261,8 +263,9 @@ export function buildPublicationSnapshotCandidateStatement(
                  where parent.collection_id = nodes.collection_id
               )
               select 1 from ancestors where visibility in ('private', 'protected')
-            ) as ancestor_restricted,
-            ${bookmarkHidePublicExistsSql('nodes.id', 'nodes.collection_id')} as moderation_hidden,
+            )`} as ancestor_restricted,
+            ${request.projection === 'public' ? 'false'
+              : bookmarkHidePublicExistsSql('nodes.id', 'nodes.collection_id')} as moderation_hidden,
             ${nodeExtensionFlagSql('nodes', PUBLICATION_PIN_EXTENSION, 'pinned')} as pinned
        from nodes
       where collection_id = $1 and not is_root and deleted_at is null

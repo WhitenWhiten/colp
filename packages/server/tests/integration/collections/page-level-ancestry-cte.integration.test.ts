@@ -359,6 +359,11 @@ describeWithPostgres('R13 page-level ancestry CTE', () => {
       if (page.length > limit) break;
       const from = endpointFacts(rel.fromNodeId, scope);
       const to = endpointFacts(rel.toNodeId, scope);
+      // Public pagination counts only publicly visible relations/endpoints.
+      // The reference walks the in-memory graph independently of the SQL.
+      if (!['public', 'unlisted'].includes(rel.visibility)
+        || from.visibility !== 'inherit' || to.visibility !== 'inherit'
+        || from.ancestorRestricted || to.ancestorRestricted) continue;
       page.push({
         id: rel.id, fromNodeId: rel.fromNodeId, toNodeId: rel.toNodeId, type: rel.type,
         visibility: rel.visibility,

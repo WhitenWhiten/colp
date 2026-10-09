@@ -147,6 +147,7 @@ export interface PortsOptions {
 export interface PortsHandle {
   readonly ports: PublicationSnapshotQueryPorts;
   loadCount(): number;
+  readonly loadRequests: readonly Parameters<PublicationSnapshotReadPort['loadPage']>[0][];
   setFail(flag: boolean | (() => Error) | null): void;
 }
 
@@ -155,12 +156,14 @@ export function makePorts(
   options: PortsOptions = {},
 ): PortsHandle {
   let loads = 0;
+  const loadRequests: Parameters<PublicationSnapshotReadPort['loadPage']>[0][] = [];
   let failure: (() => Error) | null = options.fail ?? null;
   const current = options.current ?? (() => collection());
   const baseReads = snapshotReadPort(records, current);
   const reads: PublicationSnapshotReadPort = {
     async loadPage(request) {
       loads += 1;
+      loadRequests.push(request);
       if (failure !== null) throw failure();
       return baseReads.loadPage(request);
     },
@@ -193,6 +196,7 @@ export function makePorts(
   return {
     ports,
     loadCount: () => loads,
+    loadRequests,
     setFail(flag) {
       if (flag === true) failure = () => new Error('postgres unavailable');
       else if (flag === false || flag === null) failure = null;

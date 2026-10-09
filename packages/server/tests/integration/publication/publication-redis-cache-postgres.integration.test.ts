@@ -469,8 +469,8 @@ describeWithPostgres('publication Redis cache end-to-end against real PostgreSQL
         cookie: owner.cookie,
       });
       assert.equal(ownerSnapshot.statusCode, 200);
-      assert.equal(serve.counters.snapshot.calls.loadPage, 1,
-        'authenticated snapshot read must load the authoritative port');
+      assert.equal(serve.counters.snapshot.calls.loadPage, 2,
+        'authenticated snapshot must load both the authorization fence and candidates from the authoritative port');
       assert.ok(serve.store, 'serve app owns a store (snapshot isolation)');
       assert.equal(serve.store.counts.get, 0, 'authenticated snapshot read must issue zero cache commands');
       assert.notEqual(ownerSnapshot.etag, anonymousSnapshot.etag,

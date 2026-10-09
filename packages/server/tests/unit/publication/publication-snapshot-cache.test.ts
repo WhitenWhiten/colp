@@ -220,7 +220,10 @@ describe('publication snapshot cache decorator', () => {
 
     const member = await reader(handle.ports, MEMBER);
     assert.equal(member.projection, 'member');
-    assert.equal(handle.loadCount(), 2, 'authenticated reads must always hit the authoritative read port');
+    assert.equal(handle.loadCount(), 3, 'one anonymous read plus member fence and candidate reads must hit the authoritative port');
+    assert.equal(handle.loadRequests[1]?.metadataOnly, true);
+    assert.equal(handle.loadRequests[2]?.metadataOnly, undefined);
+    assert.equal(handle.loadRequests[2]?.projection, 'member');
     assert.equal(store.calls.length, commandsBefore,
       'authenticated requests must not read or write any anonymous cache key');
   });

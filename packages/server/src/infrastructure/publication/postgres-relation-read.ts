@@ -128,25 +128,21 @@ export function buildPublicationRelationCandidateStatement(
   const limitParameter = `$${values.length}`;
   const windowWhere = `r.collection_id = $1 and r.deleted_at is null
        ${continuation}`;
+  // Scalar correlated probes keep the relation tuple index as the driving
+  // scan. EXISTS was decorrelated into joins that scanned all visible nodes
+  // and sorted the entire relation set before LIMIT (twice per page).
   const publicWhere = request.projection === 'public' ? `
-       and exists (
-         select 1 from nodes public_from
-          where public_from.collection_id = r.collection_id
-            and public_from.id = r.from_node_id
-            and public_from.deleted_at is null
-            and public_from.visibility = 'inherit'
-            and not ${buildPublicationTargetAncestorRestrictionSql('public_from')}
-            and not ${bookmarkHidePublicExistsSql('public_from.id', 'public_from.collection_id')}
-       )
-       and exists (
-         select 1 from nodes public_to
-          where public_to.collection_id = r.collection_id
-            and public_to.id = r.to_node_id
-            and public_to.deleted_at is null
-            and public_to.visibility = 'inherit'
-            and not ${buildPublicationTargetAncestorRestrictionSql('public_to')}
-            and not ${bookmarkHidePublicExistsSql('public_to.id', 'public_to.collection_id')}
-       )` : '';
+       and r.visibility in ('public', 'unlisted')
+       ${['from', 'to'].map((side) => {
+         const alias = `public_${side}`;
+         return `and coalesce((
+           select ${alias}.deleted_at is null and ${alias}.visibility = 'inherit'
+             and not ${buildPublicationTargetAncestorRestrictionSql(alias)}
+             and not ${bookmarkHidePublicExistsSql(`${alias}.id`, `${alias}.collection_id`)}
+             from nodes ${alias}
+            where ${alias}.collection_id = r.collection_id and ${alias}.id = r.${side}_node_id
+         ), false)`;
+       }).join('\n')}` : '';
   const scopeProbe = rootParameter === '' ? 'true' : 'coalesce(from_facts.scope_reachable, false)';
   const scopeProbeTo = rootParameter === '' ? 'true' : 'coalesce(to_facts.scope_reachable, false)';
   const restrictedFrom = `coalesce(

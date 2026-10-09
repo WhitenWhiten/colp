@@ -5,6 +5,7 @@ import {
   collectionProtocolSchemaV02,
   createValidatorRegistry,
   isLevelOneUriTemplate,
+  MAX_STRUCTURED_UNIQUE_ITEMS,
 } from '../../src/schema/index.js';
 
 function expectDeeplyFrozen(value: unknown, seen = new WeakSet<object>()): void {
@@ -51,6 +52,22 @@ describe('schema validator registry', () => {
   it('caches compiled validators and rejects unknown definition names', () => {
     expect(registry.get('snapshot')).toBe(registry.get('snapshot'));
     expect(() => registry.get('doesNotExist' as never)).toThrow(RangeError);
+  });
+
+  it('raw validators preserve canonical formats and clear errors after a valid retry', () => {
+    const validate = registry.get('dateTime');
+    expect(validate('not-a-date')).toBe(false);
+    expect(validate.errors).toEqual(expect.arrayContaining([expect.objectContaining({ keyword: 'format' })]));
+    expect(validate('2026-07-16T00:00:00Z')).toBe(true);
+    expect(validate.errors).toBeNull();
+  });
+
+  it('raw validators reject structured unique-array overflow before Ajv and recover for valid input', () => {
+    const validate = registry.get('snapshot');
+    expect(validate({ creators: Array.from({ length: MAX_STRUCTURED_UNIQUE_ITEMS + 1 }, (_, i) => ({ id: `creator-${i}` })) })).toBe(false);
+    expect(validate.errors?.[0]?.keyword).toBe('maxItems');
+    expect(validate({})).toBe(false);
+    expect(validate.errors?.some((error) => error.keyword === 'required')).toBe(true);
   });
 
   it('rejects fields forbidden by discriminated node variants', () => {

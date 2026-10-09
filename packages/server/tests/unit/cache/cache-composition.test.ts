@@ -464,7 +464,7 @@ describe('T10 API composition: shadow mode always returns the origin', () => {
       principal: { kind: 'account', principalId: 'account-1', subjectId: 'owner' },
     });
     assert.equal(result.projection, 'member', 'shadow must return the authoritative member projection');
-    assert.equal(harness.loaderCount(), 2, 'shadow performs its comparison read and authoritative read');
+    assert.equal(harness.loaderCount(), 4, 'shadow comparison and authoritative reads each load the member fence then candidates');
     assert.equal(store.callsOf('get').length, 0, 'authenticated Snapshot bypasses the anonymous cache');
   });
 });
