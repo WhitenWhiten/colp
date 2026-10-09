@@ -1,3 +1,4 @@
+import { assertJsonTextBudget } from '../shared/json-text-budget.js';
 import { collectionProtocolSchema } from '../schema/index.js';
 import type { McpToolSchema } from './tool-input.js';
 import { isProxy } from 'node:util/types';
@@ -71,6 +72,8 @@ export function materializeClosedMcpToolSchema(
   const closed = defs === undefined
     ? rewritten
     : { ...(rewritten as Record<string, unknown>), $defs: defs };
+  assertSchemaWithinBudget(closed as object);
+  assertJsonTextBudget(closed, MAX_SCHEMA_BYTES);
   assertNoCanonicalHttpRef(closed);
   return closed as Readonly<Record<string, unknown>>;
 }
@@ -78,7 +81,6 @@ export function materializeClosedMcpToolSchema(
 /** Reject hostile schema graphs before recursive ref rewriting can overflow or loop. */
 function assertSchemaWithinBudget(root: object): void {
   const active = new WeakSet<object>();
-  const visited = new WeakSet<object>();
   const stack: Array<{ value: object; depth: number; exit?: boolean }> = [{ value: root, depth: 0 }];
   let nodes = 0;
   let members = 0;
@@ -88,9 +90,7 @@ function assertSchemaWithinBudget(root: object): void {
     if (isProxy(current.value)) throw new RangeError('MCP tool schema contains a Proxy.');
     if (current.exit) { active.delete(current.value); continue; }
     if (active.has(current.value)) throw new RangeError('MCP tool schema must not contain cycles.');
-    if (visited.has(current.value)) continue;
     if (current.depth > MAX_SCHEMA_DEPTH) throw new RangeError('MCP tool schema exceeds maximum depth.');
-    visited.add(current.value);
     active.add(current.value);
     stack.push({ value: current.value, depth: current.depth, exit: true });
     nodes += 1;
@@ -210,4 +210,3 @@ function assertNoCanonicalHttpRef(value: unknown): void {
     assertNoCanonicalHttpRef(child);
   }
 }
-

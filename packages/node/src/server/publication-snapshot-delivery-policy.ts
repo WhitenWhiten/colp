@@ -93,4 +93,3 @@ function copyDataRecord(value: unknown, policy: boolean): Record<string, unknown
   }
   return result;
 }
-

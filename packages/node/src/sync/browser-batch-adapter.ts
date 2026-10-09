@@ -146,4 +146,3 @@ export async function applySyncBrowserBatch<Change extends SyncBrowserBatchChang
 }
 export type SyncBrowserBatchAdapter<Change extends SyncBrowserBatchChange<FolderId>, FolderId, Item> =
   SyncBrowserBatchDriver<Change, FolderId, Item>;
-

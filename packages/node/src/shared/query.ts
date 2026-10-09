@@ -111,4 +111,3 @@ export function parseProtocolQuery(
     ? { valid: true, value: Object.freeze(value) }
     : { valid: false, code: 'invalid_query', errors: Object.freeze(errors) };
 }
-

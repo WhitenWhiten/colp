@@ -249,4 +249,3 @@ function reserveMembers(state: SnapshotState, count: number): void {
   }
   state.members += count;
 }
-

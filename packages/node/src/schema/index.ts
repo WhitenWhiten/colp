@@ -427,58 +427,38 @@ export function validateWireDocument<Value, Issue>(
   value: unknown,
   validateSemantics: (value: Value) => SemanticValidationResultLike<Issue>,
 ): WireDocumentValidationResult<Value, Issue> {
-  let ownedValue: unknown;
-  try {
-    // Validators and semantic callbacks must never observe caller-owned
-    // accessors or aliases that can be mutated between the two stages.
-    const snapshot = immutableJsonSnapshot(value, `Wire ${String(definition)}`, {
+  // Preserve the legacy value identity (including frozen persistence candidates).
+  // Only untrusted instrumentation receives a detached, mutable working copy.
+  const snapshotInput = () => immutableJsonSnapshot(value, 'Wire document', {
       maxDepth: MAX_STRUCTURED_VALIDATION_DEPTH,
       maxMembers: MAX_STRUCTURED_VALIDATION_MEMBERS,
       maxBytes: MAX_STRUCTURED_VALIDATION_BYTES,
     });
-    // Keep the validator's working copy detached from caller-owned data while
-    // remaining mutable for compatibility with instrumentation wrappers that
-    // intentionally probe mutation resistance.
-    ownedValue = thawJsonSnapshot(snapshot);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'wire document is not immutable JSON';
-    return {
-      valid: false,
-      stage: 'structural',
-      errors: Object.freeze([{
-        instancePath: '',
-        schemaPath: '#/x-colp-boundary',
-        keyword: 'x-colp-boundary',
-        params: {},
-        message,
-      } as ErrorObject]),
-    };
-  }
-  const structural = validateWithCanonicalRegistry(validators, definition, ownedValue);
+  const boundaryFailure = (): WireDocumentValidationResult<Value, Issue> => ({ valid: false, stage: 'structural', errors: [{
+    instancePath: '', schemaPath: '#/x-colp-boundary', keyword: 'x-colp-boundary',
+    params: {}, message: 'Wire document must be bounded plain JSON data.',
+  }] });
+  let snapshot: unknown;
+  try { snapshot = snapshotInput(); } catch { return boundaryFailure(); }
+  const candidate = trustedValidatorRegistries.has(validators) ? value : JSON.parse(JSON.stringify(snapshot));
+  const structural = validateWithCanonicalRegistry(validators, definition, candidate);
   if (!structural.valid) {
     return { valid: false, stage: 'structural', errors: structural.errors };
   }
 
-  const semantic = validateSemantics(ownedValue as Value);
+  if (!trustedValidatorRegistries.has(validators)) {
+    // A wrapper can retain a caller alias outside its detached argument.
+    // Recheck that source without executing any newly installed accessor.
+    try {
+      const current = createValidatorRegistry().validate(definition, snapshotInput());
+      if (!current.valid) return { valid: false, stage: 'structural', errors: current.errors };
+    } catch { return boundaryFailure(); }
+  }
+  const semantic = validateSemantics(value as Value);
   if (!semantic.valid) {
     return { valid: false, stage: 'semantic', issues: semantic.issues };
   }
-    return { valid: true, value: ownedValue as Value };
-}
-
-function thawJsonSnapshot(value: unknown): unknown {
-  if (value === null || typeof value !== 'object') return value;
-  if (Array.isArray(value)) return value.map(thawJsonSnapshot);
-  const copy: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
-  for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
-    Object.defineProperty(copy, key, {
-      value: thawJsonSnapshot(child),
-      enumerable: true,
-      configurable: true,
-      writable: true,
-    });
-  }
-  return copy;
+  return { valid: true, value: value as Value };
 }
 
 /** Parses I-JSON, then runs schema/format and semantic validation exactly once. */
@@ -505,4 +485,3 @@ export function validateWireJsonDocument<Value, Issue>(
 export const collectionProtocolSchema = schema;
 export const collectionProtocolSchemaV02 = schemaV02;
 export const collectionProtocolSchemas = Object.freeze({ '0.1': schema, '0.2': schemaV02 });
-

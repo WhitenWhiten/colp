@@ -122,4 +122,3 @@ function assertArgumentCount(name: string, actual: number, expected: number): vo
     throw new TypeError(`${name} requires exactly ${expected} argument${expected === 1 ? '' : 's'}.`);
   }
 }
-
