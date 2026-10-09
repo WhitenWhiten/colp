@@ -210,6 +210,9 @@ export function createPublicationSnapshotCache(
       case 'cache_hit':
       case 'stale_hit': {
         // serveStale is forced false, so stale_hit is defensive only.
+        if (!(await isCurrentPublicSnapshot(ports, result.value))) {
+          return toPublicResult(await getPublicationSnapshotPage(ports, input, requestSignal));
+        }
         return result.value;
       }
       case 'origin':
@@ -227,6 +230,23 @@ export function createPublicationSnapshotCache(
         throw new CacheFallbackRejectedError('publication snapshot');
     }
   };
+}
+
+/** Never trust a public snapshot hit across an owner lifecycle or revision change. */
+async function isCurrentPublicSnapshot(
+  ports: PublicationSnapshotQueryPorts,
+  value: PublicationSnapshotCachedValue,
+): Promise<boolean> {
+  try {
+    const collectionId = value.snapshot.collection.id;
+    if (ports.collectionControl === undefined) return false;
+    const control = await ports.collectionControl.collectionControl(collectionId);
+    if (control.hidePublic || control.restrictPublication === true) return false;
+    if (ports.reads.isPublicCacheCurrent === undefined) return false;
+    return await ports.reads.isPublicCacheCurrent(collectionId, value.snapshot.revision);
+  } catch {
+    return false;
+  }
 }
 
 /** Strips the internal ownerSubjectId authority fact for the anonymous wire surface. */

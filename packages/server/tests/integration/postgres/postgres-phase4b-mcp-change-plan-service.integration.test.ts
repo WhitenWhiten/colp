@@ -15,6 +15,7 @@ import {
   createPhase4bMcpAgentApprovalApi,
   createPostgresAutoApproveTrustedPlan,
   recordMcpPlanCommitRevisions,
+  writeAgentPolicy,
 } from '../../../src/infrastructure/collections/index.js';
 import { AgentPlanUndoError } from '../../../src/modules/mcp/agent-plan-policy.js';
 import {
@@ -978,6 +979,33 @@ describeWithPostgres('MCP-W05 approved Change Plan Commit over PostgreSQL', () =
     const pending = await manual.service.plan(createPlanInput(manualFixture), BINDING);
     assert.equal((await manual.store.planStore.get(pending.planId))?.status, 'pending');
     assert.deepEqual(await liveTitles(manualFixture.collectionId), before);
+  });
+
+  test('E4 trusted to manual cancels an already approved Plan before Commit', async () => {
+    const fixture = await createFixture();
+    await runtime.pool.query(
+      `insert into agent_policies (principal_id, client_id, policy) values ($1, $2, 'trusted')`,
+      [PRINCIPAL_ID, BINDING.clientId],
+    );
+    const harness = createHarness();
+    const pending = await harness.service.plan(planInput(fixture), BINDING);
+    await harness.service.recordOutOfBandApproval(pending.planId, BINDING);
+    assert.equal((await harness.store.planStore.get(pending.planId))?.status, 'approved');
+
+    // The downgrade and Plan cancellation are one transaction.  A later
+    // Commit must observe the cancelled status and cannot mutate the node.
+    await writeAgentPolicy(runtime.db, PRINCIPAL_ID, BINDING.clientId, 'manual');
+    assert.equal((await harness.store.planStore.get(pending.planId))?.status, 'cancelled');
+    const before = await runtime.pool.query<{ visibility: string }>(
+      `select visibility from nodes where id = $1`, [fixture.nodeId]);
+    await assert.rejects(
+      harness.service.commit(pending.planId, BINDING, 'idem-downgrade'),
+      (error: unknown) => error instanceof Error
+        && (error as { code?: string }).code === 'plan_cancelled',
+    );
+    const after = await runtime.pool.query<{ visibility: string }>(
+      `select visibility from nodes where id = $1`, [fixture.nodeId]);
+    assert.equal(after.rows[0]?.visibility, before.rows[0]?.visibility);
   });
 
   test('E4 Undo refuses a newer version unless forced and refuses a sync tombstone conflict', async () => {

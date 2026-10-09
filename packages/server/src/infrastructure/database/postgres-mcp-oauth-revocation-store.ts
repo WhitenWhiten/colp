@@ -95,6 +95,11 @@ export function createPostgresMcpOauthRevocationStore(
               SELECT 1 FROM mcp_oauth_client_revocations
               WHERE client_id_digest = ${clientIdDigest}
             )
+            OR EXISTS (
+              SELECT 1 FROM mcp_oauth_subject_revocations
+              WHERE client_id_digest = ${clientIdDigest}
+                AND subject_digest = ${subjectDigest}
+            )
           ) AS revoked,
           EXISTS (SELECT 1 FROM mcp_oauth_security_epoch WHERE id = 1) AS epoch_present,
           (SELECT effective_at FROM mcp_oauth_security_epoch WHERE id = 1) AS effective_at,

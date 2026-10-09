@@ -42,6 +42,8 @@ test('pushes visibility, filters, full keyset comparator, and limit+1 into Postg
   assert.doesNotMatch(locatorQuery.sql, /convert_to/u);
   const query = calls.at(-1)!;
   assert.match(query.sql, /c\.visibility = 'public'/u);
+  assert.match(query.sql, /owner_account\.status = 'active'/u);
+  assert.match(query.sql, /owner_account\.deleted_at is null/u);
   assert.match(query.sql, /c\.visibility = 'protected'/u);
   assert.match(query.sql, /collection_members/u);
   assert.match(query.sql, /payload_json->'extensions'->'tags'/u);

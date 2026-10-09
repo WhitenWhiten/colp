@@ -45,7 +45,13 @@ export function createPostgresPublicationMetadataReadPort(
             and root.is_root and root.deleted_at is null
            left join collection_members member
              on member.collection_id = c.id and member.subject_id = $2
-          where ${input.collectionId !== undefined ? 'c.id' : 'c.publication_slug'} = $1`;
+          where ${input.collectionId !== undefined ? 'c.id' : 'c.publication_slug'} = $1
+            and exists (
+              select 1 from accounts owner_account
+               where owner_account.subject_id = c.owner_subject_id
+                 and owner_account.status = 'active'
+                 and owner_account.deleted_at is null
+            )`;
       const values: unknown[] = [input.collectionId ?? input.publicationSlug, actor];
       if (input.signal === undefined) {
         // Fast path (zero extra round trips): the pooled query hides the client.
@@ -74,6 +80,23 @@ export function createPostgresPublicationMetadataReadPort(
       } finally {
         client.release();
       }
+    },
+    async isPublicCacheCurrent(collectionId: string, revision: string): Promise<boolean> {
+      const result = await runtime.pool.query<{ current: boolean }>(
+        `select (
+           c.deleted_at is null
+           and c.publication_slug is not null
+           and c.published_at is not null
+           and c.content_revision::text || '.' || c.policy_revision::text = $2
+           and owner_account.status = 'active'
+           and owner_account.deleted_at is null
+         ) as current
+           from collections c
+           join accounts owner_account on owner_account.subject_id = c.owner_subject_id
+          where c.id = $1`,
+        [collectionId, revision],
+      );
+      return result.rows[0]?.current === true;
     },
   });
 }

@@ -21,7 +21,7 @@ export {
 
 export const PUBLIC_SHELL_MARKDOWN_CONTENT_TYPE = 'text/markdown; charset=utf-8';
 
-const MARKDOWN_BREAKERS = /[[\]()]/gu;
+const MARKDOWN_BREAKERS = /[\\<>\[\]()]/gu;
 
 export interface PublicShellMarkdownInput {
   readonly collectionId: string;
@@ -44,11 +44,14 @@ export interface PublicShellMarkdownInput {
 
 /** Escape user text so titles cannot break link / heading syntax or inject HTML. */
 export function escapePublicShellMarkdown(text: string): string {
-  return text
-    .replace(/\\/gu, '\\\\')
-    .replace(/</gu, '&lt;')
-    .replace(/>/gu, '&gt;')
-    .replace(MARKDOWN_BREAKERS, (character) => `\\${character}`);
+  // One pass avoids rescanning attacker-controlled titles for every escaping
+  // rule. Titles and summaries are bounded by sanitizePublicShellText, but
+  // this function is also exported for callers handling larger values.
+  return text.replace(MARKDOWN_BREAKERS, (character) => {
+    if (character === '<') return '&lt;';
+    if (character === '>') return '&gt;';
+    return `\\${character}`;
+  });
 }
 
 export function flattenPublicCollectionMarkdown(

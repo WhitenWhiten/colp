@@ -96,6 +96,29 @@ export function createPostgresPublicationDirectoryReadPort(
         client.release();
       }
     },
+    async arePublicCacheCollectionsCurrent(collectionIds: readonly string[]): Promise<boolean> {
+      if (collectionIds.length === 0) return true;
+      const result = await runtime.pool.query<{ count: string }>(
+        `select count(*)::text as count
+           from collections c
+           join accounts owner_account on owner_account.subject_id = c.owner_subject_id
+          where c.id = any($1::text[])
+            and c.deleted_at is null
+            and c.publication_slug is not null
+            and c.published_at is not null
+            and c.visibility = 'public'
+            and owner_account.status = 'active'
+            and owner_account.deleted_at is null
+            and ${COLLECTION_DISCOVERY_CONTROL_SQL}
+            and not exists (
+              select 1 from accounts restricted_owner
+               where restricted_owner.subject_id = c.owner_subject_id
+                 and ${accountRestrictPublicationExistsSql('restricted_owner.id')}
+            )`,
+        [collectionIds],
+      );
+      return result.rows[0]?.count === String(collectionIds.length);
+    },
   });
 }
 
@@ -129,6 +152,13 @@ export function buildPublicationDirectoryStatement(
     'c.deleted_at is null',
     'c.publication_slug is not null',
     'c.published_at is not null',
+    // A public directory entry is owned by a live account. This predicate is
+    // kept before ordering/pagination so a disabled owner cannot leave a gap
+    // or remain reachable through a continuation cursor.
+    `exists (select 1 from accounts owner_account
+              where owner_account.subject_id = c.owner_subject_id
+                and owner_account.status = 'active'
+                and owner_account.deleted_at is null)`,
     visibility,
     COLLECTION_DISCOVERY_CONTROL_SQL,
   ];

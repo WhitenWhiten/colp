@@ -43,6 +43,9 @@ const LIST_MARKER = /^(?:• |\d+\. )/u;
 
 const TEXT_NODE = 3;
 const ELEMENT_NODE = 1;
+/** Keep DOM construction bounded independently of the network body ceiling. */
+export const READABLE_REPLICA_MAX_PARSE_CHARS = 1_048_576;
+export const READABLE_REPLICA_MAX_TAG_MARKERS = 100_000;
 
 type DomNode = {
   readonly nodeType: number;
@@ -235,6 +238,7 @@ function emptyToNull(value: string): string | null {
 
 export function createMozillaReadableArticleExtractor(): ReadableArticleExtractor {
   return ({ html }) => {
+    if (!withinDomParseBudget(html)) return { kind: 'empty' };
     const { document } = parseHTML(html);
     preCleanReadableDocument(document);
     const article = new Readability(document).parse();
@@ -258,4 +262,21 @@ export function createMozillaReadableArticleExtractor(): ReadableArticleExtracto
       sections,
     });
   };
+}
+
+/**
+ * linkedom and Readability both materialize and walk a DOM. A byte ceiling on
+ * the fetch body alone does not bound work for adversarial markup containing
+ * huge numbers of tiny tags. Count tag markers in one linear pass before any
+ * parser allocates nodes; a false positive only drops an unusable article.
+ */
+function withinDomParseBudget(html: string): boolean {
+  if (typeof html !== 'string' || html.length > READABLE_REPLICA_MAX_PARSE_CHARS) return false;
+  let markers = 0;
+  for (let index = 0; index < html.length; index += 1) {
+    if (html.charCodeAt(index) !== 60) continue; // '<'
+    markers += 1;
+    if (markers > READABLE_REPLICA_MAX_TAG_MARKERS) return false;
+  }
+  return true;
 }

@@ -20,6 +20,7 @@ export const MAX_PUBLICATION_AUTHORIZED_DIRECTORY_CANDIDATES = 10_000;
 
 const MAX_JSON_DEPTH = 64;
 const MAX_JSON_VALUES = 1_000_000;
+const MAX_JSON_BYTES = 1_048_576;
 const MAX_CURSOR_LENGTH = 8_192;
 const INVALID_INPUT = 'Publication authorized Directory input is invalid.';
 const INVALID_PAGE = 'Publication authorized Directory page is invalid.';
@@ -77,13 +78,17 @@ export function selectPublicationAuthorizedDirectoryCandidates(
     if (typeof authorizeProtected !== 'function') throw new TypeError();
     const source = inspectExactArray(candidates, MAX_PUBLICATION_AUTHORIZED_DIRECTORY_CANDIDATES);
     const collections: Readonly<DirectoryCollection>[] = [];
+    // Charge the complete selection against one graph budget. Applying the
+    // per-record limit independently allowed a wide page of large records to
+    // consume roughly N * MAX_JSON_VALUES before pagination was reached.
+    const budget = { values: 0, bytes: 0 };
 
     for (const sourceCandidate of source) {
       const visibility = readOwnVisibility(sourceCandidate);
       if (visibility === 'unlisted' || visibility === 'private') continue;
       if (visibility !== 'public' && visibility !== 'protected') throw new TypeError();
 
-      const candidate = immutableJson(sourceCandidate);
+      const candidate = immutableJson(sourceCandidate, budget);
       if (!validators.validate('directoryCollection', candidate).valid) throw new TypeError();
       if (visibility === 'protected') {
         const decision = authorizeProtected(candidate as Readonly<DirectoryCollection>);
@@ -314,10 +319,11 @@ function readOwnVisibility(value: unknown): unknown {
   return descriptor.value;
 }
 
-function immutableJson(value: unknown): unknown {
-  inspectJson(value, 0, { values: 0, ancestors: new WeakSet<object>() });
+function immutableJson(value: unknown, budget?: { values: number; bytes: number }): unknown {
+  const state = budget ?? { values: 0, bytes: 0 };
+  inspectJson(value, 0, { values: state.values, ancestors: new WeakSet<object>() }, state);
   const clone: unknown = structuredClone(value);
-  inspectJson(clone, 0, { values: 0, ancestors: new WeakSet<object>() });
+  inspectJson(clone, 0, { values: state.values, ancestors: new WeakSet<object>() }, state);
   const frozen = deepFreeze(clone);
   markIssuedImmutable(frozen);
   return frozen;
@@ -347,10 +353,22 @@ function inspectJson(
   value: unknown,
   depth: number,
   state: { values: number; readonly ancestors: WeakSet<object> },
+  aggregate?: { values: number; bytes: number },
 ): void {
   state.values += 1;
-  if (depth > MAX_JSON_DEPTH || state.values > MAX_JSON_VALUES) throw new TypeError();
-  if (value === null || typeof value === 'string' || typeof value === 'boolean') return;
+  if (aggregate !== undefined) aggregate.values += 1;
+  if (depth > MAX_JSON_DEPTH
+      || state.values > MAX_JSON_VALUES
+      || (aggregate !== undefined
+        && (aggregate.values > MAX_JSON_VALUES || aggregate.bytes > MAX_JSON_BYTES))) throw new TypeError();
+  if (value === null || typeof value === 'boolean') return;
+  if (typeof value === 'string') {
+    if (aggregate !== undefined) {
+      aggregate.bytes += Buffer.byteLength(value, 'utf8');
+      if (aggregate.bytes > MAX_JSON_BYTES) throw new TypeError();
+    }
+    return;
+  }
   if (typeof value === 'number') {
     if (!Number.isFinite(value) || (Number.isInteger(value) && !Number.isSafeInteger(value))) throw new TypeError();
     return;
@@ -370,9 +388,14 @@ function inspectJson(
   state.ancestors.add(value);
   for (const key of keys) {
     if (array && key === 'length') continue;
+    if (typeof key !== 'string') throw new TypeError();
     const descriptor = Object.getOwnPropertyDescriptor(value, key);
     if (descriptor === undefined || !descriptor.enumerable || !('value' in descriptor)) throw new TypeError();
-    inspectJson(descriptor.value, depth + 1, state);
+    if (aggregate !== undefined) {
+      aggregate.bytes += Buffer.byteLength(key, 'utf8');
+      if (aggregate.bytes > MAX_JSON_BYTES) throw new TypeError();
+    }
+    inspectJson(descriptor.value, depth + 1, state, aggregate);
   }
   state.ancestors.delete(value);
 }

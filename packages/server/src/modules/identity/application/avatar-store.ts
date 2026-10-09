@@ -13,6 +13,9 @@ import type { IdentityPorts } from './ports.js';
 
 export const AVATAR_READ_TIMEOUT_MS = 5_000;
 export const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
+/** Bound decompression work for image decoders and pathological dimensions. */
+export const AVATAR_MAX_DIMENSION = 4_096;
+export const AVATAR_MAX_PIXELS = 16_777_216;
 export const AVATAR_ALLOWED_CONTENT_TYPES = Object.freeze(['image/png', 'image/jpeg', 'image/webp']);
 export const AVATAR_UPLOAD_CONTRACT_VERSION = '1.0.0';
 
@@ -94,6 +97,78 @@ export function assertAvatarImage(body: Buffer, contentType: string): void {
   if (!matches) {
     throw new IdentityError('invalid_identity_input', `avatar body does not match declared ${contentType}`);
   }
+  assertAvatarDimensions(body, contentType);
+}
+
+function assertAvatarDimensions(body: Buffer, contentType: string): void {
+  const dimensions = contentType === 'image/png'
+    ? pngDimensions(body)
+    : contentType === 'image/jpeg'
+      ? jpegDimensions(body)
+      : webpDimensions(body);
+  // Keep compatibility with the existing magic-byte contract for truncated
+  // fixtures. Real decoders reject those bodies; whenever a header exposes
+  // dimensions, enforce both width/height and total pixel budgets here.
+  if (dimensions === undefined) return;
+  const [width, height] = dimensions;
+  if (width < 1 || height < 1 || width > AVATAR_MAX_DIMENSION || height > AVATAR_MAX_DIMENSION
+      || width * height > AVATAR_MAX_PIXELS) {
+    throw new IdentityError('invalid_identity_input',
+      `avatar dimensions must be at most ${AVATAR_MAX_DIMENSION}x${AVATAR_MAX_DIMENSION} and ${AVATAR_MAX_PIXELS} pixels`);
+  }
+}
+
+function pngDimensions(body: Buffer): readonly [number, number] | undefined {
+  if (body.length < 24 || body.toString('ascii', 12, 16) !== 'IHDR') return undefined;
+  return [body.readUInt32BE(16), body.readUInt32BE(20)];
+}
+
+function jpegDimensions(body: Buffer): readonly [number, number] | undefined {
+  let offset = 2;
+  while (offset + 4 <= body.length) {
+    if (body[offset] !== 0xff) { offset += 1; continue; }
+    while (offset < body.length && body[offset] === 0xff) offset += 1;
+    const marker = body[offset++];
+    if (marker === undefined || marker === 0xd9 || marker === 0xda) return undefined;
+    if (marker >= 0xd0 && marker <= 0xd7) continue;
+    const length = body.readUInt16BE(offset);
+    if (length < 2 || offset + length > body.length) return undefined;
+    // SOF markers carrying frame dimensions (excluding differential/arithmetic
+    // variants that still expose the same layout).
+    if ((marker >= 0xc0 && marker <= 0xc3) || (marker >= 0xc5 && marker <= 0xc7)
+        || (marker >= 0xc9 && marker <= 0xcb) || (marker >= 0xcd && marker <= 0xcf)) {
+      if (length < 7) return undefined;
+      return [body.readUInt16BE(offset + 5), body.readUInt16BE(offset + 3)];
+    }
+    offset += length;
+  }
+  return undefined;
+}
+
+function webpDimensions(body: Buffer): readonly [number, number] | undefined {
+  if (body.length < 20) return undefined;
+  const chunk = body.toString('ascii', 12, 16);
+  const chunkSize = body.readUInt32LE(16);
+  const data = 20;
+  if (chunk === 'VP8X') {
+    if (chunkSize < 10 || body.length < data + 10) return undefined;
+    const width = 1 + body[24]! + (body[25]! << 8) + (body[26]! << 16);
+    const height = 1 + body[27]! + (body[28]! << 8) + (body[29]! << 16);
+    return [width, height];
+  }
+  if (chunk === 'VP8 ') {
+    // Lossy VP8 frame header: 3-byte start code, then 14-bit dimensions.
+    if (chunkSize < 10 || body.length < data + 10
+        || body[data + 3] !== 0x9d || body[data + 4] !== 0x01 || body[data + 5] !== 0x2a) return undefined;
+    return [body.readUInt16LE(data + 6) & 0x3fff, body.readUInt16LE(data + 8) & 0x3fff];
+  }
+  if (chunk === 'VP8L') {
+    // Lossless VP8L packs width-1 in bits 0..13 and height-1 in bits 14..27.
+    if (chunkSize < 5 || body.length < data + 5 || body[data] !== 0x2f) return undefined;
+    const packed = body.readUInt32LE(data + 1);
+    return [(packed & 0x3fff) + 1, ((packed >>> 14) & 0x3fff) + 1];
+  }
+  return undefined;
 }
 
 /**

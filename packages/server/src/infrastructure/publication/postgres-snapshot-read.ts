@@ -112,7 +112,13 @@ export function createPostgresPublicationSnapshotReadPort(
                       where ma.target_kind = 'bookmark' and ma.parent_id = collections.id
                         and ma.state = 'active' and ma.action = 'hide_public') as bookmark_hide_digest
                from collections
-              where id = $1`,
+              where id = $1
+                and exists (
+                  select 1 from accounts owner_account
+                   where owner_account.subject_id = collections.owner_subject_id
+                     and owner_account.status = 'active'
+                     and owner_account.deleted_at is null
+                )`,
             [request.collectionId],
           ),
           signal,
@@ -170,6 +176,23 @@ export function createPostgresPublicationSnapshotReadPort(
       } finally {
         client.release();
       }
+    },
+    async isPublicCacheCurrent(collectionId: string, revision: string): Promise<boolean> {
+      const result = await runtime.pool.query<{ current: boolean }>(
+        `select (
+           c.deleted_at is null
+           and c.publication_slug is not null
+           and c.published_at is not null
+           and c.content_revision::text || '.' || c.policy_revision::text = $2
+           and owner_account.status = 'active'
+           and owner_account.deleted_at is null
+         ) as current
+           from collections c
+           join accounts owner_account on owner_account.subject_id = c.owner_subject_id
+          where c.id = $1`,
+        [collectionId, revision],
+      );
+      return result.rows[0]?.current === true;
     },
   });
 }

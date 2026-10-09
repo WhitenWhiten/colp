@@ -29,6 +29,8 @@ test('loads active or deleted metadata locator facts with optional membership in
   assert.match(captured?.sql ?? '', /left join collection_members/u);
   assert.match(captured?.sql ?? '', /left join nodes root/u);
   assert.match(captured?.sql ?? '', /c\.deleted_at/u);
+  assert.match(captured?.sql ?? '', /owner_account\.status = 'active'/u);
+  assert.match(captured?.sql ?? '', /owner_account\.deleted_at is null/u);
   assert.deepEqual(captured?.values, ['c', 'member']);
 
   await createPostgresPublicationMetadataReadPort(runtime).load({ publicationSlug: 'canonical-c' });

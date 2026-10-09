@@ -175,6 +175,8 @@ export {
   prepareAvatarUpload,
   AVATAR_ALLOWED_CONTENT_TYPES,
   AVATAR_MAX_BYTES,
+  AVATAR_MAX_DIMENSION,
+  AVATAR_MAX_PIXELS,
   type AvatarObjectStore,
   type StoredAvatar,
   type UploadAvatarInput,

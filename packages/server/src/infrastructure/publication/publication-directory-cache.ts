@@ -171,6 +171,9 @@ export function createPublicationDirectoryCache(
       case 'cache_hit':
       case 'stale_hit': {
         // serveStale is forced false, so stale_hit is defensive only.
+        if (!(await isCurrentPublicDirectory(ports, result.value))) {
+          return getPublicationDirectoryPage(ports, input, requestSignal);
+        }
         return result.value;
       }
       case 'origin':
@@ -186,6 +189,21 @@ export function createPublicationDirectoryCache(
         throw new CacheFallbackRejectedError('publication directory');
     }
   };
+}
+
+/** Verify every cached directory entry still belongs to a live public owner. */
+async function isCurrentPublicDirectory(
+  ports: PublicationDirectoryQueryPorts,
+  value: PublicationDirectoryPageResult,
+): Promise<boolean> {
+  if (ports.reads.arePublicCacheCollectionsCurrent === undefined) return false;
+  try {
+    return await ports.reads.arePublicCacheCollectionsCurrent(
+      value.directory.collections.map((collection) => collection.id),
+    );
+  } catch {
+    return false;
+  }
 }
 
 /**

@@ -67,7 +67,8 @@ export function AgentsPage({
 }) {
   const pageOrigin = origin ?? (typeof window === 'undefined' ? '' : window.location.origin)
   const connect = agentConnectCopy(pageOrigin)
-  const { isLoggedIn, bootstrapping } = useAuth()
+  const { isLoggedIn, bootstrapping, user } = useAuth()
+  const accountId = isLoggedIn ? user?.accountId ?? null : null
   const confirm = useConfirm()
   const [agents, setAgents] = useState<AgentSummary[]>([])
   const [loading, setLoading] = useState(false)
@@ -85,6 +86,10 @@ export function AgentsPage({
   const [copied, setCopied] = useState<string | null>(null)
   const issueIntent = useRef<string | null>(null)
   const mounted = useRef(true)
+  const identityRef = useRef<string | null>(accountId)
+  // Keep async completions from an earlier account from repopulating this
+  // page after logout or account switching.
+  identityRef.current = accountId
 
   useEffect(() => {
     mounted.current = true
@@ -92,6 +97,24 @@ export function AgentsPage({
       mounted.current = false
     }
   }, [])
+
+  useEffect(() => {
+    setAgents([])
+    setLoading(false)
+    setLoadError(null)
+    setOpenId(null)
+    setAudit([])
+    setAuditError(null)
+    setAuditLoading(false)
+    setRowError({})
+    setBusyId(null)
+    setKeyName('')
+    setKeyError(null)
+    setIssuing(false)
+    setIssued(null)
+    setCopied(null)
+    issueIntent.current = null
+  }, [accountId])
 
   useEffect(() => {
     if (bootstrapping || !isLoggedIn) {
@@ -105,21 +128,24 @@ export function AgentsPage({
       return
     }
     const controller = new AbortController()
+    const identityAtStart = accountId
     setLoading(true)
     setLoadError(null)
     void api.listAgents(controller.signal)
       .then((page) => {
-        if (!controller.signal.aborted && mounted.current) setAgents(page.agents)
+        if (!controller.signal.aborted && mounted.current && identityRef.current === identityAtStart) {
+          setAgents(page.agents)
+        }
       })
       .catch((error: unknown) => {
-        if (controller.signal.aborted || !mounted.current) return
+        if (controller.signal.aborted || !mounted.current || identityRef.current !== identityAtStart) return
         setLoadError(messageOf(error, 'Could not load agents.'))
       })
       .finally(() => {
-        if (!controller.signal.aborted && mounted.current) setLoading(false)
+        if (!controller.signal.aborted && mounted.current && identityRef.current === identityAtStart) setLoading(false)
       })
     return () => controller.abort()
-  }, [api, bootstrapping, isLoggedIn])
+  }, [api, accountId, bootstrapping, isLoggedIn])
 
   async function copyText(value: string) {
     try {
@@ -131,26 +157,28 @@ export function AgentsPage({
   }
 
   async function reload(signal?: AbortSignal) {
+    const identityAtStart = accountId
     const page = await api.listAgents(signal)
-    if (mounted.current) setAgents(page.agents)
+    if (mounted.current && identityRef.current === identityAtStart) setAgents(page.agents)
   }
 
   async function setPolicy(agent: AgentSummary, policy: AgentPolicy) {
     if (agent.policy === policy || busyId) return
+    const identityAtStart = accountId
     const previous = agent.policy
     setBusyId(agent.id)
     setRowError((current) => ({ ...current, [agent.id]: '' }))
     setAgents((current) => current.map((item) => item.id === agent.id ? { ...item, policy } : item))
     try {
       const next = await api.putAgentPolicy(agent.id, policy)
-      if (!mounted.current) return
+      if (!mounted.current || identityRef.current !== identityAtStart) return
       setAgents((current) => current.map((item) => item.id === agent.id ? { ...item, policy: next.policy } : item))
     } catch (error) {
-      if (!mounted.current) return
+      if (!mounted.current || identityRef.current !== identityAtStart) return
       setAgents((current) => current.map((item) => item.id === agent.id ? { ...item, policy: previous } : item))
       setRowError((current) => ({ ...current, [agent.id]: messageOf(error, 'Could not update the policy.') }))
     } finally {
-      if (mounted.current) setBusyId(null)
+      if (mounted.current && identityRef.current === identityAtStart) setBusyId(null)
     }
   }
 
@@ -159,6 +187,7 @@ export function AgentsPage({
       setOpenId(null)
       return
     }
+    const identityAtStart = accountId
     setOpenId(agent.id)
     setAudit([])
     setAuditError(null)
@@ -168,14 +197,14 @@ export function AgentsPage({
         api.listAgentAudit(agent.id),
         api.getAgentPolicy(agent.id),
       ])
-      if (!mounted.current) return
+      if (!mounted.current || identityRef.current !== identityAtStart) return
       setAudit(records.records)
       setAgents((current) => current.map((item) => item.id === agent.id ? { ...item, policy: policy.policy } : item))
     } catch (error) {
-      if (!mounted.current) return
+      if (!mounted.current || identityRef.current !== identityAtStart) return
       setAuditError(messageOf(error, 'Could not load the audit.'))
     } finally {
-      if (mounted.current) setAuditLoading(false)
+      if (mounted.current && identityRef.current === identityAtStart) setAuditLoading(false)
     }
   }
 
@@ -186,18 +215,19 @@ export function AgentsPage({
       confirmLabel: 'Revoke agent',
     })
     if (!accepted || !mounted.current) return
+    const identityAtStart = accountId
     setBusyId(agent.id)
     setRowError((current) => ({ ...current, [agent.id]: '' }))
     try {
       await api.revokeAgent(agent.id)
-      if (!mounted.current) return
+      if (!mounted.current || identityRef.current !== identityAtStart) return
       if (openId === agent.id) setOpenId(null)
       await reload()
     } catch (error) {
-      if (!mounted.current) return
+      if (!mounted.current || identityRef.current !== identityAtStart) return
       setRowError((current) => ({ ...current, [agent.id]: messageOf(error, 'Could not revoke this agent.') }))
     } finally {
-      if (mounted.current) setBusyId(null)
+      if (mounted.current && identityRef.current === identityAtStart) setBusyId(null)
     }
   }
 
@@ -208,20 +238,21 @@ export function AgentsPage({
       return
     }
     if (!issueIntent.current) issueIntent.current = `agent-key:${crypto.randomUUID()}`
+    const identityAtStart = accountId
     setIssuing(true)
     setKeyError(null)
     try {
       const next = await api.issueAgentKey(name, { intentId: issueIntent.current })
+      if (!mounted.current || identityRef.current !== identityAtStart) return
       issueIntent.current = null
-      if (!mounted.current) return
       setIssued(next)
       setKeyName('')
       await reload()
     } catch (error) {
-      if (!mounted.current) return
+      if (!mounted.current || identityRef.current !== identityAtStart) return
       setKeyError(messageOf(error, 'Could not issue a key.'))
     } finally {
-      if (mounted.current) setIssuing(false)
+      if (mounted.current && identityRef.current === identityAtStart) setIssuing(false)
     }
   }
 

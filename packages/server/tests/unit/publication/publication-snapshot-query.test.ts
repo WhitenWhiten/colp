@@ -121,6 +121,27 @@ test('public projection removes restricted nodes and their descendants while mem
   assert.equal(memberPage.projection, 'member');
 });
 
+test('public custom-root snapshots reject hide_public bookmarks instead of leaking their URL/title', async () => {
+  const hiddenRoot = node('hidden-root', {
+    parentId: null, isRoot: true, title: 'Secret bookmark', url: 'https://private.example/secret',
+    moderationHidden: true,
+  });
+  const reads: PublicationSnapshotReadPort = {
+    async loadPage() {
+      return {
+        isolation: 'repeatable read', comparatorVersion: 'parent-position-id-v1',
+        collection: collection({ rootNodeId: hiddenRoot.id }), root: hiddenRoot, candidates: [],
+      };
+    },
+  };
+  await assert.rejects(
+    () => getPublicationSnapshotPage(ports(reads), {
+      collectionId: 'c', principal: { kind: 'anonymous' }, query: { root: hiddenRoot.id, limit: 2 },
+    }),
+    PublicationNotFoundError,
+  );
+});
+
 test('publishes compact wire positions instead of leaking oversized internal position tokens', async () => {
   const internalPosition = '~'.repeat(512);
   const publicationPosition = '00000000000000000000';

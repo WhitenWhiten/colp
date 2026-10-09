@@ -22,7 +22,7 @@ describe('ColpClient per-hop egress policy', () => {
     const manifest = await fixture('public-manifest.json');
     const directory = await fixture('collection-directory.json');
     const calls: Array<{ url: string; context: ClientEgressPolicyContext }> = [];
-    const fetch = vi.fn(async (input: string | URL | Request) => {
+    const fetch = vi.fn(async (input: string | URL | Request, _init?: RequestInit) => {
       const url = new URL(input instanceof Request ? input.url : input.toString());
       return new Response(url.pathname === '/collections' ? directory : manifest, {
         headers: { 'Content-Type': 'application/json', ETag: '"egress-test"' },
@@ -48,6 +48,32 @@ describe('ColpClient per-hop egress policy', () => {
       url: 'https://alice.example/collections',
       context: { purpose: 'publication-read', method: 'GET', redirectCount: 0, mountId: 'default' },
     });
+  });
+
+  it('keeps DNS validation and address pinning when an explicit policy allows a host', async () => {
+    const manifest = await fixture('public-manifest.json');
+    const directory = await fixture('collection-directory.json');
+    const fetch = vi.fn(async (input: string | URL | Request, _init?: RequestInit) => {
+      const url = new URL(input instanceof Request ? input.url : input.toString());
+      return url.pathname === '/collections'
+        ? new Response(directory, { headers: { 'Content-Type': 'application/json', ETag: '"directory"' } })
+        : new Response(manifest, { headers: { 'Content-Type': 'application/json', ETag: '"manifest"' } });
+    });
+    const approved: string[] = [];
+    const client = new ColpClient({
+      manifestUrl,
+      fetch: fetch as typeof globalThis.fetch,
+      pinnedFetch: async (url, init, address) => {
+        if (address !== undefined) approved.push(address);
+        return fetch(url, init);
+      },
+      resolveHost: async () => ['93.184.216.34'],
+      egressPolicy: () => true,
+    });
+
+    await client.getDirectory();
+
+    expect(approved).toEqual(['93.184.216.34', '93.184.216.34']);
   });
 
   it('runs on every redirect hop with the previous URL before credentials and fetch', async () => {

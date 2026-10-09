@@ -329,4 +329,10 @@ describe(`Publication metadata and authorized-directory boundaries ${evidence}`,
       () => true,
     )).toThrow(TypeError);
   });
+
+  it('rejects an oversized string before structuredClone can duplicate it', () => {
+    const oversized = directoryCandidate({ title: 'x'.repeat(1_100_000) });
+    expect(() => selectPublicationAuthorizedDirectoryCandidates([oversized], () => true))
+      .toThrow(TypeError);
+  });
 });

@@ -149,6 +149,7 @@ export interface PortsHandle {
   loadCount(): number;
   readonly loadRequests: readonly Parameters<PublicationSnapshotReadPort['loadPage']>[0][];
   setFail(flag: boolean | (() => Error) | null): void;
+  setFresh(flag: boolean): void;
 }
 
 export function makePorts(
@@ -158,6 +159,7 @@ export function makePorts(
   let loads = 0;
   const loadRequests: Parameters<PublicationSnapshotReadPort['loadPage']>[0][] = [];
   let failure: (() => Error) | null = options.fail ?? null;
+  let fresh = true;
   const current = options.current ?? (() => collection());
   const baseReads = snapshotReadPort(records, current);
   const reads: PublicationSnapshotReadPort = {
@@ -167,6 +169,7 @@ export function makePorts(
       if (failure !== null) throw failure();
       return baseReads.loadPage(request);
     },
+    async isPublicCacheCurrent() { return fresh; },
   };
   const ports: PublicationSnapshotQueryPorts = {
     reads,
@@ -191,6 +194,7 @@ export function makePorts(
     },
     origin: ORIGIN,
     now: options.now ?? (() => NOW_DATE),
+    collectionControl: { async collectionControl() { return { hidePublic: false, restrictPublication: false }; } },
     sharedExposure: Object.freeze({ async listBlobFacts() { return []; } }),
   };
   return {
@@ -202,6 +206,7 @@ export function makePorts(
       else if (flag === false || flag === null) failure = null;
       else failure = flag;
     },
+    setFresh(flag) { fresh = flag; },
   };
 }
 

@@ -1211,6 +1211,45 @@ export class ColpClient {
     if (allowed !== true) {
       throw new TypeError(`Egress policy denied ${policy.purpose} request URL.`);
     }
+
+    // A caller policy is an additional destination allow-list; it must not
+    // replace the transport's DNS safety boundary. When the built-in Node
+    // transport is active, resolve every non-literal host after the caller
+    // approves it and pass one of the approved addresses to the pinned fetch.
+    // This closes the DNS-rebinding window that previously existed only when
+    // an explicit egressPolicy was supplied.
+    if (!isPrivateOrLocalLiteralHostname(url.hostname)
+        && this.#requiresDefaultNodePinning
+        && this.#hostResolver === undefined) {
+      throw new TypeError(
+        `Egress policy denied ${policy.purpose} request URL: Node DNS pinning capability is unavailable.`,
+      );
+    }
+    if (!isPrivateOrLocalLiteralHostname(url.hostname) && this.#hostResolver !== undefined) {
+      let addresses: readonly string[];
+      try {
+        addresses = await abortable(
+          Promise.resolve(this.#hostResolver(url.hostname, policy.signal)),
+          policy.signal,
+        );
+      } catch (error) {
+        throw new TypeError(
+          `Egress policy denied ${policy.purpose} request URL: DNS resolution failed.`,
+          { cause: error },
+        );
+      }
+      if (
+        addresses.length === 0
+        || addresses.some((address) => typeof address !== 'string'
+          || isIP(address) === 0
+          || isPrivateOrLocalAddress(address))
+      ) {
+        throw new TypeError(
+          `Egress policy denied ${policy.purpose} request URL: DNS resolved to a private or local address.`,
+        );
+      }
+      return addresses[0];
+    }
   }
 
   async #fetchWithRedirects(

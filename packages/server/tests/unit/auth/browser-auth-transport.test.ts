@@ -532,6 +532,19 @@ describe('browser auth transport', () => {
     }
   });
 
+  test('an unsolicited OIDC callback does not clear an existing browser session', async () => {
+    const { app } = createHarness();
+    apps.push(app);
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/v1/auth/oidc/callback?error=access_denied&state=attacker-state',
+      headers: { cookie: `${SESSION_COOKIE_NAME}=existing-session` },
+    });
+    assert.equal(response.statusCode, 303);
+    assert.equal(response.headers.location, '/login?auth=failed');
+    assert.doesNotMatch(String(response.headers['set-cookie'] ?? ''), new RegExp(SESSION_COOKIE_NAME));
+  });
+
   test('OIDC success sets session cookie; access_denied and replayed state fail closed', async () => {
     const { app, state, config, ports } = createHarness();
     apps.push(app);

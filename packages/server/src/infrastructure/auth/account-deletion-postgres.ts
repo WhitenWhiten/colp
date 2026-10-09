@@ -4,11 +4,23 @@ import type { DatabaseSchema } from '../database/runtime.js';
 import { createUnitOfWork, type UnitOfWorkOptions } from '../database/unit-of-work.js';
 import { createPostgresAccountRepository } from '../identity/repositories.js';
 import { deleteTrustDeviceVerificationsForAuthUser } from './better-auth-session-authority.js';
+import { createPostgresCollectionPolicyRevisionPort } from '../collections/policy-revision-port.js';
+
+export interface AccountDeletionPublicationCacheInvalidator {
+  readonly rotateCollection: (scope: Readonly<{
+    readonly collectionId: string;
+    readonly publicationSlug: string;
+    readonly signal: AbortSignal;
+  }>) => Promise<void>;
+  readonly rotateDirectory: (signal: AbortSignal) => Promise<void>;
+}
 
 /** All auth tables live in this database; FK cascades participate in the tombstone transaction. */
 export function createPostgresAccountDeletionStore(
   db: Kysely<DatabaseSchema>,
-  options: UnitOfWorkOptions & NonNullable<Parameters<typeof createPostgresAccountRepository>[1]> = {},
+  options: UnitOfWorkOptions
+    & NonNullable<Parameters<typeof createPostgresAccountRepository>[1]>
+    & { readonly publicationCacheInvalidator?: AccountDeletionPublicationCacheInvalidator } = {},
 ): AccountDeletionStore {
   const uow = createUnitOfWork(db, options);
   return {
@@ -40,6 +52,43 @@ export function createPostgresAccountDeletionStore(
           .where('state', '=', 'active')
           .execute();
         await deleteTrustDeviceVerificationsForAuthUser(transaction, authUserId);
+        // Public publication caches key their visibility by the collection
+        // policy epoch.  Advance every collection owned by this account while
+        // the account row is still active so anonymous snapshot, directory,
+        // and metadata cache entries cannot survive account deletion.
+        const policyRevisions = createPostgresCollectionPolicyRevisionPort(transaction, options);
+        const ownedCollections = await transaction
+          .selectFrom('collections')
+          .select(['id', 'publication_slug'])
+          .where('owner_subject_id', '=', account.subject_id)
+          .where('deleted_at', 'is', null)
+          .execute();
+        for (const collection of ownedCollections) {
+          const locked = await policyRevisions.lockForUpdate(collection.id);
+          if (locked !== null) await policyRevisions.bumpPolicyRevision(collection.id);
+          // Read the slug again after taking the collection lock. A publish or
+          // unpublish racing with account deletion must invalidate the slug
+          // that was authoritative at the deletion boundary, not the value
+          // observed by the unlocked owner scan above.
+          const current = locked === null
+            ? undefined
+            : await transaction.selectFrom('collections')
+              .select(['publication_slug', 'published_at'])
+              .where('id', '=', collection.id)
+              .executeTakeFirst();
+          if (current?.publication_slug !== null && current?.publication_slug !== undefined
+            && current.published_at !== null && current.published_at !== undefined
+            && options.publicationCacheInvalidator !== undefined) {
+            await options.publicationCacheInvalidator.rotateCollection({
+              collectionId: collection.id,
+              publicationSlug: current.publication_slug,
+              signal: new AbortController().signal,
+            });
+          }
+        }
+        if (ownedCollections.length > 0 && options.publicationCacheInvalidator !== undefined) {
+          await options.publicationCacheInvalidator.rotateDirectory(new AbortController().signal);
+        }
         await accounts.markDeleted(accountId, revokedAt);
         // Includes password/provider credentials, browser sessions, MFA and OAuth rows.
         await transaction.deleteFrom('auth_users').where('id', '=', authUserId).execute();

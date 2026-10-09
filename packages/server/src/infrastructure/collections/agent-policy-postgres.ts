@@ -2,11 +2,13 @@
  * Postgres adapter for E4 agent policy, trusted auto-approval, and Undo.
  */
 import { sql, type Kysely } from 'kysely';
+import { McpChangePlanError } from '@know-n/colp/mcp';
 import {
   appendAuditEvent,
   createPostgresMcpWriteApprovalPorts,
   createUnitOfWork,
   type DatabaseSchema,
+  type DatabaseTransaction,
 } from '../database/index.js';
 import type { RestoreCollectionVersionPorts } from '../../modules/collections/index.js';
 import {
@@ -177,13 +179,102 @@ export async function writeAgentPolicy(
   if (policy !== 'manual' && policy !== 'trusted') {
     throw new TypeError('Agent policy must be manual or trusted.');
   }
+  await createUnitOfWork(db).execute(({ transaction }) =>
+    writeAgentPolicyInTransaction(transaction, principalId, clientId, policy));
+  return { clientId, policy };
+}
+
+/**
+ * Commit guard used by the production MCP coordinator.  The Plan row is
+ * already locked by the coordinator; this lock is deliberately acquired next
+ * so policy changes and commits have one lock order.  A downgrade commits
+ * under the same order after locking all affected Plans, preventing an
+ * approved Plan from crossing the trusted -> manual boundary.
+ */
+export function createAgentPolicyCommitGuard(): (input: {
+  readonly planId: string;
+  readonly transaction: DatabaseTransaction;
+}) => Promise<void> {
+  return async ({ planId, transaction }) => {
+    const plan = await sql<{
+      principal_id: string;
+      client_id: string;
+      status: string;
+      decided_at: Date | null;
+    }>`
+      SELECT plan.principal_id, plan.client_id, plan.status,
+             approval.decided_at
+      FROM mcp_change_plans plan
+      LEFT JOIN mcp_approvals approval ON approval.plan_id = plan.plan_id
+      WHERE plan.plan_id = ${planId}
+      FOR UPDATE OF plan
+    `.execute(transaction);
+    const row = plan.rows[0];
+    if (row === undefined) return;
+
+    // Missing policy means manual approval and remains valid.  When a policy
+    // row was changed after this approval, however, manual is the result of a
+    // downgrade and the old approval must fail closed.  The policy row lock
+    // serializes this read with writeAgentPolicy's downgrade transaction.
+    const policy = await sql<{ policy: AgentPolicyName; updated_after_approval: boolean }>`
+      SELECT policy, (updated_at > ${row.decided_at}) AS updated_after_approval
+      FROM agent_policies
+      WHERE principal_id = ${row.principal_id} AND client_id = ${row.client_id}
+      FOR UPDATE
+    `.execute(transaction);
+    const current = policy.rows[0];
+    if (
+      row.status === 'approved'
+      && row.decided_at !== null
+      && current?.policy === 'manual'
+      && current.updated_after_approval === true
+    ) {
+      throw new McpChangePlanError(
+        'plan_cancelled',
+        'The agent policy changed after this approval; create a new Plan.',
+      );
+    }
+  };
+}
+
+async function writeAgentPolicyInTransaction(
+  transaction: DatabaseTransaction,
+  principalId: string,
+  clientId: string,
+  policy: AgentPolicyName,
+): Promise<void> {
+  // Lock Plans before the policy row.  Commit takes the Plan lock first and
+  // then the policy lock, so a concurrent downgrade cannot deadlock or pass a
+  // stale approved Plan through the policy boundary.
+  await sql`
+    SELECT plan_id
+    FROM mcp_change_plans
+    WHERE principal_id = ${principalId}
+      AND client_id = ${clientId}
+      AND status IN ('pending', 'approved')
+    FOR UPDATE
+  `.execute(transaction);
+  const previous = await sql<{ policy: AgentPolicyName }>`
+    SELECT policy
+    FROM agent_policies
+    WHERE principal_id = ${principalId} AND client_id = ${clientId}
+    FOR UPDATE
+  `.execute(transaction);
   await sql`
     INSERT INTO agent_policies (principal_id, client_id, policy, updated_at)
     VALUES (${principalId}, ${clientId}, ${policy}, current_timestamp)
     ON CONFLICT (principal_id, client_id) DO UPDATE
       SET policy = EXCLUDED.policy, updated_at = current_timestamp
-  `.execute(db);
-  return { clientId, policy };
+  `.execute(transaction);
+  if (previous.rows[0]?.policy === 'trusted' && policy === 'manual') {
+    await sql`
+      UPDATE mcp_change_plans
+      SET status = 'cancelled', updated_at = current_timestamp
+      WHERE principal_id = ${principalId}
+        AND client_id = ${clientId}
+        AND status IN ('pending', 'approved')
+    `.execute(transaction);
+  }
 }
 
 async function undoApprovedPlan(

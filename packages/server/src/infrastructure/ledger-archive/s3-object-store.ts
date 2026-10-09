@@ -34,6 +34,7 @@ export interface LedgerArchiveS3ReaderOptions {
 export interface LedgerArchiveS3StoreOptions extends LedgerArchiveS3ReaderOptions {
   readonly writerCredential: LedgerArchiveS3Credential;
   readonly writerClient?: S3CommandClient;
+  /** Legacy AES256 is rejected at runtime; archives require customer-managed KMS. */
   readonly serverSideEncryption?: 'AES256' | 'aws:kms';
   readonly kmsKeyId?: string;
 }
@@ -62,6 +63,10 @@ export function createS3LedgerArchiveObjectStore(options: LedgerArchiveS3StoreOp
   validateCommon(options);
   validateCredential(options.readerCredential, 'reader');
   validateCredential(options.writerCredential, 'writer');
+  validateKmsKeyId(options.kmsKeyId);
+  if (options.serverSideEncryption !== undefined && options.serverSideEncryption !== 'aws:kms') {
+    throw new RangeError('archive_sse_must_use_kms');
+  }
   if (options.readerCredential.accessKeyId === options.writerCredential.accessKeyId
       || options.readerCredential.secretAccessKey === options.writerCredential.secretAccessKey) {
     throw new RangeError('archive_s3_reader_credential_must_be_distinct');
@@ -77,7 +82,10 @@ export function createS3LedgerArchiveObjectStore(options: LedgerArchiveS3StoreOp
       if (digest !== digestFromLedgerArchiveObjectKey(input.key)) {
         throw new LedgerArchiveObjectStoreError('precondition_failed', 'archive_key_digest_mismatch', 'Archive key does not match the declared digest.');
       }
-      const encryption = options.serverSideEncryption ?? 'AES256';
+      const encryption = options.serverSideEncryption ?? 'aws:kms';
+      if (input.kmsKeyId !== options.kmsKeyId) {
+        throw new LedgerArchiveObjectStoreError('precondition_failed', 'archive_kms_key_mismatch', 'Archive object KMS key does not match the configured archive key.');
+      }
       const signal = timeoutSignal(options.timeoutMs, input.signal);
       try {
         ensureNotAborted(signal);
@@ -94,9 +102,7 @@ export function createS3LedgerArchiveObjectStore(options: LedgerArchiveS3StoreOp
             'ledger-archive-schema': '1',
           },
           ServerSideEncryption: encryption,
-          ...(encryption === 'AES256'
-            ? {}
-            : { SSEKMSKeyId: options.kmsKeyId ?? input.kmsKeyId }),
+          SSEKMSKeyId: options.kmsKeyId,
         }), { abortSignal: signal }) as S3Response;
         ensureNotAborted(signal);
         return Object.freeze({
@@ -218,8 +224,10 @@ async function* boundedS3Body(
 function identityFromResponse(bucket: string, key: string, response: S3Response): LedgerArchiveObjectIdentity {
   const rawDigest = response.Metadata?.['ledger-archive-sha256'];
   const kmsKeyId = response.Metadata?.['ledger-archive-kms-key-id'] ?? response.SSEKMSKeyId;
-  if (!Number.isSafeInteger(response.ContentLength) || response.ContentLength! < 0
+  if (response.ServerSideEncryption !== 'aws:kms'
+      || !Number.isSafeInteger(response.ContentLength) || response.ContentLength! < 0
       || typeof rawDigest !== 'string' || typeof kmsKeyId !== 'string'
+      || typeof response.SSEKMSKeyId !== 'string' || response.SSEKMSKeyId !== kmsKeyId
       || response.Metadata?.['ledger-archive-schema'] !== '1') {
     throw new LedgerArchiveObjectStoreError('corrupt', 'archive_head_binding_missing', 'Archive object binding metadata is missing.');
   }
@@ -247,6 +255,12 @@ function validateCommon(options: LedgerArchiveS3ReaderOptions): void {
 function validateCredential(value: LedgerArchiveS3Credential, label: string): void {
   if (!value || value.accessKeyId.length < 1 || value.secretAccessKey.length < 1) {
     throw new RangeError(`archive_s3_${label}_credential_invalid`);
+  }
+}
+
+function validateKmsKeyId(value: string | undefined): asserts value is string {
+  if (typeof value !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9:/_.-]{0,255}$/u.test(value)) {
+    throw new RangeError('archive_kms_key_id_invalid');
   }
 }
 

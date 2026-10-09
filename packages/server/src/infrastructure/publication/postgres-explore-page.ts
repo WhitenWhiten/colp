@@ -92,6 +92,12 @@ export function buildExplorePageStatement(
     'c.publication_slug is not null',
     'c.published_at is not null',
     `c.visibility = 'public'`,
+    // Publication must end when the owning account is disabled or deleted;
+    // otherwise an owner lifecycle transition leaves the collection in Explore.
+    `exists (select 1 from accounts owner_account
+              where owner_account.subject_id = c.owner_subject_id
+                and owner_account.status = 'active'
+                and owner_account.deleted_at is null)`,
     COLLECTION_DELIST_CONTROL_SQL,
   ];
   if (request.filter.tag) {

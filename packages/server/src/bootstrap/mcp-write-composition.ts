@@ -1,5 +1,10 @@
 import { recordMcpDeleteSubtreeTombstones } from '../infrastructure/sync/index.js';
-import { createMcpNodePlanState, createPostgresAutoApproveTrustedPlan, recordMcpPlanCommitRevisions } from '../infrastructure/collections/index.js';
+import {
+  createAgentPolicyCommitGuard,
+  createMcpNodePlanState,
+  createPostgresAutoApproveTrustedPlan,
+  recordMcpPlanCommitRevisions,
+} from '../infrastructure/collections/index.js';
 import { randomUUID } from 'node:crypto';
 import type { Kysely } from 'kysely';
 import type {
@@ -168,7 +173,12 @@ export function createPhase4bMcpWriteComposition(
   const approvalStore = store.approvalStore as unknown as McpApprovalStorePort;
   const commitApprovalStore = wrapCommitApprovalStore(
     store.commitApprovalStore as unknown as McpChangePlanCommitApprovalStorePort<DatabaseTransaction>,
-    options.beforeBeginCommit,
+    async (input) => {
+      if (options.beforeBeginCommit !== undefined) {
+        await options.beforeBeginCommit(input);
+      }
+      await createAgentPolicyCommitGuard()(input);
+    },
   );
   const canonicalUnitOfWork = createPostgresCanonicalMutationUnitOfWork(options.db, {
     ...(options.metrics ? { metrics: options.metrics } : {}),

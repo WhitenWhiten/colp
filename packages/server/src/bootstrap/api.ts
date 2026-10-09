@@ -307,6 +307,9 @@ export async function startApi(options: StartApiOptions = {}): Promise<StartedAp
   const accounts = composeApiAccountServices({
     accountDeletionStore: createPostgresAccountDeletionStore(database.db, {
       ...(ports.reportSourceInvalidation === undefined ? {} : { reportSourceInvalidation: ports.reportSourceInvalidation }),
+      ...(cacheComposition.publicationCacheInvalidator === undefined
+        ? {}
+        : { publicationCacheInvalidator: cacheComposition.publicationCacheInvalidator }),
     }),
     config,
     identityUnitOfWork: ports.identityUnitOfWork,

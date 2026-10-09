@@ -69,6 +69,9 @@ test('loads detached collection, root, and limit+1 candidates in a fresh read-on
   assert.equal(page.isolation, 'repeatable read');
   assert.equal(page.collection?.publicationSlug, 'collection-one');
   assert.equal(page.root?.id, 'root-1');
+  const collectionCall = harness.calls.find((call) => call.sql.includes('from collections'));
+  assert.match(collectionCall?.sql ?? '', /owner_account\.status = 'active'/u);
+  assert.match(collectionCall?.sql ?? '', /owner_account\.deleted_at is null/u);
   assert.deepEqual(page.candidates.map((node) => node.id), ['node-1']);
   assert.equal(Object.isFrozen(page), true);
   assert.equal(Object.isFrozen(page.candidates[0]?.tags), true);

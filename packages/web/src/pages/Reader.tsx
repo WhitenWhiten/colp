@@ -39,8 +39,13 @@ import { productName } from '../lib/edition'
 import '../styles/not-found.css'
 import '../styles/reader.css'
 
-function loadNote(id: string) {
-  try { return localStorage.getItem(`known.reader.note.${id}`) ?? '' } catch { return '' }
+/**
+ * Legacy reader notes are a compatibility fallback for the demo surface.
+ * Keep them in React state only: a browser-persistent key cannot be safely
+ * associated with the current account and would survive an account switch.
+ */
+function loadNote(_id: string): string {
+  return ''
 }
 
 function annotationsAcceptanceCandidate(): boolean {
@@ -290,7 +295,6 @@ export function Reader() {
   useEffect(() => {
     if (annotationsEnabled) return
     const timer = window.setTimeout(() => {
-      try { localStorage.setItem(`known.reader.note.${resourceId}`, legacyNote) } catch { /* demo-only storage */ }
       setLegacySaved(true)
     }, 350)
     return () => window.clearTimeout(timer)
@@ -647,7 +651,7 @@ export function Reader() {
             <section className="reader-panel reader-note-panel">
               <div className="reader-panel-head">
                 <h3 className="section-label">Private note</h3>
-                <span className="reader-panel-status">{legacySaved ? 'Saved locally' : 'Saving'}</span>
+                <span className="reader-panel-status">{legacySaved ? 'Saved in this tab' : 'Saving'}</span>
               </div>
               {/* R9-31: the legacy local-note branch keeps its own
                   .reader-note-panel chrome but still gets the .field wrap and

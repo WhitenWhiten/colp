@@ -18,6 +18,7 @@ test('S3 adapter sends create-only PUT, encryption metadata, HEAD, and bounded G
     commands.push(command);
     const common = {
       ContentLength: bytes.byteLength, ETag: '"provider"',
+      ServerSideEncryption: 'aws:kms', SSEKMSKeyId: 'kms:key',
       Metadata: {
         'ledger-archive-sha256': digest.slice(7), 'ledger-archive-kms-key-id': 'kms:key',
         'ledger-archive-schema': '1',
@@ -53,6 +54,7 @@ test('S3 adapter classifies create conflict and missing/corrupt HEAD stably', as
     readerCredential: { accessKeyId: 'reader', secretAccessKey: 'reader-secret' },
     writerCredential: { accessKeyId: 'writer', secretAccessKey: 'writer-secret' },
     writerClient: precondition, client: precondition,
+    kmsKeyId: 'kms:key',
   };
   const store = createS3LedgerArchiveObjectStore(options);
   const emptyDigest = `sha256:${createHash('sha256').update(Buffer.alloc(0)).digest('hex')}`;

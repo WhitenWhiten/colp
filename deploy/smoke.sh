@@ -36,6 +36,9 @@ fi
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 repo_root=$(cd "${script_dir}/.." && pwd)
 manifest_path='/.well-known/collection-protocol'
+# Smoke endpoints are expected to be tiny JSON documents. Keep a compromised
+# endpoint from making the deployment probe retain an unbounded response.
+max_response_bytes=$((1024 * 1024))
 
 tmp=$(mktemp -d)
 trap 'rm -rf "${tmp}"' EXIT
@@ -44,11 +47,25 @@ fetch() {
   local name=$1
   local url=$2
   local body=$3
-  local status
-  if ! status=$(curl -sS -o "${body}" -w '%{http_code}' --max-time 20 -- "${url}"); then
+  local status curl_status
+  local headers="${body}.headers"
+  # Stream through a bounded reader so chunked responses cannot bypass
+  # --max-filesize (which only has a pre-download guarantee with a
+  # Content-Length header). Keep one byte of look-ahead to detect overflow.
+  set +e
+  curl -sS --max-filesize "${max_response_bytes}" -D "${headers}" -o - --max-time 20 -- "${url}" \
+    | head -c "$((max_response_bytes + 1))" > "${body}"
+  curl_status=${PIPESTATUS[0]}
+  set -e
+  if [[ $(wc -c < "${body}") -gt ${max_response_bytes} ]]; then
+    echo "smoke: ${name} response exceeds ${max_response_bytes} bytes: ${url}" >&2
+    exit 1
+  fi
+  if [[ ${curl_status} -ne 0 ]]; then
     echo "smoke: ${name} request failed: ${url}" >&2
     exit 1
   fi
+  status=$(awk '$1 ~ /^HTTP\// { code=$2 } END { print code }' "${headers}")
   if [[ ${status} != '200' ]]; then
     echo "smoke: ${name} returned HTTP ${status}: ${url}" >&2
     exit 1

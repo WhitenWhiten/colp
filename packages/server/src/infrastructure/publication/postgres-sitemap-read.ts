@@ -44,6 +44,12 @@ export function buildPublicationSitemapStatement(): {
               and c.publication_slug is not null
               and c.published_at is not null
               and c.visibility = $1
+              and exists (
+                select 1 from accounts owner_account
+                 where owner_account.subject_id = c.owner_subject_id
+                   and owner_account.status = 'active'
+                   and owner_account.deleted_at is null
+              )
               and c.allow_search_indexing
               and ${SEED_COLLECTION_EXCLUSION_SQL}
               and ${COLLECTION_DISCOVERY_CONTROL_SQL}

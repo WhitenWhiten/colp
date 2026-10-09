@@ -1,5 +1,5 @@
 import { applyOAuthOccupancyAdoptToAdapter } from './better-auth-occupancy-adapter.js';
-import { ALREADY_REGISTERED_SIGNUP_ERROR, applySignupOtpSendDeliveryToAdapter, completeExplicitSignupEmailOtp } from './better-auth-signup-otp.js';
+import { applySignupOtpSendDeliveryToAdapter, completeExplicitSignupEmailOtp } from './better-auth-signup-otp.js';
 import { createCimdClientDiscovery, type CimdOptions } from '@better-auth/cimd';
 import { mcp } from '@better-auth/mcp';
 import { extendOAuthProvider } from '@better-auth/oauth-provider';
@@ -687,6 +687,53 @@ function colpRegistrationStatePlugin(): BetterAuthPlugin {
   };
 }
 
+/**
+ * BA endpoints that authenticate a browser session and then mutate identity
+ * or mint an authorization artifact. Keep this list explicit: endpoints that
+ * are public (sign-in, OTP send, verification links) must not require a
+ * product session, while every identity mutation must fail closed when the
+ * product session metadata has been revoked or its account epoch changed.
+ */
+const PRODUCT_SESSION_AUTHENTICATED_PATHS = new Set([
+  '/oauth2/authorize',
+  '/email-otp/request-email-change',
+  '/email-otp/change-email',
+]);
+
+async function assertProductSessionActive(
+  ctx: Parameters<typeof getAuthoritativeSessionFromCtx>[0],
+  db: Kysely<DatabaseSchema>,
+): Promise<void> {
+  // User before hooks run before the endpoint itself loads its session. The
+  // Better Auth helper still resolves the carrier from the request context;
+  // if it cannot, fail closed instead of silently bypassing product revocation.
+  const session = await getAuthoritativeSessionFromCtx(ctx);
+  const candidate = session?.session.id;
+  if (typeof candidate !== 'string' || candidate.length === 0) {
+    throw APIError.from('UNAUTHORIZED', {
+      code: 'session_context_unavailable',
+      message: 'The browser session could not be verified.',
+    });
+  }
+  const row = await db.selectFrom('known_auth_session_metadata')
+    .select(['revoked_at', 'security_epoch', 'account_id'])
+    .where('auth_session_id', '=', candidate)
+    .executeTakeFirst();
+  if (!row || row.revoked_at !== null) {
+    throw APIError.from('UNAUTHORIZED', {
+      code: 'session_revoked', message: 'The browser session is no longer valid.',
+    });
+  }
+  const account = await db.selectFrom('accounts').select(['security_epoch', 'status', 'deleted_at'])
+    .where('id', '=', row.account_id).executeTakeFirst();
+  if (!account || account.status !== 'active' || account.deleted_at !== null
+      || BigInt(account.security_epoch) !== BigInt(row.security_epoch)) {
+    throw APIError.from('UNAUTHORIZED', {
+      code: 'session_revoked', message: 'The browser session is no longer valid.',
+    });
+  }
+}
+
 function buildProductAuthHooks(input: {
   readonly onPasswordChanged?: BetterAuthRuntimeInput<never>['onPasswordChanged'];
   readonly onOAuthOccupancyAdopted?: BetterAuthRuntimeInput<never>['onOAuthOccupancyAdopted'];
@@ -711,39 +758,14 @@ function buildProductAuthHooks(input: {
       // security-epoch state in known_auth_session_metadata. Re-check that
       // authoritative row before issuing an authorization code so a cookie
       // accepted by BA cannot survive product-side session revocation.
-      if (ctx.path === '/oauth2/authorize' && input.db !== undefined) {
-        // User before hooks run before the OAuth endpoint loads its session.
-        const session = await getAuthoritativeSessionFromCtx(ctx);
-        const candidate = session?.session.id;
-        // The session id is the binding between Better Auth's cookie and the
-        // product revocation/epoch table. If the hook context does not expose
-        // it, fail closed instead of silently bypassing the authoritative
-        // session check.
-        if (typeof candidate !== 'string' || candidate.length === 0) {
-          throw APIError.from('UNAUTHORIZED', {
-            code: 'session_context_unavailable',
-            message: 'The browser session could not be verified.',
-          });
-        }
-        {
-          const row = await input.db.selectFrom('known_auth_session_metadata')
-            .select(['revoked_at', 'security_epoch', 'account_id'])
-            .where('auth_session_id', '=', candidate)
-            .executeTakeFirst();
-          if (!row || row.revoked_at !== null) {
-            throw APIError.from('UNAUTHORIZED', {
-              code: 'session_revoked', message: 'The browser session is no longer valid.',
-            });
-          }
-          const account = await input.db.selectFrom('accounts').select(['security_epoch', 'status'])
-            .where('id', '=', row.account_id).executeTakeFirst();
-          if (!account || account.status !== 'active'
-              || BigInt(account.security_epoch) !== BigInt(row.security_epoch)) {
-            throw APIError.from('UNAUTHORIZED', {
-              code: 'session_revoked', message: 'The browser session is no longer valid.',
-            });
-          }
-        }
+      // Better Auth's own session carrier can outlive a product session row
+      // (rotation, idle expiry, explicit revoke, or account disable). Every
+      // identity-mutating endpoint must consult the product authority before
+      // Better Auth performs the mutation. The check used to cover only the
+      // OAuth authorize endpoint, which left email-OTP change-email capable
+      // of mutating a revoked browser session.
+      if (input.db !== undefined && PRODUCT_SESSION_AUTHENTICATED_PATHS.has(ctx.path)) {
+        await assertProductSessionActive(ctx, input.db);
       }
       // OAuth Provider 1.7.1 dispatches registered backchannel logout URIs
       // with the process-global fetch.  It has no egress injection seam, so
@@ -811,9 +833,10 @@ function buildProductAuthHooks(input: {
         return completeExplicitSignupEmailOtp(ctx, otpMaxAttempts);
       }
       if (ctx.path !== '/email-otp/send-verification-otp') return;
-      // P6: Register already-registered copy is an accepted enumeration oracle.
-      // Login omits this header and must stay non-enumerating (byte-identical
-      // 200). auth-local-flows pins both sides of the split.
+      // P6: signup intent must not turn the send endpoint into an email
+      // enumeration oracle. Login and registration sends use the same
+      // successful response shape; the explicit signup verification step
+      // still refuses to create a second account after mailbox proof.
       if (!signupIntent) return;
       const existingUsers = await ctx.context.adapter.count({ model: 'user' });
       if (!isColpMultiUser() && existingUsers > 0) {
@@ -837,7 +860,10 @@ function buildProductAuthHooks(input: {
       const email = body.email.trim().toLowerCase();
       const existing = await ctx.context.internalAdapter.findUserByEmail(email);
       if (existing?.user) {
-        throw APIError.from('UNPROCESSABLE_ENTITY', ALREADY_REGISTERED_SIGNUP_ERROR);
+        // Let Better Auth complete its normal successful send response. The
+        // mailbox may receive a login OTP, but the HTTP surface remains
+        // indistinguishable from an unregistered address.
+        return;
       }
       // P2: emailOTP disableSignUp skips delivery for unknown mailboxes.
       // Register send still needs the OTP minted and delivered; occupancy

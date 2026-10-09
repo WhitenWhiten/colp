@@ -68,7 +68,7 @@ export async function getProductRelation(ports: ProductRelationReadPorts, input:
     ports.reads.loadLiveNode({ collectionId: input.collectionId, nodeId: row.toNodeId }),
   ]);
   if (!from || !to || !canRead(row, facts, input.actor.subjectId, from, to)) throw notFound();
-  return toProductRelationView(row.payload);
+  return toProductRelationView(row.payload, !isMemberProjection(facts, input.actor.subjectId));
 }
 
 export async function getProductRelationPage(ports: ProductRelationReadPorts, input: {
@@ -118,20 +118,30 @@ export async function getProductRelationPage(ports: ProductRelationReadPorts, in
     comparatorVersion: PRODUCT_RELATION_COMPARATOR_VERSION, policyRevision: facts.policyRevision,
     after: { updatedAt: formatUtcDateTime(last.updatedAt), id: last.id }, issuedAt, expiresAt,
   }) : null;
-  return Object.freeze({ relations: Object.freeze(visible.map((row) => toProductRelationView(row.payload))),
+  const publicProjection = !isMemberProjection(facts, input.actor.subjectId);
+  return Object.freeze({ relations: Object.freeze(visible.map((row) => toProductRelationView(row.payload, publicProjection))),
     page: Object.freeze({ returnedCount: visible.length, hasMore, nextCursor }) });
 }
 
-export function toProductRelationView(payload: Readonly<Relation>): ProductRelationView {
+export function toProductRelationView(
+  payload: Readonly<Relation>,
+  publicProjection = false,
+): ProductRelationView {
   return Object.freeze({ id: payload.id, collectionId: payload.collectionId, fromNodeId: payload.fromNodeId,
     toNodeId: payload.toNodeId, type: payload.type, label: payload.label ?? null,
     visibility: payload.visibility, revision: payload.revision, createdAt: payload.createdAt,
-    updatedAt: payload.updatedAt, extensions: Object.freeze({ ...(payload.extensions ?? {}) }) });
+    updatedAt: payload.updatedAt,
+    // Relation extension namespaces may contain internal graph metadata. Keep
+    // them for members/owners, but use an empty public projection for outsiders.
+    extensions: Object.freeze(publicProjection ? {} : { ...(payload.extensions ?? {}) }) });
 }
 
 async function factsFor(ports: ProductRelationReadPorts, collectionId: string, subjectId: string) {
   const facts = await ports.accessPolicy.loadCollectionFacts({ collectionId, actorSubjectId: subjectId });
   if (!facts || facts.deleted || !collectionVisible(facts, subjectId)) throw notFound(); return facts;
+}
+function isMemberProjection(facts: ResourcePolicyFacts, actorSubjectId: string): boolean {
+  return facts.ownerSubjectId === actorSubjectId || facts.membershipRole !== null;
 }
 function collectionVisible(facts: ResourcePolicyFacts, subjectId: string) {
   return facts.ownerSubjectId === subjectId || facts.membershipRole !== null
