@@ -122,6 +122,11 @@ export function readHostPlanner(
   if (plan === undefined || !('value' in plan) || typeof plan.value !== 'function') {
     throw new TypeError('planner.plan must be an own data function.');
   }
-  const planFunction = plan.value as (request: unknown, binding: McpAuthenticatedAuthorizationBinding) => unknown;
-  return async (request, binding) => Reflect.apply(planFunction, planner, [request, binding]) as ChangePlan;
+  const planFunction = plan.value as (
+    request: unknown,
+    binding: McpAuthenticatedAuthorizationBinding,
+    authorizedScopes?: readonly string[],
+  ) => unknown;
+  return async (request, binding, authorizedScopes) =>
+    Reflect.apply(planFunction, planner, [request, binding, authorizedScopes]) as ChangePlan;
 }
