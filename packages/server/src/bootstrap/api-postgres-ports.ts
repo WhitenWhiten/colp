@@ -100,6 +100,7 @@ import {
   createPostgresPublishingInsightsDashboardPort,
   createPostgresSearchCatalogDisplayTargetPort,
   createVisitorHashPort,
+  createPostgresPublicationCollectionControlPort,
 } from '../infrastructure/publication/index.js';
 import { createPostgresAccessPolicyFactsPort } from '../infrastructure/access-policy/index.js';
 import { createWebShellCache, toPublicShellMarkdownNode } from '../infrastructure/http/index.js';
@@ -147,6 +148,9 @@ export interface ApiPostgresPorts {
   readonly accessPolicyFacts: ReturnType<typeof createPostgresAccessPolicyFactsPort>;
   readonly publicationDirectoryReads: ReturnType<typeof createPostgresPublicationDirectoryReadPort>;
   readonly publicationMetadataReads: ReturnType<typeof createPostgresPublicationMetadataReadPort>;
+  readonly publicationCollectionControl: {
+    readonly collectionControl: (collectionId: string) => Promise<{ readonly hidePublic: boolean }>;
+  };
   readonly publicationSnapshotQuery: {
     readonly reads: ReturnType<typeof createPostgresPublicationSnapshotReadPort>;
     readonly annotations: ReturnType<typeof createPostgresPublicationAnnotationReadPort>;
@@ -268,6 +272,7 @@ export function createApiPostgresPorts(input: {
   const accessPolicyFacts = createPostgresAccessPolicyFactsPort(database.db);
   const publicationDirectoryReads = createPostgresPublicationDirectoryReadPort(database);
   const publicationMetadataReads = createPostgresPublicationMetadataReadPort(database);
+  const publicationCollectionControl = createPostgresPublicationCollectionControlPort(database);
   const publicationSnapshotQuery = {
     reads: createPostgresPublicationSnapshotReadPort(database),
     annotations: createPostgresPublicationAnnotationReadPort(database, {
@@ -278,6 +283,7 @@ export function createApiPostgresPorts(input: {
     cursors: publicationCursorKeys,
     origin: config.publication.origin,
     sharedExposure: createPostgresSharedExposureFactsPort(database),
+    collectionControl: publicationCollectionControl,
   };
   const ownedCollectionsQueryPorts = {
     reads: createPostgresOwnedCollectionsReadPort(database.db),
@@ -325,6 +331,7 @@ export function createApiPostgresPorts(input: {
     accessPolicyFacts,
     publicationDirectoryReads,
     publicationMetadataReads,
+    publicationCollectionControl,
     publicationSnapshotQuery,
     ownedCollectionsQueryPorts,
     sharedCollectionsQueryPorts,
@@ -395,6 +402,7 @@ export function createApiPostgresAppDependencies(input: {
     publicationMetadataQuery: {
       reads: ports.publicationMetadataReads,
       origin: config.publication.origin,
+      collectionControl: ports.publicationCollectionControl,
     },
     publicationSitemapQuery: createPostgresPublicationSitemapReadPort(database),
     profileSitemapQuery: composeProfileSitemapQuery({

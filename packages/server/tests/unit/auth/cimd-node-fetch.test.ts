@@ -70,3 +70,26 @@ test('CIMD transport refuses HTTP, POST, and hardened-egress denials without ech
     return true;
   });
 });
+
+
+test('CIMD rejects oversized declared and streamed metadata bodies', async () => {
+  let cancelled = false;
+  const declared = createProductionCimdFetch(async () => new Response(new ReadableStream({
+    cancel() { cancelled = true; },
+  }), { headers: { 'content-length': String(65_537) } }));
+  await assert.rejects(declared(PUBLIC_CIMD), /byte limit/);
+  assert.equal(cancelled, true);
+  const streamed = createProductionCimdFetch(async () => new Response(new ReadableStream({
+    start(controller) { controller.enqueue(new Uint8Array(65_537)); },
+  })));
+  const response = await streamed(PUBLIC_CIMD);
+  await assert.rejects(response.text(), /byte limit/);
+});
+
+test('CIMD body completion retains the outbound deadline', async () => {
+  const stalled = createProductionCimdFetch(async () => new Response(new ReadableStream({
+    start(controller) { controller.enqueue(new TextEncoder().encode('{')); },
+  })), { timeoutMs: 15 });
+  const response = await stalled(PUBLIC_CIMD);
+  await assert.rejects(response.text(), (error: unknown) => error instanceof DOMException && error.name === 'TimeoutError');
+});

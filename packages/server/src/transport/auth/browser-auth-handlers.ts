@@ -684,7 +684,10 @@ export function registerAvatarRoutes(app: FastifyInstance, deps: BrowserAuthDeps
     }
     return reply
       .header('content-type', stored.contentType)
-      .header('cache-control', 'public, max-age=31536000, immutable')
+      // Publication restriction can be revoked independently of the object
+      // bytes. An immutable one-year response lets shared caches continue to
+      // serve an avatar after restrict_publication is applied.
+      .header('cache-control', 'public, max-age=30, must-revalidate')
       .header('x-content-type-options', 'nosniff')
       .header('Cross-Origin-Resource-Policy', 'cross-origin')
       .send(stored.body);

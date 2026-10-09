@@ -149,6 +149,12 @@ export function parseExportR2Config(env: NodeJS.ProcessEnv, prefix: string): Exp
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
     throw new Error('EXPORT_R2_ENDPOINT must be an http(s) URL');
   }
+  // Export archives contain complete private collections. A plaintext
+  // endpoint is acceptable for local development, but production must never
+  // put S3 credentials or archive bytes on an unauthenticated transport.
+  if (env.NODE_ENV === 'production' && parsed.protocol !== 'https:') {
+    throw new Error('EXPORT_R2_ENDPOINT must use https in production');
+  }
   const region = requireNonEmpty(env, 'EXPORT_R2_REGION');
   const bucket = requireNonEmpty(env, 'EXPORT_R2_BUCKET');
   const accessKeyId = requireNonEmpty(env, 'EXPORT_R2_ACCESS_KEY_ID');

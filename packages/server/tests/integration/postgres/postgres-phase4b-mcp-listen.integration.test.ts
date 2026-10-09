@@ -570,12 +570,10 @@ describeWithPostgres('Phase 4B R11 MCP listen over committed Outbox projection',
         await reader.next(),
         await reader.next(),
         await reader.next(),
-        await reader.next(),
-        await reader.next(),
       ];
       const methods = hints.map((hint) => hint?.method);
       assert.equal(methods.includes('notifications/resources/updated'), true);
-      assert.equal(methods.includes('notifications/resources/list_changed'), true);
+      assert.equal(methods.includes('notifications/resources/list_changed'), false);
       const uris = hints
         .filter((hint) => hint?.method === 'notifications/resources/updated')
         .map((hint) => hint?.params?.uri)
@@ -680,13 +678,6 @@ describeWithPostgres('Phase 4B R11 MCP listen over committed Outbox projection',
         },
       });
       assert.equal(await makeWorker().runOnce(), true);
-      const privateSignal = await reader.next();
-      assert.equal(privateSignal?.method, 'notifications/resources/list_changed');
-      assert.equal(
-        privateSignal?.params?.uri,
-        undefined,
-        'private Resource URI must not be written to SSE',
-      );
       await assert.rejects(() => reader.next(150), /timed out/);
 
       await insertOutbox({
@@ -705,13 +696,6 @@ describeWithPostgres('Phase 4B R11 MCP listen over committed Outbox projection',
         },
       });
       assert.equal(await makeWorker().runOnce(), true);
-      const privateNodeSignal = await reader.next();
-      assert.equal(privateNodeSignal?.method, 'notifications/resources/list_changed');
-      assert.equal(
-        privateNodeSignal?.params?.uri,
-        undefined,
-        'private node Resource URI must not be written to SSE',
-      );
       await assert.rejects(() => reader.next(150), /timed out/);
 
       await insertOutbox({
@@ -750,8 +734,6 @@ describeWithPostgres('Phase 4B R11 MCP listen over committed Outbox projection',
         await reader.next(),
         await reader.next(),
         await reader.next(),
-        await reader.next(),
-        await reader.next(),
       ];
       const deliveredUris = publicSignals
         .filter((signal) => signal?.method === 'notifications/resources/updated')
@@ -765,7 +747,7 @@ describeWithPostgres('Phase 4B R11 MCP listen over committed Outbox projection',
       assert.equal(deliveredUris.includes(privateNodeUri), false);
       assert.equal(
         publicSignals.filter((signal) => signal?.method === 'notifications/resources/list_changed').length,
-        2,
+        0,
       );
       await assert.rejects(() => reader.next(150), /timed out/);
     } finally {

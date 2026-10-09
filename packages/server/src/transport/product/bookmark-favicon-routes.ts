@@ -1,3 +1,4 @@
+import { requestCancellation, productReadDeadlineMs, abortPublicationRead } from './publication-request-cancel.js';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { AppConfig } from '../../bootstrap/config.js';
 import {
@@ -232,7 +233,17 @@ export function registerBookmarkFaviconRoutes(
       if (!deps.faviconPublicAccess || !(await deps.faviconPublicAccess.isPubliclyAccessible(faviconId))) {
         throw faviconNotFound();
       }
-      const stored = await faviconStore.get(faviconId);
+      const cancellation = requestCancellation(request, reply, productReadDeadlineMs(deps.config.httpSecurity.requestTimeoutMs));
+      let stored;
+      try {
+        const aborted = new Promise<never>((_resolve, reject) => {
+          cancellation.signal.addEventListener('abort', () => reject(cancellation.signal.reason), { once: true });
+        });
+        stored = await Promise.race([faviconStore.get(faviconId, { signal: cancellation.signal }), aborted]);
+      } catch (error) {
+        if (cancellation.signal.aborted) return abortPublicationRead(reply);
+        throw error;
+      } finally { cancellation.dispose(); }
       if (!stored) {
         throw faviconNotFound();
       }

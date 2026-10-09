@@ -85,6 +85,8 @@ export interface Phase4bMcpCompatOperationsOptions {
 }
 
 export interface Phase4bMcpCompatOperations {
+  /** Flat rejection accounting without body classification or an inflight slot. */
+  recordRejected(input: Phase4bMcpCompatRequestFinish): void;
   beginRequest(input: Phase4bMcpCompatBeginRequestInput): Phase4bMcpCompatOperationHandle;
   drain(): void;
   isAdmitting(): boolean;
@@ -276,7 +278,30 @@ export function createPhase4bMcpCompatOperations(
     metrics.gauge('mcp.compat.requests.active', entries.size);
   };
 
+  const recordFinish = (finishInput: Phase4bMcpCompatRequestFinish): void => {
+    increment(metrics, 'mcp.compat.requests.total');
+    increment(metrics, `mcp.compat.requests.outcome.${finishInput.outcome}`);
+    increment(metrics, `mcp.compat.requests.method.${finishInput.methodFamily}`);
+    increment(metrics, `mcp.compat.requests.auth.${finishInput.auth}`);
+    increment(metrics, `mcp.compat.requests.era.${finishInput.era}`);
+    increment(metrics, `mcp.compat.requests.revision.${suffixRevision(finishInput.protocolRevision)}`);
+    if (finishInput.rejectCategory !== undefined) {
+      increment(metrics, `mcp.compat.reject.${finishInput.rejectCategory}`);
+      rejectCounts[finishInput.rejectCategory] += 1;
+      rejectCounts.total += 1;
+    }
+    const handshake = finishInput.handshake;
+    if (handshake !== undefined) {
+      increment(metrics, `mcp.compat.handshake.offer.${suffixOffer(handshake.offer)}`);
+      const handshakeRevision = finishInput.protocolRevision === '2025-11-25'
+        ? '2025_11_25'
+        : 'unsupported';
+      increment(metrics, `mcp.compat.handshake.revision.${handshakeRevision}`);
+      increment(metrics, `mcp.compat.client.${suffixClient(handshake.clientFamily)}`);
+    }
+  };
   const operations: Phase4bMcpCompatOperations = Object.freeze({
+    recordRejected: recordFinish,
     beginRequest(input: Phase4bMcpCompatBeginRequestInput) {
       if (typeof input !== 'object' || input === null || Array.isArray(input)) {
         throw new TypeError('MCP compat beginRequest input must be an object.');
@@ -308,26 +333,7 @@ export function createPhase4bMcpCompatOperations(
               updateGauge();
             }
           }
-          increment(metrics, 'mcp.compat.requests.total');
-          increment(metrics, `mcp.compat.requests.outcome.${finishInput.outcome}`);
-          increment(metrics, `mcp.compat.requests.method.${finishInput.methodFamily}`);
-          increment(metrics, `mcp.compat.requests.auth.${finishInput.auth}`);
-          increment(metrics, `mcp.compat.requests.era.${finishInput.era}`);
-          increment(metrics, `mcp.compat.requests.revision.${suffixRevision(finishInput.protocolRevision)}`);
-          if (finishInput.rejectCategory !== undefined) {
-            increment(metrics, `mcp.compat.reject.${finishInput.rejectCategory}`);
-            rejectCounts[finishInput.rejectCategory] += 1;
-            rejectCounts.total += 1;
-          }
-          const handshake = finishInput.handshake;
-          if (handshake !== undefined) {
-            increment(metrics, `mcp.compat.handshake.offer.${suffixOffer(handshake.offer)}`);
-            const handshakeRevision = finishInput.protocolRevision === '2025-11-25'
-              ? '2025_11_25'
-              : 'unsupported';
-            increment(metrics, `mcp.compat.handshake.revision.${handshakeRevision}`);
-            increment(metrics, `mcp.compat.client.${suffixClient(handshake.clientFamily)}`);
-          }
+          recordFinish(finishInput);
         },
       });
     },

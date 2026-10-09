@@ -1,3 +1,4 @@
+import { buildProductNodeVisibilitySql } from '../database/product-node-visibility-sql.js';
 import { createValidatorRegistry } from '@know-n/colp/schema';
 import type { Relation } from '@know-n/colp/types';
 import { sql, type Kysely } from 'kysely';
@@ -26,12 +27,13 @@ export function createPostgresRelationReadPort(transaction: DatabaseTransaction,
   return {
     async loadLiveNode(input) {
       const row = await transaction.selectFrom('nodes').innerJoin('collections', 'collections.id', 'nodes.collection_id')
-        .select(['nodes.id', 'nodes.collection_id', 'nodes.visibility', 'nodes.deleted_at',
+        .select(['nodes.id', 'nodes.collection_id', 'nodes.deleted_at',
           'collections.visibility as collection_visibility', 'collections.deleted_at as collection_deleted_at'])
+        .select(sql<'private' | 'protected' | 'unlisted' | 'public'>`${sql.raw(buildProductNodeVisibilitySql('nodes', 'collections'))}`.as('visibility'))
         .where('nodes.id', '=', input.nodeId).where('nodes.collection_id', '=', input.collectionId).executeTakeFirst();
       if (!row || row.deleted_at || row.collection_deleted_at) return null;
       return { id: row.id, collectionId: row.collection_id,
-        visibility: row.visibility === 'inherit' ? row.collection_visibility : row.visibility };
+        visibility: row.visibility };
     },
     async loadLiveById(input) {
       const row = await transaction.selectFrom('relations').selectAll().where('collection_id', '=', input.collectionId)
@@ -43,11 +45,9 @@ export function createPostgresRelationReadPort(transaction: DatabaseTransaction,
         .innerJoin('nodes as relation_from', 'relation_from.id', 'relations.from_node_id')
         .innerJoin('nodes as relation_to', 'relation_to.id', 'relations.to_node_id')
         .innerJoin('collections as relation_collection', 'relation_collection.id', 'relations.collection_id')
-        .selectAll('relations').select([
-          sql<'private' | 'protected' | 'unlisted' | 'public'>`CASE WHEN relation_from.visibility = 'inherit'
-            THEN relation_collection.visibility ELSE relation_from.visibility END`.as('from_visibility'),
-          sql<'private' | 'protected' | 'unlisted' | 'public'>`CASE WHEN relation_to.visibility = 'inherit'
-            THEN relation_collection.visibility ELSE relation_to.visibility END`.as('to_visibility'),
+         .selectAll('relations').select([
+          sql<'private' | 'protected' | 'unlisted' | 'public'>`${sql.raw(buildProductNodeVisibilitySql('relation_from', 'relation_collection'))}`.as('from_visibility'),
+          sql<'private' | 'protected' | 'unlisted' | 'public'>`${sql.raw(buildProductNodeVisibilitySql('relation_to', 'relation_collection'))}`.as('to_visibility'),
         ]).where('relations.collection_id', '=', input.collectionId)
         .where(input.direction === 'outgoing' ? 'relations.from_node_id' : 'relations.to_node_id', '=', input.nodeId)
         .where('relations.deleted_at', 'is', null).where('relation_from.deleted_at', 'is', null)
@@ -55,10 +55,8 @@ export function createPostgresRelationReadPort(transaction: DatabaseTransaction,
       if (input.types.length > 0) query = query.where('relations.type', 'in', input.types);
       if (input.visibilities.length > 0) query = query.where('relations.visibility', 'in', input.visibilities);
       const endpointVisibilityList = sql.join(input.endpointVisibilities.map((visibility) => sql`${visibility}`));
-      query = query.where(sql<boolean>`(CASE WHEN relation_from.visibility = 'inherit'
-        THEN relation_collection.visibility ELSE relation_from.visibility END) IN (${endpointVisibilityList})`)
-        .where(sql<boolean>`(CASE WHEN relation_to.visibility = 'inherit'
-          THEN relation_collection.visibility ELSE relation_to.visibility END) IN (${endpointVisibilityList})`);
+      query = query.where(sql<boolean>`${sql.raw(buildProductNodeVisibilitySql('relation_from', 'relation_collection'))} IN (${endpointVisibilityList})`)
+        .where(sql<boolean>`${sql.raw(buildProductNodeVisibilitySql('relation_to', 'relation_collection'))} IN (${endpointVisibilityList})`);
       if (input.after) { const updated = parseDate(input.after.updatedAt);
         query = query.where((eb) => eb.or([eb('relations.updated_at', '<', updated), eb.and([
           eb('relations.updated_at', '=', updated), sql<boolean>`relations.id COLLATE "C" > ${input.after!.id} COLLATE "C"`])])); }

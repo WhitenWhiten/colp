@@ -1,3 +1,4 @@
+import { buildProductNodeVisibilitySql } from '../database/product-node-visibility-sql.js';
 import { createValidatorRegistry } from '@know-n/colp/schema';
 import type { Annotation } from '@know-n/colp/types';
 import { sql, type Kysely, type Selectable } from 'kysely';
@@ -80,13 +81,14 @@ export function createPostgresAnnotationReadPort(
       }
       const row = await transaction.selectFrom('nodes')
         .innerJoin('collections', 'collections.id', 'nodes.collection_id')
-        .select(['nodes.id', 'nodes.collection_id', 'nodes.visibility', 'nodes.deleted_at',
+        .select(['nodes.id', 'nodes.collection_id', 'nodes.deleted_at',
           'collections.visibility as collection_visibility', 'collections.deleted_at as collection_deleted_at'])
+        .select(sql<'private' | 'protected' | 'unlisted' | 'public'>`${sql.raw(buildProductNodeVisibilitySql('nodes', 'collections'))}`.as('visibility'))
         .where('nodes.id', '=', input.resourceId).where('nodes.collection_id', '=', input.collectionId)
         .executeTakeFirst();
       if (!row || row.deleted_at !== null || row.collection_deleted_at !== null) return null;
       return { type: 'node', id: row.id, collectionId: row.collection_id,
-        visibility: row.visibility === 'inherit' ? row.collection_visibility : row.visibility };
+        visibility: row.visibility };
     },
     async loadLiveById(input) {
       const row = await transaction.selectFrom('annotations').selectAll()

@@ -26,6 +26,8 @@ export type CimdClientMetadataFetch = (
 
 /** CIMD is attacker-invoked metadata I/O; bound headers and body completion. */
 export const CIMD_METADATA_TIMEOUT_MS = 10_000;
+/** Client metadata is control-plane JSON, not an unbounded document download. */
+export const CIMD_METADATA_MAX_BYTES = 64 * 1024;
 
 export interface ProductionCimdFetchOptions {
   readonly timeoutMs?: number;
@@ -97,11 +99,23 @@ export function createProductionCimdFetch(
       }
       // Keep the deadline alive through response-body consumption. A server
       // that sends headers and then stalls must not retain the OAuth handler.
+      const declaredLength = response.headers.get('content-length');
+      if (declaredLength !== null) {
+        const parsedLength = Number(declaredLength);
+        if (!Number.isSafeInteger(parsedLength) || parsedLength < 0 || parsedLength > CIMD_METADATA_MAX_BYTES) {
+          if (response.body !== null) {
+            observeBestEffort(response.body.cancel(new RangeError('CIMD metadata body exceeds the byte limit')), 'Cancellation is secondary after the metadata request has already failed');
+          }
+          cleanup();
+          throw new RangeError('CIMD metadata body exceeds the byte limit');
+        }
+      }
       if (response.body === null || webRequest.method === 'HEAD') {
         cleanup();
         return response;
       }
       const reader = response.body.getReader();
+      let bodyBytes = 0;
       const body = new ReadableStream<Uint8Array>({
         async pull(streamController) {
           try {
@@ -110,6 +124,14 @@ export function createProductionCimdFetch(
               cleanup();
               streamController.close();
             } else if (chunk.value !== undefined) {
+              bodyBytes += chunk.value.byteLength;
+              if (bodyBytes > CIMD_METADATA_MAX_BYTES) {
+                const error = new RangeError('CIMD metadata body exceeds the byte limit');
+                observeBestEffort(reader.cancel(error), 'Cancellation is secondary after the metadata request has already failed');
+                cleanup();
+                streamController.error(error);
+                return;
+              }
               streamController.enqueue(chunk.value);
             }
           } catch (error) {
