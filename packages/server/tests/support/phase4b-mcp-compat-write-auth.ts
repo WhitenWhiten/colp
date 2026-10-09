@@ -21,6 +21,9 @@ export const COMPAT_REVISION = MCP_COMPAT_NEGOTIATED_PROTOCOL_VERSION;
 export const COMPAT_WRITE_SCOPES = Object.freeze([
   ...SCOPES,
   'nodes:write',
+  'collections:create',
+  'collections:write',
+  'annotations:write',
   'access:write',
   'changes:commit',
   'changes:cancel',

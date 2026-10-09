@@ -35,13 +35,15 @@ import {
 import { compatListedToolInputSchema } from '../../../src/transport/mcp/mcp-compat-write-adapter.js';
 import {
   BINDING,
-  CONTEXT,
+  CONTEXT as NODE_CONTEXT,
 } from '../../support/phase4b-mcp-low-risk-node-create-fixture.js';
 import { createInMemoryWriteToolFixture } from '../../support/phase4b-mcp-write-tools-fixture.js';
 
 afterEach(() => {
   vi.restoreAllMocks();
 });
+
+const CONTEXT = Object.freeze({ ...NODE_CONTEXT, scope: Object.freeze(['annotations:write']) });
 
 const COL_ID = 'collection-1';
 const NODE_ID = 'node-1';
