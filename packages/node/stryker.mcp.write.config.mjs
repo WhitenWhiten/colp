@@ -14,6 +14,7 @@ export default {
     'src/mcp/tool-input.ts',
     'src/mcp/schema-ref.ts',
     'src/mcp/2026-07-28/write.ts',
+    'src/mcp/2026-07-28/request-state-codec.ts',
   ],
   incrementalFile: 'reports/stryker-mcp-write-incremental.json',
   htmlReporter: { fileName: 'reports/mutation/mcp-write/index.html' },

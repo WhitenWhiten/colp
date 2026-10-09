@@ -17,6 +17,7 @@ export default {
     'src/mcp/2026-07-28/sdk-boundary.ts',
     'src/mcp/2026-07-28/request-headers.ts',
     'src/mcp/shared/authorization.ts',
+    'src/mcp/shared/resource-budget.ts',
     'src/mcp/shared/resources.ts',
     'src/mcp/shared/tools.ts',
     'src/mcp/2026-07-28/request-context.ts',
