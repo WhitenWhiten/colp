@@ -70,6 +70,13 @@ import {
 import type { ScopeName } from '../types/index.js';
 import { requirePromise } from './internal-guards.js';
 import { assertPushReplicaOwnership, type PushReplicaOwnershipVerifier } from './push-ownership.js';
+import {
+  collectionSequenceScopeKey,
+  sequenceScopeMatchesCollection,
+  normalizeSessionBoundPushRequest,
+  normalizeSessionBoundSequenceRequest,
+} from './collection-scope.js';
+export { collectionSequenceScopeKey, sequenceScopeMatchesCollection } from './collection-scope.js';
 
 export type {
   SyncSessionGateDenial,
@@ -169,50 +176,6 @@ async function assertReplicaOwnership(
   if (verdict !== true && verdict !== undefined) {
     throw new TypeError('Replica lifecycle ownershipVerifier must return boolean or void.');
   }
-}
-
-/**
- * Persistence key for a Collection Sequence lane. Hosts that store one lane
- * per Collection use this value as `sequenceScope`; generic
- * COLP tests may still address the same Collection by its raw ID.
- *
- * Do not change this encoding: existing receipts and next-sequence counters
- * are keyed by it for the Replica lifetime.
- */
-export function collectionSequenceScopeKey(collectionId: string): string {
-  return collectionId;
-}
-
-/** Accept the legacy raw ID and the persisted collection-key alias. */
-export function sequenceScopeMatchesCollection(
-  sequenceScope: string,
-  collectionId: string,
-): boolean {
-  return sequenceScope === collectionId || sequenceScope === `collection:${collectionId}`;
-}
-
-function normalizeSessionBoundPushRequest(
-  request: PushTransactionRequest,
-  collectionId: string,
-): PushTransactionRequest {
-  const sequenceScope = collectionSequenceScopeKey(collectionId);
-  return Object.freeze({
-    ...request,
-    operations: Object.freeze(request.operations.map((item) => Object.freeze({
-      ...item,
-      sequenceScope,
-    }))) as PushTransactionRequest['operations'],
-  });
-}
-
-function normalizeSessionBoundSequenceRequest(
-  request: SequenceOperationRequest,
-  collectionId: string,
-): SequenceOperationRequest {
-  return Object.freeze({
-    ...request,
-    sequenceScope: collectionSequenceScopeKey(collectionId),
-  });
 }
 
 function assertPullRequestMatchesSession(
