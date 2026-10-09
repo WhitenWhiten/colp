@@ -746,8 +746,12 @@ describeWithPostgres('C2 local auth flows: Argon2id + digest-only OTP/reset/veri
       `select "emailVerified" from "auth_users" where id = $1`, [userId],
     );
     assert.equal(verified.rows[0]?.emailVerified, true);
-    const cookie = sessionCookie(verify);
-    assert.ok(cookie, 'autoSignInAfterVerification must mint a session after the mailbox proof');
+    assert.equal(sessionCookie(verify), null,
+      'mailbox verification must preserve the pre-existing browser session');
+    const signin = await post('/sign-in/email', { email, password: PASSWORD });
+    assert.equal(signin.statusCode, 200, 'verified password sign-in must issue a session');
+    const cookie = sessionCookie(signin);
+    assert.ok(cookie, 'explicit verified sign-in must mint the session');
 
     // Replay of the same JWT is an idempotent no-op: same response, no state
     // change, no new session, no second email.
