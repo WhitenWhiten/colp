@@ -4,6 +4,7 @@ import type { McpAuthenticatedAuthorizationBinding } from '@know-n/colp/mcp';
 import {
   AUTHORITATIVE_STATE_UNAVAILABLE_MESSAGE,
   createAuthoritativeState,
+  createAuthorizationPolicy,
   createMcpChangePlanRateLimitPort,
   createPhase4bMcpWriteComposition,
 } from '../../../src/bootstrap/mcp-write-composition.js';
@@ -423,4 +424,30 @@ test('MCP-W10 revision port does not treat a node fence as collection public vis
     }
   });
   assert.ok(isConcealedAuthoritativeError(failed));
+});
+
+
+test('MCP-W10 server policy maps every canonical Change Plan operation to a scope', async () => {
+  const policy = createAuthorizationPolicy();
+  const cases = [
+    ['create_node', ['nodes:write']],
+    ['move_node', ['nodes:write']],
+    ['delete_subtree', ['nodes:delete']],
+    ['set_visibility', ['access:write']],
+    ['set_access_policy', ['access:write']],
+    ['delete_collection', ['collections:delete']],
+    ['create_key', ['keys:write']],
+    ['rotate_key', ['keys:write']],
+    ['revoke_key', ['keys:write']],
+    ['set_rate_limit', ['rate_limits:write']],
+    ['publish_release', ['release:publish']],
+    ['sync_mirror', ['sync:push']],
+  ] as const;
+
+  for (const [type, expected] of cases) {
+    assert.deepEqual(
+      await policy.requiredScopesForOperation({ type }, BINDING),
+      expected,
+    );
+  }
 });
