@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { ColpClient } from '../../src/client/index.js';
+import { ColpClient, createLoopbackEgressPolicy } from '../../src/client/index.js';
 import { createValidatorRegistry } from '../../src/schema/index.js';
 import {
   expandPublicationEndpointTemplate,
@@ -179,7 +179,11 @@ describe(`PUB-0029 declared Endpoint transport safety [evidence:${evidence}]`, (
         throw new Error(`Unexpected request: ${url}`);
       });
 
-      await new ColpClient({ manifestUrl: localManifestUrl, fetch: fetch as typeof globalThis.fetch }).getDirectory();
+      await new ColpClient({
+        manifestUrl: localManifestUrl,
+        fetch: fetch as typeof globalThis.fetch,
+        egressPolicy: createLoopbackEgressPolicy([new URL(localManifestUrl).origin]),
+      }).getDirectory();
 
       expect(requested).toEqual([localManifestUrl, endpoint]);
     },
