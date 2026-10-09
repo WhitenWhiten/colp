@@ -5,7 +5,9 @@
 
 import {
   createChangePlanService,
+  deriveMcpOperationRequiredScopes,
   MCP_CHANGE_PLAN_UNTRUSTED_NOTE_MAX_LENGTH,
+  McpChangePlanError,
   type McpChangePlanService,
   type McpChangePlanServiceOptions,
   type McpChangePlanCommitTransaction,
@@ -544,6 +546,24 @@ export function createMcpWriteToolGateway<
 
     if (name === 'changes.plan') {
       const validated = validatePlanInput(input, requestBudget);
+      if (hostPlan !== undefined) {
+        const authorizationPolicy = readOwnValue(
+          changePlanOptions,
+          'authorizationPolicy',
+        ) as McpChangePlanServiceOptions<Transaction>['authorizationPolicy'];
+        const requiredScopes = await deriveMcpOperationRequiredScopes(
+          validated.operations as never,
+          activeBinding,
+          authorizationPolicy,
+          requestBudget,
+        );
+        if (!hasWriteToolScopes(requiredScopes, activeContext.scope)) {
+          throw new McpChangePlanError(
+            'scope_invalid',
+            'The request does not hold the operation-specific scopes required to assess this Plan.',
+          );
+        }
+      }
       const plan = await (hostPlan ?? planService.plan)(validated, activeBinding, activeContext.scope);
       assertNotAborted(activeContext.abortSignal);
       return validatedStructuredResult(plan, validatePlanOutput);
