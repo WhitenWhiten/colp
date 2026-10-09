@@ -38,6 +38,8 @@ export interface AgentPlanPolicyReceipt {
 }
 
 export interface AutoApproveTrustedPlanActions {
+  /** Verified by the host scope port for this request, never read from the wire binding. */
+  readonly canCommit?: boolean;
   readonly approve: (
     planId: string,
     binding: McpAuthenticatedAuthorizationBinding,
@@ -121,10 +123,7 @@ export function createAutoApproveTrustedPlan(
   return async (planned, binding, actions) => {
     const policy = await deps.readPolicy(binding.principalId, binding.clientId);
     if (policy !== 'trusted') return planned;
-    // Trusted auto-commit is only valid when the presented credential explicitly grants commit authority.
-    // Missing scopes fail closed and keep the normal owner-approval flow.
-    const scopes = (binding as unknown as { readonly scopes?: readonly string[] }).scopes;
-    if (!Array.isArray(scopes) || !scopes.includes('changes:commit')) return planned;
+    if (actions.canCommit !== true) return planned;
     if (!planOperationsAreReversible(planned.operations)) return planned;
     // Undo stores one collection version. Never auto-approve a plan whose
     // operations span multiple collections: capturing only the first fence

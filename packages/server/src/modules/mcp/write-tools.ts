@@ -94,6 +94,7 @@ import {
   readMcpAccountSubjectId,
   requireMcpAccountSubjectId,
   runWithMcpAccountSubjectId,
+  runWithMcpGrantedScopes,
 } from './account-context.js';
 
 export const PHASE4B_MCP_WRITE_COLLECTION_ID_HEADER = 'X-Collection-Id' as const;
@@ -513,9 +514,9 @@ function bindMcpAccountSubject<T>(
 ): T {
   const accountSubjectId = readMcpAccountSubjectId(context.authorization);
   if (accountSubjectId === undefined) {
-    return work();
+    return runWithMcpGrantedScopes(context.scope, work);
   }
-  return runWithMcpAccountSubjectId(accountSubjectId, work);
+  return runWithMcpGrantedScopes(context.scope, () => runWithMcpAccountSubjectId(accountSubjectId, work));
 }
 
 function withMcpAccountSubject(
