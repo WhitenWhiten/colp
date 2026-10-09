@@ -180,16 +180,15 @@ async function assertReplicaOwnership(
  * are keyed by it for the Replica lifetime.
  */
 export function collectionSequenceScopeKey(collectionId: string): string {
-  return `collection:${collectionId}`;
+  return collectionId;
 }
 
-/** True when `sequenceScope` names `collectionId`, as raw ID or persistence key. */
+/** Accept the legacy raw ID and the persisted collection-key alias. */
 export function sequenceScopeMatchesCollection(
   sequenceScope: string,
   collectionId: string,
 ): boolean {
-  return sequenceScope === collectionId
-    || sequenceScope === collectionSequenceScopeKey(collectionId);
+  return sequenceScope === collectionId || sequenceScope === `collection:${collectionId}`;
 }
 
 function normalizeSessionBoundPushRequest(
