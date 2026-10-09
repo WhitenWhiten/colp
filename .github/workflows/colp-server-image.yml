@@ -3,8 +3,9 @@ name: colp-server-image
 # Tag pushes only. A pull request must not build, smoke, or publish the image.
 # The tag version has to be a packages/server/CHANGELOG.md section; the check
 # runs before the image build. deploy/compose.yaml keeps ${COLP_IMAGE_TAG:-0.1}.
-# A staged multi-platform manifest is built once and smoked by digest on
-# linux/amd64 and linux/arm64. Release tags promote that exact manifest only
+# A staged multi-platform manifest is built once. Each child manifest selected
+# from that exact index is smoked by digest on linux/amd64 and linux/arm64.
+# Release tags promote that exact parent manifest only
 # after both smoke checks pass. The GitHub release body is that CHANGELOG section.
 #
 # A pre-release tag (X.Y.Z-rc1) pushes only its own tag and creates a
@@ -110,11 +111,22 @@ jobs:
           DATABASE_SSL_MODE=disable
           TRUSTED_INGRESS=10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
           EOF
+          docker buildx imagetools inspect "$COLP_IMAGE@$COLP_CANDIDATE_DIGEST" --raw \
+            > "$RUNNER_TEMP/colp-candidate-manifest.json"
           for platform in linux/amd64 linux/arm64; do
+            # The classic Docker image store cannot associate the same index
+            # digest with two locally pulled platforms (moby/moby#43188).
+            # Select immutable children from the candidate; never fall back to
+            # a mutable tag or rebuild between smoke and promotion.
+            platform_digest="$(jq -er --arg platform "$platform" '
+              [.manifests[] | select((.platform.os + "/" + .platform.architecture) == $platform) | .digest]
+              | if length == 1 and (.[0] | test("^sha256:[0-9a-f]{64}$"))
+                then .[0] else error("candidate must contain one valid manifest for " + $platform) end
+            ' "$RUNNER_TEMP/colp-candidate-manifest.json")"
             cat > "$RUNNER_TEMP/colp-image-override.yaml" <<EOF
           services:
             server:
-              image: ${COLP_IMAGE}@${COLP_CANDIDATE_DIGEST}
+              image: ${COLP_IMAGE}@${platform_digest}
               platform: ${platform}
           EOF
             docker compose --env-file "$RUNNER_TEMP/colp-smoke.env" \

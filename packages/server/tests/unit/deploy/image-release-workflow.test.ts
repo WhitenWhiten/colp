@@ -1,4 +1,4 @@
-import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -11,6 +11,13 @@ const workflow = parse(readFileSync(resolve(import.meta.dirname, '../../../../..
 };
 const steps = workflow.jobs.image.steps;
 const digest = `sha256:${'a'.repeat(64)}`;
+const amd64 = `sha256:${'c'.repeat(64)}`;
+const arm64 = `sha256:${'d'.repeat(64)}`;
+const manifest = { schemaVersion: 2, manifests: [
+  { digest: amd64, platform: { os: 'linux', architecture: 'amd64' } },
+  { digest: arm64, platform: { os: 'linux', architecture: 'arm64' } },
+  { digest: `sha256:${'e'.repeat(64)}`, platform: { os: 'unknown', architecture: 'unknown' } },
+] };
 
 function runStep(name: string, overrides: Record<string, string> = {}) {
   const directory = mkdtempSync(join(tmpdir(), 'colp-image-workflow-'));
@@ -20,7 +27,7 @@ function runStep(name: string, overrides: Record<string, string> = {}) {
     const calls = join(directory, 'calls');
     writeFileSync(calls, '');
     const stub = (file: string, source: string) => writeFileSync(join(directory, file), `#!/bin/bash\nset -eu\n${source}\n`, { mode: 0o755 });
-    stub('bin/docker', 'printf "docker %s\\n" "$*" >> "$COLP_TEST_CALLS"\nif [[ "$*" == *"imagetools inspect"* ]]; then printf "%s\\n" "$COLP_TEST_PUBLISHED_DIGEST"; fi');
+    stub('bin/docker', 'printf "docker %s\\n" "$*" >> "$COLP_TEST_CALLS"\nif [[ "$*" == *"imagetools inspect"* ]]; then\n  if [[ "$*" == *"--raw"* ]]; then printf "%s\\n" "$COLP_TEST_INDEX"; else printf "%s\\n" "$COLP_TEST_PUBLISHED_DIGEST"; fi\nfi');
     stub('bin/git', 'printf "%s\\n" "$COLP_TEST_RELEASE_TAGS"');
     stub('deploy/smoke.sh', 'printf "smoke %s\\n" "$*" >> "$COLP_TEST_CALLS"');
     const result = spawnSync('bash', ['-e', '-o', 'pipefail', '-c', steps.find(step => step.name === name)!.run!], {
@@ -29,10 +36,13 @@ function runStep(name: string, overrides: Record<string, string> = {}) {
         RUNNER_TEMP: directory, COLP_IMAGE: 'ghcr.io/whitenwhiten/colp-server',
         COLP_VERSION: '0.1.0', COLP_MINOR: '0.1', COLP_PRERELEASE: 'false',
         COLP_CANDIDATE_DIGEST: digest, COLP_TEST_PUBLISHED_DIGEST: digest,
+        COLP_TEST_INDEX: JSON.stringify(manifest),
         COLP_TEST_CALLS: calls, COLP_TEST_RELEASE_TAGS: 'abc refs/tags/colp-server-v0.1.0', ...overrides,
       },
     });
-    return { status: result.status, calls: readFileSync(calls, 'utf8'), stderr: result.stderr };
+    const override = join(directory, 'colp-image-override.yaml');
+    return { status: result.status, calls: readFileSync(calls, 'utf8'), stderr: result.stderr,
+      override: existsSync(override) ? readFileSync(override, 'utf8') : '' };
   } finally { rmSync(directory, { recursive: true, force: true }); }
 }
 
@@ -72,13 +82,27 @@ describe('server image release workflow', () => {
     expect(runStep('Promote the tested manifest without rebuilding', { COLP_TEST_PUBLISHED_DIGEST: `sha256:${'b'.repeat(64)}` }).status).not.toBe(0);
   });
 
-  it('smokes both architectures through the same candidate digest', () => {
+  it('smokes the two immutable platform manifests selected from the candidate index', () => {
     const result = runStep('Smoke the exact candidate digest on both platforms');
     expect(result.status, result.stderr).toBe(0);
     expect(result.calls.match(/^smoke http:\/\/127\.0\.0\.1:8080$/gm)).toHaveLength(2);
     expect(result.calls.match(/down -v --remove-orphans/g)).toHaveLength(2);
+    expect(result.calls).toContain(`imagetools inspect ghcr.io/whitenwhiten/colp-server@${digest} --raw`);
+    expect(result.override).toContain(`image: ghcr.io/whitenwhiten/colp-server@${arm64}`);
+    expect(result.override).toContain('platform: linux/arm64');
+    expect(result.override).not.toContain(`@${digest}`);
     const source = steps.find(step => step.name === 'Smoke the exact candidate digest on both platforms')!.run!;
     expect(source).toContain('for platform in linux/amd64 linux/arm64');
-    expect(source).toContain('${COLP_IMAGE}@${COLP_CANDIDATE_DIGEST}');
+    expect(source).toContain('"$COLP_IMAGE@$COLP_CANDIDATE_DIGEST" --raw');
+  });
+
+  it.each([
+    { manifests: [manifest.manifests[0]] },
+    { manifests: [manifest.manifests[0], manifest.manifests[0], manifest.manifests[1]] },
+    { manifests: [manifest.manifests[0], { digest: 'sha256:invalid', platform: { os: 'linux', architecture: 'arm64' } }] },
+  ])('refuses missing, ambiguous or invalid platform manifests', index => {
+    const result = runStep('Smoke the exact candidate digest on both platforms', { COLP_TEST_INDEX: JSON.stringify(index) });
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain('candidate must contain one valid manifest');
   });
 });

@@ -29,6 +29,16 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 
 Operators who relied on the implicit plaintext legacy session window must set `BETTER_AUTH_SESSION_TOKEN_LEGACY_READ_UNTIL` explicitly; new installations are unaffected.
 
+## [0.1.0-rc.2]
+
+### Fixed
+
+- Release smoke selects the AMD64/ARM64 child manifests from the exact candidate index, avoiding Docker's cross-platform index-digest pull conflict. Promotion still publishes the tested parent index without rebuilding.
+
+### Upgrade notes
+
+Pre-release for image-publication verification, including the latest main security fixes. The final 0.1.0 release has not been accepted.
+
 ## [0.1.0-rc.1]
 
 ### Added
