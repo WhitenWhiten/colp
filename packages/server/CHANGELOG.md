@@ -29,6 +29,17 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 
 Operators who relied on the implicit plaintext legacy session window must set `BETTER_AUTH_SESSION_TOKEN_LEGACY_READ_UNTIL` explicitly; new installations are unaffected.
 
+## [0.1.0-rc.1]
+
+### Added
+
+- Release-workflow candidate for the self-hosted server, with HTML bookmark import, preview, destination-folder selection, and duplicate skipping.
+- Production-stack browser acceptance for sign-in, editing, anonymous sharing, import, export, Sync center, and About.
+
+### Upgrade notes
+
+Pre-release for installation and image-publication verification. The final 0.1.0 release has not been accepted.
+
 ## [0.1.0]
 
 ### Added
