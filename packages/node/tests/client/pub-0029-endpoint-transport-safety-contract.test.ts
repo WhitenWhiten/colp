@@ -164,7 +164,7 @@ describe(`PUB-0029 declared Endpoint transport safety [evidence:${evidence}]`, (
   ])(
     'issues the exact declared %s loopback HTTP request [evidence:http.endpoint-transport-safety]',
     async (_name, baseUrl, endpoint) => {
-      // Local development is authorized by the caller-selected Manifest origin.
+      // Local development is authorized only by an explicit loopback egress policy.
       const localManifestUrl = new URL('/.well-known/collection-protocol', baseUrl).href;
       const manifest = await publicationManifest();
       manifest.mounts[0].baseUrl = baseUrl;
