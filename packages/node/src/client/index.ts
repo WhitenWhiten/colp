@@ -248,11 +248,10 @@ export interface ColpClientOptions {
    * `resolveHost` when they expose an equivalent resolver.
    *
    * Called before credentials and fetch for every target and redirect. Without
-   * a custom policy, private/local literals are denied except for initial
-   * endpoints on the exact origin explicitly selected by manifestUrl. A fetched
-   * Manifest cannot grant access to another private origin. Redirects and
-   * response-link targets never receive this local-development exception.
-   * Pass an explicit policy to authorize other private destinations.
+   * a custom policy, private/local literals are always denied, including the
+   * initial manifest URL. A fetched Manifest cannot grant access to another
+   * private origin. Pass an explicit policy to authorize a private destination
+   * for a trusted local-development integration.
    */
   readonly egressPolicy?: ClientEgressPolicy;
   /** Deployment-selected I-JSON limits, bounded by the package hard ceiling. */
@@ -1147,23 +1146,20 @@ export class ColpClient {
     if (this.#egressPolicy === undefined) {
       let approvedAddress: string | undefined;
       // The fetched Manifest is not authority to select private destinations.
-      // Only the origin explicitly supplied by the caller can retain the
-      // initial local-development exception, never redirects or response Links.
-      const responseLink = policy.publicationNavigation !== undefined
-        && publicationNavigationSource(policy.publicationNavigation).kind === 'response-link';
+      // The default transport is deny-by-default for every private/local literal,
+      // including the initial manifest origin. Hosts that intentionally support
+      // local development must provide an explicit egressPolicy.
       const privateLiteral = isPrivateOrLocalLiteralHostname(url.hostname);
-      const callerSelectedLocalOrigin = redirectCount === 0 && !responseLink
-        && url.origin === this.#manifestUrl.origin && privateLiteral;
-      if (!callerSelectedLocalOrigin && privateLiteral) {
+      if (privateLiteral) {
         throw new TypeError(
           `Egress policy denied ${policy.purpose} request URL: literal private or local host.`,
         );
       }
-      if (!callerSelectedLocalOrigin && !privateLiteral && this.#requiresDefaultNodePinning
+      if (!privateLiteral && this.#requiresDefaultNodePinning
           && this.#hostResolver === undefined && this.#pinnedFetch === undefined) {
         throw new TypeError(`Egress policy denied ${policy.purpose} request URL: Node DNS pinning capability is unavailable.`);
       }
-      if (!callerSelectedLocalOrigin && !privateLiteral && this.#hostResolver !== undefined) {
+      if (!privateLiteral && this.#hostResolver !== undefined) {
         let addresses: readonly string[];
         try {
           addresses = await abortable(
