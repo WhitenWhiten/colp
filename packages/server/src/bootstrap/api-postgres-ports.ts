@@ -100,9 +100,9 @@ import {
   createPostgresPublishingInsightsDashboardPort,
   createPostgresSearchCatalogDisplayTargetPort,
   createVisitorHashPort,
+  createPostgresPublicationCollectionControlPort,
 } from '../infrastructure/publication/index.js';
 import { createPostgresAccessPolicyFactsPort } from '../infrastructure/access-policy/index.js';
-import { collectionHidePublicExistsSql } from '../infrastructure/database/collection-control-sql.js';
 import { createWebShellCache, toPublicShellMarkdownNode } from '../infrastructure/http/index.js';
 import { createPostgresSearchAuthorityPort, createPostgresSearchCandidatePort } from '../infrastructure/search/index.js';
 import { createSearchCursorSigner, createSearchFirstPageCache, createSearchTelemetry,
@@ -272,20 +272,7 @@ export function createApiPostgresPorts(input: {
   const accessPolicyFacts = createPostgresAccessPolicyFactsPort(database.db);
   const publicationDirectoryReads = createPostgresPublicationDirectoryReadPort(database);
   const publicationMetadataReads = createPostgresPublicationMetadataReadPort(database);
-  // Keep the collection-level moderation gate in the production composition.
-  // The application queries intentionally accept an optional control port so
-  // small hosts can omit moderation, but the Postgres server must never do so:
-  // otherwise public metadata/snapshots can survive an active hide_public.
-  const publicationCollectionControl = Object.freeze({
-    async collectionControl(collectionId: string): Promise<{ readonly hidePublic: boolean }> {
-      const result = await database.pool.query<{ hide_public: boolean }>(
-        `select ${collectionHidePublicExistsSql('c.id')} as hide_public
-           from collections c where c.id = $1`,
-        [collectionId],
-      );
-      return Object.freeze({ hidePublic: result.rows[0]?.hide_public === true });
-    },
-  });
+  const publicationCollectionControl = createPostgresPublicationCollectionControlPort(database);
   const publicationSnapshotQuery = {
     reads: createPostgresPublicationSnapshotReadPort(database),
     annotations: createPostgresPublicationAnnotationReadPort(database, {

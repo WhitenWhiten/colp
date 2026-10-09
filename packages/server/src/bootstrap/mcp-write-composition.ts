@@ -1,4 +1,3 @@
-import { readMcpGrantedScopes } from '../modules/mcp/account-context.js';
 import { recordMcpDeleteSubtreeTombstones } from '../infrastructure/sync/index.js';
 import { createMcpNodePlanState, createPostgresAutoApproveTrustedPlan, recordMcpPlanCommitRevisions } from '../infrastructure/collections/index.js';
 import { randomUUID } from 'node:crypto';
@@ -50,6 +49,7 @@ import {
   type McpChangePlanRateLimitOptions,
 } from '../infrastructure/rate-limit/index.js';
 import {
+  readMcpGrantedScopes,
   createPhase4bMcpChangePlanDigestVerifier,
   createPhase4bMcpChangePlanPlanner,
   createPhase4bMcpChangePlanRevisionPort,

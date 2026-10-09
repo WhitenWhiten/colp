@@ -16,3 +16,5 @@ export * from './visitor-hash.js';
 export * from './publication-metadata-cache.js';
 export * from './publication-directory-cache.js';
 export * from './publication-snapshot-cache.js';
+
+export { createPostgresPublicationCollectionControlPort } from './postgres-collection-control.js';
