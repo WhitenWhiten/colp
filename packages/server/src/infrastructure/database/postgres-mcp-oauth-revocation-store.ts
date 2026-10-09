@@ -79,6 +79,7 @@ export function createPostgresMcpOauthRevocationStore(
         readonly revoked: boolean;
         readonly epoch_present: boolean;
         readonly effective_at: Date | null;
+        readonly epoch: string | null;
       }>`
         SELECT
           (
@@ -96,7 +97,8 @@ export function createPostgresMcpOauthRevocationStore(
             )
           ) AS revoked,
           EXISTS (SELECT 1 FROM mcp_oauth_security_epoch WHERE id = 1) AS epoch_present,
-          (SELECT effective_at FROM mcp_oauth_security_epoch WHERE id = 1) AS effective_at
+          (SELECT effective_at FROM mcp_oauth_security_epoch WHERE id = 1) AS effective_at,
+          (SELECT epoch FROM mcp_oauth_security_epoch WHERE id = 1) AS epoch
       `.execute(db);
       const row = result.rows[0];
       if (row === undefined || row.epoch_present !== true || !(row.effective_at instanceof Date)) {
@@ -108,7 +110,9 @@ export function createPostgresMcpOauthRevocationStore(
       // Incident floor only. Reject equality as well: JWT iat has second
       // precision while the durable effective_at boundary has milliseconds.
       // Account events use readAccountSecurityBoundary on the resolved account.
-      return row.revoked === true || query.issuedAtSeconds <= effectiveAtSeconds;
+      return row.revoked === true || (query.issuedSecurityEpoch === undefined
+        ? query.issuedAtSeconds <= effectiveAtSeconds
+        : query.issuedSecurityEpoch !== row.epoch || query.issuedAtSeconds < effectiveAtSeconds);
     },
 
     async readAccountSecurityBoundary(accountId: string): Promise<McpAccountSecurityBoundary | null> {
