@@ -411,7 +411,7 @@ describeWithPostgres('P3-11 real HTTP/PostgreSQL single-operation Push admission
       faultInjector: { async afterPhase(phase) {
         if (phase === 'replica') { entered(); await blocked; }
       } },
-    }).retireExtension({ credential: value.credential, sessionId: value.session.sessionId,
+    }).retireExtension({ origin: ORIGIN, credential: value.credential, sessionId: value.session.sessionId,
       idempotencyKey: `retire-push-${randomUUID()}`, requestFingerprint: 'retire-push-race' });
     await atReplicaWrite;
     const pending = client(server.origin).push({ idempotencyKey: `push-during-retire-${randomUUID()}`,

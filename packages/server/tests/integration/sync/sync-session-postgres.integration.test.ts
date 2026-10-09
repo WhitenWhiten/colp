@@ -31,6 +31,8 @@ import {
   type SyncSessionPostgresHarness,
 } from '../../support/sync-session-postgres.js';
 
+const ORIGIN = 'chrome-extension://abcdefghijklmnopabcdefghijklmnop';
+
 describeWithPostgres('P3-07 durable Sync Session issuance', () => {
   let harness: SyncSessionPostgresHarness;
 
@@ -557,8 +559,7 @@ describeWithPostgres('P3-07 durable Sync Session issuance', () => {
       [deniedReplica.replicaId],
     );
     assert.deepEqual(deniedAfter.rows[0], deniedBefore.rows[0]);
-    await assert.rejects(harness.issuer().verify({
-      credential: harness.evidence('owner'), sessionId: issued.envelope.sessionId,
+    await assert.rejects(harness.issuer().verify({ credential: harness.evidence('owner'), sessionId: issued.envelope.sessionId,
       collectionId: revokedReplica.collectionId, replicaId: revokedReplica.replicaId,
     }), (error: unknown) => error instanceof SyncSessionIssueError && error.code === 'credential_invalid');
 
@@ -606,8 +607,7 @@ describeWithPostgres('P3-07 durable Sync Session issuance', () => {
       "update collections set policy_revision='p2' where id='collection-owner'",
     );
     try {
-      await assert.rejects(harness.issuer().verify({
-        credential: harness.evidence('editor'), sessionId: issued.envelope.sessionId,
+      await assert.rejects(harness.issuer().verify({ credential: harness.evidence('editor'), sessionId: issued.envelope.sessionId,
         collectionId: replica.collectionId, replicaId: replica.replicaId,
       }), (error: unknown) => error instanceof SyncSessionIssueError && error.code === 'session_revoked');
       const stored = await harness.isolated.runtime.pool.query(
@@ -732,7 +732,7 @@ describeWithPostgres('P3-07 durable Sync Session issuance', () => {
     const replica = await harness.createReplica('owner');
     const issued = await harness.issuer().issue(harness.command('owner', replica));
     const application = createPostgresReplicaRetirementApplication(harness.isolated.runtime.db);
-    const request = { credential: harness.evidence('owner'), sessionId: issued.envelope.sessionId,
+    const request = { origin: ORIGIN, credential: harness.evidence('owner'), sessionId: issued.envelope.sessionId,
       idempotencyKey: `retire-${randomUUID()}`, requestFingerprint: 'retire-active-v1' };
     await application.retireExtension(request);
     await application.retireExtension(request);
@@ -778,7 +778,7 @@ describeWithPostgres('P3-07 durable Sync Session issuance', () => {
       await harness.isolated.runtime.pool.query(`update sync_replicas set status=$2,
         wire_json=jsonb_set(wire_json,'{status}',to_jsonb($2::text),true)
         where replica_id=$1`, [replica.replicaId, lifecycle]);
-      await createPostgresReplicaRetirementApplication(harness.isolated.runtime.db).retireExtension({
+      await createPostgresReplicaRetirementApplication(harness.isolated.runtime.db).retireExtension({ origin: ORIGIN,
         credential: harness.evidence('owner'), sessionId: issued.envelope.sessionId,
         idempotencyKey: `retire-${lifecycle}-${randomUUID()}`,
         requestFingerprint: `retire-${lifecycle}-v1`,
@@ -793,7 +793,7 @@ describeWithPostgres('P3-07 durable Sync Session issuance', () => {
   test('reinstall creates a fresh Replica and imported retired identity fails closed across accounts', async () => {
     const oldReplica = await harness.createReplica('owner');
     const oldSession = await harness.issuer().issue(harness.command('owner', oldReplica));
-    await createPostgresReplicaRetirementApplication(harness.isolated.runtime.db).retireExtension({
+    await createPostgresReplicaRetirementApplication(harness.isolated.runtime.db).retireExtension({ origin: ORIGIN,
       credential: harness.evidence('owner'), sessionId: oldSession.envelope.sessionId,
       idempotencyKey: `retire-reinstall-${randomUUID()}`, requestFingerprint: 'retire-before-reinstall',
     });
@@ -819,7 +819,7 @@ describeWithPostgres('P3-07 durable Sync Session issuance', () => {
       const application = createPostgresReplicaRetirementApplication(harness.isolated.runtime.db, {
         faultInjector: { afterPhase(current) { if (current === phase) throw new Error(`fault-${phase}`); } },
       });
-      await assert.rejects(application.retireExtension({ credential: harness.evidence('owner'),
+      await assert.rejects(application.retireExtension({ origin: ORIGIN, credential: harness.evidence('owner'),
         sessionId: issued.envelope.sessionId, idempotencyKey: `fault-${phase}-${randomUUID()}`,
         requestFingerprint: `fault-${phase}` }), new RegExp(`fault-${phase}`));
       const state = await harness.isolated.runtime.pool.query(`select
@@ -849,7 +849,7 @@ describeWithPostgres('P3-07 durable Sync Session issuance', () => {
       faultInjector: { async afterPhase(phase) {
         if (phase === 'replica') { entered(); await blocked; }
       } },
-    }).retireExtension({ credential: harness.evidence('owner'), sessionId: first.envelope.sessionId,
+    }).retireExtension({ origin: ORIGIN, credential: harness.evidence('owner'), sessionId: first.envelope.sessionId,
       idempotencyKey: `retire-session-race-${randomUUID()}`, requestFingerprint: 'retire-session-race' });
     await retirementEntered;
     const issue = harness.issuer().issue(harness.command('owner', replica, {

@@ -98,6 +98,8 @@ export interface McpOauthRevocationInput {
   readonly credentialDigest: string;
   /** Signed token iat in epoch seconds; revocation stores use it for epoch boundaries. */
   readonly issuedAtSeconds: number;
+  /** Optional signed incident epoch from the built-in issuer. */
+  readonly issuedSecurityEpoch?: string;
 }
 
 export interface McpOauthResolvedAccount {
@@ -255,6 +257,7 @@ export function createMcpOauthVerifier(options: McpOauthVerifierOptions): McpOau
           tokenId,
           credentialDigest,
           issuedAtSeconds: issuedAtValue,
+          ...(typeof payload.known_incident_epoch === 'string' ? { issuedSecurityEpoch: payload.known_incident_epoch } : {}),
         });
       } catch {
         // FIX-L-042: revocation store query failures fail closed as revoked;

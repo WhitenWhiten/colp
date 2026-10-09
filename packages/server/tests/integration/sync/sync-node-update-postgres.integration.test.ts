@@ -528,7 +528,7 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
     request: ConflictResolutionRequest,
     idempotencyKey = `p3-18-resolve-${randomUUID()}`,
   ) {
-    return {
+    return { origin: ORIGIN,
       credential: opened.value.credential,
       sessionId: opened.value.session.sessionId,
       replicaId: opened.value.replica.replicaId,
@@ -2097,7 +2097,7 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
           purgeBoundary: { commitOrdinal: '0', streamKind: 'operation', stableId: '' }, limit: 1,
           tuple: predecessorTuple,
         });
-        return reader.read({ credential: value.credential, sessionId: value.session.sessionId,
+        return reader.read({ origin: ORIGIN, credential: value.credential, sessionId: value.session.sessionId,
           collectionId: COLLECTION, replicaId: value.replica.replicaId, cursor, limit: 1 });
       }));
       const events = pages.map((page) => {

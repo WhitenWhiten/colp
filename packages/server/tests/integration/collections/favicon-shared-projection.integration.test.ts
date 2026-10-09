@@ -1,3 +1,5 @@
+import { KNOWN_FAVICON_DOMAINS } from '../../../src/modules/collections/index.js';
+import { isFaviconPubliclyAccessible } from '../../../src/infrastructure/database/publication-object-controls.js';
 /**
  * Shared-cache projection and deferred provider admission for the online
  * favicon chain. Split from favicon-online-lifecycle so that suite stays
@@ -256,6 +258,7 @@ describeWithPostgres('shared favicon projection on the online lifecycle', () => 
       productCollectionMutationUnitOfWork: createPostgresCanonicalMutationUnitOfWork(
         isolated.runtime.db, { productOrigin: ORIGIN }),
       browserSessionAuthority: sessionAuthority,
+      faviconPublicAccess: { isPubliclyAccessible: objectId => isFaviconPubliclyAccessible(isolated.runtime.db, objectId, KNOWN_FAVICON_DOMAINS) },
       faviconStore: store ?? createTestFaviconStore(),
     });
   }
@@ -329,6 +332,14 @@ describeWithPostgres('shared favicon projection on the online lifecycle', () => 
       const projected = await findBookmarkIconObjectIdsByNodeIds(isolated.runtime.db, [first, second]);
       assert.equal(projected.get(first), objectId);
       assert.equal(projected.get(second), objectId);
+      // Shared allowlisted site logos remain public independently of private bookmark URLs.
+      assert.equal(await isFaviconPubliclyAccessible(isolated.runtime.db, objectId), false);
+      const deniedObjectId = randomUUID();
+      await store.put(deniedObjectId, PNG_V1, 'image/png');
+      await isolated.runtime.pool.query(`INSERT INTO favicon_shared_domains(hostname, object_id)
+        VALUES ('private.internal', $1)`, [deniedObjectId]);
+      const deniedBytes = await api('GET', `${address}/api/v1/favicon/${deniedObjectId}`, {});
+      assert.equal(deniedBytes.status, 404);
       const bytes = await api('GET', `${address}/api/v1/favicon/${objectId}`, {});
       assert.equal(bytes.status, 200);
       assert.deepEqual(bytes.rawBody, PNG_V1);

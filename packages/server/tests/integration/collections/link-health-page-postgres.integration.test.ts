@@ -265,7 +265,7 @@ describeWithPostgres('LH-01 PostgreSQL link-health page and mutation hooks', () 
           set status = 'healthy', http_status = 200, checked_at = $2,
               lease_owner = $3, lease_until = $4
         where node_id = $1`,
-      [BOOKMARK_A, NOW, 'lh-live-worker', new Date(NOW.getTime() + 60_000)],
+      [BOOKMARK_A, NOW, 'lh-live-worker', new Date(Date.now() + 60_000)],
     );
     const uow = createPostgresLinkHealthEnqueueUnitOfWork(isolated.runtime.db);
     const result = await uow.execute((ports) => enqueueMyLinkHealthChecks(ports, {

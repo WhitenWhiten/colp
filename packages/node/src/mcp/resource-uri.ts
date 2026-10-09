@@ -1,6 +1,9 @@
 import { isOpaqueId } from '../shared/resource-identity.js';
 import type { Manifest, OpaqueId } from '../types/index.js';
 
+/** Maximum accepted/generated MCP Resource URI length. */
+export const MAX_MCP_RESOURCE_URI_LENGTH = 4096;
+
 export type McpReadResource =
   | {
       readonly kind: 'collection-metadata';
@@ -45,23 +48,29 @@ export function createMcpResourceUriCodec(
 
   const collectionMetadata = (...args: [collectionId: string]): string => {
     assertArgumentCount('collectionMetadata', args.length, 1);
-    return `${prefix}${assertMcpPathId('collectionId', args[0])}`;
+    const uri = `${prefix}${assertMcpPathId('collectionId', args[0])}`;
+    assertUriLength(uri);
+    return uri;
   };
 
   const collectionSnapshot = (...args: [collectionId: string]): string => {
     assertArgumentCount('collectionSnapshot', args.length, 1);
-    return `${collectionMetadata(args[0])}/snapshot`;
+    const uri = `${collectionMetadata(args[0])}/snapshot`;
+    assertUriLength(uri);
+    return uri;
   };
 
   const collectionNode = (...args: [collectionId: string, nodeId: string]): string => {
     assertArgumentCount('collectionNode', args.length, 2);
-    return `${collectionMetadata(args[0])}/nodes/${assertMcpPathId('nodeId', args[1])}`;
+    const uri = `${collectionMetadata(args[0])}/nodes/${assertMcpPathId('nodeId', args[1])}`;
+    assertUriLength(uri);
+    return uri;
   };
 
   const parse = (...args: [uri: string]): McpReadResource => {
     assertArgumentCount('parse', args.length, 1);
     const uri = args[0];
-    if (typeof uri !== 'string' || uri.includes('%')) {
+    if (typeof uri !== 'string' || uri.length > MAX_MCP_RESOURCE_URI_LENGTH || uri.includes('%')) {
       throw new TypeError('MCP Resource URI must be a string without percent encoding.');
     }
     if (!uri.startsWith(prefix)) {
@@ -100,6 +109,12 @@ function assertMcpPathId(name: string, value: unknown): OpaqueId {
     throw new TypeError(`${name} must be a valid CORE opaqueId.`);
   }
   return value;
+}
+
+function assertUriLength(uri: string): void {
+  if (uri.length > MAX_MCP_RESOURCE_URI_LENGTH) {
+    throw new RangeError('MCP Resource URI exceeds the maximum length.');
+  }
 }
 
 function assertArgumentCount(name: string, actual: number, expected: number): void {

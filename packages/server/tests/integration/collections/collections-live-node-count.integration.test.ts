@@ -100,12 +100,13 @@ describeWithPostgres('collections live_node_count trigger (P-04)', () => {
     assert.equal(await liveCount(isolated, COLLECTION_A), 1);
   });
 
-  test('directory SQL keeps raw live_node_count and subtracts only live hidden bookmarks', () => {
+  test('directory SQL counts only live publicly visible nodes', () => {
     const statement = buildPublicationDirectoryStatement({
       principal: 'anonymous', filter: {}, limit: 10,
     });
-    assert.match(statement.text, /c\.live_node_count\b/u);
-    assert.match(statement.text, /n\.kind = 'bookmark'/u);
+    assert.match(statement.text, /select count\(\*\)::int/u);
+    assert.match(statement.text, /n\.visibility = 'inherit'/u);
+    assert.match(statement.text, /target_ancestors/u);
     assert.match(statement.text, /n\.deleted_at is null/u);
     assert.doesNotMatch(statement.text, /GREATEST\s*\(/u);
   });

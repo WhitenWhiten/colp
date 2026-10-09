@@ -184,6 +184,7 @@ async function createMcpFixture(): Promise<{
       tokenId: input.tokenId,
       credentialDigest: input.credentialDigest,
       issuedAtSeconds: input.issuedAtSeconds,
+      ...(input.issuedSecurityEpoch === undefined ? {} : { issuedSecurityEpoch: input.issuedSecurityEpoch }),
     }),
     securityEpoch: () => store.securityEpoch(),
     resolveAccountBySubject: async (sub) => ({
@@ -1066,6 +1067,8 @@ describeWithPostgres('C4 auth security: MFA, pending sessions, epoch revocation,
       (error: unknown) => error instanceof McpOauthVerificationError && error.reason === 'revoked',
     );
     // A credential issued AFTER the event is accepted.
+    // This external-issuer fixture has no signed incident epoch. Wait past the conservative second-level floor.
+    await new Promise(resolve => setTimeout(resolve, 1_100));
     const freshToken = await mintMcpToken(mcpKey, mcpKid, subjectId, Math.floor(Date.now() / 1000));
     const freshMcp = await mcpVerifier.verify({ authorization: `Bearer ${freshToken}` });
     assert.equal(freshMcp.evidence.principalId, `account:${subjectId}`);

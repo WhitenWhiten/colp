@@ -1,3 +1,4 @@
+import { observeBestEffort } from '../async/best-effort.js';
 /**
  * Production CIMD transport.
  *
@@ -89,7 +90,7 @@ export function createProductionCimdFetch(
       // late response to the OAuth parser after the request deadline.
       if (controller.signal.aborted) {
         const reason = controller.signal.reason;
-        if (response.body !== null) await response.body.cancel(reason).catch(() => undefined);
+        if (response.body !== null) observeBestEffort(response.body.cancel(reason), 'Cancellation is secondary after the metadata request has already failed');
         throw reason instanceof Error
           ? reason
           : new DOMException('CIMD metadata request aborted', 'AbortError');
@@ -115,7 +116,7 @@ export function createProductionCimdFetch(
             cleanup();
             // Best-effort cancellation covers transports that ignore abort and
             // leave their original reader pending.
-            void reader.cancel(error).catch(() => undefined);
+            observeBestEffort(reader.cancel(error), 'Cancellation is secondary after the metadata request has already failed');
             streamController.error(error);
           }
         },

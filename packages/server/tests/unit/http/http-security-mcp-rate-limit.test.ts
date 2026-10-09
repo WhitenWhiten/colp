@@ -84,7 +84,7 @@ describe('shared MCP rate-limit adapter config (FIX-M-018)', () => {
     MCP_SERVER_UUID: '019b3c67-a03c-7f02-9c7e-1ee8d50a77de',
     MCP_ALLOWED_ORIGINS: 'https://app.example.test',
     MCP_OAUTH_ISSUER: 'https://issuer.example.test/realms/known',
-    MCP_OAUTH_AUDIENCE: 'https://collections.example.test',
+    MCP_OAUTH_AUDIENCE: 'https://app.example.test/collections/-/mcp',
     MCP_OAUTH_AUTHORIZATION_SERVER_METADATA_URL:
       'https://issuer.example.test/.well-known/oauth-authorization-server',
     MCP_OAUTH_JWKS_URI: 'https://issuer.example.test/realms/known/protocol/openid-connect/certs',

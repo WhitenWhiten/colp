@@ -132,6 +132,7 @@ export function buildPublicationDirectoryStatement(
     visibility,
     COLLECTION_DISCOVERY_CONTROL_SQL,
   ];
+  const creatorParameter = request.filter.creator ? parameter(request.filter.creator) : undefined;
   if (subjectId === undefined) {
     // Account publication restriction is an owner-level control. Keep the
     // subject-id join optional (legacy rows may have no account row), but if
@@ -139,7 +140,7 @@ export function buildPublicationDirectoryStatement(
     // every anonymous directory page and cursor traversal. Member reads keep
     // their existing protected collection semantics.
     filters.push(`not exists (select 1 from accounts directory_owner
-                              where directory_owner.subject_id = c.owner_subject_id
+                              where directory_owner.subject_id = ${creatorParameter ?? 'c.owner_subject_id'}
                                 and ${accountRestrictPublicationExistsSql('directory_owner.id')})`);
   }
   if (request.filter.tag) {
@@ -148,7 +149,7 @@ export function buildPublicationDirectoryStatement(
     filters.push(`jsonb_typeof(${COLLECTION_CATALOG_TAGS_SQL}) = 'array'`);
     filters.push(`${COLLECTION_CATALOG_TAGS_SQL} ? ${parameter(request.filter.tag)}`);
   }
-  if (request.filter.creator) filters.push(`c.owner_subject_id = ${parameter(request.filter.creator)}`);
+  if (creatorParameter) filters.push(`c.owner_subject_id = ${creatorParameter}`);
   if (request.filter.kind) filters.push(`c.kind = ${parameter(request.filter.kind)}`);
   if (request.filter.updatedSince) filters.push(`c.updated_at >= ${parameter(request.filter.updatedSince)}::timestamptz`);
   if (request.filter.q) {

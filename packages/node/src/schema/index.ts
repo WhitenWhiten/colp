@@ -14,6 +14,7 @@ import schemaV02 from './generated/v0.2/generated.js';
 import { parseIJson } from './json.js';
 import type { IJsonParseLimits } from './json.js';
 import { isRfc3986Uri } from './uri.js';
+import { immutableJsonSnapshot } from '../shared/immutable-json.js';
 
 function deepFreeze<Value>(value: Value): Readonly<Value> {
   if (value !== null && typeof value === 'object' && !Object.isFrozen(value)) {
@@ -426,11 +427,33 @@ export function validateWireDocument<Value, Issue>(
   value: unknown,
   validateSemantics: (value: Value) => SemanticValidationResultLike<Issue>,
 ): WireDocumentValidationResult<Value, Issue> {
-  const structural = validateWithCanonicalRegistry(validators, definition, value);
+  // Preserve the legacy value identity (including frozen persistence candidates).
+  // Only untrusted instrumentation receives a detached, mutable working copy.
+  const snapshotInput = () => immutableJsonSnapshot(value, 'Wire document', {
+      maxDepth: MAX_STRUCTURED_VALIDATION_DEPTH,
+      maxMembers: MAX_STRUCTURED_VALIDATION_MEMBERS,
+      maxBytes: MAX_STRUCTURED_VALIDATION_BYTES,
+    });
+  const boundaryFailure = (): WireDocumentValidationResult<Value, Issue> => ({ valid: false, stage: 'structural', errors: [{
+    instancePath: '', schemaPath: '#/x-colp-boundary', keyword: 'x-colp-boundary',
+    params: {}, message: 'Wire document must be bounded plain JSON data.',
+  }] });
+  let snapshot: unknown;
+  try { snapshot = snapshotInput(); } catch { return boundaryFailure(); }
+  const candidate = trustedValidatorRegistries.has(validators) ? value : JSON.parse(JSON.stringify(snapshot));
+  const structural = validateWithCanonicalRegistry(validators, definition, candidate);
   if (!structural.valid) {
     return { valid: false, stage: 'structural', errors: structural.errors };
   }
 
+  if (!trustedValidatorRegistries.has(validators)) {
+    // A wrapper can retain a caller alias outside its detached argument.
+    // Recheck that source without executing any newly installed accessor.
+    try {
+      const current = createValidatorRegistry().validate(definition, snapshotInput());
+      if (!current.valid) return { valid: false, stage: 'structural', errors: current.errors };
+    } catch { return boundaryFailure(); }
+  }
   const semantic = validateSemantics(value as Value);
   if (!semantic.valid) {
     return { valid: false, stage: 'semantic', issues: semantic.issues };

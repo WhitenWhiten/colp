@@ -1,3 +1,5 @@
+import { materializePublicationPublicWire } from './publication-public-materialization.js';
+export { materializePublicationPublicWire } from './publication-public-materialization.js';
 import { isProxy } from 'node:util/types';
 
 /** JSON value emitted by the Publication public-projection boundary. */
@@ -14,10 +16,13 @@ export interface PublicationPublicProjectionLimits {
   readonly maxDepth?: number;
   /** Maximum number of visited JSON values. Defaults to 100_000. */
   readonly maxNodes?: number;
+  /** Maximum UTF-8 bytes emitted by the materialized public wire value. Defaults to 64 MiB. */
+  readonly maxBytes?: number;
 }
 
 /** Strings larger than this are rejected before stringify/parse materialization. */
 const MAX_PUBLIC_STRING_BYTES = 8 * 1024 * 1024;
+const DEFAULT_MAX_PUBLIC_WIRE_BYTES = 64 * 1024 * 1024;
 
 export interface PublicationPublicProjectionOptions {
   /** Exact HTTPS extension namespaces audited as safe for public output. */
@@ -110,45 +115,14 @@ export function projectPublicationPublicWire(
   input: unknown,
   options?: PublicationPublicWireOptions,
 ): PublicationPublicValue {
+  const resolved = resolvePublicationPublicProjectionOptions(options);
   return materializePublicationPublicWire(
-    projectPublicationPublicValue(input, resolvePublicationPublicProjectionOptions(options)),
+    projectPublicationPublicValue(input, resolved),
+    resolved.limits,
   );
 }
 
-/**
- * Convert a projected public value into ordinary, deeply frozen JSON objects
- * for adapter-facing wire emission.
- *
- * Projection builds null-prototype maps during redaction; materialization
- * restores ordinary prototypes via a JSON round-trip without reintroducing
- * aliases to the pre-projection input.
- */
-export function materializePublicationPublicWire(
-  projected: PublicationPublicValue,
-): PublicationPublicValue {
-  const materialized: unknown = JSON.parse(JSON.stringify(projected));
-  return freezeJsonValue(materialized);
-}
 
-function freezeJsonValue(value: unknown, seen = new WeakSet<object>()): PublicationPublicValue {
-  if (value === null || typeof value !== 'object') {
-    return value as PublicationPublicValue;
-  }
-  if (seen.has(value)) return value as PublicationPublicValue;
-  seen.add(value);
-  if (Array.isArray(value)) {
-    for (let index = 0; index < value.length; index += 1) {
-      value[index] = freezeJsonValue(value[index], seen);
-    }
-    return Object.freeze(value) as PublicationPublicValue;
-  }
-  for (const key of Reflect.ownKeys(value)) {
-    if (typeof key !== 'string') continue;
-    const record = value as Record<string, unknown>;
-    record[key] = freezeJsonValue(record[key], seen);
-  }
-  return Object.freeze(value) as PublicationPublicValue;
-}
 
 const DEFAULT_MAX_DEPTH = 64;
 const DEFAULT_MAX_NODES = 100_000;
@@ -297,6 +271,10 @@ function createState(options: PublicationPublicProjectionOptions, retainRestrict
   const maxNodes = readLimit(
     limitsValue === undefined ? undefined : readOptionalPolicyDataProperty(limitsValue, 'maxNodes'),
     DEFAULT_MAX_NODES,
+  );
+  readLimit(
+    limitsValue === undefined ? undefined : readOptionalPolicyDataProperty(limitsValue, 'maxBytes'),
+    DEFAULT_MAX_PUBLIC_WIRE_BYTES,
   );
   const allowedExtensions = new Set<string>();
   if (Reflect.ownKeys(namespaces).some((key) => typeof key === 'symbol'

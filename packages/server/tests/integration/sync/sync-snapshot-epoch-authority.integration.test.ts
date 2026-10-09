@@ -19,6 +19,8 @@ import {
 } from '../../support/postgres-test-runtime.js';
 import { seedRecoveryFixture } from '../../support/sync-recovery-fixture.js';
 
+const ORIGIN = 'chrome-extension://abcdefghijklmnopabcdefghijklmnop';
+
 describeWithPostgres('COLP Snapshot re-authorizes the account security epoch', () => {
   let isolated: IsolatedPostgresRuntime;
 
@@ -37,7 +39,7 @@ describeWithPostgres('COLP Snapshot re-authorizes the account security epoch', (
         createPostgresSharedExposureFactsPort(isolated.runtime)),
     });
     const live = await application.query({
-      credential: fixture.credential,
+      origin: ORIGIN, credential: fixture.credential,
       request: { sessionId: fixture.sessionId, limit: 10 },
     });
     assert.ok(live.nodes.length >= 1, 'control: snapshot must materialize before the epoch bump');
@@ -48,7 +50,7 @@ describeWithPostgres('COLP Snapshot re-authorizes the account security epoch', (
     );
     await assert.rejects(
       application.query({
-        credential: fixture.credential,
+        origin: ORIGIN, credential: fixture.credential,
         request: { sessionId: fixture.sessionId, limit: 10 },
       }),
       (error: unknown) => error instanceof SyncBootstrapSnapshotError && error.code === 'resource_not_found',
@@ -60,8 +62,7 @@ describeWithPostgres('COLP Snapshot re-authorizes the account security epoch', (
       sessionDurationSeconds: 900, replicaLeaseExtensionSeconds: 3_600,
       tombstoneRetentionSeconds: 86_400, maxBatchOperations: 1,
       endpointCapabilities: ['syncSnapshot', 'syncPush', 'syncPull', 'syncAck', 'syncConflict'],
-    }).verify({
-      credential: fixture.credential, sessionId: fixture.sessionId,
+    }).verify({ credential: fixture.credential, sessionId: fixture.sessionId,
       collectionId: fixture.collectionId, replicaId: fixture.replicaId,
     }));
   }, 60_000);
@@ -123,7 +124,7 @@ describeWithPostgres('COLP Snapshot re-authorizes the account security epoch', (
     const fixture = await seedRecoveryFixture(isolated, 'snap-life', undefined, false, undefined, '0.2', 1);
     const application = snapshotApplication(isolated);
     const request = {
-      credential: fixture.credential,
+      origin: ORIGIN, credential: fixture.credential,
       request: { sessionId: fixture.sessionId, limit: 10 },
     };
     const live = await application.query(request);
@@ -160,7 +161,7 @@ describeWithPostgres('COLP Snapshot re-authorizes the account security epoch', (
       same_lease: true, same_policy: true, same_epoch: true, lease_live: true,
     });
     const page = await snapshotApplication(isolated).query({
-      credential: fixture.credential,
+      origin: ORIGIN, credential: fixture.credential,
       request: { sessionId: fixture.sessionId, limit: 10 },
     });
     assert.ok(page.nodes.length >= 1);
