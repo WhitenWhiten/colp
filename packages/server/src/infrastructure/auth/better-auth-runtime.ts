@@ -768,6 +768,21 @@ function buildProductAuthHooks(input: {
       }
       const signupIntent = headerValue(ctx, SIGNUP_OTP_INTENT_HEADER) === SIGNUP_OTP_INTENT_VALUE;
       if (ctx.path === '/sign-in/email-otp' && signupIntent) {
+        const existingUsers = await ctx.context.adapter.count({ model: 'user' });
+        if (!isColpMultiUser() && existingUsers > 0) {
+          throw APIError.from('FORBIDDEN', {
+            code: 'registration_closed',
+            message: 'Registration is closed.',
+          });
+        }
+        if (isSelfHostedEdition() && existingUsers === 0
+            && !setupTokenMatches(headerValue(ctx, COLP_SETUP_TOKEN_HEADER))) {
+          throw APIError.from('FORBIDDEN', {
+            code: 'setup_token_required',
+            message: 'Enter the setup token from the server log (docker compose logs server), '
+              + 'or run: docker compose exec server colp-server setup-token',
+          });
+        }
         return completeExplicitSignupEmailOtp(ctx, otpMaxAttempts);
       }
       if (ctx.path !== '/email-otp/send-verification-otp') return;
