@@ -13,3 +13,5 @@
 !.env.example
 .DS_Store
 Thumbs.db
+# Temporary migration-subset folders created by server tests (tests/support/migration-subset-directory.ts).
+packages/server/.migrations-subset-*/

@@ -1,7 +1,3 @@
-import { mkdtemp, symlink } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
-import { tmpdir } from 'node:os';
-import { productionMigrationNamesFromDisk } from '../../../scripts/lexical-migration-head.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 
@@ -29,18 +25,7 @@ export const ROOT = 'p3-20-root';
 export const TARGET = 'p3-20-root-target';
 export const ORIGIN = 'chrome-extension://abcdefghijklmnopabcdefghijklmnop';
 export const FOREIGN_ORIGIN = 'chrome-extension://bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
-export const PRODUCTION_MIGRATIONS_DIRECTORY = resolve(import.meta.dirname, '../../../migrations');
-
-export async function migrationDirectoryExcluding(excluded: ReadonlySet<string>): Promise<string> {
-  const directory = await mkdtemp(join(tmpdir(), 'p3-sync-migrations-'));
-  const names = productionMigrationNamesFromDisk(PRODUCTION_MIGRATIONS_DIRECTORY)
-    .filter((name) => !excluded.has(name));
-  await Promise.all(names.map((name) => symlink(
-    resolve(PRODUCTION_MIGRATIONS_DIRECTORY, `${name}.ts`),
-    resolve(directory, `${name}.ts`),
-  )));
-  return directory;
-}
+export { migrationDirectoryExcluding, PRODUCTION_MIGRATIONS_DIRECTORY } from '../../support/migration-subset-directory.js';
 /** Each suite owns its database and lifecycle; stream-dependent cases get explicit seed facts. */
 export function createSyncPullFixture(schemaPrefix: string, seedStream = true) {
   let isolated: IsolatedPostgresRuntime;
