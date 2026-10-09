@@ -113,8 +113,20 @@ describeWithPostgres('AUTH-P1-a: recovery reset and HTTP change-password share t
       headers: { origin: F3_TRUSTED_ORIGIN },
     });
     assert.equal(verify.statusCode, 200, 'mailbox verification must succeed');
-    const cookieValue = f3SessionCookieOf(verify);
-    assert.ok(cookieValue, 'autoSignInAfterVerification must set the session cookie');
+    assert.equal(
+      f3SessionCookieOf(verify),
+      null,
+      'email verification must not replace the browser session',
+    );
+    const signIn = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/sign-in/email',
+      headers: { 'content-type': 'application/json', origin: F3_TRUSTED_ORIGIN },
+      payload: JSON.stringify({ email, password: F3_PASSWORD }),
+    });
+    assert.equal(signIn.statusCode, 200, 'verified password sign-in must succeed');
+    const cookieValue = f3SessionCookieOf(signIn);
+    assert.ok(cookieValue, 'explicit sign-in must set the session cookie');
     const decoded = decodeURIComponent(cookieValue);
     const mapping = await isolated.runtime.pool.query<{ account_id: string }>(
       `select m.account_id from auth_user_account_map m
