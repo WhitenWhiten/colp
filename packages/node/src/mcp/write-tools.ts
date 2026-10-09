@@ -544,7 +544,7 @@ export function createMcpWriteToolGateway<
 
     if (name === 'changes.plan') {
       const validated = validatePlanInput(input, requestBudget);
-      const plan = await (hostPlan ?? planService.plan)(validated, activeBinding);
+      const plan = await (hostPlan ?? planService.plan)(validated, activeBinding, activeContext.scope);
       assertNotAborted(activeContext.abortSignal);
       return validatedStructuredResult(plan, validatePlanOutput);
     }
