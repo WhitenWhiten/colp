@@ -436,7 +436,11 @@ describe(`Publication HTTP black-box integration ${evidence}`, () => {
   it(`parses concealed Problems and isolates authorized reads by principal ${evidence}`, async () => {
     const server = await startPublicationServer();
     try {
-      const anonymous = new ColpClient({ manifestUrl: server.manifestUrl, fetch: globalThis.fetch });
+      const anonymous = new ColpClient({
+        manifestUrl: server.manifestUrl,
+        fetch: globalThis.fetch,
+        egressPolicy: (url) => url.origin === server.origin,
+      });
       const concealed = await anonymous.getCollection('hidden-collection').catch((error: unknown) => error);
       expect(concealed).toBeInstanceOf(ColpProblemError);
       expect(concealed).toMatchObject({ status: 404, code: 'resource_not_found', known: true });
@@ -449,6 +453,7 @@ describe(`Publication HTTP black-box integration ${evidence}`, () => {
       const authorizedClient = (principal: 'alice' | 'bob') => new ColpClient({
         manifestUrl: server.manifestUrl,
         fetch: globalThis.fetch,
+        egressPolicy: (url) => url.origin === server.origin,
         cache: sharedCache,
         requestIdentityProvider: () => ({
           credentialProvider: () => ({ Authorization: 'Bearer ' + principal + '-token' }),

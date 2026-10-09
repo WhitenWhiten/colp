@@ -186,6 +186,11 @@ function isPrivateOrLocalIPv6(hextets: Uint16Array): boolean {
   if (hextets[0] === 0x5f00) return true; // 5f00::/16 (SRv6)
   if (hextets[0] === 0x0064 && hextets[1] === 0xff9b && hextets[2] === 0x0001) return true; // 64:ff9b:1::/48
 
+  // IPv6 global unicast is limited to 2000::/3. Everything outside that
+  // range is reserved, special-use, or otherwise not globally routable even
+  // when it is absent from the blacklist above (for example 4000::/16).
+  if ((hextets[0]! & 0xe000) !== 0x2000) return true;
+
   return false;
 }
 

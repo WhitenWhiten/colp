@@ -293,7 +293,9 @@ export function buildBetterAuthOptions<DB>(input: BetterAuthRuntimeInput<DB>): B
       sendOnSignIn: false,
       // P1: after the mailbox proof, mint a session so Congratulations +
       // Continue works. Library / mutations still refuse unverified occupancy.
-      autoSignInAfterVerification: true,
+      // Verification links must not replace the browser's current session.
+      // The user can sign in explicitly after the mailbox is verified.
+      autoSignInAfterVerification: false,
       // Verification email through the C1 sender; absent sender =>
       // /send-verification-email reports VERIFICATION_EMAIL_NOT_ENABLED.
       ...(emailDelivery.sendVerificationEmail !== null
@@ -766,6 +768,21 @@ function buildProductAuthHooks(input: {
       }
       const signupIntent = headerValue(ctx, SIGNUP_OTP_INTENT_HEADER) === SIGNUP_OTP_INTENT_VALUE;
       if (ctx.path === '/sign-in/email-otp' && signupIntent) {
+        const existingUsers = await ctx.context.adapter.count({ model: 'user' });
+        if (!isColpMultiUser() && existingUsers > 0) {
+          throw APIError.from('FORBIDDEN', {
+            code: 'registration_closed',
+            message: 'Registration is closed.',
+          });
+        }
+        if (isSelfHostedEdition() && existingUsers === 0
+            && !setupTokenMatches(headerValue(ctx, COLP_SETUP_TOKEN_HEADER))) {
+          throw APIError.from('FORBIDDEN', {
+            code: 'setup_token_required',
+            message: 'Enter the setup token from the server log (docker compose logs server), '
+              + 'or run: docker compose exec server colp-server setup-token',
+          });
+        }
         return completeExplicitSignupEmailOtp(ctx, otpMaxAttempts);
       }
       if (ctx.path !== '/email-otp/send-verification-otp') return;
@@ -773,6 +790,21 @@ function buildProductAuthHooks(input: {
       // Login omits this header and must stay non-enumerating (byte-identical
       // 200). auth-local-flows pins both sides of the split.
       if (!signupIntent) return;
+      const existingUsers = await ctx.context.adapter.count({ model: 'user' });
+      if (!isColpMultiUser() && existingUsers > 0) {
+        throw APIError.from('FORBIDDEN', {
+          code: 'registration_closed',
+          message: 'Registration is closed.',
+        });
+      }
+      if (isSelfHostedEdition() && existingUsers === 0
+          && !setupTokenMatches(headerValue(ctx, COLP_SETUP_TOKEN_HEADER))) {
+        throw APIError.from('FORBIDDEN', {
+          code: 'setup_token_required',
+          message: 'Enter the setup token from the server log (docker compose logs server), '
+            + 'or run: docker compose exec server colp-server setup-token',
+        });
+      }
       const body = ctx.body as { email?: unknown; type?: unknown } | undefined;
       if (body?.type !== 'sign-in' || typeof body.email !== 'string' || body.email.length === 0) {
         return;

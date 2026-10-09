@@ -40,6 +40,7 @@ describeWithPostgres('E5 agent directory over PostgreSQL', () => {
   let other: AuthenticatedTestClient;
   let app: ReturnType<typeof buildApiApp>;
   let oauthId: string;
+  let sharedOauthId: string;
   let keyId: string;
   let foreignId: string;
   let versionedPlanId: string;
@@ -65,6 +66,7 @@ describeWithPostgres('E5 agent directory over PostgreSQL', () => {
     const ownerUser = await authUserId(owner.accountId);
     const otherUser = await authUserId(other.accountId);
     oauthId = `agent-oauth-${randomUUID().slice(0, 8)}`;
+    sharedOauthId = `agent-shared-${randomUUID().slice(0, 8)}`;
     foreignId = `agent-foreign-${randomUUID().slice(0, 8)}`;
     keyId = randomUUID();
     await insertOauthClient({
@@ -85,6 +87,17 @@ describeWithPostgres('E5 agent directory over PostgreSQL', () => {
       createdAt: '2026-08-03T00:00:00.000Z',
       seenAt: null,
     });
+    await insertOauthClient({
+      id: `row-${sharedOauthId}`,
+      clientId: sharedOauthId,
+      userId: ownerUser,
+      name: 'Shared agent',
+      scopes: ['nodes:read'],
+      createdAt: '2026-08-02T00:00:00.000Z',
+      seenAt: '2026-08-02T04:00:00.000Z',
+    });
+    await insertOauthConsent(sharedOauthId, otherUser);
+    await insertOauthToken(sharedOauthId, otherUser);
     await insertApiKey(keyId);
     await sql`
       INSERT INTO agent_policies (principal_id, client_id, policy, updated_at)
@@ -187,6 +200,45 @@ describeWithPostgres('E5 agent directory over PostgreSQL', () => {
     assert.equal(hidden.status, 404);
     const anon = await app.inject({ method: 'GET', url: '/api/v1/me/agents' });
     assert.equal(anon.statusCode, 401);
+  });
+
+  test('a consenting account can revoke only its own OAuth consent and tokens', async () => {
+    const response = await send(other, 'POST', `/api/v1/me/agents/${sharedOauthId}/revoke`);
+    assert.equal(response.status, 200);
+    assert.deepEqual(response.json, { id: sharedOauthId, revoked: true, cancelledPlanCount: 0 });
+
+    const client = await sql<{ disabled: boolean | null }>`
+      SELECT disabled FROM "auth_oauth_client" WHERE "clientId" = ${sharedOauthId}
+    `.execute(isolated.runtime.db);
+    assert.notEqual(client.rows[0]?.disabled, true, 'consent revocation must not disable the client');
+
+    const consent = await sql<{ user_id: string }>`
+      SELECT "userId" AS user_id FROM "auth_oauth_consent"
+      WHERE "clientId" = ${sharedOauthId}
+    `.execute(isolated.runtime.db);
+    assert.equal(consent.rows.length, 0, 'the caller\'s consent must be removed');
+
+    const tokens = await sql<{ user_id: string; revoked: Date | null }>`
+      SELECT "userId" AS user_id, revoked
+      FROM "auth_oauth_access_token"
+      WHERE "clientId" = ${sharedOauthId}
+      ORDER BY "userId"
+    `.execute(isolated.runtime.db);
+    assert.equal(tokens.rows.length, 2);
+    const otherUserId = await authUserId(other.accountId);
+    const ownerUserId = await authUserId(owner.accountId);
+    const otherToken = tokens.rows.find((row) => row.user_id === otherUserId);
+    const ownerToken = tokens.rows.find((row) => row.user_id === ownerUserId);
+    assert.ok(otherToken?.revoked instanceof Date, 'consent user token must be revoked');
+    assert.equal(ownerToken?.revoked, null, 'owner token must remain active');
+    const refresh = await sql<{ revoked: Date | null }>`
+      SELECT revoked FROM "auth_oauth_refresh_token"
+      WHERE "clientId" = ${sharedOauthId} AND "userId" = ${otherUserId}
+    `.execute(isolated.runtime.db);
+    assert.ok(refresh.rows[0]?.revoked instanceof Date, 'consent user refresh token must be revoked');
+
+    const store = createPostgresMcpOauthRevocationStore({ db: isolated.runtime.db });
+    assert.equal(await store.isRevoked(revocationQuery(sharedOauthId, Math.floor(Date.now() / 1000) + 120)), false);
   });
 
   test('revokes one oauth client and one API key without touching the other', async () => {
@@ -303,6 +355,38 @@ describeWithPostgres('E5 agent directory over PostgreSQL', () => {
         ${`token-${input.clientId}`}, ${`token-value-${input.clientId}`}, ${input.clientId},
         ${input.userId}, '2030-01-01T00:00:00.000Z'::timestamptz,
         ${input.seenAt}::timestamptz, '["nodes:read"]'::jsonb
+      )
+    `.execute(isolated.runtime.db);
+  }
+
+  async function insertOauthConsent(clientId: string, userId: string): Promise<void> {
+    await sql`
+      INSERT INTO "auth_oauth_consent" (
+        "id", "clientId", "userId", "scopes", "createdAt", "updatedAt"
+      ) VALUES (
+        ${`consent-${clientId}`}, ${clientId}, ${userId}, '["nodes:read"]'::jsonb,
+        '2026-08-02T04:00:00.000Z'::timestamptz, '2026-08-02T04:00:00.000Z'::timestamptz
+      )
+    `.execute(isolated.runtime.db);
+  }
+
+  async function insertOauthToken(clientId: string, userId: string): Promise<void> {
+    await sql`
+      INSERT INTO "auth_oauth_access_token" (
+        "id", "token", "clientId", "userId", "expiresAt", "createdAt", "scopes"
+      ) VALUES (
+        ${`token-${clientId}-other`}, ${`token-value-${clientId}-other`}, ${clientId}, ${userId},
+        '2030-01-01T00:00:00.000Z'::timestamptz, '2026-08-02T04:00:00.000Z'::timestamptz,
+        '["nodes:read"]'::jsonb
+      )
+    `.execute(isolated.runtime.db);
+    await sql`
+      INSERT INTO "auth_oauth_refresh_token" (
+        "id", "token", "clientId", "userId", "expiresAt", "createdAt", "scopes"
+      ) VALUES (
+        ${`refresh-${clientId}-other`}, ${`refresh-value-${clientId}-other`}, ${clientId}, ${userId},
+        '2030-01-01T00:00:00.000Z'::timestamptz, '2026-08-02T04:00:00.000Z'::timestamptz,
+        '["nodes:read"]'::jsonb
       )
     `.execute(isolated.runtime.db);
   }

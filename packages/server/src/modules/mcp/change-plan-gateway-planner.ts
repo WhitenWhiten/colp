@@ -23,6 +23,7 @@ export interface Phase4bMcpGatewayPlanner {
   readonly plan: (
     request: unknown,
     binding: McpAuthenticatedAuthorizationBinding,
+    authorizedScopes?: readonly string[],
   ) => Promise<ChangePlan>;
 }
 
@@ -40,7 +41,11 @@ export function createPhase4bMcpGatewayPlanner(
   });
   const service = createChangePlanService({ ...options, planStore: digestStampingStore });
   return Object.freeze({
-    async plan(request: unknown, binding: McpAuthenticatedAuthorizationBinding) {
+    async plan(
+      request: unknown,
+      binding: McpAuthenticatedAuthorizationBinding,
+      authorizedScopes?: readonly string[],
+    ) {
       const input = snapshotMcpOwnData(request, MCP_OWN_DATA_DEFAULT_BUDGET) as { operations?: readonly unknown[] };
       // Keep the host's existence-ambiguous revision rejection, before the SDK
       // sanitizes arbitrary dependency failures into an internal error.
@@ -49,7 +54,11 @@ export function createPhase4bMcpGatewayPlanner(
           await options.revisions.resolveBaseRevisions(operation as Parameters<typeof options.revisions.resolveBaseRevisions>[0], binding);
         }
       }
-      return service.plan(input, binding);
+      return Reflect.apply(
+        service.plan,
+        service,
+        [input, binding, authorizedScopes],
+      ) as Promise<ChangePlan>;
     },
   });
 }

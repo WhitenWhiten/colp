@@ -266,7 +266,10 @@ export function createValidatorRegistry(ajv?: Ajv2020): ValidatorRegistry {
     validate(name: DefinitionName, value: unknown): ValidationResult {
       const bounded = findStructuredUniqueArrayLimit(value);
       if (bounded !== undefined) return { valid: false, errors: [bounded] };
-      const validator = validators.get(name) ?? get(name);
+      // Always validate through the bounded snapshot wrapper. Calling the raw
+      // canonical Ajv function here would let inherited fields or accessors
+      // cross the own-data boundary that get() enforces.
+      const validator = get(name);
       if (validator(value)) {
         return { valid: true, errors: [] };
       }

@@ -10,7 +10,7 @@ const manifestPath = '/.well-known/collection-protocol';
 const collectionId = '019b3ca2-8424-7cc2-9a61-4bf44c23f07a';
 const fixture = (name: string) => readFile(resolve(fixtures, name), 'utf8');
 
-async function clientFor(callerOrigin: string, endpointOrigin: string, explicitlyAllow = false) {
+async function clientFor(callerOrigin: string, endpointOrigin: string, allowedOrigins: readonly string[] = []) {
   const manifest = (await fixture('public-manifest.json')).replaceAll(publicOrigin, endpointOrigin);
   const directory = await fixture('collection-directory.json');
   const manifestUrl = callerOrigin + manifestPath;
@@ -25,8 +25,8 @@ async function clientFor(callerOrigin: string, endpointOrigin: string, explicitl
     manifestUrl,
     fetch: fetch as typeof globalThis.fetch,
     credentialProvider: credentials,
-    ...(explicitlyAllow ? {
-      egressPolicy: (url: URL) => url.origin === callerOrigin || url.origin === endpointOrigin,
+    ...(allowedOrigins.length > 0 ? {
+      egressPolicy: (url: URL) => allowedOrigins.includes(url.origin),
     } : {}),
   });
   return { client, fetch, credentials, manifestUrl };
@@ -53,19 +53,19 @@ describe('Manifest-selected initial endpoint security', () => {
   });
 
   it('retains same-origin local development only when that origin was selected by the caller', async () => {
-    const { client, fetch } = await clientFor('https://127.0.0.1:7443', 'https://127.0.0.1:7443');
+    const { client, fetch } = await clientFor('https://127.0.0.1:7443', 'https://127.0.0.1:7443', ['https://127.0.0.1:7443']);
     await expect(client.getDirectory()).resolves.toMatchObject({ collections: expect.any(Array) });
     expect(fetch).toHaveBeenCalledTimes(2);
   });
 
   it('does not let a local Manifest grant authority to another local port', async () => {
-    const { client, fetch } = await clientFor('https://127.0.0.1:7443', 'https://127.0.0.1:7444');
-    await expect(client.getDirectory()).rejects.toThrow(/literal private or local host/);
+    const { client, fetch } = await clientFor('https://127.0.0.1:7443', 'https://127.0.0.1:7444', ['https://127.0.0.1:7443']);
+    await expect(client.getDirectory()).rejects.toThrow(/Egress policy denied/u);
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 
   it('honors an explicit caller policy for a vetted private endpoint', async () => {
-    const { client, fetch } = await clientFor(publicOrigin, 'https://10.0.0.1', true);
+    const { client, fetch } = await clientFor(publicOrigin, 'https://10.0.0.1', [publicOrigin, 'https://10.0.0.1']);
     await expect(client.getDirectory()).resolves.toMatchObject({ collections: expect.any(Array) });
     expect(fetch).toHaveBeenCalledTimes(2);
   });

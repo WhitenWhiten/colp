@@ -70,6 +70,13 @@ import {
 import type { ScopeName } from '../types/index.js';
 import { requirePromise } from './internal-guards.js';
 import { assertPushReplicaOwnership, type PushReplicaOwnershipVerifier } from './push-ownership.js';
+import {
+  collectionSequenceScopeKey,
+  sequenceScopeMatchesCollection,
+  normalizeSessionBoundPushRequest,
+  normalizeSessionBoundSequenceRequest,
+} from './collection-scope.js';
+export { collectionSequenceScopeKey, sequenceScopeMatchesCollection } from './collection-scope.js';
 
 export type {
   SyncSessionGateDenial,
@@ -169,27 +176,6 @@ async function assertReplicaOwnership(
   if (verdict !== true && verdict !== undefined) {
     throw new TypeError('Replica lifecycle ownershipVerifier must return boolean or void.');
   }
-}
-
-/**
- * Persistence key for a Collection Sequence lane. Hosts that store one lane
- * per Collection use this value as `sequenceScope`; generic
- * COLP tests may still address the same Collection by its raw ID.
- *
- * Do not change this encoding: existing receipts and next-sequence counters
- * are keyed by it for the Replica lifetime.
- */
-export function collectionSequenceScopeKey(collectionId: string): string {
-  return `collection:${collectionId}`;
-}
-
-/** True when `sequenceScope` names `collectionId`, as raw ID or persistence key. */
-export function sequenceScopeMatchesCollection(
-  sequenceScope: string,
-  collectionId: string,
-): boolean {
-  return sequenceScope === collectionId
-    || sequenceScope === collectionSequenceScopeKey(collectionId);
 }
 
 function assertPullRequestMatchesSession(
@@ -466,6 +452,11 @@ export async function coordinateSessionBoundPush<
       detail: 'Every Push Operation and Sequence lane must match the verified Collection Session.',
     });
   }
+  // Raw Collection IDs and their persistence-key aliases are both accepted at
+  // the session boundary, but they must enter one durable lane. Normalize only
+  // after the request has crossed immutable validation and the Collection
+  // binding has been proven, so bare/free-form Push keeps its legacy semantics.
+  const normalizedRequest = normalizeSessionBoundPushRequest(request, session.collectionId!);
   if (unitOfWork.pushSequenceContinuity !== true) {
     throw new SyncSessionGateDeniedError({
       state: 'request_binding_mismatch',
@@ -478,7 +469,7 @@ export async function coordinateSessionBoundPush<
     await assertPushReplicaOwnership(ownershipVerifier ?? gate.pushOwnershipVerifier, session,
       { replicaId, collectionId: session.collectionId });
   }
-  const result = await coordinatePushTransaction(unitOfWork, request, preflight);
+  const result = await coordinatePushTransaction(unitOfWork, normalizedRequest, preflight);
   return Object.freeze({ session, result });
 }
 
@@ -549,7 +540,8 @@ export async function coordinateSessionBoundSequence<
     session,
     { replicaId: request.replicaId, collectionId: session.collectionId },
   );
-  const result = await coordinateSequenceOperation(unitOfWork, request, evaluate);
+  const normalizedRequest = normalizeSessionBoundSequenceRequest(request, session.collectionId!);
+  const result = await coordinateSequenceOperation(unitOfWork, normalizedRequest, evaluate);
   return Object.freeze({ session, result });
 }
 

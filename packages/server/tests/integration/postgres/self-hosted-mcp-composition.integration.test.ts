@@ -15,7 +15,7 @@ const BINDING: McpAuthenticatedAuthorizationBinding = {
   credentialBindingId: 'production-credential',
   resourceAudience: 'https://collections.example.test/collections/-/mcp', securityEpoch: 'epoch-1',
 };
-const SCOPES = ['nodes:write', 'access:write', 'changes:commit', 'changes:cancel'];
+const SCOPES = ['nodes:write', 'nodes:delete', 'access:write', 'changes:commit', 'changes:cancel'];
 
 describeWithPostgres('self-hosted production MCP composition', () => {
   let isolated: IsolatedPostgresRuntime;

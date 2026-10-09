@@ -51,7 +51,11 @@ export interface AgentRevokeResult {
 type Executor = Kysely<DatabaseSchema>;
 
 interface OwnedAgent {
-  readonly oauth: boolean;
+  /** The caller owns the OAuth registration (and may revoke it globally). */
+  readonly oauthOwner: boolean;
+  /** The caller has a consent row (and may revoke only that consent). */
+  readonly oauthConsent: boolean;
+  readonly oauthUserId: string | null;
   readonly credentialId: string | null;
   readonly credentialActive: boolean;
 }
@@ -175,7 +179,7 @@ async function listAgentAudit(
   assertAgentId(agentId);
   const bounded = boundLimit(limit);
   const owned = await findOwned(db, accountId, agentId, true);
-  if (!owned.oauth && owned.credentialId === null) return undefined;
+  if (!owned.oauthOwner && !owned.oauthConsent && owned.credentialId === null) return undefined;
   const plans = await sql<{
     plan_id: string;
     status: string;
@@ -254,8 +258,8 @@ async function revokeAgent(
   assertAgentId(agentId);
   return db.transaction().execute(async (transaction) => {
     const owned = await findOwned(transaction, accountId, agentId, true);
-    if (!owned.oauth && owned.credentialId === null) return undefined;
-    if (owned.oauth) {
+    if (!owned.oauthOwner && !owned.oauthConsent && owned.credentialId === null) return undefined;
+    if (owned.oauthOwner) {
       await sql`
         UPDATE "auth_oauth_client"
         SET disabled = true, "updatedAt" = current_timestamp
@@ -271,6 +275,29 @@ async function revokeAgent(
         SET revoked = current_timestamp
         WHERE "clientId" = ${agentId} AND revoked IS NULL
       `.execute(transaction);
+    } else if (owned.oauthConsent && owned.oauthUserId !== null) {
+      // A consent row grants this account access to the client, but does not
+      // make the caller an owner. Unlink only this user's consent and tokens;
+      // disabling the client or revoking another user's tokens requires the
+      // registration owner (or an explicit admin path).
+      await sql`
+        DELETE FROM "auth_oauth_consent"
+        WHERE "clientId" = ${agentId} AND "userId" = ${owned.oauthUserId}
+      `.execute(transaction);
+      await sql`
+        UPDATE "auth_oauth_access_token"
+        SET revoked = current_timestamp
+        WHERE "clientId" = ${agentId}
+          AND "userId" = ${owned.oauthUserId}
+          AND revoked IS NULL
+      `.execute(transaction);
+      await sql`
+        UPDATE "auth_oauth_refresh_token"
+        SET revoked = current_timestamp
+        WHERE "clientId" = ${agentId}
+          AND "userId" = ${owned.oauthUserId}
+          AND revoked IS NULL
+      `.execute(transaction);
     }
     if (owned.credentialId !== null && owned.credentialActive) {
       await sql`
@@ -283,12 +310,14 @@ async function revokeAgent(
           AND state = 'active'
       `.execute(transaction);
     }
-    const digest = digestMcpOauthRevocationField(agentId);
-    await sql`
-      INSERT INTO mcp_oauth_client_revocations (client_id_digest, revoked_at)
-      VALUES (${digest}, current_timestamp)
-      ON CONFLICT (client_id_digest) DO NOTHING
-    `.execute(transaction);
+    if (owned.oauthOwner || owned.credentialId !== null) {
+      const digest = digestMcpOauthRevocationField(agentId);
+      await sql`
+        INSERT INTO mcp_oauth_client_revocations (client_id_digest, revoked_at)
+        VALUES (${digest}, current_timestamp)
+        ON CONFLICT (client_id_digest) DO NOTHING
+      `.execute(transaction);
+    }
     const cancelled = await sql<{ plan_id: string }>`
       UPDATE mcp_change_plans
       SET status = 'cancelled', updated_at = current_timestamp
@@ -311,22 +340,29 @@ async function findOwned(
   agentId: string,
   includeInactive: boolean,
 ): Promise<OwnedAgent> {
-  const oauth = await sql<{ found: number }>`
-    SELECT 1 AS found
+  const oauth = await sql<{ user_id: string }>`
+    SELECT m.auth_user_id AS user_id
     FROM auth_user_account_map m
     JOIN "auth_oauth_client" c
       ON c."clientId" = ${agentId}
-      AND (
-        c."userId" = m.auth_user_id
-        OR EXISTS (
-          SELECT 1 FROM "auth_oauth_consent" consent
-          WHERE consent."clientId" = c."clientId" AND consent."userId" = m.auth_user_id
-        )
-      )
+      AND c."userId" = m.auth_user_id
     WHERE m.account_id = ${accountId}
       AND (${includeInactive} OR c.disabled IS DISTINCT FROM true)
     LIMIT 1
   `.execute(db);
+  const consent = await sql<{ user_id: string }>`
+    SELECT consent."userId" AS user_id
+    FROM auth_user_account_map m
+    JOIN "auth_oauth_consent" consent
+      ON consent."clientId" = ${agentId}
+      AND consent."userId" = m.auth_user_id
+    JOIN "auth_oauth_client" c ON c."clientId" = consent."clientId"
+    WHERE m.account_id = ${accountId}
+      AND (${includeInactive} OR c.disabled IS DISTINCT FROM true)
+    LIMIT 1
+  `.execute(db);
+  const oauthOwner = oauth.rows.length > 0;
+  const oauthUserId = oauth.rows[0]?.user_id ?? consent.rows[0]?.user_id ?? null;
   const key = await sql<{ id: string; state: string; expired: boolean }>`
     SELECT id, state, expires_at <= current_timestamp AS expired
     FROM account_credentials
@@ -338,10 +374,18 @@ async function findOwned(
   const credential = key.rows[0];
   const active = credential !== undefined && credential.state === 'active' && credential.expired !== true;
   if (!includeInactive && credential !== undefined && !active) {
-    return { oauth: oauth.rows.length > 0, credentialId: null, credentialActive: false };
+    return {
+      oauthOwner,
+      oauthConsent: consent.rows.length > 0,
+      oauthUserId,
+      credentialId: null,
+      credentialActive: false,
+    };
   }
   return {
-    oauth: oauth.rows.length > 0,
+    oauthOwner,
+    oauthConsent: consent.rows.length > 0,
+    oauthUserId,
     credentialId: credential?.id ?? null,
     credentialActive: active,
   };

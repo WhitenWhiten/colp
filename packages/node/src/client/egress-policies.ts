@@ -6,11 +6,10 @@ const loopbackHostnames = new Set(['localhost', '127.0.0.1', '[::1]']);
  * An egress policy for local development and tests: it allows requests to the
  * listed loopback origins and denies every other destination.
  *
- * Without a policy, `ColpClient` reaches a loopback server only on the first
- * hop to the `manifestUrl` origin, so redirects and the `next` links of a paged
- * Snapshot are refused. This policy allows those too, without the blanket
- * `() => true` that would also disable the client's protection against
- * requests to private networks.
+ * Without a policy, `ColpClient` refuses loopback and private destinations,
+ * including the initial Manifest URL. This policy explicitly authorizes the
+ * listed loopback origins while still denying every other private destination,
+ * without the blanket `() => true` that would disable the client's protection.
  *
  * @throws RangeError when the list is empty or names a host other than
  *   `localhost`, `127.0.0.1`, or `[::1]`.

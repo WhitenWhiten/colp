@@ -37,6 +37,8 @@ import {
   snapshotMcpData,
   type McpWriteInputBudget,
 } from './safe-data.js';
+import { deriveRequiredScopes, deriveMcpOperationRequiredScopes } from './change-plan-scopes.js';
+export { deriveMcpOperationRequiredScopes };
 import {
   requireAuthenticatedWriteBinding,
   snapshotMcpAuthorizationBinding,
@@ -504,6 +506,8 @@ export interface McpChangePlanService {
   readonly plan: (
     request: unknown,
     binding: McpAuthenticatedAuthorizationBinding,
+    /** Gateway-supplied scopes for pre-plan admission; omitted for host-only callers. */
+    authorizedScopes?: readonly string[],
   ) => Promise<ChangePlan>;
   /**
    * Host-only approval entry. Must never be exposed as a model-callable Tool.
@@ -522,12 +526,10 @@ export interface McpChangePlanService {
     binding: McpAuthenticatedAuthorizationBinding,
   ) => Promise<Readonly<{ planId: string; status: 'cancelled' }>>;
 }
-
 const DEFAULT_TTL_MS = 15 * 60 * 1000;
 export const MCP_CHANGE_PLAN_DEFAULT_MAX_CONCURRENT_PLANS = 128 as const;
 export const MCP_CHANGE_PLAN_UNTRUSTED_NOTE_MAX_LENGTH = 1000;
 const untrustedNoteControlCharacter = /[\u0000-\u001F\u007F]/u;
-
 export function createChangePlanService<
   Transaction extends McpChangePlanCommitTransaction,
 >(
@@ -540,8 +542,11 @@ export function createChangePlanService<
   const inputBudget = ports.inputBudget;
   const maxConcurrentPlans = ports.maxConcurrentPlans ?? MCP_CHANGE_PLAN_DEFAULT_MAX_CONCURRENT_PLANS;
   let activePlans = 0;
-
-  const plan = async (request: unknown, binding: McpAuthenticatedAuthorizationBinding): Promise<ChangePlan> => {
+  const plan = async (
+    request: unknown,
+    binding: McpAuthenticatedAuthorizationBinding,
+    authorizedScopes?: readonly string[],
+  ): Promise<ChangePlan> => {
     if (activePlans >= maxConcurrentPlans) {
       throw new McpChangePlanError('rate_limited', 'Change plan aggregate admission limit reached.');
     }
@@ -552,13 +557,18 @@ export function createChangePlanService<
     const typedRequest = validatePlanRequest(request, inputBudget);
     const operations = typedRequest.operations;
     assertKeyRevealCapability(operations, ports.revealUriForKey);
-
-    // Typed operations have already crossed the canonical schema boundary.
     const assessment = assessCanonicalOperations(operations, inputBudget);
     const risk = assessment.level === 'low' ? 'high' : assessment.level;
-    // High-risk path is the point of this service; low-only plans are still allowed
-    // but still require typed ops. Public visibility etc. will be high via aggregation.
-
+    const requiredScopes = await deriveRequiredScopes(operations, ownedBinding, ports.authorizationPolicy, inputBudget);
+    if (authorizedScopes !== undefined) {
+      if (!Array.isArray(authorizedScopes) || authorizedScopes.some((scope) => typeof scope !== 'string')) {
+        throw new McpChangePlanError('scope_invalid', 'The request authorization scope set is invalid.');
+      }
+      const granted = new Set(authorizedScopes);
+      if (!requiredScopes.every((scope) => granted.has(scope))) {
+        throw new McpChangePlanError('scope_invalid', 'The request does not hold the operation-specific scopes required to assess this Plan.');
+      }
+    }
     const impactCandidate = Reflect.apply(ports.impact.assessImpact, ports.impact.receiver, [
       Object.freeze([...operations]),
     ]);
@@ -568,12 +578,6 @@ export function createChangePlanService<
       operations,
       ownedBinding,
       ports.revisions,
-      inputBudget,
-    );
-    const requiredScopes = await deriveRequiredScopes(
-      operations,
-      ownedBinding,
-      ports.authorizationPolicy,
       inputBudget,
     );
     const planId = ids.nextPlanId();
@@ -588,7 +592,6 @@ export function createChangePlanService<
     const frozenOperations = Object.freeze(
       operations.map((op) => snapshotMcpData(op, inputBudget) as ChangePlanOperation),
     );
-
     const storedBase = {
       planId,
       expiresAt,
@@ -605,7 +608,6 @@ export function createChangePlanService<
       createdAt: now.toISOString(),
       status: 'pending' as const,
     };
-
     const stored: McpStoredPlan = requiresApproval
       ? Object.freeze({
         ...storedBase,
@@ -613,9 +615,7 @@ export function createChangePlanService<
         approvalUri: joinApprovalUri(ports.approvalBaseUri, planId, ports.uriPolicy),
       })
       : Object.freeze(storedBase);
-
     await Reflect.apply(ports.planStore.save, ports.planStore.receiver, [stored]);
-
     const result = {
       planId: stored.planId,
       expiresAt: stored.expiresAt,
@@ -632,13 +632,11 @@ export function createChangePlanService<
         }
         : {}),
     };
-
       return snapshotMcpData(result, inputBudget) as ChangePlan;
     } finally {
       activePlans -= 1;
     }
   };
-
   const recordOutOfBandApproval = async (
     planId: string,
     binding: McpAuthenticatedAuthorizationBinding,
@@ -654,7 +652,6 @@ export function createChangePlanService<
     });
     let transaction: Transaction | undefined;
     let failure: unknown;
-
     try {
       transaction = await Reflect.apply(
         ports.commitCoordinator.begin,
@@ -1027,122 +1024,12 @@ export function createChangePlanService<
   return Object.freeze({ plan, recordOutOfBandApproval, commit, cancel });
 }
 
-/** Pure helper exported for tests and gateway composition. */
 export function computeOperationsDigest(operations: readonly unknown[]): string {
   const canonical = encodePlainCanonicalJson(operations);
   if (canonical === undefined) {
     throw new McpChangePlanError('invalid_plan_request', 'Operations are not JSON-canonicalizable.');
   }
   return `sha-256:${createHash('sha256').update(canonical).digest('base64url')}`;
-}
-
-async function deriveRequiredScopes(
-  operations: readonly ChangePlanOperation[],
-  binding: McpAuthenticatedAuthorizationBinding,
-  policy: ResolvedServiceOptions<McpChangePlanCommitTransaction>['authorizationPolicy'],
-  inputBudget: Required<McpWriteInputBudget>,
-): Promise<readonly ScopeName[]> {
-  const required = new Set<ScopeName>();
-
-  for (const operation of operations) {
-    const canonicalScope = canonicalScopeForOperation(operation);
-    if (canonicalScope !== undefined) required.add(canonicalScope);
-
-    const policyCandidate = Reflect.apply(
-      policy.requiredScopesForOperation,
-      policy.receiver,
-      [operation, binding],
-    );
-    const policyScopes = await resolvePolicyScopes(policyCandidate, operation.type, inputBudget);
-    if (operation.type === 'sync_mirror' && policyScopes.length === 0) {
-      throw new McpChangePlanError(
-        'invalid_plan_request',
-        'Authorization policy must return at least one Scope for sync_mirror.',
-      );
-    }
-    for (const scope of policyScopes) required.add(scope);
-  }
-
-  return Object.freeze([...required]);
-}
-
-async function resolvePolicyScopes(
-  candidate: unknown,
-  operationType: string,
-  inputBudget: Required<McpWriteInputBudget>,
-): Promise<readonly ScopeName[]> {
-  if (candidate !== null && (typeof candidate === 'object' || typeof candidate === 'function')) {
-    if (nodeTypes.isProxy(candidate)) {
-      throw invalidPolicyScopes(operationType);
-    }
-    if (nodeTypes.isPromise(candidate)) {
-      const settled = await new Promise<unknown>((resolve, reject) => {
-        Reflect.apply(Promise.prototype.then, candidate, [resolve, reject]);
-      });
-      return readPolicyScopes(settled, operationType, inputBudget);
-    }
-  }
-  return readPolicyScopes(candidate, operationType, inputBudget);
-}
-
-function canonicalScopeForOperation(operation: ChangePlanOperation): ScopeName | undefined {
-  switch (operation.type) {
-    case 'delete_collection':
-      return 'collections:delete';
-    case 'delete_subtree':
-      return 'nodes:delete';
-    case 'set_visibility':
-    case 'set_access_policy':
-      return 'access:write';
-    case 'create_key':
-    case 'rotate_key':
-    case 'revoke_key':
-      return 'keys:write';
-    case 'set_rate_limit':
-      return 'rate_limits:write';
-    case 'publish_release':
-      return 'release:publish';
-    case 'sync_mirror':
-      return undefined;
-    default:
-      throw new McpChangePlanError(
-        'invalid_plan_request',
-        'Unknown change Plan operation has no canonical authorization policy.',
-      );
-  }
-}
-
-function readPolicyScopes(
-  value: unknown,
-  operationType: string,
-  inputBudget: Required<McpWriteInputBudget>,
-): readonly ScopeName[] {
-  let snapshot: unknown;
-  try {
-    snapshot = snapshotMcpData(value, inputBudget);
-  } catch {
-    throw invalidPolicyScopes(operationType);
-  }
-  if (!Array.isArray(snapshot)) throw invalidPolicyScopes(operationType);
-
-  const scopes: ScopeName[] = [];
-  for (const valueScope of snapshot) {
-    if (!validators.validate('scopeName', valueScope).valid) {
-      throw new McpChangePlanError(
-        'invalid_plan_request',
-        `Authorization policy for ${operationType} returned a non-canonical Scope.`,
-      );
-    }
-    scopes.push(valueScope as ScopeName);
-  }
-  return Object.freeze(scopes);
-}
-
-function invalidPolicyScopes(operationType: string): McpChangePlanError {
-  return new McpChangePlanError(
-    'invalid_plan_request',
-    `Authorization policy for ${operationType} must return a safe canonical Scope array.`,
-  );
 }
 
 function validatePlanRequest(
