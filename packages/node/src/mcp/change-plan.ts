@@ -526,12 +526,10 @@ export interface McpChangePlanService {
     binding: McpAuthenticatedAuthorizationBinding,
   ) => Promise<Readonly<{ planId: string; status: 'cancelled' }>>;
 }
-
 const DEFAULT_TTL_MS = 15 * 60 * 1000;
 export const MCP_CHANGE_PLAN_DEFAULT_MAX_CONCURRENT_PLANS = 128 as const;
 export const MCP_CHANGE_PLAN_UNTRUSTED_NOTE_MAX_LENGTH = 1000;
 const untrustedNoteControlCharacter = /[\u0000-\u001F\u007F]/u;
-
 export function createChangePlanService<
   Transaction extends McpChangePlanCommitTransaction,
 >(
@@ -544,7 +542,6 @@ export function createChangePlanService<
   const inputBudget = ports.inputBudget;
   const maxConcurrentPlans = ports.maxConcurrentPlans ?? MCP_CHANGE_PLAN_DEFAULT_MAX_CONCURRENT_PLANS;
   let activePlans = 0;
-
   const plan = async (
     request: unknown,
     binding: McpAuthenticatedAuthorizationBinding,
@@ -560,7 +557,6 @@ export function createChangePlanService<
     const typedRequest = validatePlanRequest(request, inputBudget);
     const operations = typedRequest.operations;
     assertKeyRevealCapability(operations, ports.revealUriForKey);
-
     const assessment = assessCanonicalOperations(operations, inputBudget);
     const risk = assessment.level === 'low' ? 'high' : assessment.level;
     const requiredScopes = await deriveRequiredScopes(operations, ownedBinding, ports.authorizationPolicy, inputBudget);
@@ -573,7 +569,6 @@ export function createChangePlanService<
         throw new McpChangePlanError('scope_invalid', 'The request does not hold the operation-specific scopes required to assess this Plan.');
       }
     }
-
     const impactCandidate = Reflect.apply(ports.impact.assessImpact, ports.impact.receiver, [
       Object.freeze([...operations]),
     ]);
@@ -597,7 +592,6 @@ export function createChangePlanService<
     const frozenOperations = Object.freeze(
       operations.map((op) => snapshotMcpData(op, inputBudget) as ChangePlanOperation),
     );
-
     const storedBase = {
       planId,
       expiresAt,
@@ -614,7 +608,6 @@ export function createChangePlanService<
       createdAt: now.toISOString(),
       status: 'pending' as const,
     };
-
     const stored: McpStoredPlan = requiresApproval
       ? Object.freeze({
         ...storedBase,
@@ -622,9 +615,7 @@ export function createChangePlanService<
         approvalUri: joinApprovalUri(ports.approvalBaseUri, planId, ports.uriPolicy),
       })
       : Object.freeze(storedBase);
-
     await Reflect.apply(ports.planStore.save, ports.planStore.receiver, [stored]);
-
     const result = {
       planId: stored.planId,
       expiresAt: stored.expiresAt,
@@ -641,13 +632,11 @@ export function createChangePlanService<
         }
         : {}),
     };
-
       return snapshotMcpData(result, inputBudget) as ChangePlan;
     } finally {
       activePlans -= 1;
     }
   };
-
   const recordOutOfBandApproval = async (
     planId: string,
     binding: McpAuthenticatedAuthorizationBinding,
@@ -663,7 +652,6 @@ export function createChangePlanService<
     });
     let transaction: Transaction | undefined;
     let failure: unknown;
-
     try {
       transaction = await Reflect.apply(
         ports.commitCoordinator.begin,
