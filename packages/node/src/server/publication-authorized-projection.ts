@@ -11,8 +11,9 @@ export function projectPublicationAuthorizedWire(
   input: unknown,
   options?: PublicationPublicWireOptions,
 ): PublicationPublicValue {
-  return materializePublicationPublicWire(projectPublicationAuthorizedValue(
-    input,
-    resolvePublicationPublicProjectionOptions(options),
-  ));
+  const resolved = resolvePublicationPublicProjectionOptions(options);
+  return materializePublicationPublicWire(
+    projectPublicationAuthorizedValue(input, resolved),
+    resolved.limits,
+  );
 }
