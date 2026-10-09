@@ -16,6 +16,8 @@
  * `src/mcp/resource-uri.ts` so URI authority validation remains
  * protocol-independent.
  */
+export { McpResourceRequestError } from './resource-budget.js';
+import { chargeAggregateResourceBytes, assertResourceUriBudget, McpResourceRequestError } from './resource-budget.js';
 import { types as nodeTypes } from 'node:util';
 
 import type { McpReadResource, McpResourceUriCodec } from '../resource-uri.js';
@@ -217,16 +219,6 @@ export class McpReadRequestAbortedError extends Error {
   }
 }
 
-/** Generic secret-free failure for Resource projection requests. */
-export class McpResourceRequestError extends Error {
-  readonly code = 'resource_request_failed' as const;
-
-  constructor() {
-    super('MCP Resource request could not be completed.');
-    this.name = 'McpResourceRequestError';
-  }
-}
-
 /** Fail-closed signal that a projected Resource does not exist (never leaks details). */
 export class McpResourceNotFoundError extends Error {
   readonly code = 'resource_not_found' as const;
@@ -310,6 +302,7 @@ export function createMcpStatelessReadCore(
       assertNotAborted(context.abortSignal);
       const budget = resolveMcpResourceReadBudget(context.budget);
       uri = readUriInput(args[1]);
+      assertResourceUriBudget(uri, resourceError);
       const resource = parseCanonical(uri, uriCodec);
       const raw = await Reflect.apply(projection.readResource, projection.receiver, [
         Object.freeze({ resource }),
@@ -390,6 +383,7 @@ function validateListResult(
   budget: Required<McpResourceReadBudget>,
 ): McpResourceListResult {
   assertExactDataObject(value, ['resources'], ['nextCursor']);
+  chargeAggregateResourceBytes(value, budget, resourceError);
   const rawResources = readOwnData(value, 'resources');
   assertStrictArray(rawResources);
   if (rawResources.length > budget.maxListItems) throw resourceError();
@@ -436,6 +430,7 @@ function validateReadResult(
   budget: Required<McpResourceReadBudget>,
 ): McpResourceReadResult {
   assertExactDataObject(value, ['contents']);
+  chargeAggregateResourceBytes(value, budget, resourceError);
   const rawContents = readOwnData(value, 'contents');
   assertStrictArray(rawContents);
   if (rawContents.length > budget.maxReadContents) throw resourceError();

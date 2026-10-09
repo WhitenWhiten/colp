@@ -1,3 +1,4 @@
+import { createValidatorRegistry } from '../../src/schema/index.js';
 import { describe, expect, it } from 'vitest';
 import { cloneAndFreezeJsonData, IJsonLimitError, parseIJson } from '../../src/schema/json.js';
 import { decodePublicationUtf8Json, publicationUtf8JsonBytes } from '../../src/server/publication-http-utf8.js';
@@ -88,4 +89,16 @@ describe('JSON resource admission', () => {
       expect(() => cloneAndFreezeJsonData(null, { maxBytes })).toThrow(RangeError);
     }
   });
+});
+
+it('raw registry get rejects deep graphs and accessors without invoking them', () => {
+  const validate = createValidatorRegistry().get('annotationCreate');
+  let calls = 0;
+  const value = { get id() { calls += 1; return 'annotation-1'; } };
+  expect(validate(value)).toBe(false);
+  expect(calls).toBe(0);
+  let deep: unknown = null;
+  for (let i = 0; i < 200; i += 1) deep = { child: deep };
+  expect(validate(deep)).toBe(false);
+  expect(validate.errors?.[0]?.keyword).toBe('x-colp-boundary');
 });

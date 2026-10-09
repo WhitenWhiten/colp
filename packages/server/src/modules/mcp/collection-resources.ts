@@ -40,6 +40,10 @@ import type {
 } from './config.js';
 import { PHASE4B_MCP_PUBLIC_READ_CACHE_TTL_MS } from './read-cache.js';
 import { createPhase4bMcpResourceIdentity } from './resource-identity.js';
+import {
+  MCP_OAUTH_SCOPE_READ_OWN,
+  MCP_OAUTH_SCOPE_READ_PUBLIC,
+} from './scope-requirements.js';
 
 export const PHASE4B_MCP_COLLECTION_RESOURCE_MIME_TYPE =
   'application/vnd.collection-protocol.collection+json' as const;
@@ -422,7 +426,7 @@ async function projectList(
   input: Readonly<McpResourceListInput>,
   context: McpTrustedReadRequestContext,
 ): Promise<McpResourceListResult> {
-  const principal = principalFromBinding(context.binding, context.authorization);
+  const principal = principalFromContext(context);
   const principalScopeValue = principalScope(principal);
   const securityEpoch = context.binding.securityEpoch;
   const comparator = PHASE4B_MCP_COLLECTION_RESOURCE_COMPARATOR_VERSION;
@@ -536,7 +540,7 @@ async function projectRead(
 ): Promise<Phase4bMcpCollectionResourceReadResult> {
   const resource = input.resource;
   if (resource.kind !== 'collection-metadata') throw new McpResourceNotFoundError();
-  const principal = principalFromBinding(context.binding, context.authorization);
+  const principal = principalFromContext(context);
   let result: Awaited<ReturnType<typeof getPublicationCollectionMetadata>>;
   try {
     result = await getPublicationCollectionMetadata(state.metadataQuery, {
@@ -553,7 +557,7 @@ async function projectRead(
     collectionId: resource.collectionId, blobIds: [],
   }, { signal: context.abortSignal });
   assertSharedExposureScopeIneligible(exposure);
-  if (context.binding.kind === 'authenticated') {
+  if (principal.kind === 'account') {
     const facts = await state.accessPolicy.loadCollectionFacts({
       collectionId: resource.collectionId,
       actorSubjectId: requireMcpAccountSubjectId(context.authorization),
@@ -712,6 +716,23 @@ function principalFromBinding(
     principalId: binding.principalId,
     subjectId: requireMcpAccountSubjectId(authorization),
   });
+}
+
+function principalFromContext(
+  context: McpTrustedReadRequestContext,
+): PublicationPrincipal {
+  // `mcp:read:public` authenticates the caller but does not grant member
+  // projection access.  Publication's account principal intentionally
+  // includes membership, so downgrade public-only callers to anonymous before
+  // every directory/metadata query.
+  if (
+    context.binding.kind === 'authenticated'
+    && context.scope.includes(MCP_OAUTH_SCOPE_READ_PUBLIC)
+    && !context.scope.includes(MCP_OAUTH_SCOPE_READ_OWN)
+  ) {
+    return Object.freeze({ kind: 'anonymous' });
+  }
+  return principalFromBinding(context.binding, context.authorization);
 }
 
 function principalScope(principal: PublicationPrincipal): string {

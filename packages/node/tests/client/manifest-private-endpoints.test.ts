@@ -69,4 +69,20 @@ describe('Manifest-selected initial endpoint security', () => {
     await expect(client.getDirectory()).resolves.toMatchObject({ collections: expect.any(Array) });
     expect(fetch).toHaveBeenCalledTimes(2);
   });
+  it('rejects a public cross-origin publisher endpoint before sending body or obtaining credentials', async () => {
+    const manifest = JSON.parse(await fixture('public-manifest.json'));
+    manifest.mounts[0].endpoints.nodes = manifest.mounts[0].endpoints.nodes.replace(publicOrigin, 'https://attacker.example');
+    const fetch = vi.fn(async () => Response.json(manifest));
+    const credentials = vi.fn(() => ({ Authorization: 'Bearer fixture-only' }));
+    const client = new ColpClient({ manifestUrl: publicOrigin + manifestPath,
+      fetch, credentialProvider: credentials });
+    const snapshot = JSON.parse(await fixture('collection-snapshot.json')) as Snapshot;
+    await expect(client.createNode(collectionId, {
+      parentId: snapshot.collection.rootNodeId,
+      node: { kind: 'bookmark', title: 'Private draft', url: 'https://example.test/private' },
+    }, { idempotencyKey: 'cross-origin-write' })).rejects.toThrow(/Mount origin/);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(credentials).toHaveBeenCalledTimes(1);
+  });
+
 });

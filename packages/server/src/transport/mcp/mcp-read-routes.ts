@@ -412,7 +412,7 @@ export function registerMcpReadRoutes(
     };
     request.raw.once('aborted', abortFromClient);
     request.raw.socket?.once('close', abortFromClient);
-    const timeout = setTimeout(
+    let timeout = setTimeout(
       () => controller.abort(new DOMException('MCP request timed out', 'TimeoutError')),
       listenRequest ? config.budgets.listen.maxDurationMs : timeoutMs,
     );
@@ -458,9 +458,21 @@ export function registerMcpReadRoutes(
       }
       sse = negotiation === 'sse' || (listenRequest && negotiation === 'json');
 
-      const acquirePromise = listenRequest
-        ? listenBudget.acquire(controller.signal)
-        : budget.acquire(controller.signal);
+      // The raw-body classifier is only an admission hint.  JSON string
+      // escapes can make its method spelling differ from the parsed body, so
+      // keep the lane whose slot was actually acquired separate from the
+      // post-admission `listenRequest` value.  Releasing based on that mutable
+      // value used to leak one budget and release a slot in the other lane.
+      let acquiredLane: 'listen' | 'request' = listenRequest ? 'listen' : 'request';
+      const acquireLane = (lane: 'listen' | 'request'): Promise<boolean> =>
+        lane === 'listen'
+          ? listenBudget.acquire(controller.signal)
+          : budget.acquire(controller.signal);
+      const releaseLane = (lane: 'listen' | 'request'): void => {
+        if (lane === 'listen') listenBudget.release();
+        else budget.release();
+      };
+      const acquirePromise = acquireLane(acquiredLane);
       // Report while the waiter is still queued: acquire() pushes onto
       // `waiters` synchronously, but the Promise does not resolve until a
       // slot is granted. Readiness/backlog must see that queued request
@@ -468,7 +480,7 @@ export function registerMcpReadRoutes(
       // queue slot and later complete as 200 instead of 503.
       reportRequestBudget();
       reportListenBudget();
-      const acquired = await acquirePromise;
+      let acquired = await acquirePromise;
       reportRequestBudget();
       reportListenBudget();
       if (!acquired) {
@@ -493,9 +505,48 @@ export function registerMcpReadRoutes(
         // concurrency admission.
         const admittedBody = parseAdmittedMcpBody(request.body, config.budgets.strictIJson);
         (request as FastifyRequest & { body: unknown }).body = admittedBody;
-        listenRequest = isListenBody(admittedBody);
-        requestMethod = readBodyMethod(admittedBody);
-        if (listenRequest && negotiation === 'json') sse = true;
+        const parsedListenRequest = isListenBody(admittedBody);
+        const parsedMethod = readBodyMethod(admittedBody);
+        operation.setClassification(parsedListenRequest ? 'listen' : 'request', parsedMethod);
+        // Use the parsed method for error responses even if moving between
+        // budgets later blocks the request.
+        sse = negotiation === 'sse' || (parsedListenRequest && negotiation === 'json');
+        // The raw hint also selected the initial operation timeout.  Reset it
+        // after parsing so escaped `subscriptions/listen` requests receive
+        // the long-lived listen window (and escaped ordinary requests do not)
+        // while they wait for the corrected budget lane too.
+        clearTimeout(timeout);
+        timeout = setTimeout(
+          () => controller.abort(new DOMException('MCP request timed out', 'TimeoutError')),
+          parsedListenRequest ? config.budgets.listen.maxDurationMs : timeoutMs,
+        );
+        timeout.unref();
+        if (parsedListenRequest !== (acquiredLane === 'listen')) {
+          // Move the request between the two independent budgets when the
+          // escaped/ambiguous raw classifier chose the wrong lane.  Release
+          // exactly the slot held so far, then acquire the actual lane before
+          // doing any authorization or long-lived listen work.
+          releaseLane(acquiredLane);
+          acquired = false;
+          reportRequestBudget();
+          reportListenBudget();
+          acquiredLane = parsedListenRequest ? 'listen' : 'request';
+          acquired = await acquireLane(acquiredLane);
+          reportRequestBudget();
+          reportListenBudget();
+          if (!acquired) {
+            if (!controller.signal.aborted) {
+              operationOutcome = 'problem';
+              operationCategory = 'backpressure';
+              operationBudgetBucket = parsedListenRequest ? 'listen_connections' : 'request_queue';
+              operations.recordBudgetOverflow(operationBudgetBucket);
+              return await sendMcpHttpResponse(reply, sse, 503, { error: 'mcp_connection_budget_exhausted' });
+            }
+            return;
+          }
+        }
+        listenRequest = parsedListenRequest;
+        requestMethod = parsedMethod;
         const authorization = singleMcpHeader(pairs, 'authorization');
         const bodyPreview = request.body;
         const previewMethod = isPlainObject(bodyPreview) && typeof bodyPreview.method === 'string'
@@ -677,12 +728,10 @@ export function registerMcpReadRoutes(
         }
         return;
       } finally {
-        if (listenRequest) {
-          listenBudget.release();
-          reportListenBudget();
-        } else {
-          budget.release();
+        if (acquired) {
+          releaseLane(acquiredLane);
           reportRequestBudget();
+          reportListenBudget();
         }
       }
     } catch (error) {
@@ -806,7 +855,15 @@ function parseAdmittedMcpBody(
   }
 }
 
-function classifyRawMcpBody(body: unknown): { readonly listen: boolean; readonly method: string } {
+/**
+ * Classify only the top-level JSON-RPC method before full parsing/admission.
+ *
+ * This scanner intentionally does not validate JSON; parseAdmittedMcpBody does
+ * that after a concurrency slot is acquired.  It does, however, skip complete
+ * JSON strings in one pass so a body containing many top-level keys cannot make
+ * admission quadratic by repeatedly slicing the unconsumed suffix.
+ */
+export function classifyRawMcpBody(body: unknown): { readonly listen: boolean; readonly method: string } {
   if (!Buffer.isBuffer(body) || body.byteLength === 0) {
     return { listen: false, method: 'unknown' };
   }
@@ -817,23 +874,33 @@ function classifyRawMcpBody(body: unknown): { readonly listen: boolean; readonly
     // long-lived listen lane before parsing, causing the wrong concurrency
     // slot to be released after admission.
     let depth = 0;
-    let inString = false;
-    let escaped = false;
     let method = 'unknown';
     for (let index = 0; index < source.length; index += 1) {
       const char = source[index]!;
-      if (inString) {
-        if (escaped) escaped = false;
-        else if (char === '\\') escaped = true;
-        else if (char === '"') inString = false;
-        continue;
-      }
       if (char === '"') {
+        const stringEnd = scanJsonStringEnd(source, index);
+        if (stringEnd < 0) return { listen: false, method: 'unknown' };
         if (depth === 1) {
-          const member = /^\s*"method"\s*:\s*"([^"\\]*)"/u.exec(source.slice(index));
-          if (member) { method = member[1]!; break; }
+          const key = source.slice(index + 1, stringEnd);
+          let cursor = stringEnd + 1;
+          while (cursor < source.length && isJsonWhitespace(source[cursor]!)) cursor += 1;
+          if (key === 'method' && source[cursor] === ':') {
+            cursor += 1;
+            while (cursor < source.length && isJsonWhitespace(source[cursor]!)) cursor += 1;
+            if (source[cursor] === '"') {
+              const valueEnd = scanJsonStringEnd(source, cursor);
+              if (valueEnd < 0) return { listen: false, method: 'unknown' };
+              try {
+                const value = JSON.parse(source.slice(cursor, valueEnd + 1)) as unknown;
+                if (typeof value === 'string') method = value;
+              } catch {
+                return { listen: false, method: 'unknown' };
+              }
+              break;
+            }
+          }
         }
-        inString = true;
+        index = stringEnd;
       } else if (char === '{') depth += 1;
       else if (char === '}') depth = Math.max(0, depth - 1);
     }
@@ -841,6 +908,25 @@ function classifyRawMcpBody(body: unknown): { readonly listen: boolean; readonly
   } catch {
     return { listen: false, method: 'unknown' };
   }
+}
+
+function scanJsonStringEnd(source: string, start: number): number {
+  let escaped = false;
+  for (let index = start + 1; index < source.length; index += 1) {
+    const char = source[index]!;
+    if (escaped) {
+      escaped = false;
+    } else if (char === '\\') {
+      escaped = true;
+    } else if (char === '"') {
+      return index;
+    }
+  }
+  return -1;
+}
+
+function isJsonWhitespace(char: string): boolean {
+  return char === ' ' || char === '\t' || char === '\n' || char === '\r';
 }
 
 function readBodyMethod(body: unknown): string {

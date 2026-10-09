@@ -22,6 +22,10 @@ import { requireMcpAccountSubjectId } from './account-context.js';
 import type { McpReadFeatureConfig } from './config.js';
 import { PHASE4B_MCP_PUBLIC_READ_CACHE_TTL_MS } from './read-cache.js';
 import { serializeMcpIJson } from './snapshot-resources.js';
+import {
+  MCP_OAUTH_SCOPE_READ_OWN,
+  MCP_OAUTH_SCOPE_READ_PUBLIC,
+} from './scope-requirements.js';
 
 export const PHASE4B_MCP_NODE_RESOURCE_MIME_TYPE =
   'application/vnd.collection-protocol.node+json' as const;
@@ -198,7 +202,7 @@ async function loadNodePage(
   try {
     const result = await getPublicationSnapshotPage(state.snapshotQuery, {
       collectionId,
-      principal: principalFromBinding(context.binding, context.authorization),
+      principal: principalFromContext(context),
       query: {
         root: nodeId,
         depth: 0,
@@ -281,6 +285,19 @@ function principalFromBinding(
     principalId: binding.principalId,
     subjectId: requireMcpAccountSubjectId(authorization),
   });
+}
+
+function principalFromContext(
+  context: McpTrustedReadRequestContext,
+): PublicationPrincipal {
+  if (
+    context.binding.kind === 'authenticated'
+    && context.scope.includes(MCP_OAUTH_SCOPE_READ_PUBLIC)
+    && !context.scope.includes(MCP_OAUTH_SCOPE_READ_OWN)
+  ) {
+    return Object.freeze({ kind: 'anonymous' });
+  }
+  return principalFromBinding(context.binding, context.authorization);
 }
 
 function privateCache(): Mcp20260728CacheMetadata {

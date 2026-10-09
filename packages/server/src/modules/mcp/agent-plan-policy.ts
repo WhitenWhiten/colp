@@ -53,6 +53,8 @@ export interface AutoApproveTrustedPlanActions {
 
 export interface AutoApproveTrustedPlanDeps {
   readonly readPolicy: (principalId: string, clientId: string) => Promise<AgentPolicyName>;
+  /** Re-check immediately before the commit side effect to close stale-policy windows. */
+  readonly assertTrustedPolicy?: (principalId: string, clientId: string) => Promise<boolean>;
   readonly captureVersion: (input: Readonly<{
     principalId: string;
     subjectId: string;
@@ -139,7 +141,15 @@ export function createAutoApproveTrustedPlan(
       collectionId,
       cause,
     });
+    if (deps.assertTrustedPolicy !== undefined
+      && !(await deps.assertTrustedPolicy(binding.principalId, binding.clientId))) {
+      return planned;
+    }
     if (planned.requiresApproval) await actions.approve(planned.planId, binding);
+    // Approval may await external work; a downgrade during that await must
+    // still prevent policy-driven commit.
+    if (deps.assertTrustedPolicy !== undefined
+      && !(await deps.assertTrustedPolicy(binding.principalId, binding.clientId))) return planned;
     await actions.commit(planned.planId, binding, policyCommitIdempotencyKey(planned.planId));
     await deps.saveReceipt({
       planId: planned.planId,

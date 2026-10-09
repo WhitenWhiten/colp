@@ -14,6 +14,7 @@ import { loadConfig } from '../../support/test-config.js';
 import type { DatabaseRuntime } from '../../../src/infrastructure/database/index.js';
 import { createLogger, InMemoryMetrics } from '../../../src/infrastructure/telemetry/index.js';
 import type { BrowserSessionAuthority } from '../../../src/modules/auth/index.js';
+import { sha256Base64Url } from '../../../src/modules/auth/index.js';
 import type { IdentityUnitOfWork } from '../../../src/modules/identity/index.js';
 import {
   BETTER_AUTH_PROD_SECRET,
@@ -272,6 +273,14 @@ describe('API composition leaves', () => {
       $context: Promise.resolve({
         internalAdapter: {
           async deleteUser(userId: string) { deletedAuthUsers.push(userId); },
+          async consumeVerificationValue(identifier: string) {
+            if (identifier !== 'email-verification-otp-owner@example.test') return null;
+            return {
+              value: `${sha256Base64Url('654321')}:0`,
+              expiresAt: new Date('2026-09-02T00:00:00.000Z'),
+            };
+          },
+          async createVerificationValue() {},
         },
       }),
     };

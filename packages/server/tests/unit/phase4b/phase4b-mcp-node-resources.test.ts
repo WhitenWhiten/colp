@@ -389,6 +389,13 @@ test('visibility, member access, and revocation reuse current access policy', as
     );
     assert.equal(memberBody.id, 'hidden-node');
     assert.equal(memberBody.visibility, 'private');
+    await assert.rejects(
+      () => fixture.projection.readResource(
+        nodeInput('collection-1', 'hidden-node'),
+        authenticatedContext(MEMBER, { scope: Object.freeze(['mcp:read:public']) }),
+      ),
+      McpResourceNotFoundError,
+    );
     assert.deepEqual(
       await fixture.projection.cacheForRead(nodeInput('collection-1', 'hidden-node'), authenticatedContext(MEMBER)),
       { ttlMs: 0, cacheScope: 'private' },

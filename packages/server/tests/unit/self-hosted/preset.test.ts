@@ -150,6 +150,13 @@ describe('self-hosted preset', () => {
     })).toThrow(/only on 127\.0\.0\.1/);
   });
 
+  it('refuses the shipped COLP_SERVER_SECRET placeholder even though it is long enough', () => {
+    expect(() => applySelfHostedPreset({
+      COLP_SERVER_ORIGIN: 'https://colp.test',
+      COLP_SERVER_SECRET: 'replace-with-openssl-rand-base64-48',
+    })).toThrow(/cryptographically random/);
+  });
+
   it('is stable for the same origin', () => {
     const left = baseEnv();
     const right = baseEnv();
@@ -174,6 +181,13 @@ describe('self-hosted preset', () => {
     expect(left.COLP_SETUP_TOKEN).toMatch(/^[A-Za-z0-9_-]{43}$/u);
     expect(left.COLP_SETUP_TOKEN).toBe(right.COLP_SETUP_TOKEN);
     expect(left.COLP_SETUP_TOKEN).not.toBe(other.COLP_SETUP_TOKEN);
+  });
+
+  it('does not honor a caller-supplied predictable setup token', () => {
+    const env = baseEnv({ COLP_SETUP_TOKEN: 'known-public-token' });
+    applySelfHostedPreset(env);
+    expect(env.COLP_SETUP_TOKEN).not.toBe('known-public-token');
+    expect(env.COLP_SETUP_TOKEN).toBeDefined();
   });
 
   it('derives the API-key signer, so a restart keeps the same valid P-256 key', () => {

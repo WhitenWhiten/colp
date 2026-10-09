@@ -14,6 +14,7 @@ import {
   expandPublicationEndpointTemplate,
   validateManifestSemantics,
 } from '@know-n/colp/semantic';
+import { assertAnonymousPublicationPrimaryVisibility } from '@know-n/colp/server';
 
 import {
   createHttpClient,
@@ -223,6 +224,13 @@ class Probe {
       if (exchange === undefined) return;
       const page = this.#document(exchange, 'snapshot', MEDIA_TYPES.snapshot);
       if (page === undefined) return;
+      try {
+        assertAnonymousPublicationPrimaryVisibility(page);
+        this.#record('PUB-0025', true, `${exchange.url}: public projection passed privacy checks`);
+      } catch (error) {
+        this.#record('PUB-0025', false,
+          `${exchange.url}: public projection failed privacy checks: ${describe(error)}`);
+      }
       totalBytes += exchange.bytes.byteLength;
       const pageMembers = snapshotMemberCount(page);
       totalMembers += pageMembers;

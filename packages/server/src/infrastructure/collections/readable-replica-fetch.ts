@@ -17,7 +17,7 @@ import {
   type ReadableReplicaFailureCode,
 } from '../../modules/collections/index.js';
 import { settleBestEffort } from '../async/best-effort.js';
-import { wrapConnectRecordingHops } from './link-health-probe.js';
+import { wrapConnectRecordingHops, type ProbeHostGate } from './link-health-probe.js';
 import {
   decodeReadableReplicaBody,
   ReadableReplicaBodyEncodingError,
@@ -53,6 +53,9 @@ export interface FetchReadableReplicaHtmlOptions {
    * bodies cannot be cut safely and keep the too_large failure.
    */
   readonly truncateUnencodedBody?: boolean;
+  /** Gate every redirect destination; the initial host is gated by the worker. */
+  readonly hostGate?: ProbeHostGate;
+  readonly initialHost?: string;
 }
 
 export type FetchReadableReplicaHtmlResult =
@@ -77,6 +80,7 @@ export async function fetchReadableReplicaHtml(
   try {
     const connect = wrapConnectRecordingHops(
       options.connect, hopUrls, options.connectTimeoutMs, signal,
+      options.hostGate, options.initialHost,
     );
     const fetchImpl = createHardenedEgressFetch({
       ...(options.resolve === undefined ? {} : { resolve: options.resolve }),

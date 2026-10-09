@@ -208,6 +208,9 @@ export class PostgresOutboxRepository implements OutboxRepository {
         );
       }
 
+      // The candidate CTE uses the SELECT's older snapshot. Another claimant
+      // can commit this same row before we acquire its lock; recheck readiness
+      // here so a live lease (including our own candidate id) cannot be stolen.
       const result = await client.query<OutboxRow>(`
         UPDATE outbox_events AS event
         SET state = 'leased',
@@ -216,6 +219,10 @@ export class PostgresOutboxRepository implements OutboxRepository {
             locked_until = current_timestamp + ($1 * interval '1 millisecond'),
             last_error = NULL
         WHERE event.outbox_id = $2
+          AND (
+            (event.state IN ('pending', 'retryable') AND event.available_at <= current_timestamp)
+            OR (event.state = 'leased' AND event.locked_until <= current_timestamp)
+          )
           AND NOT (
             event.handler_mode = 'projection_latest_only'
             AND EXISTS (

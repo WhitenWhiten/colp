@@ -126,6 +126,8 @@ export interface CanonicalOrdinal {
 }
 
 const ordinalPattern = /^(?:0|[1-9][0-9]*)$/;
+const MAX_CURSOR_LENGTH = 4_096;
+const MAX_CURSOR_FIELD_BYTES = 16 * 1024;
 // This is an input-resource bound, not a Number/safe-integer ordering bound.
 // 4,096 decimal digits leaves an effectively unbounded durable log lifetime.
 const maxOrdinalDigits = 4_096;
@@ -178,11 +180,31 @@ export function parseCursorRecord(raw: unknown): SyncPullCursorRecord {
   }
   const record = immutableJsonData(raw, 'Sync Pull Cursor record', new Set<object>()) as SyncPullCursorRecord;
   assertExactKeys(record, cursorRecordKeys, 'Sync Pull Cursor record');
+  for (const [label, value] of [
+    ['cursor', record.cursor],
+    ['sessionId', record.sessionId],
+    ['collectionId', record.collectionId],
+    ['protocolVersion', record.protocolVersion],
+  ] as const) {
+    if (typeof value !== 'string' || value.length === 0 || value.length > MAX_CURSOR_LENGTH
+      || utf8Bytes(value) > MAX_CURSOR_FIELD_BYTES) {
+      throw new TypeError(`Sync Pull Cursor ${label} exceeds its length budget.`);
+    }
+  }
+  if (record.snapshotUrl !== undefined && (typeof record.snapshotUrl !== 'string'
+    || record.snapshotUrl.length > MAX_CURSOR_FIELD_BYTES
+    || utf8Bytes(record.snapshotUrl) > MAX_CURSOR_FIELD_BYTES)) {
+    throw new TypeError('Sync Pull Cursor snapshotUrl exceeds its length budget.');
+  }
   if (typeof record.principal !== 'object' || record.principal === null) {
     throw new TypeError('Sync Pull Cursor principal must be an object.');
   }
   assertExactKeys(record.principal, new Set(['type', 'id']), 'Sync Pull Cursor principal');
   return record;
+}
+
+function utf8Bytes(value: string): number {
+  return new TextEncoder().encode(value).byteLength;
 }
 
 function bindingOf(request: SyncPullCursorBinding): SyncPullCursorBinding {
@@ -264,6 +286,7 @@ export async function resolvePullStartCursor(
 ): Promise<SyncPullStartCursor> {
   const binding = bindingOf(request);
   if (request.cursor === null) return issueInitial(binding, cursorStore);
+  assertCursorText(request.cursor, 'Presented Sync Pull Cursor');
   const raw = await requirePromise(
     cursorStore.resolveCursor(request.cursor),
     'Sync Pull Cursor store resolve',
@@ -303,6 +326,7 @@ export async function resolveEventCursorRecords(
   }
   const records = new Map<string, SyncPullCursorRecord>();
   if (cursors.length === 0) return records;
+  for (const cursor of cursors) assertCursorText(cursor, 'Sync Pull event Cursor');
   if (typeof cursorStore.resolveCursors !== 'function') {
     for (const cursor of cursors) {
       const raw = await requirePromise(cursorStore.resolveCursor(cursor), 'Sync Pull Cursor store resolve');
@@ -337,4 +361,11 @@ export async function resolveEventCursorRecords(
     throw new TypeError('Committed Sync Pull event has no durable Cursor record.');
   }
   return records;
+}
+
+function assertCursorText(value: unknown, label: string): asserts value is string {
+  if (typeof value !== 'string' || value.length === 0 || value.length > MAX_CURSOR_LENGTH
+    || utf8Bytes(value) > MAX_CURSOR_FIELD_BYTES) {
+    throw new TypeError(`${label} exceeds its length budget.`);
+  }
 }

@@ -52,6 +52,12 @@ describeWithPostgres('T-20 collections sitemap', () => {
       await app.close();
     }
   });
+  test('withdraws a public collection after the owner opts out of indexing', async () => {
+    await isolated.runtime.pool.query("update collections set allow_search_indexing = false where id = 'sitemap-public'");
+    const rows = await createPostgresPublicationSitemapReadPort(isolated.runtime).listIndexable();
+    assert.equal(rows.some((row) => row.publicationSlug === 'sitemap-public'), false);
+  });
+
 });
 
 async function seedSitemapFixtures(isolated: IsolatedPostgresRuntime): Promise<void> {
@@ -101,6 +107,7 @@ async function seedSitemapFixtures(isolated: IsolatedPostgresRuntime): Promise<v
         ('sitemap-unlisted-root', 'sitemap-unlisted', 'folder', true, 'Sitemap Unlisted', 'inherit', 'r1', 'ch1'),
         ('sitemap-seed-root', 'col-u98-sitemap-seed', 'folder', true, 'Sitemap Seed', 'inherit', 'r1', 'ch1')`,
     );
+    await client.query('update collections set allow_search_indexing = true');
     await client.query('commit');
   } catch (error) {
     await client.query('rollback');

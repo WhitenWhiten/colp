@@ -329,7 +329,10 @@ export interface BrowserSessionAuthority {
    * successor's `lastSeenAt` to now; that is not a throttle-touch of the
    * predecessor. Never throws for authentication failures.
    */
-  bootstrap(request: BrowserSessionRequest): Promise<BrowserSessionBootstrapResult>;
+  bootstrap(
+    request: BrowserSessionRequest,
+    options?: { readonly allowRotation?: boolean },
+  ): Promise<BrowserSessionBootstrapResult>;
   /** Logout: mark the metadata revoked, then revoke the BA session. Idempotent. */
   signOut(request: BrowserSessionRequest): Promise<void>;
   /**
@@ -671,7 +674,10 @@ export function createBrowserSessionAuthority(
       if (resolved.kind === 'missing') throw authenticationRequired();
       return resolved.actor;
     },
-    async bootstrap(request): Promise<BrowserSessionBootstrapResult> {
+    async bootstrap(
+      request,
+      options: { readonly allowRotation?: boolean } = {},
+    ): Promise<BrowserSessionBootstrapResult> {
       const parsed = parseBrowserSessionCookie(request.cookie);
       if (parsed.kind !== 'present') {
         // C4 pending-challenge guard (see authenticate): the MFA challenge
@@ -709,7 +715,8 @@ export function createBrowserSessionAuthority(
           });
           if (actor === null) return unauthenticatedBootstrap(false);
 
-          if (now.getTime() - metadata.createdAt.getTime() >= rotationMinAgeMs) {
+          if (options.allowRotation !== false
+            && now.getTime() - metadata.createdAt.getTime() >= rotationMinAgeMs) {
             try {
               return await rotateUsableSession(ports, metadata, baSession, actor.account, now, { idleTtlMs });
             } catch (error) {

@@ -45,6 +45,20 @@ describe('trusted plan commit admission', () => {
     expect(h.captureVersion).not.toHaveBeenCalled();
   });
 
+  it('does not commit after policy is downgraded during approval', async () => {
+    let trusted = true;
+    const commit = vi.fn(async () => ({} as never));
+    const policy = createAutoApproveTrustedPlan({ readPolicy: async () => 'trusted',
+      assertTrustedPolicy: async () => trusted,
+      captureVersion: async () => ({ versionId: 'version' }),
+      saveReceipt: async () => undefined, audit: async () => undefined });
+    const result = await runWithMcpAccountSubjectId('subject', () => policy(planned, binding, {
+      canCommit: true, commit, approve: async () => { trusted = false; },
+    }));
+    expect(result).toBe(planned);
+    expect(commit).not.toHaveBeenCalled();
+  });
+
   it('a signed incident epoch admits fresh same-second tokens and rejects earlier rotations', async () => {
     const store = createInMemoryMcpOauthRevocationStore({ now: () => new Date('2026-10-08T00:00:00.500Z'), securityEpoch: 'new' });
     const query = { issuer: 'issuer', subject: 'subject', clientId: 'client', tokenId: 'token',

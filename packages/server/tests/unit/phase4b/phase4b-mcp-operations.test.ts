@@ -228,6 +228,21 @@ test('method normalization, duration buckets, and budget names are bounded', () 
   assert.equal(phase4bMcpReadDurationBucket(60_001), 'above_60000');
 });
 
+test('operation classification can be corrected after escaped JSON method parsing', () => {
+  const { operations } = createOperations();
+  const handle = operations.beginRequest({
+    kind: 'request',
+    method: 'unknown',
+    controller: new AbortController(),
+  });
+  handle.setClassification('listen', 'subscriptions/listen');
+  const snapshot = operations.inspect();
+  assert.equal(snapshot.activeRequests.length, 0);
+  assert.equal(snapshot.activeListeners.length, 1);
+  assert.equal(snapshot.activeListeners[0]?.method, 'subscriptions/listen');
+  handle.finish({ outcome: 'problem', category: 'abort' });
+});
+
 test('OAuth dependency health provider maps bounded JWKS statuses without exposing details', async () => {
   const healthy = createPhase4bMcpReadDependencyHealthProvider({
     jwks: {

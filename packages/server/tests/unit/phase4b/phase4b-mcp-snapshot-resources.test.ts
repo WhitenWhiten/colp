@@ -419,6 +419,16 @@ test('member snapshots use the existing Publication projection and private cache
     assert.equal(body.complete, true);
     assert.equal((body.collection as Record<string, unknown>).visibility, 'protected');
     assert.doesNotMatch(JSON.stringify(body), /ownerSubjectId|membershipRole|"policyRevision"/iu);
+    await assert.rejects(
+      () => fixture.projection.readResource(
+        snapshotInput(),
+        Object.freeze({
+          ...authenticatedContext(MEMBER),
+          scope: Object.freeze(['mcp:read:public']),
+        }),
+      ),
+      McpResourceNotFoundError,
+    );
     assert.deepEqual(
       await fixture.projection.cacheForRead(snapshotInput(), authenticatedContext(MEMBER)),
       { ttlMs: 0, cacheScope: 'private' },

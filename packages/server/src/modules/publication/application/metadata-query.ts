@@ -1,6 +1,10 @@
 import { createValidatorRegistry } from '@know-n/colp/schema';
 import type { CollectionMetadata, HttpUrl } from '@know-n/colp/types';
-import { isHiddenPublicCollection, type CollectionHideControlPort } from './collection-control-gate.js';
+import {
+  isHiddenPublicCollection,
+  isRestrictedPublicCollection,
+  type CollectionHideControlPort,
+} from './collection-control-gate.js';
 import type { PublicationPrincipal } from './snapshot-query.js';
 import type { PublicationMetadataReadPort, PublicationMetadataRecord } from './metadata-read.js';
 
@@ -81,6 +85,9 @@ export async function getPublicationCollectionMetadata(
     throw new PublicationMetadataNotFoundError();
   }
   if (await isHiddenPublicCollection(ports.collectionControl, record.id, member ? 'member' : 'public')) {
+    throw new PublicationMetadataNotFoundError();
+  }
+  if (await isRestrictedPublicCollection(ports.collectionControl, record.id, member ? 'member' : 'public')) {
     throw new PublicationMetadataNotFoundError();
   }
   if (record.deletedAt !== null) {

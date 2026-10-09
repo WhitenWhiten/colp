@@ -139,6 +139,54 @@ describeWithPostgres('PostgreSQL outbox lease and delivery state', () => {
     assert.equal(await otherRepository.complete(remaining), true);
   });
 
+  test('does not reclaim a live lease selected from an older statement snapshot', async () => {
+    await insertOutbox('outbox-stale-snapshot', 'event-stale-snapshot');
+    const blocker = await runtime.pool.connect();
+    const gateKey = 571290;
+    let delayedPid = 0;
+    let delayed: Promise<Awaited<ReturnType<PostgresOutboxRepository['claim']>>> | undefined;
+    try {
+      await blocker.query('select pg_advisory_lock($1)', [gateKey]);
+      const delayedPool = { connect: async () => {
+        const client = await runtime.pool.connect();
+        delayedPid = (await client.query<{ pid: number }>('select pg_backend_pid() as pid')).rows[0]!.pid;
+        return new Proxy(client, { get(target, property) {
+          if (property === 'query') return (text: string, values?: unknown[]) => {
+            if (text.includes('WITH candidates AS')) {
+              // Hold this SELECT after its MVCC snapshot starts, before the
+              // candidate row is locked. The other claimant can then commit.
+              text = text.replace('WITH candidates AS',
+                `WITH gate AS MATERIALIZED (SELECT pg_advisory_xact_lock(${gateKey})), candidates AS`)
+                .replace('FROM candidates candidate', 'FROM candidates candidate CROSS JOIN gate');
+            }
+            return target.query(text, values);
+          };
+          const value = Reflect.get(target, property);
+          return typeof value === 'function' ? value.bind(target) : value;
+        } });
+      } } as unknown as Pool;
+      delayed = new PostgresOutboxRepository(delayedPool).claim(10_000);
+      const deadline = Date.now() + 5_000;
+      let waiting = false;
+      while (Date.now() < deadline) {
+        const locks = await runtime.pool.query(`select 1 from pg_locks
+          where pid = $1 and locktype = 'advisory' and not granted`, [delayedPid]);
+        if (locks.rowCount) { waiting = true; break; }
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      assert.equal(waiting, true, 'the delayed candidate statement must hold its old snapshot');
+      const owner = await repository.claim(10_000);
+      assert.equal(owner?.outboxId, 'outbox-stale-snapshot');
+      await blocker.query('select pg_advisory_unlock($1)', [gateKey]);
+      assert.equal(await delayed, null, 'a stale candidate cannot overwrite the committed live lease');
+      assert.equal(await repository.complete(owner!), true, 'the original owner retains its generation');
+    } finally {
+      await blocker.query('select pg_advisory_unlock_all()');
+      blocker.release();
+      await delayed;
+    }
+  });
+
   test('allows distinct resources in one collection scope to be claimed concurrently', async () => {
     await insertOutbox('outbox-resource-parallel-a', 'event-resource-parallel-a', {
       aggregateId: 'resource-parallel-a', aggregateScope: 'collection-parallel',

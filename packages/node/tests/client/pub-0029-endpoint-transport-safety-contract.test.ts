@@ -113,6 +113,7 @@ const rejectedTemplates = [
   ['file URL', 'file:///private/catalog.json'],
   ['WebSocket URL', 'ws://localhost:4173/catalog.json'],
   ['secure WebSocket URL', 'wss://api.example.test/catalog.json'],
+  ['oversized endpoint template', `https://api.example.test/${'x'.repeat(65_536)}`],
   ['variable host', 'https://{collectionId}.example.test/catalog.json'],
   ['Level 2 reserved expansion', 'https://api.example.test/{+collectionId}.json'],
   ['Level 2 fragment expansion', 'https://api.example.test/{#collectionId}'],
@@ -231,6 +232,19 @@ describe(`PUB-0029 declared Endpoint transport safety [evidence:${evidence}]`, (
     await new ColpClient({ manifestUrl, fetch: fetch as typeof globalThis.fetch }).getDirectory();
 
     expect(requested).toEqual([manifestUrl, endpoint]);
+  });
+
+  it('caps Manifest response bytes before cloning or semantic validation [evidence:http.endpoint-transport-safety]', async () => {
+    const manifest = await publicationManifest();
+    manifest.title = 'x'.repeat(70_000);
+    const fetch = vi.fn(async (input: string | URL | Request) => {
+      expect(requestHref(input)).toBe(manifestUrl);
+      return Response.json(manifest);
+    });
+
+    await expect(
+      new ColpClient({ manifestUrl, fetch: fetch as typeof globalThis.fetch }).discover(),
+    ).rejects.toThrow(/response byte limit/iu);
   });
 
   it.each([

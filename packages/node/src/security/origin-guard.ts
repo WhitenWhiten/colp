@@ -5,6 +5,9 @@ import {
   snapshotDenseArray,
 } from './input-snapshot.js';
 
+const MAX_ORIGIN_VALUES = 128;
+const MAX_ORIGIN_TEXT_LENGTH = 4_096;
+
 /** Applicability supplied by the transport adapter. */
 export type OriginGuardApplicability = 'applicable' | 'not_applicable';
 
@@ -75,7 +78,8 @@ function denied(reason: OriginGuardDenialReason): OriginGuardDecision {
 
 /** Canonical HTTPS origin; local transports may explicitly allow loopback HTTP origins. */
 function canonicalOrigin(value: unknown, allowLoopbackHttp = false): string | undefined {
-  if (typeof value !== 'string' || value.length === 0 || controls.test(value) || !originText.test(value)) return undefined;
+  if (typeof value !== 'string' || value.length === 0 || value.length > MAX_ORIGIN_TEXT_LENGTH
+    || controls.test(value) || !originText.test(value)) return undefined;
   if (value === 'null' || value === '*' || value.includes('%') || value.includes('\\') || value.includes(',')) {
     return undefined;
   }
@@ -128,7 +132,8 @@ function canonicalOrigin(value: unknown, allowLoopbackHttp = false): string | un
 
 function requestOriginSnapshot(value: unknown, allowLoopbackHttp: boolean): string | undefined {
   if (typeof value === 'string') return canonicalOrigin(value, allowLoopbackHttp);
-  const values = snapshotDenseArray(value, 'requestOrigin');
+  const values = snapshotDenseArray(value, 'requestOrigin', { maxLength: MAX_ORIGIN_VALUES });
+  if (values.length > MAX_ORIGIN_VALUES) return undefined;
   if (values.length !== 1 || typeof values[0] !== 'string') return undefined;
   return canonicalOrigin(values[0], allowLoopbackHttp);
 }
@@ -159,7 +164,9 @@ export function enforceOriginGuard(input: unknown): OriginGuardDecision {
     const allowedOriginsField = readOwnDataProperty(input, 'allowedOrigins');
     if (!requestOriginField.found || !allowedOriginsField.found) return denied('invalid_input');
     const requestOrigin = requestOriginSnapshot(requestOriginField.value, !remote);
-    const allowedValues = snapshotDenseArray(allowedOriginsField.value, 'allowedOrigins');
+    const allowedValues = snapshotDenseArray(allowedOriginsField.value, 'allowedOrigins', {
+      maxLength: MAX_ORIGIN_VALUES,
+    });
     if (allowedValues.length === 0) return denied('invalid_input');
     const allowed = new Set<string>();
     for (const candidate of allowedValues) {

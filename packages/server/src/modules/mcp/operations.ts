@@ -124,6 +124,8 @@ export interface Phase4bMcpReadRequestFinish {
 
 export interface Phase4bMcpReadOperationHandle {
   readonly registered: boolean;
+  /** Correct the bounded raw-body classification after JSON parsing. */
+  setClassification(kind: Phase4bMcpReadKind, method: string): void;
   setResourceKind(kind: Phase4bMcpReadResourceKind): void;
   attachListenSession(session: Pick<Mcp20260728SubscriptionsListenSession, 'close'>): void;
   finish(input: Phase4bMcpReadRequestFinish): void;
@@ -245,8 +247,8 @@ const DEFAULT_HIGH_WATERMARKS: Required<Phase4bMcpReadHighWatermarks> = Object.f
 });
 
 interface RegistryEntry {
-  readonly kind: Phase4bMcpReadKind;
-  readonly method: Phase4bMcpReadMethod;
+  kind: Phase4bMcpReadKind;
+  method: Phase4bMcpReadMethod;
   resourceKind: Phase4bMcpReadResourceKind;
   readonly controller: AbortController;
   readonly startedAt: number;
@@ -255,7 +257,7 @@ interface RegistryEntry {
 }
 
 interface FinishMetrics {
-  readonly method: Phase4bMcpReadMethod;
+  method: Phase4bMcpReadMethod;
   resourceKind: Phase4bMcpReadResourceKind;
   readonly startedAt: number;
 }
@@ -530,6 +532,17 @@ export function createPhase4bMcpReadOperations(
 
       return Object.freeze({
         registered,
+        setClassification(nextKind: Phase4bMcpReadKind, nextMethod: string) {
+          if (key === undefined) return;
+          const entry = entries.get(key);
+          if (entry === undefined || entry.finished) return;
+          const kind = nextKind === 'listen' ? 'listen' : 'request';
+          const method = normalizePhase4bMcpReadMethod(String(nextMethod));
+          entry.kind = kind;
+          entry.method = method;
+          finishMetrics.method = method;
+          updateGauges();
+        },
         setResourceKind(nextKind: Phase4bMcpReadResourceKind) {
           if (key === undefined) return;
           const entry = entries.get(key);

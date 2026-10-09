@@ -65,7 +65,7 @@ export function projectFeedEvent(
         return Object.freeze({ ok: false, code: 'event_contract_failed' });
       }
       assertPublicVisibilityProof(discriminated.event, options.publicVisibility);
-      const event = structuredClone(discriminated.event) as unknown as Record<string, unknown>;
+      const event = mutableFeedEnvelope(discriminated.event) as Record<string, unknown>;
       const data = event.data as Record<string, unknown>;
       if (isPlainObject(data.node)) {
         data.node = projectFeedNodeBookmark(data.node, {
@@ -81,7 +81,7 @@ export function projectFeedEvent(
     // Bare event data / node payload path. This path has no event contract
     // carrying visibility, so it still requires the host's authorization proof.
     assertPublicVisibilityProof(snapshot, options.publicVisibility);
-    const clone = structuredClone(snapshot) as Record<string, unknown>;
+    const clone = mutableFeedEnvelope(snapshot) as Record<string, unknown>;
     // Check authoritative visibility before Bookmark projection can discard
     // the source node's collection and visibility fields.  A bare Feed value
     // has no event contract that can provide an effective-visibility proof;
@@ -102,6 +102,19 @@ export function projectFeedEvent(
     }
     return Object.freeze({ ok: false, code: 'projection_failed' });
   }
+}
+
+/**
+ * The input has already passed immutableJsonSnapshot. Copy only the envelope
+ * levels that the projection rewrites; a second full structuredClone needlessly
+ * doubles peak memory and can reintroduce clone-time getter semantics if this
+ * helper is ever reused at another trusted boundary.
+ */
+function mutableFeedEnvelope(value: unknown): Record<string, unknown> {
+  if (!isPlainObject(value)) throw new TypeError('Feed projection value must be a plain object.');
+  const copy: Record<string, unknown> = { ...value };
+  if (isPlainObject(value.data)) copy.data = { ...value.data };
+  return copy;
 }
 
 /**

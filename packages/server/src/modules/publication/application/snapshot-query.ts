@@ -13,7 +13,11 @@ import {
   type SharedExposureEligibility,
   type SharedExposureFactsPort,
 } from '../../exposure/index.js';
-import { isHiddenPublicCollection, type CollectionHideControlPort } from './collection-control-gate.js';
+import {
+  isHiddenPublicCollection,
+  isRestrictedPublicCollection,
+  type CollectionHideControlPort,
+} from './collection-control-gate.js';
 import { PUBLIC_NODE_EXTENSIONS, PUBLICATION_PRODUCER_SEMANTICS, publicBookmarkExtensions } from './publication-node-extensions.js';
 import type { PublicationCursorKeyring } from './cursor-keyring.js';
 import {
@@ -160,14 +164,36 @@ export async function getPublicationSnapshotPage(
   let read = await ports.reads.loadPage({
     collectionId: input.collectionId,
     limit: Math.max(1, capacity),
-    ...(isContinuation ? { metadataOnly: true } : {}),
+    ...(isContinuation || input.principal.kind !== 'anonymous' ? { metadataOnly: true } : {}),
     ...(query.root ? { rootId: query.root } : {}),
     ...(query.depth !== undefined ? { depth: query.depth } : {}),
+    ...(input.principal.kind === 'anonymous' ? { projection: 'public' as const } : {}),
     ...(signal === undefined ? {} : { signal }),
   });
   const collection = requireReadableCollection(read.collection, read.root, isContinuation);
   const revision = publicationRevision(collection);
   const comparatorVersion = comparatorScope(read.comparatorVersion, includesAnnotations, includesRelations);
+  const projectionSelection = await selectProjection(
+    ports.accessPolicy, collection, input.principal, isContinuation,
+  );
+  const projection = projectionSelection.projection;
+  // An authenticated non-member still receives the public projection. Select
+  // authorization before the candidate scan so hidden rows never consume slots.
+  if (!isContinuation && input.principal.kind !== 'anonymous') {
+    read = await ports.reads.loadPage({
+      collectionId: input.collectionId,
+      limit: Math.max(1, capacity),
+      projection,
+      ...(query.root ? { rootId: query.root } : {}),
+      ...(query.depth !== undefined ? { depth: query.depth } : {}),
+      ...(signal === undefined ? {} : { signal }),
+    });
+    const scannedCollection = requireReadableCollection(read.collection, read.root, false);
+    if (publicationRevision(scannedCollection) !== revision
+      || comparatorScope(read.comparatorVersion, includesAnnotations, includesRelations) !== comparatorVersion) {
+      throw new PublicationSnapshotExpiredError();
+    }
+  }
 
   if (query.pageCursor !== undefined) {
     const verification = ports.cursors.snapshot.verify(query.pageCursor, {
@@ -192,6 +218,7 @@ export async function getPublicationSnapshotPage(
           ...(afterLocator ? { afterLocator } : {}),
           ...(query.root ? { rootId: query.root } : {}),
           ...(query.depth !== undefined ? { depth: query.depth } : {}),
+          projection,
           ...(signal === undefined ? {} : { signal }),
         });
       } catch (error) {
@@ -208,11 +235,14 @@ export async function getPublicationSnapshotPage(
     }
   }
 
-  const projectionSelection = await selectProjection(
-    ports.accessPolicy, collection, input.principal, isContinuation,
-  );
-  const projection = projectionSelection.projection;
+  if (projection === 'public' && read.root !== null && !isPubliclyVisible(read.root)) {
+    if (isContinuation) throw new PublicationSnapshotExpiredError();
+    throw new PublicationNotFoundError();
+  }
   if (await isHiddenPublicCollection(ports.collectionControl, input.collectionId, projection)) {
+    if (isContinuation) throw new PublicationSnapshotExpiredError(); throw new PublicationNotFoundError();
+  }
+  if (await isRestrictedPublicCollection(ports.collectionControl, input.collectionId, projection)) {
     if (isContinuation) throw new PublicationSnapshotExpiredError(); throw new PublicationNotFoundError();
   }
   // Shared attachments have no content-safety capability. There are no

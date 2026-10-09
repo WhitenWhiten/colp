@@ -97,7 +97,7 @@ describeWithPostgres('Explore creator postgres join (ORG-P0-a)', () => {
       avatar: 'https://cdn.example.test/ada.png',
     });
     assert.deepEqual(unknown, {
-      id: `subject:${unknownSubjectId}`,
+      id: 'unknown',
       name: 'Unknown',
       handle: null,
       avatar: null,
@@ -135,7 +135,7 @@ describeWithPostgres('Explore creator postgres join (ORG-P0-a)', () => {
       avatar: 'https://cdn.example.test/ada.png',
     }]);
     assert.deepEqual(body.items.find((item) => item.id === 'unknown-one')?.creators, [{
-      id: `subject:${unknownSubjectId}`,
+      id: 'unknown',
       name: 'Unknown',
       handle: null,
       avatar: null,

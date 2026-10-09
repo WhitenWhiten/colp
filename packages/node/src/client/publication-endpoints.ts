@@ -9,6 +9,7 @@ import type { ManifestMount } from '../types/index.js';
 import {
   assertPublicationTransportBoundary,
   createPublicationTransportBoundary,
+  publicationTransportRoute,
   publicationTransportProtocol,
   type PublicationTransportBoundary,
 } from './publication-transport-boundary.js';
@@ -28,7 +29,7 @@ export function resolvePublicationEndpoint(
   boundary: PublicationTransportBoundary = createPublicationTransportBoundary(mount),
 ): URL {
   assertPublicationTransportBoundary(boundary, mount);
-  const route = publicationRouteDeclaration(mount);
+  const route = publicationTransportRoute(boundary);
   return resolvePublicationRoute(route, boundary, endpoint, variables);
 }
 
@@ -36,14 +37,6 @@ interface PublicationRouteDeclaration {
   readonly id: string;
   readonly profiles: readonly string[];
   readonly endpoints: ManifestMount['endpoints'];
-}
-
-function publicationRouteDeclaration(mount: ManifestMount): PublicationRouteDeclaration {
-  return Object.freeze({
-    id: mount.id,
-    profiles: mount.profiles,
-    endpoints: mount.endpoints,
-  });
 }
 
 function resolvePublicationRoute(

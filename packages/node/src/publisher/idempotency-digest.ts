@@ -1,5 +1,8 @@
 import { types as nodeTypes } from 'node:util';
 
+const MAX_IF_MATCH_VALUES = 64;
+const MAX_IF_MATCH_BYTES = 64 * 1024;
+
 /**
  * Canonicalizes the repeated HTTP If-Match representation for idempotency.
  * OWS around list separators and repeated field lines is equivalent on the
@@ -22,6 +25,9 @@ export function normalizeIfMatchForDigest(
       || keys.some((key) => typeof key !== 'string')) {
       throw new TypeError('Canonical request If-Match must be a dense repeated field array.');
     }
+    if (value.length > MAX_IF_MATCH_VALUES) {
+      throw new TypeError('Canonical request If-Match contains too many field values.');
+    }
     const elements: string[] = [];
     for (let index = 0; index < value.length; index += 1) {
       const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
@@ -38,6 +44,9 @@ export function normalizeIfMatchForDigest(
     }
     values = [value];
   }
+  if (values.some((item) => Buffer.byteLength(item, 'utf8') > MAX_IF_MATCH_BYTES)) {
+    throw new TypeError('Canonical request If-Match field value exceeds its byte budget.');
+  }
   if (values.length === 0) return null;
   if (values.some((item) => typeof item !== 'string')) {
     throw new TypeError('Canonical request If-Match must contain string field values.');
@@ -50,5 +59,8 @@ export function normalizeIfMatchForDigest(
     .split('"')
     .map((part, index) => index % 2 === 1 ? part : part.replace(/[\t ]*,[\t ]*/gu, ','))
     .join('"');
+  if (Buffer.byteLength(combined, 'utf8') > MAX_IF_MATCH_BYTES) {
+    throw new TypeError('Canonical request If-Match exceeds its byte budget.');
+  }
   return combined.length === 0 ? null : combined;
 }

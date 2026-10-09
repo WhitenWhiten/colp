@@ -44,6 +44,10 @@ import {
   callOwnedCollectionsListTool,
   canListOwnedCollectionsTool,
 } from './owned-collection-mcp.js';
+import {
+  MCP_OAUTH_SCOPE_READ_OWN,
+  MCP_OAUTH_SCOPE_READ_PUBLIC,
+} from './scope-requirements.js';
 
 export interface McpApplicationFacade {
   readonly listTools: (
@@ -261,8 +265,19 @@ function unknownToolRejected(): McpApplicationToolResult {
 }
 
 function toTrustedReadContext(context: McpApplicationContext) {
+  const publicOnly = context.principal.kind === 'authenticated'
+    && context.scopes.includes(MCP_OAUTH_SCOPE_READ_PUBLIC)
+    && !context.scopes.includes(MCP_OAUTH_SCOPE_READ_OWN);
+  const binding = publicOnly
+    ? Object.freeze({
+      kind: 'anonymous' as const,
+      principalId: 'public' as const,
+      resourceAudience: context.principal.resourceAudience,
+      securityEpoch: context.principal.securityEpoch,
+    })
+    : bindingFromPrincipal(context.principal);
   return Object.freeze({
-    binding: bindingFromPrincipal(context.principal),
+    binding,
     scope: context.scopes,
     budget: context.budgets,
     abortSignal: context.abortSignal,

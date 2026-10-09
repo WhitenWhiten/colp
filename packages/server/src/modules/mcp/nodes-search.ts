@@ -20,6 +20,10 @@ import {
 import { requireMcpAccountSubjectId } from './account-context.js';
 import type { McpApplicationContext } from './application-context.js';
 import type { McpApplicationToolResult } from './application-results.js';
+import {
+  MCP_OAUTH_SCOPE_READ_OWN,
+  MCP_OAUTH_SCOPE_READ_PUBLIC,
+} from './scope-requirements.js';
 
 export const NODES_SEARCH_TOOL_NAME = 'nodes.search' as const;
 export const NODES_SEARCH_DESCRIPTION =
@@ -208,6 +212,15 @@ export async function callNodesSearchTool(
 
 export function searchPrincipalFromMcpContext(context: McpApplicationContext): SearchPrincipal {
   if (context.principal.kind === 'anonymous') return Object.freeze({ kind: 'anonymous' });
+  // `nodes:read` is an optional search profile claim, not a grant to the
+  // account/member projection.  A public-only MCP token must search through
+  // the same anonymous Publication visibility fence as the core Read Tools.
+  if (
+    context.scopes.includes(MCP_OAUTH_SCOPE_READ_PUBLIC)
+    && !context.scopes.includes(MCP_OAUTH_SCOPE_READ_OWN)
+  ) {
+    return Object.freeze({ kind: 'anonymous' });
+  }
   return Object.freeze({
     kind: 'account',
     accountId: context.principal.principalId,

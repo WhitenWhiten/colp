@@ -135,8 +135,12 @@ export function exactOwnStringKeys(
  * @param name - Optional label for error messages.
  * @returns A frozen copy of the index values.
  */
-export function snapshotDenseArray(value: unknown, name = 'array'): readonly unknown[] {
-  const result = inspectExactDenseArray(value);
+export function snapshotDenseArray(
+  value: unknown,
+  name = 'array',
+  options?: { readonly maxLength?: number },
+): readonly unknown[] {
+  const result = inspectExactDenseArray(value, options);
   if (!result.ok) {
     switch (result.failure) {
       case 'not-array':

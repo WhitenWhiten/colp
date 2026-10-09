@@ -158,6 +158,9 @@ const DEFAULT_EXTENSION_ID = 'pplpnpegpnghcddhmpgkbfkdfadjiaen';
 export function applySelfHostedPreset(env: NodeJS.ProcessEnv): void {
   const origin = required(env, 'COLP_SERVER_ORIGIN');
   const secretText = required(env, 'COLP_SERVER_SECRET');
+  if (isShippedSecretPlaceholder(secretText)) {
+    throw new Error('COLP_SERVER_SECRET must be replaced with a cryptographically random value');
+  }
   const secret = secretBytes(secretText);
   if (secret.length < 32) {
     throw new Error('COLP_SERVER_SECRET must be at least 32 bytes');
@@ -254,8 +257,10 @@ export function applySelfHostedPreset(env: NodeJS.ProcessEnv): void {
   set(env, 'BETTER_AUTH_SESSION_TOKEN_LEGACY_READ_UNTIL', new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString());
   set(env, 'AUTOMATION_ES256_PRIVATE_JWK', automationEs256PrivateJwk(secret));
   // D27: the first sign-up must present this token. It is derived, so the log
-  // line and `colp-server setup-token` agree without storage.
-  set(env, 'COLP_SETUP_TOKEN', deriveUrl(secret, 'COLP_SETUP_TOKEN'));
+  // line and `colp-server setup-token` agree without storage. Force the value
+  // instead of honoring an env override: a caller-controlled setup token would
+  // let a predictable value reclaim a fresh public origin.
+  env.COLP_SETUP_TOKEN = deriveUrl(secret, 'COLP_SETUP_TOKEN');
   const base64urlSecrets = new Set([
     'GOVERNANCE_CURSOR_HMAC_KEY',
     'AUTOMATION_CURSOR_HMAC_KEY',
@@ -264,6 +269,20 @@ export function applySelfHostedPreset(env: NodeJS.ProcessEnv): void {
   for (const name of SECRET_NAMES) {
     set(env, name, base64urlSecrets.has(name) ? deriveUrl(secret, name) : derive(secret, name));
   }
+}
+
+/**
+ * The compose example is intentionally human-readable, but it must never be
+ * accepted as a live signing secret.  Length-only checks used to admit this
+ * value because the placeholder is longer than the 32-byte minimum when
+ * interpreted as UTF-8.
+ */
+function isShippedSecretPlaceholder(value: string): boolean {
+  const normalized = value.trim().toLowerCase();
+  return normalized === 'replace-with-openssl-rand-base64-48'
+    || normalized === 'replace-with-random-secret'
+    || normalized === 'change-me'
+    || normalized === 'changeme';
 }
 
 function required(env: NodeJS.ProcessEnv, name: string): string {

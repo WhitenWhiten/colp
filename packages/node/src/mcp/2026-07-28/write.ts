@@ -4,7 +4,7 @@
  * malformed inputResponses are rejected and server-initiated requests are
  * never emitted. The host supplies the plan resolver and request-state key.
  */
-import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { types as nodeTypes } from 'node:util';
 
 import canonicalize from 'canonicalize';
@@ -59,7 +59,8 @@ import {
   resolveMcpSchemaBudget,
   type McpSchemaBudget,
 } from './schema-budget.js';
-import { requestStateBindingMaterial } from './request-state-binding.js';
+import { createRequestStateCodec, Mcp20260728WriteRequestStateError, type RequestStatePayload } from './request-state-codec.js';
+export { Mcp20260728WriteRequestStateError, type Mcp20260728WriteRequestStateErrorCode } from './request-state-codec.js';
 
 /** Closed set of plan statuses a host resolver may return. */
 export type Mcp20260728PlanStatus =
@@ -97,24 +98,6 @@ export interface Mcp20260728WritePlanStatusPort {
     planId: string,
     binding: McpAuthenticatedAuthorizationBinding,
   ) => Promise<Mcp20260728PlanResolution> | Mcp20260728PlanResolution;
-}
-
-/** Stable machine-readable codes for server-minted requestState failures. */
-export type Mcp20260728WriteRequestStateErrorCode =
-  | 'invalid_request_state'
-  | 'request_state_expired'
-  | 'request_state_binding_mismatch'
-  | 'request_state_mismatch';
-
-/** Typed failure for server-minted `requestState` verification. */
-export class Mcp20260728WriteRequestStateError extends Error {
-  readonly code: Mcp20260728WriteRequestStateErrorCode;
-
-  constructor(code: Mcp20260728WriteRequestStateErrorCode, message: string) {
-    super(message);
-    this.name = 'Mcp20260728WriteRequestStateError';
-    this.code = code;
-  }
 }
 
 class Mcp20260728WriteHostError extends TypeError {
@@ -178,148 +161,7 @@ const TOOL_RESULT_SCHEMAS: Readonly<Record<'tools/list' | 'tools/call', McpSchem
     'tools/call': CallToolResultSchema,
   });
 
-const REQUEST_STATE_PREFIX = 'colp.rs.' as const;
 const DEFAULT_REQUEST_STATE_TTL_SECONDS = 600;
-const BASE64URL_RE = /^[A-Za-z0-9_-]+$/u;
-
-interface RequestStatePayload {
-  readonly planId: string;
-  readonly method: string;
-  readonly inputDigest: string;
-}
-
-interface RequestStateCodec {
-  readonly mint: (
-    payload: RequestStatePayload,
-    binding: McpAuthenticatedAuthorizationBinding,
-  ) => string;
-  readonly verify: (
-    state: string,
-    expected: Readonly<{
-      method: string;
-      inputDigest: string;
-      binding: McpAuthenticatedAuthorizationBinding;
-    }>,
-  ) => RequestStatePayload;
-}
-
-function base64UrlEncode(bytes: Uint8Array): string {
-  return Buffer.from(bytes).toString('base64url');
-}
-
-function base64UrlDecode(value: string): Uint8Array {
-  if (!BASE64URL_RE.test(value) || value.length % 4 === 1) {
-    throw new Error('Malformed base64url.');
-  }
-  const normalized = value.replace(/-/gu, '+').replace(/_/gu, '/');
-  const padded = `${normalized}${'='.repeat((4 - (normalized.length % 4)) % 4)}`;
-  return new Uint8Array(Buffer.from(padded, 'base64'));
-}
-
-function base64UrlEqual(left: string, right: string): boolean {
-  let leftBytes: Uint8Array;
-  let rightBytes: Uint8Array;
-  try {
-    leftBytes = base64UrlDecode(left);
-    rightBytes = base64UrlDecode(right);
-  } catch {
-    return false;
-  }
-  return leftBytes.length === rightBytes.length && timingSafeEqual(leftBytes, rightBytes);
-}
-
-function createRequestStateCodec(options: Readonly<{
-  key: Uint8Array;
-  ttlSeconds: number;
-  now: () => number;
-}>): RequestStateCodec {
-  const hmac = (data: string | Uint8Array): Uint8Array => {
-    const digest = createHmac('sha256', options.key);
-    if (typeof data === 'string') digest.update(data, 'utf8');
-    else digest.update(data);
-    return new Uint8Array(digest.digest());
-  };
-  const bindTag = (binding: McpAuthenticatedAuthorizationBinding): string =>
-    base64UrlEncode(hmac(requestStateBindingMaterial(binding)).subarray(0, 16));
-
-  const codec: RequestStateCodec = {
-    mint: (payload, binding) => {
-      const envelope = {
-        p: payload,
-        exp: Math.floor(options.now() / 1000) + options.ttlSeconds,
-        b: bindTag(binding),
-      };
-      const body = base64UrlEncode(Buffer.from(JSON.stringify(envelope), 'utf8'));
-      const mac = base64UrlEncode(hmac(REQUEST_STATE_PREFIX + body));
-      return `${REQUEST_STATE_PREFIX}${body}.${mac}`;
-    },
-    verify: (state, expected) => {
-      if (typeof state !== 'string' || !state.startsWith(REQUEST_STATE_PREFIX)) {
-        throw new Mcp20260728WriteRequestStateError('invalid_request_state', 'Malformed requestState.');
-      }
-      const dot = state.lastIndexOf('.');
-      if (dot < REQUEST_STATE_PREFIX.length + 1) {
-        throw new Mcp20260728WriteRequestStateError('invalid_request_state', 'Malformed requestState.');
-      }
-      const body = state.slice(REQUEST_STATE_PREFIX.length, dot);
-      const mac = state.slice(dot + 1);
-      const expectedMac = base64UrlEncode(hmac(REQUEST_STATE_PREFIX + body));
-      if (!base64UrlEqual(mac, expectedMac)) {
-        throw new Mcp20260728WriteRequestStateError('invalid_request_state', 'requestState MAC verification failed.');
-      }
-      let envelope: unknown;
-      try {
-        envelope = JSON.parse(
-          new TextDecoder('utf-8', { fatal: true }).decode(base64UrlDecode(body)),
-        );
-      } catch {
-        throw new Mcp20260728WriteRequestStateError('invalid_request_state', 'Malformed requestState envelope.');
-      }
-      if (typeof envelope !== 'object' || envelope === null) {
-        throw new Mcp20260728WriteRequestStateError('invalid_request_state', 'Malformed requestState envelope.');
-      }
-      const record = envelope as Readonly<Record<string, unknown>>;
-      const payload = record.p;
-      const exp = record.exp;
-      const tag = record.b;
-      if (typeof payload !== 'object' || payload === null) {
-        throw new Mcp20260728WriteRequestStateError('invalid_request_state', 'Malformed requestState payload.');
-      }
-      if (typeof exp !== 'number' || !Number.isFinite(exp)) {
-        throw new Mcp20260728WriteRequestStateError('invalid_request_state', 'Malformed requestState expiry.');
-      }
-      if (exp < Math.floor(options.now() / 1000)) {
-        throw new Mcp20260728WriteRequestStateError('request_state_expired', 'requestState has expired.');
-      }
-      if (tag !== bindTag(expected.binding)) {
-        throw new Mcp20260728WriteRequestStateError(
-          'request_state_binding_mismatch',
-          'requestState is bound to a different authenticated principal.',
-        );
-      }
-      const typed = payload as Readonly<Record<string, unknown>>;
-      const planId = typed.planId;
-      const method = typed.method;
-      const inputDigest = typed.inputDigest;
-      if (
-        typeof planId !== 'string'
-        || planId.length === 0
-        || typeof method !== 'string'
-        || typeof inputDigest !== 'string'
-      ) {
-        throw new Mcp20260728WriteRequestStateError('invalid_request_state', 'Malformed requestState payload.');
-      }
-      if (method !== expected.method || inputDigest !== expected.inputDigest) {
-        throw new Mcp20260728WriteRequestStateError(
-          'request_state_mismatch',
-          'requestState does not match this request.',
-        );
-      }
-      return Object.freeze({ planId, method, inputDigest });
-    },
-  };
-  return Object.freeze(codec);
-}
 
 function computeInputDigest(
   argumentsValue: unknown,

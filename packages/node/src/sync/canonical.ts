@@ -23,6 +23,8 @@ export const AUTHORITATIVE_EFFECT_MAX_MEMBERS = 10_000;
 export const AUTHORITATIVE_EFFECT_SERIES_MAX_MEMBERS = 524_288;
 export const AUTHORITATIVE_MEMBER_MAX_STRING_BYTES = 1_024;
 export const AUTHORITATIVE_MEMBER_MAX_BYTES = 16 * 1024 * 1024;
+export const EFFECT_PAGE_TEMPLATE_MAX_BYTES = 4 * 1024;
+export const EFFECT_PAGE_URL_MAX_BYTES = 16 * 1024;
 
 /** Count UTF-8 bytes up to the member limit without allocating an encoded copy. */
 function utf8Bytes(value: string, limit: number): number {
@@ -128,6 +130,10 @@ export function canonicalAuthoritativeEffectPageDigest(page: unknown): string {
 }
 
 export function assertAuthoritativeEffectPageUrlSafe(raw: string): void {
+  if (typeof raw !== 'string' || raw.length > EFFECT_PAGE_URL_MAX_BYTES
+    || utf8Bytes(raw, EFFECT_PAGE_URL_MAX_BYTES) > EFFECT_PAGE_URL_MAX_BYTES) {
+    throw new TypeError('Authoritative Pull effect page URL exceeds its byte budget.');
+  }
   const pageUrl = new URL(raw);
   if (pageUrl.protocol !== 'https:' || pageUrl.username !== '' || pageUrl.password !== ''
     || pageUrl.hash !== ''
@@ -148,6 +154,10 @@ export function expandAuthoritativeEffectPageUrl(
 ): string {
   if (typeof raw !== 'string') {
     throw new TypeError('Authoritative Pull effect page template must be a string.');
+  }
+  if (raw.length > EFFECT_PAGE_TEMPLATE_MAX_BYTES
+    || utf8Bytes(raw, EFFECT_PAGE_TEMPLATE_MAX_BYTES) > EFFECT_PAGE_TEMPLATE_MAX_BYTES) {
+    throw new TypeError('Authoritative Pull effect page template exceeds its byte budget.');
   }
   if (typeof effectId !== 'string' || effectId.length < 1 || effectId.length > 128
       || !Number.isSafeInteger(pageNumber) || pageNumber < 1 || pageNumber > 1_024) {

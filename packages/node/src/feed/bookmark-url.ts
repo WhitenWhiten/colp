@@ -1,6 +1,7 @@
 import { isProxy } from 'node:util/types';
 
 import { isHttpUrl } from '../schema/uri.js';
+import { immutableJsonSnapshot } from '../shared/immutable-json.js';
 import type { FeedNode } from '../types/index.js';
 
 export type FeedBookmarkProjection =
@@ -55,7 +56,10 @@ export function projectFeedNodeBookmark(
 
   const kind = node.kind;
   if (kind !== 'bookmark') {
-    return Object.freeze(structuredClone(node)) as unknown as FeedNode;
+    // The caller may supply an accessor-bearing plain object.  structuredClone
+    // would invoke those getters; the bounded protocol snapshot already gives
+    // us a detached, immutable graph without executing caller code.
+    return immutableJsonSnapshot(node, 'Feed node projection') as unknown as FeedNode;
   }
 
   // FeedNode projection deliberately omits authoritative visibility fields.

@@ -73,6 +73,8 @@ export function createPostgresAutoApproveTrustedPlan(
 ): AutoApproveTrustedPlan {
   return createAutoApproveTrustedPlan({
     readPolicy: (principalId, clientId) => readAgentPolicy(db, principalId, clientId),
+    assertTrustedPolicy: async (principalId, clientId) =>
+      (await readAgentPolicy(db, principalId, clientId)) === 'trusted',
     captureVersion: (input) => captureAgentPlanCollectionVersion(
       (work) => createPostgresCollectionVersionUnitOfWork(db).execute(
         (ports) => work(ports as RestoreCollectionVersionPorts),

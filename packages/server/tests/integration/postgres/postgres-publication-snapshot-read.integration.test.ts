@@ -63,4 +63,28 @@ describeWithPostgres('PostgreSQL Publication scoped Snapshot reads', () => {
       ancestorRestricted: candidate.ancestorRestricted,
     })), [{ id: 'scope-child', ancestorRestricted: true }]);
   });
+  test('public continuation ordinals exclude hidden siblings in both scoped and whole-collection reads', async () => {
+    await isolated.runtime.pool.query(`insert into resource_id_ledger (resource_id, resource_type)
+      values ('visible-a', 'node'), ('visible-b', 'node')`);
+    await isolated.runtime.pool.query(`insert into nodes
+      (id, collection_id, parent_id, kind, is_root, title, url, visibility, position_token,
+       resource_revision, children_revision)
+      values ('visible-a', 'scope-collection', 'scope-root', 'bookmark', false, 'A',
+        'https://example.test/a', 'inherit', 'B', 'r1', 'ch1'),
+      ('visible-b', 'scope-collection', 'scope-root', 'bookmark', false, 'B',
+        'https://example.test/b', 'inherit', 'C', 'r1', 'ch1')`);
+    const reads = createPostgresPublicationSnapshotReadPort(isolated.runtime);
+    for (const scope of [{}, { rootId: 'scope-root', depth: 1 }]) {
+      const first = await reads.loadPage({ collectionId: 'scope-collection', limit: 1,
+        projection: 'public', ...scope });
+      assert.equal(first.candidates[0]?.id, 'visible-a');
+      assert.equal(first.candidates[0]?.publicationPosition, '00000000000000000000');
+      const next = await reads.loadPage({ collectionId: 'scope-collection', limit: 1,
+        projection: 'public', ...scope,
+        after: { parentId: 'scope-root', position: 'B', nodeId: 'visible-a' } });
+      assert.equal(next.candidates[0]?.id, 'visible-b');
+      assert.equal(next.candidates[0]?.publicationPosition, '00000000000000000001');
+    }
+  });
+
 });

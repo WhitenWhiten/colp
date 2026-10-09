@@ -331,6 +331,48 @@ test('collections.get returns R08 structured content and never trusts dynamic de
   assert.doesNotMatch(collectionTool.description, /<script>|alert\(1\)/u);
 });
 
+test('public-only authenticated Tool calls use the anonymous Publication projection', async () => {
+  const seenBindings: string[] = [];
+  const projection = Object.freeze({
+    ...collectionProjection(),
+    async readResource(_input: unknown, context: { readonly binding: { readonly kind: string } }) {
+      seenBindings.push(context.binding.kind);
+      return Object.freeze({
+        contents: Object.freeze([
+          Object.freeze({
+            mimeType: 'application/vnd.collection-protocol.collection+json',
+            text: JSON.stringify(Object.freeze({
+              collection: Object.freeze({
+                id: 'public-collection',
+                title: 'Public collection',
+                visibility: 'public',
+                updatedAt: '2026-08-05T00:00:00.000Z',
+              }),
+            })),
+            provenance: Object.freeze({ origin: 'internal' }),
+          }),
+        ]),
+      });
+    },
+  }) as Phase4bMcpCollectionResourceProjection;
+  const surface = createPhase4bMcpReadToolAdapter({
+    collectionProjection: projection,
+    snapshotProjection: snapshotProjection(),
+    nodeProjection: nodeProjection(),
+    serverUuid: SERVER_UUID,
+  });
+  const args = Object.freeze({ collectionId: 'public-collection' });
+  await surface.adapter.callTool(
+    callContext('collections.get', args, AUTHENTICATED, ['mcp:read:public']),
+    { name: 'collections.get', arguments: args },
+  );
+  await surface.adapter.callTool(
+    callContext('collections.get', args, AUTHENTICATED, ['mcp:read:own']),
+    { name: 'collections.get', arguments: args },
+  );
+  assert.deepEqual(seenBindings, ['anonymous', 'authenticated']);
+});
+
 test('collections.get_snapshot returns a bounded COLP Resource Link result', async () => {
   const surface = createPhase4bMcpReadToolAdapter({
     collectionProjection: collectionProjection(),
@@ -458,17 +500,17 @@ test('scope-aware discovery allows anonymous public read and authenticated read 
   assert.equal(canAccessPhase4bMcpReadTools(listContext(ANONYMOUS, [])), true);
   assert.equal(canAccessPhase4bMcpReadTools(listContext(AUTHENTICATED, [])), false);
   for (const scope of [
-    ['collections:read'],
-    ['nodes:read'],
-    ['snapshots:read'],
     ['mcp:read:public'],
     ['mcp:read:own'],
-    ['mcp:read:'],
     ['mcp:read:public', 'access:write'],
   ] as const) {
     assert.equal(canAccessPhase4bMcpReadTools(listContext(AUTHENTICATED, scope)), true);
   }
   for (const scope of [
+    ['collections:read'],
+    ['nodes:read'],
+    ['snapshots:read'],
+    ['mcp:read:'],
     ['access:write'],
     ['nodes:write'],
     ['changes:plan'],
@@ -479,6 +521,20 @@ test('scope-aware discovery allows anonymous public read and authenticated read 
   ] as const) {
     assert.equal(canAccessPhase4bMcpReadTools(listContext(AUTHENTICATED, scope)), false);
   }
+});
+
+test('core Read Tool discovery hides the surface from unrelated scopes', async () => {
+  const surface = createPhase4bMcpReadToolAdapter({
+    collectionProjection: collectionProjection(),
+    snapshotProjection: snapshotProjection(),
+    nodeProjection: nodeProjection(),
+    serverUuid: SERVER_UUID,
+  });
+  const listed = await surface.adapter.listTools(
+    listContext(AUTHENTICATED, ['nodes:read']),
+    {},
+  );
+  assert.deepEqual(listed.tools, []);
 });
 
 

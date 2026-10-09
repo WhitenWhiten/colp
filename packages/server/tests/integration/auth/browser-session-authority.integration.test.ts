@@ -488,6 +488,47 @@ describeWithPostgres('A3 browser session authority PostgreSQL + real Better Auth
     }
   });
 
+  test('same-origin browser GET rotates without Origin while navigation and missing metadata cannot', async () => {
+    const { cookie, sessionId } = await seedUsableSession({ createdAtAgoMs: 16 * 60_000 });
+    const config = loadConfig({
+      DATABASE_URL: 'postgres://localhost/known_test',
+      PRODUCT_ORIGIN: 'https://app.example.test',
+      ALLOWED_ORIGINS: 'https://app.example.test',
+      OIDC_ISSUER: 'https://issuer.example/realms/known',
+      OIDC_CLIENT_ID: 'known-web',
+      OIDC_REDIRECT_URI: 'https://app.example.test/api/v1/auth/oidc/callback',
+      OIDC_AUTHORIZATION_ENDPOINT: 'https://issuer.example/realms/known/auth',
+      OIDC_TOKEN_ENDPOINT: 'https://issuer.example/realms/known/token',
+      OIDC_ALLOW_TEST_PROVIDER: 'true',
+      OIDC_TEST_PROVIDER_HMAC_SECRET: 'test-oidc-provider-hmac-secret-not-prod-default',
+      NODE_ENV: 'test',
+      LOG_LEVEL: 'silent',
+    });
+    const app = buildApiApp({
+      config,
+      identityUnitOfWork: createPostgresIdentityUnitOfWork(isolated.runtime.db),
+      browserSessionAuthority: authority,
+    });
+    try {
+      for (const extra of [{}, { 'sec-fetch-site': 'cross-site', 'sec-fetch-mode': 'navigate' },
+        { 'sec-fetch-site': 'same-origin', 'sec-fetch-mode': 'navigate' }]) {
+        const response = await app.inject({ method: 'GET', url: '/api/v1/session',
+          headers: { cookie: cookieHeader(cookie), ...extra } });
+        assert.equal(response.statusCode, 200);
+        assert.equal(response.headers['set-cookie'], undefined);
+      }
+      assert.equal(await rowCount(`from known_auth_session_metadata where predecessor_session_id = '${sessionId}'`), 0);
+      const response = await app.inject({ method: 'GET', url: '/api/v1/session', headers: {
+        cookie: cookieHeader(cookie), 'sec-fetch-site': 'same-origin', 'sec-fetch-mode': 'cors',
+      } });
+      assert.equal(response.statusCode, 200);
+      assert.ok(response.headers['set-cookie']);
+      assert.equal(await rowCount(`from known_auth_session_metadata where predecessor_session_id = '${sessionId}'`), 1);
+    } finally {
+      await app.close();
+    }
+  });
+
   test('rotation is CAS single-winner over the real predecessor partial unique index', async () => {
     const { cookie, sessionId } = await seedUsableSession({ createdAtAgoMs: 16 * 60_000 });
 

@@ -47,13 +47,18 @@ export function registerCollectionExportRoutes(
     const format = readFormat(request.query);
     let rendered;
     try {
-      const source = await withCancellation(request, deps.timeoutMs, (signal) =>
-        deps.reads.loadForPrincipal({ collectionId, subjectId: account.subjectId, signal }));
-      if (source === null) throw notFound();
-      rendered = renderCollectionExport(source, {
-        principalId: account.id,
-        origin: deps.origin,
-        format,
+      rendered = await withCancellation(request, deps.timeoutMs, async (signal) => {
+        const source = await deps.reads.loadForPrincipal({ collectionId, subjectId: account.subjectId, signal });
+        if (source === null) throw notFound();
+        // Keep rendering inside the same cancellation scope. This ensures a
+        // disconnect observed after the database read cannot still allocate
+        // and serialize a large export that will never be sent.
+        if (signal.aborted) throw new Error('export request aborted');
+        return renderCollectionExport(source, {
+          principalId: account.id,
+          origin: deps.origin,
+          format,
+        });
       });
     } catch (error: unknown) {
       if (error instanceof ProductHttpError) throw error;

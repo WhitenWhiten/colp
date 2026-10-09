@@ -16,7 +16,10 @@ import {
   type PublicationSnapshotReadPort,
   type PublicationSnapshotReadRequest,
 } from '../../modules/publication/index.js';
-import { bookmarkHidePublicExistsSql } from '../database/collection-control-sql.js';
+import {
+  bookmarkHidePublicExistsSql,
+  buildPublicationTargetAncestorRestrictionSql,
+} from '../database/collection-control-sql.js';
 import { nodeExtensionFlagSql } from '../database/node-extension-sql.js';
 
 interface CollectionRow {
@@ -234,10 +237,15 @@ export function buildPublicationSnapshotCandidateStatement(
          select count(*) from nodes preceding
           where preceding.collection_id = $1
             and not preceding.is_root and preceding.deleted_at is null
+            ${request.projection === 'public' ? `and preceding.visibility = 'inherit'
+            and not ${buildPublicationTargetAncestorRestrictionSql('preceding')}
+            and not ${bookmarkHidePublicExistsSql('preceding.id', 'preceding.collection_id')}` : ''}
             and coalesce(preceding.parent_id, ''::text) collate "C" = $2::text collate "C"
             and (coalesce(preceding.position_token, ''::text) collate "C", preceding.id collate "C")
               <= ($3::text collate "C", $4::text collate "C")
        ) else 0::bigint end`;
+  // Public predicates already establish both flags before pagination. Do not
+  // repeat the ancestor walk and moderation probe for every returned row.
   return Object.freeze({
     text: `select id, collection_id, parent_id, kind, is_root, title, url, description,
             tags, visibility, position_token, resource_revision, created_at, updated_at,
@@ -245,7 +253,7 @@ export function buildPublicationSnapshotCandidateStatement(
               partition by coalesce(parent_id, ''::text) collate "C"
               order by coalesce(position_token, ''::text) collate "C", id collate "C"
             )) - 1 + ${ordinalOffset})::text, 20, '0') as publication_position,
-              exists (
+            ${request.projection === 'public' ? 'false' : `exists (
               with recursive ancestors as (
                 select parent.id, parent.parent_id, parent.visibility
                   from nodes parent where parent.collection_id = nodes.collection_id and parent.id = nodes.parent_id
@@ -255,11 +263,15 @@ export function buildPublicationSnapshotCandidateStatement(
                  where parent.collection_id = nodes.collection_id
               )
               select 1 from ancestors where visibility in ('private', 'protected')
-            ) as ancestor_restricted,
-            ${bookmarkHidePublicExistsSql('nodes.id', 'nodes.collection_id')} as moderation_hidden,
+            )`} as ancestor_restricted,
+            ${request.projection === 'public' ? 'false'
+              : bookmarkHidePublicExistsSql('nodes.id', 'nodes.collection_id')} as moderation_hidden,
             ${nodeExtensionFlagSql('nodes', PUBLICATION_PIN_EXTENSION, 'pinned')} as pinned
        from nodes
       where collection_id = $1 and not is_root and deleted_at is null
+        ${request.projection === 'public' ? `and visibility = 'inherit'
+        and not ${buildPublicationTargetAncestorRestrictionSql('nodes')}
+        and not ${bookmarkHidePublicExistsSql('nodes.id', 'nodes.collection_id')}` : ''}
       ${continuation}
       order by coalesce(parent_id, ''::text) collate "C",
                coalesce(position_token, ''::text) collate "C",
@@ -290,6 +302,8 @@ function buildScopedCandidateStatement(
     : `case when coalesce(n.parent_id, ''::text) collate "C" = $4::text collate "C" then (
          select count(*) from scoped preceding
           where preceding.scope_depth > 0
+            ${request.projection === 'public' ? `and preceding.visibility = 'inherit'
+            and not preceding.ancestor_restricted and not preceding.moderation_hidden` : ''}
             and coalesce(preceding.parent_id, ''::text) collate "C" = $4::text collate "C"
             and (coalesce(preceding.position_token, ''::text) collate "C", preceding.id collate "C")
               <= ($5::text collate "C", $6::text collate "C")
@@ -330,7 +344,11 @@ function buildScopedCandidateStatement(
               order by coalesce(n.position_token, ''::text) collate "C", n.id collate "C"
             )) - 1 + ${ordinalOffset})::text, 20, '0') as publication_position
        from scoped n
-      where n.scope_depth > 0 ${continuation}
+      where n.scope_depth > 0
+        ${request.projection === 'public' ? `and n.visibility = 'inherit'
+        and not n.ancestor_restricted
+        and not n.moderation_hidden` : ''}
+        ${continuation}
       order by coalesce(n.parent_id, ''::text) collate "C",
                coalesce(n.position_token, ''::text) collate "C",
                n.id collate "C"
@@ -360,6 +378,9 @@ function validateRequest(request: PublicationSnapshotReadRequest): void {
   }
   if (request.metadataOnly !== undefined && typeof request.metadataOnly !== 'boolean') {
     throw new TypeError('Publication Snapshot metadataOnly flag is invalid');
+  }
+  if (request.projection !== undefined && request.projection !== 'public' && request.projection !== 'member') {
+    throw new TypeError('Publication Snapshot projection is invalid');
   }
 }
 

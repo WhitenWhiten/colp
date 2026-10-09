@@ -3,6 +3,7 @@ import { isCanonicalPublicProfileHandle, type IdentityUnitOfWork } from '../modu
 import {
   isCanonicalProductPublicCollectionSlug,
   isHiddenPublicCollection,
+  isRestrictedPublicCollection,
   type PublicationMetadataQueryPorts,
 } from '../modules/publication/index.js';
 import type { SearchRateLimiter } from '../infrastructure/rate-limit/index.js';
@@ -325,6 +326,7 @@ export async function loadPublicCollectionHeader(
   const record = await query.reads.load({ publicationSlug: slug, signal });
   if (record === null) return null;
   if (await isHiddenPublicCollection(query.collectionControl, record.id, 'public')) return null;
+  if (await isRestrictedPublicCollection(query.collectionControl, record.id, 'public')) return null;
   return mapHeader(record);
 }
 

@@ -159,7 +159,7 @@ test('Explore with an empty creator port maps each item to a subject-fallback cr
   assert.equal('viewCount' in (body.items[0] ?? {}), true);
   assert.equal('followers' in (body.items[0] ?? {}), false);
   assert.deepEqual(body.items[0]?.creators, [{
-    id: 'subject:subject-owner',
+    id: 'unknown',
     name: 'Unknown',
     handle: null,
     avatar: null,

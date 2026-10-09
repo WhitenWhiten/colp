@@ -5,7 +5,10 @@ import {
   isSearchIndexableVisibility,
   SEARCH_INDEXABLE_VISIBILITY,
 } from '../http/index.js';
-import { COLLECTION_DISCOVERY_CONTROL_SQL } from '../database/collection-control-sql.js';
+import {
+  accountRestrictPublicationExistsSql,
+  COLLECTION_DISCOVERY_CONTROL_SQL,
+} from '../database/collection-control-sql.js';
 import { SEED_COLLECTION_EXCLUSION_SQL } from './postgres-search-indexing-exclusion.js';
 
 export interface PublicationSitemapRecord {
@@ -41,8 +44,14 @@ export function buildPublicationSitemapStatement(): {
               and c.publication_slug is not null
               and c.published_at is not null
               and c.visibility = $1
+              and c.allow_search_indexing
               and ${SEED_COLLECTION_EXCLUSION_SQL}
               and ${COLLECTION_DISCOVERY_CONTROL_SQL}
+              and not exists (
+                select 1 from accounts owner_account
+                 where owner_account.subject_id = c.owner_subject_id
+                   and ${accountRestrictPublicationExistsSql('owner_account.id')}
+              )
             order by c.updated_at desc, c.id collate "C" asc
             limit $2`,
     values: Object.freeze([SEARCH_INDEXABLE_VISIBILITY, COLLECTIONS_SITEMAP_MAX_URLS]),

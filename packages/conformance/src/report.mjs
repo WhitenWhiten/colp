@@ -20,6 +20,7 @@ export const CHECKS = Object.freeze([
   { id: 'PUB-0033', level: 'MUST', title: 'Snapshot pages share snapshotId, revision, and mode' },
   { id: 'PUB-0040', level: 'MUST', title: 'Publication Bookmark URLs are absolute http(s) URLs without userinfo' },
   { id: 'PUB-0009', level: 'MUST', title: 'The anonymous Directory lists only public Collections' },
+  { id: 'PUB-0025', level: 'MUST', title: 'Anonymous public projections remove restricted content and principals' },
   { id: 'PUB-0010', level: 'MUST', title: 'Unknown and duplicate scalar query parameters return 400 invalid_query' },
   { id: 'PUB-0008', level: 'MUST', title: 'Errors are RFC 9457 Problem Details with a registered code' },
   { id: 'PUB-0024', level: 'MUST', title: 'Negotiated responses vary by Accept and Collection-Protocol-Version' },

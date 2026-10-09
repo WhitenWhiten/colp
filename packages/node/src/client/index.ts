@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto';
 import { isIP } from 'node:net';
+import { MAX_PUBLICATION_MANIFEST_RESPONSE_BYTES, assertManifestEndpointTemplateBudget, assertPublisherEndpointOrigin, validateIntegerOption } from './manifest-budget.js';
+export { MAX_PUBLICATION_MANIFEST_RESPONSE_BYTES } from './manifest-budget.js';
 import {
   abortable, ColpClientLimitError, resolveClientRequestLimits, withRequestBudget,
   type ClientRequestLimits, type ClientRequestOptions,
@@ -424,13 +426,6 @@ function invalidWireDocumentError(
 
 const redirectStatuses = new Set([301, 302, 303, 307, 308]);
 
-function validateIntegerOption(name: string, value: number, minimum: number): number {
-  if (!Number.isSafeInteger(value) || value < minimum) {
-    throw new RangeError(`${name} must be a safe integer greater than or equal to ${minimum}.`);
-  }
-  return value;
-}
-
 function resolveSnapshotLimits(options: Partial<SnapshotRetrievalLimits> | undefined): SnapshotRetrievalLimits {
   return Object.freeze({
     maxPages: validateIntegerOption(
@@ -785,6 +780,7 @@ export class ColpClient {
       trustedOrigin: this.#manifestUrl.origin,
       purpose: 'manifest',
       ...budget,
+      maxBytes: Math.min(budget.maxBytes, MAX_PUBLICATION_MANIFEST_RESPONSE_BYTES),
     }, validateManifestSemantics, [200, 304]);
     if (!response.value.protocolVersions.includes(this.#protocolVersion)) {
       throw new RangeError(`Manifest does not support Collection Protocol version ${this.#protocolVersion}.`);
@@ -1064,8 +1060,10 @@ export class ColpClient {
 
     const source = mount.endpoints[key];
     if (typeof source !== 'string') throw new RangeError(`Manifest endpoint ${key} is missing.`);
+    assertManifestEndpointTemplateBudget(source);
     const url = normalizeUrl(new URL(parseTemplate(source).expand(values)));
     rejectDowngrade(new URL(mount.baseUrl), url);
+    assertPublisherEndpointOrigin(url, mount.baseUrl);
     validateRequestUrl(url);
     return { url, operation, definition: operation.response as DefinitionName, mount };
   }
