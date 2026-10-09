@@ -16,6 +16,10 @@ import type { McpAuthenticatedAuthorizationBinding } from '../shared/authorizati
 
 export const REQUEST_STATE_BINDING_DOMAIN = 'mcp.requestState.bind.v1';
 
+/** Hard ceilings for authenticated binding material before Buffer allocation. */
+export const REQUEST_STATE_BINDING_MAX_FIELD_LENGTH = 4_096;
+export const REQUEST_STATE_BINDING_MAX_BYTES = 16 * 1024;
+
 const BINDING_FIELDS = [
   'kind',
   'principalId',
@@ -31,7 +35,15 @@ export function requestStateBindingMaterial(
   const fields = BINDING_FIELDS.map((name) => binding[name]);
   const domain = Buffer.from(REQUEST_STATE_BINDING_DOMAIN, 'ascii');
   let payloadBytes = 0;
-  for (const field of fields) payloadBytes += 4 + field.length * 2;
+  for (const field of fields) {
+    if (typeof field !== 'string' || field.length > REQUEST_STATE_BINDING_MAX_FIELD_LENGTH) {
+      throw new TypeError('MCP requestState binding field exceeds its length budget.');
+    }
+    payloadBytes += 4 + field.length * 2;
+  }
+  if (domain.length + payloadBytes > REQUEST_STATE_BINDING_MAX_BYTES) {
+    throw new TypeError('MCP requestState binding exceeds its byte budget.');
+  }
   const out = Buffer.alloc(domain.length + payloadBytes);
   domain.copy(out, 0);
   let offset = domain.length;

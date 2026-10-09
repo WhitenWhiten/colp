@@ -597,6 +597,13 @@ test('exact metadata read honors anonymous discoverability separately from exact
       authenticatedContext(MEMBER),
     );
     assert.equal(JSON.parse(member.contents[0]!.text).collection.id, 'protected-member');
+    await assert.rejects(
+      () => fixture.projection.readResource(
+        Object.freeze({ resource: Object.freeze({ kind: 'collection-metadata', collectionId: 'protected-member' }) }),
+        authenticatedContext(MEMBER, { scope: Object.freeze(['mcp:read:public']) }),
+      ),
+      McpResourceNotFoundError,
+    );
     assert.deepEqual(
       await fixture.projection.cacheForRead(
         Object.freeze({ resource: Object.freeze({ kind: 'collection-metadata', collectionId: 'protected-member' }) }),

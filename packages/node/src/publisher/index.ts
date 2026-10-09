@@ -23,7 +23,7 @@ import {
 import { endpointContracts, type EndpointKey } from '../semantic/endpoint-contracts.js';
 import { validateManifestSemantics } from '../semantic/manifest.js';
 import type { SemanticIssue } from '../semantic/index.js';
-import { immutableJsonData } from '../shared/immutable-json.js';
+import { immutableJsonData, immutableJsonSnapshot } from '../shared/immutable-json.js';
 import type { AuditEvent, Manifest, Operation } from '../types/index.js';
 import type { CollectionCreate, CollectionCreateResult, RootCreate } from '../types/generated.js';
 import { problemRegistry } from '../shared/problems.js';
@@ -197,7 +197,16 @@ export function createCanonicalRequestDigest(input: CanonicalRequestDigestInput)
     body: request.body,
     ...(ifMatch === undefined ? {} : { ifMatch }),
   };
-  const canonical = canonicalize(canonicalInput);
+  // RFC 8785 canonicalization walks every string and allocates the complete
+  // serialized document. Snapshot the assembled envelope with an aggregate
+  // byte ceiling first so oversized caller-controlled strings cannot turn the
+  // digest helper into an unbounded allocation path.
+  const boundedCanonicalInput = immutableJsonSnapshot(canonicalInput, 'Canonical request digest input', {
+    maxDepth: 64,
+    maxMembers: 100_000,
+    maxBytes: 8 * 1024 * 1024,
+  });
+  const canonical = canonicalize(boundedCanonicalInput);
   if (canonical === undefined) {
     throw new TypeError('Canonical request input is not JSON serializable.');
   }

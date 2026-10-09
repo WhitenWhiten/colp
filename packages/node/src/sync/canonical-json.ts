@@ -15,6 +15,12 @@ export const CANONICAL_JSON_MAX_DEPTH = 32;
 export const CANONICAL_JSON_MAX_MEMBERS = 10_000;
 export const CANONICAL_JSON_MAX_BYTES = 8 * 1024 * 1024;
 
+export interface CanonicalJsonLimits {
+  readonly maxDepth?: number;
+  readonly maxMembers?: number;
+  readonly maxBytes?: number;
+}
+
 interface SnapshotState {
   readonly label: string;
   readonly seen: Set<object>;
@@ -28,14 +34,26 @@ export function isCanonicalJsonSafeNumber(value: number): boolean {
   return Number.isFinite(value) && Math.abs(value) <= Number.MAX_SAFE_INTEGER;
 }
 
-export function canonicalJsonSnapshot(value: unknown, label: string): unknown {
+export function canonicalJsonSnapshot(
+  value: unknown,
+  label: string,
+  limits: CanonicalJsonLimits = {},
+): unknown {
+  const maxDepth = limits.maxDepth ?? CANONICAL_JSON_MAX_DEPTH;
+  const maxMembers = limits.maxMembers ?? CANONICAL_JSON_MAX_MEMBERS;
+  const maxBytes = limits.maxBytes ?? CANONICAL_JSON_MAX_BYTES;
+  if (!Number.isSafeInteger(maxDepth) || maxDepth < 0
+    || !Number.isSafeInteger(maxMembers) || maxMembers < 1
+    || !Number.isSafeInteger(maxBytes) || maxBytes < 1) {
+    throw new RangeError(`${label} limits are invalid.`);
+  }
   return snapshotJsonValue(value, {
     label,
     seen: new Set<object>(),
-    maxDepth: CANONICAL_JSON_MAX_DEPTH,
-    maxMembers: CANONICAL_JSON_MAX_MEMBERS,
+    maxDepth,
+    maxMembers,
     members: 0,
-    bytes: new TextByteBudget(CANONICAL_JSON_MAX_BYTES, label),
+    bytes: new TextByteBudget(maxBytes, label),
   }, 0);
 }
 

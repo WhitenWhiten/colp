@@ -18,6 +18,8 @@ export interface PublicationSnapshotReadRequest {
   readonly afterLocator?: string;
   readonly rootId?: string;
   readonly depth?: number;
+  /** Public reads must filter restricted rows before applying pagination. */
+  readonly projection?: 'public' | 'member';
   /** Loads Collection/Root fence facts without scanning the Node stream. */
   readonly metadataOnly?: boolean;
   readonly signal?: AbortSignal;

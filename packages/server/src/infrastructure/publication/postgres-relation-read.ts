@@ -11,7 +11,10 @@ import {
   type PublicationRelationRecord,
 } from '../../modules/publication/index.js';
 import { rollbackTransaction, type DatabaseRuntime } from '../database/index.js';
-import { bookmarkHidePublicExistsSql } from '../database/collection-control-sql.js';
+import {
+  bookmarkHidePublicExistsSql,
+  buildPublicationTargetAncestorRestrictionSql,
+} from '../database/collection-control-sql.js';
 
 interface FenceRow { content_revision: string; policy_revision: string; deleted_at: Date | null }
 interface RelationRow {
@@ -125,6 +128,25 @@ export function buildPublicationRelationCandidateStatement(
   const limitParameter = `$${values.length}`;
   const windowWhere = `r.collection_id = $1 and r.deleted_at is null
        ${continuation}`;
+  const publicWhere = request.projection === 'public' ? `
+       and exists (
+         select 1 from nodes public_from
+          where public_from.collection_id = r.collection_id
+            and public_from.id = r.from_node_id
+            and public_from.deleted_at is null
+            and public_from.visibility = 'inherit'
+            and not ${buildPublicationTargetAncestorRestrictionSql('public_from')}
+            and not ${bookmarkHidePublicExistsSql('public_from.id', 'public_from.collection_id')}
+       )
+       and exists (
+         select 1 from nodes public_to
+          where public_to.collection_id = r.collection_id
+            and public_to.id = r.to_node_id
+            and public_to.deleted_at is null
+            and public_to.visibility = 'inherit'
+            and not ${buildPublicationTargetAncestorRestrictionSql('public_to')}
+            and not ${bookmarkHidePublicExistsSql('public_to.id', 'public_to.collection_id')}
+       )` : '';
   const scopeProbe = rootParameter === '' ? 'true' : 'coalesce(from_facts.scope_reachable, false)';
   const scopeProbeTo = rootParameter === '' ? 'true' : 'coalesce(to_facts.scope_reachable, false)';
   const restrictedFrom = `coalesce(
@@ -137,7 +159,7 @@ export function buildPublicationRelationCandidateStatement(
     text: `with recursive candidate_window as (
         select r.from_node_id, r.to_node_id
           from relations r
-         where ${windowWhere}
+          where ${windowWhere}${publicWhere}
          order by r.from_node_id collate "C", r.to_node_id collate "C", r.type collate "C", r.id collate "C"
          limit ${limitParameter}
       ),
@@ -206,7 +228,7 @@ export function buildPublicationRelationCandidateStatement(
          and to_endpoint.id = r.to_node_id and to_endpoint.deleted_at is null
         left join facts from_facts on from_facts.origin_id = r.from_node_id
         left join facts to_facts on to_facts.origin_id = r.to_node_id
-       where ${windowWhere}
+       where ${windowWhere}${publicWhere}
        order by r.from_node_id collate "C", r.to_node_id collate "C", r.type collate "C", r.id collate "C"
        limit ${limitParameter}`,
     values: Object.freeze(values),

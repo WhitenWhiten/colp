@@ -454,7 +454,13 @@ export function validateWireDocument<Value, Issue>(
       if (!current.valid) return { valid: false, stage: 'structural', errors: current.errors };
     } catch { return boundaryFailure(); }
   }
-  const semantic = validateSemantics(value as Value);
+  // Untrusted registries only ever see a detached candidate, but a validator
+  // can still mutate that candidate while it is running. Semantics must use
+  // the already-snapshotted value rather than the caller alias so a raw
+  // wrapper cannot bypass semantic checks through mutation or accessors.
+  const semantic = validateSemantics(
+    (trustedValidatorRegistries.has(validators) ? value : snapshot) as Value,
+  );
   if (!semantic.valid) {
     return { valid: false, stage: 'semantic', issues: semantic.issues };
   }

@@ -29,7 +29,17 @@ export interface CollectionOgImageRenderer {
 }
 
 export function ogImageCacheKey(input: CollectionOgImageInput): string {
-  return `${input.slug}${input.updatedAt}`;
+  // Owner publication restrictions can change without touching the
+  // collection's updatedAt.  Include every rendered public field so a card
+  // generated before a restriction is never reused after the curator falls
+  // back to the neutral identity.
+  return JSON.stringify([
+    input.slug,
+    input.updatedAt,
+    input.title,
+    input.curator,
+    input.itemCount,
+  ]);
 }
 
 export function createCollectionOgImageRenderer(options?: {
@@ -37,6 +47,7 @@ export function createCollectionOgImageRenderer(options?: {
 }): CollectionOgImageRenderer {
   const maxEntries = options?.maxEntries ?? OG_PNG_CACHE_MAX_ENTRIES;
   const cache = new Map<string, Buffer>();
+  const inflight = new Map<string, Promise<Buffer>>();
   return {
     get size() {
       return cache.size;
@@ -45,24 +56,34 @@ export function createCollectionOgImageRenderer(options?: {
       const key = ogImageCacheKey(input);
       const hit = cache.get(key);
       if (hit !== undefined) return hit;
-      const assets = loadOgBrandAssets();
-      const card = buildCollectionOgCard(input, assets.brandMarkSvg);
-      const svg = await satori(card as Parameters<typeof satori>[0], {
-        width: OG_IMAGE_WIDTH,
-        height: OG_IMAGE_HEIGHT,
-        fonts: ogSatoriFonts(assets),
-      });
-      const png = new Resvg(svg, {
-        fitTo: { mode: 'width', value: OG_IMAGE_WIDTH },
-        font: { loadSystemFonts: false, fontFiles: [...ogResvgFontFiles()] },
-        background: '#f3f5f8',
-      }).render().asPng();
-      if (cache.size >= maxEntries) {
-        const oldest = cache.keys().next();
-        if (!oldest.done) cache.delete(oldest.value);
+      const existing = inflight.get(key);
+      if (existing !== undefined) return existing;
+      const render = (async () => {
+        const assets = loadOgBrandAssets();
+        const card = buildCollectionOgCard(input, assets.brandMarkSvg);
+        const svg = await satori(card as Parameters<typeof satori>[0], {
+          width: OG_IMAGE_WIDTH,
+          height: OG_IMAGE_HEIGHT,
+          fonts: ogSatoriFonts(assets),
+        });
+        const png = new Resvg(svg, {
+          fitTo: { mode: 'width', value: OG_IMAGE_WIDTH },
+          font: { loadSystemFonts: false, fontFiles: [...ogResvgFontFiles()] },
+          background: '#f3f5f8',
+        }).render().asPng();
+        if (cache.size >= maxEntries) {
+          const oldest = cache.keys().next();
+          if (!oldest.done) cache.delete(oldest.value);
+        }
+        cache.set(key, png);
+        return png;
+      })();
+      inflight.set(key, render);
+      try {
+        return await render;
+      } finally {
+        inflight.delete(key);
       }
-      cache.set(key, png);
-      return png;
     },
   };
 }

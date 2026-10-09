@@ -16,7 +16,10 @@ import {
   type PublicationSnapshotReadPort,
   type PublicationSnapshotReadRequest,
 } from '../../modules/publication/index.js';
-import { bookmarkHidePublicExistsSql } from '../database/collection-control-sql.js';
+import {
+  bookmarkHidePublicExistsSql,
+  buildPublicationTargetAncestorRestrictionSql,
+} from '../database/collection-control-sql.js';
 import { nodeExtensionFlagSql } from '../database/node-extension-sql.js';
 
 interface CollectionRow {
@@ -260,6 +263,9 @@ export function buildPublicationSnapshotCandidateStatement(
             ${nodeExtensionFlagSql('nodes', PUBLICATION_PIN_EXTENSION, 'pinned')} as pinned
        from nodes
       where collection_id = $1 and not is_root and deleted_at is null
+        ${request.projection === 'public' ? `and visibility = 'inherit'
+        and not ${buildPublicationTargetAncestorRestrictionSql('nodes')}
+        and not ${bookmarkHidePublicExistsSql('nodes.id', 'nodes.collection_id')}` : ''}
       ${continuation}
       order by coalesce(parent_id, ''::text) collate "C",
                coalesce(position_token, ''::text) collate "C",
@@ -330,7 +336,11 @@ function buildScopedCandidateStatement(
               order by coalesce(n.position_token, ''::text) collate "C", n.id collate "C"
             )) - 1 + ${ordinalOffset})::text, 20, '0') as publication_position
        from scoped n
-      where n.scope_depth > 0 ${continuation}
+      where n.scope_depth > 0
+        ${request.projection === 'public' ? `and n.visibility = 'inherit'
+        and not n.ancestor_restricted
+        and not n.moderation_hidden` : ''}
+        ${continuation}
       order by coalesce(n.parent_id, ''::text) collate "C",
                coalesce(n.position_token, ''::text) collate "C",
                n.id collate "C"
@@ -360,6 +370,9 @@ function validateRequest(request: PublicationSnapshotReadRequest): void {
   }
   if (request.metadataOnly !== undefined && typeof request.metadataOnly !== 'boolean') {
     throw new TypeError('Publication Snapshot metadataOnly flag is invalid');
+  }
+  if (request.projection !== undefined && request.projection !== 'public' && request.projection !== 'member') {
+    throw new TypeError('Publication Snapshot projection is invalid');
   }
 }
 

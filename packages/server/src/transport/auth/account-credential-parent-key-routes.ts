@@ -150,6 +150,13 @@ export async function requireParentKey(
   deps: AccountCredentialParentKeyRoutesDependencies,
 ) {
   if (!deps.enabled || !deps.cursors) throw accountCredentialNotFound();
+  // Charge every bearer attempt before looking up the secret.  Charging only
+  // after successful authentication lets an attacker spray invalid parent-key
+  // guesses indefinitely (and rotate among the five child-key endpoints)
+  // without consuming any budget.  Fastify's request.ip is already resolved
+  // through the configured trusted-ingress proxy policy.
+  const clientIp = typeof request.ip === 'string' && request.ip.length > 0 ? request.ip : 'unknown';
+  await admit(deps.rateLimiter, `credentials:parent-auth:${clientIp}`);
   if (request.headers.cookie !== undefined) throw accountCredentialNotFound();
   const authorization = request.headers.authorization;
   if (typeof authorization !== 'string' || !authorization.startsWith('Bearer ')) {

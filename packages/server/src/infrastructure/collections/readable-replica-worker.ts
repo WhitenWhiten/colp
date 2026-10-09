@@ -183,6 +183,8 @@ export class ReadableReplicaWorkerLoop {
         ...(this.options.resolve === undefined ? {} : { resolve: this.options.resolve }),
         ...(this.options.connect === undefined ? {} : { connect: this.options.connect }),
         signal: controller.signal,
+        hostGate: this.hostGate,
+        initialHost: hostnameFromBookmarkUrl(claim.url) ?? '',
       });
       if (controller.signal.aborted) return;
       if (fetched.kind === 'failure' && fetched.hopUrls.length > 0) {

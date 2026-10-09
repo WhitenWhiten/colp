@@ -130,6 +130,9 @@ export {
  * email. A before hook on `/sign-up/*` returns 403 `{ code: 'registration_closed' }`
  * once `auth_users` has a row unless `COLP_MULTI_USER=true`.
  * `GET /registration-state` is first-run or closed; multi-user does not open it.
+ * Federated/social and generic OAuth callbacks are also refused while the
+ * first-run owner slot is empty, because browser redirects cannot carry the
+ * operator setup header.
  */
 /** Frozen Better Auth table names (G1 §3; spike §4.2; B1 lands the schema). */
 const BETTER_AUTH_MODEL_NAMES = Object.freeze({
@@ -609,6 +612,21 @@ function setupTokenMatches(presented: string | null): boolean {
 }
 
 /**
+ * Federated sign-in is deliberately closed on a pristine self-hosted
+ * instance.  Unlike `/sign-up/email`, a provider callback is a browser
+ * redirect and cannot carry the operator's setup header, so accepting the
+ * first social/OIDC callback would let whoever reaches the public origin
+ * first become the owner.  The operator must create the first local owner
+ * with the setup token; federated sign-in becomes available after that user
+ * row exists.
+ */
+function isFirstOwnerFederatedAuthPath(path: string | undefined): boolean {
+  return path === '/sign-in/social'
+    || path === '/sign-in/oauth2'
+    || isOAuthCallbackPath(path);
+}
+
+/**
  * Self-hosted sign-up may omit email. Better Auth's sign-up body still
  * requires an email string, so a missing one is filled from the username
  * before the endpoint schema runs. A supplied email is left unchanged.
@@ -711,6 +729,16 @@ function buildProductAuthHooks(input: {
           code: 'oauth_backchannel_logout_disabled',
           message: 'OAuth backchannel logout callbacks are not supported.',
         });
+      }
+      if (isSelfHostedEdition() && !isColpMultiUser()
+          && isFirstOwnerFederatedAuthPath(ctx.path)) {
+        const existingUsers = await ctx.context.adapter.count({ model: 'user' });
+        if (existingUsers === 0) {
+          throw APIError.from('FORBIDDEN', {
+            code: 'setup_token_required',
+            message: 'Create the first local owner with the setup token before using federated sign-in.',
+          });
+        }
       }
       if (typeof ctx.path === 'string' && ctx.path.startsWith('/sign-up/')) {
         if (ctx.path === '/sign-up/email') fillSelfHostedOptionalSignupEmail(ctx.body);

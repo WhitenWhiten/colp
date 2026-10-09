@@ -1,3 +1,5 @@
+import { canonicalJsonSnapshot } from './canonical-json.js';
+
 export const LEGACY_SYNC_TRANSPORT_BUDGET_BYTES = 2 * 1024 * 1024;
 export const SYNC_TRANSPORT_BUDGET_MIN_BYTES = 16 * 1024;
 export const SYNC_TRANSPORT_BUDGET_MAX_BYTES = 16 * 1024 * 1024;
@@ -52,10 +54,10 @@ export function parseSyncTransportBudget(value: unknown): SyncTransportBudget {
     throw new TypeError('SyncTransportBudget is invalid.');
   }
   const budget = freezeBudget({
-    pullResponseBytes: budgetBytes(value.pullResponseBytes),
-    snapshotPageBytes: budgetBytes(value.snapshotPageBytes),
-    effectPageBytes: budgetBytes(value.effectPageBytes),
-    effectAggregateBytes: budgetBytes(value.effectAggregateBytes),
+    pullResponseBytes: budgetBytes(readOwnData(value, 'pullResponseBytes')),
+    snapshotPageBytes: budgetBytes(readOwnData(value, 'snapshotPageBytes')),
+    effectPageBytes: budgetBytes(readOwnData(value, 'effectPageBytes')),
+    effectAggregateBytes: budgetBytes(readOwnData(value, 'effectAggregateBytes')),
   });
   if (budget.effectPageBytes > budget.effectAggregateBytes) {
     throw new TypeError('SyncTransportBudget effectPageBytes exceeds effectAggregateBytes.');
@@ -91,12 +93,17 @@ export function negotiateSyncTransportBudget(
 }
 
 export function encodeSyncTransportBudgetHeader(budget: SyncTransportBudget): string {
-  return JSON.stringify({
-    effectAggregateBytes: budget.effectAggregateBytes,
-    effectPageBytes: budget.effectPageBytes,
-    pullResponseBytes: budget.pullResponseBytes,
-    snapshotPageBytes: budget.snapshotPageBytes,
+  const parsed = parseSyncTransportBudget(budget);
+  const encoded = JSON.stringify({
+    effectAggregateBytes: parsed.effectAggregateBytes,
+    effectPageBytes: parsed.effectPageBytes,
+    pullResponseBytes: parsed.pullResponseBytes,
+    snapshotPageBytes: parsed.snapshotPageBytes,
   });
+  if (new TextEncoder().encode(encoded).byteLength > SYNC_TRANSPORT_BUDGET_HEADER_MAX_BYTES) {
+    throw new TypeError('SyncTransportBudget header exceeds its byte budget.');
+  }
+  return encoded;
 }
 
 export function parseSyncTransportBudgetHeader(header: string | null | undefined): SyncTransportBudget {
@@ -112,11 +119,23 @@ export function parseSyncTransportBudgetHeader(header: string | null | undefined
 }
 
 export function utf8JsonByteLength(value: unknown): number {
-  return new TextEncoder().encode(JSON.stringify(value)).length;
+  const snapshot = canonicalJsonSnapshot(value, 'Sync transport JSON', {
+    maxDepth: 64,
+    maxMembers: 100_000,
+    maxBytes: SYNC_TRANSPORT_BUDGET_MAX_BYTES,
+  });
+  const encoded = JSON.stringify(snapshot);
+  if (encoded === undefined) throw new TypeError('Sync transport JSON is not serializable.');
+  return new TextEncoder().encode(encoded).byteLength;
 }
 
 export function jsonFitsTransportBudget(value: unknown, limit: number): boolean {
-  return Number.isSafeInteger(limit) && limit >= 1 && utf8JsonByteLength(value) <= limit;
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > SYNC_TRANSPORT_BUDGET_MAX_BYTES) return false;
+  try {
+    return utf8JsonByteLength(value) <= limit;
+  } catch {
+    return false;
+  }
 }
 
 function budgetBytes(value: unknown): number {
@@ -142,6 +161,16 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 function exactKeys(value: Record<string, unknown>, expected: ReadonlySet<string>): boolean {
-  const keys = Object.keys(value);
-  return keys.length === expected.size && keys.every((key) => expected.has(key));
+  const keys = Reflect.ownKeys(value);
+  if (keys.some((key) => typeof key !== 'string')) return false;
+  const strings = keys as string[];
+  return strings.length === expected.size && strings.every((key) => expected.has(key));
+}
+
+function readOwnData(value: object, key: string): unknown {
+  const descriptor = Object.getOwnPropertyDescriptor(value, key);
+  if (descriptor === undefined || !('value' in descriptor)) {
+    throw new TypeError('SyncTransportBudget members must be own data properties.');
+  }
+  return descriptor.value;
 }

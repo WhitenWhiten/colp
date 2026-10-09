@@ -1,4 +1,5 @@
 import { loadConfig } from './config.js';
+import { timingSafeEqual } from 'node:crypto';
 import {
   createAccountLinkingService,
   createAccountRecoveryService,
@@ -11,6 +12,7 @@ import {
   type AccountLinkingService,
   type AccountRecoveryService,
   type AccountDeletionService,
+  sha256Base64Url,
 } from '../modules/auth/index.js';
 import type { AccountDeletionStore } from '../modules/auth/index.js';
 import type { IdentityUnitOfWork } from '../modules/identity/index.js';
@@ -74,6 +76,59 @@ export interface ApiAccountServices {
   readonly accountDeletion: AccountDeletionService | undefined;
 }
 
+interface VerificationValue {
+  readonly value: string;
+  readonly expiresAt: Date;
+}
+
+interface ReauthVerificationAdapter {
+  consumeVerificationValue(identifier: string): Promise<VerificationValue | null>;
+  createVerificationValue(data: VerificationValue & { readonly identifier: string }): Promise<unknown>;
+}
+
+function splitStoredOtpValue(value: string): { readonly hash: string; readonly attempts: string } {
+  const index = value.lastIndexOf(':');
+  return index < 0
+    ? { hash: value, attempts: '' }
+    : { hash: value.slice(0, index), attempts: value.slice(index + 1) };
+}
+
+function storedOtpMatches(storedHash: string, otp: string): boolean {
+  const left = Buffer.from(storedHash, 'utf8');
+  const right = Buffer.from(sha256Base64Url(otp), 'utf8');
+  return left.length === right.length && timingSafeEqual(left, right);
+}
+
+/**
+ * Consume the email-verification OTP atomically before accepting it as a
+ * re-authentication proof.  Better Auth's public `checkVerificationOTP`
+ * endpoint intentionally only checks the row, so using it for account link
+ * or deletion would leave the same mailbox code reusable until expiry.  This
+ * mirrors the plugin's atomic verifier: a wrong attempt recreates the row
+ * with an incremented budget, while a correct attempt is never recreated.
+ */
+async function consumeReauthOtp(
+  adapter: ReauthVerificationAdapter,
+  email: string,
+  otp: string,
+  maxAttempts: number,
+): Promise<boolean> {
+  const normalizedEmail = email.trim().toLowerCase();
+  const identifier = `email-verification-otp-${normalizedEmail}`;
+  const consumed = await adapter.consumeVerificationValue(identifier);
+  if (consumed === null) return false;
+  const { hash, attempts } = splitStoredOtpValue(consumed.value);
+  const usedAttempts = attempts === '' ? 0 : Number.parseInt(attempts, 10);
+  if (!Number.isSafeInteger(usedAttempts) || usedAttempts < 0 || usedAttempts >= maxAttempts) return false;
+  if (storedOtpMatches(hash, otp)) return true;
+  await adapter.createVerificationValue({
+    value: `${hash}:${usedAttempts + 1}`,
+    identifier,
+    expiresAt: consumed.expiresAt,
+  });
+  return false;
+}
+
 export function composeApiAccountServices(input: {
   readonly config: ReturnType<typeof loadConfig>;
   readonly identityUnitOfWork: IdentityUnitOfWork;
@@ -105,6 +160,8 @@ export function composeApiAccountServices(input: {
       readonly $context: Promise<{
         readonly internalAdapter: {
           deleteUser(userId: string): Promise<void>;
+          consumeVerificationValue(identifier: string): Promise<VerificationValue | null>;
+          createVerificationValue(data: VerificationValue & { readonly identifier: string }): Promise<unknown>;
         };
       }>;
     };
@@ -177,10 +234,13 @@ export function composeApiAccountServices(input: {
       },
       async verifyOtp({ email, otp }) {
         try {
-          await sharedAuth.api.checkVerificationOTP({
-            body: { email, type: 'email-verification', otp },
-          });
-          return true;
+          const context = await sharedAuth.$context;
+          return await consumeReauthOtp(
+            context.internalAdapter,
+            email,
+            otp,
+            config.betterAuth.otpMaxAttempts,
+          );
         } catch {
           return false;
         }

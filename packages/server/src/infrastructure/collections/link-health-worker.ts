@@ -170,6 +170,8 @@ export class LinkHealthWorkerLoop {
         ...(this.options.resolve === undefined ? {} : { resolve: this.options.resolve }),
         ...(this.options.connect === undefined ? {} : { connect: this.options.connect }),
         signal: controller.signal,
+        hostGate: this.hostGate,
+        initialHost: hostnameFromBookmarkUrl(claim.url) ?? '',
       });
       if (controller.signal.aborted) return;
       const written = await this.options.repository.completeProbe({

@@ -196,18 +196,15 @@ export function exploreCreatorFilterAccountId(creatorId: string): string | null 
 
 /** Maps identity facts onto the Explore creator DTO; missing facts become Unknown. */
 export function mapExploreCreatorDto(
-  ownerSubjectId: string,
+  _ownerSubjectId: string,
   facts: ExploreCreatorFacts | undefined,
 ): ExploreCollectionItem['creators'][number] {
   if (facts?.publicationRestricted === true) return EXPLORE_UNKNOWN_CREATOR;
-  if (!facts) {
-    return {
-      id: `subject:${ownerSubjectId}`,
-      name: 'Unknown',
-      handle: null,
-      avatar: null,
-    };
-  }
+  // A missing profile is deliberately indistinguishable from a restricted
+  // account.  Never derive a stable public identifier from the upstream
+  // identity-provider subject: that value is an authentication secret and is
+  // not a product-level account identifier.
+  if (!facts) return EXPLORE_UNKNOWN_CREATOR;
   return {
     id: `account:${facts.accountId}`,
     name: facts.displayName || facts.handle || 'Unknown',

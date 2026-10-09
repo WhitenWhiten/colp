@@ -2,6 +2,7 @@ import { isDeepStrictEqual } from 'node:util';
 
 import { createValidatorRegistry, type DefinitionName } from '../schema/index.js';
 import { formatCanonicalDateTime } from '../shared/date-time.js';
+import { immutableJsonSnapshot } from '../shared/immutable-json.js';
 import type {
   Annotation,
   AnnotationCreate,
@@ -13,6 +14,8 @@ import { deepFreeze } from './deep-freeze.js';
 const contextBrand: unique symbol = Symbol('annotation-mutation-context');
 const trustedContexts = new WeakSet<object>();
 const validators = createValidatorRegistry();
+const MAX_PROVENANCE_SOURCE_IDS = 128;
+const MAX_PROVENANCE_TEXT_LENGTH = 512;
 
 export type AnnotationProvenanceErrorCode =
   | 'invalid_annotation_document'
@@ -87,6 +90,21 @@ export function createAiAnnotationGenerationContext(
       'invalid_generation_context',
       cause instanceof Error ? cause.message : 'Invalid AI generation timestamp.',
       '/generatedAt',
+    );
+  }
+  if (input.provider !== undefined && (typeof input.provider !== 'string'
+    || input.provider.length > MAX_PROVENANCE_TEXT_LENGTH)
+    || input.model !== undefined && (typeof input.model !== 'string'
+      || input.model.length > MAX_PROVENANCE_TEXT_LENGTH)
+    || input.sourceNodeIds !== undefined && (
+      !Array.isArray(input.sourceNodeIds)
+      || input.sourceNodeIds.length > MAX_PROVENANCE_SOURCE_IDS
+      || input.sourceNodeIds.some((id) => typeof id !== 'string' || id.length === 0 || id.length > 128)
+    )) {
+    throw new AnnotationProvenanceError(
+      'invalid_generation_context',
+      'AI generation provenance exceeds its input budget.',
+      '/provenance',
     );
   }
   const provenance: Provenance = {
@@ -259,7 +277,22 @@ function assertSchema(
 }
 
 function clone<Value>(value: Value): Value {
-  return structuredClone(value);
+  const snapshot = immutableJsonSnapshot(value, 'Annotation document', {
+    maxDepth: 64,
+    maxMembers: 100_000,
+    maxBytes: 8 * 1024 * 1024,
+  });
+  return mutableClone(snapshot) as Value;
+}
+
+function mutableClone(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map((entry) => mutableClone(entry));
+  if (value !== null && typeof value === 'object') {
+    const copy: Record<string, unknown> = {};
+    for (const [key, child] of Object.entries(value)) copy[key] = mutableClone(child);
+    return copy;
+  }
+  return value;
 }
 
 

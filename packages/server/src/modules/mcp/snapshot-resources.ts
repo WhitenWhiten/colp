@@ -25,6 +25,10 @@ import {
   createPhase4bMcpResourceIdentity,
   type Phase4bMcpResourceIdentity,
 } from './resource-identity.js';
+import {
+  MCP_OAUTH_SCOPE_READ_OWN,
+  MCP_OAUTH_SCOPE_READ_PUBLIC,
+} from './scope-requirements.js';
 
 export const PHASE4B_MCP_SNAPSHOT_RESOURCE_MIME_TYPE =
   'application/vnd.collection-protocol.snapshot+json' as const;
@@ -189,7 +193,7 @@ async function loadSnapshotPage(
   try {
     const result = await getPublicationSnapshotPage(state.snapshotQuery, {
       collectionId,
-      principal: principalFromBinding(context.binding, context.authorization),
+      principal: principalFromContext(context),
       query: {
         limit: state.pageSize,
         ...(pageCursor === undefined ? {} : { pageCursor }),
@@ -380,6 +384,19 @@ function principalFromBinding(
     principalId: binding.principalId,
     subjectId: requireMcpAccountSubjectId(authorization),
   });
+}
+
+function principalFromContext(
+  context: McpTrustedReadRequestContext,
+): PublicationPrincipal {
+  if (
+    context.binding.kind === 'authenticated'
+    && context.scope.includes(MCP_OAUTH_SCOPE_READ_PUBLIC)
+    && !context.scope.includes(MCP_OAUTH_SCOPE_READ_OWN)
+  ) {
+    return Object.freeze({ kind: 'anonymous' });
+  }
+  return principalFromBinding(context.binding, context.authorization);
 }
 
 function privateCache(): Mcp20260728CacheMetadata {

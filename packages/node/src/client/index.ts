@@ -32,6 +32,7 @@ import {
 import {
   assembleSnapshotPages,
   endpointContracts,
+  MAX_PUBLICATION_ENDPOINT_TEMPLATE_BYTES,
   type EndpointContract,
   type HttpOperationContract,
   type SemanticIssue,
@@ -423,6 +424,8 @@ function invalidWireDocumentError(
 }
 
 const redirectStatuses = new Set([301, 302, 303, 307, 308]);
+/** Manifest responses are bounded by the discovery route's wire contract. */
+export const MAX_PUBLICATION_MANIFEST_RESPONSE_BYTES = 65_536;
 
 function validateIntegerOption(name: string, value: number, minimum: number): number {
   if (!Number.isSafeInteger(value) || value < minimum) {
@@ -785,6 +788,7 @@ export class ColpClient {
       trustedOrigin: this.#manifestUrl.origin,
       purpose: 'manifest',
       ...budget,
+      maxBytes: Math.min(budget.maxBytes, MAX_PUBLICATION_MANIFEST_RESPONSE_BYTES),
     }, validateManifestSemantics, [200, 304]);
     if (!response.value.protocolVersions.includes(this.#protocolVersion)) {
       throw new RangeError(`Manifest does not support Collection Protocol version ${this.#protocolVersion}.`);
@@ -1064,6 +1068,10 @@ export class ColpClient {
 
     const source = mount.endpoints[key];
     if (typeof source !== 'string') throw new RangeError(`Manifest endpoint ${key} is missing.`);
+    if (source.length > MAX_PUBLICATION_ENDPOINT_TEMPLATE_BYTES
+      || new TextEncoder().encode(source).byteLength > MAX_PUBLICATION_ENDPOINT_TEMPLATE_BYTES) {
+      throw new TypeError('Manifest endpoint template exceeds its byte budget.');
+    }
     const url = normalizeUrl(new URL(parseTemplate(source).expand(values)));
     rejectDowngrade(new URL(mount.baseUrl), url);
     validateRequestUrl(url);

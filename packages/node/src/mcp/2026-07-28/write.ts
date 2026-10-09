@@ -180,6 +180,11 @@ const TOOL_RESULT_SCHEMAS: Readonly<Record<'tools/list' | 'tools/call', McpSchem
 
 const REQUEST_STATE_PREFIX = 'colp.rs.' as const;
 const DEFAULT_REQUEST_STATE_TTL_SECONDS = 600;
+const REQUEST_STATE_MAX_BYTES = 16 * 1024;
+const REQUEST_STATE_MAX_BODY_BYTES = 12 * 1024;
+const REQUEST_STATE_MAX_PLAN_ID_LENGTH = 128;
+const REQUEST_STATE_MAX_METHOD_LENGTH = 128;
+const REQUEST_STATE_MAX_DIGEST_LENGTH = 256;
 const BASE64URL_RE = /^[A-Za-z0-9_-]+$/u;
 
 interface RequestStatePayload {
@@ -244,18 +249,35 @@ function createRequestStateCodec(options: Readonly<{
 
   const codec: RequestStateCodec = {
     mint: (payload, binding) => {
+      if (
+        payload.planId.length === 0 || payload.planId.length > REQUEST_STATE_MAX_PLAN_ID_LENGTH
+        || payload.method.length === 0 || payload.method.length > REQUEST_STATE_MAX_METHOD_LENGTH
+        || payload.inputDigest.length === 0 || payload.inputDigest.length > REQUEST_STATE_MAX_DIGEST_LENGTH
+      ) {
+        throw new Mcp20260728WriteRequestStateError('invalid_request_state', 'requestState payload exceeds its budget.');
+      }
       const envelope = {
         p: payload,
         exp: Math.floor(options.now() / 1000) + options.ttlSeconds,
         b: bindTag(binding),
       };
       const body = base64UrlEncode(Buffer.from(JSON.stringify(envelope), 'utf8'));
+      if (body.length > REQUEST_STATE_MAX_BODY_BYTES) {
+        throw new Mcp20260728WriteRequestStateError('invalid_request_state', 'requestState payload exceeds its budget.');
+      }
       const mac = base64UrlEncode(hmac(REQUEST_STATE_PREFIX + body));
-      return `${REQUEST_STATE_PREFIX}${body}.${mac}`;
+      const state = `${REQUEST_STATE_PREFIX}${body}.${mac}`;
+      if (Buffer.byteLength(state, 'utf8') > REQUEST_STATE_MAX_BYTES) {
+        throw new Mcp20260728WriteRequestStateError('invalid_request_state', 'requestState exceeds its byte budget.');
+      }
+      return state;
     },
     verify: (state, expected) => {
       if (typeof state !== 'string' || !state.startsWith(REQUEST_STATE_PREFIX)) {
         throw new Mcp20260728WriteRequestStateError('invalid_request_state', 'Malformed requestState.');
+      }
+      if (Buffer.byteLength(state, 'utf8') > REQUEST_STATE_MAX_BYTES) {
+        throw new Mcp20260728WriteRequestStateError('invalid_request_state', 'requestState exceeds its byte budget.');
       }
       const dot = state.lastIndexOf('.');
       if (dot < REQUEST_STATE_PREFIX.length + 1) {
@@ -303,9 +325,10 @@ function createRequestStateCodec(options: Readonly<{
       const inputDigest = typed.inputDigest;
       if (
         typeof planId !== 'string'
-        || planId.length === 0
-        || typeof method !== 'string'
-        || typeof inputDigest !== 'string'
+        || planId.length === 0 || planId.length > REQUEST_STATE_MAX_PLAN_ID_LENGTH
+        || typeof method !== 'string' || method.length === 0 || method.length > REQUEST_STATE_MAX_METHOD_LENGTH
+        || typeof inputDigest !== 'string' || inputDigest.length === 0
+        || inputDigest.length > REQUEST_STATE_MAX_DIGEST_LENGTH
       ) {
         throw new Mcp20260728WriteRequestStateError('invalid_request_state', 'Malformed requestState payload.');
       }

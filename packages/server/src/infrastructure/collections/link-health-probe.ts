@@ -29,6 +29,13 @@ export interface ProbeBookmarkUrlOptions {
   readonly resolve?: HardenedEgressResolver;
   readonly connect?: HardenedEgressConnector;
   readonly signal?: AbortSignal;
+  /** Gate each redirect destination in addition to the initial bookmark host. */
+  readonly hostGate?: ProbeHostGate;
+  readonly initialHost?: string;
+}
+
+export interface ProbeHostGate {
+  run(host: string, work: () => Promise<void>): Promise<void>;
 }
 
 export interface ProbeBookmarkUrlResult {
@@ -49,7 +56,10 @@ export async function probeBookmarkUrl(
   const timer = setTimeout(() => outer.abort(), options.timeoutMs);
   const signal = options.signal ? AbortSignal.any([outer.signal, options.signal]) : outer.signal;
   try {
-    const connect = wrapConnect(options.connect, hopUrls, options.connectTimeoutMs, signal);
+    const connect = wrapConnect(
+      options.connect, hopUrls, options.connectTimeoutMs, signal,
+      options.hostGate, options.initialHost,
+    );
     const fetchImpl = createHardenedEgressFetch({
       ...(options.resolve === undefined ? {} : { resolve: options.resolve }),
       connect,
@@ -92,8 +102,10 @@ export function wrapConnectRecordingHops(
   hopUrls: string[],
   connectTimeoutMs: number,
   parentSignal?: AbortSignal,
+  hostGate?: ProbeHostGate,
+  initialHost?: string,
 ): HardenedEgressConnector {
-  return wrapConnect(connect, hopUrls, connectTimeoutMs, parentSignal);
+  return wrapConnect(connect, hopUrls, connectTimeoutMs, parentSignal, hostGate, initialHost);
 }
 
 function wrapConnect(
@@ -101,6 +113,8 @@ function wrapConnect(
   hopUrls: string[],
   connectTimeoutMs: number,
   parentSignal?: AbortSignal,
+  hostGate?: ProbeHostGate,
+  initialHost?: string,
 ): HardenedEgressConnector {
   const inner: HardenedEgressConnector = connect ?? createProductionEgressConnector();
   return async (target, init) => {
@@ -110,8 +124,21 @@ function wrapConnect(
     const signal = init.signal ?? parentSignal;
     // The connect timer ends at headers; total timeout/stop still owns the body.
     const requestSignal = signal ? AbortSignal.any([signal, hop.signal]) : hop.signal;
+    const connectOnce = async (): Promise<Response> => {
+      try {
+        return await inner(target, { ...init, signal: requestSignal });
+      } finally {
+        clearTimeout(timer);
+      }
+    };
     try {
-      return await inner(target, { ...init, signal: requestSignal });
+      const targetHost = hostnameFromBookmarkUrl(target.url.href) ?? '';
+      if (hostGate !== undefined && targetHost !== '' && targetHost !== initialHost) {
+        let response: Response | undefined;
+        await hostGate.run(targetHost, async () => { response = await connectOnce(); });
+        return response!;
+      }
+      return await connectOnce();
     } finally {
       clearTimeout(timer);
     }

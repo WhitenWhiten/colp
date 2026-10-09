@@ -15,6 +15,9 @@
 import {
   DEFAULT_MCP_RESOURCE_READ_BUDGET,
   DEFAULT_MCP_SCHEMA_BUDGET,
+  McpToolOutputUnavailableError,
+  createAnonymousPublicBinding,
+  createMcp20260728Result,
   createMcp20260728ReadToolAdapter,
   createMcpResourceUriCodec,
   createMcpStatelessToolCore,
@@ -22,6 +25,7 @@ import {
   type Mcp20260728ReadToolAdapter,
   type Mcp20260728XMcpHeaderDeclaration,
   type McpToolDefinition,
+  type Mcp20260728RequestContext,
   type McpTrustedReadRequestContext,
 } from '@know-n/colp/mcp';
 import type { Phase4bMcpCollectionResourceProjection } from './collection-resources.js';
@@ -41,6 +45,10 @@ import {
   type Phase4bMcpOwnedNodeRecord,
   type Phase4bMcpOwnedSnapshotAfter,
 } from './owned-collection-read-mcp.js';
+import {
+  MCP_OAUTH_SCOPE_READ_OWN,
+  MCP_OAUTH_SCOPE_READ_PUBLIC,
+} from './scope-requirements.js';
 import type { Phase4bMcpSnapshotResourceProjection } from './snapshot-resources.js';
 
 export const PHASE4B_MCP_READ_TOOL_COLLECTION_ID_HEADER = 'X-Collection-Id' as const;
@@ -73,8 +81,13 @@ export const PHASE4B_MCP_READ_TOOL_REQUIRED_SCOPES: readonly [
 ]);
 
 export function isPhase4bMcpReadScope(scope: string): boolean {
-  return PHASE4B_MCP_READ_TOOL_REQUIRED_SCOPES.some((required) => required === scope)
-    || scope.startsWith(PHASE4B_MCP_READ_TOOL_REQUIRED_SCOPE_PREFIX);
+  // MCP read authorization is deliberately a closed set.  Treating every
+  // `mcp:read:*` value as a read capability lets an unrelated extension scope
+  // reach the core Read Tools, where the application projection may otherwise
+  // be selected with an authenticated principal.  Native COLP scope names in
+  // `PHASE4B_MCP_READ_TOOL_REQUIRED_SCOPES` are schema vocabulary only; they
+  // are not OAuth grants for this MCP surface.
+  return scope === MCP_OAUTH_SCOPE_READ_PUBLIC || scope === MCP_OAUTH_SCOPE_READ_OWN;
 }
 
 export function hasAnyPhase4bMcpReadScope(scope: readonly string[]): boolean {
@@ -207,6 +220,38 @@ export function canAccessPhase4bMcpReadTools(
 }
 
 /**
+ * The public MCP grant may read only the public Publication projection.  An
+ * authenticated grant without `mcp:read:own` must never be passed to a
+ * projection as an account principal: Publication queries intentionally use
+ * that principal to return member data.  This helper produces the narrow
+ * anonymous view while preserving the request's budgets, abort signal and
+ * host authorization metadata.
+ */
+function publicReadContext(
+  context: McpTrustedReadRequestContext,
+): McpTrustedReadRequestContext {
+  if (
+    context.binding.kind === 'anonymous'
+    || context.scope.includes(MCP_OAUTH_SCOPE_READ_OWN)
+  ) {
+    return context;
+  }
+  return Object.freeze({
+    ...context,
+    binding: createAnonymousPublicBinding({
+      resourceAudience: context.binding.resourceAudience,
+      securityEpoch: context.binding.securityEpoch,
+    }),
+  });
+}
+
+function requireReadToolScope(context: McpTrustedReadRequestContext): void {
+  if (!canAccessPhase4bMcpReadTools(context)) {
+    throw new McpToolOutputUnavailableError();
+  }
+}
+
+/**
  * Builds the single frozen P4B-R12 Modern Read Tool adapter bundle. The
  * adapter can serve concurrent requests and never retains request state.
  */
@@ -257,8 +302,25 @@ export function createPhase4bMcpReadToolAdapter(
     serverInfo: resolvePhase4bMcpServerInfo(options.writeEnabled === true),
     schemaBudget: PHASE4B_MCP_READ_TOOL_SCHEMA_BUDGET,
   });
+  const gatedAdapter: Mcp20260728ReadToolAdapter = Object.freeze({
+    listTools: async (context: Mcp20260728RequestContext, input?: unknown) => {
+      if (!canAccessPhase4bMcpReadTools(context)) {
+        return createMcp20260728Result({
+          method: 'tools/list',
+          serverInfo: resolvePhase4bMcpServerInfo(options.writeEnabled === true),
+          fields: { tools: Object.freeze([]) },
+          cache: { ttlMs: 0, cacheScope: 'private' },
+        });
+      }
+      return adapter.listTools(context, input);
+    },
+    callTool: async (context: Mcp20260728RequestContext, input?: unknown) => {
+      requireReadToolScope(context);
+      return adapter.callTool(context, input);
+    },
+  });
   return Object.freeze({
-    adapter,
+    adapter: gatedAdapter,
     paramDeclarations: PHASE4B_MCP_READ_TOOL_PARAM_DECLARATIONS,
   });
 }
@@ -269,6 +331,7 @@ async function invokeCollectionsGet(
   input: unknown,
   context: McpTrustedReadRequestContext,
 ): Promise<Readonly<{ content: unknown; structuredContent: unknown }>> {
+  requireReadToolScope(context);
   const args = input as Readonly<{ collectionId: string }>;
   if (args.collectionId === '.' || args.collectionId === '..') {
     throw new TypeError('Collection id must not be a relative path segment.');
@@ -288,7 +351,7 @@ async function invokeCollectionsGet(
         collectionId: args.collectionId,
       }),
     }),
-    context,
+    publicReadContext(context),
   );
   const structuredContent = readProjectionJson(projected);
   return Object.freeze({
@@ -303,6 +366,7 @@ async function invokeNodesGet(
   input: unknown,
   context: McpTrustedReadRequestContext,
 ): Promise<Readonly<{ content: unknown; structuredContent: unknown }>> {
+  requireReadToolScope(context);
   const args = input as Readonly<{ collectionId: string; nodeId: string }>;
   if (args.collectionId === '.' || args.collectionId === '..') {
     throw new TypeError('Collection id must not be a relative path segment.');
@@ -326,7 +390,7 @@ async function invokeNodesGet(
         nodeId: args.nodeId,
       }),
     }),
-    context,
+    publicReadContext(context),
   );
   const structuredContent = readProjectionJson(projected);
   return Object.freeze({
@@ -342,12 +406,13 @@ async function invokeCollectionsGetSnapshot(
   input: unknown,
   context: McpTrustedReadRequestContext,
 ): Promise<Readonly<{ content: unknown; structuredContent: unknown }>> {
+  requireReadToolScope(context);
   const args = input as Readonly<{ collectionId: string; cursor?: string }>;
   if (args.collectionId === '.' || args.collectionId === '..') {
     throw new TypeError('Collection id must not be a relative path segment.');
   }
   const ownedBody = await tryOwnedSnapshot(ownedRead, args.collectionId, args.cursor, context);
-  const body = ownedBody ?? await readPublicationSnapshot(projection, args, context);
+  const body = ownedBody ?? await readPublicationSnapshot(projection, args, publicReadContext(context));
   const collection = body.collection;
   if (typeof collection !== 'object' || collection === null) {
     throw new TypeError('Snapshot projection is missing its collection envelope.');

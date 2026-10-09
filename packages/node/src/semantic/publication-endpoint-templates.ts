@@ -24,6 +24,13 @@ export interface PublicationEndpointTemplateContract {
   };
 }
 
+/**
+ * Manifest endpoint templates are small routing declarations, not payloads.
+ * Keep malformed or hostile manifests from making URI-template parsing and
+ * URL normalization allocate proportional to the client's full response cap.
+ */
+export const MAX_PUBLICATION_ENDPOINT_TEMPLATE_BYTES = 65_536;
+
 const publicationEndpointKeys = new Set<EndpointKey>(publicationRequiredEndpoints);
 const absoluteHttpTemplate = /^(https?):\/\/([^/?#]*)(?:[/?#]|$)/iu;
 const exactLoopbackHttpAuthority = /^(?:localhost|127\.0\.0\.1|\[::1\])(?::[0-9]+)?$/iu;
@@ -47,6 +54,7 @@ export function getPublicationEndpointTemplateContract(
   template: string,
 ): PublicationEndpointTemplateContract {
   assertPublicationEndpointKey(endpoint);
+  assertPublicationEndpointTemplateSource(template);
 
   const contract = endpointContracts[endpoint];
   const variables = getLevelOneUriTemplateVariables(template);
@@ -74,6 +82,13 @@ export function getPublicationEndpointTemplateContract(
     variables: contract.variables,
     operation,
   }) as PublicationEndpointTemplateContract;
+}
+
+function assertPublicationEndpointTemplateSource(template: string): void {
+  if (typeof template !== 'string' || template.length > MAX_PUBLICATION_ENDPOINT_TEMPLATE_BYTES
+    || new TextEncoder().encode(template).byteLength > MAX_PUBLICATION_ENDPOINT_TEMPLATE_BYTES) {
+    throw new TypeError('Publication endpoint template exceeds its byte budget.');
+  }
 }
 
 /** Rejects URI components and repeated variables that generic template parsing normalizes away. */

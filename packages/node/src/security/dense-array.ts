@@ -11,8 +11,8 @@ export type ExactDenseArrayInspectionOptions = {
   /** Inclusive minimum length. Default 0. */
   readonly minLength?: number;
   /**
-   * Inclusive maximum length. Default 4_294_967_294 (same exclusive upper bound
-   * as existing `< 4_294_967_295`).
+   * Inclusive maximum length. The default is a resource bound; callers that
+   * legitimately accept larger arrays must opt in explicitly.
    */
   readonly maxLength?: number;
   /**
@@ -44,7 +44,10 @@ export type ExactDenseArrayInspectionResult =
 /** Hard exclusive upper bound on array index space (2^32 − 1). */
 const INDEX_SPACE_EXCLUSIVE_UPPER = 4_294_967_295;
 /** Default inclusive maxLength when options omit it. */
-const DEFAULT_MAX_LENGTH = 4_294_967_294;
+// Keep the generic helper compatible with existing large policy lists while
+// ensuring callers that process network-facing arrays opt into smaller bounds.
+export const DEFAULT_DENSE_ARRAY_MAX_LENGTH = 1_000_000;
+const DEFAULT_MAX_LENGTH = DEFAULT_DENSE_ARRAY_MAX_LENGTH;
 
 /**
  * Configurable exact dense-array inspector (no domain error messages, no freeze).

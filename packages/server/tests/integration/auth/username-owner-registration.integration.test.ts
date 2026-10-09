@@ -186,6 +186,24 @@ describe('G2 username sign-in and single owner', () => {
     assert.equal(right.statusCode, 200, right.body);
   });
 
+  test('first-run federated sign-in cannot claim the owner slot', async () => {
+    delete process.env.COLP_MULTI_USER;
+    await fixture.pool.query('delete from "auth_users"');
+    const response = await post('/sign-in/social', {
+      provider: 'google', callbackURL: '/dashboard',
+    });
+    assert.equal(response.statusCode, 403, response.body);
+    assert.equal((response.json() as { code?: string }).code, 'setup_token_required');
+    const callback = await app.inject({
+      method: 'GET',
+      url: `${BASE_PATH}/callback/google?code=untrusted&state=untrusted`,
+      headers: { origin: TRUSTED_ORIGIN },
+    });
+    assert.equal(callback.statusCode, 403, callback.body);
+    assert.equal((callback.json() as { code?: string }).code, 'setup_token_required');
+    assert.equal((await fixture.pool.query('select count(*)::int as n from "auth_users"')).rows[0].n, 0);
+  });
+
   test('concurrent first sign-ups create exactly one owner (D27)', async () => {
     delete process.env.COLP_MULTI_USER;
     await applySingleOwnerGuard(fixture.db as never);

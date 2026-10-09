@@ -10,6 +10,8 @@ import {
   snapshotDenseArray,
   type PlainRecord,
 } from './input-snapshot.js';
+
+const MAX_BOUNDARY_ORIGINS = 128;
 import {
   enforceOriginGuard,
   type OriginGuardApplicability,
@@ -156,8 +158,8 @@ function snapshotTrustedEvidence(input: unknown): EvidenceSnapshot {
     if (typeof originField.value === 'string') {
       origin = originField.value;
     } else {
-      const values = snapshotDenseArray(originField.value, 'origin');
-      if (!values.every((entry) => typeof entry === 'string')) {
+      const values = snapshotDenseArray(originField.value, 'origin', { maxLength: MAX_BOUNDARY_ORIGINS });
+      if (values.length > MAX_BOUNDARY_ORIGINS || !values.every((entry) => typeof entry === 'string')) {
         throw new TypeError('origin array entries must be strings');
       }
       origin = values as readonly string[];
@@ -185,8 +187,11 @@ function snapshotBoundaryOptions(options: unknown): readonly string[] {
   if (!allowlistField.found) {
     throw new TypeError('boundary options.allowedOrigins is required');
   }
-  const allowlist = snapshotDenseArray(allowlistField.value, 'allowedOrigins');
-  if (!allowlist.every((entry) => typeof entry === 'string')) {
+  const allowlist = snapshotDenseArray(allowlistField.value, 'allowedOrigins', {
+    maxLength: MAX_BOUNDARY_ORIGINS,
+  });
+  if (allowlist.length > MAX_BOUNDARY_ORIGINS
+    || !allowlist.every((entry) => typeof entry === 'string')) {
     throw new TypeError('allowedOrigins entries must be strings');
   }
   return allowlist as readonly string[];
@@ -303,8 +308,11 @@ export function enforceOriginFromTransport(
   try {
     snapshot = snapshotTrustedEvidence(evidence);
     // Freeze allowlist once for this decision (same rules as boundary options).
-    allowlist = snapshotDenseArray(allowedOrigins, 'allowedOrigins') as readonly string[];
-    if (!allowlist.every((entry) => typeof entry === 'string')) {
+    allowlist = snapshotDenseArray(allowedOrigins, 'allowedOrigins', {
+      maxLength: MAX_BOUNDARY_ORIGINS,
+    }) as readonly string[];
+    if (allowlist.length > MAX_BOUNDARY_ORIGINS
+      || !allowlist.every((entry) => typeof entry === 'string')) {
       return Object.freeze({ allowed: false, reason: 'invalid_input' }) as OriginGuardDecision;
     }
   } catch {

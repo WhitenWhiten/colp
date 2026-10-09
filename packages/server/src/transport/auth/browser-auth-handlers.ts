@@ -376,11 +376,27 @@ export function registerSessionMeRoutes(app: FastifyInstance, deps: BrowserAuthD
     rejectMixedCarriers(request);
     const authority = deps.browserSessionAuthority;
     if (authority) {
+      // Session bootstrap is a stateful operation when it rotates a mature
+      // cookie.  A top-level cross-site navigation may carry SameSite=Lax
+      // cookies but has no CSRF proof, so only an exact allowed Origin may
+      // authorize rotation.  Requests with no Origin remain readable, but
+      // cannot mint/revoke a successor session.
+      const origin = request.headers.origin;
+      const originAllowsRotation = typeof origin === 'string'
+        && origin.length > 0
+        && origin !== 'null'
+        && deps.config.allowedOrigins.includes(origin);
+      if (origin !== undefined && !originAllowsRotation) {
+        requireAllowedOrigin(request, deps.config.allowedOrigins);
+      }
       // A3: bootstrap through the BrowserSessionAuthority (BA session +
       // metadata idle/absolute/epoch/revoked + purpose-separated CSRF).
       // Rotation is CAS single-winner; the winner's successor cookie is
       // Set-Cookie'd only when rotated (losers converge to the same value).
-      const result = await authority.bootstrap({ cookie: request.headers.cookie });
+      const result = await authority.bootstrap(
+        { cookie: request.headers.cookie },
+        { allowRotation: originAllowsRotation },
+      );
       if (!result.authenticated) {
         // C-02: occupancy is not a product actor and must not look like
         // a missing cookie. Product bootstrap must not trust BA get-session.

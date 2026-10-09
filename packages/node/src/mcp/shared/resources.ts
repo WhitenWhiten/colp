@@ -87,6 +87,7 @@ export const DEFAULT_MCP_RESOURCE_READ_BUDGET: Required<McpResourceReadBudget> =
   maxTextBytes: 1_048_576,
   maxCursorLength: 1_024,
 });
+const MCP_RESOURCE_URI_MAX_BYTES = 16 * 1024;
 
 /** Resolves a per-request read budget against safe-integer defaults. */
 export function resolveMcpResourceReadBudget(
@@ -310,6 +311,9 @@ export function createMcpStatelessReadCore(
       assertNotAborted(context.abortSignal);
       const budget = resolveMcpResourceReadBudget(context.budget);
       uri = readUriInput(args[1]);
+      if (uri.length > MCP_RESOURCE_URI_MAX_BYTES || Buffer.byteLength(uri, 'utf8') > MCP_RESOURCE_URI_MAX_BYTES) {
+        throw resourceError();
+      }
       const resource = parseCanonical(uri, uriCodec);
       const raw = await Reflect.apply(projection.readResource, projection.receiver, [
         Object.freeze({ resource }),
@@ -390,6 +394,10 @@ function validateListResult(
   budget: Required<McpResourceReadBudget>,
 ): McpResourceListResult {
   assertExactDataObject(value, ['resources'], ['nextCursor']);
+  // Charge the complete projection before cloning any per-item metadata. A
+  // per-item snapshot with the full budget would otherwise let a page of many
+  // individually-valid metadata objects exceed the aggregate request budget.
+  chargeAggregateResourceBytes(value, budget);
   const rawResources = readOwnData(value, 'resources');
   assertStrictArray(rawResources);
   if (rawResources.length > budget.maxListItems) throw resourceError();
@@ -436,6 +444,7 @@ function validateReadResult(
   budget: Required<McpResourceReadBudget>,
 ): McpResourceReadResult {
   assertExactDataObject(value, ['contents']);
+  chargeAggregateResourceBytes(value, budget);
   const rawContents = readOwnData(value, 'contents');
   assertStrictArray(rawContents);
   if (rawContents.length > budget.maxReadContents) throw resourceError();
@@ -453,6 +462,63 @@ function validateReadResult(
     });
   });
   return Object.freeze({ contents: Object.freeze(contents) });
+}
+
+interface AggregateResourceBudgetState {
+  readonly ancestors: WeakSet<object>;
+  nodes: number;
+  bytes: number;
+}
+
+/** Bounded preflight walk used only to account the whole Resource result. */
+function chargeAggregateResourceBytes(
+  value: unknown,
+  budget: Required<McpResourceReadBudget>,
+): void {
+  const state: AggregateResourceBudgetState = { ancestors: new WeakSet<object>(), nodes: 0, bytes: 0 };
+  walkAggregateResourceValue(value, state, budget, 0);
+}
+
+function walkAggregateResourceValue(
+  value: unknown,
+  state: AggregateResourceBudgetState,
+  budget: Required<McpResourceReadBudget>,
+  depth: number,
+): void {
+  if (depth > budget.maxDepth) throw resourceError();
+  state.nodes += 1;
+  if (state.nodes > budget.maxNodes) throw resourceError();
+  if (typeof value === 'string') {
+    if (value.length > budget.maxBytes) throw resourceError();
+    state.bytes += Buffer.byteLength(value, 'utf8');
+  } else if (value === null || typeof value === 'boolean' || typeof value === 'number') {
+    state.bytes += 8;
+  } else if (typeof value === 'object') {
+    if (nodeTypes.isProxy(value) || state.ancestors.has(value)) throw resourceError();
+    const prototype = Object.getPrototypeOf(value);
+    if (prototype !== Object.prototype && prototype !== null && prototype !== Array.prototype) {
+      throw resourceError();
+    }
+    state.ancestors.add(value);
+    try {
+      const keys = Reflect.ownKeys(value);
+      if (keys.some((key) => typeof key === 'symbol')) throw resourceError();
+      for (const key of keys) {
+        if (key === 'length' && Array.isArray(value)) continue;
+        const descriptor = Object.getOwnPropertyDescriptor(value, key);
+        if (descriptor === undefined || !('value' in descriptor) || descriptor.enumerable !== true) {
+          throw resourceError();
+        }
+        state.bytes += Buffer.byteLength(key as string, 'utf8') + 1;
+        walkAggregateResourceValue(descriptor.value, state, budget, depth + 1);
+      }
+    } finally {
+      state.ancestors.delete(value);
+    }
+  } else {
+    throw resourceError();
+  }
+  if (state.bytes > budget.maxBytes) throw resourceError();
 }
 
 function readProvenance(value: unknown): McpResourceProvenance {
