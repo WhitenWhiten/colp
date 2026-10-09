@@ -120,9 +120,9 @@ describeWithPostgres('P3-22 PostgreSQL monotonic Sync Ack', () => {
 
   test('Pull persists immutable cursor evidence without advancing the checkpoint', async () => {
     const value = await context('pull-evidence');
-    const page = await value.reader.read({ credential: value.credential, sessionId: value.session.sessionId,
+    const page = await value.reader.read({ origin: ORIGIN, credential: value.credential, sessionId: value.session.sessionId,
       cursor: null, limit: 10 });
-    const retry = await value.reader.read({ credential: value.credential, sessionId: value.session.sessionId,
+    const retry = await value.reader.read({ origin: ORIGIN, credential: value.credential, sessionId: value.session.sessionId,
       cursor: page.nextCursor, limit: 10 });
     const replica = await isolated.runtime.db.selectFrom('sync_replicas').selectAll()
       .where('replica_id', '=', value.replica.replicaId).executeTakeFirstOrThrow();
@@ -137,7 +137,7 @@ describeWithPostgres('P3-22 PostgreSQL monotonic Sync Ack', () => {
 
   test('Ack accepts cursor evidence bound to a negotiated COLP 0.2 Session', async () => {
     const value = await context('protocol-v02', '0.2');
-    const page = await value.reader.read({ credential: value.credential,
+    const page = await value.reader.read({ origin: ORIGIN, credential: value.credential,
       sessionId: value.session.sessionId, cursor: null, limit: 10 });
     const application = createPostgresSyncAckApplication(isolated.runtime.db,
       { leaseExtensionSeconds: 600, maxLeaseLifetimeSeconds: 3_600 });
@@ -147,7 +147,7 @@ describeWithPostgres('P3-22 PostgreSQL monotonic Sync Ack', () => {
 
   test('rejects an arbitrary equal-tuple cursor without a Session handoff proof', async () => {
     const value = await context('equal-tuple-without-handoff-proof', '0.2');
-    const page = await value.reader.read({ credential: value.credential,
+    const page = await value.reader.read({ origin: ORIGIN, credential: value.credential,
       sessionId: value.session.sessionId, cursor: null, limit: 10 });
     const application = createPostgresSyncAckApplication(isolated.runtime.db,
       { leaseExtensionSeconds: 600, maxLeaseLifetimeSeconds: 3_600 });
@@ -178,7 +178,7 @@ describeWithPostgres('P3-22 PostgreSQL monotonic Sync Ack', () => {
 
   test('denies a dead-Session Ack permanently and accepts the cross-Session reissued cursor instead', async () => {
     const value = await context('dead-session-handoff', '0.2');
-    const page = await value.reader.read({ credential: value.credential,
+    const page = await value.reader.read({ origin: ORIGIN, credential: value.credential,
       sessionId: value.session.sessionId, cursor: null, limit: 10 });
     const application = createPostgresSyncAckApplication(isolated.runtime.db,
       { leaseExtensionSeconds: 600, maxLeaseLifetimeSeconds: 3_600 });
@@ -202,7 +202,7 @@ describeWithPostgres('P3-22 PostgreSQL monotonic Sync Ack', () => {
       expectedLifecycleRevision: current.lifecycle_revision, binding: value.replica.binding,
       requestedScopes: ['sync:pull'], origin: ORIGIN, protocolVersion: '0.2' });
     // Pull under the renewed Session hands the acknowledged cursor off to a re-issued token.
-    const restored = await value.reader.read({ credential: value.credential,
+    const restored = await value.reader.read({ origin: ORIGIN, credential: value.credential,
       sessionId: renewed.session.sessionId, cursor: page.nextCursor, limit: 10 });
     assert.deepEqual(restored.events, []);
     assert.equal(restored.cursorReissued, true);
@@ -221,13 +221,13 @@ describeWithPostgres('P3-22 PostgreSQL monotonic Sync Ack', () => {
   test('retries a previously published partial page after the stream grows', async () => {
     const value = await context('pull-evidence-growing-stream');
     const firstOperation = await addOperation(8_001);
-    const firstPage = await value.reader.read({ credential: value.credential,
+    const firstPage = await value.reader.read({ origin: ORIGIN, credential: value.credential,
       sessionId: value.session.sessionId, cursor: null, limit: 10 });
     assert.equal(firstPage.events.some((event) => event.kind === 'operation'
       && event.operation.opId === firstOperation.opId), true);
 
     const laterOperation = await addOperation(8_002);
-    const retry = await value.reader.read({ credential: value.credential,
+    const retry = await value.reader.read({ origin: ORIGIN, credential: value.credential,
       sessionId: value.session.sessionId, cursor: null, limit: 10 });
     assert.equal(retry.events.some((event) => event.kind === 'operation'
       && event.operation.opId === firstOperation.opId), true);
@@ -243,7 +243,7 @@ describeWithPostgres('P3-22 PostgreSQL monotonic Sync Ack', () => {
 
   test('first Ack, exact replay and restart preserve one receipt/audit and do not renew twice', async () => {
     const value = await context('replay');
-    const page = await value.reader.read({ credential: value.credential, sessionId: value.session.sessionId,
+    const page = await value.reader.read({ origin: ORIGIN, credential: value.credential, sessionId: value.session.sessionId,
       cursor: null, limit: 10 });
     const application = createPostgresSyncAckApplication(isolated.runtime.db,
       { leaseExtensionSeconds: 600, maxLeaseLifetimeSeconds: 3_600 });
@@ -269,9 +269,9 @@ describeWithPostgres('P3-22 PostgreSQL monotonic Sync Ack', () => {
   test('two connections Ack in reverse order and retain the legal maximum tuple', async () => {
     await addOperation(1); await addOperation(2);
     const value = await context('concurrent');
-    const firstPage = await value.reader.read({ credential: value.credential, sessionId: value.session.sessionId,
+    const firstPage = await value.reader.read({ origin: ORIGIN, credential: value.credential, sessionId: value.session.sessionId,
       cursor: null, limit: 1 });
-    const secondPage = await value.reader.read({ credential: value.credential, sessionId: value.session.sessionId,
+    const secondPage = await value.reader.read({ origin: ORIGIN, credential: value.credential, sessionId: value.session.sessionId,
       cursor: firstPage.nextCursor, limit: 1 });
     let releaseOld!: () => void;
     const oldPaused = new Promise<void>((resolve) => { releaseOld = resolve; });
@@ -308,7 +308,7 @@ describeWithPostgres('P3-22 PostgreSQL monotonic Sync Ack', () => {
     // longer matches. Removing that check, or the locked re-read, fails here.
     await addOperation(901);
     const value = await context('revision-fence');
-    const page = await value.reader.read({ credential: value.credential, sessionId: value.session.sessionId,
+    const page = await value.reader.read({ origin: ORIGIN, credential: value.credential, sessionId: value.session.sessionId,
       cursor: null, limit: 1 });
     const prior = await isolated.runtime.db.selectFrom('sync_replicas').selectAll()
       .where('replica_id', '=', value.replica.replicaId).executeTakeFirstOrThrow();
@@ -363,7 +363,7 @@ describeWithPostgres('P3-22 PostgreSQL monotonic Sync Ack', () => {
       assert.equal(before.checkpoint_commit_ordinal, null, 'the Replica must start without a baseline');
       let cursor = bogusCursor;
       if (cursor === null) {
-        const page = await value.reader.read({ credential: value.credential,
+        const page = await value.reader.read({ origin: ORIGIN, credential: value.credential,
           sessionId: value.session.sessionId, cursor: null, limit: 1 });
         cursor = page.nextCursor;
         await isolated.runtime.pool.query(
@@ -390,7 +390,7 @@ describeWithPostgres('P3-22 PostgreSQL monotonic Sync Ack', () => {
     // A Replica with a baseline keeps the Session-refresh exit: the CAS requires
     // a null checkpoint, so the migration is not a blanket state change.
     const withBaseline = await context('recovery-migration-with-baseline');
-    const firstPage = await withBaseline.reader.read({ credential: withBaseline.credential,
+    const firstPage = await withBaseline.reader.read({ origin: ORIGIN, credential: withBaseline.credential,
       sessionId: withBaseline.session.sessionId, cursor: null, limit: 1 });
     const firstAck = await application.acknowledge(input(withBaseline, firstPage.nextCursor, 'ack-baseline-key'));
     assert.equal(firstAck.ackedCursor, firstPage.nextCursor);
@@ -408,7 +408,7 @@ describeWithPostgres('P3-22 PostgreSQL monotonic Sync Ack', () => {
 
   test('unpublished/tampered/cross-scope/reused keys fail without checkpoint, lease, receipt or audit changes', async () => {
     const left = await context('left'); const right = await context('right');
-    const page = await left.reader.read({ credential: left.credential, sessionId: left.session.sessionId,
+    const page = await left.reader.read({ origin: ORIGIN, credential: left.credential, sessionId: left.session.sessionId,
       cursor: null, limit: 10 });
     const application = createPostgresSyncAckApplication(isolated.runtime.db,
       { leaseExtensionSeconds: 600, maxLeaseLifetimeSeconds: 3_600 });
@@ -420,9 +420,9 @@ describeWithPostgres('P3-22 PostgreSQL monotonic Sync Ack', () => {
     // The baselines use an EARLIER page than the cursors this case acks later:
     // re-acking an already acknowledged tuple is itself `stale_replica` without
     // a rebind proof, which is a different case.
-    const leftBaseline = await left.reader.read({ credential: left.credential,
+    const leftBaseline = await left.reader.read({ origin: ORIGIN, credential: left.credential,
       sessionId: left.session.sessionId, cursor: null, limit: 1 });
-    const rightPage = await right.reader.read({ credential: right.credential,
+    const rightPage = await right.reader.read({ origin: ORIGIN, credential: right.credential,
       sessionId: right.session.sessionId, cursor: null, limit: 10 });
     for (const [value, cursor, key] of [[left, leftBaseline.nextCursor, 'ack-left-baseline'],
       [right, rightPage.nextCursor, 'ack-right-baseline']] as const) {
@@ -453,7 +453,7 @@ describeWithPostgres('P3-22 PostgreSQL monotonic Sync Ack', () => {
 
   test('fault after checkpoint rolls checkpoint, receipt, audit and lease back together', async () => {
     const value = await context('rollback');
-    const page = await value.reader.read({ credential: value.credential, sessionId: value.session.sessionId,
+    const page = await value.reader.read({ origin: ORIGIN, credential: value.credential, sessionId: value.session.sessionId,
       cursor: null, limit: 10 });
     const before = await isolated.runtime.db.selectFrom('sync_replicas').selectAll()
       .where('replica_id', '=', value.replica.replicaId).executeTakeFirstOrThrow();
@@ -470,7 +470,7 @@ describeWithPostgres('P3-22 PostgreSQL monotonic Sync Ack', () => {
 
   test('production Ack retries a proven serialization rollback without duplicating the receipt', async () => {
     const value = await context('retry-serialization');
-    const page = await value.reader.read({ credential: value.credential, sessionId: value.session.sessionId,
+    const page = await value.reader.read({ origin: ORIGIN, credential: value.credential, sessionId: value.session.sessionId,
       cursor: null, limit: 10 });
     let attempts = 0;
     const application = createPostgresSyncAckApplication(isolated.runtime.db, { leaseExtensionSeconds: 600,
@@ -487,7 +487,7 @@ describeWithPostgres('P3-22 PostgreSQL monotonic Sync Ack', () => {
 
   test('uses database time and never renews beyond the generation lifetime ceiling', async () => {
     const value = await context('lease-bound');
-    const page = await value.reader.read({ credential: value.credential, sessionId: value.session.sessionId,
+    const page = await value.reader.read({ origin: ORIGIN, credential: value.credential, sessionId: value.session.sessionId,
       cursor: null, limit: 10 });
     const generation = await isolated.runtime.db.selectFrom('sync_replica_generations').select('issued_at')
       .where('replica_id', '=', value.replica.replicaId).executeTakeFirstOrThrow();
@@ -502,7 +502,7 @@ describeWithPostgres('P3-22 PostgreSQL monotonic Sync Ack', () => {
   test('Pull binds the live purge boundary and rejects a previously issued cursor as recovery-required', async () => {
     const value = await context('purge-boundary');
     const operation = await addOperation(90_001);
-    const page = await value.reader.read({ credential: value.credential,
+    const page = await value.reader.read({ origin: ORIGIN, credential: value.credential,
       sessionId: value.session.sessionId, cursor: null, limit: 1_000 });
     assert.equal(page.events.some((event) => event.kind === 'operation'
       && event.operation.opId === operation.opId), true);
@@ -515,13 +515,13 @@ describeWithPostgres('P3-22 PostgreSQL monotonic Sync Ack', () => {
     const beforeRecovery = await isolated.runtime.db.selectFrom('sync_replicas')
       .select('lifecycle_revision').where('replica_id', '=', value.replica.replicaId)
       .executeTakeFirstOrThrow();
-    await assert.rejects(value.reader.read({ credential: value.credential,
+    await assert.rejects(value.reader.read({ origin: ORIGIN, credential: value.credential,
       sessionId: value.session.sessionId, cursor: page.nextCursor, limit: 1_000 }),
     (error: unknown) => error instanceof SyncPullReadError && error.code === 'recovery_required');
-    await assert.rejects(value.reader.read({ credential: value.credential,
+    await assert.rejects(value.reader.read({ origin: ORIGIN, credential: value.credential,
       sessionId: value.session.sessionId, cursor: page.nextCursor, limit: 1_000 }),
     (error: unknown) => error instanceof SyncPullReadError && error.code === 'recovery_required');
-    await assert.rejects(value.reader.read({ credential: value.credential,
+    await assert.rejects(value.reader.read({ origin: ORIGIN, credential: value.credential,
       sessionId: value.session.sessionId, cursor: null, limit: 1_000 }),
     (error: unknown) => error instanceof SyncPullReadError && error.code === 'recovery_required');
     const replica = await isolated.runtime.db.selectFrom('sync_replicas')
@@ -543,7 +543,7 @@ describeWithPostgres('P3-22 PostgreSQL monotonic Sync Ack', () => {
 
   test('retirement fences concurrent real Pull and ordinary Ack on separate connections', async () => {
     const value = await context('retire-race');
-    const page = await value.reader.read({ credential: value.credential,
+    const page = await value.reader.read({ origin: ORIGIN, credential: value.credential,
       sessionId: value.session.sessionId, cursor: null, limit: 10 });
     let entered!: () => void;
     let release!: () => void;
@@ -553,10 +553,10 @@ describeWithPostgres('P3-22 PostgreSQL monotonic Sync Ack', () => {
       faultInjector: { async afterPhase(phase) {
         if (phase === 'replica') { entered(); await blocked; }
       } },
-    }).retireExtension({ credential: value.credential, sessionId: value.session.sessionId,
+    }).retireExtension({ origin: ORIGIN, credential: value.credential, sessionId: value.session.sessionId,
       idempotencyKey: 'retire-race-key', requestFingerprint: 'retire-race' });
     await atReplicaWrite;
-    const pull = value.reader.read({ credential: value.credential,
+    const pull = value.reader.read({ origin: ORIGIN, credential: value.credential,
       sessionId: value.session.sessionId, cursor: null, limit: 10 });
     const ack = createPostgresSyncAckApplication(isolated.runtime.db,
       { leaseExtensionSeconds: 600, maxLeaseLifetimeSeconds: 3_600 })
