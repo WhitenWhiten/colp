@@ -56,3 +56,68 @@ Know-N evidence barrel that also loads deleted social/report harnesses.
 owned disposable PostgreSQL container (requires a clean repository HEAD). All
 three restored integration files are also included by `test:integration:inner`
 and the existing six-shard server integration CI job.
+
+## Static contract lane (2026-10-09)
+
+The `static` Vitest project (`tests/unit/**/*-static.test.ts`, `npm run
+test:static`) was extracted but never wired into a script or CI, so 17 of its
+files still referenced Know-N paths. It now runs in the server CI job. Each
+file was triaged against this repository; contracts were adapted where the
+promise still exists here and removed only where the subject left with its
+module. Nothing that guards a shipped runtime behaviour was weakened.
+
+Adapted (the shipped promise is still asserted, against repository paths):
+
+- `ci/caddy-colp-proxy-static` replaces `ci/docker-nginx-colp-proxy-static`:
+  the self-hosted ingress is Caddy (`deploy/Caddyfile.*`), not Know-N's nginx
+  templates. Every Caddy variant must route `/api/*`, `/collections/*`,
+  `/.well-known/*`, `/colp/*`, `/health`, `/ready` to the server before the
+  SPA catch-all and never fall back to static files. The nginx-specific
+  report-shell, sitemap and `mcp-compat` locations belong to Know-N's web.
+- `sync/outbox-continuation-static`: the dedicated
+  `test:phase5:outbox-continuation` with-postgres script does not exist here;
+  the three layers are asserted to exist and to be covered by the `postgres`
+  project that `test:integration` wraps. `notifications/
+  social-notification-worker-route.ts` left with the social module and is
+  dropped from the no-continuation route list; the other four routes stay.
+- `postgres/operation-payload-split-static`: the attachment canonical
+  mutation port left with the attachments module. The insert gate now scans
+  every `src/**/*.ts` file instead of a fixed list, so a new inserter cannot
+  bypass `appendOperationWithPayload`.
+- `postgres/outbox-retention-floors-migration-static`: the social Feed
+  rebuild-density case (`infrastructure/social/feed-worker-postgres.ts`) is
+  removed; migration, repository and schema-slice contracts remain.
+- `postgres/ledger-retention-policy-static` and
+  `postgres/ledger-archive-segments-migration-static`: the catalog CLI
+  (`scripts/ledger-retention-policy.ts`), ADR 0023 and the archive runbook are
+  Know-N documentation. The runtime invariants (`sourceDeletionAuthorized:
+  false`, additive migration, CAS-only repository) remain.
+- `auth/better-auth-migration-static` and `auth/better-auth-oauth-schema-static`:
+  the frozen decision JSON under `packages/docs/decisions` is not shipped; the
+  in-package frozen filename lists are the contract.
+- `identity/public-profile-projection-migration-static`: the Phase 2B status
+  history row (`docs/09-phase-execution-status.md`) is project history.
+- `phase4b/phase4b-mcp-entry-gate-contract-static`: the evidence document and
+  the host/client/probe harness files are not shipped; only
+  `scripts/evidence/phase4b-mcp-entry-contract.ts` remains. The catalog,
+  SDK lock, replay digest and production-boundary scans still run.
+- `sync/sync-admission-routes-static`, `sync/sync-operation-effects-http-static`,
+  `sync/sync-pull-page-evidence-static`: assertions on Know-N's multi-replica
+  `devops/docker-compose.yml` (AUTH_API_REPLICAS, shared Redis Sync limiters,
+  effect-page limit override, evidence maintenance default) are removed. The
+  self-hosted `deploy/compose.yaml` is single-instance and runs server
+  defaults. Observation for maintainers: Know-N's compose enabled
+  `SYNC_EVIDENCE_MAINTENANCE_ENABLED` by default; the self-hosted preset leaves
+  it (and `SYNC_TOMBSTONE_PURGE_ENABLED`) at the server default `false`. That
+  is a deployment decision, not changed here.
+
+Removed (the subject is not part of this package):
+
+- `email/email-capture-preview-catalog-static`: Know-N `devops/frontend_capture`.
+- `identity/identity-migration-static`: Know-N monorepo
+  `check-auth-migration-boundaries.mjs` gate over `Known-Backend/...` paths.
+- `phase3/phase3-multi-device-recovery-contract-static`: the multi-device
+  recovery acceptance runner scripts are not shipped (the evidence unit test
+  for the same feature remains in the unit project).
+- `phase3/phase3-sync-ui-real-stack-static`: Know-N's web real-stack e2e
+  harness, already excluded from the restored acceptance scope above.

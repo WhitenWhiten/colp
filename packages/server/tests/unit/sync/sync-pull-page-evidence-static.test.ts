@@ -3,7 +3,6 @@ import { readFile } from 'node:fs/promises';
 import { test } from 'vitest';
 
 const migrationUrl = new URL('../../../migrations/202610011200_sync_pull_page_evidence.ts', import.meta.url);
-const composeUrl = new URL('../../../../devops/docker-compose.yml', import.meta.url);
 const pullPersistenceClusterUrls = [
   new URL('../../../src/infrastructure/sync/postgres/sync-pull-postgres.ts', import.meta.url),
   new URL('../../../src/infrastructure/sync/postgres/sync-pull-authority-postgres.ts', import.meta.url),
@@ -38,7 +37,7 @@ test('Pull read path no longer runs request-entry evidence cleanup DML', async (
   assert.doesNotMatch(source, /DELETE FROM sync_pull_cursor_lineage/u);
 });
 
-test('Compose enables evidence maintenance by default after SYNC-Q-011', async () => {
-  const compose = await readFile(composeUrl, 'utf8');
-  assert.match(compose, /SYNC_EVIDENCE_MAINTENANCE_ENABLED: "\$\{SYNC_EVIDENCE_MAINTENANCE_ENABLED:-true\}"/u);
-});
+// Know-N's compose enabled SYNC_EVIDENCE_MAINTENANCE_ENABLED by default. The
+// self-hosted preset currently leaves the worker maintenance jobs at the
+// server default (off); enabling them is an operator/maintainer decision
+// recorded in tests/EXTRACTION.md, not a contract this suite asserts.

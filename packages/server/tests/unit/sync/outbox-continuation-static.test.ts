@@ -34,18 +34,26 @@ function referencedIdentifiers(relativePath: string): string[] {
   return identifiers;
 }
 
-test('R5-03 public outbox-continuation gate wraps PostgreSQL via with-postgres', async () => {
+test('R5-03 outbox-continuation gate keeps its three layers in the CI projects', async () => {
+  // Know-N ran the gate through a dedicated `test:phase5:outbox-continuation`
+  // script. This repository runs it through the workspace projects: the
+  // static and unit layers here, and the PostgreSQL layer via the
+  // `postgres` project that `test:integration:inner` wraps in with-postgres.
   const packageJson = JSON.parse(await readSource('package.json')) as {
     scripts: Record<string, string>;
   };
-  assert.equal(
-    packageJson.scripts['test:phase5:outbox-continuation'],
-    'node scripts/with-postgres.mjs -- npm run test:phase5:outbox-continuation:inner',
-  );
-  const inner = packageJson.scripts['test:phase5:outbox-continuation:inner'] ?? '';
-  assert.match(inner, /outbox-continuation-static\.test\.ts/u);
-  assert.match(inner, /outbox-continuation\.test\.ts/u);
-  assert.match(inner, /outbox-continuation-postgres\.integration\.test\.ts/u);
+  for (const relativePath of [
+    'tests/unit/sync/outbox-continuation-static.test.ts',
+    'tests/unit/sync/outbox-continuation.test.ts',
+    'tests/integration/sync/outbox-continuation-postgres.integration.test.ts',
+  ]) {
+    assert.ok((await readSource(relativePath)).length > 0, `${relativePath} exists`);
+  }
+  const integration = packageJson.scripts['test:integration:inner'] ?? '';
+  assert.match(integration, /--project postgres/u);
+  assert.match(integration, /tests\/integration$/u);
+  assert.doesNotMatch(integration, /outbox-continuation/u, 'the PostgreSQL layer must not be excluded');
+  assert.equal(packageJson.scripts['test:integration'], 'node scripts/with-postgres.mjs -- npm run test:integration:inner');
 });
 
 test('R5-03 does not inject continuation into non-feed production routes', () => {
@@ -53,8 +61,9 @@ test('R5-03 does not inject continuation into non-feed production routes', () =>
   // production route must stay continuation-free. Enforced on AST identifier references
   // (see referencedIdentifiers) rather than source substrings: formatting refactors
   // cannot trip it, and comments or strings mentioning the symbol cannot satisfy it.
+  // `notifications/social-notification-worker-route.ts` left with the social
+  // module (tests/EXTRACTION.md); the remaining production routes stay gated.
   const sources = [
-    'src/infrastructure/notifications/social-notification-worker-route.ts',
     'src/infrastructure/outbox/social-collection-change.ts',
     'src/infrastructure/outbox/collection-mutation-events.ts',
     'src/infrastructure/outbox/publication-cache-purge.ts',

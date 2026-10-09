@@ -71,7 +71,7 @@ The exit status is 0 when no MUST check fails, 1 when one does, and 2 on a usage
 | Wire format | PUB-0016 (UTF-8), PUB-0017 (I-JSON), PUB-0018 (named `$defs`), PUB-0020 (media types) |
 | Snapshots | CORE-0001 (semantic validation of the assembled Snapshot), PUB-0033, PUB-0034, PUB-0040 |
 | Visibility | PUB-0009 (the anonymous Directory lists only public Collections) |
-| Errors and queries | PUB-0008 (Problem Details), PUB-0010 (unknown and duplicate parameters) |
+| Errors and queries | PUB-0008 (Problem Details), PUB-0010 (unknown and duplicate parameters), PUB-0041 (406 `unsupported_version` for an unsupported header or Accept version) |
 | HTTP caching | PUB-0021, PUB-0022, PUB-0024, PUB-0032 |
 
 Not covered yet: authenticated reads (PUB-0007, PUB-0023), and the `feed`, `publisher`, `sync`, and MCP profiles. Those need credentials or writes and will come as opt-in modes.

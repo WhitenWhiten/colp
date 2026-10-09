@@ -1,7 +1,7 @@
 {
   "protocolVersion": "0.1",
   "packageVersion": "0.1.1",
-  "requirementsDigest": "sha256:a130541d0d530f76856a68ffa5abd7ad78e157e6e1a13ee8071b096cab195002",
+  "requirementsDigest": "sha256:90598ba4a2472b37f3317e560b790f396b015902e9d7e5b26c263e669328495a",
   "requirements": [
     {
       "id": "CORE-0001",
@@ -1157,6 +1157,20 @@
       ],
       "tests": [
         "http.protocol-version-request"
+      ]
+    },
+    {
+      "id": "PUB-0041",
+      "level": "MUST",
+      "profile": "publication",
+      "source": "SPECIFICATION.md#colp-section-12",
+      "requirement": "When the `Collection-Protocol-Version` header or the `Accept` version of a read request is not supported, the server MUST return `406 unsupported_version` with `supportedVersions`; a request that asserts a supported version or no version MUST NOT be rejected for its version.",
+      "implementation": [
+        "server",
+        "conformance"
+      ],
+      "tests": [
+        "http.version-negotiation"
       ]
     },
     {

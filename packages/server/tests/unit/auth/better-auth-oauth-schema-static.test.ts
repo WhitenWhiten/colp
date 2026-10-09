@@ -3,10 +3,6 @@ import { readdir, readFile } from 'node:fs/promises';
 import { describe, test } from 'vitest';
 
 const MIGRATIONS_DIR = new URL('../../../migrations/', import.meta.url);
-const CONTRACT_URL = new URL(
-  '../../../../docs/decisions/better-auth/better-auth-migration-contract.json',
-  import.meta.url,
-);
 
 /** Frozen B1 four-file list — must stay contiguous with C4 MFA; T-02 must not splice. */
 const B1_MIGRATION_FILES = [
@@ -61,10 +57,8 @@ describe('T-02 Better Auth 1.7 OAuth expand migration static contract', () => {
       'T-02 must sit immediately after the previous disk head (later backfills may follow)',
     );
 
-    const contract = JSON.parse(await readFile(CONTRACT_URL, 'utf8')) as {
-      migrationPlan: { expandMigrations: readonly string[] };
-    };
-    assert.deepEqual(contract.migrationPlan.expandMigrations, [...B1_MIGRATION_FILES]);
+    // Know-N's frozen decision contract JSON is not shipped here; B1_MIGRATION_FILES
+    // is the in-package frozen list (tests/EXTRACTION.md).
   });
 
   test('exports up/down and refuses destructive down while rows remain', async () => {

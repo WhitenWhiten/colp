@@ -70,23 +70,8 @@ test('retention repository returns stable validation errors before issuing SQL',
     && error.code === 'OUTBOX_RETENTION_FLOOR_INVALID');
 });
 
-test('Feed rebuild density is explicitly bounded by the current retention floor', async () => {
-  const worker = await readFile(new URL(
-    '../../../src/infrastructure/social/feed-worker-postgres.ts', import.meta.url,
-  ), 'utf8');
-  assert.ok(worker.includes('readRetentionFloor'));
-  assert.ok(worker.includes('const requiredFrom = maxOrdinal(fromExclusive, floor)'));
-  assert.ok(worker.includes('social Feed retained source row is unresolved'));
-  assert.ok(worker.includes('rebuild_high_source_event_id'));
-  assert.doesNotMatch(worker, /array_agg\s*\(/iu);
-  assert.match(worker,
-    /order by high\.commit_ordinal desc,high\.domain_event_id desc limit 1/iu);
-  const indexes = await readFile(new URL(
-    '../../../src/infrastructure/database/online-performance-indexes.ts', import.meta.url,
-  ), 'utf8');
-  assert.match(indexes,
-    /outbox_events \(aggregate_scope, commit_ordinal, domain_event_id\)[\s\S]*social\.collection-change/iu);
-});
+// The social Feed rebuild-density contract left with the social module
+// (`src/infrastructure/social/feed-worker-postgres.ts`; see tests/EXTRACTION.md).
 
 test('Outbox owns a readable composed database-schema slice with compatible public types',
   async () => {

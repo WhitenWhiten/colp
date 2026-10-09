@@ -30,7 +30,6 @@ export const SECRET_NAMES = [
   'AUTOMATION_CURSOR_HMAC_KEY',
   'BETTER_AUTH_SECRET',
   'BETTER_AUTH_SESSION_TOKEN_KEYS',
-  'BETTER_AUTH_SESSION_TOKEN_LEGACY_READ_UNTIL',
   'COLLABORATION_INVITE_RATE_LIMIT_KEY_SECRET',
   'COLLECTION_FOLLOW_RATE_LIMIT_KEY_SECRET',
   'COMMUNITY_CURSOR_HMAC_KEY',
@@ -162,8 +161,8 @@ export function applySelfHostedPreset(env: NodeJS.ProcessEnv): void {
     throw new Error('COLP_SERVER_SECRET must be replaced with a cryptographically random value');
   }
   const secret = secretBytes(secretText);
-  if (secret.length < 32) {
-    throw new Error('COLP_SERVER_SECRET must be at least 32 bytes');
+  if (secret.bytes.length < 32) {
+    throw new Error(secretTooShortMessage(secret));
   }
   let url: URL;
   try {
@@ -253,21 +252,26 @@ export function applySelfHostedPreset(env: NodeJS.ProcessEnv): void {
     set(env, name, FEATURES_ON.has(name) ? 'true' : 'false');
   }
   for (const name of KEY_ID_NAMES) set(env, name, 'self-hosted-v1');
-  set(env, 'BETTER_AUTH_SESSION_TOKEN_KEYS', `1:${derive(secret, 'BETTER_AUTH_SESSION_TOKEN_KEYS')}`);
-  set(env, 'BETTER_AUTH_SESSION_TOKEN_LEGACY_READ_UNTIL', new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString());
-  set(env, 'AUTOMATION_ES256_PRIVATE_JWK', automationEs256PrivateJwk(secret));
+  set(env, 'BETTER_AUTH_SESSION_TOKEN_KEYS', `1:${derive(secret.bytes, 'BETTER_AUTH_SESSION_TOKEN_KEYS')}`);
+  // BETTER_AUTH_SESSION_TOKEN_LEGACY_READ_UNTIL is deliberately not derived
+  // or defaulted. A fresh self-hosted install never stored plaintext session
+  // rows, so the plaintext compatibility window stays closed unless the
+  // operator opens it explicitly for a migration (bootstrap/config-http-security.ts
+  // bounds it to 31 days in production). Re-arming `now + 7d` on every start
+  // would keep that window open forever.
+  set(env, 'AUTOMATION_ES256_PRIVATE_JWK', automationEs256PrivateJwk(secret.bytes));
   // D27: the first sign-up must present this token. It is derived, so the log
   // line and `colp-server setup-token` agree without storage. Force the value
   // instead of honoring an env override: a caller-controlled setup token would
   // let a predictable value reclaim a fresh public origin.
-  env.COLP_SETUP_TOKEN = deriveUrl(secret, 'COLP_SETUP_TOKEN');
+  env.COLP_SETUP_TOKEN = deriveUrl(secret.bytes, 'COLP_SETUP_TOKEN');
   const base64urlSecrets = new Set([
     'GOVERNANCE_CURSOR_HMAC_KEY',
     'AUTOMATION_CURSOR_HMAC_KEY',
     'FAVICON_CURSOR_HMAC_KEY',
   ]);
   for (const name of SECRET_NAMES) {
-    set(env, name, base64urlSecrets.has(name) ? deriveUrl(secret, name) : derive(secret, name));
+    set(env, name, base64urlSecrets.has(name) ? deriveUrl(secret.bytes, name) : derive(secret.bytes, name));
   }
 }
 
@@ -295,14 +299,39 @@ function set(env: NodeJS.ProcessEnv, name: string, value: string): void {
   if (env[name] === undefined || env[name] === '') env[name] = value;
 }
 
-function secretBytes(value: string): Buffer {
+interface SecretMaterial {
+  readonly bytes: Buffer;
+  /** How the text was interpreted; drives the length error message. */
+  readonly encoding: 'base64' | 'utf8';
+  readonly textLength: number;
+}
+
+/**
+ * `openssl rand -base64 48` output is decoded so the derived keys see the
+ * random bytes rather than their base64 spelling. Any other text is used as
+ * UTF-8. The decision is reported back so a too-short secret explains which
+ * interpretation was applied instead of only "at least 32 bytes".
+ */
+function secretBytes(value: string): SecretMaterial {
   const trimmed = value.trim();
   if (/^[A-Za-z0-9+/]+={0,2}$/u.test(trimmed) && trimmed.length % 4 === 0) {
     const decoded = Buffer.from(trimmed, 'base64');
     const again = decoded.toString('base64').replace(/=+$/u, '');
-    if (again === trimmed.replace(/=+$/u, '') && decoded.length > 0) return decoded;
+    if (again === trimmed.replace(/=+$/u, '') && decoded.length > 0) {
+      return { bytes: decoded, encoding: 'base64', textLength: trimmed.length };
+    }
   }
-  return Buffer.from(trimmed, 'utf8');
+  return { bytes: Buffer.from(trimmed, 'utf8'), encoding: 'utf8', textLength: trimmed.length };
+}
+
+function secretTooShortMessage(secret: SecretMaterial): string {
+  const hint = 'generate one with `openssl rand -base64 48`';
+  if (secret.encoding === 'base64') {
+    return `COLP_SERVER_SECRET must be at least 32 bytes: the ${secret.textLength}-character value `
+      + `is valid base64 and decodes to ${secret.bytes.length} bytes (base64 text needs at least 44 characters); ${hint}`;
+  }
+  return `COLP_SERVER_SECRET must be at least 32 bytes: the value is read as UTF-8 text and is ${secret.bytes.length} bytes `
+    + `(base64 is only decoded when the text is valid base64 with a length that is a multiple of 4); ${hint}`;
 }
 
 function derive(secret: Buffer, info: string): string {

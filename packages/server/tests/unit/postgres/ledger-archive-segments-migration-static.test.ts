@@ -10,10 +10,6 @@ const repositoryUrl = new URL(
   '../../../src/infrastructure/database/ledger-archive-segment-repository.ts',
   import.meta.url,
 );
-const runbookUrl = new URL(
-  '../../../docs/runbooks/ledger-archive-control-plane.md',
-  import.meta.url,
-);
 
 describe('ledger archive control-plane static contract', () => {
   test('migration is additive and owns a monotonic fail-closed state machine', async () => {
@@ -56,15 +52,7 @@ describe('ledger archive control-plane static contract', () => {
     assert.doesNotMatch(source, /DETACH\s+PARTITION/i);
   });
 
-  test('runbook denies production deletion and isolates development purge capability', async () => {
-    const source = await readFile(runbookUrl, 'utf8');
-    assert.match(source, /does not authorize retention cutoffs/i);
-    assert.match(source, /Production source deletion\s+remains unauthorized/i);
-    assert.match(source, /development purge executor has narrower authorization/i);
-    assert.match(source, /ledger-payload-purge-development\.md/i);
-    assert.match(source, /deleted.*only a receipt/is);
-    assert.match(source, /delete_after.*is not deletion authorization/is);
-    assert.match(source, /rejects direct\s+`DELETE`/i);
-    assert.match(source, /never timestamps or text/i);
-  });
+  // The ledger archive control-plane runbook is Know-N operations
+  // documentation and is not shipped here (tests/EXTRACTION.md); the
+  // migration and repository invariants above are the enforceable part.
 });

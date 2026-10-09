@@ -28,7 +28,10 @@ describe('paged authoritative member digest boundaries', () => {
   it.each([0, 1, 512, 513, 10_000, 10_001, 524_288])('hashes %s members using the protocol framing', count => {
     const members = Array.from({ length: count }, (_, index) => `node-${index}`);
     expect(canonicalAuthoritativeMemberDigest(members)).toBe(oracle(members));
-  });
+    // The 524,288-member case is a protocol-bound benchmark (about 1s alone,
+    // several seconds under a loaded full run); the explicit budget keeps it
+    // from tripping the 5s default when workers compete for CPU.
+  }, 30_000);
 
   it('preserves Unicode, escapes and wire order', () => {
     const members = ['é', 'é', '😀', 'quote"', 'line\n', 'slash\\'];

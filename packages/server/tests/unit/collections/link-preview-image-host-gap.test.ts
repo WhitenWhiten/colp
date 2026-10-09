@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import { LinkPreviewWorkerLoop } from '../../../src/infrastructure/collections/link-preview-worker.js';
+import { createSerializedHostGate } from '../../../src/infrastructure/collections/serialized-host-gate.js';
 import type { LinkPreviewClaim, LinkPreviewRepository } from '../../../src/infrastructure/collections/link-preview-postgres.js';
 import { createFakeEgress, createMemoryObjectStore, htmlResponse, imageResponse, makePng } from '../../support/link-preview-fixtures.js';
 
@@ -9,6 +10,23 @@ function claims(pages: readonly string[]): LinkPreviewClaim[] {
     urlKey: `key-${index}`, normalizedUrl, site: 'attacker.example',
     objectId: null, digest: null, failures: 0, leaseOwner: 'owner',
   }));
+}
+
+/**
+ * Virtual clock for the host gate: `sleep` advances `now` instead of waiting,
+ * so the start-to-start gap is asserted on injected time rather than on the
+ * wall clock, which drifted below the configured gap under CI load.
+ */
+function virtualHostGate(gapMs: number): { readonly gate: ReturnType<typeof createSerializedHostGate>; now: () => number } {
+  let current = 1_000_000;
+  const now = (): number => current;
+  const gate = createSerializedHostGate({
+    gapMs,
+    invalidGapMessage: 'gap',
+    now,
+    sleep: async (ms) => { current += ms; },
+  });
+  return { gate, now };
 }
 
 function repository(due: LinkPreviewClaim[]): LinkPreviewRepository {
@@ -33,13 +51,14 @@ test('image candidates on one victim host honor the configured host gap', async 
   ]);
   const egress = createFakeEgress(routes);
   const victimStarts: number[] = [];
+  const clock = virtualHostGate(300);
   const loop = new LinkPreviewWorkerLoop({
     repository: repository(claims(pages)), store: createMemoryObjectStore(),
     logger: { info() {}, warn() {}, error() {} },
-    retentionSeconds: 31_536_000, concurrency: 2, perHostGapMs: 300,
+    retentionSeconds: 31_536_000, concurrency: 2, hostGate: clock.gate,
     resolve: egress.resolve,
     connect: async (target, init) => {
-      if (target.url.href === victim) victimStarts.push(Date.now());
+      if (target.url.href === victim) victimStarts.push(clock.now());
       return egress.connect(target, init);
     },
   });
@@ -63,13 +82,14 @@ test('a redirect hop is gated by the destination host, not the original image ho
   ]);
   const egress = createFakeEgress(routes);
   const victimStarts: number[] = [];
+  const clock = virtualHostGate(300);
   const loop = new LinkPreviewWorkerLoop({
     repository: repository(claims(pages)), store: createMemoryObjectStore(),
     logger: { info() {}, warn() {}, error() {} },
-    retentionSeconds: 31_536_000, concurrency: 2, perHostGapMs: 300,
+    retentionSeconds: 31_536_000, concurrency: 2, hostGate: clock.gate,
     resolve: egress.resolve,
     connect: async (target, init) => {
-      if (target.url.href === victim) victimStarts.push(Date.now());
+      if (target.url.href === victim) victimStarts.push(clock.now());
       return egress.connect(target, init);
     },
   });

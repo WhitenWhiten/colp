@@ -1,0 +1,54 @@
+{
+  "name": "@know-n/colp-server",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "bin": {
+    "colp-server": "dist/src/cli/index.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "3.1095.0",
+    "@aws-sdk/s3-request-presigner": "3.1095.0",
+    "@better-auth/cimd": "1.7.1",
+    "@better-auth/kysely-adapter": "1.7.1",
+    "@better-auth/mcp": "1.7.1",
+    "@better-auth/oauth-provider": "1.7.1",
+    "@know-n/colp": "0.1.1",
+    "@modelcontextprotocol/node": "2.0.0",
+    "@modelcontextprotocol/server": "2.3.1",
+    "@mozilla/readability": "0.6.0",
+    "@node-rs/argon2": "2.1.0",
+    "@resvg/resvg-js": "^2.6.2",
+    "better-auth": "1.7.1",
+    "dotenv": "^16.4.7",
+    "fast-uri": "3.1.8",
+    "fastify": "5.12.5",
+    "ioredis": "^6.0.0",
+    "jose": "6.2.4",
+    "kysely": "^0.29.4",
+    "linkedom": "0.18.13",
+    "luxon": "^3.7.2",
+    "pg": "^8.13.1",
+    "pino": "^9.6.0",
+    "rrule": "^2.8.1",
+    "sanitize-html": "2.17.7",
+    "satori": "^0.33.4",
+    "tldts": "7.4.10"
+  },
+  "overrides": {
+    "@fastify/ajv-compiler": {
+      "fast-uri": "3.1.8"
+    },
+    "brace-expansion": "5.0.9",
+    "fast-json-stringify": {
+      "fast-uri": "4.1.5"
+    },
+    "fflate": "0.7.5",
+    "js-yaml": "4.3.2",
+    "minimatch": "10.2.5",
+    "source-map-js": "1.2.2"
+  }
+}

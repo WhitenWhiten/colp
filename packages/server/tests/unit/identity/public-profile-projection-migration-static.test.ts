@@ -3,7 +3,6 @@ import { readFile } from 'node:fs/promises';
 import { test } from 'vitest';
 
 const migrationUrl = new URL('../../../migrations/202607242200_public_profile_projection.ts', import.meta.url);
-const statusUrl = new URL('../../../docs/09-phase-execution-status.md', import.meta.url);
 
 test('public profile migration hardens canonical handles and adds aligned identity/publication indexes', async () => {
   const source = await readFile(migrationUrl, 'utf8');
@@ -23,11 +22,5 @@ test('public profile migration hardens canonical handles and adds aligned identi
   assert.match(source, /deleted_at IS NULL/u);
 });
 
-test('Phase 2B retains P2B-01 history after final verified closeout', async () => {
-  const status = await readFile(statusUrl, 'utf8');
-  const phase2b = status.split('\n').find((line) => line.includes('| Phase 2B：增量产品能力 |'));
-  assert.ok(phase2b);
-  assert.match(phase2b, /\*\*Verified\*\*/u);
-  assert.match(phase2b, /P2B-01/u);
-  assert.match(phase2b, /phase2b-acceptance-2026-07-26\.md/u);
-});
+// Know-N's phase execution status document (docs/09-phase-execution-status.md)
+// is project history, not part of this package (tests/EXTRACTION.md).

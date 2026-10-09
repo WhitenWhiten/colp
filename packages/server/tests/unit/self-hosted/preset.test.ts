@@ -150,6 +150,49 @@ describe('self-hosted preset', () => {
     })).toThrow(/only on 127\.0\.0\.1/);
   });
 
+  it('does not open the plaintext legacy session window and keeps an explicit one', () => {
+    const env = baseEnv();
+    applySelfHostedPreset(env);
+    expect(env.BETTER_AUTH_SESSION_TOKEN_LEGACY_READ_UNTIL).toBeUndefined();
+    expect(SECRET_NAMES).not.toContain('BETTER_AUTH_SESSION_TOKEN_LEGACY_READ_UNTIL');
+    expect(loadConfig(env).betterAuth.sessionTokenProtection!.legacyPlaintextReadUntil).toBeNull();
+
+    const disabled = baseEnv({ BETTER_AUTH_SESSION_TOKEN_LEGACY_READ_UNTIL: '' });
+    applySelfHostedPreset(disabled);
+    expect(disabled.BETTER_AUTH_SESSION_TOKEN_LEGACY_READ_UNTIL).toBe('');
+    expect(loadConfig(disabled).betterAuth.sessionTokenProtection!.legacyPlaintextReadUntil).toBeNull();
+
+    const deadline = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
+    const migrating = baseEnv({ BETTER_AUTH_SESSION_TOKEN_LEGACY_READ_UNTIL: deadline });
+    applySelfHostedPreset(migrating);
+    expect(migrating.BETTER_AUTH_SESSION_TOKEN_LEGACY_READ_UNTIL).toBe(deadline);
+    expect(loadConfig(migrating).betterAuth.sessionTokenProtection!.legacyPlaintextReadUntil?.toISOString()).toBe(deadline);
+  });
+
+  it('explains which secret interpretation made COLP_SERVER_SECRET too short', () => {
+    // 40 base64 characters decode to 30 bytes; the message must say so rather
+    // than only "at least 32 bytes".
+    expect(() => applySelfHostedPreset({
+      COLP_SERVER_ORIGIN: 'https://colp.test',
+      COLP_SERVER_SECRET: 'a'.repeat(40),
+    })).toThrow(/valid base64 and decodes to 30 bytes.*openssl rand -base64 48/u);
+    expect(() => applySelfHostedPreset({
+      COLP_SERVER_ORIGIN: 'https://colp.test',
+      COLP_SERVER_SECRET: 'deadbeef'.repeat(5),
+    })).toThrow(/decodes to 30 bytes/u);
+    // Text with a non-base64 character is UTF-8; 31 bytes is still too short.
+    expect(() => applySelfHostedPreset({
+      COLP_SERVER_ORIGIN: 'https://colp.test',
+      COLP_SERVER_SECRET: `${'ab'.repeat(15)}!`,
+    })).toThrow(/read as UTF-8 text and is 31 bytes/u);
+    // `openssl rand -base64 48` shape (64 characters, 48 bytes) is accepted.
+    expect(() => applySelfHostedPreset(baseEnv({
+      COLP_SERVER_SECRET: Buffer.alloc(48, 9).toString('base64'),
+    }))).not.toThrow();
+    // 43 base64-alphabet characters are not a multiple of 4, so UTF-8 (43 bytes).
+    expect(() => applySelfHostedPreset(baseEnv({ COLP_SERVER_SECRET: 'a'.repeat(43) }))).not.toThrow();
+  });
+
   it('refuses the shipped COLP_SERVER_SECRET placeholder even though it is long enough', () => {
     expect(() => applySelfHostedPreset({
       COLP_SERVER_ORIGIN: 'https://colp.test',

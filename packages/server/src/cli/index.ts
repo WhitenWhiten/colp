@@ -46,10 +46,24 @@ interface ResetPasswordCommand {
   readonly username: string;
 }
 
+const USAGE = `usage: colp-server <command>
+
+  start                                 run the self-hosted server
+  migrate                               apply pending database migrations
+  create-user --username <name> [--email <address>]
+  reset-password --username <name>      (the password is prompted, never passed as an argument)
+  export --username <name> --out <dir>  export the user's collections
+  setup-token                           print the first-run owner setup token
+  ready                                 exit 0 when the local server answers GET /ready with 200
+  --version                             print server, library and protocol versions
+  --help, -h, help                      print this message
+`;
+
 type Command =
   | { readonly kind: 'start' }
   | { readonly kind: 'migrate' }
   | { readonly kind: 'version' }
+  | { readonly kind: 'help' }
   | { readonly kind: 'setup-token' }
   | { readonly kind: 'ready' }
   | { readonly kind: 'export'; readonly username: string; readonly out: string }
@@ -155,9 +169,13 @@ function parseCommand(argv: readonly string[]): Command {
   rejectPasswordArgument(argv);
   const args = argv.slice(2);
   if (args.length === 0) {
-    throw new CliExit(2, 'usage: colp-server <start|migrate|create-user|reset-password|export|setup-token|ready|--version>');
+    throw new CliExit(2, 'usage: colp-server <start|migrate|create-user|reset-password|export|setup-token|ready|--version|--help>');
   }
   const head = args[0];
+  if (head === '--help' || head === '-h' || head === 'help') {
+    if (args.length !== 1) throw new CliExit(2, 'usage: colp-server --help');
+    return { kind: 'help' };
+  }
   if (head === '--version') {
     if (args.length !== 1) throw new CliExit(2, 'usage: colp-server --version');
     return { kind: 'version' };
@@ -439,6 +457,10 @@ async function main(): Promise<boolean> {
   if (command.kind === 'setup-token') {
     applySelfHostedPreset(process.env);
     process.stdout.write(`${process.env.COLP_SETUP_TOKEN ?? ''}\n`);
+    return false;
+  }
+  if (command.kind === 'help') {
+    process.stdout.write(USAGE);
     return false;
   }
   if (command.kind === 'version') {

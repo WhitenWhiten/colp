@@ -46,8 +46,8 @@ test('P3-32B exposes effect pages only through private session and replica autho
   assert.match(app, /syncEffectPageRoutes/u);
   assert.match(manifest, /syncEffectPages/u);
   assert.match(manifest, /protocolVersions:[\s\S]*syncEffectPages[\s\S]*\['0\.1', '0\.2'\]/u);
-  const compose = await readFile(new URL('../../../../devops/docker-compose.yml', import.meta.url), 'utf8');
-  assert.match(compose, /SYNC_EFFECT_PAGE_RATE_LIMIT_EFFECT_MAX:.*:-24\}/u);
+  // deploy/compose.yaml does not override SYNC_EFFECT_PAGE_RATE_LIMIT_EFFECT_MAX;
+  // the self-hosted stack runs the server default, which the floor below bounds.
   const configSync = await readFile(new URL('../../../src/bootstrap/config-sync.ts', import.meta.url), 'utf8');
   assert.match(configSync, /SYNC_EFFECT_PAGE_RATE_LIMIT_EFFECT_MAX[\s\S]{0,80}min: 20/u);
 });

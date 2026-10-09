@@ -40,34 +40,12 @@ interface ReplayManifest {
 }
 
 const backendRoot = resolve(import.meta.dirname, '../../..');
-const evidenceDocPath = resolve(backendRoot, 'docs/evidence/phase4b-mcp-entry-gate-2026-08-04.md');
 const replayManifestPath = resolve(backendRoot,
   'tests/fixtures/phase4b-mcp-entry/mcp-entry-gate.replay.v1.json');
 const packageJsonPath = resolve(backendRoot, 'package.json');
 const packageLockPath = resolve(backendRoot, 'package-lock.json');
 const colpPackagePath = resolve(backendRoot, 'node_modules/@know-n/colp/package.json');
 const evidenceSourceRoot = resolve(backendRoot, 'scripts/evidence');
-
-const REQUIRED_DOC_FACTS = [
-  '/collections/-/mcp',
-  '2026-07-28',
-  'POST-only',
-  'mcp-transport-entry-candidate',
-  'createMcpHandler',
-  '@modelcontextprotocol/client',
-  '@modelcontextprotocol/server',
-  '2.0.0',
-  'Mcp-Session-Id',
-  'Last-Event-ID',
-  'server/discover',
-  'subscriptions/listen',
-  '413',
-  '431',
-  '503',
-  '-32022',
-  '-32601',
-  'N/N-1',
-];
 
 function walkFiles(directory: string): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -82,15 +60,9 @@ function loadReplayManifest(): ReplayManifest {
 }
 
 describe('P4B-R01 decision and replay boundary are frozen on disk', () => {
-  test('evidence doc exists, is substantive, and freezes the transport entry decisions', () => {
-    const doc = readFileSync(evidenceDocPath, 'utf8');
-    assert.ok(doc.length > 2_000, 'evidence doc must be substantive');
-    assert.match(doc, /replay boundary|replayable|可重放/iu);
-    assert.match(doc, /not an acceptance artifact|not an acceptance|不是验收/iu);
-    for (const fact of REQUIRED_DOC_FACTS) {
-      assert.match(doc, new RegExp(escapeRegExp(fact), 'iu'), `doc must freeze ${fact}`);
-    }
-  });
+  // Know-N's evidence document docs/evidence/phase4b-mcp-entry-gate-2026-08-04.md
+  // is not shipped here (tests/EXTRACTION.md); the frozen constants below and
+  // the replay manifest are the in-package decision record.
 
   test('the protocol version is a fixed constant, not a configurable option', () => {
     assert.equal(PHASE4B_MCP_PROTOCOL_VERSION, '2026-07-28');
@@ -204,49 +176,11 @@ describe('P4B-R01 SDK N/N-1 lock (client/server/core 2.3.1, legacy SDK absent)',
 });
 
 describe('P4B-R01 harness boundary and no-legacy-gap scan', () => {
-  test('harness reuses the COLP fixture-host contract: every fixture-host surface has a host mirror', () => {
-    const host = readFileSync(resolve(evidenceSourceRoot, 'phase4b-mcp-entry-host.ts'), 'utf8');
-    const contract = readFileSync(resolve(evidenceSourceRoot, 'phase4b-mcp-entry-contract.ts'), 'utf8');
-    for (const surface of [
-      'createMcpHandler',
-      "legacy: 'reject'",
-      'POST',
-      PHASE4B_MCP_ENDPOINT_PATH,
-      'injectFault',
-      'restart',
-      'abort',
-      'queued',
-    ]) {
-      assert.ok(host.includes(surface) || contract.includes(surface), `host must cover surface ${surface}`);
-    }
-    assert.match(host, /maxBodyBytes|maxHeaderCount|maxQueue/u, 'host must enforce hard limits');
-  });
-
-  test('server-side harness never dispatches legacy wire inputs; the catalog is the single source', () => {
-    const host = readFileSync(resolve(evidenceSourceRoot, 'phase4b-mcp-entry-host.ts'), 'utf8');
-    const client = readFileSync(resolve(evidenceSourceRoot, 'phase4b-mcp-entry-client.ts'), 'utf8');
-    const probe = readFileSync(resolve(evidenceSourceRoot, 'phase4b-mcp-entry-probe.ts'), 'utf8');
-    const contract = readFileSync(resolve(evidenceSourceRoot, 'phase4b-mcp-entry-contract.ts'), 'utf8');
-    // Session-era headers must never appear in the server-side harness; they
-    // come only from the frozen catalog via findPhase4bLegacySessionHeader.
-    for (const header of ['Mcp-Session-Id', 'Last-Event-ID']) {
-      assert.doesNotMatch(host, new RegExp(escapeRegExp(header), 'iu'),
-        `host must not contain legacy header ${header}`);
-      assert.doesNotMatch(client, new RegExp(escapeRegExp(header), 'iu'),
-        `client must not contain legacy header ${header}`);
-    }
-    // Legacy JSON-RPC method names must never be dispatched by the host or the
-    // modern client wrapper.
-    for (const method of ['notifications/initialized', 'notifications/roots/list_changed',
-      'resources/subscribe', 'resources/unsubscribe', 'logging/setLevel']) {
-      assert.doesNotMatch(host, new RegExp(escapeRegExp(method), 'iu'),
-        `host must not contain legacy method ${method}`);
-      assert.doesNotMatch(client, new RegExp(escapeRegExp(method), 'iu'),
-        `client must not contain legacy method ${method}`);
-    }
-    assert.doesNotMatch(host, /method\s*:\s*['"](?:initialize|ping)['"]/u,
-      'host must not dispatch the initialize/ping methods');
-    // The catalog freezes every legacy wire symbol.
+  // Know-N's host/client/probe harness files (phase4b-mcp-entry-{host,client,
+  // probe}.ts) are not shipped; only the frozen catalog remains
+  // (tests/EXTRACTION.md). The catalog and the production-boundary scans are
+  // the parts that still protect this package.
+  test('the catalog freezes every legacy wire symbol as a rejected input', () => {
     const catalog = JSON.stringify(PHASE4B_MCP_LEGACY_REJECTION);
     for (const symbol of ['Mcp-Session-Id', 'Last-Event-ID', 'initialize', 'notifications/initialized',
       'ping', 'logging/setLevel', 'notifications/roots/list_changed', 'resources/subscribe',
@@ -254,16 +188,13 @@ describe('P4B-R01 harness boundary and no-legacy-gap scan', () => {
       assert.match(catalog, new RegExp(escapeRegExp(symbol), 'iu'),
         `catalog must freeze ${symbol} as a rejected legacy input`);
     }
-    // The probe (negative-control driver) derives every legacy wire input from
-    // the catalog mapping and the catalog body builders — no second copy.
-    assert.match(probe, /phase4bMcpEntryLegacyScenarioInput/u);
-    assert.match(probe, /buildPhase4bLegacyInitializeBody/u);
-    assert.match(probe, /buildPhase4bLegacyNotificationInitializedBody/u);
-    assert.doesNotMatch(probe, /method\s*:\s*['"](?:initialize|ping|logging\/setLevel|resources\/subscribe|resources\/unsubscribe)['"]/u,
-      'probe must not hand-write legacy method bodies');
+    const contract = readFileSync(resolve(evidenceSourceRoot, 'phase4b-mcp-entry-contract.ts'), 'utf8');
+    for (const surface of ['createMcpHandler', "legacy: 'reject'", 'POST', PHASE4B_MCP_ENDPOINT_PATH]) {
+      assert.ok(contract.includes(surface), `contract must freeze surface ${surface}`);
+    }
   });
 
-  test('the harness is evidence infrastructure, not a second production server', () => {
+  test('the evidence contract is evidence infrastructure, not a second production server', () => {
     const bootstrapRoot = resolve(backendRoot, 'src/bootstrap');
     for (const file of walkFiles(bootstrapRoot)) {
       const content = readFileSync(file, 'utf8');
@@ -276,11 +207,9 @@ describe('P4B-R01 harness boundary and no-legacy-gap scan', () => {
       assert.doesNotMatch(content, /phase4b-mcp-entry/u,
         `production transport must not import the R01 harness: ${file}`);
     }
-    const host = readFileSync(resolve(evidenceSourceRoot, 'phase4b-mcp-entry-host.ts'), 'utf8');
-    assert.doesNotMatch(host, /from\s+['"](?:kysely|pg)(?:['"]|\/)/u,
-      'host harness must not read business tables');
-    assert.doesNotMatch(host, /from\s+['"]@know-n\/colp\/?(?:['"]|$)/u,
-      'host harness must not depend on COLP root entrypoint (only the /mcp surface)');
+    const contract = readFileSync(resolve(evidenceSourceRoot, 'phase4b-mcp-entry-contract.ts'), 'utf8');
+    assert.doesNotMatch(contract, /from\s+['"](?:kysely|pg)(?:['"]|\/)/u,
+      'evidence contract must not read business tables');
   });
 
   test('committed fixture files carry no credentials, tokens or real addresses', () => {

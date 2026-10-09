@@ -17,12 +17,12 @@ dependencies.
 | Profile | Depends on | Required records | Verified | Evidence |
 |---|---|---:|---:|---|
 | `core` | — | 48 | 48 | Complete |
-| `publication` | `core` | 74 | 74 | Complete |
-| `feed` | `publication` | 80 | 80 | Complete |
-| `publisher` | `publication` | 101 | 101 | Complete |
+| `publication` | `core` | 75 | 75 | Complete |
+| `feed` | `publication` | 81 | 81 | Complete |
+| `publisher` | `publication` | 102 | 102 | Complete |
 | `sync` | `core` | 67 | 67 | Complete |
 | `mcp-read` | `core` | 60 | 60 | Complete |
-| `mcp-write` | `mcp-read`, `publisher` | 120 | 120 | Complete |
+| `mcp-write` | `mcp-read`, `publisher` | 121 | 121 | Complete |
 
 ## Requirements
 
@@ -110,6 +110,7 @@ dependencies.
 | `PUB-0025` | MUST | `publication` | A public projection MUST remove source references, private annotations, internal principals, secrets, private conflict content, non-public attachments, and extensions that are not on the public-safe allowlist. | [SPECIFICATION.md#colp-section-10](../../../protocol/SPECIFICATION.md#colp-section-10) | `server` | `projection.public-safety` | Verified |
 | `CORE-0022` | MUST | `core` | An implementation that declares a profile MUST pass the conformance tests for every required endpoint and semantic of that profile. | [SPECIFICATION.md#colp-section-11](../../../protocol/SPECIFICATION.md#colp-section-11) | `schema`, `semantic`, `conformance` | `core.profile-claims-profile-order`, `core.profile-claims-dependency-closure`, `core.profile-claims-endpoint-gates`, `core.profile-claims-port-gates`, `core.profile-claims-required-evidence`, `core.profile-claims-advisory-levels`, `core.profile-claims-zero-required-guard`, `core.profile-claims-evidence-artifact`, `core.profile-claims-runtime-probes`, `core.profile-claims-exact-assertion`, `core.profile-claims-legacy-manifest`, `core.profile-claims-empty-bundle`, `core.profile-claims-frozen-registries` | Verified |
 | `PUB-0026` | SHOULD | `publication` | HTTP clients SHOULD send the `Collection-Protocol-Version` header. | [SPECIFICATION.md#colp-section-12](../../../protocol/SPECIFICATION.md#colp-section-12) | `client` | `http.protocol-version-request` | Verified |
+| `PUB-0041` | MUST | `publication` | When the `Collection-Protocol-Version` header or the `Accept` version of a read request is not supported, the server MUST return `406 unsupported_version` with `supportedVersions`; a request that asserts a supported version or no version MUST NOT be rejected for its version. | [SPECIFICATION.md#colp-section-12](../../../protocol/SPECIFICATION.md#colp-section-12) | `server`, `conformance` | `http.version-negotiation` | Verified |
 | `CORE-0023` | MUST_NOT | `core` | Implementations MUST NOT declare a profile that has not passed its conformance tests. | [docs/00-practical-profile.md#colp-section-3](../../../protocol/docs/00-practical-profile.md#colp-section-3) | `conformance` | `core.unverified-profile-claim-prohibited` | Verified |
 | `CORE-0024` | MUST | `core` | Receivers MUST assert Draft 2020-12 formats (or equivalent RFC 3339 / URI checks) and, after structural validation passes, run the semantic checks. | [docs/00-practical-profile.md#colp-section-7](../../../protocol/docs/00-practical-profile.md#colp-section-7) | `schema`, `semantic`, `client`, `server` | `core.asserted-format-then-semantics` | Verified |
 | `CORE-0025` | MUST | `core` | Clients MUST compare positions by unsigned ASCII octet order and must not interpret their structure. | [docs/01-core-data-model.md#colp-section-3-2](../../../protocol/docs/01-core-data-model.md#colp-section-3-2) | `schema`, `semantic`, `client` | `core.position-ascii-octet-order` | Verified |

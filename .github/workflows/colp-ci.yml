@@ -308,11 +308,27 @@ jobs:
       - name: Import boundaries
         run: npm run check:imports
         working-directory: packages/server
+      - name: Runtime manifest drift
+        run: npm run runtime:manifest:check
+        working-directory: packages/server
+      - name: Runtime dependency install and audit
+        # The image installs from runtime/; the same frozen install must leave
+        # test tooling out and carry no high or critical advisories.
+        run: |
+          npm ci --omit=dev --omit=peer --ignore-scripts --no-audit --no-fund --prefix runtime
+          for forbidden in vitest tinypool tsx @vitest/mocker; do
+            test ! -e "runtime/node_modules/$forbidden" || { echo "runtime install must not include $forbidden" >&2; exit 1; }
+          done
+          npm run scan:dependencies:runtime
+        working-directory: packages/server
       - name: OpenAPI lint, drift and breaking-change checks
         run: npm run openapi:ci
         working-directory: packages/server
       - name: Unit suite
         run: npm run test:unit
+        working-directory: packages/server
+      - name: Static contract suite
+        run: npm run test:static
         working-directory: packages/server
 
   # Each integration file builds its own migrated database, so the serial suite

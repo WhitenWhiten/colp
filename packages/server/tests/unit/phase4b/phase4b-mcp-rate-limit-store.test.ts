@@ -265,6 +265,78 @@ test('memory adapter counts request policy per facts and rolls the window over',
   assert.equal((await limiter.consume(subject('request', facts))).kind, 'allowed');
 });
 
+test('memory adapter at capacity reclaims expired buckets before the periodic sweep (bounded step)', async () => {
+  let now = NOW_MS;
+  const maxBuckets = 1_000;
+  const limiter = createMemoryMcpRateLimiter({
+    request: { maxRequests: 5, windowMs: WINDOW_MS },
+    commit: { maxPlans: 5, windowMs: WINDOW_MS },
+    now: () => now,
+    maxBuckets,
+    sweepIntervalMs: 60 * 60 * 1000,
+  });
+  for (let index = 0; index < maxBuckets; index += 1) {
+    assert.equal((await limiter.consume(subject('request', requestFacts(`fill-${index}`)))).kind, 'allowed');
+    assert.equal((await limiter.consume(subject('commit-distinct-plan', requestFacts(`fill-${index}`), 'plan-1'))).kind, 'allowed');
+  }
+  // Saturated and nothing expired: a new key is denied with a forward-looking retry hint.
+  const denied = await limiter.consume(subject('request', requestFacts('late-1')));
+  assert.equal(denied.kind, 'denied');
+  if (denied.kind === 'denied') assert.equal(denied.decision.retryAfterSeconds, WINDOW_MS / 1000);
+  assert.equal((await limiter.consume(subject('commit-distinct-plan', requestFacts('late-1'), 'plan-1'))).kind, 'denied');
+  // Existing keys keep their budgets while saturated (no eviction).
+  assert.equal((await limiter.consume(subject('request', requestFacts('fill-0')))).kind, 'allowed');
+
+  // Windows elapse but the periodic sweep is still far away: new keys must be
+  // admitted by reclaiming expired buckets, and far more than the bounded scan
+  // limit of new keys must succeed because each admission frees at least one slot.
+  now += WINDOW_MS;
+  const sizeBefore = limiter.size();
+  for (let index = 0; index < 500; index += 1) {
+    assert.equal((await limiter.consume(subject('request', requestFacts(`late-${index}`)))).kind, 'allowed', `request key ${index}`);
+    assert.equal(
+      (await limiter.consume(subject('commit-distinct-plan', requestFacts(`late-${index}`), 'plan-1'))).kind,
+      'allowed',
+      `commit key ${index}`,
+    );
+  }
+  assert.ok(limiter.size() <= sizeBefore, 'reclaim replaces expired buckets instead of growing past the cap');
+
+  // Another window later every bucket is expired again. Re-admitting all the
+  // original keys (half of them via restart-in-place, half via reclaim) must
+  // succeed, and a restarted key is re-inserted at the tail so the head of
+  // the map keeps holding the oldest windows for later reclaims.
+  now += WINDOW_MS;
+  for (let index = 0; index < maxBuckets; index += 1) {
+    assert.equal((await limiter.consume(subject('request', requestFacts(`fill-${index}`)))).kind, 'allowed', `refill ${index}`);
+  }
+  now += WINDOW_MS;
+  assert.equal((await limiter.consume(subject('request', requestFacts('tail-key')))).kind, 'allowed');
+});
+
+test('memory adapter re-inserts a restarted bucket at the tail so the bounded reclaim still finds expired heads', async () => {
+  let now = NOW_MS;
+  const maxBuckets = 200; // larger than the 64-entry reclaim scan
+  const limiter = createMemoryMcpRateLimiter({
+    request: { maxRequests: 5, windowMs: WINDOW_MS },
+    now: () => now,
+    maxBuckets,
+    sweepIntervalMs: 60 * 60 * 1000,
+  });
+  for (let index = 0; index < maxBuckets; index += 1) {
+    assert.equal((await limiter.consume(subject('request', requestFacts(`k-${index}`)))).kind, 'allowed');
+  }
+  now += WINDOW_MS;
+  // Restart the first 100 keys in place; without tail re-insertion they would
+  // keep the head of the map and hide the 100 expired buckets behind them.
+  for (let index = 0; index < 100; index += 1) {
+    assert.equal((await limiter.consume(subject('request', requestFacts(`k-${index}`)))).kind, 'allowed');
+  }
+  assert.equal(limiter.size(), maxBuckets);
+  assert.equal((await limiter.consume(subject('request', requestFacts('fresh')))).kind, 'allowed');
+  assert.ok(limiter.size() <= maxBuckets, 'the admitted key replaced expired buckets instead of growing past the cap');
+});
+
 test('memory adapter keeps the three named policies fully isolated (no shared counter)', async () => {
   const limiter = createMemoryMcpRateLimiter({
     request: { maxRequests: 1, windowMs: WINDOW_MS },

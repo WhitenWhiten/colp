@@ -3,10 +3,6 @@ import { readdir, readFile } from 'node:fs/promises';
 import { describe, test } from 'vitest';
 
 const MIGRATIONS_DIR = new URL('../../../migrations/', import.meta.url);
-const CONTRACT_URL = new URL(
-  '../../../../docs/decisions/better-auth/better-auth-migration-contract.json',
-  import.meta.url,
-);
 
 const NEW_MIGRATION_FILES = [
   '202609050900_better_auth_schema.ts',
@@ -40,11 +36,9 @@ describe('B1 Better Auth expand migration static contract', () => {
     assert.ok(start >= 0, 'missing B1 expand migration head');
     assert.deepEqual(tsFiles.slice(start, start + chain.length), chain);
 
-    // The filenames must match the frozen G1 contract (migrationPlan.expandMigrations).
-    const contract = JSON.parse(await readFile(CONTRACT_URL, 'utf8')) as {
-      migrationPlan: { expandMigrations: readonly string[] };
-    };
-    assert.deepEqual(contract.migrationPlan.expandMigrations, [...NEW_MIGRATION_FILES]);
+    // Know-N's frozen G1 decision contract (packages/docs/decisions/better-auth/
+    // better-auth-migration-contract.json) is not shipped here; NEW_MIGRATION_FILES
+    // above is the in-package frozen list (tests/EXTRACTION.md).
   });
 
   test('never drops or alters legacy accounts/sessions/account_identities', async () => {

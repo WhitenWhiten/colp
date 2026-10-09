@@ -60,7 +60,9 @@ describe('T-06 machine-readable boundary evidence matrix', () => {
         ).toBe(true);
       }
     }
-  }, 30_000);
+    // `vitest list` spawns a second Vitest and collects several files; under a
+    // loaded full run it exceeded 30s, so the budget is generous.
+  }, 120_000);
 
   it('labels every host-owned residual instead of presenting it as library behavior', () => {
     const hostResiduals = T06_EVIDENCE_MATRIX.flatMap((area) =>
