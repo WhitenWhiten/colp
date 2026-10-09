@@ -299,7 +299,7 @@ test('claude-code is allowlisted; unknown names collapse; canary never appears',
     );
     assert.equal(response.statusCode, 200, name);
   }
-  assert.equal(server.metrics.get('mcp.compat.client.unknown'), 1 + lookalikes.length);
+  assert.equal(server.metrics.get('mcp.compat.client.unknown'), lookalikes.length);
   assert.equal(server.metrics.get('mcp.compat.client.codex'), 0);
   const blob = collectTaint([
     server.metricNames,

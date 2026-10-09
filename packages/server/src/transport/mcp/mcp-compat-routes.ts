@@ -180,14 +180,9 @@ export function registerMcpCompatRoutes(
       return sendMcpAdmissionError(request, reply, error, config);
     } finally {
       try {
-        if (handle !== undefined) {
-          completeCompatOperation(handle, observer, {
-            methodFamily,
-            auth,
-            handshake,
-            aborted: controller.signal.aborted,
-          });
-        }
+        const context = { methodFamily, auth, handshake, aborted: controller.signal.aborted };
+        if (handle !== undefined) completeCompatOperation(handle, observer, context);
+        else operations.recordRejected(observer.toFinish(context));
       } finally {
         release();
         clearTimeout(timeout);
