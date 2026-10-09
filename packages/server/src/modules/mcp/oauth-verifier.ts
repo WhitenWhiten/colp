@@ -255,6 +255,7 @@ export function createMcpOauthVerifier(options: McpOauthVerifierOptions): McpOau
           tokenId,
           credentialDigest,
           issuedAtSeconds: issuedAtValue,
+          ...(typeof payload.known_incident_epoch === 'string' ? { issuedSecurityEpoch: payload.known_incident_epoch } : {}),
         });
       } catch {
         // FIX-L-042: revocation store query failures fail closed as revoked;
