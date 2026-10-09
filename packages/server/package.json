@@ -18,6 +18,7 @@
     "lint": "eslint . --ext .ts",
     "test": "npm run test:unit",
     "test:unit": "vitest run --project unit",
+    "test:static": "vitest run --project static",
     "test:archive-memory": "vitest run --project unit tests/unit/ledger-archive/segment-payload-cache.test.ts",
     "test:system:inner": "vitest run --project system",
     "test:system": "node scripts/with-postgres.mjs -- npm run test:system:inner",
@@ -28,6 +29,9 @@
     "test:integration:file": "node scripts/with-postgres.mjs -- node node_modules/vitest/vitest.mjs run --project postgres --fileParallelism=false --testTimeout=60000 --hookTimeout=120000",
     "db:migrate": "tsx src/infrastructure/database/migrate.ts",
     "scan:dependencies": "npm audit --audit-level=high",
+    "scan:dependencies:runtime": "npm audit --omit=dev --omit=peer --audit-level=high --prefix runtime",
+    "runtime:manifest": "node scripts/build-runtime-manifest.mjs",
+    "runtime:manifest:check": "node scripts/build-runtime-manifest.mjs --check",
     "evidence:phase3-extension-auth:logic": "vitest run tests/unit/phase3/phase3-extension-auth.test.ts",
     "check:imports": "node scripts/check-import-boundaries.mjs",
     "openapi:lint": "redocly lint openapi/colp-server-v1.yaml",
@@ -74,8 +78,8 @@
     "@resvg/resvg-js": "^2.6.2",
     "better-auth": "1.7.1",
     "dotenv": "^16.4.7",
-    "fast-uri": "3.1.6",
-    "fastify": "5.12.3",
+    "fast-uri": "3.1.8",
+    "fastify": "5.12.5",
     "ioredis": "^6.0.0",
     "jose": "6.2.4",
     "kysely": "^0.29.4",
@@ -98,7 +102,7 @@
     "@types/sanitize-html": "^2.16.1",
     "@typescript-eslint/eslint-plugin": "^8.24.0",
     "@typescript-eslint/parser": "^8.24.0",
-    "@vitest/coverage-v8": "3.2.7",
+    "@vitest/coverage-v8": "4.1.11",
     "ajv": "8.20.0",
     "ajv-formats": "3.0.1",
     "eslint": "^9.20.1",
@@ -107,18 +111,20 @@
     "playwright": "1.61.1",
     "tsx": "^4.19.3",
     "typescript": "^5.7.3",
-    "vitest": "^3.0.6",
+    "vitest": "4.1.11",
     "yaml": "2.9.0"
   },
   "overrides": {
-    "brace-expansion": "5.0.9",
     "@fastify/ajv-compiler": {
-      "fast-uri": "3.1.6"
+      "fast-uri": "3.1.8"
     },
+    "brace-expansion": "5.0.9",
     "fast-json-stringify": {
-      "fast-uri": "4.1.4"
+      "fast-uri": "4.1.5"
     },
+    "fflate": "0.7.5",
     "js-yaml": "4.3.2",
-    "minimatch": "10.2.5"
+    "minimatch": "10.2.5",
+    "source-map-js": "1.2.2"
   }
 }

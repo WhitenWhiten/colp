@@ -28,6 +28,11 @@ async function startMisbehavingProxy(upstream, faults) {
       if (faults.acceptUnknownQuery && url.searchParams.has('colpConformanceUnknown')) url.search = '';
       const headers = Object.fromEntries(Object.entries(incoming.headers)
         .filter(([name]) => !['host', 'connection'].includes(name)));
+      if (faults.ignoreVersion) {
+        // A server that never negotiates: drop the asserted versions.
+        delete headers['collection-protocol-version'];
+        if (headers.accept) headers.accept = headers.accept.replaceAll(/;\s*version=[^,;]+/gu, '');
+      }
       const response = await fetch(url, { headers });
       const responseHeaders = Object.fromEntries(response.headers);
       delete responseHeaders['content-length'];
@@ -69,7 +74,7 @@ test('passes every observed check against the reference example server', async (
     assert.equal(report.target, server.manifestUrl);
     assert.equal(report.summary.fail, 0, formatReport(report));
     assert.equal(report.summary.warn, 0, formatReport(report));
-    for (const id of ['PUB-0011', 'PUB-0018', 'CORE-0001', 'PUB-0010', 'PUB-0008', 'PUB-0022', 'PUB-0040']) {
+    for (const id of ['PUB-0011', 'PUB-0018', 'CORE-0001', 'PUB-0010', 'PUB-0008', 'PUB-0022', 'PUB-0040', 'PUB-0041']) {
       assert.equal(statusOf(report, id), 'pass', id);
     }
     // The example serves single-page Snapshots, so pagination is not observable.
@@ -86,10 +91,13 @@ test('reports protocol violations as failures and warnings', async () => {
     bareNotFound: true,
     stripEtag: true,
     claimMorePages: true,
+    ignoreVersion: true,
   });
   try {
     const report = await runConformance(proxy.origin);
     assert.equal(statusOf(report, 'PUB-0010'), 'fail');
+    assert.equal(statusOf(report, 'PUB-0041'), 'fail');
+    assert.match(formatReport(report), /Collection-Protocol-Version 999\.0 returned 200, expected 406/u);
     assert.equal(statusOf(report, 'PUB-0008'), 'fail');
     assert.equal(statusOf(report, 'PUB-0021'), 'warn');
     assert.equal(statusOf(report, 'PUB-0027'), 'warn');

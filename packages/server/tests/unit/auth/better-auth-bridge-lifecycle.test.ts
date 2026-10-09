@@ -102,7 +102,7 @@ test('a JSON bridge reply is not sent again by the body parser', async () => {
       method: 'POST',
       url: `${config.basePath}/sign-up/email`,
       headers: { 'content-type': 'application/json', origin: 'https://app.example.test' },
-      payload: '{"name":"Bridge","email":"bridge@example.test","password":"bridge-password"}', // secret-scan: allow 'bridge-password'
+      payload: JSON.stringify({ name: 'Bridge', email: 'bridge@example.test', password: 'bridge-password' }), // secret-scan: allow 'bridge-password'
     });
     assert.equal(response.statusCode, 200);
     assert.equal(response.body, '{"ok":true}');

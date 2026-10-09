@@ -79,7 +79,13 @@ export function createHttpClient(options = {}) {
    * fresh full-size response after earlier pages have consumed the run's
    * cumulative allowance.
    *
-   * @param {{ method?: string, accept?: string, headers?: Record<string, string>, maxBytes?: number }} [init]
+   * `accept` is a COLP media type; the version parameter and a JSON fallback
+   * are added. `acceptRaw` sends an Accept header verbatim and
+   * `protocolVersion` replaces the Collection-Protocol-Version value, so the
+   * version-negotiation probes (PUB-0041) can assert a version the server
+   * does not support.
+   *
+   * @param {{ method?: string, accept?: string, acceptRaw?: string, protocolVersion?: string, headers?: Record<string, string>, maxBytes?: number }} [init]
    */
   async function request(url, init = {}) {
     const method = init.method ?? 'GET';
@@ -87,10 +93,12 @@ export function createHttpClient(options = {}) {
       ? maxBytes
       : Math.min(maxBytes, positiveSafeInteger(init.maxBytes, 'request maxBytes'));
     const headers = new Headers(init.headers);
-    if (init.accept !== undefined) {
+    if (init.acceptRaw !== undefined) {
+      headers.set('Accept', init.acceptRaw);
+    } else if (init.accept !== undefined) {
       headers.set('Accept', `${init.accept};version=${PROTOCOL_VERSION}, application/json;q=0.5`);
     }
-    headers.set('Collection-Protocol-Version', PROTOCOL_VERSION);
+    headers.set('Collection-Protocol-Version', init.protocolVersion ?? PROTOCOL_VERSION);
     let currentUrl = new URL(url);
     let previousUrl = null;
     let redirects = 0;

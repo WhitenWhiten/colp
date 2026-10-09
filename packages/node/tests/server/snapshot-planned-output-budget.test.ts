@@ -27,7 +27,10 @@ function largeSnapshot(): Snapshot {
   return snapshot;
 }
 
-describe('A static delivery plan carries a compatible default output budget', () => {
+// Every case builds and serializes a 10,000-folder Snapshot. Alone they take
+// 1-3s; under a loaded full run the default 5s budget was exceeded, so the
+// whole suite carries an explicit timeout.
+describe('A static delivery plan carries a compatible default output budget', { timeout: 30_000 }, () => {
   it('round-trips large output with explicit receiver limits and preserves the default parser cap', async () => {
     const source = largeSnapshot();
     const plan = planPublicationSnapshotDelivery({ classification: 'static', query: {}, snapshot: source });

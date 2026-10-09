@@ -584,6 +584,13 @@ requirements:
     requirement: HTTP clients SHOULD send the `Collection-Protocol-Version` header.
     implementation: [client]
     tests: [http.protocol-version-request]
+  - id: PUB-0041
+    level: MUST
+    profile: publication
+    source: SPECIFICATION.md#colp-section-12
+    requirement: "When the `Collection-Protocol-Version` header or the `Accept` version of a read request is not supported, the server MUST return `406 unsupported_version` with `supportedVersions`; a request that asserts a supported version or no version MUST NOT be rejected for its version."
+    implementation: [server, conformance]
+    tests: [http.version-negotiation]
   - id: CORE-0023
     level: MUST_NOT
     profile: core

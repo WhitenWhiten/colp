@@ -27,8 +27,9 @@ export interface MemoryMcpRateLimiterOptions {
   /** Injectable clock for deterministic tests; defaults to Date.now. */
   readonly now?: () => number;
   /**
-   * Hard cap on tracked buckets per policy (default 100_000). At capacity a
-   * request for a NEW key is denied; live buckets are never evicted and
+   * Hard cap on tracked buckets per policy (default 100_000). At capacity
+   * expired buckets are reclaimed in a bounded step; if none can be freed a
+   * request for a NEW key is denied. Live buckets are never evicted and
    * existing keys keep their budgets (same overload policy as FIX-M-002).
    */
   readonly maxBuckets?: number;
@@ -45,6 +46,39 @@ export interface MemoryMcpRateLimiter extends McpRateLimiter {
 
 const DEFAULT_MEMORY_MAX_BUCKETS = 100_000;
 const DEFAULT_MEMORY_SWEEP_INTERVAL_MS = 60_000;
+/**
+ * Upper bound on buckets inspected by the at-capacity reclaim. Buckets are
+ * kept in insertion order and re-inserted when their window restarts, so with
+ * a monotonic clock and a fixed window the oldest entries are the ones that
+ * expire first; scanning a bounded prefix frees them without an O(N) pass.
+ */
+const CAPACITY_RECLAIM_SCAN_LIMIT = 64;
+
+/**
+ * Shared at-capacity step for both bucket cores: delete expired buckets from
+ * the front of the insertion-ordered map (at most CAPACITY_RECLAIM_SCAN_LIMIT
+ * inspected) and report the earliest reset seen so a denial can compute
+ * Retry-After. Returns true when at least one slot was freed.
+ */
+function reclaimExpiredPrefix(
+  buckets: Map<string, { readonly resetAt: number }>,
+  nowMs: number,
+): { readonly freed: boolean; readonly earliestResetAt: number } {
+  let inspected = 0;
+  let freed = false;
+  let earliestResetAt = Number.POSITIVE_INFINITY;
+  for (const [key, bucket] of buckets) {
+    if (inspected >= CAPACITY_RECLAIM_SCAN_LIMIT) break;
+    inspected += 1;
+    if (nowMs >= bucket.resetAt) {
+      buckets.delete(key);
+      freed = true;
+      continue;
+    }
+    if (bucket.resetAt < earliestResetAt) earliestResetAt = bucket.resetAt;
+  }
+  return { freed, earliestResetAt };
+}
 
 interface CounterBucket {
   count: number;
@@ -74,13 +108,16 @@ class MemoryCounterBuckets {
     let bucket = this.buckets.get(facts);
     if (bucket === undefined || nowMs >= bucket.resetAt) {
       if (bucket === undefined && this.buckets.size >= this.maxBuckets) {
-        // Overload policy: refuse the new key instead of evicting a live
-        // bucket. The map is non-empty here (size >= maxBuckets >= 1).
-        let earliestResetAt = Number.POSITIVE_INFINITY;
-        for (const existing of this.buckets.values()) {
-          if (existing.resetAt < earliestResetAt) earliestResetAt = existing.resetAt;
+        // Overload policy: never evict a live bucket. Expired buckets at the
+        // front of the map are reclaimed in a bounded step first; only when
+        // that frees nothing is the new key refused.
+        const reclaim = reclaimExpiredPrefix(this.buckets, nowMs);
+        if (!reclaim.freed) {
+          return deniedDecision(Math.max(1, Math.ceil((reclaim.earliestResetAt - nowMs) / 1000)));
         }
-        return deniedDecision(Math.max(1, Math.ceil((earliestResetAt - nowMs) / 1000)));
+      } else if (bucket !== undefined) {
+        // Re-insert so the map stays ordered by window start for the reclaim.
+        this.buckets.delete(facts);
       }
       bucket = { count: 0, resetAt: nowMs + windowMs };
       this.buckets.set(facts, bucket);
@@ -130,11 +167,12 @@ class MemoryDistinctPlanBuckets {
     let bucket = this.buckets.get(facts);
     if (bucket === undefined || nowMs >= bucket.resetAt) {
       if (bucket === undefined && this.buckets.size >= this.maxBuckets) {
-        let earliestResetAt = Number.POSITIVE_INFINITY;
-        for (const existing of this.buckets.values()) {
-          if (existing.resetAt < earliestResetAt) earliestResetAt = existing.resetAt;
+        const reclaim = reclaimExpiredPrefix(this.buckets, nowMs);
+        if (!reclaim.freed) {
+          return deniedDecision(Math.max(1, Math.ceil((reclaim.earliestResetAt - nowMs) / 1000)));
         }
-        return deniedDecision(Math.max(1, Math.ceil((earliestResetAt - nowMs) / 1000)));
+      } else if (bucket !== undefined) {
+        this.buckets.delete(facts);
       }
       bucket = { resetAt: nowMs + windowMs, planIds: new Set() };
       this.buckets.set(facts, bucket);

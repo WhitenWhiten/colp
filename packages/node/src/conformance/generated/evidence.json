@@ -2,7 +2,7 @@
   "schemaVersion": 2,
   "protocolVersion": "0.1",
   "packageVersion": "0.1.1",
-  "requirementsDigest": "sha256:a130541d0d530f76856a68ffa5abd7ad78e157e6e1a13ee8071b096cab195002",
+  "requirementsDigest": "sha256:90598ba4a2472b37f3317e560b790f396b015902e9d7e5b26c263e669328495a",
   "passedRequirementIds": [
     "CORE-0001",
     "CORE-0002",
@@ -86,6 +86,7 @@
     "PUB-0025",
     "CORE-0022",
     "PUB-0026",
+    "PUB-0041",
     "CORE-0023",
     "CORE-0024",
     "CORE-0025",

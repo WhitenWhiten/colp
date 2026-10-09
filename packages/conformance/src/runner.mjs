@@ -28,6 +28,8 @@ import { Report } from './report.mjs';
 export const WELL_KNOWN_PATH = '/.well-known/collection-protocol';
 const SNAPSHOT_RELATION = 'https://know-n.com/colp/rels/snapshot';
 const UNKNOWN_PARAMETER = 'colpConformanceUnknown';
+/** A protocol version no server implements, used to provoke 406 unsupported_version. */
+const UNSUPPORTED_VERSION = '999.0';
 const DEFAULT_SNAPSHOT_BYTES = 64 * 1024 * 1024;
 const DEFAULT_SNAPSHOT_MEMBERS = 100_000;
 const DEFAULT_SNAPSHOT_OBJECTS = 100_000;
@@ -162,6 +164,7 @@ class Probe {
     if (directoryUrl === undefined) return;
 
     const directory = await this.#read(directoryUrl, 'collectionDirectory', MEDIA_TYPES.directory);
+    await this.#expectUnsupportedVersion(directoryUrl, MEDIA_TYPES.directory);
     await this.#expectInvalidQuery(withQuery(directoryUrl, [[UNKNOWN_PARAMETER, '1']]), MEDIA_TYPES.directory);
     await this.#expectInvalidQuery(withQuery(directoryUrl, [['limit', '1'], ['limit', '2']]), MEDIA_TYPES.directory);
     await this.#missingCollection(endpoints.collection);
@@ -298,6 +301,35 @@ class Probe {
     if (exchange === undefined) return;
     if (this.#record('PUB-0008', exchange.status >= 400, `GET ${url} for a Collection that does not exist returned ${exchange.status}`)) {
       this.#problem(exchange);
+    }
+  }
+
+  /**
+   * SPECIFICATION §12: a version the server does not support, asserted either
+   * through the exact Collection-Protocol-Version header or through the
+   * Accept version parameter, must be answered with 406 unsupported_version
+   * listing supportedVersions. The regular probes already assert the
+   * supported version on every request and expect 200.
+   */
+  async #expectUnsupportedVersion(url, mediaType) {
+    const probes = [
+      ['Collection-Protocol-Version', { accept: mediaType, protocolVersion: UNSUPPORTED_VERSION }],
+      ['Accept version', { acceptRaw: `${mediaType};version=${UNSUPPORTED_VERSION}` }],
+    ];
+    for (const [label, requestOptions] of probes) {
+      const exchange = await this.#get(url, undefined, 'PUB-0041', undefined, requestOptions);
+      if (exchange === undefined) continue;
+      if (!this.#record('PUB-0041', exchange.status === 406,
+        `GET ${url} with ${label} ${UNSUPPORTED_VERSION} returned ${exchange.status}, expected 406`)) {
+        continue;
+      }
+      const problem = this.#problem(exchange);
+      const versions = problem?.supportedVersions;
+      this.#record('PUB-0041',
+        problem?.code === 'unsupported_version' && Array.isArray(versions) && versions.length > 0
+          && versions.every((version) => typeof version === 'string'),
+        `GET ${url} with ${label} ${UNSUPPORTED_VERSION}: expected an unsupported_version Problem with supportedVersions, `
+          + `got ${problem === undefined ? 'an invalid Problem' : `${problem.code} ${JSON.stringify(versions)}`}`);
     }
   }
 

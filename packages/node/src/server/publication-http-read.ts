@@ -41,6 +41,10 @@ import type { ProblemCode } from './problems.js';
 import type { Snapshot } from '../types/index.js';
 import { finalizePublicationSnapshotWire } from './publication-snapshot-wire.js';
 import { assertPublicationSnapshotBookmarkUrls } from './publication-bookmark-url-guard.js';
+import {
+  negotiatePublicationVersion,
+  normalizePublicationSupportedVersions,
+} from './publication-version-negotiation.js';
 
 export type PublicationHttpReadEndpoint = 'manifest' | 'directory' | 'metadata' | 'snapshot' | 'node';
 export type PublicationHttpReadMethod = 'GET' | 'HEAD';
@@ -99,6 +103,20 @@ interface PublicationHttpReadCommonInput {
   readonly rawSearch: string;
   readonly validators: ValidatorRegistry;
   readonly ifNoneMatch?: string | null;
+  /**
+   * Raw `Collection-Protocol-Version` request header (SPECIFICATION §12). An
+   * exact value outside `supportedVersions` is answered with 406
+   * `unsupported_version` before the query is decoded.
+   */
+  readonly protocolVersionHeader?: string | null;
+  /**
+   * Raw `Accept` request header. Only the `version` parameter of Collection
+   * Protocol JSON media ranges takes part; media-type selection stays with
+   * the host.
+   */
+  readonly accept?: string | null;
+  /** Protocol versions this read implements; defaults to `['0.1']`. */
+  readonly supportedVersions?: readonly string[];
 }
 
 export interface AnonymousPublicationHttpReadInput extends PublicationHttpReadCommonInput {
@@ -138,6 +156,16 @@ export async function composePublicationHttpRead<Context = unknown>(
   input: PublicationHttpReadInput<Context>,
 ): Promise<Response> {
   const safeInput = inspectReadInput(input);
+  const negotiation = negotiatePublicationVersion({
+    protocolVersionHeader: safeInput.protocolVersionHeader,
+    accept: safeInput.accept,
+    supportedVersions: safeInput.supportedVersions,
+  });
+  if (!negotiation.supported) {
+    return problemResponse('unsupported_version', safeInput.method, {
+      supportedVersions: negotiation.supportedVersions,
+    });
+  }
   let decoded: DecodedReadQuery;
   try {
     decoded = decodeReadQuery(safeInput.endpoint, safeInput.rawSearch, safeInput.validators);
@@ -286,8 +314,10 @@ function inspectReadInput<Context>(input: PublicationHttpReadInput<Context>): Pu
     throw new TypeError('Publication HTTP read access mode is invalid.');
   }
   const allowed = accessDescriptor.value === 'anonymous-public'
-    ? new Set(['access', 'endpoint', 'method', 'rawSearch', 'validators', 'ifNoneMatch', 'publicProjection', 'resolveRepresentation'])
-    : new Set(['access', 'endpoint', 'method', 'rawSearch', 'validators', 'ifNoneMatch', 'authorize', 'resolveRepresentation']);
+    ? new Set(['access', 'endpoint', 'method', 'rawSearch', 'validators', 'ifNoneMatch', 'publicProjection', 'resolveRepresentation',
+      'protocolVersionHeader', 'accept', 'supportedVersions'])
+    : new Set(['access', 'endpoint', 'method', 'rawSearch', 'validators', 'ifNoneMatch', 'authorize', 'resolveRepresentation',
+      'protocolVersionHeader', 'accept', 'supportedVersions']);
   assertEnumerableDataProperties(input, allowed, 'Publication HTTP read input');
   const copy = copyOwnDataProperties(input) as unknown as PublicationHttpReadInput<Context>;
   if (!['manifest', 'directory', 'metadata', 'snapshot', 'node'].includes(copy.endpoint)) {
@@ -311,6 +341,14 @@ function inspectReadInput<Context>(input: PublicationHttpReadInput<Context>): Pu
   if (copy.access === 'authorized-private' && typeof copy.authorize !== 'function') {
     throw new TypeError('Publication HTTP read authorizer must be a function.');
   }
+  for (const key of ['protocolVersionHeader', 'accept'] as const) {
+    const value = copy[key];
+    if (value !== undefined && value !== null && typeof value !== 'string') {
+      throw new TypeError(`Publication HTTP read ${key} must be a string or null.`);
+    }
+  }
+  // Throws on a malformed host declaration; a per-request 500 would hide it.
+  normalizePublicationSupportedVersions(copy.supportedVersions);
   return Object.freeze(copy);
 }
 
@@ -508,8 +546,12 @@ function copyOwnDataProperties(value: object): Record<string, unknown> {
   return copy;
 }
 
-function problemResponse(code: ProblemCode, method: PublicationHttpReadMethod): Response {
-  const descriptor = createPublicationProblemDescriptor({ code });
+function problemResponse(
+  code: ProblemCode,
+  method: PublicationHttpReadMethod,
+  recovery?: { readonly supportedVersions: readonly string[] },
+): Response {
+  const descriptor = createPublicationProblemDescriptor(recovery === undefined ? { code } : { code, recovery });
   const bytes = publicationUtf8JsonBytes(descriptor.problem);
   const headers = new Headers({
     'content-type': PUBLICATION_PROBLEM_CONTENT_TYPE,

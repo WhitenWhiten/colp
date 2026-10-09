@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Node.js package
+
+- Added `negotiatePublicationVersion` and `normalizePublicationSupportedVersions` (`server`), and `PublicationHttpReadInput.protocolVersionHeader` / `accept` / `supportedVersions`. `publicationHttpReadFromRequest` now reads `Collection-Protocol-Version` and `Accept` so hosts composed through `publicationHttpRead` answer `406 unsupported_version` with `supportedVersions` (SPECIFICATION §12) for an unsupported exact header value or an unsupported `Accept` `version` parameter, while quoted parameters, `q=0` ranges, unrelated media types and supported or absent versions are not rejected (PUB-0041).
+- The static example `examples/publication-server.mjs` documents that it ignores `limit`/cursor and what a paging host must do.
+- Heavy tests carry explicit timeouts instead of relying on wall-clock defaults.
+
+### Conformance runner
+
+- Probes `406 unsupported_version` with an unsupported `Collection-Protocol-Version` on the Directory URL (PUB-0041).
+
 ## [0.1.1] - 2026-10-07
 
 A security patch release. It hardens the trust boundaries that untrusted input reaches first — anonymous Publication reads, MCP subscription and Change Plan admission, Feed and Sync parsing, and the conformance runner's network access — closing authorization, resource-exhaustion, SSRF, and secret-handling findings from parallel security reviews. There are no specification changes.

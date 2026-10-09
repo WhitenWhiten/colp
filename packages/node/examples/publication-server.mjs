@@ -95,15 +95,25 @@ function pick(source, keys) {
 
 /**
  * Serves one document through the package: it decodes and checks the query,
- * then asks `resolveRepresentation` for the document and adds the ETag, cache
- * headers, 304, HEAD, and Problem responses. Methods other than GET and HEAD
- * get a 405 Problem.
+ * negotiates the protocol version (an unsupported `Collection-Protocol-Version`
+ * or `Accept` version gets a 406 Problem), then asks `resolveRepresentation`
+ * for the document and adds the ETag, cache headers, 304, HEAD, and Problem
+ * responses. Methods other than GET and HEAD get a 405 Problem.
+ *
+ * `resolveRepresentation` receives the decoded query (`limit`, `cursor`,
+ * filters). This static example has one small Collection and ignores it:
+ * every read returns the whole document as a single page, so `?limit=1`
+ * still yields every member with `hasMore: false`. A real host must honor
+ * `decoded.limit` (bounded by the Manifest's `limits.maxPageSize`) and
+ * `decoded.cursor`, and set `pageIdentity` / the `next` Link for later pages;
+ * docs/PUBLICATION_QUICKSTART.md explains cursors.
  */
 function read(request, endpoint, value, options = {}) {
   return composePublicationHttpReadFromRequest(request, {
     endpoint,
     access: 'anonymous-public',
-    resolveRepresentation: () => createPublicationHttpReadRepresentation(endpoint, value, {
+    // `decoded` is the accepted query; see the note above on paging.
+    resolveRepresentation: (_decoded) => createPublicationHttpReadRepresentation(endpoint, value, {
       lastModified,
       cacheControl: 'public, max-age=60',
       ...options,

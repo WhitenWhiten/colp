@@ -24,6 +24,7 @@ export const CHECKS = Object.freeze([
   { id: 'PUB-0010', level: 'MUST', title: 'Unknown and duplicate scalar query parameters return 400 invalid_query' },
   { id: 'PUB-0008', level: 'MUST', title: 'Errors are RFC 9457 Problem Details with a registered code' },
   { id: 'PUB-0024', level: 'MUST', title: 'Negotiated responses vary by Accept and Collection-Protocol-Version' },
+  { id: 'PUB-0041', level: 'MUST', title: 'An unsupported Collection-Protocol-Version or Accept version returns 406 unsupported_version' },
   { id: 'PUB-0020', level: 'SHOULD', title: 'Servers return the versioned COLP media types' },
   { id: 'PUB-0021', level: 'SHOULD', title: 'GET responses carry ETag and Last-Modified' },
   { id: 'PUB-0022', level: 'SHOULD', title: 'If-None-Match is answered with 304 Not Modified' },

@@ -125,7 +125,7 @@ export function createPublicationHttpReadRepresentation(
   } as PublicationHttpReadRepresentation;
 }
 
-type RequestDerivedField = 'method' | 'rawSearch' | 'ifNoneMatch' | 'validators';
+type RequestDerivedField = 'method' | 'rawSearch' | 'ifNoneMatch' | 'validators' | 'protocolVersionHeader' | 'accept';
 
 /** `composePublicationHttpRead` input without the fields a Request already carries. */
 export type PublicationHttpReadRequestInput<Context = unknown> =
@@ -145,14 +145,17 @@ let sharedValidators: ValidatorRegistry | undefined;
  * Composes one Publication read from a Fetch API Request. The method, query
  * string, and `If-None-Match` come from the request, and `validators` defaults
  * to the package's own registry. Any method other than GET or HEAD gets a 405
- * Problem with `Allow: GET, HEAD`, as PUB-0008 requires for every error.
+ * Problem with `Allow: GET, HEAD`, as PUB-0008 requires for every error. The
+ * `Collection-Protocol-Version` and `Accept` headers drive SPECIFICATION §12
+ * negotiation; pass `supportedVersions` when the host implements more than
+ * `0.1`.
  */
 export async function composePublicationHttpReadFromRequest<Context = unknown>(
   request: PublicationHttpReadRequest,
   input: PublicationHttpReadRequestInput<Context>,
 ): Promise<Response> {
   const fields = readDataObject(input, 'Publication HTTP read input');
-  for (const key of ['method', 'rawSearch', 'ifNoneMatch']) {
+  for (const key of ['method', 'rawSearch', 'ifNoneMatch', 'protocolVersionHeader', 'accept']) {
     if (Object.hasOwn(fields, key)) {
       throw new TypeError(`Publication HTTP read input must not set ${key}; it comes from the request.`);
     }
@@ -170,6 +173,9 @@ export async function composePublicationHttpReadFromRequest<Context = unknown>(
     // Only the query is read, so a path-only URL from a framework adapter also works.
     rawSearch: new URL(url, 'http://localhost').search,
     ifNoneMatch: request.headers.get('if-none-match'),
+    // SPECIFICATION §12: an unsupported asserted version is a 406 Problem.
+    protocolVersionHeader: request.headers.get('collection-protocol-version'),
+    accept: request.headers.get('accept'),
     validators,
   } as PublicationHttpReadInput<Context>);
 }

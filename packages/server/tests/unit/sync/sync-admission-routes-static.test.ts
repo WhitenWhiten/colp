@@ -11,7 +11,6 @@ const colpSyncDir = dirname(fileURLToPath(new URL(
   '../../../src/transport/colp-sync/sync-session-routes.ts',
   import.meta.url,
 )));
-const composeUrl = new URL('../../../../devops/docker-compose.yml', import.meta.url);
 
 test('colp-sync routes do not call createFixedWindowRateLimiter', async () => {
   const names = (await readdir(colpSyncDir)).filter((name) => name.endsWith('.ts'));
@@ -26,17 +25,8 @@ test('colp-sync routes do not call createFixedWindowRateLimiter', async () => {
   }
 });
 
-test('Compose wires AUTH_API_REPLICAS and shared Sync limiter env', async () => {
-  const compose = await readFile(composeUrl, 'utf8');
-  for (const fragment of [
-    'AUTH_API_REPLICAS:',
-    'SYNC_RATE_LIMIT_SHARED:',
-    'SYNC_RATE_LIMIT_REDIS_URL:',
-    'SYNC_RATE_LIMIT_KEY_SECRET:',
-    'SYNC_EFFECT_PAGE_RATE_LIMIT_SHARED:',
-    'SYNC_EFFECT_PAGE_RATE_LIMIT_REDIS_URL:',
-    'SYNC_EFFECT_PAGE_RATE_LIMIT_KEY_SECRET:',
-  ]) {
-    assert.match(compose, new RegExp(fragment.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&'), 'u'), fragment);
-  }
-});
+// Know-N's multi-replica compose (AUTH_API_REPLICAS, shared Redis Sync
+// limiters) is not part of this single-instance self-hosted stack
+// (deploy/compose.yaml; tests/EXTRACTION.md). The runtime refusal
+// `SYNC_RATE_LIMIT_SHARED=true` without Redis URL/secret is covered by the
+// api-rate-limit-composition unit tests.
