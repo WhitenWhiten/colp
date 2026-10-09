@@ -178,13 +178,27 @@ describeWithPostgres('PostgreSQL Publication Relation projection', () => {
     await isolated.runtime.pool.query(`insert into resource_id_ledger(resource_id,resource_type,committed_at)
       select 'publication-plan-node-' || lpad(value::text, 6, '0'), 'node', current_timestamp
       from generate_series(1,$1) value`, [count]);
-    await isolated.runtime.pool.query(`insert into nodes(
-      id,collection_id,parent_id,kind,is_root,title,url,tags,visibility,position_token,
-      resource_revision,children_revision)
-      select node_id,$1,$2,'bookmark',false,node_id,'https://example.test/' || value,'[]','inherit',
-        lpad(value::text,20,'0'),'node-revision-' || value,'children-' || value
-      from (select value,'publication-plan-node-' || lpad(value::text,6,'0') node_id
-        from generate_series(1,$3::integer) value) seeded`, [COLLECTION_ID, ROOT_ID, count]);
+    // The nodes insert fires the per-row live-node-count / locator-hash
+    // triggers; one 12k-row statement exceeded the runtime's 15s
+    // statement_timeout on a loaded CI runner (SQLSTATE 57014). Seed the same
+    // 12,000 rows (same ids, same triggers, same production pool budget) in
+    // bounded statements so the fixture, not the runtime budget, absorbs the
+    // runner variance. The plan assertions below are unchanged.
+    const SEED_BATCH = 2_000;
+    for (let start = 1; start <= count; start += SEED_BATCH) {
+      const end = Math.min(start + SEED_BATCH - 1, count);
+      await isolated.runtime.pool.query(`insert into nodes(
+        id,collection_id,parent_id,kind,is_root,title,url,tags,visibility,position_token,
+        resource_revision,children_revision)
+        select node_id,$1,$2,'bookmark',false,node_id,'https://example.test/' || value,'[]','inherit',
+          lpad(value::text,20,'0'),'node-revision-' || value,'children-' || value
+        from (select value,'publication-plan-node-' || lpad(value::text,6,'0') node_id
+          from generate_series($3::integer,$4::integer) value) seeded`, [COLLECTION_ID, ROOT_ID, start, end]);
+    }
+    const seededNodes = await isolated.runtime.pool.query<{ count: string }>(
+      `select count(*)::text as count from nodes where id like 'publication-plan-node-%'`,
+    );
+    assert.equal(Number(seededNodes.rows[0]?.count), count, 'bounded seeding must still land all 12,000 nodes');
     await isolated.runtime.pool.query(`insert into resource_id_ledger(resource_id,resource_type,committed_at)
       select 'publication-plan-relation-' || lpad(value::text, 6, '0'), 'relation', current_timestamp
       from generate_series(1,$1) value`, [count]);

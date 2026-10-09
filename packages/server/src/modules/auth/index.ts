@@ -24,6 +24,7 @@ export * from './application/browser-session-authority.js';
 export * from './application/account-linking.js';
 export * from './application/account-deletion.js';
 export * from './application/oauth-occupancy-adopt.js';
+export * from './application/account-issuer.js';
 export * from './application/account-recovery.js';
 export * from './application/security-epoch-bridge.js';
 export * from './application/provider-link-epoch.js';
