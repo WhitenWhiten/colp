@@ -253,7 +253,7 @@ function fromPublic(snapshot: PublicCollectionSnapshot, nodeId: string, allowCon
   }
 }
 
-export function useResourceNode(nodeId: string, allowContainers = false) {
+export function useResourceNode(nodeId: string, allowContainers = false): ResourceNodeLoad {
   const [searchParams] = useSearchParams()
   const { isLoggedIn, bootstrapping } = useAuth()
   const sessionIdentity = useSyncExternalStore(subscribeSession, privateSessionIdentity, privateSessionIdentity)
