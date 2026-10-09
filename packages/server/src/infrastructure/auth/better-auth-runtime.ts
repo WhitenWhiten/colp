@@ -790,6 +790,21 @@ function buildProductAuthHooks(input: {
       // Login omits this header and must stay non-enumerating (byte-identical
       // 200). auth-local-flows pins both sides of the split.
       if (!signupIntent) return;
+      const existingUsers = await ctx.context.adapter.count({ model: 'user' });
+      if (!isColpMultiUser() && existingUsers > 0) {
+        throw APIError.from('FORBIDDEN', {
+          code: 'registration_closed',
+          message: 'Registration is closed.',
+        });
+      }
+      if (isSelfHostedEdition() && existingUsers === 0
+          && !setupTokenMatches(headerValue(ctx, COLP_SETUP_TOKEN_HEADER))) {
+        throw APIError.from('FORBIDDEN', {
+          code: 'setup_token_required',
+          message: 'Enter the setup token from the server log (docker compose logs server), '
+            + 'or run: docker compose exec server colp-server setup-token',
+        });
+      }
       const body = ctx.body as { email?: unknown; type?: unknown } | undefined;
       if (body?.type !== 'sign-in' || typeof body.email !== 'string' || body.email.length === 0) {
         return;
