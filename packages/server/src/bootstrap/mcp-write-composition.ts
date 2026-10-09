@@ -560,7 +560,7 @@ function createPhase4bMcpWriteRevisionPort(
   });
 }
 
-function createAuthorizationPolicy() {
+export function createAuthorizationPolicy() {
   return Object.freeze({
     async requiredScopesForOperation(operation: unknown) {
       const type = (operation as { type?: unknown }).type;
