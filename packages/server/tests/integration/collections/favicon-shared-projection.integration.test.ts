@@ -332,10 +332,15 @@ describeWithPostgres('shared favicon projection on the online lifecycle', () => 
       const projected = await findBookmarkIconObjectIdsByNodeIds(isolated.runtime.db, [first, second]);
       assert.equal(projected.get(first), objectId);
       assert.equal(projected.get(second), objectId);
-      const originalVisibility = (await isolated.runtime.pool.query('select visibility,publication_slug,published_at from collections where id=$1', [COLLECTION])).rows[0];
-      await isolated.runtime.pool.query("update collections set visibility='public',publication_slug='ci-favicon-'||md5(id),published_at=now() where id=$1", [COLLECTION]);
+      // Shared allowlisted site logos remain public independently of private bookmark URLs.
+      assert.equal(await isFaviconPubliclyAccessible(isolated.runtime.db, objectId), false);
+      const deniedObjectId = randomUUID();
+      await store.put(deniedObjectId, PNG_V1, 'image/png');
+      await isolated.runtime.pool.query(`INSERT INTO favicon_shared_domains(hostname, object_id)
+        VALUES ('private.internal', $1)`, [deniedObjectId]);
+      const deniedBytes = await api('GET', `${address}/api/v1/favicon/${deniedObjectId}`, {});
+      assert.equal(deniedBytes.status, 404);
       const bytes = await api('GET', `${address}/api/v1/favicon/${objectId}`, {});
-      await isolated.runtime.pool.query('update collections set visibility=$2,publication_slug=$3,published_at=$4 where id=$1', [COLLECTION, originalVisibility.visibility, originalVisibility.publication_slug, originalVisibility.published_at]);
       assert.equal(bytes.status, 200);
       assert.deepEqual(bytes.rawBody, PNG_V1);
 
