@@ -504,6 +504,8 @@ export interface McpChangePlanService {
   readonly plan: (
     request: unknown,
     binding: McpAuthenticatedAuthorizationBinding,
+    /** Gateway-supplied scopes for pre-plan admission; omitted for host-only callers. */
+    authorizedScopes?: readonly string[],
   ) => Promise<ChangePlan>;
   /**
    * Host-only approval entry. Must never be exposed as a model-callable Tool.
@@ -541,7 +543,11 @@ export function createChangePlanService<
   const maxConcurrentPlans = ports.maxConcurrentPlans ?? MCP_CHANGE_PLAN_DEFAULT_MAX_CONCURRENT_PLANS;
   let activePlans = 0;
 
-  const plan = async (request: unknown, binding: McpAuthenticatedAuthorizationBinding): Promise<ChangePlan> => {
+  const plan = async (
+    request: unknown,
+    binding: McpAuthenticatedAuthorizationBinding,
+    authorizedScopes?: readonly string[],
+  ): Promise<ChangePlan> => {
     if (activePlans >= maxConcurrentPlans) {
       throw new McpChangePlanError('rate_limited', 'Change plan aggregate admission limit reached.');
     }
@@ -559,6 +565,29 @@ export function createChangePlanService<
     // High-risk path is the point of this service; low-only plans are still allowed
     // but still require typed ops. Public visibility etc. will be high via aggregation.
 
+    // Resolve operation-specific scopes before consulting impact, revisions, or
+    // any other target-derived state. The model-visible gateway supplies the
+    // request's scopes so an access:write token cannot probe a stronger target.
+    const requiredScopes = await deriveRequiredScopes(
+      operations,
+      ownedBinding,
+      ports.authorizationPolicy,
+      inputBudget,
+    );
+    if (authorizedScopes !== undefined) {
+      if (!Array.isArray(authorizedScopes)
+        || authorizedScopes.some((scope) => typeof scope !== 'string')) {
+        throw new McpChangePlanError('scope_invalid', 'The request authorization scope set is invalid.');
+      }
+      const granted = new Set(authorizedScopes);
+      if (!requiredScopes.every((scope) => granted.has(scope))) {
+        throw new McpChangePlanError(
+          'scope_invalid',
+          'The request does not hold the operation-specific scopes required to assess this Plan.',
+        );
+      }
+    }
+
     const impactCandidate = Reflect.apply(ports.impact.assessImpact, ports.impact.receiver, [
       Object.freeze([...operations]),
     ]);
@@ -568,12 +597,6 @@ export function createChangePlanService<
       operations,
       ownedBinding,
       ports.revisions,
-      inputBudget,
-    );
-    const requiredScopes = await deriveRequiredScopes(
-      operations,
-      ownedBinding,
-      ports.authorizationPolicy,
       inputBudget,
     );
     const planId = ids.nextPlanId();
@@ -1027,7 +1050,37 @@ export function createChangePlanService<
   return Object.freeze({ plan, recordOutOfBandApproval, commit, cancel });
 }
 
-/** Pure helper exported for tests and gateway composition. */
+/**
+ * Resolve the same canonical + host-policy scope union used by Change Plans.
+ * Gateway adapters use this before invoking a custom host planner, which may
+ * otherwise assess impact and persist a plan without the service's admission
+ * boundary.
+ */
+export async function deriveMcpOperationRequiredScopes(
+  operations: readonly ChangePlanOperation[],
+  binding: McpAuthenticatedAuthorizationBinding,
+  policy: McpChangePlanAuthorizationPolicyPort,
+  inputBudget?: McpWriteInputBudget,
+): Promise<readonly ScopeName[]> {
+  if (typeof policy !== 'object' || policy === null || nodeTypes.isProxy(policy)) {
+    throw new McpChangePlanError('invalid_plan_request', 'Authorization policy is invalid.');
+  }
+  const descriptor = Object.getOwnPropertyDescriptor(policy, 'requiredScopesForOperation');
+  if (descriptor === undefined || !('value' in descriptor) || typeof descriptor.value !== 'function') {
+    throw new McpChangePlanError('invalid_plan_request', 'Authorization policy must own requiredScopesForOperation.');
+  }
+  const resolvedPolicy = {
+    receiver: policy,
+    requiredScopesForOperation: descriptor.value,
+  } as ResolvedServiceOptions<McpChangePlanCommitTransaction>['authorizationPolicy'];
+  return deriveRequiredScopes(
+    operations,
+    binding,
+    resolvedPolicy,
+    resolveMcpWriteInputBudget(inputBudget),
+  );
+}
+
 export function computeOperationsDigest(operations: readonly unknown[]): string {
   const canonical = encodePlainCanonicalJson(operations);
   if (canonical === undefined) {
