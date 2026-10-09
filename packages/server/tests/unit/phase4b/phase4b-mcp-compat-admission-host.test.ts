@@ -79,7 +79,7 @@ test('IPv6 Host matches the configured origin after bracket and default-port nor
   const ipv6Origin = 'https://[2001:db8::1]';
   const capture = createCompatPingCapture();
   const server = track(startCompatApp({
-    env: { PUBLICATION_ORIGIN: ipv6Origin },
+    env: { PUBLICATION_ORIGIN: ipv6Origin, MCP_OAUTH_AUDIENCE: `${ipv6Origin}${MCP_COMPAT_ENDPOINT_PATH.replace('-compat', '')}` },
     mcpReadTransport: { applicationFacade: pingMcpApplicationFacade(capture) },
   }));
   assert.equal(mcpTestHostHeader(ipv6Origin), '[2001:db8::1]');
@@ -106,7 +106,7 @@ test('IPv6 Host matches the configured origin after bracket and default-port nor
 
 test('non-default origin port requires that port on Host', async () => {
   const origin = `https://${MCP_TEST_REQUEST_HOST}:8443`;
-  const server = track(startCompatApp({ env: { PUBLICATION_ORIGIN: origin } }));
+  const server = track(startCompatApp({ env: { PUBLICATION_ORIGIN: origin, MCP_OAUTH_AUDIENCE: `${origin}${MCP_COMPAT_ENDPOINT_PATH.replace('-compat', '')}` } }));
   const allowed = await injectCompatPost(server.app, compatRpc('tools/list'), {
     host: `${MCP_TEST_REQUEST_HOST}:8443`,
   });
