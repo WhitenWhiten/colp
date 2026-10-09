@@ -49,6 +49,7 @@ import {
   type McpChangePlanRateLimitOptions,
 } from '../infrastructure/rate-limit/index.js';
 import {
+  readMcpGrantedScopes,
   createPhase4bMcpChangePlanDigestVerifier,
   createPhase4bMcpChangePlanPlanner,
   createPhase4bMcpChangePlanRevisionPort,
@@ -290,7 +291,8 @@ export function createPhase4bMcpWriteComposition(
         if (!stored) throw new Error('The planned change is unavailable.');
         const approved = await serviceOptions.autoApproveTrustedPlan!(
           stored as unknown as import('../modules/mcp/index.js').Phase4bMcpPlannedChange,
-          binding, { approve: changePlanService.recordOutOfBandApproval, commit: changePlanService.commit },
+          binding, { canCommit: await serviceOptions.scopes.hasScopes(['changes:commit' as ScopeName], binding),
+            approve: changePlanService.recordOutOfBandApproval, commit: changePlanService.commit },
         );
         return { ...wire, requiresApproval: approved.requiresApproval };
       },
@@ -577,7 +579,8 @@ function createScopePort(allowedScopes: readonly string[] | undefined) {
   const scopes = new Set(allowedScopes ?? []);
   return Object.freeze({
     async hasScopes(requiredScopes: readonly ScopeName[]) {
-      return requiredScopes.every((scope) => scopes.has(scope));
+      const granted = readMcpGrantedScopes();
+      return requiredScopes.every((scope) => scopes.has(scope) && (granted === undefined || granted.includes(scope)));
     },
   });
 }

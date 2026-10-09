@@ -239,6 +239,7 @@ describe('BF-03 bookmark favicon HTTP (delete and helper)', () => {
       url: helperFaviconUrl(),
       headers: {
         origin: EXTENSION_ORIGIN,
+        'x-forwarded-proto': 'https',
         authorization: `Bearer ${OWNER_BEARER}`,
         'content-type': 'image/png',
         'known-command-id': COMMAND_A,
@@ -276,6 +277,7 @@ describe('BF-03 bookmark favicon HTTP (delete and helper)', () => {
     seedBookmark(harness);
     const headers = {
       origin: EXTENSION_ORIGIN,
+      'x-forwarded-proto': 'https',
       authorization: `Bearer ${OWNER_BEARER}`,
       'content-type': 'image/png',
       'known-command-id': COMMAND_A,
@@ -352,6 +354,7 @@ describe('BF-03 bookmark favicon HTTP (delete and helper)', () => {
       url: helperFaviconUrl(),
       headers: {
         origin: EXTENSION_ORIGIN,
+        'x-forwarded-proto': 'https',
         authorization: `Bearer ${OWNER_BEARER}`,
         'content-type': 'image/png',
         'known-command-id': COMMAND_A,
@@ -379,6 +382,7 @@ describe('BF-03 bookmark favicon HTTP (delete and helper)', () => {
       url: helperFaviconUrl(),
       headers: {
         origin: EXTENSION_ORIGIN,
+        'x-forwarded-proto': 'https',
         authorization: `Bearer ${OWNER_BEARER}`,
         'content-type': 'image/png',
         'known-command-id': COMMAND_A,
@@ -412,6 +416,7 @@ describe('BF-03 bookmark favicon HTTP (delete and helper)', () => {
       url: helperFaviconUrl(),
       headers: {
         origin: EXTENSION_ORIGIN,
+        'x-forwarded-proto': 'https',
         authorization: `Bearer ${OWNER_BEARER}`,
         'content-type': 'image/png',
         'known-command-id': COMMAND_A,
@@ -440,6 +445,7 @@ describe('BF-03 bookmark favicon HTTP (delete and helper)', () => {
       headers: {
         cookie: owner.cookie,
         origin: EXTENSION_ORIGIN,
+        'x-forwarded-proto': 'https',
         'x-csrf-token': owner.csrfToken,
         'content-type': 'image/png',
         'known-command-id': COMMAND_A,
@@ -469,6 +475,7 @@ describe('BF-03 bookmark favicon HTTP (delete and helper)', () => {
       url: helperFaviconUrl(),
       headers: {
         origin: EXTENSION_ORIGIN,
+        'x-forwarded-proto': 'https',
         cookie: owner.cookie,
         'content-type': 'image/png',
         'known-command-id': COMMAND_C,
@@ -512,6 +519,7 @@ describe('BF-03 bookmark favicon HTTP (delete and helper)', () => {
       url: helperFaviconUrl(),
       headers: {
         origin: EXTENSION_ORIGIN,
+        'x-forwarded-proto': 'https',
         authorization: `Bearer ${EDITOR_BEARER}`,
         'content-type': 'image/png',
         'known-command-id': COMMAND_A,
@@ -537,6 +545,7 @@ describe('BF-03 bookmark favicon HTTP (delete and helper)', () => {
       url: helperFaviconUrl(),
       headers: {
         origin: EXTENSION_ORIGIN,
+        'x-forwarded-proto': 'https',
         authorization: `Bearer ${OWNER_BEARER}`,
         'content-type': 'image/png',
         'known-command-id': COMMAND_A,
@@ -552,6 +561,7 @@ describe('BF-03 bookmark favicon HTTP (delete and helper)', () => {
       url: helperFaviconUrl(),
       headers: {
         origin: EXTENSION_ORIGIN,
+        'x-forwarded-proto': 'https',
         authorization: `Bearer ${OWNER_BEARER}`,
         'content-type': 'image/png',
         'known-command-id': COMMAND_A,
@@ -567,6 +577,7 @@ describe('BF-03 bookmark favicon HTTP (delete and helper)', () => {
       url: helperFaviconUrl(),
       headers: {
         origin: EXTENSION_ORIGIN,
+        'x-forwarded-proto': 'https',
         authorization: `Bearer ${OWNER_BEARER}`,
         'content-type': 'image/png',
         'known-command-id': COMMAND_B,

@@ -4,7 +4,7 @@ import { createCimdClientDiscovery, type CimdOptions } from '@better-auth/cimd';
 import { mcp } from '@better-auth/mcp';
 import { extendOAuthProvider } from '@better-auth/oauth-provider';
 import { betterAuth, type BetterAuthOptions, type BetterAuthPlugin } from 'better-auth';
-import { APIError, createAuthEndpoint, createAuthMiddleware } from 'better-auth/api';
+import { APIError, createAuthEndpoint, createAuthMiddleware, getAuthoritativeSessionFromCtx } from 'better-auth/api';
 import { expireCookie } from 'better-auth/cookies';
 import { emailOTP, jwt, twoFactor, username } from 'better-auth/plugins';
 import { timingSafeEqual } from 'node:crypto';
@@ -661,6 +661,45 @@ function buildProductAuthHooks(input: {
   };
   return {
     before: createAuthMiddleware(async (ctx) => {
+      // Better Auth's OAuth authorize endpoint authenticates the browser
+      // session itself, but the product authority also tracks revocation and
+      // security-epoch state in known_auth_session_metadata. Re-check that
+      // authoritative row before issuing an authorization code so a cookie
+      // accepted by BA cannot survive product-side session revocation.
+      if (ctx.path === '/oauth2/authorize' && input.db !== undefined) {
+        // User before hooks run before the OAuth endpoint loads its session.
+        const session = await getAuthoritativeSessionFromCtx(ctx);
+        const candidate = session?.session.id;
+        // The session id is the binding between Better Auth's cookie and the
+        // product revocation/epoch table. If the hook context does not expose
+        // it, fail closed instead of silently bypassing the authoritative
+        // session check.
+        if (typeof candidate !== 'string' || candidate.length === 0) {
+          throw APIError.from('UNAUTHORIZED', {
+            code: 'session_context_unavailable',
+            message: 'The browser session could not be verified.',
+          });
+        }
+        {
+          const row = await input.db.selectFrom('known_auth_session_metadata')
+            .select(['revoked_at', 'security_epoch', 'account_id'])
+            .where('auth_session_id', '=', candidate)
+            .executeTakeFirst();
+          if (!row || row.revoked_at !== null) {
+            throw APIError.from('UNAUTHORIZED', {
+              code: 'session_revoked', message: 'The browser session is no longer valid.',
+            });
+          }
+          const account = await input.db.selectFrom('accounts').select(['security_epoch', 'status'])
+            .where('id', '=', row.account_id).executeTakeFirst();
+          if (!account || account.status !== 'active'
+              || BigInt(account.security_epoch) !== BigInt(row.security_epoch)) {
+            throw APIError.from('UNAUTHORIZED', {
+              code: 'session_revoked', message: 'The browser session is no longer valid.',
+            });
+          }
+        }
+      }
       // OAuth Provider 1.7.1 dispatches registered backchannel logout URIs
       // with the process-global fetch.  It has no egress injection seam, so
       // accepting that metadata would leave a DNS-rebinding SSRF primitive in

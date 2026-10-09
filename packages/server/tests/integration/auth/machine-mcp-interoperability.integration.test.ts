@@ -80,6 +80,8 @@ const MCP_SCOPES = [
   'mcp:read:public',
   'mcp:read:own',
   'nodes:write',
+  'nodes:read',
+  'collections:create',
   'access:write',
   'changes:commit',
   'changes:cancel',
@@ -381,7 +383,7 @@ describeWithPostgres('machine MCP interoperability', () => {
       const collectionId = created.json().collection.id as string;
 
       const mcpToken = await accessToken(
-        composed.app, child.secret, 'mcp_strict', 'mcp:read:public mcp:read:own nodes:write',
+        composed.app, child.secret, 'mcp_strict', 'mcp:read:public mcp:read:own nodes:read nodes:write collections:create',
       );
       const discover = await postStrict(composed.app, mcpToken, 'server/discover', 1);
       assert.equal(discover.statusCode, 200, discover.body);
@@ -575,7 +577,7 @@ describeWithPostgres('machine MCP interoperability', () => {
     try {
       const child = await issueChild(composed.app);
       const mcpToken = await accessToken(
-        composed.app, child.secret, 'mcp_strict', 'mcp:read:own nodes:write',
+        composed.app, child.secret, 'mcp_strict', 'mcp:read:own nodes:read nodes:write collections:create',
       );
       const product = await accessToken(composed.app, child.secret, 'product', 'product:read product:write');
       const title = `AC-04 mcp write ${randomUUID()}`;
@@ -628,7 +630,7 @@ describeWithPostgres('machine MCP interoperability', () => {
       assert.equal(againIds.length, 1, listedAgain.body);
 
       const compatToken = await accessToken(
-        composed.app, child.secret, 'mcp_compat', 'mcp:read:own nodes:write',
+        composed.app, child.secret, 'mcp_compat', 'mcp:read:own nodes:read nodes:write collections:create',
       );
       const compatInit = await postCompat(
         composed.app,

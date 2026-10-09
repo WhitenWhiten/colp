@@ -266,3 +266,24 @@ describe('shared product-route rate-limit families', () => {
     assert.equal(notReady.statusCode, 503, notReady.body);
   });
 });
+
+
+test('exported shared composition requires all enabled credential and token limiters', async () => {
+  const base = loadConfig(testEnv(productRouteRateLimitSharedEnv()));
+  const config = { ...base, accountCredentials: { ...base.accountCredentials, enabled: true } };
+  const credentialLimiters = {
+    credentialsRateLimiter: fakeSharedLimiter('credentials'),
+    credentialIssuanceRateLimiter: fakeSharedLimiter('credential-issuance'),
+    automationTokenCredentialRateLimiter: fakeSharedLimiter('automation-token-credential'),
+    automationTokenClientRateLimiter: fakeSharedLimiter('automation-token-client'),
+  };
+  for (const [key, limiter] of Object.entries(credentialLimiters)) {
+    for (const invalid of [undefined, fakeSharedLimiter('library-order')]) {
+      assert.throws(() => buildApiApp({ config, ...sharedDependencies(), ...credentialLimiters, [key]: invalid }),
+        new RegExp(`missing or invalid: ${limiter.purpose}`));
+    }
+  }
+  const app = buildApiApp({ config, ...sharedDependencies(), ...credentialLimiters });
+  apps.push(app);
+  await app.ready();
+});

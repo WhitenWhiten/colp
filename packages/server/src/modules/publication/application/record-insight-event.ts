@@ -66,6 +66,8 @@ export interface RecordInsightEventPorts {
 }
 
 export interface RecordInsightEventInput {
+  /** Host admission runs only after the collection and optional bookmark are verified. */
+  readonly admitTarget?: (target: { readonly collectionId: string; readonly nodeId?: string }) => Promise<void>;
   readonly slug: string;
   readonly eventType: InsightEventType;
   readonly nodeId?: string | null;
@@ -139,6 +141,7 @@ export async function recordInsightEvent(
       return Object.freeze({ kind: 'skipped', reason: 'node' });
     }
   }
+  await input.admitTarget?.({ collectionId: facts.collectionId, ...(nodeId === null ? {} : { nodeId }) });
   const visitorHash = hashVisitor(ports.visitorHash, input.visitor);
   if (visitorHash.byteLength !== 32) {
     throw new Error('Visitor hash digest must be 32 bytes.');

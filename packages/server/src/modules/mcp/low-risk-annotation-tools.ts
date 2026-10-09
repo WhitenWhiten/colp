@@ -1,7 +1,7 @@
 /**
  * Low-risk MCP `annotations.create` / `annotations.update`. Notes are
  * Product annotations (`createAnnotation` / `updateAnnotation`), not
- * bookmark `note`/`tldr` fields. Host OAuth scope is `nodes:write`.
+ * bookmark `note`/`tldr` fields. Host OAuth scope is `annotations:write`.
  */
 import { types as nodeTypes } from 'node:util';
 import {
@@ -26,7 +26,6 @@ import {
 } from '../collections/index.js';
 import { requireMcpAccountSubjectId } from './account-context.js';
 import {
-  PHASE4B_MCP_LOW_RISK_NODE_CREATE_SCOPE,
   Phase4bMcpLowRiskNodeCreateError,
   type Phase4bMcpLowRiskNodeCreateContext,
   type Phase4bMcpWriteErrorHint,
@@ -38,6 +37,8 @@ import {
   readDryRun,
   readRevisionFence,
 } from './low-risk-node-update.js';
+
+const ANNOTATIONS_WRITE_SCOPE = 'annotations:write' as const;
 
 export const PHASE4B_MCP_ANNOTATIONS_CREATE_TOOL_NAME = 'annotations.create' as const;
 export const PHASE4B_MCP_ANNOTATIONS_UPDATE_TOOL_NAME = 'annotations.update' as const;
@@ -915,11 +916,11 @@ function assertWriteScope(scope: readonly string[], operation: string): void {
   if (
     !Array.isArray(scope)
     || scope.some((entry) => typeof entry !== 'string' || entry.length === 0)
-    || !scope.includes(PHASE4B_MCP_LOW_RISK_NODE_CREATE_SCOPE)
+    || !scope.includes(ANNOTATIONS_WRITE_SCOPE)
   ) {
     throw new Phase4bMcpLowRiskNodeCreateError(
       'scope_invalid',
-      `${operation} requires the current nodes:write scope.`,
+      `${operation} requires the current annotations:write scope.`,
     );
   }
 }

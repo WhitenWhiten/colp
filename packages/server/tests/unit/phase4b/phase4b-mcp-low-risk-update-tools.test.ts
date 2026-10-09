@@ -31,12 +31,14 @@ import {
 } from '../../../src/modules/mcp/index.js';
 import {
   BINDING,
-  CONTEXT,
+  CONTEXT as NODE_CONTEXT,
 } from '../../support/phase4b-mcp-low-risk-node-create-fixture.js';
 
 afterEach(() => {
   vi.restoreAllMocks();
 });
+
+const CONTEXT = Object.freeze({ ...NODE_CONTEXT, scope: Object.freeze(['nodes:write', 'collections:write']) });
 
 const COL_ID = 'collection-1';
 const NODE_ID = 'node-1';

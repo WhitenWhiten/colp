@@ -133,6 +133,7 @@ describeWithPostgres('FO-04 extension favicon helper HTTP (stale-client boundary
       // FO-05: the children cursor HMAC key is required when the flag is on.
       FAVICON_CURSOR_HMAC_KEY: Buffer.alloc(32, 42).toString('base64url'),
       SYNC_EXTENSION_IDS: EXTENSION_ID,
+      TRUSTED_INGRESS: '127.0.0.1/32,::1/128',
     });
     factory = createPostgresBetterAuthTestFactory({ db: isolated.runtime.db });
     owner = await issueTestSession({ factory,
@@ -936,7 +937,10 @@ function apiRaw(method: string, url: string, options: ApiOptions): Promise<ApiRe
   if (options.commandId !== undefined) headers['Known-Command-Id'] = options.commandId;
   if (options.ifMatch !== undefined) headers['If-Match'] = options.ifMatch;
   if (options.policyRevision !== undefined) headers['Known-Favicon-Policy-Revision'] = options.policyRevision;
-  if (options.authorization !== undefined && options.csrf === undefined) headers.Origin = EXTENSION_ORIGIN;
+  if (options.authorization !== undefined && options.csrf === undefined) {
+    headers.Origin = EXTENSION_ORIGIN;
+    headers['x-forwarded-proto'] = 'https';
+  }
   let body: Buffer | string | undefined;
   if (options.rawBody !== undefined) {
     body = options.rawBody;

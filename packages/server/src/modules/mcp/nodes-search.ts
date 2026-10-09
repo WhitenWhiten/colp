@@ -134,6 +134,9 @@ export async function executeNodesSearch(
   ports: NodesSearchPorts,
   input: NodesSearchInput,
 ): Promise<NodesSearchResult> {
+  if (!Array.isArray(input.scopes) || !input.scopes.includes(NODES_SEARCH_PROFILE_CLAIM.scope)) {
+    throw new TypeError('nodes.search requires the nodes:read scope.');
+  }
   const query = readQuery(input.query);
   const collectionId = readOptionalToken(input.collectionId, 'collectionId');
   const cursor = readOptionalToken(input.cursor, 'cursor');

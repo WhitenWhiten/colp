@@ -53,7 +53,16 @@ export const ISSUER = 'https://app.example.test/api/v1/auth';
 export const AUDIENCE = 'https://collections.example.test/collections/-/mcp';
 export const CLIENT_ID = 'known-mcp-oauth-client';
 export const SCOPES = ['mcp:read:public', 'mcp:read:own'];
-export const WRITE_SCOPES = ['access:write', 'nodes:write', 'changes:plan', 'changes:commit', 'changes:cancel'];
+export const WRITE_SCOPES = [
+  'access:write',
+  'nodes:write',
+  'collections:create',
+  'collections:write',
+  'annotations:write',
+  'changes:plan',
+  'changes:commit',
+  'changes:cancel',
+];
 export const SUBJECT = 'urn:known:subject:alice';
 export const ACCOUNT_ID = 'account-alice-1';
 

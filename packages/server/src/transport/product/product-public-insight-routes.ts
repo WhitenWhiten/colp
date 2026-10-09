@@ -89,34 +89,36 @@ export function registerProductPublicInsightRoutes(
     const rateVisitor = actor !== null
       ? { kind: 'subject' as const, subjectId: actor.account.subjectId }
       : insightIngestIpua(request);
-    const outcome = await dependencies.rateLimiter.consume({
-      visitor: rateVisitor,
-      slug,
-      eventType: body.eventType,
-      ...(body.nodeId === undefined ? {} : { nodeId: body.nodeId }),
-    });
-    if (outcome.kind === 'denied') {
-      throw new ProductHttpError({
-        statusCode: productErrorStatus('rate_limited'),
-        code: 'rate_limited',
-        message: 'Too many insight ingest requests. Please try again later.',
-        recovery: 'same_request',
-        sameRequestRetrySafe: true,
-        retryAfterSeconds: outcome.decision.retryAfterSeconds,
-        headers: { 'Retry-After': String(outcome.decision.retryAfterSeconds) },
-      });
-    }
-    if (outcome.kind === 'failed') {
-      throw new ProductHttpError({
-        statusCode: productErrorStatus('feature_temporarily_unavailable'),
-        code: 'feature_temporarily_unavailable',
-        message: 'Rate limiting service is temporarily unavailable. Please try again later.',
-        recovery: 'same_request',
-        sameRequestRetrySafe: true,
-      });
-    }
     try {
       await dependencies.record({
+        admitTarget: async (target) => {
+          const outcome = await dependencies.rateLimiter.consume({
+            visitor: rateVisitor,
+            slug: target.collectionId,
+            eventType: body.eventType,
+            ...(target.nodeId === undefined ? {} : { nodeId: target.nodeId }),
+          });
+          if (outcome.kind === 'denied') {
+            throw new ProductHttpError({
+              statusCode: productErrorStatus('rate_limited'),
+              code: 'rate_limited',
+              message: 'Too many insight ingest requests. Please try again later.',
+              recovery: 'same_request',
+              sameRequestRetrySafe: true,
+              retryAfterSeconds: outcome.decision.retryAfterSeconds,
+              headers: { 'Retry-After': String(outcome.decision.retryAfterSeconds) },
+            });
+          }
+          if (outcome.kind === 'failed') {
+            throw new ProductHttpError({
+              statusCode: productErrorStatus('feature_temporarily_unavailable'),
+              code: 'feature_temporarily_unavailable',
+              message: 'Rate limiting service is temporarily unavailable. Please try again later.',
+              recovery: 'same_request',
+              sameRequestRetrySafe: true,
+            });
+          }
+        },
         slug,
         eventType: body.eventType,
         ...(body.nodeId === undefined ? {} : { nodeId: body.nodeId }),

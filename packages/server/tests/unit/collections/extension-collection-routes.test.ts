@@ -75,6 +75,7 @@ async function harness(options: {
     identity: { readonly issuer: string; readonly subject: string },
   ) => Promise<{ readonly accountId: string; readonly subjectId: string } | null>;
   readonly collectionMutation?: ExtensionCollectionRouteDependencies['collectionMutation'];
+  readonly admission?: ExtensionCollectionRouteDependencies['admission'];
 } = {}) {
   const listCalls: string[] = [];
   const resolveCalls: Array<{ readonly issuer: string; readonly subject: string }> = [];
@@ -93,6 +94,7 @@ async function harness(options: {
   apps.push(app);
   registerExtensionCollectionRoutes(app, {
     credentialVerifier: verifier,
+    ...(options.admission ? { admission: options.admission } : {}),
     allowedOrigins: [ORIGIN],
     ownerSubject: {
       async resolveOwnerSubject(identity) {
@@ -346,4 +348,24 @@ describe('extension collection create route', () => {
     assert.equal(response.statusCode, 401);
     assert.equal(response.json().error.code, 'invalid_token');
   });
+});
+
+test('collection admission rejects both helpers before buffering or authentication', async () => {
+  const purposes: string[] = [];
+  const { app, listCalls, resolveCalls } = await harness({ admission: {
+    admitPreAuth: async ({ purpose }) => { purposes.push(purpose); return { kind: 'denied', retryAfterSeconds: 7 }; },
+    admitSubject: async () => { throw new Error('subject admission must not run'); },
+    readiness: () => ({ status: 'healthy', reason: 'none' }), close: async () => undefined,
+  } });
+  for (const method of ['GET', 'POST'] as const) {
+    const response = await app.inject({ method, url: EXTENSION_COLLECTIONS_PATH,
+      headers: { origin: ORIGIN, authorization: `Bearer ${SESSION_COOKIE}`, ...(method === 'POST' ? { 'content-type': 'application/json' } : {}) },
+      ...(method === 'POST' ? { payload: '{invalid json' } : {}),
+    });
+    assert.equal(response.statusCode, 429);
+    assert.equal(response.headers['retry-after'], '7');
+  }
+  assert.deepEqual(purposes, ['pull', 'push']);
+  assert.deepEqual(listCalls, []);
+  assert.deepEqual(resolveCalls, []);
 });

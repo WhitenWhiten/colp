@@ -18,6 +18,7 @@ import {
   type McpApplicationToolDescriptor,
 } from './application-catalog.js';
 import {
+  NODES_SEARCH_PROFILE_CLAIM,
   NODES_SEARCH_TOOL_NAME,
   callNodesSearchTool,
   type NodesSearchPorts,
@@ -105,7 +106,9 @@ export function createPhase4bMcpApplicationFacade(
     const tools: McpApplicationToolDescriptor[] = [];
     if (canRead) {
       tools.push(...await readPort.listTools(context, cursor));
-      if (nodesSearch !== undefined) tools.push(NODES_SEARCH_TOOL_DESCRIPTOR);
+      if (nodesSearch !== undefined && context.scopes.includes(NODES_SEARCH_PROFILE_CLAIM.scope)) {
+        tools.push(NODES_SEARCH_TOOL_DESCRIPTOR);
+      }
     }
     if (canListOwned) {
       tools.push(PHASE4B_MCP_COLLECTIONS_LIST_TOOL);
@@ -142,7 +145,9 @@ export function createPhase4bMcpApplicationFacade(
     }
     if (!canListApplicationReadTools(context)) return unknownToolRejected();
     if (name === NODES_SEARCH_TOOL_NAME) {
-      if (nodesSearch === undefined) return unknownToolRejected();
+      if (nodesSearch === undefined || !context.scopes.includes(NODES_SEARCH_PROFILE_CLAIM.scope)) {
+        return unknownToolRejected();
+      }
       return callNodesSearchTool(nodesSearch, context, args);
     }
     return readPort.callTool(context, name, args);

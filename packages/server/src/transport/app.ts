@@ -333,6 +333,12 @@ export function buildApiApp(input: AppDependencies) {
     { purpose: 'public-object', limiter: publicObjectRateLimiter },
     { purpose: 'credits-read', limiter: input.creditsReadRateLimiter },
     { purpose: 'reports', limiter: input.reportsRateLimiter },
+    ...(config.accountCredentials.enabled ? [
+      { purpose: 'credentials' as const, limiter: input.credentialsRateLimiter },
+      { purpose: 'credential-issuance' as const, limiter: input.credentialIssuanceRateLimiter },
+      { purpose: 'automation-token-credential' as const, limiter: input.automationTokenCredentialRateLimiter },
+      { purpose: 'automation-token-client' as const, limiter: input.automationTokenClientRateLimiter },
+    ] : []),
     // CS: the four contract COMMUNITY_RATE_LIMITS families are sealed
     // product-surface purposes; shared mode requires purpose-matched
     // adapters just like every other product-route family.

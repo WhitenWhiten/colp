@@ -86,6 +86,28 @@ export function registerEmailCallbackRoutes(app: FastifyInstance, deps: EmailCal
     throw new TypeError('email callback body limit must be within 1..8388608 bytes');
   }
   app.register(async (scope) => {
+    // Fastify parses request bodies before the handler. Run the cheapest
+    // trusted-IP admission in onRequest so rejected floods never get buffered
+    // into memory by the scoped raw-byte parser.
+    const preParseAdmitted = new WeakSet<FastifyRequest>();
+    const admitIp = async (request: FastifyRequest, reply: FastifyReply): Promise<boolean> => {
+      if (!deps.enabled || !deps.verifier || !deps.reconcile || !deps.rateLimiter) return true;
+      const clientIp = typeof request.ip === 'string' && request.ip.length > 0 ? request.ip : 'unknown';
+      const outcome = await deps.rateLimiter.consume({ policy: 'ip', facts: clientIp });
+      if (outcome.kind === 'denied') {
+        deps.metrics?.increment('notifications.email_delivery.callback.rate_limited');
+        reply.header('retry-after', String(outcome.decision.retryAfterSeconds));
+        reply.code(429).send({ error: 'rate_limited' });
+        return false;
+      }
+      if (outcome.kind === 'failed') {
+        deps.metrics?.increment('notifications.email_delivery.callback.rate_limit_failure');
+        reply.code(503).send({ error: 'rate_limit_unavailable' });
+        return false;
+      }
+      preParseAdmitted.add(request);
+      return true;
+    };
     scope.removeAllContentTypeParsers();
     scope.addContentTypeParser('*', { parseAs: 'buffer', bodyLimit }, (_request, body, done) => {
       done(null, body);
@@ -99,8 +121,10 @@ export function registerEmailCallbackRoutes(app: FastifyInstance, deps: EmailCal
           allowedQuery: [],
           cacheControl: 'no-store',
           acceptedMediaTypes: ['application/json', 'text/plain'],
+          bodyLimitBytes: bodyLimit,
         },
       },
+      onRequest: async (request, reply) => { await admitIp(request, reply); },
     }, async (request: FastifyRequest, reply: FastifyReply) => {
       if (!deps.enabled || !deps.verifier || !deps.reconcile) {
         return reply.code(404).send({ error: 'not_found' });
@@ -113,7 +137,7 @@ export function registerEmailCallbackRoutes(app: FastifyInstance, deps: EmailCal
       // signature/body PII); a limiter outage fails closed with 503 and must
       // never silently admit unlimited traffic.
       const rateLimiter = deps.rateLimiter;
-      if (rateLimiter) {
+      if (rateLimiter && !preParseAdmitted.has(request)) {
         const clientIp = typeof request.ip === 'string' && request.ip.length > 0 ? request.ip : 'unknown';
         const outcome = await rateLimiter.consume({ policy: 'ip', facts: clientIp });
         if (outcome.kind === 'denied') {

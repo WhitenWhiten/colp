@@ -543,6 +543,7 @@ export function createHarness(options: {
     NODE_ENV: 'test',
     LOG_LEVEL: 'silent',
     SYNC_EXTENSION_IDS: EXTENSION_ID,
+    TRUSTED_INGRESS: '127.0.0.1/32,::1/128',
     // FO-04: the helper surface is gated by the same flag as the Product
     // favicon policy/source surface; the memory harness runs flag-on.
     KNOWN_FEATURE_FAVICON_POLICY: 'true',

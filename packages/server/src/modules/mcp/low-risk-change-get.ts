@@ -190,7 +190,13 @@ function isVisible(
   binding: McpAuthenticatedAuthorizationBinding,
 ): boolean {
   return plan.binding.principalId === binding.principalId
-    && plan.binding.securityEpoch === binding.securityEpoch;
+    && plan.binding.securityEpoch === binding.securityEpoch
+    // Plans are bound to the exact MCP client credential, not merely the
+    // account. Otherwise another client for the same account can enumerate
+    // plan summaries, required scopes, and approval metadata by plan id.
+    && plan.binding.clientId === binding.clientId
+    && plan.binding.credentialBindingId === binding.credentialBindingId
+    && plan.binding.resourceAudience === binding.resourceAudience;
 }
 
 function projectChangeGetView(plan: McpStoredPlan): Phase4bMcpLowRiskChangeGetOutput {

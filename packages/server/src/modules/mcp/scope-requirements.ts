@@ -14,6 +14,7 @@ export function requiredScopesForMcpReadOperation(input: {
     if (input.toolName === 'reports.plan' || input.toolName === 'reports.commit') {
       return Object.freeze([MCP_OAUTH_SCOPE_REPORTS_WRITE]);
     }
+    if (input.toolName === 'nodes.search') return Object.freeze(['nodes:read']);
   }
   switch (input.method) {
     case 'resources/templates/list': return Object.freeze([MCP_OAUTH_SCOPE_READ_PUBLIC]);

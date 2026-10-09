@@ -68,6 +68,9 @@ const READ_SCOPES = Object.freeze(['mcp:read:public'] as const);
 const WRITE_SCOPES = Object.freeze([
   'mcp:read:public',
   'nodes:write',
+  'collections:create',
+  'collections:write',
+  'annotations:write',
   'access:write',
   'changes:commit',
   'changes:cancel',
@@ -258,14 +261,14 @@ test('write Tool list freezes mounted names, descriptions, schemas, scopes, and 
     'changes.get',
   ]);
   assert.deepEqual(PHASE4B_MCP_WRITE_TOOL_REQUIRED_SCOPES, {
-    'collections.create': ['nodes:write'],
-    'collections.update': ['nodes:write'],
+    'collections.create': ['collections:create'],
+    'collections.update': ['collections:write'],
     'nodes.create': ['nodes:write'],
     'nodes.move': ['nodes:write'],
     'nodes.delete_subtree': ['nodes:write'],
     'nodes.update': ['nodes:write'],
-    'annotations.create': ['nodes:write'],
-    'annotations.update': ['nodes:write'],
+    'annotations.create': ['annotations:write'],
+    'annotations.update': ['annotations:write'],
     'changes.plan': ['nodes:write', 'access:write'],
     'changes.commit': ['nodes:write', 'access:write', 'changes:commit'],
     'changes.cancel': ['changes:cancel'],

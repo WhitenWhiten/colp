@@ -1,6 +1,6 @@
 /**
  * Low-risk MCP `collections.update`. Title and/or summary only; visibility,
- * slug, and indexing stay on Product HTTP / high-risk Plan. `nodes:write` only.
+ * slug, and indexing stay on Product HTTP / high-risk Plan. `collections:write` only.
  */
 import { types as nodeTypes } from 'node:util';
 import {
@@ -17,12 +17,13 @@ import {
 } from '../collections/index.js';
 import { requireMcpAccountSubjectId } from './account-context.js';
 import {
-  PHASE4B_MCP_LOW_RISK_NODE_CREATE_SCOPE,
   Phase4bMcpLowRiskNodeCreateError,
   type Phase4bMcpLowRiskNodeCreateContext,
   type Phase4bMcpLowRiskNodeCreateInspect,
   type Phase4bMcpWriteErrorHint,
 } from './low-risk-node-create.js';
+
+const COLLECTIONS_WRITE_SCOPE = 'collections:write' as const;
 import {
   deriveWriteCommandId,
   deriveWriteFingerprint,
@@ -376,11 +377,11 @@ function assertWriteScope(scope: readonly string[]): void {
   if (
     !Array.isArray(scope)
     || scope.some((entry) => typeof entry !== 'string' || entry.length === 0)
-    || !scope.includes(PHASE4B_MCP_LOW_RISK_NODE_CREATE_SCOPE)
+    || !scope.includes(COLLECTIONS_WRITE_SCOPE)
   ) {
     throw new Phase4bMcpLowRiskNodeCreateError(
       'scope_invalid',
-      'collections.update requires the current nodes:write scope.',
+      'collections.update requires the current collections:write scope.',
     );
   }
 }

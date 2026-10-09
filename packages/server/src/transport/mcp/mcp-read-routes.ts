@@ -812,11 +812,31 @@ function classifyRawMcpBody(body: unknown): { readonly listen: boolean; readonly
   }
   try {
     const source = new TextDecoder('utf-8', { fatal: true }).decode(body);
-    // Valid MCP requests use a top-level JSON-RPC `method` string.  A false
-    // negative only selects the stricter request budget; it cannot bypass the
-    // post-admission parser or authorize a request.
-    const match = /(?:^|[,{])\s*"method"\s*:\s*"([^"\\]*)"/u.exec(source);
-    const method = match?.[1] ?? 'unknown';
+    // Inspect only a top-level JSON-RPC method. A textual search can be
+    // confused by nested params.method and classify a request into the
+    // long-lived listen lane before parsing, causing the wrong concurrency
+    // slot to be released after admission.
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    let method = 'unknown';
+    for (let index = 0; index < source.length; index += 1) {
+      const char = source[index]!;
+      if (inString) {
+        if (escaped) escaped = false;
+        else if (char === '\\') escaped = true;
+        else if (char === '"') inString = false;
+        continue;
+      }
+      if (char === '"') {
+        if (depth === 1) {
+          const member = /^\s*"method"\s*:\s*"([^"\\]*)"/u.exec(source.slice(index));
+          if (member) { method = member[1]!; break; }
+        }
+        inString = true;
+      } else if (char === '{') depth += 1;
+      else if (char === '}') depth = Math.max(0, depth - 1);
+    }
     return { listen: method === 'subscriptions/listen', method };
   } catch {
     return { listen: false, method: 'unknown' };

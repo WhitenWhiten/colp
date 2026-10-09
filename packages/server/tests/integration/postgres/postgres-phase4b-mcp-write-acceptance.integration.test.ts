@@ -48,7 +48,7 @@ const NOW_SECONDS = Math.floor(NOW.getTime() / 1_000);
 const ISSUER = 'https://issuer.example.test/realms/known';
 const AUDIENCE = 'https://collections.example.test/collections/-/mcp';
 const CLIENT_ID = 'mcp-write-client';
-const WRITE_SCOPES = ['nodes:write', 'access:write', 'changes:commit', 'changes:cancel'];
+const WRITE_SCOPES = ['collections:create', 'collections:write', 'annotations:write', 'nodes:write', 'access:write', 'changes:commit', 'changes:cancel'];
 const PRINCIPAL_ID = 'BgYGBgYGBgYGBgYGBgYGBg';
 
 function postDuplicateMcpMethod(origin: string): Promise<{ readonly status: number; readonly body: string }> {

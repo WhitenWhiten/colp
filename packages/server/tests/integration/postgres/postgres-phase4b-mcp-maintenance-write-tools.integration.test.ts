@@ -28,7 +28,7 @@ const BINDING: McpAuthenticatedAuthorizationBinding = Object.freeze({
   resourceAudience: 'https://collections.example.test/collections/-/mcp',
   securityEpoch: 'epoch-1',
 });
-const SCOPES = Object.freeze(['nodes:write', 'access:write', 'changes:commit', 'changes:cancel']);
+const SCOPES = Object.freeze(['nodes:write', 'collections:write', 'annotations:write', 'access:write', 'changes:commit', 'changes:cancel']);
 
 describeWithPostgres('MCP maintenance Write Tools over PostgreSQL', () => {
   let isolated: IsolatedPostgresRuntime;

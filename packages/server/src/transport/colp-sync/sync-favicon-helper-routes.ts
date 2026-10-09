@@ -33,6 +33,7 @@ import { mapFaviconPolicyRouteError, mapFaviconSourceRouteError, withCancellatio
 import { readCollectionIdParam, readKnownCommandId, readNodeIdParam, readRequiredIfMatch } from '../product/collection-route-helpers.js';
 import type { ExtensionCollectionRouteDependencies } from './extension-collection-routes.js';
 import { colpAuthorizationFromRawHeaders } from './sync-colp-authorization.js';
+import type { SyncTransportSecurity } from './sync-transport-security.js';
 
 export const EXTENSION_FAVICON_POLICY_PATH = '/colp/v0.1/sync/favicon-policy';
 export const EXTENSION_FAVICON_SOURCE_PATH = '/colp/v0.1/sync/collections/:collectionId/nodes/:nodeId/favicon-source';
@@ -66,6 +67,7 @@ export interface SyncFaviconHelperRouteDependencies {
   readonly rateLimiter?: ProductAdmissionRateLimiter;
   readonly timeoutMs: number;
   readonly metrics?: { increment(name: string, value?: number): void };
+  readonly transportSecurity?: SyncTransportSecurity;
 }
 
 type HelperPorts = CollectionsWritePorts & {
@@ -319,6 +321,9 @@ async function helperActor(
   if (!deps.extensionCollectionRoutes || !deps.identityUnitOfWork
       || !deps.collectionsUnitOfWork || !deps.faviconStore) {
     throw featureUnavailable('Bookmark favicon helper is not available on this deployment.');
+  }
+  if (deps.transportSecurity && !deps.transportSecurity.isSecure(request)) {
+    throw authenticationRequired();
   }
   const origin = request.headers.origin;
   if (typeof origin !== 'string'

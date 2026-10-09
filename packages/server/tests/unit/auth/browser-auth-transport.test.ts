@@ -302,7 +302,8 @@ function createHarness(avatarStore?: MemoryAvatarStore) {
 
 function firstSetCookie(header: string | string[] | undefined): string {
   assert.ok(header, 'expected Set-Cookie header');
-  return Array.isArray(header) ? header[0]! : header;
+  const values = Array.isArray(header) ? header : [header];
+  return values.find(value => value.startsWith(`${SESSION_COOKIE_NAME}=`)) ?? values[0]!;
 }
 
 function cookiePairFromSetCookie(setCookie: string): string {
@@ -352,6 +353,7 @@ async function completeOidcLoginViaCallback(
   const callback = await app.inject({
     method: 'GET',
     url: `/api/v1/auth/oidc/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(stateParam)}`,
+    headers: { cookie: cookiePairFromSetCookie(firstSetCookie(start.headers['set-cookie'])) },
   });
   return { statusCode: callback.statusCode, headers: { location: callback.headers.location } };
 }
@@ -502,10 +504,31 @@ describe('browser auth transport', () => {
       const callback = await app.inject({
         method: 'GET',
         url: `/api/v1/auth/oidc/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(stateParam)}`,
+        headers: { cookie: cookiePairFromSetCookie(firstSetCookie(start.headers['set-cookie'])) },
       });
       assert.equal(callback.statusCode, 303, returnTo);
       assert.equal(callback.headers.location, '/', returnTo);
       assert.equal(String(callback.headers.location).includes('evil.example'), false);
+    }
+  });
+
+  test('OIDC callback requires the state cookie from the initiating browser', async () => {
+    const { app, state, ports } = createHarness();
+    apps.push(app);
+    const start = await app.inject({ method: 'GET', url: '/api/v1/auth/oidc/start' });
+    const browserCookie = cookiePairFromSetCookie(firstSetCookie(start.headers['set-cookie']));
+    assert.match(browserCookie, /^__Host-known_oidc_state=/);
+    const stateParam = new URL(start.headers.location as string).searchParams.get('state')!;
+    const digest = ports.oidcTransactionSecrets.digestState(stateParam);
+    for (const cookie of [undefined, '__Host-known_oidc_state=another-browser']) {
+      const response = await app.inject({ method: 'GET',
+        url: `/api/v1/auth/oidc/callback?code=not-exchanged&state=${encodeURIComponent(stateParam)}`,
+        ...(cookie === undefined ? {} : { headers: { cookie } }),
+      });
+      assert.equal(response.headers.location, '/login?auth=failed');
+      assert.equal(state.oidc.get(digest)?.consumedAt, null);
+      assert.equal(state.accounts.size, 0);
+      assert.equal(state.sessions.size, 0);
     }
   });
 
@@ -544,6 +567,7 @@ describe('browser auth transport', () => {
     const success = await app.inject({
       method: 'GET',
       url: `/api/v1/auth/oidc/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(stateParam)}`,
+      headers: { cookie: cookiePairFromSetCookie(firstSetCookie(start.headers['set-cookie'])) },
     });
     assert.equal(success.statusCode, 303);
     assert.equal(success.headers.location, '/home');
@@ -562,6 +586,7 @@ describe('browser auth transport', () => {
     const fail = await app.inject({
       method: 'GET',
       url: `/api/v1/auth/oidc/callback?error=access_denied&state=${encodeURIComponent(state2)}`,
+      headers: { cookie: cookiePairFromSetCookie(firstSetCookie(start2.headers['set-cookie'])) },
     });
     assert.equal(fail.statusCode, 303);
     assert.equal(fail.headers.location, '/login?auth=failed');
@@ -570,6 +595,7 @@ describe('browser auth transport', () => {
     const replay = await app.inject({
       method: 'GET',
       url: `/api/v1/auth/oidc/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(stateParam)}`,
+      headers: { cookie: cookiePairFromSetCookie(firstSetCookie(start.headers['set-cookie'])) },
     });
     assert.equal(replay.statusCode, 303);
     assert.equal(replay.headers.location, '/login?auth=failed');
@@ -2041,6 +2067,7 @@ describe('browser auth transport', () => {
     const response = await app.inject({
       method: 'GET',
       url: `/api/v1/auth/oidc/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(stateParam)}&iss=${encodeURIComponent('https://evil.example')}`,
+      headers: { cookie: cookiePairFromSetCookie(firstSetCookie(start.headers['set-cookie'])) },
     });
     assert.equal(response.statusCode, 303);
     assert.equal(response.headers.location, '/login?auth=failed');
@@ -2178,6 +2205,7 @@ describe('browser auth transport', () => {
     const callback = await app.inject({
       method: 'GET',
       url: `/api/v1/auth/oidc/callback?code=auth-code&state=${encodeURIComponent(stateParam)}`,
+      headers: { cookie: cookiePairFromSetCookie(firstSetCookie(start.headers['set-cookie'])) },
     });
 
     assert.equal(callback.statusCode, 303);
@@ -2291,6 +2319,7 @@ describe('browser auth transport', () => {
     const callback = await app.inject({
       method: 'GET',
       url: `/api/v1/auth/oidc/callback?code=auth-code&state=${encodeURIComponent(stateParam)}`,
+      headers: { cookie: cookiePairFromSetCookie(firstSetCookie(start.headers['set-cookie'])) },
     });
 
     assert.equal(callback.statusCode, 303);
@@ -2398,6 +2427,7 @@ describe('browser auth transport', () => {
     const callback = await app.inject({
       method: 'GET',
       url: `/api/v1/auth/oidc/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(stateParam)}`,
+      headers: { cookie: cookiePairFromSetCookie(firstSetCookie(start.headers['set-cookie'])) },
     });
 
     assert.equal(callback.statusCode, 303);
@@ -2418,6 +2448,7 @@ describe('browser auth transport', () => {
     const replay = await app.inject({
       method: 'GET',
       url: `/api/v1/auth/oidc/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(stateParam)}`,
+      headers: { cookie: cookiePairFromSetCookie(firstSetCookie(start.headers['set-cookie'])) },
     });
     assert.equal(replay.statusCode, 303);
     assert.equal(replay.headers.location, '/login?auth=failed');
@@ -2457,6 +2488,7 @@ describe('browser auth transport', () => {
     const callback = await app.inject({
       method: 'GET',
       url: `/api/v1/auth/oidc/callback?code=any-code&state=${encodeURIComponent(stateParam)}`,
+      headers: { cookie: cookiePairFromSetCookie(firstSetCookie(start.headers['set-cookie'])) },
     });
     assert.equal(callback.statusCode, 303);
     assert.equal(callback.headers.location, '/login?auth=restart');
@@ -2469,6 +2501,7 @@ describe('browser auth transport', () => {
     const replay = await app.inject({
       method: 'GET',
       url: `/api/v1/auth/oidc/callback?code=any-code&state=${encodeURIComponent(stateParam)}`,
+      headers: { cookie: cookiePairFromSetCookie(firstSetCookie(start.headers['set-cookie'])) },
     });
     assert.equal(replay.headers.location, '/login?auth=failed');
     assert.equal(exchangeCalls, 1, 'must not re-exchange after consumed TX');
@@ -2502,6 +2535,7 @@ describe('browser auth transport', () => {
     const callback = await app.inject({
       method: 'GET',
       url: `/api/v1/auth/oidc/callback?code=used-code&state=${encodeURIComponent(stateParam)}`,
+      headers: { cookie: cookiePairFromSetCookie(firstSetCookie(start.headers['set-cookie'])) },
     });
     assert.equal(callback.statusCode, 303);
     assert.equal(callback.headers.location, '/login?auth=failed');
@@ -2538,6 +2572,7 @@ describe('browser auth transport', () => {
     const badIss = await app.inject({
       method: 'GET',
       url: `/api/v1/auth/oidc/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(stateParam)}&iss=${encodeURIComponent('https://evil.example')}`,
+      headers: { cookie: cookiePairFromSetCookie(firstSetCookie(start.headers['set-cookie'])) },
     });
     assert.equal(badIss.statusCode, 303);
     assert.equal(badIss.headers.location, '/login?auth=failed');
@@ -2548,6 +2583,7 @@ describe('browser auth transport', () => {
     const ok = await app.inject({
       method: 'GET',
       url: `/api/v1/auth/oidc/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(stateParam)}`,
+      headers: { cookie: cookiePairFromSetCookie(firstSetCookie(start.headers['set-cookie'])) },
     });
     assert.equal(ok.statusCode, 303);
     assert.equal(ok.headers.location, '/');
