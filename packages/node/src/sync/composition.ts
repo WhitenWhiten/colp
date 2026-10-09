@@ -192,6 +192,30 @@ export function sequenceScopeMatchesCollection(
     || sequenceScope === collectionSequenceScopeKey(collectionId);
 }
 
+function normalizeSessionBoundPushRequest(
+  request: PushTransactionRequest,
+  collectionId: string,
+): PushTransactionRequest {
+  const sequenceScope = collectionSequenceScopeKey(collectionId);
+  return Object.freeze({
+    ...request,
+    operations: Object.freeze(request.operations.map((item) => Object.freeze({
+      ...item,
+      sequenceScope,
+    }))) as PushTransactionRequest['operations'],
+  });
+}
+
+function normalizeSessionBoundSequenceRequest(
+  request: SequenceOperationRequest,
+  collectionId: string,
+): SequenceOperationRequest {
+  return Object.freeze({
+    ...request,
+    sequenceScope: collectionSequenceScopeKey(collectionId),
+  });
+}
+
 function assertPullRequestMatchesSession(
   session: VerifiedSyncSession,
   request: SyncPullRequestContext,
@@ -466,6 +490,11 @@ export async function coordinateSessionBoundPush<
       detail: 'Every Push Operation and Sequence lane must match the verified Collection Session.',
     });
   }
+  // Raw Collection IDs and their persistence-key aliases are both accepted at
+  // the session boundary, but they must enter one durable lane. Normalize only
+  // after the request has crossed immutable validation and the Collection
+  // binding has been proven, so bare/free-form Push keeps its legacy semantics.
+  const normalizedRequest = normalizeSessionBoundPushRequest(request, session.collectionId!);
   if (unitOfWork.pushSequenceContinuity !== true) {
     throw new SyncSessionGateDeniedError({
       state: 'request_binding_mismatch',
@@ -478,7 +507,7 @@ export async function coordinateSessionBoundPush<
     await assertPushReplicaOwnership(ownershipVerifier ?? gate.pushOwnershipVerifier, session,
       { replicaId, collectionId: session.collectionId });
   }
-  const result = await coordinatePushTransaction(unitOfWork, request, preflight);
+  const result = await coordinatePushTransaction(unitOfWork, normalizedRequest, preflight);
   return Object.freeze({ session, result });
 }
 
@@ -549,7 +578,8 @@ export async function coordinateSessionBoundSequence<
     session,
     { replicaId: request.replicaId, collectionId: session.collectionId },
   );
-  const result = await coordinateSequenceOperation(unitOfWork, request, evaluate);
+  const normalizedRequest = normalizeSessionBoundSequenceRequest(request, session.collectionId!);
+  const result = await coordinateSequenceOperation(unitOfWork, normalizedRequest, evaluate);
   return Object.freeze({ session, result });
 }
 
