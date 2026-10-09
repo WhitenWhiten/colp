@@ -18,7 +18,6 @@ import {
   type IsolatedPostgresRuntime,
 } from '../../support/postgres-test-runtime.js';
 import {
-  restoreRedisServer,
   startRedisE2EContainer,
   waitUntil,
   type RedisE2EContainer,
@@ -215,10 +214,7 @@ describeWithPostgres('collection bookmark-count cache end-to-end against real Po
       assert.equal(baselineHit.statusCode, 200);
       assert.equal(serve.origin.calls, 0, 'baseline warm hit COUNT=0');
 
-      const shutdown = await redis.container.exec(['redis-cli', 'shutdown', 'nosave']);
-      if (shutdown.exitCode !== 0) {
-        throw new Error(`redis-cli shutdown failed (exit ${shutdown.exitCode}): ${shutdown.output}`);
-      }
+      await redis.shutdownServer();
       try {
         await waitUntil(
           async () => {
@@ -247,7 +243,7 @@ describeWithPostgres('collection bookmark-count cache end-to-end against real Po
           `outage Redis commands ${commands} exceeded the bound (no retry storm)`,
         );
       } finally {
-        await restoreRedisServer(redis.container);
+        await redis.restoreServer();
       }
 
       await waitUntil(

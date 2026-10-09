@@ -379,8 +379,8 @@ export async function createPhase2PublicationRedisEvidenceContext(): Promise<Pha
 
   let redisVersion = 'unknown';
   try {
-    const info = await redis.container.exec(['redis-cli', 'INFO', 'server']);
-    const match = /^redis_version:([^\r\n]+)/m.exec(info.output);
+    const info = await redis.serverInfo();
+    const match = /^redis_version:([^\r\n]+)/m.exec(info);
     redisVersion = match?.[1]?.trim() ?? 'unknown';
   } catch {
     redisVersion = 'unknown';
