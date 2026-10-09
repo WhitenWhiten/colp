@@ -10,6 +10,7 @@ import { sql, type Kysely } from 'kysely';
 import type { DatabaseSchema } from '../database/runtime.js';
 import { createUnitOfWork, type DatabaseTransaction, type UnitOfWorkOptions } from '../database/unit-of-work.js';
 import {
+  accountRestrictPublicationExistsSql,
   bookmarkHidePublicExistsSql,
   collectionHidePublicExistsSql,
 } from '../database/collection-control-sql.js';
@@ -86,6 +87,12 @@ async function readServable(executor: Executor, objectId: string): Promise<boole
              )
              AND NOT ${sql.raw(hiddenBookmark)}
              AND NOT ${sql.raw(hiddenCollection)}
+             AND NOT EXISTS (
+               SELECT 1
+                 FROM accounts owner_account
+                WHERE owner_account.subject_id = c.owner_subject_id
+                  AND ${sql.raw(accountRestrictPublicationExistsSql('owner_account.id'))}
+             )
              AND NOT EXISTS (
                SELECT 1 FROM bookmark_preview_prefs prefs
                 WHERE prefs.node_id = n.id AND prefs.mode = 'none'
