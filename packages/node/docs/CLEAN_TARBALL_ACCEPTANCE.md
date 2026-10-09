@@ -50,3 +50,10 @@ installation failure is a release failure, not a reason to turn skipLibCheck
 back on. Run this on the existing local Node/OS release matrix. An unrun
 matrix is not successful acceptance. The final release procedure must publish
 the same artifact digest; it must not run npm pack again after this check.
+
+Select the pinned Linux runtime with `COLP_CLEAN_CONSUMER_NODE_MAJOR=22` or
+`24` (default). The result's `node`, `platform`, and `arch` describe the actual
+container runtime; `verifier` describes the invoking host. Running the Linux
+container from Windows or macOS does not prove native Windows/macOS acceptance.
+Those release-matrix cells remain pending until an appropriate isolated native
+consumer runner is available. Never relabel the Linux result as the host OS.

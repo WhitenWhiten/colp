@@ -11,11 +11,15 @@ import { promisify } from 'node:util';
 import { isolatedProcessEnvironment } from './npm-command.mjs';
 
 const exec = promisify(execFile);
-export function cleanConsumerImage() {
+export function cleanConsumerImage(major = process.env.COLP_CLEAN_CONSUMER_NODE_MAJOR ?? '24') {
   // This digest is recorded in SECURITY_CLOUD_2026_10_06.md after resolving
   // the official Node 24.14.0 bookworm-slim image. Never fall back to a tag:
   // a moving image would change the verifier's trust boundary.
-  return 'node@sha256:d8e448a56fc63242f70026718378bd4b00f8c82e78d20eefb199224a4d8e33d8';
+  if (major === '24') return 'node@sha256:d8e448a56fc63242f70026718378bd4b00f8c82e78d20eefb199224a4d8e33d8';
+  // Official Node 22.23.3 bookworm-slim, resolved on 2026-10-09. Only these
+  // pinned runtimes are accepted; caller-supplied images are never executed.
+  if (major === '22') return 'node@sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472301c9c78a017978392';
+  throw new Error('Clean consumer supports only pinned Node 22 or 24 runtimes.');
 }
 
 export function cleanConsumerSandboxArguments(consumer, args, name, options = {}) {

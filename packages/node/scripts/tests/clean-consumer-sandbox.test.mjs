@@ -163,6 +163,10 @@ test('sandbox command has no network, writable checkout, host env, or daemon soc
     assert.ok(compiler.includes(required), required);
   }
   assert.match(cleanConsumerImage(), /^node@sha256:[a-f0-9]{64}$/u);
+  assert.match(cleanConsumerImage('22'), /^node@sha256:[a-f0-9]{64}$/u);
+  assert.notEqual(cleanConsumerImage('22'), cleanConsumerImage('24'));
+  assert.throws(() => cleanConsumerImage('20'), /only pinned Node 22 or 24/u);
+  assert.throws(() => cleanConsumerImage('node:latest'), /only pinned Node 22 or 24/u);
   const installer = cleanConsumerSandboxArguments('/tmp/consumer', ['.colp-install.mjs'], 'colp-clean-1234', {
     writable: true,
     npmCache: '/var/cache/npm',

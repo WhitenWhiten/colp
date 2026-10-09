@@ -6,7 +6,7 @@ COLP is an open protocol for bookmarks and curated knowledge collections: one da
 
 This package is the protocol logic without a server. It validates wire documents, decides what each request may do, and coordinates the durable steps of a write or a sync exchange. You supply the HTTP routes, authentication, and storage by implementing small port interfaces; the package calls them in the order the protocol requires and checks what they return.
 
-> **Version:** `0.1.1`, a security patch on the first public npm release. The package implements all seven protocol profiles: `core`, `publication`, `publisher`, `feed`, `sync`, `mcp-read`, and `mcp-write`. The `0.x` APIs may change between minor versions.
+> **Development version:** `0.1.2` (unreleased); the latest published package is `0.1.1`. The package implements all seven protocol profiles: `core`, `publication`, `publisher`, `feed`, `sync`, `mcp-read`, and `mcp-write`. The protocol remains a draft; earlier packages did not promise a stable COLP 0.1 wire baseline.
 
 ## Contents
 
@@ -48,7 +48,7 @@ To use a local repository build:
 git clone https://github.com/WhitenWhiten/colp.git && cd colp
 npm run install:package && npm run build
 cd packages/node && npm pack
-cd /path/to/your-project && npm install /path/to/know-n-colp-0.1.1.tgz
+cd /path/to/your-project && npm install /path/to/know-n-colp-0.1.2.tgz
 ```
 
 ## Quick start

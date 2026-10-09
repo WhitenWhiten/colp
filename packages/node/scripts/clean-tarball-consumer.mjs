@@ -258,9 +258,14 @@ export async function verifyCleanTarball(tarballPath, options = {}) {
     });
     assert.equal(createHash('sha256').update(await readFile(tarballPath)).digest('hex'), sha256,
       'The source tarball changed while it was being validated.');
+    const runtimeResult = await runCleanConsumerNode(consumer, ['-p',
+      'JSON.stringify({ node: process.version, platform: process.platform, arch: process.arch })']);
+    const runtime = JSON.parse(runtimeResult.stdout);
+    assert.match(runtime.node, /^v(?:22|24)\./u);
+    assert.equal(runtime.platform, 'linux');
     return { formatVersion: 1, packageName: manifest.name, packageVersion: manifest.version,
-      sha256, entryCount: specifiers.length, typescript, nodeTypes, node: process.version,
-      platform: process.platform, arch: process.arch, skipLibCheck: false };
+      sha256, entryCount: specifiers.length, typescript, nodeTypes, ...runtime,
+      verifier: { node: process.version, platform: process.platform, arch: process.arch }, skipLibCheck: false };
   } finally {
     await rm(temporary, { recursive: true, force: true });
   }
