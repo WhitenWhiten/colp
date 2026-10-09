@@ -446,7 +446,7 @@ test('MCP-W10 server policy maps every canonical Change Plan operation to a scop
 
   for (const [type, expected] of cases) {
     assert.deepEqual(
-      await policy.requiredScopesForOperation({ type }, BINDING),
+      await policy.requiredScopesForOperation({ type }),
       expected,
     );
   }
