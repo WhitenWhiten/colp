@@ -145,7 +145,13 @@ export function Today() {
     }
   })
   const [syncConflicts, setSyncConflicts] = useState<SyncConflictSummary[] | null>(null)
-  const restoredFocus = readRouteCache<CachedFocus>(FOCUS_CACHE_KEY)
+  const focusRestore = useRef({ identity: sessionIdentity, value: readRouteCache<CachedFocus>(FOCUS_CACHE_KEY) })
+  // Revalidation writes new arrays to the route cache. Restore once per
+  // identity so those writes cannot trigger another read on every render.
+  if (focusRestore.current.identity !== sessionIdentity) {
+    focusRestore.current = { identity: sessionIdentity, value: readRouteCache<CachedFocus>(FOCUS_CACHE_KEY) }
+  }
+  const restoredFocus = focusRestore.current.value
   const focusCacheItems = restoredFocus?.items
   const focusCacheStatus = restoredFocus?.status
   const [focusStatus, setFocusStatus] = useState<FocusStatus>(restoredFocus?.status ?? 'loading')
