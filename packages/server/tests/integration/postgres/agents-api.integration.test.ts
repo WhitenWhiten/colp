@@ -238,7 +238,35 @@ describeWithPostgres('E5 agent directory over PostgreSQL', () => {
     assert.ok(refresh.rows[0]?.revoked instanceof Date, 'consent user refresh token must be revoked');
 
     const store = createPostgresMcpOauthRevocationStore({ db: isolated.runtime.db });
-    assert.equal(await store.isRevoked(revocationQuery(sharedOauthId, Math.floor(Date.now() / 1000) + 120)), false);
+    // The incident epoch floor was provisioned by the migration moments ago;
+    // anchor it in the past so only the subject revocation is under test.
+    const anchored = new Date(Date.now() - 3_600_000);
+    await sql`
+      UPDATE mcp_oauth_security_epoch SET effective_at = ${anchored}, updated_at = ${anchored} WHERE id = 1
+    `.execute(isolated.runtime.db);
+    const beforeRevocation = Math.floor(Date.now() / 1000) - 120;
+    const afterRevocation = Math.floor(Date.now() / 1000) + 120;
+    // The consenting user's existing bearers (JWT sub = BA user id = subject_id)
+    // are retired for this client only; the registration owner keeps theirs,
+    // and tokens minted after a later re-consent are accepted again.
+    const otherSubject = await authUserId(other.accountId);
+    const ownerSubject = await authUserId(owner.accountId);
+    assert.equal(await store.isRevoked({ ...revocationQuery(sharedOauthId, beforeRevocation), subject: otherSubject }), true);
+    assert.equal(await store.isRevoked({ ...revocationQuery(sharedOauthId, afterRevocation), subject: otherSubject }), false);
+    assert.equal(await store.isRevoked({ ...revocationQuery(sharedOauthId, beforeRevocation), subject: ownerSubject }), false);
+    assert.equal(await store.isRevoked({ ...revocationQuery(oauthId, beforeRevocation), subject: otherSubject }), false);
+    assert.equal(await store.isRevoked(revocationQuery(sharedOauthId, afterRevocation)), false);
+
+    // A repeated revocation moves the boundary forward instead of keeping the
+    // first timestamp (ON CONFLICT DO UPDATE), so a re-consented bearer minted
+    // in between is retired too.
+    await sql`
+      UPDATE mcp_oauth_subject_revocations SET revoked_at = current_timestamp - interval '1 hour'
+    `.execute(isolated.runtime.db);
+    await insertOauthConsent(sharedOauthId, otherSubject);
+    const second = await send(other, 'POST', `/api/v1/me/agents/${sharedOauthId}/revoke`);
+    assert.equal(second.status, 200);
+    assert.equal(await store.isRevoked({ ...revocationQuery(sharedOauthId, beforeRevocation), subject: otherSubject }), true);
   });
 
   test('revokes one oauth client and one API key without touching the other', async () => {

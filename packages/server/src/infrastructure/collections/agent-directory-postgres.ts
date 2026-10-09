@@ -298,6 +298,20 @@ async function revokeAgent(
           AND "userId" = ${owned.oauthUserId}
           AND revoked IS NULL
       `.execute(transaction);
+      // MCP bearer verification is independent from Better Auth's token
+      // endpoint and therefore cannot observe the BA `revoked` timestamp.
+      // A client-wide revocation would incorrectly retire the registration
+      // owner's credentials too, so persist a subject-scoped digest for this
+      // consenting user. The verifier rejects bearers issued at or before
+      // revoked_at on every request; a repeated revocation after a re-consent
+      // must therefore move the boundary forward, never keep the old one.
+      await sql`
+        INSERT INTO mcp_oauth_subject_revocations (client_id_digest, subject_digest, revoked_at)
+        VALUES (${digestMcpOauthRevocationField(agentId)},
+                ${digestMcpOauthRevocationField(owned.oauthUserId)}, current_timestamp)
+        ON CONFLICT (client_id_digest, subject_digest)
+        DO UPDATE SET revoked_at = greatest(mcp_oauth_subject_revocations.revoked_at, excluded.revoked_at)
+      `.execute(transaction);
     }
     if (owned.credentialId !== null && owned.credentialActive) {
       await sql`

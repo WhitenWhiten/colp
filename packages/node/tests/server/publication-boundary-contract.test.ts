@@ -329,4 +329,29 @@ describe(`Publication metadata and authorized-directory boundaries ${evidence}`,
       () => true,
     )).toThrow(TypeError);
   });
+
+  it('rejects an oversized string before structuredClone can duplicate it', () => {
+    const oversized = directoryCandidate({ title: 'x'.repeat(17 * 1_048_576) });
+    expect(() => selectPublicationAuthorizedDirectoryCandidates([oversized], () => true))
+      .toThrow(TypeError);
+  });
+
+  it('charges the whole selection against one byte budget without rejecting a full legitimate page', () => {
+    // 500 records at the host maxima (1 KiB title, 2000-character summary,
+    // 64 tags of 64 characters) are a legitimate page and must be admitted.
+    const full = Array.from({ length: 500 }, (_, index) => directoryCandidate({
+      id: `candidate-${index}`,
+      title: 't'.repeat(1024),
+      summary: 's'.repeat(2000),
+      tags: Array.from({ length: 64 }, (_, tag) => `${tag}`.padStart(64, 'g')),
+    }));
+    expect(selectPublicationAuthorizedDirectoryCandidates(full, () => true).collections).toHaveLength(500);
+    // Many records that each stay under the per-string limit still share one
+    // budget: 10 candidates of 2 MiB exceed the 16 MiB ceiling together.
+    const wide = Array.from({ length: 10 }, (_, index) => directoryCandidate({
+      id: `wide-${index}`,
+      summary: 'w'.repeat(2 * 1_048_576),
+    }));
+    expect(() => selectPublicationAuthorizedDirectoryCandidates(wide, () => true)).toThrow(TypeError);
+  });
 });

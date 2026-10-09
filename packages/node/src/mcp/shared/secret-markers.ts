@@ -40,6 +40,18 @@ export const RAW_SECRET_KEY_NAMES: readonly string[] = Object.freeze([
 ] as const);
 
 /**
+ * Total graph work (string code units + own keys) permitted by the marker
+ * scanner. Read/Write tool results are untrusted values; a deeply wide object
+ * must not monopolize a worker just because no credential marker is present.
+ * Exceeding the budget fails closed. Tool results reach this scanner after
+ * `snapshotMcpData` bounded them to 1 MiB of aggregate bytes (keys weighted
+ * 4x), so the budget must admit every snapshot-bounded result: one code unit
+ * never exceeds one byte in that accounting and keys cost at most a quarter.
+ */
+export const MAX_SECRET_MARKER_WORK = 2 * 1_048_576;
+const MAX_SECRET_MARKER_STRING_LENGTH = 1_048_576;
+
+/**
  * Heuristic scanner for recognizable raw credential material (tokens, client
  * secrets, API Key values). Used by the strict validators as a defense-in-depth
  * marker check; hosts may also call it on evidence before mapping. Cycle-safe
@@ -47,14 +59,19 @@ export const RAW_SECRET_KEY_NAMES: readonly string[] = Object.freeze([
  * ever invoked.
  */
 export function containsRawSecretMarker(value: unknown): boolean {
-  return scanSecretMarkers(value, new WeakSet<object>(), (text) =>
+  return scanSecretMarkers(value, new WeakSet<object>(), { count: 0 }, (text) =>
     RAW_SECRET_PREFIXES.some((prefix) => text.startsWith(prefix)));
 }
 
 function scanSecretMarkers(
-  value: unknown, seen: WeakSet<object>, isSecret: (text: string) => boolean,
+  value: unknown,
+  seen: WeakSet<object>,
+  budget: { count: number },
+  isSecret: (text: string) => boolean,
 ): boolean {
   if (typeof value === 'string') {
+    budget.count += value.length;
+    if (budget.count > MAX_SECRET_MARKER_WORK || value.length > MAX_SECRET_MARKER_STRING_LENGTH) return true;
     return isSecret(value);
   }
   if (typeof value !== 'object' || value === null || nodeTypes.isProxy(value)) {
@@ -64,8 +81,10 @@ function scanSecretMarkers(
     return false;
   }
   seen.add(value);
-  try {
+  {
     const keys = Reflect.ownKeys(value);
+    budget.count += keys.length;
+    if (budget.count > MAX_SECRET_MARKER_WORK) return true;
     for (const key of keys) {
       if (typeof key !== 'string' || !RAW_SECRET_KEY_NAMES.includes(key)) continue;
       const descriptor = Object.getOwnPropertyDescriptor(value, key);
@@ -85,20 +104,18 @@ function scanSecretMarkers(
       if (
         descriptor !== undefined
         && 'value' in descriptor
-        && scanSecretMarkers(descriptor.value, seen, isSecret)
+        && scanSecretMarkers(descriptor.value, seen, budget, isSecret)
       ) {
         return true;
       }
     }
     return false;
-  } finally {
-    seen.delete(value);
   }
 }
 
 /** Output strings require credential syntax; business text and opaque cursors are allowed. */
 export function containsOutputSecretMarker(value: unknown): boolean {
-  return scanSecretMarkers(value, new WeakSet<object>(), isCredentialString);
+  return scanSecretMarkers(value, new WeakSet<object>(), { count: 0 }, isCredentialString);
 }
 
 function isCredentialString(value: string): boolean {

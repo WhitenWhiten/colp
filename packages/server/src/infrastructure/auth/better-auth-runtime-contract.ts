@@ -116,9 +116,9 @@ export const BETTER_AUTH_ALLOWLIST: readonly BetterAuthAllowlistEntry[] = Object
 
 /**
  * Register OTP send (POST /email-otp/send-verification-otp) carries this
- * header so an already-registered mailbox is refused before Better Auth
- * delivers a sign-in OTP. Login OTP must omit it (non-enumerating send).
- * P6 keeps this split: Register already-registered copy is accepted UX.
+ * header so the explicit verification step can create a new account. Login
+ * and registration sends both keep a uniform successful response; occupancy
+ * is enforced only after mailbox proof at the verify endpoint.
  */
 export const SIGNUP_OTP_INTENT_HEADER = 'x-known-auth-intent';
 export const SIGNUP_OTP_INTENT_VALUE = 'sign-up';

@@ -11,7 +11,10 @@ function reader(body: Readable, override: object = {}) {
   return createS3LedgerArchiveReader({
     endpoint: 'https://example.invalid', region: 'auto', bucket: 'known-archive',
     readerCredential: { accessKeyId: 'fixture', secretAccessKey: 'fixture' },
-    client: { async send() { return { ContentLength: 2, Metadata: metadata, Body: body, ...override }; } },
+    client: { async send() { return {
+      ContentLength: 2, ServerSideEncryption: 'aws:kms', SSEKMSKeyId: 'kms:key',
+      Metadata: metadata, Body: body, ...override,
+    }; } },
   });
 }
 

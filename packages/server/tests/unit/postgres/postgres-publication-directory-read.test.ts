@@ -42,6 +42,13 @@ test('pushes visibility, filters, full keyset comparator, and limit+1 into Postg
   assert.doesNotMatch(locatorQuery.sql, /convert_to/u);
   const query = calls.at(-1)!;
   assert.match(query.sql, /c\.visibility = 'public'/u);
+  // Owner lifecycle fence: a missing owner row is legal (owner_subject_id is
+  // not a foreign key), so the fence is a coalesce'd scalar subquery rather
+  // than a mandatory exists/join on an active account row.
+  assert.match(query.sql, /coalesce\(\(\s*select owner_account\.status = 'active' and owner_account\.deleted_at is null/u);
+  assert.match(query.sql, /from accounts owner_account/u);
+  assert.match(query.sql, /\), true\)/u);
+  assert.doesNotMatch(query.sql, /join accounts/u);
   assert.match(query.sql, /c\.visibility = 'protected'/u);
   assert.match(query.sql, /collection_members/u);
   assert.match(query.sql, /payload_json->'extensions'->'tags'/u);

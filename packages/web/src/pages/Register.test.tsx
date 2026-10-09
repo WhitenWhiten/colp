@@ -515,8 +515,9 @@ describe('Register OTP signup (verified email)', () => {
     expect(document.querySelector('#register-otp-code')).toBeNull()
   })
 
-  it('maps an already-registered mailbox to the same copy as password signup', async () => {
-    // P6: Register keeps the already-registered copy (accepted enumeration oracle).
+  it('maps an already-registered mailbox error to the same generic copy as password signup', async () => {
+    // A verify-step occupancy error must remain generic even if the API client
+    // surfaces it as an auth failure.
     mocks.authClient.sendOtp.mockRejectedValue(
       new ProductApiError({
         status: 401,

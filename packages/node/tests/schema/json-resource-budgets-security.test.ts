@@ -83,6 +83,9 @@ describe('JSON resource admission', () => {
   it('preserves parser defenses and rejects invalid budgets', () => {
     expect(() => parseIJson('{"x":1,"x":2}')).toThrow(/duplicate/);
     expect(() => parseIJson('{"__proto__":1}')).toThrow(/not allowed/);
+    expect(() => parseIJson('"\\ud800"')).toThrow(/unpaired UTF-16 surrogate/u);
+    expect(() => parseIJson('{"\\udc00":1}')).toThrow(/unpaired UTF-16 surrogate/u);
+    expect(parseIJson('"\\ud83d\\ude00"')).toBe('😀');
     expectLimit(() => parseIJson('[[0]]', { maxDepth: 1 }), 'max_depth');
     for (const maxBytes of [0, -1, Infinity, NaN, 0.5]) {
       expect(() => parseIJson('null', { maxBytes })).toThrow(RangeError);

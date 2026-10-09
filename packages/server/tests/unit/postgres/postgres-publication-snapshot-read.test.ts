@@ -69,6 +69,14 @@ test('loads detached collection, root, and limit+1 candidates in a fresh read-on
   assert.equal(page.isolation, 'repeatable read');
   assert.equal(page.collection?.publicationSlug, 'collection-one');
   assert.equal(page.root?.id, 'root-1');
+  const collectionCall = harness.calls.find((call) => call.sql.includes('from collections'));
+  // Owner lifecycle fence: a missing owner row is legal (owner_subject_id is
+  // not a foreign key), so the fence is a coalesce'd scalar subquery rather
+  // than a mandatory exists/join on an active account row.
+  assert.match(collectionCall?.sql ?? '', /coalesce\(\(\s*select owner_account\.status = 'active' and owner_account\.deleted_at is null/u);
+  assert.match(collectionCall?.sql ?? '', /from accounts owner_account/u);
+  assert.match(collectionCall?.sql ?? '', /\), true\)/u);
+  assert.doesNotMatch(collectionCall?.sql ?? '', /join accounts/u);
   assert.deepEqual(page.candidates.map((node) => node.id), ['node-1']);
   assert.equal(Object.isFrozen(page), true);
   assert.equal(Object.isFrozen(page.candidates[0]?.tags), true);

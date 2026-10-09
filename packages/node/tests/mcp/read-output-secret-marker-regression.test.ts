@@ -61,3 +61,25 @@ describe('Read Tool output distinguishes data from credential formats', () => {
     expect(containsOutputSecretMarker(cyclic)).toBe(false);
   });
 });
+
+describe('Read Tool output scanner budget', () => {
+  it('admits a snapshot-bounded wide result without a credential marker', async () => {
+    // 200 records of ordinary text (about 120 KiB, duplicated into the text
+    // block): inside the 1 MiB snapshot budget and therefore admitted.
+    const bookmarks = Array.from({ length: 200 }, (_, index) => ({
+      id: `bookmark-${index}`,
+      title: `Reading list entry ${index} `.padEnd(200, 'x'),
+      url: `https://example.test/articles/${index}/`.padEnd(200, 'y'),
+      note: 'Plain business text without credential syntax. '.repeat(4),
+    }));
+    const result = { structuredContent: { bookmarks, nextCursor: cursor }, content: [{ type: 'text', text: JSON.stringify(bookmarks) }] };
+    await expect(adapter(result).callTool(context, { name: 'bookmarks.list', arguments: {} }))
+      .resolves.toMatchObject({ structuredContent: { nextCursor: cursor } });
+  });
+
+  it('fails closed once the scan work exceeds the budget', () => {
+    const wide: Record<string, string> = {};
+    for (let index = 0; index < 150_000; index += 1) wide[`k${index}`] = 'plain text value';
+    expect(containsOutputSecretMarker(wide)).toBe(true);
+  });
+});

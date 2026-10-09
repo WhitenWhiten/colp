@@ -546,6 +546,15 @@ describe('publication snapshot cache decorator', () => {
       'snapshot_expired must not be converted into not-found or serialized as a success envelope');
   });
 
+  test('a failed owner lifecycle fence never serves a cached snapshot hit', async () => {
+    const { reader } = makeFixture();
+    const handle = makePorts();
+    await reader(handle.ports, ANONYMOUS);
+    handle.setFresh(false);
+    await reader(handle.ports, ANONYMOUS);
+    assert.equal(handle.loadCount(), 2);
+  });
+
   test('a request abort reaches the origin read port, rejects with CacheAbortError and never writes', async () => {
     const { store, reader } = makeFixture();
     const controller = new AbortController();

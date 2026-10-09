@@ -22,7 +22,10 @@ import {
   createPostgresExtensionOwnerAccountPort,
   createPostgresExtensionOwnerSubjectPort,
 } from '../infrastructure/identity/index.js';
-import { createPhase4bMcpAgentApprovalApi } from '../infrastructure/collections/index.js';
+import {
+  createPhase4bMcpAgentApprovalApi,
+  createPostgresCollectionPolicyRevisionPort,
+} from '../infrastructure/collections/index.js';
 import { pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
 import {
@@ -307,6 +310,14 @@ export async function startApi(options: StartApiOptions = {}): Promise<StartedAp
   const accounts = composeApiAccountServices({
     accountDeletionStore: createPostgresAccountDeletionStore(database.db, {
       ...(ports.reportSourceInvalidation === undefined ? {} : { reportSourceInvalidation: ports.reportSourceInvalidation }),
+      // Account deletion advances every owned collection's policy_revision
+      // (and its publication purge outbox) inside the tombstone transaction.
+      collectionPolicyRevisions: (transaction) => createPostgresCollectionPolicyRevisionPort(transaction, {
+        ...(ports.reportSourceInvalidation === undefined ? {} : { reportSourceInvalidation: ports.reportSourceInvalidation }),
+      }),
+      ...(cacheComposition.publicationCacheInvalidator === undefined
+        ? {}
+        : { publicationCacheInvalidator: cacheComposition.publicationCacheInvalidator }),
     }),
     config,
     identityUnitOfWork: ports.identityUnitOfWork,

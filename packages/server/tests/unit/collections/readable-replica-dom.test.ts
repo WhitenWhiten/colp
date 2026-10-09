@@ -392,3 +392,19 @@ test('h5 and h6 headings cut sections and the byline is whitespace-normalized', 
   assert.equal(result.sections.some((section) => section.heading === 'Fifth level'), true);
   assert.equal(result.sections.some((section) => section.heading === 'Sixth level'), true);
 });
+
+test('DOM parse budget: a 1-2 MiB real article still extracts while a tag flood is refused before parsing', () => {
+  // Pad a legitimate article to just under the 2 MiB body ceiling with an
+  // ordinary HTML comment; the body ceiling stays the single size bound.
+  const fixture = loadFixture('blog-article.html');
+  const padded = fixture.replace('</body>', `<!-- ${'p'.repeat(1_500_000)} --></body>`);
+  assert.ok(padded.length > 1_048_576 && padded.length < 2_097_152);
+  const article = asArticle(extract({ html: padded, url: PAGE_URL }));
+  assert.ok(allText(article).length > 0);
+
+  // 100 001+ tag markers inside a small body must not reach linkedom.
+  const flood = `<html><body>${'<b></b>'.repeat(60_000)}</body></html>`;
+  assert.deepEqual(extract({ html: flood, url: PAGE_URL }), { kind: 'empty' });
+  // Beyond the character cap the extractor also refuses to parse.
+  assert.deepEqual(extract({ html: `<html><body>${'x'.repeat(2_097_153)}</body></html>`, url: PAGE_URL }), { kind: 'empty' });
+});
