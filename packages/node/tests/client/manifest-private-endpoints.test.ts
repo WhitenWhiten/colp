@@ -60,7 +60,7 @@ describe('Manifest-selected initial endpoint security', () => {
 
   it('does not let a local Manifest grant authority to another local port', async () => {
     const { client, fetch } = await clientFor('https://127.0.0.1:7443', 'https://127.0.0.1:7444', ['https://127.0.0.1:7443']);
-    await expect(client.getDirectory()).rejects.toThrow(/literal private or local host/);
+    await expect(client.getDirectory()).rejects.toThrow(/Egress policy denied/u);
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 
