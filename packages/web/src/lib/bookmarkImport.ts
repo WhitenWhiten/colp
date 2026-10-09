@@ -56,7 +56,7 @@ export async function importBookmarks(options: {
     let afterId = siblings.at(-1)?.id ?? null
     for (const [index, entry] of entries.entries()) {
       signal.throwIfAborted()
-      const title = entry.title.trim() || (entry.kind === 'folder' ? 'Untitled folder' : entry.url)
+      const title = entry.title.trim() || (entry.kind === 'folder' ? 'Untitled folder' : entry.url.slice(0, 512))
       const existing = skipDuplicates ? nodes.find(n => n.parentId === parent && n.kind === entry.kind
         && (entry.kind === 'bookmark' ? n.kind === 'bookmark' && n.url === entry.url : n.title === title)) : undefined
       const itemPath = `${path}/${index}`
@@ -78,7 +78,7 @@ export async function importBookmarks(options: {
         signal.throwIfAborted()
         id = result.node.id
         intentFor.completed.set(itemPath, result.node)
-        nodes.push(result.node)
+        if (!nodes.some(node => node.id === id)) nodes.push(result.node)
         afterId = id
         created += 1
       }
