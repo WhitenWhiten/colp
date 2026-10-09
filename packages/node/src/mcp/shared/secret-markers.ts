@@ -40,11 +40,15 @@ export const RAW_SECRET_KEY_NAMES: readonly string[] = Object.freeze([
 ] as const);
 
 /**
- * Total graph work permitted by the marker scanner. Read/Write tool results
- * are untrusted values; a deeply wide object must not monopolize a worker just
- * because no credential marker is present. Exceeding the budget fails closed.
+ * Total graph work (string code units + own keys) permitted by the marker
+ * scanner. Read/Write tool results are untrusted values; a deeply wide object
+ * must not monopolize a worker just because no credential marker is present.
+ * Exceeding the budget fails closed. Tool results reach this scanner after
+ * `snapshotMcpData` bounded them to 1 MiB of aggregate bytes (keys weighted
+ * 4x), so the budget must admit every snapshot-bounded result: one code unit
+ * never exceeds one byte in that accounting and keys cost at most a quarter.
  */
-export const MAX_SECRET_MARKER_WORK = 100_000;
+export const MAX_SECRET_MARKER_WORK = 2 * 1_048_576;
 const MAX_SECRET_MARKER_STRING_LENGTH = 1_048_576;
 
 /**

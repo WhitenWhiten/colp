@@ -20,7 +20,14 @@ export const MAX_PUBLICATION_AUTHORIZED_DIRECTORY_CANDIDATES = 10_000;
 
 const MAX_JSON_DEPTH = 64;
 const MAX_JSON_VALUES = 1_000_000;
-const MAX_JSON_BYTES = 1_048_576;
+/**
+ * Aggregate string/key bytes admitted for one authorized Directory selection.
+ * Hosts may offer up to 500 records per page, each carrying a 1 KiB title, a
+ * 2000-character summary and 64 tags of 64 characters, so a legitimate page
+ * can approach 16 MiB; the ceiling bounds the N x MAX_JSON_VALUES
+ * amplification without rejecting a full legitimate page.
+ */
+const MAX_JSON_BYTES = 16 * 1_048_576;
 const MAX_CURSOR_LENGTH = 8_192;
 const INVALID_INPUT = 'Publication authorized Directory input is invalid.';
 const INVALID_PAGE = 'Publication authorized Directory page is invalid.';
@@ -321,9 +328,11 @@ function readOwnVisibility(value: unknown): unknown {
 
 function immutableJson(value: unknown, budget?: { values: number; bytes: number }): unknown {
   const state = budget ?? { values: 0, bytes: 0 };
-  inspectJson(value, 0, { values: state.values, ancestors: new WeakSet<object>() }, state);
+  inspectJson(value, 0, { values: 0, ancestors: new WeakSet<object>() }, state);
+  // The clone is structurally identical to the admitted source: re-inspect it
+  // for structuredClone surprises, but do not charge the aggregate twice.
   const clone: unknown = structuredClone(value);
-  inspectJson(clone, 0, { values: state.values, ancestors: new WeakSet<object>() }, state);
+  inspectJson(clone, 0, { values: 0, ancestors: new WeakSet<object>() });
   const frozen = deepFreeze(clone);
   markIssuedImmutable(frozen);
   return frozen;

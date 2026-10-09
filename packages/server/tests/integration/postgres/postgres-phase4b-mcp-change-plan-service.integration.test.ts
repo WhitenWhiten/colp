@@ -12,6 +12,7 @@ import { createPostgresMcpChangePlanStore, createPostgresProductCommandReceiptPo
 import { createPostgresCanonicalMutationPorts, createPostgresCanonicalMutationUnitOfWork, createPostgresCollectionWritePort, createPostgresCollectionsClock, createPostgresNodeWritePort, type PostgresCanonicalMutationFaultInjector } from '../../../src/infrastructure/collections/index.js';
 import { createPostgresAccessPolicyFactsPort } from '../../../src/infrastructure/access-policy/index.js';
 import {
+  createAgentPolicyCommitGuard,
   createPhase4bMcpAgentApprovalApi,
   createPostgresAutoApproveTrustedPlan,
   recordMcpPlanCommitRevisions,
@@ -998,14 +999,59 @@ describeWithPostgres('MCP-W05 approved Change Plan Commit over PostgreSQL', () =
     assert.equal((await harness.store.planStore.get(pending.planId))?.status, 'cancelled');
     const before = await runtime.pool.query<{ visibility: string }>(
       `select visibility from nodes where id = $1`, [fixture.nodeId]);
+    // FIX-L-052: beginCommit rejects the cancelled Plan with the dedicated
+    // plan_cancelled reason, which the version-locked COLP coordinator maps
+    // through its generic single-winner fallback (plan_already_consumed); see
+    // the cancelled-Plan commit assertion earlier in this file.
     await assert.rejects(
       harness.service.commit(pending.planId, BINDING, 'idem-downgrade'),
       (error: unknown) => error instanceof Error
-        && (error as { code?: string }).code === 'plan_cancelled',
+        && (error as { code?: string }).code === 'plan_already_consumed',
     );
     const after = await runtime.pool.query<{ visibility: string }>(
       `select visibility from nodes where id = $1`, [fixture.nodeId]);
     assert.equal(after.rows[0]?.visibility, before.rows[0]?.visibility);
+    const receipts = await runtime.pool.query<{ count: string }>(
+      `select count(*)::text as count from mcp_commit_receipts where plan_id = $1`, [pending.planId]);
+    assert.equal(receipts.rows[0]?.count, '0');
+  });
+
+  test('E4 commit guard fails closed on an approval that predates a trusted to manual downgrade', async () => {
+    const fixture = await createFixture();
+    await runtime.pool.query(
+      `insert into agent_policies (principal_id, client_id, policy, updated_at)
+       values ($1, $2, 'trusted', current_timestamp - interval '1 hour')`,
+      [PRINCIPAL_ID, BINDING.clientId],
+    );
+    const harness = createHarness();
+    const pending = await harness.service.plan(planInput(fixture), BINDING);
+    await harness.service.recordOutOfBandApproval(pending.planId, BINDING);
+    const guard = createAgentPolicyCommitGuard();
+
+    // An unchanged policy admits the approved Plan.
+    await runtime.db.transaction().execute(async (transaction) => {
+      await guard({ planId: pending.planId, transaction });
+    });
+
+    // A policy row rewritten to manual after the approval (bypassing the
+    // atomic writeAgentPolicy cancellation) must not pass the old approval.
+    await runtime.pool.query(
+      `update agent_policies set policy = 'manual', updated_at = current_timestamp + interval '1 second'
+        where principal_id = $1 and client_id = $2`,
+      [PRINCIPAL_ID, BINDING.clientId],
+    );
+    await assert.rejects(
+      runtime.db.transaction().execute(async (transaction) => {
+        await guard({ planId: pending.planId, transaction });
+      }),
+      (error: unknown) => error instanceof Error
+        && (error as { code?: string }).code === 'plan_cancelled',
+    );
+
+    // Unknown Plans are not the guard's concern (the store rejects them).
+    await runtime.db.transaction().execute(async (transaction) => {
+      await guard({ planId: `missing-${randomUUID()}`, transaction });
+    });
   });
 
   test('E4 Undo refuses a newer version unless forced and refuses a sync tombstone conflict', async () => {

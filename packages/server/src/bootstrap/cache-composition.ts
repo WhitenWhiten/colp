@@ -60,7 +60,7 @@ import {
   type PublicationSnapshotCacheReader,
   type PublicationSnapshotCacheResult,
 } from '../infrastructure/publication/index.js';
-import { RedisPublicationCacheInvalidator } from '../infrastructure/outbox/redis-publication-invalidator.js';
+import { RedisPublicationCacheInvalidator } from '../infrastructure/outbox/index.js';
 import type { Metrics } from '../infrastructure/telemetry/index.js';
 import {
   asCollectionBookmarkCountLookup,

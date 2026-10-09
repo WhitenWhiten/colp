@@ -1,10 +1,31 @@
 import { sql, type Kysely } from 'kysely';
 import type { AccountDeletionStore } from '../../modules/auth/index.js';
 import type { DatabaseSchema } from '../database/runtime.js';
-import { createUnitOfWork, type UnitOfWorkOptions } from '../database/unit-of-work.js';
+import { createUnitOfWork, type DatabaseTransaction, type UnitOfWorkOptions } from '../database/unit-of-work.js';
 import { createPostgresAccountRepository } from '../identity/repositories.js';
 import { deleteTrustDeviceVerificationsForAuthUser } from './better-auth-session-authority.js';
-import { createPostgresCollectionPolicyRevisionPort } from '../collections/policy-revision-port.js';
+
+/**
+ * Transaction-bound collection policy_revision lock/bump. Structurally
+ * compatible with the access-policy `CollectionPolicyRevisionPort`; bootstrap
+ * injects the PostgreSQL implementation (`createPostgresCollectionPolicyRevisionPort`
+ * from infrastructure/collections, which also appends the publication purge
+ * outbox envelope) so this auth surface does not depend on the collections
+ * infrastructure. The dependency is required: account deletion must always
+ * advance owned collections' policy epochs inside the tombstone transaction.
+ */
+export interface AccountDeletionCollectionPolicyRevisionPort {
+  lockForUpdate(collectionId: string): Promise<unknown | null>;
+  bumpPolicyRevision(collectionId: string): Promise<unknown>;
+}
+
+export interface AccountDeletionStoreOptions {
+  readonly publicationCacheInvalidator?: AccountDeletionPublicationCacheInvalidator;
+  /** Builds the policy_revision port bound to the deletion transaction. */
+  readonly collectionPolicyRevisions: (
+    transaction: DatabaseTransaction,
+  ) => AccountDeletionCollectionPolicyRevisionPort;
+}
 
 export interface AccountDeletionPublicationCacheInvalidator {
   readonly rotateCollection: (scope: Readonly<{
@@ -20,8 +41,11 @@ export function createPostgresAccountDeletionStore(
   db: Kysely<DatabaseSchema>,
   options: UnitOfWorkOptions
     & NonNullable<Parameters<typeof createPostgresAccountRepository>[1]>
-    & { readonly publicationCacheInvalidator?: AccountDeletionPublicationCacheInvalidator } = {},
+    & AccountDeletionStoreOptions,
 ): AccountDeletionStore {
+  if (typeof options.collectionPolicyRevisions !== 'function') {
+    throw new TypeError('createPostgresAccountDeletionStore requires a collectionPolicyRevisions port factory.');
+  }
   const uow = createUnitOfWork(db, options);
   return {
     async complete(accountId, authUserId) {
@@ -56,7 +80,7 @@ export function createPostgresAccountDeletionStore(
         // policy epoch.  Advance every collection owned by this account while
         // the account row is still active so anonymous snapshot, directory,
         // and metadata cache entries cannot survive account deletion.
-        const policyRevisions = createPostgresCollectionPolicyRevisionPort(transaction, options);
+        const policyRevisions = options.collectionPolicyRevisions(transaction);
         const ownedCollections = await transaction
           .selectFrom('collections')
           .select(['id', 'publication_slug'])

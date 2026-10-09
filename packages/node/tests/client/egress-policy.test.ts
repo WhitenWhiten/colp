@@ -76,6 +76,47 @@ describe('ColpClient per-hop egress policy', () => {
     expect(approved).toEqual(['93.184.216.34', '93.184.216.34']);
   });
 
+  it.each([
+    ['a private address', ['10.0.0.8'], /private or local address/u],
+    ['a mixed public and loopback answer', ['93.184.216.34', '127.0.0.1'], /private or local address/u],
+    ['an empty answer', [], /private or local address/u],
+  ])(
+    'denies an explicitly allowed host when DNS resolves to %s and performs no endpoint I/O',
+    async (_name, answer, expected) => {
+      const requested: string[] = [];
+      const fetch = vi.fn(async (input: string | URL | Request, _init?: RequestInit) => {
+        requested.push(input instanceof Request ? input.url : input.toString());
+        return new Response('{}', { headers: { 'Content-Type': 'application/json' } });
+      });
+      const client = new ColpClient({
+        manifestUrl,
+        fetch: fetch as typeof globalThis.fetch,
+        pinnedFetch: async (url, init) => fetch(url, init),
+        resolveHost: async () => answer,
+        // The caller allow-list must not replace the transport's DNS boundary.
+        egressPolicy: () => true,
+      });
+
+      await expect(client.getDirectory()).rejects.toThrow(expected);
+      expect(requested).toEqual([]);
+    },
+  );
+
+  it('denies an explicitly allowed host when DNS resolution fails and performs no endpoint I/O', async () => {
+    const fetch = vi.fn(async (_input: string | URL | Request, _init?: RequestInit) =>
+      new Response('{}', { headers: { 'Content-Type': 'application/json' } }));
+    const client = new ColpClient({
+      manifestUrl,
+      fetch: fetch as typeof globalThis.fetch,
+      pinnedFetch: async (url, init) => fetch(url, init),
+      resolveHost: async () => { throw new Error('ENOTFOUND'); },
+      egressPolicy: () => true,
+    });
+
+    await expect(client.getDirectory()).rejects.toThrow(/DNS resolution failed/u);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it('runs on every redirect hop with the previous URL before credentials and fetch', async () => {
     const manifest = await fixture('public-manifest.json');
     const events: string[] = [];

@@ -43,8 +43,14 @@ const LIST_MARKER = /^(?:• |\d+\. )/u;
 
 const TEXT_NODE = 3;
 const ELEMENT_NODE = 1;
-/** Keep DOM construction bounded independently of the network body ceiling. */
-export const READABLE_REPLICA_MAX_PARSE_CHARS = 1_048_576;
+/**
+ * Keep DOM construction bounded independently of the network body ceiling.
+ * The character cap equals the largest configurable body ceiling
+ * (`n_BODY_BYTES` max 2 MiB; UTF-8 never yields more characters than bytes)
+ * so the operator-tuned body limit stays the single size bound for real
+ * articles, while the tag-marker cap bounds parser work for adversarial markup.
+ */
+export const READABLE_REPLICA_MAX_PARSE_CHARS = 2_097_152;
 export const READABLE_REPLICA_MAX_TAG_MARKERS = 100_000;
 
 type DomNode = {

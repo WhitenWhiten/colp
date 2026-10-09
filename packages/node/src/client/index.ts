@@ -1,5 +1,4 @@
 import { createHash } from 'node:crypto';
-import { isIP } from 'node:net';
 import { MAX_PUBLICATION_MANIFEST_RESPONSE_BYTES, assertManifestEndpointTemplateBudget, assertPublisherEndpointOrigin, validateIntegerOption } from './manifest-budget.js';
 export { MAX_PUBLICATION_MANIFEST_RESPONSE_BYTES } from './manifest-budget.js';
 import {
@@ -15,6 +14,7 @@ import { parseTemplate } from 'url-template';
 import {
   defaultClientHostResolver,
   defaultPinnedNodeFetch,
+  pinApprovedHostAddress,
   type ClientHostResolver,
   type PinnedNodeFetch,
 } from './host-resolution.js';
@@ -43,10 +43,7 @@ import {
   validateSnapshotSemantics,
 } from '../semantic/index.js';
 export * from '../shared/url-hash.js';
-import {
-  isPrivateOrLocalAddress,
-  isPrivateOrLocalLiteralHostname,
-} from '../shared/private-or-local-literal-host.js';
+import { isPrivateOrLocalLiteralHostname } from '../shared/private-or-local-literal-host.js';
 export { isPrivateOrLocalAddress, isPrivateOrLocalLiteralHostname } from '../shared/private-or-local-literal-host.js';
 export { createLoopbackEgressPolicy } from './egress-policies.js';
 import type {
@@ -1144,49 +1141,16 @@ export class ColpClient {
     redirectCount: number,
   ): Promise<string | undefined> {
     if (this.#egressPolicy === undefined) {
-      let approvedAddress: string | undefined;
       // The fetched Manifest is not authority to select private destinations.
       // The default transport is deny-by-default for every private/local literal,
       // including the initial manifest origin. Hosts that intentionally support
       // local development must provide an explicit egressPolicy.
-      const privateLiteral = isPrivateOrLocalLiteralHostname(url.hostname);
-      if (privateLiteral) {
+      if (isPrivateOrLocalLiteralHostname(url.hostname)) {
         throw new TypeError(
           `Egress policy denied ${policy.purpose} request URL: literal private or local host.`,
         );
       }
-      if (!privateLiteral && this.#requiresDefaultNodePinning
-          && this.#hostResolver === undefined && this.#pinnedFetch === undefined) {
-        throw new TypeError(`Egress policy denied ${policy.purpose} request URL: Node DNS pinning capability is unavailable.`);
-      }
-      if (!privateLiteral && this.#hostResolver !== undefined) {
-        let addresses: readonly string[];
-        try {
-          addresses = await abortable(
-            Promise.resolve(this.#hostResolver(url.hostname, policy.signal)),
-            policy.signal,
-          );
-        } catch (error) {
-          throw new TypeError(
-            `Egress policy denied ${policy.purpose} request URL: DNS resolution failed.`,
-            { cause: error },
-          );
-        }
-        if (
-          addresses.length === 0
-          || addresses.some((address) => typeof address !== 'string'
-            || isIP(address) === 0
-            || isPrivateOrLocalAddress(address))
-        ) {
-          throw new TypeError(
-            `Egress policy denied ${policy.purpose} request URL: DNS resolved to a private or local address.`,
-          );
-        }
-        // All answers were policy-approved; pin the socket to one concrete
-        // answer so DNS cannot change between authorization and connect.
-        approvedAddress = addresses[0];
-      }
-      return approvedAddress;
+      return this.#pinApprovedAddress(url, policy, this.#pinnedFetch === undefined);
     }
     const context: ClientEgressPolicyContext = Object.freeze({
       purpose: policy.purpose,
@@ -1218,38 +1182,22 @@ export class ColpClient {
     // approves it and pass one of the approved addresses to the pinned fetch.
     // This closes the DNS-rebinding window that previously existed only when
     // an explicit egressPolicy was supplied.
-    if (!isPrivateOrLocalLiteralHostname(url.hostname)
-        && this.#requiresDefaultNodePinning
-        && this.#hostResolver === undefined) {
-      throw new TypeError(
-        `Egress policy denied ${policy.purpose} request URL: Node DNS pinning capability is unavailable.`,
-      );
-    }
-    if (!isPrivateOrLocalLiteralHostname(url.hostname) && this.#hostResolver !== undefined) {
-      let addresses: readonly string[];
-      try {
-        addresses = await abortable(
-          Promise.resolve(this.#hostResolver(url.hostname, policy.signal)),
-          policy.signal,
-        );
-      } catch (error) {
-        throw new TypeError(
-          `Egress policy denied ${policy.purpose} request URL: DNS resolution failed.`,
-          { cause: error },
-        );
-      }
-      if (
-        addresses.length === 0
-        || addresses.some((address) => typeof address !== 'string'
-          || isIP(address) === 0
-          || isPrivateOrLocalAddress(address))
-      ) {
-        throw new TypeError(
-          `Egress policy denied ${policy.purpose} request URL: DNS resolved to a private or local address.`,
-        );
-      }
-      return addresses[0];
-    }
+    if (isPrivateOrLocalLiteralHostname(url.hostname)) return undefined;
+    return this.#pinApprovedAddress(url, policy, true);
+  }
+
+  async #pinApprovedAddress(
+    url: URL,
+    policy: RequestPolicy,
+    requireResolver: boolean,
+  ): Promise<string | undefined> {
+    return pinApprovedHostAddress({
+      hostname: url.hostname,
+      purpose: policy.purpose,
+      ...(policy.signal === undefined ? {} : { signal: policy.signal }),
+      hostResolver: this.#hostResolver,
+      requireResolver: requireResolver && this.#requiresDefaultNodePinning,
+    });
   }
 
   async #fetchWithRedirects(

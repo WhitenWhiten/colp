@@ -17,8 +17,10 @@ import {
   type PublicationSnapshotReadRequest,
 } from '../../modules/publication/index.js';
 import {
+  COLLECTION_OWNER_LIVE_SQL,
   bookmarkHidePublicExistsSql,
   buildPublicationTargetAncestorRestrictionSql,
+  collectionOwnerLiveSql,
 } from '../database/collection-control-sql.js';
 import { nodeExtensionFlagSql } from '../database/node-extension-sql.js';
 
@@ -113,12 +115,7 @@ export function createPostgresPublicationSnapshotReadPort(
                         and ma.state = 'active' and ma.action = 'hide_public') as bookmark_hide_digest
                from collections
               where id = $1
-                and exists (
-                  select 1 from accounts owner_account
-                   where owner_account.subject_id = collections.owner_subject_id
-                     and owner_account.status = 'active'
-                     and owner_account.deleted_at is null
-                )`,
+                and ${collectionOwnerLiveSql('collections.owner_subject_id')}`,
             [request.collectionId],
           ),
           signal,
@@ -178,17 +175,17 @@ export function createPostgresPublicationSnapshotReadPort(
       }
     },
     async isPublicCacheCurrent(collectionId: string, revision: string): Promise<boolean> {
+      // Owner fence mirrors loadPage(): a missing owner row keeps the entry
+      // current, an existing disabled/deleted owner row retires it.
       const result = await runtime.pool.query<{ current: boolean }>(
         `select (
            c.deleted_at is null
            and c.publication_slug is not null
            and c.published_at is not null
            and c.content_revision::text || '.' || c.policy_revision::text = $2
-           and owner_account.status = 'active'
-           and owner_account.deleted_at is null
+           and ${COLLECTION_OWNER_LIVE_SQL}
          ) as current
            from collections c
-           join accounts owner_account on owner_account.subject_id = c.owner_subject_id
           where c.id = $1`,
         [collectionId, revision],
       );

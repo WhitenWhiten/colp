@@ -1,7 +1,9 @@
 import type { ClientRequest, IncomingMessage, RequestOptions } from 'node:http';
 import type { Readable } from 'node:stream';
 
+import { isIP } from 'node:net';
 import { abortable } from './request-budget.js';
+import { isPrivateOrLocalAddress } from '../shared/private-or-local-literal-host.js';
 
 /**
  * Resolves a request hostname to all of its addresses. The resolver is an
@@ -152,4 +154,57 @@ interface NodeHttpModule {
     options: RequestOptions,
     callback: (response: IncomingMessage) => void,
   ) => ClientRequest;
+}
+
+export interface PinApprovedHostAddressInput {
+  readonly hostname: string;
+  readonly purpose: string;
+  readonly signal?: AbortSignal;
+  readonly hostResolver: ClientHostResolver | undefined;
+  /** Fail closed when no resolver is available (default Node transport). */
+  readonly requireResolver: boolean;
+}
+
+/**
+ * Resolve a non-literal host through the configured resolver, reject any
+ * private/local answer and return one approved address for the pinned
+ * transport. Shared by the default deny-by-default egress path and the
+ * explicit caller policy path so both close the DNS-rebinding window.
+ */
+export async function pinApprovedHostAddress(
+  input: PinApprovedHostAddressInput,
+): Promise<string | undefined> {
+  if (input.hostResolver === undefined) {
+    if (input.requireResolver) {
+      throw new TypeError(
+        `Egress policy denied ${input.purpose} request URL: Node DNS pinning capability is unavailable.`,
+      );
+    }
+    return undefined;
+  }
+  let addresses: readonly string[];
+  try {
+    addresses = await abortable(
+      Promise.resolve(input.hostResolver(input.hostname, input.signal)),
+      input.signal,
+    );
+  } catch (error) {
+    throw new TypeError(
+      `Egress policy denied ${input.purpose} request URL: DNS resolution failed.`,
+      { cause: error },
+    );
+  }
+  if (
+    addresses.length === 0
+    || addresses.some((address) => typeof address !== 'string'
+      || isIP(address) === 0
+      || isPrivateOrLocalAddress(address))
+  ) {
+    throw new TypeError(
+      `Egress policy denied ${input.purpose} request URL: DNS resolved to a private or local address.`,
+    );
+  }
+  // All answers were policy-approved; pin the socket to one concrete answer
+  // so DNS cannot change between authorization and connect.
+  return addresses[0];
 }

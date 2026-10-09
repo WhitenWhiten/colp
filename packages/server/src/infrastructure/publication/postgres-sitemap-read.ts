@@ -8,6 +8,7 @@ import {
 import {
   accountRestrictPublicationExistsSql,
   COLLECTION_DISCOVERY_CONTROL_SQL,
+  COLLECTION_OWNER_LIVE_SQL,
 } from '../database/collection-control-sql.js';
 import { SEED_COLLECTION_EXCLUSION_SQL } from './postgres-search-indexing-exclusion.js';
 
@@ -44,12 +45,7 @@ export function buildPublicationSitemapStatement(): {
               and c.publication_slug is not null
               and c.published_at is not null
               and c.visibility = $1
-              and exists (
-                select 1 from accounts owner_account
-                 where owner_account.subject_id = c.owner_subject_id
-                   and owner_account.status = 'active'
-                   and owner_account.deleted_at is null
-              )
+              and ${COLLECTION_OWNER_LIVE_SQL}
               and c.allow_search_indexing
               and ${SEED_COLLECTION_EXCLUSION_SQL}
               and ${COLLECTION_DISCOVERY_CONTROL_SQL}

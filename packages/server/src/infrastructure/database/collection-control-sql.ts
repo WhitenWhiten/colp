@@ -150,6 +150,36 @@ export function accountRestrictPublicationExistsSql(accountIdSql: string): strin
 }
 
 /**
+ * Owner lifecycle fence for every anonymous publication surface.
+ *
+ * `collections.owner_subject_id` is intentionally NOT a foreign key to
+ * `accounts.subject_id` (phase1 schema; see also
+ * 202609250100_library_sidebar_orders and search/collection-discovery-sql.ts),
+ * so a missing owner row is a legal state and must not hide a collection. An
+ * owner row that DOES exist and is disabled or soft-deleted ends publication:
+ * the collection leaves Directory, Explore, Sitemap, Metadata and Snapshot.
+ *
+ * The predicate is a correlated scalar subquery on purpose. An `exists` /
+ * `not exists` form is rewritten by the planner into a (hash) anti join, which
+ * replaced the LIMIT-bounded ordered scan over
+ * `collections_publication_directory_order_idx` with a sequential scan plus
+ * Sort. A scalar SubPlan is evaluated per candidate row through the
+ * `accounts.subject_id` unique index and keeps the page plan intact.
+ * `accounts.subject_id` is UNIQUE, so the subquery yields at most one row and
+ * `coalesce(..., true)` is the missing-owner default.
+ */
+export function collectionOwnerLiveSql(ownerSubjectIdSql: string): string {
+  return `coalesce((
+  select owner_account.status = 'active' and owner_account.deleted_at is null
+    from accounts owner_account
+   where owner_account.subject_id = ${ownerSubjectIdSql}
+), true)`;
+}
+
+/** Owner lifecycle fence bound to the conventional `c` collection alias. */
+export const COLLECTION_OWNER_LIVE_SQL = collectionOwnerLiveSql('c.owner_subject_id');
+
+/**
  * Maximum parent walk used by every anonymous publication projection.  Keep
  * this SQL fragment in the database layer so low-level object and collection
  * readers do not import the higher publication infrastructure package.

@@ -55,6 +55,7 @@ import {
   createPostgresBusinessAccountUnitOfWork,
 } from '../../../src/infrastructure/auth/business-account-unit-of-work.js';
 import { createPostgresIdentityUnitOfWork } from '../../../src/infrastructure/identity/index.js';
+import { createPostgresCollectionPolicyRevisionPort } from '../../../src/infrastructure/collections/index.js';
 import { createAuthEmailAdapter } from '../../../src/infrastructure/email/auth-email-adapter.js';
 import { createLogger } from '../../../src/infrastructure/telemetry/index.js';
 import { buildBetterAuthConfig } from '../../../src/modules/auth/better-auth-config.js';
@@ -310,7 +311,9 @@ describeWithPostgres('E2 better-auth-http: full HTTP stack through the composed 
         reauth: reauthVerifier,
         // AUTH-03 made deletion atomic across product and auth state; use the
         // production store instead of a hand-rolled markDeleted/deleteUser pair.
-        store: createPostgresAccountDeletionStore(isolated.runtime.db),
+        store: createPostgresAccountDeletionStore(isolated.runtime.db, {
+          collectionPolicyRevisions: (transaction) => createPostgresCollectionPolicyRevisionPort(transaction),
+        }),
         betterAuthUsers: {
           async getAuthUserId({ cookie }) {
             const headers = new Headers();

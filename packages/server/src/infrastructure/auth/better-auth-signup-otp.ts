@@ -126,11 +126,15 @@ export async function completeExplicitSignupEmailOtp(
     return undefined;
   }
   const email = body.email.trim().toLowerCase();
+  // P6: prove mailbox control before revealing occupancy. A wrong or missing
+  // OTP yields the same INVALID_OTP outcome for registered and unregistered
+  // addresses; only a caller who received the code learns the mailbox is
+  // already registered (which they could learn by signing in anyway).
+  await consumeSignInOtp(adapter, email, body.otp, otpMaxAttempts);
   const existing = await adapter.findUserByEmail(email);
   if (existing?.user) {
     throw APIError.from('UNPROCESSABLE_ENTITY', ALREADY_REGISTERED_SIGNUP_ERROR);
   }
-  await consumeSignInOtp(adapter, email, body.otp, otpMaxAttempts);
   const name = typeof body.name === 'string' ? body.name.trim() : '';
   const image = typeof body.image === 'string' ? body.image : undefined;
   const newUser = await adapter.createUser({

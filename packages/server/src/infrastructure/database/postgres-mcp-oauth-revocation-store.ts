@@ -96,9 +96,14 @@ export function createPostgresMcpOauthRevocationStore(
               WHERE client_id_digest = ${clientIdDigest}
             )
             OR EXISTS (
+              -- E5 consent removal retires the bearers this subject already
+              -- holds for the client. It is time-bounded so a later re-consent
+              -- mints usable tokens again; iat has second precision, so a
+              -- token minted in the revocation second is also rejected.
               SELECT 1 FROM mcp_oauth_subject_revocations
               WHERE client_id_digest = ${clientIdDigest}
                 AND subject_digest = ${subjectDigest}
+                AND revoked_at >= to_timestamp(${query.issuedAtSeconds})
             )
           ) AS revoked,
           EXISTS (SELECT 1 FROM mcp_oauth_security_epoch WHERE id = 1) AS epoch_present,

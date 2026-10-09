@@ -312,6 +312,7 @@ export {
   createAgentPolicyCommitGuard,
   createPhase4bMcpAgentApprovalApi,
   createPostgresAutoApproveTrustedPlan,
+  writeAgentPolicy,
 } from './agent-policy-postgres.js';
 export { readMcpPlanCommitRevision, recordMcpPlanCommitRevisions } from './mcp-plan-commit-revisions-postgres.js';
 export { createMcpNodePlanState } from './mcp-node-plan-state.js';
