@@ -529,6 +529,22 @@ describeWithPostgres('T-09 MCP OAuth built-in issuer CIMD e2e (real PostgreSQL)'
     }
   });
 
+  test('authorize rejects a browser session revoked only in the product metadata', async () => {
+    const saved = await isolated.runtime.pool.query<{ auth_session_id: string }>(
+      `update known_auth_session_metadata set revoked_at=now()
+       where account_id=(select id from accounts where subject_id=$1) and revoked_at is null returning auth_session_id`, [subjectId]);
+    assert.ok(saved.rows.length > 0);
+    try {
+      const response = await t09Authorize(app, { clientId: T09_CIMD_CLIENT_ID, cookie: sessionCookie,
+        challenge: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', resource: BUILTIN_ISSUER_TEST_AUDIENCE });
+      assert.equal(response.statusCode, 401, response.body);
+      assert.equal(JSON.parse(response.body).code, 'session_revoked');
+    } finally {
+      await isolated.runtime.pool.query('update known_auth_session_metadata set revoked_at=null where auth_session_id=any($1::text[])',
+        [saved.rows.map(row => row.auth_session_id)]);
+    }
+  });
+
   test('AUTH-04: real password endpoint revokes native JWT epoch and preserves fresh issuance', async () => {
     async function mint(cookie: string) {
       const grant = await t09CimdCodeGrant(app,cookie);

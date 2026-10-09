@@ -90,6 +90,18 @@ describeWithPostgres('self-hosted production MCP composition', () => {
     assert.equal((await isolated.runtime.pool.query('select parent_id from nodes where id = $1', [tree.nodeId])).rows[0].parent_id, tree.rootId);
   });
 
+  test('trusted client without changes:commit keeps approval and does not mutate the tree', async () => {
+    const tree = await fixture();
+    await isolated.runtime.pool.query("insert into agent_policies(principal_id, client_id, policy) values ($1, $2, 'trusted') on conflict (principal_id,client_id) do update set policy='trusted'", [OWNER, BINDING.clientId]);
+    const result = await composition.adapter.callTool(nodeCreateContext(BINDING, SCOPES.filter(scope => scope !== 'changes:commit')), {
+      name: 'nodes.move', arguments: { nodeId: tree.nodeId, parentId: tree.folderId },
+    });
+    const plan = result.structuredContent as { status: string; requiresApproval: boolean };
+    assert.equal(plan.status, 'pending');
+    assert.equal(plan.requiresApproval, true);
+    assert.equal((await isolated.runtime.pool.query('select parent_id from nodes where id=$1', [tree.nodeId])).rows[0].parent_id, tree.rootId);
+  });
+
   test('another principal cannot plan a move of the owner node', async () => {
     const tree = await fixture();
     const other = { ...BINDING, principalId: 'another-principal' };

@@ -106,12 +106,12 @@ export function registerColpSync(app: FastifyInstance, deps: AppDependencies): v
     syncRetireRoutes,
     extensionCollectionRoutes,
   } = deps;
-  if (config.syncSession && config.syncRateLimit.shared.enabled && syncColpRateLimiter === undefined) {
+  if ((config.syncSession || extensionCollectionRoutes) && config.syncRateLimit.shared.enabled && syncColpRateLimiter === undefined) {
     throw new Error(
       'buildApiApp requires an injected syncColpRateLimiter when SYNC_RATE_LIMIT_SHARED=true (production composition must inject the Redis adapter)',
     );
   }
-  if (config.syncSession && config.syncRateLimit.shared.enabled && syncAdmissionPolicy === undefined) {
+  if ((config.syncSession || extensionCollectionRoutes) && config.syncRateLimit.shared.enabled && syncAdmissionPolicy === undefined) {
     throw new Error(
       'buildApiApp requires an injected syncAdmissionPolicy when SYNC_RATE_LIMIT_SHARED=true (production composition must inject the Redis adapter)',
     );
@@ -217,11 +217,11 @@ export function registerColpSync(app: FastifyInstance, deps: AppDependencies): v
   }
   if (syncRetireRoutes) registerSyncRetireRoutes(app, withAdmission(syncRetireRoutes, syncAdmissionPolicy));
   const extensionTransportSecurity = createSyncTransportSecurity({
-    allowInsecureLoopback: config.allowInsecureLoopback,
+    allowInsecureLoopback: config.syncSession?.allowInsecureLoopback ?? false,
     trustedIngress: config.httpSecurity.trustedIngress,
   });
   if (extensionCollectionRoutes) registerExtensionCollectionRoutes(app, {
-    ...extensionCollectionRoutes,
+    ...withAdmission(extensionCollectionRoutes, syncAdmissionPolicy),
     transportSecurity: extensionTransportSecurity,
   });
   // FO-04: the four extension favicon helper operations under /colp/v0.1/sync.

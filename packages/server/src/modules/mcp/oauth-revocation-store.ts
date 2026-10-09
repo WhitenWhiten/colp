@@ -37,6 +37,8 @@ export interface McpOauthRevocationTarget {
 export interface McpOauthRevocationQuery extends McpOauthRevocationTarget {
   /** Signed token `iat` in epoch seconds; compared against the epoch boundary. */
   readonly issuedAtSeconds: number;
+  /** Signed issuer epoch; missing evidence retains the conservative second-level floor. */
+  readonly issuedSecurityEpoch?: string;
 }
 
 export interface McpOauthSecurityEpoch {
@@ -133,7 +135,9 @@ export function createInMemoryMcpOauthRevocationStore(
       const effectiveAtSeconds = Math.floor(epoch.effectiveAt.getTime() / 1_000);
       return revokedRows.has(revocationRowKey(query))
         || revokedClients.has(digestMcpOauthRevocationField(query.clientId))
-        || query.issuedAtSeconds <= effectiveAtSeconds;
+        || (query.issuedSecurityEpoch === undefined
+          ? query.issuedAtSeconds <= effectiveAtSeconds
+          : query.issuedSecurityEpoch !== epoch.value || query.issuedAtSeconds < effectiveAtSeconds);
     },
     async securityEpoch(): Promise<string> {
       return epoch.value;

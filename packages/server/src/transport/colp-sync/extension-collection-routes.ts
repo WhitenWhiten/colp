@@ -1,3 +1,4 @@
+import { createMemorySyncAdmissionPolicy, syncAdmissionSubjectKey, type SyncAdmissionPolicy } from '../../infrastructure/rate-limit/index.js';
 import { createHash } from 'node:crypto';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { ExtensionAuthError, type ExtensionCredentialEvidencePort,
@@ -42,6 +43,7 @@ export interface ExtensionCollectionRouteDependencies {
   readonly collectionMutation?: ProductCollectionMutationUnitOfWork;
   /** Shared Sync TLS/ingress admission; helper routes must not bypass it. */
   readonly transportSecurity?: SyncTransportSecurity;
+  readonly admission?: SyncAdmissionPolicy;
 }
 
 interface ExtensionCollectionView {
@@ -57,7 +59,28 @@ export function registerExtensionCollectionRoutes(
   app: FastifyInstance,
   dependencies: ExtensionCollectionRouteDependencies,
 ): void {
+  const admission = dependencies.admission ?? createMemorySyncAdmissionPolicy({
+    budgets: { pull: { maxRequests: 120, windowMs: 60_000 }, push: { maxRequests: 120, windowMs: 60_000 } },
+  });
+  if (!dependencies.admission) app.addHook('onClose', async () => admission.close());
+  const consume = async (request: FastifyRequest, reply: FastifyReply, subjectKey?: string): Promise<boolean> => {
+    const purpose = request.method === 'GET' ? 'pull' : 'push';
+    const outcome = subjectKey === undefined
+      ? await admission.admitPreAuth({ purpose, clientKey: request.ip })
+      : await admission.admitSubject({ purpose, subjectKey });
+    if (outcome.kind === 'allowed') return true;
+    if (outcome.kind === 'denied') reply.header('Retry-After', String(outcome.retryAfterSeconds));
+    reply.code(outcome.kind === 'denied' ? 429 : 503).send({ error: {
+      code: outcome.kind === 'denied' ? 'rate_limited' : 'service_unavailable',
+      message: 'Collection admission is unavailable.',
+    } });
+    return false;
+  };
+  const preAuth = async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+    await consume(request, reply);
+  };
   app.get(EXTENSION_COLLECTIONS_PATH, {
+    onRequest: preAuth,
     config: { productTransport: { allowedQuery: [], cacheControl: 'private-no-store' } },
   }, async (request, reply) => {
     if (dependencies.transportSecurity && !dependencies.transportSecurity.isSecure(request)) {
@@ -70,6 +93,7 @@ export function registerExtensionCollectionRoutes(
     const authorization = authorizationOf(request);
     try {
       const credential = await dependencies.credentialVerifier.verify({ authorization });
+      if (!await consume(request, reply, syncAdmissionSubjectKey({ credential }))) return reply;
       const ownerSubjectId = await dependencies.ownerSubject.resolveOwnerSubject({
         issuer: credential.issuer, subject: credential.subject,
       });
@@ -90,6 +114,7 @@ export function registerExtensionCollectionRoutes(
   });
 
   app.post(EXTENSION_COLLECTIONS_PATH, {
+    onRequest: preAuth,
     config: { productTransport: { allowedQuery: [], acceptedMediaTypes: ['application/json'],
       bodyLimitBytes: 16_384, cacheControl: 'private-no-store' } },
   }, async (request, reply) => {
@@ -117,6 +142,7 @@ export function registerExtensionCollectionRoutes(
     const authorization = authorizationOf(request);
     try {
       const credential = await dependencies.credentialVerifier.verify({ authorization });
+      if (!await consume(request, reply, syncAdmissionSubjectKey({ credential }))) return reply;
       const owner = await dependencies.ownerAccount.resolveActiveAccount({
         issuer: credential.issuer, subject: credential.subject,
       });

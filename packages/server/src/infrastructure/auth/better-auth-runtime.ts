@@ -4,11 +4,11 @@ import { createCimdClientDiscovery, type CimdOptions } from '@better-auth/cimd';
 import { mcp } from '@better-auth/mcp';
 import { extendOAuthProvider } from '@better-auth/oauth-provider';
 import { betterAuth, type BetterAuthOptions, type BetterAuthPlugin } from 'better-auth';
-import { APIError, createAuthEndpoint, createAuthMiddleware } from 'better-auth/api';
+import { APIError, createAuthEndpoint, createAuthMiddleware, getAuthoritativeSessionFromCtx } from 'better-auth/api';
 import { expireCookie } from 'better-auth/cookies';
 import { emailOTP, jwt, twoFactor, username } from 'better-auth/plugins';
 import { timingSafeEqual } from 'node:crypto';
-import type { Kysely } from 'kysely';
+import { sql, type Kysely } from 'kysely';
 import {
   AUTH_OTP_MAX_ATTEMPTS,
   authEmailIdempotencyKey,
@@ -423,7 +423,9 @@ function oauthIssuerPlugins(
           .innerJoin('auth_user_account_map as m', 'm.account_id', 'a.id')
           .select(['a.security_epoch', 'a.status']).where('m.auth_user_id', '=', user.id).executeTakeFirst();
         if (!account || account.status !== 'active') throw new Error('OAuth account is not active');
-        return { known_account_epoch: account.security_epoch.toString() };
+        const incident = (await sql<{ epoch: string }>`select epoch from mcp_oauth_security_epoch where id = 1`.execute(db)).rows[0];
+        if (!incident) throw new Error('OAuth incident epoch is unavailable');
+        return { known_account_epoch: account.security_epoch.toString(), known_incident_epoch: incident.epoch };
       },
       grantTypes: [...BETTER_AUTH_OAUTH_ISSUER_GRANT_TYPES],
       allowDynamicClientRegistration: true,
@@ -665,9 +667,9 @@ function buildProductAuthHooks(input: {
       // authoritative row before issuing an authorization code so a cookie
       // accepted by BA cannot survive product-side session revocation.
       if (ctx.path === '/oauth2/authorize' && input.db !== undefined) {
-        const candidate = (ctx.context as unknown as {
-          readonly session?: { readonly session?: { readonly id?: unknown } };
-        }).session?.session?.id;
+        // User before hooks run before the OAuth endpoint loads its session.
+        const session = await getAuthoritativeSessionFromCtx(ctx);
+        const candidate = session?.session.id;
         // The session id is the binding between Better Auth's cookie and the
         // product revocation/epoch table. If the hook context does not expose
         // it, fail closed instead of silently bypassing the authoritative

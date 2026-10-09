@@ -667,6 +667,7 @@ function detachedSnapshot<Value>(value: Readonly<Value>): Value {
 
 export class ColpClient {
   readonly #fetch: FetchImplementation;
+  readonly #requiresDefaultNodePinning: boolean;
   readonly #hostResolver: ClientHostResolver | undefined;
   readonly #pinnedFetch: PinnedNodeFetch | undefined;
   readonly #manifestUrl: URL;
@@ -695,20 +696,15 @@ export class ColpClient {
       throw new TypeError('pinnedFetch must be a function when provided.');
     }
     if (options.fetch !== undefined && options.resolveHost !== undefined && options.pinnedFetch === undefined) {
-      // A plain Fetch implementation cannot receive the approved address (or
-      // preserve TLS SNI while connecting to it).  Accepting a resolver beside
-      // such a transport would create a DNS-check/connection race, so require
-      // callers to use the built-in pinned Node transport or an equivalent
-      // transport boundary instead of silently treating the resolver as a
-      // security control.
+      // A resolver alone cannot pin a custom transport's socket.
       throw new TypeError('resolveHost cannot be combined with a custom fetch unless the transport enforces address pinning.');
     }
+    this.#requiresDefaultNodePinning = options.fetch === undefined
+      && typeof globalThis.process?.versions?.node === 'string';
     this.#fetch = options.fetch ?? globalThis.fetch;
     const pinnedFetch = options.pinnedFetch
       ?? (options.fetch === undefined ? defaultPinnedNodeFetch() : undefined);
-    // A supplied fetch implementation owns its own DNS/connection policy. Use
-    // the built-in resolver only for the default Node fetch path, while still
-    // allowing custom transports to opt into the same check explicitly.
+    // A custom transport owns DNS policy unless it opts into address pinning.
     const hostResolver = options.resolveHost
       ?? (options.fetch === undefined ? defaultClientHostResolver() : undefined);
     if (hostResolver !== undefined && pinnedFetch === undefined) {
@@ -1165,18 +1161,9 @@ export class ColpClient {
           `Egress policy denied ${policy.purpose} request URL: literal private or local host.`,
         );
       }
-      // Node 22.0–22.2 do not expose process.getBuiltinModule. In that
-      // runtime the default resolver/pinned transport is unavailable; treating
-      // the missing capability as "no DNS policy" would silently re-enable
-      // DNS-rebinding SSRF. Fail closed for remote destinations until the
-      // caller supplies an explicit egress policy/transport.
-      if (!callerSelectedLocalOrigin && !privateLiteral
-          && this.#hostResolver === undefined && this.#pinnedFetch === undefined
-          && typeof (globalThis as typeof globalThis & { process?: { versions?: { node?: unknown } } }).process
-            ?.versions?.node === 'string') {
-        throw new TypeError(
-          `Egress policy denied ${policy.purpose} request URL: Node DNS pinning capability is unavailable.`,
-        );
+      if (!callerSelectedLocalOrigin && !privateLiteral && this.#requiresDefaultNodePinning
+          && this.#hostResolver === undefined && this.#pinnedFetch === undefined) {
+        throw new TypeError(`Egress policy denied ${policy.purpose} request URL: Node DNS pinning capability is unavailable.`);
       }
       if (!callerSelectedLocalOrigin && !privateLiteral && this.#hostResolver !== undefined) {
         let addresses: readonly string[];

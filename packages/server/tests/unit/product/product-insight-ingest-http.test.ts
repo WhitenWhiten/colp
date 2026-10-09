@@ -483,3 +483,21 @@ function assertDidNotClearSessionCookie(response: { headers: { 'set-cookie'?: st
     assert.equal(/^__Host-known_session=(?:;|$)/u.test(cookie), false);
   }
 }
+
+
+test('unknown collection and bookmark IDs never reach quota admission', async () => {
+  const targets: string[] = [];
+  const admitTarget = async (target: { collectionId: string }) => { targets.push(target.collectionId); };
+  for (let index = 0; index < 20; index++) {
+    await assert.rejects(() => recordInsightEvent(memory.ports, {
+      slug: `missing-${index}`, eventType: 'collection_view', visitor: { kind: 'anonymous', cookie: 'cookie' },
+      occurredAt: new Date(INSTANT), admitTarget,
+    }));
+    await recordInsightEvent(memory.ports, { slug: 'public-notes', eventType: 'resource_open',
+      nodeId: `missing-${index}`, visitor: { kind: 'anonymous', cookie: 'cookie' }, occurredAt: new Date(INSTANT), admitTarget });
+  }
+  assert.deepEqual(targets, []);
+  await recordInsightEvent(memory.ports, { slug: 'public-notes', eventType: 'collection_view',
+    visitor: { kind: 'anonymous', cookie: 'cookie' }, occurredAt: new Date(INSTANT), admitTarget });
+  assert.deepEqual(targets, ['col-public']);
+});

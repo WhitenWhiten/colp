@@ -89,11 +89,14 @@ export function registerProductPublicInsightRoutes(
     const rateVisitor = actor !== null
       ? { kind: 'subject' as const, subjectId: actor.account.subjectId }
       : insightIngestIpua(request);
+    try {
+      await dependencies.record({
+        admitTarget: async (target) => {
     const outcome = await dependencies.rateLimiter.consume({
       visitor: rateVisitor,
-      slug,
+      slug: target.collectionId,
       eventType: body.eventType,
-      ...(body.nodeId === undefined ? {} : { nodeId: body.nodeId }),
+      ...(target.nodeId === undefined ? {} : { nodeId: target.nodeId }),
     });
     if (outcome.kind === 'denied') {
       throw new ProductHttpError({
@@ -115,8 +118,7 @@ export function registerProductPublicInsightRoutes(
         sameRequestRetrySafe: true,
       });
     }
-    try {
-      await dependencies.record({
+        },
         slug,
         eventType: body.eventType,
         ...(body.nodeId === undefined ? {} : { nodeId: body.nodeId }),
