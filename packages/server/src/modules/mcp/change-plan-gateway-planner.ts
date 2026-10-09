@@ -54,7 +54,11 @@ export function createPhase4bMcpGatewayPlanner(
           await options.revisions.resolveBaseRevisions(operation as Parameters<typeof options.revisions.resolveBaseRevisions>[0], binding);
         }
       }
-      return service.plan(input, binding, authorizedScopes);
+      return Reflect.apply(
+        service.plan,
+        service,
+        [input, binding, authorizedScopes],
+      ) as Promise<ChangePlan>;
     },
   });
 }
