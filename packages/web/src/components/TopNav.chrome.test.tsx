@@ -142,6 +142,9 @@ describe('TopNav session chrome', () => {
     expect(logout?.classList.contains('account-logout')).toBe(true)
     const accountMenu = document.getElementById('account-dropdown')
     expect([...accountMenu!.querySelectorAll('a')].map((anchor) => anchor.getAttribute('href'))).toEqual(['/approvals'])
+    // No public profiles here: the generated @handle is not shown, the email is.
+    expect(document.body.textContent).not.toContain('@lin-yichen')
+    expect(accountMenu?.textContent).toContain('lin.yichen@example.com')
   })
 
   it('says "Signed out" only after the server confirmed it (R15-21)', async () => {

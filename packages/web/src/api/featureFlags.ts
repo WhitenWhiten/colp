@@ -9,7 +9,9 @@
 export const FEATURE_FLAGS = {
   annotations: true,
   relations: true,
-  collaborators: true,
+  // Off until multi-user lands: the members API needs a verified email,
+  // which a server without mail cannot produce, so the page could only fail.
+  collaborators: false,
   collectionHistory: true,
   // MCP write approvals. Navigation is limited to signed-in accounts; direct
   // links resume after sign-in.

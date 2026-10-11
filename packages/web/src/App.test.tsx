@@ -102,6 +102,12 @@ describe('App route table', () => {
     expect(document.querySelector('[data-testid="agents-route"]')).not.toBeNull()
   })
 
+  it('opens the collection for an old Collaborators link while sharing waits for multi-user', async () => {
+    await renderAt('/library/col-1/collaborators')
+    expect(currentUrl()).toBe('/library/col-1')
+    expect(document.querySelector('[data-testid="library-route"]')).not.toBeNull()
+  })
+
   it('turns /settings#section into the library with that settings section open', async () => {
     await renderAt('/settings#security')
     expect(currentUrl()).toBe('/library?settings=security')
