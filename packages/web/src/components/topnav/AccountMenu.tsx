@@ -98,7 +98,7 @@ export function AccountMenu({
           </button>
           {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- react-router Link renders a native anchor; Enter fires onClick (close dropdown) natively */}
           <Link to="/approvals" onClick={onClose}>
-            Write approvals
+            Approvals
           </Link>
           <div className="ctx-menu-sep" />
           <button

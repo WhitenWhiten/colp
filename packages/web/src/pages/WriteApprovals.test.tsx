@@ -239,9 +239,9 @@ describe('MCP-W08 Write approvals page', () => {
     })
     render()
     await waitForDom(domFinishedLoading)
-    expect(document.querySelector('h1')?.textContent).toContain('Write approvals')
-    // The title already names the page; no eyebrow repeats it.
-    expect(document.querySelector('header .eyebrow')).toBeNull()
+    expect(document.querySelector('h1')?.textContent).toBe('Approvals')
+    // The eyebrow names the area (Agents), not the page again.
+    expect(document.querySelector('header .eyebrow')?.textContent).toBe('Agents')
     expect(document.body.textContent).toContain(attack)
     expect(document.body.textContent).toContain(nodeTitle)
     const facts = document.querySelector('[role="table"][aria-label="Approval facts"]')
@@ -582,7 +582,7 @@ describe('MCP-W08 Write approvals page', () => {
     render('/approvals/plan-missing')
     await waitForDom(domFinishedLoading)
     expect(document.querySelector('[role="status"]')?.textContent).toContain('Approval not found')
-    expect(document.body.textContent).not.toContain('No write approvals')
+    expect(document.body.textContent).not.toContain('Nothing waiting for you')
     expect(document.querySelector('a[href="/approvals"]')).not.toBeNull()
   })
 

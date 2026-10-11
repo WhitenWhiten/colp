@@ -1,8 +1,8 @@
 import type { CSSProperties, HTMLAttributes, ReactNode } from 'react'
-import { Icon } from './Icon'
+import { Icon, type IconName } from './Icon'
 
 interface EmptyStateProps extends HTMLAttributes<HTMLDivElement> {
-  icon?: 'alert' | 'book' | 'search' | 'collection' | 'link' | 'folder' | 'bell' | 'compass'
+  icon?: IconName
   illustration?: 'books' | 'search' | 'network'
   kicker?: ReactNode
   title: string

@@ -76,7 +76,7 @@ export function MobileDrawer({
         {isLoggedIn ? (
           <>
             <div className="mobile-drawer-grid">
-              <NavLink to="/approvals">Write approvals</NavLink>
+              <NavLink to="/approvals">Approvals</NavLink>
               <button
                 type="button"
                 onClick={() => {
