@@ -158,3 +158,27 @@ Task A8 flag-off feature pruning (2026-10-10):
   - Before A8 pruning: 11M
   - After A8 pruning: 9.2M (215 files and 33,864 lines removed from `src`)
 
+
+A8 closure (2026-10-10). The first pass kept favicon policy, source, sync
+helper and upload code behind `KNOWN_FEATURE_FAVICON_POLICY`; this pass removes
+the rest of feature 8:
+
+- Removed: favicon policy and source routes, the four extension favicon helper
+  operations under `/colp/v0.1/sync`, bookmark favicon upload/delete/GET (the
+  POST/DELETE routes answered 503 without an R2 store), the R2 favicon store,
+  the FO-05 `/api/v1/collections/{id}/children` time sort (gated by the same
+  flag), their config (`KNOWN_FEATURE_FAVICON_POLICY`, `FAVICON_*`,
+  `FAVICON_R2_PREFIX`) and tests. `src` is 9.0M (about 5,900 more lines).
+  `FAVICON_PRUNED_OPERATION_IDS` keeps the frozen `product-v1.yaml`
+  operations out of the route coverage check, like the classification list.
+- Kept: `favicon-known-domains.ts` (public collection projection), the
+  `bookmark_icons` read path and `iconUrl` projection (no writer remains, so
+  they stay empty), and the favicon table types (migrations are untouched).
+- `openapi/colp-server-v1.yaml`: the four favicon/children paths and 160
+  components that no path and no web source reference were removed. About 190
+  components remain unreachable from paths because `packages/web` still
+  references them for UI that the self-hosted edition hides; they go with a
+  web prune.
+- `withCancellation` timeouts no longer say "Favicon policy is temporarily
+  unavailable." for MCP approvals, library order, link health, export and
+  versions.

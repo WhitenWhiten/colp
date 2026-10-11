@@ -314,26 +314,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/favicon/{faviconId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get a public bookmark favicon image by id
-         * @description Anonymous public favicon object bytes. No Product Session and no cookieAuth. faviconId is a 36-character UUID leaf matching /^[a-f0-9-]{36}$/i. Illegal ids and missing objects share the same 404 resource_not_found shape (no existence oracle). Transport may use public-revalidate so admission does not fill no-store; 200 and 404 pin Cache-Control themselves. 200 is public, max-age=31536000, immutable. 404 is public, max-age=60. GET does not look up bookmark_icons; an object may remain 200 until R2 DELETE. No Set-Cookie.
-         */
-        get: operations["getBookmarkFavicon"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/me/collaboration-invites": {
         parameters: {
             query?: never;
@@ -1264,26 +1244,6 @@ export interface paths {
         patch: operations["updateCollection"];
         trace?: never;
     };
-    "/api/v1/collections/{collectionId}/children": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List exactly one layer of children of a Collection folder
-         * @description FO-05. Reads live children (folders and bookmarks) directly under `parentId`, or under the collection root when `parentId` is omitted; one layer only, never a flattened tree, and the folder scope, root and parent/child relations are preserved. `sort=curated` (default) uses the canonical position tokens; created_asc / created_desc order by creation time with the same-millisecond ties resolved by ascending node id and change ONLY the read view — no position token, revision, sync log or reading path is written. `collectionId` is the real opaque collection id, never a publication slug. Anonymous reads are allowed only for public collections; owner/member reads use ordinary authority. Pages are bounded by both `limit` and a 65536 UTF-8 byte budget; a byte-limited short page still returns nextCursor for the first unconsumed eligible item. Continuations use the opaque HMAC-authenticated cursor (blind 900s expiry or a content revision change => 409 snapshot_expired; tampered/mismatched cursor => 400 invalid_cursor). reading_path collections reject created sorts with 400 invalid_query. Feature flag KNOWN_FEATURE_FAVICON_POLICY=false returns 404.
-         */
-        get: operations["listCollectionChildren"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/collections/{collectionId}/catalog": {
         parameters: {
             query?: never;
@@ -1357,54 +1317,6 @@ export interface paths {
          * @description Root is immutable through Product Node operations.
          */
         post: operations["moveCollectionNode"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/collections/{collectionId}/nodes/{nodeId}/favicon": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Upload a bookmark favicon image
-         * @description Product Session + CSRF. Requires capability update_node. Body hard cap 65536 bytes (64 KiB). In-progress is 429 rate_limited + Retry-After, never 409 command_in_progress. Does not bump Node revision. Last-upload-wins on the icon row only. Declared SVG/GIF/HTML → 415 unsupported_media_type. Exact retries reuse Known-Command-Id. command_id_reused is 409; command_result_expired is 410.
-         */
-        post: operations["uploadBookmarkFavicon"];
-        /**
-         * Delete a bookmark favicon binding
-         * @description Product Session + CSRF. Requires capability update_node. Does not accept If-Match and does not bump Node revision. Success returns BookmarkNodeView with iconUrl null. In-progress is 429 rate_limited + Retry-After, never 409 command_in_progress. command_id_reused is 409; command_result_expired is 410. Idempotent when no icon row exists.
-         */
-        delete: operations["deleteBookmarkFavicon"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/collections/{collectionId}/nodes/{nodeId}/favicon-source": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Read the icon source state of one bookmark node
-         * @description FO-01. Session-required owner-only read of the per-node favicon source (inherit/none; uploaded is only reachable through a real Product upload and reads as uploaded/ready). sourceMode=inherit projects the account policy newDefault as effectiveMode. The strong ETag fences both the node resource revision and the source revision. Does not accept a request body. Missing and foreign targets are concealed as 404; a caller-owned node that is not a bookmark is 400 invalid_request. Feature flag KNOWN_FEATURE_FAVICON_POLICY=false returns 404.
-         */
-        get: operations["getBookmarkFaviconSource"];
-        /**
-         * Set the icon source mode of one bookmark node
-         * @description FO-02. Session + Origin + CSRF + Known-Command-Id. Owner-only. Requires If-Match (one strong ETag returned by the favicon-source GET) that fences the current node resource revision and source revision; a URL change or concurrent source write makes the old ETag stale (412 with currentEtag). sourceMode accepts inherit, online and none. uploaded cannot be written here — it only enters through the real image upload and is removed again by the explicit Product delete. Switching away from an uploaded image deletes the binding and its immutable object. Exact retries reuse Known-Command-Id and replay the first receipt.
-         */
-        put: operations["setBookmarkFaviconSource"];
-        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1882,28 +1794,6 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         ClassificationProfileId: string;
-        CreateClassificationProviderProfileRequest: {
-            /** @enum {string} */
-            kind: "cloudflare_ai_gateway";
-            label: string;
-            /** @enum {string} */
-            model: "typesafe/jev";
-            config: {
-                accountId: string;
-                gatewayId: string;
-            };
-            secret: string;
-        };
-        UpdateClassificationProviderProfileRequest: {
-            label?: string;
-            /** @enum {string} */
-            model?: "typesafe/jev";
-            config?: {
-                accountId: string;
-                gatewayId: string;
-            };
-            secret?: string | null;
-        };
         ClassificationProviderProfile: {
             profileId: components["schemas"]["ClassificationProfileId"];
             label: string;
@@ -1925,17 +1815,6 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
             etag: string;
-        };
-        TestClassificationProviderProfileResponse: {
-            profileId: components["schemas"]["ClassificationProfileId"];
-            /** @enum {string} */
-            status: "ok" | "failed";
-            capabilities: ("folder_choice" | "tag_noul" | "confidence")[];
-            /** Format: date-time */
-            checkedAt: string;
-        };
-        ClassificationProviderProfileList: {
-            profiles: components["schemas"]["ClassificationProviderProfile"][];
         };
         /**
          * @example {
@@ -2015,8 +1894,6 @@ export interface components {
         } | {
             nodeIds: unknown;
         });
-        ClassificationRunCancelRequest: Record<string, never>;
-        ClassificationRunAction: components["schemas"]["LegacyClassificationRunAction"] | components["schemas"]["CreditClassificationRunAction"];
         ClassificationRun: components["schemas"]["LegacyClassificationRun"] | components["schemas"]["CreditClassificationRun"];
         CreditUuid: string;
         LegacyClassificationRunAction: {
@@ -2318,12 +2195,6 @@ export interface components {
             priceVersion: components["schemas"]["CreditPriceVersion"];
             maxPoints: components["schemas"]["Points"];
         };
-        CreditContext: {
-            requiredPoints: components["schemas"]["Points"];
-            availablePoints: components["schemas"]["Points"];
-            maxPoints: components["schemas"]["Points"];
-            priceVersion: components["schemas"]["CreditPriceVersion"];
-        };
         CreditUsage: {
             /** @constant */
             mode: "managed";
@@ -2344,23 +2215,6 @@ export interface components {
             chargedPoints: 0;
             /** @constant */
             releasedPoints: 0;
-        };
-        CreditError: {
-            /** @enum {unknown} */
-            code: "billing_consent_required" | "credit_price_changed" | "credit_limit_exceeded" | "insufficient_credits" | "invalid_cursor" | "cursor_expired" | "credits_busy" | "credits_reconciling" | "credits_unavailable";
-            message: string;
-            requestId: components["schemas"]["RequestId"];
-            recovery: components["schemas"]["RecoveryAction"];
-            sameRequestRetrySafe: boolean;
-            /** @enum {string|null} */
-            precondition: "resource" | "content" | null;
-            currentEtag: components["schemas"]["EntityTag"] | null;
-            retryAfterSeconds: number | null;
-            fieldErrors: components["schemas"]["FieldError"][];
-            creditContext?: components["schemas"]["CreditContext"];
-        };
-        CreditErrorEnvelope: {
-            error: components["schemas"]["CreditError"];
         };
         CreditClassificationPreviewResponse: {
             /** @constant */
@@ -2702,10 +2556,6 @@ export interface components {
             /** Format: uri */
             avatarUrl?: string | null;
         };
-        FollowPageQueryDto: {
-            cursor?: string;
-            limit?: number;
-        };
         FollowRelationDto: {
             actorProfileId: components["schemas"]["ProfileStableId"];
             targetProfileId: components["schemas"]["ProfileStableId"];
@@ -2788,13 +2638,6 @@ export interface components {
             items: components["schemas"]["FeedItemDto"][];
             nextCursor: string | null;
         };
-        /** @description Frozen Phase 5 Feed page query (GET /api/v1/me/feed). */
-        FeedPageQueryDto: {
-            cursor?: string;
-            limit?: number;
-            /** @enum {string} */
-            kind?: "collection_change" | "follow_activity";
-        };
         NotificationItem: {
             notificationId: components["schemas"]["OpaqueId"];
             /** @enum {string} */
@@ -2844,9 +2687,6 @@ export interface components {
             /** @constant */
             changed: false;
         };
-        NotificationBulkReadRequest: {
-            notificationIds: components["schemas"]["OpaqueId"][];
-        };
         NotificationBulkReadResult: {
             /** @constant */
             kind: "succeeded";
@@ -2889,52 +2729,6 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
             changed: boolean;
-        };
-        /** @description Frozen Phase 5 Notification page query (GET /api/v1/me/notifications). */
-        NotificationPageQueryDto: {
-            cursor?: string;
-            limit?: number;
-            read?: boolean;
-        };
-        /** @description Frozen Phase 5 aggregate Notification item. */
-        NotificationDto: {
-            notificationId: string;
-            /** @enum {string} */
-            kind: "new_follower" | "followed_collection_changed";
-            /** Format: date-time */
-            createdAt: string;
-            /** Format: date-time */
-            readAt: string | null;
-            actor: components["schemas"]["ProfileSummaryDto"] | null;
-            collectionId: components["schemas"]["OpaqueId"] | null;
-        };
-        /** @description Frozen Phase 5 private Notification page. */
-        NotificationPageDto: {
-            items: components["schemas"]["NotificationDto"][];
-            nextCursor: components["schemas"]["Cursor"] | null;
-            unreadCount: number;
-        };
-        /** @description Frozen Phase 5 bulk mark-read request. */
-        MarkNotificationsReadRequestDto: {
-            notificationIds: components["schemas"]["OpaqueId"][];
-        };
-        /** @description Frozen Phase 5 bulk mark-read result. */
-        MarkNotificationsReadResultDto: {
-            notificationIds: components["schemas"]["OpaqueId"][];
-            /** Format: date-time */
-            readAt: string;
-        };
-        /** @description Frozen Phase 5 aggregate Notification preferences. */
-        NotificationPreferencesDto: {
-            revision: string;
-            inAppNewFollower: boolean;
-            inAppFollowedCollectionChanged: boolean;
-        };
-        /** @description Frozen Phase 5 aggregate Notification preference update document. */
-        UpdateNotificationPreferencesRequestDto: {
-            revision: string;
-            inAppNewFollower: boolean;
-            inAppFollowedCollectionChanged: boolean;
         };
         /** @enum {string} */
         WriteApprovalStatus: "pending" | "approved" | "committing" | "consumed" | "cancelled" | "expired";
@@ -3260,10 +3054,6 @@ export interface components {
             secret: components["schemas"]["AccountCredentialSecret"] | null;
             secretAvailable: boolean;
         };
-        CreateAccountCredentialParentRequest: {
-            label: string;
-            expiresAt: components["schemas"]["AccountCredentialTimestamp"];
-        };
         CreateAccountCredentialChildRequest: {
             label: string;
             expiresAt: components["schemas"]["AccountCredentialTimestamp"];
@@ -3511,25 +3301,6 @@ export interface components {
             syncPending: number;
             syncAttention: number;
             attention: number;
-        };
-        CaptureFeedbackInput: {
-            /** Format: uuid */
-            eventId: string;
-            /** @enum {string} */
-            kind: "explicit_positive" | "explicit_negative" | "implicit_positive" | "dismissed_unrated" | "not_presented" | "withdrawn";
-            nodeRevision: string;
-            /** Format: date-time */
-            occurredAt: string;
-            learningEligible: boolean;
-            evidenceGeneration: number;
-        };
-        CaptureFeedbackReceipt: {
-            /** Format: uuid */
-            eventId: string;
-            revision: number;
-            /** @enum {string|null} */
-            effectiveFeedback: "explicit_positive" | "explicit_negative" | "correction_applied" | "implicit_positive" | "dismissed_unrated" | "not_presented" | "withdrawn" | null;
-            learningEligible: boolean;
         };
         CaptureCapabilities: {
             policyVersion: string;
@@ -4191,43 +3962,6 @@ export interface components {
             items: components["schemas"]["BookmarkSubscriptionExitTask"][];
             nextCursor: string | null;
         };
-        BookmarkSubscriptionMemberSeriesReader: {
-            series: components["schemas"]["BookmarkSubscriptionSourceView"];
-            editions: {
-                editionId: components["schemas"]["OpaqueId"];
-                title: string;
-                publishedAt: components["schemas"]["GovernanceTimestamp"];
-            }[];
-            nextCursor: string | null;
-        };
-        BookmarkSubscriptionMemberEditionReader: {
-            series: components["schemas"]["BookmarkSubscriptionSourceView"];
-            edition: {
-                editionId: components["schemas"]["OpaqueId"];
-                title: string;
-                publishedAt: components["schemas"]["GovernanceTimestamp"];
-            };
-            nodes: components["schemas"]["BookmarkSubscriptionProjectionNode"][];
-            /** @description Additive actor-authorized summaries, node notes and visible annotations. Private annotations remain creator-only; rendered as safe reader content, never native bookmark metadata. */
-            reader?: {
-                seriesSummary: string | null;
-                editionSummary: string | null;
-                sourceSummary: string | null;
-                notes: {
-                    key: string;
-                    description: string | null;
-                }[];
-                annotations: {
-                    id: string;
-                    /** @enum {string} */
-                    subjectType: "collection" | "node";
-                    subjectId: string;
-                    type: string;
-                    format: string | null;
-                    value: unknown;
-                }[];
-            };
-        };
         BookmarkPreferences: {
             /** @enum {string} */
             bookmarkInsertPosition: "top" | "bottom";
@@ -4300,7 +4034,6 @@ export interface components {
             hiddenTitleKeywords?: string[];
             preferredLanguages?: string[];
         };
-        GovernanceCursor: string;
         GovernanceTarget: {
             /** @constant */
             kind: "collection";
@@ -4507,15 +4240,8 @@ export interface components {
             width: number;
             height: number;
         };
-        LinkPreviewRequest: {
-            nodeIds: components["schemas"]["OpaqueId"][];
-        };
         LinkPreviewRequestAccepted: {
             enqueued: number;
-        };
-        BookmarkPreviewModeRequest: {
-            /** @enum {string} */
-            mode: "auto" | "none";
         };
         BookmarkPreviewModeView: {
             nodeId: components["schemas"]["OpaqueId"];
@@ -4985,11 +4711,6 @@ export interface components {
         PublicationVisibility: "private" | "public" | "unlisted";
         PublicationSlug: string;
         PublicationLocatorSlug: string;
-        ClientEventBatch: {
-            /** @description Web build identifier. */
-            release: string;
-            events: components["schemas"]["ClientEvent"][];
-        };
         /** @description Route template such as /c/:slug; never a concrete URL. */
         ClientRouteTemplate: string;
         ClientEvent: {
@@ -5684,30 +5405,6 @@ export interface components {
             handle: string | null;
             avatar: string | null;
         };
-        ExploreCollectionItem: {
-            id: string;
-            title: string;
-            summary: string | null;
-            kind: string;
-            tags: string[];
-            nodeCount: number;
-            updatedAt: components["schemas"]["UtcDateTime"];
-            /** @description Public slug of the collection. Null on a moderation tombstone (#21): the row keeps its Explore slot but has no page to open. */
-            publicationSlug: string | null;
-            /** @description True when an official hide_public action is in force on the collection. The row stays listed as an inert tombstone: title becomes the placeholder 'Collection hidden' and summary, tags, language, curatorNote, and publicationSlug are emptied. */
-            hiddenPublic?: boolean;
-            visibility: string;
-            creators: components["schemas"]["ExploreCreator"][];
-            /** @description Sum of collection_view counts over 30 UTC calendar days including today. Zero when the collection has no publication_insight_daily rows in that window. */
-            viewCount?: number;
-            /** @description Latest public collection tldr (curator recommendation for the whole collection), or null. Only visibility=public collection annotation rows are ever exposed; private, protected, and unlisted marks never appear on this surface. The length cap matches the annotation value text budget. */
-            curatorNote?: string | null;
-            language?: string | null;
-        };
-        ExploreCollectionsPage: {
-            items: components["schemas"]["ExploreCollectionItem"][];
-            nextCursor: string | null;
-        };
         /** @enum {string} */
         RecoveryAction: "same_request" | "refresh_and_retry" | "restart_from_first_page" | "user_action" | "none";
         /**
@@ -5766,161 +5463,6 @@ export interface components {
         };
         ProfileSettingsErrorEnvelope: {
             error: components["schemas"]["ProfileSettingsError"];
-        };
-        /** @enum {string} */
-        AttachmentLogicalState: "issued" | "uploaded" | "verifying" | "stored_private" | "attached_private" | "quarantined" | "expired" | "retired";
-        /**
-         * @description Progress of the size/digest verification pipeline. verified NEVER implies malware-safety: unscanned content must not be treated as safe, and no Attachment DTO carries a clean/safe verdict.
-         * @enum {string}
-         */
-        AttachmentVerificationStatus: "pending" | "verifying" | "verified" | "failed";
-        /** @enum {string} */
-        AttachmentAvailability: "unavailable" | "available";
-        /**
-         * @description Fixed allowed-media allowlist of the private unscanned MVP. It must stay equal to the production ATTACHMENTS_ALLOWED_MEDIA_ALLOWLIST.
-         * @enum {string}
-         */
-        AttachmentMediaType: "image/jpeg" | "image/png" | "image/webp" | "image/gif" | "application/pdf" | "text/plain";
-        /** @description Opaque logical identity of one issued upload. Never contains a physical key, provider URL, credential, or digest. */
-        AttachmentReceipt: {
-            blobId: components["schemas"]["OpaqueId"];
-            intentId: components["schemas"]["OpaqueId"];
-            generationId: components["schemas"]["OpaqueId"];
-        };
-        /** @description One-time opaque upload grant. The url embeds the physical key binding and MUST NOT be persisted, logged, or included in receipts, operations, or error bodies; it appears only in this response. */
-        UploadGrantDto: {
-            /**
-             * Format: uri
-             * @description SECRET, non-loggable provider URL (presigned create-only PUT). One-time only; never persisted, logged, or replayed.
-             */
-            url: string;
-            /** @constant */
-            method: "PUT";
-            contentType: string;
-            contentLength: number;
-            /** Format: date-time */
-            expiresAt: string;
-            ttlSeconds: number;
-        };
-        AttachmentIssueResult: {
-            /** @enum {string} */
-            kind: "issued" | "recovered";
-            receipt: components["schemas"]["AttachmentReceipt"];
-            grant: components["schemas"]["UploadGrantDto"];
-        };
-        AttachmentIssueRequest: {
-            collectionId: components["schemas"]["OpaqueId"];
-            /** @description Declared single-PUT byte count. 67108864 (64 MiB) is the absolute compile-time hard ceiling; deployments may enforce a lower ceiling and reject oversized declarations with payload_too_large (413). */
-            declaredSize: number;
-            declaredSha256?: string | null;
-            mediaHint?: components["schemas"]["AttachmentMediaType"] | null;
-            expectedPolicyRevision?: string | null;
-        };
-        AttachmentCompleteRequest: {
-            binding: {
-                intentId: components["schemas"]["OpaqueId"];
-                generationId: components["schemas"]["OpaqueId"];
-                blobId: components["schemas"]["OpaqueId"];
-            };
-            declared: {
-                size: number;
-                sha256: string;
-                mediaType: components["schemas"]["AttachmentMediaType"];
-                etag: string;
-            };
-        };
-        /** @description Success variants only. Missing, foreign, or wrong-principal bindings are concealed as 404 resource_not_found; contradicting observed facts are 409 attachment_state_conflict. No partial success is ever emitted. */
-        AttachmentCompleteResult: {
-            /** @enum {string} */
-            kind: "completed" | "idempotent" | "already_verified";
-            receipt: components["schemas"]["AttachmentReceipt"];
-        };
-        /** @description Owner-private status and metadata view. Contains no digest value, no physical key, no URL, no credential, and no filename. verificationStatus NEVER implies malware-safety. */
-        AttachmentStatusDto: {
-            blobId: components["schemas"]["OpaqueId"];
-            logicalState: components["schemas"]["AttachmentLogicalState"];
-            verificationStatus: components["schemas"]["AttachmentVerificationStatus"];
-            availability: components["schemas"]["AttachmentAvailability"];
-            size: number;
-            mediaType: components["schemas"]["AttachmentMediaType"] | null;
-            /** Format: date-time */
-            createdAt: string;
-            /** Format: date-time */
-            updatedAt: string;
-            allowedActions: ("complete" | "finalize" | "download" | "replace" | "retire")[];
-        };
-        AttachmentFinalizeResult: {
-            /** @enum {string} */
-            kind: "finalized" | "already_finalized";
-            blobId: components["schemas"]["OpaqueId"];
-            /** @constant */
-            logicalState: "attached_private";
-        };
-        AttachmentReplacementRequest: {
-            /** @description Declared single-PUT byte count for the NEW generation. Every replacement allocates a new physical key; same-key overwrite is never allowed. */
-            declaredSize: number;
-            declaredSha256?: string | null;
-            mediaHint?: components["schemas"]["AttachmentMediaType"] | null;
-            expectedPolicyRevision?: string | null;
-        };
-        AttachmentRetireResult: {
-            /** @enum {string} */
-            kind: "retired" | "already_retired";
-            blobId: components["schemas"]["OpaqueId"];
-            /** @constant */
-            logicalState: "retired";
-        };
-        /** @description Short-lived owner download admission. The downloadUrl is secret and non-loggable, audience-bound to the isolated delivery origin, blob/generation-bound, and can never become a shared URL. */
-        AttachmentDownloadAdmission: {
-            /** @constant */
-            kind: "granted";
-            blobId: components["schemas"]["OpaqueId"];
-            generationId: components["schemas"]["OpaqueId"];
-            /** @constant */
-            method: "GET";
-            /** Format: uri */
-            deliveryOrigin: string;
-            /**
-             * Format: uri
-             * @description SECRET, non-loggable short-lived capability URL bound to the isolated delivery origin and the current generation.
-             */
-            downloadUrl: string;
-            /** Format: date-time */
-            issuedAt: string;
-            /** Format: date-time */
-            expiresAt: string;
-        };
-        /** @enum {string} */
-        AttachmentErrorCode: "invalid_request" | "invalid_json" | "invalid_document" | "unsupported_media_type" | "payload_too_large" | "authentication_required" | "csrf_failed" | "insufficient_permission" | "resource_not_found" | "method_not_allowed" | "attachment_idempotency_conflict" | "attachment_state_conflict" | "rate_limited" | "rate_limit_unavailable" | "attachments_not_implemented" | "internal_error";
-        AttachmentError: {
-            code: components["schemas"]["AttachmentErrorCode"];
-            message: string;
-            requestId: components["schemas"]["RequestId"];
-            recovery: components["schemas"]["RecoveryAction"];
-            sameRequestRetrySafe: boolean;
-            /** @enum {string|null} */
-            precondition: "resource" | "content" | null;
-            currentEtag: components["schemas"]["EntityTag"] | null;
-            retryAfterSeconds: number | null;
-            fieldErrors: components["schemas"]["FieldError"][];
-        };
-        /**
-         * @example {
-         *       "error": {
-         *         "code": "attachments_not_implemented",
-         *         "message": "Attachment commands are not implemented yet.",
-         *         "requestId": "req_01j00000000000000000000000",
-         *         "recovery": "none",
-         *         "sameRequestRetrySafe": false,
-         *         "precondition": null,
-         *         "currentEtag": null,
-         *         "retryAfterSeconds": null,
-         *         "fieldErrors": []
-         *       }
-         *     }
-         */
-        AttachmentErrorEnvelope: {
-            error: components["schemas"]["AttachmentError"];
         };
         /** @description Closed community target identity. collectionId/seriesId are explicit null unless the kind requires them; collection and digest targets pin generation "static-v1"; a bookmark generation is the opaque server-minted value returned by resolveCommunityTarget. */
         CommunityTarget: {
@@ -6326,278 +5868,6 @@ export interface components {
         };
     };
     responses: {
-        /** @description invalid_request / invalid_json / invalid_query / invalid_cursor (=> restart_from_first_page). Stable envelope; no stack, SQL, secrets or concealed resource metadata. */
-        FaviconOrderingError400: {
-            headers: {
-                "Cache-Control": components["headers"]["PrivateNoStore"];
-                "X-Request-Id": components["headers"]["XRequestId"];
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["ProductErrorEnvelope"] & {
-                    error?: {
-                        /** @enum {string} */
-                        code?: "invalid_request" | "invalid_json" | "invalid_query" | "invalid_cursor";
-                    };
-                };
-            };
-        };
-        /** @description authentication_required. Stable envelope. */
-        FaviconOrderingError401: {
-            headers: {
-                "Cache-Control": components["headers"]["PrivateNoStore"];
-                "X-Request-Id": components["headers"]["XRequestId"];
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["ProductErrorEnvelope"] & {
-                    error?: {
-                        /** @enum {string} */
-                        code?: "authentication_required";
-                    };
-                };
-            };
-        };
-        /** @description csrf_failed / insufficient_permission. Stable envelope. */
-        FaviconOrderingError403: {
-            headers: {
-                "Cache-Control": components["headers"]["PrivateNoStore"];
-                "X-Request-Id": components["headers"]["XRequestId"];
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["ProductErrorEnvelope"] & {
-                    error?: {
-                        /** @enum {string} */
-                        code?: "csrf_failed" | "insufficient_permission";
-                    };
-                };
-            };
-        };
-        /** @description resource_not_found, including concealed resources and the disabled feature flag. */
-        FaviconOrderingError404: {
-            headers: {
-                "Cache-Control": components["headers"]["PrivateNoStore"];
-                "X-Request-Id": components["headers"]["XRequestId"];
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["ProductErrorEnvelope"] & {
-                    error?: {
-                        /** @enum {string} */
-                        code?: "resource_not_found";
-                    };
-                };
-            };
-        };
-        /** @description method_not_allowed. */
-        FaviconOrderingError405: {
-            headers: {
-                "Cache-Control": components["headers"]["PrivateNoStore"];
-                "X-Request-Id": components["headers"]["XRequestId"];
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["ProductErrorEnvelope"] & {
-                    error?: {
-                        /** @enum {string} */
-                        code?: "method_not_allowed";
-                    };
-                };
-            };
-        };
-        /** @description command_id_reused / command_in_progress / snapshot_expired (=> restart_from_first_page) / revision_conflict. Stable envelope. */
-        FaviconOrderingError409: {
-            headers: {
-                "Cache-Control": components["headers"]["PrivateNoStore"];
-                "X-Request-Id": components["headers"]["XRequestId"];
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["ProductErrorEnvelope"] & {
-                    error?: {
-                        /** @enum {string} */
-                        code?: "command_id_reused" | "command_in_progress" | "snapshot_expired" | "revision_conflict";
-                    };
-                };
-            };
-        };
-        /** @description command_result_expired. Stable envelope. */
-        FaviconOrderingError410: {
-            headers: {
-                "Cache-Control": components["headers"]["PrivateNoStore"];
-                "X-Request-Id": components["headers"]["XRequestId"];
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["ProductErrorEnvelope"] & {
-                    error?: {
-                        /** @enum {string} */
-                        code?: "command_result_expired";
-                    };
-                };
-            };
-        };
-        /** @description precondition_failed with currentEtag for the authorized resource. Stable envelope. */
-        FaviconOrderingError412: {
-            headers: {
-                "Cache-Control": components["headers"]["PrivateNoStore"];
-                "X-Request-Id": components["headers"]["XRequestId"];
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["ProductErrorEnvelope"] & {
-                    error?: {
-                        /** @enum {string} */
-                        code?: "precondition_failed";
-                    };
-                };
-            };
-        };
-        /** @description payload_too_large. Stable envelope. */
-        FaviconOrderingError413: {
-            headers: {
-                "Cache-Control": components["headers"]["PrivateNoStore"];
-                "X-Request-Id": components["headers"]["XRequestId"];
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["ProductErrorEnvelope"] & {
-                    error?: {
-                        /** @enum {string} */
-                        code?: "payload_too_large";
-                    };
-                };
-            };
-        };
-        /** @description unsupported_media_type. Stable envelope. */
-        FaviconOrderingError415: {
-            headers: {
-                "Cache-Control": components["headers"]["PrivateNoStore"];
-                "X-Request-Id": components["headers"]["XRequestId"];
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["ProductErrorEnvelope"] & {
-                    error?: {
-                        /** @enum {string} */
-                        code?: "unsupported_media_type";
-                    };
-                };
-            };
-        };
-        /** @description precondition_required (If-Match is required). Stable envelope. */
-        FaviconOrderingError428: {
-            headers: {
-                "Cache-Control": components["headers"]["PrivateNoStore"];
-                "X-Request-Id": components["headers"]["XRequestId"];
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["ProductErrorEnvelope"] & {
-                    error?: {
-                        /** @enum {string} */
-                        code?: "precondition_required";
-                    };
-                };
-            };
-        };
-        /** @description rate_limited with Retry-After. Stable envelope. */
-        FaviconOrderingError429: {
-            headers: {
-                "Cache-Control": components["headers"]["PrivateNoStore"];
-                "X-Request-Id": components["headers"]["XRequestId"];
-                "Retry-After"?: string;
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["ProductErrorEnvelope"] & {
-                    error?: {
-                        /** @enum {string} */
-                        code?: "rate_limited";
-                    };
-                };
-            };
-        };
-        /** @description internal_error. Stable envelope. */
-        FaviconOrderingError500: {
-            headers: {
-                "Cache-Control": components["headers"]["PrivateNoStore"];
-                "X-Request-Id": components["headers"]["XRequestId"];
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["ProductErrorEnvelope"] & {
-                    error?: {
-                        /** @enum {string} */
-                        code?: "internal_error";
-                    };
-                };
-            };
-        };
-        /** @description feature_temporarily_unavailable with Retry-After. Stable envelope. */
-        FaviconOrderingError503: {
-            headers: {
-                "Cache-Control": components["headers"]["PrivateNoStore"];
-                "X-Request-Id": components["headers"]["XRequestId"];
-                "Retry-After"?: string;
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["ProductErrorEnvelope"] & {
-                    error?: {
-                        /** @enum {string} */
-                        code?: "feature_temporarily_unavailable";
-                    };
-                };
-            };
-        };
-        /** @description Explicit Reading Progress state created. */
-        ReadingProgressCreated: {
-            headers: {
-                "Cache-Control": components["headers"]["PrivateNoStore"];
-                ETag: components["headers"]["ETag"];
-                "X-Request-Id": components["headers"]["XRequestId"];
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["ReadingProgressMutationResult"];
-            };
-        };
-        /** @description Existing Reading Progress state conditionally updated. */
-        ReadingProgressUpdated: {
-            headers: {
-                "Cache-Control": components["headers"]["PrivateNoStore"];
-                ETag: components["headers"]["ETag"];
-                "X-Request-Id": components["headers"]["XRequestId"];
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["ReadingProgressMutationResult"];
-            };
-        };
-        /** @description Saved fact created. */
-        SavedResourceCreated: {
-            headers: {
-                "Cache-Control": components["headers"]["PrivateNoStore"];
-                "X-Request-Id": components["headers"]["XRequestId"];
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["SaveResourceResult"];
-            };
-        };
-        /** @description The same target was already saved by this account. */
-        SavedResourceUnchanged: {
-            headers: {
-                "Cache-Control": components["headers"]["PrivateNoStore"];
-                "X-Request-Id": components["headers"]["XRequestId"];
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["SaveResourceResult"];
-            };
-        };
         /** @description invalid_request, invalid_json, invalid_query, or invalid_cursor. */
         AccountCredentialError400: {
             headers: {
@@ -6729,28 +5999,6 @@ export interface components {
         NotFound: {
             headers: {
                 "Cache-Control": components["headers"]["PrivateNoStore"];
-                "X-Request-Id": components["headers"]["XRequestId"];
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["ProductErrorEnvelope"];
-            };
-        };
-        /** @description resource_not_found for a link preview object. Illegal previewId values and missing objects share this shape (no existence oracle). */
-        LinkPreviewNotFound: {
-            headers: {
-                "Cache-Control": components["headers"]["PublicShortCache"];
-                "X-Request-Id": components["headers"]["XRequestId"];
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["ProductErrorEnvelope"];
-            };
-        };
-        /** @description resource_not_found for a favicon object. Illegal faviconId values and missing objects share this shape (no existence oracle). */
-        FaviconNotFound: {
-            headers: {
-                "Cache-Control": components["headers"]["PublicShortCache"];
                 "X-Request-Id": components["headers"]["XRequestId"];
                 [name: string]: unknown;
             };
@@ -6893,255 +6141,13 @@ export interface components {
                 "application/json": components["schemas"]["ProductErrorEnvelope"];
             };
         };
-        /** @description Durable upload intent issued or recovered, with the one-time grant. */
-        AttachmentIssueResponse: {
-            headers: {
-                "Cache-Control": components["headers"]["PrivateNoStore"];
-                "X-Request-Id": components["headers"]["XRequestId"];
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["AttachmentIssueResult"];
-            };
-        };
-        /** @description Upload completed, idempotently replayed, or already verified. */
-        AttachmentCompleteResponse: {
-            headers: {
-                "Cache-Control": components["headers"]["PrivateNoStore"];
-                "X-Request-Id": components["headers"]["XRequestId"];
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["AttachmentCompleteResult"];
-            };
-        };
-        /** @description Owner-private status and metadata view; never a malware verdict. */
-        AttachmentStatusResponse: {
-            headers: {
-                "Cache-Control": components["headers"]["PrivateNoStore"];
-                "X-Request-Id": components["headers"]["XRequestId"];
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["AttachmentStatusDto"];
-            };
-        };
-        /** @description Attachment finalized in the canonical mutation. */
-        AttachmentFinalizeResponse: {
-            headers: {
-                "Cache-Control": components["headers"]["PrivateNoStore"];
-                "X-Request-Id": components["headers"]["XRequestId"];
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["AttachmentFinalizeResult"];
-            };
-        };
-        /** @description Replacement generation intent issued with a new one-time grant. */
-        AttachmentReplacementResponse: {
-            headers: {
-                "Cache-Control": components["headers"]["PrivateNoStore"];
-                "X-Request-Id": components["headers"]["XRequestId"];
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["AttachmentIssueResult"];
-            };
-        };
-        /** @description Attachment logically retired into retention. */
-        AttachmentRetireResponse: {
-            headers: {
-                "Cache-Control": components["headers"]["PrivateNoStore"];
-                "X-Request-Id": components["headers"]["XRequestId"];
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["AttachmentRetireResult"];
-            };
-        };
-        /** @description Short-lived owner download capability for the isolated origin. */
-        AttachmentDownloadResponse: {
-            headers: {
-                "Cache-Control": components["headers"]["PrivateNoStore"];
-                "X-Request-Id": components["headers"]["XRequestId"];
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["AttachmentDownloadAdmission"];
-            };
-        };
-        /** @description invalid_request or invalid_json. */
-        AttachmentBadRequest: {
-            headers: {
-                "Cache-Control": components["headers"]["PrivateNoStore"];
-                "X-Request-Id": components["headers"]["XRequestId"];
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["AttachmentErrorEnvelope"];
-            };
-        };
-        /** @description authentication_required. */
-        AttachmentAuthenticationRequired: {
-            headers: {
-                "Cache-Control": components["headers"]["PrivateNoStore"];
-                "X-Request-Id": components["headers"]["XRequestId"];
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["AttachmentErrorEnvelope"];
-            };
-        };
-        /** @description csrf_failed or insufficient_permission. */
-        AttachmentForbidden: {
-            headers: {
-                "Cache-Control": components["headers"]["PrivateNoStore"];
-                "X-Request-Id": components["headers"]["XRequestId"];
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["AttachmentErrorEnvelope"];
-            };
-        };
-        /** @description resource_not_found. Foreign, absent, retired/tombstoned, and unauthorized Attachment identities are concealed with this stable external Problem: no body variation, no redirect, no capability. */
-        AttachmentNotFound: {
-            headers: {
-                "Cache-Control": components["headers"]["PrivateNoStore"];
-                "X-Request-Id": components["headers"]["XRequestId"];
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["AttachmentErrorEnvelope"];
-            };
-        };
-        /** @description attachment_state_conflict (the target state does not admit the command) or attachment_idempotency_conflict (the idempotency key was reused with a different binding). Retry-After is never emitted. */
-        AttachmentStateConflict: {
-            headers: {
-                "Cache-Control": components["headers"]["PrivateNoStore"];
-                "X-Request-Id": components["headers"]["XRequestId"];
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["AttachmentErrorEnvelope"];
-            };
-        };
-        /** @description payload_too_large. */
-        AttachmentPayloadTooLarge: {
-            headers: {
-                "Cache-Control": components["headers"]["PrivateNoStore"];
-                "X-Request-Id": components["headers"]["XRequestId"];
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["AttachmentErrorEnvelope"];
-            };
-        };
-        /** @description unsupported_media_type. */
-        AttachmentUnsupportedMediaType: {
-            headers: {
-                "Cache-Control": components["headers"]["PrivateNoStore"];
-                "X-Request-Id": components["headers"]["XRequestId"];
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["AttachmentErrorEnvelope"];
-            };
-        };
-        /** @description invalid_document with optional fieldErrors. */
-        AttachmentInvalidDocument: {
-            headers: {
-                "Cache-Control": components["headers"]["PrivateNoStore"];
-                "X-Request-Id": components["headers"]["XRequestId"];
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["AttachmentErrorEnvelope"];
-            };
-        };
-        /** @description rate_limited. Retry-After and the fixed RateLimit-Policy are emitted; exhausted quota is never mislabeled as infrastructure failure. */
-        AttachmentRateLimited: {
-            headers: {
-                "Cache-Control": components["headers"]["PrivateNoStore"];
-                "Retry-After": components["headers"]["RetryAfter"];
-                "RateLimit-Policy": components["headers"]["RateLimitPolicy"];
-                "X-Request-Id": components["headers"]["XRequestId"];
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["AttachmentErrorEnvelope"];
-            };
-        };
-        /** @description internal_error. */
-        AttachmentInternalError: {
-            headers: {
-                "Cache-Control": components["headers"]["PrivateNoStore"];
-                "X-Request-Id": components["headers"]["XRequestId"];
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["AttachmentErrorEnvelope"];
-            };
-        };
-        /** @description rate_limit_unavailable when the admission rate limiter cannot decide (never a fabricated quota fact; Retry-After is intentionally absent), or attachments_not_implemented while a behavior is not yet implemented. Both are closed states: no partial success is ever returned. */
-        AttachmentServiceUnavailable: {
-            headers: {
-                "Cache-Control": components["headers"]["PrivateNoStore"];
-                "X-Request-Id": components["headers"]["XRequestId"];
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["AttachmentErrorEnvelope"];
-            };
-        };
     };
     parameters: {
         AccountCredentialId: components["schemas"]["OpaqueId"];
-        /** @description Stable identity-owned Profile ID, never a mutable handle. */
-        ProfileIdPath: components["schemas"]["ProfileStableId"];
-        /** @description Opaque principal-, Profile-, direction-, limit-, purpose-, comparator-, key- and expiry-bound cursor. Omit limit when continuing. */
-        FollowCursor: string;
-        /** @description First-page size. A continuation uses the limit sealed into its cursor. */
-        FollowLimit: number;
         /** @description Optional exact Feed item kind. Case and surrounding whitespace are normalized only after cardinality validation. */
         FeedKind: "collection_change" | "follow_activity";
-        /** @description Opaque principal-, filter-, limit-, purpose-, comparator-, key- and expiry-bound Feed cursor. Omit limit when continuing. */
-        FeedCursor: string;
-        /** @description First-page Feed size. A continuation uses the limit sealed into its cursor. */
-        FeedLimit: number;
-        NotificationState: "all" | "read" | "unread";
-        /** @description Principal-, state-, page-size-, purpose-, comparator-, key-, and expiry-bound continuation. */
-        NotificationCursor: string;
-        /** @description First-page size; omit when cursor is present. */
-        NotificationLimit: number;
-        /** @description Frozen Phase 5 compatibility filter. true reads the read inbox, false the unread inbox; absent reads the whole inbox. The successor path uses the state parameter instead. */
-        NotificationRead: boolean;
-        NotificationIdPath: components["schemas"]["OpaqueId"];
-        /** @description Preference channel to read/update. in_app is the Notification center channel; email is the optional P5-30 email delivery channel. PUT binds the If-Match validator to this channel: "notification-preference:<channel>:<revision>". */
-        NotificationChannelPath: "in_app" | "email";
-        /** @description Case-insensitive public handle locator, canonicalized to lowercase by the server. */
-        PublicProfileHandlePath: string;
-        /** @description Number of public Collection summaries in this keyset page. */
-        PublicProfileLimit: number;
-        /** @description Signed Profile-only Product cursor. Do not log, parse, or reuse for another purpose. */
-        PublicProfileCursor: components["schemas"]["PublicProfileCursorValue"];
-        /** @description Page size. Defaults to 30. Values outside 1..100 are invalid_query. */
-        PublicActivityLimit: number;
-        /** @description Signed public Activity cursor (purpose social.public-activity.v1). Do not log, parse, or reuse a Feed or Profile cursor. */
-        PublicActivityCursor: string;
         /** @description One raw header field containing RFC entity-tag validators or *. Duplicate header fields are rejected before framework normalization. */
         IfNoneMatch: string;
-        /** @description Optional title/summary search text. Truncated to 256 characters. */
-        ExploreQuery: string;
-        /** @description Optional tag filter. Truncated to 64 characters. */
-        ExploreTag: string;
-        /** @description Page size. Defaults to 24. Values outside 1..100 are invalid_query. */
-        ExploreLimit: number;
-        /** @description Opaque product Explore continuation (base64url JSON). The JSON shape must match the effective query sort: `{ sort: 'updated', micros, id }` for updated (default); `{ sort: 'popular', viewCount, micros, id }` for popular; `{ sort: 'links', nodeCount, micros, id }` for links. Old cursors without `sort` are valid only with default `updated`. A query.sort vs cursor.sort mismatch, an old cursor used with popular/links, or missing sort keys for that order is invalid_cursor. */
-        ExploreCursor: string;
-        /** @description Canonical BCP47 exact filter. Omitted means all languages. Structurally invalid values are invalid_query. */
-        ExploreLanguage: string;
-        /** @description Page order. Defaults to updated (updatedAt desc, then id). popular orders by the 30 UTC-day collection_view sum desc, then updatedAt desc, then id. links orders by live nodeCount desc, then updatedAt desc, then id. Unknown values are invalid_query. */
-        ExploreSort: "updated" | "popular" | "links";
         /** @description Search text. The transport applies a 2048-byte encoded component limit before percent decoding, then bounded NFKC normalization, code-point, token, combining-mark, and operator complexity limits. */
         SearchQuery: string;
         /** @description Repeat once per selected result type; duplicate values and comma-joined values are invalid. */
@@ -7174,20 +6180,10 @@ export interface components {
         LinkHealthLimit: number;
         /** @description Opaque Subject-, filter- (including scope), limit-, sort-, comparator-, key-version-, purpose-, and expiry-bound continuation that explicitly encodes a null checkedAt keyset bound. Must be the only query parameter. Continuation uses the encoded scope; omitted query scope is not defaulted to owned. */
         LinkHealthCursor: components["schemas"]["Cursor"];
-        /** @description First-page item limit. Must be omitted when cursor is present. */
-        ClassifyInboxLimit: number;
-        /** @description Opaque Subject-, limit-, sort-, comparator-, key-version-, purpose-, and expiry-bound continuation for (createdAt DESC, nodeId DESC). Must be the only query parameter. */
-        ClassifyInboxCursor: components["schemas"]["Cursor"];
-        /** @description First-page item limit. Must be omitted when cursor is present. */
-        FollowedCollectionsLimit: number;
-        /** @description Opaque principal-, limit-, comparator-, key-version-, purpose-, and expiry-bound continuation for (followedAt DESC, collectionId DESC). Must be the only query parameter. */
-        FollowedCollectionsCursor: components["schemas"]["Cursor"];
         /** @description Sidebar section whose saved order is replaced. */
         LibraryOrderSection: components["schemas"]["LibraryOrderSection"];
         /** @description Canonical publication slug for GET getPublicCollectionPage. This path segment is not the Collection OpaqueId used by PATCH updateCollection. GET looks up the Collection solely via findCollectionIdBySlug; it does not load by collection id. A UUID-shaped token is still treated as a slug, never as an OpaqueId fallback. */
         PublicCollectionSlugPath: components["schemas"]["PublicationLocatorSlug"];
-        /** @description Canonical lowercase publication slug for anonymous insight ingest. */
-        PublicCollectionInsightSlugPath: components["schemas"]["PublicationLocatorSlug"];
         /** @description Page node limit, including the Root on the first page. */
         PublicCollectionLimit: number;
         /** @description Signed Product public-page cursor. It is not a COLP or Editor cursor. */
@@ -7200,20 +6196,12 @@ export interface components {
         SubjectId: components["schemas"]["OpaqueId"];
         /** @description Case-sensitive opaque Node ID. */
         NodeId: components["schemas"]["OpaqueId"];
-        /** @description Case-sensitive opaque export job ID. */
-        ExportJobId: components["schemas"]["OpaqueId"];
-        /** @description Case-sensitive opaque organize plan ID. */
-        OrganizePlanId: components["schemas"]["OpaqueId"];
         /** @description Case-sensitive opaque collection tree version ID. */
         CollectionVersionId: components["schemas"]["OpaqueId"];
         /** @description First-page item limit. Must be omitted when cursor is present. */
         CollectionVersionsLimit: number;
         /** @description Opaque Subject-, limit-, sort-, comparator-, key-version-, purpose-, and expiry-bound continuation for (createdAt DESC, versionId DESC). Must be the only query parameter. */
         CollectionVersionsCursor: components["schemas"]["Cursor"];
-        /** @description Opaque 36-character UUID leaf. Illegal values and missing objects share the same 404 resource_not_found shape (no existence oracle). */
-        FaviconId: string;
-        /** @description Opaque lowercase UUID. Illegal values and missing objects share the same 404 resource_not_found shape (no existence oracle). */
-        LinkPreviewId: string;
         /** @description Case-sensitive opaque MCP Write Plan ID. */
         PlanId: components["schemas"]["OpaqueId"];
         /** @description First-page item limit. The approval page is intentionally bounded. */
@@ -7241,25 +6229,6 @@ export interface components {
         RelationLimit: number;
         /** @description Relation-only continuation bound to node, direction, filters and principal. */
         RelationCursor: components["schemas"]["RelationCursorValue"];
-        SavedResourceTypePath: components["schemas"]["SavedResourceType"];
-        SavedResourceIdPath: components["schemas"]["OpaqueId"];
-        SavedResourceTypeFilter: components["schemas"]["SavedResourceType"];
-        SavedResourceCollectionFilter: components["schemas"]["OpaqueId"];
-        SavedResourceCreatedAfter: string;
-        SavedResourceCreatedBefore: string;
-        /** @description First-page size; omit when cursor is present. */
-        SavedResourceLimit: number;
-        /** @description Account-, filter-, page-size-, comparator-, key-version-, expiry-, and purpose-bound continuation. */
-        SavedResourceCursor: string;
-        ReadingProgressTypePath: components["schemas"]["ReadingProgressResourceType"];
-        ReadingProgressIdPath: components["schemas"]["OpaqueId"];
-        ReadingProgressStatusFilter: components["schemas"]["ReadingProgressStatus"];
-        /** @description First-page size; omit when cursor is present. */
-        ReadingProgressLimit: number;
-        /** @description Reading-Progress-only continuation bound to account, status filter, page size, comparator, key version and expiry. */
-        ReadingProgressCursor: string;
-        /** @description Required for an update. Omission requests create-only behavior. Weak tags, lists, and * are rejected. */
-        ReadingProgressIfMatch: components["schemas"]["EntityTag"];
         /** @description OAuth client id or account-credential API key client id. */
         AgentId: string;
         /** @description Maximum number of agent audit records to return. */
@@ -7268,15 +6237,10 @@ export interface components {
         Origin: string;
         /** @description Session-bound CSRF token returned by getSession. */
         CsrfToken: components["schemas"]["CsrfToken"];
-        /** @description Required when a Session cookie is present. Anonymous insight ingest must omit this header. */
-        InsightIngestCsrfToken: components["schemas"]["CsrfToken"];
         /** @description Stable ID for one user intent. Reuse only for an exact retry of that intent. Full replay results are retained for at least 30 days. */
         CommandId: components["schemas"]["CommandId"];
         /** @description One strong resource ETag. Weak tags, lists, and * are rejected. */
         IfMatch: components["schemas"]["EntityTag"];
-        ReportId: string;
-        EditionId: string;
-        Limit: number;
         KnownCommandId: components["schemas"]["CommandId"];
         Cursor: components["schemas"]["Cursor"];
         /** @description Required exactly when recursive=true. Copy CollectionView.contentEtag without modification. Rejected for non-recursive requests. */
@@ -7296,44 +6260,8 @@ export interface components {
         OidcSessionState: string;
         OidcErrorDescription: string;
         OidcErrorUri: string;
-        /** @description Opaque logical Attachment/blob identity. Never a physical key, generation id, or provider URL. */
-        AttachmentBlobIdPath: components["schemas"]["OpaqueId"];
         /** @description Community target kind discriminator. */
         CommunityTargetKind: "collection" | "bookmark" | "digest_series" | "digest_edition";
-        /** @description Opaque target id (Collection, node, digest series, or digest edition id). */
-        CommunityTargetId: components["schemas"]["OpaqueId"];
-        /** @description Required only for kind=bookmark; forbidden for every other kind. */
-        CommunityCollectionId: components["schemas"]["OpaqueId"];
-        /** @description Required only for kind=digest_edition; forbidden for every other kind. */
-        CommunitySeriesId: components["schemas"]["OpaqueId"];
-        /** @description Restrict the ranking to one community target kind. */
-        CommunityRankingKind: "collection" | "bookmark" | "digest_series" | "digest_edition";
-        /** @description Restrict bookmark ranking to one collection; only allowed when kind=bookmark. */
-        CommunityRankingCollectionId: components["schemas"]["OpaqueId"];
-        /** @description Literal title search (trim + NFC + locale-independent lowercase). */
-        CommunityRankingQ: string;
-        /** @description Exact normalized tag match on the target catalog tags. */
-        CommunityRankingTag: string;
-        /** @description Canonical BCP47 language filter (Intl.getCanonicalLocales normalization). */
-        CommunityRankingLanguage: string;
-        /** @description Page size bound; the 65536-byte page budget still applies. */
-        CommunityRankingLimit: number;
-        /** @description Opaque continuation cursor from the previous page's nextCursor. */
-        CommunityRankingCursor: components["schemas"]["CommunityCursor"];
-        /** @description The target generation returned by resolveCommunityTarget: "static-v1" for collection and digest targets; the opaque server-minted generation for a bookmark target. */
-        CommunityGeneration: string;
-        /** @description Opaque server-minted community comment id. */
-        CommunityCommentIdPath: components["schemas"]["OpaqueId"];
-        /** @description Page size bound; the 65536-byte page budget still applies. */
-        CommunityCommentLimit: number;
-        /** @description Opaque continuation cursor from the previous page's nextCursor. */
-        CommunityCommentCursor: components["schemas"]["CommunityCursor"];
-        /** @description Inbox read-state filter; all is the default. */
-        CommunityNotificationRead: "all" | "unread";
-        /** @description Inbox page size bound (1..100, default 20). */
-        CommunityNotificationLimit: number;
-        /** @description Opaque continuation cursor from the previous page's nextCursor. */
-        CommunityNotificationCursor: components["schemas"]["CommunityCursor"];
     };
     requestBodies: never;
     headers: {
@@ -7341,24 +6269,12 @@ export interface components {
         XRequestId: components["schemas"]["RequestId"];
         /** @description Private Product response cache policy. */
         PrivateNoStore: "private, no-store";
-        /** @description Anonymous public report projection cache policy. */
-        PublicRevalidate: "public, max-age=30, must-revalidate";
         /** @description Public shared cache for anonymous reads; private no-store for Session reads. */
         PublicOrPrivateCache: string;
-        /** @description Shared cache policy for the principal-invariant public Profile representation. */
-        PublicProfileCache: "public, max-age=60, stale-while-revalidate=300";
-        /** @description Immutable public cache for favicon object bytes. */
-        PublicImmutableImageCache: "public, max-age=31536000, immutable";
-        /** @description Short public cache for preview images that moderation can revoke. */
-        PublicRevocableImageCache: "public, max-age=60, must-revalidate";
-        /** @description Short public cache for favicon object misses. */
-        PublicShortCache: "public, max-age=60";
         /** @description Search representation varies by media type and authenticated projection inputs. The value always includes Accept, Cookie, and Authorization and may also include Origin when CORS applies. */
         SearchVary: string;
         /** @description Decimal byte length of the selected representation, including on HEAD. */
         ContentLength: string;
-        /** @description Representation negotiation cache key. */
-        VaryAccept: "Accept";
         /** @description Prevent MIME sniffing of the JSON representation. */
         XContentTypeOptions: "nosniff";
         /** @description Browser navigation response cache policy. */
@@ -7369,8 +6285,6 @@ export interface components {
         Location: string;
         /** @description Retry delay in decimal seconds. */
         RetryAfter: number;
-        /** @description Fixed route-class rate-limit policy of the Attachment admission limiter, formatted attachments-<route-class>:<max>:<window-ms>. Emitted only on Attachment 429 responses; never on the 503 rate_limit_unavailable closed state, which is not a quota fact. */
-        RateLimitPolicy: string;
         /** @description Session or one-time OIDC transaction cookie. */
         SetCookie: string;
     };
@@ -8227,36 +7141,6 @@ export interface operations {
                 };
             };
             404: components["responses"]["NotFound"];
-        };
-    };
-    getBookmarkFavicon: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Opaque 36-character UUID leaf. Illegal values and missing objects share the same 404 resource_not_found shape (no existence oracle). */
-                faviconId: components["parameters"]["FaviconId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Favicon image bytes. */
-            200: {
-                headers: {
-                    "Cache-Control": components["headers"]["PublicImmutableImageCache"];
-                    "X-Content-Type-Options": components["headers"]["XContentTypeOptions"];
-                    "X-Request-Id": components["headers"]["XRequestId"];
-                    [name: string]: unknown;
-                };
-                content: {
-                    "image/png": string;
-                    "image/jpeg": string;
-                    "image/webp": string;
-                    "image/x-icon": string;
-                };
-            };
-            404: components["responses"]["FaviconNotFound"];
         };
     };
     listMyCollaborationInvites: {
@@ -10776,47 +9660,6 @@ export interface operations {
             503: components["responses"]["ServiceUnavailable"];
         };
     };
-    listCollectionChildren: {
-        parameters: {
-            query?: {
-                /** @description Live folder in this collection; omitted means the collection root. */
-                parentId?: components["schemas"]["OpaqueId"];
-                sort?: "curated" | "created_asc" | "created_desc";
-                /** @description First-page page size (default 50, max 100). A continuation page may echo the same limit together with cursor — the cursor already binds the first-page limit, so a matching echo is accepted and any other limit with a cursor is 400 invalid_cursor (restart from the first page). */
-                limit?: number;
-                cursor?: components["schemas"]["FaviconOrderingCursor"];
-            };
-            header?: never;
-            path: {
-                /** @description Case-sensitive opaque Collection ID. */
-                collectionId: components["parameters"]["CollectionId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description One layer of children with a page cursor. */
-            200: {
-                headers: {
-                    "Cache-Control": components["headers"]["PrivateNoStore"];
-                    "X-Request-Id": components["headers"]["XRequestId"];
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FaviconOrderingChildrenPage"];
-                };
-            };
-            400: components["responses"]["FaviconOrderingError400"];
-            401: components["responses"]["FaviconOrderingError401"];
-            403: components["responses"]["FaviconOrderingError403"];
-            404: components["responses"]["FaviconOrderingError404"];
-            405: components["responses"]["FaviconOrderingError405"];
-            409: components["responses"]["FaviconOrderingError409"];
-            429: components["responses"]["FaviconOrderingError429"];
-            500: components["responses"]["FaviconOrderingError500"];
-            503: components["responses"]["FaviconOrderingError503"];
-        };
-    };
     getCollectionCatalog: {
         parameters: {
             query?: never;
@@ -11114,216 +9957,6 @@ export interface operations {
             429: components["responses"]["RateLimited"];
             500: components["responses"]["InternalError"];
             503: components["responses"]["ServiceUnavailable"];
-        };
-    };
-    uploadBookmarkFavicon: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Exact allowed Product Web origin. Duplicate or null values fail. */
-                Origin: components["parameters"]["Origin"];
-                /** @description Session-bound CSRF token returned by getSession. */
-                "X-CSRF-Token": components["parameters"]["CsrfToken"];
-                /** @description Stable ID for one user intent. Reuse only for an exact retry of that intent. Full replay results are retained for at least 30 days. */
-                "Known-Command-Id": components["parameters"]["CommandId"];
-            };
-            path: {
-                /** @description Case-sensitive opaque Collection ID. */
-                collectionId: components["parameters"]["CollectionId"];
-                /** @description Case-sensitive opaque Node ID. */
-                nodeId: components["parameters"]["NodeId"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "image/png": string;
-                "image/jpeg": string;
-                "image/webp": string;
-                "image/x-icon": string;
-                "image/vnd.microsoft.icon": string;
-                "application/octet-stream": string;
-            };
-        };
-        responses: {
-            /** @description Updated BookmarkNodeView with the new iconUrl. Node revision is unchanged. */
-            200: {
-                headers: {
-                    "Cache-Control": components["headers"]["PrivateNoStore"];
-                    "X-Request-Id": components["headers"]["XRequestId"];
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BookmarkNodeView"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["AuthenticationRequired"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            /** @description command_id_reused only. In-progress never uses this status. */
-            409: {
-                headers: {
-                    "Cache-Control": components["headers"]["PrivateNoStore"];
-                    "X-Request-Id": components["headers"]["XRequestId"];
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProductErrorEnvelope"];
-                };
-            };
-            410: components["responses"]["Gone"];
-            413: components["responses"]["PayloadTooLarge"];
-            415: components["responses"]["UnsupportedMediaType"];
-            429: components["responses"]["RateLimited"];
-            500: components["responses"]["InternalError"];
-            503: components["responses"]["ServiceUnavailable"];
-        };
-    };
-    deleteBookmarkFavicon: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Exact allowed Product Web origin. Duplicate or null values fail. */
-                Origin: components["parameters"]["Origin"];
-                /** @description Session-bound CSRF token returned by getSession. */
-                "X-CSRF-Token": components["parameters"]["CsrfToken"];
-                /** @description Stable ID for one user intent. Reuse only for an exact retry of that intent. Full replay results are retained for at least 30 days. */
-                "Known-Command-Id": components["parameters"]["CommandId"];
-            };
-            path: {
-                /** @description Case-sensitive opaque Collection ID. */
-                collectionId: components["parameters"]["CollectionId"];
-                /** @description Case-sensitive opaque Node ID. */
-                nodeId: components["parameters"]["NodeId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description BookmarkNodeView with iconUrl null. Node revision is unchanged. */
-            200: {
-                headers: {
-                    "Cache-Control": components["headers"]["PrivateNoStore"];
-                    "X-Request-Id": components["headers"]["XRequestId"];
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BookmarkNodeView"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["AuthenticationRequired"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            /** @description command_id_reused only. In-progress never uses this status. */
-            409: {
-                headers: {
-                    "Cache-Control": components["headers"]["PrivateNoStore"];
-                    "X-Request-Id": components["headers"]["XRequestId"];
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProductErrorEnvelope"];
-                };
-            };
-            410: components["responses"]["Gone"];
-            413: components["responses"]["PayloadTooLarge"];
-            415: components["responses"]["UnsupportedMediaType"];
-            429: components["responses"]["RateLimited"];
-            500: components["responses"]["InternalError"];
-            503: components["responses"]["ServiceUnavailable"];
-        };
-    };
-    getBookmarkFaviconSource: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Case-sensitive opaque Collection ID. */
-                collectionId: components["parameters"]["CollectionId"];
-                /** @description Case-sensitive opaque Node ID. */
-                nodeId: components["parameters"]["NodeId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The projected icon source state and its strong ETag. */
-            200: {
-                headers: {
-                    "Cache-Control": components["headers"]["PrivateNoStore"];
-                    ETag: components["headers"]["ETag"];
-                    "X-Request-Id": components["headers"]["XRequestId"];
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FaviconOrderingIconSource"];
-                };
-            };
-            400: components["responses"]["FaviconOrderingError400"];
-            401: components["responses"]["FaviconOrderingError401"];
-            403: components["responses"]["FaviconOrderingError403"];
-            404: components["responses"]["FaviconOrderingError404"];
-            405: components["responses"]["FaviconOrderingError405"];
-            429: components["responses"]["FaviconOrderingError429"];
-            500: components["responses"]["FaviconOrderingError500"];
-            503: components["responses"]["FaviconOrderingError503"];
-        };
-    };
-    setBookmarkFaviconSource: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Exact allowed Product Web origin. Duplicate or null values fail. */
-                Origin: components["parameters"]["Origin"];
-                /** @description Session-bound CSRF token returned by getSession. */
-                "X-CSRF-Token": components["parameters"]["CsrfToken"];
-                /** @description Stable ID for one user intent. Reuse only for an exact retry of that intent. Full replay results are retained for at least 30 days. */
-                "Known-Command-Id": components["parameters"]["CommandId"];
-                /** @description One strong resource ETag. Weak tags, lists, and * are rejected. */
-                "If-Match": components["parameters"]["IfMatch"];
-            };
-            path: {
-                /** @description Case-sensitive opaque Collection ID. */
-                collectionId: components["parameters"]["CollectionId"];
-                /** @description Case-sensitive opaque Node ID. */
-                nodeId: components["parameters"]["NodeId"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["FaviconOrderingSetIconSource"];
-            };
-        };
-        responses: {
-            /** @description The projected icon source state after the change. */
-            200: {
-                headers: {
-                    "Cache-Control": components["headers"]["PrivateNoStore"];
-                    ETag: components["headers"]["ETag"];
-                    "X-Request-Id": components["headers"]["XRequestId"];
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FaviconOrderingIconSource"];
-                };
-            };
-            400: components["responses"]["FaviconOrderingError400"];
-            401: components["responses"]["FaviconOrderingError401"];
-            403: components["responses"]["FaviconOrderingError403"];
-            404: components["responses"]["FaviconOrderingError404"];
-            405: components["responses"]["FaviconOrderingError405"];
-            409: components["responses"]["FaviconOrderingError409"];
-            410: components["responses"]["FaviconOrderingError410"];
-            412: components["responses"]["FaviconOrderingError412"];
-            413: components["responses"]["FaviconOrderingError413"];
-            415: components["responses"]["FaviconOrderingError415"];
-            428: components["responses"]["FaviconOrderingError428"];
-            429: components["responses"]["FaviconOrderingError429"];
-            500: components["responses"]["FaviconOrderingError500"];
-            503: components["responses"]["FaviconOrderingError503"];
         };
     };
     listAnnotations: {
@@ -12438,6 +11071,7 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["AuthenticationRequired"];
             404: components["responses"]["NotFound"];
+            413: components["responses"]["PayloadTooLarge"];
             500: components["responses"]["InternalError"];
         };
     };
