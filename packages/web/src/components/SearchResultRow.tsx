@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import type { SearchResult } from '../api/types'
 import { cleanSnippet, highlightQuery } from '../lib/searchHighlight'
-import { annotationKindTitle, searchKindLabel, searchKindTitle } from '../lib/searchCopy'
+import { searchKindLabel, searchResultKindTitle } from '../lib/searchCopy'
 import { searchResultTitle } from '../lib/useProductSearch'
 import { useIsClamped } from '../lib/useIsClamped'
 
@@ -16,6 +16,8 @@ type Props = {
   result: SearchResult
   query: string
   meta?: ReactNode
+  /** The node's real kind when the host knows it (the Search page does). */
+  nodeKind?: 'folder' | 'bookmark' | null
 }
 
 /**
@@ -25,7 +27,7 @@ type Props = {
  * `button.search-result`) and may only restyle column sizing — the DOM and
  * class structure never fork.
  */
-export function SearchResultRow({ result, query, meta }: Props) {
+export function SearchResultRow({ result, query, meta, nodeKind }: Props) {
   const title = searchResultTitle(result)
   const cleaned = cleanSnippet(title, result.snippet)
   const highlightedTitle = highlightQuery(title, query)
@@ -33,7 +35,7 @@ export function SearchResultRow({ result, query, meta }: Props) {
 
   return (
     <>
-      <span className="chip chip--kind" data-testid="search-result-kind">{result.resourceType === 'annotation' ? annotationKindTitle(result.annotationType) : searchKindTitle(result.resourceType)}</span>
+      <span className="chip chip--kind" data-testid="search-result-kind">{searchResultKindTitle(result, nodeKind)}</span>
       <span className="result-row-copy">
         <strong ref={titleRef} className="result-row-title" dir="auto" title={titleClamped ? title : undefined}>{highlightedTitle}</strong>
         {cleaned ? (

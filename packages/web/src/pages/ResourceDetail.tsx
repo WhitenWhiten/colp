@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom'
+import { Link, Navigate, useLocation, useParams, useSearchParams } from 'react-router-dom'
 import { isLive } from '../api'
 import { graphPath } from '../lib/graphNavigation'
 import { loginPath } from '../lib/chrome'
@@ -256,6 +256,12 @@ function ResourceDetailContent() {
         />
       </>
     )
+  }
+
+  /* A folder has no resource page; search and links that land here open
+     it on the desk instead of a dead end. */
+  if (resolved.status === 'folder' && collectionId) {
+    return <Navigate replace to={`/library/${encodeURIComponent(collectionId)}?folder=${encodeURIComponent(id)}`} />
   }
 
   if (resolved.status !== 'ready' || identityCopy) {

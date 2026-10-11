@@ -3,15 +3,16 @@ import { act } from 'react'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ProductApiError } from '../api/errors'
-import type { SearchPage, SearchResourceType } from '../api/types'
+import type { EditorSnapshot, SearchPage, SearchResourceType } from '../api/types'
+import { clearRouteCache } from '../lib/routeCache'
 import { Search } from './Search'
 import { cleanup, domFinishedLoading, findButtonByName, mountTree, waitForDom } from '../test/render'
 import { canonicalHref, installPageMetaBaseline, pageMetaContent, robotsContents } from '../test/pageMeta'
 
-const mocks = vi.hoisted(() => ({ search: vi.fn(), live: true }))
+const mocks = vi.hoisted(() => ({ search: vi.fn(), snapshot: vi.fn(), live: true }))
 vi.mock('../api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../api')>()
-  return { ...actual, isLive: (flag: string) => flag === 'search' ? mocks.live : actual.isLive(flag as never), productClient: { ...actual.productClient, searchResources: mocks.search } }
+  return { ...actual, isLive: (flag: string) => flag === 'search' ? mocks.live : actual.isLive(flag as never), productClient: { ...actual.productClient, searchResources: mocks.search, loadEditorSnapshot: mocks.snapshot } }
 })
 const makePage = (items: SearchPage['items'], nextCursor: string | null = null): SearchPage => ({
   query: 'systems', types: ['collection', 'node', 'annotation'], items,
@@ -21,8 +22,10 @@ const makePage = (items: SearchPage['items'], nextCursor: string | null = null):
 async function flushDebounce() { await act(async () => { vi.advanceTimersByTime(300); await Promise.resolve(); await Promise.resolve() }) }
 
 describe('Search page', () => {
-  beforeEach(() => { vi.useFakeTimers(); vi.clearAllMocks(); mocks.live = true; localStorage.clear(); document.body.innerHTML = '<div id="root"></div>'; (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true })
+  beforeEach(() => { vi.useFakeTimers(); vi.clearAllMocks(); clearRouteCache(); mocks.snapshot.mockRejectedValue(new Error('offline')); mocks.live = true; localStorage.clear(); document.body.innerHTML = '<div id="root"></div>'; (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true })
   afterEach(() => { cleanup(); vi.useRealTimers(); document.body.innerHTML = '' })
+  const typeOption = (label: string) => [...document.querySelectorAll<HTMLButtonElement>('[data-testid="search-type-filter"] [role="radio"]')]
+    .find((option) => option.textContent === label)!
   function render(path = '/search?q=systems') { mountTree(<MemoryRouter initialEntries={[path]}><Routes><Route path="/search" element={<Search />} /></Routes></MemoryRouter>) }
   it('shows loading, appends the same generation, and moves focus to the first appended result', async () => {
     installPageMetaBaseline()
@@ -88,17 +91,11 @@ describe('Search page', () => {
       { q: 'systems', types: ['annotation'] satisfies SearchResourceType[], limit: 20 },
       expect.anything(),
     )
-    const type = () => document.querySelector<HTMLSelectElement>('[data-testid="search-type-filter"] select')!
-    const choose = (value: string) => act(() => {
-      type().value = value
-      type().dispatchEvent(new Event('change', { bubbles: true }))
-    })
-    expect(type().value).toBe('annotation')
-    expect(document.querySelector('[data-testid="search-type-filter"]')?.textContent).toContain('In:')
-    choose('collection')
+    expect(typeOption('Annotations').getAttribute('aria-checked')).toBe('true')
+    act(() => typeOption('Collections').click())
     await flushDebounce()
     expect(currentSearch).toContain('types=collection')
-    choose('all')
+    act(() => typeOption('All').click())
     await flushDebounce()
     expect(currentSearch).not.toContain('types=')
     expect(currentSearch).toContain('q=systems')
@@ -108,11 +105,7 @@ describe('Search page', () => {
     mocks.search.mockResolvedValueOnce(makePage([{ resourceType: 'collection', resourceId: 'c1', title: 'Old', snippet: 'Old', rank: 0.9 }], 'old-cursor'))
       .mockResolvedValueOnce({ ...makePage([]), types: ['annotation'] })
     render(); await flushDebounce()
-    act(() => {
-      const type = document.querySelector<HTMLSelectElement>('[data-testid="search-type-filter"] select')!
-      type.value = 'annotation'
-      type.dispatchEvent(new Event('change', { bubbles: true }))
-    })
+    act(() => typeOption('Annotations').click())
     expect(document.body.textContent).not.toContain('Old')
     await flushDebounce()
     expect(mocks.search).toHaveBeenLastCalledWith({ q: 'systems', types: ['annotation'] satisfies SearchResourceType[], limit: 20 }, expect.anything())
@@ -241,13 +234,70 @@ describe('Search page', () => {
     expect(document.querySelector('[data-search-state="empty"]')).toBeNull()
   })
 
+  it('names folders, says where each hit lives, and opens a folder on the desk', async () => {
+    mocks.snapshot.mockResolvedValue({
+      collection: { id: 'c1', title: 'Reading notes' },
+      root: { id: 'root-1' },
+      nodes: [
+        { id: 'f-design', parentId: 'root-1', kind: 'folder', title: 'Design' },
+        { id: 'f-type', parentId: 'f-design', kind: 'folder', title: 'Type' },
+        { id: 'n-mdn', parentId: 'f-type', kind: 'bookmark', title: 'MDN Web Docs', url: 'https://developer.mozilla.org' },
+      ],
+    } as unknown as EditorSnapshot)
+    mocks.search.mockResolvedValue(makePage([
+      { resourceType: 'node', resourceId: 'f-design', collectionId: 'c1', title: 'Design', urlHost: null, snippet: 'Design', rank: 0.9 },
+      { resourceType: 'node', resourceId: 'n-mdn', collectionId: 'c1', title: 'MDN Web Docs', urlHost: 'developer.mozilla.org', snippet: 'MDN', rank: 0.8 },
+      { resourceType: 'annotation', resourceId: 'a-1', collectionId: 'c1', annotationType: 'note', subject: { type: 'node', id: 'n-mdn' }, snippet: 'Design reference', rank: 0.7 },
+    ]))
+    render('/search?q=de')
+    await flushDebounce()
+    await waitForDom(() => document.querySelector('[data-search-result-id="n-mdn"] [data-testid="search-result-meta"] > span + span') !== null)
+    expect(mocks.snapshot).toHaveBeenCalledTimes(1)
+    expect(mocks.snapshot).toHaveBeenCalledWith('c1', expect.objectContaining({ maxRetries: 0 }))
+
+    const folder = document.querySelector('[data-search-result-id="f-design"]')!
+    expect(folder.querySelector('[data-testid="search-result-kind"]')?.textContent).toBe('Folder')
+    expect(folder.getAttribute('href')).toBe('/library/c1?folder=f-design')
+    expect(folder.querySelector('[data-testid="search-result-meta"]')?.textContent).toBe('Reading notes')
+
+    const bookmark = document.querySelector('[data-search-result-id="n-mdn"]')!
+    expect(bookmark.querySelector('[data-testid="search-result-kind"]')?.textContent).toBe('Bookmark')
+    expect([...bookmark.querySelectorAll('[data-testid="search-result-meta"] > span')].map((part) => part.textContent))
+      .toEqual(['developer.mozilla.org', 'Reading notes › Design › Type'])
+
+    const note = document.querySelector('[data-search-result-id="a-1"]')!
+    expect([...note.querySelectorAll('[data-testid="search-result-meta"] > span')].map((part) => part.textContent))
+      .toEqual(['On MDN Web Docs', 'Reading notes › Design › Type'])
+  })
+
+  it('labels a hostless node a folder before its collection tree arrives', async () => {
+    mocks.search.mockResolvedValue(makePage([
+      { resourceType: 'node', resourceId: 'f-design', collectionId: 'c1', title: 'Design', urlHost: null, snippet: 'Design', rank: 0.9 },
+    ]))
+    render('/search?q=de')
+    await flushDebounce()
+    const folder = document.querySelector('[data-search-result-id="f-design"]')!
+    expect(folder.querySelector('[data-testid="search-result-kind"]')?.textContent).toBe('Folder')
+    expect(folder.querySelector('[data-testid="search-result-meta"]')).toBeNull()
+  })
+
+  it('offers to search every type when a filtered search finds nothing', async () => {
+    mocks.search.mockResolvedValue(makePage([]))
+    render('/search?q=zzz&types=annotation')
+    await flushDebounce()
+    expect(document.querySelector('[data-search-state="empty"]')?.textContent).toContain('Try another word, or search every type.')
+    act(() => findButtonByName('Search everything').click())
+    await flushDebounce()
+    expect(mocks.search).toHaveBeenLastCalledWith({ q: 'zzz', types: ['collection', 'node', 'annotation'], limit: 20 }, expect.anything())
+  })
+
   it('shows the empty state only when the backend returns no hits', async () => {
     mocks.search.mockResolvedValue(makePage([]))
     render('/search?q=zzzxnotfoundxyz')
     await flushDebounce()
     expect(document.querySelector('[data-search-state="empty"]')).not.toBeNull()
     expect(document.querySelector('[data-search-state="empty"]')?.textContent).toContain('No results for “zzzxnotfoundxyz”')
-    expect(document.querySelector('[data-search-state="empty"]')?.textContent).toContain('Try another term.')
+    expect(document.querySelector('[data-search-state="empty"]')?.textContent).toContain('Try another word, a site name, or a folder name.')
     expect(document.querySelectorAll('[data-search-result]')).toHaveLength(0)
   })
 })
