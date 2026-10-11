@@ -14,9 +14,11 @@ import {
   MCP_WIRE_INVALID_PARAMS_ERROR_CODE,
   MCP_WIRE_INVALID_REQUEST_ERROR_CODE,
   Mcp20260728RequestError,
+  McpChangePlanError,
   type Mcp20260728WireErrorKind,
 } from '@know-n/colp/mcp';
 import { COLLECTION_KINDS } from '../collections/index.js';
+import { MCP_PLAN_IMPACT_EXCEEDED_MESSAGE } from './agent-plan-history-error.js';
 import type { McpApplicationRejectedResult } from './application-results.js';
 import {
   Phase4bMcpChangePlanPlannerError,
@@ -273,13 +275,21 @@ const CHANGE_PLAN_REJECTION_MESSAGES: Readonly<Record<string, string>> = Object.
   plan_already_consumed: 'This plan was already committed.',
   plan_not_found: 'No plan with this id is available to this agent.',
   rate_limited: 'Too many plans in a short time. Wait a minute, then try again.',
-  impact_exceeded: 'This plan changes more than one plan may. Split it into smaller plans.',
+  impact_exceeded: MCP_PLAN_IMPACT_EXCEEDED_MESSAGE,
   commit_failed: 'The plan could not be committed. Nothing was changed.',
 });
 
 export function rethrowPhase4bMcpWriteAdapterError(error: unknown): never {
   if (error instanceof Mcp20260728RequestError && error.kind === 'internal_error') {
     throw new Error('Internal error');
+  }
+  // Trusted plans run in the host catalog before the SDK adapter. Apply the
+  // same safe rejection copy as an owner-approved SDK commit.
+  if (error instanceof McpChangePlanError) {
+    const message = CHANGE_PLAN_REJECTION_MESSAGES[error.code];
+    if (message !== undefined) {
+      throw new Mcp20260728RequestError('invalid_params', message, { code: error.code });
+    }
   }
   if (error instanceof Mcp20260728RequestError && error.message === CHANGE_PLAN_REJECTED_MESSAGE) {
     const code = (error.data as { readonly code?: unknown } | undefined)?.code;

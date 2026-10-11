@@ -1,8 +1,6 @@
 import { sql, type Kysely } from 'kysely';
-import {
-  CollectionVersionNodeLimitError,
-  captureCollectionTreeVersion,
-} from '../../modules/collections/index.js';
+import { captureCollectionTreeVersion } from '../../modules/collections/index.js';
+import { rethrowAgentPlanHistoryError } from '../../modules/mcp/index.js';
 import type {
   McpCommittedContentRevisionFacts,
   McpPreCommitVersionFacts,
@@ -32,24 +30,19 @@ export async function captureMcpPlanPreCommitVersions(
     if (prior !== undefined) continue;
     const collection = await versions.lockOwnedLive(collectionId, facts.subjectId);
     if (collection === null) continue;
-    let versionId: string;
-    try {
-      const captured = await captureCollectionTreeVersion(
-        { versions, clock: { now: () => new Date() } },
-        {
-          accountId: facts.principalId,
-          collection,
-          kind: 'pre_mutation',
-          cause,
-          label: 'Before agent plan',
-        },
-      );
-      versionId = captured.record.versionId;
-    } catch (error: unknown) {
-      // Too large to version: the plan still commits, without history or Undo.
-      if (error instanceof CollectionVersionNodeLimitError) continue;
-      throw error;
-    }
+    // History is a prerequisite: rejecting here rolls back the approval
+    // claim and the entire commit before any canonical operation executes.
+    const captured = await captureCollectionTreeVersion(
+      { versions, clock: { now: () => new Date() } },
+      {
+        accountId: facts.principalId,
+        collection,
+        kind: 'pre_mutation',
+        cause,
+        label: 'Before agent plan',
+      },
+    ).catch(rethrowAgentPlanHistoryError);
+    const versionId = captured.record.versionId;
     if (!facts.undoable) continue;
     await sql`
       INSERT INTO mcp_plan_policy_receipts (

@@ -42,11 +42,9 @@ import { executeMcpNodeCreate } from './node-create-execution.js';
 import { parseMcpNodeCreatePayload } from './node-create-payload.js';
 import { projectLowRiskNodeCreateOutput } from './low-risk-node-create.js';
 import { requireMcpAccountSubjectId } from './account-context.js';
-import { planOperationsAreReversible } from './agent-plan-policy.js';
 import type {
   McpCommittedContentRevisionFacts,
   McpDeleteSubtreeTombstoneFacts,
-  McpPreCommitVersionFacts,
 } from './change-plan-service.js';
 
 export function revisionDrift(message: string): McpChangePlanError {
@@ -71,10 +69,6 @@ export async function executeCanonicalPlanOperations<Transaction extends object>
     transaction: Transaction,
     facts: McpCommittedContentRevisionFacts,
   ) => Promise<void>,
-  capturePreCommitVersions?: (
-    transaction: Transaction,
-    facts: McpPreCommitVersionFacts,
-  ) => Promise<void>,
 ): Promise<readonly OperationResult[]> {
   const ownedBinding = requireAuthenticatedWriteBinding(
     snapshotMcpAuthorizationBinding(binding),
@@ -85,18 +79,6 @@ export async function executeCanonicalPlanOperations<Transaction extends object>
   }
   if (!Array.isArray(operations) || operations.length === 0) {
     throw commitFailure('Change Plan has no executable canonical operations.');
-  }
-
-  if (capturePreCommitVersions !== undefined) {
-    const collectionIds = planCollectionIds(operations);
-    await capturePreCommitVersions(transaction, {
-      planId: plan.planId,
-      principalId: ownedBinding.principalId,
-      subjectId: requireMcpAccountSubjectId(),
-      clientId: ownedBinding.clientId,
-      collectionIds,
-      undoable: collectionIds.length === 1 && planOperationsAreReversible(operations),
-    });
   }
 
   const results: OperationResult[] = [];
@@ -136,7 +118,7 @@ export async function executeCanonicalPlanOperations<Transaction extends object>
   return Object.freeze(results);
 }
 
-function planCollectionIds(operations: readonly unknown[]): readonly string[] {
+export function planCollectionIds(operations: readonly unknown[]): readonly string[] {
   const ids = new Set<string>();
   for (const operation of operations) {
     if (typeof operation !== 'object' || operation === null) continue;

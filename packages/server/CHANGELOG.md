@@ -28,6 +28,7 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 
 ### Fixed
 
+- Agent plans affecting a collection with more than 2,000 live folders and bookmarks are rejected before mutation in both manual and trusted mode. Manual commits no longer silently skip history and Undo; capacity failures report the limit and leave the plan available to cancel. Failed commits roll back their approval claim, and idempotent replays keep returning the original result without capturing history again.
 - An agent's OAuth sign-in works when the owner is not yet signed in: `/oauth2/authorize` sends the browser to `/login` instead of answering JSON 401, and `/login` resumes the authorization after sign-in instead of dropping it.
 - `/sitemap.xml`, `/sitemap-*.xml`, `/llms.txt` and `/llms-full.txt` answer 404 in all Caddy profiles instead of the web app's HTML.
 - The static contract tests referenced Know-N paths that are not part of this package; they are adapted to the self-hosted repository (Caddy ingress, PostgreSQL project, in-package frozen lists) or removed with their module (see `tests/EXTRACTION.md`).

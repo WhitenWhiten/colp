@@ -46,6 +46,7 @@ export * from './publication-slug.js';
 export * from './set-visibility-revisions.js';
 export * from './write-approval-api.js';
 export * from './agent-plan-policy.js';
+export * from './agent-plan-history-error.js';
 export * from './write-operations.js';
 export * from './write-maintenance.js';
 export * from './mcp-compat-protocol.js';

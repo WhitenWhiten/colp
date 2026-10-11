@@ -14,6 +14,7 @@ import {
   type RestoreCollectionVersionPorts,
 } from '../collections/index.js';
 import { requireMcpAccountSubjectId } from './account-context.js';
+import { rethrowAgentPlanHistoryError } from './agent-plan-history-error.js';
 import type { Phase4bMcpPlannedChange } from './change-plan-planner.js';
 
 export type AgentPolicyName = 'manual' | 'trusted';
@@ -141,7 +142,7 @@ export function createAutoApproveTrustedPlan(
       subjectId,
       collectionId,
       cause,
-    });
+    }).catch(rethrowAgentPlanHistoryError);
     if (deps.assertTrustedPolicy !== undefined
       && !(await deps.assertTrustedPolicy(binding.principalId, binding.clientId))) {
       return planned;

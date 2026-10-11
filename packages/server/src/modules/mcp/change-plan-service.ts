@@ -11,6 +11,7 @@
  * transaction before any canonical visibility mutation is executed.
  */
 import { types as nodeTypes } from 'node:util';
+import { requireMcpAccountSubjectId } from './account-context.js';
 
 import {
   McpChangePlanError,
@@ -53,9 +54,11 @@ import {
 import {
   commitFailure,
   executeCanonicalPlanOperations,
+  planCollectionIds,
   revisionDrift,
 } from './change-plan-executor.js';
 import {
+  planOperationsAreReversible,
   type AutoApproveTrustedPlan,
 } from './agent-plan-policy.js';
 
@@ -254,14 +257,48 @@ export function createPhase4bMcpChangePlanCommitCoordinator<
         options.createProductPorts,
         options.recordDeleteSubtreeTombstones,
         options.recordCommittedContentRevisions,
-        options.capturePreCommitVersions,
       ),
+  });
+
+  const approvalStore: McpChangePlanCommitApprovalStorePort<Transaction> = Object.freeze({
+    markApproved: (
+      transaction: Transaction,
+      input: Parameters<McpChangePlanCommitApprovalStorePort<Transaction>['markApproved']>[1],
+    ) => options.commitApprovalStore.markApproved(transaction, input),
+    beginCommit: async (
+      transaction: Transaction,
+      input: Parameters<McpChangePlanCommitApprovalStorePort<Transaction>['beginCommit']>[1],
+    ) => {
+      const claim = await settle(options.commitApprovalStore.beginCommit(transaction, input));
+      if (claim.status === 'ready' && options.capturePreCommitVersions !== undefined) {
+        const plan = plansByTransaction.get(transaction);
+        if (plan === undefined) throw commitFailure('Commit transaction did not lock a Plan before history capture.');
+        const collectionIds = planCollectionIds(plan.operations);
+        // Capture after authorization/approval, in the same transaction as
+        // the writes. The SDK preserves typed approval errors but sanitizes
+        // asynchronous executor failures into an opaque commit_failed.
+        // Replays skip capture and keep returning their original result.
+        await options.capturePreCommitVersions(transaction, {
+          planId: plan.planId,
+          principalId: input.binding.principalId,
+          subjectId: requireMcpAccountSubjectId(),
+          clientId: input.binding.clientId,
+          collectionIds,
+          undoable: collectionIds.length === 1 && planOperationsAreReversible(plan.operations),
+        });
+      }
+      return claim;
+    },
+    finalizeCommit: (
+      transaction: Transaction,
+      input: Parameters<McpChangePlanCommitApprovalStorePort<Transaction>['finalizeCommit']>[1],
+    ) => options.commitApprovalStore.finalizeCommit(transaction, input),
   });
 
   return Object.freeze({
     begin,
     planStore: Object.freeze({ lock, update }),
-    approvalStore: options.commitApprovalStore,
+    approvalStore,
     executor,
     commit: options.commit,
     rollback: options.rollback,

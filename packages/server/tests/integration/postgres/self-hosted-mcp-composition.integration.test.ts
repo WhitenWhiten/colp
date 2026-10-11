@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { beforeAll, afterAll, test } from 'vitest';
+import { Mcp20260728RequestError, McpChangePlanError } from '@know-n/colp/mcp';
 import type { McpAuthenticatedAuthorizationBinding } from '@know-n/colp/mcp';
 import { createPhase4bMcpWriteComposition, createMcpChangePlanRateLimitPort } from '../../../src/bootstrap/mcp-write-composition.js';
 import { createPhase4bMcpAgentApprovalApi } from '../../../src/infrastructure/collections/index.js';
 import { runWithMcpAccountSubjectId } from '../../../src/modules/mcp/account-context.js';
+import { policyCommitIdempotencyKey } from '../../../src/modules/mcp/agent-plan-policy.js';
 import { runMigrations } from '../../../src/infrastructure/database/index.js';
 import { createIsolatedPostgresRuntime, describeWithPostgres, type IsolatedPostgresRuntime } from '../../support/postgres-test-runtime.js';
 import { createMcpWriteFixture, nodeCreateContext } from '../../support/postgres-phase4b-mcp-write-tools.js';
@@ -43,8 +45,8 @@ describeWithPostgres('self-hosted production MCP composition', () => {
     return { ...tree, folderId: (result.structuredContent as { node: { id: string } }).node.id };
   }
 
-  async function commit(planId: string) {
-    return runWithMcpAccountSubjectId(OWNER, () => composition.changePlanService.commit(planId, BINDING, randomUUID()));
+  async function commit(planId: string, idempotencyKey = randomUUID()) {
+    return runWithMcpAccountSubjectId(OWNER, () => composition.changePlanService.commit(planId, BINDING, idempotencyKey));
   }
 
   async function planHistory(collectionId: string, planId: string) {
@@ -57,6 +59,128 @@ describeWithPostgres('self-hosted production MCP composition', () => {
     );
     return { versionIds: versions.rows.map((row) => row.version_id as string), receipts: receipts.rows };
   }
+
+  async function capacityFixture(nodeCount: number) {
+    const tree = await fixture();
+    const prefix = randomUUID().replaceAll('-', '');
+    // The fixture already has a bookmark and its destination folder. Seed
+    // the remaining live bookmarks directly into this isolated database.
+    await isolated.runtime.pool.query(`
+      INSERT INTO resource_id_ledger (resource_id, resource_type, committed_at)
+      SELECT $1 || '-' || i, 'node', now() FROM generate_series(1, $2::int) AS i
+    `, [prefix, nodeCount - 2]);
+    await isolated.runtime.pool.query(`
+      INSERT INTO nodes (
+        id, collection_id, parent_id, kind, title, url, description, tags, position_token, resource_revision, children_revision,
+        visibility, created_at, updated_at, payload_json, payload_schema_version, payload_authority_status
+      )
+      SELECT $1 || '-' || i, $2, $3, 'bookmark', 'Seed ' || i, template.url, template.description, template.tags,
+        'zz' || lpad(i::text, 5, '0'), template.resource_revision, template.children_revision,
+        template.visibility, template.created_at, template.updated_at,
+        template.payload_json || jsonb_build_object(
+          'id', $1 || '-' || i, 'parentId', $3::text, 'title', 'Seed ' || i,
+          'position', 'zz' || lpad(i::text, 5, '0')
+        ), template.payload_schema_version, template.payload_authority_status
+      FROM generate_series(1, $4::int) AS i CROSS JOIN nodes template WHERE template.id = $5
+    `, [prefix, tree.collectionId, tree.folderId, nodeCount - 2, tree.nodeId]);
+    const count = await isolated.runtime.pool.query(
+      'select count(*)::int n from nodes where collection_id = $1 and not is_root and deleted_at is null',
+      [tree.collectionId],
+    );
+    assert.equal(count.rows[0].n, nodeCount);
+    return tree;
+  }
+
+  test.each(['manual', 'trusted'] as const)('%s move at 2000 nodes saves history and supports Undo', async (policy) => {
+    const tree = await capacityFixture(2000);
+    if (policy === 'trusted') {
+      await isolated.runtime.pool.query(
+        "insert into agent_policies(principal_id, client_id, policy) values ($1, $2, 'trusted')",
+        [OWNER, BINDING.clientId],
+      );
+    }
+    const result = await composition.adapter.callTool(nodeCreateContext(BINDING, SCOPES), {
+      name: 'nodes.move', arguments: { nodeId: tree.nodeId, parentId: tree.folderId },
+    });
+    const plan = result.structuredContent as { planId: string };
+    const idempotencyKey = policy === 'manual' ? randomUUID() : policyCommitIdempotencyKey(plan.planId);
+    if (policy === 'manual') {
+      await composition.changePlanService.recordOutOfBandApproval(plan.planId, BINDING);
+      await commit(plan.planId, idempotencyKey);
+    }
+    const committed = await commit(plan.planId, idempotencyKey);
+    const history = await planHistory(tree.collectionId, plan.planId);
+    assert.equal(history.versionIds.length, 1);
+    assert.equal(history.receipts[0]?.approved_by, policy === 'manual' ? 'owner' : 'policy');
+    const version = await isolated.runtime.pool.query(
+      'select node_count from collection_tree_versions where version_id = $1', [history.versionIds[0]],
+    );
+    assert.equal(version.rows[0].node_count, 2000);
+    assert.equal((await isolated.runtime.pool.query('select parent_id from nodes where id = $1', [tree.nodeId])).rows[0].parent_id, tree.folderId);
+    await createPhase4bMcpAgentApprovalApi(isolated.runtime.db).undo({
+      accountId: OWNER, subjectId: OWNER, planId: plan.planId, force: false, commandId: randomUUID(),
+    });
+    assert.equal((await isolated.runtime.pool.query('select parent_id from nodes where id = $1', [tree.nodeId])).rows[0].parent_id, tree.rootId);
+    await composition.adapter.callTool(nodeCreateContext(BINDING, SCOPES), {
+      name: 'nodes.create', arguments: { collectionId: tree.collectionId, parentId: tree.folderId,
+        node: { kind: 'bookmark', title: 'After Undo', url: 'https://example.test/after-undo', visibility: 'private' }, confirmApply: true },
+    });
+    // The collection now exceeds history capacity and has a different
+    // revision. Replay must return the durable result without a new snapshot
+    // or reapplying the original move.
+    assert.deepEqual(await commit(plan.planId, idempotencyKey), committed);
+    assert.equal((await isolated.runtime.pool.query('select parent_id from nodes where id = $1', [tree.nodeId])).rows[0].parent_id, tree.rootId);
+  });
+
+  test.each(['manual', 'trusted'] as const)('%s move at 2001 nodes rejects without consuming the plan or changing the tree', async (policy) => {
+    const tree = await capacityFixture(2001);
+    if (policy === 'trusted') {
+      await isolated.runtime.pool.query(
+        "insert into agent_policies(principal_id, client_id, policy) values ($1, $2, 'trusted')",
+        [OWNER, BINDING.clientId],
+      );
+    }
+    const before = await isolated.runtime.pool.query('select content_revision from collections where id = $1', [tree.collectionId]);
+    const move = () => composition.adapter.callTool(nodeCreateContext(BINDING, SCOPES), {
+      name: 'nodes.move', arguments: { nodeId: tree.nodeId, parentId: tree.folderId },
+    });
+    const capacityRejection = (error: unknown) => {
+      assert.ok(error instanceof Mcp20260728RequestError);
+      assert.equal(error.kind, 'invalid_params');
+      assert.deepEqual(error.data, { code: 'impact_exceeded' });
+      assert.match(error.message, /2000 live folders and bookmarks/u);
+      assert.match(error.message, /Nothing was changed/u);
+      return true;
+    };
+    if (policy === 'manual') {
+      const result = await move();
+      const planId = (result.structuredContent as { planId: string }).planId;
+      await composition.changePlanService.recordOutOfBandApproval(planId, BINDING);
+      const idempotencyKey = randomUUID();
+      // A failed commit rolls back the approval claim, so retrying the same
+      // key must reject on capacity again rather than consuming the plan.
+      for (let attempt = 0; attempt < 2; attempt++) {
+        await assert.rejects(() => composition.adapter.callTool(nodeCreateContext(BINDING, SCOPES), {
+          name: 'changes.commit', arguments: { planId, idempotencyKey },
+        }), capacityRejection);
+      }
+    } else {
+      await assert.rejects(move, capacityRejection);
+    }
+    const plans = await isolated.runtime.pool.query(
+      "select plan_id, status from mcp_change_plans where operations_json->0->>'collectionId' = $1",
+      [tree.collectionId],
+    );
+    assert.equal(plans.rows.length, 1);
+    const plan = plans.rows[0];
+    assert.equal(plan.status, policy === 'manual' ? 'approved' : 'pending');
+    assert.deepEqual(await planHistory(tree.collectionId, plan.plan_id), { versionIds: [], receipts: [] });
+    assert.equal((await isolated.runtime.pool.query('select parent_id from nodes where id = $1', [tree.nodeId])).rows[0].parent_id, tree.rootId);
+    const after = await isolated.runtime.pool.query('select content_revision from collections where id = $1', [tree.collectionId]);
+    assert.deepEqual(after.rows, before.rows);
+    await runWithMcpAccountSubjectId(OWNER, () => composition.changePlanService.cancel(plan.plan_id, BINDING));
+    assert.equal((await composition.store.planStore.get(plan.plan_id))?.status, 'cancelled');
+  });
 
   test('the mounted move tool persists a plan, then approval and commit change the parent', async () => {
     const tree = await fixture();
@@ -88,6 +212,27 @@ describeWithPostgres('self-hosted production MCP composition', () => {
     assert.equal(view.approvedBy, 'owner');
     assert.equal(view.versionId, history.versionIds[0]);
     await api.undo({ accountId: OWNER, subjectId: OWNER, planId: plan.planId, force: false, commandId: randomUUID() });
+    assert.equal((await isolated.runtime.pool.query('select parent_id from nodes where id = $1', [tree.nodeId])).rows[0].parent_id, tree.rootId);
+  });
+
+  test('a stale approved plan rolls back its history capture with the failed commit', async () => {
+    const tree = await fixture();
+    const result = await composition.adapter.callTool(nodeCreateContext(BINDING, SCOPES), {
+      name: 'nodes.move', arguments: { nodeId: tree.nodeId, parentId: tree.folderId },
+    });
+    const planId = (result.structuredContent as { planId: string }).planId;
+    await composition.changePlanService.recordOutOfBandApproval(planId, BINDING);
+    await composition.adapter.callTool(nodeCreateContext(BINDING, SCOPES), {
+      name: 'nodes.create', arguments: { collectionId: tree.collectionId, parentId: tree.rootId,
+        node: { kind: 'folder', title: 'Later edit', visibility: 'private' }, confirmApply: true },
+    });
+    await assert.rejects(() => commit(planId), (error: unknown) => {
+      assert.ok(error instanceof McpChangePlanError);
+      assert.equal(error.code, 'revision_drift');
+      return true;
+    });
+    assert.deepEqual(await planHistory(tree.collectionId, planId), { versionIds: [], receipts: [] });
+    assert.equal((await composition.store.planStore.get(planId))?.status, 'approved');
     assert.equal((await isolated.runtime.pool.query('select parent_id from nodes where id = $1', [tree.nodeId])).rows[0].parent_id, tree.rootId);
   });
 

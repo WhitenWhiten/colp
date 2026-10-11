@@ -144,6 +144,13 @@ first, so you can Undo moves from the Approvals page or restore any version
 from the collection's History. Making a collection public, deleting, emptying
 the trash, and purging always wait for you.
 
+Collection history supports up to **2,000 live folders and bookmarks** per
+collection (the root folder does not count). A plan affecting a larger
+collection is rejected before any change, in both manual and trusted mode;
+it cannot commit without its saved history. The plan stays on the Approvals
+page so you can cancel it. Reduce the collection size and create a new plan
+before trying again.
+
 ## 7. Share a collection
 
 Open the collection → Visibility → **Unlisted** (link only) or **Public**

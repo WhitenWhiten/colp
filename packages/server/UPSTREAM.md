@@ -201,3 +201,16 @@ block with Claude Code and Codex:
   unknown, revoked or expired key. Know-N `18e39e907` hid every 4xx behind 404
   because its keys were operator-provisioned bot credentials; here the owner
   issues and revokes keys on the Agents page. Malformed probes still get 404.
+
+Agent plan history capacity (2026-10-11 follow-up):
+
+- Manual and trusted plans reject collections above the existing 2,000 live
+  folder/bookmark snapshot limit before mutation. The manual path no longer
+  ignores `CollectionVersionNodeLimitError`. Both use the existing COLP
+  `impact_exceeded` rejection and safe capacity guidance.
+- The shared commit coordinator captures history after an approval claim is
+  validated, inside its transaction and before canonical writes. This keeps
+  capacity errors outside the SDK's asynchronous executor sanitization and
+  rolls back the claim on rejection. Idempotent replays skip capture.
+- These changes build on the public-only M4 history/Undo additions above;
+  Know-N's older trusted-only history composition is unchanged.
