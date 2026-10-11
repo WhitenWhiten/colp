@@ -2,12 +2,16 @@
  * SEC-M-04 / T-C5: editor GET FOR SHARE serializes behind collection FOR UPDATE.
  */
 import assert from 'node:assert/strict';
+import { sql } from 'kysely';
 import { afterAll, beforeAll, test } from 'vitest';
 import {
   createPostgresCollectionWritePort,
+  createPostgresCollectionsEditorReadUnitOfWork,
   createPostgresIdLedgerPort,
   createPostgresNodeWritePort,
 } from '../../../src/infrastructure/collections/index.js';
+import { createProductEditorCursorSigner, getCollectionEditorPage } from '../../../src/modules/collections/index.js';
+import { DatabaseOperationError } from '../../../src/infrastructure/database/errors.js';
 import {
   createUnitOfWork,
   runMigrations,
@@ -129,5 +133,83 @@ describeWithPostgres('editor GET lockForShare serializes with lockForUpdate', ()
     assert.ok(shared);
     assert.equal(shared.id, COLLECTION_ID);
     assert.equal(shared.policyRevision, 'policy-1');
+  });
+
+  test('editor page retries with a fresh snapshot when sync updates the locked collection', async () => {
+    let releaseWriter!: () => void;
+    const writerMayFinish = new Promise<void>((resolve) => { releaseWriter = resolve; });
+    let writerLocked!: () => void;
+    const writerHoldsLock = new Promise<void>((resolve) => { writerLocked = resolve; });
+    const writer = createUnitOfWork(runtime.db).execute(async ({ transaction }) => {
+      await createPostgresCollectionWritePort(transaction).lockForUpdate(COLLECTION_ID);
+      await transaction.updateTable('collections').set({
+        content_revision: 'content-after-sync',
+        payload_json: sql`jsonb_set(payload_json, '{contentRevision}', to_jsonb('content-after-sync'::text))`,
+      }).where('id', '=', COLLECTION_ID).execute();
+      writerLocked();
+      await writerMayFinish;
+    });
+    let attempts = 0;
+    const readUnit = createPostgresCollectionsEditorReadUnitOfWork(runtime.db, {
+      cursorSigner: createProductEditorCursorSigner({ current: { id: 'retry-test', key: 'editor-retry-test-key' } }),
+      faultInjector: { beforeCallback: () => { attempts += 1; } },
+    });
+    await writerHoldsLock;
+    const reader = readUnit.execute((ports) => getCollectionEditorPage(ports, {
+      collectionId: COLLECTION_ID,
+      actor: { principalId: 'principal-editor-lock-share', subjectId: OWNER_SUBJECT },
+      limit: 10,
+    }));
+    // Keep a deliberately failing pre-fix reader from becoming an unhandled rejection.
+    void reader.catch(() => undefined);
+    try {
+      await waitForCondition(async () => {
+        const result = await runtime.pool.query<{ waiting: boolean }>(`
+          select exists(
+            select 1 from pg_stat_activity
+            where datname=current_database()
+              and application_name='known-editor-lock-share-test'
+              and cardinality(pg_blocking_pids(pid)) > 0
+          ) waiting
+        `);
+        return result.rows[0]?.waiting === true;
+      }, { timeoutMs: 2_000, pollIntervalMs: 5, description: 'editor page to wait behind sync update' });
+      releaseWriter();
+      await writer;
+      const page = await reader;
+      assert.equal(attempts, 2, 'the aborted read must restart in a new transaction');
+      assert.equal(page.page.contentRevision, 'content-after-sync');
+      assert.equal(page.collection.id, COLLECTION_ID);
+    } finally {
+      releaseWriter();
+      await Promise.allSettled([writer, reader]);
+    }
+  });
+
+  test('persistent editor transaction conflicts stop after three attempts', async () => {
+    let attempts = 0;
+    const unit = createPostgresCollectionsEditorReadUnitOfWork(runtime.db, {
+      cursorSigner: createProductEditorCursorSigner({ current: { id: 'retry-test', key: 'editor-retry-test-key' } }),
+      faultInjector: { beforeCallback: () => {
+        attempts += 1;
+        throw Object.assign(new Error('serialization conflict'), { code: '40001' });
+      } },
+    });
+    await assert.rejects(unit.execute(async () => assert.fail('conflicting transaction must abort')),
+      (error: unknown) => error instanceof DatabaseOperationError && error.kind === 'serialization_failure');
+    assert.equal(attempts, 3);
+  });
+
+  test('editor authorization errors are not retried', async () => {
+    let attempts = 0;
+    const unit = createPostgresCollectionsEditorReadUnitOfWork(runtime.db, {
+      cursorSigner: createProductEditorCursorSigner({ current: { id: 'retry-test', key: 'editor-retry-test-key' } }),
+      faultInjector: { beforeCallback: () => { attempts += 1; } },
+    });
+    await assert.rejects(unit.execute((ports) => getCollectionEditorPage(ports, {
+      collectionId: COLLECTION_ID,
+      actor: { principalId: 'stranger-principal', subjectId: 'stranger-subject' },
+    })), { name: 'EditorAuthorizationError' });
+    assert.equal(attempts, 1);
   });
 });

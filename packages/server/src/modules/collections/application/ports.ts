@@ -508,6 +508,8 @@ export interface CollectionsUnitOfWork {
 /**
  * REPEATABLE READ unit of work for revision-fenced Editor page queries (ADR-0004).
  * cursorSigner is not transaction-bound; infrastructure injects it alongside DB ports.
+ * A database-aborted read may retry the callback in a fresh transaction. Keep
+ * callback effects inside its transaction; do not perform external side effects.
  */
 export interface CollectionsEditorReadUnitOfWork {
   execute<Result>(

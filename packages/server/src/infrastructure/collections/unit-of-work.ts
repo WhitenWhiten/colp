@@ -16,6 +16,7 @@ import {
 } from '../../modules/collections/index.js';
 import { createPostgresAccessPolicyFactsPort } from '../access-policy/index.js';
 import { DatabaseOperationError } from '../database/errors.js';
+import { withTransactionRetry } from '../database/transaction-retry.js';
 import type { DatabaseSchema } from '../database/runtime.js';
 import type { Metrics } from '../telemetry/index.js';
 import {
@@ -82,6 +83,9 @@ export interface PostgresCollectionsEditorReadUnitOfWorkOptions {
 
 /**
  * Editor read UoW: each page uses a new REPEATABLE READ transaction (ADR-0004).
+ * A concurrent sync commit can invalidate its snapshot before FOR SHARE obtains
+ * the collection lock. Retry the complete rolled-back read with a fresh snapshot,
+ * including authorization and cursor fences, rather than retrying a statement.
  * Domain editor errors are re-surfaced through DatabaseOperationError wrapping.
  */
 export function createPostgresCollectionsEditorReadUnitOfWork(
@@ -98,7 +102,7 @@ export function createPostgresCollectionsEditorReadUnitOfWork(
       work: (ports: GetCollectionEditorPagePorts) => Promise<Result>,
     ): Promise<Result> {
       try {
-        return await unitOfWork.execute(({ transaction }) => {
+        return await withTransactionRetry(() => unitOfWork.execute(({ transaction }) => {
           const collections = createPostgresCollectionWritePort(transaction, options.metrics);
           const ports: GetCollectionEditorPagePorts = {
             collections: {
@@ -116,7 +120,7 @@ export function createPostgresCollectionsEditorReadUnitOfWork(
             ...(options.productOrigin === undefined ? {} : { productOrigin: options.productOrigin }),
           };
           return work(ports);
-        });
+        }));
       } catch (error: unknown) {
         const domainError = extractEditorDomainError(error);
         if (domainError) throw domainError;

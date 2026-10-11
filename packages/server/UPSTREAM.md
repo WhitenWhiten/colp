@@ -228,3 +228,14 @@ IP HTTPS ingress (2026-10-11, public deployment only):
   the application/database or changing host CA trust. CI runs it with the
   server checks. Shell startup and ingress routing have focused unit/static
   regressions.
+
+Editor reads during sync (2026-10-11):
+
+- The PostgreSQL editor read unit retries a database-aborted transaction at
+  most three times. A sync writer committing between snapshot acquisition
+  and the shared collection lock previously surfaced SQLSTATE 40001 as 503.
+- Each attempt opens a fresh REPEATABLE READ transaction and repeats the
+  shared lock, authorization and cursor revision checks. Domain errors and
+  unknown commit outcomes retain the existing no-retry contract.
+- A real PostgreSQL regression commits an update while the editor waits
+  for its shared lock and checks the fresh content revision after retry.
