@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AgentsApi } from '../api/agentsClient'
 import { cleanup, findButtonByName, mountTree, waitForDom } from '../test/render'
 import { Agents } from './Agents'
+import { outcomeBadge } from './agents/AgentCard'
 
 const agent = {
   id: 'claude-code',
@@ -25,8 +26,13 @@ const api = {
   undoApproval: vi.fn(),
 }
 
+const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
+
 vi.mock('../auth/AuthContext', () => ({
   useAuth: () => ({ isLoggedIn: true, bootstrapping: false, csrfToken: 'csrf' }),
+}))
+vi.mock('../components/AppToast', () => ({
+  useToast: () => ({ toast: vi.fn(), success: toast.success, error: toast.error }),
 }))
 
 function typeName(value: string) {
@@ -48,12 +54,32 @@ describe('Agents page', () => {
   it('shows connect instructions and does not fetch with the default loader', async () => {
     mountTree(<Agents origin="https://colp.example.net" />, { initialEntries: ['/agents'] })
     await waitForDom(() => document.body.textContent?.includes('No agents yet') === true)
-    expect(document.body.textContent).toContain('claude mcp add --transport http colp')
-    expect(document.body.textContent).toContain('https://colp.example.net/collections/-/mcp-compat')
-    expect(document.body.textContent).toContain('https://colp.example.net/collections/-/mcp')
-    expect(document.body.textContent).toContain('Authorization: Bearer $ACCESS_TOKEN')
-    expect(document.body.textContent).toContain('Codex')
     expect(document.querySelector('[data-testid="agents-page"] h1')?.textContent).toBe('Agents')
+    const panel = () => document.querySelector('[role="tabpanel"]')?.textContent ?? ''
+    expect(panel()).toContain('claude mcp add --transport http colp "https://colp.example.net/collections/-/mcp-compat"')
+    expect(panel()).toContain('claude mcp login colp')
+
+    act(() => findButtonByName('Codex').click())
+    expect(document.querySelector('#agents-tab-codex')?.getAttribute('aria-selected')).toBe('true')
+    expect(panel()).toContain('codex mcp add colp --url "https://colp.example.net/collections/-/mcp-compat"')
+
+    act(() => findButtonByName('Other clients').click())
+    expect(panel()).toContain('https://colp.example.net/collections/-/mcp')
+
+    act(() => findButtonByName('API key').click())
+    expect(panel()).toContain('Authorization: Bearer $ACCESS_TOKEN')
+  })
+
+  it('reverts a policy change the server refuses and says so in a toast', async () => {
+    api.listAgents.mockResolvedValue({ agents: [agent] })
+    api.putAgentPolicy.mockRejectedValue(new Error('offline'))
+    mountTree(<Agents api={api as AgentsApi} origin="https://colp.example.net" />, { initialEntries: ['/agents'] })
+    await waitForDom(() => document.body.textContent?.includes('Claude Code') === true)
+    act(() => findButtonByName('Trusted').click())
+    await waitForDom(() => toast.error.mock.calls.length >= 1)
+    expect(toast.error).toHaveBeenCalledWith('Could not change the policy for Claude Code.')
+    expect(findButtonByName('Manual').getAttribute('aria-pressed')).toBe('true')
+    expect(document.body.textContent).toContain('Every change waits for you on Approvals.')
   })
 
   it('toggles policy, shows audit, issues a key once, and revokes it', async () => {
@@ -82,12 +108,14 @@ describe('Agents page', () => {
     expect(api.putAgentPolicy).toHaveBeenCalledWith('claude-code', 'trusted')
     expect(findButtonByName('Trusted').getAttribute('aria-pressed')).toBe('true')
 
-    act(() => findButtonByName('Audit').click())
+    act(() => findButtonByName('Activity').click())
     await waitForDom(() => document.body.textContent?.includes('Move three bookmarks') === true)
     expect(api.listAgentAudit).toHaveBeenCalledWith('claude-code')
     expect(api.getAgentPolicy).toHaveBeenCalledWith('claude-code')
-    expect(document.querySelector('a[href="/library/col-1/history"]')?.textContent).toContain('ver-1')
+    expect(document.querySelector('a[href="/library/col-1/history"]')?.getAttribute('aria-label')).toContain('ver-1')
+    expect(document.body.textContent).toContain('Applied')
 
+    act(() => findButtonByName('API key').click())
     typeName('script')
     act(() => findButtonByName('Issue key').click())
     await waitForDom(() => document.body.textContent?.includes('colp_secret_once') === true)
@@ -99,5 +127,13 @@ describe('Agents page', () => {
     act(() => findButtonByName('Revoke agent').click())
     await waitForDom(() => api.revokeAgent.mock.calls.length >= 1)
     expect(api.revokeAgent).toHaveBeenCalledWith('claude-code')
+    await waitForDom(() => toast.success.mock.calls.length >= 1)
+    expect(toast.success).toHaveBeenCalledWith('Claude Code is revoked. 1 pending plan cancelled.')
+  })
+
+  it('names plan outcomes in plain words', () => {
+    expect(outcomeBadge('consumed')).toEqual({ label: 'Applied', tone: 'success' })
+    expect(outcomeBadge('pending')).toEqual({ label: 'Waiting for you', tone: 'warning' })
+    expect(outcomeBadge('needs_review')).toEqual({ label: 'Needs review', tone: 'neutral' })
   })
 })

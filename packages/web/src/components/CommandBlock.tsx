@@ -2,8 +2,29 @@ import { Fragment, useEffect, useState, type ReactNode } from 'react'
 import { copyTextToClipboard } from '../lib/clipboard'
 import { Icon } from './Icon'
 
-/** Longer tokens (URLs, JSON) may break anywhere rather than overflow. */
+/** Tokens up to this length never break inside. */
 const KEEP_WHOLE_MAX = 32
+/** A URL segment longer than this (a secret, a JSON blob) may break anywhere. */
+const SEGMENT_MAX = 40
+
+/**
+ * A long token such as a URL breaks only after `/`, `?`, `&` or `,`: each
+ * piece is a nowrap span and a <wbr> sits between them.
+ */
+function longToken(token: string, key: number): ReactNode {
+  const pieces = token.split(/(?<=[/?&,])(?!\/)/u)
+  if (pieces.some((piece) => piece.length > SEGMENT_MAX)) return token
+  return (
+    <Fragment key={key}>
+      {pieces.map((piece, at) => (
+        <Fragment key={at}>
+          {at > 0 && <wbr />}
+          <span className="command-block-word">{piece}</span>
+        </Fragment>
+      ))}
+    </Fragment>
+  )
+}
 
 /**
  * Lines wrap only between words: `colp-server` must not break at its
@@ -14,11 +35,11 @@ function commandLines(command: string): ReactNode {
   return command.split('\n').map((line, index) => (
     <Fragment key={index}>
       {index > 0 && '\n'}
-      {line.split(/( +)/u).map((part, at) => (
-        part.trim() === '' || part.length > KEEP_WHOLE_MAX
-          ? part
-          : <span key={at} className="command-block-word">{part}</span>
-      ))}
+      {line.split(/( +)/u).map((part, at) => {
+        if (part.trim() === '') return part
+        if (part.length > KEEP_WHOLE_MAX) return longToken(part, at)
+        return <span key={at} className="command-block-word">{part}</span>
+      })}
     </Fragment>
   ))
 }

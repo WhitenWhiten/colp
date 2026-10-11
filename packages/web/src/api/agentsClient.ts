@@ -76,7 +76,13 @@ export type AgentConnectCopy = {
   origin: string
   strictUrl: string
   compatUrl: string
+  claudeAdd: string
+  claudeLogin: string
+  /** Both Claude Code steps, one per line. */
   claude: string
+  codexAdd: string
+  codexLogin: string
+  /** Both Codex steps, one per line. */
   codex: string
   curl: string
 }
@@ -103,12 +109,20 @@ export function agentConnectCopy(origin: string): AgentConnectCopy {
   const base = origin.replace(/\/$/, '')
   const strictUrl = `${base}/collections/-/mcp`
   const compatUrl = `${base}/collections/-/mcp-compat`
+  const claudeAdd = `claude mcp add --transport http colp "${compatUrl}"`
+  const claudeLogin = 'claude mcp login colp'
+  const codexAdd = `codex mcp add colp --url "${compatUrl}"`
+  const codexLogin = 'codex mcp login colp'
   return {
     origin: base,
     strictUrl,
     compatUrl,
-    claude: `claude mcp add --transport http colp "${compatUrl}"\nclaude mcp login colp`,
-    codex: `codex mcp add colp --url "${compatUrl}"\ncodex mcp login colp`,
+    claudeAdd,
+    claudeLogin,
+    claude: `${claudeAdd}\n${claudeLogin}`,
+    codexAdd,
+    codexLogin,
+    codex: `${codexAdd}\n${codexLogin}`,
     curl: [
       "# Requires jq. Set KEY to the credential copied at issuance.",
       "ACCESS_TOKEN=$(curl -fsS -H \"Content-Type: application/json\" \\",
