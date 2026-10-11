@@ -218,25 +218,25 @@ const OTP_EMAIL_EXPECTATIONS: Record<AuthOtpType, {
 }> = {
   'sign-in': {
     purpose: 'sign-in-otp',
-    subject: 'Your Know-N sign-in code',
+    subject: 'Your COLP Server sign-in code',
     phrase: OTP_SIGN_IN_PHRASE,
     usableForSignIn: true,
   },
   'email-verification': {
     purpose: 'email-verification-otp',
-    subject: 'Your Know-N email verification code',
+    subject: 'Your COLP Server email verification code',
     phrase: 'Your email verification code is:',
     usableForSignIn: false,
   },
   'forget-password': {
     purpose: 'forget-password-otp',
-    subject: 'Your Know-N password reset code',
+    subject: 'Your COLP Server password reset code',
     phrase: 'Your password reset code is:',
     usableForSignIn: false,
   },
   'change-email': {
     purpose: 'change-email-otp',
-    subject: 'Your Know-N email change code',
+    subject: 'Your COLP Server email change code',
     phrase: 'Your email change code is:',
     usableForSignIn: false,
   },
@@ -283,13 +283,13 @@ describe('C-06 otpEmailPurpose maps every AuthOtpType onto a distinct OTP templa
     const emailVerification = renderAuthEmailTemplate(otpEmailPurpose('email-verification'), { otp: OTP_FIXTURE });
     assert.equal(forgetPassword.ok && changeEmail.ok && emailVerification.ok, true);
     if (forgetPassword.ok) {
-      assert.doesNotMatch(forgetPassword.message.subject, /Reset your Know-N password/u);
+      assert.doesNotMatch(forgetPassword.message.subject, /Reset your COLP Server password/u);
     }
     if (changeEmail.ok) {
-      assert.doesNotMatch(changeEmail.message.subject, /Confirm your new Know-N email/u);
+      assert.doesNotMatch(changeEmail.message.subject, /Confirm your new COLP Server email/u);
     }
     if (emailVerification.ok) {
-      assert.doesNotMatch(emailVerification.message.subject, /Verify your Know-N email/u);
+      assert.doesNotMatch(emailVerification.message.subject, /Verify your COLP Server email/u);
     }
   });
 

@@ -2,8 +2,8 @@ const COLP_COLLECTION_METADATA_TYPE = 'application/vnd.collection-protocol.colle
 
 /**
  * COLP tombstone wins when the client names the collection-metadata type
- * and/or sends Collection-Protocol-Version. A wildcard Accept or a missing
- * Accept stays on the HTML path (curl / Facebook crawler).
+ * and/or sends Collection-Protocol-Version. Anything else on `/c/:slug` is the
+ * web app's page (served by the ingress), not this server's.
  */
 export function wantsColpCanonicalTombstone(input: {
   readonly accept: string | undefined;
@@ -11,15 +11,6 @@ export function wantsColpCanonicalTombstone(input: {
 }): boolean {
   if (hasProtocolVersion(input.protocolVersion)) return true;
   return acceptIncludesType(input.accept, COLP_COLLECTION_METADATA_TYPE);
-}
-
-/**
- * T-21: `text/markdown` with q>0 wins over HTML on `/c/:slug`.
- * A wildcard Accept, missing Accept, and `text/html` stay on the T-10 HTML path.
- * Callers must still let {@link wantsColpCanonicalTombstone} win first.
- */
-export function wantsPublicShellMarkdown(accept: string | undefined): boolean {
-  return acceptIncludesType(accept, 'text/markdown');
 }
 
 function hasProtocolVersion(value: string | readonly string[] | undefined): boolean {

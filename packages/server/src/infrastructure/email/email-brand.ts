@@ -16,4 +16,4 @@ export const EMAIL_FONT_SANS =
   "'Segoe UI', 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', sans-serif";
 
 /** Plain-text product signature shared by chrome and purpose inner templates. */
-export const EMAIL_SIGNATURE = '— Know-N';
+export const EMAIL_SIGNATURE = '— COLP Server';

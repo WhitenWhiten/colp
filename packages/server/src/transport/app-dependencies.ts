@@ -53,7 +53,6 @@ import type { OidcProviderPort } from './auth/oidc-provider.js';
 import type { PublicationSnapshotRouteReader } from './product/publication-snapshot-routes.js';
 import type { PublicationDirectoryRouteReader } from './product/publication-directory-routes.js';
 import type { PublicationMetadataRouteReader } from './product/publication-metadata-routes.js';
-import type { PublicShellRoutePorts } from './public-shell-routes.js';
 import type { ProductCollaborationRouteDependencies } from './product/product-collaboration-routes.js';
 import type { SyncSessionRouteDependencies } from './colp-sync/sync-session-routes.js';
 import type { SyncSnapshotRouteDependencies } from './colp-sync/sync-snapshot-routes.js';
@@ -206,8 +205,6 @@ export interface AppDependencies {
   readonly publicationSnapshotQuery?: PublicationSnapshotQueryPorts;
   readonly publicationDirectoryQuery?: PublicationDirectoryQueryPorts;
   readonly publicationMetadataQuery?: PublicationMetadataQueryPorts;
-  /** T-10 origin-injected HTML shells for /c|/share|/path. */
-  readonly publicShell?: PublicShellRoutePorts;
   /** T10 optional cache-aware Snapshot reader (serve/shadow); defaults to PostgreSQL. */
   readonly publicationSnapshotCacheReader?: PublicationSnapshotRouteReader;
   /** T10 optional cache-aware Directory reader (serve/shadow); defaults to PostgreSQL. */

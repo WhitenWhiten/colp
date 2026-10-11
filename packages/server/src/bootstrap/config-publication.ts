@@ -135,7 +135,7 @@ export function loadPublicationCore(
   return {
     origin: publicationOrigin,
     serverUuid: publicationServerUuid,
-    title: env.PUBLICATION_TITLE?.trim() || 'Known Collections',
+    title: env.PUBLICATION_TITLE?.trim() || 'COLP Server',
     maxPageSize: parsePositiveInt(env.PUBLICATION_MAX_PAGE_SIZE, 200, 'PUBLICATION_MAX_PAGE_SIZE', { max: 500 }),
     maxSnapshotNodes: parsePositiveInt(env.PUBLICATION_MAX_SNAPSHOT_NODES, 100_000, 'PUBLICATION_MAX_SNAPSHOT_NODES'),
     cursorKeyId: publicationCursorKeyId,

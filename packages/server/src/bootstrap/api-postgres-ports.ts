@@ -52,15 +52,10 @@ import {
 } from '../modules/access-policy/index.js';
 import {
   createPublicationCursorKeyring,
-  getPublicationSnapshotPage,
-  PublicationNotFoundError,
-  PUBLICATION_SNAPSHOT_MAX_LIMIT,
 } from '../modules/publication/index.js';
 import { createPhase4bMcpWriteOperations } from '../modules/mcp/index.js';
 import {
   createPostgresPublicationDirectoryReadPort,
-  createPostgresSearchIndexingExclusionReadPort,
-  createPostgresPublicationNodeCountReadPort,
   createPostgresPublicationAnnotationReadPort,
   createPostgresPublicationRelationReadPort,
   createPostgresPublicationMetadataReadPort,
@@ -72,7 +67,6 @@ import {
   createPostgresPublicationCollectionControlPort,
 } from '../infrastructure/publication/index.js';
 import { createPostgresAccessPolicyFactsPort } from '../infrastructure/access-policy/index.js';
-import { createWebShellCache, toPublicShellMarkdownNode } from '../infrastructure/http/index.js';
 import { createPostgresSearchAuthorityPort, createPostgresSearchCandidatePort } from '../infrastructure/search/index.js';
 import { createSearchCursorSigner, createSearchFirstPageCache, createSearchTelemetry,
   executeSearchQuery } from '../modules/search/index.js';
@@ -291,8 +285,6 @@ export function createApiPostgresAppDependencies(input: {
     collaborationMembersCursorSigner, myCollaborationInvitesCursorSigner,
     collectionVersionCursorSigner, searchPorts } = ports;
   const publicProfileFacts = createPostgresPublicProfileFactsReadPort(database);
-  const searchIndexingExclusion = createPostgresSearchIndexingExclusionReadPort(database);
-  const publicationNodeCount = createPostgresPublicationNodeCountReadPort(database);
   return {
     ...(config.syncSession ? {
       productSyncCenterUnitOfWork: createPostgresProductSyncCenterUnitOfWork(database.db, {
@@ -321,41 +313,6 @@ export function createApiPostgresAppDependencies(input: {
       origin: config.publication.origin,
       collectionControl: ports.publicationCollectionControl,
     },
-    ...(config.publicShellMeta.enabled && config.publicShellMeta.webShellOrigin !== null
-      ? {
-          publicShell: {
-            cache: createWebShellCache({
-              origin: config.publicShellMeta.webShellOrigin,
-            }),
-            loadNodeCountBySlug: (slug: string) => publicationNodeCount.loadByPublicationSlug(slug),
-            loadOwnerDisplayName: async (ownerSubjectId: string) => {
-              const owner = await publicProfileFacts.findByOwnerSubjectId(ownerSubjectId);
-              return owner?.displayName ?? null;
-            },
-            loadOwnerPublicProfile: async (ownerSubjectId: string) => {
-              const owner = await publicProfileFacts.findByOwnerSubjectId(ownerSubjectId);
-              return owner === null ? null : { displayName: owner.displayName, handle: owner.handle };
-            },
-            excludedCollectionIds: (collectionIds: readonly string[], signal?: AbortSignal) =>
-              searchIndexingExclusion.excludedCollectionIds(collectionIds, signal),
-            loadSnapshotNodes: async (collectionId: string, signal?: AbortSignal) => {
-              try {
-                const page = await getPublicationSnapshotPage(publicationSnapshotQuery, {
-                  collectionId,
-                  principal: { kind: 'anonymous' },
-                  query: { limit: PUBLICATION_SNAPSHOT_MAX_LIMIT },
-                }, signal);
-                return page.snapshot.nodes
-                  .map(toPublicShellMarkdownNode)
-                  .filter((node): node is NonNullable<typeof node> => node !== null);
-              } catch (error) {
-                if (error instanceof PublicationNotFoundError) return null;
-                throw error;
-              }
-            },
-          },
-        }
-      : {}),
     productPublicCollectionQuery: {
       locators: createPostgresProductPublicCollectionLocatorReadPort(database),
       viewCounts: createPostgresProductPublicCollectionViewCountReadPort(database),

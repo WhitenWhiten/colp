@@ -437,8 +437,6 @@ const bootstrapTargets = new Set([
   'bootstrap/config-types.ts',
   'infrastructure/config/database-connection.ts',
   'bootstrap/config-parse-helpers.ts',
-  // M-09: parses the two independent public-shell flags around one shell origin.
-  'bootstrap/config-public-shell.ts',
   // Shared cache/limiter Redis role parsing is a bootstrap config leaf used
   // by the top-level config and the individual cache/limiter loaders.
   'bootstrap/config-redis-roles.ts',
@@ -530,8 +528,6 @@ const bootstrapTargets = new Set([
   'infrastructure/auth/local-issuer-jwks.ts',
   'infrastructure/auth/colp-instance-settings.ts',
   'infrastructure/health.ts',
-  // T-10: API composition builds the public-shell cache from the http leaf.
-  'infrastructure/http/index.ts',
   'transport/auth/oidc-provider.ts',
   'modules/index.ts',
   'modules/attachments/index.ts',
@@ -655,8 +651,6 @@ const transportTargets = new Set([
   'infrastructure/health.ts',
   // T-10: public HTML shell injection + internal web-origin fetch.
   'infrastructure/http/index.ts',
-  // Public-shell ETag compare. File-precise so the rest of public-shell stays closed.
-  'infrastructure/http/public-shell/html-validator.ts',
   // Snapshot conflict routes type the open-conflict page. Not the sync barrel.
   'infrastructure/sync/sync-snapshot-conflict-recovery.ts',
   // FIX-L-015 (PUB-R08): the publication routes classify cache aborts
@@ -827,13 +821,14 @@ const transportTargets = new Set([
   'transport/product/publication-directory-routes.ts',
   'transport/product/publication-manifest-routes.ts',
   'transport/product/publication-metadata-routes.ts',
-  'transport/public-shell-routes.ts',
   // B1: origin-injected /explore discovery hub.
   'transport/public-explore-shell-routes.ts',
   // FIX-L-015 (PUB-R08): transport-internal request-cancellation helper for
   // the publication read routes (request abort -> cache reader -> PG query).
   'transport/product/publication-request-cancel.ts',
   'transport/product/publication-read-negotiation.ts',
+  // COLP canonical tombstone negotiation on /c/:slug (pure Accept-header helper).
+  'transport/product/colp-canonical-negotiation.ts',
   'transport/product/publication-snapshot-routes.ts',
   'transport/product/product-public-collection-routes.ts',
   'transport/product/product-public-insight-routes.ts',

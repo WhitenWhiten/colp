@@ -4,14 +4,14 @@ import type { AuthEmailMailboxEntry, InProcessMailboxSink } from '../infrastruct
 
 /** Frozen C1 template subjects → stable purpose labels (test material only). */
 const AUTH_MAILBOX_SUBJECT_PURPOSES: Readonly<Record<string, string>> = Object.freeze({
-  'Your Know-N sign-in code': 'sign-in-otp',
-  'Your Know-N email verification code': 'email-verification-otp',
-  'Your Know-N password reset code': 'forget-password-otp',
-  'Your Know-N email change code': 'change-email-otp',
-  'Verify your Know-N email': 'email-verification',
-  'Reset your Know-N password': 'password-reset',
-  'Confirm your new Know-N email': 'email-change',
-  'Your Know-N recovery codes': 'mfa-recovery',
+  'Your COLP Server sign-in code': 'sign-in-otp',
+  'Your COLP Server email verification code': 'email-verification-otp',
+  'Your COLP Server password reset code': 'forget-password-otp',
+  'Your COLP Server email change code': 'change-email-otp',
+  'Verify your COLP Server email': 'email-verification',
+  'Reset your COLP Server password': 'password-reset',
+  'Confirm your new COLP Server email': 'email-change',
+  'Your COLP Server recovery codes': 'mfa-recovery',
 });
 
 function authMailboxPurposeOfSubject(subject: string): string {

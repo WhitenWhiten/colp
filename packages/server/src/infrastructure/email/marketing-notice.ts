@@ -62,7 +62,7 @@ function renderInner(input: MarketingNoticeInput): WrapEmailMessageResult {
     if (ctaError !== null) return { ok: false, reason: ctaError };
     cta = ctaUrl;
   }
-  const ctaLabel = input.ctaLabel ?? 'Open Know-N';
+  const ctaLabel = input.ctaLabel ?? 'Open COLP Server';
   if (cta !== undefined) {
     const labelError = validateText(ctaLabel, 'ctaLabel', MAX_CTA_LABEL_CHARS);
     if (labelError !== null) return { ok: false, reason: labelError };

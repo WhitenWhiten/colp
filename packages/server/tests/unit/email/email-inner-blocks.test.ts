@@ -66,13 +66,13 @@ describe('canonical inner blocks', () => {
   });
 
   test('heading is the 22px semibold ink h1', () => {
-    const heading = renderEmailHeading('A Know-N notice');
+    const heading = renderEmailHeading('A COLP Server notice');
     assert.match(heading, /^<h1 style="/u);
     assert.match(heading, /font-size:22px/u);
     assert.match(heading, /line-height:1\.3/u);
     assert.match(heading, /font-weight:600/u);
     assert.match(heading, /color:rgb\(6, 7, 10\)/u);
-    assert.ok(heading.endsWith('>A Know-N notice</h1>'));
+    assert.ok(heading.endsWith('>A COLP Server notice</h1>'));
   });
 
   test('preheader renders fully hidden', () => {
@@ -156,7 +156,7 @@ describe('module template mirrors stay byte-equal to the canonical blocks', () =
   });
 
   test('module signature mirrors stay byte-equal to EMAIL_SIGNATURE (chrome strips this exact line)', () => {
-    // The unified chrome strips a trailing `<p>— Know-N</p>` / "\n— Know-N";
+    // The unified chrome strips a trailing `<p>— COLP Server</p>` / "\n— COLP Server";
     // if a module's local signature constant drifted, stripping would silently
     // stop matching. Pin every leaf's trailing signature to the canonical one.
     const signatureParagraph = `<p style="${EMAIL_INNER_P_STYLE}">${EMAIL_SIGNATURE}</p>`;
@@ -185,23 +185,23 @@ describe('module template mirrors stay byte-equal to the canonical blocks', () =
   test('marketing notice uses the canonical button with a verb label, never the URL as link text', () => {
     const cta = 'https://known.example/blog/notice';
     const rendered = renderMarketingNotice({
-      heading: 'A Know-N product notice',
+      heading: 'A COLP Server product notice',
       bodyText: 'Library sharing is getting a quieter layout.',
       ctaUrl: cta,
     }, 'purpose');
     assert.equal(rendered.ok, true);
     if (rendered.ok) {
-      assert.ok(rendered.message.htmlBody.includes(renderEmailCtaButton('Open Know-N', cta)));
+      assert.ok(rendered.message.htmlBody.includes(renderEmailCtaButton('Open COLP Server', cta)));
       assert.doesNotMatch(rendered.message.htmlBody, new RegExp(`>${cta}</a>`, 'u'));
       // The heading renders as the canonical h1 block, not a bold paragraph.
-      assert.ok(rendered.message.htmlBody.includes(renderEmailHeading('A Know-N product notice')));
+      assert.ok(rendered.message.htmlBody.includes(renderEmailHeading('A COLP Server product notice')));
     }
   });
 
   test('marketing notice accepts a custom ctaLabel', () => {
     const cta = 'https://known.example/blog/notice';
     const rendered = renderMarketingNotice({
-      heading: 'A Know-N product notice',
+      heading: 'A COLP Server product notice',
       bodyText: 'Library sharing is getting a quieter layout.',
       ctaUrl: cta,
       ctaLabel: 'Read the announcement',
