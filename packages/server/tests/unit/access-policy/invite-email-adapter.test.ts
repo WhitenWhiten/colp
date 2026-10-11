@@ -22,9 +22,9 @@ import type {
 
 const RECIPIENT = 'invitee-redact@example.invalid';
 const MESSAGE = {
-  subject: "You've been invited to collaborate on Know-N",
-  textBody: 'Ada invited you to collaborate on Notes as Editor.\n\n— Know-N',
-  htmlBody: '<p>Ada invited you to collaborate on Notes as Editor.</p><p>— Know-N</p>',
+  subject: "You've been invited to collaborate on COLP Server",
+  textBody: 'Ada invited you to collaborate on Notes as Editor.\n\n— COLP Server',
+  htmlBody: '<p>Ada invited you to collaborate on Notes as Editor.</p><p>— COLP Server</p>',
 };
 
 function captureLogger() {
@@ -226,9 +226,9 @@ describe('invite email adapter test composition', () => {
 
 const INVITE_SECRET = 'invite-token-SECRET99';
 const SECRET_MESSAGE = {
-  subject: "You've been invited to collaborate on Know-N",
-  textBody: `Ada invited you to collaborate on Notes as Editor.\n\nOpen ${INVITE_SECRET}\n\n— Know-N`,
-  htmlBody: `<p>Ada invited you to collaborate on Notes as Editor.</p><p>${INVITE_SECRET}</p><p>— Know-N</p>`,
+  subject: "You've been invited to collaborate on COLP Server",
+  textBody: `Ada invited you to collaborate on Notes as Editor.\n\nOpen ${INVITE_SECRET}\n\n— COLP Server`,
+  htmlBody: `<p>Ada invited you to collaborate on Notes as Editor.</p><p>${INVITE_SECRET}</p><p>— COLP Server</p>`,
 };
 // The unified chrome strips the duplicate trailing "— Know-N" signature from
 // inner copy (the envelope lockup already names the product).
