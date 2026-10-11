@@ -27,16 +27,16 @@ export const UNIFIED_EMAIL_SKIN = 'unified';
 /** Mirrors the frozen EMAIL_SUBJECT_MAX_CHARS budget (P5-28 / C1). */
 export const UNIFIED_CHROME_SUBJECT_MAX_CHARS = 100;
 
-export const UNIFIED_CHROME_PRODUCT_NAME = 'Know-N';
+export const UNIFIED_CHROME_PRODUCT_NAME = 'COLP Server';
 
 export const UNIFIED_CHROME_SIGNATURE = EMAIL_SIGNATURE;
 
 /** Footer tagline on every envelope (faint, 12px). */
-export const UNIFIED_CHROME_TAGLINE = 'Know-N · Your bookmarks, organized and shareable.';
+export const UNIFIED_CHROME_TAGLINE = 'COLP Server · Your bookmarks, organized and shareable.';
 
 /** Marketing-only footer sentence. Not a List-Unsubscribe header. */
 export const UNIFIED_CHROME_MARKETING_UNSUBSCRIBE =
-  'You can unsubscribe from these Know-N notices at any time.';
+  'You can unsubscribe from these COLP Server notices at any time.';
 
 const FONT_SANS = EMAIL_FONT_SANS;
 
@@ -90,8 +90,8 @@ function wrapSubject(subject: string): string {
  * before wrapping (text line + signature `<p>`). Signatures anywhere else in
  * the body are left untouched.
  */
-const TRAILING_TEXT_SIGNATURE = /\n+\u2014 Know-N\s*$/u;
-const TRAILING_HTML_SIGNATURE = /\s*<p\b[^>]*>\u2014 Know-N<\/p>\s*$/u;
+const TRAILING_TEXT_SIGNATURE = /\n+\u2014 COLP Server\s*$/u;
+const TRAILING_HTML_SIGNATURE = /\s*<p\b[^>]*>\u2014 COLP Server<\/p>\s*$/u;
 
 function stripTrailingTextSignature(textBody: string): string {
   return textBody.replace(TRAILING_TEXT_SIGNATURE, '');
@@ -170,7 +170,7 @@ ${preheader !== undefined ? renderEmailPreheader(escapeXml(preheader)) : ''}
           <td bgcolor="${SURFACE_HEX}" style="padding:28px 32px;background-color:${SURFACE};">
             <table role="presentation" cellpadding="0" cellspacing="0" border="0">
               <tr>
-                <td style="font-family:${FONT_SANS};font-size:18px;font-weight:600;letter-spacing:-0.02em;color:${INK};">Know-N</td>
+                <td style="font-family:${FONT_SANS};font-size:18px;font-weight:600;letter-spacing:-0.02em;color:${INK};">COLP Server</td>
               </tr>
             </table>
           </td>

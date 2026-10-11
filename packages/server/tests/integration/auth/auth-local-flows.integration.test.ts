@@ -352,7 +352,7 @@ describeWithPostgres('C2 local auth flows: Argon2id + digest-only OTP/reset/veri
     // sign-up with sendOnSignUp queues the verification email through C1.
     const entries = sinkEntriesFor(email);
     assert.equal(entries.length, 1);
-    assert.match(entries[0]!.subject, /Verify your Know-N email/u);
+    assert.match(entries[0]!.subject, /Verify your COLP Server email/u);
     assert.equal(entries[0]!.idempotencyKey.includes(email), false, 'idempotency key must be digest-only');
     assert.equal(entries[0]!.idempotencyKey, authEmailIdempotencyKey('email-verification', email));
 
@@ -954,8 +954,8 @@ describeWithPostgres('C2 local auth flows: Argon2id + digest-only OTP/reset/veri
     const signInOtp = sinkEntriesFor(email).filter((entry) => entry.idempotencyKey === signInKey).at(-1);
     const forgetOtp = sinkEntriesFor(email).filter((entry) => entry.idempotencyKey === forgetKey).at(-1);
     assert.ok(signInOtp && forgetOtp, 'each purpose must deliver its own email under its own digest key');
-    assert.equal(signInOtp.subject, 'Your Know-N sign-in code');
-    assert.equal(forgetOtp.subject, 'Your Know-N password reset code');
+    assert.equal(signInOtp.subject, 'Your COLP Server sign-in code');
+    assert.equal(forgetOtp.subject, 'Your COLP Server password reset code');
     assert.notEqual(signInOtp.idempotencyKey, forgetOtp.idempotencyKey, 'purpose separation must enter the email key');
 
     const signInRow = await digestStore.findOtpRow('sign-in', email);
@@ -980,7 +980,7 @@ describeWithPostgres('C2 local auth flows: Argon2id + digest-only OTP/reset/veri
     const changeKey = authEmailIdempotencyKey('otp:change-email', next);
     const changeMail = sinkEntriesFor(next).find((entry) => entry.idempotencyKey === changeKey);
     assert.ok(changeMail, 'change-email OTP must be delivered to the new mailbox');
-    assert.equal(changeMail.subject, 'Your Know-N email change code');
+    assert.equal(changeMail.subject, 'Your COLP Server email change code');
     const otp = lastOtpFor(next);
 
     const confirm = await post('/email-otp/change-email', { newEmail: next, otp }, cookieHeader);

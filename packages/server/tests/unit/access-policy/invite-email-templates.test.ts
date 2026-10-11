@@ -7,7 +7,7 @@ import {
   renderInviteEmailTemplate,
 } from '../../../src/modules/access-policy/index.js';
 
-const SUBJECT = "You've been invited to collaborate on Know-N";
+const SUBJECT = "You've been invited to collaborate on COLP Server";
 const LOGIN_URL = 'https://known.example/login?returnTo=/library';
 const INVITER = 'Ada Lovelace';
 const TITLE = 'Shared research notes';
@@ -35,8 +35,8 @@ describe('invite email templates', () => {
     assert.equal(INVITE_EMAIL_BODY_MAX_BYTES, 80 * 1024);
     assert.ok(Buffer.byteLength(rendered.textBody, 'utf8') <= INVITE_EMAIL_BODY_MAX_BYTES);
     assert.ok(Buffer.byteLength(rendered.htmlBody, 'utf8') <= INVITE_EMAIL_BODY_MAX_BYTES);
-    assert.match(rendered.textBody, /\u2014 Know-N/u);
-    assert.match(rendered.htmlBody, /\u2014 Know-N/u);
+    assert.match(rendered.textBody, /\u2014 COLP Server/u);
+    assert.match(rendered.htmlBody, /\u2014 COLP Server/u);
     assert.match(rendered.textBody, /Editor/u);
     assert.match(rendered.htmlBody, /Editor/u);
   });

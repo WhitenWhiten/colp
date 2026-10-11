@@ -14,10 +14,6 @@ import { registerCollectionRoutes } from './product/collection-routes.js';
 import { registerPublicationSnapshotRoutes } from './product/publication-snapshot-routes.js';
 import { registerPublicationDirectoryRoutes } from './product/publication-directory-routes.js';
 import { registerPublicationMetadataRoutes } from './product/publication-metadata-routes.js';
-import { registerPublicShellRoutes } from './public-shell-routes.js';
-import { registerPublicOgImageRoutes } from './public-og-image-routes.js';
-import { createCollectionOgImageRenderer } from '../infrastructure/http/index.js';
-import { registerCollectionsSitemapRoutes } from './collections-sitemap-routes.js';
 import { registerPublicationManifestRoutes } from './product/publication-manifest-routes.js';
 import { registerProductPublicCollectionRoutes } from './product/product-public-collection-routes.js';
 import { registerProductCollaborationRoutes } from './product/product-collaboration-routes.js';
@@ -73,8 +69,6 @@ export function registerProductSurfaces(
     publicationSnapshotQuery,
     publicationDirectoryQuery,
     publicationMetadataQuery,
-    publicShell,
-    publicationSitemapQuery,
     publicationSnapshotCacheReader,
     publicationDirectoryCacheReader,
     publicationMetadataCacheReader,
@@ -192,9 +186,6 @@ export function registerProductSurfaces(
       handle: betterAuthRuntime.handle,
     });
   }
-  if (publicationSitemapQuery) {
-    registerCollectionsSitemapRoutes(app, { query: publicationSitemapQuery, rateLimiter: requireExploreDirectoryLimiter(), contentGovernanceEnabled: config.contentGovernance.enabled });
-  }
   if (publicationSnapshotQuery) {
     registerPublicationSnapshotRoutes(app, {
       config: config.publication,
@@ -220,20 +211,8 @@ export function registerProductSurfaces(
       ...(identityUnitOfWork ? { identityUnitOfWork } : {}),
       ...(config.contentGovernance.enabled || publicationMetadataCacheReader === undefined ? {} : { reader: publicationMetadataCacheReader }),
       rateLimiter: requireExploreDirectoryLimiter(),
-      publicShellMeta: config.publicShellMeta,
-      ...(publicShell === undefined ? {} : { publicShell }), contentGovernanceEnabled: config.contentGovernance.enabled,
+      contentGovernanceEnabled: config.contentGovernance.enabled,
     });
-    registerPublicShellRoutes(app, {
-      publicShellMeta: config.publicShellMeta,
-      query: publicationMetadataQuery,
-      ...(identityUnitOfWork ? { identityUnitOfWork } : {}),
-      ...(publicShell === undefined ? {} : { publicShell }),
-      rateLimiter: requireExploreDirectoryLimiter(), contentGovernanceEnabled: config.contentGovernance.enabled,
-    });
-    registerPublicOgImageRoutes(app, { publicShellMeta: config.publicShellMeta, query: publicationMetadataQuery,
-      renderer: deps.collectionOgImageRenderer ?? createCollectionOgImageRenderer(),
-      ...(identityUnitOfWork ? { identityUnitOfWork } : {}), ...(publicShell === undefined ? {} : { publicShell }),
-      rateLimiter: requireExploreDirectoryLimiter(), contentGovernanceEnabled: config.contentGovernance.enabled });
   }
   if (publicationSnapshotQuery && publicationDirectoryQuery && publicationMetadataQuery) {
     registerPublicationManifestRoutes(

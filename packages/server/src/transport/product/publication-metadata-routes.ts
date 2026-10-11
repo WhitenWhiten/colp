@@ -17,8 +17,8 @@ import {
   type PublicationMetadataQueryPorts,
   type PublicationMetadataResult,
 } from '../../modules/publication/index.js';
-import type { PublicationConfig, PublicShellMetaConfig } from '../../bootstrap/config.js';
-import { wantsColpCanonicalTombstone, wantsPublicShellMarkdown } from '../../infrastructure/http/index.js';
+import type { PublicationConfig } from '../../bootstrap/config.js';
+import { wantsColpCanonicalTombstone } from './colp-canonical-negotiation.js';
 import { optionalSessionActor } from '../session-auth.js';
 import { ProductHttpError } from '../product-error.js';
 import { sendPublicationProblem, sendPublicationRateLimitProblem } from './publication-snapshot-routes.js';
@@ -30,13 +30,6 @@ import {
   exploreDirectoryAccountSubject,
   exploreDirectoryAnonymousSubject,
 } from './explore-directory-rate-limit.js';
-import {
-  respondWithPublicShellHtml,
-  respondWithPublicShellMarkdown,
-  sendPublicShellHtmlNotFound,
-  sendPublicShellMarkdownNotFound,
-  type PublicShellRoutePorts,
-} from '../public-shell-routes.js';
 
 const METADATA_ROUTE = '/colp/v0.1/collections/:collectionId';
 const CANONICAL_ROUTE = '/c/:publicationSlug';
@@ -61,8 +54,6 @@ export function registerPublicationMetadataRoutes(
     /** T10 cache seam: defaults to the authoritative PostgreSQL reader. */
     readonly reader?: PublicationMetadataRouteReader;
     readonly rateLimiter?: SearchRateLimiter;
-    readonly publicShellMeta?: PublicShellMetaConfig;
-    readonly publicShell?: PublicShellRoutePorts;
     /** Governed mode revalidates controlled HTML at the edge on every request. */
     readonly contentGovernanceEnabled?: boolean;
   },
@@ -167,7 +158,6 @@ export function registerPublicationMetadataRoutes(
     handler: async (request, reply) => {
       const publicationSlug = (request.params as { publicationSlug?: unknown }).publicationSlug;
       const accept = singleAccept(request.headers.accept);
-      const markdown = wantsPublicShellMarkdown(accept);
       const colp = wantsColpCanonicalTombstone({
         accept,
         protocolVersion: request.headers['collection-protocol-version'],
@@ -180,49 +170,12 @@ export function registerPublicationMetadataRoutes(
         });
       }
       if (typeof publicationSlug !== 'string' || !isCanonicalProductPublicCollectionSlug(publicationSlug)) {
-        if (markdown && !colp) {
-          return sendPublicShellMarkdownNotFound(reply, request.method, dependencies.contentGovernanceEnabled === true);
-        }
-        if (!colp && dependencies.publicShellMeta?.enabled === true) {
-          return sendPublicShellHtmlNotFound(
-            request,
-            reply,
-            dependencies.publicShell?.cache,
-            dependencies.contentGovernanceEnabled === true,
-            dependencies.rateLimiter,
-          );
-        }
         return sendPublicationProblem(reply, request.method, { code: 'resource_not_found' });
       }
+      // Only COLP clients get a canonical answer here; a browser or any other
+      // Accept reaches the web app through the ingress (deploy/Caddyfile.*).
       if (!colp) {
-        if (dependencies.publicShellMeta?.enabled !== true) {
-          return markdown
-            ? sendPublicShellMarkdownNotFound(reply, request.method, dependencies.contentGovernanceEnabled === true)
-            : sendPublicationProblem(reply, request.method, { code: 'resource_not_found' });
-        }
-        if (markdown) {
-          return respondWithPublicShellMarkdown(request, reply, {
-            slug: publicationSlug,
-            query: dependencies.query,
-            ...(dependencies.publicShell === undefined ? {} : { publicShell: dependencies.publicShell }),
-            ...(dependencies.identityUnitOfWork === undefined
-              ? {}
-              : { identityUnitOfWork: dependencies.identityUnitOfWork }),
-            rateLimiter: dependencies.rateLimiter,
-            contentGovernanceEnabled: dependencies.contentGovernanceEnabled === true,
-          });
-        }
-        return respondWithPublicShellHtml(request, reply, {
-          surface: 'c',
-          slug: publicationSlug,
-          query: dependencies.query,
-          ...(dependencies.publicShell === undefined ? {} : { publicShell: dependencies.publicShell }),
-          ...(dependencies.identityUnitOfWork === undefined
-            ? {}
-            : { identityUnitOfWork: dependencies.identityUnitOfWork }),
-          rateLimiter: dependencies.rateLimiter,
-          contentGovernanceEnabled: dependencies.contentGovernanceEnabled === true,
-        });
+        return sendPublicationProblem(reply, request.method, { code: 'resource_not_found' });
       }
       const session = await optionalSessionActor(request, dependencies.identityUnitOfWork, { bearer: 'ignore' });
       const cancellation = requestCancellation(request, reply);

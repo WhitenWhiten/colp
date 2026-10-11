@@ -17,7 +17,7 @@ const OTP = '123456';
 // strip that trailing line (the brand lockup already names the product) while
 // leaving the rest of the inner fragment byte-equal.
 const otpInner: UnifiedChromeMessage = {
-  subject: 'Your Know-N sign-in code',
+  subject: 'Your COLP Server sign-in code',
   textBody: `Your sign-in code is:\n\n${OTP}\n\nThis code expires in 5 minutes. Never share it with anyone.\n\n${UNIFIED_CHROME_SIGNATURE}`,
   htmlBody: `<p>Your sign-in code is:</p>\n<p><strong>${OTP}</strong></p>\n<p>This code expires in 5 minutes. Never share it with anyone.</p>\n<p>${UNIFIED_CHROME_SIGNATURE}</p>`,
 };

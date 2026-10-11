@@ -36,6 +36,7 @@ const OWNER_MAP: Record<string, string | string[]> = {
   'write-approvals.css': 'pages',
   'agents.css': 'pages',
   'extension.css': 'pages',
+  'import.css': 'pages',
   'pages-shared.css': 'pages',
   'library.css': 'pages',
   'workbench-chrome.css': 'pages',
@@ -98,6 +99,7 @@ const ROUTE_STYLESHEETS: Record<string, string[]> = {
   'WriteApprovals.tsx': ['write-approvals.css'],
   'Agents.tsx': ['agents.css'],
   'Extension.tsx': ['extension.css'],
+  'SelfHostedImport.tsx': ['import.css'],
   'LibraryHealth.tsx': ['library-health.css'],
   'CollectionHistory.tsx': ['collection-history.css'],
   // Resource detail chapter split out of the entry-loaded studio.css.

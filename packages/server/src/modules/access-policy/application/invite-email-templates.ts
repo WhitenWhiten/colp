@@ -13,9 +13,9 @@ export const INVITE_EMAIL_SUBJECT_MAX_CHARS = 100;
 /** Mirrors EMAIL_BODY_MAX_BYTES (P5-28). Do not import notifications. */
 export const INVITE_EMAIL_BODY_MAX_BYTES = 80 * 1024;
 export const INVITE_EMAIL_TITLE_MAX_GRAPHEMES = 80;
-export const INVITE_EMAIL_SUBJECT = "You've been invited to collaborate on Know-N";
+export const INVITE_EMAIL_SUBJECT = "You've been invited to collaborate on COLP Server";
 export const INVITE_EMAIL_RETURN_TO = '/library';
-const INVITE_EMAIL_SIGNATURE_LINE = '\u2014 Know-N';
+const INVITE_EMAIL_SIGNATURE_LINE = '\u2014 COLP Server';
 
 /**
  * Byte-equal MIRRORS of the shared email inner blocks

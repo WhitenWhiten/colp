@@ -4,6 +4,34 @@ import type { CreateNodeRequest } from '../api/types'
 
 export const BOOKMARK_IMPORT_MAX_BYTES = 8 * 1024 * 1024
 
+export type ImportFolderOption = { id: string; title: string; depth: number; label: string }
+
+/** Destination folders in tree order (parents before children, siblings by
+    position), each labelled with its path so a nested "Reading" is told apart
+    from a top-level one in a flat <select>. */
+export function importFolderOptions(snapshot: Pick<EditorSnapshot, 'root' | 'nodes'>): ImportFolderOption[] {
+  const folders = snapshot.nodes.filter(node => node.kind === 'folder')
+  const byParent = new Map<string, EditableNodeView[]>()
+  for (const node of folders) {
+    const siblings = byParent.get(node.parentId) ?? []
+    siblings.push(node)
+    byParent.set(node.parentId, siblings)
+  }
+  const out: ImportFolderOption[] = []
+  const visit = (parentId: string, depth: number, path: string[], seen: Set<string>) => {
+    const siblings = (byParent.get(parentId) ?? []).sort((a, b) => a.position < b.position ? -1 : a.position > b.position ? 1 : 0)
+    for (const node of siblings) {
+      if (seen.has(node.id)) continue
+      seen.add(node.id)
+      const trail = [...path, node.title]
+      out.push({ id: node.id, title: node.title, depth, label: trail.join(' / ') })
+      visit(node.id, depth + 1, trail, seen)
+    }
+  }
+  visit(snapshot.root.id, 0, [], new Set())
+  return out
+}
+
 export function previewBookmarkImport(html: string) {
   const document = parseNetscapeBookmarkHtml(html)
   let folders = 0

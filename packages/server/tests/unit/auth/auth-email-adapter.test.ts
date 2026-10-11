@@ -450,7 +450,7 @@ describe('log redaction: recipient, OTP and body text never reach the logs', () 
       await failure.close();
 
       const serialized = JSON.stringify({ queued, unavailable });
-      for (const marker of [markerRecipient, markerOtp, 'Your Know-N sign-in code', '918273']) {
+      for (const marker of [markerRecipient, markerOtp, 'Your COLP Server sign-in code', '918273']) {
         assert.doesNotMatch(serialized, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&'), 'u'), marker);
       }
       const logText = lines.join('\n');

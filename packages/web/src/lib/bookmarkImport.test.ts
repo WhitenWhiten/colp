@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { EditorSnapshot, EditableNodeView } from '../api'
-import { bookmarkImportAttempt, importBookmarks, previewBookmarkImport } from './bookmarkImport'
+import { bookmarkImportAttempt, importBookmarks, importFolderOptions, previewBookmarkImport } from './bookmarkImport'
 
 const html = '<!DOCTYPE NETSCAPE-Bookmark-file-1><DL><DT><H3>Research</H3><DL><DT><A HREF="https://example.com/a">A &amp; B</A><DT><A HREF="https://example.com/b">Second</A></DL></DL>'
 const snapshot = { collection: { id: 'collection' }, root: { id: 'root' }, nodes: [] } as unknown as EditorSnapshot
@@ -8,6 +8,18 @@ const folder = { id: 'folder', kind: 'folder', title: 'Research', parentId: 'roo
 const bookmark = { id: 'first', kind: 'bookmark', title: 'A & B', url: 'https://example.com/a', parentId: 'folder', position: 'a' } as EditableNodeView
 
 describe('bookmark HTML import', () => {
+  it('lists destination folders in tree order with their path as the label', () => {
+    const nested = { id: 'nested', kind: 'folder', title: 'Papers', parentId: 'folder', position: 'a' } as EditableNodeView
+    const later = { id: 'later', kind: 'folder', title: 'Later', parentId: 'root', position: 'b' } as EditableNodeView
+    const orphan = { id: 'orphan', kind: 'folder', title: 'Orphan', parentId: 'missing', position: 'a' } as EditableNodeView
+    const options = importFolderOptions({ ...snapshot, nodes: [later, bookmark, nested, folder, orphan] })
+    expect(options).toEqual([
+      { id: 'folder', title: 'Research', depth: 0, label: 'Research' },
+      { id: 'nested', title: 'Papers', depth: 1, label: 'Research / Papers' },
+      { id: 'later', title: 'Later', depth: 0, label: 'Later' },
+    ])
+  })
+
   it('previews decoded nested bookmarks and rejects unsafe or relative URLs before any write', () => {
     expect(previewBookmarkImport(html)).toMatchObject({ folders: 1, bookmarks: 2 })
     expect(previewBookmarkImport(html).items[0]).toMatchObject({ children: [{ title: 'A & B' }, { title: 'Second' }] })

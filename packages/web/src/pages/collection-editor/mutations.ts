@@ -77,6 +77,11 @@ export function useCollectionEditorMutations(options: {
   snapRef.current = snap
 
   const [busy, setBusy] = useState(false)
+  useEffect(() => {
+    if (busy || !slugFocusPending.current) return
+    slugFocusPending.current = false
+    publicationSlugRef.current?.focus()
+  }, [busy])
   const [title, setTitle] = useState('')
   const [summary, setSummary] = useState('')
   const [visibility, setVisibility] = useState<CollectionVisibility>('private')
@@ -85,6 +90,10 @@ export function useCollectionEditorMutations(options: {
   const [publicationSlugError, setPublicationSlugError] = useState<string | null>(null)
   const [titleError, setTitleError] = useState<string | null>(null)
   const publicationSlugRef = useRef<HTMLInputElement>(null)
+  /* A server slug error arrives while the form is still `busy` and the slug
+     input is disabled; a disabled input cannot take focus. Remember the
+     request and focus once the mutation has released the form. */
+  const slugFocusPending = useRef(false)
 
   const [createKind, setCreateKind] = useState<'folder' | 'bookmark'>('bookmark')
   const [createTitle, setCreateTitle] = useState('')
@@ -203,9 +212,7 @@ export function useCollectionEditorMutations(options: {
       const slugFieldError = err.fieldErrors.find((field) => field.path === '/publicationSlug')
       if (slugFieldError) {
         setPublicationSlugError(slugFieldError.message)
-        requestAnimationFrame(() => {
-          if (!controller.signal.aborted && activeCollectionIdRef.current === expectedCollectionId) publicationSlugRef.current?.focus()
-        })
+        slugFocusPending.current = true
         return
       }
       setBanner({ message: err.recoveryHint, action: 'refresh' })

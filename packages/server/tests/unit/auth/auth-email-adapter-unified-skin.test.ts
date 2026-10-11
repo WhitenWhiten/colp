@@ -91,11 +91,11 @@ function splitAroundInner(wrapped: string, inner: string): { header: string; foo
   };
 }
 
-/** The unified chrome strips the duplicate trailing "— Know-N" signature from inner copy. */
+/** The unified chrome strips the duplicate trailing "— COLP Server" signature from inner copy. */
 function stripTrailingSignature(body: string): string {
   return body
-    .replace(/\n+\u2014 Know-N\s*$/u, '')
-    .replace(/\s*<p\b[^>]*>\u2014 Know-N<\/p>\s*$/u, '');
+    .replace(/\n+\u2014 COLP Server\s*$/u, '')
+    .replace(/\s*<p\b[^>]*>\u2014 COLP Server<\/p>\s*$/u, '');
 }
 
 describe('MAIL-01 auth adapter unified skin', () => {
@@ -172,7 +172,7 @@ describe('MAIL-01 auth adapter unified skin', () => {
     try {
       const result = await composition.sender.sendAuthEmail(sendInput());
       assert.equal(result.outcome, 'queued');
-      assert.match(sink.entries[0]?.textBody ?? '', /Know-N/u);
+      assert.match(sink.entries[0]?.textBody ?? '', /COLP Server/u);
       assert.match(sink.entries[0]?.textBody ?? '', new RegExp(OTP, 'u'));
       assert.doesNotMatch(sink.entries[0]?.subject ?? '', new RegExp(OTP, 'u'));
     } finally {

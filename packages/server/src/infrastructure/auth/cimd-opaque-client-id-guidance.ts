@@ -22,7 +22,7 @@ import { APIError } from 'better-auth/api';
 export const OPAQUE_CLIENT_ID_GUIDANCE =
   'client_id must be a registered OAuth client: the HTTPS URL of a Client ID Metadata Document (CIMD), '
   + 'or the client_id returned by POST /api/v1/auth/oauth2/register (RFC 7591). '
-  + 'Unregistered opaque strings are not accepted. See https://know-n.com/mcp';
+  + 'Unregistered opaque strings are not accepted. See the Agents page on this server (/agents) and deploy/INSTALL.md.';
 
 const opaqueClientIdDiscovery: ClientDiscovery = {
   id: 'known-opaque-client-id-guidance',

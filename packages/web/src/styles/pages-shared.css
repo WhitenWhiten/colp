@@ -208,4 +208,60 @@
     margin-block: calc(-1 * var(--space-3));
   }
 }
+
+/* ——— Copy field (components/CopyField) ———
+   A value the owner carries elsewhere: server address, MCP endpoint, a
+   command. Label, monospace value, one Copy button; the block form holds a
+   multi-line command and puts the button under it. */
+.copy-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'label label'
+    'value button';
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+}
+
+.copy-field--block {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    'label'
+    'value'
+    'button';
+  justify-items: start;
+}
+
+.copy-field-label {
+  grid-area: label;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+.copy-field-value {
+  grid-area: value;
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-sunken);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.copy-field--block .copy-field-value {
+  justify-self: stretch;
+  overflow: auto;
+}
+
+.copy-field-button {
+  grid-area: button;
+  align-self: center;
+}
 }

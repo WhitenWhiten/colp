@@ -36,14 +36,16 @@ export function MobileDrawer({
       aria-label="Mobile"
       inert={closing || undefined}
     >
-      <button
-        type="button"
-        className="mobile-search"
-        onClick={onOpenSearch}
-      >
-        <Icon name="search" />
-        <span>{SITE_SEARCH_PLACEHOLDER}</span>
-      </button>
+      {isLoggedIn && (
+        <button
+          type="button"
+          className="mobile-search"
+          onClick={onOpenSearch}
+        >
+          <Icon name="search" />
+          <span>{SITE_SEARCH_PLACEHOLDER}</span>
+        </button>
+      )}
 
       {/* Ungrouped items are the library tools; a grouped run (Moderation)
           gets its own labelled section, as in the desktop Tools menu. */}

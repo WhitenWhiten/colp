@@ -121,3 +121,17 @@ Removed (the subject is not part of this package):
   for the same feature remains in the unit project).
 - `phase3/phase3-sync-ui-real-stack-static`: Know-N's web real-stack e2e
   harness, already excluded from the restored acceptance scope above.
+
+Removed on 2026-10-11 (review of the shipped surfaces):
+
+- The origin-injected public collection shell (`/c/:slug` HTML and Markdown,
+  `/share|/path|/graph`, `KNOWN_FEATURE_PUBLIC_SHELL_META`, `WEB_SHELL_ORIGIN`),
+  the Open Graph card renderer and the public collections sitemap, with their
+  unit suites (`public-shell-*`, `public-og-*`, `collections-sitemap*`) and
+  Postgres suites (`postgres-public-shell-html`, `postgres-public-shell-markdown`,
+  `postgres-collections-sitemap`). They rewrote Know-N's `index.html` and
+  emitted Know-N URLs; the self-hosted web app renders `/c/:slug` itself behind
+  Caddy. `/c/:slug` keeps the COLP canonical tombstone negotiation
+  (`transport/product/colp-canonical-negotiation.ts`,
+  `tests/unit/publication/colp-canonical-negotiation.test.ts`); any other
+  Accept answers `resource_not_found`.

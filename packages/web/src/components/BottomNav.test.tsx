@@ -40,9 +40,9 @@ describe('BottomNav', () => {
   it('lists the owner destinations in desktop nav order once signed in', () => {
     mocks.auth.isLoggedIn = true
     render('/library')
-    expect(tabHrefs()).toEqual(['/library', '/agents'])
+    expect(tabHrefs()).toEqual(['/library', '/agents', '/approvals'])
     const labels = [...document.querySelectorAll('[data-testid="bottom-nav-label"]')].map((node) => node.textContent)
-    expect(labels).toEqual(['Library', 'Agents'])
+    expect(labels).toEqual(['Library', 'Agents', 'Approvals'])
   })
 
   it('offers only Sign in to guests, pointing back at the current page', () => {

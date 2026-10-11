@@ -63,7 +63,7 @@ test.describe('top bar follows the nav cuts', () => {
     if (width >= 1100) {
       await expect(burger).toBeHidden()
       await expect(primary).toBeVisible()
-      await expect(primary.getByRole('link')).toHaveText(['Library', 'Agents'])
+      await expect(primary.getByRole('link')).toHaveText(['Library', 'Agents', 'Approvals'])
       await expect(fullSearch).toBeVisible()
       await expect(compactSearch).toBeHidden()
       return
@@ -74,12 +74,12 @@ test.describe('top bar follows the nav cuts', () => {
     await expect(compactSearch).toBeVisible()
     if (width >= 720) {
       await expect(primary).toBeVisible()
-      await expect(primary.getByRole('link')).toHaveText(['Library', 'Agents'])
+      await expect(primary.getByRole('link')).toHaveText(['Library', 'Agents', 'Approvals'])
     } else {
       await expect(primary).toBeHidden()
       const tabs = page.getByRole('navigation', { name: 'Mobile primary' })
       await expect(tabs).toBeVisible()
-      await expect(tabs.getByRole('link')).toHaveText(['Library', 'Agents'])
+      await expect(tabs.getByRole('link')).toHaveText(['Library', 'Agents', 'Approvals'])
     }
   })
 
@@ -98,9 +98,24 @@ test.describe('top bar follows the nav cuts', () => {
     }
   })
 
-  test('the drawer opens from the burger, exposes search, and closes on Escape', async ({ page }) => {
+  test('a guest drawer offers Sign in and no library search', async ({ page }) => {
     await mockGuestPublicCollection(page)
     await page.goto(GUEST_PAGE)
+    test.skip(viewportWidth(page) >= 1100, 'full chrome has no drawer')
+
+    await page.getByRole('button', { name: 'Open menu' }).click()
+    const drawer = page.getByRole('navigation', { name: 'Mobile', exact: true })
+    await expect(drawer).toBeVisible()
+    await expect(drawer.getByRole('link')).toHaveText(['Sign in'])
+    // Site search answers a guest with a sign-in wall, so it is not offered.
+    await expect(drawer.locator('.mobile-search')).toHaveCount(0)
+    await expect(page.locator('.nav-search-compact')).toHaveCount(0)
+  })
+
+  test('the drawer opens from the burger, exposes search, and closes on Escape', async ({ page }) => {
+    await mockOwnerLibrary(page)
+    await page.goto('/library/col-1')
+    await expect(page.getByTestId('library-workspace')).toBeVisible()
     test.skip(viewportWidth(page) >= 1100, 'full chrome has no drawer')
 
     const burger = page.getByRole('button', { name: 'Open menu' })
@@ -108,7 +123,6 @@ test.describe('top bar follows the nav cuts', () => {
     const drawer = page.getByRole('navigation', { name: 'Mobile', exact: true })
     await expect(drawer).toBeVisible()
     await expect(page.getByRole('button', { name: 'Close menu' })).toHaveAttribute('aria-expanded', 'true')
-    await expect(drawer.getByRole('link')).toHaveText(['Sign in'])
 
     await drawer.locator('.mobile-search').click()
     await expect(page.getByTestId('search-palette-input')).toBeVisible()

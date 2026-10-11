@@ -1,9 +1,10 @@
 import { expect, test } from './fixtures'
-import { mockGuestPublicCollection } from './helpers/library-mocks'
+import { mockOwnerLibrary } from './helpers/library-mocks'
 
-/* The palette opens from the top bar on any page with chrome; a public
-   collection is the signed-out page that has it. */
-const CHROME_PAGE = '/c/reading-notes'
+/* The palette opens from the top bar on any page with chrome for a signed-in
+   owner: site search covers the owner's library, so a guest is not offered it
+   (chrome.responsive.spec.ts). The owner's library is the page that has it. */
+const CHROME_PAGE = '/library/col-1'
 
 const result = {
   query: 'systems', types: ['collection'],
@@ -12,11 +13,12 @@ const result = {
   consistency: { authority: 'recheck-each-page', ranking: 'restart-on-mutation' },
 }
 
-test.beforeEach(async ({ page }) => mockGuestPublicCollection(page))
+test.beforeEach(async ({ page }) => mockOwnerLibrary(page))
 
 async function installSearchRoutes(page: import('@playwright/test').Page) {
   await page.route('**/api/v1/session', (route) => route.fulfill({
-    status: 200, contentType: 'application/json', body: JSON.stringify({ authenticated: false }),
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ authenticated: true, csrfToken: 'e2e-csrf', idleExpiresAt: '2099-01-01T00:00:00.000Z', absoluteExpiresAt: '2099-01-02T00:00:00.000Z' }),
   }))
   await page.route('**/api/v1/search**', (route) => route.fulfill({
     status: 200, contentType: 'application/json', body: JSON.stringify(result),
@@ -56,7 +58,8 @@ async function installVisualSearchRoutes(
   gates: { loading: ReturnType<typeof createDeferred>; more: ReturnType<typeof createDeferred> },
 ) {
   await page.route('**/api/v1/session', (route) => route.fulfill({
-    status: 200, contentType: 'application/json', body: JSON.stringify({ authenticated: false }),
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ authenticated: true, csrfToken: 'e2e-csrf', idleExpiresAt: '2099-01-01T00:00:00.000Z', absoluteExpiresAt: '2099-01-02T00:00:00.000Z' }),
   }))
   await page.route('**/api/v1/search**', async (route) => {
     const url = new URL(route.request().url())
@@ -112,6 +115,7 @@ test.describe('mocked Search browser flow', () => {
   test('opens the TopNav palette, navigates with the keyboard, and restores focus', async ({ page }) => {
     await installSearchRoutes(page)
     await page.goto(CHROME_PAGE)
+    await expect(page.getByTestId('library-workspace')).toBeVisible()
     // The nav search trigger's accessible name is the placeholder copy
     // ("Search your library…"), not the long-gone "Open search" label.
     const trigger = page.locator('.nav-search:visible, .nav-search-compact:visible').first()
@@ -148,6 +152,7 @@ test.describe('mocked Search browser flow', () => {
       await installVisualSearchRoutes(page, gates)
 
       await page.goto(CHROME_PAGE)
+      await expect(page.getByTestId('library-workspace')).toBeVisible()
       if (viewport.width <= 640) {
         await page.getByRole('button', { name: 'Open menu' }).click()
         await page.locator('.mobile-search').click()

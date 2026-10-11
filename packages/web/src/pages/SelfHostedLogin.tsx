@@ -125,10 +125,11 @@ export function SelfHostedLogin() {
         <h1>Sign in</h1>
         <p className="sub">Use the account you created on this server.</p>
         {ownerMissing && (
-          <div className="panel panel-pad auth-alert auth-feedback" role="status" data-testid="login-owner-missing">
+          <div className="auth-notice auth-feedback auth-first-run" role="status" data-testid="login-owner-missing">
             <p className="auth-alert-text">
-              This server has no owner account yet. <Link to="/register">Create it with the setup token</Link>.
+              This server has no owner account yet. The first account created here becomes the owner.
             </p>
+            <Link to="/register" className="btn btn-primary btn-sm">Create the owner account</Link>
           </div>
         )}
         {formError && (

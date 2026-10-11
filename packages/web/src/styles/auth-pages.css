@@ -43,6 +43,14 @@
   margin-bottom: var(--hair-85);
 }
 
+/* Self-hosted first run: a neutral note with one action, not an error. */
+.auth-first-run {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--hair-85);
+}
+
 /* Self-hosted sign-in: the operator resets passwords from the CLI. */
 .auth-hint {
   margin-top: var(--hair-125);

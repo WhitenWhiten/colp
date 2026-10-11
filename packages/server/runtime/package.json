@@ -21,7 +21,6 @@
     "@modelcontextprotocol/server": "2.3.1",
     "@mozilla/readability": "0.6.0",
     "@node-rs/argon2": "2.1.0",
-    "@resvg/resvg-js": "^2.6.2",
     "better-auth": "1.7.7",
     "dotenv": "^16.4.7",
     "fast-uri": "3.1.8",
@@ -35,7 +34,6 @@
     "pino": "^9.6.0",
     "rrule": "^2.8.1",
     "sanitize-html": "2.17.7",
-    "satori": "^0.33.4",
     "tldts": "7.4.16"
   },
   "overrides": {

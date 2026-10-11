@@ -9,11 +9,14 @@ function json(route: Route, body: unknown) {
    position (1.4.1); classed links keep their own treatment. */
 test('prose links are underlined; classed links are not', async ({ page }) => {
   await page.route('**/api/v1/session', (route) => json(route, { authenticated: false }))
-  // A server with no owner yet points sign-in at first-run setup in a sentence.
-  await page.route('**/api/v1/auth/registration-state', (route) => json(route, { open: true, reason: 'first-run' }))
-  await page.goto('/login')
-  const setup = page.getByTestId('login-owner-missing').locator('a[href="/register"]:not([class])')
-  await expect(setup).toBeVisible()
+  await page.route('**/health', (route) => json(route, { status: 'ok', version: { server: '0.1.0', colp: '0.1.2', protocols: ['0.1'] } }))
+  // About lists the changelog as a bare link in a list item (running text).
+  // The first-run note on /login used to be the sample; it is a button now.
+  await page.goto('/about')
+  const changelog = page.getByTestId('self-hosted-about').locator('a[href="/CHANGELOG.md"]:not([class])')
+  await expect(changelog).toBeVisible()
+  await expect(changelog).toHaveCSS('text-decoration-line', 'underline')
+  const setup = page.getByRole('link', { name: 'Connect an agent' })
   await expect(setup).toHaveCSS('text-decoration-line', 'underline')
   const brand = page.getByRole('link', { name: 'COLP Server home' })
   await expect(brand).toHaveCSS('text-decoration-line', 'none')

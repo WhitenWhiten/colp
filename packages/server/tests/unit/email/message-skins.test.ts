@@ -25,7 +25,7 @@ const OTP = '483920';
 const backendRoot = resolve(import.meta.dirname, '../../..');
 
 const otpInner: EmailSkinMessage = {
-  subject: 'Your Know-N sign-in code',
+  subject: 'Your COLP Server sign-in code',
   textBody: `Your sign-in code is:\n\n${OTP}\n\nThis code expires in 5 minutes.`,
   htmlBody: `<p>Your sign-in code is:</p>\n<p><strong>${OTP}</strong></p>`,
 };
@@ -249,7 +249,7 @@ describe('wrapEmailMessage', () => {
 
 describe('marketing-notice renderer', () => {
   const input = {
-    heading: 'A Know-N product notice',
+    heading: 'A COLP Server product notice',
     bodyText: 'Library sharing is getting a quieter layout.',
     ctaUrl: 'https://known.example/blog/notice',
   };
