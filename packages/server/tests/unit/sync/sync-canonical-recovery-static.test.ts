@@ -16,23 +16,17 @@ describe('P3-32 non-Sync canonical mutation convergence', () => {
     assert.match(publisher, /invalidateSyncReplicasOnNodeMutation:\s*true/u);
   });
 
-  test('MCP changes.commit and classify-inbox accept writers force active replicas through Snapshot recovery', async () => {
-    const [mcpWritePorts, classifyAccept] = await Promise.all([
-      readFile(new URL('../../../src/bootstrap/mcp-write-postgres-ports.ts', import.meta.url), 'utf8'),
-      readFile(new URL('../../../src/infrastructure/collections/classify-inbox-accept-postgres.ts', import.meta.url), 'utf8'),
-    ]);
-    // Both write paths have no Replica/Sequence identity, so their Operations
+  test('MCP changes.commit writers force active replicas through Snapshot recovery', async () => {
+    const mcpWritePorts = await readFile(new URL('../../../src/bootstrap/mcp-write-postgres-ports.ts', import.meta.url), 'utf8');
+    // The write path has no Replica/Sequence identity, so its Operations
     // cannot reach a replica through the incremental Push/Pull protocol; the
-    // only honest delivery is the forced Snapshot recovery below.
+    // only honest delivery is the forced Snapshot recovery below. The
+    // classify-inbox accept writer left with classification (A8).
     assert.match(mcpWritePorts, /invalidateSyncReplicasOnNodeMutation:\s*true/u);
-    assert.match(classifyAccept, /createClassificationCanonicalPorts\(transaction, options\)/u);
-    const classificationPorts = await readFile(new URL('../../../src/infrastructure/collections/classification-canonical-ports.ts', import.meta.url), 'utf8');
-    assert.match(classificationPorts, /invalidateSyncReplicasOnNodeMutation:\s*true/u);
     // T-10 / ADR-0027: the invalidating UPDATE touches `sync_replicas`, so the
-    // Collection-first entry points must take the replica rows before the
+    // Collection-first entry point must take the replica rows before the
     // Collection row.
     assert.match(mcpWritePorts, /lockCollectionForReplicaInvalidation/u);
-    assert.match(classificationPorts, /lockCollectionForReplicaInvalidation/u);
   });
 
   test('readiness binds COLP 0.2 advertisement to effect migration authority', async () => {
