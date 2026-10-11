@@ -2,22 +2,12 @@
 import { act, useEffect } from 'react'
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ProductApiError } from '../api/errors'
 import type { PublicCollectionNode, PublicCollectionSnapshot } from '../api/types'
 import { Collection } from './Collection'
-import { cleanup, domFinishedLoading, findButtonByName, mountTree, waitForDom } from '../test/render'
+import { cleanup, domFinishedLoading, mountTree, waitForDom } from '../test/render'
 
 const mocks = vi.hoisted(() => ({
   loadPublicCollectionSnapshot: vi.fn(),
-  recordPublicCollectionInsightEvent: vi.fn(),
-  isFollowingProfile: vi.fn(),
-  followProfile: vi.fn(),
-  unfollowProfile: vi.fn(),
-  abandonFollowIntent: vi.fn(),
-  getCollectionFollowState: vi.fn(),
-  followCollection: vi.fn(),
-  unfollowCollection: vi.fn(),
-  abandonCollectionFollowIntent: vi.fn(),
   toast: vi.fn(),
   success: vi.fn(),
   error: vi.fn(),
@@ -42,19 +32,9 @@ vi.mock('../api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../api')>()
   return {
     ...actual,
-    isCommunityExposureEnabled: () => false,
     productClient: {
       ...actual.productClient,
       loadPublicCollectionSnapshot: mocks.loadPublicCollectionSnapshot,
-      recordPublicCollectionInsightEvent: mocks.recordPublicCollectionInsightEvent,
-      isFollowingProfile: mocks.isFollowingProfile,
-      followProfile: mocks.followProfile,
-      unfollowProfile: mocks.unfollowProfile,
-      abandonFollowIntent: mocks.abandonFollowIntent,
-      getCollectionFollowState: mocks.getCollectionFollowState,
-      followCollection: mocks.followCollection,
-      unfollowCollection: mocks.unfollowCollection,
-      abandonCollectionFollowIntent: mocks.abandonCollectionFollowIntent,
     },
   }
 })
@@ -139,24 +119,12 @@ function thirdPartyFaviconSrcs(root: ParentNode = document): string[] {
   return imgSrcs(root).filter((src) => /favicon\.im|icons\.duckduckgo\.com/i.test(src))
 }
 
-function insightPayloads() {
-  return mocks.recordPublicCollectionInsightEvent.mock.calls.map(([input]) => input)
-}
-
-function previewObservers(): MockIntersectionObserverInstance[] {
-  return ioState.instances.filter((instance) => instance.options?.threshold === 0.25)
-}
-
 describe('public Collection bookmark icons (BF-05)', () => {
   let previousIntersectionObserver: typeof IntersectionObserver | undefined
   let captureSearch = ''
 
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.stubEnv('VITE_FOLLOW_ACCEPTANCE', 'true')
-    mocks.isFollowingProfile.mockResolvedValue(false)
-    mocks.recordPublicCollectionInsightEvent.mockResolvedValue(undefined)
-    mocks.getCollectionFollowState.mockResolvedValue({ following: false, followerCount: 0, followedAt: null })
     ioState.instances.length = 0
     window.sessionStorage.clear()
     window.localStorage.clear()

@@ -1,18 +1,15 @@
 /* ——— Shared chrome primitives (base layer) ———
  *
  * Site-wide surface primitives that outgrew any single page file:
- *   .avatar      — nav shell, collection/explore cards, profile, onboarding
- *   .view-switch — segmented rail: collection/explore/dashboard toolbars,
- *                  density switch, canvas presets, auth method tabs
- *                  (page deltas in auth.css), profile display-mode switch
+ *   .avatar      — nav shell, account menu, collection byline
+ *   .view-switch — segmented rail: collection and library toolbars, density
+ *                  switch
  *   .lib-snippet — TL;DR / note annotation shared by library rows
- *                  (ResourceList), collection resources and the demo library
- *                  (LegacyLibrary); .library-bookmark-snippets is its stack
+ *                  (ResourceList) and collection resources;
+ *                  .library-bookmark-snippets is its stack
  *
  * They live in the base layer so every page/pattern/component rule keeps
  * winning over the primitive base, same as before the move:
- *   .result-card--collection .avatar sizing (cards-ui.css, components)
- *   .result-card--collection:hover .avatar detail (interactions.css, patterns)
  *   .library-toolbar-actions .view-switch button sizing (library.css, pages)
  *   .view-switch mobile flex (collection.css, pages) / motion (polish.css)
  *   .library-bookmark--comfort .library-bookmark-snippets grid placement
@@ -42,22 +39,10 @@
   display: block;
 }
 
-.avatar-lg {
-  width: 3.5rem;
-  height: 3.5rem;
-  font-size: var(--text-base);
-}
-
 .avatar-md {
   width: 2.25rem;
   height: 2.25rem;
   font-size: var(--text-caption);
-}
-
-.avatar-sm {
-  width: 1.35rem;
-  height: 1.35rem;
-  font-size: var(--text-3xs);
 }
 
 .avatar-nav {

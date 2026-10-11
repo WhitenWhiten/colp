@@ -2,15 +2,10 @@ import { useCallback, useRef } from 'react'
 import type { NavigateFunction } from 'react-router-dom'
 import type { EditorSnapshot } from '../../api'
 import { useConfirm } from '../../components/ConfirmModal'
-import { FaviconDropCard } from '../../components/FaviconDropCard'
-import { FaviconSourceControl } from '../../components/FaviconSourceControl'
-import { PreviewModeControl } from '../../components/PreviewModeControl'
 import { Icon } from '../../components/Icon'
 import { Modal } from '../../components/Modal'
 import { NodeAnnotationFields } from '../../components/NodeAnnotationFields'
 import { TagInput } from '../../components/TagInput'
-import { bookmarkIconSrc } from '../../lib/bookmarkIcon'
-import { isSelfHostedEdition } from '../../lib/edition'
 import {
   NODE_DESCRIPTION_MAX,
   NODE_TITLE_MAX,
@@ -20,8 +15,8 @@ import {
 
 /**
  * FE-04: the node editor drawer. One surface edits everything a bookmark or
- * folder carries — title, URL (bookmark), description, tags, favicon
- * (bookmark), note and TL;DR. The overlay assembly is Modal chrome="sheet":
+ * folder carries — title, URL (bookmark), description, tags, note and
+ * TL;DR. The overlay assembly is Modal chrome="sheet":
  * scroll lock, focus trap, Esc, exit beat and the top-of-stack check all
  * come from the shared component.
  */
@@ -90,14 +85,6 @@ export function NodeEditDrawer({
 
   const canEdit = Boolean(snap?.capabilities.updateNode) && !node.readOnly
   const isBookmark = node.kind === 'bookmark'
-  // This server stores no favicon objects and has no favicon source routes.
-  const faviconControls = isBookmark && !isSelfHostedEdition()
-  const favicon = isBookmark
-    // Same library posture as bookmarkItem: never hotlink CDN favicons
-    // for private nodes (see LibraryDesk.bookmark-icon.test).
-    ? bookmarkIconSrc({ iconUrl: node.iconUrl, pageUrl: node.url, faviconCdnAllowed: false })
-    : null
-  const faviconUrl = favicon?.kind === 'object' ? favicon.src : null
   return (
     <Modal
       open={nodeId !== null}
@@ -182,39 +169,6 @@ export function NodeEditDrawer({
           disabled={!canEdit}
         />
       </div>
-      {isBookmark && (
-        <p className="field-hint">Icon changes apply immediately.</p>
-      )}
-      {faviconControls && (
-        <FaviconDropCard
-          inputId="nd-favicon"
-          labelId="nd-favicon-label"
-          currentIconUrl={faviconUrl}
-          disabled={!canEdit || drawer.faviconBusy}
-          onPick={(file) => void drawer.uploadFavicon(file)}
-          onRemove={() => void drawer.removeFavicon()}
-        />
-      )}
-      {faviconControls && snap && (
-        <FaviconSourceControl
-          collectionId={snap.collection.id}
-          nodeId={node.id}
-          disabled={!canEdit || drawer.faviconBusy}
-          /* Same contract the inspector kept: an upload/delete through the
-             drop card above updates iconUrl — bumping this key refetches the
-             source instead of showing stale radios. */
-          refreshKey={node.iconUrl ?? null}
-        />
-      )}
-      {isBookmark && snap && canEdit && (
-        <PreviewModeControl
-          key={node.id}
-          collectionId={snap.collection.id}
-          nodeId={node.id}
-          disabled={!canEdit}
-          onChanged={() => loadTree(snap.collection.id, { silent: true })}
-        />
-      )}
       <NodeAnnotationFields
         idPrefix="nd"
         disabled={!canEdit || drawer.annotation.state === 'loading'}

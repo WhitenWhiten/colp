@@ -3,16 +3,14 @@ import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ProductApiError } from '../api/errors'
 import type { PublicCollectionSnapshot } from '../api/types'
-import { collectLayeredRules, readStyle } from '../styles/dashboard-stack-cascade.test-helper'
-import { cleanup, domFinishedLoading, findButtonByName, waitForDom } from '../test/render'
+import { collectLayeredRules, readStyle } from '../styles/layered-css.test-helper'
+import { domFinishedLoading, findButtonByName, waitForDom } from '../test/render'
 import { canonicalHref, installPageMetaBaseline, pageMetaContent, robotsContents } from '../test/pageMeta'
 import {
   bookmark,
   captureSearch,
   deferred,
-  insightPayloads,
   mocks,
-  previewObservers,
   renderCollection,
   rootNode,
   setUpCollectionPage,
@@ -27,28 +25,11 @@ vi.mock('../api', async (importOriginal) => {
   const { mocks } = await import('./Collection.test-mocks')
   return {
     ...actual,
-    isCommunityExposureEnabled: () => communityGate.enabled,
     productClient: {
       ...actual.productClient,
       loadPublicCollectionSnapshot: mocks.loadPublicCollectionSnapshot,
-      recordPublicCollectionInsightEvent: mocks.recordPublicCollectionInsightEvent,
-      getPublicProfilePage: mocks.getPublicProfilePage,
-      getFollowersPage: vi.fn().mockResolvedValue({ items: [], nextCursor: null }),
-      getFollowingPage: vi.fn().mockResolvedValue({ items: [], nextCursor: null }),
-      isFollowingProfile: mocks.isFollowingProfile,
-      followProfile: mocks.followProfile,
-      unfollowProfile: mocks.unfollowProfile,
-      abandonFollowIntent: mocks.abandonFollowIntent,
       loadEditorSnapshot: mocks.loadEditorSnapshot,
       createCollectionNode: mocks.createCollectionNode,
-      getCollectionFollowState: mocks.getCollectionFollowState,
-      followCollection: mocks.followCollection,
-      unfollowCollection: mocks.unfollowCollection,
-      abandonCollectionFollowIntent: mocks.abandonCollectionFollowIntent,
-      resolveCommunityTarget: mocks.resolveCommunityTarget,
-      setCommunityVote: mocks.setCommunityVote,
-      abandonCommunityVoteIntent: mocks.abandonCommunityVoteIntent,
-      getCommunityComments: mocks.getCommunityComments,
     },
   }
 })
@@ -94,9 +75,9 @@ describe('public Collection page', () => {
   it('keeps the tree hidden until the complete snapshot resolves, including during restart', async () => {
     installPageMetaBaseline({
       description: 'Origin-injected collection description.',
-      canonical: 'https://know-n.com/c/research-notes',
-      ogUrl: 'https://know-n.com/c/research-notes',
-      ogTitle: 'Origin-injected collection — Know-N',
+      canonical: 'https://colp.example/c/research-notes',
+      ogUrl: 'https://colp.example/c/research-notes',
+      ogTitle: 'Origin-injected collection — COLP Server',
     })
     const pending = deferred<PublicCollectionSnapshot>()
     // The endpoint reports the cursor restart on every read and keeps the same
@@ -112,8 +93,8 @@ describe('public Collection page', () => {
     expect(document.body.textContent).not.toContain('First source')
     expect(document.querySelector('[data-testid="public-collection-page"]')).toBeNull()
     expect(pageMetaContent('meta[name="description"]')).toBe('Origin-injected collection description.')
-    expect(canonicalHref()).toBe('https://know-n.com/c/research-notes')
-    expect(pageMetaContent('meta[property="og:url"]')).toBe('https://know-n.com/c/research-notes')
+    expect(canonicalHref()).toBe('https://colp.example/c/research-notes')
+    expect(pageMetaContent('meta[property="og:url"]')).toBe('https://colp.example/c/research-notes')
     expect(robotsContents()).toEqual([])
     expect(document.head.querySelector('[data-page-meta-owned="true"]')).toBeNull()
 
@@ -141,7 +122,6 @@ describe('public Collection page', () => {
     expect(document.querySelector('[role="status"]')?.classList.contains('not-found-stage')).toBe(true)
     expect([...document.querySelectorAll('[data-testid="not-found-corner"]')].map((node) => node.textContent)).toEqual(['Collection', 'Page', 'Not', 'Here'])
     expect(document.body.textContent).not.toContain('withdrawn-slug')
-    expect(mocks.recordPublicCollectionInsightEvent).not.toHaveBeenCalled()
     expect(canonicalHref()).toBeNull()
     expect(robotsContents()).toEqual(['noindex'])
   })
@@ -156,7 +136,7 @@ describe('public Collection page', () => {
     await waitForDom(domFinishedLoading)
 
     expect(pageMetaContent('meta[name="description"]')).toBe('A maintained map of primary sources and practical references.')
-    expect(canonicalHref()).toBe('https://know-n.com/c/research-notes')
+    expect(canonicalHref()).toBe('http://localhost:3000/c/research-notes')
     expect(pageMetaContent('meta[property="og:title"]')).toBe(document.title)
     expect(pageMetaContent('meta[property="og:description"]')).toBe(pageMetaContent('meta[name="description"]'))
     expect(pageMetaContent('meta[property="og:url"]')).toBe(canonicalHref())
@@ -343,36 +323,6 @@ describe('public Collection page', () => {
     expect(document.body.textContent).toContain('Beta reference')
   })
 
-  it('records exactly one collection_view when the snapshot is ready', async () => {
-    mocks.loadPublicCollectionSnapshot.mockResolvedValue(snapshot())
-    renderCollection()
-    await waitForDom(domFinishedLoading)
-
-    expect(document.querySelector('[data-testid="public-collection-page"]')).not.toBeNull()
-    expect(insightPayloads().filter((payload) => payload.eventType === 'collection_view')).toEqual([
-      { slug: 'research-notes', eventType: 'collection_view' },
-    ])
-  })
-
-  it('does not ingest when the page unmounts before the snapshot is ready', async () => {
-    const pending = deferred<PublicCollectionSnapshot>()
-    // Still-pending on every read, so the remount observes the same in-flight load.
-    mocks.loadPublicCollectionSnapshot.mockImplementation(() => pending.promise)
-    renderCollection()
-    await waitForDom(domFinishedLoading)
-    expect(document.body.textContent).toContain('Assembling the complete collection')
-    expect(document.querySelector('[data-testid="public-collection-loading"] h1')?.textContent).toBe('Loading collection')
-    expect(document.querySelector('[data-testid="public-collection-loading"] .section-label')?.textContent).toBe('Public collection')
-
-    act(() => {
-      cleanup()
-          })
-    await act(async () => pending.resolve(snapshot()))
-    await waitForDom(domFinishedLoading)
-
-    expect(mocks.recordPublicCollectionInsightEvent).not.toHaveBeenCalled()
-  })
-
   it('paints a masthead-shaped skeleton with visible bones while loading', async () => {
     const pending = deferred<PublicCollectionSnapshot>()
     // Still-pending on every read, so the remount paints the same skeleton.
@@ -401,20 +351,6 @@ describe('public Collection page', () => {
     expect(document.body.textContent).toContain('First source')
   })
 
-  it('does not ingest when the collection is unavailable', async () => {
-    // Unavailable is the endpoint's answer, not a per-mount event.
-    mocks.loadPublicCollectionSnapshot.mockRejectedValue(new ProductApiError({
-      status: 404,
-      code: 'resource_not_found',
-      message: 'not found',
-    }))
-    renderCollection('/c/missing-notes')
-    await waitForDom(domFinishedLoading)
-
-    expect(document.body.textContent).toContain('Collection unavailable')
-    expect(mocks.recordPublicCollectionInsightEvent).not.toHaveBeenCalled()
-  })
-
   it('shows an error card, not the absence poster, when the snapshot fails to load', async () => {
     // StrictMode replays the mount effect, so the rejection must persist.
     mocks.loadPublicCollectionSnapshot.mockRejectedValue(new Error('network'))
@@ -424,53 +360,6 @@ describe('public Collection page', () => {
     expect(document.querySelector('[role="alert"] h1')?.textContent).toBe("Couldn't load this collection")
     expect(findButtonByName('Try again')).toBeTruthy()
     expect(document.querySelector('[data-testid="absence-stage"]')).toBeNull()
-    expect(mocks.recordPublicCollectionInsightEvent).not.toHaveBeenCalled()
-  })
-
-  it('records one preview_open the first time the resource list intersects', async () => {
-    mocks.loadPublicCollectionSnapshot.mockResolvedValue(snapshot())
-    renderCollection()
-    await waitForDom(domFinishedLoading)
-
-    const observer = previewObservers().at(-1)
-    if (!observer) throw new Error('preview observer missing')
-    expect(document.querySelector('[data-collection-resources]')).not.toBeNull()
-
-    await act(async () => observer.trigger(true))
-    await waitForDom(domFinishedLoading)
-    await act(async () => observer.trigger(true))
-    await waitForDom(domFinishedLoading)
-
-    expect(insightPayloads().filter((payload) => payload.eventType === 'preview_open')).toEqual([
-      { slug: 'research-notes', eventType: 'preview_open' },
-    ])
-  })
-
-  it('beacons resource_open on the external affordance click without preventing navigation', async () => {
-    mocks.loadPublicCollectionSnapshot.mockResolvedValue(snapshot([
-      rootNode(),
-      bookmark('First source', 'root-1', 'https://example.com/reference'),
-    ]))
-    renderCollection()
-    await waitForDom(domFinishedLoading)
-
-    const link = document.querySelector<HTMLAnchorElement>('[data-collection-resource-link]')
-    if (!link) throw new Error('resource link missing')
-    expect(link.getAttribute('href')).toBe('https://example.com/reference')
-    // Keep happy-dom hermetic: it performs a real network navigation for an
-    // untrusted synthetic click, unlike browsers. The href contract is asserted
-    // above; remove it only while exercising the delegated insight handler.
-    link.removeAttribute('href')
-    const event = new MouseEvent('click', { bubbles: true, cancelable: true })
-    await act(() => {
-      link.dispatchEvent(event)
-    })
-    await waitForDom(domFinishedLoading)
-
-    expect(event.defaultPrevented).toBe(false)
-    expect(insightPayloads().filter((payload) => payload.eventType === 'resource_open')).toEqual([
-      { slug: 'research-notes', eventType: 'resource_open', nodeId: 'First source' },
-    ])
   })
 
   it('routes the primary bookmark click to the in-app detail and keeps the external ↗ secondary', async () => {
@@ -523,68 +412,6 @@ describe('public Collection page', () => {
     expect(document.querySelector(
       '[data-collection-view="compact"] .library-bookmark-actions [data-collection-resource-link]',
     )).not.toBeNull()
-  })
-
-  it('keeps the ready snapshot visible and does not toast when ingest rejects with 429', async () => {
-    mocks.loadPublicCollectionSnapshot.mockResolvedValue(snapshot())
-    mocks.recordPublicCollectionInsightEvent.mockRejectedValue(
-      new ProductApiError({ status: 429, code: 'rate_limited', message: 'Too many requests' }),
-    )
-    renderCollection()
-    await waitForDom(domFinishedLoading)
-    await act(async () => {
-      await Promise.resolve()
-      await Promise.resolve()
-    })
-
-    expect(document.querySelector('[data-testid="public-collection-page"]')).not.toBeNull()
-    expect(document.body.textContent).toContain('Research notes')
-    expect(document.body.textContent).toContain('First source')
-    expect([...document.querySelectorAll('*')].some((el) => el.classList.contains('toast'))).toBe(false)
-    expect(mocks.toast).not.toHaveBeenCalled()
-    expect(mocks.success).not.toHaveBeenCalled()
-    expect(mocks.error).not.toHaveBeenCalled()
-  })
-
-  it('disconnects the previous preview observer when switching slugs', async () => {
-    mocks.loadPublicCollectionSnapshot.mockImplementation(async (slug: string) => {
-      if (slug === 'other-notes') {
-        return {
-          ...snapshot([rootNode(), bookmark('Second source')]),
-          collection: {
-            ...snapshot().collection,
-            slug: 'other-notes',
-            title: 'Other notes',
-          },
-        }
-      }
-      return snapshot()
-    })
-
-    renderCollection('/c/research-notes')
-    await waitForDom(domFinishedLoading)
-    expect(document.body.textContent).toContain('Research notes')
-
-    const previous = previewObservers().at(-1)
-    if (!previous) throw new Error('first preview observer missing')
-    await act(async () => previous.trigger(true))
-    await waitForDom(domFinishedLoading)
-    expect(insightPayloads().filter((payload) => payload.eventType === 'preview_open')).toHaveLength(1)
-
-    renderCollection('/c/other-notes')
-    await waitForDom(domFinishedLoading)
-    expect(document.body.textContent).toContain('Other notes')
-    expect(document.body.textContent).toContain('Second source')
-
-    await act(async () => previous.trigger(true))
-    await waitForDom(domFinishedLoading)
-
-    expect(insightPayloads().filter((payload) => (
-      payload.eventType === 'preview_open' && payload.slug === 'research-notes'
-    ))).toHaveLength(1)
-    expect(insightPayloads().filter((payload) => (
-      payload.eventType === 'preview_open' && payload.slug === 'other-notes'
-    ))).toHaveLength(0)
   })
 
   it('labels board cards from the host instead of a generic Article chip', async () => {

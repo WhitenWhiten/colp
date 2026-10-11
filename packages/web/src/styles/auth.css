@@ -41,12 +41,6 @@
   letter-spacing: var(--tracking-display);
 }
 
-/* Success/verification headlines use the shared display rung — this
-   selector must outrank the card's compact h1 size above (R10-28). */
-.auth-card h1.display-sm {
-  font-size: var(--display-sm);
-}
-
 .auth-card .sub {
   margin: 0 0 var(--hair-150);
   color: var(--muted);
@@ -154,19 +148,6 @@
   margin: 0;
   padding: 0;
   list-style: none;
-}
-
-/* Recovery codes are shown once and get transcribed, so they need a monospace
-   grid rather than a bulleted column. */
-.security-codes {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr));
-  gap: var(--hair-35);
-  margin: var(--space-2) 0 0;
-  padding: 0;
-  list-style: none;
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
 }
 
 /* PasswordField (auth pages + settings) and Login's OTP send share this

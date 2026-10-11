@@ -3,7 +3,7 @@ import { act } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AgentsApi } from '../api/agentsClient'
 import { cleanup, findButtonByName, mountTree, waitForDom } from '../test/render'
-import { AgentsPage } from './Agents'
+import { Agents } from './Agents'
 
 const agent = {
   id: 'claude-code',
@@ -46,7 +46,7 @@ describe('Agents page', () => {
   })
 
   it('shows connect instructions and does not fetch with the default loader', async () => {
-    mountTree(<AgentsPage origin="https://colp.example.net" />, { initialEntries: ['/agents'] })
+    mountTree(<Agents origin="https://colp.example.net" />, { initialEntries: ['/agents'] })
     await waitForDom(() => document.body.textContent?.includes('No agents yet') === true)
     expect(document.body.textContent).toContain('claude mcp add --transport http colp')
     expect(document.body.textContent).toContain('https://colp.example.net/collections/-/mcp-compat')
@@ -74,7 +74,7 @@ describe('Agents page', () => {
     api.issueAgentKey.mockResolvedValue({ id: 'key-1', name: 'script', secret: 'colp_secret_once' })
     api.revokeAgent.mockResolvedValue({ id: agent.id, revoked: true, cancelledPlanCount: 1 })
 
-    mountTree(<AgentsPage api={api as AgentsApi} origin="https://colp.example.net" />, { initialEntries: ['/agents'] })
+    mountTree(<Agents api={api as AgentsApi} origin="https://colp.example.net" />, { initialEntries: ['/agents'] })
     await waitForDom(() => document.body.textContent?.includes('Claude Code') === true)
 
     act(() => findButtonByName('Trusted').click())

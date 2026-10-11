@@ -30,11 +30,9 @@ const DELEGATED: Record<string, { cue: string; property: RegExp }> = {
   // Mouse focus only: keyboard focus keeps the global ring.
   ':focus:not(:focus-visible)': { cue: ':focus-visible', property: /outline\s*:/u },
   '.search-field input:focus, .search-field input:focus-visible': { cue: '.search-field:focus-within', property: /border-color\s*:/u },
-  '.community-comments-input:focus, .community-comments-input:focus-visible': { cue: '.community-composer:focus-within', property: /border-color\s*:/u },
   '.graph-node:focus-visible': { cue: '.graph-node:focus-visible circle.graph-dot', property: /stroke\s*:/u },
   '.select-menu-btn:focus-visible': { cue: '.select-menu:has(select:focus-visible)', property: /border-color\s*:/u },
   '.search-palette-head input:focus, .search-palette-head input:focus-visible': { cue: '.search-palette:focus-within', property: /border-color\s*:/u },
-  '.desk-search-field input:focus, .desk-search-field input:focus-visible': { cue: '.desk-search-field:focus-within', property: /border-color\s*:/u },
   '.folder-gallery-link:focus-visible': { cue: '.folder-gallery-card:has(.folder-gallery-link:focus-visible)', property: /outline\s*:/u },
 }
 
@@ -57,10 +55,9 @@ describe('focus-visible outline removals', () => {
     }
   })
 
-  it('keeps the global ink outline on checkboxes, radios and comment chips', () => {
+  it('keeps the global ink outline on checkboxes and radios', () => {
     for (const selector of [
       ":where(input[type='checkbox'], input[type='radio']):focus-visible",
-      '.community-comment-action:focus-visible',
     ]) {
       const rule = all.find((candidate) => candidate.selector === selector)
       expect(rule, selector).toBeDefined()

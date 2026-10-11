@@ -21,11 +21,7 @@ import createCollectionSource from '../pages/CreateCollection.tsx?raw'
 import collectionEditorRoot from '../pages/CollectionEditor.tsx?raw'
 import collectionSource from '../pages/Collection.tsx?raw'
 import libraryCollectionSource from '../pages/library-desk/LibraryDesk.tsx?raw'
-import useFollowedCollectionsSource from '../lib/useFollowedCollections.ts?raw'
 import libraryHealthSource from '../pages/LibraryHealth.tsx?raw'
-import classifySource from '../pages/Classify.tsx?raw'
-import dataExportSource from '../pages/DataExport.tsx?raw'
-import aiOrganizeSource from '../pages/AiOrganize.tsx?raw'
 import collectionHistorySource from '../pages/CollectionHistory.tsx?raw'
 import generatedBridgeSource from '../generated/product-v1.ts?raw'
 import canonicalClientSource from './productClient.ts?raw'
@@ -33,7 +29,7 @@ import transportSource from './product-transport.ts?raw'
 import typesSource from './types.ts?raw'
 import * as publicApi from './index'
 import { productClient as canonicalProductClient } from './productClient'
-import type { FollowedCollectionPage, LibraryOrderView, OwnedCollectionPage } from './types'
+import type { OwnedCollectionPage } from './types'
 import {
   createMemorySessionStorage, installFetchMock, installSessionStorage, jsonResponse,
   requestHeaders, requestMethod, requestPathAndSearch, resetProductSession, seedAuthenticatedSession,
@@ -87,9 +83,6 @@ const phase1Consumers = {
   Collection: collectionSurface,
   LibraryDesk: libraryCollectionSurface,
   LibraryHealth: libraryHealthSource,
-  Classify: classifySource,
-  DataExport: dataExportSource,
-  AiOrganize: aiOrganizeSource,
   CollectionHistory: collectionHistorySource,
 }
 
@@ -118,12 +111,6 @@ const transportDomainSource = Object.entries(apiModules)
 
 const clientSources = `${canonicalClientSource}\n${clientDomainSource}`
 const transportSources = `${transportSource}\n${transportDomainSource}`
-
-const legacyDemoData = import.meta.glob('../legacy-demo/data/*.ts', {
-  eager: true,
-  import: 'default',
-  query: '?raw',
-}) as Record<string, string>
 
 function ownedPage(id: string, hasMore: boolean, nextCursor: string | null): OwnedCollectionPage {
   return {
@@ -203,7 +190,7 @@ describe('canonical Product client boundary', () => {
     })
 
     it('reads and updates the library order on the generated route', async () => {
-      const view: LibraryOrderView = { sections: { mine: [], shared: [], following: [] } }
+      const view = { sections: { mine: [], shared: [] } }
       const mock = installFetchMock((input, init) => requestMethod({ input, init }) === 'PUT'
         ? jsonResponse({ section: 'mine', collectionIds: [] })
         : jsonResponse(view))
@@ -215,29 +202,6 @@ describe('canonical Product client boundary', () => {
       expect(requestPathAndSearch(mock.calls[1]!).pathname).toBe('/api/v1/me/library-order/mine')
       expect(requestHeaders(mock.calls[1]!).get('x-csrf-token')).toBe('csrf-boundary')
       expect(requestHeaders(mock.calls[1]!).get('known-command-id')).toBeTruthy()
-    })
-
-    it('lists followed collections on the generated route', async () => {
-      const page: FollowedCollectionPage = { items: [], nextCursor: 'cursor-2' }
-      const mock = installFetchMock(() => jsonResponse(page))
-      restoreFetch = mock.restore
-      await expect(canonicalProductClient.listFollowedCollections({ limit: 5 }, { maxRetries: 0 })).resolves.toEqual(page)
-      const { pathname, searchParams } = requestPathAndSearch(mock.calls[0]!)
-      expect(pathname).toBe('/api/v1/me/followed-collections')
-      expect(searchParams.get('limit')).toBe('5')
-    })
-
-    it('records public collection insight events through the generated publishing insights client', async () => {
-      const mock = installFetchMock(() => jsonResponse(null, { status: 204 }))
-      restoreFetch = mock.restore
-      await canonicalProductClient.recordPublicCollectionInsightEvent(
-        { slug: 'research-notes', eventType: 'resource_open', nodeId: 'node-1' },
-        {},
-      )
-      expect(mock.calls).toHaveLength(1)
-      expect(requestMethod(mock.calls[0]!)).toBe('POST')
-      expect(requestPathAndSearch(mock.calls[0]!).pathname).toBe('/api/v1/public-collections/research-notes/insight-events')
-      expect(JSON.parse(String(mock.calls[0]!.init?.body))).toEqual({ eventType: 'resource_open', nodeId: 'node-1' })
     })
   })
 
@@ -283,21 +247,10 @@ describe('canonical Product client boundary', () => {
         expect(source, name).not.toMatch(
           /from ['"](?:\.\.\/)+api\/(?:productClient|product-client|product-transport|types|errors|sessionStore)['"]/,
         )
-        expect(source, name).not.toContain('../legacy-demo/')
       }
     })
 
-    it('keeps legacy demo seeds outside Product API code', () => {
-      expect(Object.keys(legacyDemoData)).toHaveLength(4)
-      for (const [path, source] of Object.entries(legacyDemoData)) {
-        expect(path).toContain('/legacy-demo/data/')
-        expect(source, path).not.toMatch(/\/api\/v1|productClient|product-transport/)
-      }
-    })
-
-    it('keeps collaboration and insight events on the generated runtime', () => {
-      expect(clientSources).toContain('createProductPublishingInsightsClient')
-      expect(clientSources).not.toMatch(/\bfetch\s*\([^)]*insight-events/u)
+    it('keeps collaboration on the generated runtime', () => {
       expect(clientSources).toContain('createProductCollaborationClient')
       expect(clientSources).toContain('listCollectionMembers')
       expect(clientSources).toContain('listSharedCollections')
@@ -308,8 +261,6 @@ describe('canonical Product client boundary', () => {
          through their call sites. */
       expect(clientSources).not.toMatch(/\.acceptCollaborationInvite\([^)]*ifMatch/u)
       expect(clientSources).not.toMatch(/\.declineCollaborationInvite\([^)]*ifMatch/u)
-      expect(collectionSource).toMatch(/from\s+'\.\.\/api'/u)
-      expect(collectionSource).not.toContain('../legacy-demo/')
       expect(collectionSource).not.toContain('product-transport')
     })
 
@@ -321,25 +272,6 @@ describe('canonical Product client boundary', () => {
       expect(libraryCollectionSurface).toMatch(/\bupdateMyLibraryOrder\b/u)
       /* The desk surface must not construct the generated client itself. */
       expect(libraryCollectionSurface).not.toContain('@known/product-v1-client')
-    })
-
-    it('keeps the collection-follow bridge inside the api barrel, never in the desk surface', () => {
-      expect(Object.isFrozen(canonicalProductClient)).toBe(true)
-      expect(clientSources).toContain('createProductCollectionFollowClient')
-      expect(clientSources).toContain('followCollection')
-      expect(clientSources).toContain('unfollowCollection')
-      expect(clientSources).toContain('getCollectionFollowState')
-      /* The follow route is spelled only by the generated runtime. */
-      expect(clientSources).not.toMatch(/['"`]\/api\/v1\/collections\/[^'"`]*\/follow/u)
-      expect(collectionSource).toContain('CollectionFollowButton')
-      expect(collectionSource).toContain('isCollectionFollowExposureEnabled')
-      expect(collectionSource).toMatch(/from\s+'\.\.\/api'/u)
-      expect(useFollowedCollectionsSource).toMatch(/\blistFollowedCollections\b/u)
-      expect(useFollowedCollectionsSource).toMatch(/from\s+'\.\.\/api'/u)
-      expect(useFollowedCollectionsSource).not.toContain('@known/product-v1-client')
-      expect(libraryCollectionSource).toContain('useFollowedCollections')
-      expect(libraryCollectionSource).toMatch(/from ['"](?:\.\.\/)+api['"]/)
-      expect(libraryCollectionSource).not.toContain('@known/product-v1-client')
     })
   })
 })

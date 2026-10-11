@@ -14,13 +14,13 @@ describe('CollectionFigures (R15-32)', () => {
   afterEach(() => cleanup())
 
   it('shows the folder figure from the first frame and pluralises on the real totals', () => {
-    mountTree(<CollectionFigures bookmarks={12} folders={1} views={0} followers={null} />)
+    mountTree(<CollectionFigures bookmarks={12} folders={1} views={0} />)
     const figures = [...document.querySelectorAll('[aria-label="Collection figures"] li')].map((li) => li.textContent)
     expect(figures).toEqual(['0 bookmarks', '0 folder'])
   })
 
   it('omits the folder figure when there are no folders', () => {
-    mountTree(<CollectionFigures bookmarks={3} folders={0} views={0} followers={null} />)
+    mountTree(<CollectionFigures bookmarks={3} folders={0} views={0} />)
     expect(document.querySelectorAll('[aria-label="Collection figures"] li')).toHaveLength(1)
   })
 })

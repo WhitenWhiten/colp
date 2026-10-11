@@ -260,7 +260,7 @@ describe('architecture invariants that cannot be behaviour tested', () => {
        live API would reject it. Seeded people in the hook are dead data.
        Non-vacuity: the scanned module set really is the client bridge. */
     expect(hookSource.length).toBeGreaterThan(4_000)
-    expect(clientSources.length).toBeGreaterThan(100_000)
+    expect(clientSources.length).toBeGreaterThan(50_000)
     expect(clientSources).toContain('acceptCollaborationInvite')
     expect(clientSources).toContain('declineCollaborationInvite')
     expect(hookSource).not.toMatch(/ifMatch|If-Match/)

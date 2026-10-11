@@ -24,32 +24,32 @@ const mocks = vi.hoisted(() => ({
 
 import { markServerFeatureAvailable, markServerFeatureUnavailable } from '../lib/serverFeatureAvailability'
 
-vi.mock('../api', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../api')>()),
-  isWriteApprovalsExposureEnabled: () => false,
-  isNotificationExposureEnabled: () => false,
-}))
 vi.mock('../auth/AuthContext', () => ({
   useAuth: () => mocks.auth,
 }))
 vi.mock('../components/AppToast', () => ({
   useToast: () => ({ toast: mocks.toast, error: mocks.toastError }),
 }))
-vi.mock('../lib/useNotificationCenter', () => ({
-  useNotificationCenter: () => ({ unreadCount: 0 }),
-}))
-vi.mock('../lib/useCommunityNotificationCenter', () => ({
-  useCommunityNotificationCenter: () => ({ unreadCount: 0 }),
-}))
 vi.mock('./SearchPalette', () => ({
   SearchPalette: () => null,
 }))
 
 describe('TopNav session chrome', () => {
-
   function SearchProbe() {
     const location = useLocation()
     return <span data-testid="location-search">{location.search}</span>
+  }
+
+  function signIn() {
+    mocks.auth.isLoggedIn = true
+    mocks.auth.user = {
+      name: '林一晨',
+      handle: 'lin-yichen',
+      email: 'lin.yichen@example.com',
+      initials: '林',
+      accountId: 'account-1',
+      profileId: 'profile-1',
+    }
   }
 
   function render(path = '/') {
@@ -73,19 +73,11 @@ describe('TopNav session chrome', () => {
     document.body.innerHTML = ''
   })
 
-  it('hides workbench channels and the bell for guests', () => {
-    render('/')
-    expect(document.querySelector('a[href="/today"]')).toBeNull()
-    expect(document.querySelector('a[href="/library"]')).toBeNull()
-    expect(document.querySelector('a[href="/dashboard"]')).toBeNull()
-    expect(document.querySelector('a[href="/explore"]')).not.toBeNull()
-    expect(document.querySelector('a[href="/notifications"]')).toBeNull()
-    expect(document.querySelector('a[href="/login"]')?.textContent).toContain('Log in')
-  })
-
-  it('points the guest Log in link back at the current page', () => {
+  it('offers guests only Sign in, with no primary nav or tools', () => {
     render('/c/browser-research')
-    expect(document.querySelector('a[href="/login?returnTo=%2Fc%2Fbrowser-research"]')?.textContent).toContain('Log in')
+    expect(document.querySelector('[aria-label="Primary"]')).toBeNull()
+    expect(document.querySelector('[data-testid="tools-trigger"]')).toBeNull()
+    expect(document.querySelector('a[href="/login?returnTo=%2Fc%2Fbrowser-research"]')?.textContent).toBe('Sign in')
   })
 
   it('marks the search trigger as opening a dialog', () => {
@@ -96,65 +88,34 @@ describe('TopNav session chrome', () => {
     expect(document.querySelector('button.nav-search-compact')?.getAttribute('aria-haspopup')).toBe('dialog')
   })
 
-  it('does not highlight a workbench channel on auth routes', () => {
+  it('drops the primary nav and the Sign in link on auth routes', () => {
     render('/login')
     expect(document.querySelector('[aria-label="Primary"]')).toBeNull()
-    expect(document.querySelector('a[href="/login"]')).toBeNull()
-    expect(document.querySelector('a[href="/register"]')?.textContent).toContain('Get started')
+    expect(document.querySelector('a[href^="/login"]')).toBeNull()
   })
 
-  it('shows product channels, the bell, and a warning Log out when signed in', () => {
-    mocks.auth.isLoggedIn = true
-    mocks.auth.user = {
-      name: '林一晨',
-      handle: 'lin-yichen',
-      email: 'lin.yichen@example.com',
-      initials: '林',
-      accountId: 'account-1',
-      profileId: 'profile-1',
-    }
-    render('/explore')
-    expect(document.querySelector('a[href="/today"]')).not.toBeNull()
-    expect(document.querySelector('a[href="/notifications"]')).not.toBeNull()
-    expect(document.querySelector('[aria-label="Primary"] a[href="/dashboard"]')).toBeNull()
-    expect(document.querySelector('a[href="/updates"]')).toBeNull()
-    expect(document.querySelector('a[href="/explore"]')?.classList.contains('is-active')).toBe(true)
-    expect(document.querySelector('[aria-label="Primary"] a[href="/today"]')?.classList.contains('nav-link-core')).toBe(true)
-    expect(document.querySelector('[aria-label="Primary"] a[href="/explore"]')?.classList.contains('nav-link-core')).toBe(true)
-    expect(document.querySelector('[aria-label="Primary"] a[href="/library"]')?.classList.contains('nav-link-core')).toBe(true)
+  it('shows Library and Agents and a warning Sign out when signed in', () => {
+    signIn()
+    render('/library/col-1')
+    const primary = [...document.querySelectorAll('[aria-label="Primary"] a')]
+    expect(primary.map((anchor) => anchor.getAttribute('href'))).toEqual(['/library', '/agents'])
+    expect(primary.every((anchor) => anchor.classList.contains('nav-link-core'))).toBe(true)
+    expect(document.querySelector('[aria-label="Primary"] a[href="/library"]')?.classList.contains('is-active')).toBe(true)
     act(() => document.querySelector<HTMLButtonElement>('[data-testid="account-trigger"]')!.click())
-    const logout = [...document.querySelectorAll('button')].find((button) => button.textContent === 'Log out')
+    const logout = [...document.querySelectorAll('button')].find((button) => button.textContent === 'Sign out')
     expect(logout?.classList.contains('account-logout')).toBe(true)
-    expect(document.body.textContent).not.toContain('Demo hub')
-    expect(document.body.textContent).not.toContain('Updates inbox')
     const accountMenu = document.getElementById('account-dropdown')
-    expect(accountMenu?.querySelector('a[href="/demos"]')).toBeNull()
-    expect(accountMenu?.querySelector('a[href="/notifications"]')).not.toBeNull()
-    expect(accountMenu?.querySelector('a[href="/updates"]')).toBeNull()
-    expect(accountMenu?.querySelector('a[href="/sync"]')).toBeNull()
-    expect(accountMenu?.querySelector('a[href="/classify"]')).toBeNull()
-    expect(accountMenu?.querySelector('a[href="/import"]')).toBeNull()
-    expect(accountMenu?.querySelector('a[href="/extension"]')).toBeNull()
-    expect(accountMenu?.querySelector('a[href="/library/health"]')).toBeNull()
-    expect(accountMenu?.querySelector('a[href="/ai/organize"]')).toBeNull()
+    expect([...accountMenu!.querySelectorAll('a')].map((anchor) => anchor.getAttribute('href'))).toEqual(['/approvals'])
   })
 
   it('says "Signed out" only after the server confirmed it (R15-21)', async () => {
-    mocks.auth.isLoggedIn = true
-    mocks.auth.user = {
-      name: 'Ada',
-      handle: 'ada',
-      email: 'ada@example.com',
-      initials: 'A',
-      accountId: 'account-1',
-      profileId: 'profile-1',
-    }
+    signIn()
     mocks.auth.logout.mockResolvedValueOnce('failed').mockResolvedValueOnce('signed-out')
-    render('/explore')
+    render('/library')
     const clickLogOut = async () => {
       act(() => document.querySelector<HTMLButtonElement>('[data-testid="account-trigger"]')!.click())
       await act(async () => {
-        [...document.querySelectorAll('button')].find((button) => button.textContent === 'Log out')!.click()
+        [...document.querySelectorAll('button')].find((button) => button.textContent === 'Sign out')!.click()
       })
     }
 
@@ -172,31 +133,18 @@ describe('TopNav session chrome', () => {
     expect(mocks.toast).toHaveBeenCalledWith('Signed out')
   })
 
-  it('hides Demo hub from the signed-in account menu and mobile drawer', () => {
-    mocks.auth.isLoggedIn = true
-    mocks.auth.user = {
-      name: '林一晨',
-      handle: 'lin-yichen',
-      email: 'lin.yichen@example.com',
-      initials: '林',
-      accountId: 'account-1',
-      profileId: 'profile-1',
-    }
-    render('/explore')
-    act(() => document.querySelector<HTMLButtonElement>('[data-testid="account-trigger"]')!.click())
-    expect(document.getElementById('account-dropdown')?.textContent).not.toContain('Demo hub')
-    expect(document.getElementById('account-dropdown')?.querySelector('a[href="/demos"]')).toBeNull()
+  it('lists only account entries and tools in the signed-in mobile drawer', () => {
+    signIn()
+    render('/library')
     act(() => document.querySelector<HTMLButtonElement>('[aria-controls="mobile-navigation"]')!.click())
     const drawer = document.getElementById('mobile-navigation')
-    expect(drawer).not.toBeNull()
-    expect(drawer?.textContent).not.toContain('Demo hub')
-    expect(drawer?.querySelector('a[href="/demos"]')).toBeNull()
-    expect(drawer?.textContent).not.toContain('AI chat')
-    expect(drawer?.querySelector('a[href="/ai/chat"]')).toBeNull()
-    expect(drawer?.querySelector('a[href="/today"]')).toBeNull()
-    expect(drawer?.querySelector('a[href="/library"]')).toBeNull()
-    expect(drawer?.querySelector('a[href="/explore"]')).toBeNull()
-    expect(drawer?.querySelector('a[href="/notifications"]')).toBeNull()
+    expect([...drawer!.querySelectorAll('a')].map((anchor) => anchor.getAttribute('href'))).toEqual([
+      '/extension',
+      '/sync',
+      '/library/health',
+      '/import',
+      '/approvals',
+    ])
   })
 
   it('traps Tab inside the open mobile drawer overlay', () => {
@@ -214,32 +162,16 @@ describe('TopNav session chrome', () => {
     outside.remove()
   })
 
-  it('keeps Demo hub out of the guest mobile drawer', () => {
+  it('offers only Sign in in the guest mobile drawer', () => {
     render('/')
     act(() => document.querySelector<HTMLButtonElement>('[aria-controls="mobile-navigation"]')!.click())
     const drawer = document.getElementById('mobile-navigation')
-    expect(drawer).not.toBeNull()
-    expect(drawer?.textContent).not.toContain('Demo hub')
-    expect(drawer?.querySelector('a[href="/demos"]')).toBeNull()
-    expect(drawer?.querySelector('a[href="/today"]')).toBeNull()
-    expect(drawer?.querySelector('a[href="/library"]')).toBeNull()
-    expect(drawer?.querySelector('a[href="/explore"]')).toBeNull()
-    expect(drawer?.querySelector('a[href="/notifications"]')).toBeNull()
-    expect(document.querySelector('a[href="/today"]')).toBeNull()
-    expect(drawer?.querySelector('a[href="/login"]')?.textContent).toContain('Log in')
+    expect([...drawer!.querySelectorAll('a')].map((anchor) => anchor.textContent)).toEqual(['Sign in'])
   })
 
   it('exposes the account dropdown as disclosure navigation, not a menu', () => {
-    mocks.auth.isLoggedIn = true
-    mocks.auth.user = {
-      name: '林一晨',
-      handle: 'lin-yichen',
-      email: 'lin.yichen@example.com',
-      initials: '林',
-      accountId: 'account-1',
-      profileId: 'profile-1',
-    }
-    render('/explore')
+    signIn()
+    render('/library')
     const trigger = document.querySelector<HTMLButtonElement>('[data-testid="account-trigger"]')!
     expect(trigger.getAttribute('aria-expanded')).toBe('false')
     expect(trigger.getAttribute('aria-haspopup')).toBeNull()
@@ -258,15 +190,7 @@ describe('TopNav session chrome', () => {
   })
 
   it('opens the settings dialog from the account menu and the mobile drawer', () => {
-    mocks.auth.isLoggedIn = true
-    mocks.auth.user = {
-      name: '林一晨',
-      handle: 'lin-yichen',
-      email: 'lin.yichen@example.com',
-      initials: '林',
-      accountId: 'account-1',
-      profileId: 'profile-1',
-    }
+    signIn()
     render('/library')
     act(() => document.querySelector<HTMLButtonElement>('[data-testid="account-trigger"]')!.click())
     const menuSettings = [...document.querySelectorAll<HTMLButtonElement>('#account-dropdown button')]
@@ -286,15 +210,7 @@ describe('TopNav session chrome', () => {
   })
 
   it('hands focus to the account trigger when opening settings from its menu', () => {
-    mocks.auth.isLoggedIn = true
-    mocks.auth.user = {
-      name: '林一晨',
-      handle: 'lin-yichen',
-      email: 'lin.yichen@example.com',
-      initials: '林',
-      accountId: 'account-1',
-      profileId: 'profile-1',
-    }
+    signIn()
     render('/library')
     const trigger = document.querySelector<HTMLButtonElement>('[data-testid="account-trigger"]')!
     act(() => trigger.click())
@@ -307,16 +223,8 @@ describe('TopNav session chrome', () => {
   })
 
   it('lists session tools from a desktop Tools disclosure, not the account menu', () => {
-    mocks.auth.isLoggedIn = true
-    mocks.auth.user = {
-      name: '林一晨',
-      handle: 'lin-yichen',
-      email: 'lin.yichen@example.com',
-      initials: '林',
-      accountId: 'account-1',
-      profileId: 'profile-1',
-    }
-    render('/explore')
+    signIn()
+    render('/library')
     const trigger = document.querySelector<HTMLButtonElement>('[data-testid="tools-trigger"]')!
     expect(trigger.getAttribute('aria-expanded')).toBe('false')
     expect(trigger.getAttribute('aria-haspopup')).toBeNull()
@@ -330,26 +238,14 @@ describe('TopNav session chrome', () => {
     expect([...dropdown.querySelectorAll('a')].map((anchor) => anchor.getAttribute('href'))).toEqual([
       '/extension',
       '/sync',
-      '/classify',
       '/library/health',
       '/import',
-      '/ai/organize',
-      '/moderation/reports',
-      '/moderation/appeals',
-      '/admin/moderation/cases',
-      '/admin/moderation/appeals',
     ])
     expect([...dropdown.querySelectorAll('a')].map((anchor) => anchor.textContent)).toEqual([
       'Extension',
       'Sync center',
-      'Classify inbox',
       'Link health',
       'Import',
-      'AI organize',
-      'My content reports',
-      'My appeals',
-      'Moderation cases',
-      'Moderation appeals',
     ])
 
     act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })))
@@ -357,40 +253,19 @@ describe('TopNav session chrome', () => {
     expect(trigger.getAttribute('aria-expanded')).toBe('false')
   })
 
-  it('hides flag-off tools and marks Sync unavailable once the server said so', () => {
-    mocks.auth.isLoggedIn = true
-    mocks.auth.user = {
-      name: '林一晨',
-      handle: 'lin-yichen',
-      email: 'lin.yichen@example.com',
-      initials: '林',
-      accountId: 'account-1',
-      profileId: 'profile-1',
-    }
-    ;(window as { __KNOWN_FLAGS__?: Record<string, boolean> }).__KNOWN_FLAGS__ = { classify: false, contentGovernance: false }
+  it('marks Sync unavailable once the server said so', () => {
+    signIn()
     try {
       markServerFeatureUnavailable('sync')
-      render('/explore')
+      render('/library')
       act(() => document.querySelector<HTMLButtonElement>('[data-testid="tools-trigger"]')!.click())
       const dropdown = document.querySelector<HTMLElement>('[data-testid="tools-dropdown"]')!
       const hrefs = [...dropdown.querySelectorAll('a')].map((anchor) => anchor.getAttribute('href'))
-      expect(hrefs).not.toContain('/classify')
       expect(hrefs).not.toContain('/sync')
       const sync = dropdown.querySelector('[aria-disabled="true"]')
       expect(sync?.textContent).toBe('Sync center Not available')
     } finally {
-      markServerFeatureAvailable('sync')
-      delete (window as { __KNOWN_FLAGS__?: Record<string, boolean> }).__KNOWN_FLAGS__
+      act(() => markServerFeatureAvailable('sync'))
     }
-  })
-
-  it('offers Extension from desktop Tools when signed out', () => {
-    render('/')
-    act(() => document.querySelector<HTMLButtonElement>('[data-testid="tools-trigger"]')!.click())
-    const dropdown = document.querySelector<HTMLElement>('[data-testid="tools-dropdown"]')!
-    expect([...dropdown.querySelectorAll('a')].map((anchor) => anchor.getAttribute('href'))).toEqual([
-      '/extension',
-    ])
-    expect(dropdown.textContent).toBe('Extension')
   })
 })

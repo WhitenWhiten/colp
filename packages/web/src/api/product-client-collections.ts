@@ -14,9 +14,6 @@ import type {
   AnnotationPage,
   AnnotationSubject,
   AnnotationView,
-  BookmarkNodeView,
-  CollectionChildrenPage,
-  CollectionChildrenSort,
   CollectionKind,
   CollectionMergePatch,
   CollectionVisibility,
@@ -279,12 +276,6 @@ async function assembleEditorPages(
 export type OwnedCollectionQuery = {
   kind?: CollectionKind
   visibility?: CollectionVisibility
-  limit?: number
-}
-
-export type CollectionChildrenQuery = {
-  parentId?: string
-  sort?: CollectionChildrenSort
   limit?: number
 }
 
@@ -592,13 +583,6 @@ export function createProductCollectionsClient(
     }
   }
 
-  async function getRelation(collectionId: string, relationId: string, options?: ReadOptions): Promise<RelationView> {
-    return withSameRequestRetry(async () => {
-      try { return await transport.getRelation(collectionId, relationId, options?.signal) }
-      catch (error) { throw wrapProductError(error) }
-    }, { maxRetries: options?.maxRetries, signal: options?.signal })
-  }
-
   const relationMutationOptions = (options: MutationOptions): MutationOptions => ({ ...options, rotateCommandOnConflict: false })
   async function createRelation(collectionId: string, body: CreateRelationRequest, options: MutationOptions): Promise<RelationView> {
     return mutationCall((csrf, commandIntentId) => transport.createRelation(collectionId, body, { commandIntentId, csrfToken: csrf, signal: options.signal }), relationMutationOptions(options))
@@ -705,73 +689,20 @@ export function createProductCollectionsClient(
       options,
     )
   }
-
-  function bookmarkFaviconMutationOptions(options: MutationOptions): MutationOptions {
-    return { ...options, rotateCommandOnConflict: false }
-  }
-
-  async function uploadBookmarkFavicon(
-    collectionId: string,
-    nodeId: string,
-    file: File,
-    options: MutationOptions,
-  ): Promise<BookmarkNodeView> {
-    return mutationCall(
-      (csrf, commandIntentId) =>
-        transport.uploadBookmarkFavicon(collectionId, nodeId, file, {
-          commandIntentId,
-          csrfToken: csrf,
-          signal: options.signal,
-        }),
-      bookmarkFaviconMutationOptions(options),
-    )
-  }
-
-  async function deleteBookmarkFavicon(
-    collectionId: string,
-    nodeId: string,
-    options: MutationOptions,
-  ): Promise<BookmarkNodeView> {
-    return mutationCall(
-      (csrf, commandIntentId) =>
-        transport.deleteBookmarkFavicon(collectionId, nodeId, {
-          commandIntentId,
-          csrfToken: csrf,
-          signal: options.signal,
-        }),
-      bookmarkFaviconMutationOptions(options),
-    )
-  }
-
-  async function getCollectionChildrenPage(
-    collectionId: string,
-    query: CollectionChildrenQuery & { cursor?: string; signal?: AbortSignal } = {}, options?: ReadOptions,
-  ): Promise<CollectionChildrenPage> {
-    return withSameRequestRetry(async () => {
-      try {
-        return await transport.listCollectionChildren(collectionId, { ...query, signal: query.signal ?? options?.signal })
-      } catch (error) { throw wrapProductError(error) }
-    }, { maxRetries: options?.maxRetries, signal: options?.signal })
-  }
-
   return {
     getOwnedCollectionsPage,
     loadOwnedCollections,
-    listCollectionChildren: getCollectionChildrenPage,
     createCollection,
     updateCollection,
     getCollectionEditorPage,
     loadEditorSnapshot,
-    getAnnotationPage,
     loadAnnotations,
     getAnnotation,
     createAnnotation,
     updateAnnotation,
     deleteAnnotation,
     abandonAnnotationIntent,
-    getRelationPage,
     loadRelations,
-    getRelation,
     createRelation,
     updateRelation,
     deleteRelation,
@@ -780,7 +711,5 @@ export function createProductCollectionsClient(
     updateCollectionNode,
     moveCollectionNode,
     deleteCollectionNode,
-    uploadBookmarkFavicon,
-    deleteBookmarkFavicon,
   }
 }

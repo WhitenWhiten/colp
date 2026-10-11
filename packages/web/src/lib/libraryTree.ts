@@ -24,10 +24,6 @@ export function childFolders(parentId: string, nodes: EditableNodeView[]): Folde
   return childrenOf(parentId, nodes).filter((node): node is FolderNode => node.kind === 'folder')
 }
 
-export function rootFolders(root: RootNodeView, nodes: EditableNodeView[]): FolderNode[] {
-  return childFolders(root.id, nodes)
-}
-
 /** The folder for a `?folder=` param, at any depth; null for stale/foreign ids. */
 export function findFolder(nodes: EditableNodeView[], folderId: string | null | undefined): FolderNode | null {
   if (!folderId) return null

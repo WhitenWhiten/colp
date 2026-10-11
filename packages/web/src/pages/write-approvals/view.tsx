@@ -29,7 +29,7 @@ export function WriteApprovalsView({ data }: { data: WriteApprovalsData }) {
   } = data
 
   return (
-    <PageShell className="write-approvals-page">
+    <PageShell>
         <PageHead
           as="header"
           className="write-approvals-head"

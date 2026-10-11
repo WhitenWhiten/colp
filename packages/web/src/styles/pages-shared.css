@@ -7,14 +7,6 @@
  */
 
 @layer pages {
-  .classification-credit-consent {
-    display: flex;
-    align-items: flex-start;
-    gap: var(--space-2);
-    max-width: 42rem;
-    color: var(--muted);
-    font-size: var(--text-caption);
-  }
 
 /* ——— Page header shared ———
    .page-head rules are owned by global.css. */

@@ -219,7 +219,6 @@ export function mount(path = '/library/col-1') {
         <LocationProbe />
         <Routes>
           <Route path="/library/:id?" element={<LibraryDesk />} />
-          <Route path="/library/following/:slug" element={<LibraryDesk />} />
           <Route path="/library/:id/edit" element={<p data-testid="editor-route">Editor</p>} />
           <Route path="/login" element={<p>Login</p>} />
         </Routes>
@@ -333,10 +332,6 @@ export function setUpLibraryDesk() {
   mocks.moveCollectionNode.mockImplementation(async (_collectionId: string, nodeId: string) =>
     moveResult(nodeId, 'root-col-1', 'col-1-folder', '2'))
   mocks.deleteCollectionNode.mockResolvedValue(undefined)
-  mocks.listFollowedCollections.mockResolvedValue({ items: [], nextCursor: null })
-  mocks.listFollowedReports.mockResolvedValue({ items: [], nextCursor: null })
-  mocks.listMyReports.mockResolvedValue({ items: [], nextCursor: null })
-  mocks.getFollowedReportIssuesPage.mockResolvedValue({ items: [], nextCursor: null })
   mocks.getMyLibraryOrder.mockResolvedValue({ sections: { mine: [], shared: [], following: [] } })
   mocks.updateMyLibraryOrder.mockResolvedValue({ section: 'mine', collectionIds: [] })
   setUiDensity('comfortable')

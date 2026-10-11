@@ -9,11 +9,9 @@ function stripComments(source: string): string {
 }
 
 describe('result-card radius family', () => {
-  it('keeps .result-card and .result-card--collection on the same radius token', () => {
+  it('keeps .result-card on the shared radius token', () => {
     const css = stripComments(readFileSync(resolve(stylesDir, 'cards-ui.css'), 'utf8'))
     const base = css.match(/\.result-card\s*\{[^}]*border-radius:\s*([^;]+)/)
-    const collection = css.match(/\.result-card--collection\s*\{[^}]*border-radius:\s*([^;]+)/)
     expect(base?.[1]?.trim()).toBe('var(--radius)')
-    expect(collection?.[1]?.trim()).toBe('var(--radius)')
   })
 })

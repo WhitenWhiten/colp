@@ -61,10 +61,8 @@ describe('display scale contract (R10-02)', () => {
     ).toEqual([])
   })
 
-  it('utility classes map onto the matching --display-* token', () => {
+  it('the utility class maps onto the matching --display-* token', () => {
     const global = readFileSync(resolve(stylesDir, 'global.css'), 'utf8')
-    expect(global).toMatch(/\.display-sm\s*\{[^}]*font-size:\s*var\(--display-sm\)/)
     expect(global).toMatch(/\.display-md\s*\{[^}]*font-size:\s*var\(--display-md\)/)
-    expect(global).toMatch(/\.display-lg[\s\S]*?font-size:\s*var\(--display-lg\)/)
   })
 })

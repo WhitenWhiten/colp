@@ -3,11 +3,9 @@
    scroll progress, scroll-to-top button, cross-route view transitions,
    and the reduced-motion owner block. Page-owned chrome that once drifted
    here went home (R9-27): .collection-toolbar.is-sticky → collection.css,
-   .auth-* → auth.css,
-   .stat-chip → profile.css, .graph-canvas → graph.css, .site-footer a →
+   .auth-* → auth.css, .graph-canvas → graph.css, .site-footer a →
    global.css. Search palette/product styles live in search.css; nav shell
    (burger, drawer) and the account menu live in global.css. */
-
 
 @layer patterns {
 @media (prefers-reduced-motion: no-preference) {
@@ -63,11 +61,6 @@
 
 /* Buttons — the disabled state (chrome + motion reset) lives in global.css so
    page files can tune it. */
-
-/* Collection cards — hover elevation is owned by cards-ui.css.
-   Title underline on hover lives in interactions.css. */
-
-/* Feature card motion is owned by cards-ui.css */
 
 /* Scroll progress on long pages — transform-driven (composited), never width.
    No transition: a duration on a scroll-driven scaleX reads as rubber-banding. */
@@ -213,7 +206,6 @@
   }
 
   /* No hover lift */
-  a.result-card--collection:hover,
   .library-bookmark-list > div[role='listitem']:hover,
   .library-bookmark-list .virtual-list-item > div[role='listitem']:hover,
   .scroll-to-top-btn:hover {

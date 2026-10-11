@@ -1,6 +1,6 @@
 /* Shared ops-table primitive (R10-18) — components/DataTable.tsx.
    Entry-loaded components layer: every route that renders an ops table
-   (library health, sync replicas/trash, write approvals, digest issues) paints the same
+   (library health, sync replicas/trash, write approvals) paints the same
    chrome — caps columnheader row, hairline-separated grid rows, and the
    ≤899px collapse that stacks each row into a block.
 

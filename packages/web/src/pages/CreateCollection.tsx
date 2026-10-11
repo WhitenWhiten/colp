@@ -9,7 +9,6 @@ import { RouteState } from '../components/RouteState'
 import { useAuth } from '../auth/AuthContext'
 import { useAutoSaveDraft, mergeDraft, readAutoSaveDraft } from '../lib/useAutoSaveDraft'
 import {
-  FEATURE_FLAGS,
   isProductApiError,
   productClient,
 } from '../api'
@@ -66,10 +65,6 @@ export function CreateCollection() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!FEATURE_FLAGS.createCollection) {
-      // Demo mode - use mock data (not implemented yet, flag is true).
-      return
-    }
     if (bootstrapping) return
     if (!isLoggedIn) {
       // F3 legacy cleanup: the legacy OIDC entry is gone; the login page

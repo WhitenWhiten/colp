@@ -4,9 +4,7 @@ import { retryDelayMs, withSameRequestRetry } from './product-client-shared'
 import { createProductTransportHttp } from './product-transport-http'
 import { productClient } from './productClient'
 import { REQUEST_TIMEOUT_MS } from './requestTimeout'
-
-/* R15-12: a brownout must surface an error quickly, and must not multiply
-   read traffic. */
+import { resetProductSession, seedAuthenticatedSession } from './test-helpers'
 
 function unavailable(retryAfter?: string): ProductApiError {
   // A non-JSON 5xx (nginx or Cloudflare page) classifies as internal_error.
@@ -97,6 +95,7 @@ describe('Product request timeout', () => {
   // Generated clients now get a derived signal; aborting the caller must
   // still abort the in-flight fetch.
   it('aborts a generated-client fetch when the caller aborts', async () => {
+    seedAuthenticatedSession('csrf-timeout')
     const seen: AbortSignal[] = []
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation((_input, init) => new Promise<Response>((_resolve, reject) => {
       const signal = init!.signal!
@@ -104,7 +103,7 @@ describe('Product request timeout', () => {
       signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true })
     }))
     const controller = new AbortController()
-    const result = productClient.getFeedPage({ kind: 'collection_change', limit: 12 }, { maxRetries: 0, signal: controller.signal })
+    const result = productClient.getMyLibraryOrder({ maxRetries: 0, signal: controller.signal })
     await vi.advanceTimersByTimeAsync(0)
     expect(seen).toHaveLength(1)
     expect(seen[0]).not.toBe(controller.signal)
@@ -112,18 +111,21 @@ describe('Product request timeout', () => {
     await expect(result).rejects.toMatchObject({ name: 'AbortError' })
     expect(seen[0]!.aborted).toBe(true)
     fetchMock.mockRestore()
+    resetProductSession()
   })
 
   it('times out a hung generated-client fetch', async () => {
+    seedAuthenticatedSession('csrf-timeout')
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation((_input, init) => new Promise<Response>((_resolve, reject) => {
       init!.signal!.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true })
     }))
-    const result = productClient.getFeedPage({ kind: 'collection_change', limit: 12 }, {})
+    const result = productClient.getMyLibraryOrder({})
     const settled = expect(result).rejects.toMatchObject({ code: 'transport_error', message: 'The request timed out.' })
     await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS)
     await settled
     await vi.runAllTimersAsync()
     expect(fetchMock).toHaveBeenCalledTimes(1)
     fetchMock.mockRestore()
+    resetProductSession()
   })
 })

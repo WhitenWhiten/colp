@@ -329,7 +329,7 @@ describe('architecture invariants that cannot be behaviour tested', () => {
     // instant transitions, no hover lift, loop kills.
     expect(polishSource).toMatch(/@media \(prefers-reduced-motion: reduce\)/)
     const reduceBlock = polishSource.slice(polishSource.indexOf('@media (prefers-reduced-motion: reduce)'))
-    // R15-38: no element is exempt, the Landing caret included.
+    // R15-38: no element is exempt.
     expect(reduceBlock).toMatch(/html \*,\s*html \*::before,\s*html \*::after/)
     expect(polishSource).not.toMatch(/:not\(\.typewriter-cursor\)/)
     expect(reduceBlock).toMatch(/animation-duration:\s*0\.01ms\s*!important/)
@@ -349,8 +349,6 @@ describe('architecture invariants that cannot be behaviour tested', () => {
     expect(interactionsReduce).toMatch(/\.btn-primary:hover[^}]*transform:\s*none;/)
     expect(interactionsReduce).not.toMatch(/\.panel--interactive/)
     expect(interactionsReduce).not.toMatch(/\.panel:hover/)
-    expect(interactionsReduce).not.toMatch(/\.typewriter-cursor[^{]*\{[^}]*animation:\s*none/)
-    expect(interactionsSource).toMatch(/\.typewriter-cursor\s*\{[^}]*animation:\s*cursor-blink[^;]*infinite/)
   })
 
   it('keeps the JS duration table in lockstep with the CSS tokens', () => {

@@ -1,11 +1,9 @@
 // @vitest-environment happy-dom
-import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { ICON_NAMES, Icon, LibraryNavMark, ReadMarkGlyph, SaveMarkGlyph } from './Icon'
+import { ICON_NAMES, Icon, LibraryNavMark } from './Icon'
 import { cleanup, mountTree } from '../test/render'
 
 describe('Icon', () => {
-
   beforeEach(() => {
     document.body.innerHTML = '<div id="root"></div>'
     ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -44,19 +42,6 @@ describe('Icon', () => {
   it('forwards className onto the svg', () => {
     render(<Icon name="search" className="desk-search-icon" />)
     expect(document.querySelector('svg[data-icon="search"]')?.classList.contains('desk-search-icon')).toBe(true)
-  })
-
-  it('keeps CSS hooks on the read and save mark glyphs', () => {
-    render(
-      <>
-        <ReadMarkGlyph />
-        <SaveMarkGlyph />
-      </>,
-    )
-    const readMark = document.querySelector('[data-testid="read-mark"]')!
-    expect(readMark.querySelector('circle')).not.toBeNull()
-    expect(readMark.querySelector('path')).not.toBeNull()
-    expect(document.querySelector('[data-testid="save-mark"] path')).not.toBeNull()
   })
 
   it('renders filled glyphs with data-fill so stroke chrome cannot hollow them', () => {

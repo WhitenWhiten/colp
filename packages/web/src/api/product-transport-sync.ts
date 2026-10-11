@@ -17,7 +17,6 @@ import type {
 
 export function createSyncTransport(http: ProductTransportHttp) {
   const { request, mutationHeaders } = http
-
   return {
     async getSyncStatus(signal?: AbortSignal) {
       return request<SyncStatusView>({ method: 'GET', path: '/api/v1/sync/status', signal })

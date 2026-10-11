@@ -12,16 +12,6 @@ import { vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   loadPublicCollectionSnapshot: vi.fn(),
-  recordPublicCollectionInsightEvent: vi.fn(),
-  getPublicProfilePage: vi.fn(),
-  isFollowingProfile: vi.fn(),
-  followProfile: vi.fn(),
-  unfollowProfile: vi.fn(),
-  abandonFollowIntent: vi.fn(),
-  getCollectionFollowState: vi.fn(),
-  followCollection: vi.fn(),
-  unfollowCollection: vi.fn(),
-  abandonCollectionFollowIntent: vi.fn(),
   toast: vi.fn(),
   success: vi.fn(),
   error: vi.fn(),

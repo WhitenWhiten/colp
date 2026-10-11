@@ -7,9 +7,9 @@
  * so a stale preference never hides anything.
  */
 
-export type LibraryOrderSectionId = 'mine' | 'shared' | 'following'
+export type LibraryOrderSectionId = 'mine' | 'shared'
 
-export const LIBRARY_ORDER_SECTION_IDS: readonly LibraryOrderSectionId[] = ['mine', 'shared', 'following']
+export const LIBRARY_ORDER_SECTION_IDS: readonly LibraryOrderSectionId[] = ['mine', 'shared']
 
 /** PUT /me/library-order/{section} rejects more than 200 unique OpaqueIds. */
 export const LIBRARY_ORDER_MAX_IDS = 200

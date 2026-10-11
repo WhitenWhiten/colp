@@ -20,12 +20,12 @@ it('persists an offline choice before showing success and replays the same inten
   mocks.update.mockRejectedValue(new Error('offline'))
   mountTree(<BookmarkPreferencesSection />)
   await waitForDom(() => Boolean(document.querySelector('input[type="checkbox"]')))
-  const input = [...document.querySelectorAll<HTMLInputElement>('input')].find(node => node.parentElement?.textContent?.includes('Use my classification corrections'))!
+  const input = [...document.querySelectorAll<HTMLInputElement>('input')].find(node => node.parentElement?.textContent?.includes('Folders first'))!
   await act(async () => input.click())
   await waitForDom(() => Boolean(document.body.textContent?.includes('It will sync when you reconnect')))
   const [patch, etag, options] = mocks.update.mock.calls[0]!
-  expect(patch).toEqual({ learnFromCorrections: false }); expect(etag).toBe('"1"')
-  mocks.update.mockResolvedValue({ ...remote, preferences: { ...remote.preferences, learnFromCorrections: false } })
+  expect(patch).toEqual({ foldersFirst: false }); expect(etag).toBe('"1"')
+  mocks.update.mockResolvedValue({ ...remote, preferences: { ...remote.preferences, foldersFirst: false } })
   await act(async () => window.dispatchEvent(new Event('online')))
   await waitForDom(() => Boolean(document.body.textContent?.includes('Saved to your account.')))
   expect(mocks.update.mock.calls[1]?.[2].intentId).toBe(options.intentId)
@@ -34,7 +34,7 @@ it('persists an offline choice before showing success and replays the same inten
 it('does not claim persistence or issue a mutation if browser storage fails', async () => {
   mountTree(<BookmarkPreferencesSection />)
   await waitForDom(() => Boolean(document.querySelector('input[type="checkbox"]')))
-  const input = [...document.querySelectorAll<HTMLInputElement>('input')].find(node => node.parentElement?.textContent?.includes('Use my classification corrections'))!
+  const input = [...document.querySelectorAll<HTMLInputElement>('input')].find(node => node.parentElement?.textContent?.includes('Folders first'))!
   vi.stubGlobal('localStorage', { getItem: localStorage.getItem.bind(localStorage), setItem() { throw new Error('quota') } })
   await act(async () => input.click())
   await waitForDom(() => Boolean(document.body.textContent?.includes('Not saved. Browser storage is unavailable')))

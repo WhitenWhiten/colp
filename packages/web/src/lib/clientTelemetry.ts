@@ -22,13 +22,9 @@ const MAX_ERRORS_PER_PAGE = 25
 /* Path words that are route structure, not user data. Every other segment
    (slugs, handles, ids) becomes `:param`. */
 const LITERAL_SEGMENTS = new Set([
-  'today', 'updates', 'explore', 'reports', 'search', 'feed', 'c', 'path', 'share', 'u', 'profile', 'r',
-  'read', 'library', 'dashboard', 'login', 'consent', 'register', 'reset-password', 'verify-email', 'auth',
-  'onboarding', 'graph', 'creator', 'settings', 'export', 'extension', 'sync', 'classify', 'import',
-  'notifications', 'credits', 'community', 'moderation', 'admin', 'approvals', 'ai', 'about', 'contact',
-  'privacy', 'mcp', 'developers', 'embed-guide', 'demo', 'demos', 'new', 'health', 'digests', 'issues',
-  'edit', 'history', 'collaborators', 'following', 'comments', 'cases', 'appeals', 'batch', 'organize',
-  'popup', 'recovery', 'chat',
+  'c', 'r', 'search', 'library', 'new', 'health', 'edit', 'history', 'collaborators', 'graph',
+  'login', 'consent', 'register', 'auth', 'recovery', 'settings', 'dashboard', 'extension', 'sync',
+  'import', 'approvals', 'agents', 'mcp', 'about',
 ])
 
 export function routeTemplate(pathname: string): string {

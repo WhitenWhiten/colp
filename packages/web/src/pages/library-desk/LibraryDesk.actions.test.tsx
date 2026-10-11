@@ -1,7 +1,6 @@
 // @vitest-environment happy-dom
 import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { canonicalSiteOrigin } from '../../lib/chrome'
 import { domFinishedLoading, waitForDom } from '../../test/render'
 import { bulkbarButton, clickMenuItem, destinationButtons, filterDesk, mocks, mount, openRowMenu, settleAnnotationReads, setUpLibraryDesk, snapshot, tearDownLibraryDesk } from './LibraryDesk.test-helper'
 
@@ -38,10 +37,6 @@ vi.mock('../../api', async (importOriginal) => {
       createCollectionNode: mocks.createCollectionNode,
       moveCollectionNode: mocks.moveCollectionNode,
       deleteCollectionNode: mocks.deleteCollectionNode,
-      listFollowedCollections: mocks.listFollowedCollections,
-      listFollowedReports: mocks.listFollowedReports,
-      listMyReports: mocks.listMyReports,
-      getFollowedReportIssuesPage: mocks.getFollowedReportIssuesPage,
       getMyLibraryOrder: mocks.getMyLibraryOrder,
       updateMyLibraryOrder: mocks.updateMyLibraryOrder,
       newCommandId: () => '11111111-1111-4111-8111-111111111111',
@@ -319,30 +314,17 @@ describe('LibraryDesk menus and selection', () => {
     expect([...document.querySelectorAll('[role="menuitem"]')].map((item) => item.textContent)).toEqual(['View details'])
   })
 
-  it('keeps a public details-only bookmark menu on followed collections', async () => {
-    mount('/library/following/shared-shelf')
-    await waitForDom(domFinishedLoading)
-    expect(document.querySelector('[data-testid="library-bookmarks"]')?.textContent).toContain('Followed bookmark')
-    openRowMenu('Followed bookmark')
-    const items = [...document.querySelectorAll<HTMLAnchorElement>('[role="menuitem"]')]
-    expect(items.map((item) => item.textContent)).toEqual(['View details'])
-    expect(items[0]?.getAttribute('href')).toBe('/r/bm-f?subjectType=node&slug=shared-shelf')
-  })
-
-  it.each(['viewer', 'followed'] as const)('does not enter selection on a %s collection long-press', async (kind) => {
-    if (kind === 'viewer') {
-      const snap = snapshot('col-1', 'Reading queue')
-      snap.capabilities = {
-        updateCollection: false, managePublication: false, createNode: false,
-        updateNode: false, moveNode: false, deleteNode: false,
-      }
-      mocks.loadEditorSnapshot.mockResolvedValue(snap)
+  it('does not enter selection on a viewer collection long-press', async () => {
+    const snap = snapshot('col-1', 'Reading queue')
+    snap.capabilities = {
+      updateCollection: false, managePublication: false, createNode: false,
+      updateNode: false, moveNode: false, deleteNode: false,
     }
-    mount(kind === 'followed' ? '/library/following/shared-shelf' : '/library/col-1')
+    mocks.loadEditorSnapshot.mockResolvedValue(snap)
+    mount('/library/col-1')
     await waitForDom(domFinishedLoading)
-    const title = kind === 'followed' ? 'Followed bookmark' : 'Loose bookmark'
     const row = [...document.querySelectorAll<HTMLElement>('[data-testid="library-bookmarks"] [role="listitem"]')]
-      .find((el) => el.textContent?.includes(title))!
+      .find((el) => el.textContent?.includes('Loose bookmark'))!
     expect(row).toBeTruthy()
     vi.useFakeTimers()
     try {
@@ -380,7 +362,7 @@ describe('LibraryDesk menus and selection', () => {
         .find((item) => item.textContent === 'Copy public link')
       expect(copy).toBeDefined()
       await act(async () => { copy?.click() })
-      expect(writeText).toHaveBeenCalledWith(`${canonicalSiteOrigin()}/c/notes%2Fqueue`)
+      expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/c/notes%2Fqueue`)
       expect(mocks.success).toHaveBeenCalledWith('Public link copied')
       expect(document.querySelector('[role="menu"]')).toBeNull()
       /* The action returns focus to the trigger instead of dropping to body. */

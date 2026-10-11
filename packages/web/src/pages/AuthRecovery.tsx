@@ -6,7 +6,7 @@ import { BrandName } from '../components/Brand'
 import { safeReturnTo } from './safeReturnTo'
 import '../styles/auth-pages.css'
 
-type RecoveryKind = 'restart' | 'failed' | 'verification' | 'link' | 'none'
+type RecoveryKind = 'restart' | 'failed' | 'none'
 
 export function AuthRecovery() {
   const [loggingOut, setLoggingOut] = useState(false)
@@ -22,8 +22,6 @@ export function AuthRecovery() {
   let kind: RecoveryKind = 'none'
   if (authParam === 'restart') kind = 'restart'
   else if (authParam === 'failed') kind = 'failed'
-  else if (errorParam === 'verification_required') kind = 'verification'
-  else if (errorParam === 'account_link_required' || errorParam === 'link_required') kind = 'link'
   else if (errorParam) kind = 'failed'
 
   const title =
@@ -31,11 +29,7 @@ export function AuthRecovery() {
       ? 'Session ended'
       : kind === 'failed'
         ? 'Sign-in failed'
-        : kind === 'verification'
-          ? 'Verify your email'
-          : kind === 'link'
-            ? 'Account linking required'
-            : 'Authentication recovery'
+        : 'Authentication recovery'
   useDocumentTitle(title)
 
   const body =
@@ -43,11 +37,7 @@ export function AuthRecovery() {
       ? 'Your previous session ended. Sign in again to continue.'
       : kind === 'failed'
         ? 'Your session was not created. Please try again.'
-        : kind === 'verification'
-          ? 'You need to verify your email before continuing.'
-          : kind === 'link'
-            ? 'This provider account is not linked to a Know-N account. Sign in with your email and password (or a code) first, then link the provider from your settings.'
-            : 'There is nothing to recover on this page.'
+        : 'There is nothing to recover on this page.'
 
   const handleRestart = async () => {
     if (loggingOut) return
@@ -95,26 +85,6 @@ export function AuthRecovery() {
               onClick={goToLogin}
             >
               Try signing in again
-            </button>
-          )}
-          {kind === 'verification' && (
-            <button
-              type="button"
-              data-testid="recovery-verify"
-              className="btn btn-primary"
-              onClick={() => navigate(withReturn('/verify-email'))}
-            >
-              Verify my email
-            </button>
-          )}
-          {kind === 'link' && (
-            <button
-              type="button"
-              data-testid="recovery-login"
-              className="btn btn-primary"
-              onClick={() => navigate(withReturn('/login'))}
-            >
-              Sign in instead
             </button>
           )}
           {kind === 'none' && (

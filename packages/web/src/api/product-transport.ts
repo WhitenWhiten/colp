@@ -19,43 +19,32 @@
 
 export type {
   AnnotationSubjectParams,
-  ClassifyInboxListParams,
   DeleteNodeOptions,
   EditorPageParams,
-  Etagged,
   LinkHealthListParams,
   MutationCallOptions,
   OwnedCollectionPageParams,
   ProductTransport,
   ProductTransportOptions,
   PublicCollectionPageParams,
-  PublicProfilePageParams,
-  ReadingProgressListParams,
   RelationListParams,
-  SavedResourceListParams,
   SearchParams,
   SessionCallOptions,
   SyncConflictListParams,
   SyncTrashListParams,
   WriteApprovalListParams,
-  CreditLedgerListParams,
 } from './product-transport-types'
 
 import { createProductTransportHttp } from './product-transport-http'
 import { createAnnotationsTransport } from './product-transport-annotations'
-import { createClassifyTransport } from './product-transport-classify'
 import { createEditorTransport } from './product-transport-editor'
-import { createExportTransport } from './product-transport-export'
-import { createFaviconTransport } from './product-transport-favicon'
+import { createVersionsTransport } from './product-transport-versions'
 import { createLibraryTransport } from './product-transport-library'
 import { createRelationsTransport } from './product-transport-relations'
-import { createReplicaTransport } from './product-transport-replica'
-import { createLinkPreviewTransport } from './product-transport-link-preview'
 import { createSearchPublicTransport } from './product-transport-search'
 import { createSessionTransport } from './product-transport-session'
 import { createSyncTransport } from './product-transport-sync'
 import { createWriteApprovalTransport } from './product-transport-approvals'
-import { createCreditsTransport } from './product-transport-credits'
 import type { ProductTransport, ProductTransportOptions } from './product-transport-types'
 
 export function createProductTransport(
@@ -68,14 +57,9 @@ export function createProductTransport(
     ...createSearchPublicTransport(http),
     ...createLibraryTransport(http),
     ...createSyncTransport(http),
-    ...createClassifyTransport(http),
-    ...createExportTransport(http),
-    ...createFaviconTransport(http),
-    ...createReplicaTransport(http),
-    ...createLinkPreviewTransport(http),
+    ...createVersionsTransport(http),
     ...createAnnotationsTransport(http),
     ...createRelationsTransport(http),
     ...createWriteApprovalTransport(http),
-    ...createCreditsTransport(http),
   }
 }

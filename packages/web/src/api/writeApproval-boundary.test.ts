@@ -28,7 +28,7 @@ import { clearRouteCache } from '../lib/routeCache'
 import { useWriteApprovals } from '../pages/write-approvals/data'
 import apiIndexSource from './index.ts?raw'
 import featureFlagsSource from './featureFlags.ts?raw'
-import { isReadableReplicaExposureEnabled, isWriteApprovalsExposureEnabled } from './featureFlags'
+import { isWriteApprovalsExposureEnabled } from './featureFlags'
 import productClientSource from './productClient.ts?raw'
 import transportSource from './product-transport.ts?raw'
 
@@ -47,7 +47,7 @@ const transportSources = [transportSource, ...transportDomainSources].join('\n')
 import typesSource from './types.ts?raw'
 import appSource from '../App.tsx?raw'
 import topNavSource from '../components/TopNav.tsx?raw'
-import loginSource from '../pages/Login.tsx?raw'
+import loginSource from '../pages/SelfHostedLogin.tsx?raw'
 import loginReasonSource from '../pages/loginReason.ts?raw'
 import pageSource from '../pages/WriteApprovals.tsx?raw'
 import { cleanup, mountTree, waitForDom } from '../test/render'
@@ -294,15 +294,8 @@ describe('MCP-W08 write approval frontend boundary', () => {
       expect(featureFlagsSource).toContain('VITE_WRITE_APPROVALS_ACCEPTANCE')
     })
 
-    it('keeps readable replica exposure off by default with an acceptance override', () => {
-      expect(isReadableReplicaExposureEnabled()).toBe(false)
-      expect(featureFlagsSource).toContain('isReadableReplicaExposureEnabled')
-      expect(featureFlagsSource).toContain('VITE_READABLE_REPLICA_ACCEPTANCE')
-    })
-
     it('routes the page and exposes account navigation only from the app shell', () => {
       expect(appSource).toMatch(/path="approvals\/:planId"/u)
-      expect(topNavSurface).toMatch(/\bisWriteApprovalsExposureEnabled\b/u)
       expect(topNavSurface).toMatch(/['"`]\/approvals/u)
     })
 
@@ -313,7 +306,7 @@ describe('MCP-W08 write approval frontend boundary', () => {
         'Please sign in before authorizing this MCP change.',
       )
       expect(loginReasonMessage('something_else')).toBeNull()
-      /* Login consumes the guarded return path and the reason mapping. */
+      /* Sign-in consumes the guarded return path and the reason mapping. */
       expect(loginSource).toMatch(/\bsafeReturnTo\b/u)
       expect(loginSource).toMatch(/\bloginReasonMessage\b/u)
       expect(loginReasonSource).toMatch(/LOGIN_REASON_APPROVAL_REQUIRED = 'approval_required'/u)

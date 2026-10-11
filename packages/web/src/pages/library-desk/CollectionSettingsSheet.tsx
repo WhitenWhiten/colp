@@ -1,8 +1,6 @@
 import { useCallback, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { isClassificationExposureEnabled, type EditorSnapshot } from '../../api'
-import { ClassificationSettingsPanel } from '../classification/ClassificationSettingsPanel'
-import '../../styles/classification-settings.css'
+import type { EditorSnapshot } from '../../api'
 import { useAuth } from '../../auth/AuthContext'
 import { useToast } from '../../components/AppToast'
 import { useConfirm } from '../../components/ConfirmModal'
@@ -157,7 +155,6 @@ export function CollectionSettingsSheet({
           </div>
         )}
         <CollectionMetaForm snap={data.load.snap} mutations={mutations} />
-        {isClassificationExposureEnabled() && <ClassificationSettingsPanel key={data.load.snap.collection.id} collectionId={data.load.snap.collection.id} />}
       </>
     )
   }

@@ -20,40 +20,6 @@ import {
 describe('authClient session', () => {
   const harness = installAuthClientTestLifecycle()
 
-  it('getAuthSession reads the compat session endpoint without CSRF/Origin headers', async () => {
-    const mock = installFetchMock(() =>
-      jsonResponse({
-        session: {
-          id: 's-9',
-          userId: 'u-9',
-          expiresAt: '2026-07-26T00:00:00.000Z',
-          createdAt: '2026-07-25T00:00:00.000Z',
-          updatedAt: '2026-07-25T00:00:00.000Z',
-        },
-        user: {
-          id: 'u-9',
-          email: 'ada@example.com',
-          emailVerified: true,
-          name: 'Ada',
-          image: null,
-        },
-      }),
-    )
-    harness.restoreFetch = mock.restore
-
-    const info = await authClient.getAuthSession()
-
-    expect(info?.session.id).toBe('s-9')
-    expect(info?.user.email).toBe('ada@example.com')
-    const call = mock.calls[0]!
-    expect(requestMethod(call)).toBe('GET')
-    expect(requestPathAndSearch(call).pathname).toBe('/api/v1/auth/get-session')
-    expect(call.init?.credentials).toBe('include')
-    const headers = requestHeaders(call)
-    expect(headers.get('X-CSRF-Token')).toBeNull()
-    expect(headers.get('Origin')).toBeNull()
-  })
-
   it('signOut posts /sign-out with the in-memory CSRF token and clears the local store', async () => {
     seedAuthenticatedSession('csrf-logout')
     const mock = installFetchMock((input, init) => {
@@ -102,19 +68,6 @@ describe('authClient session', () => {
     expect(getSessionSnapshot().authenticated).toBe(false)
   })
 
-  it('revokeSession posts the session token', async () => {
-    seedAuthenticatedSession('csrf-revoke')
-    const mock = installFetchMock(() => jsonResponse({ status: true }))
-    harness.restoreFetch = mock.restore
-
-    await authClient.revokeSession({ token: 'session-token-1' })
-
-    const call = mock.calls[0]!
-    expect(requestPathAndSearch(call).pathname).toBe('/api/v1/auth/revoke-session')
-    expect(JSON.parse(String(call.init?.body))).toEqual({ token: 'session-token-1' })
-    expect(requestHeaders(call).get('X-CSRF-Token')).toBe('csrf-revoke')
-  })
-
   it('listSessions GETs the product inventory without CSRF and never sends a token', async () => {
     const mock = installFetchMock(() =>
       jsonResponse({
@@ -151,90 +104,6 @@ describe('authClient session', () => {
     expect(requestHeaders(call).get('X-CSRF-Token')).toBe('csrf-revoke-id')
   })
 
-  it('two-factor enrollment/status calls hit the MFA surface with exact bodies', async () => {
-    const mock = installFetchMock((input, init) => {
-      const { pathname } = requestPathAndSearch({ input, init })
-      if (pathname === '/api/v1/auth/two-factor/enable') {
-        return jsonResponse({ totpURI: 'otpauth://totp/known:ada@example.com?secret=ABC', backupCodes: ['AAAAA-BBBBB'] })
-      }
-      if (pathname === '/api/v1/auth/two-factor/get-totp-uri') {
-        return jsonResponse({ totpURI: 'otpauth://totp/known:ada@example.com?secret=ABC' })
-      }
-      if (pathname === '/api/v1/auth/two-factor/generate-backup-codes') {
-        return jsonResponse({ backupCodes: ['CCCCC-DDDDD'] })
-      }
-      if (pathname === '/api/v1/auth/two-factor/send-otp') {
-        return jsonResponse({ status: true })
-      }
-      if (pathname === '/api/v1/auth/two-factor/disable') {
-        return jsonResponse({ status: false })
-      }
-      throw new Error(`unexpected request ${pathname}`)
-    })
-    harness.restoreFetch = mock.restore
-    seedAuthenticatedSession('csrf-mfa')
-
-    const enrolled = await authClient.enableTwoFactor({ password: 'password-1', issuer: 'known' })
-    expect(enrolled.totpURI).toContain('otpauth://totp/')
-    expect(enrolled.backupCodes).toEqual(['AAAAA-BBBBB'])
-
-    const uri = await authClient.getTotpUri({ password: 'password-1' })
-    expect(uri.totpURI).toContain('otpauth://totp/')
-
-    const codes = await authClient.generateBackupCodes({ password: 'password-1' })
-    expect(codes.backupCodes).toEqual(['CCCCC-DDDDD'])
-
-    await authClient.sendTwoFactorOtp({ trustDevice: true })
-
-    const disabled = await authClient.disableTwoFactor({ password: 'password-1' })
-    expect(disabled.status).toBe(false)
-
-    expect(requestPathAndSearch(mock.calls[0]!).pathname).toBe('/api/v1/auth/two-factor/enable')
-    expect(JSON.parse(String(mock.calls[0]!.init?.body))).toEqual({ password: 'password-1', issuer: 'known' })
-    expect(requestPathAndSearch(mock.calls[1]!).pathname).toBe('/api/v1/auth/two-factor/get-totp-uri')
-    expect(JSON.parse(String(mock.calls[1]!.init?.body))).toEqual({ password: 'password-1' })
-    expect(requestPathAndSearch(mock.calls[2]!).pathname).toBe('/api/v1/auth/two-factor/generate-backup-codes')
-    expect(requestPathAndSearch(mock.calls[3]!).pathname).toBe('/api/v1/auth/two-factor/send-otp')
-    expect(JSON.parse(String(mock.calls[3]!.init?.body))).toEqual({ trustDevice: true })
-    expect(requestPathAndSearch(mock.calls[4]!).pathname).toBe('/api/v1/auth/two-factor/disable')
-    expect(mock.calls.every((call) => requestHeaders(call).get('X-CSRF-Token') === 'csrf-mfa')).toBe(true)
-    // Enrollment/disable never touch the product session store.
-    expect(mock.calls).toHaveLength(5)
-  })
-
-  it('two-factor verify calls refresh the product session after the MFA proof', async () => {
-    const mock = installFetchMock((input, init) => {
-      const { pathname } = requestPathAndSearch({ input, init })
-      if (pathname === '/api/v1/auth/two-factor/verify-totp') {
-        return jsonResponse({ status: true, token: null, user: { id: 'u-9' } })
-      }
-      if (pathname === '/api/v1/auth/two-factor/verify-backup-code') {
-        return jsonResponse({ status: true, token: null, user: { id: 'u-9' } })
-      }
-      if (pathname === '/api/v1/auth/two-factor/verify-otp') {
-        return jsonResponse({ status: true, token: null, user: { id: 'u-9' } })
-      }
-      if (pathname === '/api/v1/session') {
-        return jsonResponse(authenticatedSessionBody('csrf-after-mfa'))
-      }
-      throw new Error(`unexpected request ${pathname}`)
-    })
-    harness.restoreFetch = mock.restore
-
-    await authClient.verifyTotp({ code: '123456', trustDevice: true })
-    await authClient.verifyBackupCode({ code: 'AAAAA-BBBBB' })
-    await authClient.verifyTwoFactorOtp({ otp: '654321' })
-
-    expect(requestPathAndSearch(mock.calls[0]!).pathname).toBe('/api/v1/auth/two-factor/verify-totp')
-    expect(JSON.parse(String(mock.calls[0]!.init?.body))).toEqual({ code: '123456', trustDevice: true })
-    expect(requestPathAndSearch(mock.calls[1]!).pathname).toBe('/api/v1/session')
-    expect(requestPathAndSearch(mock.calls[2]!).pathname).toBe('/api/v1/auth/two-factor/verify-backup-code')
-    expect(JSON.parse(String(mock.calls[2]!.init?.body))).toEqual({ code: 'AAAAA-BBBBB' })
-    expect(requestPathAndSearch(mock.calls[4]!).pathname).toBe('/api/v1/auth/two-factor/verify-otp')
-    expect(JSON.parse(String(mock.calls[4]!.init?.body))).toEqual({ otp: '654321' })
-    expect(getCsrfToken()).toBe('csrf-after-mfa')
-  })
-
   it.each([
     [401, 'invalid_credentials'],
     [403, 'verification_required'],
@@ -249,7 +118,7 @@ describe('authClient session', () => {
     harness.restoreFetch = mock.restore
 
     const error = await authClient
-      .sendOtp({ email: 'ada@example.com', type: 'sign-in' })
+      .signInWithUsername({ username: 'ada', password: 'pw' })
       .then(() => null, (err) => err)
 
     expect(isProductApiError(error)).toBe(true)
@@ -262,7 +131,7 @@ describe('authClient session', () => {
     'does not infer CSRF recovery from a non-envelope 403 (%j)', async (body) => {
       const mock = installFetchMock(() => jsonResponse(body, { status: 403 }))
       harness.restoreFetch = mock.restore
-      const error = await authClient.sendOtp({ email: 'ada@example.com', type: 'sign-in' })
+      const error = await authClient.signInWithUsername({ username: 'ada', password: 'pw' })
         .then(() => null, (err) => err)
       expect(error).toMatchObject({ status: 403, code: 'unknown_error', recovery: 'user_action' })
       expect(error.isCsrfFailed).toBe(false)
@@ -280,7 +149,7 @@ describe('authClient session', () => {
     harness.restoreFetch = mock.restore
 
     const error = await authClient
-      .sendOtp({ email: 'ada@example.com', type: 'sign-in' })
+      .signInWithUsername({ username: 'ada', password: 'pw' })
       .then(() => null, (err) => err)
 
     expect(isProductApiError(error)).toBe(true)
@@ -312,7 +181,7 @@ describe('authClient session', () => {
     harness.restoreFetch = mock.restore
 
     const error = await authClient
-      .sendOtp({ email: 'ada@example.com', type: 'sign-in' })
+      .signInWithUsername({ username: 'ada', password: 'pw' })
       .then(() => null, (err) => err)
 
     expect(isProductApiError(error)).toBe(true)
@@ -417,7 +286,7 @@ describe('authClient session', () => {
     harness.restoreFetch = mock.restore
 
     const error = await authClient
-      .sendOtp({ email: 'ada@example.com', type: 'sign-in' })
+      .signInWithUsername({ username: 'ada', password: 'pw' })
       .then(() => null, (err) => err)
 
     expect(error).toBeInstanceOf(ProductApiError)

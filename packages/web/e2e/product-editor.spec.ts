@@ -272,25 +272,6 @@ test.describe('Product editor with strict mocked API', () => {
     mock.acknowledgeExpectedViolations(/unconsumed deliberately unconsumed editor request/u)
   })
 
-  test('login starts Google OAuth with the exact safe returnTo', async ({ page }) => {
-    mock = await installProductApiMocks(page, { authenticated: false })
-    mock.expectBootstrap(false).expect({
-      method: 'POST',
-      path: '/api/v1/auth/sign-in/social',
-      body: {
-        provider: 'google',
-        callbackURL: '/library',
-        errorCallbackURL: '/auth/recovery?returnTo=%2Flibrary',
-        newUserCallbackURL: '/onboarding',
-      },
-      label: 'Google OAuth start',
-    })
-
-    await page.goto('/login?returnTo=%2Flibrary', { waitUntil: 'domcontentloaded' })
-    await page.getByRole('button', { name: 'Continue with Google', exact: true }).click()
-    await expect.poll(() => mock.pendingExpectationCount()).toBe(0)
-  })
-
   test('creates a collection through the Product UI with admitted command traffic', async ({ page }) => {
     mock = await installProductApiMocks(page)
     mock
@@ -309,15 +290,14 @@ test.describe('Product editor with strict mocked API', () => {
     await expect.poll(() => mock.pendingExpectationCount()).toBe(0)
   })
 
-  test('loads collection settings and catalog fields over the desk', async ({ page }) => {
+  test('loads collection settings over the desk', async ({ page }) => {
     mock = await installProductApiMocks(page)
     await openEditor(page, mock)
 
     await expect(page.getByTestId('collection-settings')).toBeVisible()
     await expect(page.getByTestId('library-workspace')).toBeVisible()
     await expect(page.getByTestId('collection-settings-loading')).toHaveCount(0)
-    await expect(page.getByLabel('Tags', { exact: true })).toBeVisible()
-    await expect(page.getByLabel('Language', { exact: true })).toBeVisible()
+    await expect(page.getByLabel('Tags', { exact: true })).toHaveCount(0)
     await expect(page.getByLabel(/cover|paid|collaborators/iu)).toHaveCount(0)
   })
 
@@ -334,11 +314,11 @@ test.describe('Product editor with strict mocked API', () => {
     mock.state.authenticated = false
     mock.expectBootstrap(false)
     await page.reload({ waitUntil: 'domcontentloaded' })
-    await expect(page.getByRole('link', { name: 'Log in', exact: true }).first()).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Sign in', exact: true }).first()).toBeVisible()
     mock.expectBootstrap(false)
     await page.goto(editorPath, { waitUntil: 'domcontentloaded' })
 
-    await expect(page.getByRole('link', { name: 'Log in', exact: true }).first()).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Sign in', exact: true }).first()).toBeVisible()
     await expect(page.getByTestId('collection-settings')).toHaveCount(0)
   })
 
@@ -415,7 +395,7 @@ test.describe('Product editor with strict mocked API', () => {
     expect(mock.state.collectionVisibility).toBe('private')
     expect(mock.state.publicationSlug).toBe('e2e-research')
     await expect(page.getByRole('link', { name: /\/c\/e2e-research$/u })).toHaveCount(0)
-    await expect(page.getByText('Public address (currently private)')).toBeVisible()
+    await expect(page.getByText('Published at (currently private)')).toBeVisible()
   })
 
   test('publishes unlisted with a real PATCH and server-confirmed canonical URL', async ({ page }) => {

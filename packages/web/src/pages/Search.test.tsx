@@ -2,7 +2,6 @@
 import { act } from 'react'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { clearRouteCache } from '../lib/routeCache'
 import { ProductApiError } from '../api/errors'
 import type { SearchPage, SearchResourceType } from '../api/types'
 import { Search } from './Search'
@@ -15,7 +14,7 @@ vi.mock('../api', async (importOriginal) => {
   return { ...actual, isLive: (flag: string) => flag === 'search' ? mocks.live : actual.isLive(flag as never), productClient: { ...actual.productClient, searchResources: mocks.search } }
 })
 const makePage = (items: SearchPage['items'], nextCursor: string | null = null): SearchPage => ({
-  query: 'systems', types: ['collection', 'node', 'profile', 'annotation'], items,
+  query: 'systems', types: ['collection', 'node', 'annotation'], items,
   page: { returnedCount: items.length, hasMore: nextCursor !== null, nextCursor },
   consistency: { authority: 'recheck-each-page', ranking: 'restart-on-mutation' },
 })
@@ -31,19 +30,18 @@ describe('Search page', () => {
       .mockResolvedValueOnce(makePage([{ resourceType: 'node', resourceId: 'n2', collectionId: 'c1', title: 'Systems interfaces', urlHost: 'known.test', snippet: 'Second systems', rank: 0.8 }]))
     render()
     await flushDebounce()
-    expect(document.body.textContent).toContain('Search Know-N')
-    expect(document.body.textContent).not.toContain('knowledge workspace')
+    expect(document.querySelector('h1')?.textContent).toBe('Search')
     expect(document.querySelector('[data-search-state="ready"]')).not.toBeNull()
     act(() => findButtonByName('Load more').click())
     expect(document.querySelector('[data-search-state="loading-more"]')).not.toBeNull()
     await waitForDom(domFinishedLoading)
-    expect(mocks.search).toHaveBeenLastCalledWith({ q: 'systems', cursor: 'cursor-2' }, expect.objectContaining({ maxRetries: 0, signal: expect.any(AbortSignal) }))
+    expect(mocks.search).toHaveBeenLastCalledWith({ q: 'systems', types: ['collection', 'node', 'annotation'], cursor: 'cursor-2' }, expect.objectContaining({ maxRetries: 0, signal: expect.any(AbortSignal) }))
     expect(document.querySelectorAll('[data-search-result]')).toHaveLength(2)
     // Load-more points the combobox cursor at the first appended row.
     const activeId = document.querySelector('input[aria-label="Search query"]')?.getAttribute('aria-activedescendant')
     expect(activeId).not.toBeNull()
     expect(activeId && document.getElementById(activeId)?.getAttribute('data-search-result-id')).toBe('n2')
-    expect(pageMetaContent('meta[name="description"]')).toBe('Search collections, profiles, bookmarks, and annotations on Know-N.')
+    expect(pageMetaContent('meta[name="description"]')).toBe('Search collections, bookmarks, and annotations on COLP Server.')
     expect(canonicalHref()).toBeNull()
     expect(pageMetaContent('meta[property="og:url"]')).toBeNull()
     expect(pageMetaContent('meta[property="og:title"]')).toBe(document.title)
@@ -79,7 +77,7 @@ describe('Search page', () => {
       return null
     }
     mountTree(
-      <MemoryRouter initialEntries={['/search?q=systems&types=profile']}>
+      <MemoryRouter initialEntries={['/search?q=systems&types=annotation']}>
         <Routes>
           <Route path="/search" element={<><LocationProbe /><Search /></>} />
         </Routes>
@@ -87,7 +85,7 @@ describe('Search page', () => {
     )
     await flushDebounce()
     expect(mocks.search).toHaveBeenLastCalledWith(
-      { q: 'systems', types: ['profile'] satisfies SearchResourceType[], limit: 20 },
+      { q: 'systems', types: ['annotation'] satisfies SearchResourceType[], limit: 20 },
       expect.anything(),
     )
     const type = () => document.querySelector<HTMLSelectElement>('[data-testid="search-type-filter"] select')!
@@ -95,7 +93,7 @@ describe('Search page', () => {
       type().value = value
       type().dispatchEvent(new Event('change', { bubbles: true }))
     })
-    expect(type().value).toBe('profile')
+    expect(type().value).toBe('annotation')
     expect(document.querySelector('[data-testid="search-type-filter"]')?.textContent).toContain('In:')
     choose('collection')
     await flushDebounce()
@@ -108,18 +106,30 @@ describe('Search page', () => {
 
   it('clears results and cursor when the type filter changes', async () => {
     mocks.search.mockResolvedValueOnce(makePage([{ resourceType: 'collection', resourceId: 'c1', title: 'Old', snippet: 'Old', rank: 0.9 }], 'old-cursor'))
-      .mockResolvedValueOnce({ ...makePage([]), types: ['profile'] })
+      .mockResolvedValueOnce({ ...makePage([]), types: ['annotation'] })
     render(); await flushDebounce()
     act(() => {
       const type = document.querySelector<HTMLSelectElement>('[data-testid="search-type-filter"] select')!
-      type.value = 'profile'
+      type.value = 'annotation'
       type.dispatchEvent(new Event('change', { bubbles: true }))
     })
     expect(document.body.textContent).not.toContain('Old')
     await flushDebounce()
-    expect(mocks.search).toHaveBeenLastCalledWith({ q: 'systems', types: ['profile'] satisfies SearchResourceType[], limit: 20 }, expect.anything())
+    expect(mocks.search).toHaveBeenLastCalledWith({ q: 'systems', types: ['annotation'] satisfies SearchResourceType[], limit: 20 }, expect.anything())
     expect(String(mocks.search.mock.calls.at(-1)?.[0]?.cursor)).toBe('undefined')
     expect(document.querySelector('[data-search-state="empty"]')).not.toBeNull()
+  })
+
+  it('drops profile hits, which have no page on this server, and ignores a stale profile filter', async () => {
+    mocks.search.mockResolvedValueOnce(makePage([
+      { resourceType: 'profile', resourceId: 'p1', handle: 'mira', displayName: 'Mira', avatarUrl: null, snippet: 'Mira systems', rank: 0.9 },
+      { resourceType: 'collection', resourceId: 'c1', title: 'Systems', snippet: 'First', rank: 0.8 },
+    ]))
+    render('/search?q=systems&types=profile')
+    await flushDebounce()
+    expect(mocks.search).toHaveBeenLastCalledWith({ q: 'systems', types: ['collection', 'node', 'annotation'], limit: 20 }, expect.anything())
+    expect([...document.querySelectorAll('[data-search-result-id]')].map((row) => row.getAttribute('data-search-result-id'))).toEqual(['c1'])
+    expect(document.querySelector('a[href^="/u/"]')).toBeNull()
   })
 
   it('offers sign-in instead of Retry on a 401', async () => {
@@ -135,7 +145,7 @@ describe('Search page', () => {
     [503, 'feature_temporarily_unavailable', 'Try again'],
   ] as const)('recovers visibly from %s', async (status, code, expected) => {
     mocks.search.mockRejectedValueOnce(new ProductApiError({ status, code, message: 'failed', retryAfterSeconds: status === 429 ? 2 : null }))
-      .mockResolvedValueOnce(makePage([{ resourceType: 'profile', resourceId: 'p1', handle: 'mira', displayName: 'Mira', avatarUrl: null, snippet: 'Recovered systems', rank: 0.7 }]))
+      .mockResolvedValueOnce(makePage([{ resourceType: 'node', resourceId: 'n1', collectionId: 'c1', title: 'Recovered systems', urlHost: 'known.test', snippet: 'Recovered systems', rank: 0.7 }]))
     render(); await flushDebounce()
     expect(document.querySelector('[role="alert"]')?.textContent).toContain(expected)
     const retry = findButtonByName('Try again')

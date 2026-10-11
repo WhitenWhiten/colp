@@ -27,16 +27,6 @@ export function AuthStatusRegion() {
       </p>
     )
   }
-  if (sessionState === 'verification-required') {
-    return (
-      <div className="panel panel-pad auth-alert" role="status">
-        <p className="auth-alert-text">Verify your email to keep using your account.</p>
-        <p className="auth-alert-action">
-          <Link to="/verify-email">Verify email</Link>
-        </p>
-      </div>
-    )
-  }
   if (sessionState === 'expired') {
     return (
       <div className="panel panel-pad auth-alert" role="alert">

@@ -50,24 +50,18 @@ describe('Footer session chrome', () => {
     document.body.innerHTML = ''
   })
 
-  it('shows Log in for guests and keeps product workbench links out of the footer', () => {
-    render()
-    expect(document.body.textContent).toContain('Log in')
-    expect(document.querySelector('a[href="/login"]')).not.toBeNull()
-    expect(document.body.textContent).not.toContain('Demo hub')
-    expect(document.querySelector('a[href="/demos"]')).toBeNull()
-    expect(document.querySelector('a[href="/today"]')).toBeNull()
+  it('offers guests Sign in back to the current page and About only', () => {
+    render('/c/research-notes')
+    const links = [...document.querySelectorAll('nav[aria-label="Footer"] a')].map((anchor) => [anchor.textContent, anchor.getAttribute('href')])
+    expect(links).toEqual([
+      ['Sign in', '/login?returnTo=%2Fc%2Fresearch-notes'],
+      ['About', '/about'],
+    ])
     expect(document.querySelector('a[href="/library"]')).toBeNull()
-    expect(document.querySelector('a[href="/about"]')).not.toBeNull()
-    expect(document.querySelector('a[href="/contact"]')).not.toBeNull()
-    expect(document.querySelector('a[href="/privacy"]')).not.toBeNull()
-    expect(document.querySelector('a[href="/developers"]')?.textContent).toBe('Developers')
-    expect(document.querySelector('a[href="/mcp"]')?.textContent).toBe('MCP')
-    expect(document.querySelector('nav[aria-label="Legal"]')).not.toBeNull()
-    expect(document.querySelector('[data-testid="site-footer-heading"]')?.textContent).toBe('Product')
+    expect(document.querySelector('footer')?.textContent).toContain('COLP Server')
   })
 
-  it('replaces Log in with a one-line Settings and Account footer after sign-in', () => {
+  it('replaces Sign in with Settings, About and Agents after sign-in', () => {
     mocks.auth.isLoggedIn = true
     mocks.auth.user = {
       name: '林一晨',
@@ -78,19 +72,13 @@ describe('Footer session chrome', () => {
       profileId: 'profile-1',
     }
     render('/library')
-    expect(document.querySelector('a[href="/login"]')).toBeNull()
+    expect(document.querySelector('a[href^="/login"]')).toBeNull()
     expect(document.querySelector('a[href="/settings"]')).toBeNull()
     const settings = [...document.querySelectorAll('button')].find((button) => button.textContent === 'Settings')
     expect(settings).not.toBeNull()
     act(() => settings!.click())
     expect(document.querySelector('[data-testid="location-search"]')?.textContent).toContain('settings=profile')
-    expect(document.querySelector('a[href="/u/lin-yichen"]')?.textContent).toBe('Profile')
     expect(document.querySelector('a[href="/about"]')?.textContent).toBe('About')
-    expect(document.querySelector('a[href="/contact"]')?.textContent).toBe('Contact')
-    expect(document.querySelector('a[href="/developers"]')?.textContent).toBe('Developers')
-    expect(document.querySelector('a[href="/mcp"]')?.textContent).toBe('MCP')
-    expect(document.querySelector('a[href="/privacy"]')?.textContent).toBe('Privacy')
-    expect(document.querySelector('a[href="/today"]')).toBeNull()
-    expect(document.querySelectorAll('[data-testid="site-footer-heading"]')).toHaveLength(0)
+    expect(document.querySelector('a[href="/agents"]')?.textContent).toBe('Agents')
   })
 })

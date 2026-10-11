@@ -58,19 +58,16 @@ describe('NotFound', () => {
     expect([...digits.querySelectorAll('[data-testid="not-found-digit"]')].map((node) => node.textContent)).toEqual(['4', '0', '4'])
   })
 
-  it('keeps one sentence and two exits — Home and Explore', () => {
+  it('keeps one sentence and one exit home', () => {
     renderAt('/no/such/page')
     expect(document.querySelector('h1')?.textContent).toBe('This page isn’t here.')
     expect(document.querySelector('[data-testid="not-found-path"]')?.textContent).toBe('/no/such/page')
     const exits = [...document.querySelectorAll<HTMLAnchorElement>('[data-testid="not-found-exit"]')]
       .map((anchor) => [anchor.textContent, anchor.getAttribute('href')])
-    expect(exits).toEqual([
-      ['Back home', '/'],
-      ['Explore', '/explore'],
-    ])
-    // The two text links are the only anchors on the page.
-    expect(document.querySelectorAll('a')).toHaveLength(2)
-    expect(document.title).toBe('Page not found — Know-N')
+    expect(exits).toEqual([['Back home', '/']])
+    // The text link is the only anchor on the page.
+    expect(document.querySelectorAll('a')).toHaveLength(1)
+    expect(document.title).toBe('Page not found — COLP Server')
     expect(canonicalHref()).toBeNull()
     expect(robotsContents()).toEqual(['noindex'])
   })

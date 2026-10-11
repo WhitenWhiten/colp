@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { act } from 'react'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
-import { applyMeView, applySessionView, clearSession } from '../../api/sessionStore'
+import { clearSession } from '../../api/sessionStore'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { EditorSnapshot, OwnedCollectionListItem } from '../../api/types'
 import { clearRouteCache } from '../../lib/routeCache'
@@ -17,10 +17,6 @@ const mocks = vi.hoisted(() => ({
   error: vi.fn(),
   loadEditorSnapshot: vi.fn(),
   loadAnnotations: vi.fn(async () => []),
-  listFollowedCollections: vi.fn(),
-  listFollowedReports: vi.fn(async () => ({ items: [], nextCursor: null })),
-  listMyReports: vi.fn(async () => ({ items: [], nextCursor: null })),
-  getFollowedReportIssuesPage: vi.fn(async () => ({ items: [], nextCursor: null })),
   getMyLibraryOrder: vi.fn(),
   updateMyLibraryOrder: vi.fn(),
   collections: {
@@ -67,10 +63,6 @@ vi.mock('../../api', async (importOriginal) => {
       ...actual.productClient,
       loadEditorSnapshot: mocks.loadEditorSnapshot,
       loadAnnotations: mocks.loadAnnotations,
-      listFollowedCollections: mocks.listFollowedCollections,
-      listFollowedReports: mocks.listFollowedReports,
-      listMyReports: mocks.listMyReports,
-      getFollowedReportIssuesPage: mocks.getFollowedReportIssuesPage,
       getMyLibraryOrder: mocks.getMyLibraryOrder,
       updateMyLibraryOrder: mocks.updateMyLibraryOrder,
       newCommandId: () => '11111111-1111-4111-8111-111111111111',
@@ -241,7 +233,6 @@ describe('LibraryDesk sidebar reorder accessibility', () => {
     ]
     mocks.shared.items = []
     mocks.loadEditorSnapshot.mockImplementation((id: string) => Promise.resolve(snapshot(id)))
-    mocks.listFollowedCollections.mockResolvedValue({ items: [], nextCursor: null })
     mocks.getMyLibraryOrder.mockResolvedValue(EMPTY_ORDER)
     mocks.updateMyLibraryOrder.mockResolvedValue({ section: 'mine', collectionIds: [] })
   })

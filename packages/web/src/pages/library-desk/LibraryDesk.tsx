@@ -1,18 +1,12 @@
-import { useEffect, useState, type ReactNode } from 'react'
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useToast } from '../../components/AppToast'
 import { useCancelConfirm } from '../../components/ConfirmModal'
-import { EmptyState, LoadingState } from '../../components/EmptyState'
 import { PageShell } from '../../components/PageShell'
 import { RouteLoading } from '../../components/RouteLoading'
 import { RouteState } from '../../components/RouteState'
 import { useAuth } from '../../auth/AuthContext'
-import {
-  isCollectionFollowExposureEnabled,
-  isLive,
-  isProductApiError,
-  isReportsExposureEnabled,
-} from '../../api'
+import { isLive, isProductApiError } from '../../api'
 import { persistDeskCache, useLibraryDeskData } from './data'
 import { useLibraryLayerReorder } from './layerReorder'
 import { useLibraryDeskMutations } from './mutations'
@@ -22,36 +16,22 @@ import { CollectionSettingsSheet } from './CollectionSettingsSheet'
 import { LibraryDeskView } from './view'
 import { NodeEditDrawer } from './NodeEditDrawer'
 import { useDocumentTitle } from '../../lib/useDocumentTitle'
-import { useFollowedCollections } from '../../lib/useFollowedCollections'
-import { useFollowedReports } from '../../lib/useFollowedReports'
 import { useMyCollaborationInvites } from '../../lib/useMyCollaborationInvites'
-import { useMyReports } from '../../lib/useMyReports'
 import { useOwnedCollections } from '../../lib/useOwnedCollections'
 import { useSharedCollections } from '../../lib/useSharedCollections'
 
-type LibraryDeskProps = {
-  readingPane?: ReactNode
-  readingEnabled?: boolean
-}
-
-export function LibraryDesk({ readingPane = null, readingEnabled = true }: LibraryDeskProps) {
-  const { id: collectionId, slug: routeFollowedSlug } = useParams<{ id?: string; slug?: string }>()
+export function LibraryDesk() {
+  const { id: collectionId } = useParams<{ id?: string }>()
   const [searchParams, setSearchParams] = useSearchParams()
   const folderId = searchParams.get('folder')
   const nodeParam = searchParams.get('node')
   const editCollection = searchParams.get('collection') === 'edit'
-  const reading = readingPane != null
   const navigate = useNavigate()
   const { toast, success, error } = useToast()
-  const { isLoggedIn, bootstrapping, refreshSession, sessionState } = useAuth()
+  const { isLoggedIn, bootstrapping, refreshSession } = useAuth()
   const collections = useOwnedCollections()
   const shared = useSharedCollections()
   const invites = useMyCollaborationInvites()
-  const collectionFollowExposed = isCollectionFollowExposureEnabled() && isLoggedIn
-  const followed = useFollowedCollections(collectionFollowExposed)
-  const reportsExposed = isReportsExposureEnabled() && isLoggedIn
-  const digests = useFollowedReports(reportsExposed)
-  const myDigests = useMyReports(reportsExposed)
   const collaboratorsLive = isLive('collaborators')
   const showInviteNav = collaboratorsLive && (
     invites.items.length > 0
@@ -60,14 +40,11 @@ export function LibraryDesk({ readingPane = null, readingEnabled = true }: Libra
 
   const data = useLibraryDeskData({
     collectionId,
-    routeFollowedSlug,
     folderId,
-    reading,
     isLoggedIn,
     bootstrapping,
     collections,
     shared,
-    followed,
   })
   const order = useLibraryDeskOrder({
     error,
@@ -75,7 +52,6 @@ export function LibraryDesk({ readingPane = null, readingEnabled = true }: Libra
     bootstrapping,
     ownedSidebarItems: data.ownedSidebarItems,
     sharedSidebarItems: data.sharedSidebarItems,
-    followedItems: followed.items,
     setExpanded: data.setExpanded,
   })
   const selection = useLibraryDeskSelection({ toast })
@@ -84,7 +60,7 @@ export function LibraryDesk({ readingPane = null, readingEnabled = true }: Libra
   const [settingsOpen, setSettingsOpen] = useState(editCollection)
   const layerReorder = useLibraryLayerReorder({
     snap: data.snap,
-    collectionId: data.selectedFollowedSlug ? null : data.selectedId,
+    collectionId: data.selectedId,
     parentId: data.selectedFolder?.id ?? data.snap?.root.id ?? null,
     loadTree: data.loadTree,
     success,
@@ -122,9 +98,7 @@ export function LibraryDesk({ readingPane = null, readingEnabled = true }: Libra
     setBulk: selection.setBulk,
   })
 
-  const heading = reading
-    ? 'Reading'
-    : data.selectedFolder?.title ?? data.collection?.title ?? 'Library'
+  const heading = data.selectedFolder?.title ?? data.collection?.title ?? 'Library'
   useDocumentTitle(heading)
 
   const resetCompose = mutations.resetCompose
@@ -137,7 +111,7 @@ export function LibraryDesk({ readingPane = null, readingEnabled = true }: Libra
     // The shared confirm lives under Layout; dismiss it with the page
     // context so a delete prompt cannot outlive the collection it named.
     return () => { cancelConfirm() }
-  }, [data.selectedId, folderId, reading, resetCompose, resetSelection, cancelConfirm])
+  }, [data.selectedId, folderId, resetCompose, resetSelection, cancelConfirm])
 
   useEffect(() => {
     persistDeskCache(data.trees, data.expanded, order.collapsedSections, data.userCollapsed)
@@ -173,26 +147,8 @@ export function LibraryDesk({ readingPane = null, readingEnabled = true }: Libra
     return <RouteLoading label="Checking your session…" data-testid="library-workspace" />
   }
 
-  if (sessionState === 'verification-required') {
-    const returnTo = routeFollowedSlug
-      ? `/library/following/${routeFollowedSlug}`
-      : collectionId ? `/library/${collectionId}` : '/library'
-    return (
-      <PageShell variant="bare" data-testid="library-workspace">
-        <EmptyState
-          icon="folder"
-          title="Verify your email to open your library"
-          description="Your collections stay private until this address is verified."
-          action={<Link to={`/verify-email?returnTo=${encodeURIComponent(returnTo)}`} className="btn btn-primary btn-sm">Verify email</Link>}
-        />
-      </PageShell>
-    )
-  }
-
   if (!isLoggedIn) {
-    const returnTo = routeFollowedSlug
-      ? `/library/following/${routeFollowedSlug}`
-      : collectionId ? `/library/${collectionId}` : '/library'
+    const returnTo = collectionId ? `/library/${collectionId}` : '/library'
     return (
       <PageShell variant="bare" data-testid="library-workspace">
         <RouteState
@@ -209,19 +165,11 @@ export function LibraryDesk({ readingPane = null, readingEnabled = true }: Libra
   return (
     <>
       <LibraryDeskView
-        reading={reading}
-        readingPane={readingPane}
-        readingEnabled={readingEnabled}
         folderId={folderId}
         collaboratorsLive={collaboratorsLive}
-        collectionFollowExposed={collectionFollowExposed}
-        reportsExposed={reportsExposed}
         showInviteNav={showInviteNav}
         collections={collections}
         shared={shared}
-        followed={followed}
-        digests={digests}
-        myDigests={myDigests}
         invites={invites}
         data={data}
         order={order}

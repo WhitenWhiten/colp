@@ -97,10 +97,3 @@ export function usePublicCollectionSnapshot(slug: string | null) {
   const retry = useCallback(() => setReloadKey((value) => value + 1), [])
   return { load, retry }
 }
-
-/** The last snapshot painted for this slug, without triggering a load — for
- *  optional previews that must never block (the series-page issue-front
- *  table-of-contents row, R10-11). Returns null when nothing is cached. */
-export function peekPublicCollectionSnapshot(slug: string): PublicCollectionSnapshot | null {
-  return readRouteCache<PublicCollectionSnapshot>(cacheKey(slug)) ?? null
-}

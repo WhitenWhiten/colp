@@ -11,10 +11,8 @@
   /* ── Strip web chrome ─────────────────────────── */
   .topnav,
   .site-footer,
-  /* Fixed-position skip link stays in the print flow unless stripped. */
   a.skip-link,
   .scroll-progress,
-  /* .scroll-to-top-btn hides itself in print (owner: polish.css) */
   .page-head-actions,
   .collection-toolbar,
   .toolbar-sentinel,
@@ -24,28 +22,11 @@
   .view-switch,
   .collection-count-chip,
   body .toast,
-  /* .mobile-drawer / .nav-burger live inside .topnav (already stripped) */
   .offline-banner,
-  /* ── R10-33: workbench chrome on the reading/detail surfaces ──
-     Toolbars, action rows, and editing affordances are screen-only.
-     Element-qualified so these keys stay off the screen stylesheets'
-     selector text (cross-file duplicates are style-drift failures). */
-  header.reader-toolbar,
-  div.reader-state-actions,
-  div.annotation-actions,
-  div.reader-citation-actions,
-  span.saved-resource-control,
-  /* .page-head-actions is already stripped above; the stats strip's wrapper
-     goes too or its fading hairlines print around an empty band. */
-  header.resource-head div.page-head-stats,
   button.resource-title-toggle,
   form.relation-form,
   div.relation-form-actions,
-  div.relation-row-actions,
-  div.path-stage-actions,
-  div.journal-toolbar,
-  div.profile-actions,
-  div.profile-inner .tab-rail {
+  div.relation-row-actions {
     display: none !important;
   }
 
@@ -53,11 +34,9 @@
   :root {
     --paper: #fff;
     --surface: #fff;
-    /* Screen grain/dither/chevron tokens are SVG data-URIs. Neutralize them
+    /* Screen grain/chevron tokens are SVG data-URIs. Neutralize them
        so print does not decode those payloads for a paper document. */
     --grain: none;
-    --dither: none;
-    --dither-paper: none;
     --select-chevron: none;
   }
 

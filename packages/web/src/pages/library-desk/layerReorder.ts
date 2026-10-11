@@ -97,13 +97,6 @@ export function layerEntryIds(
   return childrenOf(effectiveParent, snap.nodes).map((node) => node.id)
 }
 
-export function layerEntryTitle(snap: EditorSnapshot, nodeId: string): string {
-  if (nodeId === snap.root.id) return snap.root.title
-  const node = snap.nodes.find((candidate) => candidate.id === nodeId)
-  if (!node) return nodeId
-  return node.title || (node.kind === 'bookmark' ? node.url : nodeId)
-}
-
 function isStaleMoveError(err: unknown): boolean {
   return isProductApiError(err) && (
     err.code === 'precondition_failed'

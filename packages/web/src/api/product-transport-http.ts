@@ -46,7 +46,6 @@ function resolveBaseUrl(explicit?: string): string {
         : undefined
     if (env && String(env).trim()) return String(env).replace(/\/$/, '')
   } catch {
-    /* non-vite */
   }
   return ''
 }
@@ -88,7 +87,6 @@ function resolveOrigin(baseUrl: string): string | undefined {
     try {
       return new URL(baseUrl).origin
     } catch {
-      /* fall through */
     }
   }
   if (typeof window !== 'undefined' && window.location?.origin) {
@@ -217,6 +215,5 @@ export function createProductTransportHttp(
     if (opts.ifContentMatch) headers['If-Content-Match'] = opts.ifContentMatch
     return headers
   }
-
   return { origin, fetchImpl, request, mutationHeaders }
 }

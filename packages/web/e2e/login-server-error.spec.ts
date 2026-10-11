@@ -11,11 +11,12 @@ function json(route: Route, body: unknown, status = 200) {
 
 async function mockSignedOutLogin(page: Page) {
   await page.route('**/api/v1/session', (route) => json(route, { authenticated: false }))
-  await page.route('**/api/v1/auth/sign-in/email', (route) => json(route, {
+  await page.route('**/api/v1/auth/registration-state', (route) => json(route, { open: false, reason: 'closed' }))
+  await page.route('**/api/v1/auth/sign-in/username', (route) => json(route, {
     error: {
       code: 'invalid_credentials',
-      message: 'Invalid email or password',
-      requestId: 'req-login-toast',
+      message: 'Invalid username or password',
+      requestId: 'req-login-error',
       recovery: 'user_action',
       sameRequestRetrySafe: false,
       precondition: null,
@@ -26,39 +27,27 @@ async function mockSignedOutLogin(page: Page) {
   }, 401))
 }
 
-test('server sign-in failures toast and leave the login card height alone', async ({ page }) => {
+test('a rejected sign-in shows one inline alert, keeps the username and refocuses the password', async ({ page }) => {
   await mockSignedOutLogin(page)
   await page.goto('/login')
   const card = page.locator('.auth-card')
   await expect(card).toBeVisible()
 
   await page.getByRole('button', { name: 'Sign in', exact: true }).click()
-  await expect(page.locator('#login-email-error')).toHaveText('Enter your email.')
-  await expect(page.locator('.toast--error')).toHaveCount(0)
+  await expect(page.getByTestId('login-error')).toHaveText('Enter your username or email.')
 
-  await page.locator('#login-email').fill('ada@example.com')
+  await page.locator('#login-identifier').fill('ada')
   await page.locator('#login-password').fill('wrong-password')
-  await expect(page.locator('#login-email-error')).toHaveCount(0)
-  const filled = (await card.boundingBox())!.height
-
   await page.getByRole('button', { name: 'Sign in', exact: true }).click()
-  const toast = page.getByRole('alert')
-  await expect(toast).toBeVisible()
-  await expect(toast).toContainText('Incorrect email or password.')
-  await expect(toast).toHaveClass(/toast--error/)
-  await expect(toast.locator('.toast-icon [data-icon="alert"]')).toBeVisible()
-  await expect(toast.getByRole('button', { name: 'Dismiss notification' }).locator('[data-icon="cross"]')).toBeVisible()
-  await expect(card).not.toContainText('Incorrect email or password.')
-  await expect(page.locator('#login-server-error')).toHaveCount(0)
-  expect(Math.abs((await card.boundingBox())!.height - filled)).toBeLessThanOrEqual(2)
-
-  await expect(page.locator('.toast--error')).toHaveCount(0, { timeout: 15_000 })
+  const alert = page.getByTestId('login-error')
+  await expect(alert).toHaveText('Incorrect username or password.')
+  await expect(alert).toHaveCount(1)
+  await expect(card.getByRole('alert')).toHaveCount(1)
+  await expect(page.locator('.toast--error')).toHaveCount(0)
+  await expect(page.locator('#login-identifier')).toHaveValue('ada')
+  await expect(page.locator('#login-password')).toBeFocused()
 
   await page.setViewportSize({ width: 375, height: 720 })
-  const mobileBefore = (await card.boundingBox())!.height
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click()
-  await expect(page.locator('.toast--error')).toBeVisible()
-  await expect(page.locator('.toast--error')).toContainText('Incorrect email or password.')
-  await expect(card).not.toContainText('Incorrect email or password.')
-  expect(Math.abs((await card.boundingBox())!.height - mobileBefore)).toBeLessThanOrEqual(2)
+  await expect(alert).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })

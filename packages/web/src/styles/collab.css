@@ -1,8 +1,6 @@
-/* Collaboration, update review, and notifications — shared lazy-route
-   stylesheet (SHARED_ROUTE_STYLESHEETS in css-layers.contract.test.ts):
-   Collaborators (.collab-*), Notifications (.notif-*), the collection
-   editor's inspector (.publication-*), and DigestManage's collaborators
-   tab (the same .collab-invite / .collab-member* table). The generic
+/* Collaboration — shared lazy-route stylesheet (SHARED_ROUTE_STYLESHEETS
+   in css-layers.contract.test.ts): Collaborators (.collab-*) and the
+   collection settings sheet's publication block (.publication-*). The generic
    `.edit-form .field label` chrome that used to ride along here moved to
    workbench-chrome.css, where .edit-form lives. */
 
@@ -263,24 +261,6 @@
   overflow-wrap: anywhere;
 }
 
-/* Editor → digest bridge (R10-05/36): the "Publish as digest issue" block at
-   the foot of the inspector's metadata form. */
-.publication-digest {
-  margin-top: var(--space-4);
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--line);
-}
-
-.publication-digest .section-label {
-  margin: 0 0 var(--space-1);
-}
-
-.publication-note {
-  margin: 0 0 var(--space-3);
-  font-size: var(--text-sm);
-  color: var(--muted);
-}
-
 .publication-canonical a {
   color: var(--ink);
   text-decoration: underline;
@@ -293,78 +273,13 @@
   font-size: var(--text-xs);
 }
 
-/* —— Notifications —— */
-/* Toolbar grammar: one "Show:" pill instead of a chip row. */
-.notif-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.notif-list {
-  display: flex;
-  flex-direction: column;
-  margin-top: var(--space-4);
-  border-top: 1px solid var(--line);
-}
-
-/* Read rows are the quiet state: page background, regular-weight title. */
-.notif-item:not(.is-unread) .result-row-title {
-  font-weight: var(--weight-regular);
-  color: var(--ink-2);
-}
-
-/* Host modifier over the shared .result-row anatomy (cards-ui.css): the
-   fixed kind column keeps "Follow activity" and "Collection change" rows on
-   one title edge — an auto track would give every row a different one. The
-   widest pill ("Collection change", sentence case at 12px) is ~7.7rem, so
-   9rem holds it on one line (.chip--kind is nowrap). */
-.notif-item {
-  grid-template-columns: 9rem minmax(0, 1fr) auto;
-  align-items: center;
-  padding: var(--hair-90) var(--space-4);
-}
-
-.notif-item .result-row-meta {
-  white-space: nowrap;
-}
-
-.notif-panel {
-  margin-top: var(--space-4);
-}
-
-.notif-subject {
-  margin: 0;
-}
+/* —— Publication block on phones —— */
 
 @media (max-width: 639px) {
   .publication-visibility {
     width: 100%;
     display: flex;
     flex-wrap: wrap;
-  }
-
-  .notif-item {
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas:
-      'kind time'
-      'body body';
-    column-gap: var(--space-2);
-  }
-
-  .notif-item .chip--kind {
-    grid-area: kind;
-    align-self: center;
-  }
-
-  .notif-item .result-row-copy {
-    grid-area: body;
-  }
-
-  .notif-item .result-row-meta {
-    grid-area: time;
-    align-self: center;
   }
 }
 }

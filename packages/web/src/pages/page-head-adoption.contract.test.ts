@@ -1,12 +1,11 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { dirname, join, relative, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { collectLayeredRules, readStyle } from '../styles/dashboard-stack-cascade.test-helper'
+import { collectLayeredRules, readStyle } from '../styles/layered-css.test-helper'
 
 /**
  * RP3-claude-04: product pages with an editorial page head must use PageHead.
- * Auth / landing / share heroes stay on the allowlist — do not pin those
- * surfaces to PageHead.
+ * Auth cards stay on the allowlist — do not pin those surfaces to PageHead.
  *
  * The owner may live in a colocated view module (e.g. library-desk/view.tsx)
  * imported by the route file. Do not require a dummy import on the
@@ -16,23 +15,17 @@ import { collectLayeredRules, readStyle } from '../styles/dashboard-stack-cascad
 const pagesDir = resolve(import.meta.dirname)
 
 /** Route modules whose reachable page surface must import PageHead. */
-const MUST_USE_PAGEHEAD = ['library-desk/LibraryDesk.tsx', 'WriteApprovals.tsx', 'Reader.tsx'] as const
+const MUST_USE_PAGEHEAD = ['library-desk/LibraryDesk.tsx', 'WriteApprovals.tsx', 'ResourceDetail.tsx'] as const
 
 /**
- * Files that still ship a display h1 without PageHead. Auth/onboarding stay
- * on auth.css; Landing/Share are true heroes (R10-03: shrink-only to this
- * set). A new page that wants a display h1 must adopt PageHead instead of
- * joining this list.
+ * Files that may ship a display h1 without PageHead: the auth cards stay on
+ * auth-pages.css (R10-03: shrink-only to this set). A new page that wants a
+ * display h1 must adopt PageHead instead of joining this list.
  */
 const INTENTIONAL_H1_DISPLAY_WITHOUT_PAGEHEAD = [
   'AuthRecovery.tsx',
-  'EmailVerification.tsx',
-  'Landing.tsx',
-  'Login.tsx',
-  'Onboarding.tsx',
-  'PasswordReset.tsx',
-  'Register.tsx',
-  'Share.tsx',
+  'SelfHostedLogin.tsx',
+  'SelfHostedRegister.tsx',
 ] as const
 
 function pageFiles(): string[] {
@@ -85,7 +78,7 @@ function hasHandRolledDisplayH1(source: string): boolean {
 }
 
 describe('PageHead adoption (RP3-claude-04)', () => {
-  it('requires Library, WriteApprovals, and Reader surfaces to import PageHead', () => {
+  it('requires Library, WriteApprovals, and ResourceDetail surfaces to import PageHead', () => {
     for (const name of MUST_USE_PAGEHEAD) {
       const source = reachablePageSurface(name)
       expect(importsPageHead(source), `${name} surface must import PageHead`).toBe(true)
@@ -97,8 +90,8 @@ describe('PageHead adoption (RP3-claude-04)', () => {
     ).toBe(false)
   })
 
-  it('does not pin auth or landing heroes to PageHead', () => {
-    for (const name of ['Login.tsx', 'Register.tsx', 'Landing.tsx', 'Onboarding.tsx']) {
+  it('does not pin auth cards or the landing redirect to PageHead', () => {
+    for (const name of ['SelfHostedLogin.tsx', 'SelfHostedRegister.tsx', 'AuthRecovery.tsx', 'Landing.tsx']) {
       const source = readFileSync(resolve(pagesDir, name), 'utf8')
       expect(importsPageHead(source), `${name} must stay off PageHead`).toBe(false)
     }

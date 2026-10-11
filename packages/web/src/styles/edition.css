@@ -1,10 +1,10 @@
 /* ——— Self-hosted edition (COLP Server) ———
  *
  * The edition layer sits above utilities and below print. Every rule is
- * scoped to :root[data-edition='self-hosted'] (main.tsx, self-hosted-dist.mjs),
- * so the copied Know-N UI renders exactly as before. Palette, type scale, and
- * shadows are tokens (tokens.css); this file holds the component rules a token
- * cannot express. Use tokens only: no colour, duration, or spacing literals.
+ * scoped to :root[data-edition='self-hosted'] (index.html, main.tsx).
+ * Palette, type scale, and shadows are tokens (tokens.css); this file holds
+ * the component rules a token cannot express. Use tokens only: no colour,
+ * duration, or spacing literals.
  *
  * Colours stay Know-N's: nothing here recolours a surface, control, or state.
  * The edition changes layout and type only: a quieter top bar and rail,
@@ -104,6 +104,21 @@
   font-weight: var(--weight-semibold);
 }
 
+/* The smaller titles leave most cards at the 8.5rem floor (one title and
+   one description line on phones), so the off-screen placeholder shrinks to
+   match: a taller one collapses as cards render and pulls a Back scroll
+   restore off target. The size is the content box, without the padding and
+   hairlines: 8.5rem - 2rem - 2px on the board, 78px of copy on phones. */
+:root[data-edition='self-hosted'] .result-board .result-card {
+  contain-intrinsic-size: auto 6.375rem;
+}
+
+@media (max-width: 639px) {
+  :root[data-edition='self-hosted'] .result-board .result-card {
+    contain-intrinsic-size: auto 4.875rem;
+  }
+}
+
 /* ——— Settings ——— */
 
 :root[data-edition='self-hosted'] .settings-nav .tree-item {
@@ -122,7 +137,7 @@
 }
 
 /* ——— 404 ———
-   The cloud poster (giant parallax digits, corner words) becomes a plain
+   The upstream poster (giant parallax digits, corner words) becomes a plain
    centred notice: a small 404, the sentence, and the way back. */
 :root[data-edition='self-hosted'] .not-found-digits,
 :root[data-edition='self-hosted'] .not-found-corner {

@@ -30,7 +30,7 @@ it('keeps private notes retired if the old server cookie outlives local clearSes
   expect(document.querySelector('output')?.textContent).toBe('')
 })
 
-it('uses the current actor for anonymous and authenticated reads through both transports', async () => {
+it('uses the current actor for anonymous and authenticated reads', async () => {
   clearSession()
   const calls: RequestInit[] = []
   vi.stubGlobal('fetch', vi.fn(async (_url: unknown, init: RequestInit) => {
@@ -42,17 +42,14 @@ it('uses the current actor for anonymous and authenticated reads through both tr
     await productClient.loadAnnotations('shared', { resourceType: 'node', resourceId: 'node-1' }, { maxRetries: 0 })
     await productClient.searchResources({ q: 'title' }, { maxRetries: 0 })
     await transport.getPublicCollectionPage('shared')
-    await productClient.getFeedPage({}, { maxRetries: 0 })
-    await productClient.getNotificationPage({}, { maxRetries: 0 })
-    await productClient.getNotificationPreference({ maxRetries: 0 })
   }
   await read()
-  expect(calls).toHaveLength(6)
+  expect(calls).toHaveLength(3)
   expect(calls.every(call => call.credentials === 'omit')).toBe(true)
   calls.length = 0
   applySessionView({ authenticated: true, csrfToken: 'csrf-b', idleExpiresAt: '2099-01-01T00:00:00Z', absoluteExpiresAt: '2099-01-01T00:00:00Z' })
   await read()
-  expect(calls).toHaveLength(6)
+  expect(calls).toHaveLength(3)
   expect(calls.every(call => call.credentials === 'include')).toBe(true)
 })
 

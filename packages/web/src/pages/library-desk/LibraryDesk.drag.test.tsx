@@ -15,10 +15,6 @@ const mocks = vi.hoisted(() => ({
   loadEditorSnapshot: vi.fn(),
   loadAnnotations: vi.fn(async () => []),
   moveCollectionNode: vi.fn(),
-  listFollowedCollections: vi.fn(),
-  listFollowedReports: vi.fn(async () => ({ items: [], nextCursor: null })),
-  listMyReports: vi.fn(async () => ({ items: [], nextCursor: null })),
-  getFollowedReportIssuesPage: vi.fn(async () => ({ items: [], nextCursor: null })),
   getMyLibraryOrder: vi.fn(),
   updateMyLibraryOrder: vi.fn(),
   collections: {
@@ -66,10 +62,6 @@ vi.mock('../../api', async (importOriginal) => {
       loadEditorSnapshot: mocks.loadEditorSnapshot,
       loadAnnotations: mocks.loadAnnotations,
       moveCollectionNode: mocks.moveCollectionNode,
-      listFollowedCollections: mocks.listFollowedCollections,
-      listFollowedReports: mocks.listFollowedReports,
-      listMyReports: mocks.listMyReports,
-      getFollowedReportIssuesPage: mocks.getFollowedReportIssuesPage,
       getMyLibraryOrder: mocks.getMyLibraryOrder,
       updateMyLibraryOrder: mocks.updateMyLibraryOrder,
       newCommandId: () => '11111111-1111-4111-8111-111111111111',
@@ -219,7 +211,6 @@ function mount() {
       <LocationProbe />
       <Routes>
         <Route path="/library/:id?" element={<LibraryDesk />} />
-        <Route path="/read/:resourceId" element={<p data-testid="resource-route">Resource</p>} />
       </Routes>
     </MemoryRouter>,
   )
@@ -332,14 +323,12 @@ describe('LibraryDesk desktop bookmark drag', () => {
     stubDesktopMedia()
     mocks.auth.isLoggedIn = true
     mocks.auth.bootstrapping = false
-    window.__KNOWN_FLAGS__ = { readableReplica: true }
     mocks.collections.items = [collectionItem('col-1', 'Reading queue'), collectionItem('col-2', 'Second shelf')]
     mocks.shared.items = []
     mocks.loadEditorSnapshot.mockImplementation((id: string) =>
       Promise.resolve(snapshot(id, id === 'col-2' ? 'Second shelf' : 'Reading queue')))
     mocks.moveCollectionNode.mockImplementation(async (_collectionId: string, nodeId: string) =>
       moveResult(nodeId, 'root-col-1', 'col-1-folder', '2'))
-    mocks.listFollowedCollections.mockResolvedValue({ items: [], nextCursor: null })
     mocks.getMyLibraryOrder.mockResolvedValue({ sections: { mine: [], shared: [], following: [] } })
     mocks.updateMyLibraryOrder.mockResolvedValue({ section: 'mine', collectionIds: [] })
   })
@@ -415,19 +404,27 @@ describe('LibraryDesk desktop bookmark drag', () => {
     )
   })
 
-  it('keeps a sub-threshold press as a plain click that still navigates', async () => {
+  it('keeps a sub-threshold press as a plain click that still opens the source', async () => {
     mount()
     await waitForDom(domFinishedLoading)
 
     const link = rowLink('col-1-loose')
+    expect(link.getAttribute('href')).toBe('https://col-1-loose.example/')
     pointer('pointerdown', link, { x: 100, y: 100 })
     pointer('pointermove', link, { x: 102, y: 103 })
     expect(ghost()).toBeNull()
     pointer('pointerup', link, { x: 102, y: 103 })
-    act(() => link.click())
+    const click = new MouseEvent('click', { bubbles: true, cancelable: true })
+    // Stop at the document so happy-dom does not try to open the external page.
+    const stop = (event: Event) => event.stopPropagation()
+    document.addEventListener('click', stop, { capture: false })
+    try {
+      act(() => { link.dispatchEvent(click) })
+    } finally {
+      document.removeEventListener('click', stop)
+    }
 
-    expect(locationPath()).toBe('/read/col-1-loose')
-    expect(document.querySelector('[data-testid="resource-route"]')).not.toBeNull()
+    expect(click.defaultPrevented).toBe(false)
     expect(mocks.moveCollectionNode).not.toHaveBeenCalled()
   })
 

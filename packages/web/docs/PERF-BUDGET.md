@@ -4,27 +4,32 @@
 
 | Surface | Budget | Notes |
 |---------|--------|-------|
-| Homepage main JS (gzip) | ≤ 148 KB | Measured via `npm run build` (2026-08-20: **119.0 KB** with eager `Landing`; 2026-09-25: **156,743 bytes** measured by check:bundle-budget; 2026-09-28: **137,501 bytes** after R15-27 split the trust pages, ⌘K palette and badge hooks out) |
-| Entry linked CSS (sum, gzip) | ≤ 50 KB | All unique linked build stylesheets; split files cannot bypass the aggregate gate. |
-| Fonts | Self-hosted Latin variable + system CJK | Instrument Sans + Newsreader remain distributed through `@fontsource-variable`; Vite emits content-hashed `/assets/*.woff2` and nginx serves `/assets/` for one year with `immutable`. Controlled mobile A/B rejected font preloads. Noto SC is not on the first-paint path. |
+| Entry JS (gzip) | ≤ 148 KB | `npm run check:bundle-budget` after `npm run build`. 2026-10-11, after the self-hosted prune: **113,771 bytes**. |
+| Entry linked CSS (sum, gzip) | ≤ 50 KB | All unique linked build stylesheets; split files cannot bypass the aggregate gate. 2026-10-11: **26,924 bytes**. |
+| Fonts | Self-hosted Latin variable + system CJK | Instrument Sans + Newsreader are distributed through `@fontsource-variable`; Vite emits content-hashed `/assets/*.woff2`. No font is preloaded. Noto SC is not on the first-paint path. |
 
 ## Loading strategy
 
-1. **Self-hosted Latin fonts** — the existing `@fontsource-variable` CSS imports stay at the top of `main.tsx`, preserve `font-display: swap` and Unicode subsets, and flow through Vite's content-hashed asset pipeline. No font is preloaded: the controlled M-17 mobile A/B found zero preload consistently faster than the tested one- and two-font sets. CJK uses PingFang / YaHei / Songti (local Noto only if already installed).
-2. **Eager `Landing`** — `App.tsx` statically imports the homepage so the first visit does not wait on a second JS chunk. Other routes stay `lazy()`.
-3. **Route chunk prefetch** in `TopNav` — `pointerenter` / `focus` on nav links warms the lazy page module so View Transitions do not wait on the network.
+1. **Self-hosted Latin fonts** — the `@fontsource-variable` CSS imports stay at the top of `main.tsx`, preserve `font-display: swap` and Unicode subsets, and flow through Vite's content-hashed asset pipeline. No font is preloaded: the Know-N M-17 mobile A/B below found zero preload consistently faster than the tested one- and two-font sets. CJK uses PingFang / YaHei / Songti (local Noto only if already installed).
+2. **Eager `Landing`** — `/` is a redirect to `/library` or `/login`; `App.tsx` imports it statically so the first visit needs no second chunk. Every other route stays `lazy()`.
+3. **Route chunk prefetch** — `src/components/topnav/prefetch.ts` warms a lazy page module on `pointerenter` / `focus` of a nav link so View Transitions do not wait on the network.
 4. **Analyze mode** — `rollup-plugin-visualizer` loads only when `vite build --mode analyze`.
 
 ## How to check
 
 ```bash
-npm run check:bundle-budget   # gzip of the homepage entry chunk vs 148 KB
+npm run build
+npm run check:bundle-budget   # entry JS gzip vs 148 KB, linked CSS gzip vs 50 KB
 npm run analyze               # optional treemap at docs/bundle-stats.html
 ```
 
-`known-frontend-ci` static job runs `check:bundle-budget` after `npm run build`. If entry JS gzip exceeds 148 KB or linked CSS gzip exceeds 50 KB the job fails — shrink or re-split before merging.
+The `web` job in `colp-ci.yml` builds but does not run the budget check; run it locally before merging a change that adds an eager import or a global stylesheet.
 
-## M-17 initial local CWV evidence (2026-08-31, rejected preload A)
+## Know-N history
+
+The sections below were measured on Know-N's hosted frontend (its landing page, Explore, and an nginx `/assets/` policy) before this copy. Those pages and the commands' test files are gone here; the records stay because they are why no font is preloaded.
+
+### M-17 initial local CWV evidence (2026-08-31, rejected preload A)
 
 This is a local synthetic comparison, not production RUM and not a promise of a score increase. It used the same cached Chrome for Testing 149 binary, Lighthouse 12.8.2 mobile defaults (simulated throttling), a Vite production build, and `vite preview` at `http://127.0.0.1:4173`. Each row is one run, so score-level movement is noisy. The constructed collection slug had no local Product API behind preview; its loading/error path makes that row especially unsuitable for trend claims.
 
@@ -45,7 +50,7 @@ The single after sample regressed rather than improved. Do not present these sco
 
 Both rejected A preloads began during HTML parsing, alongside the stylesheet rather than after CSS evaluation. Waiting five seconds produced no font/preload/404 console warning. Lighthouse originally could not launch through the unavailable `npx` command (`command not found`), and an attempted unsupported `--chrome-path` flag ended with `Unable to connect to Chrome`; the successful runs used `npm exec --package lighthouse@12.8.2` and `CHROME_PATH=/home/whiten/.cache/ms-playwright/chromium-1228/chrome-linux64/chrome`. No score was substituted for either failed attempt.
 
-### Controlled font-preload A/B and final decision
+#### Controlled font-preload A/B and final decision
 
 The follow-up used one production build and one local static preview service. Only the marker-bounded preload links varied; JS, CSS, WOFF2 bytes, response behavior, Chrome 149, and Lighthouse 12.8.2 mobile simulated-throttling configuration stayed fixed. Each Lighthouse invocation used a fresh browser profile/cache. Homepage variants ran in interleaved orders `A/B/C/D`, `D/C/B/A`, and `B/D/A/C` to avoid assigning time drift to one variant:
 
@@ -76,11 +81,11 @@ The stable `/fonts` pipeline was therefore test-only and rejected. No runtime, b
 - retain Vite content-hashed `/assets/*.woff2` output and nginx's one-year immutable `/assets/` policy;
 - revisit only with production RUM or a cache-safe versioned design that demonstrates an FCP/LCP benefit.
 
-### Font assets, build, and licensing
+#### Font assets, build, and licensing
 
 The final untouched dependency pipeline owns licensing and distribution. A fresh production build emitted ten content-hashed WOFF2 files under `dist/assets/` (Instrument Sans Latin/Latin-ext normal+italic and Newsreader Latin/Latin-ext/Vietnamese normal+italic), no `dist/fonts/` directory, and no font preload in `dist/index.html`. The final homepage entry gzip is **142,211 bytes**, within the 180,000-byte budget. The temporary stable assets, notices, custom CSS, generator logic, tests, and CI wiring used while evaluating the candidate were removed before final verification.
 
-### Landing LCP and social image conclusions
+#### Landing LCP and social image conclusions
 
 No Landing typewriter change was justified. The first render already contains the complete static word `collection.`, the reduced-motion contract freezes that complete word, and both before and after Lighthouse identify the whole hero section—not a later injected character—as the LCP node. The existing Landing contract remains the regression guard.
 

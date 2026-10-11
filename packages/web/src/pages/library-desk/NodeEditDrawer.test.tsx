@@ -59,16 +59,6 @@ vi.mock('../../api', async (importOriginal) => {
       deleteAnnotation: mocks.deleteAnnotation,
       getAnnotation: mocks.getAnnotation,
       abandonAnnotationIntent: mocks.abandonAnnotationIntent,
-      uploadBookmarkFavicon: mocks.uploadBookmarkFavicon,
-      deleteBookmarkFavicon: mocks.deleteBookmarkFavicon,
-      getBookmarkFaviconSource: mocks.getBookmarkFaviconSource,
-      setBookmarkFaviconSource: mocks.setBookmarkFaviconSource,
-      getBookmarkPreviewMode: mocks.getBookmarkPreviewMode,
-      setBookmarkPreviewMode: mocks.setBookmarkPreviewMode,
-      listFollowedCollections: mocks.listFollowedCollections,
-      listFollowedReports: mocks.listFollowedReports,
-      listMyReports: mocks.listMyReports,
-      getFollowedReportIssuesPage: mocks.getFollowedReportIssuesPage,
       getMyLibraryOrder: mocks.getMyLibraryOrder,
       updateMyLibraryOrder: mocks.updateMyLibraryOrder,
       newCommandId: () => '11111111-1111-4111-8111-111111111111',
@@ -78,25 +68,6 @@ vi.mock('../../api', async (importOriginal) => {
 })
 
 const loadTree = vi.fn(async () => undefined)
-
-function faviconSource(overrides: Record<string, unknown> = {}) {
-  return {
-    collectionId: 'col-1',
-    nodeId: 'col-1-loose',
-    revision: '1',
-    policyRevision: '1',
-    sourceMode: 'inherit',
-    effectiveMode: 'capture',
-    iconUrl: null,
-    iconVersion: null,
-    directUrl: null,
-    status: 'missing',
-    restorable: false,
-    updatedAt: '2026-07-22T00:00:00.000Z',
-    etag: '"favicon-source:col-1-loose:1"',
-    ...overrides,
-  }
-}
 
 function annotation(overrides: Partial<AnnotationView> = {}): AnnotationView {
   return {
@@ -215,11 +186,6 @@ describe('Node edit drawer', () => {
     mocks.createAnnotation.mockResolvedValue(annotation())
     mocks.updateAnnotation.mockResolvedValue(annotation({ revision: 'revision-2' }))
     mocks.updateCollectionNode.mockResolvedValue({})
-    mocks.uploadBookmarkFavicon.mockResolvedValue({})
-    mocks.deleteBookmarkFavicon.mockResolvedValue({})
-    mocks.getBookmarkFaviconSource.mockResolvedValue(faviconSource())
-    mocks.setBookmarkFaviconSource.mockResolvedValue(faviconSource({ revision: '2' }))
-    mocks.getBookmarkPreviewMode.mockResolvedValue({ nodeId: 'col-1-loose', mode: 'auto', previewImage: null, etag: '"preview-mode:1"' })
   })
   afterEach(tearDownLibraryDesk)
 
@@ -331,15 +297,6 @@ describe('Node edit drawer', () => {
     expect(mocks.createAnnotation.mock.calls[0]![2]).toMatchObject({ value: 'Keep this draft' })
   })
 
-  it('reloads the Gallery snapshot after hiding a preview', async () => {
-    mocks.getBookmarkPreviewMode.mockResolvedValue({ nodeId: 'col-1-loose', mode: 'auto', previewImage: null, etag: '"preview-mode:1"' })
-    mocks.setBookmarkPreviewMode.mockResolvedValue({ nodeId: 'col-1-loose', mode: 'none', previewImage: null, etag: '"preview-mode:2"' })
-    mountDrawer()
-    await waitForDom(() => document.querySelector('[data-testid="preview-mode-control"]') !== null)
-    await act(async () => document.querySelector<HTMLInputElement>('[data-testid="preview-mode-control"] input[value="none"]')!.click())
-    expect(loadTree).toHaveBeenCalledWith('col-1', { silent: true })
-  })
-
   it('edits tags as chips: Enter commits, Backspace removes the last, and a chip has its own remove', async () => {
     mountDrawer()
     type('nd-tags', 'reading')
@@ -392,61 +349,11 @@ describe('Node edit drawer', () => {
     expect(mocks.createAnnotation.mock.calls[0]![2]).toMatchObject({ type: 'tldr', value: 'Folder-level takeaway' })
   })
 
-  it('hides favicon upload and the icon source on the self-hosted edition', async () => {
-    vi.stubEnv('VITE_EDITION', 'self-hosted')
-    try {
-      mountDrawer({ nodeId: 'col-1-loose' })
-      await waitForDom(domFinishedLoading)
-      expect(control('nd-url').value).toBe('https://loose.example')
-      expect(document.getElementById('nd-favicon')).toBeNull()
-      expect(mocks.getBookmarkFaviconSource).not.toHaveBeenCalled()
-    } finally {
-      vi.unstubAllEnvs()
-    }
-  })
-
-  it('sets the bookmark icon source with the server ETag and refreshes', async () => {
-    /* Server state, not a call-order queue: reads describe the stored source,
-       so StrictMode's remount re-reads the same pre-write revision. The write
-       flips the stored source, which is what the refetch must observe. */
-    let serverSource = faviconSource()
-    mocks.getBookmarkFaviconSource.mockImplementation(() => Promise.resolve(serverSource))
-    mocks.setBookmarkFaviconSource.mockImplementation(async () => {
-      serverSource = faviconSource({
-        revision: '2',
-        sourceMode: 'none',
-        effectiveMode: 'none',
-        etag: '"favicon-source:col-1-loose:2"',
-      })
-      return serverSource
-    })
-    mountDrawer()
+  it('offers no favicon upload or icon source: this server has no object storage', async () => {
+    mountDrawer({ nodeId: 'col-1-loose' })
     await waitForDom(domFinishedLoading)
-
-    const none = document.querySelector('input[value="none"]') as HTMLInputElement | null
-    expect(none).not.toBeNull()
-    expect((document.querySelector('input[value="inherit"]') as HTMLInputElement).checked).toBe(true)
-    const readsBeforeWrite = mocks.getBookmarkFaviconSource.mock.calls.length
-    act(() => none!.click())
-    await waitForDom(() => (document.querySelector('input[value="none"]') as HTMLInputElement).checked)
-
-    // The control GETs for the server ETag, PUTs with If-Match, then refetches:
-    // exactly one further source read lands after the write (the StrictMode
-    // remount read is already counted in the baseline), so neither a missing
-    // refetch nor a refetch loop passes.
-    expect(mocks.getBookmarkFaviconSource.mock.calls.length).toBe(readsBeforeWrite + 1)
-    expect(mocks.setBookmarkFaviconSource).toHaveBeenCalledWith(
-      'col-1',
-      'col-1-loose',
-      { sourceMode: 'none' },
-      '"favicon-source:col-1-loose:1"',
-      expect.objectContaining({
-        intentId: expect.stringContaining('set-favicon-source:col-1:col-1-loose'),
-        maxRetries: 0,
-      }),
-    )
-    expect((document.querySelector('input[value="none"]') as HTMLInputElement).checked).toBe(true)
-    expect((document.querySelector('input[value="inherit"]') as HTMLInputElement).checked).toBe(false)
+    expect(control('nd-url').value).toBe('https://loose.example')
+    expect(document.getElementById('nd-favicon')).toBeNull()
   })
 
   it('confirms before discarding unsaved edits on close', async () => {

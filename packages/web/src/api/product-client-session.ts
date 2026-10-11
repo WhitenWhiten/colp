@@ -43,7 +43,6 @@ export function createProductSessionClient(transport: ProductTransport): {
   bootstrapSession: (options?: ReadOptions) => Promise<{ session: SessionView; me: MeView | null }>
   deleteSession: (options?: ReadOptions) => Promise<void>
   updateMe: (body: UpdateMeRequest, options: MutationOptions) => Promise<MeView>
-  uploadAvatar: (file: File, options: MutationOptions) => Promise<MeView>
   mutationCall: MutationCall
   requireCsrf: () => Promise<string>
 } {
@@ -202,27 +201,12 @@ export function createProductSessionClient(transport: ProductTransport): {
     applyMeView(updated)
     return updated
   }
-
-  async function uploadAvatar(file: File, options: MutationOptions): Promise<MeView> {
-    const updated = await mutationCall(
-      (csrf, commandIntentId) => transport.uploadAvatar(file, {
-        csrfToken: csrf,
-        commandIntentId,
-        signal: options.signal,
-      }),
-      options,
-    )
-    applyMeView(updated)
-    return updated
-  }
-
   return {
     getSession,
     getMe,
     bootstrapSession,
     deleteSession,
     updateMe,
-    uploadAvatar,
     mutationCall,
     requireCsrf,
   }

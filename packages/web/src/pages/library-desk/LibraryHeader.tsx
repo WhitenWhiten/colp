@@ -11,7 +11,7 @@ import { StatusBadge, type StatusTone } from '../../components/StatusBadge'
 import type { FolderNode } from '../../lib/libraryTree'
 import { plural } from '../../lib/plural'
 import type { useMyCollaborationInvites } from '../../lib/useMyCollaborationInvites'
-import { collectionIsExpanded, followedKey, type LibraryDeskData } from './data'
+import { collectionIsExpanded, type LibraryDeskData } from './data'
 import { LibraryMoreMenu } from './menus'
 import type { LibraryDeskMutations } from './mutations'
 import { CollectionBranch } from './navTree'
@@ -28,13 +28,9 @@ function collectionVisibilityBadge(visibility: CollectionVisibility): { tone: St
 }
 
 export function LibraryHeader({
-  reading,
-  readingEnabled,
   folderId,
   bookmarkCount,
   collaboratorsLive,
-  collectionFollowExposed,
-  reportsExposed,
   showInviteNav,
   invites,
   data,
@@ -45,13 +41,9 @@ export function LibraryHeader({
   onAcceptInvite,
   onDeclineInvite,
 }: {
-  reading: boolean
-  readingEnabled: boolean
   folderId: string | null
   bookmarkCount: number
   collaboratorsLive: boolean
-  collectionFollowExposed: boolean
-  reportsExposed: boolean
   showInviteNav: boolean
   invites: ReturnType<typeof useMyCollaborationInvites>
   data: LibraryDeskData
@@ -65,7 +57,6 @@ export function LibraryHeader({
   const navigate = useNavigate()
   const {
     selectedId,
-    selectedFollowedSlug,
     selectedFolder,
     collection,
     caps,
@@ -73,31 +64,14 @@ export function LibraryHeader({
     folderPath,
   } = data
 
-  const heading = reading
-    ? 'Reading'
-    : selectedFolder?.title ?? collection?.title ?? 'Library'
-  const lede = reading
-    ? 'Saved bookmarks and reading progress, in one place.'
-    : selectedFolder
-      ? `${plural(bookmarkCount, 'bookmark')} in ${collection?.title ?? 'this collection'}.`
-      : collection
-        ? collection.summary || 'Bookmarks in this collection.'
-        : 'Collections you own and collections shared with you.'
+  const heading = selectedFolder?.title ?? collection?.title ?? 'Library'
+  const lede = selectedFolder
+    ? `${plural(bookmarkCount, 'bookmark')} in ${collection?.title ?? 'this collection'}.`
+    : collection
+      ? collection.summary || 'Bookmarks in this collection.'
+      : 'Collections you own and collections shared with you.'
 
   const onMobileChange = (value: string) => {
-    if (value === 'reading') {
-      navigate('/library?view=reading')
-      return
-    }
-    if (value.startsWith('following::')) {
-      const rest = value.slice('following::'.length)
-      const [slug, nextFolder] = rest.split('::')
-      if (!slug) return
-      navigate(nextFolder
-        ? `/library/following/${encodeURIComponent(slug)}?folder=${encodeURIComponent(nextFolder)}`
-        : `/library/following/${encodeURIComponent(slug)}`)
-      return
-    }
     const [nextCollection, nextFolder] = value.split('::')
     if (!nextCollection) return
     navigate(nextFolder
@@ -108,7 +82,7 @@ export function LibraryHeader({
   /* Standing inside a folder: the trail rides the page head's breadcrumb
      slot (above the title, the conventional spot) and climbs back level by
      level with the same language as the public collection page. */
-  const folderTrail = !reading && selectedFolder && collection
+  const folderTrail = selectedFolder && collection
     ? (
       <FolderTrail
         testId="library-folder-trail"
@@ -125,7 +99,7 @@ export function LibraryHeader({
     collection && (collection.visibility === 'public' || collection.visibility === 'unlisted')
       ? collection.publicationSlug
       : null
-  const visibilityBadge = !reading && collection && !selectedFollowedSlug
+  const visibilityBadge = collection
     ? collectionVisibilityBadge(collection.visibility)
     : null
 
@@ -133,12 +107,8 @@ export function LibraryHeader({
     <>
       <LibraryMobileNav
         heading={heading}
-        reading={reading}
-        readingEnabled={readingEnabled}
         folderId={folderId}
         collaboratorsLive={collaboratorsLive}
-        collectionFollowExposed={collectionFollowExposed}
-        reportsExposed={reportsExposed}
         showInviteNav={showInviteNav}
         invites={invites}
         data={data}
@@ -161,20 +131,16 @@ export function LibraryHeader({
         documentTitle={heading}
         actions={
           <>
-            {!reading && collection?.id && <SubscribeButton sourceType="collection" sourceId={collection.id} />}
-            {!reading && selectedId && (
+            {collection?.id && <SubscribeButton sourceType="collection" sourceId={collection.id} />}
+            {selectedId && (
               <LibraryMoreMenu
                 caps={caps}
                 selectedId={selectedId}
-                followedSlug={selectedFollowedSlug}
                 publicSlug={publicSlug}
                 collaboratorsLive={collaboratorsLive}
                 onCompose={openCompose}
                 onEditCollection={onEditCollection}
               />
-            )}
-            {reading && (
-              <Link to="/library/new" className="btn btn-primary btn-sm">New collection</Link>
             )}
           </>
         }
@@ -192,12 +158,8 @@ export function LibraryHeader({
 
 function LibraryMobileNav({
   heading,
-  reading,
-  readingEnabled,
   folderId,
   collaboratorsLive,
-  collectionFollowExposed,
-  reportsExposed,
   showInviteNav,
   invites,
   data,
@@ -207,12 +169,8 @@ function LibraryMobileNav({
   onDeclineInvite,
 }: {
   heading: string
-  reading: boolean
-  readingEnabled: boolean
   folderId: string | null
   collaboratorsLive: boolean
-  collectionFollowExposed: boolean
-  reportsExposed: boolean
   showInviteNav: boolean
   invites: ReturnType<typeof useMyCollaborationInvites>
   data: LibraryDeskData
@@ -225,10 +183,8 @@ function LibraryMobileNav({
   const dialogId = useId()
   const {
     selectedId,
-    selectedFollowedSlug,
     ownedSidebarItems,
     sharedSidebarItems,
-    availableFollowedItems,
     trees,
     expanded,
     userCollapsed,
@@ -238,10 +194,9 @@ function LibraryMobileNav({
   const reorderSection = order?.reorderSection ?? null
   const orderedOwned = order ? order.orderedOwnedItems : ownedSidebarItems
   const orderedShared = order ? order.orderedSharedItems : sharedSidebarItems
-  const orderedFollowed = order ? order.orderedFollowedItems : availableFollowedItems
 
   const isExpanded = (id: string) =>
-    collectionIsExpanded(id, expanded, reorderSection, selectedId, selectedFollowedSlug, userCollapsed)
+    collectionIsExpanded(id, expanded, reorderSection, selectedId, userCollapsed)
 
   const inviteCount = showInviteNav ? invites.items.length : 0
 
@@ -263,7 +218,7 @@ function LibraryMobileNav({
         onClick={() => setOpen(true)}
       >
         <span className="library-nav-icon" aria-hidden>
-          <Icon name={reading ? 'book' : 'folder'} />
+          <Icon name="folder" />
         </span>
         <span className="library-mobile-switcher-label">{heading}</span>
         {inviteCount > 0 && (
@@ -460,108 +415,10 @@ function LibraryMobileNav({
                 )}
               </>
             )}
-            {collectionFollowExposed && orderedFollowed.length > 0 && (
-              <>
-                <div className="library-mobile-nav-section-head">
-                  <p className="library-nav-sub">Following</p>
-                  {orderedFollowed.length >= 2 && order && (
-                    reorderSection === 'following' ? (
-                      <button
-                        type="button"
-                        className="chip chip--rail library-nav-section-action"
-                        data-testid="library-nav-following-done"
-                        onClick={() => order.finishReorder()}
-                      >
-                        Done
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        className="chip chip--rail library-nav-section-action library-nav-section-action--icon"
-                        data-testid="library-nav-following-reorder"
-                        aria-label="Reorder Following"
-                        title="Reorder"
-                        onClick={() => order.beginReorder('following')}
-                      >
-                        <Icon name="reorder" />
-                        <span>Reorder</span>
-                      </button>
-                    )
-                  )}
-                </div>
-                {reorderSection === 'following' && order ? (
-                  <ReorderableNavList
-                    ids={orderedFollowed.map((item) => item.collectionId)}
-                    items={orderedFollowed.map((item) => ({
-                      id: item.collectionId,
-                      label: item.title,
-                      node: (
-                        <CollectionBranch
-                          collection={{ id: followedKey(item.slug), title: item.title }}
-                          linkTo={`/library/following/${encodeURIComponent(item.slug)}`}
-                          folderLinkTo={(folder) =>
-                            `/library/following/${encodeURIComponent(item.slug)}?folder=${encodeURIComponent(folder)}`}
-                          selectedId={selectedId}
-                          folderId={folderId}
-                          expanded={false}
-                          tree={trees[followedKey(item.slug)]}
-                          onToggle={() => {}}
-                        />
-                      ),
-                    }))}
-                    active={true}
-                    disabled={orderedFollowed.length < 2}
-                    ariaLabel="Followed collections"
-                    onActivate={() => order.beginReorder('following')}
-                    onOrderChange={(ids) => order.setSectionIds('following', ids)}
-                    onDismiss={() => order.finishReorder()}
-                  />
-                ) : (
-                  <div role="list" aria-label="Following">
-                  {orderedFollowed.map((item) => (
-                    <CollectionBranch
-                      listItem
-                      key={item.collectionId}
-                      collection={{ id: followedKey(item.slug), title: item.title }}
-                      linkTo={`/library/following/${encodeURIComponent(item.slug)}`}
-                      folderLinkTo={(folder) =>
-                        `/library/following/${encodeURIComponent(item.slug)}?folder=${encodeURIComponent(folder)}`}
-                      selectedId={selectedId}
-                      folderId={folderId}
-                      expanded={isExpanded(followedKey(item.slug))}
-                      tree={trees[followedKey(item.slug)]}
-                      onToggle={() => toggleExpanded(followedKey(item.slug), isExpanded(followedKey(item.slug)))}
-                      onSelect={choose}
-                      selectValue={(folder) =>
-                        folder ? `following::${item.slug}::${folder}` : `following::${item.slug}`}
-                    />
-                  ))}
-                  </div>
-                )}
-              </>
-            )}
-            {readingEnabled && (
-              <div className="library-nav-group">
-                <button
-                  type="button"
-                  className="library-nav-reading"
-                  data-testid="library-mobile-reading"
-                  aria-current={reading ? 'page' : undefined}
-                  onClick={() => choose('reading')}
-                >
-                  <Icon name="book" />
-                  Reading
-                </button>
-              </div>
-            )}
         </div>
         <div className="library-mobile-foot">
           {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- react-router Link renders a native anchor; Enter fires onClick (close the sheet) natively */}
           <Link to="/library/new" className="btn btn-secondary btn-sm" onClick={() => setOpen(false)}>New collection</Link>
-          {reportsExposed && (
-            // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- react-router Link renders a native anchor; Enter fires onClick (close the sheet) natively
-            <Link to="/library/digests" className="btn btn-ghost btn-sm" onClick={() => setOpen(false)}>Your digests</Link>
-          )}
         </div>
       </Modal>
     </div>

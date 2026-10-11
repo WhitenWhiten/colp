@@ -89,21 +89,6 @@
   white-space: nowrap;
 }
 
-.brand-wordmark {
-  display: block;
-  width: auto;
-  height: 1.5em;
-}
-
-.brand-mark {
-  display: block;
-  flex-shrink: 0;
-  width: 1em;
-  height: 1em;
-  overflow: visible;
-  transition: transform var(--duration-state) var(--ease-quart);
-}
-
 .nav-links {
   display: none;
   align-items: center;
@@ -216,33 +201,6 @@
   transition: color var(--duration-fast) var(--ease-quart), border-color var(--duration-fast) var(--ease-quart), background var(--duration-fast) var(--ease-quart);
 }
 
-.nav-icon-btn {
-  position: relative;
-  display: grid;
-  place-items: center;
-  width: 2.25rem;
-  height: 2.25rem;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow: var(--shadow-xs);
-  color: var(--muted);
-  text-decoration: none;
-  font-size: var(--text-base);
-  transition: color var(--duration-fast) var(--ease-quart), border-color var(--duration-fast) var(--ease-quart), background var(--duration-fast) var(--ease-quart);
-}
-
-.nav-icon-btn .badge-dot,
-.bottom-nav-icon .badge-dot {
-  position: absolute;
-  top: var(--hair-20);
-  right: var(--hair-20);
-  width: 0.45rem;
-  height: 0.45rem;
-  border-radius: var(--radius-pill);
-  background: var(--danger);
-}
-
 /* .nav-icon-btn interaction states (color/border/background + glow) are owned
    by interactions.css — keep only .nav-search-compact here. */
 .nav-search-compact:hover {
@@ -253,9 +211,6 @@
 }
 
 @media (min-width: 720px) and (max-width: 1099px) {
-  .nav-link-rest {
-    display: none;
-  }
 
   .nav-search {
     display: none;
@@ -289,7 +244,6 @@
   }
 
   .nav-actions > .btn-ghost,
-  .nav-actions > .nav-icon-btn,
   .nav-actions > .account-menu,
   .nav-actions > .tools-menu {
     display: none;
@@ -335,13 +289,6 @@
     width: 2.75rem;
     height: 2.75rem;
   }
-
-  /* Same 2.75rem touch floor as the filter chips (owner: page-chrome.css);
-     this override belongs to the button's owner file (style-drift gate). */
-  .nav-icon-btn {
-    min-width: 2.75rem;
-    min-height: 2.75rem;
-  }
 }
 
 .nav-burger svg {
@@ -385,7 +332,7 @@
   animation: mobile-drawer-in var(--duration-spatial) var(--ease-out);
   /* The open drawer fills the fixed .topnav.is-menu-open overlay; let it
      shrink below its content and scroll itself so the account section
-     (Log out) stays reachable in short viewports (e.g. 844×390). */
+     (Sign out) stays reachable in short viewports (e.g. 844×390). */
   overflow-y: auto;
   /* Bottoming out must not chain to the page behind the drawer. */
   overscroll-behavior: contain;
@@ -689,8 +636,7 @@
    loading after the .nav-search-compact base geometry above (equal
    specificity), which the split would otherwise have inverted. */
 @media (pointer: coarse) {
-  .nav-search-compact,
-  .nav-icon-btn {
+  .nav-search-compact {
     width: 2.75rem;
     height: 2.75rem;
   }

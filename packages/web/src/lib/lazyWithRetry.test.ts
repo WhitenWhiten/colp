@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { importWithRetry, isChunkLoadError, reloadOnce } from './lazyWithRetry'
 
-const chunkError = () => new TypeError('Failed to fetch dynamically imported module: https://know-n.com/assets/Explore-abc.js')
+const chunkError = () => new TypeError('Failed to fetch dynamically imported module: https://colp.example/assets/Search-abc.js')
 const noSleep = () => Promise.resolve()
 
 describe('lazyWithRetry', () => {
@@ -24,7 +24,7 @@ describe('lazyWithRetry', () => {
       .mockRejectedValueOnce(chunkError())
       .mockResolvedValueOnce('module')
     const sleep = vi.fn((_ms: number) => noSleep())
-    await expect(importWithRetry('Explore', load, { sleep })).resolves.toBe('module')
+    await expect(importWithRetry('Search', load, { sleep })).resolves.toBe('module')
     expect(load).toHaveBeenCalledTimes(3)
     expect(sleep.mock.calls.map(([ms]) => ms)).toEqual([300, 1_000])
   })
@@ -33,21 +33,21 @@ describe('lazyWithRetry', () => {
     const reload = vi.fn()
     const load = vi.fn().mockRejectedValue(chunkError())
 
-    const pending = importWithRetry('Explore', load, { sleep: noSleep, reload })
+    const pending = importWithRetry('Search', load, { sleep: noSleep, reload })
     await vi.waitFor(() => expect(reload).toHaveBeenCalledTimes(1))
     expect(load).toHaveBeenCalledTimes(3)
     void pending
 
     // Same tab after the reload: the flag is set, so the error surfaces.
-    await expect(importWithRetry('Explore', load, { sleep: noSleep, reload })).rejects.toThrow(/dynamically imported/)
+    await expect(importWithRetry('Search', load, { sleep: noSleep, reload })).rejects.toThrow(/dynamically imported/)
     expect(reload).toHaveBeenCalledTimes(1)
   })
 
   it('clears the reload guard once the chunk loads', async () => {
     const reload = vi.fn()
-    expect(reloadOnce('Explore', reload)).toBe(true)
-    await importWithRetry('Explore', () => Promise.resolve('module'), { sleep: noSleep, reload })
-    expect(reloadOnce('Explore', reload)).toBe(true)
+    expect(reloadOnce('Search', reload)).toBe(true)
+    await importWithRetry('Search', () => Promise.resolve('module'), { sleep: noSleep, reload })
+    expect(reloadOnce('Search', reload)).toBe(true)
     expect(reload).toHaveBeenCalledTimes(2)
   })
 
@@ -56,7 +56,7 @@ describe('lazyWithRetry', () => {
     vi.spyOn(window, 'sessionStorage', 'get').mockImplementation(() => {
       throw new Error('denied')
     })
-    expect(reloadOnce('Explore', reload)).toBe(false)
+    expect(reloadOnce('Search', reload)).toBe(false)
     expect(reload).not.toHaveBeenCalled()
     vi.restoreAllMocks()
   })

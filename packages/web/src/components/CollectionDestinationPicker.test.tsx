@@ -469,35 +469,4 @@ describe('CollectionDestinationPicker', () => {
     const link = document.querySelector<HTMLAnchorElement>('a[href="/library/new"]')
     expect(link?.textContent).toContain('New collection')
   })
-
-  it('picks an owned collection immediately in collection mode without loading folders', () => {
-    const onPick = vi.fn()
-    mountTree(
-      <MemoryRouter>
-        <CollectionDestinationPicker
-          mode="collection"
-          owned={[
-            collectionItem('col-a', 'AI links', true),
-            collectionItem('col-b', 'Later', false),
-          ]}
-          shared={[collectionItem('col-c', 'Shared shelf', true)]}
-          onPick={onPick}
-          onClose={() => {}}
-        />
-      </MemoryRouter>,
-    )
-    const picker = document.querySelector('[data-testid="destination-picker"]')
-    expect(picker?.getAttribute('data-mode')).toBe('collection')
-    expect(destinationLabels().some((label) => label?.includes('AI links'))).toBe(true)
-    expect(destinationLabels().some((label) => label?.includes('Later'))).toBe(true)
-    expect(destinationLabels().some((label) => label?.includes('Shared shelf'))).toBe(false)
-    clickDestination('AI links')
-    expect(mocks.loadEditorSnapshot).not.toHaveBeenCalled()
-    expect(onPick).toHaveBeenCalledWith({
-      collectionId: 'col-a',
-      parentId: 'root-col-a',
-      collectionTitle: 'AI links',
-      parentTitle: null,
-    })
-  })
 })

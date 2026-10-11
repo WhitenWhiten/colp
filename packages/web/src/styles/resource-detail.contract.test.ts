@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { collectLayeredRules, readStyle } from './dashboard-stack-cascade.test-helper'
+import { collectLayeredRules, readStyle } from './layered-css.test-helper'
 
 /**
  * Resource detail layout contract.
  *
  * The head is a link card: its copy dissolves into one card grid so the
- * mark sits beside the host line and the actions and vote pill share a
- * hairline footer rail at every width (no masthead action column to
+ * mark sits beside the host line and the actions sit on a hairline footer
+ * rail at every width (no masthead action column to
  * squeeze the title at tablet widths).
  *
  * The relation create form's four-column grid needs ~40rem of track; at
@@ -22,10 +22,10 @@ describe('resource detail layout contract', () => {
     const copy = rules.find((rule) => rule.selector === '.resource-head .page-head-copy' && !rule.media)
     expect(copy, 'the card copy must dissolve into the card grid').toBeTruthy()
     expect(copy!.body).toMatch(/display:\s*contents/)
-    for (const selector of ['.resource-head .page-head-actions', '.resource-head .page-head-stats']) {
-      const rail = rules.find((rule) => rule.selector === selector && !rule.media && /border-top:\s*1px solid/.test(rule.body))
-      expect(rail, `${selector} rides the hairline footer rail`).toBeTruthy()
-    }
+    const rail = rules.find((rule) => (
+      rule.selector === '.resource-head .page-head-actions' && !rule.media && /border-top:\s*1px solid/.test(rule.body)
+    ))
+    expect(rail, 'the actions ride the hairline footer rail').toBeTruthy()
   })
 
   it('waits for the 1100px measure before the four-column relation form', () => {

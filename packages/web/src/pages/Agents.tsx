@@ -16,10 +16,7 @@ import { EmptyState } from '../components/EmptyState'
 import { PageHead } from '../components/PageHead'
 import { PageShell } from '../components/PageShell'
 import { formatDateTime } from '../lib/formatDate'
-import { isSelfHostedEdition } from '../lib/edition'
 import { loginPath } from '../lib/chrome'
-import mcpMarkdown from '../../content/agent-public/mcp.md?raw'
-import { TrustDocument } from './TrustDocument'
 import '../styles/agents.css'
 
 function messageOf(error: unknown, fallback: string): string {
@@ -46,25 +43,6 @@ export function Agents({
   api?: AgentsApi
   origin?: string
 } = {}) {
-  if (!isSelfHostedEdition()) {
-    return (
-      <TrustDocument
-        markdown={mcpMarkdown}
-        eyebrow="Agents"
-        documentTitle="MCP"
-      />
-    )
-  }
-  return <AgentsPage api={api} origin={origin} />
-}
-
-export function AgentsPage({
-  api = agentsApi,
-  origin,
-}: {
-  api?: AgentsApi
-  origin?: string
-}) {
   const pageOrigin = origin ?? (typeof window === 'undefined' ? '' : window.location.origin)
   const connect = agentConnectCopy(pageOrigin)
   const { isLoggedIn, bootstrapping, user } = useAuth()
@@ -265,17 +243,17 @@ export function AgentsPage({
         eyebrow="Connect"
         title="Agents"
         documentTitle="Agents"
-        lede="Copy the MCP endpoint, connect Claude Code or Codex, or issue an API key. Trusted agents commit reversible plans without a click. Undo those plans on Approvals."
+        lede="Connect Claude Code or Codex, or issue an API key. Moves wait on Approvals unless you trust the agent; deletes and publishing always wait. Committed moves can be undone there, and every committed plan leaves a version in the collection's History."
       />
 
       <div className="agents-stack">
         <section className="agents-block" aria-labelledby="agents-endpoint">
           <h2 id="agents-endpoint">Endpoint</h2>
           <p className="agents-meta">
-            Hosted agents and OAuth clients need HTTPS. Local API-key scripts also work on explicitly acknowledged HTTP. Clients that speak MCP 2025-11-25 use the compatibility endpoint. Clients that speak MCP 2026-07-28 use the strict endpoint.
+            Claude Code and Codex use the compatibility endpoint, over HTTPS or this server&apos;s local HTTP address. Clients that speak MCP 2026-07-28 can use the strict endpoint.
           </p>
           <h3>Claude Code</h3>
-          <p className="agents-meta">OAuth. The browser opens this server&apos;s consent page. MCP 2025-11-25 uses the compatibility URL.</p>
+          <p className="agents-meta">OAuth. The login command opens this server: sign in, then approve on the consent page.</p>
           <pre className="agents-code">{connect.claude}</pre>
           <div className="agents-actions">
             <button type="button" className="btn btn-secondary btn-sm" onClick={() => void copyText(connect.claude)}>
@@ -283,14 +261,17 @@ export function AgentsPage({
             </button>
           </div>
           <h3>Codex</h3>
-          <p className="agents-meta">Codex and other clients that speak MCP 2026-07-28 use the strict endpoint.</p>
+          <p className="agents-meta">OAuth, like Claude Code. For <code>codex exec</code>, also set <code>default_tools_approval_mode = &quot;approve&quot;</code> for this server in <code>~/.codex/config.toml</code>; changes still wait on Approvals.</p>
           <pre className="agents-code">{connect.codex}</pre>
           <div className="agents-actions">
-            <button type="button" className="btn btn-secondary btn-sm" onClick={() => void copyText(connect.strictUrl)}>
-              {copied === connect.strictUrl ? 'Copied' : 'Copy strict endpoint'}
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => void copyText(connect.codex)}>
+              {copied === connect.codex ? 'Copied' : 'Copy Codex commands'}
             </button>
             <button type="button" className="btn btn-secondary btn-sm" onClick={() => void copyText(connect.compatUrl)}>
               {copied === connect.compatUrl ? 'Copied' : 'Copy compatibility endpoint'}
+            </button>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => void copyText(connect.strictUrl)}>
+              {copied === connect.strictUrl ? 'Copied' : 'Copy strict endpoint'}
             </button>
           </div>
           <h3>API key</h3>

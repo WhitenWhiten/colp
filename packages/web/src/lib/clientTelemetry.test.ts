@@ -19,11 +19,12 @@ describe('client telemetry', () => {
   it('reduces paths to route templates without slugs, handles or ids', () => {
     expect(routeTemplate('/')).toBe('/')
     expect(routeTemplate('/c/private-medical-notes')).toBe('/c/:param')
-    expect(routeTemplate('/u/alice')).toBe('/u/:param')
-    expect(routeTemplate('/reports/weekly/issues/ed-2')).toBe('/reports/:param/issues/:param')
+    expect(routeTemplate('/approvals/plan-7')).toBe('/approvals/:param')
     expect(routeTemplate('/library/new')).toBe('/library/new')
     expect(routeTemplate('/library/col-1/edit')).toBe('/library/:param/edit')
-    expect(routeTemplate('/explore')).toBe('/explore')
+    expect(routeTemplate('/agents')).toBe('/agents')
+    // A path this app does not serve still leaks nothing.
+    expect(routeTemplate('/u/alice')).toBe('/:param/:param')
   })
 
   it('sends nothing until installed (dev, tests)', () => {

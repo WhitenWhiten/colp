@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
   flattenBookmarks,
@@ -11,10 +11,7 @@ import { countTags, matchesTags, readTagParams, tagKey, writeTagParams, type Tag
 import { useBookmarkDrag } from '../../lib/useBookmarkDrag'
 import { PageShell } from '../../components/PageShell'
 import { useUiDensity } from '../../lib/useUiDensity'
-import type { useFollowedCollections } from '../../lib/useFollowedCollections'
-import type { useFollowedReports } from '../../lib/useFollowedReports'
 import type { useMyCollaborationInvites } from '../../lib/useMyCollaborationInvites'
-import type { useMyReports } from '../../lib/useMyReports'
 import type { useOwnedCollections } from '../../lib/useOwnedCollections'
 import type { useSharedCollections } from '../../lib/useSharedCollections'
 import { BookmarkArea } from './BookmarkArea'
@@ -31,19 +28,11 @@ import { useLibraryDeskSplit } from './split'
 import { LibraryBulkTagDialog, LibraryTagPicker, type LibraryTagFilter } from './tags'
 
 export type LibraryDeskViewProps = {
-  reading: boolean
-  readingPane: ReactNode
-  readingEnabled: boolean
   folderId: string | null
   collaboratorsLive: boolean
-  collectionFollowExposed: boolean
-  reportsExposed: boolean
   showInviteNav: boolean
   collections: ReturnType<typeof useOwnedCollections>
   shared: ReturnType<typeof useSharedCollections>
-  followed: ReturnType<typeof useFollowedCollections>
-  digests: ReturnType<typeof useFollowedReports>
-  myDigests: ReturnType<typeof useMyReports>
   invites: ReturnType<typeof useMyCollaborationInvites>
   data: LibraryDeskData
   order: LibraryDeskOrder
@@ -58,19 +47,11 @@ export type LibraryDeskViewProps = {
 }
 
 export function LibraryDeskView({
-  reading,
-  readingPane,
-  readingEnabled,
   folderId,
   collaboratorsLive,
-  collectionFollowExposed,
-  reportsExposed,
   showInviteNav,
   collections,
   shared,
-  followed,
-  digests,
-  myDigests,
   invites,
   data,
   order,
@@ -104,7 +85,7 @@ export function LibraryDeskView({
 
   useEffect(() => {
     setQuery('')
-  }, [selectedId, folderId, reading])
+  }, [selectedId, folderId])
 
   /* Tags cut across folders: choosing one leaves the folder for a flat view
      of the whole collection, and the choice lives in the URL (?tag=…). */
@@ -173,7 +154,7 @@ export function LibraryDeskView({
     return immediateEntries(snap.root, snap.nodes, folderId).bookmarks.map((node) => node.id)
   }, [bookmarks, filtering, folderId, snap])
 
-  const dragEnabled = !reading && !data.selectedFollowedSlug && Boolean(caps?.moveNode)
+  const dragEnabled = Boolean(caps?.moveNode)
 
   // Desktop-only drag of bookmark rows onto sidebar folders / the current
   // collection root. Drops append (afterId/beforeId null) through the same
@@ -222,17 +203,10 @@ export function LibraryDeskView({
       <div className="library-desk" style={split.style}>
         <LibrarySidebar
           folderId={folderId}
-          reading={reading}
-          readingEnabled={readingEnabled}
           collaboratorsLive={collaboratorsLive}
-          collectionFollowExposed={collectionFollowExposed}
-          reportsExposed={reportsExposed}
           showInviteNav={showInviteNav}
           collections={collections}
           shared={shared}
-          followed={followed}
-          digests={digests}
-          myDigests={myDigests}
           invites={invites}
           data={data}
           order={order}
@@ -240,7 +214,7 @@ export function LibraryDeskView({
           selectMode={selectMode}
           onAcceptInvite={onAcceptInvite}
           onDeclineInvite={onDeclineInvite}
-          tagFilter={reading ? null : tagFilter}
+          tagFilter={tagFilter}
           onShowAllTags={() => setTagPickerOpen(true)}
         />
         <div
@@ -253,13 +227,9 @@ export function LibraryDeskView({
         <div className="library-desk-stack" data-testid="library-desk-stack">
           <div className="library-main" data-testid="library-main">
             <LibraryHeader
-              reading={reading}
-              readingEnabled={readingEnabled}
               folderId={folderId}
               bookmarkCount={bookmarks.length}
               collaboratorsLive={collaboratorsLive}
-              collectionFollowExposed={collectionFollowExposed}
-              reportsExposed={reportsExposed}
               showInviteNav={showInviteNav}
               invites={invites}
               data={data}
@@ -270,48 +240,46 @@ export function LibraryDeskView({
               onAcceptInvite={onAcceptInvite}
               onDeclineInvite={onDeclineInvite}
             />
-            {reading ? readingPane : (
-              <BookmarkArea
-                query={query}
-                setQuery={setQuery}
-                filtering={filtering}
-                tagFilter={tagFilter}
-                onShowAllTags={() => setTagPickerOpen(true)}
-                compact={compact}
-                folderId={folderId}
-                collections={collections}
-                shared={shared}
-                data={data}
-                order={order}
-                layerReorder={layerReorder}
-                selection={selection}
-                mutations={mutations}
-                bookmarks={bookmarks}
-                deskTrail={deskTrail}
-                dragEnabled={dragEnabled}
-                rowPointerDown={drag.rowPointerDown}
-                onEditNode={onEditNode}
-                onEditCollection={onEditCollection}
-                bulkBar={(
-                  <BulkActionBar
-                    mounted={bulkbarMounted}
-                    closing={bulkbarClosing}
-                    bulk={bulk}
-                    selectedNodes={selectedNodes}
-                    canMove={Boolean(caps?.moveNode)}
-                    canDelete={Boolean(caps?.deleteNode)}
-                    canTag={Boolean(caps?.updateNode) && !data.selectedFollowedSlug}
-                    onMove={(nodes) => setPicker({ mode: 'move', nodes })}
-                    onTag={setBulkTagging}
-                    onCopy={(nodes) => setPicker({ mode: 'copy', nodes })}
-                    onDelete={(nodes) => void requestDelete(nodes)}
-                    onCancel={exitSelectMode}
-                    selectAll={selectAll}
-                    layerBookmarkIds={layerBookmarkIds}
-                  />
-                )}
-              />
-            )}
+            <BookmarkArea
+              query={query}
+              setQuery={setQuery}
+              filtering={filtering}
+              tagFilter={tagFilter}
+              onShowAllTags={() => setTagPickerOpen(true)}
+              compact={compact}
+              folderId={folderId}
+              collections={collections}
+              shared={shared}
+              data={data}
+              order={order}
+              layerReorder={layerReorder}
+              selection={selection}
+              mutations={mutations}
+              bookmarks={bookmarks}
+              deskTrail={deskTrail}
+              dragEnabled={dragEnabled}
+              rowPointerDown={drag.rowPointerDown}
+              onEditNode={onEditNode}
+              onEditCollection={onEditCollection}
+              bulkBar={(
+                <BulkActionBar
+                  mounted={bulkbarMounted}
+                  closing={bulkbarClosing}
+                  bulk={bulk}
+                  selectedNodes={selectedNodes}
+                  canMove={Boolean(caps?.moveNode)}
+                  canDelete={Boolean(caps?.deleteNode)}
+                  canTag={Boolean(caps?.updateNode)}
+                  onMove={(nodes) => setPicker({ mode: 'move', nodes })}
+                  onTag={setBulkTagging}
+                  onCopy={(nodes) => setPicker({ mode: 'copy', nodes })}
+                  onDelete={(nodes) => void requestDelete(nodes)}
+                  onCancel={exitSelectMode}
+                  selectAll={selectAll}
+                  layerBookmarkIds={layerBookmarkIds}
+                />
+              )}
+            />
           </div>
         </div>
       </div>
@@ -340,7 +308,7 @@ export function LibraryDeskView({
           void runTag(nodes, change)
         }}
       />
-      <LibraryTagPicker open={tagPickerOpen && !reading} onClose={() => setTagPickerOpen(false)} filter={tagFilter} />
+      <LibraryTagPicker open={tagPickerOpen} onClose={() => setTagPickerOpen(false)} filter={tagFilter} />
 
       <LibraryOverlays
         collections={collections}

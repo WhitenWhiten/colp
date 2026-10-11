@@ -7,12 +7,25 @@ import type { SessionView } from '../../api/types'
 import { ToastProvider } from '../AppToast'
 import { SubscribeButton } from './SubscribeButton'
 const bridge = vi.hoisted(() => ({ open: vi.fn(), store: null as string | null }))
+const gate = vi.hoisted(() => ({ on: true }))
+// D8 (0.2.0) turns the control on; these tests exercise it as D8 will ship it.
+vi.mock('../../lib/edition', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../lib/edition')>()),
+  get subscribeInBrowserEnabled() { return gate.on },
+}))
 vi.mock('../../lib/bookmarkSubscriptionBridge', () => ({ openBookmarkSubscription: bridge.open, subscriptionDeployment: () => ({ extensionId: null, storeUrl: bridge.store }) }))
 const button = (label: string) => Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find(item => item.textContent === label)
 const click = async (label: string) => { const node = button(label); expect(node).toBeTruthy(); await act(async () => { node!.click() }) }
 const mount = () => mountTree(<div className="page-head"><div className="page-head-actions"><SubscribeButton sourceType="collection" sourceId="col-1" /></div></div>, { route: '/c/reading?view=list', wrapper: ToastProvider })
-beforeEach(() => { bridge.open.mockReset(); bridge.store = null })
+beforeEach(() => { bridge.open.mockReset(); bridge.store = null; gate.on = true })
 afterEach(cleanup)
+
+it('renders nothing until D8 turns browser subscriptions on', () => {
+  gate.on = false
+  mount()
+  expect(document.querySelector('[data-testid="subscribe-control"]')).toBeNull()
+  expect(document.querySelectorAll('button')).toHaveLength(0)
+})
 
 it('keeps the masthead row to buttons and moves setup guidance into a dialog when the extension is unavailable', async () => {
   bridge.open.mockResolvedValue('unavailable')

@@ -46,10 +46,6 @@ vi.mock('../../api', async (importOriginal) => {
       createCollectionNode: mocks.createCollectionNode,
       moveCollectionNode: mocks.moveCollectionNode,
       deleteCollectionNode: mocks.deleteCollectionNode,
-      listFollowedCollections: mocks.listFollowedCollections,
-      listFollowedReports: mocks.listFollowedReports,
-      listMyReports: mocks.listMyReports,
-      getFollowedReportIssuesPage: mocks.getFollowedReportIssuesPage,
       getMyLibraryOrder: mocks.getMyLibraryOrder,
       updateMyLibraryOrder: mocks.updateMyLibraryOrder,
       newCommandId: () => '11111111-1111-4111-8111-111111111111',
@@ -62,49 +58,10 @@ describe('LibraryDesk', () => {
   beforeEach(setUpLibraryDesk)
   afterEach(tearDownLibraryDesk)
 
-  it('keeps a moderation-hidden followed digest in the sidebar as an inert row', async () => {
-    window.__KNOWN_FLAGS__ = { reports: true }
-    /* The two series below are the list endpoint's steady state, so they are
-       the base implementation: StrictMode's mount → cleanup → mount walk reads
-       the first page twice, and a single queued page would leave the second
-       mount (and therefore the sidebar) empty. */
-    mocks.listFollowedReports.mockResolvedValue({
-      items: [
-        {
-          id: 'series-hidden', ownerSubjectId: 'owner-1', title: 'Digest hidden', summary: null,
-          slug: null, visibility: 'public', allowSearchIndexing: false, state: 'active',
-          resourceRevision: 'r1', contentRevision: 'c1', policyRevision: 'p1',
-          followedAt: '2026-08-25T00:00:00.000Z', updatedAt: '2026-08-25T00:00:00.000Z',
-          hiddenPublic: true,
-        },
-        {
-          id: 'series-live', ownerSubjectId: 'owner-1', title: 'Weekly notes', summary: null,
-          slug: 'weekly-notes', visibility: 'public', allowSearchIndexing: true, state: 'active',
-          resourceRevision: 'r2', contentRevision: 'c2', policyRevision: 'p2',
-          followedAt: '2026-08-26T00:00:00.000Z', updatedAt: '2026-08-26T00:00:00.000Z',
-        },
-      ],
-      nextCursor: null,
-    })
-    mount()
-    await waitForDom(() => document.querySelector('[data-testid="library-nav-digests"]') != null)
-    const nav = document.querySelector('[data-testid="library-nav-digests"]')!
-    const tombstone = nav.querySelector('[data-digest-hidden]')!
-    expect(tombstone.querySelector('a')).toBeNull()
-    expect(tombstone.querySelector('span.library-nav-label')?.textContent).toBe('Digest hidden')
-    expect(nav.querySelector('a[href="/reports/weekly-notes"]')).not.toBeNull()
-    // R12-14: same section anatomy as the collection sections — a
-    // collapsible head and an icon row for the create entry.
-    expect(nav.querySelector('button[aria-controls="library-nav-section-digests"]')?.textContent).toBe('Digests')
-    expect(nav.querySelector('a[href="/library/digests?new=1"] [data-icon="plus"]')).not.toBeNull()
-    await waitForDom(domFinishedLoading)
-  })
-
   it('shows bookmarks first and keeps edit behind More', async () => {
     mount()
     await waitForDom(domFinishedLoading)
     expect(document.querySelector('[data-testid="library-workspace"]')).not.toBeNull()
-    expect(document.querySelector('a[href="/library?view=reading"] [data-icon="book"]')).not.toBeNull()
     // Root layer, public-page style: the Later folder is a row, its nested
     // bookmark stays behind it instead of flattening out.
     expect(document.querySelector('[data-testid="library-main"] [data-collection-subfolder]')?.textContent).toContain('Later')

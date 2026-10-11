@@ -10,7 +10,6 @@ import type {
 
 export function createAnnotationsTransport(http: ProductTransportHttp) {
   const { request, mutationHeaders } = http
-
   return {
     async listAnnotations(collectionId: string, params: AnnotationSubjectParams) {
       const query: Record<string, string | number | undefined> = {

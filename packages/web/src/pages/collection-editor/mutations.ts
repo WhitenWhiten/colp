@@ -24,8 +24,6 @@ import { useNodeAnnotationDraft } from '../../lib/useNodeAnnotationDraft'
 import { childrenOf, etagForDelete, parentRevision, resolveEditableNode } from './treeModel'
 import type { CursorRecoveryReason, EditorBanner, LoadState } from './types'
 
-const BOOKMARK_FAVICON_MAX_BYTES = 65536
-
 /** `a, b` ⇄ ["a", "b"] — shared with the desk drawer's node editor. */
 function tagsFromInput(value: string): string[] {
   return value.split(',').map((tag) => tag.trim()).filter((tag) => tag.length > 0)
@@ -33,11 +31,6 @@ function tagsFromInput(value: string): string[] {
 
 function tagsToInput(tags: readonly string[]): string {
   return tags.join(', ')
-}
-
-function isDeclaredRejectedFaviconType(type: string): boolean {
-  const declared = type.trim().toLowerCase()
-  return declared.includes('svg') || declared.includes('gif') || declared.includes('html')
 }
 
 export function useCollectionEditorMutations(options: {
@@ -446,81 +439,6 @@ export function useCollectionEditorMutations(options: {
     }
   }
 
-  const onUploadFavicon = async (file: File | undefined) => {
-    if (!file || !snap || !selectedNode || selectedNode.kind !== 'bookmark' || !selectedNode.id) return
-    if (!caps?.updateNode || selectedNode.readOnly) return
-    if (file.size > BOOKMARK_FAVICON_MAX_BYTES) {
-      error('Favicon must be 65536 bytes or smaller')
-      return
-    }
-    if (isDeclaredRejectedFaviconType(file.type)) {
-      error('Favicon cannot be SVG, GIF, or HTML')
-      return
-    }
-    const operationCollectionId = snap.collection.id
-    const nodeId = selectedNode.id
-    const controller = startMutation()
-    try {
-      const intentId = productClient.mutationIntentKey(
-        `upload-favicon:${snap.collection.id}:${nodeId}`,
-        productClient.newCommandId(),
-      )
-      const updated = await productClient.uploadBookmarkFavicon(
-        snap.collection.id,
-        nodeId,
-        file,
-        { intentId, signal: controller.signal },
-      )
-      if (!mutationIsCurrent(controller, operationCollectionId)) return
-      preserveEditDraftRef.current = true
-      setLoad({
-        status: 'ready',
-        snap: {
-          ...snap,
-          nodes: snap.nodes.map((node) => (node.id === updated.id ? updated : node)),
-        },
-      })
-      success('Favicon updated')
-    } catch (err) {
-      await handleProductError(err, 'Upload favicon', controller, operationCollectionId)
-    } finally {
-      finishMutation(controller, operationCollectionId)
-    }
-  }
-
-  const onDeleteFavicon = async () => {
-    if (!snap || !selectedNode || selectedNode.kind !== 'bookmark' || !selectedNode.id) return
-    if (!caps?.updateNode || selectedNode.readOnly) return
-    const operationCollectionId = snap.collection.id
-    const nodeId = selectedNode.id
-    const controller = startMutation()
-    try {
-      const intentId = productClient.mutationIntentKey(
-        `delete-favicon:${snap.collection.id}:${nodeId}`,
-        productClient.newCommandId(),
-      )
-      const updated = await productClient.deleteBookmarkFavicon(
-        snap.collection.id,
-        nodeId,
-        { intentId, signal: controller.signal },
-      )
-      if (!mutationIsCurrent(controller, operationCollectionId)) return
-      preserveEditDraftRef.current = true
-      setLoad({
-        status: 'ready',
-        snap: {
-          ...snap,
-          nodes: snap.nodes.map((node) => (node.id === updated.id ? updated : node)),
-        },
-      })
-      success('Favicon removed')
-    } catch (err) {
-      await handleProductError(err, 'Remove favicon', controller, operationCollectionId)
-    } finally {
-      finishMutation(controller, operationCollectionId)
-    }
-  }
-
   const onMove = async (node: EditableNodeView, dir: -1 | 1) => {
     if (!snap || !caps?.moveNode || node.readOnly) return
     const siblings = childrenOf(node.parentId, snap.nodes)
@@ -678,8 +596,6 @@ export function useCollectionEditorMutations(options: {
     onSaveMeta,
     onCreateNode,
     onSaveNode,
-    onUploadFavicon,
-    onDeleteFavicon,
     onMove,
     onDelete,
   }

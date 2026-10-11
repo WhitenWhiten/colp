@@ -69,12 +69,9 @@ const AA = 4.5
 
 describe('semantic faint contrast (WCAG AA)', () => {
   const tokens = readStyle('tokens.css')
-  const themes = readStyle('desk-themes.css')
 
   const palettes: Array<{ name: string; tokens: Map<string, string> }> = [
     { name: ':root', tokens: tokenMap(ruleBody(tokens, ':root')) },
-    { name: '.tile-theme-ink', tokens: tokenMap(ruleBody(themes, '.tile-theme-ink')) },
-    { name: '.tile-theme-mist', tokens: tokenMap(ruleBody(themes, '.tile-theme-mist')) },
   ]
 
   it.each(palettes)('$name --faint is ≥4.5:1 on --surface and --paper', ({ tokens: map }) => {

@@ -6,7 +6,6 @@ import {
   folderAncestors,
   folderTotals,
   immediateEntries,
-  publicCollectionTreeEdges,
   type PublicCollectionFolder,
 } from './publicCollectionTree'
 
@@ -212,8 +211,8 @@ describe('folderTotals', () => {
   })
 })
 
-describe('publicCollectionTreeEdges', () => {
-  it('connects adjacent bookmarks along the position-sorted tree walk', () => {
+describe('flattenPublicCollection order', () => {
+  it('lists bookmarks along the position-sorted tree walk', () => {
     const published = flattenPublicCollection(snapshot([
       rootNode(),
       bookmark('nd-b', 'root-1', '00000000000000000001', 'B'),
@@ -222,9 +221,6 @@ describe('publicCollectionTreeEdges', () => {
       bookmark('nd-a1', 'folder-a', '00000000000000000000', 'A1'),
     ]))
     expect(published).not.toBeNull()
-    expect(publicCollectionTreeEdges(published!.resources)).toEqual([
-      ['nd-a1', 'nd-a2'],
-      ['nd-a2', 'nd-b'],
-    ])
+    expect(published!.resources.map((resource) => resource.node.id)).toEqual(['nd-a1', 'nd-a2', 'nd-b'])
   })
 })

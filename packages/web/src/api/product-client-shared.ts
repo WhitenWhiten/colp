@@ -236,11 +236,3 @@ export function wrapGeneratedFollowError(error: unknown): ProductApiError {
   }
   return wrapProductError(error)
 }
-
-export type ProductClientHelpers = {
-  mutationCall: MutationCall
-  requireCsrf: () => Promise<string>
-  withSameRequestRetry: typeof withSameRequestRetry
-  authRetryRead: ReturnType<typeof createAuthRetryRead>
-  getSession: SessionReader
-}

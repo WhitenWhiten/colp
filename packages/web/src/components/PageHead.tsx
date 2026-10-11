@@ -15,14 +15,14 @@ type PageHeadProps = {
   /** Quiet line between title and lede — @handle, byline, counts (R10-03). */
   afterTitle?: ReactNode
   /** Masthead stats strip: spans the copy + actions columns between fading
-      hairlines (e.g. `<ul className="stat-row">`) (R10-03). */
+      hairlines (R10-03). */
   stats?: ReactNode
   children?: ReactNode
-  /** Split layout: copy on the left, actions on the right (Today / Export / History).
+  /** Split layout: copy on the left, actions on the right (History, Sync, Agents).
       Masthead layout: avatar | copy | actions grid + stats strip (R10-03). */
   layout?: 'stack' | 'split' | 'masthead'
   /** Register: editorial = serif display (reading/discovery); workbench =
-      compact sans head with no dither bloom or fading hairline (R10-16).
+      compact sans head with no fading hairline (R10-16).
       Both map to a .page-head--* modifier in page-chrome.css. */
   variant?: 'editorial' | 'workbench'
   as?: 'div' | 'header'

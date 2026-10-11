@@ -379,8 +379,8 @@ jobs:
       - name: Build-script contract tests
         run: npm run test:scripts
         working-directory: packages/web
-      - name: Build self-hosted web
-        run: VITE_EDITION=self-hosted npm run build
+      - name: Build web
+        run: npm run build
         working-directory: packages/web
       - name: Production dependency audit
         run: npm audit --omit=dev --audit-level=high

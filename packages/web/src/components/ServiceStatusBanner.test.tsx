@@ -17,7 +17,7 @@ describe('ServiceStatusBanner (R15-23)', () => {
   it('announces an unreachable service while the session read keeps failing', () => {
     auth.sessionState = 'offline'
     mountTree(<ServiceStatusBanner />)
-    expect(document.querySelector('[role="status"]')?.textContent).toBe("Can't reach Know-N. Retrying…")
+    expect(document.querySelector('[role="status"]')?.textContent).toBe("Can't reach COLP Server. Retrying…")
   })
 
   it('renders nothing otherwise', () => {

@@ -13,22 +13,13 @@
 
 .mt-0 { margin-top: var(--space-0); }
 .mt-2 { margin-top: var(--space-2); }
-.mt-3 { margin-top: var(--space-3); }
 
 .mb-4 { margin-bottom: var(--space-4); }
 
 .gap-1 { gap: var(--space-1); }
 .gap-2 { gap: var(--space-2); }
 .gap-4 { gap: var(--space-4); }
-
-.mt-hair-55 { margin-top: var(--hair-55); }
-.mt-hair-85 { margin-top: var(--hair-85); }
-.mt-hair-125 { margin-top: var(--hair-125); }
-
-.mb-hair-45 { margin-bottom: var(--hair-45); }
 .mb-hair-85 { margin-bottom: var(--hair-85); }
-
-.gap-hair-45 { gap: var(--hair-45); }
 
 /* `@handle` rendered beside a display name. Handles are user-chosen and only
    bounded at the claim length, so an identity row otherwise stretches to the

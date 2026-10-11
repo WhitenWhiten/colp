@@ -5,10 +5,9 @@
  * is still initializing, and an app import here would deadlock that cycle.
  */
 import { vi } from 'vitest'
-import type { OwnedCollectionListItem, ReportIssueTimelinePage } from '../api/types'
+import type { OwnedCollectionListItem } from '../api/types'
 
 export const mocks = {
-  isLive: vi.fn((flag: string) => ['collectionList', 'savedResources', 'readingProgress'].includes(flag)),
   auth: { isLoggedIn: true, bootstrapping: false, sessionState: 'ready' as string, refreshSession: vi.fn(async () => undefined) },
   collections: {
     items: [] as OwnedCollectionListItem[],
@@ -36,14 +35,8 @@ export const mocks = {
     accept: vi.fn(async () => ({ collectionId: '' })),
     decline: vi.fn(async () => undefined),
   },
-    saved: { items: [] as Array<{ resourceType: string; resourceId: string; target: { availability: string; title: string; url: string | null; collectionId: string | null } }>, state: 'ready', message: '', reload: vi.fn() },
-  progress: { items: [] as Array<{ resourceType: string; resourceId: string; status: string; progress: number; target: { availability: string; title: string; url: string | null; collectionId: string | null } }>, state: 'ready', message: '', reload: vi.fn() },
   loadEditorSnapshot: vi.fn(),
   loadPublicCollectionSnapshot: vi.fn(),
   loadAnnotations: vi.fn(async () => []),
-  listFollowedCollections: vi.fn(),
-  listFollowedReports: vi.fn(async () => ({ items: [], nextCursor: null })),
-  listMyReports: vi.fn(async () => ({ items: [], nextCursor: null })),
-  getFollowedReportIssuesPage: vi.fn(async (): Promise<ReportIssueTimelinePage> => ({ items: [], nextCursor: null })),
   getMyLibraryOrder: vi.fn(),
 }

@@ -75,34 +75,32 @@ export function SelfHostedImport() {
   const changeDestination = () => { attempt.current = bookmarkImportAttempt(); setStatus(''); setError(null) }
   return (
     <PageShell variant="grid">
-      <div className="import-handoff">
-        <PageHead variant="workbench" breadcrumb={<Breadcrumb items={[{ label: 'Library', to: '/library' }, { label: 'Import' }]} />}
-          title="Import bookmarks" documentTitle="Import" lede="Choose a bookmark HTML file, preview it, and import it into a collection." />
-        {bootstrapping ? <p role="status">Checking your session…</p> : !isLoggedIn ? <p><Link to="/login?returnTo=%2Fimport">Sign in to import bookmarks</Link></p> : (
-          <form className="edit-form panel panel-pad" onSubmit={event => { event.preventDefault(); void run() }}>
-            <div className="field"><label htmlFor="import-collection">Collection</label>
-              <select id="import-collection" value={collectionId} disabled={busy} onChange={event => { changeDestination(); setCollectionId(event.target.value) }}>
-                <option value="" disabled>Choose a collection</option>
-                {collections.map(row => <option key={row.collection.id} value={row.collection.id}>{row.collection.title}</option>)}
-              </select></div>
-            {!collections.length && <p><Link to="/library/new">Create a collection</Link> to import into.</p>}
-            <div className="field"><label htmlFor="import-folder">Destination folder</label>
-              <select id="import-folder" value={parentId} disabled={busy || !snapshot} onChange={event => { changeDestination(); setParentId(event.target.value) }}>
-                {snapshot && <option value={snapshot.root.id}>Collection root</option>}
-                {snapshot?.nodes.filter(node => node.kind === 'folder').map(node => <option key={node.id} value={node.id}>{node.title}</option>)}
-              </select></div>
-            <div className="field"><label htmlFor="import-file">Bookmarks HTML file</label>
-              <input id="import-file" type="file" accept=".html,.htm,text/html" disabled={busy} onChange={event => { void readFile(event) }} /></div>
-            <label className="option-row"><input type="checkbox" checked={skipDuplicates} disabled={busy} onChange={event => { changeDestination(); setSkipDuplicates(event.target.checked) }} />
-              Skip duplicates (same URL in the same folder; reuse folders with the same name)</label>
-            {preview && <p role="status">Preview: {preview.folders} folders, {preview.bookmarks} bookmarks.</p>}
-            <button type="submit" className="btn btn-primary" disabled={busy || !snapshot || !parentId || !preview}>{busy ? 'Importing…' : 'Confirm import'}</button>
-          </form>
-        )}
-        {error && <p role="alert">{error}</p>}
-        {status && <p role="status">{status}</p>}
-        {status.startsWith('Import complete:') && <Link className="btn btn-secondary" to={`/library/${collectionId}`}>View collection</Link>}
-      </div>
+      <PageHead variant="workbench" breadcrumb={<Breadcrumb items={[{ label: 'Library', to: '/library' }, { label: 'Import' }]} />}
+        title="Import bookmarks" documentTitle="Import" lede="Choose a bookmark HTML file, preview it, and import it into a collection." />
+      {bootstrapping ? <p role="status">Checking your session…</p> : !isLoggedIn ? <p><Link to="/login?returnTo=%2Fimport">Sign in to import bookmarks</Link></p> : (
+        <form className="edit-form panel panel-pad" onSubmit={event => { event.preventDefault(); void run() }}>
+          <div className="field"><label htmlFor="import-collection">Collection</label>
+            <select id="import-collection" value={collectionId} disabled={busy} onChange={event => { changeDestination(); setCollectionId(event.target.value) }}>
+              <option value="" disabled>Choose a collection</option>
+              {collections.map(row => <option key={row.collection.id} value={row.collection.id}>{row.collection.title}</option>)}
+            </select></div>
+          {!collections.length && <p><Link to="/library/new">Create a collection</Link> to import into.</p>}
+          <div className="field"><label htmlFor="import-folder">Destination folder</label>
+            <select id="import-folder" value={parentId} disabled={busy || !snapshot} onChange={event => { changeDestination(); setParentId(event.target.value) }}>
+              {snapshot && <option value={snapshot.root.id}>Collection root</option>}
+              {snapshot?.nodes.filter(node => node.kind === 'folder').map(node => <option key={node.id} value={node.id}>{node.title}</option>)}
+            </select></div>
+          <div className="field"><label htmlFor="import-file">Bookmarks HTML file</label>
+            <input id="import-file" type="file" accept=".html,.htm,text/html" disabled={busy} onChange={event => { void readFile(event) }} /></div>
+          <label className="option-row"><input type="checkbox" checked={skipDuplicates} disabled={busy} onChange={event => { changeDestination(); setSkipDuplicates(event.target.checked) }} />
+            Skip duplicates (same URL in the same folder; reuse folders with the same name)</label>
+          {preview && <p role="status">Preview: {preview.folders} folders, {preview.bookmarks} bookmarks.</p>}
+          <button type="submit" className="btn btn-primary" disabled={busy || !snapshot || !parentId || !preview}>{busy ? 'Importing…' : 'Confirm import'}</button>
+        </form>
+      )}
+      {error && <p role="alert">{error}</p>}
+      {status && <p role="status">{status}</p>}
+      {status.startsWith('Import complete:') && <Link className="btn btn-secondary" to={`/library/${collectionId}`}>View collection</Link>}
     </PageShell>
   )
 }

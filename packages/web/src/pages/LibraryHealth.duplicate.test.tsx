@@ -31,8 +31,6 @@ vi.mock('../api', async (importOriginal) => {
       enqueueMyLinkHealthChecks: mocks.enqueueMyLinkHealthChecks,
       createRelation: mocks.createRelation,
       deleteRelation: mocks.deleteRelation,
-      deleteNode: mocks.deleteNode,
-      moveNode: mocks.moveNode,
       abandonRelationIntent: mocks.abandonRelationIntent,
     },
   }

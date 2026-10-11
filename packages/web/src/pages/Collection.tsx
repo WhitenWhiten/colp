@@ -3,44 +3,25 @@ import { CollectionExportMenu } from '../components/CollectionExportMenu'
 import { SubscribeInBrowserButton } from '../components/TransportBanner'
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
-import {
-  isCollectionFollowExposureEnabled,
-  isCommunityExposureEnabled,
-  isLive,
-  isProductApiError,
-  productClient,
-} from '../api'
-import type {
-  CollectionChildrenItem,
-  CollectionChildrenSort,
-  PublicCollectionNode,
-} from '../api'
 import { useAuth } from '../auth/AuthContext'
 import { Breadcrumb } from '../components/Breadcrumb'
-import { CollectionFollowButton } from '../components/CollectionFollowButton'
-import { CommunityVoteControl } from '../components/CommunityVoteControl'
 import { SocialActions } from '../components/SocialActions'
-import { CommunityComments } from '../components/CommunityComments'
-import { ReportButton } from '../components/ReportContentDialog'
 import { ABSENCE_CORNERS, AbsenceStage } from '../components/AbsenceStage'
 import { EmptyState } from '../components/EmptyState'
-import { LoadMoreButton } from '../components/LoadMoreButton'
 import { PageHead } from '../components/PageHead'
 import { PageShell } from '../components/PageShell'
 import { RouteState } from '../components/RouteState'
 import { AvatarImage } from '../components/AvatarImage'
 import { ClampedText } from '../components/ClampedText'
-import { CollectionSkeleton, CollectionSkeletonBoard } from '../components/CollectionSkeleton'
+import { CollectionSkeleton } from '../components/CollectionSkeleton'
 import { FilterRail } from '../components/FilterRail'
 import { FolderTrail } from '../components/FolderTrail'
 import { Icon, type IconName } from '../components/Icon'
 import { Modal } from '../components/Modal'
-import { ProfileHoverCard } from '../components/ProfileHoverCard'
 import { BOOKMARK_FILTER_PLACEHOLDER } from '../lib/searchCopy'
-import { observePreview, recordView } from '../lib/recordCollectionInsight'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
 import { usePublicCollectionSnapshot } from '../lib/usePublicCollectionSnapshot'
-import { plural, pluralNoun } from '../lib/plural'
+import { plural } from '../lib/plural'
 import { CollectionFigures } from './collection/figures'
 import { usePageMeta, collectionOgImagePath } from '../lib/usePageMeta'
 import { useStuckToolbar } from '../lib/useStuckToolbar'
@@ -50,15 +31,11 @@ import {
   folderAncestors,
   folderPreviews,
   folderTotals,
-  hostForUrl,
   immediateEntries,
-  safeExternalUrl,
-  type PublicCollectionFolderEntry,
   type PublicCollectionResource as CollectionResource,
 } from '../lib/publicCollectionTree'
 import {
   curatorInitials,
-  formatCompactCount,
   formatUpdatedAt,
   isViewMode,
   kindLabel,
@@ -68,11 +45,9 @@ import {
 } from './collection/format'
 import { CollectionResources, SaveResourcePicker } from './collection/resources'
 import { CollectionFolderLayer, CollectionOutline, CollectionSection } from './collection/outline'
-import { EmbedShareButton } from './share/EmbedShareButton'
-import { brandedTitle, isSelfHostedPathEnabled } from '../lib/edition'
+import { brandedTitle } from '../lib/edition'
 import '../styles/library.css'
 import '../styles/not-found.css'
-import '../styles/share.css'
 
 /* Beside bookmarks, up to this many folders open into preview cards (one
    board row at desktop widths); more keep the compact folder tabs. */
@@ -100,28 +75,17 @@ export function Collection() {
     () => folderTotals(content?.folders ?? [], content?.resources ?? []),
     [content],
   )
-  const [followerCount, setFollowerCount] = useState<number | null>(null)
   /* R7-07: the bookmark a signed-in visitor is filing into their library. */
   const [saveTarget, setSaveTarget] = useState<CollectionResource | null>(null)
   /* Below 900px the Contents tree opens as a sheet instead of a sidebar. */
   const [contentsOpen, setContentsOpen] = useState(false)
   const contentsDialogId = useId()
-  const readyCollectionId = load.status === 'ready' ? load.snapshot.collection.id : ''
 
-  useEffect(() => {
-    setFollowerCount(null)
-  }, [readyCollectionId])
   const urlView = searchParams.get('view')
   const view: ViewMode = isViewMode(urlView) ? urlView : loadView(slug)
   const query = searchParams.get('q') ?? ''
   const normalizedQuery = query.trim().toLocaleLowerCase()
   const folderId = searchParams.get('folder') ?? ''
-  /* FO-05 time sorts: curated is the default (no param); created sorts render
-     the current folder layer from GET /api/v1/collections/{id}/children. */
-  const urlSort = searchParams.get('sort')
-  const sort: CollectionChildrenSort =
-    urlSort === 'created_asc' || urlSort === 'created_desc' || urlSort === 'curated' ? urlSort : 'curated'
-  const sortExposed = isLive('faviconPolicy')
   const documentTitle =
     load.status === 'ready'
       ? load.snapshot.collection.title
@@ -147,15 +111,12 @@ export function Collection() {
     brandedTitle(documentTitle),
   )
 
-  /* react-router hands back a new setSearchParams on every URL change. The
-     sorted-layer fetch effect depends on patchParams, so an unstable identity
-     re-ran it — and flashed "Sorting bookmarks…" plus a skeleton, dropping any
-     loaded pages — whenever view or q changed. Read it through a ref so
-     patchParams only changes with the slug. */
+  /* react-router hands back a new setSearchParams on every URL change. Read
+     it through a ref so patchParams only changes with the slug. */
   const setSearchParamsRef = useRef(setSearchParams)
   setSearchParamsRef.current = setSearchParams
   const patchParams = useCallback((patch: {
-    view?: ViewMode; q?: string; folder?: string; sort?: CollectionChildrenSort;
+    view?: ViewMode; q?: string; folder?: string;
   }) => {
     if (patch.view !== undefined) saveView(slug, patch.view)
     setSearchParamsRef.current((prev) => {
@@ -173,11 +134,6 @@ export function Collection() {
       if (patch.folder !== undefined) {
         if (!patch.folder) next.delete('folder')
         else next.set('folder', patch.folder)
-      }
-      if (patch.sort !== undefined) {
-        // Curated is the default: omit it from the URL.
-        if (patch.sort === 'curated') next.delete('sort')
-        else next.set('sort', patch.sort)
       }
       return next
     }, { replace: true })
@@ -214,114 +170,6 @@ export function Collection() {
     [load, entries, view],
   )
 
-  /* FO-05 time-sorted layer: one folder layer fetched from the real children
-     endpoint, paged by nextCursor. The snapshot still drives the masthead,
-     outline and stats; only the current layer's order comes from the API.
-     A non-curated ?sort= is only rendered while the flag is exposed and the
-     collection kind supports the one-layer children fetch; otherwise the
-     curated view is shown (a reading_path stays curated-only) and the stale
-     param is dropped instead of blanking the page. */
-  const sortEligible = sort !== 'curated' && sortExposed
-    && readyCollection?.kind !== 'reading_path'
-  type ChildrenLayer =
-    | { readonly status: 'idle' }
-    | { readonly status: 'loading' }
-    | { readonly status: 'error'; readonly message: string }
-    | { readonly status: 'ready'; readonly items: readonly CollectionChildrenItem[]; readonly nextCursor: string | null; readonly loadingMore: boolean }
-  /* Sorted visits start in the loading state: initializing to 'idle' would
-     paint one frame of the wrong empty state before the fetch effect runs. */
-  const [childrenLayer, setChildrenLayer] = useState<ChildrenLayer>(
-    () => (sortEligible ? { status: 'loading' } : { status: 'idle' }),
-  )
-  const [childrenNotice, setChildrenNotice] = useState<string | null>(null)
-  const childrenLoadRef = useRef<number>(0)
-
-  const fetchFirstPage = useCallback((signal?: AbortSignal) => {
-    if (load.status !== 'ready' || !load.snapshot.collection.id) return
-    const collectionId = load.snapshot.collection.id
-    const requestId = childrenLoadRef.current + 1
-    childrenLoadRef.current = requestId
-    setChildrenLayer({ status: 'loading' })
-    productClient.listCollectionChildren(collectionId, {
-      parentId: activeFolderId ?? undefined,
-      sort,
-      limit: 50,
-      signal,
-    })
-      .then((page) => {
-        if (signal?.aborted || childrenLoadRef.current !== requestId) return
-        setChildrenLayer({ status: 'ready', items: page.items, nextCursor: page.nextCursor, loadingMore: false })
-      })
-      .catch((error: unknown) => {
-        if (signal?.aborted || childrenLoadRef.current !== requestId) return
-        // Backend flag off / unseen route: fall back to the curated layer.
-        if (isProductApiError(error) && error.status === 404) {
-          patchParams({ sort: 'curated' })
-          return
-        }
-        setChildrenLayer({
-          status: 'error',
-          message: isProductApiError(error) ? error.recoveryHint : "Couldn't load this folder. Try again.",
-        })
-      })
-  }, [activeFolderId, sort, load, patchParams])
-
-  useEffect(() => {
-    if (sort === 'curated' || !sortExposed || readyCollection?.kind === 'reading_path') {
-      setChildrenLayer({ status: 'idle' })
-      setChildrenNotice(null)
-      /* F1-a: a ?sort= that can never be fetched must not linger in the URL —
-         the render ignores it (curated view) and the param is dropped so the
-         address stops advertising an order the page does not show. */
-      if (sort !== 'curated') patchParams({ sort: 'curated' })
-      return
-    }
-    if (load.status !== 'ready' || !load.snapshot.collection.id) return
-    // A user-driven re-entry (sort/folder change) clears the recovery notice.
-    setChildrenNotice(null)
-    const controller = new AbortController()
-    fetchFirstPage(controller.signal)
-    return () => controller.abort()
-  }, [sort, sortExposed, activeFolderId, readyCollection?.kind, load, patchParams, fetchFirstPage])
-
-  /* F3-a: load-more shares the childrenLoadRef request-id guard with the
-     initial load, so a continuation that resolves after the user switched
-     sort/folder is dropped instead of appended into the new layer. */
-  const loadMoreChildren = useCallback(() => {
-    if (childrenLayer.status !== 'ready' || childrenLayer.nextCursor === null
-      || childrenLayer.loadingMore || load.status !== 'ready') return
-    if (!sortEligible) return
-    const collectionId = load.snapshot.collection.id
-    const requestId = childrenLoadRef.current + 1
-    childrenLoadRef.current = requestId
-    setChildrenLayer((current) => current.status === 'ready'
-      ? { ...current, loadingMore: true } : current)
-    productClient.listCollectionChildren(collectionId, {
-      parentId: activeFolderId ?? undefined,
-      sort,
-      cursor: childrenLayer.nextCursor,
-    })
-      .then((page) => {
-        if (childrenLoadRef.current !== requestId) return
-        setChildrenLayer((current) => current.status === 'ready'
-          ? { ...current, items: [...current.items, ...page.items], nextCursor: page.nextCursor, loadingMore: false }
-          : current)
-      })
-      .catch((error: unknown) => {
-        if (childrenLoadRef.current !== requestId) return
-        // Children cursors expire server-side (invalid_cursor/snapshot_expired):
-        // restart the layer from the first page instead of leaving the button
-        // stuck on 'Loading…'.
-        if (isProductApiError(error) && error.isSnapshotExpired) {
-          setChildrenNotice('The page list expired — reloaded from the first page.')
-          fetchFirstPage()
-          return
-        }
-        setChildrenLayer((current) => current.status === 'ready'
-          ? { ...current, loadingMore: false } : current)
-      })
-  }, [childrenLayer, activeFolderId, sort, load, sortEligible, fetchFirstPage])
-
   /* Folder navigation pushes history (unlike view/q) so Back retraces the
      drill-down trail instead of leaving the page. */
   const openFolder = useCallback((id: string | null) => {
@@ -345,90 +193,6 @@ export function Collection() {
 
   /* Sticky toolbar gains elevation once its sentinel scrolls under the header */
   const { sentinelRef: toolbarSentinelRef, isStuck } = useStuckToolbar([content])
-  const previewDisconnectRef = useRef<(() => void) | null>(null)
-
-  useEffect(() => {
-    if (load.status !== 'ready') return
-    if (load.snapshot.collection.slug !== slug) return
-    const controller = new AbortController()
-    recordView(slug, { signal: controller.signal })
-    return () => controller.abort()
-  }, [slug, load])
-
-  const bindResources = useCallback((node: HTMLDivElement | null) => {
-    previewDisconnectRef.current?.()
-    previewDisconnectRef.current = null
-    if (!node) return
-    if (load.status !== 'ready' || load.snapshot.collection.slug !== slug) return
-    previewDisconnectRef.current = observePreview(node, slug)
-  }, [slug, load])
-
-  useEffect(() => () => {
-    previewDisconnectRef.current?.()
-    previewDisconnectRef.current = null
-  }, [slug])
-
-  /* FO-05: children-layer entries mapped to the snapshot's rendering shapes
-     (folder cards + bookmark resources). directCount is not available on the
-     one-layer endpoint, so folder cards show no count in time-sorted mode. */
-  const sortedEntries = useMemo<{ folders: PublicCollectionFolderEntry[]; resources: CollectionResource[] } | null>(() => {
-    if (childrenLayer.status !== 'ready') return null
-    const path = activeFolder ? [...trail.map((node) => node.title), activeFolder.node.title] : []
-    const pathIds = activeFolder ? [...trail.map((node) => node.id), activeFolder.node.id] : []
-    const folders: PublicCollectionFolderEntry[] = []
-    const resources: CollectionResource[] = []
-    for (const item of childrenLayer.items) {
-      const node: PublicCollectionNode = {
-        id: item.id,
-        parentId: item.parentId,
-        kind: item.kind,
-        title: item.title,
-        description: item.description,
-        url: item.url,
-        position: item.position,
-        iconUrl: item.iconUrl ?? null,
-        // FO-08: the server sends the per-node CDN opt-out on bookmarks (false
-        // for explicit none); dropping it here would let the collection-level
-        // fact hotlink the CDN for a node the owner explicitly turned off.
-        ...(item.faviconCdnAllowed === undefined ? {} : { faviconCdnAllowed: item.faviconCdnAllowed }),
-        // LP-06: Gallery covers in time-sorted layers too.
-        ...(item.previewImage === undefined ? {} : { previewImage: item.previewImage }),
-        // The owner's pin marks the row in time-sorted layers too, though it no longer leads them.
-        ...(item.pinned ? { pinned: true as const } : {}),
-        // S1c: hide_public tombstones pass through — the row stays in
-        // position, inert (FO-05 children layer).
-        ...(item.state === undefined ? {} : { state: item.state }),
-      }
-      if (item.kind === 'folder') {
-        folders.push({ node, directCount: null })
-      } else if (item.kind === 'bookmark') {
-        /* F5: url-null bookmarks are real titled rows (curated mode renders
-           them the same way) — they simply have a null iconUrl here. */
-        resources.push({
-          node,
-          depth: path.length,
-          path,
-          pathIds,
-          href: safeExternalUrl(item.url),
-          host: hostForUrl(item.url),
-        })
-      }
-    }
-    return { folders, resources }
-  }, [childrenLayer, activeFolder, trail])
-
-  const filteredSortedEntries = useMemo(() => {
-    if (sortedEntries === null) return null
-    if (!normalizedQuery) return sortedEntries
-    const hit = (node: PublicCollectionNode) =>
-      [node.title, node.description ?? '', node.url ?? '', hostForUrl(node.url)]
-        .some((value) => value.toLocaleLowerCase().includes(normalizedQuery))
-    return {
-      folders: sortedEntries.folders.filter(({ node }) => hit(node)),
-      resources: sortedEntries.resources.filter(({ node }) => hit(node)),
-    }
-  }, [sortedEntries, normalizedQuery])
-
   if (load.status === 'loading') {
     /* Page-shaped skeleton shared with the /c/:slug route fallback, so the
        lazy chunk landing and the snapshot resolving never jump the layout. */
@@ -471,30 +235,9 @@ export function Collection() {
   }
 
   const { collection } = load.snapshot
-  // Anonymous visitors still get the button: it renders a sign-in CTA itself.
-  const showCollectionFollow = isCollectionFollowExposureEnabled()
-    && !bootstrapping
-    && Boolean(collection.id)
-  // CS-01: same gating — the control conceals itself when the target does
-  // not resolve and shows a sign-in CTA to anonymous visitors.
-  const showCommunityVote = isCommunityExposureEnabled()
-    && !bootstrapping
-    && Boolean(collection.id)
   const onSaveResource = isLoggedIn && !bootstrapping ? setSaveTarget : undefined
   const socialActions = (
-    /* Follow, then the CS-01 vote pill, then the quiet links — the
-       same cluster the digest series and issue mastheads render. */
     <SocialActions
-      follow={showCollectionFollow ? (
-        <CollectionFollowButton
-          collectionId={collection.id}
-          ownerHandle={collection.owner?.handle}
-          onState={(state) => setFollowerCount(state?.followerCount ?? null)}
-        />
-      ) : null}
-      vote={showCommunityVote ? (
-        <CommunityVoteControl query={{ kind: 'collection', id: collection.id }} />
-      ) : null}
       links={
         <>
           <SubscribeButton sourceType="collection" sourceId={collection.id} />
@@ -502,25 +245,7 @@ export function Collection() {
           {isLoggedIn ? (
             <CollectionExportMenu collectionId={collection.id} slug={collection.slug} />
           ) : null}
-          {collection.kind === 'reading_path' && (
-            <Link to={`/path/${slug}`} className="btn btn-ghost btn-sm">Path</Link>
-          )}
           <Link to={`/graph/${slug}`} className="btn btn-ghost btn-sm">Graph</Link>
-          {/* The embed card loads the snapshot anonymously, so a member-only
-              projection has nothing to embed. */}
-          {collection.access === 'public' && isSelfHostedPathEnabled('/share') && (
-            <EmbedShareButton
-              path={`/share/${encodeURIComponent(collection.slug)}`}
-              title={collection.title}
-              rowCount={content.resources.length}
-              label="Embed this collection"
-            />
-          )}
-          <ReportButton
-            target={{ kind: 'collection', id: collection.id }}
-            label="this collection"
-            testId="report-collection"
-          />
         </>
       }
     />
@@ -553,41 +278,14 @@ export function Collection() {
     : []
   /* The masthead states the collection total and the folder head a folder's,
      so the chip only answers a search: how many of the bookmarks in scope it
-     matched. Sorted mode counts bookmark items on the loaded layer and stays
-     blank until that layer is ready — folders are never part of the number. */
-  let countLabel: string | null = null
-  if (normalizedQuery) {
-    if (sort === 'curated' || !sortEligible) {
-      countLabel = `${searchResults.length} of ${plural(scoped.length, 'bookmark')}`
-    } else if (sortedEntries != null && filteredSortedEntries != null) {
-      countLabel = `${filteredSortedEntries.resources.length} of ${plural(sortedEntries.resources.length, 'bookmark')}`
-    }
-  }
+     matched. */
+  const countLabel = normalizedQuery
+    ? `${searchResults.length} of ${plural(scoped.length, 'bookmark')}`
+    : null
   const parentCrumb = trail.at(-1)
   const hasOutline = content.folders.length > 0
   const activeTotals = activeFolder ? totals.get(activeFolder.node.id) : undefined
   const layerIsEmpty = entries.folders.length === 0 && entries.resources.length === 0
-  /* F4: the same Load-more affordance serves the non-empty layer and the
-     filtered-empty layer — matches on later pages stay reachable under q. */
-  const canLoadMoreChildren = sort !== 'curated' && sortEligible
-    && childrenLayer.status === 'ready' && childrenLayer.nextCursor !== null
-  const loadMoreRow = canLoadMoreChildren
-    ? (
-      <div className="row">
-        <LoadMoreButton
-          loading={childrenLayer.loadingMore}
-          onClick={loadMoreChildren}
-          status="Loading more items"
-          data-collection-children-load-more
-        />
-      </div>
-    )
-    : null
-  /* R13-07: Newest/Oldest search only the pages already loaded. Curated
-     search walks the subtree, so it never gets this note. */
-  const searchScopeNotice = normalizedQuery && canLoadMoreChildren ? (
-    <p className="meta collection-children-notice" role="status">Searching the items loaded so far. Load more to search further.</p>
-  ) : null
   const noMatchDescription = activeFolder
     ? `Nothing in this folder matches “${query}”.`
     : `Nothing in this collection matches “${query}”.`
@@ -614,7 +312,6 @@ export function Collection() {
     <article
       className="collection-page"
       data-view={view}
-      data-sort={sort}
       data-in-folder={activeFolder ? true : undefined}
       data-testid="public-collection-page"
     >
@@ -625,7 +322,7 @@ export function Collection() {
         documentTitle={documentTitle}
         breadcrumb={
           <Breadcrumb items={[
-            isSelfHostedPathEnabled('/explore') ? { label: 'Explore', to: '/explore' } : { label: 'Library', to: '/library' },
+            { label: 'Library', to: '/library' },
             { label: collection.title },
           ]} />
         }
@@ -648,7 +345,6 @@ export function Collection() {
             bookmarks={content?.resources.length ?? 0}
             folders={content?.folders.length ?? 0}
             views={collection.viewCount ?? 0}
-            followers={followerCount}
           />
         }
       >
@@ -667,20 +363,13 @@ export function Collection() {
           {collection.owner ? (
             <span className="collection-byline-curator">
               <span>Curated by</span>
-              <ProfileHoverCard
-                handle={collection.owner.handle}
-                displayName={collection.owner.displayName}
-                avatarUrl={collection.owner.avatarUrl}
-                profileId={collection.owner.profileId}
-              >
-                <span className="avatar collection-curator-avatar" aria-hidden data-collection-curator-avatar>
-                  <AvatarImage
-                    url={collection.owner.avatarUrl}
-                    initials={curatorInitials(collection.owner.displayName, collection.owner.handle)}
-                  />
-                </span>
-                <strong data-collection-field="curator">{collection.owner.displayName}</strong>
-              </ProfileHoverCard>
+              <span className="avatar collection-curator-avatar" aria-hidden data-collection-curator-avatar>
+                <AvatarImage
+                  url={collection.owner.avatarUrl}
+                  initials={curatorInitials(collection.owner.displayName, collection.owner.handle)}
+                />
+              </span>
+              <strong data-collection-field="curator">{collection.owner.displayName}</strong>
             </span>
           ) : null}
           <span className="collection-byline-date">Updated {formatUpdatedAt(collection.updatedAt)}</span>
@@ -724,22 +413,6 @@ export function Collection() {
             </label>
             {countLabel ? <span className="chip collection-count-chip">{countLabel}</span> : null}
             <div className="collection-toolbar-controls">
-              {sortExposed && readyCollection?.kind !== 'reading_path' && (
-                <FilterRail<CollectionChildrenSort>
-                  className="view-switch"
-                  variant="segments"
-                  label="Order"
-                  value={sort}
-                  options={([
-                    /* A narrow column keeps "Curator's" — the tail is visually
-                       hidden there so both rails keep one row. */
-                    { value: 'curated', label: <>Curator's<span className="collection-sort-tail"> order</span></> },
-                    { value: 'created_desc', label: 'Newest' },
-                    { value: 'created_asc', label: 'Oldest' },
-                  ] as const).map(({ value: sortValue, label }) => ({ value: sortValue, label }))}
-                  onChange={(id) => patchParams({ sort: id })}
-                />
-              )}
               <FilterRail<ViewMode>
                 className="view-switch collection-view-switch"
                 variant="segments"
@@ -775,8 +448,7 @@ export function Collection() {
           ) : null}
 
           <div className="collection-content">
-          {sort === 'curated' || !sortEligible ? (
-            normalizedQuery ? (
+          {normalizedQuery ? (
               searchResults.length === 0 ? (
                 <EmptyState
                   className="collection-filter-empty"
@@ -792,7 +464,6 @@ export function Collection() {
                   resources={searchResults}
                   view={view}
                   slug={slug}
-                  resourcesRef={bindResources}
                   faviconCdnAllowed={collection.faviconCdnAllowed === true}
                   showPath
                   onSave={onSaveResource}
@@ -840,8 +511,7 @@ export function Collection() {
                       resources={entries.resources}
                       view={view}
                       slug={slug}
-                      resourcesRef={bindResources}
-                      faviconCdnAllowed={collection.faviconCdnAllowed === true}
+                          faviconCdnAllowed={collection.faviconCdnAllowed === true}
                       showPath={false}
                       onSave={onSaveResource}
                     />
@@ -849,125 +519,10 @@ export function Collection() {
                 )}
               </>
             )
-          ) : childrenLayer.status === 'loading' || childrenLayer.status === 'idle' ? (
-            <>
-              {childrenNotice && (
-                <p className="meta collection-children-notice" role="status" data-testid="collection-children-notice">{childrenNotice}</p>
-              )}
-              {/* The skeleton is aria-hidden, so this line is the announcement;
-                  sighted visitors already see the skeleton, not bare text. */}
-              <p className="visually-hidden" role="status">Sorting bookmarks…</p>
-              <CollectionSkeletonBoard />
-            </>
-          ) : childrenLayer.status === 'error' ? (
-            <EmptyState
-              className="collection-filter-empty"
-              icon="alert"
-              kicker="Collection contents"
-              title="Couldn't sort this folder"
-              description={childrenLayer.message}
-              action={
-                <button type="button" className="btn btn-secondary btn-sm" onClick={() => patchParams({ sort: 'curated' })}>Show curator's order</button>
-              }
-            />
-          ) : filteredSortedEntries ? (
-            filteredSortedEntries.folders.length === 0 && filteredSortedEntries.resources.length === 0 ? (
-              normalizedQuery ? (
-                /* F4: matches can sit on later pages — the filtered-empty state
-                   keeps the Load-more affordance while nextCursor remains. */
-                <>
-                  {childrenNotice && (
-                    <p className="meta collection-children-notice" role="status" data-testid="collection-children-notice">{childrenNotice}</p>
-                  )}
-                  {searchScopeNotice}
-                  <EmptyState
-                    className="collection-filter-empty"
-                    icon="search"
-                    title="No bookmarks match"
-                    description={noMatchDescription}
-                    action={
-                      <button type="button" className="btn btn-secondary btn-sm" onClick={() => patchParams({ q: '' })}>Clear search</button>
-                    }
-                  />
-                  {loadMoreRow}
-                </>
-              ) : activeFolder ? (
-                <EmptyState
-                  className="collection-filter-empty"
-                  icon="folder"
-                  title="This folder is empty"
-                  description="Nothing has been published inside this folder yet."
-                  action={
-                    <button type="button" className="btn btn-secondary btn-sm" onClick={() => openFolder(parentCrumb?.id ?? null)}>
-                      Back to {parentCrumb?.title ?? collection.title}
-                    </button>
-                  }
-                />
-              ) : (
-                <EmptyState
-                  className="public-collection-empty"
-                  icon="collection"
-                  kicker="Collection contents"
-                  title="Nothing published yet"
-                  description="This collection is available, but it does not contain any visible items."
-                />
-              )
-            ) : (
-              <>
-                {childrenNotice && (
-                  <p className="meta collection-children-notice" role="status" data-testid="collection-children-notice">{childrenNotice}</p>
-                )}
-                {searchScopeNotice}
-                {/* A paged layer only counts once its last page is in. */}
-                {filteredSortedEntries.folders.length > 0 && (
-                  <CollectionSection label="Folders" count={canLoadMoreChildren ? null : filteredSortedEntries.folders.length}>
-                    <CollectionFolderLayer
-                      folders={filteredSortedEntries.folders}
-                      view={view}
-                      searchFor={folderSearchFor}
-                      previews={layerFolderPreviews}
-                      totals={totals}
-                      faviconCdnAllowed={collection.faviconCdnAllowed === true}
-                    />
-                  </CollectionSection>
-                )}
-                {filteredSortedEntries.resources.length > 0 && (
-                  <CollectionSection label="Bookmarks" count={canLoadMoreChildren ? null : filteredSortedEntries.resources.length}>
-                    <CollectionResources
-                      resources={filteredSortedEntries.resources}
-                      view={view}
-                      slug={slug}
-                      resourcesRef={bindResources}
-                      faviconCdnAllowed={collection.faviconCdnAllowed === true}
-                      showPath={false}
-                      onSave={onSaveResource}
-                    />
-                  </CollectionSection>
-                )}
-                {loadMoreRow}
-              </>
-            )
-          ) : (
-            <EmptyState
-              className="public-collection-empty"
-              icon="collection"
-              kicker="Collection contents"
-              title="This order isn't available"
-              description="Show this collection in the curator's order instead."
-              action={
-                <button type="button" className="btn btn-secondary btn-sm" onClick={() => patchParams({ sort: 'curated' })}>Show curator's order</button>
-              }
-            />
-          )}
+          }
           </div>
         </div>
       </div>
-
-      {/* CS-03: collection comments resolve the same target identity as
-          the vote control; the panel conceals itself when unresolved. */}
-      {showCommunityVote ? (
-        <CommunityComments query={{ kind: 'collection', id: collection.id }} />
-      ) : null}
 
       {saveTarget && (
         <SaveResourcePicker resource={saveTarget} onClose={() => setSaveTarget(null)} />

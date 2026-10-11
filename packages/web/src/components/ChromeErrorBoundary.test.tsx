@@ -39,7 +39,7 @@ describe('chrome and root error boundaries', () => {
       </RootErrorBoundary>,
     )
     expect(document.querySelector('[role="alert"]')?.textContent).toContain("couldn't show this page")
-    expect(document.querySelector('img')?.getAttribute('alt')).toBe('Know-N')
+    expect(document.querySelector('[role="alert"]')?.textContent).toContain('COLP Server')
     expect(document.querySelector('button')?.textContent).toBe('Reload page')
   })
 })

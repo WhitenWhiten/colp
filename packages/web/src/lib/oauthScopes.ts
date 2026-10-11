@@ -52,12 +52,12 @@ const OAUTH_SCOPE_META = Object.freeze({
   },
   'product:read': {
     name: 'Read your account over HTTP',
-    label: 'Read your libraries, bookmarks, community activity, notifications, and favicons',
+    label: 'Read your libraries, bookmarks, annotations, and relations',
     icon: 'file',
   },
   'product:write': {
     name: 'Write your account over HTTP',
-    label: 'Create and edit your libraries, bookmarks, community posts and votes, and favicons',
+    label: 'Create and edit your libraries, bookmarks, annotations, and relations',
     icon: 'send',
   },
 } satisfies Record<string, OAuthScopeMeta>)

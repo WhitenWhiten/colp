@@ -29,14 +29,6 @@ const mocks = vi.hoisted(() => ({
   updateCollectionNode: vi.fn(),
   moveCollectionNode: vi.fn(),
   deleteCollectionNode: vi.fn(),
-  uploadBookmarkFavicon: vi.fn(),
-  deleteBookmarkFavicon: vi.fn(),
-  getBookmarkFaviconSource: vi.fn(),
-  setBookmarkFaviconSource: vi.fn(),
-  getCollectionCatalog: vi.fn(),
-  updateCollectionCatalog: vi.fn(),
-  getReportCatalog: vi.fn(),
-  updateReportCatalog: vi.fn(),
   loadAnnotations: vi.fn(),
   createAnnotation: vi.fn(),
   updateAnnotation: vi.fn(),
@@ -69,14 +61,6 @@ vi.mock('../api', async (importOriginal) => {
       updateCollectionNode: mocks.updateCollectionNode,
       moveCollectionNode: mocks.moveCollectionNode,
       deleteCollectionNode: mocks.deleteCollectionNode,
-      uploadBookmarkFavicon: mocks.uploadBookmarkFavicon,
-      deleteBookmarkFavicon: mocks.deleteBookmarkFavicon,
-      getBookmarkFaviconSource: mocks.getBookmarkFaviconSource,
-      setBookmarkFaviconSource: mocks.setBookmarkFaviconSource,
-      getCollectionCatalog: mocks.getCollectionCatalog,
-      updateCollectionCatalog: mocks.updateCollectionCatalog,
-      getReportCatalog: mocks.getReportCatalog,
-      updateReportCatalog: mocks.updateReportCatalog,
       loadAnnotations: mocks.loadAnnotations,
       createAnnotation: mocks.createAnnotation,
       updateAnnotation: mocks.updateAnnotation,
@@ -236,28 +220,6 @@ describe('CollectionEditor component', () => {
     mocks.auth.refreshSession.mockResolvedValue(undefined)
     mocks.loadAnnotations.mockResolvedValue([])
     mocks.abandonAnnotationIntent.mockReturnValue(undefined)
-    // CG catalog fields read the collection/report catalog when the inspector
-    // mounts; default to an empty catalog so editor tests never hit fetch.
-    mocks.getCollectionCatalog.mockResolvedValue({ tags: [], language: null, revision: '1' })
-    mocks.getReportCatalog.mockResolvedValue({ tags: [], language: null, revision: '1' })
-    // The FO-01 source control reads the favicon source whenever a bookmark is
-    // selected; default to inherit so inspector tests never hit fetch.
-    mocks.getBookmarkFaviconSource.mockResolvedValue({
-      collectionId: 'col-1',
-      nodeId: 'node-first',
-      revision: '1',
-      policyRevision: '1',
-      sourceMode: 'inherit',
-      effectiveMode: 'capture',
-      iconUrl: null,
-      iconVersion: null,
-      directUrl: null,
-      status: 'missing',
-      restorable: false,
-      updatedAt: '2026-07-22T00:00:00.000Z',
-      etag: '"favicon-source:n-1:1"',
-    })
-    mocks.setBookmarkFaviconSource.mockResolvedValue({})
     vi.stubEnv('VITE_MOCK_SESSION', 'false')
     restoreStorage = installSessionStorage(createMemorySessionStorage())
     resetProductSession()
@@ -542,36 +504,6 @@ describe('CollectionEditor component', () => {
     act(() => findButtonByName('Unlisted').click())
     expect((document.getElementById('ce-publication-slug') as HTMLInputElement).value).toBe('research-notes')
     expect(document.body.textContent).toContain('Will be live at /c/research-notes after you save.')
-  })
-
-  it('commits tags and language with Save collection instead of a second save button', async () => {
-    const base = snapshot()
-    mocks.loadEditorSnapshot.mockResolvedValue(base)
-    mocks.updateCollection.mockResolvedValueOnce({ collection: { ...base.collection, etag: '"c-2"' } })
-    mocks.updateCollectionCatalog.mockResolvedValueOnce({ tags: ['design', 'systems'], language: 'en', revision: '2' })
-    renderEditor()
-    await waitForDom(domFinishedLoading)
-    await waitForDom(() => document.getElementById('collection-catalog-tags') !== null)
-
-    expect(
-      [...document.querySelectorAll('button')].some((button) => button.textContent?.trim() === 'Save tags and language'),
-    ).toBe(false)
-    setControlValue(document.getElementById('collection-catalog-tags') as HTMLInputElement, 'design, systems')
-    act(() => {
-      const language = document.getElementById('collection-catalog-language') as HTMLSelectElement
-      language.value = 'en'
-      language.dispatchEvent(new Event('change', { bubbles: true }))
-    })
-    submit('ce-title')
-    await waitForDom(() => mocks.updateCollectionCatalog.mock.calls.length > 0)
-
-    expect(mocks.updateCollection).toHaveBeenCalledTimes(1)
-    expect(mocks.updateCollectionCatalog).toHaveBeenCalledWith(
-      'col-1',
-      { tags: ['design', 'systems'], language: 'en' },
-      '"1"',
-      expect.objectContaining({ maxRetries: 0 }),
-    )
   })
 
   it('ignores an aborted route load that rejects after the next collection is ready', async () => {

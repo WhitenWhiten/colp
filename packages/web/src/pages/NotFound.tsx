@@ -1,13 +1,13 @@
 import { useEffect, useRef } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { isSelfHostedPathEnabled, brandedTitle } from '../lib/edition'
+import { brandedTitle } from '../lib/edition'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
 import { usePageMeta } from '../lib/usePageMeta'
 import '../styles/not-found.css'
 
 /* Full-bleed stage: three poster-size serif digits staggered across the
    middle, "404 / Page / Not / Found" pinned to the four corners, and a
-   single sentence plus two text links along the bottom. */
+   single sentence plus a text link home along the bottom. */
 export function NotFound() {
   const { pathname } = useLocation()
   const stageRef = useRef<HTMLDivElement>(null)
@@ -74,12 +74,6 @@ export function NotFound() {
         </p>
         <nav className="not-found-exits" aria-label="Start points">
           <Link className="not-found-exit" to="/" data-testid="not-found-exit">Back home</Link>
-          {isSelfHostedPathEnabled('/explore') && (
-            <>
-              <span className="not-found-exit-sep" aria-hidden="true">·</span>
-              <Link className="not-found-exit" to="/explore" data-testid="not-found-exit">Explore</Link>
-            </>
-          )}
         </nav>
       </div>
 

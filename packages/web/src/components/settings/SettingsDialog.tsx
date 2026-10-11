@@ -1,55 +1,28 @@
 import { useEffect, useRef, useState } from 'react'
 import { BookmarkPreferencesSection } from './BookmarkPreferencesSection'
 import { Link } from 'react-router-dom'
-import { isLive, isNotificationExposureEnabled } from '../../api'
-import { useAuth } from '../../auth/AuthContext'
 import { AuthStatusRegion } from '../auth/AuthStatusRegion'
-import { EmailChangeSection } from '../auth/EmailChangeSection'
-import { EmailVerificationSection } from '../auth/EmailVerificationSection'
 import { PasswordChangeSection } from '../auth/PasswordChangeSection'
-import { ProviderLinkSection } from '../auth/ProviderLinkSection'
-import { MfaSection } from '../auth/MfaSection'
 import { SessionSection } from '../auth/SessionSection'
 import { AccountDeleteSection } from '../auth/AccountDeleteSection'
 import { Icon } from '../Icon'
 import { Modal } from '../Modal'
 import { useConfirm } from '../ConfirmModal'
-import { useNotificationCenter } from '../../lib/useNotificationCenter'
-import { isSelfHostedEdition, isSelfHostedPathEnabled } from '../../lib/edition'
 import { useSettingsDialog, type SettingsSection } from '../../lib/useSettingsDialog'
-import { FaviconSection } from './FaviconSection'
-import { NotificationsSection } from './NotificationsSection'
-import { PrivacySection } from './PrivacySection'
 import { ProfileSection } from './ProfileSection'
 
 const sectionLabels: Record<SettingsSection, string> = {
   profile: 'Profile',
   bookmarks: 'Bookmarks',
-  privacy: 'Privacy',
-  favicon: 'Favicon',
-  notifications: 'Notifications',
   security: 'Security',
 }
 
 const GO_TO_LINKS = [
-  { to: '/creator', label: 'Publishing insights' },
-  { to: '/credits', label: 'Credits and ledger' },
   { to: '/extension', label: 'Browser extension' },
-  { to: '/export', label: 'Export library' },
 ] as const
 
 export function SettingsDialog() {
   const { isOpen, section, close, open, sections } = useSettingsDialog()
-  const { user } = useAuth()
-  const notifications = useNotificationCenter({
-    enabled: Boolean(user) && isNotificationExposureEnabled(),
-    includePreference: true,
-  })
-  const mfaLive = isLive('mfa')
-  // This server sends no email and has no sign-in providers (D28), so only
-  // password, sessions, and account deletion apply.
-  const selfHosted = isSelfHostedEdition()
-  const goToLinks = GO_TO_LINKS.filter((link) => isSelfHostedPathEnabled(link.to))
   const navRef = useRef<HTMLElement | null>(null)
   // R14-45: profile edits survive a section switch or dialog close until
   // the user confirms the discard.
@@ -68,7 +41,7 @@ export function SettingsDialog() {
   }
 
   // Phones lay the nav out as one scrolling strip: fade whichever edge still
-  // hides tabs so a clipped "Notifications" reads as "scroll for more".
+  // hides tabs so a clipped tab reads as "scroll for more".
   const [fade, setFade] = useState({ start: false, end: false })
   useEffect(() => {
     const nav = navRef.current
@@ -142,7 +115,7 @@ export function SettingsDialog() {
               in the ?settings= URL param, so navigating away closes it. */}
           <div className="settings-nav-goto" role="group" aria-labelledby="settings-nav-goto-label">
             <p className="section-label settings-nav-goto-label" id="settings-nav-goto-label">Go to</p>
-            {goToLinks.map((link) => (
+            {GO_TO_LINKS.map((link) => (
               <Link key={link.to} to={link.to} className="tree-item settings-nav-goto-link">
                 <span>{link.label}</span>
                 <Icon name="arrow-up-right" />
@@ -154,26 +127,16 @@ export function SettingsDialog() {
           <AuthStatusRegion />
           {section === 'profile' && <ProfileSection onDirtyChange={(value) => { dirtyRef.current = value }} />}
           {section === 'bookmarks' && <BookmarkPreferencesSection />}
-          {section === 'privacy' && <PrivacySection />}
-          {section === 'favicon' && <FaviconSection />}
-          {section === 'notifications' && <NotificationsSection notifications={notifications} />}
           {section === 'security' && (
             <div className="stack gap-1" data-testid="settings-security">
               <div className="settings-section-head">
                 <h3 className="settings-toggle-label">Account security</h3>
-                <p className="meta">
-                  {selfHosted
-                    ? 'Password, sessions, and account deletion.'
-                    : <>Password, email verification, change email, sign-in providers{mfaLive ? ', two-factor authentication,' : ','} and sessions.</>}
-                </p>
+                {/* This server sends no email and has no sign-in providers (D28). */}
+                <p className="meta">Password, sessions, and account deletion.</p>
               </div>
               <hr className="divider" />
               <div className="security-sections" data-testid="security-sections">
-                {!selfHosted && <EmailVerificationSection />}
-                {!selfHosted && <EmailChangeSection />}
                 <PasswordChangeSection />
-                {mfaLive && <MfaSection />}
-                {!selfHosted && <ProviderLinkSection />}
                 <SessionSection />
                 <AccountDeleteSection />
               </div>

@@ -63,7 +63,7 @@ describe('RouteErrorBoundary', () => {
   })
 
   it('offers a reload, not a retry, when the route chunk failed to load', () => {
-    thrown = new TypeError('Failed to fetch dynamically imported module: https://know-n.com/assets/Explore-abc.js')
+    thrown = new TypeError('Failed to fetch dynamically imported module: https://colp.example/assets/Search-abc.js')
     mountTree(
         <RouteErrorBoundary resetKey="/explore">
           <Boom />

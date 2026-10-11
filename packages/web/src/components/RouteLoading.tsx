@@ -8,8 +8,8 @@ import { CollectionSkeleton } from './CollectionSkeleton'
  * jump, so every placeholder here is drawn on the page's own chrome: the
  * real `.page-shell` padding and track width, the real `.page-head` layout
  * modifiers, and a body shaped like the surface the route renders (the
- * library desk's rail + rows, Explore's card grid, the feed's card stream,
- * a reader's paragraphs…). Pages that replace themselves with a full-page
+ * library desk's rail + rows, the graph canvas, a bookmark's reading
+ * column…). Pages that replace themselves with a full-page
  * loading state reuse the same component through `PageSkeleton`, so the
  * fallback and the page's own first paint are one continuous placeholder.
  *
@@ -19,7 +19,7 @@ import { CollectionSkeleton } from './CollectionSkeleton'
 type Shell = 'shell' | 'grid' | 'narrow'
 
 type Head = {
-  layout: 'stack' | 'split' | 'masthead'
+  layout: 'stack' | 'split'
   /** Compact sans head (PageHead variant="workbench"). */
   workbench?: boolean
   crumb?: boolean
@@ -28,7 +28,7 @@ type Head = {
   action?: boolean
 }
 
-type Body = 'rows' | 'cards' | 'stream' | 'today' | 'search' | 'inbox' | 'form' | 'reader' | 'canvas' | 'ledger'
+type Body = 'rows' | 'search' | 'form' | 'canvas'
 
 type Spec = { shell: Shell; head: Head; body: Body }
 
@@ -36,9 +36,7 @@ export type SkeletonLayout =
   | Spec
   | 'desk'
   | 'collection'
-  | 'profile'
   | 'auth'
-  | 'reading'
   | 'resource'
 
 const workbench = (head: Partial<Head> = {}): Head => ({ layout: 'split', workbench: true, lede: true, ...head })
@@ -50,43 +48,23 @@ const ROUTES: Array<[RegExp, SkeletonLayout]> = [
   // Library family
   [/^\/library\/new\/?$/u, { shell: 'narrow', head: workbench({ layout: 'stack', crumb: true }), body: 'form' }],
   [/^\/library\/health\/?$/u, { shell: 'grid', head: workbench({ crumb: true, action: true }), body: 'rows' }],
-  [/^\/library\/digests\/[^/]+(\/issues\/[^/]+)?\/read\/?$/u, 'reading'],
-  [/^\/library\/digests(\/[^/]+)?\/?$/u, { shell: 'grid', head: workbench({ crumb: true, action: true }), body: 'rows' }],
   [/^\/library\/[^/]+\/(history|collaborators)\/?$/u, { shell: 'grid', head: workbench({ crumb: true, action: true }), body: 'rows' }],
   [/^\/library(\/.*)?$/u, 'desk'],
 
-  // Discovery and reading
-  [/^\/explore\/?$/u, { shell: 'grid', head: { layout: 'split', action: true }, body: 'cards' }],
-  [/^\/reports\/?$/u, { shell: 'grid', head: { layout: 'stack', lede: true }, body: 'cards' }],
-  [/^\/reports\/[^/]+\/issues\/[^/]+\/?$/u, { shell: 'grid', head: { layout: 'masthead', crumb: true, lede: true }, body: 'reader' }],
-  [/^\/reports\/[^/]+\/?$/u, { shell: 'grid', head: { layout: 'masthead', crumb: true, lede: true }, body: 'rows' }],
+  // Collections and bookmarks
   [/^\/c\/[^/]+/u, 'collection'],
-  [/^\/(u|profile)\/[^/]+/u, 'profile'],
-  [/^\/read\/[^/]+/u, 'reading'],
-  [/^\/path\/[^/]+/u, 'reading'],
   [/^\/r\/[^/]+/u, 'resource'],
   [/^\/graph\/[^/]+/u, { shell: 'grid', head: { layout: 'stack', crumb: true, eyebrow: true, lede: true }, body: 'canvas' }],
-  [/^\/feed\/?$/u, { shell: 'grid', head: { layout: 'stack', eyebrow: true, lede: true }, body: 'stream' }],
-  [/^\/today\/?$/u, { shell: 'grid', head: { layout: 'split', eyebrow: true, lede: true }, body: 'today' }],
   [/^\/search\/?$/u, { shell: 'shell', head: { layout: 'stack', eyebrow: true }, body: 'search' }],
-  [/^\/notifications\/?$/u, { shell: 'grid', head: { layout: 'split', eyebrow: true, lede: true, action: true }, body: 'inbox' }],
-  [/^\/demos\/?$/u, { shell: 'shell', head: { layout: 'stack', eyebrow: true, lede: true }, body: 'cards' }],
 
   // Account and auth
-  [/^\/(login|register|reset-password|verify-email|auth\/recovery|consent)\/?$/u, 'auth'],
-  [/^\/onboarding\/?$/u, { shell: 'narrow', head: { layout: 'stack', eyebrow: true, lede: true }, body: 'form' }],
+  [/^\/(login|register|auth\/recovery|consent)\/?$/u, 'auth'],
 
   // Workbench tools
-  [/^\/export\/?$/u, { shell: 'grid', head: workbench({ layout: 'stack', crumb: true }), body: 'rows' }],
   [/^\/import\/?$/u, { shell: 'grid', head: workbench({ layout: 'stack', crumb: true }), body: 'rows' }],
-  [/^\/creator\/?$/u, { shell: 'grid', head: workbench({ eyebrow: true, action: true }), body: 'ledger' }],
-  [/^\/credits\/?$/u, { shell: 'grid', head: workbench({ eyebrow: true, action: true }), body: 'ledger' }],
   [/^\/sync\/?$/u, { shell: 'grid', head: workbench({ eyebrow: true, action: true }), body: 'rows' }],
-  [/^\/classify\/batch\/?$/u, { shell: 'shell', head: workbench({ crumb: true }), body: 'rows' }],
-  [/^\/classify\/?$/u, { shell: 'grid', head: workbench({ crumb: true }), body: 'rows' }],
   [/^\/approvals(\/[^/]+)?\/?$/u, { shell: 'shell', head: workbench({ eyebrow: true, action: true }), body: 'rows' }],
   [/^\/agents\/?$/u, { shell: 'shell', head: workbench({ eyebrow: true, lede: true }), body: 'rows' }],
-  [/^\/ai\/organize\/?$/u, { shell: 'grid', head: workbench({ layout: 'stack', crumb: true }), body: 'rows' }],
 ]
 
 export function layoutForPath(pathname: string): SkeletonLayout {
@@ -101,7 +79,6 @@ function Bone({ className }: { className: string }) {
 function HeadBones({ head }: { head: Head }) {
   const classes = ['page-head', 'skeleton-head']
   if (head.layout === 'split') classes.push('page-head--split')
-  if (head.layout === 'masthead') classes.push('page-head--masthead', 'page-head--no-avatar')
   if (head.workbench) classes.push('page-head--workbench')
   return (
     <div className={classes.join(' ')} data-testid="skeleton-head">
@@ -144,55 +121,6 @@ function Chips({ count = 4 }: { count?: number }) {
   )
 }
 
-function Tabs() {
-  return (
-    <div className="skeleton-tabs">
-      <Bone className="skeleton-text skeleton-text--tab" />
-      <Bone className="skeleton-text skeleton-text--tab" />
-      <Bone className="skeleton-text skeleton-text--tab" />
-    </div>
-  )
-}
-
-/** The card-grid skeleton, shared with in-page loading states (R15-14). */
-export function SkeletonCardGrid() {
-  return (
-    <div className="route-loading-grid" data-testid="route-loading-grid">
-      {Array.from({ length: 6 }, (_, i) => (
-        <div key={i} className="route-loading-card" data-testid="route-loading-card">
-          <Bone className="skeleton-card-chip" />
-          <Bone className="skeleton-text skeleton-text--card-title" />
-          <div className="skeleton-stack">
-            <Bone className="skeleton-text skeleton-text--copy" />
-            <Bone className="skeleton-text skeleton-text--copy skeleton-text--short" />
-          </div>
-          <div className="skeleton-card-footer">
-            <Bone className="skeleton-avatar" />
-            <Bone className="skeleton-text skeleton-text--meta" />
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function Stream() {
-  return (
-    <div className="skeleton-stream">
-      {Array.from({ length: 4 }, (_, i) => (
-        <div key={i} className="skeleton-panel skeleton-stream-card">
-          <div className="skeleton-card-footer skeleton-card-footer--head">
-            <Bone className="skeleton-avatar" />
-            <Bone className="skeleton-text skeleton-text--meta" />
-          </div>
-          <Bone className="skeleton-text skeleton-text--row-title" />
-          <Bone className="skeleton-text skeleton-text--copy skeleton-text--short" />
-        </div>
-      ))}
-    </div>
-  )
-}
-
 function Paragraphs({ count = 4 }: { count?: number }) {
   return (
     <div className="skeleton-prose">
@@ -221,35 +149,8 @@ function Fields() {
   )
 }
 
-function Stats() {
-  return (
-    <div className="skeleton-stats">
-      {Array.from({ length: 4 }, (_, i) => (
-        <div key={i} className="skeleton-stack">
-          <Bone className="skeleton-text skeleton-text--meta" />
-          <Bone className="skeleton-text skeleton-text--stat" />
-        </div>
-      ))}
-    </div>
-  )
-}
-
 function SpecBody({ body }: { body: Body }) {
   switch (body) {
-    case 'cards':
-      return <SkeletonCardGrid />
-    case 'stream':
-      return <Stream />
-    case 'today':
-      return (
-        <div className="skeleton-split">
-          <div className="skeleton-stack">
-            <Bone className="skeleton-text skeleton-text--section" />
-            <Rows count={3} />
-          </div>
-          <Rows count={4} />
-        </div>
-      )
     case 'search':
       return (
         <>
@@ -258,26 +159,8 @@ function SpecBody({ body }: { body: Body }) {
           <Rows />
         </>
       )
-    case 'inbox':
-      return (
-        <>
-          <Tabs />
-          <Chips />
-          <Rows />
-        </>
-      )
-    case 'ledger':
-      return (
-        <>
-          <Stats />
-          <Chips count={6} />
-          <Rows count={4} />
-        </>
-      )
     case 'form':
       return <Fields />
-    case 'reader':
-      return <Paragraphs />
     case 'canvas':
       return <Bone className="skeleton-canvas" />
     case 'rows':
@@ -325,35 +208,6 @@ function DeskBones() {
   )
 }
 
-/** Public profile: display-mode bar, avatar masthead with stats strip, collection cards. */
-function ProfileBones() {
-  return (
-    <div className="page-shell skeleton-profile-page">
-      <div className="page-shell-inner">
-        <Bone className="skeleton-chip skeleton-chip--modebar" />
-        <div className="page-head page-head--masthead page-head--editorial skeleton-head">
-          <div className="page-head-avatar">
-            <Bone className="skeleton-avatar skeleton-avatar--profile" />
-          </div>
-          <div className="page-head-copy skeleton-stack">
-            <Bone className="skeleton-text skeleton-text--title" />
-            <Bone className="skeleton-text skeleton-text--meta" />
-          </div>
-          <div className="page-head-actions">
-            <Bone className="skeleton-button" />
-          </div>
-          <div className="page-head-stats skeleton-stats skeleton-stats--strip">
-            <Bone className="skeleton-text skeleton-text--meta" />
-            <Bone className="skeleton-text skeleton-text--meta" />
-            <Bone className="skeleton-text skeleton-text--meta" />
-          </div>
-        </div>
-        <SkeletonCardGrid />
-      </div>
-    </div>
-  )
-}
-
 /** Centered auth card (Login / Register / Consent…): heading, fields, submit. */
 function AuthBones() {
   return (
@@ -369,18 +223,6 @@ function AuthBones() {
           </div>
         ))}
         <Bone className="skeleton-button skeleton-button--block" />
-      </div>
-    </div>
-  )
-}
-
-/** Reading column (reader, path reader, member digest): editorial head over prose. */
-function ReadingBones() {
-  return (
-    <div className="page-shell page-shell--narrow">
-      <div className="page-shell-inner">
-        <HeadBones head={{ layout: 'stack', crumb: true, eyebrow: true, lede: true }} />
-        <Paragraphs count={5} />
       </div>
     </div>
   )
@@ -425,9 +267,7 @@ function ResourceBones() {
 
 function LayoutBones({ layout }: { layout: SkeletonLayout }) {
   if (layout === 'desk') return <DeskBones />
-  if (layout === 'profile') return <ProfileBones />
   if (layout === 'auth') return <AuthBones />
-  if (layout === 'reading') return <ReadingBones />
   if (layout === 'resource') return <ResourceBones />
   if (layout === 'collection') return null
   return (

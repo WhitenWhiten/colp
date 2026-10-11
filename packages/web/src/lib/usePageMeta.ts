@@ -1,12 +1,11 @@
 import { useEffect } from 'react'
-import { SITE_ORIGIN } from './siteOrigin'
 
 export interface PageMeta {
   description?: string
   /** Site-relative path. `null` deliberately removes canonical and og:url. */
   canonicalPath?: string | null
   /**
-   * Site-relative og:image path (D1; absolutized with SITE_ORIGIN). Absent
+   * Site-relative og:image path (D1; absolutized with this server's origin). Absent
    * leaves the origin-injected value — the site-wide cover, or the
    * per-collection card the server stamped into this page's HTML.
    */
@@ -80,7 +79,7 @@ function lastEntry<K extends keyof PageMeta>(key: K): Entry | undefined {
 }
 
 function absoluteUrl(path: string): string {
-  return `${SITE_ORIGIN}${path.startsWith('/') ? path : `/${path}`}`
+  return `${window.location.origin}${path.startsWith('/') ? path : `/${path}`}`
 }
 
 /**

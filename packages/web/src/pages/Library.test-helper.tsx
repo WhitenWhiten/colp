@@ -86,7 +86,6 @@ export function mount(path = '/library') {
   mountTree(
       <MemoryRouter initialEntries={[path]}>
         <Routes>
-          <Route path="/library/following/:slug" element={<Library />} />
           <Route path="/library/:id?" element={<Library />} />
           <Route path="/library/:id/edit" element={<p data-testid="editor-route">Editor</p>} />
           <Route path="/login" element={<p>Login</p>} />
@@ -102,20 +101,15 @@ export function setUpLibrary() {
   clearRouteCache()
   document.body.innerHTML = '<div id="root"></div>'
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
-  mocks.isLive.mockImplementation((flag: string) => ['collectionList', 'savedResources', 'readingProgress'].includes(flag))
   mocks.auth.isLoggedIn = true
   mocks.auth.bootstrapping = false
   mocks.auth.sessionState = 'ready'
   mocks.collections = { items: [], state: 'ready', message: '', hasMore: false, isLoadingMore: false, reload: vi.fn(async () => undefined), loadMore: vi.fn(async () => undefined) }
   mocks.shared = { items: [], state: 'ready', message: '', hasMore: false, isLoadingMore: false, reload: vi.fn(async () => undefined), loadMore: vi.fn(async () => undefined) }
   mocks.invites = { items: [], state: 'ready', message: '', pendingInviteId: null, accept: vi.fn(async () => ({ collectionId: '' })), decline: vi.fn(async () => undefined) }
-  mocks.saved = { items: [], state: 'ready', message: '', reload: vi.fn() }
-  mocks.progress = { items: [], state: 'ready', message: '', reload: vi.fn() }
   mocks.loadEditorSnapshot.mockImplementation((id: string) => Promise.resolve(snapshot(id, id === 'two' ? 'Two' : 'One')))
   mocks.loadPublicCollectionSnapshot.mockReset()
   mocks.loadPublicCollectionSnapshot.mockImplementation(async (slug: string) => publicSnapshot(slug))
-  mocks.listFollowedCollections.mockReset()
-  mocks.listFollowedCollections.mockResolvedValue({ items: [], nextCursor: null })
   mocks.getMyLibraryOrder.mockReset()
   mocks.getMyLibraryOrder.mockResolvedValue({ sections: { mine: [], shared: [], following: [] } })
   delete window.__KNOWN_FLAGS__

@@ -3,11 +3,6 @@ import { useCallback, useSyncExternalStore } from 'react'
 export type UiDensity = 'comfortable' | 'compact'
 
 const KEY = 'known.ui.density.v1'
-const LEGACY = [
-  'known.explore.density.v1',
-  'known.library.layout.v1',
-  'known.dashboard.density.v1',
-] as const
 
 const listeners = new Set<() => void>()
 
@@ -15,14 +10,6 @@ function readStored(): UiDensity {
   try {
     const raw = localStorage.getItem(KEY)
     if (raw === 'comfortable' || raw === 'compact') return raw
-    const explore = localStorage.getItem(LEGACY[0])
-    if (explore === 'comfortable' || explore === 'compact') return explore
-    const library = localStorage.getItem(LEGACY[1])
-    if (library === 'full') return 'comfortable'
-    if (library === 'compact') return 'compact'
-    const dashboard = localStorage.getItem(LEGACY[2])
-    if (dashboard === 'desk') return 'comfortable'
-    if (dashboard === 'focus') return 'compact'
   } catch {
     /* ignore */
   }

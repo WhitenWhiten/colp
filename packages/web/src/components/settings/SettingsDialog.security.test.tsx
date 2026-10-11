@@ -19,20 +19,7 @@ const mocks = vi.hoisted(() => ({
     refreshSession: vi.fn<() => Promise<void>>(),
     logout: vi.fn<() => Promise<'signed-out' | 'failed'>>(),
   },
-  notifications: {
-    preference: {
-      channel: 'in_app' as const,
-      enabled: true,
-      revision: '2',
-      updatedAt: '2026-07-29T00:00:00.000Z',
-      email: null,
-    },
-    pending: null as string | null,
-    setPreference: vi.fn(),
-    resetPreference: vi.fn(),
-  },
   updateMe: vi.fn(),
-  uploadAvatar: vi.fn(),
   success: vi.fn(),
   error: vi.fn(),
   isLive: vi.fn((flag: string) => flag !== 'mfa'),
@@ -59,21 +46,15 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('../../auth/AuthContext', () => ({ useAuth: () => mocks.auth }))
-vi.mock('../../lib/useNotificationCenter', () => ({
-  useNotificationCenter: () => mocks.notifications,
-}))
 vi.mock('../AppToast', () => ({
   useToast: () => ({ toast: vi.fn(), success: mocks.success, error: mocks.error }),
 }))
 vi.mock('../../api/authClient', () => ({ authClient: mocks.authClient }))
 vi.mock('../../api', () => ({
   isProductApiError: (error: unknown) => !!error && typeof error === 'object' && 'fieldErrors' in error,
-  isNotificationExposureEnabled: () => true,
-  isCommunityExposureEnabled: () => false,
   isLive: mocks.isLive,
   productClient: {
     updateMe: mocks.updateMe,
-    uploadAvatar: mocks.uploadAvatar,
     newCommandId: () => 'command-1',
     mutationIntentKey: (scope: string, id: string) => `${scope}:${id}`,
   },
@@ -89,7 +70,6 @@ function change(input: HTMLInputElement | HTMLTextAreaElement, value: string) {
 }
 
 describe('Settings security and account surfaces', () => {
-
   beforeEach(() => {
     document.body.innerHTML = '<div id="root"></div>'
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -103,7 +83,6 @@ describe('Settings security and account surfaces', () => {
     mocks.auth.refreshSession.mockReset().mockResolvedValue(undefined)
     mocks.auth.logout.mockReset().mockResolvedValue('signed-out')
     mocks.updateMe.mockReset()
-    mocks.uploadAvatar.mockReset()
     mocks.success.mockReset()
     mocks.error.mockReset()
     mocks.authClient.getAuthSession.mockReset()
@@ -137,7 +116,7 @@ describe('Settings security and account surfaces', () => {
     mountTree(<MemoryRouter initialEntries={[path]}><SettingsDialog /></MemoryRouter>)
   }
 
-  it('renders the security section with verified-email status and accessible auth feedback', async () => {
+  it('renders the password, session and deletion security section with accessible auth feedback', async () => {
     mocks.authClient.getAuthSession.mockResolvedValue({
       session: {
         id: 'session-1', userId: 'u-1',
@@ -150,10 +129,9 @@ describe('Settings security and account surfaces', () => {
 
     expect(document.querySelector('[data-settings-nav] [aria-current="true"]')?.textContent).toBe('Security')
     expect(document.querySelector('[data-testid="settings-security"]')).not.toBeNull()
-    expect(document.querySelector('[data-testid="email-verified"]')?.textContent).toContain('verified')
-    expect(document.querySelector('[data-testid="change-email"]')).not.toBeNull()
-    expect(document.querySelector('[data-testid="change-email-current"]')?.textContent).toBe('user@example.test')
-    expect(document.querySelector('[data-testid="change-email-send"]')).not.toBeNull()
+    // This server sends no email (D28): no verification or change-email controls.
+    expect(document.querySelector('[data-testid="email-verified"]')).toBeNull()
+    expect(document.querySelector('[data-testid="change-email"]')).toBeNull()
     expect(document.querySelector('[data-testid="delete-account"]')).not.toBeNull()
     // Ready state: the auth status region renders no loading/offline/expired feedback.
     expect(document.body.textContent).not.toContain('Loading your session')
@@ -187,14 +165,14 @@ describe('Settings security and account surfaces', () => {
     const security = document.querySelector('[data-testid="settings-security"]')!
     // Each concern is its own card, so a section's fields, actions and
     // feedback read as one unit.
-    expect(security.querySelectorAll('[data-testid="security-sections"] > section')).toHaveLength(7)
+    expect(security.querySelectorAll('[data-testid="security-sections"] > section')).toHaveLength(3)
     expect(security.querySelector('hr.divider + .security-sections')).not.toBeNull()
 
     // A `.btn` is inline-flex: dropped straight into a column-flex parent it
     // stretches to the full card width. Every action must sit in a row.
     const buttons = [...security.querySelectorAll<HTMLElement>('button')]
       .filter((button) => button.classList.contains('btn'))
-    expect(buttons.length).toBeGreaterThan(6)
+    expect(buttons.length).toBeGreaterThan(1)
     const stray = buttons.filter((button) => {
       const parent = button.parentElement
       return !parent?.classList.contains('auth-action-row')
@@ -202,16 +180,6 @@ describe('Settings security and account surfaces', () => {
         && !parent?.classList.contains('auth-otp-row')
     })
     expect(stray.map((b) => b.textContent)).toEqual([])
-  })
-
-  it('shows the two-factor controls once the MFA exposure flag is on', async () => {
-    mocks.authClient.getAuthSession.mockResolvedValue(null)
-    mocks.isLive.mockImplementation(() => true)
-    renderAt('/library?settings=security')
-    await waitForDom(domFinishedLoading)
-
-    expect(document.querySelector('[data-testid="mfa-enable"]')).not.toBeNull()
-    expect(document.querySelector('#mfa-password')).not.toBeNull()
   })
 
   it('announces an expired session inside Settings with an auth-restart action', () => {
@@ -277,53 +245,12 @@ describe('Settings security and account surfaces', () => {
     expect(mocks.authClient.changePassword).not.toHaveBeenCalled()
   })
 
-  it('describes privacy limits instead of offering fake save controls', () => {
-    renderAt('/library?settings=privacy')
-    expect(document.body.textContent).toContain('New collections start private')
-    // R15-10: the profile shows Activity, Following and Followers tabs, not
-    // collections only; the old sentence understated what is public.
-    expect(document.body.textContent).toContain('recent changes to them (Activity), who you follow and who follows you')
-    expect(document.body.textContent).not.toContain('lists collections only')
-    const facts = [...document.querySelectorAll('dd')].find((dd) => dd.textContent?.includes('who follows you'))
-    expect(facts?.querySelector('a[href="/privacy"]')).not.toBeNull()
-    expect(document.querySelectorAll('[role="switch"]').length).toBe(0)
-    expect(document.body.textContent).not.toContain('Save privacy')
-  })
-
-  it('sends notification preferences to the live notification center', () => {
-    renderAt('/library?settings=notifications')
-    const link = document.querySelector<HTMLAnchorElement>('a[href="/notifications"]')
-    expect(link?.textContent).toContain('Open notification center')
-    expect(document.body.textContent).not.toContain('Save notifications')
-    expect(document.body.textContent).not.toContain('Product tips')
-    const inAppSection = document.querySelector('[data-testid="in-app-preference"]')!
-    const toggle = inAppSection.querySelector<HTMLButtonElement>('[role="switch"]')!
-    expect(toggle.getAttribute('aria-checked')).toBe('true')
-    toggle.focus()
-    expect(document.activeElement).toBe(toggle)
-    act(() => toggle.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })))
-    act(() => toggle.click())
-    expect(mocks.notifications.setPreference).toHaveBeenCalledWith(false)
-    const reset = [...inAppSection.querySelectorAll<HTMLButtonElement>('button')]
-      .find((value) => value.textContent?.trim() === 'Use default')!
-    reset.focus()
-    expect(document.activeElement).toBe(reset)
-    act(() => reset.click())
-    expect(mocks.notifications.resetPreference).toHaveBeenCalled()
-  })
-
-  it('presents Export library as an account setting', () => {
-    render()
-    const link = document.querySelector<HTMLAnchorElement>('a[href="/export"]')
-    expect(link).not.toBeNull()
-    expect(link?.getAttribute('href')).toBe('/export')
-    expect(link?.textContent).toContain('Export library')
-    // Page links sit in a separate "Go to" group, each with an outward arrow.
-    const group = link?.closest('[role="group"]')
-    expect(document.getElementById(group?.getAttribute('aria-labelledby') ?? '')?.textContent).toBe('Go to')
-    expect(link?.querySelector('svg')).not.toBeNull()
+  it('links the browser extension page from the Go to group', () => {
+    renderAt('/library?settings=profile')
+    const group = document.querySelector('[aria-labelledby="settings-nav-goto-label"]')
+    expect(group?.getAttribute('role')).toBe('group')
     expect([...(group?.querySelectorAll('a') ?? [])].map((anchor) => anchor.getAttribute('href')))
-      .toEqual(['/creator', '/credits', '/extension', '/export'])
+      .toEqual(['/extension'])
   })
 
   it('keeps in-flight /settings#security mail links on the Security panel', async () => {

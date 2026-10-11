@@ -107,8 +107,8 @@ export function agentConnectCopy(origin: string): AgentConnectCopy {
     origin: base,
     strictUrl,
     compatUrl,
-    claude: `claude mcp add --transport http colp "${compatUrl}"`,
-    codex: strictUrl,
+    claude: `claude mcp add --transport http colp "${compatUrl}"\nclaude mcp login colp`,
+    codex: `codex mcp add colp --url "${compatUrl}"\ncodex mcp login colp`,
     curl: [
       "# Requires jq. Set KEY to the credential copied at issuance.",
       "ACCESS_TOKEN=$(curl -fsS -H \"Content-Type: application/json\" \\",

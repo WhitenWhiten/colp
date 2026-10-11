@@ -132,8 +132,7 @@ export function cleanup(): void {
 }
 
 function buttonLabel(button: HTMLButtonElement): string {
-  const followLabel = button.querySelector('.follow-btn-label')?.textContent
-  const text = (followLabel ?? button.textContent)?.replace(/\s+/g, ' ').trim() ?? ''
+  const text = button.textContent?.replace(/\s+/g, ' ').trim() ?? ''
   const aria = button.getAttribute('aria-label')?.trim() ?? ''
   return text || aria
 }
@@ -141,8 +140,7 @@ function buttonLabel(button: HTMLButtonElement): string {
 export function findButtonByName(name: string | RegExp): HTMLButtonElement {
   const buttons = [...document.querySelectorAll<HTMLButtonElement>('button')]
   const labeled = buttons.map((button) => {
-    const follow = button.querySelector('.follow-btn-label')
-    const text = (follow?.textContent ?? button.textContent)?.replace(/\s+/g, ' ').trim() ?? ''
+    const text = button.textContent?.replace(/\s+/g, ' ').trim() ?? ''
     const aria = button.getAttribute('aria-label')?.trim() ?? ''
     return { button, text, aria }
   })
@@ -203,14 +201,12 @@ export async function waitForDom(
 
 /** True once the document is past a first-paint Loading / data-*-state=loading skeleton. */
 export function domFinishedLoading(): boolean {
-  if (document.querySelector('[data-feed-state="loading"]')) return false
   if (document.querySelector('[data-search-state="loading"], [data-search-state="loading-more"]')) {
     return false
   }
-  if (document.querySelector('[data-profile-state="loading-activity"]')) return false
   for (const node of document.querySelectorAll('[role="status"]')) {
     const text = (node.textContent ?? '').replace(/\s+/g, ' ').trim()
-    if (/^Loading\b/i.test(text) || /^Checking Follow/i.test(text)) return false
+    if (/^Loading\b/i.test(text)) return false
   }
   const hookState = document.querySelector('[data-state]')?.getAttribute('data-state')
   if (hookState === 'loading' || hookState === 'loading-more') return false

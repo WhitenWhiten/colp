@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
-import { productClient, type FollowedCollectionItem, type OwnedCollectionListItem } from '../../api'
+import { productClient, type OwnedCollectionListItem } from '../../api'
 import {
   applyLibraryOrder,
   LIBRARY_ORDER_SECTION_IDS,
@@ -8,7 +8,7 @@ import {
 } from '../../lib/libraryOrder'
 import { isAbort } from '../../lib/libraryTree'
 import { readRouteCache, writeRouteCache } from '../../lib/routeCache'
-import { followedKey, readDeskCache } from './data'
+import { readDeskCache } from './data'
 
 /**
  * The sidebar rows themselves restore from the owned-collections route cache
@@ -32,7 +32,6 @@ export function useLibraryDeskOrder(options: {
   bootstrapping: boolean
   ownedSidebarItems: readonly OwnedCollectionListItem[]
   sharedSidebarItems: readonly OwnedCollectionListItem[]
-  followedItems: readonly FollowedCollectionItem[]
   setExpanded: Dispatch<SetStateAction<ReadonlySet<string>>>
 }) {
   const {
@@ -41,7 +40,6 @@ export function useLibraryDeskOrder(options: {
     bootstrapping,
     ownedSidebarItems,
     sharedSidebarItems,
-    followedItems,
     setExpanded,
   } = options
 
@@ -72,19 +70,13 @@ export function useLibraryDeskOrder(options: {
     () => applyLibraryOrder(sharedSidebarItems, sectionOrder.shared, (item) => item.collection.id),
     [sharedSidebarItems, sectionOrder.shared],
   )
-  const orderedFollowedItems = useMemo(
-    () => applyLibraryOrder(followedItems, sectionOrder.following, (item) => item.collectionId),
-    [followedItems, sectionOrder.following],
-  )
   const loadedIdsRef = useRef<Record<LibraryOrderSectionId, readonly string[]>>({
     mine: [],
     shared: [],
-    following: [],
   })
   loadedIdsRef.current = {
     mine: orderedOwnedItems.map((item) => item.collection.id),
     shared: orderedSharedItems.map((item) => item.collection.id),
-    following: orderedFollowedItems.map((item) => item.collectionId),
   }
 
   /* Mirror the on-screen order into the route cache so the next desk mount
@@ -152,13 +144,7 @@ export function useLibraryDeskOrder(options: {
       return next
     })
     const drop = new Set<string>()
-    if (section === 'mine') {
-      for (const item of ownedSidebarItems) drop.add(item.collection.id)
-    } else if (section === 'shared') {
-      for (const item of sharedSidebarItems) drop.add(item.collection.id)
-    } else {
-      for (const item of followedItems) drop.add(followedKey(item.slug))
-    }
+    for (const item of section === 'mine' ? ownedSidebarItems : sharedSidebarItems) drop.add(item.collection.id)
     setExpanded((current) => {
       if (current.size === 0) return current
       let changed = false
@@ -168,7 +154,7 @@ export function useLibraryDeskOrder(options: {
       }
       return changed ? next : current
     })
-  }, [followedItems, ownedSidebarItems, persistSectionOrder, reorderSection, setExpanded, sharedSidebarItems])
+  }, [ownedSidebarItems, persistSectionOrder, reorderSection, setExpanded, sharedSidebarItems])
 
   useEffect(() => {
     if (!reorderSection) return
@@ -237,7 +223,6 @@ export function useLibraryDeskOrder(options: {
     reorderSection,
     orderedOwnedItems,
     orderedSharedItems,
-    orderedFollowedItems,
     setSectionIds,
     persistSectionOrder,
     finishReorder,

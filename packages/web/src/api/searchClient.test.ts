@@ -43,11 +43,11 @@ describe('generated Search Product client boundary', () => {
       headers: { 'Content-Type': 'application/json' },
     }))
     const client = createProductTransport({ baseUrl: 'https://api.known.test', fetchImpl })
-    await client.searchResources({ q: 'design systems', types: ['profile'], cursor: 'signed cursor', limit: 99 })
+    await client.searchResources({ q: 'design systems', types: ['annotation'], cursor: 'signed cursor', limit: 99 })
 
     const url = new URL(String(fetchImpl.mock.calls[0]![0]))
     expect(url.searchParams.get('cursor')).toBe('signed cursor')
-    expect(url.searchParams.getAll('type')).toEqual(['profile'])
+    expect(url.searchParams.getAll('type')).toEqual(['annotation'])
     expect(url.searchParams.has('limit')).toBe(false)
   })
 

@@ -1,27 +1,16 @@
 /* ——— Library ———
-   Library-domain chrome shared by four lazy routes (see
-   SHARED_ROUTE_STYLESHEETS in css-layers.contract.test.ts): the product
+   Library-domain chrome shared by two lazy routes (see
+   SHARED_ROUTE_STYLESHEETS in css-layers.contract.test.ts): the library
    desk (Library.tsx — shell, collections rail, bookmark rows, drag/reorder,
-   bulk bar, destination picker, node edit drawer), the demo stack
-   (LegacyLibrary.tsx — .library-layout/.library-sidebar two-column), the
-   public collection page (Collection.tsx —
-   .library-bookmark* rows, .library-folder-*, .library-dest-* via
-   components/ResourceList, FolderEntries, CollectionDestinationPicker),
-   and DigestManage (R10-05 attach-issue collection pick reuses the same
-   .library-dest-* picker).
+   bulk bar, destination picker, node edit drawer) and the public collection
+   page (Collection.tsx — .library-bookmark* rows, .library-folder-*,
+   .library-dest-* via components/ResourceList, FolderEntries,
+   CollectionDestinationPicker).
 
    Cross-route workbench chrome that non-page modules also mount
    (.tree-item*, .edit-*, .toggle*, .node-drawer-annotation*) lives in
    workbench-chrome.css — entry-loaded because the settings dialog and
-   NodeAnnotationFields are reachable from every route.
-
-   Layout primitives (R9-32, resolved as a documented split):
-   .library-desk and .library-layout are NOT parallel duplicates — the desk
-   rail is a drag-resizable track with a live divider (.library-desk-divider,
-   --library-sidebar-w), while the demo rail is a fixed 12.5/14.5rem sticky
-   card. Merging them would bolt the divider machinery onto a demo page or
-   strip the product rail's resize — so the demo keeps its own stack
-   (R9-28 product decision) and new product work must not copy it. */
+   NodeAnnotationFields are reachable from every route. */
 
 @layer pages {
 /* Page padding comes from .page-shell (page-chrome.css): the library routes
@@ -165,8 +154,7 @@ body[data-library-split] {
 
 /* Rail title, not another section eyebrow: "My collections" below keeps
    the 11px uppercase faint recipe. The nav itself is desktop-only
-   (≥720px), so this is the PC hierarchy. Shares the editorial serif
-   nameplate register with the Today/Explore page heads. */
+   (≥720px), so this is the PC hierarchy. */
 .library-nav-head .section-label {
   margin: 0;
   color: var(--ink);
@@ -302,22 +290,6 @@ body[data-library-split] {
   font-weight: var(--weight-medium);
 }
 
-/* #21: a moderation-hidden followed digest keeps its sidebar slot as an
-   inert row — same anatomy, muted placeholder label (not italic: §0.2-3),
-   no hover affordance. */
-.library-nav-row--tombstone .library-nav-label {
-  color: var(--muted);
-}
-
-.library-nav-row--tombstone .library-nav-icon {
-  color: var(--faint);
-}
-
-.library-nav-row--tombstone .library-nav-link:hover {
-  background: transparent;
-  color: inherit;
-}
-
 .library-nav-count {
   margin-left: auto;
   font-size: var(--text-xs);
@@ -365,8 +337,7 @@ body[data-library-split] {
 }
 
 .library-nav-more,
-.library-nav-create,
-.library-nav-reading {
+.library-nav-create {
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -386,14 +357,12 @@ body[data-library-split] {
 
 @media (pointer: coarse) {
   .library-nav-more,
-  .library-nav-create,
-  .library-nav-reading {
+  .library-nav-create {
     min-height: 2.75rem;
   }
 }
 
-.library-nav-create svg,
-.library-nav-reading svg {
+.library-nav-create svg {
   width: 1rem;
   height: 1rem;
   color: var(--ink-2);
@@ -409,64 +378,17 @@ body[data-library-split] {
 }
 
 .library-nav-create:hover,
-.library-nav-reading:hover,
 .library-nav-more:hover {
   background: color-mix(in srgb, var(--ink) 4%, transparent);
   color: var(--ink);
-}
-
-.library-nav-reading[aria-current='page'] {
-  background: color-mix(in srgb, var(--ink) 5%, var(--surface));
-  color: var(--ink);
-  font-weight: var(--weight-semibold);
-  box-shadow: inset 2px 0 0 var(--ink);
 }
 
 .library-mobile-nav {
   margin-bottom: var(--space-4);
 }
 
-.library-mobile-select {
-  display: grid;
-  /* minmax(0, …): an auto track would size to the select's intrinsic width
-     (its widest option), pushing the control past the viewport on phones. */
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--space-1);
-  font-size: var(--text-xs);
-  color: var(--muted);
-}
-
-.library-mobile-select select {
-  width: 100%;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  min-height: 2.75rem;
-  padding: 0 var(--space-6) 0 var(--space-3);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius);
-  background: var(--surface);
-  color: var(--ink);
-  font-size: var(--text-sm);
-  box-shadow: var(--shadow-xs);
-  -webkit-appearance: none;
-  appearance: none;
-  background-image: var(--select-chevron);
-  background-repeat: no-repeat;
-  background-position: right var(--hair-65) center;
-  background-size: 0.65rem auto;
-}
-
-/* Opt into the shared customizable-select list (global.css). Chrome ignores
-   overflow on a base-select, so a long folder name would run past the box
-   instead of taking the ellipsis: let it wrap like the .field selects. */
-@supports (appearance: base-select) {
-  .library-mobile-select select { appearance: base-select; white-space: normal; }
-}
-
 /* Desk mobile collection switcher (R11-05): a trigger + sheet, not a native
-   <select>. LegacyLibrary still uses .library-mobile-select above. */
+   <select>. */
 .library-mobile-switcher {
   display: flex;
   align-items: center;
@@ -1071,7 +993,7 @@ button.library-bookmark-tag:hover {
 }
 
 /* Comfort rows with annotation excerpts have two real links: the primary
-   source/Reader link owns the bookmark fields, while the excerpt opens full
+   source link owns the bookmark fields, while the excerpt opens full
    details. `display: contents` keeps the established row grid intact. */
 .library-bookmark-main-link {
   display: contents;
@@ -1145,61 +1067,6 @@ button.library-bookmark-tag:hover {
   object-fit: contain;
   background: var(--surface);
   border: 1px solid var(--line);
-}
-
-.favicon-source-control {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  min-width: 0;
-}
-
-/* A <legend> can't sit inside .field markup, so it carries the canonical
-   field-label caps rung itself — same as .node-drawer-annotation-head label. */
-.favicon-source-control legend {
-  font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
-  color: var(--ink-2);
-}
-
-.favicon-source-preview {
-  width: 1.35rem;
-  height: 1.35rem;
-  flex-shrink: 0;
-  border-radius: var(--radius-xs);
-  object-fit: contain;
-  background: var(--surface);
-  border: 1px solid var(--line);
-}
-
-/* LP-07 preview image setting: same fieldset language as the icon source. */
-.preview-mode-control {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.preview-mode-control legend {
-  font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
-  color: var(--ink-2);
-}
-
-.preview-mode-thumb {
-  display: block;
-  width: 100%;
-  max-width: 16rem;
-  height: auto;
-  max-height: 9rem;
-  object-fit: cover;
-  border-radius: var(--radius-xs);
-  border: 1px solid var(--line);
-  background: var(--surface-sunken);
-}
-
-.favicon-source-preview-fallback {
-  font-size: var(--text-sm);
-  color: var(--muted);
 }
 
 .library-host-letter {
@@ -1327,8 +1194,8 @@ button.library-bookmark-tag:hover {
 
 /* Annotation-backed TL;DR / note snippets on comfort rows. The snippet
    stack (.library-bookmark-snippets) and chrome (.lib-snippet) live in
-   shared-chrome.css — shared by library rows, collection resources and the
-   demo library; only the comfort-grid placement below stays here. */
+   shared-chrome.css — shared by library rows and collection resources; only
+   the comfort-grid placement below stays here. */
 
 /* Comfort rows, tablet/desktop: the meta line becomes a right-hand column
    next to the title so short entries without a description still span the
@@ -1421,122 +1288,8 @@ button.library-bookmark-tag:hover {
   }
 }
 
-/* Row save mark — the real control that replaced the decorative trailing
-   bookmark glyph (it read as a save button but navigated). Follows the
-   .mark-action--save idiom: outline until saved, filled accent once saved. */
-.library-bookmark-save {
-  display: grid;
-  place-items: center;
-  min-width: 2rem;
-  min-height: 2rem;
-  padding: var(--space-1);
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-  transition:
-    color var(--duration-fast) var(--ease-quart),
-    background var(--duration-fast) var(--ease-quart);
-}
-
-.library-bookmark-save svg {
-  width: 1.05rem;
-  height: 1.05rem;
-  fill: transparent;
-  stroke: currentColor;
-  stroke-width: 1.5;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.library-bookmark-save .bookmark-fill {
-  fill: transparent;
-  transition: fill var(--duration-fast) var(--ease-quart);
-}
-
-.library-bookmark-save:hover {
-  color: var(--ink);
-  background: color-mix(in srgb, var(--ink) 4%, transparent);
-}
-
 /* Focus rides the global :focus-visible recipe (1px ink + --shadow-ring);
    no bespoke 2px ring here. */
-
-.library-bookmark-save:disabled {
-  opacity: 0.55;
-  cursor: default;
-}
-
-.library-bookmark-save.is-saved {
-  color: var(--accent-ink);
-}
-
-.library-bookmark-save.is-saved .bookmark-fill {
-  fill: currentColor;
-}
-
-@media (pointer: coarse) {
-  .library-bookmark-save {
-    min-width: 2.75rem;
-    min-height: 2.75rem;
-  }
-}
-
-/* Library: iPhone — hide sidebar, stack content. Phone page padding is
-   .page-shell's (page-chrome.css), identical to the rule this block lost. */
-@media (max-width: 719px) {
-  .library-sidebar {
-    display: none;
-  }
-
-  .library-layout {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* Library: Tablet+ — two-column tree */
-@media (min-width: 720px) {
-  .library-layout {
-    grid-template-columns: 12.5rem 1fr;
-    align-items: start;
-  }
-
-  .library-sidebar {
-    border: 0;
-    border-right: 1px solid var(--line);
-    border-radius: 0;
-    background: transparent;
-    box-shadow: none;
-  }
-}
-
-@media (min-width: 1100px) {
-  .library-layout {
-    grid-template-columns: 14.5rem 1fr;
-  }
-}
-
-.library-layout {
-  width: var(--shell-grid);
-  margin-inline: auto;
-  display: grid;
-  gap: var(--hair-110);
-}
-
-.library-sidebar {
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-  padding: var(--hair-65);
-  position: sticky;
-  top: calc(var(--header-h) + var(--hair-85));
-  box-shadow: var(--shadow-xs);
-}
-
-.library-eyebrow {
-  padding: var(--hair-35) var(--hair-55);
-}
 
 .library-desk-stack {
   min-width: 0;
@@ -1570,8 +1323,7 @@ button.library-bookmark-tag:hover {
   }
 }
 
-/* Sidebar sections (My collections / Shared with you / Following /
-   Invitations) share one collapsible header row styled like an eyebrow with
+/* Sidebar sections (Invitations / My collections / Shared with you) share one collapsible header row styled like an eyebrow with
    a chevron affordance. Each section is a clearly bounded band: a hairline
    above, breathing room around the header, and a lightly inset body, so the
    boundary between one category's collections and the next reads at a
@@ -1631,8 +1383,8 @@ button.library-bookmark-tag:hover {
   padding: var(--space-1) var(--space-1);
 }
 
-/* Sub-group label inside a section — the Digests section's Mine/Following
-   split. Quieter than the section eyebrow: same caps, no hairline. */
+/* Section label in the rail (Invitations, My collections, Shared with
+   you). Quieter than the section eyebrow: same caps, no hairline. */
 .library-nav-sub {
   margin: var(--space-2) 0 0;
   padding: var(--space-1) var(--space-2);
@@ -1717,10 +1469,6 @@ button.library-bookmark-tag:hover {
 
 .library-nav-tree.is-reordering .library-nav-reorder-item > * {
   pointer-events: none;
-}
-
-.library-nav-tree.is-reordering .library-nav-row--unavailable {
-  cursor: inherit;
 }
 
 .library-nav-tree.is-reorder-disabled .library-nav-reorder-item {
@@ -1887,69 +1635,6 @@ button.library-bookmark-tag:hover {
   }
 }
 
-/* A followed collection whose target went dark: visible but inert. */
-.library-nav-row--unavailable {
-  color: var(--faint);
-  cursor: not-allowed;
-  padding: var(--hair-15) var(--space-1);
-}
-
-.library-nav-row--unavailable .library-nav-label {
-  color: var(--faint);
-}
-
-.library-nav-flag {
-  margin-left: auto;
-  flex-shrink: 0;
-  font-size: var(--text-xs);
-  letter-spacing: var(--tracking-caps);
-  text-transform: uppercase;
-  color: var(--faint);
-}
-
-.library-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: var(--space-4);
-}
-
-/* Demo library filter — layout only; chrome is .search-field (global.css).
-   Moved out of polish.css (R9-27): sole consumer is LegacyLibrary. */
-.explore-search {
-  width: min(100%, 30rem);
-  margin-top: var(--hair-110);
-}
-
-/* Library toolbar: sticky on mobile */
-@media (max-width: 899px) {
-  .library-toolbar {
-    position: sticky;
-    top: var(--header-h);
-    z-index: var(--z-sticky);
-    background: color-mix(in srgb, var(--paper) var(--frost-bg-mix), transparent);
-    backdrop-filter: blur(var(--frost-blur)) saturate(var(--frost-saturate));
-    padding: var(--space-2) 0;
-    margin-bottom: var(--space-3);
-    border-bottom: 1px solid var(--line);
-  }
-}
-
-.library-toolbar-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--hair-45);
-}
-
-.library-toolbar-actions .view-switch button {
-  min-height: 1.95rem;
-  padding: 0 var(--hair-70);
-  font-size: var(--text-caption);
-}
-
 .library-main .page-head h1 {
   max-width: none;
 }
@@ -2036,14 +1721,6 @@ button.library-bookmark-tag:hover {
 .library-bookmark-row:focus-within .library-bookmark-actions > *,
 .library-bookmark-row:has([aria-expanded='true']) .library-bookmark-actions > * {
   opacity: 1;
-}
-
-.library-bookmark-actions > .library-bookmark-save {
-  opacity: 1;
-}
-
-.library-bookmark-actions > .library-bookmark-save:disabled {
-  opacity: 0.55;
 }
 
 /* Touch has no hover: keep the row actions visible. */
@@ -2513,14 +2190,5 @@ body[data-bookmark-drag] {
 @keyframes node-drawer-fade-out  { from { opacity: 1; } to { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
   .node-drawer, .node-drawer-veil { animation: none; }
-}
-
-/* ——— Rehomed from page-layouts.css (R9-12) ——— */
-.library-sidebar .divider {
-  margin: var(--hair-65) 0;
-}
-
-.library-toolbar > .library-toolbar-actions {
-  margin-left: auto;
 }
 }

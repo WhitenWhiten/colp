@@ -102,5 +102,3 @@ export function useLibraryDeskSplit() {
     } as const,
   }
 }
-
-export type LibraryDeskSplit = ReturnType<typeof useLibraryDeskSplit>

@@ -38,10 +38,6 @@ describe('container query contract (CQ-01)', () => {
   const queried = new Set<string>()
   for (const m of css.matchAll(/@container\s+([a-zA-Z_][\w-]*)\s*\(/g)) queried.add(m[1]!)
 
-  it('declares at least the desk tile container', () => {
-    expect(declared).toContain('tile')
-  })
-
   it('queries every declared container name', () => {
     const unused = [...declared].filter((name) => !queried.has(name)).sort()
     expect(unused, 'declared containers with no @container query — remove the declaration or add the query').toEqual([])

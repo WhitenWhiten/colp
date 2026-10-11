@@ -25,7 +25,6 @@ vi.mock('../../api', async (importOriginal) => {
       getWriteApprovalPage: mocks.page,
       getWriteApproval: mocks.page,
       loadOwnedCollections: mocks.owned,
-      resolveWriteApprovalCollections: mocks.owned,
     },
   }
 })

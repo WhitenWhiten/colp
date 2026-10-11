@@ -38,19 +38,12 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api')>()),
   isWriteApprovalsExposureEnabled: () => false,
-  isNotificationExposureEnabled: () => false,
 }))
 vi.mock('../auth/AuthContext', () => ({
   useAuth: () => mocks.auth,
 }))
 vi.mock('../components/AppToast', () => ({
   useToast: () => ({ toast: mocks.toast }),
-}))
-vi.mock('../lib/useNotificationCenter', () => ({
-  useNotificationCenter: () => ({ unreadCount: 0 }),
-}))
-vi.mock('../lib/useCommunityNotificationCenter', () => ({
-  useCommunityNotificationCenter: () => ({ unreadCount: 0 }),
 }))
 vi.mock('./SearchPalette', () => ({
   SearchPalette: () => null,

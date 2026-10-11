@@ -2,17 +2,13 @@ import { NavLink } from 'react-router-dom'
 import { Icon } from '../Icon'
 import { SITE_SEARCH_PLACEHOLDER } from '../../lib/searchCopy'
 import { prefetchRoute } from './prefetch'
-import { isSelfHostedEdition, isSelfHostedPathEnabled } from '../../lib/edition'
 import type { ToolItem } from './ToolsMenu'
 
 type Props = {
   toolItems: readonly ToolItem[]
   isLoggedIn: boolean
-  user: { handle: string } | null
-  showWriteApprovals: boolean
   showLogin: boolean
   loginTo: string
-  showRegister: boolean
   /** Exit phase: plays the drawer lift before unmount. */
   closing: boolean
   onOpenSearch: () => void
@@ -26,11 +22,8 @@ type Props = {
 export function MobileDrawer({
   toolItems,
   isLoggedIn,
-  user,
-  showWriteApprovals,
   showLogin,
   loginTo,
-  showRegister,
   closing,
   onOpenSearch,
   onOpenSettings,
@@ -81,10 +74,7 @@ export function MobileDrawer({
         {isLoggedIn ? (
           <>
             <div className="mobile-drawer-grid">
-              {user && isSelfHostedPathEnabled(`/u/${user.handle}`) && <NavLink to={`/u/${user.handle}`}>Profile</NavLink>}
-              {showWriteApprovals && <NavLink to="/approvals">Write approvals</NavLink>}
-              {isSelfHostedPathEnabled('/creator') && <NavLink to="/creator">Publishing insights</NavLink>}
-              {isSelfHostedPathEnabled('/credits') && <NavLink to="/credits">Credits and ledger</NavLink>}
+              <NavLink to="/approvals">Write approvals</NavLink>
               <button
                 type="button"
                 onClick={() => {
@@ -101,13 +91,12 @@ export function MobileDrawer({
                 onSignOut()
               }}
             >
-              Log out
+              Sign out
             </button>
           </>
         ) : (
           <div className="mobile-drawer-grid">
-            {showLogin && <NavLink to={loginTo}>{isSelfHostedEdition() ? 'Sign in' : 'Log in'}</NavLink>}
-            {showRegister && <NavLink to="/register">Get started</NavLink>}
+            {showLogin && <NavLink to={loginTo}>Sign in</NavLink>}
           </div>
         )}
       </div>

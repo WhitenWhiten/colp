@@ -1,14 +1,10 @@
 import { useEffect, useMemo, useRef, type Dispatch, type PointerEvent as ReactPointerEvent, type ReactNode, type SetStateAction } from 'react'
 import { Link } from 'react-router-dom'
-import { useToast } from '../../components/AppToast'
 import { EmptyState, LoadingState } from '../../components/EmptyState'
 import { FolderEntries } from '../../components/FolderEntries'
-import { Icon, SaveMarkGlyph } from '../../components/Icon'
+import { Icon } from '../../components/Icon'
 import { ResourceList, type ResourceListItem } from '../../components/ResourceList'
-import { isLive } from '../../api'
-import { isSelfHostedEdition, isSelfHostedPathEnabled } from '../../lib/edition'
 import {
-  childrenOf,
   flattenBookmarks,
   immediateEntries,
   type BookmarkNode,
@@ -20,7 +16,6 @@ import { hostOf } from '../../lib/libraryTree'
 import { pluralNoun } from '../../lib/plural'
 import { useBookmarkAnnotations } from '../../lib/useBookmarkAnnotations'
 import { previewCover } from '../../lib/linkPreview'
-import { useLinkPreviewRequests } from '../../lib/useLinkPreviewRequests'
 import type { useOwnedCollections } from '../../lib/useOwnedCollections'
 import type { useSharedCollections } from '../../lib/useSharedCollections'
 import { KIND_LABEL, libraryBookmarkItem } from './bookmarkItem'
@@ -31,7 +26,6 @@ import { ReorderableLayerList } from './ReorderableLayerList'
 import { LibraryBookmarkMenu, LibraryFolderMenu } from './menus'
 import type { LibraryDeskMutations } from './mutations'
 import type { LibraryDeskOrder } from './ordering'
-import { useSavedMarks } from './savedMarks'
 import type { LibraryDeskSelection } from './selection'
 import { LibraryTagFilterBar, type LibraryTagFilter } from './tags'
 import { toggleTag } from '../../lib/libraryTags'
@@ -90,7 +84,6 @@ export function BookmarkArea({
   const urlRef = useRef<HTMLInputElement>(null)
   const {
     selectedId,
-    selectedFollowedSlug,
     snap,
     load,
     loadMessage,
@@ -137,12 +130,8 @@ export function BookmarkArea({
     () => (snap ? immediateEntries(snap.root, snap.nodes, folderId) : null),
     [folderId, snap],
   )
-  /* LP-07 Gallery: covers for what is on screen. Owners and editors of a
-     library collection ask for the missing ones (the consent that lets the
-     server fetch private pages); followed collections are public snapshots
-     the worker sweeps on its own. */
+  /* LP-07 Gallery: covers for what is on screen, from the stored preview images. */
   const [gallery, setGallery] = useDeskGallery()
-  const visibleBookmarks = filtering ? bookmarks.map((row) => row.node) : layer?.bookmarks ?? []
   /* Folder cards on the current layer: subtree bookmark count, direct
      subfolders, and (in Gallery) the first covers filed anywhere inside. */
   const folderCards = useMemo(() => {
@@ -157,19 +146,6 @@ export function BookmarkArea({
       }
     })
   }, [filtering, layer, snap])
-  // A folder's mosaic is on screen too: ask for the first few covers inside.
-  const folderCoverCandidates = gallery
-    ? folderCards.flatMap(({ inside }) => inside.slice(0, FOLDER_COVER_LIMIT))
-    : []
-  useLinkPreviewRequests({
-    collectionId: snap?.collection.id ?? null,
-    enabled: gallery && !selectedFollowedSlug && caps?.updateNode === true,
-    missingNodeIds: [...visibleBookmarks, ...folderCoverCandidates]
-      .filter((node) => !node.previewImage).map((node) => node.id),
-    onRefresh: () => {
-      if (snap) void loadTree(snap.collection.id, { silent: true })
-    },
-  })
   // Subtree total stays the headline count. "here" is the layer actually on
   // screen, and only when that layer is smaller (search replaces the layer)
   // and holds bookmarks of its own — "· 0 here" over a folders-only layer
@@ -189,11 +165,8 @@ export function BookmarkArea({
       ? folderId
       : snap.root.id
   }, [folderId, snap])
-  const layerReorderExposed = isLive('faviconPolicy')
-  const canLayerReorder = !selectedFollowedSlug
-    && caps?.moveNode === true
+  const canLayerReorder = caps?.moveNode === true
     && reorderSection === null
-    && layerReorderExposed
     && (layer?.folders.length ?? 0) + (layer?.bookmarks.length ?? 0) >= 2
   const reorderItems = useMemo(() => {
     if (!snap || !reorderParentId) return []
@@ -224,8 +197,7 @@ export function BookmarkArea({
   }
 
   /* Note / TL;DR live on annotations (the API has no batch read), so comfort
-     rows pull them lazily per visible node. Compact never shows snippets and
-     followed snapshots carry no annotation read access — both stay silent. */
+     rows pull them lazily per visible node. Compact never shows snippets. */
   const visibleNodeIds = useMemo(() => (
     filtering
       ? bookmarks.map(({ node }) => node.id)
@@ -234,10 +206,10 @@ export function BookmarkArea({
   const annotationMarks = useBookmarkAnnotations(
     snap?.collection.id ?? null,
     visibleNodeIds,
-    !compact && !selectedFollowedSlug,
+    !compact,
   )
 
-  const canBookmarkActions = !selectedFollowedSlug && caps != null
+  const canBookmarkActions = caps != null
     && (caps.updateNode || caps.moveNode || caps.deleteNode || caps.createNode)
 
   /* Folder rows at every depth manage in place (FE-05); the folder node is
@@ -246,11 +218,8 @@ export function BookmarkArea({
     () => new Map((layer?.folders ?? []).map(({ node }) => [node.id, node])),
     [layer],
   )
-  const canFolderActions = !selectedFollowedSlug && caps != null
+  const canFolderActions = caps != null
     && (caps.updateNode || caps.moveNode || caps.deleteNode)
-
-  const { error: toastError } = useToast()
-  const savedMarks = useSavedMarks(toastError)
 
   const enterSelectMode = (initialId?: string, source: 'menu' | 'long-press' = 'menu') => {
     if (!canBookmarkActions || reorderSection || layerReorder.active) return
@@ -263,28 +232,6 @@ export function BookmarkArea({
     && !layerReorder.active
     && !selectMode
     && (layer?.bookmarks.length ?? 0) >= 2
-
-  /* The row's save mark: a real control outside the row link — the old
-     decorative trailing bookmark glyph inside the link read as a save button
-     but navigated instead. Followed (public) snapshots stay read-only. */
-  const savedMark = (node: BookmarkNode): ReactNode => {
-    // Saved resources are a cloud feature the self-hosted server does not have.
-    if (selectedFollowedSlug || isSelfHostedEdition()) return null
-    const isSaved = savedMarks.isSaved(node.id)
-    return (
-      <button
-        type="button"
-        className={isSaved ? 'library-bookmark-save is-saved' : 'library-bookmark-save'}
-        aria-pressed={isSaved}
-        aria-label={isSaved ? `Remove ${node.title} from saved` : `Save ${node.title}`}
-        title={isSaved ? 'Saved — click to remove' : 'Save to your reading list'}
-        disabled={savedMarks.isPending(node.id)}
-        onClick={() => savedMarks.toggle(node.id)}
-      >
-        <SaveMarkGlyph />
-      </button>
-    )
-  }
 
   /** Selection checkbox / row menu for a bookmark row (all outside the link). */
   const bookmarkRowExtras = (node: BookmarkNode, detailsTo: string): Partial<ResourceListItem> => {
@@ -301,14 +248,12 @@ export function BookmarkArea({
         onDragPointerDown,
       }
     }
-    const save = savedMark(node)
     return {
       onDragPointerDown,
       onLongPress: (!canBookmarkActions || reorderSection || layerReorder.active)
         ? undefined : () => enterSelectMode(node.id, 'long-press'),
       actions: (
         <>
-          {save}
           <LibraryBookmarkMenu
             title={node.title}
             detailsTo={detailsTo}
@@ -340,7 +285,6 @@ export function BookmarkArea({
           folder,
           snap!.collection.id,
           snap!.collection.publicationSlug,
-          Boolean(selectedFollowedSlug),
         )
         return {
           ...item,
@@ -378,7 +322,6 @@ export function BookmarkArea({
         action={
           <>
             <Link to="/library/new" className="btn btn-primary btn-sm">New collection</Link>
-            {isSelfHostedPathEnabled('/explore') && <Link to="/explore" className="btn btn-ghost btn-sm">Explore public collections</Link>}
           </>
         }
       />
@@ -402,7 +345,6 @@ export function BookmarkArea({
   return (
     <>
       {load === 'error' && snap && <p className="field-error" role="status">Showing previously loaded bookmarks. {loadMessage}</p>}
-      <span className="visually-hidden" role="status" aria-live="polite">{savedMarks.message}</span>
       <div className="library-desk-meta">
         {collection && (
           <p className="library-desk-count" data-testid="library-desk-count">

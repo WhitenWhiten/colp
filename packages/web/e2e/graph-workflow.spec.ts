@@ -21,8 +21,6 @@ for (const width of [1280, 375]) {
     await page.route('**/api/v1/session', (route) => json(route, { authenticated: true, csrfToken: 'csrf', idleExpiresAt: '2099-07-25T01:00:00.000Z', absoluteExpiresAt: '2099-07-26T00:00:00.000Z' }))
     await page.route('**/api/v1/me', (route) => json(route, { account: { id: 'a', email: 'graph@test' }, profile: { id: 'p', handle: 'graph', displayName: 'Graph', avatarUrl: null } }))
     await installPassiveFeatureMocks(page)
-    await page.route('**/api/v1/me/community-notifications*', (route) => json(route, { items: [], nextCursor: null, unreadCount: 0 }))
-    await page.route('**/api/v1/community/target*', (route) => json(route, { error: { code: 'resource_not_found', message: 'Unavailable', requestId: 'graph-test', recovery: 'none', sameRequestRetrySafe: false, fieldErrors: [] } }, 404))
     await page.route(`**/api/v1/collections/${slug}*`, (route) => json(route, {
       collection: { id: collectionId, slug, title: 'Graph notes', kind: 'knowledge_collection', rootNodeId: 'root', owner: { profileId: 'p', handle: 'graph', displayName: 'Graph', avatarUrl: null }, updatedAt: '2026-09-19T00:00:00.000Z', access: 'member' },
       nodes: [{ id: 'root', parentId: null, kind: 'root', title: 'Root', description: null, url: null, position: null }, ...nodes.map((node) => ({ ...node, kind: 'bookmark', parentId: 'root', description: null, url: `https://${node.id}.example` }))],
@@ -33,7 +31,7 @@ for (const width of [1280, 375]) {
       root: { id: 'root', kind: 'folder', folderRole: 'root', title: 'Root', description: null, tags: [], revision: 'rr', etag: '"rr"' },
       nodes: nodes.map((node) => ({ ...node, kind: 'bookmark', url: `https://${node.id}.example`, description: null, tags: [], visibility: 'inherit', revision: node.id, etag: `"${node.id}"`, parentId: 'root', readOnly: false, readOnlyReason: null })),
       capabilities: { updateCollection: true, managePublication: true, createNode: true, updateNode: true, moveNode: true, deleteNode: true },
-      page: { snapshotId: 's', contentRevision: 'cc', policyRevision: 'p', comparatorVersion: 'v1', expiresAt: '', returnedCount: 3, hasMore: false, nextCursor: null },
+      page: { snapshotId: 's', contentRevision: 'cc', policyRevision: 'p', comparatorVersion: 'v1', expiresAt: '2099-01-01T00:00:00.000Z', returnedCount: 3, hasMore: false, nextCursor: null },
     }))
     await page.route('**/api/v1/collections/*/annotations*', (route) => json(route, { annotations: [], page: { returnedCount: 0, hasMore: false, nextCursor: null } }))
     await page.route(`**/api/v1/collections/${collectionId}/relations**`, (route) => {

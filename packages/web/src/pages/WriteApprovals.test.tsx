@@ -6,7 +6,7 @@ import { ProductApiError } from '../api/errors'
 import type { OwnedCollectionListItem, WriteApprovalView } from '../api/types'
 import { clearRouteCache } from '../lib/routeCache'
 import { WriteApprovals } from './WriteApprovals'
-import { cleanup, domFinishedLoading, findButtonByName, mountTree, waitForDom } from '../test/render'
+import { cleanup, domFinishedLoading, mountTree, waitForDom } from '../test/render'
 
 const mocks = vi.hoisted(() => ({
   enabled: true,
@@ -173,7 +173,7 @@ describe('MCP-W08 Write approvals page', () => {
     await waitForDom(domFinishedLoading)
     expect(document.querySelector('[data-testid="write-approvals-flag-off"]')).not.toBeNull()
     expect(document.body.textContent).toContain('It will appear here when it is ready.')
-    expect(document.querySelector('a[href="/mcp"]')?.textContent).toBe('/mcp')
+    expect(document.querySelector('a[href="/agents"]')?.textContent).toBe('Agents')
     expect(document.body.textContent).not.toContain('This workspace has not enabled')
     expect(mocks.getWriteApprovalPage).not.toHaveBeenCalled()
     expect(document.body.textContent).not.toMatch(/hero|marketing|demo/iu)

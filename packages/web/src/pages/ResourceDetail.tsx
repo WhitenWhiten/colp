@@ -1,33 +1,27 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom'
-import { isCommunityExposureEnabled, isLive, isReadableReplicaExposureEnabled } from '../api'
+import { isLive } from '../api'
 import { graphPath } from '../lib/graphNavigation'
 import { loginPath } from '../lib/chrome'
 import { plural } from '../lib/plural'
 import { useAuth } from '../auth/AuthContext'
 import { ABSENCE_CORNERS, AbsenceStage } from '../components/AbsenceStage'
-import { useToast } from '../components/AppToast'
 import { Icon } from '../components/Icon'
 import { PageHead } from '../components/PageHead'
 import { PageSection, PageShell } from '../components/PageShell'
 import { EmptyState } from '../components/EmptyState'
 import { PageSkeleton } from '../components/RouteLoading'
 import { DomainMark } from '../components/DomainMark'
-import { ReportButton } from '../components/ReportContentDialog'
 import { useAnnotationWorkflow, type AnnotationSubjectLocator } from '../lib/useAnnotationWorkflow'
 import { relationEndpointDisambiguator, useRelationWorkflow, type RelationLocator, type RelationNodeOption } from '../lib/useRelationWorkflow'
 import {
   resourceBackPath,
   resourceDetailPath,
   resourceNodeEmptyCopy,
-  resourceReaderPath,
   useResourceNode,
 } from '../lib/useResourceNode'
 import { safeExternalUrl } from '../lib/publicCollectionTree'
 import type { AnnotationView, RelationType, RelationView, RelationVisibility } from '../api'
-import { SavedResourceButton } from '../components/SavedResourceButton'
-import { CommunityVoteControl } from '../components/CommunityVoteControl'
-import { CommunityComments } from '../components/CommunityComments'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
 import { usePageMeta, type PageMeta } from '../lib/usePageMeta'
 import { PAGE_META_DESCRIPTION_MAX, normalizePageMetaText } from '../lib/pageMetaText'
@@ -161,7 +155,6 @@ function ResourceDetailContent() {
   const { isLoggedIn, bootstrapping } = useAuth()
   const allowWrite = isLoggedIn || bootstrapping
   const resolved = useResourceNode(id, searchParams.get('fromGraph') === '1')
-  const { toast } = useToast()
   const annotationsEnabled = isLive('annotations')
     || String(import.meta.env?.VITE_ANNOTATIONS_ACCEPTANCE ?? '').toLowerCase() === 'true'
   const collectionId = searchParams.get('collectionId')?.trim() ?? ''
@@ -297,8 +290,6 @@ function ResourceDetailContent() {
   const tldrText = annotation.tldr ? annotationText(annotation.tldr.value).trim() : ''
   const tldrFormat = annotationRenderFormat(annotation.tldr)
   const tldrAi = annotation.tldr?.provenance?.kind === 'ai'
-  const readerEnabled = isReadableReplicaExposureEnabled()
-  const readerHref = resourceReaderPath(node.id, workspaceQuery)
   const backHref = graphReturn ?? resourceBackPath(workspaceQuery, resolved)
   const hasRelations = relations.outgoing.length > 0 || relations.incoming.length > 0
   const relationsSettled = relations.state !== 'loading' && relations.state !== 'error'
@@ -308,7 +299,6 @@ function ResourceDetailContent() {
   }
   const kindLabel = node.kind === 'root' ? 'Collection' : node.kind === 'folder' ? 'Folder' : 'Bookmark'
   const hostLabel = !isContainer && node.host !== '-' ? node.host : ''
-  const votesShown = isCommunityExposureEnabled() && !isContainer && !bootstrapping
 
   const backLabel = graphReturn ? 'Back to graph' : resolved.collectionTitle
   const showSignIn = !allowWrite && (annotationsEnabled || relationsEnabled)
@@ -357,44 +347,11 @@ function ResourceDetailContent() {
               robots: slug && !isContainer ? null : 'noindex',
             }}
             lede={node.description || undefined}
-            actions={!isContainer || originalHref ? (
-              <>
-                {originalHref && (
-                  <a
-                    className={readerEnabled && !isContainer ? 'btn btn-secondary' : 'btn btn-primary'}
-                    href={originalHref}
-                    target="_blank"
-                    rel={UGC_REL}
-                  >
-                    Open original
-                    <Icon name="arrow-up-right" />
-                  </a>
-                )}
-                {readerEnabled && !isContainer && <Link to={readerHref} className="btn btn-primary">
-                  <Icon name="book" />
-                  Read in {productName()}
-                </Link>}
-                {/* R7-04: the flag-off fallback must not claim a library write. */}
-                {!isContainer && (isLive('savedResources')
-                  ? <SavedResourceButton resourceType={resourceType} resourceId={node.id} />
-                  : <button type="button" className="btn btn-secondary" onClick={() => toast('Saving bookmarks is not available yet')}>Save</button>)}
-                {/* R15-11: public bookmark pages carry a report path. */}
-                {!isContainer && slug ? (
-                  <ReportButton
-                    target={{ kind: 'bookmark', id: node.id, collectionId: resolved.collectionId }}
-                    label="this bookmark"
-                    testId="report-bookmark"
-                    className="btn btn-ghost"
-                  />
-                ) : null}
-              </>
-            ) : undefined}
-            stats={votesShown ? (
-              /* CS-01: bookmark votes key off the server-minted generation;
-                 the control re-resolves on revision_conflict itself. */
-              <CommunityVoteControl
-                query={{ kind: 'bookmark', id: node.id, collectionId: resolved.collectionId }}
-              />
+            actions={originalHref ? (
+              <a className="btn btn-primary" href={originalHref} target="_blank" rel={UGC_REL}>
+                Open original
+                <Icon name="arrow-up-right" />
+              </a>
             ) : undefined}
           >
             {/* A bare-domain URL would only repeat the host line. */}
@@ -470,11 +427,7 @@ function ResourceDetailContent() {
                     ))}
                   </div>
                 ) : null}
-                {readerEnabled && annotationLocator ? (
-                  <Link className="btn btn-secondary btn-sm resource-section-cta" to={readerHref}>
-                    Open reading view
-                  </Link>
-                ) : collectionId ? (
+                {collectionId ? (
                   <Link
                     className="btn btn-secondary btn-sm resource-section-cta"
                     to={`/library/${encodeURIComponent(collectionId)}?node=${encodeURIComponent(node.id)}`}
@@ -624,15 +577,6 @@ function ResourceDetailContent() {
             )}
           </aside>
 
-          {/* CS-03: bookmark comments key off the same resolved target
-              identity (incl. server generation) as the vote control. */}
-          {isCommunityExposureEnabled() && !isContainer && !bootstrapping ? (
-            <div className="resource-comments">
-              <CommunityComments
-                query={{ kind: 'bookmark', id: node.id, collectionId: resolved.collectionId }}
-              />
-            </div>
-          ) : null}
         </div>
       </div>
     </PageShell>

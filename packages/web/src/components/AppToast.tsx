@@ -86,14 +86,6 @@ const ACTION_TOAST_MIN_MS = 10_000
  */
 const ERROR_READ_PROTECTION_MS = 2000
 
-/**
- * Shared so surfaces with their own toast (the dashboard canvas) dwell for the
- * same time as the app toast instead of picking a second, shorter number.
- */
-export function transientToastDwell(message: string, variant: 'info' | 'success' = 'info') {
-  return dwellFor(message, variantConfig[variant].duration)
-}
-
 function dwellFor(message: string, base: number) {
   if (base <= 0) return 0
   return Math.min(MAX_DURATION_MS, Math.max(base, message.length * READING_MS_PER_CHAR))

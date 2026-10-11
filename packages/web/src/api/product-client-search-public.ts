@@ -1,19 +1,13 @@
-import type { components } from '../generated/product-v1'
 import { shouldRestartCursor } from './editor-session'
 import { ProductApiError, wrapProductError } from './errors'
 import { withSameRequestRetry, type ReadOptions } from './product-client-shared'
 import type { ProductTransport } from './product-transport-types'
 import type {
-  ExplorePage,
-  ExploreParams,
   PublicCollectionPage,
   PublicCollectionSnapshot,
-  PublicProfilePage,
   SearchPage,
   SearchResourceType,
 } from './types'
-
-type PublicProfileActivityPage = components['schemas']['PublicProfileActivityPage']
 
 const DEFAULT_PUBLIC_COLLECTION_LIMIT = 100
 /**
@@ -41,39 +35,6 @@ export function createProductSearchPublicClient(transport: ProductTransport) {
     }, { maxRetries: options?.maxRetries, signal: options?.signal })
   }
 
-  async function getPublicProfilePage(
-    handle: string,
-    params?: { limit?: number; cursor?: string },
-    options?: ReadOptions,
-  ): Promise<PublicProfilePage> {
-    return withSameRequestRetry(async () => {
-      try {
-        return await transport.getPublicProfilePage(handle, {
-          ...params,
-          signal: options?.signal,
-        })
-      } catch (err) {
-        throw wrapProductError(err)
-      }
-    }, { maxRetries: options?.maxRetries, signal: options?.signal })
-  }
-
-  async function getPublicProfileActivity(
-    query: { handle: string; limit?: number; cursor?: string },
-    options?: ReadOptions,
-  ): Promise<PublicProfileActivityPage> {
-    return withSameRequestRetry(async () => {
-      try {
-        return await transport.getPublicProfileActivity(query.handle, {
-          ...(query.cursor ? { cursor: query.cursor } : { limit: query.limit }),
-          signal: options?.signal,
-        })
-      } catch (err) {
-        throw wrapProductError(err)
-      }
-    }, { maxRetries: options?.maxRetries, signal: options?.signal })
-  }
-
   async function searchResources(
     params: { q: string; types?: SearchResourceType[]; limit?: number; cursor?: string },
     options?: ReadOptions,
@@ -81,19 +42,6 @@ export function createProductSearchPublicClient(transport: ProductTransport) {
     return withSameRequestRetry(async () => {
       try {
         return await transport.searchResources({ ...params, signal: options?.signal })
-      } catch (err) {
-        throw wrapProductError(err)
-      }
-    }, { maxRetries: options?.maxRetries, signal: options?.signal })
-  }
-
-  async function getExploreCollections(
-    params: ExploreParams = {},
-    options?: ReadOptions,
-  ): Promise<ExplorePage> {
-    return withSameRequestRetry(async () => {
-      try {
-        return await transport.listExploreCollections({ ...params, signal: options?.signal })
       } catch (err) {
         throw wrapProductError(err)
       }
@@ -220,7 +168,6 @@ export function createProductSearchPublicClient(transport: ProductTransport) {
           appendRelations(next)
           page = next.page
         }
-
         return { collection, nodes, page, ...(options?.includeRelations ? { relations } : {}) }
       } catch (err) {
         const apiErr = wrapProductError(err)
@@ -236,13 +183,8 @@ export function createProductSearchPublicClient(transport: ProductTransport) {
       }
     }
   }
-
   return {
-    getPublicCollectionPage,
-    getPublicProfilePage,
-    getPublicProfileActivity,
     searchResources,
-    getExploreCollections,
     loadPublicCollectionSnapshot,
   }
 }

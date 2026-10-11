@@ -19,13 +19,8 @@ const mocks = vi.hoisted(() => ({
   loadEditorSnapshot: vi.fn(),
   loadAnnotations: vi.fn(async () => []),
   moveCollectionNode: vi.fn(),
-  listFollowedCollections: vi.fn(),
-  listFollowedReports: vi.fn(async () => ({ items: [], nextCursor: null })),
-  listMyReports: vi.fn(async () => ({ items: [], nextCursor: null })),
-  getFollowedReportIssuesPage: vi.fn(async () => ({ items: [], nextCursor: null })),
   getMyLibraryOrder: vi.fn(),
   updateMyLibraryOrder: vi.fn(),
-  loadSavedResources: vi.fn(async () => []),
   collections: {
     items: [] as OwnedCollectionListItem[],
     state: 'ready' as const,
@@ -71,13 +66,8 @@ vi.mock('../../api', async (importOriginal) => {
       loadEditorSnapshot: mocks.loadEditorSnapshot,
       loadAnnotations: mocks.loadAnnotations,
       moveCollectionNode: mocks.moveCollectionNode,
-      listFollowedCollections: mocks.listFollowedCollections,
-      listFollowedReports: mocks.listFollowedReports,
-      listMyReports: mocks.listMyReports,
-      getFollowedReportIssuesPage: mocks.getFollowedReportIssuesPage,
       getMyLibraryOrder: mocks.getMyLibraryOrder,
       updateMyLibraryOrder: mocks.updateMyLibraryOrder,
-      loadSavedResources: mocks.loadSavedResources,
       newCommandId: () => '11111111-1111-4111-8111-111111111111',
       mutationIntentKey: (scope: string, commandId: string) => `${scope}:${commandId}`,
     },
@@ -246,7 +236,6 @@ describe('LibraryDesk sidebar reorder mode', () => {
     ]
     mocks.shared.items = []
     mocks.loadEditorSnapshot.mockImplementation((id: string) => Promise.resolve(snapshot(id)))
-    mocks.listFollowedCollections.mockResolvedValue({ items: [], nextCursor: null })
     mocks.getMyLibraryOrder.mockResolvedValue(EMPTY_ORDER)
     mocks.updateMyLibraryOrder.mockResolvedValue({ section: 'mine', collectionIds: [] })
   })
@@ -461,55 +450,6 @@ describe('LibraryDesk sidebar reorder mode', () => {
     expect(isReordering()).toBe(false)
   })
 
-  it('persists followed collections by collectionId, including unavailable rows', async () => {
-    mocks.listFollowedCollections.mockResolvedValue({
-      items: [
-        {
-          collectionId: 'follow-1',
-          slug: 'design-notes',
-          title: 'Design notes',
-          summary: 'A public shelf',
-          kind: 'bookmarks',
-          owner: { profileId: 'bbbbbbbbbbbbbbbbbbbbbA', handle: 'ada', displayName: 'Ada', avatarUrl: null },
-          updatedAt: '2026-08-26T01:00:00.000Z',
-          followedAt: '2026-08-26T00:00:00.000Z',
-          availability: 'available',
-        },
-        {
-          collectionId: 'follow-2',
-          slug: 'gone-shelf',
-          title: 'Gone shelf',
-          summary: null,
-          kind: 'bookmarks',
-          owner: { profileId: 'bbbbbbbbbbbbbbbbbbbbbA', handle: 'ada', displayName: 'Ada', avatarUrl: null },
-          updatedAt: '2026-08-26T01:00:00.000Z',
-          followedAt: '2026-08-26T00:00:00.000Z',
-          availability: 'unavailable',
-        },
-      ],
-      nextCursor: null,
-    })
-    mount()
-    await waitForDom(() => document.querySelector('[data-reorder-id="follow-1"]') != null)
-    vi.useFakeTimers()
-    longPress(row('follow-1'))
-    act(() => {
-      row('follow-1').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }))
-    })
-    expect([...document.querySelectorAll('[data-testid="library-nav-following"] [data-reorder-id]')]
-      .map((el) => el.getAttribute('data-reorder-id'))).toEqual(['follow-2', 'follow-1'])
-    expect(document.querySelector('[data-testid="library-nav-following-unavailable"]')).not.toBeNull()
-    act(() => {
-      document.querySelector<HTMLButtonElement>('[data-testid="library-nav-following-done"]')?.click()
-    })
-    expect(mocks.updateMyLibraryOrder).toHaveBeenCalledWith(
-      'following',
-      { collectionIds: ['follow-2', 'follow-1'] },
-      expect.anything(),
-    )
-    expect(JSON.stringify(mocks.updateMyLibraryOrder.mock.calls[0]?.[1])).not.toContain('f:')
-  })
-
   it('drops the previous account order when the session identity changes', async () => {
     mocks.getMyLibraryOrder.mockResolvedValue({
       sections: { mine: ['col-3', 'col-1', 'col-2'], shared: [], following: [] },
@@ -579,7 +519,6 @@ describe('LibraryDesk sidebar reorder mode', () => {
     })
     expect(isReordering()).toBe(true)
   })
-
 })
 
 // ---------------------------------------------------------------------------
@@ -731,7 +670,6 @@ describe('LibraryDesk layer reorder (FO-06)', () => {
     ]
     mocks.shared.items = []
     mocks.loadEditorSnapshot.mockImplementation((id: string) => Promise.resolve(layeredSnapshot(id)))
-    mocks.listFollowedCollections.mockResolvedValue({ items: [], nextCursor: null })
     mocks.getMyLibraryOrder.mockResolvedValue({
       sections: { mine: ['col-1', 'col-2', 'col-3'], shared: [], following: [] },
     })
@@ -763,13 +701,6 @@ describe('LibraryDesk layer reorder (FO-06)', () => {
     mount()
     await waitForDom(() => document.querySelector('[data-testid="library-layer-reorder"]') != null)
     expect(document.querySelector('[data-testid="library-layer-reorder"]')).not.toBeNull()
-  })
-
-  it('hides the Reorder chip while the faviconPolicy flag is off', async () => {
-    ;(window as { __KNOWN_FLAGS__?: Record<string, boolean> }).__KNOWN_FLAGS__ = { faviconPolicy: false }
-    mount()
-    await waitForDom(domFinishedLoading)
-    expect(document.querySelector('[data-testid="library-layer-reorder"]')).toBeNull()
   })
 
   it('moves layer rows with single clicks on the move buttons (R15-42)', async () => {

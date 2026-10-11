@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { act } from 'react'
-import { createMemoryRouter, Navigate, RouterProvider } from 'react-router-dom'
+import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SettingsRedirect } from '../../App'
 import { cleanup, findButtonByName, mountTree, waitForDom } from '../../test/render'
@@ -17,18 +17,6 @@ const mocks = vi.hoisted(() => ({
     runAuthMutation: vi.fn(),
     refreshSession: vi.fn<() => Promise<void>>(),
     logout: vi.fn<() => Promise<'signed-out' | 'failed'>>(),
-  },
-  notifications: {
-    preference: {
-      channel: 'in_app' as const,
-      enabled: true,
-      revision: '2',
-      updatedAt: '2026-07-29T00:00:00.000Z',
-      email: null,
-    },
-    pending: null as string | null,
-    setPreference: vi.fn(),
-    resetPreference: vi.fn(),
   },
   isLive: vi.fn((flag: string) => flag !== 'mfa'),
   authClient: {
@@ -54,21 +42,15 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('../../auth/AuthContext', () => ({ useAuth: () => mocks.auth }))
-vi.mock('../../lib/useNotificationCenter', () => ({
-  useNotificationCenter: () => mocks.notifications,
-}))
 vi.mock('../AppToast', () => ({
   useToast: () => ({ toast: vi.fn(), success: vi.fn(), error: vi.fn() }),
 }))
 vi.mock('../../api/authClient', () => ({ authClient: mocks.authClient }))
 vi.mock('../../api', () => ({
   isProductApiError: (error: unknown) => !!error && typeof error === 'object' && 'fieldErrors' in error,
-  isNotificationExposureEnabled: () => true,
-  isCommunityExposureEnabled: () => false,
   isLive: mocks.isLive,
   productClient: {
     updateMe: vi.fn(),
-    uploadAvatar: vi.fn(),
     newCommandId: () => 'command-1',
     mutationIntentKey: (scope: string, id: string) => `${scope}:${id}`,
   },
@@ -104,7 +86,7 @@ describe('Settings dialog routing', () => {
   })
 
   it('clears the settings param on overlay click', () => {
-    const router = renderAt('/library?settings=privacy')
+    const router = renderAt('/library?settings=bookmarks')
     const overlay = document.querySelector('[role="dialog"]')
     expect(overlay).not.toBeNull()
     act(() => overlay!.dispatchEvent(new MouseEvent('click', { bubbles: true })))
@@ -113,7 +95,7 @@ describe('Settings dialog routing', () => {
   })
 
   it('clears the settings param on the close button', () => {
-    const router = renderAt('/library?settings=notifications')
+    const router = renderAt('/library?settings=security')
     act(() => findButtonByName('Close settings').click())
     expect(router.state.location.search).toBe('')
     expect(document.querySelector('[role="dialog"]')).toBeNull()
@@ -129,22 +111,11 @@ describe('Settings dialog routing', () => {
 
   it('switches sections with replace and does not grow history', () => {
     const router = renderAt('/library?settings=profile')
-    act(() => findButtonByName('Privacy').click())
+    act(() => findButtonByName('Security').click())
     expect(router.state.historyAction).toBe('REPLACE')
     expect(router.state.location.pathname).toBe('/library')
-    expect(router.state.location.search).toBe('?settings=privacy')
-    expect(document.querySelector('[data-settings-nav] [aria-current="true"]')?.textContent).toBe('Privacy')
-  })
-
-  it('maps /settings/export onto /export', async () => {
-    const router = createMemoryRouter([
-      { path: '/settings/export', element: <Navigate to="/export" replace /> },
-      { path: '/export', element: <div data-testid="export-page">Export</div> },
-    ], { initialEntries: ['/settings/export'] })
-    mountTree(<RouterProvider router={router} />)
-    await act(async () => { await Promise.resolve(); await Promise.resolve() })
-    expect(router.state.location.pathname).toBe('/export')
-    expect(document.querySelector('[data-testid="export-page"]')).not.toBeNull()
+    expect(router.state.location.search).toBe('?settings=security')
+    expect(document.querySelector('[data-settings-nav] [aria-current="true"]')?.textContent).toBe('Security')
   })
 
   it('maps /settings#security onto the library security panel', async () => {

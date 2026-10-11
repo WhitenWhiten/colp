@@ -1,5 +1,6 @@
+import type { Page } from '@playwright/test'
 import { expect, test } from './fixtures'
-import { installPassiveFeatureMocks } from './helpers/passive-feature-mocks'
+import { mockOwnerLibrary } from './helpers/library-mocks'
 
 /**
  * R9-10 computed-style smoke.
@@ -7,23 +8,20 @@ import { installPassiveFeatureMocks } from './helpers/passive-feature-mocks'
  * The Vitest contract suite runs on a hand-rolled cascade over happy-dom —
  * it cannot see @layer order, evaluate @media, or resolve color-mix().
  * This spec pins those three engine behaviors plus the pages-over-base
- * layer priority against a real browser. Route: /demo/library (local demo
- * data, no Product API shape beyond the session + passive mocks).
+ * layer priority against a real browser, on the library desk with one
+ * mocked collection.
  */
 
-const EXPECTED_LAYER_ORDER = ['tokens', 'base', 'components', 'pages', 'patterns', 'utilities', 'print']
+const EXPECTED_LAYER_ORDER = ['tokens', 'base', 'components', 'pages', 'patterns', 'utilities', 'edition', 'print']
 
-test.beforeEach(async ({ page }) => {
-  await installPassiveFeatureMocks(page)
-  await page.route('**/api/v1/session', (route) => route.fulfill({
-    status: 200,
-    contentType: 'application/json',
-    body: JSON.stringify({ authenticated: false }),
-  }))
-})
+async function openLibrary(page: Page) {
+  await mockOwnerLibrary(page)
+  await page.goto('/library/col-1')
+  await expect(page.getByTestId('library-workspace')).toBeVisible()
+}
 
-test('declared cascade-layer order is tokens < base < components < pages < patterns < utilities < print', async ({ page }) => {
-  await page.goto('/demo/library')
+test('declared cascade-layer order is tokens < base < components < pages < patterns < utilities < edition < print', async ({ page }) => {
+  await openLibrary(page)
   const firstSeenOrder = await page.evaluate(() => {
     const seen: string[] = []
     for (const sheet of document.styleSheets) {
@@ -38,7 +36,7 @@ test('declared cascade-layer order is tokens < base < components < pages < patte
 })
 
 test('pages layer beats base: .page-head h1 drops the 24ch measure inside .library-main', async ({ page }) => {
-  await page.goto('/demo/library')
+  await openLibrary(page)
   const h1 = page.locator('.library-main .page-head h1').first()
   await expect(h1).toBeVisible()
   // @layer base (page-chrome.css) sets max-width: 24ch; the @layer pages
@@ -46,10 +44,10 @@ test('pages layer beats base: .page-head h1 drops the 24ch measure inside .libra
   await expect(h1).toHaveCSS('max-width', 'none')
 })
 
-test('@media re-evaluates live: demo sidebar hides ≤719px and returns ≥720px', async ({ page }) => {
+test('@media re-evaluates live: the desk sidebar hides ≤719px and returns ≥720px', async ({ page }) => {
   await page.setViewportSize({ width: 900, height: 800 })
-  await page.goto('/demo/library')
-  const sidebar = page.locator('.library-sidebar')
+  await openLibrary(page)
+  const sidebar = page.getByTestId('library-nav')
   await expect(sidebar).toBeVisible()
 
   await page.setViewportSize({ width: 700, height: 800 })
@@ -60,7 +58,7 @@ test('@media re-evaluates live: demo sidebar hides ≤719px and returns ≥720px
 })
 
 test('color-mix() resolves through var() chains: .topnav frost is a translucent color', async ({ page }) => {
-  await page.goto('/demo/library')
+  await openLibrary(page)
   const bg = await page.locator('.topnav').evaluate((el) => getComputedStyle(el).backgroundColor)
   // Chromium serializes color-mix() results as color(srgb … / α) rather than
   // rgba() — either resolved form proves the mix evaluated; a literal
@@ -75,8 +73,9 @@ test('color-mix() resolves through var() chains: .topnav frost is a translucent 
 })
 
 test('var() typography resolves to absolute units: page-head h1 leading is px', async ({ page }) => {
-  await page.goto('/demo/library')
+  await openLibrary(page)
   const h1 = page.locator('.library-main .page-head h1').first()
+  await expect(h1).toBeVisible()
   const leading = await h1.evaluate((el) => getComputedStyle(el).lineHeight)
   expect(leading).toMatch(/^[\d.]+px$/u)
 })

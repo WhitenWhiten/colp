@@ -714,21 +714,6 @@ export class ProductApiMock {
   ): Promise<void> {
     const method = request.method()
     const path = url.pathname
-    if (method === 'GET' && path === '/api/v1/auth/oidc/start') {
-      await route.fulfill({
-        status: 200,
-        contentType: 'text/html',
-        body: '<!doctype html><html><body data-testid="oidc-start-mock">OIDC start mock</body></html>',
-      })
-      return
-    }
-    if (method === 'POST' && path === '/api/v1/auth/sign-in/social') {
-      // authClient.startOAuth posts Better Auth /sign-in/social with
-      // provider + safe callback URLs; the server answers with the
-      // authorization URL.
-      await json(route, { url: '/library', redirect: false })
-      return
-    }
     if (method === 'GET' && path === '/api/v1/session') {
       await json(route, this.state.authenticated ? {
         authenticated: true,

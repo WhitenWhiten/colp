@@ -16,7 +16,7 @@ import { clearRouteCache } from '../lib/routeCache'
 import type { PublicCollectionNode, PublicCollectionSnapshot } from '../api/types'
 import { Collection } from './Collection'
 import { cleanup, mountTree } from '../test/render'
-import { ioState, mocks, type MockIntersectionObserverInstance } from './Collection.test-mocks'
+import { ioState } from './Collection.test-mocks'
 
 export { ioState, mocks, type MockIntersectionObserverInstance } from './Collection.test-mocks'
 
@@ -72,14 +72,6 @@ export function snapshot(
     nodes,
     page: { cursor: null, hasMore: false, sequence: 2 },
   }
-}
-
-export function insightPayloads() {
-  return mocks.recordPublicCollectionInsightEvent.mock.calls.map(([input]) => input)
-}
-
-export function previewObservers(): MockIntersectionObserverInstance[] {
-  return ioState.instances.filter((instance) => instance.options?.threshold === 0.25)
 }
 
 export let captureSearch = ''
@@ -140,11 +132,6 @@ let previousIntersectionObserver: typeof IntersectionObserver | undefined
 export function setUpCollectionPage() {
   clearRouteCache()
   vi.clearAllMocks()
-  vi.stubEnv('VITE_FOLLOW_ACCEPTANCE', 'true')
-  mocks.isFollowingProfile.mockResolvedValue(false)
-  mocks.recordPublicCollectionInsightEvent.mockResolvedValue(undefined)
-  mocks.getCollectionFollowState.mockResolvedValue({ following: false, followerCount: 0, followedAt: null })
-  mocks.getCommunityComments.mockResolvedValue({ items: [], nextCursor: null })
   ioState.instances.length = 0
   captureSearch = ''
   navigateBack = () => {}

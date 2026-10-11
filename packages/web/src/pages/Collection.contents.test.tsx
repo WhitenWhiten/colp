@@ -18,22 +18,9 @@ vi.mock('../api', async (importOriginal) => {
   const { mocks } = await import('./Collection.test-mocks')
   return {
     ...actual,
-    isCommunityExposureEnabled: () => false,
     productClient: {
       ...actual.productClient,
       loadPublicCollectionSnapshot: mocks.loadPublicCollectionSnapshot,
-      recordPublicCollectionInsightEvent: mocks.recordPublicCollectionInsightEvent,
-      getPublicProfilePage: mocks.getPublicProfilePage,
-      getFollowersPage: vi.fn().mockResolvedValue({ items: [], nextCursor: null }),
-      getFollowingPage: vi.fn().mockResolvedValue({ items: [], nextCursor: null }),
-      isFollowingProfile: mocks.isFollowingProfile,
-      followProfile: mocks.followProfile,
-      unfollowProfile: mocks.unfollowProfile,
-      abandonFollowIntent: mocks.abandonFollowIntent,
-      getCollectionFollowState: mocks.getCollectionFollowState,
-      followCollection: mocks.followCollection,
-      unfollowCollection: mocks.unfollowCollection,
-      abandonCollectionFollowIntent: mocks.abandonCollectionFollowIntent,
     },
   }
 })

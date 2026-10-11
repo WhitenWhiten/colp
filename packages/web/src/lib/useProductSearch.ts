@@ -1,11 +1,18 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { annotationKindTitle, searchKindLabel } from './searchCopy'
-import { isLive, productClient } from '../api'
+import { productClient } from '../api'
 import { ProductApiError, wrapProductError } from '../api/errors'
 import { privateSessionIdentity, subscribeSession } from '../api/sessionStore'
 import type { SearchPage, SearchResourceType, SearchResult } from '../api/types'
 import { readRouteCache, writeRouteCache } from './routeCache'
 import { resourcePrimaryTarget } from './useResourceNode'
+
+/** "All" still names its types: the server would add profiles, which have no page here. */
+const SEARCH_TYPES: SearchResourceType[] = ['collection', 'node', 'annotation']
+
+function isOpenable(item: SearchPage['items'][number]): item is SearchResult {
+  return item.resourceType !== 'profile'
+}
 
 export type ProductSearchState = 'idle' | 'loading' | 'ready' | 'empty' | 'error' | 'loading-more'
 
@@ -20,48 +27,6 @@ type SearchSnapshot = {
 
 const emptySnapshot: SearchSnapshot = {
   items: [], cursor: null, hasMore: false, state: 'idle', error: null, appendedResultId: null,
-}
-
-function includes(value: string, query: string): boolean {
-  return value.toLocaleLowerCase().includes(query.toLocaleLowerCase())
-}
-
-async function mockSearch(params: { q: string; types?: SearchResourceType[]; limit?: number }): Promise<SearchPage> {
-  // Flag-off only. Keep this a dynamic import so the live Search chunk does
-  // not pull the mock barrel (and the desk seed it re-exports).
-  const { collections, curators, featuredResources } = await import('../api/mock-data')
-  const query = params.q.trim()
-  const allowed = new Set<SearchResourceType>(params.types ?? ['collection', 'node', 'profile', 'annotation'])
-  const all: SearchResult[] = []
-  if (allowed.has('collection')) {
-    for (const item of collections) {
-      if (includes(`${item.title} ${item.description} ${item.curator} ${item.tags.join(' ')}`, query)) {
-        all.push({ resourceType: 'collection', resourceId: item.slug, title: item.title, snippet: item.description, rank: 0.7 })
-      }
-    }
-  }
-  if (allowed.has('profile')) {
-    for (const item of Object.values(curators)) {
-      if (includes(`${item.name} ${item.handle} ${item.bio}`, query)) {
-        all.push({ resourceType: 'profile', resourceId: item.handle, handle: item.handle, displayName: item.name, avatarUrl: null, snippet: item.bio, rank: 0.65 })
-      }
-    }
-  }
-  if (allowed.has('node')) {
-    for (const item of featuredResources) {
-      if (includes(`${item.title} ${item.summary} ${item.host}`, query)) {
-        all.push({ resourceType: 'node', resourceId: item.id, collectionId: 'interface-systems', title: item.title, urlHost: item.host, snippet: item.summary, rank: 0.6 })
-      }
-    }
-  }
-  const items = all.slice(0, params.limit ?? 20)
-  return {
-    query,
-    types: [...allowed],
-    items,
-    page: { returnedCount: items.length, hasMore: false, nextCursor: null },
-    consistency: { authority: 'recheck-each-page', ranking: 'restart-on-mutation' },
-  }
 }
 
 function mergeUnique(current: SearchResult[], incoming: SearchResult[]): SearchResult[] {
@@ -151,13 +116,11 @@ export function useProductSearch(input: {
       }
     })
     try {
-      const page = isLive('search')
-        ? await productClient.searchResources({
-            q: currentQuery,
-            ...(params.types?.length ? { types: params.types } : {}),
-            ...(cursor ? { cursor } : { limit: params.limit }),
-          }, { signal: controller.signal, maxRetries: 0 })
-        : await mockSearch({ q: currentQuery, types: params.types, limit: params.limit })
+      const page = await productClient.searchResources({
+        q: currentQuery,
+        types: params.types?.length ? params.types : SEARCH_TYPES,
+        ...(cursor ? { cursor } : { limit: params.limit }),
+      }, { signal: controller.signal, maxRetries: 0 })
       if (controller.signal.aborted || generation !== generationRef.current || requestedIdentity !== privateSessionIdentity()) return
       failedCursorRef.current = undefined
       // Ranking and relevance are the backend's call (per-script trigram
@@ -165,7 +128,7 @@ export function useProductSearch(input: {
       // would drop legitimate fuzzy, stemmed and Unicode-folded matches.
       setSnapshot((current) => {
         if (controller.signal.aborted || generation !== generationRef.current || requestedIdentity !== privateSessionIdentity()) return current
-        const incoming = page.items
+        const incoming = page.items.filter(isOpenable)
         const items = cursor ? mergeUnique(current.items, incoming) : incoming
         const next: SearchSnapshot = {
           items,
@@ -224,7 +187,6 @@ export function useProductSearch(input: {
 
 export function searchResultHref(result: SearchResult): string {
   switch (result.resourceType) {
-    case 'profile': return `/u/${encodeURIComponent(result.handle)}`
     case 'collection': return `/c/${encodeURIComponent(result.resourceId)}`
     case 'node': {
       const target = resourcePrimaryTarget(result.resourceId, null, { collectionId: result.collectionId, subjectType: 'node' })
@@ -238,7 +200,6 @@ export function searchResultHref(result: SearchResult): string {
 }
 
 export function searchResultTitle(result: SearchResult): string {
-  if (result.resourceType === 'profile') return result.displayName
   // The API carries no subject title: the annotation's own text is the
   // title, its type rides the kind chip and its subject the meta line.
   if (result.resourceType === 'annotation') {

@@ -5,7 +5,6 @@ import { isLinkHealthExposureEnabled, type EditorSnapshot } from '../../api'
 import { useToast } from '../../components/AppToast'
 import { Icon } from '../../components/Icon'
 import { popoverStyle } from '../../lib/anchorPopover'
-import { canonicalSiteOrigin } from '../../lib/chrome'
 import { copyTextToClipboard } from '../../lib/clipboard'
 import { onMenuLinkKeyDown } from '../../lib/menuKeys'
 import { useAnchoredMenu } from '../../lib/useAnchoredMenu'
@@ -207,7 +206,6 @@ export function LibraryMoreMenu({
   className,
   caps,
   selectedId,
-  followedSlug = null,
   publicSlug = null,
   collaboratorsLive,
   onCompose,
@@ -216,8 +214,6 @@ export function LibraryMoreMenu({
   className?: string
   caps: EditorSnapshot['capabilities'] | undefined
   selectedId: string
-  /** Publication slug when the desk shows a followed collection (read-only). */
-  followedSlug?: string | null
   /** Owned public or unlisted slug. Omitted by call sites that are not that desk. */
   publicSlug?: string | null
   collaboratorsLive: boolean
@@ -256,7 +252,7 @@ export function LibraryMoreMenu({
 
   const copyPublicLink = async (slug: string) => {
     try {
-      await copyTextToClipboard(`${canonicalSiteOrigin()}/c/${encodeURIComponent(slug)}`)
+      await copyTextToClipboard(`${window.location.origin}/c/${encodeURIComponent(slug)}`)
       success('Public link copied')
     } catch {
       error('Couldn’t copy the link')
@@ -273,94 +269,80 @@ export function LibraryMoreMenu({
           ref={menu.menuRef}
           style={popoverStyle(anchorPos)}
         >
-          {followedSlug !== null ? (
+          {caps?.createNode && (
+            <button type="button" role="menuitem" tabIndex={-1} onClick={() => compose('folder')}>
+              Add folder
+            </button>
+          )}
+          {caps?.updateCollection && onEditCollection && (
+            <button
+              type="button"
+              role="menuitem"
+              tabIndex={-1}
+              onClick={() => {
+                menu.close()
+                triggerRef.current?.focus()
+                onEditCollection()
+              }}
+            >
+              Edit collection
+            </button>
+          )}
+          <Link
+            role="menuitem"
+            tabIndex={-1}
+            to={`/library/${encodeURIComponent(selectedId)}/history`}
+            onClick={menu.close}
+            onKeyDown={onMenuLinkKeyDown}
+          >
+            Version history
+          </Link>
+          {collaboratorsLive && (
             <Link
               role="menuitem"
               tabIndex={-1}
-              to={`/c/${encodeURIComponent(followedSlug)}`}
+              to={`/library/${encodeURIComponent(selectedId)}/collaborators`}
               onClick={menu.close}
               onKeyDown={onMenuLinkKeyDown}
             >
-              Open public page
+              Collaborators
             </Link>
-          ) : (
+          )}
+          {publicSlug && (
             <>
-              {caps?.createNode && (
-                <button type="button" role="menuitem" tabIndex={-1} onClick={() => compose('folder')}>
-                  Add folder
-                </button>
-              )}
-              {caps?.updateCollection && onEditCollection && (
-                <button
-                  type="button"
-                  role="menuitem"
-                  tabIndex={-1}
-                  onClick={() => {
-                    menu.close()
-                    triggerRef.current?.focus()
-                    onEditCollection()
-                  }}
-                >
-                  Edit collection
-                </button>
-              )}
               <Link
                 role="menuitem"
                 tabIndex={-1}
-                to={`/library/${encodeURIComponent(selectedId)}/history`}
+                to={`/c/${encodeURIComponent(publicSlug)}`}
                 onClick={menu.close}
                 onKeyDown={onMenuLinkKeyDown}
               >
-                Version history
+                Open public page
               </Link>
-              {collaboratorsLive && (
-                <Link
-                  role="menuitem"
-                  tabIndex={-1}
-                  to={`/library/${encodeURIComponent(selectedId)}/collaborators`}
-                  onClick={menu.close}
-                  onKeyDown={onMenuLinkKeyDown}
-                >
-                  Collaborators
-                </Link>
-              )}
-              {publicSlug && (
-                <>
-                  <Link
-                    role="menuitem"
-                    tabIndex={-1}
-                    to={`/c/${encodeURIComponent(publicSlug)}`}
-                    onClick={menu.close}
-                    onKeyDown={onMenuLinkKeyDown}
-                  >
-                    Open public page
-                  </Link>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    tabIndex={-1}
-                    onClick={() => {
-                      menu.close()
-                      triggerRef.current?.focus()
-                      if (publicSlug) void copyPublicLink(publicSlug)
-                    }}
-                  >
-                    Copy public link
-                  </button>
-                </>
-              )}
-              {isLinkHealthExposureEnabled() && (
-                <Link
-                  role="menuitem"
-                  tabIndex={-1}
-                  to="/library/health"
-                  onClick={menu.close}
-                  onKeyDown={onMenuLinkKeyDown}
-                >
-                  Check links
-                </Link>
-              )}
+              <button
+                type="button"
+                role="menuitem"
+                tabIndex={-1}
+                onClick={() => {
+                  menu.close()
+                  triggerRef.current?.focus()
+                  if (publicSlug) void copyPublicLink(publicSlug)
+                }}
+              >
+                Copy public link
+              </button>
             </>
+          )}
+          {isLinkHealthExposureEnabled() && (
+            <Link
+              role="menuitem"
+              tabIndex={-1}
+              to="/library/health"
+              onClick={menu.close}
+              onKeyDown={onMenuLinkKeyDown}
+            >
+              Check links
+            </Link>
           )}
         </div>,
         document.body,
@@ -371,7 +353,7 @@ export function LibraryMoreMenu({
     <div className={className ? `library-more account-menu ${className}` : 'library-more account-menu'}>
       {/* R7-03: adding a bookmark is the desk's primary action — it lives as a
           first-class button, not behind the overflow menu. */}
-      {followedSlug === null && caps?.createNode && (
+      {caps?.createNode && (
         <button type="button" className="btn btn-primary btn-sm" onClick={() => compose('bookmark')}>
           Add bookmark
         </button>

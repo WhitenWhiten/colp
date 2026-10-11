@@ -6,10 +6,6 @@ import type {
 } from '../../api'
 import type { TreeNode } from './types'
 
-export function isFolder(n: TreeNode): n is FolderNodeView | RootNodeView {
-  return n.kind === 'folder'
-}
-
 export function childrenOf(
   parentId: string,
   nodes: EditableNodeView[],

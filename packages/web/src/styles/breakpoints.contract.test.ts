@@ -1,18 +1,13 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import {
-  collectLayeredRules,
-  loadDashboardCascadeRules,
-  winningStackTileProperty,
-} from './dashboard-stack-cascade.test-helper'
 
 /**
  * DS-01 / DS-02 / DS-10 / DS-11 breakpoint contract.
  *
  * Locks the documented content + chrome scales so a later @media group
- * cannot silently override Explore columns, invent an unlisted pixel
- * cut, revive a scaled Dashboard preview, or split Landing/Share hero cuts.
+ * cannot silently override collection columns or invent an unlisted pixel
+ * cut.
  */
 
 const stylesDir = resolve(import.meta.dirname)
@@ -166,65 +161,21 @@ function mediaHeaders(source: string): string[] {
 }
 
 const PAGE_DOMAIN_FILES = [
-  'landing.css',
-  'explore.css',
   'collection.css',
-  'profile.css',
-  'dashboard.css',
   'graph.css',
   'sync.css',
   'write-approvals.css',
-  'classify.css',
   'pages-shared.css',
 ] as const
 
 describe('breakpoint contract (DS-01, DS-02, DS-10, DS-11)', () => {
   const pages = PAGE_DOMAIN_FILES.map((file) => readStyle(file)).join('\n')
   const library = readStyle('library.css')
-  const share = readStyle('share.css')
   const nav = readStyle('nav.css')
-  const skeleton = readStyle('skeleton.css')
-  const cards = readStyle('cards.css')
   const pagesRules = collectRules(pages)
   const libraryRules = collectRules(library)
-  const shareRules = collectRules(share)
   const navRules = collectRules(nav)
-  const skeletonRules = collectRules(skeleton)
-  const cardsRules = collectRules(cards)
   const pageChromeRules = collectRules(readStyle('page-chrome.css'))
-
-  it('DS-01: default .collection-grid columns follow 1 / 2 / 3 and never 4', () => {
-    const sel = '.collection-grid'
-    expect(winningColumns(pagesRules, sel, 390)).toBe(1)
-    expect(winningColumns(pagesRules, sel, 639)).toBe(1)
-    expect(winningColumns(pagesRules, sel, 640)).toBe(2)
-    expect(winningColumns(pagesRules, sel, 768)).toBe(2)
-    expect(winningColumns(pagesRules, sel, 899)).toBe(2)
-    expect(winningColumns(pagesRules, sel, 900)).toBe(3)
-    expect(winningColumns(pagesRules, sel, 1024)).toBe(3)
-    expect(winningColumns(pagesRules, sel, 1100)).toBe(3)
-    expect(winningColumns(pagesRules, sel, 1280)).toBe(3)
-    expect(winningColumns(pagesRules, sel, 1920)).toBe(3)
-
-    const defaultFour = pagesRules.filter(
-      (r) => r.selector === sel && columnCount(r.body) === 4,
-    )
-    expect(defaultFour, 'default density must not declare 4 columns').toEqual([])
-  })
-
-  it('DS-01: .route-loading-grid follows the same 1 / 2 / 3 tracks as default .collection-grid', () => {
-    const sel = '.route-loading-grid'
-    expect(winningColumns(skeletonRules, sel, 390)).toBe(1)
-    expect(winningColumns(skeletonRules, sel, 639)).toBe(1)
-    expect(winningColumns(skeletonRules, sel, 640)).toBe(2)
-    expect(winningColumns(skeletonRules, sel, 899)).toBe(2)
-    expect(winningColumns(skeletonRules, sel, 900)).toBe(3)
-    expect(winningColumns(skeletonRules, sel, 1024)).toBe(3)
-    expect(winningColumns(skeletonRules, sel, 1100)).toBe(3)
-    expect(winningColumns(skeletonRules, sel, 1400)).toBe(3)
-    const four = skeletonRules.filter((r) => r.selector === sel && columnCount(r.body) === 4)
-    expect(four, 'default card-grid skeleton must not declare 4 columns').toEqual([])
-  })
 
   it('collection masthead titles use a three-line clamp at ≤639, not nowrap ellipsis', () => {
     const mobile = pagesRules.filter(
@@ -236,16 +187,6 @@ describe('breakpoint contract (DS-01, DS-02, DS-10, DS-11)', () => {
     expect(body).toMatch(/line-height:\s*var\(--leading-clamp\)/)
     expect(body).not.toMatch(/white-space:\s*nowrap/)
     expect(body).not.toMatch(/text-overflow:\s*ellipsis/)
-  })
-
-  it('overflowing custom canvas shell fades the end edge', () => {
-    const fade = cardsRules.find(
-      (r) => r.selector === '.canvas-shell--custom.canvas-shell--overflow-end',
-    )
-    expect(fade, 'overflow-end fade must live on .canvas-shell--custom').toBeTruthy()
-    expect(fade!.body).toMatch(/mask-image:/)
-    expect(fade!.body).toMatch(/linear-gradient/)
-    expect(cards).toMatch(/\.canvas-scroll-hint/)
   })
 
   it('page-shell titles use --measure, not a 22ch form clamp', () => {
@@ -378,151 +319,5 @@ describe('breakpoint contract (DS-01, DS-02, DS-10, DS-11)', () => {
       (r) => r.selector === '.library-desk' && r.media?.min === 720 && /grid-template-columns/.test(r.body),
     )
     expect(libraryTwoCol.length).toBeGreaterThan(0)
-  })
-
-  it('DS-10: below the board-fit cut Dashboard stacks modules; no scaled preview or EmptyState reject', () => {
-    expect(pages).not.toMatch(/dashboard-page\s*>\s*\*:not\(\.dashboard-mobile-only\)/)
-    expect(pages).not.toMatch(/--dashboard-preview-scale/)
-
-    // Class-string presence in dashboard.css is not proof — the reset must win from
-    // `@layer components` so it can beat `.tile { position: absolute }`.
-    // Computed-style matrix (390/768/899): Dashboard.test.tsx
-    // "DS-10: stacked tiles compute position:relative at 390/768/899".
-    const position = winningStackTileProperty(loadDashboardCascadeRules(), 'position', 768)
-    expect(
-      position,
-      'winning stack reset must live in @layer components (same layer as .tile)',
-    ).toMatchObject({ value: 'relative', layer: 'components' })
-
-    const tabletShell = pagesRules.find(
-      (r) =>
-        r.selector === '.dashboard-page .canvas-shell' &&
-        r.media?.min === 640 &&
-        r.media.max === 899,
-    )
-    expect(tabletShell).toBeUndefined()
-
-    const tabletBoard = pagesRules.find(
-      (r) => r.selector === '.dashboard-page .board' && r.media?.min === 640 && r.media.max === 899,
-    )
-    expect(tabletBoard).toBeUndefined()
-
-    const clip = collectRules(cards).find(
-      (r) =>
-        r.selector === '.dashboard-page .canvas-shell--custom' &&
-        r.media?.min === 640 &&
-        r.media.max === 899,
-    )
-    expect(clip).toBeUndefined()
-  })
-
-  it('DS-10: the board cut is the canvas-fit width (1476px) in CSS and JS alike', () => {
-    /* The board is a fixed 1400px canvas; the shell adds both --gutter caps
-       (2 × 2.35rem = 75.2px), so it only fits whole from 1476px. Between the
-       old 900px cut and 1475px the board clipped behind the overflow fade —
-       the stack must cover that whole range. Lock the CSS cut, its X-1 pair,
-       and the JS constant that gates stackLayout + fullscreen. */
-    const stackHide = pagesRules.find(
-      (r) => r.selector === '.dashboard-stack' && /display:\s*none/.test(r.body),
-    )
-    expect(stackHide?.media, 'stack yields to the board only where the 1400px canvas fits').toEqual({
-      min: 1476,
-      max: undefined,
-    })
-
-    const fullscreenRevert = mediaHeaders(readStyle('dashboard.css')).filter((h) =>
-      h.includes('max-width: 1475px'),
-    )
-    expect(fullscreenRevert, 'chrome-hide reverts across the whole stack range (X-1 pair)').toHaveLength(1)
-
-    const fullscreenTs = readFileSync(resolve(stylesDir, '../lib/fullscreen.ts'), 'utf8')
-    expect(fullscreenTs).toMatch(/DESKTOP_DASHBOARD_MIN\s*=\s*1476/)
-
-    // No dashboard rule may reintroduce the board inside the stack range.
-    const boardInStackRange = pagesRules.filter(
-      (r) =>
-        r.selector.startsWith('.dashboard-page') &&
-        r.media?.min != null &&
-        r.media.min < 1476 &&
-        /canvas-shell|\.board\b/.test(r.selector),
-    )
-    expect(boardInStackRange, 'no board styling below the board-fit cut').toEqual([])
-  })
-
-  it('DS-10: a pages-layer stack reset beats the components .tile base (pages sit above components)', () => {
-    // The order is `components < pages`: a route may specialise component
-    // chrome, and the cascade emulation used by the dashboard stack contract
-    // must agree with the browser on that.
-    const rules = [
-      ...collectLayeredRules(
-        `@layer components { .tile { position: absolute; width: var(--w); transform: translate3d(var(--x), var(--y), 0); } }`,
-      ),
-      ...collectLayeredRules(
-        `@layer pages { .dashboard-stack .tile { position: relative; width: 100%; transform: none; } }`,
-      ),
-    ]
-    for (const width of [390, 768, 899]) {
-      expect(winningStackTileProperty(rules, 'position', width)).toMatchObject({
-        value: 'relative',
-        layer: 'pages',
-      })
-    }
-    // …while a later components-layer rule still beats an earlier one of the
-    // same layer, so the real reset in the widget chapters keeps winning
-    // over cards.css `.tile` by import order.
-    const sameLayer = [
-      ...collectLayeredRules(`@layer components { .tile { position: absolute; } }`),
-      ...collectLayeredRules(`@layer components { .dashboard-stack .tile { position: relative; } }`),
-    ]
-    expect(winningStackTileProperty(sameLayer, 'position', 768)).toMatchObject({
-      value: 'relative',
-      layer: 'components',
-    })
-  })
-
-  it('DS-11: Landing and Share heroes use the same 900px two-column cut', () => {
-    /* The dither-field hero (landing rework) retired .landing-hero-inner and
-       its two-column cut: the hero is a fixed centered stage at every width.
-       Lock that no landing hero grid cut comes back; Share keeps 900px. */
-    const landingTwoCol = pagesRules.filter(
-      (r) => r.selector === '.landing-hero-inner' && /grid-template-columns/.test(r.body),
-    )
-    expect(landingTwoCol, 'the dither-field hero has no two-column grid cut').toEqual([])
-
-    const shareTwoCol = shareRules.filter(
-      (r) => r.selector === '.share-hero-inner' && /grid-template-columns/.test(r.body),
-    )
-    expect(shareTwoCol).toHaveLength(1)
-    expect(shareTwoCol[0]?.media).toEqual({ min: 900, max: undefined })
-
-    const shareBodyGrids = ['.share-beats', '.share-reasons', '.share-spotlight-grid', '.share-footer-cta-inner']
-    for (const sel of shareBodyGrids) {
-      const cuts = shareRules.filter((r) => r.selector === sel && /grid-template-columns/.test(r.body))
-      expect(cuts, `${sel} must share the 900px hero cut`).toHaveLength(1)
-      expect(cuts[0]?.media).toEqual({ min: 900, max: undefined })
-    }
-
-    const shareTabletHero = shareRules.filter(
-      (r) =>
-        r.selector.startsWith('.share-hero') &&
-        r.media?.min === 640 &&
-        r.media.max === 899 &&
-        /grid-template-columns/.test(r.body),
-    )
-    expect(shareTabletHero, 'Share must not go two-column in the 640–899 band').toEqual([])
-
-    expect(mediaHeaders(pages).some((h) => /landing-hero/.test(h))).toBe(false)
-    expect(stripComments(pages)).not.toMatch(/@media\s*\(min-width:\s*960px\)[^{]*\{[^}]*landing-hero-inner/)
-    expect(stripComments(share)).not.toMatch(/@media\s*\(min-width:\s*960px\)[^{]*\{[^}]*share-hero-inner/)
-  })
-
-  it('DS-02: landing collections keep a Browse CTA at ≤639', () => {
-    const hidden = pagesRules.filter(
-      (r) =>
-        r.media?.max === 639 &&
-        r.selector.includes('landing-collections-section') &&
-        /display:\s*none/.test(r.body),
-    )
-    expect(hidden, 'phone landing must not hide Browse all collections').toEqual([])
   })
 })

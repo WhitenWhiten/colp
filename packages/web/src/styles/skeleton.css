@@ -106,12 +106,6 @@
   margin-top: calc(var(--text-md) * var(--leading-normal) * 0.2 + var(--space-3));
 }
 
-.skeleton-text--section {
-  --bone-size: var(--text-xl);
-  --bone-leading: var(--leading-heading);
-  width: min(20rem, 60%);
-}
-
 .skeleton-text--row-title {
   width: min(24rem, 55%);
 }
@@ -145,27 +139,10 @@
   width: 62%;
 }
 
-.skeleton-text--card-title {
-  --bone-size: var(--text-xl);
-  --bone-leading: var(--leading-heading);
-  width: 80%;
-}
-
 .skeleton-text--label {
   --bone-size: var(--text-sm);
   width: 5rem;
   margin-bottom: calc(var(--text-sm) * var(--leading-normal) * 0.2 + var(--space-1));
-}
-
-.skeleton-text--tab {
-  --bone-size: var(--text-sm);
-  width: 4.5rem;
-}
-
-.skeleton-text--stat {
-  --bone-size: var(--text-xl);
-  --bone-leading: var(--leading-heading);
-  width: 3rem;
 }
 
 .skeleton-text--nav-title {
@@ -233,21 +210,11 @@
   width: 2.75rem;
 }
 
-.skeleton-chip--modebar {
-  width: 11rem;
-  margin-bottom: var(--space-5);
-}
-
 .skeleton-avatar {
   flex: none;
   width: 1.35rem;
   height: 1.35rem;
   border-radius: 50%;
-}
-
-.skeleton-avatar--profile {
-  width: 4.5rem;
-  height: 4.5rem;
 }
 
 .skeleton-canvas {
@@ -268,8 +235,8 @@
   flex: none;
 }
 
-/* Row list: the shared bordered list shell (notifications, library desk,
-   digests, history, exports…). */
+/* Row list: the shared bordered list shell (library desk, history, sync,
+   approvals…). */
 .skeleton-list {
   display: flex;
   flex-direction: column;
@@ -298,35 +265,11 @@
   flex: 1;
 }
 
-.skeleton-chips,
-.skeleton-tabs {
+.skeleton-chips {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
   margin-bottom: var(--space-4);
-}
-
-.skeleton-tabs {
-  gap: var(--space-5);
-  padding-bottom: var(--space-2);
-  border-bottom: 1px solid var(--line);
-}
-
-.skeleton-stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
-  gap: var(--space-4);
-  margin-bottom: var(--space-5);
-}
-
-.skeleton-stats--strip {
-  display: flex;
-  gap: var(--space-5);
-  margin-bottom: 0;
-}
-
-.skeleton-stats--strip .skeleton-text {
-  width: 5.5rem;
 }
 
 .skeleton-panel {
@@ -343,94 +286,11 @@
   padding: var(--hair-125);
 }
 
-.skeleton-stream {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  margin-top: var(--space-4);
-}
-
-.skeleton-stream-card {
-  display: flex;
-  flex-direction: column;
-  padding: var(--space-4) var(--hair-125);
-}
-
 .skeleton-prose {
   display: flex;
   flex-direction: column;
   gap: var(--hair-150);
   max-width: 68ch;
-}
-
-/* Today: main column + quick-action rail (today.css tracks). */
-.skeleton-split {
-  display: grid;
-  gap: clamp(2rem, 5vw, 5rem);
-  margin-top: var(--space-5);
-}
-
-@media (min-width: 900px) {
-  .skeleton-split {
-    grid-template-columns: minmax(0, 1.55fr) minmax(17rem, 0.55fr);
-  }
-}
-
-.skeleton-split .skeleton-text--section {
-  margin-bottom: var(--space-4);
-}
-
-/* Card grid: the same 1 / 2 / 3 tracks and gap as default .collection-grid
-   (explore.css), and the card anatomy of CollectionCard. */
-.route-loading-grid {
-  display: grid;
-  gap: var(--hair-110);
-  grid-template-columns: 1fr;
-}
-
-@media (min-width: 640px) {
-  .route-loading-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-@media (min-width: 900px) {
-  .route-loading-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
-}
-
-.route-loading-card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--hair-45);
-  min-height: 12rem;
-  padding: var(--space-4) var(--hair-110);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-}
-
-.skeleton-card-chip {
-  width: 4rem;
-  height: 1.45rem;
-  border-radius: var(--radius-pill);
-}
-
-.skeleton-card-footer {
-  display: flex;
-  align-items: center;
-  gap: var(--hair-45);
-  margin-top: auto;
-  padding-top: var(--hair-85);
-  border-top: 1px solid var(--line);
-}
-
-.skeleton-card-footer--head {
-  margin-top: 0;
-  padding-top: 0;
-  border-top: 0;
-  margin-bottom: var(--space-2);
 }
 
 /* ——— Library desk (library.css is route-loaded) ———
@@ -509,11 +369,6 @@
   margin-bottom: var(--space-4);
 }
 
-/* ——— Profile (profile.css is route-loaded): .profile-page padding ——— */
-.skeleton-profile-page {
-  padding-top: var(--hair-200);
-}
-
 /* ——— Auth card (auth-pages.css is route-loaded): .auth-page stage ——— */
 .skeleton-auth {
   min-height: calc(100dvh - var(--header-h));
@@ -529,11 +384,5 @@
   gap: var(--space-3);
   width: min(100%, 26rem);
   padding: var(--hair-200) var(--hair-160);
-}
-
-@media (max-width: 639px) {
-  .skeleton-profile-page {
-    padding-top: var(--space-4);
-  }
 }
 }

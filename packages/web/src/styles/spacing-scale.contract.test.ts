@@ -41,22 +41,10 @@ const DECL_RE = new RegExp(`(?<![\\w-])(${SPACING_PROPS.join('|')})\\s*:\\s*([^;
 
 /** Page-rhythm stock: file → literal value → exact remaining occurrence count. */
 const PAGE_RHYTHM_STOCK: Record<string, Record<string, number>> = {
-  'cards.css': { '2.5rem': 1 },
   'collab.css': { '2.5rem': 1, '3rem': 1 },
-  // collection.css converged onto the scale (Contents/main-column layout): no stock left.
-  'dashboard.css': { '3rem': 1 },
-  'demos.css': { '3.5rem': 1 },
-  // explore.css converged onto PageShell padding (C1): no stock left.
-  'extension.css': { '3rem': 1 },
   'global.css': { '2.5rem': 1, '3.5rem': 1 },
-  // graph.css converged onto PageShell + scale tokens (R10-31): no stock left.
-  // library.css converged onto PageShell padding (C1): no stock left.
-  // Former loops.css stock, redistributed to the per-route files (same total).
   'collection-history.css': { '2.5rem': 1 },
-  'data-export.css': { '2.5rem': 1 },
-  // reader.css and path-reader.css converged onto the scale: no stock left.
   'page-chrome.css': { '2.5rem': 1, '3rem': 1 },
-  'share.css': { '2.5rem': 2, '3rem': 1 },
 }
 
 /** Blank comment contents in place so offsets and line numbers survive. */
@@ -142,14 +130,11 @@ describe('spacing scale contract (R8-11)', () => {
     const tokens = readFileSync(resolve(stylesDir, 'tokens.css'), 'utf8')
     expect(tokens).toMatch(/--page-pad-y-mobile:\s*var\(--hair-150\)/)
     const pageChrome = readFileSync(resolve(stylesDir, 'page-chrome.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')
-    const explore = readFileSync(resolve(stylesDir, 'explore.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')
     const library = readFileSync(resolve(stylesDir, 'library.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')
     const sync = readFileSync(resolve(stylesDir, 'sync.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')
     expect(pageChrome).toMatch(/\.page-shell\s*\{[^}]*padding:\s*var\(--page-pad-y-mobile\)/)
-    // C1: Explore/Library/DemoHub render PageShell, so the per-route phone
-    // padding duplicates (.explore-page / .library-page / .demo-directory-page)
-    // must stay deleted — .page-shell is the only owner.
-    expect(explore).not.toMatch(/\.explore-page\s*\{[^}]*padding:/)
+    // C1: Library and Sync render PageShell, so the per-route phone padding
+    // duplicates must stay deleted — .page-shell is the only owner.
     expect(library).not.toMatch(/\.library-page\s*\{/)
     expect(sync).not.toMatch(/\.sync-page\s*\{\s*padding-top:/)
   })

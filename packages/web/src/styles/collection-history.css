@@ -43,7 +43,7 @@
   transition: background var(--duration-fast) var(--ease-quart), color var(--duration-fast) var(--ease-quart);
 }
 
-/* Master-detail list (shared treatment with the Classify queue): rows sit
+/* Master-detail list: rows sit
    on the page background between hairlines; the selected row lifts into a
    raised white card. */
 .history-version-list > button:hover {

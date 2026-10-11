@@ -29,9 +29,7 @@ const RETIRED = new RegExp(
 
 const SETTINGS_FORM_SOURCES = [
   'components/settings/ProfileSection.tsx',
-  'components/auth/EmailChangeSection.tsx',
   'components/auth/PasswordChangeSection.tsx',
-  'components/auth/ProviderLinkSection.tsx',
   'components/auth/AccountDeleteSection.tsx',
 ]
 

@@ -117,5 +117,3 @@ export function useCollectionEditorSnapshot(options: {
     preserveEditDraftRef,
   }
 }
-
-export type CollectionEditorSnapshot = ReturnType<typeof useCollectionEditorSnapshot>

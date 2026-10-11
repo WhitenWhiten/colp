@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { act, lazy, useEffect, type ComponentType } from 'react'
+import { act, lazy, type ComponentType } from 'react'
 import { MemoryRouter, Route, Routes, Link } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Layout } from './Layout'
@@ -56,59 +56,6 @@ describe('Layout internal link interceptor', () => {
   })
 })
 
-describe('Layout share embed mode', () => {
-
-  beforeEach(() => {
-    document.body.innerHTML = '<div id="root"></div>'
-    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
-  })
-
-  afterEach(() => {
-    cleanup()
-  })
-
-  function renderAt(path: string) {
-    mountTree(
-        <MemoryRouter initialEntries={[path]}>
-          <Routes>
-            <Route element={<Layout />}>
-              <Route path="share/:slug" element={<div>Share page</div>} />
-              <Route path="reports/:slug" element={<div>Digest page</div>} />
-              <Route path="reports/:slug/issues/:editionId" element={<div>Issue page</div>} />
-            </Route>
-          </Routes>
-        </MemoryRouter>,
-      )
-  }
-
-  it('hides the topnav, footer, and skip link for /share/:slug?embed=1', () => {
-    renderAt('/share/llm-learning-path?embed=1')
-
-    expect(document.querySelector('header')).toBeNull()
-    expect(document.querySelector('footer')).toBeNull()
-    expect(document.querySelector('a[href="#main"]')).toBeNull()
-    expect(document.querySelector('[aria-label="Mobile primary"]')).toBeNull()
-    expect(document.querySelector('#main')?.closest('.app-shell')?.classList.contains('app-shell--tabs')).toBe(false)
-    expect(document.querySelector('#main')?.textContent).toContain('Share page')
-  })
-
-  it.each(['/reports/weekly?embed=1', '/reports/weekly/issues/issue-1?embed=1'])('strips chrome for %s', path => {
-    renderAt(path)
-    expect(document.querySelector('header')).toBeNull()
-    expect(document.querySelector('footer')).toBeNull()
-    expect(document.querySelector('a[href="#main"]')).toBeNull()
-  })
-
-  it('keeps the chrome on the normal share page', () => {
-    renderAt('/share/llm-learning-path')
-
-    expect(document.querySelector('header')).not.toBeNull()
-    expect(document.querySelector('footer')).not.toBeNull()
-    expect(document.querySelector('[aria-label="Mobile primary"]')).not.toBeNull()
-    expect(document.querySelector('#main')?.closest('.app-shell')?.classList.contains('app-shell--tabs')).toBe(true)
-  })
-})
-
 describe('Layout mobile tab bar gating', () => {
 
   beforeEach(() => {
@@ -127,7 +74,7 @@ describe('Layout mobile tab bar gating', () => {
             <Route element={<Layout />}>
               <Route index element={<div>Home</div>} />
               <Route path="login" element={<div>Login</div>} />
-              <Route path="explore" element={<div>Explore</div>} />
+              <Route path="c/:slug" element={<div>Collection</div>} />
             </Route>
           </Routes>
         </MemoryRouter>,
@@ -140,15 +87,14 @@ describe('Layout mobile tab bar gating', () => {
     expect(document.querySelector('#main')?.closest('.app-shell')?.classList.contains('app-shell--tabs')).toBe(false)
   })
 
-  it('mounts a guest tab bar without workbench channels', () => {
-    renderAt('/explore')
+  it('mounts a guest tab bar with only Sign in', () => {
+    renderAt('/c/research-notes')
     const tabs = document.querySelector('[aria-label="Mobile primary"]')
     expect(tabs).not.toBeNull()
-    expect(tabs?.querySelector('a[href="/explore"]')).not.toBeNull()
-    expect(tabs?.querySelector('a[href^="/login"]')).not.toBeNull()
-    expect(document.querySelector('a[href="/today"]')).toBeNull()
+    expect([...tabs!.querySelectorAll('a')].map((anchor) => anchor.getAttribute('href'))).toEqual([
+      '/login?returnTo=%2Fc%2Fresearch-notes',
+    ])
     expect(document.querySelector('a[href="/library"]')).toBeNull()
-    expect(document.querySelector('a[href="/notifications"]')).toBeNull()
   })
 })
 
@@ -205,15 +151,15 @@ describe('Layout route focus and announcement', () => {
       useDocumentTitle(title)
       return <div><p>{title}</p>{to ? <Link to={to} data-testid="go">go</Link> : null}</div>
     }
-    let resolveExplore!: (module: { default: ComponentType }) => void
-    const LazyExplore = lazy(() => new Promise<{ default: ComponentType }>((resolve) => { resolveExplore = resolve }))
+    let resolveSearch!: (module: { default: ComponentType }) => void
+    const LazySearch = lazy(() => new Promise<{ default: ComponentType }>((resolve) => { resolveSearch = resolve }))
 
     mountTree(
         <MemoryRouter initialEntries={['/']}>
           <Routes>
             <Route element={<Layout />}>
-              <Route index element={<Page title="Home" to="/explore" />} />
-              <Route path="explore" element={<LazyExplore />} />
+              <Route index element={<Page title="Home" to="/search" />} />
+              <Route path="search" element={<LazySearch />} />
             </Route>
           </Routes>
         </MemoryRouter>,
@@ -227,11 +173,11 @@ describe('Layout route focus and announcement', () => {
     // which must not be announced.
     expect(document.querySelector('[aria-live="polite"]')?.textContent).toBe('')
     await act(async () => {
-      resolveExplore({ default: () => <Page title="Explore" /> })
+      resolveSearch({ default: () => <Page title="Search" /> })
       await Promise.resolve()
       await Promise.resolve()
     })
-    await waitForDom(() => document.querySelector('[aria-live="polite"]')?.textContent === 'Explore')
+    await waitForDom(() => document.querySelector('[aria-live="polite"]')?.textContent === 'Search')
   })
 
   it('focuses main without scrolling when returning to the landing page', async () => {
@@ -251,11 +197,11 @@ describe('Layout route focus and announcement', () => {
 
     try {
       mountTree(
-          <MemoryRouter initialEntries={['/explore']}>
+          <MemoryRouter initialEntries={['/search']}>
             <Routes>
               <Route element={<Layout />}>
-                <Route index element={<Page title="Home" to="/explore" testId="to-explore" />} />
-                <Route path="explore" element={<Page title="Explore" to="/" testId="to-home" />} />
+                <Route index element={<Page title="Home" to="/search" testId="to-search" />} />
+                <Route path="search" element={<Page title="Search" to="/" testId="to-home" />} />
               </Route>
             </Routes>
           </MemoryRouter>,

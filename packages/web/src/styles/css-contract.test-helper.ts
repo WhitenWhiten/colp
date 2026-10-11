@@ -1,4 +1,4 @@
-import { flattenAllLayeredCssForHappyDom, readStyle } from './dashboard-stack-cascade.test-helper'
+import { flattenAllLayeredCssForHappyDom, readStyle } from './layered-css.test-helper'
 
 /**
  * Computed-style harness for CSS contract tests.
@@ -6,7 +6,7 @@ import { flattenAllLayeredCssForHappyDom, readStyle } from './dashboard-stack-ca
  * Text assertions against a stylesheet (`body` matches `/overflow-wrap:
  * anywhere/`) break when a rule is renamed or re-homed and stay green when a
  * later layer silently overrides it. These helpers instead mount the real
- * files (flattened with layer compensation, see dashboard-stack-cascade),
+ * files (flattened with layer compensation, see layered-css.test-helper),
  * build the element the selector describes, and read `getComputedStyle`.
  *
  * happy-dom limits: `@layer` is emulated by the flattener, `@media` is not

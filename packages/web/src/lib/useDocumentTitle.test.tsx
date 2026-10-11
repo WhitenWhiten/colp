@@ -1,5 +1,4 @@
 // @vitest-environment happy-dom
-import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { useDocumentTitle } from './useDocumentTitle'
 import { cleanup, mountTree } from '../test/render'
@@ -12,7 +11,7 @@ function Probe({ title }: { title: string }) {
 describe('useDocumentTitle', () => {
 
   beforeEach(() => {
-    document.title = 'Know-N'
+    document.title = 'COLP Server'
     document.body.innerHTML = '<div id="root"></div>'
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   })
@@ -21,17 +20,17 @@ describe('useDocumentTitle', () => {
     cleanup()
   })
 
-  it('sets `{title} — Know-N` and restores the previous title on unmount', () => {
-    mountTree(<Probe title="Dashboard" />)
-    expect(document.title).toBe('Dashboard — Know-N')
+  it('sets `{title} — COLP Server` and restores the previous title on unmount', () => {
+    mountTree(<Probe title="Library" />)
+    expect(document.title).toBe('Library — COLP Server')
     cleanup()
-    expect(document.title).toBe('Know-N')
+    expect(document.title).toBe('COLP Server')
   })
 
   it('updates when the title changes', () => {
-    mountTree(<Probe title="Profile" />)
-    expect(document.title).toBe('Profile — Know-N')
-    mountTree(<Probe title="@mira" />)
-    expect(document.title).toBe('@mira — Know-N')
+    mountTree(<Probe title="Agents" />)
+    expect(document.title).toBe('Agents — COLP Server')
+    mountTree(<Probe title="Write approvals" />)
+    expect(document.title).toBe('Write approvals — COLP Server')
   })
 })

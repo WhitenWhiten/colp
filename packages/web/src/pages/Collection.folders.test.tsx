@@ -2,7 +2,7 @@
 import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PublicCollectionNode } from '../api/types'
-import { collectLayeredRules, readStyle } from '../styles/dashboard-stack-cascade.test-helper'
+import { collectLayeredRules, readStyle } from '../styles/layered-css.test-helper'
 import { cleanup, domFinishedLoading, waitForDom } from '../test/render'
 import {
   bookmark,
@@ -22,22 +22,9 @@ vi.mock('../api', async (importOriginal) => {
   const { mocks } = await import('./Collection.test-mocks')
   return {
     ...actual,
-    isCommunityExposureEnabled: () => false,
     productClient: {
       ...actual.productClient,
       loadPublicCollectionSnapshot: mocks.loadPublicCollectionSnapshot,
-      recordPublicCollectionInsightEvent: mocks.recordPublicCollectionInsightEvent,
-      getPublicProfilePage: mocks.getPublicProfilePage,
-      getFollowersPage: vi.fn().mockResolvedValue({ items: [], nextCursor: null }),
-      getFollowingPage: vi.fn().mockResolvedValue({ items: [], nextCursor: null }),
-      isFollowingProfile: mocks.isFollowingProfile,
-      followProfile: mocks.followProfile,
-      unfollowProfile: mocks.unfollowProfile,
-      abandonFollowIntent: mocks.abandonFollowIntent,
-      getCollectionFollowState: mocks.getCollectionFollowState,
-      followCollection: mocks.followCollection,
-      unfollowCollection: mocks.unfollowCollection,
-      abandonCollectionFollowIntent: mocks.abandonCollectionFollowIntent,
     },
   }
 })

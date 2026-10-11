@@ -28,7 +28,7 @@ type FolderView = 'board' | 'gallery' | 'list' | 'compact'
  * One layer of subfolders, shared by the public collection page and the
  * library desk so both express hierarchy with the same language. Board mode
  * renders cards; list/compact render row links; gallery renders the
- * collection card (Explore's anatomy) on the bookmark gallery's masonry.
+ * collection card body on the bookmark gallery's masonry.
  * Folders navigate within the page instead of opening an external
  * resource — deliberately not ResourceList items.
  */

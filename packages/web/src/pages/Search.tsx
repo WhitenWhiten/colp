@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import type { SearchResourceType } from '../api/types'
 import { EmptyState, LoadingState } from '../components/EmptyState'
-import { FilterRail } from '../components/FilterRail'
 import { SelectMenu } from '../components/SelectMenu'
 import { LoadMoreButton } from '../components/LoadMoreButton'
 import { PageHead } from '../components/PageHead'
@@ -16,7 +15,7 @@ import { productName } from '../lib/edition'
 
 const filters: { label: string; value?: SearchResourceType }[] = [
   { label: 'All' }, { label: 'Collections', value: 'collection' }, { label: 'Bookmarks', value: 'node' },
-  { label: 'Profiles', value: 'profile' }, { label: 'Annotations', value: 'annotation' },
+  { label: 'Annotations', value: 'annotation' },
 ]
 
 export function Search() {
@@ -95,7 +94,7 @@ export function Search() {
           title={SEARCH_PAGE_TITLE}
           documentTitle="Search"
           meta={{
-            description: `Search collections, profiles, bookmarks, and annotations on ${productName()}.`,
+            description: `Search collections, bookmarks, and annotations on ${productName()}.`,
             canonicalPath: null,
             robots: 'noindex',
           }}
@@ -130,7 +129,7 @@ export function Search() {
         </div>
 
         {!query && (
-          <EmptyState icon="search" title="Enter a query to begin" description="Search collections, profiles, bookmarks, and annotations." />
+          <EmptyState icon="search" title="Enter a query to begin" description="Search collections, bookmarks, and annotations." />
         )}
         {query && search.state === 'loading' && <LoadingState data-search-state="loading" label="Searching…" />}
         {search.state === 'empty' && (

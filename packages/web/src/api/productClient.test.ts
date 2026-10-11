@@ -34,8 +34,6 @@ const {
   deleteCollectionNode,
   deleteSession,
   getCollectionEditorPage,
-  getPublicCollectionPage,
-  getPublicProfilePage,
   getMe,
   getSession,
   loadPublicCollectionSnapshot,
@@ -43,7 +41,6 @@ const {
   updateCollection,
   updateCollectionNode,
   updateMe,
-  uploadAvatar,
 } = productClient
 
 function lastCall(calls: FetchCall[]): FetchCall {
@@ -295,33 +292,6 @@ describe('canonical productClient', () => {
     expect(headers.get('X-CSRF-Token')).toBe('csrf-profile')
     expect(isUuidV4(headers.get('Known-Command-Id')!)).toBe(true)
     expect(headers.get('Content-Type')).toMatch(/application\/json/i)
-  })
-
-  it('uploadAvatar sends the raw image to /api/v1/me/avatar and applies the returned me', async () => {
-    seedAuthenticatedSession('csrf-avatar')
-    const mock = installFetchMock(() => jsonResponse({
-      account: { id: 'acc-1', email: 'ada@example.com' },
-      profile: { id: 'prof-1', handle: 'ada', displayName: 'Ada', avatarUrl: 'https://cdn.example.test/avatars/abc.png' },
-    }))
-    restoreFetch = mock.restore
-
-    const file = new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], 'avatar.png', { type: 'image/png' })
-    const updated = await uploadAvatar(
-      file,
-      { intentId: 'update-avatar:success', maxRetries: 0 },
-    )
-    expect(updated.profile.avatarUrl).toBe('https://cdn.example.test/avatars/abc.png')
-    expect(getSessionSnapshot().me?.profile.avatarUrl).toBe('https://cdn.example.test/avatars/abc.png')
-
-    const call = lastCall(mock.calls)
-    expect(requestMethod(call)).toBe('POST')
-    expect(requestPathAndSearch(call).pathname).toBe('/api/v1/me/avatar')
-    expect(call.init?.credentials).toBe('include')
-    expect(call.init?.body).toBe(file)
-    const headers = requestHeaders(call)
-    expect(headers.get('X-CSRF-Token')).toBe('csrf-avatar')
-    expect(headers.get('Content-Type')).toBe('image/png')
-    expect(isUuidV4(headers.get('Known-Command-Id')!)).toBe(true)
   })
 
   it('updateMe preserves 409 handle conflict and 422 field errors for Settings', async () => {
@@ -1018,56 +988,6 @@ describe('canonical productClient', () => {
       code: 'snapshot_expired',
       isSnapshotExpired: true,
     })
-  })
-
-  it('loads a public collection page with credentials and Product paging parameters', async () => {
-    const mock = installFetchMock(() => jsonResponse({
-      collection: {
-        id: 'col-public', slug: 'research-notes', title: 'Research notes', summary: null,
-        kind: 'bookmarks', rootNodeId: 'root-public', updatedAt: '2026-07-24T00:00:00.000Z', access: 'public',
-      },
-      nodes: [],
-      page: { cursor: null, hasMore: false, sequence: 1 },
-    }))
-    restoreFetch = mock.restore
-
-    await getPublicCollectionPage('research notes', { limit: 75 }, { maxRetries: 0 })
-
-    const call = lastCall(mock.calls)
-    const request = requestPathAndSearch(call)
-    expect(request.pathname).toBe('/api/v1/collections/research%20notes')
-    expect(request.searchParams.get('limit')).toBe('75')
-    expect(call.init?.credentials).toBe('omit')
-    expect(requestHeaders(call).get('Known-Command-Id')).toBeNull()
-    expect(requestHeaders(call).get('X-CSRF-Token')).toBeNull()
-  })
-
-  it('loads generated public Profile pages with an encoded handle and bound cursor', async () => {
-    const mock = installFetchMock(() => jsonResponse({
-      profile: { handle: 'mira chen', displayName: 'Mira Chen', avatarUrl: null, about: 'I collect bookmarks.' },
-      collections: [],
-      page: { cursor: null, hasMore: false },
-    }))
-    restoreFetch = mock.restore
-
-    await getPublicProfilePage('mira chen', { limit: 24 }, { maxRetries: 0 })
-    const continuationPage = await getPublicProfilePage(
-      'mira chen',
-      { limit: 24, cursor: 'profile-cursor-2' },
-      { maxRetries: 0 },
-    )
-    expect(continuationPage.profile.about).toBe('I collect bookmarks.')
-
-    const first = requestPathAndSearch(mock.calls[0]!)
-    expect(first.pathname).toBe('/api/v1/profiles/mira%20chen')
-    expect(first.searchParams.get('limit')).toBe('24')
-    expect(first.searchParams.has('cursor')).toBe(false)
-    const continuation = requestPathAndSearch(mock.calls[1]!)
-    expect(continuation.pathname).toBe('/api/v1/profiles/mira%20chen')
-    expect(continuation.searchParams.get('limit')).toBe('24')
-    expect(continuation.searchParams.get('cursor')).toBe('profile-cursor-2')
-    expect(mock.calls.every((call) => call.init?.credentials === 'omit')).toBe(true)
-    expect(mock.calls.every((call) => requestHeaders(call).get('Known-Command-Id') === null)).toBe(true)
   })
 
   it('atomically restarts public collection pagination and discards stale partial nodes', async () => {

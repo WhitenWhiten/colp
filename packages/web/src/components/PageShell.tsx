@@ -11,31 +11,20 @@ type PageShellProps = {
 } & Omit<HTMLAttributes<HTMLDivElement>, 'className'>
 
 /**
- * Unified page shell. Replaces .miss-page / .p0-page / .sync-inner /
- * .classify-page / .write-approvals-page wrappers.
+ * Unified page shell.
  *
  * Variants:
  * - shell: default reading width (--shell = 90rem)
  * - grid: dense workbench width (--shell-grid = 96rem)
  * - narrow: single-column centered (--measure-wide = 46rem)
  * - bare: outer page padding only, no inner track — for workbench routes
- *   whose children own their own tracks (Explore's .collection-grid,
- *   Library's .library-desk/.library-layout)
+ *   whose children own their own tracks (Library's .library-desk)
  *
- * Shell migration inventory (C1, 2026-09). Migrated: Explore, Library
- * (unavailable state), LibraryDesk (+ desk view states), LegacyLibrary,
- * DemoHub — and earlier Sync, write-approvals, Classify, Today and the
- * TrustDocument family. Remaining custom shells, by disposition:
- * - Shared specialty shells, keep: .auth-page (Login/Register/
- *   PasswordReset/AuthRecovery/Onboarding/EmailVerification/Consent —
- *   centered card + hero wash), .ext-popup-page (centered stage demo).
- * - Full-bleed product surfaces, keep: Dashboard canvas, Graph canvas,
- *   Collection masthead article, Profile journal/masthead, LibraryDesk
- *   sidebar grid (the desk itself, not its page padding).
- * - Marketing/share chrome, keep: Landing, ProductShare, CollectionShare
- *   (custom heroes; share has its own dark embed palette).
- * When migrating a page here, delete the old shell's padding rules and
- * move its entry to the migrated list.
+ * Pages that keep a custom shell: the auth card (.auth-page: sign-in,
+ * register, recovery, consent), the Graph canvas, the public Collection
+ * masthead article, and the LibraryDesk sidebar grid (the desk itself, not
+ * its page padding). When moving a page here, delete the old shell's padding
+ * rules.
  */
 export function PageShell({
   variant = 'shell',

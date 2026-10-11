@@ -1,14 +1,10 @@
 // @vitest-environment happy-dom
-import { act, useEffect } from 'react'
-import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ProductApiError } from '../api/errors'
-import type { PublicCollectionNode, PublicCollectionSnapshot } from '../api/types'
-import { collectLayeredRules, readStyle } from '../styles/dashboard-stack-cascade.test-helper'
-import { Collection } from './Collection'
-import { cleanup, domFinishedLoading, findButtonByName, mountTree, waitForDom } from '../test/render'
+import { describe, expect, it, vi } from 'vitest'
+import type { PublicCollectionNode } from '../api/types'
+import { collectLayeredRules, readStyle } from '../styles/layered-css.test-helper'
+import { cleanup, domFinishedLoading, waitForDom } from '../test/render'
 
-import { ioState, mocks } from './Collection.masthead.test-mocks'
+import { mocks } from './Collection.masthead.test-mocks'
 import {
   bookmark, installMastheadHarness, renderCollection, rootNode, snapshot,
 } from './Collection.masthead.test-helper'
@@ -19,22 +15,9 @@ vi.mock('../api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../api')>()
   return {
     ...actual,
-    isCommunityExposureEnabled: () => false,
     productClient: {
       ...actual.productClient,
       loadPublicCollectionSnapshot: mocks.loadPublicCollectionSnapshot,
-      recordPublicCollectionInsightEvent: mocks.recordPublicCollectionInsightEvent,
-      getPublicProfilePage: mocks.getPublicProfilePage,
-      getFollowersPage: vi.fn().mockResolvedValue({ items: [], nextCursor: null }),
-      getFollowingPage: vi.fn().mockResolvedValue({ items: [], nextCursor: null }),
-      isFollowingProfile: mocks.isFollowingProfile,
-      followProfile: mocks.followProfile,
-      unfollowProfile: mocks.unfollowProfile,
-      abandonFollowIntent: mocks.abandonFollowIntent,
-      getCollectionFollowState: mocks.getCollectionFollowState,
-      followCollection: mocks.followCollection,
-      unfollowCollection: mocks.unfollowCollection,
-      abandonCollectionFollowIntent: mocks.abandonCollectionFollowIntent,
     },
   }
 })
@@ -52,50 +35,6 @@ vi.mock('../auth/AuthContext', () => ({
 }))
 
 describe('public Collection masthead', () => {
-  it('keeps follow on the curator hover card and does not query status on load', async () => {
-    // The snapshot endpoint answers every mount with this projection:
-    // StrictMode's remount re-reads it, so the fixture must not be a
-    // one-shot queue.
-    mocks.loadPublicCollectionSnapshot.mockResolvedValue(snapshot())
-    renderCollection(); await waitForDom(domFinishedLoading)
-
-    expect(document.querySelector('[data-testid="collection-follow"]')).toBeNull()
-    expect([...document.querySelectorAll<HTMLButtonElement>('button')]
-      .some((candidate) => /^(Follow|Unfollow|Checking)/u.test(candidate.textContent?.trim() ?? ''))).toBe(false)
-    expect(mocks.isFollowingProfile).not.toHaveBeenCalled()
-    expect(document.body.textContent).not.toMatch(/Subscription|Paid/u)
-
-    mocks.getPublicProfilePage.mockResolvedValue({
-      profile: {
-        profileId: 'bbbbbbbbbbbbbbbbbbbbbA',
-        handle: 'curator',
-        displayName: 'Curator',
-        avatarUrl: null,
-        about: null,
-      },
-      collections: [],
-      page: { cursor: null, hasMore: false },
-    })
-    vi.useFakeTimers()
-    try {
-      const trigger = document.querySelector<HTMLAnchorElement>('a[href="/u/curator"]')
-      expect(trigger).not.toBeNull()
-      await act(async () => {
-        trigger?.dispatchEvent(new FocusEvent('focusin', { bubbles: true }))
-        trigger?.focus()
-      })
-      await act(async () => {
-        vi.advanceTimersByTime(300)
-      })
-      await waitForDom(domFinishedLoading)
-    } finally {
-      vi.useRealTimers()
-    }
-
-    expect(document.querySelector('div.profile-hover-card button.follow-btn')).not.toBeNull()
-    expect(mocks.isFollowingProfile).toHaveBeenCalled()
-  })
-
   it('renders public and member projections while allowing only safe external links', async () => {
     const nodes: PublicCollectionNode[] = [
       rootNode(),
@@ -129,13 +68,8 @@ describe('public Collection masthead', () => {
     expect(document.querySelector('[data-collection-field="paid"]')).toBeNull()
     expect(document.querySelector('[data-collection-field="subscription"]')).toBeNull()
     expect(document.querySelector('[data-testid="collection-follow"]')).toBeNull()
-    expect(mocks.isFollowingProfile).not.toHaveBeenCalled()
-    // No paid-subscription CTA. The free BS-06 "Subscribe to bookmarks"
-    // extension control is the one Subscribe button every collection carries.
-    const subscribeLabels = [...document.querySelectorAll<HTMLButtonElement>('button')]
-      .map((candidate) => candidate.textContent ?? '')
-      .filter((label) => label.includes('Subscribe'))
-    expect(subscribeLabels).toEqual(['Subscribe to bookmarks'])
+    // No paid-subscription CTA, and "Subscribe to bookmarks" waits for D8.
+    expect([...document.querySelectorAll('button')].some((candidate) => candidate.textContent?.includes('Subscribe'))).toBe(false)
     expect(document.body.textContent).toContain('<script>unsafe title</script>')
     expect(document.querySelector('script')).toBeNull()
     const links = [...document.querySelectorAll<HTMLAnchorElement>('[data-collection-resource-link]')]
@@ -266,58 +200,15 @@ describe('public Collection masthead', () => {
     expect(document.querySelector('[data-testid="public-collection-page"]')?.hasAttribute('data-in-folder')).toBe(false)
   })
 
-  it('links the curator name and avatar to the public profile without opening the hover card', async () => {
-    mocks.loadPublicCollectionSnapshot.mockResolvedValue(snapshot())
-    renderCollection()
-    await waitForDom(domFinishedLoading)
-
-    const trigger = document.querySelector<HTMLAnchorElement>('a[href="/u/curator"]')
-    expect(trigger).not.toBeNull()
-    expect(trigger?.getAttribute('href')).toBe('/u/curator')
-    expect(trigger?.querySelector('[data-collection-field="curator"]')?.textContent).toBe('Curator')
-    expect(trigger?.querySelector('[data-collection-curator-avatar]')).not.toBeNull()
-    expect(document.querySelector('[aria-label$="profile preview"]')).toBeNull()
-  })
-
-  it('links Path and Graph when the collection is a reading path', async () => {
+  it.each(['bookmarks', 'reading_path'] as const)('links Graph and no path reader for %s collections', async (kind) => {
     mocks.loadPublicCollectionSnapshot.mockResolvedValue({
       ...snapshot(),
-      collection: { ...snapshot().collection, kind: 'reading_path' },
+      collection: { ...snapshot().collection, kind },
     })
-    renderCollection()
-    await waitForDom(domFinishedLoading)
-
-    expect(document.querySelector('a[href="/path/research-notes"]')).not.toBeNull()
-    expect(document.querySelector('a[href="/graph/research-notes"]')).not.toBeNull()
-  })
-
-  it('omits Path and still links Graph for bookmark collections', async () => {
-    mocks.loadPublicCollectionSnapshot.mockResolvedValue(snapshot())
     renderCollection()
     await waitForDom(domFinishedLoading)
 
     expect(document.querySelector('a[href="/path/research-notes"]')).toBeNull()
     expect(document.querySelector('a[href="/graph/research-notes"]')).not.toBeNull()
-  })
-
-  it('offers Embed for public collections and opens the composer on request', async () => {
-    mocks.loadPublicCollectionSnapshot.mockResolvedValue(snapshot())
-    renderCollection()
-    await waitForDom(domFinishedLoading)
-
-    expect(document.querySelector('[data-testid="share-embed-live"]')).toBeNull()
-    act(() => findButtonByName('Embed').click())
-    await waitForDom(() => document.querySelector('[data-testid="share-embed-code"]') !== null)
-    expect(document.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toBe('Embed this collection')
-    expect(document.querySelector('[data-testid="share-embed-live"]')?.getAttribute('src')).toBe('/share/research-notes?embed=1')
-    expect(document.querySelector('[data-testid="share-embed-code"]')?.textContent).toContain('/share/research-notes?embed=1')
-  })
-
-  it('omits Embed for member-only collections', async () => {
-    mocks.loadPublicCollectionSnapshot.mockResolvedValue(snapshot(undefined, 'member'))
-    renderCollection()
-    await waitForDom(domFinishedLoading)
-
-    expect([...document.querySelectorAll('button')].some((button) => button.textContent === 'Embed')).toBe(false)
   })
 })

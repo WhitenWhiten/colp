@@ -18,7 +18,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../api')>()
-  return { ...actual, isCommunityExposureEnabled: () => false, isLive: (flag: string) => flag === 'relations', productClient: {
+  return { ...actual, isLive: (flag: string) => flag === 'relations', productClient: {
     ...actual.productClient, loadEditorSnapshot: mocks.loadEditorSnapshot, loadPublicCollectionSnapshot: mocks.loadPublicCollectionSnapshot, loadRelations: mocks.loadRelations,
     createRelation: mocks.createRelation, updateRelation: mocks.updateRelation,
     deleteRelation: mocks.deleteRelation, abandonRelationIntent: mocks.abandonRelationIntent,

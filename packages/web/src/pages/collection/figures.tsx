@@ -9,11 +9,10 @@ import { formatCompactCount } from './format'
  * first paint instead of popping in once the count-up passes zero, and the
  * count-up re-renders only this list, not the whole page.
  */
-export const CollectionFigures = memo(function CollectionFigures({ bookmarks, folders, views, followers }: {
+export const CollectionFigures = memo(function CollectionFigures({ bookmarks, folders, views }: {
   bookmarks: number
   folders: number
   views: number
-  followers: number | null
 }) {
   const bookmarkCount = useCountUp(bookmarks)
   const folderCount = useCountUp(folders)
@@ -26,12 +25,6 @@ export const CollectionFigures = memo(function CollectionFigures({ bookmarks, fo
       {views > 0 && (
         <li>
           <strong data-collection-field="views">{formatCompactCount(views)}</strong> <span>{pluralNoun(views, 'view')}</span>
-        </li>
-      )}
-      {followers != null && followers > 0 && (
-        <li>
-          <strong data-collection-field="followers">{formatCompactCount(followers)}</strong>
-          {' '}<span>{pluralNoun(followers, 'follower')}</span>
         </li>
       )}
     </ul>

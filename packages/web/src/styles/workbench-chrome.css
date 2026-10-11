@@ -1,32 +1,27 @@
 /* ——— Workbench chrome ———
-   Cross-route chrome for the product's workbench surfaces: the collection
-   editor (pages/collection-editor/*), CreateCollection, the demo
-   LibraryEdit, and the shared annotation fields.
+   Cross-route chrome for the workbench surfaces: the collection editor
+   (pages/collection-editor/*), CreateCollection, Import, and the shared
+   annotation fields.
 
    Entry-loaded on purpose. These selectors are consumed by modules that can
    never appear in ROUTE_STYLESHEETS / SHARED_ROUTE_STYLESHEETS — that
    contract only routes stylesheets through top-level page modules — because
    they are globally mounted or shared components:
 
-     .tree-item / .tree-nested      components/settings/SettingsDialog.tsx
-                                    (global dialog, Layout.tsx:147), the
-                                    collection editor nav tree, demo
-                                    LegacyLibrary sidebar
-     .toggle / .toggle-row          pages/Notifications, LibraryEdit, and the
-                                    Settings dialog sections
-                                    (components/auth/SessionSection,
-                                    ProviderLinkSection,
-                                    components/settings/NotificationsSection)
+     .tree-item                     components/settings/SettingsDialog.tsx
+                                    (the global settings dialog nav)
+     .toggle / .toggle-row          the Settings dialog sections
+                                    (components/auth/SessionSection)
      .node-drawer-annotation-* /
      .node-visibility-switch        components/NodeAnnotationFields.tsx —
                                     mounted by both the desk NodeEditDrawer
                                     and the collection editor inspector
-     .edit-form / .edit-side        CollectionEditor, CreateCollection,
-                                    LibraryEdit (demo), library-desk compose
+     .edit-form                     CollectionEditor, CreateCollection,
+                                    SelfHostedImport, library-desk compose
 
    Split out of library.css (R9-04/R9-32): that file now carries only
-   library-domain chrome (.library-*, .lib-*) shared by the library desk,
-   the demo library, and the public collection resource rows. */
+   library-domain chrome (.library-*, .lib-*) shared by the library desk
+   and the public collection resource rows. */
 
 @layer pages {
 
@@ -67,11 +62,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-.tree-nested {
-  padding-left: var(--hair-85);
-  margin-top: var(--hair-15);
-}
-
 /* ——— Edit collection ——— */
 /* R10-17: .edit-page / .edit-layout are gone — the create/edit routes ride
    PageShell (narrow for the forms, grid for the editor workbench). */
@@ -92,15 +82,7 @@
   color: var(--ink-2);
 }
 
-.edit-side {
-  position: sticky;
-  top: calc(var(--header-h) + var(--space-4));
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-/* ——— Switch rows (settings dialogs, Notifications, LibraryEdit) ——— */
+/* ——— Switch rows (settings dialog sections) ——— */
 .toggle-row {
   display: flex;
   flex-wrap: wrap;
@@ -262,53 +244,6 @@
   }
 }
 
-/* —— Collection editor —— */
-.edit-resources {
-  margin-top: var(--hair-125);
-}
-
-.edit-res-row {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: var(--space-2);
-  align-items: start;
-  padding: var(--space-3) 0;
-  border-bottom: 1px solid var(--line);
-}
-
-.edit-res-row:last-child {
-  border-bottom: 0;
-}
-
-.edit-res-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--hair-35);
-  margin-top: var(--hair-35);
-}
-
-.edit-res-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--hair-35);
-  justify-content: flex-end;
-}
-
-.publish-diff {
-  margin-top: var(--hair-85);
-  border: 1px dashed var(--line-strong);
-  border-radius: var(--radius);
-  padding: var(--space-3) var(--hair-85);
-  background: var(--paper);
-  font-size: var(--text-sm);
-  line-height: var(--leading-body);
-  color: var(--ink-2);
-}
-
-.publish-diff li {
-  margin: var(--space-1) 0;
-}
-
 /* ——— Node annotation fields ———
    The annotation sections + visibility radiogroup of the shared
    components/NodeAnnotationFields.tsx. It renders inside the desk's
@@ -347,28 +282,5 @@
 
 .editor-section-title {
   font-size: var(--text-base);
-}
-
-.edit-diff-list {
-  margin: 0;
-  padding-left: var(--hair-110);
-}
-
-.edit-path-title {
-  margin: var(--space-1) 0 0;
-  font-size: var(--text-lg);
-}
-
-.edit-resource-title {
-  font-size: var(--text-md);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.edit-side-copy {
-  line-height: var(--leading-normal);
 }
 }

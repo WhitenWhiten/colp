@@ -22,11 +22,10 @@ export function libraryBookmarkItem(
   folder: string,
   collectionId: string,
   publicationSlug: string | null,
-  publicOnly = false,
 ): ResourceListItem {
   const host = hostOf(node.url)
   const query: ResourceWorkspaceQuery = {
-    ...(!publicOnly ? { collectionId } : {}),
+    collectionId,
     subjectType: 'node',
     slug: publicationSlug,
   }
@@ -36,8 +35,6 @@ export function libraryBookmarkItem(
     title: node.title,
     host,
     mid: folder || undefined,
-    // Followed collections come from the public snapshot, which carries no
-    // per-node timestamps; the row simply renders without a date.
     ...(node.updatedAt ? { date: formatDate(node.updatedAt), dateTime: node.updatedAt } : {}),
     description: node.description,
     ...(node.pinned ? { pinned: true } : {}),

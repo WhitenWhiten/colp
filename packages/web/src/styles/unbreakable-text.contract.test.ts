@@ -3,7 +3,6 @@ import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { buildElement, computedFor, mountCascade, prop, unmountCascade } from './css-contract.test-helper'
-import { DESK_WIDGET_STYLESHEETS } from './dashboard-stack-cascade.test-helper'
 
 /**
  * R7-21: a long unbreakable token (bookmark URL, display name, email,
@@ -26,12 +25,10 @@ const extensionPopupPath = resolve(stylesDir, '../../upstream-fixtures/popup.css
 /** Entry order from main.tsx plus the route-owned files these elements live in. */
 const CASCADE = [
   'tokens.css', 'global.css', 'nav.css', 'page-chrome.css', 'overlays.css', 'shared-chrome.css',
-  'cards.css', 'source-skins.css', 'landing.css', 'explore.css', 'collection.css', 'pages-shared.css',
+  'cards.css', 'collection.css', 'pages-shared.css',
   'library.css', 'auth.css', 'polish.css', 'search.css', 'studio.css', 'cards-ui.css', 'reading.css', 'collab.css',
   'page-layouts.css', 'interactions.css', 'utilities.css',
-  'today.css', 'collection-history.css', 'reader.css', 'path-reader.css', 'library-health.css',
-  'data-export.css', 'import.css', 'saved-resources.css',
-  'share.css', 'profile.css', 'graph.css', ...DESK_WIDGET_STYLESHEETS,
+  'collection-history.css', 'library-health.css', 'graph.css',
 ]
 
 afterEach(() => unmountCascade())
@@ -55,24 +52,13 @@ describe('unbreakable tokens stay inside their measure', () => {
       '.empty-state-text',
       '.modal-title',
       '.toast-message',
-      '.reader-article h1',
-      '.reading-title',
-      '.reading-body',
-      '.share-hero-copy .display',
-      '.profile-hero .display',
-      '.profile-hero p.lede',
-      '.journal-intro h1.display',
-      '.journal-intro p.journal-bio',
       '.collection-masthead .display',
       '.collection-page[data-in-folder] .collection-masthead .display',
-      '.feed-card .result-row-title',
       '.graph-side h3',
       '.publication-canonical',
       '.publication-canonical code',
-      '.collist-pop-title',
       '.auth-card',
       'pre',
-      '.trust-doc',
     ]) wraps(selector)
   })
 

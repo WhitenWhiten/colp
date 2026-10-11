@@ -7,7 +7,7 @@
 
 html {
   min-width: 20rem;
-  /* Light-only product chrome. Desk .tile-theme-ink is a local tile palette. */
+  /* Light-only product chrome. */
   color-scheme: light;
   scroll-behavior: smooth;
   /* R15-18: focus and anchors land clear of the sticky header (the
@@ -22,19 +22,6 @@ html {
   scrollbar-gutter: stable;
   scrollbar-width: thin;
   scrollbar-color: var(--line-heavy) transparent;
-}
-
-/* Embed cards render inside foreign iframes: the 20rem floor clips the card's
-   right edge in sub-320px frames, and the reserved gutter paints a dead strip
-   on classic-scrollbar platforms at any frame width. The card already degrades
-   to narrow widths on its own (row hosts hide ≤540px, titles clamp/ellipsis). */
-html:has(.share-embed-page) {
-  min-width: 0;
-  scrollbar-gutter: auto;
-  /* Nor does the frame's root ever paint a bar of its own (the card clips
-     to the viewport; a host that sizes the iframe short must not get a
-     foreign scrollbar inside its page). */
-  scrollbar-width: none;
 }
 
 /* Slim scrollbar that stays inside the hairline visual language */
@@ -160,7 +147,7 @@ a {
 /* R15-34: a link inside running text must not rely on position alone
    (1.4.1). Unclassed links in prose get an underline; classed links
    (buttons, cards, nav) keep their own treatment. */
-:where(p, li, dd, .trust-doc, .lede, .meta) a:not([class]) {
+:where(p, li, dd, .lede, .meta) a:not([class]) {
   text-decoration: underline;
   text-underline-offset: 0.15em;
 }
@@ -275,9 +262,9 @@ button {
 
 /* R15-14: the footer sits outside the route's Suspense and loading states,
    so a short loading state would let it rise into the first viewport and be
-   pushed out again (the dominant layout shift on /explore and /c/:slug).
+   pushed out again (the dominant layout shift on /c/:slug).
    Keep it below the fold on every route and state. */
-.app-shell:not(.app-shell--embed) > .page {
+.app-shell > .page {
   min-height: calc(100svh - var(--header-h));
 }
 
@@ -306,7 +293,7 @@ kbd,
 
 /* ——— Buttons ———
    Solid fill language (V-SYS-01):
-   - .btn-primary = in-app and marketing primary (ink). Create, Save, Sign in, Get started.
+   - .btn-primary = primary (ink). Create, Save, Sign in.
    - .btn-secondary = outline. .btn-ghost = text; keep out of primary action rows.
    - .btn-danger = irreversible confirm. .btn-danger-ghost = destructive outline.
    Selected chips (.filter-btn[aria-pressed=true]) use the same ink fill.
@@ -481,8 +468,8 @@ kbd,
   line-height: var(--leading-heading);
 }
 
-/* Kind chips passed through a PageHead eyebrow slot (collection, resource,
-   reader, digest heads) keep the chip's own sentence-case voice (R12-03). */
+/* Kind chips passed through a PageHead eyebrow slot (collection and
+   resource heads) keep the chip's own sentence-case voice (R12-03). */
 .eyebrow .chip {
   letter-spacing: var(--tracking-ui);
   text-transform: none;
@@ -501,34 +488,10 @@ kbd,
   overflow-wrap: anywhere;
 }
 
-.display-sm {
-  font-size: var(--display-sm);
-  letter-spacing: var(--tracking-display);
-  font-weight: var(--weight-semibold);
-  line-height: var(--leading-snug);
-}
-
 .display-md {
   font-size: var(--display-md);
   font-weight: var(--weight-semibold);
   line-height: var(--leading-snug);
-}
-
-.display-lg {
-  font-size: var(--display-lg);
-  letter-spacing: var(--tracking-display);
-  /* clamp (1.25) is the documented minimum that clears both fonts' ink boxes
-     (see --leading-clamp in tokens.css). At 2.4–3.85rem a wrapped headline
-     collides visibly at anything tighter — the mobile hero was the proof. */
-  line-height: var(--leading-clamp);
-  font-weight: var(--weight-semibold);
-}
-
-.serif-em {
-  font-family: var(--font-serif);
-  font-style: italic;
-  font-weight: var(--weight-medium);
-  letter-spacing: var(--tracking-tight);
 }
 
 /* Supporting prose under a title — secondary, not equal to H1 */
@@ -553,33 +516,6 @@ kbd,
   font-variant-numeric: tabular-nums;
   letter-spacing: var(--tracking-ui);
   line-height: var(--leading-meta);
-}
-
-/* Dense meta row for scan-friendly stats */
-.stat-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--hair-20) var(--space-5);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  font-size: var(--text-sm);
-  color: var(--faint);
-  font-variant-numeric: tabular-nums;
-}
-
-.stat-row strong {
-  color: var(--ink);
-  font-weight: var(--weight-bold);
-  letter-spacing: var(--tracking-tight);
-  font-size: 1.02em;
-}
-
-.stat-row li {
-  display: inline-flex;
-  align-items: baseline;
-  gap: var(--hair-30);
 }
 
 /* Meta row — the shared "host · path · date" anatomy for resource entries
@@ -653,13 +589,6 @@ kbd,
   color: var(--ink);
 }
 
-.chip-accent {
-  background: color-mix(in srgb, var(--ink) 7%, var(--surface));
-  border-color: transparent;
-  color: var(--ink-2);
-  font-weight: var(--weight-semibold);
-}
-
 .chip--label {
   min-height: auto;
   padding: 0;
@@ -697,17 +626,6 @@ kbd,
     background: var(--surface-raised);
     transform: none;
   }
-}
-
-.chip--ghost {
-  background: transparent;
-  color: var(--muted);
-}
-
-/* Quiet outlined label: names a kind, is not a control (share embed card). */
-.chip--outline {
-  border-color: var(--line-strong);
-  background: transparent;
 }
 
 /* Kind pill — the one "what kind of entry" anatomy (R10-09), replacing the
@@ -748,14 +666,12 @@ kbd,
 
 /* Status tones for <StatusBadge> (R10-09): --read / --note keep their
    semantic names and share the success / neutral recipes. */
-.badge--read,
 .badge--success {
   color: var(--success);
   background: var(--success-soft);
   border-color: color-mix(in srgb, var(--success) 35%, transparent);
 }
 
-.badge--note,
 .badge--neutral {
   color: var(--ink-2);
   background: color-mix(in srgb, var(--ink) 6%, var(--surface));
@@ -788,92 +704,6 @@ kbd,
   color: var(--accent-ink);
   background: color-mix(in srgb, var(--accent) 12%, var(--surface));
   border-color: color-mix(in srgb, var(--accent) 26%, transparent);
-}
-
-.badge--soon {
-  display: inline-flex;
-  width: fit-content;
-  margin-top: auto;
-  min-height: auto;
-  padding: var(--hair-35) var(--hair-85);
-  background: color-mix(in srgb, var(--accent-soft) 25%, var(--surface));
-  color: var(--accent-ink);
-  border: 1px solid var(--accent-soft);
-  border-radius: var(--radius-pill);
-  font-weight: var(--weight-semibold);
-  letter-spacing: var(--tracking-caps);
-  white-space: nowrap;
-}
-
-.badge--ai {
-  display: inline-flex;
-  align-items: center;
-  height: 1rem;
-  min-height: 1rem;
-  padding: 0 var(--hair-30);
-  border: 0;
-  border-radius: var(--radius-xs);
-  font-size: var(--text-xs);
-  font-weight: var(--weight-bold);
-  letter-spacing: var(--tracking-caps);
-  text-transform: uppercase;
-  color: var(--paper);
-  background: color-mix(in srgb, var(--accent) 72%, var(--ink));
-}
-
-.badge--ai-user {
-  color: var(--ink-2);
-  background: color-mix(in srgb, var(--ink) 8%, transparent);
-  letter-spacing: var(--tracking-ui);
-  text-transform: none;
-  font-weight: var(--weight-semibold);
-}
-
-.read-mark {
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-  border: 1px solid transparent;
-  border-radius: var(--radius);
-  background: color-mix(in srgb, var(--ink) 3%, transparent);
-  color: var(--muted);
-  cursor: pointer;
-  transition:
-    background var(--duration-fast) var(--ease-quart),
-    color var(--duration-fast) var(--ease-quart),
-    border-color var(--duration-fast) var(--ease-quart);
-}
-
-.read-mark svg {
-  fill: transparent;
-  stroke: currentColor;
-  stroke-width: 1.5;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.read-mark .read-check {
-  opacity: 0.4;
-}
-
-.read-mark:hover {
-  color: var(--ink);
-  background: color-mix(in srgb, var(--ink) 7%, transparent);
-}
-
-.read-mark.is-active {
-  color: var(--success);
-  border-color: color-mix(in srgb, var(--success) 35%, transparent);
-  background: color-mix(in srgb, var(--success) 14%, transparent);
-}
-
-.read-mark.is-active .read-ring {
-  fill: color-mix(in srgb, currentColor 14%, transparent);
-}
-
-.read-mark.is-active .read-check {
-  opacity: 1;
-  stroke-width: 1.5;
 }
 
 .divider {
@@ -910,10 +740,9 @@ kbd,
   font-weight: var(--weight-regular);
   color: var(--ink);
   /* R9-17: default readable cap — .field is a stretch column, so without
-     this a bare control fills whatever parent it lands in (~86rem on
-     LibraryEdit). Containers that need more or less override explicitly
-     (.edit-detail 30/38rem, .custom-editor 42rem container, .chat-compose
-     fills its row via max-width: none in studio.css). */
+     this a bare control fills whatever parent it lands in. Containers
+     that need more or less override explicitly (.custom-editor is a 42rem
+     container). */
   max-width: var(--measure);
   transition: border-color var(--duration-fast) var(--ease-quart), box-shadow var(--duration-fast) var(--ease-quart);
 }
@@ -934,10 +763,8 @@ kbd,
    with the popover-in/out motion. Other browsers keep the native list.
    Every select in the app paints its own chevron and opts in with
    appearance: base-select beside its own appearance: none, since a later
-   stylesheet's none would otherwise win: .field selects here, SelectMenu
-   (page-chrome.css), the desk search-engine and AI-model pickers
-   (widget-search.css, widget-aichat.css) and LegacyLibrary's mobile folder
-   switcher (library.css). The rules below are unscoped because they only
+   stylesheet's none would otherwise win: .field selects here and SelectMenu
+   (page-chrome.css). The rules below are unscoped because they only
    take effect once a select has opted in. */
 @supports (appearance: base-select) {
   .field select {
@@ -1046,7 +873,6 @@ kbd,
 .field select[aria-invalid='true'] {
   border-color: var(--danger);
 }
-
 
 .field input:disabled,
 .field textarea:disabled,
@@ -1360,52 +1186,6 @@ kbd,
   background: var(--accent);
 }
 
-/* File drop card (FE-09): neutral upload primitive generalized from the
-   settings avatar card. The label is the click target; the native file input
-   is visually hidden but stays in the accessibility tree. */
-.file-drop-card {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-3);
-  width: 100%;
-  padding: var(--space-3) var(--space-4);
-  border: 1px dashed var(--line-heavy);
-  border-radius: var(--radius-lg);
-  background: color-mix(in srgb, var(--surface) 82%, transparent);
-  cursor: pointer;
-  transition:
-    border-color var(--duration-fast) var(--ease-quart),
-    background var(--duration-fast) var(--ease-quart),
-    box-shadow var(--duration-fast) var(--ease-quart);
-}
-
-.file-drop-card:hover { border-color: var(--accent); background: var(--accent-soft); box-shadow: var(--shadow-sm); }
-.file-drop-card:focus-within { border-color: var(--focus); box-shadow: var(--shadow-ring); }
-.file-drop-card input[type='file'] {
-  position: absolute;
-  width: 1px; height: 1px;
-  opacity: 0; overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-}
-.file-drop-card-preview {
-  display: grid;
-  place-items: center;
-  width: 2.25rem;
-  height: 2.25rem;
-  border-radius: var(--radius-xs);
-  background: var(--surface);
-  border: 1px solid var(--line-strong);
-  color: var(--ink);
-  flex-shrink: 0;
-}
-.file-drop-card:hover .file-drop-card-preview { background: var(--ink); color: var(--paper); }
-.file-drop-card-preview img { width: 1.25rem; height: 1.25rem; border-radius: var(--radius-2xs); }
-.file-drop-card-copy { display: flex; flex-direction: column; gap: var(--hair-15); min-width: 0; }
-.file-drop-card-copy strong { font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--ink-2); }
-.file-drop-card-copy small { font-size: var(--text-xs); color: var(--faint); }
-
 /* In-page search / filter field — icon + input row. Chrome sibling of
    .field: the wrapper owns border, radius, and focus; the inner input
    stays bare so the global :focus-visible ring does not paint a second
@@ -1453,15 +1233,6 @@ kbd,
 
 .search-field input:focus,
 .search-field input:focus-visible {
-  outline: none;
-  box-shadow: none;
-}
-
-/* Same wrapper-owned focus for the comment composer: .community-composer
-   (page-layouts.css) rings on :focus-within, so the bare textarea opts out
-   here — the layered component rule cannot beat this unlayered global. */
-.community-comments-input:focus,
-.community-comments-input:focus-visible {
   outline: none;
   box-shadow: none;
 }
@@ -1580,9 +1351,7 @@ kbd,
 }
 
 @media (prefers-reduced-motion: reduce) {
-  /* .tile base visual is owned by cards-ui.css (C01 owner contract); canvas
-     tiles have no entrance animation today, so only .rise surfaces need the
-     suppression here. */
+  /* Only .rise surfaces have an entrance animation to suppress here. */
   .rise {
     animation: none !important;
   }
@@ -1677,15 +1446,10 @@ kbd,
     background: Canvas;
   }
 
-  .badge--ai {
-    color: CanvasText;
-  }
-
   /* Wrapper-owned search chrome: the inner input opts out of the global
      ring, so the field / palette itself must carry the forced-colors cue. */
   .search-field:has(:focus-visible),
-  .search-palette:has(:focus-visible),
-  .desk-search-field:has(:focus-visible) {
+  .search-palette:has(:focus-visible) {
     outline: 2px solid Highlight;
     outline-offset: 2px;
   }
@@ -1732,15 +1496,6 @@ kbd,
   .site-footer-inner > .site-footer-brand {
     grid-column: auto;
   }
-}
-
-.site-footer-heading {
-  margin: 0 0 var(--hair-55);
-  color: var(--faint);
-  font-size: var(--text-xs);
-  font-weight: var(--weight-semibold);
-  letter-spacing: var(--tracking-caps);
-  text-transform: uppercase;
 }
 
 .site-footer-brand {
@@ -1882,14 +1637,6 @@ kbd,
   flex-wrap: wrap;
 }
 
-.row-between {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  flex-wrap: wrap;
-}
-
 /* Breakpoint allowlist and track descriptions live in tokens.css
    (see the Breakpoints comment). Do not restate tracks here. */
 
@@ -1909,11 +1656,6 @@ kbd,
 .mobile-search svg {
   width: 1rem;
   height: 1rem;
-}
-
-.nav-icon-btn svg {
-  width: 1.05rem;
-  height: 1.05rem;
 }
 
 svg[data-icon] {
@@ -1936,24 +1678,6 @@ svg[data-icon] [data-fill] {
   gap: var(--space-2);
   flex-wrap: wrap;
 }
-/* Row spacing variants for page toolbars and meta rows */
-.row--tight {
-  gap: var(--hair-45);
-  flex-wrap: wrap;
-}
-/* Row spacing modifiers for .row / .row-between / .row-end */
-.row--gapped {
-  gap: var(--space-3);
-  flex-wrap: wrap;
-}
-
-.row--between {
-  justify-content: space-between;
-}
-
-.row-between--baseline {
-  align-items: baseline;
-}
 
 /* ——— Focus clearance under sticky chrome (R15-18) ———
    Keyboard focus and in-page anchors scroll the target clear of the sticky
@@ -1962,7 +1686,7 @@ svg[data-icon] [data-fill] {
 /* The floating scroll-to-top button (polish.css: 2.75rem, 5.75rem up)
    covers the bottom-right of the viewport once the page scrolls. It mounts
    mid-scroll, so its clearance is reserved wherever it can appear. */
-html:has(.app-shell:not(.app-shell--embed)) {
+html:has(.app-shell) {
   scroll-padding-bottom: calc(5.75rem + 2.75rem + var(--space-3));
 }
 
@@ -1974,7 +1698,7 @@ html:has(.app-shell:not(.app-shell--embed)) {
   }
 }
 
-html:has(.reader-toolbar, .dashboard-bar, .feed-controls, .collection-toolbar.is-sticky) {
+html:has(.collection-toolbar.is-sticky) {
   scroll-padding-top: calc(var(--header-h) + 3.5rem + var(--space-3));
 }
 
@@ -1982,9 +1706,9 @@ html:has(.reader-toolbar, .dashboard-bar, .feed-controls, .collection-toolbar.is
    unsticks (nav.css and the page files), so no clearance is needed. */
 @media (max-height: 26rem) {
   html,
-  html:has(.app-shell:not(.app-shell--embed)),
+  html:has(.app-shell),
   html:has(.app-shell--tabs),
-  html:has(.reader-toolbar, .dashboard-bar, .feed-controls, .collection-toolbar.is-sticky) {
+  html:has(.collection-toolbar.is-sticky) {
     scroll-padding-block: 0;
   }
 }

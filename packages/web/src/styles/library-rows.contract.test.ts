@@ -96,20 +96,6 @@ describe('library bookmark row truncation (R6-02, R6-06)', () => {
     expect(comfort.some((body) => /min-height:\s*[1-9]/.test(body))).toBe(true)
   })
 
-  it('unsaved save marks stay outlined and visible without hover', () => {
-    const svg = bodiesFor('.library-bookmark-save svg')
-    expect(svg.some((body) => /stroke:\s*currentColor/.test(body))).toBe(true)
-    expect(svg.some((body) => /stroke-width:\s*1\.5/.test(body))).toBe(true)
-    const fill = bodiesFor('.library-bookmark-save .bookmark-fill')
-    expect(fill.some((body) => /fill:\s*transparent/.test(body))).toBe(true)
-    const savedFill = bodiesFor('.library-bookmark-save.is-saved .bookmark-fill')
-    expect(savedFill.some((body) => /fill:\s*currentColor/.test(body))).toBe(true)
-    const save = bodiesFor('.library-bookmark-actions > .library-bookmark-save')
-    expect(save.some((body) => /opacity:\s*1/.test(body))).toBe(true)
-    const savedOnly = bodiesFor('.library-bookmark-actions > .library-bookmark-save.is-saved')
-    expect(savedOnly).toHaveLength(0)
-  })
-
   it('bookmark list frame does not clip row menus or shear squeezed rows', () => {
     const lists = [
       ...bodiesFor('.library-bookmark-list'),
@@ -131,7 +117,7 @@ describe('library rail title hierarchy', () => {
   it('Collections sits above section labels: larger, ink, not another uppercase eyebrow', () => {
     const title = bodiesFor('.library-nav-head .section-label').join(' ')
     // The rail title shares the serif nameplate register with the
-    // Today/Explore editorial page heads.
+    // editorial page heads.
     expect(title).toMatch(/font-family:\s*var\(--font-serif\)/)
     expect(title).toMatch(/font-size:\s*var\(--text-xl\)/)
     expect(title).toMatch(/color:\s*var\(--ink\)/)

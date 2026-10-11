@@ -42,10 +42,6 @@ vi.mock('../../api', async (importOriginal) => {
       createCollectionNode: mocks.createCollectionNode,
       moveCollectionNode: mocks.moveCollectionNode,
       deleteCollectionNode: mocks.deleteCollectionNode,
-      listFollowedCollections: mocks.listFollowedCollections,
-      listFollowedReports: mocks.listFollowedReports,
-      listMyReports: mocks.listMyReports,
-      getFollowedReportIssuesPage: mocks.getFollowedReportIssuesPage,
       getMyLibraryOrder: mocks.getMyLibraryOrder,
       updateMyLibraryOrder: mocks.updateMyLibraryOrder,
       newCommandId: () => '11111111-1111-4111-8111-111111111111',
@@ -107,32 +103,6 @@ describe('LibraryHeader mobile switcher', () => {
     expect(switcher()).toBeNull()
   })
 
-  it('shows Reading and Following rows when those destinations are on', async () => {
-    mocks.listFollowedCollections.mockResolvedValue({
-      items: [{
-        collectionId: 'follow-1',
-        slug: 'design-notes',
-        title: 'Design notes',
-        summary: 'A public shelf',
-        kind: 'bookmarks',
-        owner: { profileId: 'bbbbbbbbbbbbbbbbbbbbbA', handle: 'ada', displayName: 'Ada', avatarUrl: null },
-        updatedAt: '2026-08-26T01:00:00.000Z',
-        followedAt: '2026-08-26T00:00:00.000Z',
-        availability: 'available',
-      }],
-      nextCursor: null,
-    })
-    mount()
-    await waitForDom(() =>
-      (document.querySelector('[data-testid="library-nav-following"]')?.textContent ?? '').includes('Design notes'))
-    openSwitcher()
-    const sheet = switcher()
-    expect(sheet?.querySelector('[data-testid="library-mobile-reading"]')?.textContent).toContain('Reading')
-    expect(sheet?.textContent).toContain('Following')
-    expect(sheet?.textContent).toContain('Design notes')
-    expect(document.querySelector('[data-testid="library-nav"] a[data-collection-id="col-1"]')).not.toBeNull()
-  })
-
   it('lists a pending invitation and New collection in the switcher', async () => {
     mocks.invites.items = [{
       inviteId: 'inv-1',
@@ -153,7 +123,6 @@ describe('LibraryHeader mobile switcher', () => {
     expect(accept?.textContent).toBe('Accept')
     expect(accept?.className).toContain('btn-secondary')
     expect(sheet?.querySelector('a[href="/library/new"]')?.textContent).toContain('New collection')
-    expect(sheet?.querySelector('a[href="/library/digests"]')?.textContent).toContain('Your digests')
     await act(async () => {
       sheet?.querySelector<HTMLButtonElement>('[aria-label="Decline invitation to Frozen Shelf"]')?.click()
       await Promise.resolve()

@@ -8,7 +8,6 @@ import {
   hostInitial,
   hostOf,
   immediateEntries,
-  rootFolders,
 } from './libraryTree'
 
 function root(): RootNodeView {
@@ -90,7 +89,7 @@ describe('libraryTree', () => {
   ]
 
   it('lists only first-level folders under the collection root', () => {
-    expect(rootFolders(treeRoot, nodes).map((item) => item.title)).toEqual(['Design', 'Later'])
+    expect(childFolders(treeRoot.id, nodes).map((item) => item.title)).toEqual(['Design', 'Later'])
   })
 
   it('flattens every bookmark, and can filter to one folder', () => {

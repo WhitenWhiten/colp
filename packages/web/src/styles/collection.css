@@ -195,27 +195,11 @@
   margin-top: var(--space-5);
 }
 
-/* Follow + vote lead; the quiet tools (Subscribe, Path, Graph, Embed,
-   Report) sit behind a hairline so the row reads as two groups. */
+/* The quiet tools (Subscribe, Export, Graph) sit behind a hairline so the row
+   reads as its own group. */
 .collection-masthead .social-actions-links {
   padding-inline-start: var(--space-2);
   border-inline-start: 1px solid var(--line);
-}
-
-.canvas-toolbar {
-  border-bottom: 1px solid var(--line);
-  background: var(--paper);
-  padding: var(--hair-55) var(--gutter);
-}
-
-.canvas-toolbar-inner {
-  width: var(--board-width);
-  margin-inline: auto;
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  align-items: center;
-  justify-content: space-between;
 }
 
 /* ——— Figures ——— numerals over their nouns, hairline-divided. */
@@ -320,12 +304,6 @@
 
   .collection-masthead .page-head-actions {
     margin-top: var(--space-4);
-  }
-
-  /* Follow is the one primary action: it takes the row beside the vote
-     pill; the tools become one scrolling line of pill buttons. */
-  .collection-masthead .social-actions .follow-btn {
-    flex: 1 1 auto;
   }
 
   /* The tools gather in one tray — a hairline-bordered strip that
@@ -714,18 +692,6 @@ button.collection-outline-toggle:hover {
     height: auto;
     overflow: visible;
     clip-path: none;
-  }
-}
-
-/* A narrow column keeps "Curator's": both rails stay on one row. */
-@container collection-main (max-width: 44rem) {
-  .collection-sort-tail {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
   }
 }
 
@@ -1194,16 +1160,6 @@ button.collection-outline-toggle:hover {
   margin: var(--space-6) auto var(--space-8);
 }
 
-/* CS-03 mounts the comments panel straight under .collection-page, so this
-   surface supplies the bound the other shells give it: the shared text
-   measure, starting on the board track's left edge (the .collection-body
-   padding formula) — the line the Contents sidebar and masthead start on. */
-.collection-page .community-comments {
-  width: min(var(--measure-wide), 100% - 2 * var(--gutter));
-  max-width: none;
-  margin-inline: max(var(--gutter), (100% - var(--board-width)) / 2) 0;
-}
-
 /* ——— Resource links: in-app detail primary, external original secondary ———
    The card/row main link now navigates to /r/:id; the original URL keeps a
    small ↗ affordance (target=_blank + noopener noreferrer stay on it). */
@@ -1270,11 +1226,6 @@ button.collection-outline-toggle:hover {
     min-width: 2.75rem;
     min-height: 2.75rem;
   }
-}
-
-.journal-actions .btn:disabled,
-.profile-actions .btn:disabled {
-  cursor: not-allowed;
 }
 
 /* ——— Drill-down masthead: compact once the visitor stands in a folder ———
@@ -1371,8 +1322,7 @@ button.collection-outline-toggle:hover {
   }
 
   /* The filter takes the first row; Contents, a search's tally and both
-     rails share the next as one line that scrolls sideways, like the
-     Explore filter row. */
+     rails share the next as one line that scrolls sideways. */
   .collection-toolbar {
     padding-block: var(--space-3) var(--space-2);
   }

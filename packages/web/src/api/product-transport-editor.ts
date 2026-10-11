@@ -1,14 +1,11 @@
 import type { ProductTransportHttp } from './product-transport-http'
 import type {
-  CollectionChildrenPageParams,
   DeleteNodeOptions,
   EditorPageParams,
   MutationCallOptions,
   OwnedCollectionPageParams,
 } from './product-transport-types'
 import type {
-  BookmarkNodeView,
-  CollectionChildrenPage,
   CollectionMergePatch,
   CreateCollectionRequest,
   CreateCollectionResult,
@@ -26,7 +23,6 @@ import type {
 
 export function createEditorTransport(http: ProductTransportHttp) {
   const { request, mutationHeaders } = http
-
   return {
     async createCollection(body: CreateCollectionRequest, opts: MutationCallOptions) {
       return request<CreateCollectionResult>({
@@ -65,26 +61,6 @@ export function createEditorTransport(http: ProductTransportHttp) {
       return request<OwnedCollectionPage>({
         method: 'GET', path: '/api/v1/collections', query,
         headers: { Accept: 'application/json' }, signal: params?.signal,
-      })
-    },
-
-    async listCollectionChildren(
-      collectionId: string,
-      params: CollectionChildrenPageParams = {},
-    ) {
-      const query: Record<string, string | number | undefined> = {}
-      if (params.parentId !== undefined) query.parentId = params.parentId
-      if (params.sort !== undefined) query.sort = params.sort
-      if (params.cursor !== undefined) {
-        query.cursor = params.cursor
-      } else if (params.limit !== undefined) {
-        query.limit = params.limit
-      }
-      return request<CollectionChildrenPage>({
-        method: 'GET',
-        path: `/api/v1/collections/${encodeURIComponent(collectionId)}/children`,
-        query,
-        signal: params.signal,
       })
     },
 
@@ -161,30 +137,6 @@ export function createEditorTransport(http: ProductTransportHttp) {
         headers,
         signal: opts.signal,
         emptyOk: true,
-      })
-    },
-
-    async uploadBookmarkFavicon(
-      collectionId: string,
-      nodeId: string,
-      file: File,
-      opts: MutationCallOptions,
-    ) {
-      return request<BookmarkNodeView>({
-        method: 'POST',
-        path: `/api/v1/collections/${encodeURIComponent(collectionId)}/nodes/${encodeURIComponent(nodeId)}/favicon`,
-        headers: mutationHeaders(opts, { 'Content-Type': file.type || 'application/octet-stream' }),
-        rawBody: file,
-        signal: opts.signal,
-      })
-    },
-
-    async deleteBookmarkFavicon(collectionId: string, nodeId: string, opts: MutationCallOptions) {
-      return request<BookmarkNodeView>({
-        method: 'DELETE',
-        path: `/api/v1/collections/${encodeURIComponent(collectionId)}/nodes/${encodeURIComponent(nodeId)}/favicon`,
-        headers: mutationHeaders(opts),
-        signal: opts.signal,
       })
     },
   }

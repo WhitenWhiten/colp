@@ -115,7 +115,7 @@
 }
 
 /* Bottom band: one serif-italic line, one sentence naming the attempted
-   path, two text links. Sits a hairline above the bottom corners, which
+   path, a text link home. Sits a hairline above the bottom corners, which
    occupy the true screen edge. */
 .not-found-foot {
   position: absolute;

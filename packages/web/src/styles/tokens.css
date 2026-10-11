@@ -1,34 +1,8 @@
 /*
- * Design Tokens — Know-N
- *
- * Architecture:
- *   tokens.css    → Design tokens (colors, spacing, typography, shadows)
- *   global.css    → Reset, layout shell, nav, buttons, typography helpers, forms
- *   cards.css     → Freeform board, canvas tiles, resource cards
- *   source-skins.css → Per-source card skins + tile density container queries
- *   cards-ui.css  → Card UI system (collection cards, board tile chrome, library rows)
- *   landing.css / explore.css / collection.css / profile.css / dashboard.css
- *                 → Page-specific domains split from the former pages.css drawer
- *   graph.css / sync.css / write-approvals.css / classify.css / extension.css / pages-shared.css
- *   library.css   → Library desk, link stack, edit collection
- *   auth.css      → Auth / onboarding
- *   interactions.css → Hover/active/focus micro-interactions, animations
- *   polish.css    → Motion, density, page-enter transitions
- *   share.css     → Share / promo pages
- *   demos.css     → Remaining demo surfaces
- *   today.css / collection-history.css / reader.css / library-health.css / data-export.css
- *                 → Product loops (the former loops.css)
- *   collab.css    → Collaboration, update review, notifications
- *   studio.css    → Creator studio, settings, resource detail, AI organize
- *   desk-themes.css   → Desk widget color themes (paper / mist / ink module palettes)
- *   dashboard-desk.css → Shared desk chrome + stacked tile reset
- *   widget-*.css      → One file per desk widget: tile chrome + local tokens + .desk-* content
- *                       (the former dashboard-widgets.css)
- *   canvas-background.css → Canvas dot-grid background pattern
- *   utilities.css     → Spacing utilities (--space-* / --hair-*)
- *   page-layouts.css  → Page layout rules
+ * Design tokens (colors, spacing, typography, shadows). Palette and scales are
+ * Know-N's; the self-hosted edition block at the end changes type and texture
+ * only. main.tsx lists every stylesheet with its cascade layer.
  */
-
 
 @layer tokens, base, components, pages, patterns, utilities, edition, print;
 
@@ -58,8 +32,7 @@
 :root {
   /* ──────────────────────────────────────────────
      Surface palette — light-only. The app is color-scheme: light; do not
-     add a global dark theme. Desk-themes (.tile-theme-ink and siblings)
-     are local tile palettes on canvas cards, not application dark mode.
+     add a global dark theme.
      ────────────────────────────────────────────── */
   --paper: rgb(244 245 246);
   --paper-2: rgb(236 237 239);
@@ -87,9 +60,6 @@
      select, checkbox, radio, switch — must reach 3:1 against the surface
      it sits on (1.4.11); --line-strong was 1.30:1. */
   --line-control: rgb(6 7 10 / 0.45);
-  /* Hairline that must not follow a tile's local ink flip (book covers,
-     theme swatches). Not --ink and not --line. */
-  --edge-fixed: rgb(19 22 27 / 0.14);
 
   /* ──────────────────────────────────────────────
      Accent (slate blue — cool but visible)
@@ -111,46 +81,6 @@
     transparent 62%
   );
 
-  /* Source brand accents — assigned locally as --source-accent: var(--source-*).
-     Shared hues reuse one token (wikipedia/x/notion, medium/nytimes, scholar/coursera).
-     Do not invent a 40th skin; add a token only when a live source rule needs it. */
-  --source-github: rgb(109 157 206);
-  --source-youtube: rgb(204 40 35);
-  --source-bilibili: rgb(18 146 192);
-  --source-wikipedia: rgb(20 22 25);
-  --source-zhihu: rgb(0 116 202);
-  --source-douban: rgb(33 118 60);
-  --source-arxiv: rgb(157 53 51);
-  --source-spotify: rgb(48 189 68);
-  --source-figma: rgb(0 124 238);
-  --source-producthunt: rgb(212 79 19);
-  --source-medium: rgb(76 71 60);
-  --source-stackoverflow: rgb(232 127 37);
-  --source-npm: rgb(204 42 27);
-  --source-huggingface: rgb(113 77 29);
-  --source-reddit: rgb(205 72 5);
-  --source-hackernews: rgb(212 96 0);
-  --source-xiaohongshu: rgb(197 52 67);
-  --source-wechat: rgb(28 135 66);
-  --source-dribbble: rgb(209 78 149);
-  --source-vimeo: rgb(0 126 179);
-  --source-substack: rgb(135 78 0);
-  --source-nature: rgb(51 115 68);
-  --source-scholar: rgb(0 121 186);
-  --source-openreview: rgb(18 74 123);
-  --source-paperswithcode: rgb(0 110 131);
-  --source-distill: rgb(103 83 23);
-  --source-lesswrong: rgb(181 80 0);
-  --source-arena: rgb(56 102 149);
-  --source-techcrunch: rgb(28 136 45);
-  --source-theverge: rgb(167 79 187);
-  --source-reuters: rgb(199 122 65);
-  --source-sspai: rgb(189 65 63);
-  --source-ted: rgb(204 39 46);
-  --source-bluesky: rgb(0 131 196);
-  --source-lobsters: rgb(178 57 43);
-  --source-smashing: rgb(207 117 45);
-  --source-acm: rgb(0 73 133);
 
   /* ──────────────────────────────────────────────
      Semantic colors
@@ -162,10 +92,6 @@
   --danger-soft: rgb(245 235 235);
   --warning: rgb(133 92 0);
   --warning-soft: rgb(244 240 229);
-
-  /* Sticky note — paper is the tile wash, mark is the desk glyph. */
-  --sticky-paper: rgb(248 242 220);
-  --sticky-mark: rgb(239 229 192);
 
   /* Reading highlight — muted marker tint. Always apply mixed
      ~15–20% on a surface, never at full strength. */
@@ -188,8 +114,8 @@
 
   /* Type scale — clear steps, not near-neighbors.
      --text-3xs / --text-2xs are decorative only (avatar initials, badge
-     dots, heatmap ticks). Readable labels (chips, stats, search kinds,
-     widget kickers/roles, settings nav) use --text-xs or larger.
+     dots). Readable labels (chips, stats, search kinds, settings nav) use
+     --text-xs or larger.
      R12-02: 12px is the readable floor — Han strokes blur at 11px on
      standard-DPI screens. --text-caption was a near-neighbor 0.5px above
      --text-xs; it stays as an alias so its 48 consumers keep their role
@@ -252,8 +178,8 @@
      Three tracks — pick by role; do not interpolate. Same 96rem cap on
      --shell-wide and --shell-grid is intentional (role, not a different number):
      --shell-wide — chrome only (topnav, footer)
-     --shell      — reading / marketing content (Landing, Share, Sync, Profile, auth, …)
-     --shell-grid — dense workbench / discovery grids (Explore, Library desk/layout, .page-shell--grid) */
+     --shell      — reading content (Sync, auth, settings, …)
+     --shell-grid — dense workbench grids (Library desk, .page-shell--grid) */
   --shell: min(100%, 90rem);
   --shell-wide: min(100%, 96rem);
   --shell-grid: min(100%, 96rem);
@@ -342,7 +268,7 @@
   --hair-125: 1.25rem;
   --hair-150: 1.5rem;
   /* R8-11 rungs — the two gaps live usage forced into the open:
-     --hair-160 is the desk-widget body bottom pad (13 widgets shipped 1.6rem);
+     --hair-160 is a 1.6rem pad that recurred across surfaces;
      --hair-200 is the de-facto page/section rhythm (2rem) that sat unowned
      between --space-6 and --space-8. Do not interpolate between rungs. */
   --hair-160: 1.6rem;
@@ -363,12 +289,6 @@
      Z-index layers — the only sanctioned stacking values.
      Local in-component layering (0–20) may stay numeric;
      anything floating above page flow must use these.
-
-     Registered exception: cards.css `.tile.is-moving/.is-resizing` keeps
-     a numeric `z-index: 150 !important`. Tiles carry an unbounded inline
-     `z-index` (layout.z bring-to-front), which only `!important` can
-     outrank; 150 sits deliberately between --z-sticky and --z-overlay so
-     a dragged tile floats above siblings but never over global chrome.
      ────────────────────────────────────────────── */
   --z-sticky: 50;     /* sticky in-page toolbars / filter bars */
   --z-overlay: 200;   /* global chrome, dropdowns, drawers, floating widgets */
@@ -410,11 +330,6 @@
      interactive hover   → --shadow-raised (contact + ambient layers)
      floating overlays   → --shadow-float */
   --shadow-raised: 0 1px 2px rgb(6 7 10 / 0.05), 0 0.4rem 1.2rem rgb(6 7 10 / 0.07);
-  /* Anchored popovers (save-folder picker, collist card pop): a hairline ring
-     that reads on any tile skin plus a deep ambient layer. The accent variant
-     marks a pinned / active popover. */
-  --shadow-popover: 0 0 0 1px color-mix(in srgb, var(--ink) 4%, transparent), 0 14px 36px color-mix(in srgb, var(--ink) 14%, transparent);
-  --shadow-popover-accent: 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent), 0 16px 40px color-mix(in srgb, var(--ink) 16%, transparent);
 
   /* Rings — the only sanctioned focus/hover halos:
      --shadow-ring        neutral 3px (default :focus-visible halo)
@@ -424,9 +339,6 @@
   --shadow-ring-soft: 0 0 0 2px color-mix(in srgb, var(--ink) 6%, transparent);
   /* Small lift for avatars / secondary buttons on hover. */
   --shadow-lift: 0 2px 8px color-mix(in srgb, var(--ink) 15%, transparent);
-
-  /* Desk themes (desk-themes.css) re-scope this ladder per palette; they may
-     override these names inside a theme scope but must not add new ones. */
 
   /* Top-edge "lit surface" highlight for raised/floating layers */
   --inset-highlight: inset 0 1px 0 rgb(255 255 255 / 0.55);
@@ -446,20 +358,7 @@
      auth / empty-state surfaces only; never blend over body text. */
   --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)' opacity='0.032'/%3E%3C/svg%3E");
 
-  /* Ordered-dither micro texture — the landing hero field's static echo:
-     an 8×8 Bayer 3/8 tile (2px dots, ink at 5.5%). Same discipline as
-     --grain: a masked background-image layer on heroes, page heads,
-     empty states, and closing/footer bands only. Never behind body
-     text, never animated, never at full strength — shape it with
-     mask-image fades and per-use opacity on a pseudo-element. */
-  --dither: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8'%3E%3Cg fill='rgb(6,7,10)' fill-opacity='0.055'%3E%3Crect width='2' height='2'/%3E%3Crect x='4' y='0' width='2' height='2'/%3E%3Crect x='2' y='2' width='2' height='2'/%3E%3Crect x='0' y='4' width='2' height='2'/%3E%3Crect x='4' y='4' width='2' height='2'/%3E%3Crect x='6' y='6' width='2' height='2'/%3E%3C/g%3E%3C/svg%3E");
-
-  /* The same Bayer tile inverted for ink surfaces (paper dots at 7%):
-     the motif's dark-register voice for the rare ink band (share strip).
-     Same discipline as --dither — masked pseudo-element layers only. */
-  --dither-paper: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8'%3E%3Cg fill='rgb(243,245,248)' fill-opacity='0.07'%3E%3Crect width='2' height='2'/%3E%3Crect x='4' y='0' width='2' height='2'/%3E%3Crect x='2' y='2' width='2' height='2'/%3E%3Crect x='0' y='4' width='2' height='2'/%3E%3Crect x='4' y='4' width='2' height='2'/%3E%3Crect x='6' y='6' width='2' height='2'/%3E%3C/g%3E%3C/svg%3E");
-
-  /* Shared paper dot-grid — one recipe for canvas / graph / promo stages.
+  /* Shared paper dot-grid — one recipe for the graph stage.
      Cell size + dot radius + ink opacity; do not invent a second density. */
   --dot-grid-cell: 16px;
   --dot-grid-dot: 0.55px;
@@ -490,8 +389,8 @@
 
      Content scale (--bp-*):
      --bp-sm: 640px   phone / small tablet
-     --bp-md: 900px   content desktop start (3-col Explore, 2-col heroes,
-                      main+rail grids: today/updates/export/inbox layouts)
+     --bp-md: 900px   content desktop start (main+rail grids, public
+                      collection sidebar)
      --bp-lg: 1100px  large content / full chrome (search field, burger off)
 
      Chrome scale (second track — do not invent a third, e.g. 1060):
@@ -499,7 +398,6 @@
                             settings nav/dialog collapse below it (719)
      Full chrome (⌘K field + burger hidden) aligns with --bp-lg (1100px).
      768 still has burger + compact search; 1280 is complete chrome.
-     Compact Explore may use 4 columns at 1100; default density never does.
 
      Paired bands are mutually exclusive: a max-width query uses X-1
      (639/719/899/1099) against the min-width: X counterpart — never
@@ -522,7 +420,7 @@
 }
 
 /* ──────────────────────────────────────────────
-   Self-hosted edition (COLP Server). main.tsx and self-hosted-dist.mjs set
+   Self-hosted edition (COLP Server). index.html and main.tsx set
    data-edition on <html>. Colours, lines, and shadows are Know-N's, unchanged.
    The edition only changes type and texture: headings are sans at a tool
    scale (the serif token resolves to the sans stack), and the paper grain
@@ -538,9 +436,8 @@
 
   --page-pad-y: var(--hair-200);
 
-  /* Texture is decoration for the cloud marketing pages; a tool stays flat. */
+  /* Texture is upstream decoration; a tool stays flat. */
   --grain: none;
-  --dither: none;
   --wash-hero: none;
 }
 

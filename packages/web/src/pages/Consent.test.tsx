@@ -254,13 +254,13 @@ describe('Consent page', () => {
     await waitForDom(() => (document.body.textContent ?? '').includes(CLIENT_NAME))
     expect(document.body.textContent).toContain('product:read')
     expect(document.body.textContent).toContain('product:write')
-    expect(document.body.textContent).toContain('Read your libraries, bookmarks, community activity, notifications, and favicons')
-    expect(document.body.textContent).toContain('Create and edit your libraries, bookmarks, community posts and votes, and favicons')
+    expect(document.body.textContent).toContain('Read your libraries, bookmarks, annotations, and relations')
+    expect(document.body.textContent).toContain('Create and edit your libraries, bookmarks, annotations, and relations')
     expect(consentScopeLabel('product:read')).toBe(
-      'Read your libraries, bookmarks, community activity, notifications, and favicons',
+      'Read your libraries, bookmarks, annotations, and relations',
     )
     expect(consentScopeLabel('product:write')).toBe(
-      'Create and edit your libraries, bookmarks, community posts and votes, and favicons',
+      'Create and edit your libraries, bookmarks, annotations, and relations',
     )
   })
 

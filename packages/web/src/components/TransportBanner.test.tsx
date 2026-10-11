@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { act } from 'react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { SiteTransportBanner, SubscribeInBrowserButton, TransportBanner } from './TransportBanner'
 import { cleanup, mountTree } from '../test/render'
 
@@ -20,10 +20,8 @@ describe('transport banner', () => {
   beforeEach(() => {
     document.body.innerHTML = '<div id="root"></div>'
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
-    vi.stubEnv('VITE_EDITION', 'self-hosted')
   })
   afterEach(() => {
-    vi.unstubAllEnvs()
     cleanup()
     document.body.innerHTML = ''
   })
@@ -47,18 +45,6 @@ describe('transport banner', () => {
     })
     expect(document.querySelector('[data-testid="transport-banner"]')).toBeNull()
     expect(document.body.textContent).not.toContain('Subscribe in browser')
-  })
-
-  it('renders nothing outside the self-hosted edition', async () => {
-    vi.stubEnv('VITE_EDITION', '')
-    let calls = 0
-    const loadManifest = () => { calls += 1; return Promise.resolve(manifestBody('insecure-http')) }
-    mountTree(<SiteTransportBanner loadManifest={loadManifest} />)
-    await act(async () => {
-      await Promise.resolve()
-    })
-    expect(document.querySelector('[data-testid="transport-banner"]')).toBeNull()
-    expect(calls).toBe(0)
   })
 
   it('renders nothing when the transport prop is https or absent', () => {

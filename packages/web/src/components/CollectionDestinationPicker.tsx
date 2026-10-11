@@ -29,18 +29,18 @@ type TargetTree =
   | { status: 'error'; message: string }
 
 type Props = {
-  mode: 'move' | 'copy' | 'collection'
+  mode: 'move' | 'copy'
   /** Move mode: the current collection is locked as the only destination. */
   current?: {
     collection: { id: string; title: string }
     rootId: string
     nodes: EditableNodeView[]
   }
-  /** Copy / collection modes: owned collections (destination or source candidates). */
+  /** Copy mode: owned collections (destination candidates). */
   owned?: OwnedCollectionListItem[]
   /** Copy mode: shared collections; only capabilities.createNode may receive. */
   shared?: OwnedCollectionListItem[]
-  /** Number of bookmarks the action applies to. Unused in collection mode. */
+  /** Number of bookmarks the action applies to. */
   count?: number
   /** What the moved selection is made of — names the count honestly. */
   noun?: 'bookmark' | 'folder' | 'item'
@@ -151,15 +151,12 @@ function FolderList({
 }
 
 /**
- * Destination picker for bookmark Move / Copy, and a collection-only pick
- * for digest attach (R10-05).
+ * Destination picker for bookmark Move / Copy.
  *
  * Move stays inside the current collection (the backend rejects cross
  * collection moves), so that collection is locked and only its folders are
  * offered. Copy lists owned ∪ shared-with-createNode collections; picking one
- * loads its tree on demand so a folder inside it can be chosen. Collection
- * mode lists owned collections and returns as soon as one is chosen — the
- * digest issue attaches the whole collection, not a folder.
+ * loads its tree on demand so a folder inside it can be chosen.
  */
 export function CollectionDestinationPicker({
   mode,
@@ -181,15 +178,14 @@ export function CollectionDestinationPicker({
   const candidates = useMemo(() => {
     const seen = new Set<string>()
     const eligible: OwnedCollectionListItem[] = []
-    const pool = mode === 'collection' ? owned : [...owned, ...shared]
-    for (const item of pool) {
-      if (mode !== 'collection' && !item.capabilities.createNode) continue
+    for (const item of [...owned, ...shared]) {
+      if (!item.capabilities.createNode) continue
       if (seen.has(item.collection.id)) continue
       seen.add(item.collection.id)
       eligible.push(item)
     }
     return eligible
-  }, [mode, owned, shared])
+  }, [owned, shared])
 
   useEffect(() => () => loaderRef.current?.abort(), [])
 
@@ -213,7 +209,7 @@ export function CollectionDestinationPicker({
       })
   }
 
-  const title = mode === 'move' ? 'Move to…' : mode === 'copy' ? 'Copy to…' : 'Choose a collection'
+  const title = mode === 'move' ? 'Move to…' : 'Copy to…'
   const excludeIds = mode === 'move' && current && movingIds && movingIds.length > 0
     ? movedSubtreeIds(current.nodes, movingIds)
     : undefined
@@ -284,12 +280,8 @@ export function CollectionDestinationPicker({
         ) : candidates.length === 0 ? (
           <EmptyState
             icon="folder"
-            title={mode === 'collection' ? 'No collections' : 'No destination collections'}
-            description={
-              mode === 'collection'
-                ? 'Create a collection you can publish as a digest issue.'
-                : 'Create a collection you can copy bookmarks into.'
-            }
+            title="No destination collections"
+            description="Create a collection you can copy bookmarks into."
             action={(
               <Link to="/library/new" className="btn btn-secondary btn-sm">
                 New collection
@@ -299,13 +291,11 @@ export function CollectionDestinationPicker({
         ) : (
           <>
             <p className="library-dest-note">
-              {mode === 'collection'
-                ? "The collection's bookmarks become the issue's entries."
-                : `Copy ${plural(count, 'bookmark')}. Copies the link, title and note. The icon, TL;DR and other annotations stay with the original.`}
+              Copy {plural(count, 'bookmark')}. Copies the link, title and note. The icon, TL;DR and other annotations stay with the original.
             </p>
             <ul
               className="library-dest-list"
-              aria-label={mode === 'collection' ? 'Your collections' : 'Destination collections'}
+              aria-label="Destination collections"
             >
               {candidates.map((item) => (
                 <li key={item.collection.id}>
@@ -314,22 +304,11 @@ export function CollectionDestinationPicker({
                     className="library-dest-item"
                     data-testid="destination-option"
                     disabled={busy}
-                    onClick={() => {
-                      if (mode === 'collection') {
-                        onPick({
-                          collectionId: item.collection.id,
-                          parentId: item.collection.rootNodeId,
-                          collectionTitle: item.collection.title,
-                          parentTitle: null,
-                        })
-                        return
-                      }
-                      openTarget(item.collection.id, item.collection.title)
-                    }}
+                    onClick={() => openTarget(item.collection.id, item.collection.title)}
                   >
                     <Icon name="folder" />
                     <span className="library-dest-label">{item.collection.title}</span>
-                    {mode !== 'collection' ? <Icon name="chevron-right" /> : null}
+                    <Icon name="chevron-right" />
                   </button>
                 </li>
               ))}

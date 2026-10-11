@@ -1,3 +1,2 @@
 User-agent: *
-Allow: /
-Sitemap: https://know-n.com/sitemap.xml
+Disallow: /

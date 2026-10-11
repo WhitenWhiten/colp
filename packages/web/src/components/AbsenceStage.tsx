@@ -5,12 +5,7 @@ import { useDocumentTitle } from '../lib/useDocumentTitle'
 /** Four corner labels, same cadence as the 404 frame ("404 / Page / Not / Found"). */
 export const ABSENCE_CORNERS = {
   collection: ['Collection', 'Page', 'Not', 'Here'],
-  path: ['Path', 'Page', 'Not', 'Here'],
-  profile: ['Profile', 'Page', 'Not', 'Here'],
-  digest: ['Digest', 'Page', 'Not', 'Here'],
-  issue: ['Issue', 'Page', 'Not', 'Here'],
   resource: ['Bookmark', 'Page', 'Not', 'Here'],
-  comment: ['Comment', 'Page', 'Not', 'Here'],
 } as const
 
 export type AbsenceExit =

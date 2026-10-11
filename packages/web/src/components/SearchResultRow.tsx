@@ -7,7 +7,6 @@ import { useIsClamped } from '../lib/useIsClamped'
 
 /** Optional trailing meta for the full-page search column (palette keeps its own chrome). */
 export function searchResultMeta(result: SearchResult): string {
-  if (result.resourceType === 'profile') return `@${result.handle}`
   if (result.resourceType === 'node') return result.urlHost ?? ''
   if (result.resourceType === 'annotation') return `On a ${searchKindLabel(result.subject.type)}`
   return ''

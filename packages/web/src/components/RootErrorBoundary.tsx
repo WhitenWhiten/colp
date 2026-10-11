@@ -1,5 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
-import { isSelfHostedEdition, productName } from '../lib/edition'
+import { productName } from '../lib/edition'
 
 type Props = {
   children: ReactNode
@@ -29,10 +29,7 @@ export class RootErrorBoundary extends Component<Props, State> {
     if (!this.state.hasError) return this.props.children
     return (
       <main className="root-error" role="alert">
-        {/* The self-hosted build ships no Know-N wordmark (self-hosted-dist.mjs). */}
-        {isSelfHostedEdition()
-          ? <p className="root-error-name">{productName()}</p>
-          : <img src="/brand-wordmark.svg" alt="Know-N" width={438} height={128} />}
+        <p className="root-error-name">{productName()}</p>
         <p>{productName()} ran into a problem and couldn&apos;t show this page.</p>
         <button type="button" className="btn btn-primary" onClick={() => window.location.reload()}>
           Reload page

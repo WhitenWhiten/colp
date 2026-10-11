@@ -1,5 +1,4 @@
 // @vitest-environment happy-dom
-import { act } from 'react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthStatusRegion } from './AuthStatusRegion'
@@ -9,7 +8,6 @@ const mocks = vi.hoisted(() => ({ sessionState: 'ready' as string }))
 vi.mock('../../auth/AuthContext', () => ({ useAuth: () => ({ sessionState: mocks.sessionState }) }))
 
 describe('AuthStatusRegion accessible feedback', () => {
-
   beforeEach(() => {
     document.body.innerHTML = '<div id="root"></div>'
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -42,15 +40,6 @@ describe('AuthStatusRegion accessible feedback', () => {
     expect(alert?.textContent).toContain('Your session has expired')
     const link = document.querySelector<HTMLAnchorElement>('a[href="/auth/recovery?auth=restart"]')
     expect(link?.textContent).toContain('Restart your session')
-  })
-
-  it('announces occupancy with a verify-email action instead of expiry', () => {
-    mocks.sessionState = 'verification-required'
-    render()
-    expect(document.querySelector('[role="status"]')?.textContent).toContain('Verify your email')
-    const link = document.querySelector<HTMLAnchorElement>('a[href="/verify-email"]')
-    expect(link?.textContent).toContain('Verify email')
-    expect(document.querySelector('[role="alert"]')).toBeNull()
   })
 
   it.each(['ready', 'signed-out'])('renders nothing in the %s state', (state) => {

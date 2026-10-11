@@ -10,10 +10,8 @@ import {
   type EditorSnapshot,
   type OwnedCollectionListItem,
 } from '../../api'
-import { followedDeskSnapshot } from '../../lib/followedDeskSnapshot'
 import { findFolder, isAbort } from '../../lib/libraryTree'
 import { readRouteCache, writeRouteCache } from '../../lib/routeCache'
-import type { useFollowedCollections } from '../../lib/useFollowedCollections'
 import type { useOwnedCollections } from '../../lib/useOwnedCollections'
 import type { useSharedCollections } from '../../lib/useSharedCollections'
 
@@ -36,22 +34,8 @@ export type CachedDesk = {
 
 export const DESK_CACHE_KEY = 'library-desk'
 
-/**
- * Followed collections live in the trees map under a slug key: the public
- * snapshot is fetched by publication slug, while owned/shared trees load by
- * opaque collection id. The prefix keeps the two namespaces from colliding.
- */
-const FOLLOWED_KEY_PREFIX = 'f:'
 /** R15-29: a tree loaded less than this long ago is not re-paged on tab return. */
 export const TREE_STALE_AFTER_MS = 60_000
-
-export function followedKey(slug: string): string {
-  return `${FOLLOWED_KEY_PREFIX}${slug}`
-}
-
-export function followedSlugOf(key: string): string | null {
-  return key.startsWith(FOLLOWED_KEY_PREFIX) ? key.slice(FOLLOWED_KEY_PREFIX.length) : null
-}
 
 export function restoreTrees(cached: CachedDesk | undefined): Record<string, TreeEntry> {
   const entries: Record<string, TreeEntry> = {}
@@ -84,48 +68,39 @@ export function persistDeskCache(
 }
 
 /**
- * Selecting an owned/shared collection shows its first level of folders by
- * default. Auto-expansion is computed (never written into `expanded` or the
- * desk cache); a collection the user collapsed by hand stays collapsed.
- * Followed collections keep the original lazy behaviour, and reorder mode
- * keeps every tree collapsed while it is active.
+ * Selecting a collection shows its first level of folders by default.
+ * Auto-expansion is computed (never written into `expanded` or the desk
+ * cache); a collection the user collapsed by hand stays collapsed, and
+ * reorder mode keeps every tree collapsed while it is active.
  */
 export function collectionIsExpanded(
   id: string,
   expanded: ReadonlySet<string>,
   reorderSection: string | null,
   selectedId: string | null,
-  selectedFollowedSlug: string | null,
   userCollapsed: ReadonlySet<string>,
 ): boolean {
   return expanded.has(id)
     || (reorderSection === null
       && id === selectedId
-      && !selectedFollowedSlug
       && !userCollapsed.has(id))
 }
 
 export function useLibraryDeskData(options: {
   collectionId: string | undefined
-  routeFollowedSlug: string | undefined
   folderId: string | null
-  reading: boolean
   isLoggedIn: boolean
   bootstrapping: boolean
   collections: ReturnType<typeof useOwnedCollections>
   shared: ReturnType<typeof useSharedCollections>
-  followed: ReturnType<typeof useFollowedCollections>
 }) {
   const {
     collectionId,
-    routeFollowedSlug,
     folderId,
-    reading,
     isLoggedIn,
     bootstrapping,
     collections,
     shared,
-    followed,
   } = options
   const navigate = useNavigate()
 
@@ -143,38 +118,28 @@ export function useLibraryDeskData(options: {
   const treesRef = useRef(trees)
   treesRef.current = trees
 
-  const selectedId = reading
-    ? null
-    : routeFollowedSlug
-      ? followedKey(routeFollowedSlug)
-      : collectionId
-        ?? collections.items[0]?.collection.id
-        ?? shared.items[0]?.collection.id
-        ?? null
-  const selectedFollowedSlug = selectedId ? followedSlugOf(selectedId) : null
+  const selectedId = collectionId
+    ?? collections.items[0]?.collection.id
+    ?? shared.items[0]?.collection.id
+    ?? null
 
   const ownedSidebarItems = useMemo(() => {
     const items = collections.items
-    const snap = selectedId && !selectedFollowedSlug ? trees[selectedId]?.snap : undefined
+    const snap = selectedId ? trees[selectedId]?.snap : undefined
     if (!snap) return items
     if (items.some((item) => item.collection.id === snap.collection.id)) return items
     if (shared.items.some((item) => item.collection.id === snap.collection.id)) return items
     if (shared.state === 'loading') return items
     return [{ collection: snap.collection, capabilities: snap.capabilities } satisfies OwnedCollectionListItem, ...items]
-  }, [collections.items, selectedFollowedSlug, selectedId, shared.items, shared.state, trees])
+  }, [collections.items, selectedId, shared.items, shared.state, trees])
 
   const sharedSidebarItems = shared.items
-  const availableFollowedItems = useMemo(
-    () => followed.items.filter((item) => item.availability !== 'unavailable'),
-    [followed.items],
-  )
 
   const loadTree = useCallback(async (key: string, opts?: { silent?: boolean; propagate?: boolean }) => {
     loaders.current.get(key)?.abort()
     const identity = privateSessionIdentity()
     const controller = new AbortController()
     loaders.current.set(key, controller)
-    const slug = followedSlugOf(key)
     if (!opts?.silent) {
       setTrees((current) => ({
         ...current,
@@ -182,14 +147,10 @@ export function useLibraryDeskData(options: {
       }))
     }
     try {
-      const next = slug
-        ? followedDeskSnapshot(await productClient.loadPublicCollectionSnapshot(slug, {
-          signal: controller.signal,
-        }))
-        : await productClient.loadEditorSnapshot(key, {
-          signal: controller.signal,
-          maxRetries: 0,
-        })
+      const next = await productClient.loadEditorSnapshot(key, {
+        signal: controller.signal,
+        maxRetries: 0,
+      })
       if (controller.signal.aborted || identity !== privateSessionIdentity()) return
       if (opts?.propagate && document.querySelector('[role="dialog"], dialog[open], .library-compose')) throw new Error('refresh_deferred')
       loadedAt.current.set(key, Date.now())
@@ -197,8 +158,6 @@ export function useLibraryDeskData(options: {
     } catch (err) {
       if (controller.signal.aborted || identity !== privateSessionIdentity() || isAbort(err)) return
       if (err instanceof Error && err.message === 'refresh_deferred') throw err
-      const followedGone = slug !== null && isProductApiError(err)
-        && (err.status === 404 || err.code === 'resource_not_found')
       setTrees((current) => ({
         ...current,
         [key]: {
@@ -206,14 +165,11 @@ export function useLibraryDeskData(options: {
           snap: isProductApiError(err) && [401, 403, 404].includes(err.status) ? undefined : current[key]?.snap,
           message: isProductApiError(err) && err.isAuthRequired
             ? 'Sign in to open this collection'
-            : followedGone
-              ? 'This collection is no longer available.'
-              : isProductApiError(err) ? err.recoveryHint : "Couldn't load folders",
+            : isProductApiError(err) ? err.recoveryHint : "Couldn't load folders",
         },
       }))
       if (isProductApiError(err) && err.isAuthRequired) {
-        const returnTo = slug ? `/library/following/${slug}` : `/library/${key}`
-        navigate(`/login?returnTo=${encodeURIComponent(returnTo)}`)
+        navigate(`/login?returnTo=${encodeURIComponent(`/library/${key}`)}`)
       }
       if (opts?.propagate) throw err
     } finally {
@@ -319,11 +275,9 @@ export function useLibraryDeskData(options: {
   const selectedFolder = snap ? findFolder(snap.nodes, folderId) : null
   const collection = snap?.collection
   const caps = snap?.capabilities
-  const collectionBasePath = selectedFollowedSlug
-    ? `/library/following/${encodeURIComponent(selectedFollowedSlug)}`
-    : selectedId
-      ? `/library/${encodeURIComponent(selectedId)}`
-      : '/library'
+  const collectionBasePath = selectedId
+    ? `/library/${encodeURIComponent(selectedId)}`
+    : '/library'
   const folderPath = (id: string | null) =>
     id ? `${collectionBasePath}?folder=${encodeURIComponent(id)}` : collectionBasePath
 
@@ -336,10 +290,8 @@ export function useLibraryDeskData(options: {
     loadTree,
     toggleExpanded,
     selectedId,
-    selectedFollowedSlug,
     ownedSidebarItems,
     sharedSidebarItems,
-    availableFollowedItems,
     snap,
     load,
     loadMessage,

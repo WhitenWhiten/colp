@@ -21,7 +21,6 @@ vi.mock('../api', async (importOriginal) => {
   return {
     ...actual,
     isLive: (flag: string) => flag === 'annotations',
-    isCommunityExposureEnabled: () => false,
     productClient: {
       ...actual.productClient,
       loadAnnotations: mocks.loadAnnotations,
@@ -78,7 +77,6 @@ function editor(title = '3Blue1Brown · 神经网络可视化'): EditorSnapshot 
 }
 
 describe('Resource Detail Annotation entry', () => {
-
   beforeEach(() => {
     clearRouteCache()
     vi.clearAllMocks()
@@ -126,25 +124,11 @@ describe('Resource Detail Annotation entry', () => {
     expect(document.querySelector<HTMLAnchorElement>('a[href^="/read/"]')).toBeNull()
     expect(document.querySelector<HTMLAnchorElement>('a.btn-primary[href="https://www.youtube.com/@3blue1brown"]')).not.toBeNull()
     expect(document.querySelector<HTMLAnchorElement>(`a[href="/library/collection-detail?node=${NODE_ID}"]`)).not.toBeNull()
-    expect(pageMetaContent('meta[name="description"]')).toBe('Read “3Blue1Brown · 神经网络可视化” in a curated Know-N collection.')
-    expect(canonicalHref()).toBe(`https://know-n.com/r/${NODE_ID}?slug=detail-notes`)
+    expect(pageMetaContent('meta[name="description"]')).toBe('Read “3Blue1Brown · 神经网络可视化” in a curated COLP Server collection.')
+    expect(canonicalHref()).toBe(`http://localhost:3000/r/${NODE_ID}?slug=detail-notes`)
     expect(pageMetaContent('meta[property="og:title"]')).toBe(document.title)
     expect(pageMetaContent('meta[property="og:url"]')).toBe(canonicalHref())
     expect(robotsContents()).toEqual([])
-  })
-
-  it('restores Reader actions when the shared exposure gate is enabled', async () => {
-    window.__KNOWN_FLAGS__ = { readableReplica: true }
-    mountTree(
-      <MemoryRouter initialEntries={[`/r/${NODE_ID}?collectionId=collection-detail&subjectType=node&slug=detail-notes`]}>
-        <Routes><Route path="/r/:id" element={<ResourceDetail />} /></Routes>
-      </MemoryRouter>,
-    )
-    await act(async () => { await Promise.resolve(); await Promise.resolve(); await Promise.resolve() })
-
-    expect(document.querySelector<HTMLAnchorElement>(`a[href="/read/${NODE_ID}?collectionId=collection-detail&subjectType=node&slug=detail-notes"]`)).not.toBeNull()
-    expect(document.body.textContent).toContain('Read in Know-N')
-    expect(document.body.textContent).toContain('Open reading view')
   })
 
   it('normalizes and truncates an unsafe node title before using it as a description', async () => {

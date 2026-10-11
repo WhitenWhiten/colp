@@ -23,12 +23,8 @@ import { useProductSearch } from '../lib/useProductSearch'
 import workflowSource from '../lib/useProductSearch.ts?raw'
 import paletteSource from '../components/SearchPalette.tsx?raw'
 import searchResultRowSource from '../components/SearchResultRow.tsx?raw'
-import exploreSource from '../pages/Explore.tsx?raw'
-import feedSource from '../pages/Feed.tsx?raw'
 import searchPageSource from '../pages/Search.tsx?raw'
 import { cleanup, mountTree, waitForDom } from '../test/render'
-import featureFlagsSource from './featureFlags.ts?raw'
-import { isLive } from './featureFlags'
 import type { SearchPage } from './types'
 import transportSource from './product-transport.ts?raw'
 
@@ -127,16 +123,6 @@ describe('P2B-25 Search frontend boundary', () => {
       expect(current.items.map((item) => item.resourceId)).toEqual(['beta'])
       expect(current.state).toBe('ready')
     })
-
-    it('uses the mock source only while the Search flag is off', async () => {
-      window.__KNOWN_FLAGS__ = { search: false }
-      renderProbe('ML Ops')
-      await waitForDom(() => current.state === 'ready' || current.state === 'empty')
-      expect(mocks.search).not.toHaveBeenCalled()
-      expect(current.state).toBe('ready')
-      expect(current.items.length).toBeGreaterThan(0)
-      expect(current.error).toBeNull()
-    })
   })
 
   describe('architecture invariants that cannot be behaviour tested', () => {
@@ -145,27 +131,10 @@ describe('P2B-25 Search frontend boundary', () => {
          only be asserted against the declaration — anchored on the declaration
          itself, not on a bare substring. */
       expect(typesSource).toMatch(/export type SearchPage = Schemas\['SearchPage'\]/u)
-      expect(typesSource).toMatch(/export type SearchResult = Schemas\['SearchResult'\]/u)
+      // Profiles have no page on this server, so the UI type drops that arm.
+      expect(typesSource).toMatch(/export type SearchResult = Exclude<Schemas\['SearchResult'\], \{ resourceType: 'profile' \}>/u)
       /* The route literal is owned by the transport layer. */
       expect(transportSources).toMatch(/path:\s*'\/api\/v1\/search'/u)
-    })
-
-    it('reaches the mock barrel by dynamic import only', () => {
-      /* A static import produces no observable behaviour difference in a single
-         run, but it drags the demo seed into the live Search chunk. */
-      expect(workflowSource).not.toMatch(/from\s+['"][^'"]*mock-data['"]/u)
-      expect(workflowSource).not.toMatch(/import\s+['"][^'"]*mock-data['"]/u)
-      expect(workflowSource).toMatch(/await import\(\s*['"][^'"]*mock-data['"]\s*\)/u)
-    })
-
-    it('enables accepted Search without a DEV override and leaves Explore and Feed on existing sources', () => {
-      expect(isLive('search')).toBe(true)
-      /* Search deliberately ships with no acceptance override. */
-      expect(featureFlagsSource).not.toContain('VITE_SEARCH_ACCEPTANCE')
-      /* Neither surface may take the Search data source. */
-      for (const [name, source] of [['Explore', exploreSource], ['Feed', feedSource]] as const) {
-        expect(source, name).not.toMatch(/\b(?:searchResources|useProductSearch)\b/u)
-      }
     })
 
     it('does not persist, log, analyze, or inject query and snippet text', () => {

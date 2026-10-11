@@ -20,7 +20,7 @@ export {
 } from './product-error'
 
 /** R15-23: plain copy for server-side failures (5xx, non-envelope errors). */
-export const SERVICE_TROUBLE = 'Know-N is having trouble right now. Try again in a minute.'
+export const SERVICE_TROUBLE = 'The server is having trouble right now. Try again in a minute.'
 
 export class ProductApiError extends Error {
   readonly name = 'ProductApiError'

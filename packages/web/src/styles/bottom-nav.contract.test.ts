@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 /**
  * P1-02 / R11-06: mobile tab bar height token and stacking offsets.
  *
- * `--bottom-nav-h` is declared in tokens.css (0px on desktop). The four
+ * `--bottom-nav-h` is declared in tokens.css (0px on desktop). The
  * sticky/fixed bottoms that share the home-indicator edge must mention
  * the token inside their `max-width: 719px` rules — except search, whose
  * fullscreen palette covers the tab bar at `--z-modal`.
@@ -60,14 +60,12 @@ describe('bottom-nav stacking token (P1-02 / R11-06)', () => {
     expect(def?.[1]).toBe('0px')
   })
 
-  it('references --bottom-nav-h in the max-width 719px bulkbar, toast, canvas-toast, and scroll-to-top rules', () => {
+  it('references --bottom-nav-h in the max-width 719px bulkbar, toast, and scroll-to-top rules', () => {
     const bulkbar = ruleBody(mediaMax719(readStyle('library.css')), '.library-bulkbar')
     const toast = ruleBody(mediaMax719(readStyle('overlays.css')), '.app-shell--tabs .toast')
-    const canvas = ruleBody(mediaMax719(readStyle('cards.css')), '.app-shell--tabs .canvas-toast')
     const scrollTop = ruleBody(mediaMax719(readStyle('polish.css')), '.app-shell--tabs .scroll-to-top-btn')
     expect(bulkbar, 'library-bulkbar @ 719px').toMatch(/--bottom-nav-h/)
     expect(toast, 'toast @ 719px').toMatch(/--bottom-nav-h/)
-    expect(canvas, 'canvas-toast @ 719px').toMatch(/--bottom-nav-h/)
     expect(scrollTop, 'scroll-to-top @ 719px').toMatch(/--bottom-nav-h/)
   })
 

@@ -9,15 +9,14 @@ import { fulfillPassiveFeatureRequest } from './helpers/passive-feature-mocks'
  * computed line-height at least as tall as its font's natural line box.
  * Tighter leading lets glyph ink escape the line box: overflow:hidden then
  * shears the first line's ascenders, and the next line's ink bleeds a few
- * pixels past the clamp boundary (reported on journal entry titles and the
- * resource-detail "Show full title" boundary). The natural box is measured
+ * pixels past the clamp boundary (reported on the resource-detail "Show
+ * full title" boundary). The natural box is measured
  * at runtime per font stack (line-height: normal probe), so the invariant
  * stays true when fonts change. --leading-clamp documents the safe value.
  */
 
 const LONG_TITLE = 'Typography Blends Dignity: Grid Systems, Glyph Metrics, And The Long Display Title Test With Tall Letters'
 const LONG_TEXT = 'A running set of notes on how distributed systems actually fail in production: partitions that heal before anyone notices, clocks that drift just far enough to corrupt a ledger, and queues that silently become databases. '.repeat(4)
-const LONG_BIO = 'Independent researcher and occasional engineer. I keep notes on distributed systems, the history of computing, typography, and the small design decisions that make tools feel inevitable. '.repeat(3)
 
 function json(route: Route, body: unknown, status = 200) {
   return route.fulfill({
@@ -26,15 +25,6 @@ function json(route: Route, body: unknown, status = 200) {
     headers: { 'Cache-Control': 'no-store' },
     body: JSON.stringify(body),
   })
-}
-
-const profilePage = {
-  profile: { handle: 'mira', displayName: 'Mira Chen', avatarUrl: null, about: LONG_BIO },
-  collections: [
-    { id: 'pc-1', slug: 'systems-notes', title: LONG_TITLE, summary: LONG_TEXT, kind: 'knowledge_collection', updatedAt: '2026-08-20T00:00:00.000Z' },
-    { id: 'pc-2', slug: 'grid-notes', title: 'Grid notes', summary: null, kind: 'bookmarks', updatedAt: '2026-07-22T00:00:00.000Z' },
-  ],
-  page: { cursor: null, hasMore: false },
 }
 
 const publicCollection = {
@@ -52,26 +42,13 @@ const publicCollection = {
 }
 
 const searchPage = {
-  query: 'systems', types: ['collection', 'node', 'profile', 'annotation'],
+  query: 'systems', types: ['collection', 'node', 'annotation'],
   items: [
     { resourceType: 'collection', resourceId: 'c1', title: LONG_TITLE, snippet: LONG_TEXT, rank: 0.9 },
     { resourceType: 'node', resourceId: 'n2', collectionId: 'c1', title: LONG_TITLE, urlHost: 'oreilly.com', snippet: LONG_TEXT, rank: 0.8 },
-    { resourceType: 'profile', resourceId: 'p1', handle: 'mira', displayName: 'Mira Chen', avatarUrl: null, snippet: LONG_TEXT, rank: 0.7 },
   ],
   page: { returnedCount: 3, hasMore: false, nextCursor: null },
   consistency: { authority: 'recheck-each-page', ranking: 'restart-on-mutation' },
-}
-
-const feedPage = {
-  items: [
-    {
-      feedItemId: 'f1', kind: 'collection_change', collectionId: 'col-pub',
-      publicationSlug: 'browser-research', collectionTitle: LONG_TITLE,
-      actor: { profileId: 'p1', handle: 'mira', displayName: 'Mira Chen', avatarUrl: null },
-      publishedAt: '2026-08-21T08:00:00.000Z',
-    },
-  ],
-  nextCursor: null,
 }
 
 const libraryList = {
@@ -95,26 +72,18 @@ async function installMocks(page: Page): Promise<string[]> {
     const path = url.pathname
     if (route.request().method() !== 'GET') return json(route, {}, 204)
     if (path === '/api/v1/session') return json(route, { authenticated: true, csrfToken: 'clamp-csrf', idleExpiresAt: '2026-08-23T00:00:00.000Z', absoluteExpiresAt: '2026-08-24T00:00:00.000Z' })
-    if (path === '/api/v1/me') return json(route, { account: { id: 'acc-1', email: 'mira@known.test' }, profile: { id: 'prof-1', handle: 'mira', displayName: 'Mira Chen', avatarUrl: null, about: LONG_BIO } })
-    if (path === '/api/v1/profiles/mira') return json(route, profilePage)
-    if (path === '/api/v1/profiles/mira/following' || path === '/api/v1/profiles/mira/followers') return json(route, { items: [], nextCursor: null })
+    if (path === '/api/v1/me') return json(route, { account: { id: 'acc-1', email: 'mira@known.test' }, profile: { id: 'prof-1', handle: 'mira', displayName: 'Mira Chen', avatarUrl: null } })
     if (path === '/api/v1/search') return json(route, searchPage)
-    if (path === '/api/v1/feed') return json(route, feedPage)
     if (path === '/api/v1/collections') return json(route, libraryList)
     if (path === '/api/v1/collections/browser-research') return json(route, {
       ...publicCollection,
       ...(url.searchParams.get('include') === 'relations' ? { relations: [] } : {}),
     })
     if (path.startsWith('/api/v1/public-collections/')) return json(route, publicCollection)
-    if (path === '/api/v1/me/shared-collections' || path === '/api/v1/me/collaboration-invites' || path === '/api/v1/saved-resources' || path === '/api/v1/reading-progress') {
+    if (path === '/api/v1/me/shared-collections' || path === '/api/v1/me/collaboration-invites') {
       return json(route, { items: [], page: { returnedCount: 0, hasMore: false, nextCursor: null } })
     }
-    if (path === '/api/v1/notifications') return json(route, { items: [], page: { returnedCount: 0, hasMore: false, nextCursor: null }, unreadCount: 0 })
     if (await fulfillPassiveFeatureRequest(route)) return
-    if (path === '/api/v1/me/community-notifications') return json(route, { items: [], nextCursor: null, unreadCount: 0 })
-    if (path === '/api/v1/community/target') {
-      return json(route, { error: { code: 'resource_not_found', message: 'not mocked', requestId: 'clamp', recovery: 'user_action', sameRequestRetrySafe: false } }, 404)
-    }
     if (/^\/api\/v1\/collections\/[^/]+\/annotations$/u.test(path)) {
       return json(route, { annotations: [], page: { returnedCount: 0, hasMore: false, nextCursor: null } })
     }
@@ -185,24 +154,11 @@ type Stop = {
 }
 
 const stops: Stop[] = [
-  { name: 'profile', path: '/u/mira', ready: '[data-testid="public-profile-page"]' },
-  {
-    name: 'profile-journal',
-    path: '/u/mira',
-    ready: '[data-testid="public-profile-page"]',
-    prep: async (page) => {
-      await page.evaluate(() => window.localStorage.setItem('known.profileMode', 'journal'))
-      await page.reload({ waitUntil: 'domcontentloaded' })
-      await expect(page.locator('.journal-entry h2').first()).toBeVisible()
-    },
-  },
   { name: 'resource-detail', path: '/r/p-1?slug=browser-research', ready: '.resource-detail' },
   { name: 'collection-board', path: '/c/browser-research', ready: '[data-testid="public-collection-page"]' },
   { name: 'collection-list', path: '/c/browser-research?view=list', ready: '[data-testid="public-collection-page"]' },
-  { name: 'feed', path: '/feed', ready: '[data-testid="product-feed"]' },
   { name: 'search', path: '/search?q=systems', ready: '[data-testid="search-result-list"]' },
   { name: 'library', path: '/library', ready: '[data-testid="library-workspace"]' },
-  { name: 'share', path: '/share/browser-research', ready: '.share-page' },
   {
     name: 'graph-side',
     path: '/graph/browser-research',

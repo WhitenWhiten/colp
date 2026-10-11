@@ -1,10 +1,12 @@
 /**
- * Task D1: Know-N authentication client (Better Auth compatibility layer).
+ * Task D1: authentication client (Better Auth compatibility layer).
  *
- * The backend mounts the allowlisted Better Auth 1.6.29 operations as
- * Know-N compatibility endpoints under /api/v1/auth/* (A4 auth-route
- * manifest; G1 ADR §10). This module is the typed fetch wrapper for that
- * surface:
+ * The server mounts the allowlisted Better Auth operations as compatibility
+ * endpoints under /api/v1/auth/* (A4 auth-route manifest; G1 ADR §10). This
+ * module is the typed fetch wrapper for the part of that surface a
+ * self-hosted server uses: username/password sign-in and sign-up, password
+ * change, sessions, account deletion and OAuth consent. The server sends no
+ * email and has no sign-in providers (D28).
  *
  * - every same-origin POST carries the current in-memory CSRF token
  *   (X-CSRF-Token, when a session bootstrap produced one) and the Origin
@@ -17,8 +19,8 @@
  * - credentials: 'include' on every request: the browser manages the
  *   __Host-known_session cookie. This module never reads document.cookie
  *   and never writes session material to sessionStorage/localStorage;
- * - operations that establish a new browser session (sign-in, OTP sign-in,
- *   reset, MFA verify, sign-out) refresh the product session store through
+ * - operations that establish a new browser session (sign-in, sign-up,
+ *   sign-out) refresh the product session store through
  *   productClient.getSession(), so the in-memory CSRF token always matches
  *   the current browser session. The session-operation generation and
  *   abort/race semantics live in productClient; a superseded refresh is
@@ -37,15 +39,9 @@ export type AuthCallOptions = {
   signal?: AbortSignal
 }
 
-/** Better Auth email OTP purposes (G1 §8 / C2). */
-export type OtpPurpose = 'sign-in' | 'email-verification' | 'forget-password' | 'change-email'
-
 export type AuthStatusResult = { readonly status: boolean }
 /** `redirectUrl` is set when the sign-in resumed an OAuth authorization. */
 export type AuthSignInResult = AuthStatusResult & { readonly redirectUrl?: string }
-export type AuthOtpSendResult = { readonly success: boolean }
-export type AuthOtpCheckResult = { readonly success: boolean }
-export type AuthOAuthStartResult = { readonly url: string; readonly redirect: boolean }
 
 /** Better Auth 1.7 `POST /oauth2/consent` (`authClient.oauth2.consent`). */
 export type OAuthConsentInput = {
@@ -57,47 +53,12 @@ export type OAuthConsentInput = {
 
 export type OAuthConsentResult = { readonly url: string; readonly redirect: boolean }
 
-/** Better Auth 1.7 `GET /oauth2/public-client` public CIMD/client fields. */
-export type OAuthPublicClient = {
-  readonly client_id?: string
-  readonly client_name?: string
-  readonly client_uri?: string
-  readonly logo_uri?: string
-}
-
 /** Session-gated signed-query lookup for the consent page callback. */
 export type OAuthConsentTransaction = {
   readonly client_id: string
   readonly redirect_uri: string
   readonly client_name?: string
 }
-export type AuthTotpEnableResult = { readonly totpURI: string; readonly backupCodes: string[] }
-export type AuthTotpUriResult = { readonly totpURI: string }
-export type AuthBackupCodesResult = { readonly backupCodes: string[] }
-
-/**
- * Narrow view of the compat get-session response. Raw session `token` fields
- * are stripped server-side (A4 R9), and the client keeps the shape minimal:
- * product state must still come from /api/v1/session + /api/v1/me.
- */
-export type AuthSessionInfo = {
-  readonly session: {
-    readonly id: string
-    readonly userId: string
-    readonly expiresAt: string
-    readonly createdAt: string
-    readonly updatedAt: string
-  }
-  readonly user: {
-    readonly id: string
-    readonly email: string | null
-    readonly emailVerified: boolean | null
-    readonly name: string | null
-    readonly image: string | null
-  }
-}
-
-// ─── Inputs ────────────────────────────────────────────────────────────────
 
 export type SignInWithPasswordInput = {
   email: string
@@ -117,73 +78,18 @@ export type SignInWithUsernameInput = {
   oauthQuery?: string
 }
 
-export type SignUpWithPasswordInput = {
-  name: string
-  email: string
-  password: string
-  image?: string
-  callbackURL?: string
-  rememberMe?: boolean
-}
-
 export type ChangePasswordInput = {
   newPassword: string
   currentPassword: string
   revokeOtherSessions?: boolean
 }
 
-export type SendOtpInput = { email: string; type: OtpPurpose; intent?: 'sign-up' }
-
-export type SignInWithOtpInput = {
-  email: string
-  otp: string
-  name?: string
-  /** Register OTP verify; Login must omit this (non-enumerating, never creates). */
-  intent?: 'sign-up'
-}
-
-export type CheckOtpInput = { email: string; otp: string; type: OtpPurpose }
-
-export type VerifyEmailWithOtpInput = { email: string; otp: string }
-
-export type SendVerificationEmailInput = { email: string; callbackURL?: string }
-
-/** Email-link verification (GET /verify-email?token=…). */
-export type VerifyEmailInput = { token: string; callbackURL?: string }
-
-export type RequestPasswordResetInput = { email: string; redirectTo?: string }
-
-export type ResetPasswordInput = { token: string; newPassword: string }
-
 /** BA email-OTP reset uses the `password` field name. */
 export type ResetPasswordWithOtpInput = { email: string; otp: string; password: string }
-
-export type RequestPasswordRecoveryInput = { email: string }
-
-/** Product recovery facade uses the `newPassword` field name. */
-export type RecoverWithOtpInput = { email: string; otp: string; newPassword: string }
-
-export type StartOAuthInput = {
-  providerId: string
-  callbackURL?: string
-  errorCallbackURL?: string
-  newUserCallbackURL?: string
-  disableRedirect?: boolean
-  requestSignUp?: boolean
-}
 
 export type AuthReauthProof =
   | { kind: 'password'; password: string }
   | { kind: 'otp'; email: string; otp: string }
-
-export type LinkOAuthInput = {
-  providerId: string
-  callbackURL: string
-  errorCallbackURL?: string
-  reauth: AuthReauthProof
-}
-
-export type UnlinkOAuthInput = { providerId: string; accountId: string; reauth: AuthReauthProof }
 
 export type LinkedAccount = { readonly providerId: string; readonly accountId: string }
 
@@ -206,36 +112,10 @@ export type ListSessionsResult = {
 
 export type RevokeSessionByIdInput = { sessionId: string }
 
-export type RequestEmailChangeInput = { newEmail: string; otp?: string }
-
-export type ChangeEmailInput = { newEmail: string; otp: string }
-
 export type DeleteAccountInput = {
   confirmation: 'DELETE'
   reauth: AuthReauthProof
 }
-
-// ─── MFA (two-factor) ──────────────────────────────────────────────────────
-
-export type EnableTwoFactorInput = { password: string; issuer?: string }
-
-export type DisableTwoFactorInput = { password: string }
-
-export type GetTotpUriInput = { password: string }
-
-export type VerifyTotpInput = { code: string; trustDevice?: boolean }
-
-export type VerifyBackupCodeInput = { code: string; trustDevice?: boolean; disableSession?: boolean }
-
-export type GenerateBackupCodesInput = { password: string }
-
-export type SendTwoFactorOtpInput = { trustDevice?: boolean }
-
-export type VerifyTwoFactorOtpInput = { otp: string; trustDevice?: boolean }
-
-export type RevokeSessionInput = { token: string }
-
-// ─── Transport ─────────────────────────────────────────────────────────────
 
 const AUTH_BASE_PATH = '/api/v1/auth'
 
@@ -261,7 +141,6 @@ function authOrigin(): string | undefined {
     try {
       return new URL(base).origin
     } catch {
-      /* fall through to location */
     }
   }
   const loc = (globalThis as { location?: { origin?: string } }).location
@@ -341,8 +220,6 @@ async function authRequest<T>(init: AuthRequestInit): Promise<T> {
   return body as T
 }
 
-// ─── Session refresh (login / logout races) ────────────────────────────────
-
 /**
  * Refresh the product session store after an operation that established or
  * revoked a browser session. Delegates to productClient.getSession() so the
@@ -361,60 +238,6 @@ async function refreshProductSession(signal?: AbortSignal): Promise<void> {
     throw err
   }
 }
-
-// ─── Callback-URL (returnTo) validation ────────────────────────────────────
-
-function invalidAuthRequest(): ProductApiError {
-  return new ProductApiError({
-    status: 400,
-    code: 'invalid_request',
-    message: 'The request is invalid.',
-    recovery: 'user_action',
-    sameRequestRetrySafe: false,
-  })
-}
-
-/**
- * Same-origin callback-URL guard mirroring the backend OAuth start/link
- * validation (C3): a relative path starting with `/` (never `//`, no
- * backslashes or control characters) or an absolute URL on the product
- * origin. Cross-origin values fail closed before any network call.
- */
-function assertSafeCallbackUrl(raw: string | undefined, field: string): void {
-  if (raw === undefined) return
-  if (
-    typeof raw !== 'string' ||
-    raw.length === 0 ||
-    raw.length > 2048 ||
-    /[\u0000-\u001f\u007f]/.test(raw)
-  ) {
-    throw invalidAuthRequest()
-  }
-  if (raw.startsWith('/') && (raw.startsWith('//') || raw.includes('\\'))) throw invalidAuthRequest()
-  const origin = authOrigin()
-  if (!origin) {
-    if (raw.startsWith('/')) return
-    throw invalidAuthRequest()
-  }
-  let url: URL
-  try {
-    url = new URL(raw, origin)
-  } catch {
-    throw invalidAuthRequest()
-  }
-  // R15-20: `https://<origin>//evil.com` and `/.//evil.com` keep the origin
-  // but normalize to a protocol-relative `//` path.
-  if (url.origin !== origin || url.pathname.startsWith('//')) throw invalidAuthRequest()
-}
-
-function assertSafeOAuthUrls(input: StartOAuthInput | LinkOAuthInput): void {
-  const candidate = input as StartOAuthInput
-  assertSafeCallbackUrl(candidate.callbackURL, 'callbackURL')
-  assertSafeCallbackUrl(candidate.errorCallbackURL, 'errorCallbackURL')
-  assertSafeCallbackUrl(candidate.newUserCallbackURL, 'newUserCallbackURL')
-}
-
-// ─── Auth operations ───────────────────────────────────────────────────────
 
 /**
  * A sign-in that carried `oauth_query` makes Better Auth re-run the
@@ -516,28 +339,6 @@ async function signUpWithUsername(
   return { status: true }
 }
 
-async function signUpWithPassword(
-  input: SignUpWithPasswordInput,
-  options?: AuthCallOptions,
-): Promise<AuthStatusResult> {
-  await authRequest<unknown>({
-    method: 'POST',
-    path: '/sign-up/email',
-    body: {
-      name: input.name,
-      email: input.email,
-      password: input.password,
-      ...(input.image === undefined ? {} : { image: input.image }),
-      ...(input.callbackURL === undefined ? {} : { callbackURL: input.callbackURL }),
-      ...(input.rememberMe === undefined ? {} : { rememberMe: input.rememberMe }),
-    },
-    withCsrf: true,
-    signal: options?.signal,
-  })
-  await refreshProductSession(options?.signal)
-  return { status: true }
-}
-
 async function changePassword(
   input: ChangePasswordInput,
   options?: AuthCallOptions,
@@ -556,141 +357,6 @@ async function changePassword(
   // revokeOtherSessions may rotate the browser session — keep the CSRF current.
   await refreshProductSession(options?.signal)
   return { status: true }
-}
-
-async function sendOtp(input: SendOtpInput, options?: AuthCallOptions): Promise<AuthOtpSendResult> {
-  return authRequest<AuthOtpSendResult>({
-    method: 'POST',
-    path: '/email-otp/send-verification-otp',
-    body: { email: input.email, type: input.type },
-    extraHeaders: input.intent === 'sign-up' ? { 'X-Known-Auth-Intent': 'sign-up' } : undefined,
-    withCsrf: true,
-    signal: options?.signal,
-  })
-}
-
-async function signInWithOtp(
-  input: SignInWithOtpInput,
-  options?: AuthCallOptions,
-): Promise<AuthStatusResult> {
-  await authRequest<unknown>({
-    method: 'POST',
-    path: '/sign-in/email-otp',
-    body: {
-      email: input.email,
-      otp: input.otp,
-      ...(input.name === undefined ? {} : { name: input.name }),
-    },
-    extraHeaders: isSignupOtpIntent(input) ? { 'X-Known-Auth-Intent': 'sign-up' } : undefined,
-    withCsrf: true,
-    signal: options?.signal,
-  })
-  await refreshProductSession(options?.signal)
-  return { status: true }
-}
-
-function isSignupOtpIntent(input: { intent?: 'sign-up'; name?: string }): boolean {
-  return input.intent === 'sign-up' || (typeof input.name === 'string' && input.name.length > 0)
-}
-
-async function checkOtp(input: CheckOtpInput, options?: AuthCallOptions): Promise<AuthOtpCheckResult> {
-  return authRequest<AuthOtpCheckResult>({
-    method: 'POST',
-    path: '/email-otp/check-verification-otp',
-    body: { email: input.email, otp: input.otp, type: input.type },
-    withCsrf: true,
-    signal: options?.signal,
-  })
-}
-
-async function verifyEmailWithOtp(
-  input: VerifyEmailWithOtpInput,
-  options?: AuthCallOptions,
-): Promise<AuthStatusResult> {
-  return authRequest<AuthStatusResult>({
-    method: 'POST',
-    path: '/email-otp/verify-email',
-    body: { email: input.email, otp: input.otp },
-    withCsrf: true,
-    signal: options?.signal,
-  })
-}
-
-async function sendVerificationEmail(
-  input: SendVerificationEmailInput,
-  options?: AuthCallOptions,
-): Promise<AuthStatusResult> {
-  return authRequest<AuthStatusResult>({
-    method: 'POST',
-    path: '/send-verification-email',
-    body: {
-      email: input.email,
-      ...(input.callbackURL === undefined ? {} : { callbackURL: input.callbackURL }),
-    },
-    withCsrf: true,
-    signal: options?.signal,
-  })
-}
-
-async function verifyEmail(
-  input: VerifyEmailInput,
-  options?: AuthCallOptions,
-): Promise<AuthStatusResult> {
-  return authRequest<AuthStatusResult>({
-    method: 'GET',
-    path: '/verify-email',
-    query: {
-      token: input.token,
-      ...(input.callbackURL === undefined ? {} : { callbackURL: input.callbackURL }),
-    },
-    withCsrf: false,
-    signal: options?.signal,
-  })
-}
-
-async function requestPasswordReset(
-  input: RequestPasswordResetInput,
-  options?: AuthCallOptions,
-): Promise<AuthStatusResult> {
-  return authRequest<AuthStatusResult>({
-    method: 'POST',
-    path: '/request-password-reset',
-    body: {
-      email: input.email,
-      ...(input.redirectTo === undefined ? {} : { redirectTo: input.redirectTo }),
-    },
-    withCsrf: true,
-    signal: options?.signal,
-  })
-}
-
-async function resetPassword(
-  input: ResetPasswordInput,
-  options?: AuthCallOptions,
-): Promise<AuthStatusResult> {
-  await authRequest<unknown>({
-    method: 'POST',
-    path: '/reset-password',
-    body: { token: input.token, newPassword: input.newPassword },
-    withCsrf: true,
-    signal: options?.signal,
-  })
-  // Reset revokes every old session and issues a new one — refresh the store.
-  await refreshProductSession(options?.signal)
-  return { status: true }
-}
-
-async function requestOtpPasswordReset(
-  input: { email: string },
-  options?: AuthCallOptions,
-): Promise<AuthStatusResult> {
-  return authRequest<AuthStatusResult>({
-    method: 'POST',
-    path: '/email-otp/request-password-reset',
-    body: { email: input.email },
-    withCsrf: true,
-    signal: options?.signal,
-  })
 }
 
 async function requestForgetPasswordOtp(
@@ -721,35 +387,6 @@ async function resetPasswordWithOtp(
   return { status: true }
 }
 
-async function requestEmailChange(
-  input: RequestEmailChangeInput,
-  options?: AuthCallOptions,
-): Promise<AuthStatusResult> {
-  return authRequest<AuthStatusResult>({
-    method: 'POST',
-    path: '/email-otp/request-email-change',
-    body: {
-      newEmail: input.newEmail,
-      ...(input.otp === undefined ? {} : { otp: input.otp }),
-    },
-    withCsrf: true,
-    signal: options?.signal,
-  })
-}
-
-async function changeEmail(
-  input: ChangeEmailInput,
-  options?: AuthCallOptions,
-): Promise<AuthStatusResult> {
-  return authRequest<AuthStatusResult>({
-    method: 'POST',
-    path: '/email-otp/change-email',
-    body: { newEmail: input.newEmail, otp: input.otp },
-    withCsrf: true,
-    signal: options?.signal,
-  })
-}
-
 async function deleteAccount(
   input: DeleteAccountInput,
   options?: AuthCallOptions,
@@ -759,47 +396,6 @@ async function deleteAccount(
     path: '/account/delete',
     body: { confirmation: input.confirmation, reauth: input.reauth },
     withCsrf: true,
-    signal: options?.signal,
-  })
-}
-
-async function requestPasswordRecovery(
-  input: RequestPasswordRecoveryInput,
-  options?: AuthCallOptions,
-): Promise<AuthStatusResult> {
-  return authRequest<AuthStatusResult>({
-    method: 'POST',
-    path: '/recovery/password-reset',
-    body: { email: input.email },
-    withCsrf: true,
-    signal: options?.signal,
-  })
-}
-
-async function recoverWithOtp(
-  input: RecoverWithOtpInput,
-  options?: AuthCallOptions,
-): Promise<AuthStatusResult> {
-  await authRequest<unknown>({
-    method: 'POST',
-    path: '/recovery/otp-reset',
-    body: { email: input.email, otp: input.otp, newPassword: input.newPassword },
-    withCsrf: true,
-    signal: options?.signal,
-  })
-  await refreshProductSession(options?.signal)
-  return { status: true }
-}
-
-async function getOAuthPublicClient(
-  input: { clientId: string },
-  options?: AuthCallOptions,
-): Promise<OAuthPublicClient> {
-  return authRequest<OAuthPublicClient>({
-    method: 'GET',
-    path: '/oauth2/public-client',
-    query: { client_id: input.clientId },
-    withCsrf: false,
     signal: options?.signal,
   })
 }
@@ -843,66 +439,6 @@ async function submitOAuthConsent(
   return { url, redirect: body?.redirect === true || Boolean(url) }
 }
 
-async function startOAuth(
-  input: StartOAuthInput,
-  options?: AuthCallOptions,
-): Promise<AuthOAuthStartResult> {
-  assertSafeOAuthUrls(input)
-  return authRequest<AuthOAuthStartResult>({
-    method: 'POST',
-    // Better Auth built-in social chain (production socialProviders
-    // google/github): the provider authorize URL answers with
-    // redirect_uri={baseURL}/callback/{providerId}.
-    path: '/sign-in/social',
-    body: {
-      provider: input.providerId,
-      ...(input.callbackURL === undefined ? {} : { callbackURL: input.callbackURL }),
-      ...(input.errorCallbackURL === undefined ? {} : { errorCallbackURL: input.errorCallbackURL }),
-      ...(input.newUserCallbackURL === undefined ? {} : { newUserCallbackURL: input.newUserCallbackURL }),
-      ...(input.disableRedirect === undefined ? {} : { disableRedirect: input.disableRedirect }),
-      ...(input.requestSignUp === undefined ? {} : { requestSignUp: input.requestSignUp }),
-    },
-    withCsrf: true,
-    signal: options?.signal,
-  })
-}
-
-async function linkOAuth(
-  input: LinkOAuthInput,
-  options?: AuthCallOptions,
-): Promise<AuthOAuthStartResult> {
-  assertSafeOAuthUrls(input)
-  return authRequest<AuthOAuthStartResult>({
-    method: 'POST',
-    path: '/oauth2/link',
-    body: {
-      providerId: input.providerId,
-      callbackURL: input.callbackURL,
-      ...(input.errorCallbackURL === undefined ? {} : { errorCallbackURL: input.errorCallbackURL }),
-      reauth: input.reauth,
-    },
-    withCsrf: true,
-    signal: options?.signal,
-  })
-}
-
-async function unlinkOAuth(
-  input: UnlinkOAuthInput,
-  options?: AuthCallOptions,
-): Promise<AuthStatusResult> {
-  return authRequest<AuthStatusResult>({
-    method: 'POST',
-    path: '/unlink-account',
-    body: {
-      providerId: input.providerId,
-      accountId: input.accountId,
-      reauth: input.reauth,
-    },
-    withCsrf: true,
-    signal: options?.signal,
-  })
-}
-
 async function listLinkedAccounts(options?: AuthCallOptions): Promise<LinkedAccountsResult> {
   return authRequest<LinkedAccountsResult>({
     method: 'GET',
@@ -934,15 +470,6 @@ async function revokeSessionById(
   })
 }
 
-async function getAuthSession(options?: AuthCallOptions): Promise<AuthSessionInfo | null> {
-  return authRequest<AuthSessionInfo | null>({
-    method: 'GET',
-    path: '/get-session',
-    withCsrf: false,
-    signal: options?.signal,
-  })
-}
-
 async function signOut(options?: AuthCallOptions): Promise<AuthStatusResult> {
   const result = await authRequest<AuthStatusResult>({
     method: 'POST',
@@ -961,185 +488,20 @@ async function signOut(options?: AuthCallOptions): Promise<AuthStatusResult> {
   return result
 }
 
-async function revokeSession(
-  input: RevokeSessionInput,
-  options?: AuthCallOptions,
-): Promise<AuthStatusResult> {
-  return authRequest<AuthStatusResult>({
-    method: 'POST',
-    path: '/revoke-session',
-    body: { token: input.token },
-    withCsrf: true,
-    signal: options?.signal,
-  })
-}
-
-async function enableTwoFactor(
-  input: EnableTwoFactorInput,
-  options?: AuthCallOptions,
-): Promise<AuthTotpEnableResult> {
-  return authRequest<AuthTotpEnableResult>({
-    method: 'POST',
-    path: '/two-factor/enable',
-    body: {
-      password: input.password,
-      ...(input.issuer === undefined ? {} : { issuer: input.issuer }),
-    },
-    withCsrf: true,
-    signal: options?.signal,
-  })
-}
-
-async function disableTwoFactor(
-  input: DisableTwoFactorInput,
-  options?: AuthCallOptions,
-): Promise<AuthStatusResult> {
-  return authRequest<AuthStatusResult>({
-    method: 'POST',
-    path: '/two-factor/disable',
-    body: { password: input.password },
-    withCsrf: true,
-    signal: options?.signal,
-  })
-}
-
-async function getTotpUri(
-  input: GetTotpUriInput,
-  options?: AuthCallOptions,
-): Promise<AuthTotpUriResult> {
-  return authRequest<AuthTotpUriResult>({
-    method: 'POST',
-    path: '/two-factor/get-totp-uri',
-    body: { password: input.password },
-    withCsrf: true,
-    signal: options?.signal,
-  })
-}
-
-async function verifyTotp(
-  input: VerifyTotpInput,
-  options?: AuthCallOptions,
-): Promise<AuthStatusResult> {
-  await authRequest<unknown>({
-    method: 'POST',
-    path: '/two-factor/verify-totp',
-    body: {
-      code: input.code,
-      ...(input.trustDevice === undefined ? {} : { trustDevice: input.trustDevice }),
-    },
-    withCsrf: true,
-    signal: options?.signal,
-  })
-  // MFA proof completes the login — the browser session is now established.
-  await refreshProductSession(options?.signal)
-  return { status: true }
-}
-
-async function verifyBackupCode(
-  input: VerifyBackupCodeInput,
-  options?: AuthCallOptions,
-): Promise<AuthStatusResult> {
-  await authRequest<unknown>({
-    method: 'POST',
-    path: '/two-factor/verify-backup-code',
-    body: {
-      code: input.code,
-      ...(input.trustDevice === undefined ? {} : { trustDevice: input.trustDevice }),
-      ...(input.disableSession === undefined ? {} : { disableSession: input.disableSession }),
-    },
-    withCsrf: true,
-    signal: options?.signal,
-  })
-  await refreshProductSession(options?.signal)
-  return { status: true }
-}
-
-async function generateBackupCodes(
-  input: GenerateBackupCodesInput,
-  options?: AuthCallOptions,
-): Promise<AuthBackupCodesResult> {
-  return authRequest<AuthBackupCodesResult>({
-    method: 'POST',
-    path: '/two-factor/generate-backup-codes',
-    body: { password: input.password },
-    withCsrf: true,
-    signal: options?.signal,
-  })
-}
-
-async function sendTwoFactorOtp(
-  input: SendTwoFactorOtpInput = {},
-  options?: AuthCallOptions,
-): Promise<AuthStatusResult> {
-  return authRequest<AuthStatusResult>({
-    method: 'POST',
-    path: '/two-factor/send-otp',
-    body: input.trustDevice === undefined ? {} : { trustDevice: input.trustDevice },
-    withCsrf: true,
-    signal: options?.signal,
-  })
-}
-
-async function verifyTwoFactorOtp(
-  input: VerifyTwoFactorOtpInput,
-  options?: AuthCallOptions,
-): Promise<AuthStatusResult> {
-  await authRequest<unknown>({
-    method: 'POST',
-    path: '/two-factor/verify-otp',
-    body: {
-      otp: input.otp,
-      ...(input.trustDevice === undefined ? {} : { trustDevice: input.trustDevice }),
-    },
-    withCsrf: true,
-    signal: options?.signal,
-  })
-  await refreshProductSession(options?.signal)
-  return { status: true }
-}
-
 /** The sole application-level authentication client instance. */
 export const authClient = Object.freeze({
   getRegistrationState,
   signInWithPassword,
   signInWithUsername,
-  signUpWithPassword,
   signUpWithUsername,
   changePassword,
-  sendOtp,
-  signInWithOtp,
-  checkOtp,
-  verifyEmailWithOtp,
-  sendVerificationEmail,
-  verifyEmail,
-  requestPasswordReset,
-  resetPassword,
-  requestOtpPasswordReset,
   requestForgetPasswordOtp,
   resetPasswordWithOtp,
-  requestEmailChange,
-  changeEmail,
   deleteAccount,
-  requestPasswordRecovery,
-  recoverWithOtp,
-  getOAuthPublicClient,
   getOAuthConsentTransaction,
   submitOAuthConsent,
-  startOAuth,
-  linkOAuth,
-  unlinkOAuth,
   listLinkedAccounts,
   listSessions,
   revokeSessionById,
-  getAuthSession,
   signOut,
-  revokeSession,
-  enableTwoFactor,
-  disableTwoFactor,
-  getTotpUri,
-  verifyTotp,
-  verifyBackupCode,
-  generateBackupCodes,
-  sendTwoFactorOtp,
-  verifyTwoFactorOtp,
 })

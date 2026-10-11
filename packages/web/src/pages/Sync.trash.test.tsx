@@ -304,7 +304,7 @@ describe('KNS-11 Sync Center trash', () => {
     act(() => byButton('Empty trash').click())
     await waitForDom(() => document.querySelector('[data-testid="modal-panel"]') !== null)
     expect(document.querySelector('[data-testid="modal-panel"]')?.textContent).toContain('Permanently delete 2 items')
-    expect(document.body.textContent).toContain('from “Work bookmarks” in Know-N trash')
+    expect(document.body.textContent).toContain('from “Work bookmarks” in COLP Server trash')
     expect(document.body.textContent).toContain("can't be undone")
     expect(document.body.textContent).toContain('at least 30 days')
     expect(mocks.emptySyncTrash).not.toHaveBeenCalled()
@@ -342,6 +342,6 @@ describe('KNS-11 Sync Center trash', () => {
     // The first confirm is the shared danger modal, not an inline alertdialog.
     await waitForDom(() => document.querySelector('[data-testid="modal-panel"]') !== null)
     expect(document.querySelector('[role="alertdialog"]')).toBeNull()
-    expect(document.querySelector('[data-testid="modal-panel"]')?.textContent).toContain('from “Work bookmarks” in Know-N trash')
+    expect(document.querySelector('[data-testid="modal-panel"]')?.textContent).toContain('from “Work bookmarks” in COLP Server trash')
   })
 })

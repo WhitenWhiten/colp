@@ -1,7 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { authClient, type AuthReauthProof } from '../../api/authClient'
 import { useAuth } from '../../auth/AuthContext'
-import { isSelfHostedEdition } from '../../lib/edition'
 import { PasswordField } from './PasswordField'
 import { useAuthAction } from './useAuthAction'
 
@@ -10,42 +9,21 @@ const CONFIRMATION = 'DELETE'
 /**
  * Irreversible account deletion (P10).
  *
- * Submit is disabled until the user types DELETE. Re-auth is password or
- * a verified-email OTP (same pattern as ProviderLinkSection). On success the
- * product cookie is already cleared; logout() refreshes the signed-out UI.
+ * Submit is disabled until the user types DELETE. The server sends no email
+ * (D28), so the password is the only re-auth. On success the product cookie
+ * is already cleared; logout() refreshes the signed-out UI.
  */
 export function AccountDeleteSection() {
   const { user, logout } = useAuth()
   const { run, busy, error } = useAuthAction()
   const [confirmation, setConfirmation] = useState('')
   const [password, setPassword] = useState('')
-  const [otp, setOtp] = useState('')
-  const [otpSent, setOtpSent] = useState(false)
   const [validationError, setValidationError] = useState<string | null>(null)
-  const [message, setMessage] = useState<string | null>(null)
 
   const confirmReady = confirmation === CONFIRMATION
 
   function proof(): AuthReauthProof | null {
-    const code = otp.trim()
-    if (code.length > 0 && user?.email) {
-      return { kind: 'otp', email: user.email, otp: code }
-    }
-    if (password.length > 0) {
-      return { kind: 'password', password }
-    }
-    return null
-  }
-
-  async function sendReauthCode() {
-    if (!user?.email || busy) return
-    setValidationError(null)
-    setMessage(null)
-    const ok = await run(() => authClient.sendOtp({ email: user.email, type: 'email-verification' }))
-    if (ok) {
-      setOtpSent(true)
-      setMessage(`We sent a confirmation code to ${user.email}.`)
-    }
+    return password.length > 0 ? { kind: 'password', password } : null
   }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -53,11 +31,10 @@ export function AccountDeleteSection() {
     if (!user || busy || !confirmReady) return
     const reauth = proof()
     if (!reauth) {
-      setValidationError(isSelfHostedEdition() ? 'Enter your password to confirm.' : 'Confirm it is you with your password or an email code.')
+      setValidationError('Enter your password to confirm.')
       return
     }
     setValidationError(null)
-    setMessage(null)
     const ok = await run(() =>
       authClient.deleteAccount({ confirmation: CONFIRMATION, reauth }),
     )
@@ -67,8 +44,6 @@ export function AccountDeleteSection() {
   }
 
   if (!user) return null
-  // The self-hosted server sends no email (D28): password is the only re-auth.
-  const emailCode = !isSelfHostedEdition()
 
   return (
     <section className="settings-section settings-danger" data-testid="delete-account">
@@ -76,7 +51,7 @@ export function AccountDeleteSection() {
         <h3 className="settings-toggle-label">Delete account</h3>
         <p className="meta">
           Permanently delete this account. This cannot be undone. Type DELETE to enable deletion,
-          then confirm with your password{emailCode ? ' or an email code' : ''}.
+          then confirm with your password.
         </p>
       </div>
       <form className="stack settings-form gap-4" data-testid="delete-account-form" onSubmit={onSubmit}>
@@ -103,33 +78,6 @@ export function AccountDeleteSection() {
             onChange={(e) => setPassword(e.target.value)}
           />
         </div>
-        {emailCode && <div className="field">
-          <label htmlFor="delete-account-otp">Confirmation code</label>
-          <input
-            id="delete-account-otp"
-            data-testid="delete-account-otp"
-            type="text"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            maxLength={6}
-            value={otp}
-            disabled={busy}
-            onChange={(e) => setOtp(e.target.value)}
-          />
-        </div>}
-        {emailCode && <div className="auth-action-row">
-          <button
-            type="button"
-            className="btn btn-secondary"
-            data-testid="delete-account-send-otp"
-            disabled={busy || !user.email}
-            onClick={() => {
-              void sendReauthCode()
-            }}
-          >
-            {otpSent ? 'Resend code' : 'Send code'}
-          </button>
-        </div>}
         <div className="auth-action-row auth-action-row--danger">
           <button
             type="submit"
@@ -141,11 +89,6 @@ export function AccountDeleteSection() {
           </button>
         </div>
       </form>
-      {message && (
-        <p className="auth-notice" role="status">
-          {message}
-        </p>
-      )}
       {validationError && (
         <p className="field-error" role="alert">
           {validationError}

@@ -7,11 +7,11 @@ import { collectionOgImagePath, usePageMeta, type PageMeta } from './usePageMeta
 
 const BASELINE_HEAD = `
   <meta name="description" content="Home description">
-  <link rel="canonical" href="https://know-n.com/">
+  <link rel="canonical" href="https://colp.example/">
   <meta property="og:title" content="Home OG title">
   <meta property="og:description" content="Home OG description">
-  <meta property="og:url" content="https://know-n.com/">
-  <meta property="og:image" content="https://know-n.com/og-cover.png">
+  <meta property="og:url" content="https://colp.example/">
+  <meta property="og:image" content="https://colp.example/og-cover.png">
   <title>Home title</title>
 `
 
@@ -42,25 +42,25 @@ describe('usePageMeta', () => {
     document.body.innerHTML = ''
   })
 
-  it('sets the route head with the production origin and restores the exact entry DOM', () => {
+  it('sets the route head with the server origin and restores the exact entry DOM', () => {
     const entryHead = document.head.innerHTML
     const view = mountTree(
       <Page
-        title="Explore"
+        title="Research notes"
         meta={{
-          description: 'Explore public collections on Know-N.',
-          canonicalPath: '/explore',
+          description: 'Papers and notes on retrieval.',
+          canonicalPath: '/c/research-notes',
         }}
       />,
     )
 
-    expect(document.title).toBe('Explore — Know-N')
-    expect(content('meta[name="description"]')).toBe('Explore public collections on Know-N.')
+    expect(document.title).toBe('Research notes — COLP Server')
+    expect(content('meta[name="description"]')).toBe('Papers and notes on retrieval.')
     expect(document.head.querySelector('link[rel="canonical"]')?.getAttribute('href'))
-      .toBe('https://know-n.com/explore')
-    expect(content('meta[property="og:title"]')).toBe('Explore — Know-N')
-    expect(content('meta[property="og:description"]')).toBe('Explore public collections on Know-N.')
-    expect(content('meta[property="og:url"]')).toBe('https://know-n.com/explore')
+      .toBe('http://localhost:3000/c/research-notes')
+    expect(content('meta[property="og:title"]')).toBe('Research notes — COLP Server')
+    expect(content('meta[property="og:description"]')).toBe('Papers and notes on retrieval.')
+    expect(content('meta[property="og:url"]')).toBe('http://localhost:3000/c/research-notes')
 
     view.unmount()
     expect(document.head.innerHTML).toBe(entryHead)
@@ -74,8 +74,8 @@ describe('usePageMeta', () => {
 
     view.unmount()
     expect(document.head.querySelector('link[rel="canonical"]')?.getAttribute('href'))
-      .toBe('https://know-n.com/')
-    expect(content('meta[property="og:url"]')).toBe('https://know-n.com/')
+      .toBe('https://colp.example/')
+    expect(content('meta[property="og:url"]')).toBe('https://colp.example/')
   })
 
   it('owns only its robots node and never changes a server-provided noindex', () => {
@@ -131,17 +131,17 @@ describe('usePageMeta', () => {
     )
 
     expect(content('meta[property="og:image"]'))
-      .toBe(`https://know-n.com/og/collections/llm-path.png?v=${Date.parse('2026-08-29T04:19:21.427Z')}`)
+      .toBe(`http://localhost:3000/og/collections/llm-path.png?v=${Date.parse('2026-08-29T04:19:21.427Z')}`)
 
     view.unmount()
     expect(document.head.innerHTML).toBe(entryHead)
-    expect(content('meta[property="og:image"]')).toBe('https://know-n.com/og-cover.png')
+    expect(content('meta[property="og:image"]')).toBe('https://colp.example/og-cover.png')
   })
 
   it('leaves the server-stamped og:image alone when no entry sets ogImagePath', () => {
     const view = mountTree(<MetaOnly meta={{ description: 'No image override' }} />)
 
-    expect(content('meta[property="og:image"]')).toBe('https://know-n.com/og-cover.png')
+    expect(content('meta[property="og:image"]')).toBe('https://colp.example/og-cover.png')
     view.unmount()
   })
 
@@ -156,10 +156,10 @@ describe('usePageMeta', () => {
     }
 
     const view = mountTree(<Stack includeSecond />)
-    expect(content('meta[property="og:image"]')).toBe('https://know-n.com/og/collections/second.png?v=2')
+    expect(content('meta[property="og:image"]')).toBe('http://localhost:3000/og/collections/second.png?v=2')
 
     view.rerender(<Stack includeSecond={false} />)
-    expect(content('meta[property="og:image"]')).toBe('https://know-n.com/og/collections/first.png?v=1')
+    expect(content('meta[property="og:image"]')).toBe('http://localhost:3000/og/collections/first.png?v=1')
   })
 
   it('collectionOgImagePath versions by updatedAt and mirrors the backend URL', () => {

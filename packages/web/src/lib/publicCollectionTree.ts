@@ -282,27 +282,3 @@ export function folderPreviews(
   }
   return previews
 }
-
-/** Adjacent bookmarks in the position-sorted DFS walk (anonymous tree edges). */
-export function publicCollectionTreeEdges(
-  resources: Array<{ node: { id: string } }>,
-): Array<[string, string]> {
-  const edges: Array<[string, string]> = []
-  for (let index = 0; index < resources.length - 1; index += 1) {
-    const from = resources[index]?.node.id
-    const to = resources[index + 1]?.node.id
-    if (from && to) edges.push([from, to])
-  }
-  return edges
-}
-
-export function publicCollectionKindLabel(
-  kind: PublicCollectionSnapshot['collection']['kind'],
-): string {
-  switch (kind) {
-    case 'bookmarks': return 'Bookmarks'
-    case 'reading_path': return 'Reading path'
-    case 'knowledge_collection': return 'Knowledge collection'
-    case 'mixed': return 'Mixed collection'
-  }
-}

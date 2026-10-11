@@ -1,20 +1,9 @@
 // @vitest-environment happy-dom
-import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ProductApiError } from '../api/errors'
-import type { PublicCollectionSnapshot } from '../api/types'
-import { collectLayeredRules, readStyle } from '../styles/dashboard-stack-cascade.test-helper'
-import { cleanup, domFinishedLoading, waitForDom } from '../test/render'
-import { canonicalHref, installPageMetaBaseline, pageMetaContent, robotsContents } from '../test/pageMeta'
+import { domFinishedLoading, waitForDom } from '../test/render'
 import {
-  bookmark,
-  captureSearch,
-  deferred,
-  insightPayloads,
   mocks,
-  previewObservers,
   renderCollection,
-  rootNode,
   setUpCollectionPage,
   snapshot,
   tearDownCollectionPage,
@@ -27,28 +16,11 @@ vi.mock('../api', async (importOriginal) => {
   const { mocks } = await import('./Collection.test-mocks')
   return {
     ...actual,
-    isCommunityExposureEnabled: () => communityGate.enabled,
     productClient: {
       ...actual.productClient,
       loadPublicCollectionSnapshot: mocks.loadPublicCollectionSnapshot,
-      recordPublicCollectionInsightEvent: mocks.recordPublicCollectionInsightEvent,
-      getPublicProfilePage: mocks.getPublicProfilePage,
-      getFollowersPage: vi.fn().mockResolvedValue({ items: [], nextCursor: null }),
-      getFollowingPage: vi.fn().mockResolvedValue({ items: [], nextCursor: null }),
-      isFollowingProfile: mocks.isFollowingProfile,
-      followProfile: mocks.followProfile,
-      unfollowProfile: mocks.unfollowProfile,
-      abandonFollowIntent: mocks.abandonFollowIntent,
       loadEditorSnapshot: mocks.loadEditorSnapshot,
       createCollectionNode: mocks.createCollectionNode,
-      getCollectionFollowState: mocks.getCollectionFollowState,
-      followCollection: mocks.followCollection,
-      unfollowCollection: mocks.unfollowCollection,
-      abandonCollectionFollowIntent: mocks.abandonCollectionFollowIntent,
-      resolveCommunityTarget: mocks.resolveCommunityTarget,
-      setCommunityVote: mocks.setCommunityVote,
-      abandonCommunityVoteIntent: mocks.abandonCommunityVoteIntent,
-      getCommunityComments: mocks.getCommunityComments,
     },
   }
 })
@@ -132,10 +104,12 @@ vi.mock('../auth/AuthContext', () => ({
  * byline, figure nouns and the view rail's glyphs + names (+18, constant).
  * The Contents/main-column layout then wrapped the toolbar and layer in the
  * main column and put the stream under a counted "Bookmarks" section head,
- * dropping the toolbar's inner row (+3, constant).
+ * dropping the toolbar's inner row (+3, constant). The self-hosted prune then
+ * removed the hosted-service masthead controls (Subscribe until D8, Embed,
+ * Report, the curator hover card) and the server-sort rail (-19, constant).
  */
 // The signed-in export menu is a wrapper plus its button (two elements).
-const EXPECTED_ELEMENTS: Record<number, number> = { 100: 1_402, 500: 6_602, 2000: 26_102 }
+const EXPECTED_ELEMENTS: Record<number, number> = { 100: 1_383, 500: 6_583, 2000: 26_083 }
 
 describe('public Collection render cost by size', () => {
   beforeEach(setUpCollectionPage)

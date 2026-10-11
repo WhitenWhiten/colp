@@ -22,7 +22,6 @@ import {
   type AnnotationSubjectLocator,
 } from '../lib/useAnnotationWorkflow'
 import workflowSource from '../lib/useAnnotationWorkflow.ts?raw'
-import readerSource from '../pages/Reader.tsx?raw'
 import resourceDetailSource from '../pages/ResourceDetail.tsx?raw'
 import { cleanup, mountTree, waitForDom } from '../test/render'
 import generatedBridgeSource from '../generated/product-v1.ts?raw'
@@ -202,28 +201,22 @@ describe('P2B-09 Annotation frontend boundary', () => {
       expect(transportSources).toContain('AnnotationView')
       /* Every Annotation surface reaches the API through the public barrel;
          deep imports into the transport/client modules exist nowhere. */
-      for (const [name, source] of [['Reader', readerSource], ['ResourceDetail', resourceDetailSource], ['useAnnotationWorkflow', workflowSource]] as const) {
+      for (const [name, source] of [['ResourceDetail', resourceDetailSource], ['useAnnotationWorkflow', workflowSource]] as const) {
         expect(source, name).toMatch(/from\s+['"]\.\.\/api['"]/u)
       }
-      for (const [name, source] of [['Reader', readerSource], ['ResourceDetail', resourceDetailSource]] as const) {
-        expect(source, name).not.toMatch(/from\s+['"]\.\.\/api\/(?:product-transport|productClient|types)['"]/u)
-        expect(source, name).not.toContain('dangerouslySetInnerHTML')
-      }
+      expect(resourceDetailSource).not.toMatch(/from\s+['"]\.\.\/api\/(?:product-transport|productClient|types)['"]/u)
+      expect(resourceDetailSource).not.toContain('dangerouslySetInnerHTML')
     })
 
     it('ships the narrow Annotation capability only with accepted independent evidence', () => {
       expect(isLive('annotations')).toBe(true)
       expect(featureFlagsSource).toMatch(/annotations:\s*true/u)
-      expect(featureFlagsSource).toContain('accepted after independent acceptance')
       expect(acceptanceEvidence).toContain('Result: **Accepted**')
       expect(acceptanceEvidence).not.toContain('Pending independent acceptance')
     })
 
-    it('does not add Relation to Reader or reading-state/AI authoring to Annotation surfaces', () => {
-      expect(readerSource).not.toMatch(/\bcreateRelation\b/iu)
-      for (const [name, source] of [['Reader', readerSource], ['ResourceDetail', resourceDetailSource]] as const) {
-        expect(source, name).not.toMatch(/\b(?:reading_state|readingState|generateAnnotation|aiProvider)\b/iu)
-      }
+    it('does not add reading-state/AI authoring to Annotation surfaces', () => {
+      expect(resourceDetailSource).not.toMatch(/\b(?:reading_state|readingState|generateAnnotation|aiProvider)\b/iu)
     })
   })
 })

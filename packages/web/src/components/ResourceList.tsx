@@ -102,8 +102,6 @@ type Props = {
  * .result-board grid (R10-01).
  * Slots: rows read mark → title → mid → host; board cards lead with a
  * mark + host rail, then title, description and an optional path strip.
- * Explore CollectionCard is `.result-card--collection` (raised discovery) —
- * do not reuse this row there.
  */
 export function ResourceList({ items, mode, streamRef, collectionView, testId }: Props) {
   if (mode === 'gallery') {

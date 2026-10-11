@@ -2,13 +2,10 @@
  * Shared Product transport types. Domain transport modules and the barrel
  * import from here so they never import `./product-transport`.
  */
-import type { components } from '../generated/product-v1'
 import type {
   AnnotationMergePatch,
   AnnotationPage,
   AnnotationView,
-  BookmarkFaviconSource,
-  BookmarkNodeView,
   CollectionMergePatch,
   CollectionKind,
   CollectionVisibility,
@@ -17,12 +14,6 @@ import type {
   CreateAnnotationRequest,
   CreateNodeRequest,
   CreateNodeResult,
-  FaviconCreateIconJobRequest,
-  FaviconIconJob,
-  FaviconIconJobAccepted,
-  FaviconIconPolicy,
-  FaviconIconPolicyPatch,
-  FaviconPolicyResult,
   DeleteNodeResult,
   DeleteAnnotationResult,
   CreateRelationRequest,
@@ -35,22 +26,11 @@ import type {
   OwnedCollectionPage,
   NodeMergePatch,
   PublicCollectionPage,
-  PublicProfilePage,
   RelationDirection,
   RelationMergePatch,
   RelationPage,
   RelationType,
   RelationView,
-  ReadingProgressMutationResult,
-  ReadingProgressPage,
-  ReadingProgressResourceType,
-  ReadingProgressStatus,
-  ReadingProgressUpdate,
-  ReadingProgressView,
-  SavedResourcePage,
-  SavedResourceType,
-  SetBookmarkFaviconSourceRequest,
-  SaveResourceResult,
   SearchPage,
   SearchResourceType,
   SessionView,
@@ -64,25 +44,11 @@ import type {
   LinkHealthChecksRequest,
   LinkHealthPage,
   LinkHealthStatus,
-  ClassifyInboxAcceptReceipt,
-  ClassifyInboxAcceptRequest,
-  ClassifyInboxDecisionReceipt,
-  ClassifyInboxPage,
-  ClassifyInboxSkipRequest,
-  ExportJob,
-  ExportJobPage,
-  ExportLibraryDocument,
-  OrganizePlan,
-  OrganizePlanApplyReceipt,
-  OrganizePlanApplyRequest,
-  OrganizePlanCreateRequest,
   CollectionVersion,
   CollectionVersionCreateRequest,
   CollectionVersionPage,
   CollectionVersionRestoreReceipt,
   CollectionVersionRestoreRequest,
-  ReadableReplicaExtractRequest,
-  ReadableReplicaView,
   ProductSyncConflictResolution,
   ProductSyncConflictResolutionView,
   ProductSyncReplicaRetirementView,
@@ -95,15 +61,7 @@ import type {
   SyncTrashRestoreView,
   UpdateCollectionResult,
   UpdateNodeResult,
-  ExploreParams,
-  ExplorePage,
-  CollectionChildrenPage,
-  CreditLedgerEntryResponse,
-  CreditLedgerPage,
-  CreditOverview,
 } from './types'
-
-type PublicProfileActivityPage = components['schemas']['PublicProfileActivityPage']
 
 export type ProductTransportOptions = {
   /**
@@ -149,22 +107,6 @@ export type OwnedCollectionPageParams = {
   signal?: AbortSignal
 }
 
-export type CollectionChildrenSort = 'curated' | 'created_asc' | 'created_desc'
-
-export type CollectionChildrenPageParams = {
-  parentId?: string
-  sort?: CollectionChildrenSort
-  limit?: number
-  cursor?: string
-  signal?: AbortSignal
-}
-
-export type PublicProfilePageParams = {
-  limit?: number
-  cursor?: string
-  signal?: AbortSignal
-}
-
 export type AnnotationSubjectParams = {
   resourceType: 'collection' | 'node'
   resourceId: string
@@ -185,38 +127,6 @@ export type RelationListParams = {
 
 export type SessionCallOptions = {
   csrfToken?: string
-  signal?: AbortSignal
-}
-
-/**
- * Cloud credit-ledger query. GET /api/v1/me/credits/ledger is not in the
- * trimmed edition document, so this is not indexed from `operations`.
- */
-export type CreditLedgerListParams = {
-  limit?: number
-  cursor?: string
-  kind?: 'grant' | 'reserve' | 'spend' | 'release' | 'expire' | 'refund' | 'topup' | 'payment_refund'
-  from?: string
-  to?: string
-  chargeId?: string
-  runId?: string
-  signal?: AbortSignal
-}
-
-export type SavedResourceListParams = {
-  resourceType?: SavedResourceType
-  collectionId?: string
-  createdAfter?: string
-  createdBefore?: string
-  limit?: number
-  cursor?: string
-  signal?: AbortSignal
-}
-
-export type ReadingProgressListParams = {
-  status?: ReadingProgressStatus
-  limit?: number
-  cursor?: string
   signal?: AbortSignal
 }
 
@@ -248,12 +158,6 @@ export type LinkHealthListParams = {
   signal?: AbortSignal
 }
 
-export type ClassifyInboxListParams = {
-  limit?: number
-  cursor?: string
-  signal?: AbortSignal
-}
-
 export type SearchParams = {
   q: string
   types?: SearchResourceType[]
@@ -262,60 +166,12 @@ export type SearchParams = {
   signal?: AbortSignal
 }
 
-export type Etagged<T> = T & { etag: string }
-
 export type ProductTransport = {
-  requestCollectionLinkPreviews: (collectionId: string, nodeIds: readonly string[], opts: MutationCallOptions) =>
-    Promise<import('./types').LinkPreviewRequestAccepted>
-  getBookmarkPreviewMode: (collectionId: string, nodeId: string, signal?: AbortSignal) =>
-    Promise<import('./types').BookmarkPreviewModeView>
-  setBookmarkPreviewMode: (
-    collectionId: string,
-    nodeId: string,
-    mode: import('./types').BookmarkPreviewModeView['mode'],
-    opts: MutationCallOptions & { ifMatch: string },
-  ) => Promise<import('./types').BookmarkPreviewModeView>
-  getMyFaviconPolicy: (signal?: AbortSignal) => Promise<FaviconIconPolicy & { etag: string }>
-  updateMyFaviconPolicy: (
-    patch: FaviconIconPolicyPatch,
-    opts: MutationCallOptions & { ifMatch: string },
-  ) => Promise<FaviconPolicyResult>
-  getBookmarkFaviconSource: (collectionId: string, nodeId: string, signal?: AbortSignal) =>
-    Promise<BookmarkFaviconSource & { etag: string }>
-  setBookmarkFaviconSource: (
-    collectionId: string,
-    nodeId: string,
-    body: SetBookmarkFaviconSourceRequest,
-    opts: MutationCallOptions & { ifMatch: string },
-  ) => Promise<BookmarkFaviconSource>
-  refreshBookmarkFavicon: (
-    collectionId: string,
-    nodeId: string,
-    opts: MutationCallOptions & { ifMatch: string },
-  ) => Promise<FaviconIconJobAccepted>
-  createMyFaviconJob: (
-    body: FaviconCreateIconJobRequest,
-    opts: MutationCallOptions,
-  ) => Promise<FaviconIconJobAccepted>
-  getMyFaviconJob: (jobId: string, signal?: AbortSignal) => Promise<FaviconIconJob>
-  retryMyFaviconJob: (jobId: string, opts: MutationCallOptions) => Promise<FaviconIconJobAccepted>
   getSession: (opts?: SessionCallOptions) => Promise<SessionView>
-  getMyCredits: (signal?: AbortSignal) => Promise<CreditOverview>
-  listMyCreditLedger: (params?: CreditLedgerListParams) => Promise<CreditLedgerPage>
-  getMyCreditLedgerEntry: (entryId: string, signal?: AbortSignal) => Promise<CreditLedgerEntryResponse>
   getMe: (opts?: SessionCallOptions) => Promise<MeView>
   updateMe: (body: UpdateMeRequest, opts: MutationCallOptions) => Promise<MeView>
-  uploadAvatar: (file: File, opts: MutationCallOptions) => Promise<MeView>
   deleteSession: (opts: { csrfToken: string; signal?: AbortSignal }) => Promise<void>
-  listSavedResources: (params?: SavedResourceListParams) => Promise<SavedResourcePage>
-  saveResource: (resourceType: SavedResourceType, resourceId: string, opts: MutationCallOptions) => Promise<SaveResourceResult>
-  unsaveResource: (resourceType: SavedResourceType, resourceId: string, opts: MutationCallOptions) => Promise<void>
-  listReadingProgress: (params?: ReadingProgressListParams) => Promise<ReadingProgressPage>
-  getReadingProgress: (resourceType: ReadingProgressResourceType, resourceId: string, signal?: AbortSignal) => Promise<ReadingProgressView | null>
-  putReadingProgress: (resourceType: ReadingProgressResourceType, resourceId: string, body: ReadingProgressUpdate, opts: MutationCallOptions) => Promise<Etagged<ReadingProgressMutationResult>>
-  resetReadingProgress: (resourceType: ReadingProgressResourceType, resourceId: string, opts: MutationCallOptions) => Promise<void>
   searchResources: (params: SearchParams) => Promise<SearchPage>
-  listExploreCollections: (params?: ExploreParams) => Promise<ExplorePage>
   getSyncStatus: (signal?: AbortSignal) => Promise<SyncStatusView>
   listSyncConflicts: (params?: SyncConflictListParams) => Promise<SyncConflictPage>
   resolveSyncConflict: (conflictId: string, body: ProductSyncConflictResolution, opts: MutationCallOptions) => Promise<ProductSyncConflictResolutionView>
@@ -338,40 +194,6 @@ export type ProductTransport = {
     body: LinkHealthChecksRequest,
     opts: MutationCallOptions,
   ) => Promise<LinkHealthChecksReceipt>
-  getMyClassifyInbox: (params?: ClassifyInboxListParams) => Promise<ClassifyInboxPage>
-  skipMyClassifyInboxItem: (
-    nodeId: string,
-    body: ClassifyInboxSkipRequest,
-    opts: MutationCallOptions,
-  ) => Promise<ClassifyInboxDecisionReceipt>
-  acceptMyClassifyInboxItem: (
-    nodeId: string,
-    body: ClassifyInboxAcceptRequest,
-    opts: MutationCallOptions & { ifMatch: string },
-  ) => Promise<ClassifyInboxAcceptReceipt>
-  listMyExportJobs: (opts?: { signal?: AbortSignal }) => Promise<ExportJobPage>
-  createMyExportJob: (opts: MutationCallOptions) => Promise<ExportJob>
-  getMyExportJob: (jobId: string, opts?: { signal?: AbortSignal }) => Promise<ExportJob>
-  downloadMyExportJob: (
-    jobId: string,
-    opts?: { signal?: AbortSignal },
-  ) => Promise<ExportLibraryDocument>
-  createCollectionOrganizePlan: (
-    collectionId: string,
-    body: OrganizePlanCreateRequest,
-    opts: MutationCallOptions,
-  ) => Promise<OrganizePlan>
-  getCollectionOrganizePlan: (
-    collectionId: string,
-    planId: string,
-    opts?: { signal?: AbortSignal },
-  ) => Promise<OrganizePlan>
-  applyCollectionOrganizePlan: (
-    collectionId: string,
-    planId: string,
-    body: OrganizePlanApplyRequest,
-    opts: MutationCallOptions & { ifMatch: string },
-  ) => Promise<OrganizePlanApplyReceipt>
   createCollectionVersion: (
     collectionId: string,
     body: CollectionVersionCreateRequest,
@@ -392,22 +214,7 @@ export type ProductTransport = {
     body: CollectionVersionRestoreRequest,
     opts: MutationCallOptions & { ifMatch: string },
   ) => Promise<CollectionVersionRestoreReceipt>
-  getNodeReadableReplica: (
-    collectionId: string,
-    nodeId: string,
-    signal?: AbortSignal,
-  ) => Promise<ReadableReplicaView>
-  enqueueNodeReadableExtract: (
-    collectionId: string,
-    nodeId: string,
-    body: ReadableReplicaExtractRequest,
-    opts: MutationCallOptions,
-  ) => Promise<ReadableReplicaView>
   listOwnedCollections: (params?: OwnedCollectionPageParams) => Promise<OwnedCollectionPage>
-  listCollectionChildren: (
-    collectionId: string,
-    params?: CollectionChildrenPageParams,
-  ) => Promise<CollectionChildrenPage>
   createCollection: (
     body: CreateCollectionRequest,
     opts: MutationCallOptions,
@@ -417,14 +224,6 @@ export type ProductTransport = {
     slug: string,
     params?: PublicCollectionPageParams,
   ) => Promise<PublicCollectionPage>
-  getPublicProfilePage: (
-    handle: string,
-    params?: PublicProfilePageParams,
-  ) => Promise<PublicProfilePage>
-  getPublicProfileActivity: (
-    handle: string,
-    params?: PublicProfilePageParams,
-  ) => Promise<PublicProfileActivityPage>
   listAnnotations: (collectionId: string, params: AnnotationSubjectParams) => Promise<AnnotationPage>
   getAnnotation: (collectionId: string, annotationId: string, signal?: AbortSignal) => Promise<AnnotationView>
   createAnnotation: (
@@ -445,7 +244,6 @@ export type ProductTransport = {
     opts: MutationCallOptions,
   ) => Promise<DeleteAnnotationResult>
   listRelations: (collectionId: string, params: RelationListParams) => Promise<RelationPage>
-  getRelation: (collectionId: string, relationId: string, signal?: AbortSignal) => Promise<RelationView>
   createRelation: (collectionId: string, body: CreateRelationRequest, opts: MutationCallOptions) => Promise<RelationView>
   updateRelation: (collectionId: string, relationId: string, body: RelationMergePatch, opts: MutationCallOptions) => Promise<RelationView>
   deleteRelation: (collectionId: string, relationId: string, opts: MutationCallOptions) => Promise<DeleteRelationResult>
@@ -476,15 +274,4 @@ export type ProductTransport = {
     nodeId: string,
     opts: DeleteNodeOptions,
   ) => Promise<DeleteNodeResult | void>
-  uploadBookmarkFavicon: (
-    collectionId: string,
-    nodeId: string,
-    file: File,
-    opts: MutationCallOptions,
-  ) => Promise<BookmarkNodeView>
-  deleteBookmarkFavicon: (
-    collectionId: string,
-    nodeId: string,
-    opts: MutationCallOptions,
-  ) => Promise<BookmarkNodeView>
 }

@@ -32,14 +32,12 @@ describe('KNS-11 trash surface boundary', () => {
     expect(read('pages/sync/view.tsx')).toContain("from './trash'")
   })
 
-  it('keeps trash out of popup save targets, public share, and normal search', () => {
-    const popup = read('pages/ExtensionPopup.tsx')
+  it('keeps trash out of normal search and the public collection page', () => {
     const search = read('pages/Search.tsx')
-    const share = read('pages/share/CollectionShare.tsx')
-    expect(popup).not.toMatch(/sync\/trash|Deleted items|Show URL/u)
+    const publicCollection = read('pages/Collection.tsx')
     expect(search).not.toMatch(/trash|Deleted items/u)
     expect(search).toContain("value: 'collection'")
     expect(search).toContain("value: 'node'")
-    expect(share).not.toMatch(/sync\/trash|Deleted items/u)
+    expect(publicCollection).not.toMatch(/sync\/trash|Deleted items/u)
   })
 })

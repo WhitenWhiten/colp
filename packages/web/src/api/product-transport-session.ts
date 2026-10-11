@@ -4,7 +4,6 @@ import type { MeView, SessionView, UpdateMeRequest } from './types'
 
 export function createSessionTransport(http: ProductTransportHttp) {
   const { request, mutationHeaders, origin } = http
-
   return {
     async getSession(opts?: SessionCallOptions) {
       return request<SessionView>({
@@ -45,16 +44,6 @@ export function createSessionTransport(http: ProductTransportHttp) {
         headers: mutationHeaders(opts),
         body,
         contentType: 'application/json',
-        signal: opts.signal,
-      })
-    },
-
-    async uploadAvatar(file: File, opts: MutationCallOptions) {
-      return request<MeView>({
-        method: 'POST',
-        path: '/api/v1/me/avatar',
-        headers: mutationHeaders(opts, { 'Content-Type': file.type || 'application/octet-stream' }),
-        rawBody: file,
         signal: opts.signal,
       })
     },

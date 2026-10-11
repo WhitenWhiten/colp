@@ -30,7 +30,6 @@ function LoginProbe() {
 }
 
 describe('AuthRecovery', () => {
-
   beforeEach(() => {
     document.body.innerHTML = '<div id="root"></div>'
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -50,14 +49,13 @@ describe('AuthRecovery', () => {
           <Routes>
             <Route path="/auth/recovery" element={<AuthRecovery />} />
             <Route path="/login" element={<LoginProbe />} />
-            <Route path="/verify-email" element={<div data-testid="page-verify" />} />
             <Route path="/library" element={<div data-testid="page-library" />} />
           </Routes>
         </MemoryRouter>,
       )
   }
 
-  it('explains a failed OAuth callback and links back to login with the safe returnTo', async () => {
+  it('explains a failed sign-in and links back to login with the safe returnTo', async () => {
     render('/auth/recovery?auth=failed&returnTo=%2Flibrary')
     expect(document.body.textContent).toContain('Sign-in failed')
     expect(document.body.textContent).toContain('Your session was not created')
@@ -81,32 +79,6 @@ describe('AuthRecovery', () => {
     expect(document.querySelector('[data-testid="page-login"]')).not.toBeNull()
     // Recovery never bootstraps a session by itself.
     expect(mocks.auth.refreshSession).not.toHaveBeenCalled()
-  })
-
-  it('asks the user to verify their email for verification_required', async () => {
-    render('/auth/recovery?error=verification_required')
-    expect(document.body.textContent).toContain('Verify your email')
-
-    await act(async () => {
-      document.querySelector<HTMLButtonElement>('button[data-testid="recovery-verify"]')!.click()
-    })
-    expect(document.querySelector('[data-testid="page-verify"]')).not.toBeNull()
-  })
-
-  it('explains explicit account linking for link_required', async () => {
-    render('/auth/recovery?error=link_required')
-    expect(document.body.textContent).toContain('Account linking required')
-    expect(document.body.textContent).toContain('Sign in with your email')
-
-    await act(async () => {
-      document.querySelector<HTMLButtonElement>('button[data-testid="recovery-login"]')!.click()
-    })
-    expect(document.querySelector('[data-testid="page-login"]')).not.toBeNull()
-  })
-
-  it('handles account_link_required the same way', async () => {
-    render('/auth/recovery?error=account_link_required')
-    expect(document.body.textContent).toContain('Account linking required')
   })
 
   it('falls back to /library when returnTo is cross-origin', async () => {

@@ -21,7 +21,6 @@ vi.mock('../api', async (importOriginal) => {
   return {
     ...actual,
     isLive: () => false,
-    isCommunityExposureEnabled: () => false,
     productClient: {
       ...actual.productClient,
       loadEditorSnapshot: mocks.loadEditorSnapshot,
@@ -108,8 +107,6 @@ describe('ResourceDetail favicon CDN gate', () => {
     expect(document.querySelector('[data-testid="domain-mark"]')).not.toBeNull()
     expect(markSrcs()).toEqual([])
     expect(document.body.innerHTML).not.toContain('favicon.im')
-    // A private desk bookmark is the viewer's own; nothing to report.
-    expect(document.querySelector('[data-testid="report-bookmark"]')).toBeNull()
   })
 
   it('still uses the CDN on a public projection with the collection gate open', async () => {
@@ -117,8 +114,6 @@ describe('ResourceDetail favicon CDN gate', () => {
     mountAt(`/r/${NODE_ID}?slug=public`)
     await waitForDom(domFinishedLoading)
     expect(markSrcs()).toEqual(['https://a.favicon.im/public.example?throw-error-on-404=true'])
-    // R15-11: public bookmark pages carry a report path.
-    expect(document.querySelector('[data-testid="report-bookmark"]')?.textContent).toBe('Report')
   })
 
   it('honours the collection gate and the per-node opt-out on public projections', async () => {

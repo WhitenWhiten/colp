@@ -6,17 +6,11 @@ import { useAuth } from '../auth/AuthContext'
 import { useToast } from './AppToast'
 import { OPEN_SEARCH_PALETTE_EVENT } from '../lib/searchPaletteEvents'
 import { SITE_SEARCH_PLACEHOLDER } from '../lib/searchCopy'
-import { isCommunityExposureEnabled, isLive, isNotificationExposureEnabled, isWriteApprovalsExposureEnabled } from '../api'
-// Straight from the flag module: route tests that mock the '../api' barrel
-// keep their tool list.
-import { isAiOrganizeExposureEnabled, isClassifyInboxExposureEnabled, isLinkHealthExposureEnabled } from '../api/featureFlags'
 import { useServerFeatureUnavailable } from '../lib/serverFeatureAvailability'
-import { useUnreadCount } from '../lib/unreadBadgeStore'
 import { useBodyScrollLock } from '../lib/useBodyScrollLock'
 import { useExitAnimation } from '../lib/useExitAnimation'
 import { useFocusTrap } from '../lib/useFocusTrap'
-import { APP_NAV, MARKETING_NAV, isAppNavActive, isAuthPath, loginPath } from '../lib/chrome'
-import { isSelfHostedEdition, isSelfHostedPathEnabled } from '../lib/edition'
+import { APP_NAV, isAppNavActive, isAuthPath, loginPath } from '../lib/chrome'
 import { searchShortcutLabel } from '../lib/shortcutLabel'
 import { useSettingsDialog } from '../lib/useSettingsDialog'
 import { AccountMenu } from './topnav/AccountMenu'
@@ -30,31 +24,9 @@ const SearchPalette = lazyWithRetry('SearchPalette', async () => (await import('
 const SESSION_TOOLS = [
   { to: '/extension', label: 'Extension' },
   { to: '/sync', label: 'Sync center' },
-  { to: '/classify', label: 'Classify inbox' },
   { to: '/library/health', label: 'Link health' },
   { to: '/import', label: 'Import' },
-  { to: '/ai/organize', label: 'AI organize' },
 ] as const
-
-/* Links are not authorization: the console pages server-403 into a
-   forbidden RouteState for non-reviewers, so the entries are safe to
-   list for any signed-in user (same posture the cases page lede states). */
-const GOVERNANCE_TOOLS = [
-  { to: '/moderation/reports', label: 'My content reports', group: 'Moderation' },
-  { to: '/moderation/appeals', label: 'My appeals', group: 'Moderation' },
-  { to: '/admin/moderation/cases', label: 'Moderation cases', group: 'Moderation' },
-  { to: '/admin/moderation/appeals', label: 'Moderation appeals', group: 'Moderation' },
-] as const
-
-const GUEST_TOOLS = SESSION_TOOLS.filter((item) => item.to === '/extension')
-
-/** Client exposure flags for tools whose pages otherwise render "not
-    available yet" (Batch classification is gated the same way in Classify). */
-const TOOL_EXPOSURE: Partial<Record<string, () => boolean>> = {
-  '/classify': isClassifyInboxExposureEnabled,
-  '/library/health': isLinkHealthExposureEnabled,
-  '/ai/organize': isAiOrganizeExposureEnabled,
-}
 
 function navClass(to: string, pathname: string) {
   return isAppNavActive(to, pathname) ? 'is-active' : undefined
@@ -77,17 +49,6 @@ export function TopNav() {
   const navigate = useNavigate()
   const { user, isLoggedIn, logout } = useAuth()
   const { toast, error: toastError } = useToast()
-  const notificationExposure = isLoggedIn && isNotificationExposureEnabled()
-  const communityExposure = isLoggedIn && isCommunityExposureEnabled()
-  const writeApprovalsExposure = isLoggedIn && isWriteApprovalsExposureEnabled()
-  /* One bell means "anything new to read": UnreadBadgeFeed merges the
-     activity and community unread streams once for both navs. */
-  const published = useUnreadCount()
-  const mergedUnread = notificationExposure || communityExposure ? published : 0
-  const notificationLabel = mergedUnread > 0
-    ? `Notifications, ${mergedUnread} unread`
-    : 'Notifications'
-  const unreadCount = notificationExposure || communityExposure ? mergedUnread : null
   const [scrolled, setScrolled] = useState(false)
   useBodyScrollLock(menuOpen)
   // Exit phase: the drawer stays mounted one beat with .is-closing so its
@@ -95,29 +56,18 @@ export function TopNav() {
   // (.is-menu-open) until the drawer has finished leaving.
   const { mounted: menuMounted, closing: menuClosing } = useExitAnimation(menuOpen)
   const drawerTrapRef = useFocusTrap<HTMLElement>(menuMounted && !menuClosing)
-  // Feature-off dead ends: entries whose client flag is off are hidden;
   // Sync's availability is only known after its first request, so it stays
   // listed and turns "Not available" once the server said so.
   const syncUnavailable = useServerFeatureUnavailable('sync')
-  const sessionTools: ToolItem[] = SESSION_TOOLS
-    .filter((item) => isSelfHostedPathEnabled(item.to))
-    .filter((item) => TOOL_EXPOSURE[item.to]?.() ?? true)
-    .map((item) => (item.to === '/sync' && syncUnavailable ? { ...item, unavailable: true } : item))
-  const governanceTools = GOVERNANCE_TOOLS.filter((item) => isSelfHostedPathEnabled(item.to))
-  // A self-hosted guest can only sign in; the tools need the owner's session.
-  const toolItems = isLoggedIn
-    ? (isLive('contentGovernance') ? [...sessionTools, ...governanceTools] : sessionTools)
-    : (isSelfHostedEdition() ? [] : GUEST_TOOLS)
+  // A guest can only sign in; the tools need the owner's session.
+  const toolItems: ToolItem[] = isLoggedIn
+    ? SESSION_TOOLS.map((item) => (item.to === '/sync' && syncUnavailable ? { ...item, unavailable: true } : item))
+    : []
 
   const authRoute = isAuthPath(location.pathname)
   const showChrome = !authRoute
-  const navItems = (isLoggedIn ? APP_NAV : MARKETING_NAV).filter((item) => isSelfHostedPathEnabled(item.to))
-  const primaryNav = isSelfHostedEdition() && isLoggedIn
-    ? [...navItems, { to: '/agents', label: 'Agents' }]
-    : navItems
+  const primaryNav = isLoggedIn ? APP_NAV : []
   const showLogin = !isLoggedIn && location.pathname !== '/login'
-  // Self-hosted sign-up is first-run only; the sign-in page links to it then.
-  const showRegister = !isLoggedIn && !isSelfHostedEdition() && location.pathname !== '/register'
 
   useEffect(() => {
     const sync = () => setScrolled(window.scrollY > 8)
@@ -187,7 +137,8 @@ export function TopNav() {
       <header ref={drawerTrapRef} className={topNavClasses}>
         <div className="topnav-inner">
           <Brand />
-          {showChrome && (
+          {/* Guests have no primary destinations: no empty landmark either. */}
+          {showChrome && primaryNav.length > 0 && (
             <nav className="nav-links" aria-label="Primary">
               {primaryNav.map((l) => (
                 <NavLink
@@ -196,13 +147,7 @@ export function TopNav() {
                   end={l.to !== '/library'}
                   className={() => {
                     const active = navClass(l.to, location.pathname)
-                    /* Today is BottomNav's first destination and the desktop
-                       primary's first item — keep it in the 720–1099 core row
-                       so tablet chrome does not drop the product's lead tab. */
-                    const slot = l.to === '/today' || l.to === '/explore' || l.to === '/library' || l.to === '/agents'
-                      ? 'nav-link-core'
-                      : 'nav-link-rest'
-                    return [active, slot].filter(Boolean).join(' ')
+                    return [active, 'nav-link-core'].filter(Boolean).join(' ')
                   }}
                   aria-current={isAppNavActive(l.to, location.pathname) ? 'page' : undefined}
                   onPointerEnter={() => prefetchRoute(l.to)}
@@ -231,7 +176,7 @@ export function TopNav() {
               <button
                 type="button"
                 className="nav-search-compact"
-                aria-label={isSelfHostedEdition() ? 'Search' : 'Search Know-N'}
+                aria-label="Search"
                 aria-haspopup="dialog"
                 aria-expanded={searchOpen}
                 onClick={() => setSearchOpen(true)}
@@ -254,23 +199,9 @@ export function TopNav() {
               />
             )}
 
-            {isLoggedIn && isSelfHostedPathEnabled('/notifications') && (
-              <Link
-                to="/notifications"
-                className="nav-icon-btn"
-                aria-label={notificationLabel}
-                title={notificationLabel}
-              >
-                <Icon name="bell" />
-                {mergedUnread > 0 && <span className="badge-dot" aria-hidden />}
-              </Link>
-            )}
-
             {isLoggedIn && user ? (
               <AccountMenu
                 user={user}
-                unreadCount={unreadCount}
-                showWriteApprovals={writeApprovalsExposure}
                 open={accountOpen}
                 triggerRef={accountTriggerRef}
                 onToggle={() => {
@@ -284,21 +215,11 @@ export function TopNav() {
                 }}
               />
             ) : (
-              <>
-                {showLogin && (
-                  <Link
-                    to={loginPath(location.pathname, location.search)}
-                    className={isSelfHostedEdition() ? 'btn btn-primary btn-sm' : 'btn btn-ghost btn-sm'}
-                  >
-                    {isSelfHostedEdition() ? 'Sign in' : 'Log in'}
-                  </Link>
-                )}
-                {showRegister && (
-                  <Link to="/register" className="btn btn-primary btn-sm">
-                    Get started
-                  </Link>
-                )}
-              </>
+              showLogin && (
+                <Link to={loginPath(location.pathname, location.search)} className="btn btn-primary btn-sm">
+                  Sign in
+                </Link>
+              )
             )}
 
             {showChrome && (
@@ -325,11 +246,8 @@ export function TopNav() {
           <MobileDrawer
             toolItems={toolItems}
             isLoggedIn={isLoggedIn}
-            user={user}
-            showWriteApprovals={writeApprovalsExposure}
             showLogin={showLogin}
             loginTo={loginPath(location.pathname, location.search)}
-            showRegister={showRegister}
             closing={menuClosing}
             onOpenSearch={() => {
               burgerRef.current?.focus({ preventScroll: true })

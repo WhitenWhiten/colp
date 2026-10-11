@@ -13,7 +13,6 @@
  * featured-resources, medium.com rows). A fallback import that the driven path
  * never reaches would still ship, so its absence is asserted on the module.
  */
-import { act } from 'react'
 import { MemoryRouter, Route, Routes, useParams } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearRouteCache } from './routeCache'
@@ -52,23 +51,16 @@ const FOLDER_ID = 'nd-col-u01-01-f01'
 describe('resource primary target', () => {
   const query = { collectionId: 'col/a', subjectType: 'node' }
 
-  it('uses Reader only while the shared exposure gate is enabled', () => {
-    expect(resourcePrimaryTarget('node/a', 'https://example.com', query, true)).toEqual({
-      kind: 'internal',
-      to: '/read/node%2Fa?collectionId=col%2Fa&subjectType=node',
-    })
-  })
-
-  it('opens safe originals and falls back to details while Reader is off', () => {
-    expect(resourcePrimaryTarget('node/a', 'https://example.com/article', query, false)).toEqual({
+  it('opens safe originals and falls back to details', () => {
+    expect(resourcePrimaryTarget('node/a', 'https://example.com/article', query)).toEqual({
       kind: 'external',
       href: 'https://example.com/article',
     })
-    expect(resourcePrimaryTarget('node/a', 'javascript:alert(1)', query, false)).toEqual({
+    expect(resourcePrimaryTarget('node/a', 'javascript:alert(1)', query)).toEqual({
       kind: 'internal',
       to: '/r/node%2Fa?collectionId=col%2Fa&subjectType=node',
     })
-    expect(resourcePrimaryTarget('node/a', null, query, false)).toEqual({
+    expect(resourcePrimaryTarget('node/a', null, query)).toEqual({
       kind: 'internal',
       to: '/r/node%2Fa?collectionId=col%2Fa&subjectType=node',
     })

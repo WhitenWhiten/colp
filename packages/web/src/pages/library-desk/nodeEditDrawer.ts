@@ -3,7 +3,6 @@ import type { NavigateFunction } from 'react-router-dom'
 import {
   isProductApiError,
   productClient,
-  type AnnotationVisibility,
   type EditableNodeView,
   type EditorSnapshot,
 } from '../../api'
@@ -16,15 +15,9 @@ import { useNodeAnnotationDraft } from '../../lib/useNodeAnnotationDraft'
 export const NODE_TITLE_MAX = 512
 export const NODE_URL_MAX = 4096
 export const NODE_DESCRIPTION_MAX = 20000
-const BOOKMARK_FAVICON_MAX_BYTES = 65536
 
 const sameTags = (a: readonly string[], b: readonly string[]) =>
   a.length === b.length && a.every((tag, index) => tag === b[index])
-
-function isDeclaredRejectedFaviconType(type: string): boolean {
-  const declared = type.trim().toLowerCase()
-  return declared.includes('svg') || declared.includes('gif') || declared.includes('html')
-}
 
 export type NodeEditDrawerOptions = {
   snap: EditorSnapshot | null
@@ -89,7 +82,6 @@ export function useNodeEditDrawer({
     () => countTags((snap?.nodes ?? []).filter((candidate) => candidate.kind === 'bookmark')),
     [snap],
   )
-  const [faviconBusy, setFaviconBusy] = useState(false)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
 
@@ -199,55 +191,9 @@ export function useNodeEditDrawer({
     }
   }, [annotations, description, error, handleError, loadTree, node, nodeDirty, saving, snap, tagDraft, tagVocabulary, tags, title, url])
 
-  const uploadFavicon = useCallback(async (file: File | undefined) => {
-    if (!snap || !node || node.kind !== 'bookmark' || !file) return
-    if (!snap.capabilities.updateNode || node.readOnly) return
-    if (file.size > BOOKMARK_FAVICON_MAX_BYTES) {
-      error('Icons must be 64 KB or smaller')
-      return
-    }
-    if (isDeclaredRejectedFaviconType(file.type)) {
-      error('Favicon cannot be SVG, GIF, or HTML')
-      return
-    }
-    setFaviconBusy(true)
-    try {
-      const intentId = productClient.mutationIntentKey(
-        `upload-favicon:${snap.collection.id}:${node.id}`,
-        productClient.newCommandId(),
-      )
-      await productClient.uploadBookmarkFavicon(snap.collection.id, node.id, file, { intentId })
-      await loadTree(snap.collection.id, { silent: true })
-      success('Favicon updated')
-    } catch (err) {
-      await handleError(err, 'Could not upload this favicon')
-    } finally {
-      setFaviconBusy(false)
-    }
-  }, [error, handleError, loadTree, node, snap, success])
-
-  const removeFavicon = useCallback(async () => {
-    if (!snap || !node || node.kind !== 'bookmark') return
-    if (!snap.capabilities.updateNode || node.readOnly) return
-    setFaviconBusy(true)
-    try {
-      const intentId = productClient.mutationIntentKey(
-        `delete-favicon:${snap.collection.id}:${node.id}`,
-        productClient.newCommandId(),
-      )
-      await productClient.deleteBookmarkFavicon(snap.collection.id, node.id, { intentId })
-      await loadTree(snap.collection.id, { silent: true })
-      success('Favicon removed')
-    } catch (err) {
-      await handleError(err, 'Could not remove this favicon')
-    } finally {
-      setFaviconBusy(false)
-    }
-  }, [handleError, loadTree, node, snap, success])
-
   /** The drawer's own status line, with the Annotation state machine winning
       whenever it is the surface that needs attention. */
-  const status = saving || faviconBusy
+  const status = saving
     ? message || 'Saving…'
     : ['saving', 'unknown', 'stale', 'conflict', 'error'].includes(annotation.state)
       ? annotation.message
@@ -275,12 +221,7 @@ export function useNodeEditDrawer({
     setNoteVisibility: annotations.setNoteVisibility,
     dirty,
     saving,
-    faviconBusy,
     status,
     save,
-    uploadFavicon,
-    removeFavicon,
   }
 }
-
-export type NodeEditDrawerState = ReturnType<typeof useNodeEditDrawer>

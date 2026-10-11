@@ -1,7 +1,6 @@
 // @vitest-environment happy-dom
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { act } from 'react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { RouteLoading } from './RouteLoading'
@@ -24,19 +23,11 @@ import { cleanup, mountTree } from '../test/render'
 const VARIANTS = [
   ['/library', 'desk'],
   ['/library/new', 'form'],
-  ['/export', 'rows'],
-  ['/explore', 'cards'],
-  ['/feed', 'stream'],
-  ['/today', 'today'],
+  ['/library/health', 'rows'],
   ['/search', 'search'],
-  ['/notifications', 'inbox'],
-  ['/credits', 'ledger'],
   ['/graph/x', 'canvas'],
-  // R15-32: the bookmark page has its own bones; 'reader' stays on digest issues.
+  // R15-32: the bookmark page has its own bones.
   ['/r/x', 'resource'],
-  ['/reports/weekly/issues/e1', 'reader'],
-  ['/path/x', 'reading'],
-  ['/u/someone', 'profile'],
   ['/login', 'auth'],
   ['/about', 'rows'],
 ] as const
@@ -89,11 +80,10 @@ describe('RouteLoading skeleton surface', () => {
     expect(darkBones.map((el) => el.className)).toEqual([])
   })
 
-  it('draws /library as the desk (rail + rows), not a card grid', () => {
+  it('draws /library as the desk (rail + rows)', () => {
     const skeleton = render('/library/col-1')
     expect(skeleton.querySelector('[data-testid="skeleton-desk-nav"]')).not.toBeNull()
     expect(skeleton.querySelectorAll('[data-testid="skeleton-row"]').length).toBeGreaterThan(2)
-    expect(skeleton.querySelector('[data-testid="route-loading-grid"]')).toBeNull()
   })
 
   it('draws on the page chrome: the shell padding track and the page head', () => {
@@ -112,13 +102,6 @@ describe('RouteLoading skeleton surface', () => {
     const board = document.querySelector('[data-testid="collection-skeleton-board"]')!
     expect(board.children).toHaveLength(6)
     expect(document.querySelector('[role="status"]')?.textContent).toContain('Public collection')
-  })
-
-  it('keeps the card grid a grid so cards do not stack full-width', () => {
-    const skeleton = render('/explore')
-    const grid = skeleton.querySelector('[data-testid="route-loading-grid"]')!
-    expect(getComputedStyle(grid).display).toBe('grid')
-    expect(skeleton.querySelectorAll('[data-testid="route-loading-card"]')).toHaveLength(6)
   })
 
   it('drops the shimmer animation under reduced motion for exactly the bones', () => {

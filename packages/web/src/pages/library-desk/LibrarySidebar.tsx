@@ -1,38 +1,22 @@
 import { Link } from 'react-router-dom'
-import { LoadingState } from '../../components/EmptyState'
 import { Icon } from '../../components/Icon'
 import { LoadMoreButton } from '../../components/LoadMoreButton'
 import { ReorderableNavList } from '../../components/ReorderableNavList'
 import type { LibraryOrderSectionId } from '../../lib/libraryOrder'
-import type { useFollowedCollections } from '../../lib/useFollowedCollections'
-import type { useFollowedReports } from '../../lib/useFollowedReports'
 import type { useMyCollaborationInvites } from '../../lib/useMyCollaborationInvites'
-import type { useMyReports } from '../../lib/useMyReports'
 import type { useOwnedCollections } from '../../lib/useOwnedCollections'
 import type { useSharedCollections } from '../../lib/useSharedCollections'
-import { collectionIsExpanded, followedKey, type LibraryDeskData } from './data'
-import {
-  CollectionBranch,
-  FollowedUnavailableRow,
-  LibraryNavMark,
-  LibraryNavSection,
-} from './navTree'
+import { collectionIsExpanded, type LibraryDeskData } from './data'
+import { CollectionBranch, LibraryNavMark, LibraryNavSection } from './navTree'
 import type { LibraryDeskOrder } from './ordering'
 import { LibraryTagSection, type LibraryTagFilter } from './tags'
 
 export function LibrarySidebar({
   folderId,
-  reading,
-  readingEnabled,
   collaboratorsLive,
-  collectionFollowExposed,
-  reportsExposed,
   showInviteNav,
   collections,
   shared,
-  followed,
-  digests,
-  myDigests,
   invites,
   data,
   order,
@@ -44,17 +28,10 @@ export function LibrarySidebar({
   onShowAllTags,
 }: {
   folderId: string | null
-  reading: boolean
-  readingEnabled: boolean
   collaboratorsLive: boolean
-  collectionFollowExposed: boolean
-  reportsExposed: boolean
   showInviteNav: boolean
   collections: ReturnType<typeof useOwnedCollections>
   shared: ReturnType<typeof useSharedCollections>
-  followed: ReturnType<typeof useFollowedCollections>
-  digests: ReturnType<typeof useFollowedReports>
-  myDigests: ReturnType<typeof useMyReports>
   invites: ReturnType<typeof useMyCollaborationInvites>
   data: LibraryDeskData
   order: LibraryDeskOrder
@@ -69,7 +46,6 @@ export function LibrarySidebar({
   const {
     trees,
     selectedId,
-    selectedFollowedSlug,
     toggleExpanded,
   } = data
   const {
@@ -77,7 +53,6 @@ export function LibrarySidebar({
     reorderSection,
     orderedOwnedItems,
     orderedSharedItems,
-    orderedFollowedItems,
     setSectionIds,
     finishReorder,
     toggleSection,
@@ -89,7 +64,6 @@ export function LibrarySidebar({
       data.expanded,
       reorderSection,
       selectedId,
-      selectedFollowedSlug,
       data.userCollapsed,
     )
 
@@ -119,24 +93,14 @@ export function LibrarySidebar({
         </div>
       </div>
 
-      {/* Create and Reading sit under the heading, not at the foot of the
-          tree: with a few sections open the foot fell below the fold, and
-          "New collection" is the first thing a new library needs. */}
+      {/* Create sits under the heading, not at the foot of the tree: with a
+          few sections open the foot fell below the fold, and "New
+          collection" is the first thing a new library needs. */}
       <div className="library-nav-actions">
         <Link to="/library/new" className="library-nav-create">
           <Icon name="plus" />
           New collection
         </Link>
-        {readingEnabled && (
-          <Link
-            to="/library?view=reading"
-            className="library-nav-reading"
-            aria-current={reading ? 'page' : undefined}
-          >
-            <Icon name="book" />
-            Reading
-          </Link>
-        )}
       </div>
 
       {showInviteNav && (
@@ -274,86 +238,6 @@ export function LibrarySidebar({
         </LibraryNavSection>
       )}
 
-      {collectionFollowExposed && (
-        <LibraryNavSection
-          sectionId="following"
-          title="Following"
-          collapsed={collapsedSections.has('following')}
-          onToggle={() => toggleSection('following')}
-          reordering={reorderSection === 'following'}
-          canReorder={orderedFollowedItems.length >= 2}
-          onBeginReorder={() => beginReorder('following')}
-          onFinishReorder={() => finishReorder()}
-        >
-          {followed.status === 'unavailable' ? (
-            <p className="library-nav-hint">Following isn&apos;t available yet.</p>
-          ) : followed.status === 'error' && followed.items.length === 0 ? (
-            <div className="library-nav-hint" role="alert">
-              Couldn&apos;t load collections you follow.
-              <button
-                type="button"
-                className="btn btn-ghost btn-sm"
-                onClick={() => void followed.loadFirstPage()}
-              >
-                Try again
-              </button>
-            </div>
-          ) : followed.status === 'loading' && followed.items.length === 0 ? (
-            <LoadingState label="Loading following…" />
-          ) : followed.items.length === 0 ? (
-            <p className="library-nav-hint">You aren&apos;t following any collections yet.</p>
-          ) : (
-            <ReorderableNavList
-              ids={orderedFollowedItems.map((item) => item.collectionId)}
-              items={orderedFollowedItems.map((item) => ({
-                id: item.collectionId,
-                label: item.title,
-                node: item.availability === 'unavailable' ? (
-                  <FollowedUnavailableRow title={item.title} />
-                ) : (
-                  <CollectionBranch
-                    collection={{ id: followedKey(item.slug), title: item.title }}
-                    linkTo={`/library/following/${encodeURIComponent(item.slug)}`}
-                    folderLinkTo={(folder) =>
-                      `/library/following/${encodeURIComponent(item.slug)}?folder=${encodeURIComponent(folder)}`}
-                    selectedId={selectedId}
-                    folderId={folderId}
-                    expanded={isExpanded(followedKey(item.slug))}
-                    tree={trees[followedKey(item.slug)]}
-                    onToggle={() => toggleExpanded(followedKey(item.slug), isExpanded(followedKey(item.slug)))}
-                  />
-                ),
-              }))}
-              active={reorderSection === 'following'}
-              disabled={orderedFollowedItems.length < 2}
-              ariaLabel="Followed collections"
-              onActivate={() => beginReorder('following')}
-              onOrderChange={(ids) => setSectionIds('following', ids)}
-              onDismiss={() => finishReorder()}
-            />
-          )}
-          {followed.nextCursor && !followed.moreError && (
-            <LoadMoreButton
-              className="library-nav-more"
-              loading={followed.loadingMore}
-              onClick={() => void followed.loadMore()}
-            />
-          )}
-          {followed.moreError && (
-            <div className="library-nav-hint" role="alert">
-              Couldn't load more followed collections.
-              <button
-                type="button"
-                className="btn btn-ghost btn-sm"
-                onClick={() => void followed.loadMore()}
-              >
-                Try again
-              </button>
-            </div>
-          )}
-        </LibraryNavSection>
-      )}
-
       {tagFilter && (
         <LibraryTagSection
           filter={tagFilter}
@@ -362,99 +246,6 @@ export function LibrarySidebar({
           onShowAll={onShowAllTags}
         />
       )}
-
-      {/* Digests — two sub-groups (R10-05/36): Mine lists the curator's own
-          series (each opens its manage page) plus the New digest entry, so
-          the section is always present once reports are exposed; Following
-          keeps the reader-facing rows, only when the reader actually
-          follows at least one — no empty-state advertising there. The
-          section head and rows share the collection sections' anatomy
-          (R12-14); the void toggle keeps the book and New digest icons on
-          the folder icon column. */}
-      {reportsExposed && (
-        <LibraryNavSection
-          sectionId="digests"
-          title="Digests"
-          collapsed={collapsedSections.has('digests')}
-          onToggle={() => toggleSection('digests')}
-        >
-          <p className="library-nav-sub">Mine</p>
-          <div className="library-nav-tree" role="list" aria-label="My digests">
-            {myDigests.items.map((series) => (
-              <div className="library-nav-group" role="listitem" key={series.id}>
-                <div className="library-nav-row">
-                  <span className="library-nav-toggle library-nav-toggle--void" aria-hidden />
-                  <Link
-                    className="library-nav-link"
-                    to={`/library/digests/${encodeURIComponent(series.id)}`}
-                  >
-                    <span className="library-nav-icon" aria-hidden>
-                      <Icon name="book" />
-                    </span>
-                    <span className="library-nav-label" title={series.title}>{series.title}</span>
-                  </Link>
-                </div>
-              </div>
-            ))}
-          </div>
-          <div className="library-nav-row">
-            <span className="library-nav-toggle library-nav-toggle--void" aria-hidden />
-            <Link to="/library/digests?new=1" className="library-nav-link">
-              <span className="library-nav-icon" aria-hidden>
-                <Icon name="plus" />
-              </span>
-              <span className="library-nav-label">New digest</span>
-            </Link>
-          </div>
-          {digests.items.some((series) => series.hiddenPublic === true || series.slug != null) && (
-            <>
-              <p className="library-nav-sub">Following</p>
-              <div className="library-nav-tree" role="list" aria-label="Followed digests">
-                {digests.items.map((series) => {
-                  // #21: a moderation-hidden digest keeps its sidebar slot as
-                  // an inert row instead of vanishing from Following.
-                  if (series.hiddenPublic === true) {
-                    return (
-                      <div className="library-nav-group" role="listitem" key={series.id} data-digest-hidden>
-                        <div className="library-nav-row library-nav-row--tombstone">
-                          <span className="library-nav-toggle library-nav-toggle--void" aria-hidden />
-                          <span className="library-nav-link" title={series.title}>
-                            <span className="library-nav-icon" aria-hidden>
-                              <Icon name="book" />
-                            </span>
-                            <span className="library-nav-label">{series.title}</span>
-                          </span>
-                        </div>
-                      </div>
-                    )
-                  }
-                  // A followed series without a public slug (private membership)
-                  // has no public page to open — skip the row.
-                  const slug = series.slug
-                  if (!slug) return null
-                  return (
-                    <div className="library-nav-group" role="listitem" key={series.id}>
-                      <div className="library-nav-row">
-                        <span className="library-nav-toggle library-nav-toggle--void" aria-hidden />
-                        <Link
-                          className="library-nav-link"
-                          to={`/reports/${encodeURIComponent(slug)}`}
-                        >
-                          <span className="library-nav-icon" aria-hidden>
-                            <Icon name="book" />
-                          </span>
-                          <span className="library-nav-label" title={series.title}>{series.title}</span>
-                        </Link>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </>
-          )}
-        </LibraryNavSection>
-      )}
-
     </aside>
   )
 }

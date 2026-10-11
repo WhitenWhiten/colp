@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { isSelfHostedEdition, subscribeInBrowserEnabled } from '../lib/edition'
+import { subscribeInBrowserEnabled } from '../lib/edition'
 
 export type ManifestTransport = 'https' | 'insecure-http'
 
@@ -59,7 +59,6 @@ export function SiteTransportBanner({
 }: {
   readonly loadManifest?: () => Promise<unknown>
 } = {}) {
-  if (!isSelfHostedEdition()) return null
   return <LoadedTransportBanner loadManifest={loadManifest} />
 }
 

@@ -1,5 +1,9 @@
 import { expect, test } from './fixtures'
-import { installPassiveFeatureMocks } from './helpers/passive-feature-mocks'
+import { mockGuestPublicCollection } from './helpers/library-mocks'
+
+/* The palette opens from the top bar on any page with chrome; a public
+   collection is the signed-out page that has it. */
+const CHROME_PAGE = '/c/reading-notes'
 
 const result = {
   query: 'systems', types: ['collection'],
@@ -8,7 +12,7 @@ const result = {
   consistency: { authority: 'recheck-each-page', ranking: 'restart-on-mutation' },
 }
 
-test.beforeEach(async ({ page }) => installPassiveFeatureMocks(page))
+test.beforeEach(async ({ page }) => mockGuestPublicCollection(page))
 
 async function installSearchRoutes(page: import('@playwright/test').Page) {
   await page.route('**/api/v1/session', (route) => route.fulfill({
@@ -70,7 +74,7 @@ async function installVisualSearchRoutes(
     if (query === 'paged') {
       if (cursor) await gates.more.promise
       const pageResult = cursor
-        ? { ...result, query, items: [{ resourceType: 'profile', resourceId: 'profile-2', handle: 'second', displayName: 'مرحبا 第二项', avatarUrl: null, snippet: 'Appended result', rank: 0.8 }], page: { returnedCount: 1, hasMore: false, nextCursor: null } }
+        ? { ...result, query, items: [{ resourceType: 'node', resourceId: 'node-2', collectionId: 'collection-1', title: 'مرحبا 第二项', urlHost: 'known.test', snippet: 'Appended result', rank: 0.8 }], page: { returnedCount: 1, hasMore: false, nextCursor: null } }
         : { ...result, query, page: { returnedCount: 1, hasMore: true, nextCursor: 'cursor-2' } }
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(pageResult) })
       return
@@ -107,9 +111,9 @@ async function assertNoHorizontalOverflow(page: import('@playwright/test').Page)
 test.describe('mocked Search browser flow', () => {
   test('opens the TopNav palette, navigates with the keyboard, and restores focus', async ({ page }) => {
     await installSearchRoutes(page)
-    await page.goto('/')
+    await page.goto(CHROME_PAGE)
     // The nav search trigger's accessible name is the placeholder copy
-    // ("Search Know-N…"), not the long-gone "Open search" label.
+    // ("Search your library…"), not the long-gone "Open search" label.
     const trigger = page.locator('.nav-search:visible, .nav-search-compact:visible').first()
     await trigger.focus()
     await trigger.click()
@@ -143,7 +147,7 @@ test.describe('mocked Search browser flow', () => {
       const gates = { loading: createDeferred(), more: createDeferred() }
       await installVisualSearchRoutes(page, gates)
 
-      await page.goto('/')
+      await page.goto(CHROME_PAGE)
       if (viewport.width <= 640) {
         await page.getByRole('button', { name: 'Open menu' }).click()
         await page.locator('.mobile-search').click()

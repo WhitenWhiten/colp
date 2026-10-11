@@ -22,5 +22,3 @@ export function AnnotationText({ value, format = 'plain', variant = 'document', 
   if (!className) return <Fragment>{rendered}</Fragment>
   return <div className={className} data-format="markdown" data-variant={variant}>{rendered}</div>
 }
-
-export const FormattedText = AnnotationText

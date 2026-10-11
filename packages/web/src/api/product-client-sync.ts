@@ -194,14 +194,11 @@ export function createProductSyncClient(
   function abandonSyncConflictIntent(intentId: string): void { clearCommandId(intentId) }
   function abandonSyncReplicaIntent(intentId: string): void { clearCommandId(intentId) }
   function abandonSyncTrashIntent(intentId: string): void { clearCommandId(intentId) }
-
   return {
     getSyncStatus,
-    getSyncConflictPage,
     loadSyncConflicts,
     resolveSyncConflict,
     retireSyncReplica,
-    getSyncTrashPage,
     loadSyncTrash,
     getSyncTrashItem,
     restoreSyncTrashItem,

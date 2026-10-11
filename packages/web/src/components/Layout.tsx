@@ -15,7 +15,6 @@ import { ChromeErrorBoundary } from './ChromeErrorBoundary'
 import { RouteErrorBoundary } from './RouteErrorBoundary'
 import { ServiceStatusBanner } from './ServiceStatusBanner'
 import { SiteTransportBanner } from './TransportBanner'
-import { UnreadBadgeFeedHost } from './UnreadBadgeFeedHost'
 import { isAuthPath } from '../lib/chrome'
 import { productName } from '../lib/edition'
 import { isLibraryDeskPath, isLibraryDeskToDesk, libraryDeskKey } from '../lib/libraryDesk'
@@ -45,14 +44,6 @@ function useOnlineStatus() {
 
 function depthOf(path: string) {
   return path.split('/').filter(Boolean).length
-}
-
-/** Collection share and Digest `?embed=1` pages render in iframes: strip all
-   chrome so only the embed card remains. */
-function isShareEmbedPath(pathname: string, search: string): boolean {
-  if (new URLSearchParams(search).get('embed') !== '1') return false
-  return /^\/share\/[^/]+\/?$/u.test(pathname)
-    || /^\/reports\/[^/]+(?:\/issues\/[^/]+)?\/?$/u.test(pathname)
 }
 
 export function Layout() {
@@ -132,7 +123,7 @@ export function Layout() {
     if (!navigatedRef.current) return
     const since = titleMark.seq
     const announce = (title: string) => setRouteAnnouncement(
-      title.replace(/\s+[—–-]\s+(?:Know-N|COLP Server)\s*$/u, '').trim() || productName())
+      title.replace(/\s+[—–-]\s+COLP Server\s*$/u, '').trim() || productName())
     const current = latestDocumentTitle()
     if (current.seq > since) {
       announce(current.title)
@@ -156,13 +147,8 @@ export function Layout() {
   }, [pageKey, titleMark.seq])
 
   const pageClass = `page page-enter page-enter-${direction}`
-  const embed = isShareEmbedPath(location.pathname, location.search)
-  const showTabs = !embed && !isAuthPath(location.pathname)
-  const shellClass = [
-    'app-shell',
-    embed ? 'app-shell--embed' : '',
-    showTabs ? 'app-shell--tabs' : '',
-  ].filter(Boolean).join(' ')
+  const showTabs = !isAuthPath(location.pathname)
+  const shellClass = showTabs ? 'app-shell app-shell--tabs' : 'app-shell'
 
   return (
     <AuthProvider>
@@ -173,31 +159,25 @@ export function Layout() {
           {/* R9-19: one promise-based destructive-confirm host for every
               workflow under the shell (replaces window.confirm). */}
           <ConfirmProvider>
-            {!embed && (
-              <a className="skip-link" href="#main">
-                Skip to content
-              </a>
-            )}
-            {!embed && (
-              <div className="visually-hidden" aria-live="polite" aria-atomic="true">
-                {routeAnnouncement}
-              </div>
-            )}
+            <a className="skip-link" href="#main">
+              Skip to content
+            </a>
+            <div className="visually-hidden" aria-live="polite" aria-atomic="true">
+              {routeAnnouncement}
+            </div>
             <NavigationScrollManager />
             <ToastRouteReset />
-            {!embed && !online && (
+            {!online && (
               <div className="offline-banner" role="status">
                 You&apos;re offline. Saving is paused — reconnect to continue.
               </div>
             )}
-            {!embed && online && <ServiceStatusBanner />}
-            {!embed && <SiteTransportBanner />}
-            {!embed && (
-              <ChromeErrorBoundary name="TopNav">
-                <TopNav />
-              </ChromeErrorBoundary>
-            )}
-            {!embed && <ScrollProgress />}
+            {online && <ServiceStatusBanner />}
+            <SiteTransportBanner />
+            <ChromeErrorBoundary name="TopNav">
+              <TopNav />
+            </ChromeErrorBoundary>
+            <ScrollProgress />
             <main id="main" ref={mainRef} className={pageClass} key={pageKey} tabIndex={-1}>
               <RouteErrorBoundary resetKey={pageKey}>
                 <Suspense fallback={<RouteLoading />}>
@@ -205,23 +185,14 @@ export function Layout() {
                 </Suspense>
               </RouteErrorBoundary>
             </main>
-            {!embed && (
-              <ChromeErrorBoundary name="SettingsDialogHost">
-                <SettingsDialogHost />
-              </ChromeErrorBoundary>
-            )}
+            <ChromeErrorBoundary name="SettingsDialogHost">
+              <SettingsDialogHost />
+            </ChromeErrorBoundary>
             <TooltipHost />
-            {!embed && (
-              <ChromeErrorBoundary name="Footer">
-                <Footer />
-              </ChromeErrorBoundary>
-            )}
-            {!embed && <ScrollToTopButton />}
-            {!embed && (
-              <ChromeErrorBoundary name="UnreadBadgeFeed">
-                <UnreadBadgeFeedHost />
-              </ChromeErrorBoundary>
-            )}
+            <ChromeErrorBoundary name="Footer">
+              <Footer />
+            </ChromeErrorBoundary>
+            <ScrollToTopButton />
             {showTabs && (
               <ChromeErrorBoundary name="BottomNav">
                 <BottomNav />

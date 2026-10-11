@@ -1,13 +1,11 @@
 // @vitest-environment happy-dom
-import { act, useEffect } from 'react'
+import { useEffect } from 'react'
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { afterEach, beforeEach, vi } from 'vitest'
-import { ProductApiError } from '../api/errors'
 import type { PublicCollectionNode, PublicCollectionSnapshot } from '../api/types'
-import { collectLayeredRules, readStyle } from '../styles/dashboard-stack-cascade.test-helper'
 import { Collection } from './Collection'
 import { ioState, mocks } from './Collection.masthead.test-mocks'
-import { cleanup, domFinishedLoading, mountTree, waitForDom } from '../test/render'
+import { cleanup, mountTree } from '../test/render'
 
 function rootNode(): PublicCollectionNode {
   return {
@@ -55,15 +53,7 @@ let previousIntersectionObserver: typeof IntersectionObserver | undefined
 function installMastheadHarness(): void {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.stubEnv('VITE_FOLLOW_ACCEPTANCE', 'true')
     delete window.__KNOWN_FLAGS__
-    window.__KNOWN_FLAGS__ = { collectionFollow: false }
-    mocks.isFollowingProfile.mockResolvedValue(false)
-    mocks.getCollectionFollowState.mockResolvedValue({ following: false, followerCount: 3, followedAt: null })
-    mocks.followCollection.mockResolvedValue({
-      following: true, followerCount: 4, followedAt: '2026-08-26T01:00:00.000Z',
-    })
-    mocks.recordPublicCollectionInsightEvent.mockResolvedValue(undefined)
     ioState.instances.length = 0
     window.sessionStorage.clear()
     window.localStorage.clear()

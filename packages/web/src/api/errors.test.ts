@@ -67,7 +67,7 @@ describe('ProductApiError', () => {
   })
 
   it('never shows developer text for server failures (R15-23)', () => {
-    const plain = 'Know-N is having trouble right now. Try again in a minute.'
+    const plain = 'The server is having trouble right now. Try again in a minute.'
     expect(new ProductApiError(503, null).recoveryHint).toBe(plain)
     expect(new ProductApiError(500, null).recoveryHint).toBe(plain)
     expect(new ProductApiError(404, null).recoveryHint).toBe(plain)

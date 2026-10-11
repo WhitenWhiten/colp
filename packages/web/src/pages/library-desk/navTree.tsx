@@ -90,44 +90,19 @@ export function LibraryNavSection({
   )
 }
 
-/**
- * A followed collection whose target can no longer be opened (soft-deleted,
- * made private, or the owner is inactive). The row stays visible so the
- * follower knows what happened, but it never navigates anywhere.
- */
-export function FollowedUnavailableRow({ title }: { title: string }) {
-  return (
-    <div className="library-nav-group" data-testid="library-nav-following-unavailable">
-      <div className="library-nav-row library-nav-row--unavailable" aria-disabled="true">
-        <span className="library-nav-icon" aria-hidden>
-          <Icon name="folder" />
-        </span>
-        <span className="library-nav-label" title={title}>{title}</span>
-        <span className="library-nav-flag">Unavailable</span>
-      </div>
-    </div>
-  )
-}
-
 export function CollectionBranch({
   collection,
   bookmarkCount,
-  linkTo,
-  folderLinkTo,
   selectedId,
   folderId,
   expanded,
   tree,
   onToggle,
   onSelect,
-  selectValue,
   listItem = false,
 }: {
-  /** Owned/shared rows pass the collection view; followed rows pass id+title. */
   collection: { id: string; title: string }
   bookmarkCount?: number
-  linkTo?: string
-  folderLinkTo?: (folderId: string) => string
   selectedId: string | null
   folderId: string | null
   expanded: boolean
@@ -135,7 +110,6 @@ export function CollectionBranch({
   onToggle: () => void
   /** Picker sheets intercept navigation and keep the {collection}::{folder} contract. */
   onSelect?: (value: string) => void
-  selectValue?: (folderId: string | null) => string
   /** Render as a list item itself (the mobile sheet); inside the reorder
       list the wrapper carries that role instead. */
   listItem?: boolean
@@ -149,11 +123,9 @@ export function CollectionBranch({
       : null
   const selected = collection.id === selectedId && (!folderId || !expanded)
   const open = expanded && (folders.length > 0 || tree?.status === 'loading' || tree?.status === 'error')
-  const rowTo = linkTo ?? `/library/${encodeURIComponent(collection.id)}`
-  const folderTo = folderLinkTo
-    ?? ((folder: string) => `/library/${encodeURIComponent(collection.id)}?folder=${encodeURIComponent(folder)}`)
-  const valueOf = (id: string | null) =>
-    selectValue ? selectValue(id) : id ? `${collection.id}::${id}` : collection.id
+  const rowTo = `/library/${encodeURIComponent(collection.id)}`
+  const folderTo = (folder: string) => `/library/${encodeURIComponent(collection.id)}?folder=${encodeURIComponent(folder)}`
+  const valueOf = (id: string | null) => (id ? `${collection.id}::${id}` : collection.id)
 
   /* Nested folder disclosure. The chain to the folder the visitor stands in
      opens automatically; manual toggles stay sticky while the branch lives. */

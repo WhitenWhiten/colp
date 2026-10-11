@@ -10,7 +10,6 @@ import type {
 
 export function createRelationsTransport(http: ProductTransportHttp) {
   const { request, mutationHeaders } = http
-
   return {
     async listRelations(collectionId: string, params: RelationListParams) {
       const query: Record<string, string | number | undefined> = {
@@ -23,10 +22,6 @@ export function createRelationsTransport(http: ProductTransportHttp) {
         method: 'GET', path: `/api/v1/collections/${encodeURIComponent(collectionId)}/relations`,
         query, signal: params.signal,
       })
-    },
-
-    async getRelation(collectionId: string, relationId: string, signal?: AbortSignal) {
-      return request<RelationView>({ method: 'GET', path: `/api/v1/collections/${encodeURIComponent(collectionId)}/relations/${encodeURIComponent(relationId)}`, signal })
     },
 
     async createRelation(collectionId: string, body: CreateRelationRequest, opts: MutationCallOptions) {

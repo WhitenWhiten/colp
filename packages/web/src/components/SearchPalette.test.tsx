@@ -26,7 +26,7 @@ function deferred<T>(): Deferred<T> {
 function resultPage(title: string, id = title, snippet = `${title} snippet`): SearchPage {
   return {
     query: title,
-    types: ['collection', 'node', 'profile', 'annotation'],
+    types: ['collection', 'node', 'annotation'],
     items: [{ resourceType: 'collection', resourceId: id, title, snippet, rank: 0.8 }],
     page: { returnedCount: 1, hasMore: false, nextCursor: null },
     consistency: { authority: 'recheck-each-page', ranking: 'restart-on-mutation' },
@@ -76,13 +76,13 @@ describe('Search palette', () => {
   it('debounces requests and flushes both timer and promise queues', async () => {
     mocks.search.mockResolvedValue(resultPage('systems'))
     render()
-    expect(document.body.textContent).toContain('Search Know-N')
+    expect(document.body.textContent).toContain('Search')
     expect(document.body.textContent).not.toContain('Search your workspace')
     type('sys')
     act(() => vi.advanceTimersByTime(249))
     expect(mocks.search).not.toHaveBeenCalled()
     await flushDebounce(1)
-    expect(mocks.search).toHaveBeenCalledWith({ q: 'sys', limit: 8 }, expect.objectContaining({ maxRetries: 0, signal: expect.any(AbortSignal) }))
+    expect(mocks.search).toHaveBeenCalledWith({ q: 'sys', types: ['collection', 'node', 'annotation'], limit: 8 }, expect.objectContaining({ maxRetries: 0, signal: expect.any(AbortSignal) }))
     expect(document.body.textContent).toContain('systems')
   })
 
@@ -106,7 +106,7 @@ describe('Search palette', () => {
   it('keeps focus and aria-activedescendant synchronized across keyboard navigation and restores focus on close', async () => {
     mocks.search.mockResolvedValue({ ...resultPage('First', 'first'), items: [
       { resourceType: 'collection', resourceId: 'first', title: 'First find', snippet: 'One', rank: 0.9 },
-      { resourceType: 'profile', resourceId: 'profile-2', handle: 'second', displayName: 'Second find', avatarUrl: null, snippet: 'Two', rank: 0.8 },
+      { resourceType: 'node', resourceId: 'node-2', collectionId: 'c1', title: 'Second find', urlHost: 'known.test', snippet: 'Two', rank: 0.8 },
     ] })
     const onClose = render()
     act(() => vi.runOnlyPendingTimers())
@@ -156,7 +156,7 @@ describe('Search palette', () => {
   it('keeps option ids unique when resource types share the same opaque id', async () => {
     mocks.search.mockResolvedValue({ ...resultPage('First', 'shared'), items: [
       { resourceType: 'collection', resourceId: 'shared', title: 'Shared collection', snippet: 'One', rank: 0.9 },
-      { resourceType: 'profile', resourceId: 'shared', handle: 'shared', displayName: 'Shared profile', avatarUrl: null, snippet: 'Two', rank: 0.8 },
+      { resourceType: 'node', resourceId: 'shared', collectionId: 'c1', title: 'Shared bookmark', urlHost: 'known.test', snippet: 'Two', rank: 0.8 },
     ] })
     render()
     type('shared')

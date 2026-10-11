@@ -28,7 +28,7 @@
   font-weight: var(--weight-semibold);
   line-height: var(--leading-snug);
   color: var(--ink);
-  /* Pretty, not balance: collection and digest titles filled only half the
+  /* Pretty, not balance: collection titles filled only half the
      head when balance split them into two even lines. */
   text-wrap: pretty;
   max-width: var(--measure);
@@ -37,7 +37,7 @@
   overflow-wrap: anywhere;
 }
 
-/* Long user titles (R12-04): a collection, bookmark or digest title past
+/* Long user titles (R12-04): a collection or bookmark title past
    ~48 Latin columns steps down one display rung, so the head stays a head
    instead of a four-line tower. Phones keep their own two-line clamp. */
 @media (min-width: 640px) {
@@ -137,7 +137,7 @@
   background-position: top left, bottom left;
 }
 
-/* Masthead without an avatar (collection, digest, reader heads): drop the
+/* Masthead without an avatar (collection and resource heads): drop the
    empty leading track. Its column-gap alone pushed the copy 21.6px off the
    edge the toolbar and body share (R12-07). */
 .page-head--masthead.page-head--no-avatar {
@@ -154,30 +154,6 @@
 
 .page-head--no-avatar .page-head-stats {
   grid-column: 1 / -1;
-}
-
-/* Social masthead (collection / digest series / digest issue): the head's
-   actions slot is the SocialActions cluster — Follow, vote, then quiet
-   links. As a side column it claimed up to half the track and squeezed the
-   title into a narrow ragged column (worst on the 46rem digest reading
-   column, where the title wrapped every two words). It is a toolbar for
-   the thing the title names, so at every width it sits under the copy,
-   left-aligned on the title's edge, and the stats strip follows below. */
-@media (min-width: 640px) {
-  .page-head--masthead.page-head--social .page-head-actions {
-    grid-column: 2 / -1;
-    grid-row: 2;
-    justify-content: flex-start;
-    margin-top: var(--space-4);
-  }
-
-  .page-head--masthead.page-head--social.page-head--no-avatar {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .page-head--masthead.page-head--social.page-head--no-avatar .page-head-actions {
-    grid-column: 1 / -1;
-  }
 }
 
 /* Workbench head (R10-16): ops and settings pages subtract the editorial
@@ -200,8 +176,8 @@
   background-image: none;
 }
 
-/* The split head's 48rem copy cap stopped workbench titles (a digest or
-   collection name on a 96rem shell) mid-page. The copy grows to the
+/* The split head's 48rem copy cap stopped workbench titles (a collection
+   name on a 96rem shell) mid-page. The copy grows to the
    actions instead; the lede keeps its own --measure. It sizes from its
    content: with a zero basis the actions never wrapped and squeezed a long
    title into half the row, so now they drop under the copy whenever the
@@ -270,7 +246,7 @@
   }
 
   /* --text-2xl is the page-title floor (tokens.css). At --text-xl a serif
-     head (Today, Feed, Explore) drew smaller than the 22px bold sans
+     head drew smaller than the 22px bold sans
      section heads under it and the page lost its top rung. */
   .page-head .display {
     font-size: var(--text-2xl);
@@ -375,12 +351,6 @@
   flex-direction: column;
   align-items: center;
   gap: var(--space-2);
-}
-
-.empty-state--board {
-  width: var(--board-width);
-  max-width: 100%;
-  margin: var(--hair-200) auto 0;
 }
 
 .empty-state--compact {
@@ -560,10 +530,8 @@
 }
 
 /* ——— Section head + primary action row ———
-   Used by ~20 routes and settings sections, so they live in base rather than
-   in the marketing stylesheet that first defined them (landing.css is now a
-   route-owned chunk). Modifiers stay with their pages: `--split` in
-   studio.css, `--journal` in profile.css, the Landing bands in landing.css. */
+   Used by several routes and settings sections, so they live in base.
+   Modifiers stay with their pages: `--split` in studio.css. */
 .section-head {
   width: var(--shell);
   margin-inline: auto;
@@ -651,7 +619,7 @@
 }
 
 /* Workbench heads keep their titles uncapped (see .page-head--workbench
-   .display): a digest name on a 96rem shell otherwise stopped at 38rem
+   .display): a collection name on a 96rem shell otherwise stopped at 38rem
    while the head, actions and tabs ran the full track. */
 .page-shell > .page-shell-inner:first-child .page-head--workbench .display {
   max-width: none;
@@ -669,54 +637,6 @@
     padding: var(--page-pad-y-mobile) var(--space-4) 3rem;
     overflow-x: clip;
   }
-}
-
-/* ——— Tabs: primary navigation dimension inside a page ——— */
-.tab-rail {
-  display: flex;
-  gap: var(--space-5);
-  border-bottom: 1px solid var(--line);
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-.tab-rail::-webkit-scrollbar { display: none; }
-.tab-rail button {
-  position: relative;
-  flex-shrink: 0;
-  min-height: 2rem;
-  padding: var(--space-2) 0 var(--space-3);
-  border: 0;
-  background: transparent;
-  color: var(--muted);
-  font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
-  line-height: var(--leading-none);
-  white-space: nowrap;
-  transition: color var(--duration-fast) var(--ease-quart);
-}
-.tab-rail button:focus-visible { outline-offset: -1px; }
-.tab-rail button:hover { color: var(--ink); }
-
-@media (pointer: coarse) {
-  .tab-rail button { min-height: 2.75rem; }
-}
-.tab-rail button[aria-selected='true'] {
-  color: var(--ink);
-  font-weight: var(--weight-semibold);
-}
-.tab-rail button[aria-selected='true']::after {
-  content: '';
-  position: absolute;
-  inset: auto 0 -1px 0;
-  height: 2px;
-  background: var(--ink);
-}
-
-.tab-rail .tab-count {
-  margin-left: var(--space-1);
-  color: var(--faint);
-  font-weight: var(--weight-regular);
-  font-variant-numeric: tabular-nums;
 }
 
 /* ——— Select menu: sort / secondary filters ——— */

@@ -1,7 +1,6 @@
 import { useEffect, useRef, type RefObject } from 'react'
 import { Link } from 'react-router-dom'
 import { AvatarImage } from '../AvatarImage'
-import { isSelfHostedPathEnabled } from '../../lib/edition'
 import { useExitAnimation } from '../../lib/useExitAnimation'
 
 type AccountUser = {
@@ -13,9 +12,6 @@ type AccountUser = {
 
 type Props = {
   user: AccountUser
-  /** Unread badge count; null when the notification surface is flag-gated off. */
-  unreadCount: number | null
-  showWriteApprovals: boolean
   open: boolean
   /** Parent coordinates mutual exclusion with the other nav menus. */
   onToggle: () => void
@@ -31,8 +27,6 @@ type Props = {
    role="menu") — the same contract TopNav's chrome test pins. */
 export function AccountMenu({
   user,
-  unreadCount,
-  showWriteApprovals,
   open,
   onToggle,
   onClose,
@@ -93,24 +87,6 @@ export function AccountMenu({
               <div className="meta handle-text">@{user.handle}</div>
             </div>
           </div>
-          {isSelfHostedPathEnabled(`/u/${user.handle}`) && (
-            // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- react-router Link renders a native anchor; Enter fires onClick (close dropdown) natively
-            <Link to={`/u/${user.handle}`} onClick={onClose}>
-              Profile
-            </Link>
-          )}
-          {isSelfHostedPathEnabled('/creator') && (
-            // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- react-router Link renders a native anchor; Enter fires onClick (close dropdown) natively
-            <Link to="/creator" onClick={onClose}>
-              Publishing insights
-            </Link>
-          )}
-          {isSelfHostedPathEnabled('/credits') && (
-            // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- react-router Link renders a native anchor; Enter fires onClick (close dropdown) natively
-            <Link to="/credits" onClick={onClose}>
-              Credits and ledger
-            </Link>
-          )}
           <button
             type="button"
             onClick={() => {
@@ -120,18 +96,10 @@ export function AccountMenu({
           >
             Settings
           </button>
-          {isSelfHostedPathEnabled('/notifications') && (
-            // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- react-router Link renders a native anchor; Enter fires onClick (close dropdown) natively
-            <Link to="/notifications" onClick={onClose}>
-              Notifications{unreadCount ? ` (${unreadCount})` : ''}
-            </Link>
-          )}
-          {showWriteApprovals && (
-            // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- react-router Link renders a native anchor; Enter fires onClick (close dropdown) natively
-            <Link to="/approvals" onClick={onClose}>
-              Write approvals
-            </Link>
-          )}
+          {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- react-router Link renders a native anchor; Enter fires onClick (close dropdown) natively */}
+          <Link to="/approvals" onClick={onClose}>
+            Write approvals
+          </Link>
           <div className="ctx-menu-sep" />
           <button
             type="button"
@@ -140,7 +108,7 @@ export function AccountMenu({
               onSignOut()
             }}
           >
-            Log out
+            Sign out
           </button>
         </nav>
       )}

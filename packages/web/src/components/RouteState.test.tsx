@@ -38,7 +38,7 @@ describe('RouteState', () => {
         <RouteState kind="auth" title="Sign in to open your library" />
       </MemoryRouter>,
     )
-    expect(document.body.textContent).toContain('Know-N is unavailable right now')
+    expect(document.body.textContent).toContain('COLP Server is unavailable right now')
     expect(document.body.textContent).not.toContain('Sign in')
     expect(document.querySelector('a[href^="/login"]')).toBeNull()
     ;[...document.querySelectorAll('button')].find((b) => b.textContent === 'Try again')!.click()

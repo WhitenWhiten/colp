@@ -2,8 +2,8 @@ import type { Page, Route } from '@playwright/test'
 import { expect, test } from './fixtures'
 
 /* R15-16: in Windows High Contrast (forced colors), primary and danger
-   buttons, toasts and "Forgot password?" must stay legible, and a checked
-   radio must show its dot. */
+   buttons and toasts must stay legible, and a checked radio must show its
+   dot. */
 
 function json(route: Route, body: unknown, status = 200) {
   return route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
@@ -34,6 +34,7 @@ async function pair(page: Page, selector: string): Promise<Pair> {
 
 test.beforeEach(async ({ page }) => {
   await page.route('**/api/v1/session', (route) => json(route, { authenticated: false }))
+  await page.route('**/api/v1/auth/registration-state', (route) => json(route, { open: false, reason: 'closed' }))
   await page.emulateMedia({ forcedColors: 'active', colorScheme: 'light' })
   await page.goto('/login')
   await expect(page.locator('.auth-card')).toBeVisible()
@@ -51,12 +52,11 @@ test.beforeEach(async ({ page }) => {
   })
 })
 
-test('primary and danger labels, toasts and the recovery link are legible', async ({ page }, testInfo) => {
+test('primary and danger labels and toasts are legible', async ({ page }, testInfo) => {
   const checks: Array<[string, string]> = [
     ['primary button', '.auth-card .btn-primary'],
     ['danger button', '#fc-danger'],
     ['toast', '#fc-toast'],
-    ['forgot password link', 'text=Forgot password?'],
   ]
   for (const [name, selector] of checks) {
     const { color, background, backplate } = await pair(page, selector)

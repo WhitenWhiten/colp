@@ -20,16 +20,11 @@ vi.mock('../api', async (importOriginal) => {
   const { mocks: apiMocks } = await import('./Library.test-mocks')
   return {
     ...actual,
-    isLive: apiMocks.isLive,
     productClient: {
       ...actual.productClient,
       loadEditorSnapshot: apiMocks.loadEditorSnapshot,
       loadAnnotations: apiMocks.loadAnnotations,
       loadPublicCollectionSnapshot: apiMocks.loadPublicCollectionSnapshot,
-      listFollowedCollections: apiMocks.listFollowedCollections,
-      listFollowedReports: apiMocks.listFollowedReports,
-      listMyReports: apiMocks.listMyReports,
-      getFollowedReportIssuesPage: apiMocks.getFollowedReportIssuesPage,
       getMyLibraryOrder: apiMocks.getMyLibraryOrder,
       newCommandId: () => '11111111-1111-4111-8111-111111111111',
       mutationIntentKey: (scope: string, commandId: string) => `${scope}:${commandId}`,
@@ -52,20 +47,6 @@ vi.mock('../lib/useMyCollaborationInvites', async () => {
   const { mocks: m } = await import('./Library.test-mocks')
   return { useMyCollaborationInvites: () => m.invites }
 })
-vi.mock('../lib/useSavedResource', async () => {
-  const { mocks: m } = await import('./Library.test-mocks')
-  return {
-    useSavedResources: () => m.saved,
-    useSavedResource: () => ({ state: 'ready', saved: false, pending: false, label: 'Save', toggle: vi.fn(), retry: vi.fn(), reload: vi.fn() }),
-  }
-})
-vi.mock('../lib/useReadingProgress', async () => {
-  const { mocks: m } = await import('./Library.test-mocks')
-  return {
-    useReadingProgressList: () => m.progress,
-    useReadingProgress: () => ({ progress: 0, status: 'not_started', saveState: 'saved', message: '', setProgress: vi.fn(), toggleComplete: vi.fn(), retry: vi.fn(), flush: vi.fn(), reload: vi.fn() }),
-  }
-})
 vi.mock('../components/AppToast', () => ({ useToast: () => ({ toast: vi.fn(), success: vi.fn(), error: vi.fn() }) }))
 
 describe('Library owned collection publication', () => {
@@ -77,8 +58,6 @@ describe('Library owned collection publication', () => {
     publicationSlug: string | null,
   ) {
     mocks.collections.items = [entry('one', 'One')]
-    mocks.isLive.mockImplementation((flag: string) =>
-      ['collectionList', 'savedResources', 'readingProgress', 'collaborators'].includes(flag))
     mocks.loadEditorSnapshot.mockImplementation(async (id: string) => {
       const base = snapshot(id, 'One')
       return { ...base, collection: { ...base.collection, visibility, publicationSlug } }

@@ -199,13 +199,13 @@ test.describe('public collection with mocked Product API', () => {
     await expect(page.getByText('withdrawn', { exact: true })).toHaveCount(0)
     const stage = page.getByTestId('absence-stage')
     const title = stage.getByRole('heading', { name: 'Collection unavailable' })
-    await expect(title).toHaveCSS('font-style', 'italic')
+    await expect(title).toHaveCSS('font-style', 'normal')
     await expect(title).toHaveCSS('text-align', 'center')
     const exit = stage.getByRole('link', { name: 'Back home' })
     await expect(exit).toBeVisible()
     await expect(exit).not.toHaveClass(/btn/)
     await page.setViewportSize({ width: 390, height: 844 })
-    await expect(title).toHaveCSS('font-style', 'italic')
+    await expect(title).toHaveCSS('font-style', 'normal')
     await expect(title).toHaveCSS('text-align', 'center')
   })
 
@@ -280,7 +280,7 @@ test.describe('public collection with mocked Product API', () => {
     }))
 
     await page.goto('/c/member-notes', { waitUntil: 'domcontentloaded' })
-    await expect(page.getByText('Member view')).toBeVisible()
+    await expect(page.getByText('Shared with you')).toBeVisible()
     await expect(page.getByRole('heading', { level: 1, name: 'Member notes' })).toBeVisible()
     // Primary detail link plus the external ↗ affordance both render.
     await expect(page.getByRole('link', { name: 'Authorized source', exact: true })).toBeVisible()

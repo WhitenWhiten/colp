@@ -222,11 +222,9 @@ describe('P2B-14 Relation frontend boundary', () => {
       expect(resourceDetailSource).not.toContain('dangerouslySetInnerHTML')
     })
 
-    it('ships accepted narrow and composite flags with independent evidence', () => {
+    it('ships the accepted relations flag with independent evidence', () => {
       expect(isLive('relations')).toBe(true)
-      expect(isLive('resourceDetail')).toBe(true)
       expect(featureFlagsSource).toMatch(/relations:\s*true/u)
-      expect(featureFlagsSource).toMatch(/resourceDetail:\s*true/u)
       expect(evidence).toContain('Result: **Accepted**')
     })
   })

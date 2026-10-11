@@ -1,7 +1,6 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { DESK_WIDGET_STYLESHEETS } from './dashboard-stack-cascade.test-helper'
 
 /**
  * F00 cascade-layer contract.
@@ -31,18 +30,11 @@ const OWNER_MAP: Record<string, string | string[]> = {
   'page-chrome.css': 'base',
   'overlays.css': 'base',
   'shared-chrome.css': 'base',
-  'landing.css': 'pages',
-  'explore.css': 'pages',
   'collection.css': 'pages',
-  'profile.css': 'pages',
-  'dashboard.css': 'pages',
   'graph.css': 'pages',
   'sync.css': 'pages',
   'write-approvals.css': 'pages',
   'agents.css': 'pages',
-  'classify.css': 'pages',
-  'classification-settings.css': 'pages',
-  'classification-batch.css': 'pages',
   'extension.css': 'pages',
   'pages-shared.css': 'pages',
   'library.css': 'pages',
@@ -50,38 +42,21 @@ const OWNER_MAP: Record<string, string | string[]> = {
   'auth.css': 'pages',
   'auth-pages.css': 'pages',
   'studio.css': 'pages',
-  'share.css': 'pages',
-  'demos.css': 'pages',
-  'today.css': 'pages',
   'collection-history.css': 'pages',
-  'reader.css': 'pages',
   'resource-detail.css': 'pages',
-  'path-reader.css': 'pages',
   'library-health.css': 'pages',
-  'moderation.css': 'pages',
-  'credits.css': 'pages',
-  'data-export.css': 'pages',
-  'import.css': 'pages',
-  'saved-resources.css': 'pages',
   'not-found.css': 'pages',
-  'reports.css': 'pages',
   'collab.css': 'pages',
-  'digest-manage.css': 'pages',
   'page-layouts.css': 'pages',
   'polish.css': 'patterns',
   'search.css': ['components', 'pages'],
   'interactions.css': 'patterns',
   'cards.css': 'components',
-  'source-skins.css': 'components',
   'capture.css': 'components',
   'cards-ui.css': 'components',
   'data-table.css': 'components',
   'stepper.css': 'components',
   'reading.css': 'components',
-  'desk-themes.css': 'components',
-  'dashboard-desk.css': 'components',
-  ...Object.fromEntries(DESK_WIDGET_STYLESHEETS.map((file) => [file, 'components'])),
-  'canvas-background.css': 'components',
   'utilities.css': 'utilities',
   'print.css': 'print',
 }
@@ -96,10 +71,7 @@ const EXPECTED_ENTRY_IMPORTS = [
   './styles/overlays.css',
   './styles/shared-chrome.css',
   './styles/cards.css',
-  './styles/source-skins.css',
   './styles/capture.css',
-  './styles/landing.css',
-  './styles/explore.css',
   './styles/collection.css',
   './styles/pages-shared.css',
   './styles/workbench-chrome.css',
@@ -121,32 +93,13 @@ const EXPECTED_ENTRY_IMPORTS = [
  *  to src/pages) so they ship in that route's chunk. Order inside a page is
  *  the cascade order within the shared layer. */
 const ROUTE_STYLESHEETS: Record<string, string[]> = {
-  'Profile.tsx': ['profile.css'],
   'Graph.tsx': ['graph.css'],
   'Sync.tsx': ['sync.css'],
   'WriteApprovals.tsx': ['write-approvals.css'],
   'Agents.tsx': ['agents.css'],
-  'Classify.tsx': ['classify.css'],
-  'ClassificationBatch.tsx': ['classification-batch.css'],
-  'library-desk/CollectionSettingsSheet.tsx': ['classification-settings.css'],
-  'DemoHub.tsx': ['demos.css'],
-  'Dashboard.tsx': [
-    'dashboard.css',
-    'desk-themes.css',
-    'dashboard-desk.css',
-    ...DESK_WIDGET_STYLESHEETS,
-    'canvas-background.css',
-  ],
-  // Former loops.css, split per route so each chunk carries only its own rules.
-  'Reader.tsx': ['reader.css'],
-  'PathReader.tsx': ['path-reader.css'],
-  'Today.tsx': ['today.css'],
+  'Extension.tsx': ['extension.css'],
   'LibraryHealth.tsx': ['library-health.css'],
-  'Credits.tsx': ['credits.css'],
-  'DataExport.tsx': ['data-export.css'],
   'CollectionHistory.tsx': ['collection-history.css'],
-  'Import.tsx': ['import.css'],
-  'Library.tsx': ['saved-resources.css'],
   // Resource detail chapter split out of the entry-loaded studio.css.
   'ResourceDetail.tsx': ['resource-detail.css'],
 }
@@ -155,69 +108,25 @@ const ROUTE_STYLESHEETS: Record<string, string[]> = {
  *  (Vite emits a single shared CSS chunk). Every listed page must import it,
  *  nothing outside the list may, and it must stay out of the entry. */
 const SHARED_ROUTE_STYLESHEETS: Record<string, string[]> = {
-  // Collection and Digest reuse the embed card and appearance composer.
-  'share.css': ['Share.tsx', 'Collection.tsx', 'ReportSeries.tsx', 'ReportIssue.tsx'],
-  // Extension product page + the popup preview: .benefit-list / .extension-*
-  // sections live next to the ext-popup-* chrome so both routes share them.
-  'extension.css': ['Extension.tsx', 'ExtensionPopup.tsx'],
-  // Digest nameplate / masthead / archive chrome shared by the /reports
-  // pages, the Explore digests rail, and the member digest reader (which
-  // renders the same .digest-entry-*/.report-* rows).
-  'reports.css': ['Reports.tsx', 'ReportSeries.tsx', 'ReportIssue.tsx', 'Explore.tsx', 'MemberDigestReader.tsx'],
-  // Library domain (R9-04 split): the product desk, the demo stack at
-  // /demo/library, the public collection page, and the digest issue reader —
-  // both render the .library-bookmark*/.library-folder-*/.library-dest-* rows
-  // through components/ResourceList, FolderEntries and
-  // CollectionDestinationPicker.
-  // DigestManage reuses the picker to attach a collection as an issue.
-  // Cross-route workbench selectors (.tree-*, .edit-*, .toggle*,
-  // .node-drawer-annotation*) are NOT here — they are entry-loaded in
-  // workbench-chrome.css because the settings dialog and
+  // Library domain (R9-04 split): the product desk and the public collection
+  // page both render the .library-bookmark*/.library-folder-*/.library-dest-*
+  // rows through components/ResourceList, FolderEntries and
+  // CollectionDestinationPicker. Cross-route workbench selectors (.tree-*,
+  // .edit-*, .toggle*, .node-drawer-annotation*) are NOT here — they are
+  // entry-loaded in workbench-chrome.css because the settings dialog and
   // NodeAnnotationFields mount them outside these routes.
-  // Classify reuses the picker as the manual folder destination.
-  'library.css': ['Library.tsx', 'LegacyLibrary.tsx', 'Collection.tsx', 'DigestManage.tsx', 'Classify.tsx'],
-  // Moderation lists (components/ModerationTable): the member and the
-  // official reviewer pages share one row anatomy.
-  'moderation.css': ['ModerationReports.tsx', 'ModerationAppeals.tsx', 'admin/ModerationCases.tsx', 'admin/ModerationAppeals.tsx'],
-  // Auth page chrome (R9-33): the seven lazy auth routes. The shared
-  // .auth-card/.auth-notice/.auth-alert/.auth-action-row/.auth-cta-stack/
-  // .auth-otp-row/.auth-otp-send/.security-* rules stay entry-loaded in
+  'library.css': ['Library.tsx', 'Collection.tsx'],
+  // Auth page chrome (R9-33). The shared .auth-card/.auth-notice/.auth-alert/
+  // .auth-action-row/.auth-cta-stack/.security-* rules stay entry-loaded in
   // auth.css — the settings dialog's account-security sections
   // (components/auth/*) mount them on any route.
-  'auth-pages.css': [
-    'Login.tsx',
-    'Register.tsx',
-    'PasswordReset.tsx',
-    'EmailVerification.tsx',
-    'AuthRecovery.tsx',
-    'Consent.tsx',
-    'Onboarding.tsx',
-    'SelfHostedLogin.tsx',
-    'SelfHostedRegister.tsx',
-  ],
-  // Collaboration + update review (.collab-*), notification list (.notif-*)
-  // and the editor inspector's publication block (.publication-*). Digest
-  // manage reuses the members table (.collab-invite / .collab-member*).
-  'collab.css': ['Collaborators.tsx', 'Notifications.tsx', 'library-desk/CollectionSettingsSheet.tsx', 'DigestManage.tsx'],
-  // Curator digest management (R10-05/36): the Mine board and the
-  // per-series manage workbench share the digest-*/my-digest-* rules.
-  'digest-manage.css': ['MyDigests.tsx', 'DigestManage.tsx'],
+  'auth-pages.css': ['AuthRecovery.tsx', 'Consent.tsx', 'SelfHostedLogin.tsx', 'SelfHostedRegister.tsx'],
+  // Collaboration (.collab-*) and the editor inspector's publication block
+  // (.publication-*).
+  'collab.css': ['Collaborators.tsx', 'library-desk/CollectionSettingsSheet.tsx'],
   // Absence poster (404 digits + unavailable subjects). Loaded by each route
   // that paints the stage, not by the entry.
-  'not-found.css': [
-    'NotFound.tsx',
-    'Collection.tsx',
-    'Graph.tsx',
-    'PathReader.tsx',
-    'Share.tsx',
-    'Profile.tsx',
-    'ReportSeries.tsx',
-    'ReportIssue.tsx',
-    'Reader.tsx',
-    'ResourceDetail.tsx',
-    'CommunityCommentRedirect.tsx',
-    'DigestManage.tsx',
-  ],
+  'not-found.css': ['NotFound.tsx', 'Collection.tsx', 'Graph.tsx', 'ResourceDetail.tsx'],
 }
 
 function stripComments(source: string): string {
@@ -314,8 +223,6 @@ describe('CSS cascade layer contract (F00)', () => {
     const print = readFileSync(resolve(stylesDir, 'print.css'), 'utf8')
     expect(print).not.toMatch(/data:image|base64/i)
     expect(print).toMatch(/--grain:\s*none/)
-    expect(print).toMatch(/--dither:\s*none/)
-    expect(print).toMatch(/--dither-paper:\s*none/)
     expect(print).toMatch(/--select-chevron:\s*none/)
   })
 

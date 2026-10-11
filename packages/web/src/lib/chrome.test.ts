@@ -1,30 +1,25 @@
 import { describe, expect, it } from 'vitest'
-import { APP_NAV, canonicalSiteOrigin, isAppNavActive, isAuthPath, loginPath } from './chrome'
+import { APP_NAV, isAppNavActive, isAuthPath, loginPath } from './chrome'
 
 describe('chrome helpers', () => {
-  it('omits Updates and Dashboard from signed-in primary nav', () => {
-    expect(APP_NAV.map((item) => item.to)).toEqual(['/today', '/explore', '/library'])
-    expect(APP_NAV.map((item) => item.label)).not.toContain('Updates')
-    expect(APP_NAV.map((item) => item.label)).not.toContain('Dashboard')
+  it('lists Library and Agents as the signed-in primary nav', () => {
+    expect(APP_NAV.map((item) => item.to)).toEqual(['/library', '/agents'])
+    expect(APP_NAV.map((item) => item.label)).toEqual(['Library', 'Agents'])
   })
 
   it('treats auth routes as auth paths', () => {
     expect(isAuthPath('/login')).toBe(true)
     expect(isAuthPath('/consent')).toBe(true)
     expect(isAuthPath('/register')).toBe(true)
-    expect(isAuthPath('/reset-password')).toBe(true)
-    expect(isAuthPath('/verify-email')).toBe(true)
     expect(isAuthPath('/auth/recovery')).toBe(true)
-    expect(isAuthPath('/explore')).toBe(false)
     expect(isAuthPath('/library')).toBe(false)
+    expect(isAuthPath('/agents')).toBe(false)
   })
 
-  it('does not light a workbench channel on auth routes', () => {
-    expect(isAppNavActive('/today', '/login')).toBe(false)
-    expect(isAppNavActive('/today', '/register')).toBe(false)
-    expect(isAppNavActive('/explore', '/login')).toBe(false)
+  it('does not light a primary channel on auth routes', () => {
     expect(isAppNavActive('/library', '/login')).toBe(false)
-    expect(isAppNavActive('/dashboard', '/login')).toBe(false)
+    expect(isAppNavActive('/library', '/register')).toBe(false)
+    expect(isAppNavActive('/agents', '/login')).toBe(false)
   })
 
   it('builds sign-in links that return to the current page', () => {
@@ -36,14 +31,7 @@ describe('chrome helpers', () => {
   it('matches library nested routes and exact app channels', () => {
     expect(isAppNavActive('/library', '/library')).toBe(true)
     expect(isAppNavActive('/library', '/library/abc/edit')).toBe(true)
-    expect(isAppNavActive('/explore', '/explore')).toBe(true)
-    expect(isAppNavActive('/explore', '/feed')).toBe(false)
-    expect(isAppNavActive('/today', '/today')).toBe(true)
-  })
-
-  it('rewrites loopback origins to the public site', () => {
-    expect(canonicalSiteOrigin('http://localhost:8080')).toBe('https://know-n.com')
-    expect(canonicalSiteOrigin('http://127.0.0.1:8080')).toBe('https://know-n.com')
-    expect(canonicalSiteOrigin('https://know-n.com')).toBe('https://know-n.com')
+    expect(isAppNavActive('/agents', '/agents')).toBe(true)
+    expect(isAppNavActive('/agents', '/approvals')).toBe(false)
   })
 })

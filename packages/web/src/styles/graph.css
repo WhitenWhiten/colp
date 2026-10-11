@@ -279,10 +279,6 @@
   stroke: var(--accent-ink);
 }
 
-.graph-node.is-locked .graph-dot {
-  stroke-dasharray: 3 2;
-}
-
 .graph-tooltip {
   /* Absolute inside .graph-canvas — do not reuse .ctx-menu (components
      layer position:fixed would interpret these offsets as viewport coords

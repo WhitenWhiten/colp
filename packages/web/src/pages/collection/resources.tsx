@@ -8,7 +8,6 @@ import { Icon } from '../../components/Icon'
 import { ResourceList, type ResourceListItem } from '../../components/ResourceList'
 import { useOwnedCollections } from '../../lib/useOwnedCollections'
 import { bookmarkIconSrc } from '../../lib/bookmarkIcon'
-import { recordResourceOpen } from '../../lib/recordCollectionInsight'
 import { resourceDetailPath } from '../../lib/useResourceNode'
 import { resourceKindLabel } from '../../lib/resourceKind'
 import { previewCover } from '../../lib/linkPreview'
@@ -21,9 +20,8 @@ import { UGC_REL } from '../../lib/ugcRel'
    Unsafe URLs (href === null) render nothing — "Link unavailable" stays.
    The primary title link goes to the in-app resource detail (/r/:id) with
    the public slug in ?slug= (see ResourceListItem.detailLink). */
-function ResourceExternalLink({ resource, slug, className }: {
+function ResourceExternalLink({ resource, className }: {
   resource: CollectionResource
-  slug: string
   className: string
 }) {
   if (!resource.href) return null
@@ -36,19 +34,15 @@ function ResourceExternalLink({ resource, slug, className }: {
       data-collection-resource-link
       aria-label={`Open ${resource.node.title} on ${resource.host}`}
       title={`Open on ${resource.host}`}
-      onClick={() => {
-        recordResourceOpen(slug, resource.node.id)
-      }}
     >
       <Icon name="arrow-up-right" />
     </a>
   )
 }
 
-/* R7-07: copying into an owned collection closes the explore loop — a
-   signed-in visitor files a public bookmark as a real node (the same
-   createCollectionNode write the desk uses), instead of only following.
-   The desk's reading-list control keeps its own glyph. */
+/* R7-07: a signed-in visitor copies a public bookmark into a collection
+   they own as a real node (the same createCollectionNode write the desk
+   uses). */
 function ResourceSaveButton({ resource, onSave }: {
   resource: CollectionResource
   onSave: (resource: CollectionResource) => void
@@ -68,17 +62,14 @@ function ResourceSaveButton({ resource, onSave }: {
   )
 }
 
-export function SaveResourcePicker({ resource, resources, onClose }: {
-  resource?: CollectionResource
-  /** Batch mode (digest Save all): every entry with a resolvable url. */
-  resources?: CollectionResource[]
+export function SaveResourcePicker({ resource, onClose }: {
+  resource: CollectionResource
   onClose: () => void
 }) {
   const owned = useOwnedCollections()
   const { success, error } = useToast()
   const [busy, setBusy] = useState(false)
-  const targets = (resources ?? (resource ? [resource] : []))
-    .flatMap((item) => (item.node.url ? [{ item, url: item.node.url }] : []))
+  const targets = resource.node.url ? [{ item: resource, url: resource.node.url }] : []
 
   const onPick = async (destination: DestinationPick) => {
     if (busy || targets.length === 0) return
@@ -154,11 +145,10 @@ export function ResourceIcon({
   )
 }
 
-export const CollectionResources = memo(function CollectionResources({ resources, view, slug, resourcesRef, faviconCdnAllowed, showPath, onSave }: {
+export const CollectionResources = memo(function CollectionResources({ resources, view, slug, faviconCdnAllowed, showPath, onSave }: {
   resources: CollectionResource[]
   view: ViewMode
   slug: string
-  resourcesRef: (node: HTMLDivElement | null) => void
   faviconCdnAllowed: boolean
   /** Search results show where a hit lives; plain layers do not repeat it. */
   showPath: boolean
@@ -194,7 +184,7 @@ export const CollectionResources = memo(function CollectionResources({ resources
         <>
           {onSave && <ResourceSaveButton resource={resource} onSave={onSave} />}
           {resource.href && (
-            <ResourceExternalLink resource={resource} slug={slug} className="collection-resource-external" />
+            <ResourceExternalLink resource={resource} className="collection-resource-external" />
           )}
         </>
       ) : undefined,
@@ -207,7 +197,6 @@ export const CollectionResources = memo(function CollectionResources({ resources
     <ResourceList
       items={items}
       mode={mode}
-      streamRef={resourcesRef}
       collectionView={mode}
     />
   )

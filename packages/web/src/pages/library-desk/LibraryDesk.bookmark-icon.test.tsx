@@ -2,13 +2,11 @@
 import { act } from 'react'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { FEATURE_FLAGS } from '../../api/featureFlags'
 import type { EditableNodeView, EditorSnapshot, OwnedCollectionListItem } from '../../api/types'
 import { LibraryDesk } from './LibraryDesk'
 import librarySource from './LibraryDesk.tsx?raw'
 import bookmarkItemSource from './bookmarkItem.tsx?raw'
 import { setUiDensity } from '../../lib/useUiDensity'
-import { resetLinkPreviewRequestsForTests } from '../../lib/useLinkPreviewRequests'
 import { cleanup, domFinishedLoading, mountTree, waitForDom } from '../../test/render'
 
 const mocks = vi.hoisted(() => ({
@@ -19,7 +17,6 @@ const mocks = vi.hoisted(() => ({
   loadEditorSnapshot: vi.fn(),
   loadAnnotations: vi.fn(async () => []),
   createCollectionNode: vi.fn(),
-  requestLinkPreviews: vi.fn(async () => ({ enqueued: 1 })),
   collections: {
     items: [] as OwnedCollectionListItem[],
     state: 'ready' as 'loading' | 'ready' | 'error',
@@ -73,11 +70,6 @@ vi.mock('../../api', async (importOriginal) => {
       loadEditorSnapshot: mocks.loadEditorSnapshot,
       loadAnnotations: mocks.loadAnnotations,
       createCollectionNode: mocks.createCollectionNode,
-      requestLinkPreviews: mocks.requestLinkPreviews,
-      listFollowedCollections: vi.fn(async () => ({ items: [], nextCursor: null })),
-      listFollowedReports: vi.fn(async () => ({ items: [], nextCursor: null })),
-      listMyReports: vi.fn(async () => ({ items: [], nextCursor: null })),
-      getFollowedReportIssuesPage: vi.fn(async () => ({ items: [], nextCursor: null })),
       getMyLibraryOrder: vi.fn(async () => ({ sections: { mine: [], shared: [], following: [] } })),
       updateMyLibraryOrder: vi.fn(async () => ({ section: 'mine', collectionIds: [] })),
       newCommandId: () => '11111111-1111-4111-8111-111111111111',
@@ -356,38 +348,6 @@ describe('LibraryDesk bookmark icons (BF-05) behaviour', () => {
     delete window.__KNOWN_FLAGS__
   })
 
-  it('LP-07: Gallery shows same-origin covers and asks only for the missing ones', async () => {
-    resetLinkPreviewRequestsForTests()
-    mocks.requestLinkPreviews.mockClear()
-    const cover = { url: `${window.location.origin}/api/v1/link-preview/0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d`, width: 1200, height: 630 }
-    const owned = snapshot('col-2', 'Second shelf')
-    owned.nodes = [
-      owned.nodes[0]!,
-      { ...extraBookmark('with', 'col-2', 'root-col-2', 'b', 'Covered item', 'https://news.example.test/a'), previewImage: cover } as EditableNodeView,
-      { ...extraBookmark('without', 'col-2', 'root-col-2', 'c', 'Plain item', 'https://blog.example.test/b'), previewImage: null } as EditableNodeView,
-    ]
-    mocks.loadEditorSnapshot.mockImplementation((id: string) => Promise.resolve(id === 'col-2' ? owned : snapshot(id, 'Reading queue')))
-    // col-2: the desk caches trees by id, and later tests reuse col-1.
-    try {
-      mount('/library/col-2')
-      await waitForDom(domFinishedLoading)
-      const gallery = [...document.querySelectorAll<HTMLButtonElement>('[aria-label="View"] button')]
-        .find((button) => button.textContent?.trim() === 'Gallery')
-      expect(gallery).toBeDefined()
-      act(() => gallery!.click())
-      await waitForDom(() => document.querySelector('[data-testid="library-bookmarks"] [data-gallery-card]') !== null)
-      const covered = document.querySelector('[data-gallery-card][data-node-id="with"]')
-      expect(covered?.querySelector('img')?.getAttribute('src')).toBe(cover.url)
-      expect(document.querySelector('[data-gallery-card][data-node-id="without"] img')).toBeNull()
-      await waitForDom(() => mocks.requestLinkPreviews.mock.calls.length > 0)
-      expect(mocks.requestLinkPreviews.mock.calls[0]!.slice(0, 2)).toEqual(['col-2', ['without']])
-      expect(thirdPartyFaviconSrcs()).toEqual([])
-      expect(window.localStorage.getItem('known.library.gallery.v1')).toBe('true')
-    } finally {
-      window.localStorage.removeItem('known.library.gallery.v1')
-    }
-  })
-
   it('does not hotlink favicon.im or DuckDuckGo for intranet or github bookmarks', async () => {
     const owned = snapshot('col-1', 'Reading queue')
     owned.nodes = [
@@ -412,7 +372,6 @@ describe('LibraryDesk bookmark icons (BF-05) behaviour', () => {
     await waitForDom(domFinishedLoading)
     // The subtree filter flattens both rows (root + folder) into one list.
     setControlValue(document.querySelector<HTMLInputElement>('[data-testid="library-desk-search"] input')!, 'item')
-    expect(FEATURE_FLAGS.collectionFollow).toBe(true)
     expect(document.body.textContent).toContain('GitHub item')
     expect(document.body.textContent).toContain('Intranet item')
     expect(document.body.textContent).toContain('CDN icon item')
@@ -477,11 +436,10 @@ describe('architecture invariants that cannot be behaviour tested', () => {
        would only matter on a branch the probe does not take. Asserted on the
        call-site literal and the host names, so renaming anything else is
        irrelevant. */
-    expect(FEATURE_FLAGS.collectionFollow).toBe(true)
     /* Both sources are concatenated below, so a `?raw` import that resolved to
        an empty string would leave the presence check passing on the other
        file and silently narrow the absence scan. */
-    expect(librarySource.length).toBeGreaterThan(8_000)
+    expect(librarySource.length).toBeGreaterThan(5_000)
     expect(bookmarkItemSource.length).toBeGreaterThan(1_500)
     expect(librarySource + bookmarkItemSource).toContain('faviconCdnAllowed: false')
     expect(librarySource + bookmarkItemSource).not.toMatch(/a\.favicon\.im|favicon\.im|icons\.duckduckgo\.com/)

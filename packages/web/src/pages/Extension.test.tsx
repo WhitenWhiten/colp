@@ -1,5 +1,4 @@
 // @vitest-environment happy-dom
-import { act } from 'react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { Extension } from './Extension'
@@ -15,20 +14,20 @@ describe('Extension install page', () => {
     document.body.innerHTML = ''
   })
 
-  it('copy-only: says the extension only syncs collections you own', () => {
+  it('walks through connecting the extension to this server and syncing owned collections', () => {
     mountTree(<MemoryRouter><Extension /></MemoryRouter>)
-    expect(document.body.textContent).toContain('Personal sync uses collections you own')
-    expect(document.body.textContent).toContain('read-only subscriptions never upload edits to their source')
-    expect(document.body.textContent).toContain('Optional: save the page you have open into a collection you own')
-    expect(document.body.textContent).toContain('Optional: allow bookmark access so saves can land in a browser folder')
-    expect(document.body.textContent).not.toContain('capture the active tab URL')
-    expect(document.body.textContent).not.toContain('New links get semantic suggestions')
+    expect(document.body.textContent).toContain('syncs browser folders into collections you own on this server')
     const setup = document.querySelector('[aria-label="Setup steps"]')
-    expect(setup?.textContent).toContain('Save pages')
-    expect(setup?.textContent).toContain('The toolbar popup saves the tab you have open into a collection you own.')
-    expect(document.querySelector('a[href="/classify"]')?.textContent).toContain('Classify inbox')
-    expect(document.body.textContent).not.toMatch(/Add to Chrome|Chrome Web Store/i)
-    expect(document.querySelector('a[href="/onboarding"]')).not.toBeNull()
+    expect([...setup!.querySelectorAll('h3, strong')].map((node) => node.textContent)).toEqual(
+      expect.arrayContaining(['Install', 'Connect this server', 'Sign in', 'Choose folders']),
+    )
+    expect(setup?.textContent).toContain('Options → Account → Server')
+    const permissions = document.querySelector('[aria-label="Permissions"]')
+    expect(permissions?.textContent).toContain('Never uploads folders you did not select')
+    expect(permissions?.textContent).toContain('Sync uses collections you own on this server')
+    expect(document.querySelector('a[href="/sync"]')?.textContent).toBe('Open sync center')
+    expect(document.querySelector('a[href="/import"]')?.textContent).toBe('Import bookmarks')
+    expect(document.querySelector('a[href="/classify"], a[href="/onboarding"]')).toBeNull()
   })
 
   it('offers the way back to the collection page that sent the reader here', () => {

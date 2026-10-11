@@ -31,7 +31,6 @@ describe('generated Library order client bridge', () => {
     expect(Object.isFrozen(productClient)).toBe(true)
     expect(typeof productClient.getMyLibraryOrder).toBe('function')
     expect(typeof productClient.updateMyLibraryOrder).toBe('function')
-    expect(typeof productClient.abandonLibraryOrderIntent).toBe('function')
   })
 
   it('reads the sidebar order from GET /me/library-order with credentials', async () => {
@@ -116,13 +115,5 @@ describe('generated Library order client bridge', () => {
     vi.spyOn(globalThis, 'fetch').mockRejectedValueOnce(new DOMException('Aborted', 'AbortError'))
     await expect(productClient.getMyLibraryOrder({ maxRetries: 0 }))
       .rejects.toMatchObject({ name: 'AbortError' })
-  })
-
-  it('clears a stored command id through abandonLibraryOrderIntent', () => {
-    const intentId = `library-order:following:${ACTOR}`
-    const commandId = productClient.newCommandId()
-    sessionStorage.setItem(`known.command-id.v1:${intentId}`, commandId)
-    productClient.abandonLibraryOrderIntent(intentId)
-    expect(sessionStorage.getItem(`known.command-id.v1:${intentId}`)).toBeNull()
   })
 })

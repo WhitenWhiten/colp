@@ -6,8 +6,6 @@ import type { MutationCallOptions, WriteApprovalListParams } from './product-tra
 import type {
   WriteApprovalDecision,
   WriteApprovalDecisionResult,
-  WriteApprovalPage,
-  WriteApprovalView,
 } from './types'
 
 export function createWriteApprovalTransport(http: ProductTransportHttp) {
@@ -49,7 +47,6 @@ export function createWriteApprovalTransport(http: ProductTransportHttp) {
       )
     }
   }
-
   return {
     async listWriteApprovals(params?: WriteApprovalListParams) {
       const client = writeApprovalClient('', params?.signal)

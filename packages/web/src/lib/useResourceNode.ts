@@ -6,7 +6,6 @@ import {
   type EditorSnapshot,
   type PublicCollectionSnapshot,
 } from '../api'
-import { isReadableReplicaExposureEnabled } from '../api/featureFlags'
 import { useAuth } from '../auth/AuthContext'
 import { privateSessionIdentity, subscribeSession } from '../api/sessionStore'
 import { readRouteCache, writeRouteCache } from './routeCache'
@@ -84,27 +83,17 @@ export function resourceDetailPath(
 /**
  * Where a resource page's back control leads. The desk context (collectionId)
  * wins over the public board — desk links carry both when the collection is
- * published, and the desk is where that visitor came from. A slug-only visit
- * from a reading path returns to the path, not the board. Before the snapshot
- * resolves (loading/error shells) the kind is unknown, so a slug falls back
- * to the board.
+ * published, and the desk is where that visitor came from.
  */
 export function resourceBackPath(
   query: { collectionId?: string | null; slug?: string | null },
-  ready?: { collectionKind: CollectionKind; publicationSlug: string | null },
+  ready?: { publicationSlug: string | null },
 ): string {
   const collectionId = query.collectionId?.trim()
   if (collectionId) return `/library/${encodeURIComponent(collectionId)}`
   const slug = ready?.publicationSlug ?? query.slug?.trim() ?? ''
-  if (slug) return ready?.collectionKind === 'reading_path' ? `/path/${slug}` : `/c/${slug}`
+  if (slug) return `/c/${slug}`
   return '/library'
-}
-
-export function resourceReaderPath(
-  nodeId: string,
-  query: ResourceWorkspaceQuery,
-): string {
-  return `/read/${encodeURIComponent(nodeId)}${resourceWorkspaceQuery(query)}`
 }
 
 export type ResourcePrimaryTarget =
@@ -112,17 +101,14 @@ export type ResourcePrimaryTarget =
   | { kind: 'external'; href: string }
 
 /**
- * One release gate for every bookmark's primary action. Reader-on restores the
- * in-app reading route. Reader-off opens the source itself and falls back to
+ * Every bookmark's primary action opens the source itself and falls back to
  * the durable detail page when the bookmark has no safe HTTP(S) URL.
  */
 export function resourcePrimaryTarget(
   nodeId: string,
   url: string | null | undefined,
   query: ResourceWorkspaceQuery,
-  readerEnabled = isReadableReplicaExposureEnabled(),
 ): ResourcePrimaryTarget {
-  if (readerEnabled) return { kind: 'internal', to: resourceReaderPath(nodeId, query) }
   const href = safeExternalUrl(url ?? null)
   return href
     ? { kind: 'external', href }
