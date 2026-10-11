@@ -436,6 +436,15 @@
   --tracking-serif-display: -0.02em;
 
   --page-pad-y: var(--hair-200);
+
+  /* COLP pegboard: a fine dot grid in Know-N ink, the self-hosted
+     identity texture. Paint it from edition.css only (the style-drift
+     texture rule allows it there) and fade it with a mask, so it frames a
+     moment (sign-in, an empty state, a masthead) and never sits under
+     body text. */
+  --colp-grid-dot: color-mix(in srgb, var(--ink) 11%, transparent);
+  --colp-grid: radial-gradient(circle, var(--colp-grid-dot) 1px, transparent 1.5px);
+  --colp-grid-size: 18px 18px;
 }
 
 /* R15-43: under prefers-contrast: more, control boundaries step up with the

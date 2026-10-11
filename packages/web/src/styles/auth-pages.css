@@ -69,19 +69,9 @@
   counter-increment: auth-step;
 }
 
+/* The ribbon marker itself is the edition's (edition.css). */
 .auth-steps > li::before {
   content: counter(auth-step);
-  display: grid;
-  place-items: center;
-  width: 1.5rem;
-  height: 1.5rem;
-  border: 1px solid var(--line-strong);
-  border-radius: 50%;
-  background: var(--surface-raised);
-  color: var(--ink);
-  font-size: var(--text-xs);
-  font-weight: var(--weight-semibold);
-  font-variant-numeric: tabular-nums;
 }
 
 /* Hints and errors sit directly under their control (.field's own gap),

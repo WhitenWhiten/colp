@@ -53,7 +53,10 @@
  *     print.css / landing.css, prefers-reduced-motion, .eyebrow / .page-head
  *     caps, .btn-primary / .result-card hover transforms, retained
  *     loading/cursor/desk keyframes (loading-pulse, empty-float,
- *     cursor-blink, typewriter-pop, desk-ssh-blink, capture-*).
+ *     cursor-blink, typewriter-pop, desk-ssh-blink, capture-*), and the
+ *     COLP grid texture (--colp-grid) inside edition.css, the one file
+ *     that paints the self-hosted identity. Know-N's own textures stay
+ *     forbidden there too.
  *
  * Informational only (never fails):
  *  - hardcoded colors, per file + selector, categorized:
@@ -230,7 +233,9 @@ const INK_BORDER_PROPS = new Set([
   'border-block', 'border-inline',
 ])
 const INK_BORDER_RE = /^\s*[2-9]px\s+solid\s+var\(--ink\)/
-const TEXTURE_VARS = ['--dither', '--dither-paper', '--grain', '--band-texture']
+const TEXTURE_VARS = ['--dither', '--dither-paper', '--grain', '--band-texture', '--colp-grid']
+/** The COLP identity texture is sanctioned in this file only. */
+const IDENTITY_TEXTURE = Object.freeze({ file: 'edition.css', vars: ['--colp-grid'] })
 const KEYFRAME_EXEMPT_RE = /loading-pulse|empty-float|cursor-blink|typewriter-pop|desk-ssh-blink|capture-/
 
 function declarationEntries(body) {
@@ -276,7 +281,10 @@ function classifyForbiddenRule(file, selector, decls, reducedMotion) {
     .map((d) => d.value)
     .join(' ')
   if (animationText && !isKeyframeExempt(`${selector} ${animationText}`)) kinds.push('keyframes')
-  if (decls.some((d) => TEXTURE_VARS.some((v) => d.value.includes(`var(${v})`)))) kinds.push('texture')
+  const textureVars = forbiddenFileName(file) === IDENTITY_TEXTURE.file
+    ? TEXTURE_VARS.filter((v) => !IDENTITY_TEXTURE.vars.includes(v))
+    : TEXTURE_VARS
+  if (decls.some((d) => textureVars.some((v) => d.value.includes(`var(${v})`)))) kinds.push('texture')
   return kinds.map((kind) => `${kind} :: ${file} :: ${selector}`)
 }
 
