@@ -75,15 +75,6 @@ export {
   type PublicShellVisibilityOutcome,
 } from './public-shell-header.js';
 export {
-  buildCollectionsSitemapUrlset,
-  COLLECTIONS_SITEMAP_MAX_BYTES,
-  COLLECTIONS_SITEMAP_MAX_URLS,
-  collectionsSitemapLastmod,
-  escapeSitemapXml,
-  filterSearchIndexableSitemapEntries,
-  type CollectionsSitemapEntry,
-} from './collections-sitemap.js';
-export {
   createInternalOriginFetch,
   createWebShellCache,
   WEB_SHELL_CACHE_TTL_MS,

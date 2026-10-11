@@ -19,7 +19,6 @@ import {
   replaceMarkedRegion,
   replaceMetaDescription,
   replaceOgDescription,
-  replaceOgImage,
   replaceOgLocale,
   replaceOgTitle,
   replaceOgUrl,
@@ -28,7 +27,6 @@ import {
   wrapAgentPublicFallback,
 } from './spa-html-meta.js';
 import { isSearchIndexableVisibility } from './public-shell-header.js';
-import { buildCollectionOgImageUrl } from '../public-og/og-image-url.js';
 
 /** `share` / `path` / `graph` are wrappers: their canonical is always `/c/:slug`. */
 export type PublicShellSurface = 'c' | 'share' | 'path' | 'graph';
@@ -194,7 +192,6 @@ export function injectPublicCollectionShell(
   const dateModified = Number.isFinite(Date.parse(input.updatedAt)) ? new Date(Date.parse(input.updatedAt)).toISOString() : null;
   // D1: per-collection OG card, versioned by updatedAt so edits bust social
   // caches. Hidden/private slugs never reach this stamp (generic 404 above).
-  stamped = replaceOgImage(stamped, buildCollectionOgImageUrl(input.slug, input.updatedAt));
   stamped = replaceJsonLd(stamped, buildCollectionPageJsonLd({
     name: collectionTitle,
     description: fullDescription,

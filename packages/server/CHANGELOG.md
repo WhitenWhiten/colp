@@ -18,11 +18,15 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 - Web: Agents shows the compatibility and strict MCP endpoints as copyable fields; the Extension page shows this server's address with a Copy button in the "Connect this server" step.
 - Web: About reports the server status and transport from `/health` and the Manifest, the server address, and links to the Extension, Agents, Import and Sync pages; it sets the document title.
 - Web: Import shows which file is previewed, lists nested destination folders as a tree, and shows an "Import complete" card with "View collection" / "Import another file"; the chosen file is cleared after a completed import so Confirm cannot re-import it by accident.
+- Web: the library search palette has one owner gate for every entry (toolbar buttons, ⌘/Ctrl+K and the open-palette event); a visitor on a shared link no longer reaches the sign-in wall through the shortcut, and signing out closes an open palette.
 
 ### Changed
 
 - The in-memory MCP rate-limit stores reclaim expired buckets in a bounded step (at most 64 entries) when at capacity, instead of scanning every bucket; restarted buckets are re-inserted at the tail so the map stays ordered by window start.
 - `COLP_SERVER_SECRET` errors now say how the value was interpreted (base64 or UTF-8) and how many bytes it produced.
+- Removed the public collections sitemap (`/sitemap-collections.xml`), which was registered unconditionally and listed collections under the hosted service's origin instead of this server's, and the Open Graph card renderer (`/c/{slug}/og-image.png`), which only served the public shell that the self-hosted preset keeps off; `satori` and `@resvg/resvg-js` leave the runtime image with it. Caddy already answered the sitemap paths with 404.
+- The OAuth `invalid_client` message for an opaque `client_id` points at this server's Agents page and `deploy/INSTALL.md`, not at the hosted service.
+- A malformed `/reports/...` URL answers the same JSON problem as any other bad path; the branded HTML page for the removed reports feature is gone.
 - Removed features that are off in the self-hosted edition and have no user story: IndexNow, the Explore shell, publishing insights, readable replicas, AI organize plans, export jobs, link previews, favicon policy, jobs and uploads (with the children time sort behind the same flag), email without `COLP_SMTP_URL`, and classification with credits. Their routes, workers, settings and OpenAPI entries are gone; migrations are untouched. Library export (`colp-server export`, `/api/v1/collections/{id}/export`) is unaffected.
 - A rejected agent commit says why (the collection changed after the plan, not yet approved, expired, denied) instead of "MCP write operation rejected."
 - `changes.get` reports `requiresApproval: false` and `approvedBy: "policy"` for a plan a trusted policy approved, matching what `nodes.move` returned.

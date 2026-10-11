@@ -538,6 +538,10 @@ test.describe('Product editor with strict mocked API', () => {
         label: 'same-command retry',
       })
       .expectEditor({ label: 'post-create editor refresh' })
+      /* The desk defers a refresh that lands while the compose form is still
+         mounted and retries once it closes (library-desk/data.ts
+         `refresh_deferred`); on a slow machine that is a second GET. */
+      .expectEditor({ label: 'deferred refresh retry', optional: true })
 
     await page.getByRole('button', { name: 'Add bookmark', exact: true }).click()
     await page.getByLabel('URL').fill('https://retry.example')
@@ -608,6 +612,7 @@ test.describe('Product editor with strict mocked API', () => {
         label: 'recursive folder delete',
       })
       .expectEditor({ label: 'post-delete editor refresh' })
+      .expectEditor({ label: 'deferred refresh retry (confirm dialog)', optional: true })
 
     await page.getByRole('button', { name: 'Actions for Folder to delete' }).click()
     await page.getByRole('menuitem', { name: 'Delete' }).click()

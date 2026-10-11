@@ -830,11 +830,6 @@ const transportTargets = new Set([
   'transport/public-shell-routes.ts',
   // B1: origin-injected /explore discovery hub.
   'transport/public-explore-shell-routes.ts',
-  // Per-Collection Open Graph card route: a public-shell sibling registered by
-  // register-product-surfaces.ts. Its absence from this allowlist made
-  // `check-import-boundaries` exit 1 on the whole tree.
-  'transport/public-og-image-routes.ts',
-  'transport/collections-sitemap-routes.ts',
   // FIX-L-015 (PUB-R08): transport-internal request-cancellation helper for
   // the publication read routes (request abort -> cache reader -> PG query).
   'transport/product/publication-request-cancel.ts',

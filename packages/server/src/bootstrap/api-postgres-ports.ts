@@ -59,7 +59,6 @@ import {
 import { createPhase4bMcpWriteOperations } from '../modules/mcp/index.js';
 import {
   createPostgresPublicationDirectoryReadPort,
-  createPostgresPublicationSitemapReadPort,
   createPostgresSearchIndexingExclusionReadPort,
   createPostgresPublicationNodeCountReadPort,
   createPostgresPublicationAnnotationReadPort,
@@ -322,7 +321,6 @@ export function createApiPostgresAppDependencies(input: {
       origin: config.publication.origin,
       collectionControl: ports.publicationCollectionControl,
     },
-    publicationSitemapQuery: createPostgresPublicationSitemapReadPort(database),
     ...(config.publicShellMeta.enabled && config.publicShellMeta.webShellOrigin !== null
       ? {
           publicShell: {

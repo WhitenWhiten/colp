@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import {
-  buildCollectionOgImageUrl,
   buildCollectionPageJsonLd,
   decidePublicShellVisibility,
   isSearchIndexableVisibility,
@@ -55,9 +54,9 @@ test('injects title, description, canonical, CollectionPage JSON-LD, and agent-p
   assert.match(html, /<meta property="og:description" content="Saved links for the team\." \/>/u);
   assert.match(html, /<link rel="canonical" href="https:\/\/know-n\.com\/c\/engineering-notes" \/>/u);
   assert.match(html, /<meta property="og:url" content="https:\/\/know-n\.com\/c\/engineering-notes" \/>/u);
-  // D1: the site-wide cover gives way to the per-collection card, versioned
-  // by updatedAt so an edit busts social-crawler caches.
-  assert.match(html, new RegExp(`<meta property="og:image" content="${buildCollectionOgImageUrl('engineering-notes', '2026-08-01T12:00:00.000Z').replace(/[.?/]/gu, '\\$&')}" \\/>`, 'u'));
+  // The per-collection OG card renderer is gone with the hosted public shell;
+  // the site-wide og:image from index.html stays untouched.
+  assert.doesNotMatch(html, /og-image\.png/u);
   assert.match(html, /"@type": "CollectionPage"/u);
   assert.match(html, /"numberOfItems": 4/u);
   assert.match(html, /<h1>Engineering notes<\/h1>/u);

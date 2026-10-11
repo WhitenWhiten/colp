@@ -10,11 +10,6 @@ export function isPublicationUrl(url: string): boolean {
   return path?.startsWith('/colp/') === true || path === '/.well-known/collection-protocol';
 }
 
-export function isPublicReportUrl(url: string): boolean {
-  const path = url.split('?', 1)[0] ?? url;
-  return path === '/reports' || path.startsWith('/reports/');
-}
-
 /**
  * FIX-L-004: every /api/v1/** request is part of the Product surface. A
  * malformed URL (bad percent-encoding in the path) must produce the same
@@ -78,10 +73,6 @@ export function sendBadUrlProductError(
     });
     response.end(body);
     return;
-  }
-  if (isPublicReportUrl(path)) {
-    const body = Buffer.from('<!doctype html><html><head><title>Bad request — Know-N</title></head><body><h1>Bad request</h1></body></html>', 'utf8');
-    response.writeHead(400, { 'Content-Length': String(body.byteLength), 'Content-Type': 'text/html; charset=utf-8' }); response.end(body); return;
   }
   // COLP / MCP / other surfaces keep the Fastify-shaped envelope but never
   // interpolate the malformed path (it may carry raw undecodable bytes).

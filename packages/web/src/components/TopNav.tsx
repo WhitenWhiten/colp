@@ -85,10 +85,19 @@ export function TopNav() {
     setToolsOpen(false)
   }, [location.pathname])
 
+  // One gate for every entry: the buttons, ⌘/Ctrl+K and the custom event
+  // all go through the same owner check, and a sign-out closes the palette.
   useEffect(() => {
-    const openSearch = () => setSearchOpen(true)
+    if (!showSearch) setSearchOpen(false)
+  }, [showSearch])
+
+  useEffect(() => {
+    const openSearch = () => {
+      if (showSearch) setSearchOpen(true)
+    }
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        if (!showSearch) return
         e.preventDefault()
         setSearchOpen(true)
       }
@@ -111,7 +120,7 @@ export function TopNav() {
       window.removeEventListener(OPEN_SEARCH_PALETTE_EVENT, openSearch)
       window.removeEventListener('keydown', onKey)
     }
-  }, [accountOpen, toolsOpen, menuOpen])
+  }, [accountOpen, toolsOpen, menuOpen, showSearch])
 
   async function signOut() {
     const outcome = await logout()
@@ -269,7 +278,7 @@ export function TopNav() {
         )}
       </header>
 
-      {searchLoaded && (
+      {searchLoaded && showSearch && (
         <Suspense fallback={null}>
           <SearchPalette open={searchOpen} onClose={() => setSearchOpen(false)} />
         </Suspense>

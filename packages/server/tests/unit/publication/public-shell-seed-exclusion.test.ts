@@ -5,7 +5,6 @@ import {
   injectPublicCollectionShell,
   resolveSearchIndexable,
 } from '../../../src/infrastructure/http/index.js';
-import { buildPublicationSitemapStatement } from '../../../src/infrastructure/publication/postgres-sitemap-read.js';
 import { SEED_COLLECTION_EXCLUSION_SQL } from '../../../src/infrastructure/publication/postgres-search-indexing-exclusion.js';
 import { PUBLIC_SHELL_FIXTURE } from './public-shell-fixture.js';
 
@@ -51,9 +50,8 @@ test('a public seed collection still renders its document but carries noindex in
   assert.match(markdown, /^robots: noindex$/mu);
 });
 
-test('sitemap statement excludes seed-registered collections through the shared predicate', () => {
+test('the shared seed-exclusion predicate names the seed registry and the collection id', () => {
   assert.match(SEED_COLLECTION_EXCLUSION_SQL, /seed_rows sr/u);
   assert.match(SEED_COLLECTION_EXCLUSION_SQL, /sr\.table_name = 'collections'/u);
   assert.match(SEED_COLLECTION_EXCLUSION_SQL, /sr\.pk->>0 = c\.id/u);
-  assert.ok(buildPublicationSitemapStatement().text.includes(SEED_COLLECTION_EXCLUSION_SQL));
 });
