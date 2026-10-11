@@ -91,15 +91,26 @@ trash.
 
 Open **Agents** in the web UI and copy the endpoint.
 
-**Claude Code** (OAuth, HTTPS required):
+**Claude Code** (OAuth):
 ```sh
-claude mcp add --transport http colp "https://colp.example.net/collections/-/mcp-compat"
+claude mcp add --transport http colp "$COLP_SERVER_ORIGIN/collections/-/mcp-compat"
+claude mcp login colp
 ```
-Run a command; the browser opens the server's consent page; approve. The
+The browser opens your server: sign in, then approve on the consent page. The
 agent appears in the Agents list.
 
-**Codex and other clients that speak MCP 2026-07-28**: use
-`/collections/-/mcp` instead of `/collections/-/mcp-compat`.
+**Codex** (OAuth):
+```sh
+codex mcp add colp --url "$COLP_SERVER_ORIGIN/collections/-/mcp-compat"
+codex mcp login colp
+```
+For `codex exec` (no one to answer prompts), also set
+`default_tools_approval_mode = "approve"` under `[mcp_servers.colp]` in
+`~/.codex/config.toml`; changes still wait on your Approvals page.
+
+Both work on HTTPS and on the plain HTTP profile at `http://127.0.0.1`
+(tested with Claude Code 2.1.296 and Codex 0.162.1). Clients that speak MCP
+2026-07-28 can use `/collections/-/mcp` instead of `/collections/-/mcp-compat`.
 
 **A script with an API key** (HTTPS, or explicitly acknowledged HTTP):
 Agents → **Issue key**, copy the credential once into `KEY`. Exchange it for
@@ -120,14 +131,18 @@ curl -H "Authorization: Bearer $ACCESS_TOKEN" -H "MCP-Protocol-Version: 2026-07-
 The built-in issuer verifies its public keys from the local database, including
 API-key signing keys, so it does not need to reach its public origin from inside
 Docker. External issuers still use their configured JWKS endpoint.
-Hosted OAuth clients still require HTTPS. An API-key script also works on
-the plain HTTP profile (`http://127.0.0.1:8080` with `COLP_INSECURE_HTTP=true`).
+An API-key script also works on the plain HTTP profile
+(`http://127.0.0.1:8080` with `COLP_INSECURE_HTTP=true`). A revoked or
+expired key gets `401 invalid_grant` from `/api/v1/auth/key-token`.
 
-**Approval policy.** Each agent starts as *manual*: a plan that changes
-your collection waits on the Approvals page. Switch an agent to *trusted* to
-let reversible plans commit at once with an Undo button. Making a collection
-public, deleting a collection, emptying the trash, and purging always wait
-for you.
+**Approval policy.** Each agent starts as *manual*: moving or deleting
+bookmarks becomes a plan that waits on the Approvals page, and the agent
+commits it after you approve. Adding bookmarks and editing titles apply at
+once. Switch an agent to *trusted* to let moves commit without asking.
+Either way, every committed plan saves the collection's previous version
+first, so you can Undo moves from the Approvals page or restore any version
+from the collection's History. Making a collection public, deleting, emptying
+the trash, and purging always wait for you.
 
 ## 7. Share a collection
 
@@ -242,7 +257,9 @@ call; nothing keeps working elsewhere.
 | Browser shows certificate error (tls-internal) | | Section 4.1 on that profile |
 | Extension says "not a COLP server" | `curl $ORIGIN/.well-known/collection-protocol` returns HTML | Caddy profile mismatch; check `docker compose --profile <p> ps` |
 | Extension sign-in fails on HTTP | cookie rejected | Confirm `COLP_INSECURE_HTTP=true` on the server and the `http://` origin in the extension |
-| Claude Code cannot complete OAuth | redirect blocked | OAuth needs an HTTPS origin (section 2). On `http://127.0.0.1:8080` use an API key script (section 6) |
+| Agent OAuth fails with `invalid_client: Failed to fetch metadata document` | `docker compose exec server getent hosts claude.ai` (or `chatgpt.com` for Codex) | The server downloads the client's metadata document and refuses private and special-purpose addresses. A VPN or proxy with "fake-IP" DNS answers with `198.18.x.x`, which is refused. Give the server real DNS, or register the client instead: Codex `codex mcp login colp --oauth-client-registration dcr`; Claude Code: `curl -X POST "$COLP_SERVER_ORIGIN/api/v1/auth/oauth2/register" -H 'content-type: application/json' -d '{"client_name":"Claude Code","application_type":"native","redirect_uris":["http://localhost:33418/callback"],"token_endpoint_auth_method":"none","grant_types":["authorization_code","refresh_token"],"response_types":["code"]}'`, then `claude mcp add --transport http --client-id <client_id> --callback-port 33418 colp …` |
+| Every link shows as broken | Same DNS check as above | Link checks also refuse fake-IP answers; fix the server's DNS |
+| Agent says "The collection changed after this plan was made" | | Something edited the collection after the plan; ask the agent to plan again. To move several bookmarks, ask for one `nodes.move` with `nodeIds` so they share one approval |
 | Sync shows a conflict | Sync center | Pick a side; nothing is lost |
 | Deleted bookmarks by mistake | Sync center → Trash | Restore |
 | Agent did something wrong | Approvals → the plan → Undo; or collection → History → Restore | |
