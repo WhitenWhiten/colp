@@ -41,6 +41,7 @@ services:
 
   caddy-tls-auto:
     image: caddy:2
+    command: ["/bin/sh", "/etc/caddy/colp-entrypoint.sh"]
     restart: unless-stopped
     profiles:
       - tls-auto
@@ -51,6 +52,7 @@ services:
       - "443:443"
     volumes:
       - ./Caddyfile.tls-auto:/etc/caddy/Caddyfile
+      - ./caddy-entrypoint.sh:/etc/caddy/colp-entrypoint.sh:ro
       - caddy-data:/data
       - caddy-config:/config
       - colp-web:/srv/web:ro
@@ -59,6 +61,7 @@ services:
 
   caddy-tls-internal:
     image: caddy:2
+    command: ["/bin/sh", "/etc/caddy/colp-entrypoint.sh"]
     restart: unless-stopped
     profiles:
       - tls-internal
@@ -68,6 +71,7 @@ services:
       - "443:443"
     volumes:
       - ./Caddyfile.tls-internal:/etc/caddy/Caddyfile
+      - ./caddy-entrypoint.sh:/etc/caddy/colp-entrypoint.sh:ro
       - caddy-data:/data
       - caddy-config:/config
       - colp-web:/srv/web:ro

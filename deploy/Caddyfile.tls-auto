@@ -1,3 +1,7 @@
+{
+	default_sni {$COLP_TLS_SERVER_NAME}
+}
+
 {$COLP_SERVER_ORIGIN} {
 	@proxied path /api/* /collections/* /.well-known/* /colp/* /health /ready
 	handle @proxied {

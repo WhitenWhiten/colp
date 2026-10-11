@@ -28,6 +28,7 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 
 ### Fixed
 
+- IP-based HTTPS works through Docker's TLS ingress when the client omits SNI. Both TLS Compose services derive Caddy's default certificate selection name from `COLP_SERVER_ORIGIN` (IPv4, IPv6 and DNS, with optional ports), without an extra operator setting. CI verifies real certificate-chain and identity checks against the production Compose configuration.
 - Agent plans affecting a collection with more than 2,000 live folders and bookmarks are rejected before mutation in both manual and trusted mode. Manual commits no longer silently skip history and Undo; capacity failures report the limit and leave the plan available to cancel. Failed commits roll back their approval claim, and idempotent replays keep returning the original result without capturing history again.
 - An agent's OAuth sign-in works when the owner is not yet signed in: `/oauth2/authorize` sends the browser to `/login` instead of answering JSON 401, and `/login` resumes the authorization after sign-in instead of dropping it.
 - `/sitemap.xml`, `/sitemap-*.xml`, `/llms.txt` and `/llms-full.txt` answer 404 in all Caddy profiles instead of the web app's HTML.
@@ -39,6 +40,13 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 - `fastify` 5.12.5 (GHSA HTTP/2 trailer DoS), `fast-uri` 3.1.8 / 4.1.5 (authority injection, host confusion, case normalization), `source-map-js` 1.2.2 and `fflate` 0.7.5 via overrides. The runtime install audits clean; `vitest` 4.1.11 clears the dev-tree `tinypool`/`@vitest/mocker` advisories.
 
 ### Upgrade notes
+
+The IP HTTPS fix requires the updated `deploy/compose.yaml`, both TLS Caddyfiles
+and `deploy/caddy-entrypoint.sh` from the same revision. Update the checkout
+(`git pull --ff-only`), then recreate the active ingress:
+`docker compose --profile tls-internal up -d --no-deps --force-recreate caddy-tls-internal`
+(use `tls-auto` / `caddy-tls-auto` for automatic HTTPS). Existing Caddy volumes
+retain their CA and certificates, so this update does not require a new CA import.
 
 Operators who relied on the implicit plaintext legacy session window must set `BETTER_AUTH_SESSION_TOKEN_LEGACY_READ_UNTIL` explicitly; new installations are unaffected.
 

@@ -214,3 +214,17 @@ Agent plan history capacity (2026-10-11 follow-up):
   rolls back the claim on rejection. Idempotent replays skip capture.
 - These changes build on the public-only M4 history/Undo additions above;
   Know-N's older trusted-only history composition is unchanged.
+
+IP HTTPS ingress (2026-10-11, public deployment only):
+
+- Both TLS Compose services launch through `deploy/caddy-entrypoint.sh`,
+  which derives `COLP_TLS_SERVER_NAME` from the HTTPS origin and supplies
+  Caddy's `default_sni`. Without it, clients omitting SNI made Caddy look for
+  the Docker container IP's certificate instead of the public IP's.
+- IPv4, bracketed IPv6, DNS and explicit ports require no additional operator
+  setting. The HTTP service retains its existing command and configuration.
+- `node --test deploy/tests/tls-handshake.test.mjs` runs isolated real-Caddy
+  handshakes through the production Compose configuration, without starting
+  the application/database or changing host CA trust. CI runs it with the
+  server checks. Shell startup and ingress routing have focused unit/static
+  regressions.

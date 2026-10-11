@@ -20,6 +20,12 @@ server, PostgreSQL, and Caddy.
 | **Private HTTPS** | Home network, no domain | Install Caddy's local CA once per browser profile (section 4.1) | `COLP_SERVER_ORIGIN=https://192.168.1.20`, profile `tls-internal` |
 | **Plain HTTP** | This machine only, you accept unencrypted traffic | Nothing | `COLP_SERVER_ORIGIN=http://127.0.0.1:8080`, `COLP_INSECURE_HTTP=true`, profile `http` |
 
+The TLS services derive their default certificate selection name from
+`COLP_SERVER_ORIGIN`, including IPv4 and bracketed IPv6 addresses. IP clients
+omit the TLS server name (SNI); the derived default lets Caddy select the
+right certificate behind Docker's port forwarding. No extra hostname setting
+is needed. Private HTTPS still requires the CA import in section 4.1.
+
 Plain HTTP works only on this machine: the origin must be `127.0.0.1`,
 `localhost`, or `[::1]`, and the `http` profile publishes its port on
 127.0.0.1 only. COLP requires HTTPS for every other address, so the server
