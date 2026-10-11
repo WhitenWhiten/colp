@@ -168,7 +168,8 @@ export async function t09Authorize(
   app: BuiltinIssuerInjectApp,
   input: {
     readonly clientId: string;
-    readonly cookie: string;
+    /** Omit to send a signed-out browser request. */
+    readonly cookie?: string;
     readonly challenge: string;
     readonly resource?: string;
     readonly state?: string;
@@ -192,7 +193,7 @@ export async function t09Authorize(
     method,
     url: path,
     headers: {
-      cookie: t09CookieHeader(T09_SESSION_COOKIE, input.cookie),
+      ...(input.cookie === undefined ? {} : { cookie: t09CookieHeader(T09_SESSION_COOKIE, input.cookie) }),
       origin: T09_TRUSTED_ORIGIN,
       accept: 'application/json',
       ...(method === 'POST' ? { 'content-type': 'application/x-www-form-urlencoded' } : {}),

@@ -545,6 +545,14 @@ describeWithPostgres('T-09 MCP OAuth built-in issuer CIMD e2e (real PostgreSQL)'
     }
   });
 
+  test('authorize sends a signed-out browser to the login page instead of failing', async () => {
+    const response = await t09Authorize(app, { clientId: T09_CIMD_CLIENT_ID,
+      challenge: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', resource: BUILTIN_ISSUER_TEST_AUDIENCE });
+    assert.notEqual(response.statusCode, 401, response.body);
+    assert.ok(response.location, `expected a login redirect, got ${response.statusCode}: ${response.body}`);
+    assert.equal(new URL(response.location, 'https://login.invalid').pathname, '/login');
+  });
+
   test('AUTH-04: real password endpoint revokes native JWT epoch and preserves fresh issuance', async () => {
     async function mint(cookie: string) {
       const grant = await t09CimdCodeGrant(app,cookie);

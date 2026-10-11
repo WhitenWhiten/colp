@@ -700,6 +700,17 @@ const PRODUCT_SESSION_AUTHENTICATED_PATHS = new Set([
   '/email-otp/change-email',
 ]);
 
+/**
+ * A signed-out browser must reach Better Auth's authorize endpoint, which
+ * redirects it to the login page. Only a request that carries no session
+ * cookie (either frozen name) skips the product check; a carried cookie is
+ * still verified against known_auth_session_metadata.
+ */
+function carriesBrowserSessionCookie(ctx: Parameters<typeof getAuthoritativeSessionFromCtx>[0]): boolean {
+  const cookie = ctx.headers?.get('cookie') ?? '';
+  return /(?:^|;\s*)(?:__Host-)?known_session=/u.test(cookie);
+}
+
 async function assertProductSessionActive(
   ctx: Parameters<typeof getAuthoritativeSessionFromCtx>[0],
   db: Kysely<DatabaseSchema>,
@@ -764,7 +775,8 @@ function buildProductAuthHooks(input: {
       // Better Auth performs the mutation. The check used to cover only the
       // OAuth authorize endpoint, which left email-OTP change-email capable
       // of mutating a revoked browser session.
-      if (input.db !== undefined && PRODUCT_SESSION_AUTHENTICATED_PATHS.has(ctx.path)) {
+      const signedOutAuthorize = ctx.path === '/oauth2/authorize' && !carriesBrowserSessionCookie(ctx);
+      if (input.db !== undefined && PRODUCT_SESSION_AUTHENTICATED_PATHS.has(ctx.path) && !signedOutAuthorize) {
         await assertProductSessionActive(ctx, input.db);
       }
       // OAuth Provider 1.7.1 dispatches registered backchannel logout URIs
