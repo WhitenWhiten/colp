@@ -164,6 +164,19 @@ describe('G2 username sign-in and single owner', () => {
     assert.equal(byUsername.statusCode, 200, byUsername.body);
     assert.ok(sessionCookie(byUsername), 'username sign-in must set __Host-known_session');
 
+    // Wrong password and unknown username answer alike, as on the email route.
+    for (const attempt of [
+      { username: 'solo', password: `${PASSWORD}-wrong` },
+      { username: 'nobody', password: PASSWORD },
+    ]) {
+      const failed = await post('/sign-in/username', attempt);
+      assert.equal(failed.statusCode, 401, failed.body);
+      const body = failed.json() as { error: { code: string; message: string } };
+      assert.equal(body.error.code, 'invalid_credentials');
+      assert.equal(body.error.message, 'The username or password is incorrect.');
+      assert.equal(sessionCookie(failed), undefined);
+    }
+
     const second = await post('/sign-up/email', { username: 'solo2', password: PASSWORD });
     assert.equal(second.statusCode, 403);
     assert.equal((second.json() as { code?: string }).code, 'registration_closed');
