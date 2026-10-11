@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
-import { DataTable, DataTableCell, DataTableRow } from '../../components/DataTable'
+import { Link } from 'react-router-dom'
 import { EmptyState, LoadingState } from '../../components/EmptyState'
+import { Icon } from '../../components/Icon'
 import { PageHead } from '../../components/PageHead'
 import { PageShell } from '../../components/PageShell'
 import { RouteState } from '../../components/RouteState'
@@ -8,6 +9,7 @@ import { StatusBadge } from '../../components/StatusBadge'
 import { ConflictEditor, ConflictReceipt } from './conflict'
 import type { SyncCenterData } from './data'
 import { formatInstant, initialDraft } from './fields'
+import { formatRelative } from '../../lib/formatDate'
 import { plural } from '../../lib/plural'
 import type { SyncCenterMutations } from './mutations'
 import { ReplicaRetireControls } from './replica'
@@ -42,7 +44,7 @@ export function SyncView({ data, mutations, trashBatch }: {
           eyebrow="Tools"
           title="Sync center"
           documentTitle="Sync"
-          lede="See which browsers sync your collections and resolve conflicts. The extension only syncs collections you own, not ones shared with you."
+          lede="Every browser that syncs with this server, the changes that need your decision, and what was deleted. The extension only syncs collections you own, not ones shared with you."
           actions={
             <button type="button" className="btn btn-secondary btn-sm" disabled={loading || refreshing || retireBusy || restoreBusy}
               onClick={() => void load('refresh')}>{refreshing ? 'Refreshing…' : 'Refresh'}</button>
@@ -84,6 +86,7 @@ export function SyncView({ data, mutations, trashBatch }: {
           <section className="sync-section" aria-labelledby="replica-heading">
             <div className="section-head section-head--split">
               <div>
+                <p className="section-label">Browsers</p>
                 <div className="sync-heading-row">
                   <h2 id="replica-heading">Connected browsers</h2>
                   {(status?.replicas.length ?? 0) > 0 && (
@@ -91,32 +94,51 @@ export function SyncView({ data, mutations, trashBatch }: {
                   )}
                 </div>
               </div>
+              {(status?.replicas.length ?? 0) > 0 && (
+                <Link to="/extension" className="btn btn-secondary btn-sm">Connect another browser</Link>
+              )}
             </div>
             {(status?.replicas.length ?? 0) === 0 ? (
               <EmptyState
                 className="sync-empty"
-                icon="link"
-                title="No connected browsers"
-                description="Install the browser extension and sign in to sync a collection you own."
+                icon="browser"
+                title="No browsers syncing yet"
+                description="Install the browser extension, point it at this server, and pick the folders to sync. Each browser then shows up here with its last sync."
+                action={<Link to="/extension" className="btn btn-primary btn-sm">Connect a browser</Link>}
               />
             )
-              : <DataTable className="replica-list" label="Connected browsers" columns={[
-                  { key: 'replica', label: 'Browser' },
-                  { key: 'state', label: 'State' },
-                  { key: 'sync', label: 'Last sync' },
-                  { key: 'actions', label: <span className="visually-hidden">Actions</span> },
-                ]}>
-                {status?.replicas.map((replica) => <DataTableRow className="replica-row" key={replica.id}>
-                  <DataTableCell className="replica-identity"><strong>{replica.name}</strong><span>{deviceNames.get(replica.deviceId) ?? 'Unknown device'} · {REPLICA_KIND_LABELS[replica.kind]}</span></DataTableCell>
-                  <DataTableCell><StatusBadge tone={REPLICA_STATE_TONE[replica.status]}>{STATUS_LABELS[replica.status]}</StatusBadge></DataTableCell>
-                  <DataTableCell><dl className="replica-facts"><div><dt>Last synced</dt><dd>{formatInstant(replica.lastAckAt)}</dd></div>
-                    <div><dt>Last seen</dt><dd>{formatInstant(replica.lastSeenAt)}</dd></div></dl></DataTableCell>
-                  <ReplicaRetireControls replica={replica} draft={retireDrafts[replica.id] ?? EMPTY_RETIRE}
-                    disabled={refreshing} onStart={() => startRetire(replica)}
-                    onConfirm={() => void submitRetire(replica)} onReplay={() => void submitRetire(replica, true)}
-                    onCancel={() => cancelRetire(replica)} />
-                </DataTableRow>)}
-              </DataTable>}
+              : <ul className="replica-list" aria-label="Connected browsers">
+                {status?.replicas.map((replica) => (
+                  <li className="replica-card" key={replica.id} data-status={replica.status}>
+                    <div className="replica-head">
+                      <span className="replica-icon" aria-hidden><Icon name="browser" /></span>
+                      <div className="replica-identity">
+                        <strong>{replica.name}</strong>
+                        <span>{deviceNames.get(replica.deviceId) ?? 'Unknown device'} · {REPLICA_KIND_LABELS[replica.kind]}</span>
+                      </div>
+                      <StatusBadge tone={REPLICA_STATE_TONE[replica.status]} className="replica-state">{STATUS_LABELS[replica.status]}</StatusBadge>
+                    </div>
+                    <dl className="replica-facts">
+                      <div>
+                        <dt>Collection</dt>
+                        <dd>{data.trashCollectionTitles[replica.collectionId] ?? 'A collection you own'}</dd>
+                      </div>
+                      <div>
+                        <dt>Last synced</dt>
+                        <dd title={formatInstant(replica.lastAckAt)}>{replica.lastAckAt ? formatRelative(replica.lastAckAt) : 'Not yet'}</dd>
+                      </div>
+                      <div>
+                        <dt>Last seen</dt>
+                        <dd title={formatInstant(replica.lastSeenAt)}>{formatRelative(replica.lastSeenAt)}</dd>
+                      </div>
+                    </dl>
+                    <ReplicaRetireControls replica={replica} draft={retireDrafts[replica.id] ?? EMPTY_RETIRE}
+                      disabled={refreshing} onStart={() => startRetire(replica)}
+                      onConfirm={() => void submitRetire(replica)} onReplay={() => void submitRetire(replica, true)}
+                      onCancel={() => cancelRetire(replica)} />
+                  </li>
+                ))}
+              </ul>}
           </section>
 
           {recoveryCount > 0 && <aside className="sync-recovery" role="status"><strong>Recovery required</strong><span>{plural(recoveryCount, 'browser')} {recoveryCount === 1 ? 'needs' : 'need'} a sync reset before syncing can continue. Open the extension's settings on that browser.</span></aside>}
@@ -124,7 +146,7 @@ export function SyncView({ data, mutations, trashBatch }: {
           <section className="sync-section" aria-labelledby="conflict-heading">
             <div className="section-head section-head--split">
               <div>
-                <p className="section-label">Open conflicts</p>
+                <p className="section-label">Conflicts</p>
                 <div className="sync-heading-row">
                   <h2 id="conflict-heading" ref={conflictHeading} tabIndex={-1}>Review browser changes</h2>
                   {conflicts.length > 0 && <span className="sync-count" data-testid="sync-count">{conflicts.length}</span>}
@@ -133,10 +155,10 @@ export function SyncView({ data, mutations, trashBatch }: {
             </div>
             {conflicts.length === 0 && receiptList.length === 0 ? (
               <EmptyState
-                className="sync-empty"
-                icon="folder"
+                className="sync-empty empty-state--compact"
+                icon="check"
                 title="No open conflicts"
-                description="New concurrent browser edits will appear here."
+                description="When a bookmark changes in two places at once, you choose which version stays here."
               />
             )
               : <div className="conflict-list">

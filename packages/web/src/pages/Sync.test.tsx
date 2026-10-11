@@ -93,8 +93,8 @@ describe('Sync Center authoritative workflow', () => {
     // Server state, not a call queue: every mount read sees the empty account.
     mocks.getSyncStatus.mockResolvedValue(status({ devices: [], replicas: [] }))
     mocks.loadSyncConflicts.mockResolvedValue([]); render(); await waitForDom(domFinishedLoading)
-    expect(document.body.textContent).toContain('No connected browsers')
-    expect(document.body.textContent).toContain('sync a collection you own')
+    expect(document.body.textContent).toContain('No browsers syncing yet')
+    expect(document.querySelector('a[href="/extension"]')?.textContent).toBe('Connect a browser')
     expect(document.body.textContent).toContain('No open conflicts')
     expect(document.querySelector('[data-testid="sync-count"]')).toBeNull()
     // The mount has settled; this override belongs to the next genuine user
@@ -243,7 +243,7 @@ describe('Sync Center authoritative workflow', () => {
     // Empty account is server state: both mount reads must see it.
     mocks.getSyncStatus.mockResolvedValue(status({ devices: [], replicas: [] }))
     mocks.loadSyncConflicts.mockResolvedValue([]); render(); await waitForDom(domFinishedLoading)
-    expect(document.body.textContent).toContain('No connected browsers')
+    expect(document.body.textContent).toContain('No browsers syncing yet')
     expect(document.body.textContent).not.toContain('Stop syncing')
     expect(document.body.textContent).not.toContain('Sync now')
   })
