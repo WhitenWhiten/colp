@@ -80,6 +80,43 @@ describe('authClient password and email flows', () => {
     expect(getCsrfToken()).toBe('csrf-after-login')
   })
 
+  it('signInWithUsername carries a paused OAuth query and returns the URL Better Auth resumes at', async () => {
+    const mock = installFetchMock((input, init) => {
+      const { pathname } = requestPathAndSearch({ input, init })
+      if (pathname === '/api/v1/auth/sign-in/username') {
+        return jsonResponse({ redirect: true, url: '/consent?client_id=agent&sig=next' })
+      }
+      if (pathname === '/api/v1/session') return jsonResponse(authenticatedSessionBody('csrf-after-login'))
+      throw new Error(`unexpected request ${requestMethod({ input, init })} ${pathname}`)
+    })
+    harness.restoreFetch = mock.restore
+
+    const result = await authClient.signInWithUsername({
+      username: 'alice',
+      password: 'correct-horse-battery',
+      oauthQuery: 'client_id=agent&sig=signed',
+    })
+    expect(result).toEqual({ status: true, redirectUrl: 'http://localhost/consent?client_id=agent&sig=next' })
+    expect(JSON.parse(String(mock.calls[0]!.init?.body))).toEqual({
+      username: 'alice',
+      password: 'correct-horse-battery',
+      oauth_query: 'client_id=agent&sig=signed',
+    })
+  })
+
+  it('a sign-in without an OAuth query ignores the url Better Auth echoes', async () => {
+    const mock = installFetchMock((input, init) => {
+      const { pathname } = requestPathAndSearch({ input, init })
+      if (pathname === '/api/v1/auth/sign-in/email') return jsonResponse({ redirect: true, url: '/library' })
+      if (pathname === '/api/v1/session') return jsonResponse(authenticatedSessionBody('csrf-after-login'))
+      throw new Error(`unexpected request ${requestMethod({ input, init })} ${pathname}`)
+    })
+    harness.restoreFetch = mock.restore
+
+    const result = await authClient.signInWithPassword({ email: 'ada@example.com', password: 'pw', callbackURL: '/library' })
+    expect(result).toEqual({ status: true })
+  })
+
   it('signUpWithPassword posts name/email/password and refreshes the product session', async () => {
     const mock = installFetchMock((input, init) => {
       const { pathname } = requestPathAndSearch({ input, init })

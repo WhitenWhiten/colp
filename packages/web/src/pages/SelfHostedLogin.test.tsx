@@ -54,10 +54,10 @@ describe('SelfHostedLogin', () => {
 
   afterEach(() => cleanup())
 
-  async function render() {
+  async function render(entry = '/login') {
     await act(async () => {
       mountTree(
-        <MemoryRouter initialEntries={['/login']}>
+        <MemoryRouter initialEntries={[entry]}>
           <SelfHostedLogin />
         </MemoryRouter>,
       )
@@ -82,6 +82,26 @@ describe('SelfHostedLogin', () => {
     await submit()
     expect(mocks.signInWithUsername).toHaveBeenCalledWith({ username: 'alice', password: 'correct-horse' })
     expect(mocks.signInWithPassword).not.toHaveBeenCalled()
+  })
+
+  it('resumes a paused OAuth authorization at the URL Better Auth returns', async () => {
+    const assign = vi.fn()
+    const g = globalThis as typeof globalThis & { location?: Location }
+    const previous = g.location
+    Object.defineProperty(g, 'location', { configurable: true, value: { origin: 'http://localhost', assign } })
+    try {
+      const oauthQuery = 'client_id=agent&scope=mcp%3Aread%3Aown&sig=signed'
+      mocks.signInWithUsername.mockResolvedValue({ status: true, redirectUrl: 'http://localhost/consent?client_id=agent' })
+      await render(`/login?${oauthQuery}`)
+      change(document.querySelector('#login-identifier') as HTMLInputElement, 'alice')
+      change(document.querySelector('#login-password') as HTMLInputElement, 'correct-horse')
+      await submit()
+      expect(mocks.signInWithUsername).toHaveBeenCalledWith({ username: 'alice', password: 'correct-horse', oauthQuery })
+      expect(assign).toHaveBeenCalledWith('http://localhost/consent?client_id=agent')
+      expect(mocks.refreshSession).not.toHaveBeenCalled()
+    } finally {
+      Object.defineProperty(g, 'location', { configurable: true, value: previous })
+    }
   })
 
   it('signs in by email when the identifier has an @', async () => {

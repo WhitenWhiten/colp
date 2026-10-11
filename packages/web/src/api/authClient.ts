@@ -41,6 +41,8 @@ export type AuthCallOptions = {
 export type OtpPurpose = 'sign-in' | 'email-verification' | 'forget-password' | 'change-email'
 
 export type AuthStatusResult = { readonly status: boolean }
+/** `redirectUrl` is set when the sign-in resumed an OAuth authorization. */
+export type AuthSignInResult = AuthStatusResult & { readonly redirectUrl?: string }
 export type AuthOtpSendResult = { readonly success: boolean }
 export type AuthOtpCheckResult = { readonly success: boolean }
 export type AuthOAuthStartResult = { readonly url: string; readonly redirect: boolean }
@@ -102,6 +104,8 @@ export type SignInWithPasswordInput = {
   password: string
   rememberMe?: boolean
   callbackURL?: string
+  /** Signed query of an OAuth authorization Better Auth paused at the login page. */
+  oauthQuery?: string
 }
 
 /** Self-hosted accounts have a username; email is optional (G2). */
@@ -109,6 +113,8 @@ export type SignInWithUsernameInput = {
   username: string
   password: string
   rememberMe?: boolean
+  /** Signed query of an OAuth authorization Better Auth paused at the login page. */
+  oauthQuery?: string
 }
 
 export type SignUpWithPasswordInput = {
@@ -410,11 +416,26 @@ function assertSafeOAuthUrls(input: StartOAuthInput | LinkOAuthInput): void {
 
 // ─── Auth operations ───────────────────────────────────────────────────────
 
+/**
+ * A sign-in that carried `oauth_query` makes Better Auth re-run the
+ * authorization and answer with the next page (consent, or the client's
+ * redirect URI). Only http(s) targets are followed.
+ */
+function oauthContinuation(oauthQuery: string | undefined, body: unknown): AuthSignInResult {
+  if (oauthQuery === undefined) return { status: true }
+  const url = (body as { url?: unknown } | null)?.url
+  if (typeof url !== 'string' || url === '') return { status: true }
+  const target = new URL(url, globalThis.location?.origin ?? 'http://localhost')
+  return target.protocol === 'http:' || target.protocol === 'https:'
+    ? { status: true, redirectUrl: target.href }
+    : { status: true }
+}
+
 async function signInWithPassword(
   input: SignInWithPasswordInput,
   options?: AuthCallOptions,
-): Promise<AuthStatusResult> {
-  await authRequest<unknown>({
+): Promise<AuthSignInResult> {
+  const body = await authRequest<unknown>({
     method: 'POST',
     path: '/sign-in/email',
     body: {
@@ -422,31 +443,33 @@ async function signInWithPassword(
       password: input.password,
       ...(input.rememberMe === undefined ? {} : { rememberMe: input.rememberMe }),
       ...(input.callbackURL === undefined ? {} : { callbackURL: input.callbackURL }),
+      ...(input.oauthQuery === undefined ? {} : { oauth_query: input.oauthQuery }),
     },
     withCsrf: true,
     signal: options?.signal,
   })
   await refreshProductSession(options?.signal)
-  return { status: true }
+  return oauthContinuation(input.oauthQuery, body)
 }
 
 async function signInWithUsername(
   input: SignInWithUsernameInput,
   options?: AuthCallOptions,
-): Promise<AuthStatusResult> {
-  await authRequest<unknown>({
+): Promise<AuthSignInResult> {
+  const body = await authRequest<unknown>({
     method: 'POST',
     path: '/sign-in/username',
     body: {
       username: input.username,
       password: input.password,
       ...(input.rememberMe === undefined ? {} : { rememberMe: input.rememberMe }),
+      ...(input.oauthQuery === undefined ? {} : { oauth_query: input.oauthQuery }),
     },
     withCsrf: true,
     signal: options?.signal,
   })
   await refreshProductSession(options?.signal)
-  return { status: true }
+  return oauthContinuation(input.oauthQuery, body)
 }
 
 async function getRegistrationState(options?: AuthCallOptions): Promise<unknown> {

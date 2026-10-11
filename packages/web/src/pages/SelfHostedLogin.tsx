@@ -46,12 +46,16 @@ export function SelfHostedLogin() {
 
   const returnTo = safeReturnTo(searchParams.get('returnTo'))
   const reasonMessage = loginReasonMessage(searchParams.get('reason'))
+  // Better Auth sends a signed-out browser here with the paused OAuth
+  // authorization as a signed query; sign-in must carry it to resume.
+  const oauthQuery = searchParams.has('sig') ? searchParams.toString() : undefined
 
   useEffect(() => {
     if (bootstrapping) return
     // A controlled 401 reason keeps the form open instead of looping back.
-    if (isLoggedIn && !reasonMessage) navigate(returnTo, { replace: true })
-  }, [bootstrapping, isLoggedIn, navigate, reasonMessage, returnTo])
+    // An OAuth sign-in leaves through the URL Better Auth returns instead.
+    if (isLoggedIn && !reasonMessage && oauthQuery === undefined) navigate(returnTo, { replace: true })
+  }, [bootstrapping, isLoggedIn, navigate, oauthQuery, reasonMessage, returnTo])
 
   const shownReasonRef = useRef<string | null>(null)
   useEffect(() => {
@@ -95,10 +99,13 @@ export function SelfHostedLogin() {
     setFormError(null)
     setBusy(true)
     try {
-      if (id.includes('@')) {
-        await authClient.signInWithPassword({ email: id.toLowerCase(), password, callbackURL: returnTo })
-      } else {
-        await authClient.signInWithUsername({ username: id, password })
+      const oauth = oauthQuery === undefined ? {} : { oauthQuery }
+      const result = id.includes('@')
+        ? await authClient.signInWithPassword({ email: id.toLowerCase(), password, callbackURL: returnTo, ...oauth })
+        : await authClient.signInWithUsername({ username: id, password, ...oauth })
+      if (result.redirectUrl) {
+        window.location.assign(result.redirectUrl)
+        return
       }
       await refreshSession().catch(() => {
         // The auth client already refreshed the product session store.
