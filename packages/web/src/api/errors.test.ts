@@ -16,6 +16,7 @@ import {
   isProductApiError,
 } from './errors'
 import { productErrorBody } from './test-helpers'
+import { parseProductError } from './product-error'
 
 function apiError(
   status: number,
@@ -208,5 +209,22 @@ describe('recoveryStrategyFor', () => {
     expect(recoveryStrategyFor(apiError(409, 'command_id_reused', 'same_request'))).toBe(
       'new_user_intent',
     )
+  })
+})
+
+describe('sign-up gate refusals', () => {
+  it('keeps the bare setup-token and closed-registration codes with fixed copy', () => {
+    const wrongToken = parseProductError(403, { code: 'setup_token_required', message: 'server text with docker compose logs' })
+    expect(wrongToken.code).toBe('setup_token_required')
+    expect(wrongToken.message).toBe('That setup token does not match this server. Copy it again.')
+    expect(wrongToken.recovery).toBe('user_action')
+
+    expect(parseProductError(403, { code: 'registration_closed', message: 'x' }).message)
+      .toBe('Registration is closed on this server.')
+  })
+
+  it('still treats any other bare body as an unknown error', () => {
+    expect(parseProductError(403, { code: 'something_else', message: 'leak' }).code).toBe('unknown_error')
+    expect(parseProductError(400, { code: 'setup_token_required', message: 'leak' }).code).toBe('unknown_error')
   })
 })

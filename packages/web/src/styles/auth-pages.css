@@ -84,6 +84,20 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Hints and errors sit directly under their control (.field's own gap),
+   not a paragraph margin away from it. */
+.auth-form .field > p,
+.auth-token-help > p {
+  margin: 0;
+}
+
+/* Where the setup token comes from, right under its field. */
+.auth-token-help {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+
 /* Forgot password: the server sends no mail, so the answer is a command for
    whoever runs it. A disclosure keeps it one click away and off the form. */
 .auth-reset {
