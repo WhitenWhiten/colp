@@ -91,7 +91,10 @@ export interface Phase4bMcpNodeVisibilityCatalogInput {
 export interface Phase4bMcpNodeMoveCatalogInput {
   readonly tool: 'nodes.move';
   readonly collectionId?: string;
-  readonly nodeId: string;
+  /** Exactly one of `nodeId` and `nodeIds`. */
+  readonly nodeId?: string;
+  /** Moves up to 50 nodes of one collection, in order, in one plan. */
+  readonly nodeIds?: readonly string[];
   readonly parentId: string;
   readonly position?: number;
   readonly reason: string;
@@ -367,6 +370,7 @@ const MOVE_ALLOWED_KEYS = Object.freeze([
   'tool',
   'collectionId',
   'nodeId',
+  'nodeIds',
   'parentId',
   'position',
   'reason',
@@ -424,6 +428,8 @@ function phase4bMcpCreateNodeRisk(
   return 'low';
 }
 
+const PLAN_SUMMARY_MAX = 512;
+
 export function phase4bMcpPlanSummary(
   operations: readonly Phase4bMcpPlanOperation[],
   impact: ChangePlanImpact,
@@ -433,6 +439,14 @@ export function phase4bMcpPlanSummary(
       'invalid_catalog_input',
       'Plan summary requires at least one typed canonical operation.',
     );
+  }
+  // Moves and deletes carry the planner's own sentence (stored titles and
+  // paths); the owner reads those instead of operation type names.
+  const described = operations.map((operation) => (operation as { readonly impact?: unknown }).impact);
+  if (described.every((text): text is string => typeof text === 'string' && text.length > 0)) {
+    const sentence = described.join('; ');
+    const capitalized = sentence.charAt(0).toUpperCase() + sentence.slice(1);
+    return capitalized.length <= PLAN_SUMMARY_MAX ? capitalized : `${capitalized.slice(0, PLAN_SUMMARY_MAX - 1)}…`;
   }
   const types = operations.map((operation) => operation.type).join(', ');
   return `Plan ${operations.length} canonical operation(s) [${types}]. Authoritative impact: `
@@ -845,6 +859,53 @@ function readOptionalMovePosition(snapshot: Readonly<Record<string, unknown>>): 
   return value;
 }
 
+/** Most nodes one `nodes.move` plan may move. */
+export const PHASE4B_MCP_MOVE_BATCH_LIMIT = 50;
+
+function readMoveNodeIds(snapshot: Readonly<Record<string, unknown>>): readonly string[] {
+  const single = Object.getOwnPropertyDescriptor(snapshot, 'nodeId');
+  const batch = Object.getOwnPropertyDescriptor(snapshot, 'nodeIds');
+  const hasSingle = single !== undefined && 'value' in single && single.value !== undefined && single.value !== null;
+  const hasBatch = batch !== undefined && 'value' in batch && batch.value !== undefined && batch.value !== null;
+  if (hasSingle === hasBatch) {
+    throw new Phase4bMcpChangePlanPlannerError(
+      'invalid_catalog_input',
+      'nodes.move needs exactly one of nodeId and nodeIds.',
+    );
+  }
+  if (hasSingle) {
+    const nodeId = readOwnRequiredString(snapshot, 'nodeId', 'nodes.move');
+    assertOpaqueId(nodeId, 'nodeId');
+    return Object.freeze([nodeId]);
+  }
+  const value = batch!.value as unknown;
+  if (!Array.isArray(value) || value.length < 1 || value.length > PHASE4B_MCP_MOVE_BATCH_LIMIT) {
+    throw new Phase4bMcpChangePlanPlannerError(
+      'invalid_catalog_input',
+      `nodes.move nodeIds must list 1 to ${PHASE4B_MCP_MOVE_BATCH_LIMIT} node ids.`,
+    );
+  }
+  const seen = new Set<string>();
+  for (const nodeId of value) {
+    if (typeof nodeId !== 'string') {
+      throw new Phase4bMcpChangePlanPlannerError('invalid_catalog_input', 'nodes.move nodeIds must be strings.');
+    }
+    assertOpaqueId(nodeId, 'nodeIds');
+    if (seen.has(nodeId)) {
+      throw new Phase4bMcpChangePlanPlannerError('invalid_catalog_input', 'nodes.move nodeIds must not repeat a node.');
+    }
+    seen.add(nodeId);
+  }
+  return Object.freeze([...seen]);
+}
+
+function staleMovePlacement(): Phase4bMcpChangePlanPlannerError {
+  return new Phase4bMcpChangePlanPlannerError(
+    'stale_revision',
+    'The collection changed while the move was being planned; try again.',
+  );
+}
+
 async function planNodeMove(
   snapshot: Readonly<Record<string, unknown>>,
   reason: string,
@@ -856,59 +917,81 @@ async function planNodeMove(
     MOVE_ALLOWED_KEYS,
     'nodes.move catalog input contains unknown fields.',
   );
-  const nodeId = readOwnRequiredString(snapshot, 'nodeId', 'nodes.move');
+  const nodeIds = readMoveNodeIds(snapshot);
   const parentId = readOwnRequiredString(snapshot, 'parentId', 'nodes.move');
-  assertOpaqueId(nodeId, 'nodeId');
   assertOpaqueId(parentId, 'parentId');
   const collectionId = readOptionalOpaqueId(snapshot, 'collectionId', 'nodes.move');
   const position = readOptionalMovePosition(snapshot);
-  const placement = await resolveMovePlacement(
-    deps.authoritativeState,
-    {
-      ...(collectionId !== undefined ? { collectionId } : {}),
-      nodeId,
-      parentId,
-      ...(position !== undefined ? { position } : {}),
-    },
-    binding,
-    deps.budget,
-  );
-  if (collectionId !== undefined && collectionId !== placement.collectionId) {
+  if (position !== undefined && nodeIds.length > 1) {
+    throw new Phase4bMcpChangePlanPlannerError(
+      'invalid_catalog_input',
+      'nodes.move position works with one nodeId; omit it to append several nodes in order.',
+    );
+  }
+  const placements: Phase4bMcpMovePlacement[] = [];
+  for (const nodeId of nodeIds) {
+    placements.push(await resolveMovePlacement(
+      deps.authoritativeState,
+      {
+        ...(collectionId !== undefined ? { collectionId } : {}),
+        nodeId,
+        parentId,
+        ...(position !== undefined ? { position } : {}),
+      },
+      binding,
+      deps.budget,
+    ));
+  }
+  const first = placements[0]!;
+  if (collectionId !== undefined && collectionId !== first.collectionId) {
     throw new Phase4bMcpChangePlanPlannerError(
       'invalid_catalog_input',
       'nodes.move collectionId does not match the authoritative node.',
     );
   }
-  const impactText = phase4bMcpMoveImpactText(placement);
-  const now = readClock(deps.clock);
-  const operation: Phase4bMcpNodeMoveOperation = Object.freeze({
-    type: 'move_node',
-    risk: 'medium',
-    collectionId: placement.collectionId,
-    nodeId,
-    parentId,
-    ...(position !== undefined ? { position } : {}),
-    ...(placement.sourceParentId !== undefined && placement.sourceParentId !== parentId
-      ? { sourceParentId: placement.sourceParentId }
-      : {}),
-    impact: impactText,
-  });
-  const operations = Object.freeze([operation]);
   const baseRevisions: Record<string, string> = {
-    [`node.${nodeId}`]: placement.nodeRevision,
-    [`children.${parentId}`]: placement.destinationChildrenRevision,
-    [`content.${placement.collectionId}`]: placement.collectionContentRevision,
+    [`children.${parentId}`]: first.destinationChildrenRevision,
+    [`content.${first.collectionId}`]: first.collectionContentRevision,
   };
-  if (
-    placement.sourceParentId !== undefined
-    && placement.sourceParentId !== parentId
-    && placement.sourceChildrenRevision !== undefined
-  ) {
-    baseRevisions[`children.${placement.sourceParentId}`] = placement.sourceChildrenRevision;
-  }
+  const now = readClock(deps.clock);
+  const operations = Object.freeze(placements.map((placement, index) => {
+    const nodeId = nodeIds[index]!;
+    if (placement.collectionId !== first.collectionId) {
+      throw new Phase4bMcpChangePlanPlannerError(
+        'invalid_catalog_input',
+        'nodes.move nodeIds must all be in one collection.',
+      );
+    }
+    // Placements are read one by one; a write in between makes the plan stale.
+    if (
+      placement.collectionContentRevision !== first.collectionContentRevision
+      || placement.destinationChildrenRevision !== first.destinationChildrenRevision
+    ) {
+      throw staleMovePlacement();
+    }
+    baseRevisions[`node.${nodeId}`] = placement.nodeRevision;
+    const movesOut = placement.sourceParentId !== undefined && placement.sourceParentId !== parentId;
+    if (movesOut && placement.sourceChildrenRevision !== undefined) {
+      const key = `children.${placement.sourceParentId}`;
+      const known = baseRevisions[key];
+      if (known !== undefined && known !== placement.sourceChildrenRevision) throw staleMovePlacement();
+      baseRevisions[key] = placement.sourceChildrenRevision;
+    }
+    const operation: Phase4bMcpNodeMoveOperation = Object.freeze({
+      type: 'move_node',
+      risk: 'medium',
+      collectionId: placement.collectionId,
+      nodeId,
+      parentId,
+      ...(position !== undefined ? { position } : {}),
+      ...(movesOut ? { sourceParentId: placement.sourceParentId } : {}),
+      impact: phase4bMcpMoveImpactText(placement),
+    });
+    return operation;
+  }));
   const frozenRevisions = Object.freeze(baseRevisions);
   const requiredScopes = await resolveRequiredScopes(
-    operation,
+    operations[0]!,
     Object.freeze(['nodes:write'] as readonly ScopeName[]),
     deps.authorizationPolicy,
     binding,
@@ -924,15 +1007,21 @@ async function planNodeMove(
     reason,
     deps,
     now,
-    collectionVisibility: placement.collectionVisibility,
+    collectionVisibility: first.collectionVisibility,
   });
   await resolvePlanStoreSave(deps.planStore, stored);
-  return toPlannedChange(stored, Object.freeze({
-    kind: 'node',
-    serverUuid: deps.serverUuid,
-    collectionId: placement.collectionId,
-    nodeId,
-  }));
+  return toPlannedChange(stored, nodeIds.length === 1
+    ? Object.freeze({
+        kind: 'node',
+        serverUuid: deps.serverUuid,
+        collectionId: first.collectionId,
+        nodeId: nodeIds[0]!,
+      })
+    : Object.freeze({
+        kind: 'collection',
+        serverUuid: deps.serverUuid,
+        collectionId: first.collectionId,
+      }));
 }
 
 async function planNodeVisibility(

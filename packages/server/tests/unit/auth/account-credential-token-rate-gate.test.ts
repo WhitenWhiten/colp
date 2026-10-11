@@ -81,8 +81,10 @@ test('invalid child keys exhaust the client budget before further database authe
         audience: 'product', scope: 'product:read',
       },
     };
-    assert.equal((await app.inject(request)).statusCode, 404);
-    assert.equal((await app.inject(request)).statusCode, 404);
+    const rejected = await app.inject(request);
+    assert.equal(rejected.statusCode, 401, rejected.body);
+    assert.equal(rejected.json().error, 'invalid_grant', rejected.body);
+    assert.equal((await app.inject(request)).statusCode, 401);
     const limited = await app.inject(request);
     assert.equal(limited.statusCode, 429, limited.body);
     assert.ok(Number(limited.headers['retry-after']) > 0);

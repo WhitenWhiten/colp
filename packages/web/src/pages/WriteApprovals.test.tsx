@@ -434,7 +434,7 @@ describe('MCP-W08 Write approvals page', () => {
     await waitForDom(domFinishedLoading)
     act(() => byButton('Approve').click())
     await waitForDom(domFinishedLoading)
-    expect(document.body.textContent).toContain('Consumed')
+    expect(document.body.textContent).toContain('Committed')
     expect(document.body.textContent).not.toContain('Confirm approval with latest')
     expect([...document.querySelectorAll<HTMLButtonElement>('button')]
       .some((button) => button.textContent?.trim() === 'Approve')).toBe(false)
@@ -448,9 +448,36 @@ describe('MCP-W08 Write approvals page', () => {
     render()
     await waitForDom(domFinishedLoading)
     expect(document.body.textContent).toContain('Expired')
-    expect(document.body.textContent).toContain('Consumed')
+    expect(document.body.textContent).toContain('Committed')
     expect(document.body.textContent).not.toContain('Approve')
     expect(document.body.textContent).not.toContain('Deny')
+  })
+
+  it('describes each move in the server\'s words instead of empty bookmark fields', async () => {
+    mocks.getWriteApprovalPage.mockResolvedValue({
+      items: [approvalView({
+        summary: 'Move Rust by Example from / to /Rust; move Tokio tutorial from / to /Rust',
+        target: { kind: 'collection', collectionId: 'col-1', nodeId: null },
+        operations: [
+          { type: 'move_node', collectionId: 'col-1', nodeId: 'node-a', visibility: null, nodeSummary: null,
+            description: 'move Rust by Example from / to /Rust' },
+          { type: 'move_node', collectionId: 'col-1', nodeId: 'node-b', visibility: null, nodeSummary: null,
+            description: 'move Tokio tutorial from / to /Rust' },
+        ],
+      })],
+      nextCursor: null,
+    })
+    render()
+    await waitForDom(domFinishedLoading)
+    const descriptions = [...document.querySelectorAll('[data-testid="approval-operation-description"]')]
+      .map((node) => node.textContent)
+    expect(descriptions).toEqual([
+      'move Rust by Example from / to /Rust',
+      'move Tokio tutorial from / to /Rust',
+    ])
+    expect(document.body.textContent).toContain('Move')
+    expect(document.body.textContent).not.toContain('Not available')
+    expect(document.body.textContent).not.toContain('No visibility change')
   })
 
   it('redirects a list 401 to sign-in with an exact return path', async () => {

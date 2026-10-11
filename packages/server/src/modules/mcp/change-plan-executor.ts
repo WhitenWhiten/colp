@@ -42,9 +42,11 @@ import { executeMcpNodeCreate } from './node-create-execution.js';
 import { parseMcpNodeCreatePayload } from './node-create-payload.js';
 import { projectLowRiskNodeCreateOutput } from './low-risk-node-create.js';
 import { requireMcpAccountSubjectId } from './account-context.js';
+import { planOperationsAreReversible } from './agent-plan-policy.js';
 import type {
   McpCommittedContentRevisionFacts,
   McpDeleteSubtreeTombstoneFacts,
+  McpPreCommitVersionFacts,
 } from './change-plan-service.js';
 
 export function revisionDrift(message: string): McpChangePlanError {
@@ -69,6 +71,10 @@ export async function executeCanonicalPlanOperations<Transaction extends object>
     transaction: Transaction,
     facts: McpCommittedContentRevisionFacts,
   ) => Promise<void>,
+  capturePreCommitVersions?: (
+    transaction: Transaction,
+    facts: McpPreCommitVersionFacts,
+  ) => Promise<void>,
 ): Promise<readonly OperationResult[]> {
   const ownedBinding = requireAuthenticatedWriteBinding(
     snapshotMcpAuthorizationBinding(binding),
@@ -81,14 +87,30 @@ export async function executeCanonicalPlanOperations<Transaction extends object>
     throw commitFailure('Change Plan has no executable canonical operations.');
   }
 
+  if (capturePreCommitVersions !== undefined) {
+    const collectionIds = planCollectionIds(operations);
+    await capturePreCommitVersions(transaction, {
+      planId: plan.planId,
+      principalId: ownedBinding.principalId,
+      subjectId: requireMcpAccountSubjectId(),
+      clientId: ownedBinding.clientId,
+      collectionIds,
+      undoable: collectionIds.length === 1 && planOperationsAreReversible(operations),
+    });
+  }
+
   const results: OperationResult[] = [];
+  // Commit checked every base revision before the first operation. A plan
+  // that moves several nodes then fences each later move on the revisions
+  // the earlier moves left, not on the planned ones they replaced.
+  const revisions = new Map<string, string>(Object.entries(plan.baseRevisions));
   for (const operation of operations) {
     const ports = createProductPorts(transaction);
     let result: OperationResult;
     if (isCreateNodeOperation(operation)) {
       result = await executeNodeCreate(ports, plan, operation, ownedBinding);
     } else if (isMoveNodeOperation(operation)) {
-      result = await executeNodeMove(ports, plan, operation, ownedBinding);
+      result = await executeNodeMove(ports, plan, operation, ownedBinding, revisions);
     } else if (isDeleteSubtreeOperation(operation)) {
       result = await executeDeleteSubtree(
         ports,
@@ -514,11 +536,12 @@ async function executeNodeMove(
   plan: McpStoredPlan,
   operation: Phase4bMcpNodeMoveOperation,
   binding: McpAuthenticatedAuthorizationBinding,
+  revisions: Map<string, string>,
 ): Promise<OperationResult> {
-  const nodeRevision = plan.baseRevisions[`node.${operation.nodeId}`];
-  const targetRevision = plan.baseRevisions[`children.${operation.parentId}`];
+  const nodeRevision = revisions.get(`node.${operation.nodeId}`);
+  const targetRevision = revisions.get(`children.${operation.parentId}`);
   const sourceParentId = operation.sourceParentId ?? operation.parentId;
-  const sourceRevision = plan.baseRevisions[`children.${sourceParentId}`] ?? targetRevision;
+  const sourceRevision = revisions.get(`children.${sourceParentId}`) ?? targetRevision;
   if (
     typeof nodeRevision !== 'string'
     || nodeRevision.length === 0
@@ -575,6 +598,9 @@ async function executeNodeMove(
   if (result.kind !== 'moved') {
     throw commitFailure(`Move Plan did not apply (${result.kind}).`);
   }
+  revisions.set(`node.${operation.nodeId}`, result.node.revision);
+  revisions.set(`children.${result.sourceParent.id}`, result.sourceParent.childrenRevision);
+  revisions.set(`children.${result.targetParent.id}`, result.targetParent.childrenRevision);
   return Object.freeze({
     opId: operation.nodeId,
     sequence: 1,

@@ -1670,6 +1670,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/mcp/approvals/{planId}/undo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Undo one committed agent plan by restoring the version saved before it
+         * @description Works for plans whose approval has `approvedBy` set. Refuses with 409 when the collection changed after the plan; retry with `force=true` to restore the saved version anyway. Session, Origin, CSRF and a canonical Known-Command-Id are required; the body is empty.
+         */
+        post: operations["undoWriteApproval"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/collections/{id}/export": {
         parameters: {
             query?: never;
@@ -2757,6 +2777,8 @@ export interface components {
             nodeId: components["schemas"]["OpaqueId"] | null;
             visibility: string | null;
             nodeSummary: components["schemas"]["WriteApprovalNodeSummary"] | null;
+            /** @description For move_node and delete_subtree, what the operation does in the server's words, built from stored titles and paths (for example `move Docs from /A to /B`). */
+            description?: string;
         };
         WriteApprovalTarget: {
             /** @enum {string} */
@@ -2779,6 +2801,17 @@ export interface components {
             expiresAt: components["schemas"]["UtcDateTime"];
             decision: components["schemas"]["WriteApprovalDecisionState"];
             etag: components["schemas"]["EntityTag"];
+            /** @description Who approved a committed plan that can be undone - the agent's trusted policy or the owner. Null when the plan has no saved version to undo. */
+            approvedBy?: ("policy" | "owner") | null;
+            /** @description Collection version saved just before the plan committed; Undo restores it. */
+            versionId?: components["schemas"]["OpaqueId"] | null;
+        };
+        WriteApprovalUndoResult: {
+            planId: components["schemas"]["OpaqueId"];
+            versionId: components["schemas"]["OpaqueId"];
+            /** @constant */
+            restored: true;
+            noop: boolean;
         };
         WriteApprovalPage: {
             items: components["schemas"]["WriteApprovalView"][];
@@ -6778,7 +6811,22 @@ export interface operations {
                     "application/json": components["schemas"]["AccountKeyTokenResponse"];
                 };
             };
-            /** @description Hidden endpoint: invalid request, missing/invalid credential, or feature disabled */
+            /** @description The key is unknown, revoked, or expired (OAuth invalid_grant). */
+            401: {
+                headers: {
+                    "Cache-Control": components["headers"]["NoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @constant */
+                        error: "invalid_grant";
+                        error_description: string;
+                    };
+                };
+            };
+            /** @description Hidden endpoint: malformed request or feature disabled */
             404: {
                 headers: {
                     "Cache-Control": components["headers"]["NoStore"];
@@ -11038,6 +11086,49 @@ export interface operations {
             415: components["responses"]["UnsupportedMediaType"];
             422: components["responses"]["InvalidDocument"];
             428: components["responses"]["PreconditionRequired"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    undoWriteApproval: {
+        parameters: {
+            query?: {
+                force?: "true" | "false";
+            };
+            header: {
+                /** @description Exact allowed Product Web origin. Duplicate or null values fail. */
+                Origin: components["parameters"]["Origin"];
+                /** @description Session-bound CSRF token returned by getSession. */
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+                /** @description Stable ID for one user intent. Reuse only for an exact retry of that intent. Full replay results are retained for at least 30 days. */
+                "Known-Command-Id": components["parameters"]["CommandId"];
+            };
+            path: {
+                /** @description Case-sensitive opaque MCP Write Plan ID. */
+                planId: components["parameters"]["PlanId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The saved version was restored. */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WriteApprovalUndoResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["AuthenticationRequired"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["MutationConflict"];
+            412: components["responses"]["PreconditionFailed"];
             429: components["responses"]["RateLimited"];
             500: components["responses"]["InternalError"];
             503: components["responses"]["ServiceUnavailable"];

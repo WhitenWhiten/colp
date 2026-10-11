@@ -39,13 +39,15 @@ const STATUS_LABELS: Record<WriteApprovalView['status'], string> = {
   pending: 'Pending approval',
   approved: 'Approved',
   committing: 'Committing',
-  consumed: 'Consumed',
+  consumed: 'Committed',
   cancelled: 'Cancelled',
   expired: 'Expired',
 }
 
 const OPERATION_LABELS: Record<string, string> = {
   set_visibility: 'Change visibility',
+  move_node: 'Move',
+  delete_subtree: 'Delete with everything inside',
 }
 
 /** A pending plan past its expiry reads as expired everywhere. */
@@ -120,7 +122,7 @@ const TERMINAL_DESCRIPTIONS: Record<WriteApprovalView['status'], string> = {
   pending: '',
   approved: 'This plan has been approved and is ready to execute.',
   committing: 'Applying the approved changes…',
-  consumed: 'This plan has been fully executed.',
+  consumed: 'This plan was committed.',
   cancelled: 'This plan was denied. No changes were applied.',
   expired: 'This plan expired before a decision was made.',
 }
@@ -168,6 +170,8 @@ export function operationIcon(operation: WriteApprovalOperationPreview): IconNam
   if (operation.type === 'create_node') {
     return operation.nodeSummary?.kind === 'folder' ? 'folder' : 'bookmark'
   }
+  if (operation.type === 'move_node') return 'move'
+  if (operation.type === 'delete_subtree') return 'trash'
   return 'file'
 }
 

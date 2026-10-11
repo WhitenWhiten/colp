@@ -170,6 +170,16 @@ export function sendAccountKeyOAuthError(
   reply: FastifyReply,
   error: AccountKeyOAuthError,
 ): FastifyReply {
+  // A well-formed key that is unknown, revoked or expired is an ordinary
+  // agent failure (an owner revoked it on the Agents page): answer the OAuth
+  // error. Malformed probes stay hidden behind 404.
+  if (error.error === 'invalid_grant') {
+    return reply
+      .code(error.statusCode)
+      .header('Cache-Control', 'no-store')
+      .type('application/json; charset=utf-8')
+      .send(error.toJSON());
+  }
   if (error.statusCode >= 400 && error.statusCode < 500 && error.statusCode !== 429) {
     return reply.code(404).header('Cache-Control', 'no-store')
       .send({ code: 'resource_not_found', message: 'The requested resource was not found.' });

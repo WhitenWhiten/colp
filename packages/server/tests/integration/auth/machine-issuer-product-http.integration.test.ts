@@ -531,7 +531,13 @@ describeWithPostgres('machine issuer product HTTP', () => {
           payload,
         });
       }
-      function oauthError(response: Awaited<ReturnType<typeof postToken>>, _status: number, _error: string) {
+      // A bad key answers the OAuth error; every other mistake stays hidden behind 404.
+      function oauthError(response: Awaited<ReturnType<typeof postToken>>, status: number, error: string) {
+        if (error === 'invalid_grant') {
+          assert.equal(response.statusCode, status, response.body);
+          assert.equal(response.json().error, error);
+          return;
+        }
         assert.equal(response.statusCode, 404, response.body);
         assert.equal(response.json().code, 'resource_not_found');
       }

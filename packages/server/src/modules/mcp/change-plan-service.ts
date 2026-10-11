@@ -104,6 +104,8 @@ export interface Phase4bMcpChangePlanServiceOptions<
   readonly recordDeleteSubtreeTombstones?: Phase4bMcpChangePlanCommitCoordinatorOptions<Transaction>['recordDeleteSubtreeTombstones'];
   /** Passed to the built coordinator when `commitCoordinator` is absent. */
   readonly recordCommittedContentRevisions?: Phase4bMcpChangePlanCommitCoordinatorOptions<Transaction>['recordCommittedContentRevisions'];
+  /** Passed to the built coordinator when `commitCoordinator` is absent. */
+  readonly capturePreCommitVersions?: Phase4bMcpChangePlanCommitCoordinatorOptions<Transaction>['capturePreCommitVersions'];
 }
 
 export interface Phase4bMcpChangePlanService<
@@ -160,6 +162,25 @@ export interface Phase4bMcpChangePlanCommitCoordinatorOptions<
     transaction: Transaction,
     facts: McpCommittedContentRevisionFacts,
   ) => Promise<void>;
+  /**
+   * Saves each touched collection's version inside the commit transaction,
+   * before the first operation, so every committed plan has history.
+   */
+  readonly capturePreCommitVersions?: (
+    transaction: Transaction,
+    facts: McpPreCommitVersionFacts,
+  ) => Promise<void>;
+}
+
+/** A locked plan about to execute inside its commit transaction. */
+export interface McpPreCommitVersionFacts {
+  readonly planId: string;
+  readonly principalId: string;
+  readonly subjectId: string;
+  readonly clientId: string;
+  readonly collectionIds: readonly string[];
+  /** One collection and only reversible operations: one saved version undoes the whole plan. */
+  readonly undoable: boolean;
 }
 
 /** Collections a committed plan changed, read back inside its transaction. */
@@ -233,6 +254,7 @@ export function createPhase4bMcpChangePlanCommitCoordinator<
         options.createProductPorts,
         options.recordDeleteSubtreeTombstones,
         options.recordCommittedContentRevisions,
+        options.capturePreCommitVersions,
       ),
   });
 
@@ -332,6 +354,9 @@ export function createPhase4bMcpChangePlanService<
         ...(resolved.recordCommittedContentRevisions === undefined
           ? {}
           : { recordCommittedContentRevisions: resolved.recordCommittedContentRevisions }),
+        ...(resolved.capturePreCommitVersions === undefined
+          ? {}
+          : { capturePreCommitVersions: resolved.capturePreCommitVersions }),
       });
 
   const changePlanOptions: McpChangePlanServiceOptions<Transaction> = Object.freeze({
@@ -454,6 +479,7 @@ function readServiceOptions<Transaction extends object>(
     'autoApproveTrustedPlan',
     'recordDeleteSubtreeTombstones',
     'recordCommittedContentRevisions',
+    'capturePreCommitVersions',
   ] as const) {
     if (objectOptions[name] !== undefined) assertOwnDataFunction(objectOptions[name], name);
   }

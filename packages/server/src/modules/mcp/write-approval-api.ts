@@ -54,6 +54,11 @@ export interface WriteApprovalOperationPreview {
   readonly nodeId: string | null;
   readonly visibility: string | null;
   readonly nodeSummary: WriteApprovalNodeSummary | null;
+  /**
+   * Move and delete: the planner's own sentence, built from stored titles and
+   * paths (never agent text), e.g. `move Docs from /A to /B`.
+   */
+  readonly description?: string;
 }
 
 export interface WriteApprovalTarget {
@@ -503,6 +508,8 @@ function deriveNodeId(plan: McpStoredPlan): string | null {
   return null;
 }
 
+const OPERATION_DESCRIPTION_MAX = 1_024;
+
 function safeOperationPreviews(plan: McpStoredPlan): readonly WriteApprovalOperationPreview[] {
   const operations = plan.operations as unknown as readonly Readonly<Record<string, unknown>>[];
   return Object.freeze(operations.map((operation) => {
@@ -518,18 +525,17 @@ function safeOperationPreviews(plan: McpStoredPlan): readonly WriteApprovalOpera
         nodeSummary: null,
       });
     }
-    if (type === 'move_node') {
+    if (type === 'move_node' || type === 'delete_subtree') {
+      const description = typeof operation.impact === 'string' && operation.impact.length > 0
+        ? operation.impact.slice(0, OPERATION_DESCRIPTION_MAX)
+        : undefined;
       return Object.freeze({
         type,
         collectionId,
         nodeId: typeof operation.nodeId === 'string' ? operation.nodeId : null,
         visibility: null,
-        nodeSummary: Object.freeze({
-          kind: null,
-          title: null,
-          url: null,
-          visibility: null,
-        }),
+        nodeSummary: null,
+        ...(description === undefined ? {} : { description }),
       });
     }
     if (type === 'create_node') {

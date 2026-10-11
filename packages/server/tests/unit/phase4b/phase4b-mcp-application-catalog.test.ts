@@ -30,6 +30,7 @@ import {
   PHASE4B_MCP_WRITE_MOUNTED_TOOL_NAMES,
   PHASE4B_MCP_WRITE_TOOL_REQUIRED_SCOPES,
   PHASE4B_MCP_CHANGES_PLAN_DESCRIPTION,
+  PHASE4B_MCP_WRITE_TOOL_DESCRIPTIONS,
   canAccessPhase4bMcpReadTools,
   canAccessPhase4bMcpWriteTools,
   canCallPhase4bMcpWriteTool,
@@ -279,7 +280,12 @@ test('write Tool list freezes mounted names, descriptions, schemas, scopes, and 
     [...PHASE4B_MCP_WRITE_MOUNTED_TOOL_NAMES].sort(),
   );
   assert.equal(byName.has('nodes.set_visibility'), false);
-  assert.equal(byName.get('nodes.create')?.description, 'Write tool nodes.create');
+  for (const [name, description] of Object.entries(PHASE4B_MCP_WRITE_TOOL_DESCRIPTIONS)) {
+    assert.equal(byName.get(name)?.description, description, name);
+  }
+  for (const tool of tools) {
+    assert.doesNotMatch(String(tool.description), /^Write tool /u, String(tool.name));
+  }
   assert.equal(
     byName.get('changes.plan')?.description,
     PHASE4B_MCP_CHANGES_PLAN_DESCRIPTION,
@@ -373,7 +379,7 @@ test('write Tool list freezes mounted names, descriptions, schemas, scopes, and 
   assert.deepEqual(changeGetInput.required, ['planId']);
   assert.deepEqual(Object.keys(changeGetInput.properties ?? {}), ['planId']);
   assert.equal(JSON.stringify(changeGetInput).includes('x-mcp-header'), false);
-  assert.equal(byName.get('changes.get')?.description, 'Write tool changes.get');
+  assert.equal(byName.get('changes.get')?.description, PHASE4B_MCP_WRITE_TOOL_DESCRIPTIONS['changes.get']);
   const nodesUpdateInput = byName.get('nodes.update')?.inputSchema as {
     readonly additionalProperties?: boolean;
     readonly required?: readonly string[];

@@ -3,6 +3,8 @@ import {
   createAgentPolicyCommitGuard,
   createMcpNodePlanState,
   createPostgresAutoApproveTrustedPlan,
+  readPlanApprovedByPolicy,
+  captureMcpPlanPreCommitVersions,
   recordMcpPlanCommitRevisions,
 } from '../infrastructure/collections/index.js';
 import { randomUUID } from 'node:crypto';
@@ -226,6 +228,7 @@ export function createPhase4bMcpWriteComposition(
   });
   const changeGetService = createPhase4bMcpLowRiskChangeGetService({
     planStore: store.planStore,
+    approvedByPolicy: (planId) => readPlanApprovedByPolicy(options.db, planId),
   });
   const planner = createPhase4bMcpChangePlanPlanner(
     createPlannerOptions(options, store),
@@ -243,6 +246,7 @@ export function createPhase4bMcpWriteComposition(
     createProductPorts,
     recordDeleteSubtreeTombstones: recordMcpDeleteSubtreeTombstones,
     recordCommittedContentRevisions: recordMcpPlanCommitRevisions,
+    capturePreCommitVersions: captureMcpPlanPreCommitVersions,
   });
   const gatewayChangePlanOptions = {
     planStore: store.planStore,

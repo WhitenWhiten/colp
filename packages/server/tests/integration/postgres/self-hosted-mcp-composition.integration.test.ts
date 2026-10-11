@@ -47,6 +47,17 @@ describeWithPostgres('self-hosted production MCP composition', () => {
     return runWithMcpAccountSubjectId(OWNER, () => composition.changePlanService.commit(planId, BINDING, randomUUID()));
   }
 
+  async function planHistory(collectionId: string, planId: string) {
+    const versions = await isolated.runtime.pool.query(
+      'select version_id from collection_tree_versions where collection_id = $1 and cause = $2',
+      [collectionId, `agent-plan:${planId}`],
+    );
+    const receipts = await isolated.runtime.pool.query(
+      'select approved_by, version_id from mcp_plan_policy_receipts where plan_id = $1', [planId],
+    );
+    return { versionIds: versions.rows.map((row) => row.version_id as string), receipts: receipts.rows };
+  }
+
   test('the mounted move tool persists a plan, then approval and commit change the parent', async () => {
     const tree = await fixture();
     const result = await composition.adapter.callTool(nodeCreateContext(BINDING, SCOPES), {
@@ -61,6 +72,25 @@ describeWithPostgres('self-hosted production MCP composition', () => {
     assert.equal((await isolated.runtime.pool.query('select parent_id from nodes where id = $1', [tree.nodeId])).rows[0].parent_id, tree.folderId);
   });
 
+  test('an owner-approved move saves its version in the commit and Undo restores it', async () => {
+    const tree = await fixture();
+    const result = await composition.adapter.callTool(nodeCreateContext(BINDING, SCOPES), {
+      name: 'nodes.move', arguments: { nodeId: tree.nodeId, parentId: tree.folderId },
+    });
+    const plan = result.structuredContent as { planId: string };
+    await composition.changePlanService.recordOutOfBandApproval(plan.planId, BINDING);
+    await commit(plan.planId);
+    const history = await planHistory(tree.collectionId, plan.planId);
+    assert.equal(history.versionIds.length, 1);
+    assert.deepEqual(history.receipts, [{ approved_by: 'owner', version_id: history.versionIds[0] }]);
+    const api = createPhase4bMcpAgentApprovalApi(isolated.runtime.db);
+    const view = await api.get({ id: OWNER }, plan.planId) as { approvedBy: string | null; versionId: string | null };
+    assert.equal(view.approvedBy, 'owner');
+    assert.equal(view.versionId, history.versionIds[0]);
+    await api.undo({ accountId: OWNER, subjectId: OWNER, planId: plan.planId, force: false, commandId: randomUUID() });
+    assert.equal((await isolated.runtime.pool.query('select parent_id from nodes where id = $1', [tree.nodeId])).rows[0].parent_id, tree.rootId);
+  });
+
   test('the mounted delete tool plans without parentId, commits tombstones and preserves trash', async () => {
     const tree = await fixture();
     const result = await composition.adapter.callTool(nodeCreateContext(BINDING, SCOPES), {
@@ -73,6 +103,10 @@ describeWithPostgres('self-hosted production MCP composition', () => {
     const row = (await isolated.runtime.pool.query('select deleted_at from nodes where id = $1', [tree.nodeId])).rows[0];
     assert.ok(row.deleted_at);
     assert.equal((await isolated.runtime.pool.query('select count(*)::int AS count from sync_node_tombstones where target_id = $1', [tree.nodeId])).rows[0].count, 1);
+    // History keeps the tree from before the delete; Undo is only for reversible plans.
+    const history = await planHistory(tree.collectionId, plan.planId);
+    assert.equal(history.versionIds.length, 1);
+    assert.deepEqual(history.receipts, []);
   });
 
   test('trusted move auto-commits with a version receipt and Undo restores the original parent', async () => {
@@ -85,9 +119,65 @@ describeWithPostgres('self-hosted production MCP composition', () => {
     assert.equal(plan.status, 'consumed');
     assert.equal(plan.approvedBy, 'policy');
     assert.equal(plan.requiresApproval, false);
+    const history = await planHistory(tree.collectionId, plan.planId);
+    assert.equal(history.versionIds.length, 1);
+    assert.deepEqual(history.receipts, [{ approved_by: 'policy', version_id: history.versionIds[0] }]);
     const api = createPhase4bMcpAgentApprovalApi(isolated.runtime.db);
     await api.undo({ accountId: OWNER, subjectId: OWNER, planId: plan.planId, force: false, commandId: randomUUID() });
     assert.equal((await isolated.runtime.pool.query('select parent_id from nodes where id = $1', [tree.nodeId])).rows[0].parent_id, tree.rootId);
+  });
+
+  test('one move plan carries several bookmarks; approval commits them all in order', async () => {
+    const tree = await fixture();
+    const extra: string[] = [];
+    for (const title of ['Second', 'Third']) {
+      const made = await composition.adapter.callTool(nodeCreateContext(BINDING, SCOPES), {
+        name: 'nodes.create', arguments: { collectionId: tree.collectionId, parentId: tree.rootId,
+          node: { kind: 'bookmark', title, url: `https://example.test/${title}`, visibility: 'private' }, confirmApply: true },
+      });
+      extra.push((made.structuredContent as { node: { id: string } }).node.id);
+    }
+    const nodeIds = [tree.nodeId, ...extra];
+    const result = await composition.adapter.callTool(nodeCreateContext(BINDING, SCOPES), {
+      name: 'nodes.move', arguments: { nodeIds, parentId: tree.folderId },
+    });
+    const plan = result.structuredContent as { planId: string; impact: string[]; requiresApproval: boolean };
+    assert.equal(plan.requiresApproval, true);
+    assert.equal(plan.impact.length, 3);
+    assert.match(plan.impact[2]!, /^move Third from .* to .*Destination/u);
+    await composition.changePlanService.recordOutOfBandApproval(plan.planId, BINDING);
+    await commit(plan.planId);
+    const moved = await isolated.runtime.pool.query(
+      'select id from nodes where parent_id = $1 and deleted_at is null order by position_token', [tree.folderId]);
+    assert.deepEqual(moved.rows.map((row) => row.id), nodeIds);
+    assert.equal((await planHistory(tree.collectionId, plan.planId)).receipts[0]?.approved_by, 'owner');
+  });
+
+  test('nodes.move refuses nodeId together with nodeIds, and a position for several nodes', async () => {
+    const tree = await fixture();
+    await assert.rejects(() => composition.adapter.callTool(nodeCreateContext(BINDING, SCOPES), {
+      name: 'nodes.move', arguments: { nodeId: tree.nodeId, nodeIds: [tree.nodeId], parentId: tree.folderId },
+    }));
+    await assert.rejects(() => composition.adapter.callTool(nodeCreateContext(BINDING, SCOPES), {
+      name: 'nodes.move', arguments: { nodeIds: [tree.nodeId, tree.folderId], parentId: tree.rootId, position: 0 },
+    }));
+  });
+
+  test('changes.get agrees with the move result for a policy-approved plan', async () => {
+    const tree = await fixture();
+    await isolated.runtime.pool.query("insert into agent_policies(principal_id, client_id, policy) values ($1, $2, 'trusted')", [OWNER, BINDING.clientId]);
+    const result = await composition.adapter.callTool(nodeCreateContext(BINDING, SCOPES), {
+      name: 'nodes.move', arguments: { nodeId: tree.nodeId, parentId: tree.folderId },
+    });
+    const plan = result.structuredContent as { planId: string; requiresApproval: boolean };
+    assert.equal(plan.requiresApproval, false);
+    const got = await composition.adapter.callTool(nodeCreateContext(BINDING, SCOPES), {
+      name: 'changes.get', arguments: { planId: plan.planId },
+    });
+    const view = got.structuredContent as { requiresApproval: boolean; approvedBy?: string; status: string };
+    assert.equal(view.status, 'consumed');
+    assert.equal(view.requiresApproval, false);
+    assert.equal(view.approvedBy, 'policy');
   });
 
   test('trusted client without changes:commit keeps approval and does not mutate the tree', async () => {

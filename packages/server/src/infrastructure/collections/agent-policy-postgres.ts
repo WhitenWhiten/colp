@@ -332,6 +332,14 @@ function withReceipt(
   }) as WriteApprovalView;
 }
 
+/** True when a trusted policy, not the owner, approved this plan. */
+export async function readPlanApprovedByPolicy(
+  db: Kysely<DatabaseSchema>,
+  planId: string,
+): Promise<boolean> {
+  return (await readPolicyReceipt(db, planId))?.approvedBy === 'policy';
+}
+
 async function readPolicyReceipt(
   db: Kysely<DatabaseSchema>,
   planId: string,
@@ -349,7 +357,7 @@ async function listPolicyReceipts(
   const result = await sql<{
     plan_id: string;
     client_id: string;
-    approved_by: 'policy';
+    approved_by: 'policy' | 'owner';
     version_id: string;
     collection_id: string;
     cause: string;
@@ -362,7 +370,7 @@ async function listPolicyReceipts(
     receipts.set(row.plan_id, {
       planId: row.plan_id,
       clientId: row.client_id,
-      approvedBy: 'policy',
+      approvedBy: row.approved_by === 'owner' ? 'owner' : 'policy',
       versionId: row.version_id,
       collectionId: row.collection_id,
       cause: row.cause,
@@ -382,7 +390,7 @@ async function savePolicyReceipt(
       ${receipt.planId}, ${receipt.clientId}, ${receipt.approvedBy},
       ${receipt.versionId}, ${receipt.collectionId}, ${receipt.cause}
     )
-    ON CONFLICT (plan_id) DO NOTHING
+    ON CONFLICT (plan_id) DO UPDATE SET approved_by = EXCLUDED.approved_by
   `.execute(db);
 }
 

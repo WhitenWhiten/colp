@@ -104,6 +104,7 @@ export const PHASE4B_MCP_CHANGES_GET_OUTPUT_SCHEMA = Object.freeze({
     createdAt: Object.freeze({ type: 'string', minLength: 1 }),
     impact: impactSchema,
     approvalUri: Object.freeze({ type: 'string', minLength: 1 }),
+    approvedBy: Object.freeze({ const: 'policy' }),
   }),
   required: Object.freeze([
     'planId',
@@ -140,6 +141,8 @@ export interface Phase4bMcpLowRiskChangeGetOutput {
   readonly createdAt: string;
   readonly impact: Phase4bMcpChangeGetImpact;
   readonly approvalUri?: string;
+  /** Set when the agent's trusted policy approved the plan instead of the owner. */
+  readonly approvedBy?: 'policy';
 }
 
 export interface Phase4bMcpChangeGetPlanStore {
@@ -150,6 +153,8 @@ export interface Phase4bMcpChangeGetPlanStore {
 
 export interface Phase4bMcpLowRiskChangeGetServiceOptions {
   readonly planStore: Phase4bMcpChangeGetPlanStore;
+  /** True when a trusted policy approved the plan; such a plan needed no owner approval. */
+  readonly approvedByPolicy?: (planId: string) => Promise<boolean>;
 }
 
 export interface Phase4bMcpLowRiskChangeGetService {
@@ -166,6 +171,10 @@ export function createPhase4bMcpLowRiskChangeGetService(
     throw new TypeError('MCP changes.get options must be an own-data object.');
   }
   const planStore = readRequiredPlanStore(options);
+  const approvedByPolicy = options.approvedByPolicy;
+  if (approvedByPolicy !== undefined && typeof approvedByPolicy !== 'function') {
+    throw new TypeError('MCP changes.get approvedByPolicy must be a function.');
+  }
   return Object.freeze({
     execute: async (
       input: Readonly<Record<string, unknown>>,
@@ -180,7 +189,9 @@ export function createPhase4bMcpLowRiskChangeGetService(
       if (plan === undefined || !isVisible(plan, binding)) {
         throw unknownPlan();
       }
-      return projectChangeGetView(plan);
+      const view = projectChangeGetView(plan);
+      if (approvedByPolicy === undefined || !(await approvedByPolicy(plan.planId))) return view;
+      return Object.freeze({ ...view, requiresApproval: false, approvedBy: 'policy' as const });
     },
   });
 }

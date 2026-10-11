@@ -182,3 +182,22 @@ the rest of feature 8:
 - `withCancellation` timeouts no longer say "Favicon policy is temporarily
   unavailable." for MCP approvals, library order, link health, export and
   versions.
+
+M4 follow-up (2026-10-11), departures from Know-N found by running the M4
+block with Claude Code and Codex:
+
+- Agent plan history: every committed plan captures an `agent-plan:<id>`
+  collection version inside the commit transaction
+  (`captureMcpPlanPreCommitVersions`); an owner-approved reversible plan gets
+  an Undo receipt with `approved_by = 'owner'` (migration
+  `202610260000_mcp_plan_receipt_owner_approval`). Know-N captured versions
+  only for trusted auto-commits.
+- `nodes.move` takes `nodeIds` (one plan, up to 50 moves); the executor
+  carries forward the revisions each move leaves. Low-risk write tools get
+  host descriptions; change-plan rejections get messages per `data.code`;
+  move/delete plan summaries and approval previews use the planner's impact
+  text; `changes.get` reports policy approval.
+- `/api/v1/auth/key-token` answers `401 invalid_grant` for a well-formed but
+  unknown, revoked or expired key. Know-N `18e39e907` hid every 4xx behind 404
+  because its keys were operator-provisioned bot credentials; here the owner
+  issues and revokes keys on the Agents page. Malformed probes still get 404.

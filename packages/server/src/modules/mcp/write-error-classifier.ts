@@ -257,9 +257,34 @@ export function classifyPhase4bMcpWriteError(error: unknown): Phase4bMcpWriteErr
 }
 
 /** Keep package-sanitized dependency failures on the host's internal-error path. */
+const CHANGE_PLAN_REJECTED_MESSAGE = 'MCP write operation rejected.';
+
+/**
+ * The COLP SDK gives every Change Plan failure the same message and puts the
+ * reason only in `data.code`, which clients do not show. These say what
+ * happened and what the agent should do next.
+ */
+const CHANGE_PLAN_REJECTION_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
+  revision_drift: 'The collection changed after this plan was made, so it can no longer be committed. Call the tool again to make a new plan.',
+  plan_not_approved: 'The owner has not approved this plan yet. Ask them to open its approval link, then commit again.',
+  approval_missing: 'The owner has not approved this plan yet. Ask them to open its approval link, then commit again.',
+  plan_expired: 'This plan expired before it was committed. Call the tool again to make a new plan.',
+  plan_cancelled: 'This plan was denied or cancelled, so it cannot be committed. Make a new plan if the change is still wanted.',
+  plan_already_consumed: 'This plan was already committed.',
+  plan_not_found: 'No plan with this id is available to this agent.',
+  rate_limited: 'Too many plans in a short time. Wait a minute, then try again.',
+  impact_exceeded: 'This plan changes more than one plan may. Split it into smaller plans.',
+  commit_failed: 'The plan could not be committed. Nothing was changed.',
+});
+
 export function rethrowPhase4bMcpWriteAdapterError(error: unknown): never {
   if (error instanceof Mcp20260728RequestError && error.kind === 'internal_error') {
     throw new Error('Internal error');
+  }
+  if (error instanceof Mcp20260728RequestError && error.message === CHANGE_PLAN_REJECTED_MESSAGE) {
+    const code = (error.data as { readonly code?: unknown } | undefined)?.code;
+    const message = typeof code === 'string' ? CHANGE_PLAN_REJECTION_MESSAGES[code] : undefined;
+    if (message !== undefined) throw new Mcp20260728RequestError(error.kind, message, error.data);
   }
   throw error;
 }

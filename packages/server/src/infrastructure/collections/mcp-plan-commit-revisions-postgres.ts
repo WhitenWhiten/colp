@@ -1,7 +1,66 @@
 import { sql, type Kysely } from 'kysely';
-import type { McpCommittedContentRevisionFacts } from '../../modules/mcp/index.js';
+import {
+  CollectionVersionNodeLimitError,
+  captureCollectionTreeVersion,
+} from '../../modules/collections/index.js';
+import type {
+  McpCommittedContentRevisionFacts,
+  McpPreCommitVersionFacts,
+} from '../../modules/mcp/index.js';
 import type { DatabaseSchema } from '../database/runtime.js';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
+import { createPostgresCollectionVersionStore } from './collection-tree-version-postgres.js';
+
+/**
+ * Runs inside the plan's commit transaction, before its first operation, so
+ * the saved version is exactly the tree the plan changed. A plan the owner
+ * approved gets an Undo receipt here; a trusted auto-approval has already
+ * captured its version and saves its own receipt after the commit.
+ */
+export async function captureMcpPlanPreCommitVersions(
+  transaction: DatabaseTransaction,
+  facts: McpPreCommitVersionFacts,
+): Promise<void> {
+  const cause = `agent-plan:${facts.planId}` as const;
+  const versions = createPostgresCollectionVersionStore(transaction);
+  for (const collectionId of facts.collectionIds) {
+    const prior = await transaction.selectFrom('collection_tree_versions')
+      .select('version_id')
+      .where('collection_id', '=', collectionId)
+      .where('cause', '=', cause)
+      .executeTakeFirst();
+    if (prior !== undefined) continue;
+    const collection = await versions.lockOwnedLive(collectionId, facts.subjectId);
+    if (collection === null) continue;
+    let versionId: string;
+    try {
+      const captured = await captureCollectionTreeVersion(
+        { versions, clock: { now: () => new Date() } },
+        {
+          accountId: facts.principalId,
+          collection,
+          kind: 'pre_mutation',
+          cause,
+          label: 'Before agent plan',
+        },
+      );
+      versionId = captured.record.versionId;
+    } catch (error: unknown) {
+      // Too large to version: the plan still commits, without history or Undo.
+      if (error instanceof CollectionVersionNodeLimitError) continue;
+      throw error;
+    }
+    if (!facts.undoable) continue;
+    await sql`
+      INSERT INTO mcp_plan_policy_receipts (
+        plan_id, client_id, approved_by, version_id, collection_id, cause
+      ) VALUES (
+        ${facts.planId}, ${facts.clientId}, 'owner', ${versionId}, ${collectionId}, ${cause}
+      )
+      ON CONFLICT (plan_id) DO NOTHING
+    `.execute(transaction);
+  }
+}
 
 /**
  * Runs inside the plan's commit transaction, after its last operation. The

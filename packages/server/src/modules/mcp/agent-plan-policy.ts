@@ -31,7 +31,8 @@ const REVERSIBLE_OPERATION_TYPES = new Set([
 export interface AgentPlanPolicyReceipt {
   readonly planId: string;
   readonly clientId: string;
-  readonly approvedBy: 'policy';
+  /** `owner`: approved by hand; its version was saved inside the commit. */
+  readonly approvedBy: 'policy' | 'owner';
   readonly versionId: string;
   readonly collectionId: string;
   readonly cause: string;

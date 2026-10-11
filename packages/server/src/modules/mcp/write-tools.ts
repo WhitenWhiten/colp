@@ -1,5 +1,6 @@
 import { createPhase4bMcpResult } from './results.js';
 import type { Phase4bMcpChangePlanService } from './change-plan-service.js';
+import { PHASE4B_MCP_MOVE_BATCH_LIMIT } from './change-plan-planner.js';
 import { MCP_OWN_DATA_DEFAULT_BUDGET, snapshotMcpOwnData as snapshotPhase4bData } from './own-data.js';
 /**
  * MCP-W06 host composition for the Modern `2026-07-28` Write Tools mount.
@@ -102,6 +103,22 @@ export const PHASE4B_MCP_WRITE_COLLECTION_ID_HEADER = 'X-Collection-Id' as const
 export const PHASE4B_MCP_CHANGES_PLAN_DESCRIPTION =
   'Create a pending high-risk Change Plan. dryRun must be true and stores a real plan that needs out-of-band approval; apply with changes.commit. Collection public/unlisted uses the collection resource fence; node protected/private uses the node revision.';
 
+/**
+ * The COLP SDK lists low-risk write tools as "Write tool <name>". Agents pick
+ * tools by description, so the host replaces those with what each tool does.
+ */
+export const PHASE4B_MCP_WRITE_TOOL_DESCRIPTIONS: Readonly<Record<string, string>> = Object.freeze({
+  'collections.create': 'Create a new private library (collection) you own. Applies at once; reuse the same idempotencyKey only to retry the same request.',
+  'collections.update': 'Change a library\'s title or summary. Pass the revision you read as baseRevision (or ifMatch). Applies at once.',
+  'nodes.create': 'Add a folder or bookmark to a library under parentId. Applies at once unless dryRun is true or confirmApply is false.',
+  'nodes.update': 'Change a folder or bookmark: title, URL, description, tags or visibility. Pass the revision you read as baseRevision (or ifMatch). Applies at once.',
+  'nodes.move': 'Move folders or bookmarks to another folder in the same library. Pass nodeId for one node, or nodeIds (up to 50, moved in order and appended to the destination) to move several in one plan. Returns a plan: unless the owner trusts this agent, they approve it on its approval link, then call changes.commit.',
+  'nodes.delete_subtree': 'Delete a folder or bookmark with everything inside it. Returns a plan the owner must approve before changes.commit; deleted items go to the library\'s trash.',
+  'annotations.create': 'Add a note to a bookmark or folder. Applies at once.',
+  'annotations.update': 'Change one of your notes. Pass the revision you read as baseRevision (or ifMatch). Applies at once.',
+  'changes.get': 'Read a plan\'s status: pending, approved, committed (consumed), cancelled or expired. Use it to check whether the owner approved a plan before calling changes.commit.',
+});
+
 export const PHASE4B_MCP_WRITE_MOUNTED_TOOL_NAMES: readonly [
   'collections.create',
   'collections.update',
@@ -198,15 +215,24 @@ const nodeMoveInputSchema = Object.freeze({
   additionalProperties: false,
   properties: Object.freeze({
     nodeId: opaqueIdProperty,
+    nodeIds: Object.freeze({
+      type: 'array',
+      items: opaqueIdProperty,
+      minItems: 1,
+      maxItems: PHASE4B_MCP_MOVE_BATCH_LIMIT,
+      uniqueItems: true,
+      description: 'Several nodes to move in one plan, in order. Use instead of nodeId.',
+    }),
     collectionId: opaqueIdProperty,
     parentId: opaqueIdProperty,
     position: Object.freeze({
       type: 'integer',
       minimum: 0,
       maximum: 100_000,
+      description: 'Index in the destination folder; only with nodeId. Omit to append.',
     }),
   }),
-  required: Object.freeze(['nodeId', 'parentId']),
+  required: Object.freeze(['parentId']),
 } as const);
 
 const nodeMoveOutputSchema = Object.freeze({
@@ -576,17 +602,13 @@ function withHostWriteToolDescriptions(listed: Mcp20260728Result): Mcp20260728Re
   return Object.freeze({
     ...listed,
     tools: Object.freeze(tools.map((tool) => {
-      if (
-        typeof tool === 'object'
-        && tool !== null
-        && (tool as { name?: unknown }).name === 'changes.plan'
-      ) {
-        return Object.freeze({
-          ...(tool as Record<string, unknown>),
-          description: PHASE4B_MCP_CHANGES_PLAN_DESCRIPTION,
-        });
-      }
-      return tool;
+      if (typeof tool !== 'object' || tool === null) return tool;
+      const name = (tool as { name?: unknown }).name;
+      const description = name === 'changes.plan'
+        ? PHASE4B_MCP_CHANGES_PLAN_DESCRIPTION
+        : typeof name === 'string' ? PHASE4B_MCP_WRITE_TOOL_DESCRIPTIONS[name] : undefined;
+      if (description === undefined) return tool;
+      return Object.freeze({ ...(tool as Record<string, unknown>), description });
     })),
   });
 }

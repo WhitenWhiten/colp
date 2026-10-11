@@ -977,9 +977,30 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AccountKeyTokenResponse"
+        "401":
+          description: The key is unknown, revoked, or expired (OAuth invalid_grant).
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/NoStore"
+            X-Request-Id:
+              $ref: "#/components/headers/XRequestId"
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - error
+                  - error_description
+                properties:
+                  error:
+                    type: string
+                    const: invalid_grant
+                  error_description:
+                    type: string
+                    maxLength: 256
         "404":
-          description: "Hidden endpoint: invalid request, missing/invalid credential, or
-            feature disabled"
+          description: "Hidden endpoint: malformed request or feature disabled"
           headers:
             Cache-Control:
               $ref: "#/components/headers/NoStore"
@@ -6862,6 +6883,61 @@ paths:
           $ref: "#/components/responses/InternalError"
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
+  /api/v1/mcp/approvals/{planId}/undo:
+    post:
+      tags:
+        - WriteApproval
+      operationId: undoWriteApproval
+      summary: Undo one committed agent plan by restoring the version saved before it
+      description: Works for plans whose approval has `approvedBy` set. Refuses
+        with 409 when the collection changed after the plan; retry with
+        `force=true` to restore the saved version anyway. Session, Origin, CSRF
+        and a canonical Known-Command-Id are required; the body is empty.
+      security:
+        - cookieAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PlanId"
+        - $ref: "#/components/parameters/Origin"
+        - $ref: "#/components/parameters/CsrfToken"
+        - $ref: "#/components/parameters/CommandId"
+        - name: force
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - "true"
+              - "false"
+      responses:
+        "200":
+          description: The saved version was restored.
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/PrivateNoStore"
+            X-Request-Id:
+              $ref: "#/components/headers/XRequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WriteApprovalUndoResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/AuthenticationRequired"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/MutationConflict"
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /api/v1/collections/{id}/export:
     parameters:
       - &a1
@@ -10577,6 +10653,13 @@ components:
           oneOf:
             - $ref: "#/components/schemas/WriteApprovalNodeSummary"
             - type: "null"
+        description:
+          type: string
+          minLength: 1
+          maxLength: 1024
+          description: For move_node and delete_subtree, what the operation
+            does in the server's words, built from stored titles and paths
+            (for example `move Docs from /A to /B`).
     WriteApprovalTarget:
       type: object
       additionalProperties: false
@@ -10654,6 +10737,40 @@ components:
           $ref: "#/components/schemas/WriteApprovalDecisionState"
         etag:
           $ref: "#/components/schemas/EntityTag"
+        approvedBy:
+          description: Who approved a committed plan that can be undone - the
+            agent's trusted policy or the owner. Null when the plan has no
+            saved version to undo.
+          oneOf:
+            - type: string
+              enum:
+                - policy
+                - owner
+            - type: "null"
+        versionId:
+          description: Collection version saved just before the plan committed;
+            Undo restores it.
+          oneOf:
+            - $ref: "#/components/schemas/OpaqueId"
+            - type: "null"
+    WriteApprovalUndoResult:
+      type: object
+      additionalProperties: false
+      required:
+        - planId
+        - versionId
+        - restored
+        - noop
+      properties:
+        planId:
+          $ref: "#/components/schemas/OpaqueId"
+        versionId:
+          $ref: "#/components/schemas/OpaqueId"
+        restored:
+          type: boolean
+          const: true
+        noop:
+          type: boolean
     WriteApprovalPage:
       type: object
       additionalProperties: false

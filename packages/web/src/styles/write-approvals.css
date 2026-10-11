@@ -278,6 +278,11 @@
   overflow-wrap: anywhere;
 }
 
+.write-approval-operation-description {
+  margin: var(--hair-55) 0 0;
+  overflow-wrap: anywhere;
+}
+
 .write-approval-operation dl {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));

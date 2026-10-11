@@ -38,9 +38,14 @@ function RefValue({ id, title }: { id: string | null; title: string | null }) {
   return <>Not available</>
 }
 
-export function approvalApprovedBy(approval: WriteApprovalView): string | null {
-  const value = (approval as WriteApprovalView & { approvedBy?: unknown }).approvedBy
-  return typeof value === 'string' && value.length > 0 ? value : null
+export function approvalApprovedBy(approval: WriteApprovalView): 'policy' | 'owner' | null {
+  const value = approval.approvedBy
+  return value === 'policy' || value === 'owner' ? value : null
+}
+
+const APPROVED_BY_TEXT: Record<'policy' | 'owner', string> = {
+  policy: 'Approved automatically because you trust this agent. You can undo it.',
+  owner: 'Approved by you. You can undo it.',
 }
 
 export function ApprovalCard({
@@ -205,9 +210,11 @@ export function ApprovalCard({
         </div>
       )}
 
-      <p className="write-approval-approved-by">approvedBy: {approvedBy ?? '—'}</p>
+      {approvedBy && (
+        <p className="write-approval-approved-by">{APPROVED_BY_TEXT[approvedBy]}</p>
+      )}
       <footer className="write-approval-actions">
-        {approvedBy === 'policy' && (
+        {approvedBy && (
           <button
             type="button"
             className="btn btn-secondary btn-sm"
@@ -218,7 +225,7 @@ export function ApprovalCard({
             Undo
           </button>
         )}
-        {approvedBy === 'policy' && undoNeedsForce && (
+        {approvedBy && undoNeedsForce && (
           <button
             type="button"
             className="btn btn-secondary btn-sm"
@@ -304,6 +311,7 @@ function OperationPreview({
 }) {
   const summary = operation.nodeSummary
   const collectionVisibility = operation.type === 'set_visibility' && target.kind === 'collection'
+  const description = operation.description ?? null
   return (
     <div className="write-approval-operation">
       <div className="write-approval-operation-head">
@@ -311,13 +319,16 @@ function OperationPreview({
           <Icon name={operationIcon(operation)} />
         </span>
         <strong>{operationTypeLabel(operation, target)}</strong>
-        <StatusBadge tone={visibilityTone(operation.visibility)} className="write-approval-visibility">
-          {operation.visibility ?? 'No visibility change'}
-        </StatusBadge>
+        {operation.visibility != null && (
+          <StatusBadge tone={visibilityTone(operation.visibility)} className="write-approval-visibility">
+            {operation.visibility}
+          </StatusBadge>
+        )}
       </div>
+      {description && <p className="write-approval-operation-description" data-testid="approval-operation-description">{description}</p>}
       <dl>
         <div><dt>Collection</dt><dd><RefValue id={operation.collectionId} title={collectionTitles.get(operation.collectionId ?? '') ?? null} /></dd></div>
-        {collectionVisibility ? null : (
+        {collectionVisibility || description ? null : (
           <div><dt>Bookmark</dt><dd><RefValue id={operation.nodeId} title={summary?.title ?? null} /></dd></div>
         )}
         {summary && (

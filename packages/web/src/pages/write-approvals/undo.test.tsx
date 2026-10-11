@@ -27,7 +27,7 @@ vi.mock('../../auth/AuthContext', () => ({
   useAuth: () => ({ isLoggedIn: true, bootstrapping: false }),
 }))
 
-function approval(approvedBy: string | null): WriteApprovalView & { approvedBy: string | null } {
+function approval(approvedBy: 'policy' | 'owner' | null): WriteApprovalView {
   return {
     planId: 'plan-policy',
     status: 'consumed',
@@ -72,7 +72,7 @@ describe('approvals Undo', () => {
     vi.clearAllMocks()
   })
 
-  it('shows approvedBy and undoes a policy-approved plan', async () => {
+  it('says a trusted policy approved the plan and undoes it', async () => {
     const fetchImpl = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
       const url = String(input)
       if (url.includes('force=true')) {
@@ -94,7 +94,7 @@ describe('approvals Undo', () => {
     vi.stubGlobal('fetch', fetchImpl)
 
     mountTree(<WriteApprovals />, { initialEntries: ['/approvals'] })
-    await waitForDom(() => document.body.textContent?.includes('approvedBy: policy') === true)
+    await waitForDom(() => document.body.textContent?.includes('Approved automatically because you trust this agent.') === true)
     expect(document.querySelector('[data-testid="approval-undo"]')?.textContent).toBe('Undo')
 
     act(() => findButtonByName('Undo').click())
@@ -106,10 +106,18 @@ describe('approvals Undo', () => {
     expect(new Headers(fetchImpl.mock.calls[1]?.[1]?.headers).get('X-CSRF-Token')).toBe('csrf-undo-page')
   })
 
-  it('does not offer Undo when the plan was not approved by policy', async () => {
+  it('offers Undo for a plan the owner approved', async () => {
+    mocks.page.mockResolvedValue({ items: [approval('owner')], nextCursor: null })
+    mountTree(<WriteApprovals />, { initialEntries: ['/approvals'] })
+    await waitForDom(() => document.body.textContent?.includes('Approved by you. You can undo it.') === true)
+    expect(document.querySelector('[data-testid="approval-undo"]')?.textContent).toBe('Undo')
+  })
+
+  it('does not offer Undo when the plan has no saved version', async () => {
     mocks.page.mockResolvedValue({ items: [approval(null)], nextCursor: null })
     mountTree(<WriteApprovals />, { initialEntries: ['/approvals'] })
-    await waitForDom(() => document.body.textContent?.includes('approvedBy: —') === true)
+    await waitForDom(() => document.querySelector('[data-plan-id="plan-policy"]') !== null)
+    expect(document.body.textContent).not.toContain('You can undo it.')
     expect(document.querySelector('[data-testid="approval-undo"]')).toBeNull()
   })
 })
