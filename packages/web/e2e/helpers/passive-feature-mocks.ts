@@ -24,6 +24,16 @@ export async function fulfillPassiveFeatureRequest(route: Route): Promise<boolea
     await json(route, { open: false, reason: 'closed' })
     return true
   }
+  /* The desk's Get started checklist asks whether a browser syncs and an
+     agent is connected; empty answers leave those steps open. */
+  if (path === '/api/v1/sync/status') {
+    await json(route, { devices: [], replicas: [] })
+    return true
+  }
+  if (path === '/api/v1/me/agents') {
+    await json(route, { agents: [] })
+    return true
+  }
   if (path === '/api/v1/me/library-order') {
     await json(route, { sections: { mine: [], shared: [], following: [] } })
     return true
