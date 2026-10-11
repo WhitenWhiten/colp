@@ -2,9 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { SearchRateLimiter } from '../infrastructure/rate-limit/index.js';
 import {
   buildCollectionsSitemapUrlset,
-  buildProfilesSitemapUrlset,
   type CollectionsSitemapEntry,
-  type ProfilesSitemapEntry,
 } from '../infrastructure/http/index.js';
 import { sendPublicationRateLimitProblem } from './product/publication-snapshot-routes.js';
 import { abortPublicationRead, requestCancellation } from './product/publication-request-cancel.js';
@@ -21,16 +19,6 @@ export const COLLECTIONS_SITEMAP_VARY = 'Accept-Encoding';
 
 export interface PublicationSitemapQueryPort {
   listIndexable(signal?: AbortSignal): Promise<readonly CollectionsSitemapEntry[]>;
-}
-
-export const PROFILES_SITEMAP_ROUTE = '/sitemap-profiles.xml';
-export const PROFILES_SITEMAP_CONTENT_TYPE = COLLECTIONS_SITEMAP_CONTENT_TYPE;
-export const PROFILES_SITEMAP_CACHE_CONTROL = COLLECTIONS_SITEMAP_CACHE_CONTROL;
-export const PROFILES_SITEMAP_CDN_CACHE_CONTROL = COLLECTIONS_SITEMAP_CDN_CACHE_CONTROL;
-export const PROFILES_SITEMAP_VARY = COLLECTIONS_SITEMAP_VARY;
-
-export interface ProfileSitemapQueryPort {
-  listIndexable(signal?: AbortSignal): Promise<readonly ProfilesSitemapEntry[]>;
 }
 
 export function registerCollectionsSitemapRoutes(
@@ -67,50 +55,6 @@ export function registerCollectionsSitemapRoutes(
       }
     },
   });
-}
-
-export function registerProfilesSitemapRoutes(
-  app: FastifyInstance,
-  dependencies: {
-    readonly query: ProfileSitemapQueryPort;
-    readonly rateLimiter?: SearchRateLimiter;
-    /** Governed mode revalidates at the edge on every request. */
-    readonly contentGovernanceEnabled?: boolean;
-  },
-): void {
-  app.route({
-    method: ['GET', 'HEAD'],
-    url: PROFILES_SITEMAP_ROUTE,
-    handler: async (request, reply) => {
-      const cancellation = requestCancellation(request, reply);
-      try {
-        await admitExploreDirectoryRateLimit(
-          dependencies.rateLimiter,
-          exploreDirectoryAnonymousSubject(request),
-          'Too many sitemap requests. Please try again later.',
-        );
-        const entries = await dependencies.query.listIndexable(cancellation.signal);
-        const xml = buildProfilesSitemapUrlset(entries);
-        return sendSitemapBody(reply, request, xml, PROFILES_SITEMAP_CONTENT_TYPE,
-          dependencies.contentGovernanceEnabled === true);
-      } catch (error) {
-        const limited = sendPublicationRateLimitProblem(reply, request, error);
-        if (limited !== undefined) return limited;
-        if (cancellation.signal.aborted) return abortPublicationRead(reply);
-        throw error;
-      } finally {
-        cancellation.dispose();
-      }
-    },
-  });
-}
-
-function sendCollectionsSitemapBody(
-  reply: FastifyReply,
-  request: FastifyRequest,
-  body: string,
-): FastifyReply {
-  return sendSitemapBody(reply, request, body, COLLECTIONS_SITEMAP_CONTENT_TYPE);
 }
 
 function sendSitemapBody(

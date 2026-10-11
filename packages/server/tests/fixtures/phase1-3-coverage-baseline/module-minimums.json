@@ -575,12 +575,6 @@
       "functions": 76.72,
       "statements": 91.38
     },
-    "src/bootstrap/public-profile-projection.ts": {
-      "lines": 89.37,
-      "branches": 80.35,
-      "functions": 97.5,
-      "statements": 89.37
-    },
     "src/infrastructure/database/product-command-receipt.ts": {
       "lines": 97.5,
       "branches": 95,

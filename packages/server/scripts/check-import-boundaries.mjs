@@ -492,7 +492,6 @@ const bootstrapTargets = new Set([
   'transport/mcp/mcp-strict-application-adapter.ts',
   'bootstrap/oidc-endpoint-policy.ts',
   'bootstrap/process-lifecycle.ts',
-  'bootstrap/public-profile-projection.ts',
   // FIX-M-006/M-008: trusted-ingress allowlist parser is a bootstrap config
   // surface (same leaf role as oidc-endpoint-policy.ts).
   'bootstrap/trusted-ingress.ts',
@@ -829,8 +828,6 @@ const transportTargets = new Set([
   'transport/product/publication-manifest-routes.ts',
   'transport/product/publication-metadata-routes.ts',
   'transport/public-shell-routes.ts',
-  // M-09: canonical public Profile shell and legacy redirect wiring.
-  'transport/public-profile-shell-routes.ts',
   // B1: origin-injected /explore discovery hub.
   'transport/public-explore-shell-routes.ts',
   // Per-Collection Open Graph card route: a public-shell sibling registered by

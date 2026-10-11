@@ -11,7 +11,6 @@ export const HOME_CANONICAL = '<link rel="canonical" href="https://know-n.com/" 
 export const HOME_OG_URL = '<meta property="og:url" content="https://know-n.com/" />';
 export const HOME_HTML_LANG = '<html lang="en">';
 export const HOME_OG_LOCALE = '<meta property="og:locale" content="en_US" />';
-export const SITE_OG_IMAGE_URL = 'https://know-n.com/og-cover.png';
 
 const TITLE_PATTERN = /<title>[^<]*<\/title>/u;
 const OG_TITLE_PATTERN = /<meta property="og:title" content="[^"]*" \/>/u;

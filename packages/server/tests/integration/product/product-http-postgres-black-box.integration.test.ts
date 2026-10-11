@@ -2,16 +2,13 @@ import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, test } from 'vitest';
 import { loadConfig, type AppConfig } from '../../support/test-config.js';
-import { composePublicProfileProjection } from '../../../src/bootstrap/public-profile-projection.js';
 import { buildWorker, type WorkerRuntime } from '../../../src/bootstrap/worker.js';
 import {
   createPostgresCollectionsEditorReadUnitOfWork,
   createPostgresOwnedCollectionsReadPort,
   createPostgresCollectionBookmarkCountReadPort,
 } from '../../../src/infrastructure/collections/index.js';
-import { createPostgresPublicProfileFactsReadPort } from '../../../src/infrastructure/identity/index.js';
-import { createPostgresPublicationDirectoryReadPort } from '../../../src/infrastructure/publication/index.js';
-import { createPostgresSharedExposureFactsPort, createDatabaseRuntime, runMigrations, type DatabaseRuntime } from '../../../src/infrastructure/database/index.js';
+import { createDatabaseRuntime, runMigrations, type DatabaseRuntime } from '../../../src/infrastructure/database/index.js';
 import { createPostgresIdentityUnitOfWork } from '../../../src/infrastructure/identity/index.js';
 import { createPostgresCanonicalMutationUnitOfWork, createPostgresCollectionsUnitOfWork } from '../../../src/infrastructure/collections/index.js';
 import {
@@ -23,7 +20,6 @@ import {
   claimHandle,
   createProductEditorCursorSigner,
   createProductOwnedCollectionsCursorSigner,
-  createPublicationCursorKeyring,
 } from '../../../src/modules/index.js';
 import { buildApiApp } from '../../../src/transport/app.js';
 import { memoryExploreDirectoryLimiter } from '../../support/memory-product-rate-limiters.js';
@@ -100,10 +96,6 @@ describeWithPostgres('Product HTTP + PostgreSQL black-box lifecycle', () => {
   let runtime: DatabaseRuntime;
   let config: AppConfig;
   let factory: ReturnType<typeof createPostgresBetterAuthTestFactory>;
-  const profileCursors = createPublicationCursorKeyring({
-    active: { id: 'product-profile-black-box-v1', secret: Buffer.alloc(32, 92).toString('base64') },
-    retained: [],
-  });
   const ownedCollectionCursors = createProductOwnedCollectionsCursorSigner({
     current: { id: 'owned-black-box-v1', key: 'owned-black-box-cursor-secret-material-32-bytes' },
   });
@@ -136,7 +128,6 @@ describeWithPostgres('Product HTTP + PostgreSQL black-box lifecycle', () => {
 
   afterAll(async () => {
     ownedCollectionCursors.destroy();
-    profileCursors.destroy();
     await isolated?.close();
   });
 
@@ -159,12 +150,6 @@ describeWithPostgres('Product HTTP + PostgreSQL black-box lifecycle', () => {
         cursorTtlMs: config.productEditorCursor.ttlMs,
       }),
       browserSessionAuthority: factory.authority,
-      publicProfileQuery: composePublicProfileProjection({
-        profiles: createPostgresPublicProfileFactsReadPort(runtime),
-        collections: createPostgresPublicationDirectoryReadPort(runtime),
-        cursors: profileCursors,
-        sharedExposure: createPostgresSharedExposureFactsPort(runtime),
-      }),
       ownedCollectionsQuery: {
         reads: createPostgresOwnedCollectionsReadPort(runtime.db),
         cursors: ownedCollectionCursors,

@@ -60,7 +60,6 @@ import { createPhase4bMcpWriteOperations } from '../modules/mcp/index.js';
 import {
   createPostgresPublicationDirectoryReadPort,
   createPostgresPublicationSitemapReadPort,
-  createPostgresProfileSitemapReadPort,
   createPostgresSearchIndexingExclusionReadPort,
   createPostgresPublicationNodeCountReadPort,
   createPostgresPublicationAnnotationReadPort,
@@ -78,7 +77,6 @@ import { createWebShellCache, toPublicShellMarkdownNode } from '../infrastructur
 import { createPostgresSearchAuthorityPort, createPostgresSearchCandidatePort } from '../infrastructure/search/index.js';
 import { createSearchCursorSigner, createSearchFirstPageCache, createSearchTelemetry,
   executeSearchQuery } from '../modules/search/index.js';
-import { composeProfileSitemapQuery, composePublicProfileProjection } from './public-profile-projection.js';
 import { createApiPostgresProductCursors } from './api-postgres-product-cursors.js';
 import { createLogger, type Metrics } from '../infrastructure/telemetry/index.js';
 import type {
@@ -325,15 +323,11 @@ export function createApiPostgresAppDependencies(input: {
       collectionControl: ports.publicationCollectionControl,
     },
     publicationSitemapQuery: createPostgresPublicationSitemapReadPort(database),
-    profileSitemapQuery: composeProfileSitemapQuery({
-      candidates: createPostgresProfileSitemapReadPort(database),
-    }),
-    ...((config.publicShellMeta.enabled || config.publicProfileShell.enabled)
-      && (config.publicShellMeta.webShellOrigin ?? config.publicProfileShell.webShellOrigin) !== null
+    ...(config.publicShellMeta.enabled && config.publicShellMeta.webShellOrigin !== null
       ? {
           publicShell: {
             cache: createWebShellCache({
-              origin: (config.publicShellMeta.webShellOrigin ?? config.publicProfileShell.webShellOrigin)!,
+              origin: config.publicShellMeta.webShellOrigin,
             }),
             loadNodeCountBySlug: (slug: string) => publicationNodeCount.loadByPublicationSlug(slug),
             loadOwnerDisplayName: async (ownerSubjectId: string) => {
@@ -387,17 +381,6 @@ export function createApiPostgresAppDependencies(input: {
         myInvites: myCollaborationInvitesCursorSigner,
       },
     },
-    publicProfileQuery: composePublicProfileProjection({
-      profiles: publicProfileFacts,
-      collections: createPostgresPublicationDirectoryReadPort(database),
-      cursors: publicationCursorKeys,
-      sharedExposure: createPostgresSharedExposureFactsPort(database),
-      // Keep the projection-level gate wired even though the profile facts
-      // reader also applies the SQL predicate.  This makes the account
-      // restriction an explicit production dependency and protects alternate
-      // facts ports from silently omitting the owner control.
-      accountControl: publicProfileFacts,
-    }),
     searchQuery: { execute: (searchInput: Parameters<typeof executeSearchQuery>[1]) => executeSearchQuery(searchPorts, searchInput),
       loadCatalogDisplayTargets: createPostgresSearchCatalogDisplayTargetPort(database).load },
     mcpWriteOperations: createPhase4bMcpWriteOperations({

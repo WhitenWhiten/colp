@@ -538,7 +538,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       && (mcpConfig !== undefined || mcpWriteEnabled) && !mcpRateLimit.enabled) {
     throw new Error('Production multi-replica API (AUTH_API_REPLICAS > 1) with MCP enabled requires MCP_RATE_LIMIT_SHARED=true');
   }
-  const { publicShellMeta, publicProfileShell } = loadPublicShellConfigs(env);
+  const { publicShellMeta } = loadPublicShellConfigs(env);
 
   return {
     nodeEnv,
@@ -595,6 +595,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     mcpWriteEnabled,
     ...(mcpWrite ? { mcpWrite } : {}),
     publicShellMeta,
-    publicProfileShell, accountCredentials: loadAccountCredentialsFeatureConfig(env),
+    accountCredentials: loadAccountCredentialsFeatureConfig(env),
   };
 }

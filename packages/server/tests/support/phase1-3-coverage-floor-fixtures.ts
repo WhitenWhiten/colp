@@ -66,9 +66,6 @@ export const PHASE_1_3_MEASURED_FILE_COVERAGE_OVERRIDES = Object.freeze({
   'src/bootstrap/mcp-write-composition.ts': {
     lines: 91.38, branches: 86.54, functions: 76.72, statements: 91.38,
   },
-  'src/bootstrap/public-profile-projection.ts': {
-    lines: 89.37, branches: 80.35, functions: 97.5, statements: 89.37,
-  },
   'src/infrastructure/publisher/canonical-unit-of-work.ts': {
     lines: 97.5, branches: 97.5, functions: 97.5, statements: 97.5,
   },

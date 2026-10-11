@@ -24,7 +24,6 @@ import {
   createPostgresPublicationRelationReadPort,
   createPostgresPublicationSnapshotReadPort,
 } from '../../src/infrastructure/publication/index.js';
-import { createPostgresPublicProfileFactsReadPort } from '../../src/infrastructure/identity/index.js';
 import {
   createPostgresSearchAuthorityPort,
   createPostgresSearchCandidatePort,
@@ -56,7 +55,6 @@ import {
   SHARED_EXPOSURE_PROJECTION_KINDS,
   type SharedExposureBlobFacts,
 } from '../../src/modules/attachments/index.js';
-import { getPublicProfileProjection } from '../../src/bootstrap/public-profile-projection.js';
 import type { I07MigrationRuntime } from './phase4a-i07-test-helpers.js';
 import {
   P09_MCP_AUDIENCE,
@@ -67,7 +65,7 @@ import {
 } from './phase4a-p09-test-helpers.js';
 
 export interface P09ConsumerRunner {
-  readonly kind: 'publication' | 'sync' | 'mcp' | 'search' | 'profile' | 'manifest' | 'shared_link';
+  readonly kind: 'publication' | 'sync' | 'mcp' | 'search' | 'manifest' | 'shared_link';
   run(): Promise<{ readonly controlVisible: boolean; readonly output: unknown }>;
 }
 
@@ -318,30 +316,6 @@ export function p09BuildConsumers(input: {
           controlVisible: control.items.length > 0,
           output: { items: control.items, page: control.page },
         });
-      },
-    }),
-    Object.freeze({
-      kind: 'profile' as const,
-      async run() {
-        const key = createPublicationCursorKeyring({
-          active: { id: `p09-profile-${randomUUID()}`, secret: Buffer.alloc(32, 76).toString('base64') },
-          retained: [],
-        });
-        try {
-          const projection = await getPublicProfileProjection({
-            profiles: createPostgresPublicProfileFactsReadPort(runtime.runtime),
-            collections: createPostgresPublicationDirectoryReadPort(runtime.runtime),
-            cursors: key,
-            sharedExposure: createPostgresSharedExposureFactsPort(runtime.runtime),
-          }, { handle: fixture.profileHandle, limit: 100 });
-          return Object.freeze({
-            controlVisible: projection.profile.handle === fixture.profileHandle
-              && projection.collections.some((entry) => entry.id === fixture.profileCollectionId),
-            output: projection,
-          });
-        } finally {
-          key.destroy();
-        }
       },
     }),
     Object.freeze({

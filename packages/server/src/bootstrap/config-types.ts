@@ -756,10 +756,9 @@ export interface AppConfig {
   readonly mcpWriteEnabled: boolean;
   /** MCP-W10 real Write host composition; present only with Read + Write flags. */
   readonly mcpWrite?: McpWriteFeatureConfig;
-  /** Origin-injected public collection/Profile shells; independently default off. */
+  /** Origin-injected public collection shell; defaults off. */
   readonly publicShellMeta: PublicShellMetaConfig;
-  /** M-09 `/u/:handle` shell switch; shares only WEB_SHELL_ORIGIN/cache mechanics. */
-  readonly publicProfileShell: PublicShellMetaConfig; readonly accountCredentials: import('./config-account-credentials.js').AccountCredentialsFeatureConfig;
+  readonly accountCredentials: import('./config-account-credentials.js').AccountCredentialsFeatureConfig;
 }
 
 export interface PublicShellMetaConfig {

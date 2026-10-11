@@ -30,10 +30,7 @@ import {
 } from '../../src/infrastructure/object-storage/index.js';
 import { appendAttachmentsVerificationOutbox } from '../../src/infrastructure/outbox/index.js';
 import type { AttachmentRoutesDependencies } from '../../src/transport/product/attachment-routes.js';
-import {
-  createPostgresPublicationDirectoryReadPort,
-} from '../../src/infrastructure/publication/index.js';
-import { createPostgresPublicProfileFactsReadPort } from '../../src/infrastructure/identity/index.js';
+
 import {
   createPostgresSearchAuthorityPort,
   createPostgresSearchCandidatePort,
@@ -62,7 +59,6 @@ import {
   retireAttachment,
   type AttachmentsFeatureConfig,
 } from '../../src/modules/attachments/index.js';
-import { composePublicProfileProjection } from '../../src/bootstrap/public-profile-projection.js';
 import type { IdentityUnitOfWork } from '../../src/modules/identity/index.js';
 import { mintVerifiedExtensionCredentialFixture } from './extension-credential.js';
 import { I12_SUBJECT_OWNER } from './phase4a-i12-test-helpers.js';
@@ -234,12 +230,6 @@ export async function p09BuildConsumerHttpApp(input: {
     publicationSnapshotQuery: publication.snapshot,
     publicationDirectoryQuery: publication.directory,
     publicationMetadataQuery: publication.metadata,
-    publicProfileQuery: composePublicProfileProjection({
-      profiles: createPostgresPublicProfileFactsReadPort(runtime.runtime),
-      collections: createPostgresPublicationDirectoryReadPort(runtime.runtime),
-      cursors: publication.cursors,
-      sharedExposure: createPostgresSharedExposureFactsPort(runtime.runtime),
-    }),
     ...(enableSearch
       ? {
           searchQuery: { execute: (searchInput) => executeSearchQuery(searchPorts, searchInput) },

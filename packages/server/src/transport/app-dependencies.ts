@@ -55,9 +55,8 @@ import type { PublicationDirectoryRouteReader } from './product/publication-dire
 import type { PublicationMetadataRouteReader } from './product/publication-metadata-routes.js';
 import type { PublicShellRoutePorts } from './public-shell-routes.js';
 import type { CollectionOgImageRenderer } from '../infrastructure/http/index.js';
-import type { ProfileSitemapQueryPort, PublicationSitemapQueryPort } from './collections-sitemap-routes.js';
+import type { PublicationSitemapQueryPort } from './collections-sitemap-routes.js';
 import type { ProductCollaborationRouteDependencies } from './product/product-collaboration-routes.js';
-import type { ProductPublicProfileQuery } from './public-profile-shell-routes.js';
 import type { SyncSessionRouteDependencies } from './colp-sync/sync-session-routes.js';
 import type { SyncSnapshotRouteDependencies } from './colp-sync/sync-snapshot-routes.js';
 import type { SyncPushRouteDependencies } from './colp-sync/sync-push-routes.js';
@@ -215,8 +214,6 @@ export interface AppDependencies {
   readonly collectionOgImageRenderer?: CollectionOgImageRenderer;
   /** T-20 public collections sitemap (always-on; not gated on public-shell meta). */
   readonly publicationSitemapQuery?: PublicationSitemapQueryPort;
-  /** M-10 public Profile sitemap (always-on; follows the M-09 indexability authority). */
-  readonly profileSitemapQuery?: ProfileSitemapQueryPort;
   /** T10 optional cache-aware Snapshot reader (serve/shadow); defaults to PostgreSQL. */
   readonly publicationSnapshotCacheReader?: PublicationSnapshotRouteReader;
   /** T10 optional cache-aware Directory reader (serve/shadow); defaults to PostgreSQL. */
@@ -225,7 +222,6 @@ export interface AppDependencies {
   readonly publicationMetadataCacheReader?: PublicationMetadataRouteReader;
   readonly productPublicCollectionQuery?: ProductPublicCollectionQueryPorts;
   readonly productCollaboration?: ProductCollaborationRouteDependencies;
-  readonly publicProfileQuery?: ProductPublicProfileQuery;
   readonly searchQuery?: SearchProductQuery;
   /** Only a process-local token issued after P2-16 and official COLP gates pass. */
   readonly publicationProfileClaims?: Phase2PublicationProfileClaims;

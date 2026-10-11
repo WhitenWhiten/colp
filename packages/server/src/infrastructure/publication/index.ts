@@ -4,7 +4,6 @@ export * from './postgres-annotation-read.js';
 export * from './postgres-relation-read.js';
 export * from './postgres-directory-read.js';
 export * from './postgres-sitemap-read.js';
-export * from './postgres-profile-sitemap-read.js';
 export * from './postgres-search-indexing-exclusion.js';
 export * from './postgres-search-catalog-targets.js';
 export * from './postgres-metadata-read.js';

@@ -17,8 +17,7 @@ import { registerPublicationMetadataRoutes } from './product/publication-metadat
 import { registerPublicShellRoutes } from './public-shell-routes.js';
 import { registerPublicOgImageRoutes } from './public-og-image-routes.js';
 import { createCollectionOgImageRenderer } from '../infrastructure/http/index.js';
-import { registerPublicProfileShellRoutes } from './public-profile-shell-routes.js';
-import { registerCollectionsSitemapRoutes, registerProfilesSitemapRoutes } from './collections-sitemap-routes.js';
+import { registerCollectionsSitemapRoutes } from './collections-sitemap-routes.js';
 import { registerPublicationManifestRoutes } from './product/publication-manifest-routes.js';
 import { registerProductPublicCollectionRoutes } from './product/product-public-collection-routes.js';
 import { registerProductCollaborationRoutes } from './product/product-collaboration-routes.js';
@@ -76,13 +75,11 @@ export function registerProductSurfaces(
     publicationMetadataQuery,
     publicShell,
     publicationSitemapQuery,
-    profileSitemapQuery,
     publicationSnapshotCacheReader,
     publicationDirectoryCacheReader,
     publicationMetadataCacheReader,
     productPublicCollectionQuery,
     productCollaboration,
-    publicProfileQuery,
     searchQuery,
     publicationProfileClaims,
     publicationProfileClaimController,
@@ -198,9 +195,6 @@ export function registerProductSurfaces(
   if (publicationSitemapQuery) {
     registerCollectionsSitemapRoutes(app, { query: publicationSitemapQuery, rateLimiter: requireExploreDirectoryLimiter(), contentGovernanceEnabled: config.contentGovernance.enabled });
   }
-  if (profileSitemapQuery) {
-    registerProfilesSitemapRoutes(app, { query: profileSitemapQuery, rateLimiter: requireExploreDirectoryLimiter(), contentGovernanceEnabled: config.contentGovernance.enabled });
-  }
   if (publicationSnapshotQuery) {
     registerPublicationSnapshotRoutes(app, {
       config: config.publication,
@@ -283,15 +277,6 @@ export function registerProductSurfaces(
   }
   if (productCollaboration) {
     registerProductCollaborationRoutes(app, productCollaboration);
-  }
-  if (publicProfileQuery) {
-    registerPublicProfileShellRoutes(app, {
-      config: config.publicProfileShell,
-      query: publicProfileQuery,
-      ...(identityUnitOfWork ? { identityUnitOfWork } : {}),
-      ...(publicShell === undefined ? {} : { publicShell }),
-      rateLimiter: requireExploreDirectoryLimiter(), contentGovernanceEnabled: config.contentGovernance.enabled,
-    });
   }
   if ((libraryOrderCommandUnitOfWork === undefined) !== (libraryOrderQueryUnitOfWork === undefined)) {
     throw new TypeError('Library order command and query production ports must be configured together');

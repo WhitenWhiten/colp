@@ -217,12 +217,3 @@ export function composeBetterAuthComposition(
   };
 }
 
-export {
-  composePublicProfileProjection,
-  getPublicProfileProjection,
-  PublicProfileCursorError,
-  PublicProfileNotFoundError,
-  type PublicProfileProjection,
-  type PublicProfileProjectionInput,
-  type PublicProfileProjectionPorts,
-} from './public-profile-projection.js';

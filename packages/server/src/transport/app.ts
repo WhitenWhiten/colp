@@ -211,7 +211,6 @@ export function buildApiApp(input: AppDependencies) {
   publicationMetadataCacheReader,
   productPublicCollectionQuery,
   productCollaboration,
-  publicProfileQuery,
   searchQuery,
   publicationProfileClaims,
   publicationProfileClaimController,
@@ -383,7 +382,6 @@ export function buildApiApp(input: AppDependencies) {
       && relationMutationUnitOfWork
       && relationReadUnitOfWork
       && productPublicCollectionQuery
-      && publicProfileQuery
       && searchQuery
       && productSyncCenterUnitOfWork
       && libraryOrderCommandUnitOfWork

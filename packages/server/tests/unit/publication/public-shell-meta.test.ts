@@ -14,7 +14,6 @@ import {
   PUBLIC_SHELL_DESCRIPTION_MAX,
   PUBLIC_SHELL_TITLE_MAX,
   sanitizePublicShellText,
-  SITE_OG_IMAGE_URL,
   type PublicShellCollectionHeader,
 } from '../../../src/infrastructure/http/index.js';
 import { PUBLIC_SHELL_FIXTURE } from './public-shell-fixture.js';
@@ -59,7 +58,6 @@ test('injects title, description, canonical, CollectionPage JSON-LD, and agent-p
   // D1: the site-wide cover gives way to the per-collection card, versioned
   // by updatedAt so an edit busts social-crawler caches.
   assert.match(html, new RegExp(`<meta property="og:image" content="${buildCollectionOgImageUrl('engineering-notes', '2026-08-01T12:00:00.000Z').replace(/[.?/]/gu, '\\$&')}" \\/>`, 'u'));
-  assert.equal(SITE_OG_IMAGE_URL, 'https://know-n.com/og-cover.png');
   assert.match(html, /"@type": "CollectionPage"/u);
   assert.match(html, /"numberOfItems": 4/u);
   assert.match(html, /<h1>Engineering notes<\/h1>/u);

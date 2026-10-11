@@ -231,10 +231,6 @@ test('omitted Explore limiter fails closed at composition when shared is off', (
     /injected exploreDirectoryRateLimiter whenever Explore\/Directory routes are registered/,
   );
   assert.throws(
-    () => buildApiApp({ config, publicProfileQuery: unused }),
-    /injected exploreDirectoryRateLimiter whenever Explore\/Directory routes are registered/,
-  );
-  assert.throws(
     () => buildApiApp({ config, publicationSnapshotQuery: unused }),
     /injected exploreDirectoryRateLimiter whenever Explore\/Directory routes are registered/,
   );
@@ -273,10 +269,6 @@ test('shared explore-directory adapter without an injected limiter fails closed 
   );
   assert.throws(
     () => buildApiApp({ config: shared, productPublicCollectionQuery: unused }),
-    /injected exploreDirectoryRateLimiter.*EXPLORE_DIRECTORY_RATE_LIMIT_SHARED=true/s,
-  );
-  assert.throws(
-    () => buildApiApp({ config: shared, publicProfileQuery: unused }),
     /injected exploreDirectoryRateLimiter.*EXPLORE_DIRECTORY_RATE_LIMIT_SHARED=true/s,
   );
   assert.throws(
@@ -339,17 +331,7 @@ test('omitted Explore limiter fails closed for public Collection paging validati
   );
 });
 
-test('omitted Explore limiter fails closed for public Profile', () => {
-  assert.throws(
-    () => buildApiApp({
-      config,
-      publicProfileQuery: {
-        async get() { return { profile: { handle: 'alice' }, collections: [], page: { cursor: null, hasMore: false } }; },
-      },
-    }),
-    /injected exploreDirectoryRateLimiter whenever Explore\/Directory routes are registered/,
-  );
-});
+
 
 test('denied Explore limiter is 429 on COLP snapshot GET and HEAD', async () => {
   const app = buildApiApp({
