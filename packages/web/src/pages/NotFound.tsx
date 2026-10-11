@@ -65,7 +65,7 @@ export function NotFound() {
   }, [])
 
   return (
-    <div className="not-found-stage" ref={stageRef} data-testid="not-found-page">
+    <div className="not-found-stage not-found-stage--404" ref={stageRef} data-testid="not-found-page">
       <div className="not-found-foot">
         <h1 className="not-found-title">This page isn’t here.</h1>
         <p className="not-found-lede">

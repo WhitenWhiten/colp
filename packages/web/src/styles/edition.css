@@ -145,9 +145,10 @@
   border-radius: var(--radius);
 }
 
-/* ——— 404 ———
-   The upstream poster (giant parallax digits, corner words) becomes a plain
-   centred notice: a small 404, the sentence, and the way back. */
+/* ——— 404 and unavailable pages ———
+   The upstream poster (giant parallax digits, corner words) becomes a
+   centred notice on the pegboard: a ribbon, the title, the sentence, and
+   the way back, in reading order. The 404 ribbon carries the number. */
 :root[data-edition='self-hosted'] .not-found-digits,
 :root[data-edition='self-hosted'] .not-found-corner {
   display: none;
@@ -155,7 +156,23 @@
 
 :root[data-edition='self-hosted'] .not-found-stage {
   display: grid;
-  place-items: center;
+  align-content: center;
+  justify-items: center;
+  gap: var(--space-3);
+  padding: var(--space-8) var(--gutter);
+  isolation: isolate;
+}
+
+:root[data-edition='self-hosted'] .not-found-stage::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image: var(--colp-grid);
+  background-size: var(--colp-grid-size);
+  background-position: center;
+  mask-image: radial-gradient(ellipse 46% 52% at 50% 46%, black 20%, transparent 75%);
+  pointer-events: none;
 }
 
 :root[data-edition='self-hosted'] .not-found-foot {
@@ -163,19 +180,47 @@
   gap: var(--space-3);
 }
 
-:root[data-edition='self-hosted'] .not-found-foot::before {
-  content: '404';
-  color: var(--muted);
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
-  font-weight: var(--weight-semibold);
-}
-
 :root[data-edition='self-hosted'] .not-found-title {
   font-size: var(--display-sm);
   font-style: normal;
   font-weight: var(--weight-semibold);
   letter-spacing: var(--tracking-display);
+}
+
+/* An unavailable subject's title joins the column instead of floating in
+   the digit field. */
+:root[data-edition='self-hosted'] .not-found-title.not-found-mark {
+  position: static;
+  display: grid;
+  justify-items: center;
+  gap: var(--space-5);
+  max-width: 20em;
+  margin: 0;
+  padding: 0;
+  font-size: var(--display-sm);
+}
+
+:root[data-edition='self-hosted'] .not-found-stage--404 .not-found-foot::before,
+:root[data-edition='self-hosted'] .not-found-mark::before {
+  content: '';
+  display: grid;
+  place-items: start center;
+  width: 3.5rem;
+  height: 4.5rem;
+  padding-top: var(--space-3);
+  border-radius: var(--radius-xs) var(--radius-xs) 0 0;
+  background: var(--ink);
+  color: var(--paper);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 78%, 0 100%);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-none);
+}
+
+:root[data-edition='self-hosted'] .not-found-stage--404 .not-found-foot::before {
+  content: '404';
+  margin-bottom: var(--space-2);
 }
 
 /* ——— Identity: pegboard and ribbons ——— */
@@ -290,10 +335,35 @@
 
 :root[data-edition='self-hosted'] .self-hosted-about {
   display: grid;
-  gap: var(--space-5);
+  gap: var(--space-8);
   max-width: var(--measure-wide);
   margin: 0 auto;
   padding: var(--hair-200) var(--gutter) var(--space-10);
+}
+
+/* The server introduces itself on the pegboard. */
+:root[data-edition='self-hosted'] .self-hosted-about-hero {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  justify-items: start;
+  gap: var(--space-3);
+}
+
+:root[data-edition='self-hosted'] .self-hosted-about-hero::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: calc(-1 * var(--space-8)) calc(-1 * var(--gutter)) calc(-1 * var(--space-4)) 30%;
+  background-image: var(--colp-grid);
+  background-size: var(--colp-grid-size);
+  background-position: right top;
+  mask-image: radial-gradient(ellipse 80% 90% at 85% 35%, black 10%, transparent 70%);
+  pointer-events: none;
+}
+
+:root[data-edition='self-hosted'] .self-hosted-about-hero .section-label {
+  margin: 0;
 }
 
 :root[data-edition='self-hosted'] .self-hosted-about h1 {
@@ -303,10 +373,29 @@
 }
 
 :root[data-edition='self-hosted'] .self-hosted-about-lede {
+  max-width: var(--measure);
   margin: 0;
   color: var(--muted);
   font-size: var(--text-md);
   line-height: var(--leading-normal);
+}
+
+:root[data-edition='self-hosted'] .self-hosted-about-status {
+  margin-top: var(--space-1);
+}
+
+:root[data-edition='self-hosted'] .self-hosted-about-card,
+:root[data-edition='self-hosted'] .self-hosted-about-next {
+  display: grid;
+  gap: var(--space-3);
+}
+
+:root[data-edition='self-hosted'] .self-hosted-about-card h2,
+:root[data-edition='self-hosted'] .self-hosted-about-next h2 {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
 }
 
 :root[data-edition='self-hosted'] .self-hosted-about-versions {
@@ -320,9 +409,11 @@
 
 :root[data-edition='self-hosted'] .self-hosted-about-versions div {
   display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: var(--space-4);
-  padding: var(--space-3) var(--space-4);
+  min-height: 3rem;
+  padding: var(--space-2) var(--space-4);
 }
 
 :root[data-edition='self-hosted'] .self-hosted-about-versions div + div {
@@ -342,34 +433,106 @@
   text-align: end;
 }
 
-/* Status is prose ("Healthy · HTTPS"), not a value to copy. */
-:root[data-edition='self-hosted'] .self-hosted-about-status {
-  font-family: inherit;
-}
-
-:root[data-edition='self-hosted'] .self-hosted-about-next {
-  display: grid;
+:root[data-edition='self-hosted'] .self-hosted-about-address dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
   gap: var(--space-3);
 }
 
-:root[data-edition='self-hosted'] .self-hosted-about-next h2 {
-  margin: 0;
-  font-size: var(--text-md);
-  font-weight: var(--weight-semibold);
-  letter-spacing: var(--tracking-tight);
+/* Phones: the address gets its own line, with Copy at its end. */
+@media (max-width: 639px) {
+  :root[data-edition='self-hosted'] .self-hosted-about-versions div.self-hosted-about-address {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-2);
+    padding-block: var(--space-3);
+  }
+
+  :root[data-edition='self-hosted'] .self-hosted-about-address dd {
+    justify-content: space-between;
+    text-align: start;
+  }
 }
 
-:root[data-edition='self-hosted'] .self-hosted-about-links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-4);
+:root[data-edition='self-hosted'] .self-hosted-about-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+:root[data-edition='self-hosted'] .self-hosted-about-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: var(--space-3);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-:root[data-edition='self-hosted'] .self-hosted-about-links a {
+:root[data-edition='self-hosted'] .self-hosted-about-step {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-content: start;
+  column-gap: var(--space-3);
+  row-gap: var(--hair-20);
+  height: 100%;
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: inherit;
+  transition: border-color var(--duration-fast) var(--ease-out);
+}
+
+:root[data-edition='self-hosted'] .self-hosted-about-step:hover {
+  border-color: var(--line-heavy);
+}
+
+:root[data-edition='self-hosted'] .self-hosted-about-step-icon {
+  display: grid;
+  grid-row: 1 / span 2;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: var(--radius);
+  background: var(--surface-sunken);
+  color: var(--ink-2);
+}
+
+:root[data-edition='self-hosted'] .self-hosted-about-step-icon svg {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+:root[data-edition='self-hosted'] .self-hosted-about-step strong {
+  color: var(--ink);
+  font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
+}
+
+:root[data-edition='self-hosted'] .self-hosted-about-step > span:last-child {
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-copy);
+}
+
+:root[data-edition='self-hosted'] .self-hosted-about-foot {
+  display: grid;
+  gap: var(--space-3);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--line);
+}
+
+:root[data-edition='self-hosted'] .self-hosted-about-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-sm);
 }
 
 :root[data-edition='self-hosted'] .self-hosted-about-powered {
