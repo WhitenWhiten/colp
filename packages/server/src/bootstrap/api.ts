@@ -1,4 +1,3 @@
-import { KNOWN_FAVICON_DOMAINS } from '../modules/collections/index.js';
 import { createPersistentAvatarStore } from '../infrastructure/identity/index.js';
 import { createPostgresAccountDeletionStore } from '../infrastructure/auth/business-account-unit-of-work.js';
 import { loadConfig, sanitizedRuntimeCapacity, type AppConfig } from './config.js';
@@ -52,14 +51,13 @@ export type {
   McpReadOAuthDependencyBundle,
 } from './api-mcp-oauth-composition.js';
 import { registerTestAuthMailboxRoute } from './api-auth-mailbox.js';
-import { composeApiPublicObjectStores } from './favicon-object-storage-composition.js';
+import { composeApiPublicObjectStores } from './public-object-storage-composition.js';
 import { composeApiEmail } from './api-email-composition.js';
 import { composeApiAccountServices } from './api-account-services.js';
 import { composeApiMcpSurface } from './api-mcp-surface-composition.js';
 import { createApiPostgresPorts, createApiPostgresAppDependencies } from './api-postgres-ports.js';
 import {
   isAvatarPublicationRestricted,
-  isFaviconPubliclyAccessible,
 } from '../infrastructure/database/index.js';
 import { closeApiRuntimeResources } from './api-lifecycle.js';
 import { composeLedgerArchiveColdReaders } from './ledger-archive-reader-composition.js';
@@ -207,7 +205,6 @@ export async function startApi(options: StartApiOptions = {}): Promise<StartedAp
     feedRateLimiter,
     notificationRateLimiter,
     libraryOrderRateLimiter,
-    faviconPolicyRateLimiter,
     linkHealthRateLimiter,
     collectionVersionRateLimiter,
     publicObjectRateLimiter,
@@ -374,7 +371,6 @@ export async function startApi(options: StartApiOptions = {}): Promise<StartedAp
     notificationRateLimiter,
     productRouteRateLimiters: [
       libraryOrderRateLimiter,
-      faviconPolicyRateLimiter,
       linkHealthRateLimiter,
       collectionVersionRateLimiter,
       publicObjectRateLimiter,
@@ -397,7 +393,6 @@ export async function startApi(options: StartApiOptions = {}): Promise<StartedAp
     mcpRateLimiter,
     emailCallbackRateLimiter: email.emailCallbackRateLimiter,
     avatarStore,
-    ...publicObjects.publicObjectStores,
     cacheComposition,
     database: releaseDatabaseOnApiClose ? database : { async close() {} },
   };
@@ -409,17 +404,12 @@ export async function startApi(options: StartApiOptions = {}): Promise<StartedAp
     readiness: composeReadinessProbe([options.readiness, database]),
     identityUnitOfWork: ports.identityUnitOfWork,
     avatarStore,
-    ...publicObjects.publicObjectStores,
-    faviconPublicAccess: { isPubliclyAccessible: (objectId) => isFaviconPubliclyAccessible(database.db, objectId, KNOWN_FAVICON_DOMAINS) },
     avatarPublicAccess: { isPublicationRestricted: (objectId) => isAvatarPublicationRestricted(database.db, objectId) },
     authRateLimiter,
     mcpRateLimiter,
     collectionsUnitOfWork: ports.collectionsUnitOfWork,
     productCollectionMutationUnitOfWork: ports.productCollectionMutationUnitOfWork,
     collectionsEditorReadUnitOfWork: ports.collectionsEditorReadUnitOfWork,
-    // FO-05: without this port the /children route is never registered, so
-    // every created/created sort silently fell back to curated.
-    collectionChildrenReadUnitOfWork: ports.collectionChildrenReadUnitOfWork,
     ownedCollectionsQuery: ports.ownedCollectionsQueryPorts,
     sharedCollectionsQuery: ports.sharedCollectionsQueryPorts,
     linkHealthQuery: ports.linkHealthQueryPorts,
@@ -524,7 +514,6 @@ export async function startApi(options: StartApiOptions = {}): Promise<StartedAp
     feedRateLimiter,
     notificationRateLimiter,
     libraryOrderRateLimiter,
-    faviconPolicyRateLimiter,
     linkHealthRateLimiter,
     collectionVersionRateLimiter,
     publicObjectRateLimiter,

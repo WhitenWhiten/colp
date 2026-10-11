@@ -1,8 +1,8 @@
 /**
- * SEC-T-09 / T-C4: public avatar and bookmark-favicon GET share a cheap
- * `public-object` IP limiter. They must not use the auth `me` family (POST
- * /api/v1/me/avatar). Single-replica/test uses memory; production replicas
- * inject one purpose-isolated Redis adapter shared by both GET surfaces.
+ * SEC-T-09 / T-C4: public avatar GET uses a cheap `public-object` IP limiter.
+ * It must not use the auth `me` family (POST /api/v1/me/avatar).
+ * Single-replica/test uses memory; production replicas inject one
+ * purpose-isolated Redis adapter.
  */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -12,10 +12,8 @@ import { afterEach, describe, test } from 'vitest';
 import Fastify from 'fastify';
 import { loadConfig } from '../../support/test-config.js';
 import type { AvatarObjectStore } from '../../../src/modules/identity/index.js';
-import type { BookmarkFaviconObjectStore } from '../../../src/modules/collections/index.js';
 import { registerBrowserAuthRoutes } from '../../../src/transport/auth/browser-auth-routes.js';
 import { registerAvatarRoutes } from '../../../src/transport/auth/browser-auth-handlers.js';
-import { registerBookmarkFaviconRoutes } from '../../../src/transport/product/bookmark-favicon-routes.js';
 import { ProductHttpError, sendProductError } from '../../../src/transport/product-error.js';
 import {
   PUBLIC_OBJECT_RATE_LIMIT_FAMILY,
@@ -75,26 +73,9 @@ function memoryAvatarStore(): AvatarObjectStore {
   };
 }
 
-function memoryFaviconStore(): BookmarkFaviconObjectStore {
-  const objects = new Map<string, { contentType: string; body: Buffer }>();
-  objects.set(OBJECT_ID, { contentType: 'image/png', body: PNG });
-  return {
-    async put(objectId, body, contentType) {
-      objects.set(objectId, { contentType, body: Buffer.from(body) });
-    },
-    async get(objectId) {
-      return objects.get(objectId) ?? null;
-    },
-    async delete(objectId) {
-      objects.delete(objectId);
-    },
-  };
-}
-
 async function buildApp(options: {
   readonly publicObjectRateLimiter?: PublicObjectRateLimiter;
   readonly includeAvatar?: boolean;
-  readonly includeFavicon?: boolean;
 }) {
   const app = Fastify({ logger: false });
   app.setErrorHandler((error, request, reply) => {
@@ -109,14 +90,6 @@ async function buildApp(options: {
       createIdentityMemoryState(new Date('2026-08-23T00:00:00.000Z')),
     ),
     ...(options.includeAvatar === false ? {} : { avatarStore: memoryAvatarStore() }),
-    ...(options.publicObjectRateLimiter
-      ? { publicObjectRateLimiter: options.publicObjectRateLimiter }
-      : {}),
-  });
-  registerBookmarkFaviconRoutes(app, {
-    config,
-    faviconPublicAccess: { isPubliclyAccessible: async () => true },
-    ...(options.includeFavicon === false ? {} : { faviconStore: memoryFaviconStore() }),
     ...(options.publicObjectRateLimiter
       ? { publicObjectRateLimiter: options.publicObjectRateLimiter }
       : {}),
@@ -145,12 +118,11 @@ describe('public-object GET limiter', () => {
     );
   });
 
-  test('transport helper stays adapter-agnostic and both GET handlers await it', () => {
+  test('transport helper stays adapter-agnostic and the avatar GET handler awaits it', () => {
     const root = join(dirname(fileURLToPath(import.meta.url)), '../../../src/transport');
     for (const file of [
       'product/public-object-rate-limit.ts',
       'auth/browser-auth-handlers.ts',
-      'product/bookmark-favicon-routes.ts',
     ]) {
       const source = readFileSync(join(root, file), 'utf8');
       if (file === 'product/public-object-rate-limit.ts') {
@@ -161,11 +133,8 @@ describe('public-object GET limiter', () => {
       }
     }
     const avatar = readFileSync(join(root, 'auth/browser-auth-handlers.ts'), 'utf8');
-    const favicon = readFileSync(join(root, 'product/bookmark-favicon-routes.ts'), 'utf8');
     assert.match(avatar, /admitPublicObjectGet/);
-    assert.match(favicon, /admitPublicObjectGet/);
     assert.match(avatar, /await admitPublicObjectGet/);
-    assert.match(favicon, /await admitPublicObjectGet/);
     const avatarGet = avatar.slice(avatar.indexOf("app.get('/api/v1/avatar/:avatarId'"));
     const avatarGetHandler = avatarGet.slice(0, avatarGet.indexOf('\n}\n\nfunction'));
     assert.doesNotMatch(avatarGetHandler, /rateLimitFamily:\s*'me'/);
@@ -182,17 +151,11 @@ describe('public-object GET limiter', () => {
       () => registerAvatarRoutes(avatarApp, { config: sharedConfig, identityUnitOfWork }),
       /injected public-object limiter.*PRODUCT_ROUTE_RATE_LIMIT_SHARED=true/s,
     );
-    const faviconApp = Fastify({ logger: false });
-    apps.push(faviconApp);
-    assert.throws(
-      () => registerBookmarkFaviconRoutes(faviconApp, { config: sharedConfig }),
-      /injected public-object limiter.*PRODUCT_ROUTE_RATE_LIMIT_SHARED=true/s,
-    );
   });
 
   test('legitimate avatar GET is 200 with nosniff; over quota is 429', async () => {
     const limiter = createPublicObjectRateLimiter({ maxRequests: 1, windowMs: 60_000, now: () => 0 });
-    const app = await buildApp({ publicObjectRateLimiter: limiter, includeFavicon: false });
+    const app = await buildApp({ publicObjectRateLimiter: limiter });
     const ok = await app.inject({ method: 'GET', url: `/api/v1/avatar/${OBJECT_ID}` });
     assert.equal(ok.statusCode, 200, ok.body);
     assert.equal(ok.headers['content-type'], 'image/png');
@@ -203,28 +166,6 @@ describe('public-object GET limiter', () => {
     assert.equal(denied.statusCode, 429, denied.body);
     assert.equal((denied.json() as { error: { code: string } }).error.code, 'rate_limited');
     assert.ok(denied.headers['retry-after']);
-  });
-
-  test('legitimate favicon GET is 200 with nosniff; over quota is 429', async () => {
-    const limiter = createPublicObjectRateLimiter({ maxRequests: 1, windowMs: 60_000, now: () => 0 });
-    const app = await buildApp({ publicObjectRateLimiter: limiter, includeAvatar: false });
-    const ok = await app.inject({ method: 'GET', url: `/api/v1/favicon/${OBJECT_ID}` });
-    assert.equal(ok.statusCode, 200, ok.body);
-    assert.equal(ok.headers['content-type'], 'image/png');
-    assert.equal(ok.headers['x-content-type-options'], 'nosniff');
-    assert.deepEqual(ok.rawPayload, PNG);
-    const denied = await app.inject({ method: 'GET', url: `/api/v1/favicon/${OBJECT_ID}` });
-    assert.equal(denied.statusCode, 429, denied.body);
-    assert.equal((denied.json() as { error: { code: string } }).error.code, 'rate_limited');
-  });
-
-  test('avatar and favicon GET share the public-object family when given the same limiter', async () => {
-    const limiter = createPublicObjectRateLimiter({ maxRequests: 1, windowMs: 60_000, now: () => 0 });
-    const app = await buildApp({ publicObjectRateLimiter: limiter });
-    const avatar = await app.inject({ method: 'GET', url: `/api/v1/avatar/${OBJECT_ID}` });
-    assert.equal(avatar.statusCode, 200, avatar.body);
-    const favicon = await app.inject({ method: 'GET', url: `/api/v1/favicon/${OBJECT_ID}` });
-    assert.equal(favicon.statusCode, 429, favicon.body);
   });
 
   test('admitPublicObjectGet rejects with ProductHttpError 429 after the window is spent', async () => {
@@ -253,7 +194,7 @@ describe('public-object GET limiter', () => {
       },
       async close() {},
     };
-    const app = await buildApp({ publicObjectRateLimiter: unavailable, includeFavicon: false });
+    const app = await buildApp({ publicObjectRateLimiter: unavailable });
     const response = await app.inject({ method: 'GET', url: `/api/v1/avatar/${OBJECT_ID}` });
     assert.equal(response.statusCode, 503, response.body);
     assert.equal(

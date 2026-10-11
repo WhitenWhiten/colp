@@ -492,11 +492,6 @@ export interface CollectionsWritePorts {
   readonly accessPolicyFacts: AccessPolicyFactsPort;
   /** Present on postgres write ports; optional so memory doubles stay compiling. */
   readonly bookmarkIcons?: BookmarkIconWritePort;
-  readonly faviconPolicies?: import('./favicon-policy.js').FaviconPolicyWritePort;
-  readonly faviconSources?: import('./favicon-icon-source.js').BookmarkIconSourceWritePort;
-  /** FO-07 durable favicon object retirement (retention window); optional for existing doubles. */
-  readonly faviconGc?: import('./bookmark-favicon-command.js').FaviconGcWritePort;
-  readonly faviconSourceMembership?: import('./favicon-icon-source.js').FaviconSourceMembershipReadPort;
 }
 
 /**

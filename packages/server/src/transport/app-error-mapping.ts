@@ -5,25 +5,8 @@ import { applySecurityHeaders } from './http-security.js';
 import { mapProductDatabaseError } from './product-command-mapping.js';
 import { ProductHttpError, type ProductErrorEnvelope } from './product-error.js';
 
-const BOOKMARK_FAVICON_HELPER_PATH =
-  /^\/colp\/v0\.1\/sync\/collections\/([A-Za-z0-9._~-]{1,128})\/nodes\/([A-Za-z0-9._~-]{1,128})\/favicon(?:-source)?$/u;
-const EXTENSION_FAVICON_POLICY_PATH = '/colp/v0.1/sync/favicon-policy';
-
-/**
- * FO-04 helper surface paths under /colp/v0.1/sync: capture/clear favicon
- * (legacy path), the per-node favicon-source read and the account
- * favicon-policy read. These are Product-envelope helper operations, not the
- * strict COLP protocol, so they never route through Publication framing.
- */
-export function matchesBookmarkFaviconHelperPath(requestPath: string): boolean {
-  return requestPath === EXTENSION_FAVICON_POLICY_PATH
-    || BOOKMARK_FAVICON_HELPER_PATH.test(requestPath);
-}
-
 export function isPublicationUrl(url: string): boolean {
   const path = url.split('?', 1)[0];
-  // Known-owned favicon helper is a Product command surface, not COLP.
-  if (path !== undefined && matchesBookmarkFaviconHelperPath(path)) return false;
   return path?.startsWith('/colp/') === true || path === '/.well-known/collection-protocol';
 }
 

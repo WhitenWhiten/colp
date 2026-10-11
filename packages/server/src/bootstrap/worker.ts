@@ -103,7 +103,6 @@ import {
 import { composeLedgerArchiveWorker } from './ledger-archive-worker-composition.js';
 import type { LedgerArchiveExportWorkerRuntime } from '../infrastructure/ledger-archive/index.js';
 import type { LedgerArchiveSourceResolver } from './ledger-archive-worker-composition.js';
-import type { BookmarkFaviconObjectStore } from '../modules/collections/index.js';
 import {
   CACHE_WORKER_READINESS_GAUGE,
   CACHE_WORKER_READINESS_METRIC,
@@ -150,7 +149,6 @@ export interface WorkerRuntime {
 export interface WorkerProcessResources {
   readonly metricsServer: { close(): Promise<void> };
   readonly worker: { stop(): Promise<void> };
-  readonly faviconObjectStore?: { close?: () => Promise<void> };
 }
 interface WorkerStopFailure {
   readonly resource: string;
@@ -171,11 +169,6 @@ export async function closeWorkerProcessResources(input: WorkerProcessResources)
   const failures: WorkerStopFailure[] = [];
   await attemptWorkerStop(failures, 'metricsServer', () => input.metricsServer.close());
   await attemptWorkerStop(failures, 'worker', () => input.worker.stop());
-  const faviconStore = input.faviconObjectStore;
-  if (faviconStore?.close !== undefined) {
-    const close = faviconStore.close;
-    await attemptWorkerStop(failures, 'faviconObjectStore', () => close.call(faviconStore));
-  }
   if (failures.length > 0) {
     throw new AggregateError(
       failures.map(({ error }) => error),
@@ -217,17 +210,6 @@ export interface BuildWorkerOptions {
    * hardened egress defaults (HTTPS still only in infrastructure/collections).
    */
   readonly linkHealth?: Pick<LinkHealthWorkerLoopOptions, 'resolve' | 'connect'>;
-  /**
-   * FO-02 favicon job/GC worker seam. Tests inject `store` + `resolve` +
-   * `connect` so the worker never opens a real socket or R2 client. Production
-   * composes the R2 favicon store from the same attachment/avatar secrets the
-   * API uses and uses the hardened egress defaults.
-   */
-  readonly favicon?: {
-    readonly store?: BookmarkFaviconObjectStore;
-    readonly resolve?: import('../infrastructure/egress/index.js').HardenedEgressResolver;
-    readonly connect?: import('../infrastructure/egress/index.js').HardenedEgressConnector;
-  };
   /**
    * C1 auth email sender injection (fixture-only seam; production composes the
    * DirectMail adapter / test-mode mailbox sink from config and FAILS CLOSED

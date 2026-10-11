@@ -709,8 +709,6 @@ export interface AppConfig {
   readonly community: CommunityFeatureConfig;
   /** Admission budget for GET/PUT /me/library-order. */
   readonly libraryOrder: LibraryOrderAdmissionConfig;
-  /** FO-01 favicon policy/source admission (KNOWN_FEATURE_FAVICON_POLICY). */
-  readonly faviconPolicy: FaviconPolicyAdmissionConfig;
   readonly feed?: FeedFeatureConfig;
   readonly publicActivity: PublicActivityFeatureConfig;
   readonly notifications?: NotificationFeatureConfig;
@@ -742,14 +740,9 @@ export interface AppConfig {
   readonly emailSkins: EmailSkinMap;
   /**
    * Public avatar object-key prefix (`AVATAR_R2_PREFIX`). Default `avatar/`.
-   * Must not overlap favicon or the reserved attachment prefixes (§2.10).
+   * Must not overlap the reserved attachment prefixes (§2.10).
    */
   readonly avatarR2Prefix: string;
-  /**
-   * Public bookmark favicon object-key prefix (`FAVICON_R2_PREFIX`).
-   * Default `favicon/`. Isolated from identity; GET keys are `{prefix}{uuid}`.
-   */
-  readonly faviconR2Prefix: string;
   /**
    * FIX-M-018 cross-instance shared MCP rate-limit adapter (unified port:
    * request / approval / commit-distinct-plan); always present, defaults to
@@ -818,47 +811,6 @@ export interface CommunityFeatureConfig {
     readonly publicReads: { readonly maxRequests: number; readonly windowMs: number };
   };
   readonly timeoutMs: number;
-}
-
-/**
- * FO-01/FO-02 favicon policy/admission + durable job worker configuration.
- * The feature gate KNOWN_FEATURE_FAVICON_POLICY defaults to false; the
- * FAVICON_* values follow the frozen contract `x-config` (const values are
- * enforced exactly, ranges are clamped-fail-closed at startup).
- */
-export interface FaviconPolicyAdmissionConfig {
-  readonly enabled: boolean;
-  readonly timeoutMs: number;
-  /**
-   * FAVICON_CURSOR_HMAC_KEY (base64url-32-byte-secret). Required (startup
-   * fails) when KNOWN_FEATURE_FAVICON_POLICY=true; stable across API
-   * instances so cursors issued by one instance verify on another. When the
-   * feature is disabled the value is optional and never used (every route
-   * returns 404).
-   */
-  readonly cursorHmacKey: string;
-  /** FAVICON_FETCH_TIMEOUT_MS (10000; 1000..30000). */
-  readonly fetchTimeoutMs: number;
-  /** FAVICON_FETCH_MAX_BYTES (const 65536). */
-  readonly fetchMaxBytes: number;
-  /** FAVICON_FETCH_MAX_REDIRECTS (const 3). */
-  readonly fetchMaxRedirects: number;
-  /** FAVICON_JOB_BATCH_SIZE (const 100). */
-  readonly jobBatchSize: number;
-  /** FAVICON_JOB_MAX_ATTEMPTS (const 5). */
-  readonly jobMaxAttempts: number;
-  /** FAVICON_HISTORY_RETENTION_SECONDS (const 31536000). */
-  readonly historyRetentionSeconds: number;
-  /** FAVICON_JOB_CONCURRENCY (const 2). */
-  readonly jobConcurrency: number;
-  /** FAVICON_RETRY_BACKOFF_SECONDS (const [1,2,4,8,16]). */
-  readonly retryBackoffSeconds: readonly number[];
-  /** Worker loop poll interval (fixed 1s; internal cadence, not a contract knob). */
-  readonly workerPollIntervalMs: number;
-  /** Worker lease duration (fixed 60s; internal cadence, not a contract knob). */
-  readonly workerLeaseDurationMs: number;
-  /** GC poll interval (fixed 60s; internal cadence, not a contract knob). */
-  readonly gcPollIntervalMs: number;
 }
 
 export interface CollectionFollowFeatureConfig {

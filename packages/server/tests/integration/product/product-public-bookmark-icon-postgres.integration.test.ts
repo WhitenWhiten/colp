@@ -7,7 +7,6 @@ import { afterAll, beforeAll, test } from 'vitest';
 import { loadConfig } from '../../support/test-config.js';
 import { createPostgresAccessPolicyFactsPort } from '../../../src/infrastructure/access-policy/index.js';
 import { createPostgresBookmarkIconReadPort } from '../../../src/infrastructure/collections/index.js';
-import { createPostgresFaviconSourceModeReadPort } from '../../../src/infrastructure/collections/favicon-source-postgres.js';
 import { createPostgresSharedExposureFactsPort, runMigrations } from '../../../src/infrastructure/database/index.js';
 import { createPostgresPublicProfileFactsReadPort } from '../../../src/infrastructure/identity/index.js';
 import {
@@ -79,49 +78,6 @@ describeWithPostgres('BF-04 PostgreSQL live bookmark icon JOIN on public Collect
       assert.equal(missing?.iconUrl, null);
       assert.equal(iconLookups, 1);
       assert.doesNotMatch(response.body, /favicon\.im|duckduckgo/i);
-    } finally {
-      await app.close();
-    }
-  });
-
-  test('node-level faviconCdnAllowed: explicit none suppresses the CDN, others keep the collection fact', async () => {
-    const app = buildTestApp(isolated, () => undefined);
-    try {
-      const response = await app.inject({ method: 'GET', url: '/api/v1/collections/icon-public-page' });
-      assert.equal(response.statusCode, 200);
-      const body = response.json() as {
-        collection: { faviconCdnAllowed?: boolean };
-        nodes: Array<{ id: string; kind: string; iconUrl?: string | null; faviconCdnAllowed?: boolean }>;
-      };
-      assert.equal(body.collection.faviconCdnAllowed, true);
-      const none = body.nodes.find((node) => node.id === 'icon-bm-none');
-      const explicitOnline = body.nodes.find((node) => node.id === 'icon-bm-explicit-online');
-      const untouched = body.nodes.find((node) => node.id === 'icon-bm-2');
-      // The owner set this node to none on purpose: the anonymous page must not
-      // hotlink `https://a.favicon.im/...` for it.
-      assert.equal(none?.faviconCdnAllowed, false, 'explicit none never falls back to the CDN');
-      assert.equal(none?.iconUrl, null);
-      assert.equal(explicitOnline?.faviconCdnAllowed, true);
-      assert.equal(untouched?.faviconCdnAllowed, true);
-      // Folder/root nodes have no icon slot, so they carry no node-level fact.
-      const folder = body.nodes.find((node) => node.kind === 'folder');
-      const root = body.nodes.find((node) => node.kind === 'root');
-      assert.equal(Object.hasOwn(folder ?? {}, 'faviconCdnAllowed'), false);
-      assert.equal(Object.hasOwn(root ?? {}, 'faviconCdnAllowed'), false);
-    } finally {
-      await app.close();
-    }
-  });
-
-  test('explicit none suppresses the CDN on an unlisted page too', async () => {
-    const app = buildTestApp(isolated, () => undefined);
-    try {
-      const response = await app.inject({ method: 'GET', url: '/api/v1/collections/icon-unlisted-page' });
-      assert.equal(response.statusCode, 200);
-      const body = response.json() as {
-        nodes: Array<{ id: string; faviconCdnAllowed?: boolean }>;
-      };
-      assert.equal(body.nodes.find((node) => node.id === 'icon-unlisted-none')?.faviconCdnAllowed, false);
     } finally {
       await app.close();
     }
@@ -207,7 +163,6 @@ function buildTestApp(isolated: IsolatedPostgresRuntime, onIconLookup: () => voi
           return origin.findObjectIdsByNodeIds(nodeIds);
         },
       },
-      faviconSources: createPostgresFaviconSourceModeReadPort(isolated.runtime.db),
       snapshot: {
         reads: createPostgresPublicationSnapshotReadPort(isolated.runtime),
         accessPolicy: createPostgresAccessPolicyFactsPort(isolated.runtime.db),
@@ -341,12 +296,6 @@ async function seedFixtures(isolated: IsolatedPostgresRuntime, ownerSubjectId: s
          resource_revision, children_revision)
        values ('icon-unlisted-none', 'icon-unlisted', 'icon-unlisted-root', 'bookmark', 'Opted out',
                'https://example.test/unlisted-none', 'inherit', '000000000100', 'r1', 'ch1')`,
-    );
-    await client.query(
-      `insert into bookmark_icon_sources (node_id, collection_id, source_mode, revision, updated_at)
-       values ('icon-bm-none', 'icon-public', 'none', 2, now()),
-              ('icon-bm-explicit-online', 'icon-public', 'online', 2, now()),
-              ('icon-unlisted-none', 'icon-unlisted', 'none', 2, now())`,
     );
 
     await client.query('commit');

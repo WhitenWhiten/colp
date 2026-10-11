@@ -2,7 +2,6 @@ import type { FastifyInstance } from 'fastify';
 import type { AppConfig } from '../bootstrap/config.js';
 import type {
   CollectionsEditorReadUnitOfWork,
-  CollectionChildrenReadUnitOfWork,
   AnnotationMutationUnitOfWork,
   AnnotationReadUnitOfWork,
   RelationMutationUnitOfWork,
@@ -14,7 +13,6 @@ import type {
   GetSharedCollectionsPagePorts,
   GetMyLinkHealthPagePorts,
   EnqueueMyLinkHealthChecksPorts,
-  BookmarkFaviconObjectStore,
   CreateCollectionVersionPorts,
   ProductCollectionVersionCursorSignerPort,
   LibraryOrderCommandPorts,
@@ -88,20 +86,12 @@ export interface AppDependencies {
   readonly identityUnitOfWork?: IdentityUnitOfWork;
   /** Optional public avatar object store. When present registers avatar upload/serve routes. */
   readonly avatarStore?: AvatarObjectStore;
-  /**
-   * Optional public bookmark favicon object store. When present registers
-   * GET /api/v1/favicon/:id independently of identityUnitOfWork.
-   */
-  readonly faviconStore?: BookmarkFaviconObjectStore;
-  readonly faviconPublicAccess?: { isPubliclyAccessible(objectId: string): Promise<boolean> };
   readonly avatarPublicAccess?: { isPublicationRestricted(objectId: string): Promise<boolean> };
   readonly collectionsUnitOfWork?: CollectionsUnitOfWork;
   readonly productCollectionMutationUnitOfWork?: ProductCollectionMutationUnitOfWork;
   /** Explicitly disable collection create/metadata-update routes in narrow test compositions. */
   readonly collectionMetadataMutationRoutes?: 'enabled' | 'disabled';
   readonly collectionsEditorReadUnitOfWork?: CollectionsEditorReadUnitOfWork;
-  /** FO-05 one-layer children reader (REPEATABLE READ + HMAC cursor). */
-  readonly collectionChildrenReadUnitOfWork?: CollectionChildrenReadUnitOfWork;
   readonly ownedCollectionsQuery?: GetOwnedCollectionsPagePorts;
   readonly sharedCollectionsQuery?: GetSharedCollectionsPagePorts;
   readonly linkHealthQuery?: GetMyLinkHealthPagePorts;
@@ -280,8 +270,6 @@ export interface AppDependencies {
     execute<Result>(work: (ports: LibraryOrderQueryPorts) => Promise<Result>): Promise<Result>;
   };
   readonly libraryOrderRateLimiter?: ProductAdmissionRateLimiter;
-  /** FO-01 favicon policy/source routes admission (KNOWN_FEATURE_FAVICON_POLICY). */
-  readonly faviconPolicyRateLimiter?: ProductAdmissionRateLimiter;
   readonly accountCredentialUnitOfWork?: import('../infrastructure/auth/account-credentials-postgres.js').PostgresAccountCredentialUnitOfWork;
   readonly accountCredentialCursors?: import('../modules/auth/index.js').AccountCredentialCursorCodec | null;
   readonly accountCredentialGrantCursors?: import('../modules/auth/index.js').CredentialGrantCursorCodec | null;
@@ -299,7 +287,7 @@ export interface AppDependencies {
   readonly governanceAppealRateLimiter?: ProductAdmissionRateLimiter;
   readonly feedRateLimiter?: ProductAdmissionRateLimiter;
   readonly linkHealthRateLimiter?: ProductAdmissionRateLimiter;
-  /** Shared family for public avatar and bookmark-favicon origin GETs. */
+  /** Public avatar origin GETs. */
   readonly publicObjectRateLimiter?: ProductAdmissionRateLimiter;
   readonly notificationRateLimiter?: ProductAdmissionRateLimiter;
   /** P4B-R06 MCP transport OAuth/timeout seam (anonymous Modern calls need no port). */

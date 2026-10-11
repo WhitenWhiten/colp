@@ -32,8 +32,6 @@ import { createPostgresResourceIdLedgerPort } from '../database/resource-id-ledg
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
 import type { Metrics } from '../telemetry/index.js';
 import { deleteBookmarkIconsForNodeIds, createPostgresBookmarkIconWritePort } from './bookmark-icon-postgres.js';
-import { createPostgresFaviconPolicyPort } from './favicon-policy-postgres.js';
-import { createPostgresFaviconSourcePort, createPostgresFaviconSourceMembershipPort } from './favicon-source-postgres.js';
 import {
   dualReadCollectionPayload,
   dualReadNodePayload,
@@ -782,8 +780,5 @@ export function createPostgresCollectionsWritePorts(
     accessPolicy: createPostgresAccessPolicyWritePort(transaction),
     accessPolicyFacts: createPostgresAccessPolicyFactsPort(transaction),
     bookmarkIcons: createPostgresBookmarkIconWritePort(transaction),
-    faviconPolicies: createPostgresFaviconPolicyPort(transaction),
-    faviconSources: createPostgresFaviconSourcePort(transaction),
-    faviconSourceMembership: createPostgresFaviconSourceMembershipPort(transaction),
   };
 }

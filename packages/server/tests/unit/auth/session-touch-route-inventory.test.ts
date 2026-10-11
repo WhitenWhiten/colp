@@ -462,7 +462,6 @@ const SESSION_GATED_GET_GOLD = [
   '/api/v1/collections/:collectionId',
   '/api/v1/collections/:collectionId/annotations',
   '/api/v1/collections/:collectionId/annotations/:annotationId',
-  '/api/v1/collections/:collectionId/children',
   '/api/v1/collections/:collectionId/editor',
   '/api/v1/collections/:collectionId/export',
   '/api/v1/collections/:collectionId/members',

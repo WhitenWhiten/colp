@@ -9,7 +9,6 @@ import { createPostgresOwnedCollectionsReadPort } from '../../../src/infrastruct
 import {
   createPostgresAccountRepository,
   createPostgresExtensionOwnerSubjectPort,
-  createPostgresIdentityUnitOfWork,
 } from '../../../src/infrastructure/identity/index.js';
 import {
   createPostgresReplicaStore,
@@ -30,19 +29,10 @@ import {
   type ExtensionAuthConfig,
   type VerifiedExtensionCredential,
 } from '../../../src/modules/identity/index.js';
-import type {
-  BookmarkFaviconObjectStore,
-  CollectionsUnitOfWork,
-  CollectionsWritePorts,
-} from '../../../src/modules/collections/index.js';
 import {
   EXTENSION_COLLECTIONS_PATH,
   registerExtensionCollectionRoutes,
 } from '../../../src/transport/colp-sync/extension-collection-routes.js';
-import {
-  EXTENSION_FAVICON_POLICY_PATH,
-  registerSyncFaviconHelperRoutes,
-} from '../../../src/transport/colp-sync/sync-favicon-helper-routes.js';
 import { mintExtensionCredentialHttpFixture } from '../../support/extension-credential.js';
 import {
   createIsolatedPostgresRuntime,
@@ -312,17 +302,6 @@ describeWithPostgres('JOSE sync credential skew and unmapped-identity revocation
       now: () => verifyNow,
     });
     let creates = 0;
-    const faviconStore: BookmarkFaviconObjectStore = {
-      async put() {}, async get() { return null; }, async delete() {},
-    };
-    const collectionsUnitOfWork: CollectionsUnitOfWork = {
-      async execute(work) {
-        return work({
-          faviconPolicies: { async findByAccountId() { return null; } },
-          faviconSources: {}, bookmarkIcons: {}, faviconGc: {}, faviconRestores: {},
-        } as unknown as CollectionsWritePorts);
-      },
-    };
     const app = Fastify({ logger: false });
     registerExtensionCollectionRoutes(app, {
       credentialVerifier: verifier,
@@ -349,22 +328,6 @@ describeWithPostgres('JOSE sync credential skew and unmapped-identity revocation
         clock: { now: async () => verifyNow },
       },
     });
-    registerSyncFaviconHelperRoutes(app, {
-      enabled: true, productOrigin: 'https://known.example', timeoutMs: 2_000, faviconStore,
-      identityUnitOfWork: createPostgresIdentityUnitOfWork(isolated.runtime.db),
-      collectionsUnitOfWork,
-      extensionCollectionRoutes: {
-        credentialVerifier: verifier, allowedOrigins: [ORIGIN],
-        ownerSubject: createPostgresExtensionOwnerSubjectPort(isolated.runtime.db),
-        ownedCollectionsQuery: {
-          reads: createPostgresOwnedCollectionsReadPort(isolated.runtime.db),
-          cursors: createProductOwnedCollectionsCursorSigner({
-            current: { id: 'nv01-owned-v1', key: 'nv01-owned-cursor-secret-material-32b' },
-          }),
-          clock: { now: async () => verifyNow },
-        },
-      },
-    });
     await app.ready();
     const headers = (authorization: string) => ({ authorization, origin: ORIGIN });
     try {
@@ -379,9 +342,6 @@ describeWithPostgres('JOSE sync credential skew and unmapped-identity revocation
       assert.equal(created.statusCode, 401, created.body);
       assert.equal(created.json().error.code, 'invalid_token');
       assert.equal(creates, 0);
-      const helped = await app.inject({ method: 'GET', url: EXTENSION_FAVICON_POLICY_PATH, headers: headers(pre.authorization) });
-      assert.equal(helped.statusCode, 401, helped.body);
-      assert.match(helped.body, /Authentication is required/);
       await assert.rejects(
         () => verifier.verify({ authorization: pre.authorization }),
         (error: unknown) => error instanceof ExtensionAuthError && error.reason === 'revoked',
@@ -408,8 +368,6 @@ describeWithPostgres('JOSE sync credential skew and unmapped-identity revocation
           }, payload: { title: 'Notes' },
         });
         assert.equal(okCreate.statusCode, 201, okCreate.body);
-        const okHelp = await app.inject({ method: 'GET', url: EXTENSION_FAVICON_POLICY_PATH, headers: headers(minted.authorization) });
-        assert.equal(okHelp.statusCode, 200, okHelp.body);
         assert.equal((await verifier.verify({ authorization: minted.authorization })).credentialId, minted.credential.credentialId);
       }
       assert.equal(creates, 2);
@@ -468,9 +426,6 @@ describeWithPostgres('JOSE sync credential skew and unmapped-identity revocation
       now: () => minted.credential.verifiedAt,
     });
     const app = Fastify({ logger: false });
-    const faviconStore: BookmarkFaviconObjectStore = {
-      async put() {}, async get() { return null; }, async delete() {},
-    };
     registerExtensionCollectionRoutes(app, {
       credentialVerifier: verifier, allowedOrigins: [ORIGIN],
       ownerSubject: createPostgresExtensionOwnerSubjectPort(isolated.runtime.db),
@@ -480,29 +435,6 @@ describeWithPostgres('JOSE sync credential skew and unmapped-identity revocation
           current: { id: 'nv01-owned-v1', key: 'nv01-owned-cursor-secret-material-32b' },
         }),
         clock: { now: async () => minted.credential.verifiedAt },
-      },
-    });
-    registerSyncFaviconHelperRoutes(app, {
-      enabled: true, productOrigin: 'https://known.example', timeoutMs: 2_000, faviconStore,
-      identityUnitOfWork: createPostgresIdentityUnitOfWork(isolated.runtime.db),
-      collectionsUnitOfWork: {
-        async execute(work) {
-          return work({
-            faviconPolicies: { async findByAccountId() { return null; } },
-            faviconSources: {}, bookmarkIcons: {}, faviconGc: {}, faviconRestores: {},
-          } as unknown as CollectionsWritePorts);
-        },
-      },
-      extensionCollectionRoutes: {
-        credentialVerifier: verifier, allowedOrigins: [ORIGIN],
-        ownerSubject: createPostgresExtensionOwnerSubjectPort(isolated.runtime.db),
-        ownedCollectionsQuery: {
-          reads: createPostgresOwnedCollectionsReadPort(isolated.runtime.db),
-          cursors: createProductOwnedCollectionsCursorSigner({
-            current: { id: 'nv01-owned-v1', key: 'nv01-owned-cursor-secret-material-32b' },
-          }),
-          clock: { now: async () => minted.credential.verifiedAt },
-        },
       },
     });
     await app.ready();
@@ -515,9 +447,6 @@ describeWithPostgres('JOSE sync credential skew and unmapped-identity revocation
       const listed = await app.inject({ method: 'GET', url: EXTENSION_COLLECTIONS_PATH, headers });
       assert.equal(listed.statusCode, 401, listed.body);
       assert.equal(listed.json().error.code, 'invalid_token');
-      const helped = await app.inject({ method: 'GET', url: EXTENSION_FAVICON_POLICY_PATH, headers });
-      assert.equal(helped.statusCode, 401, helped.body);
-      assert.match(helped.body, /Authentication is required/);
       await assert.rejects(
         () => createPostgresSyncSessionIssuer(isolated.runtime.db, issuerOptions()).issue({
           credential: minted.credential, idempotencyKey: 'nv01unmap-session',
@@ -537,8 +466,6 @@ describeWithPostgres('JOSE sync credential skew and unmapped-identity revocation
       assert.equal(await isJoseSyncCredentialRevoked(isolated.runtime.db, query), false);
       const restored = await app.inject({ method: 'GET', url: EXTENSION_COLLECTIONS_PATH, headers });
       assert.equal(restored.statusCode, 200, restored.body);
-      const helpedAgain = await app.inject({ method: 'GET', url: EXTENSION_FAVICON_POLICY_PATH, headers });
-      assert.equal(helpedAgain.statusCode, 200, helpedAgain.body);
       const issued = await createPostgresSyncSessionIssuer(isolated.runtime.db, issuerOptions()).issue({
         credential: minted.credential, idempotencyKey: 'nv01unmap-session',
         requestFingerprint: 'nv01unmap-fingerprint',

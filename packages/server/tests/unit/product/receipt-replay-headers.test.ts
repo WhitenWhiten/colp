@@ -471,8 +471,6 @@ const via = (name: RegExp): [string, RegExp] => [CRED_FACADE, name];
 /** Every discovered ETag-replay route, pinned to the command whose stored result must snapshot `etag`. */
 const REQUIRED_ETAG_RECEIPTS: readonly PinnedRoute[] = [
   // Extension helper capture/clear (replay keeps a live recompute fallback for pre-snapshot receipts).
-  pin('POST /colp/v0.1/sync/collections/:collectionId/nodes/:nodeId/favicon', 'colp-sync/sync-favicon-helper-routes.ts', 'captureBookmarkFavicon', `${COLL}/favicon-helper-capture.ts`),
-  pin('DELETE /colp/v0.1/sync/collections/:collectionId/nodes/:nodeId/favicon', 'colp-sync/sync-favicon-helper-routes.ts', 'clearCapturedBookmarkFavicon', `${COLL}/favicon-helper-capture.ts`),
   // Account credentials (reached through the `api.*` facade).
   pin('POST /api/v1/me/credential-grants', 'product/account-credential-grant-routes.ts', 'createCredentialGrant', GRANTS),
   pin('POST /api/v1/me/credential-grants/:grantId/revoke', 'product/account-credential-grant-routes.ts', 'revokeCredentialGrant', GRANTS),
@@ -511,11 +509,11 @@ const REQUIRED_ETAG_RECEIPTS: readonly PinnedRoute[] = [
 /** Notification preference gaps left with the removed notification routes. */
 const KNOWN_GAPS: readonly PinnedRoute[] = [];
 
-/** Routes whose replay branch re-derives ETag outside stored headers. */
-const REPLAY_ETAG_FALLBACK_ROUTES = [
-  'DELETE /colp/v0.1/sync/collections/:collectionId/nodes/:nodeId/favicon',
-  'POST /colp/v0.1/sync/collections/:collectionId/nodes/:nodeId/favicon',
-];
+/**
+ * Routes whose replay branch re-derives ETag outside stored headers. The two
+ * extension favicon helper routes were the only members; they left with A8.
+ */
+const REPLAY_ETAG_FALLBACK_ROUTES: readonly string[] = [];
 
 // ---- tests ----
 
@@ -542,7 +540,7 @@ describe('receipt-replay ETag parity', () => {
   const byLabel = new Map(discovered.map((route) => [route.label, route]));
 
   test('the scan finds a real inventory (fail-closed)', () => {
-    assert.ok(discovered.length >= 25,
+    assert.ok(discovered.length >= 20,
       `expected a broad ETag-receipt route inventory, found ${discovered.length} — the scanner is silently broken`);
   });
 

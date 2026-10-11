@@ -77,8 +77,6 @@ export {
   type PostgresCollectionsUnitOfWorkOptions,
 } from './unit-of-work.js';
 export {
-  createPostgresCollectionChildrenReadUnitOfWork,
-  type PostgresCollectionChildrenReadUnitOfWorkOptions,
 } from './unit-of-work.js';
 export { createPostgresAnnotationMutationUnitOfWork } from './annotation-canonical-postgres.js';
 export {
@@ -116,8 +114,6 @@ export {
   type ResourceAuthorityScanResult,
   type ResourcePayloadBackfillRowResult,
 } from './resource-payload-dual-read.js';
-export { createR2FaviconStore, type R2FaviconStoreOptions } from './favicon-r2-adapter.js';
-export { createPostgresFaviconSourceModeReadPort } from './favicon-source-postgres.js';
 export {
   createPostgresBookmarkIconReadPort,
   createPostgresBookmarkIconWritePort,

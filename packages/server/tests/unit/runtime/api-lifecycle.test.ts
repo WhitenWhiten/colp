@@ -80,7 +80,6 @@ test('API cleanup attempts every resource and reports all close failures togethe
     mcpRateLimiter: closeable('mcpRateLimiter'),
     emailCallbackRateLimiter: closeable('emailCallbackRateLimiter'),
     avatarStore: closeable('avatarStore'),
-    faviconStore: closeable('faviconStore'),
     cacheComposition: closeable('cacheComposition'),
     database: closeable('database'),
   } satisfies ApiRuntimeResources;
@@ -121,7 +120,6 @@ test('API cleanup attempts every resource and reports all close failures togethe
     'collaborationInviteRateLimiter',
     'mcpRateLimiter',
     'emailCallbackRateLimiter',
-    'faviconStore',
     'avatarStore',
     'cacheComposition',
     'database',

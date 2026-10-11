@@ -39,8 +39,6 @@ import {
   createPostgresRevisionWritePort,
 } from './repositories.js';
 import { createPostgresBookmarkIconWritePort } from './bookmark-icon-postgres.js';
-import { createPostgresFaviconSourcePort } from './favicon-source-postgres.js';
-import { createPostgresFaviconPolicyPort } from './favicon-policy-postgres.js';
 export type PostgresCanonicalMutationProductPorts = ProductCollectionCanonicalPorts;
 
 export interface PostgresCanonicalMutationUnitOfWorkOptions {

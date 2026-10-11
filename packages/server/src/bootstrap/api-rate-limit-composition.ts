@@ -66,7 +66,6 @@ export interface ApiSurfaceRateLimiters {
   readonly feedRateLimiter: ProductAdmissionRateLimiter;
   readonly notificationRateLimiter: ProductAdmissionRateLimiter;
   readonly libraryOrderRateLimiter: ProductAdmissionRateLimiter;
-  readonly faviconPolicyRateLimiter: ProductAdmissionRateLimiter;
   readonly linkHealthRateLimiter: ProductAdmissionRateLimiter;
   readonly collectionVersionRateLimiter: ProductAdmissionRateLimiter;
   readonly publicObjectRateLimiter: ProductAdmissionRateLimiter;
@@ -280,7 +279,6 @@ export function composeApiSurfaceRateLimiters(config: AppConfig): ApiSurfaceRate
   });
   const defaultProductRouteBudget = Object.freeze({ maxRequests: 120, windowMs: 60_000 });
   const libraryOrderRateLimiter = productRouteLimiter('library-order', config.libraryOrder.rateLimit);
-  const faviconPolicyRateLimiter = productRouteLimiter('favicon-policy', defaultProductRouteBudget);
   const linkHealthRateLimiter = productRouteLimiter('link-health', config.linkHealth.rateLimit);
   const collectionVersionRateLimiter = productRouteLimiter('collection-version', defaultProductRouteBudget);
   const publicObjectRateLimiter = productRouteLimiter('public-object', defaultProductRouteBudget);
@@ -396,7 +394,6 @@ export function composeApiSurfaceRateLimiters(config: AppConfig): ApiSurfaceRate
     feedRateLimiter,
     notificationRateLimiter,
     libraryOrderRateLimiter,
-    faviconPolicyRateLimiter,
     linkHealthRateLimiter,
     collectionVersionRateLimiter,
     publicObjectRateLimiter,

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import { closeWorkerProcessResources } from '../../../src/bootstrap/worker.js';
 
-test('worker process cleanup attempts worker and object storage after metrics failure', async () => {
+test('worker process cleanup attempts the worker after a metrics failure', async () => {
   const calls: string[] = [];
   const close = (resource: string, fails = false) => async (): Promise<void> => {
     calls.push(resource);
@@ -14,19 +14,18 @@ test('worker process cleanup attempts worker and object storage after metrics fa
     await closeWorkerProcessResources({
       metricsServer: { close: close('metricsServer', true) },
       worker: { stop: close('worker', true) },
-      faviconObjectStore: { close: close('faviconObjectStore') },
     });
   } catch (error: unknown) {
     reported = error;
   }
 
-  assert.deepEqual(calls, ['metricsServer', 'worker', 'faviconObjectStore']);
+  assert.deepEqual(calls, ['metricsServer', 'worker']);
   assert.ok(reported instanceof AggregateError);
   assert.equal(reported.errors.length, 2);
   assert.match(reported.message, /metricsServer, worker/u);
 });
 
-test('worker process cleanup supports an absent object-storage adapter', async () => {
+test('worker process cleanup stops metrics and the worker once each', async () => {
   let metricsCloses = 0;
   let workerStops = 0;
   await closeWorkerProcessResources({
