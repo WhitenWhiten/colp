@@ -16,6 +16,8 @@ import {
 import { serializeNetscapeBookmarkHtml } from '../modules/collections/index.js';
 import { version } from '../version.js';
 
+const CATALOG_SLUG = 'index';
+
 export class ExportCliError extends Error {
   readonly code: number;
 
@@ -49,7 +51,9 @@ export async function exportOwnedCollections(input: {
     const directory = await prepareDirectory(input.outDir);
     const reads = createPostgresCollectionExportReadPort(database.db);
     const ids = await reads.listOwnedIds(owner.subjectId);
-    const used = new Set<string>();
+    // The directory catalog is written last as `index.json`; reserve its stem so
+    // no collection snapshot can be allocated the same file and overwritten.
+    const used = new Set<string>([CATALOG_SLUG]);
     const collections: Array<{ id: string; slug: string; title: string; version: string }> = [];
     for (const id of ids) {
       const source = await reads.loadForPrincipal({ collectionId: id, subjectId: owner.subjectId });
@@ -71,7 +75,7 @@ export async function exportOwnedCollections(input: {
       await writeInside(directory, `${slug}.html`, serializeNetscapeBookmarkHtml(built.snapshot));
       collections.push({ id: source.id, slug, title: source.title, version: built.entry.version });
     }
-    await writeInside(directory, 'index.json', `${JSON.stringify({
+    await writeInside(directory, `${CATALOG_SLUG}.json`, `${JSON.stringify({
       exportedAt: new Date().toISOString(),
       server: version.server,
       collections,
@@ -125,18 +129,31 @@ async function writeInside(directory: string, name: string, body: string): Promi
   await chmod(file, 0o600);
 }
 
-function uniqueSlug(base: string, id: string, used: Set<string>): string {
-  if (!used.has(base)) {
-    used.add(base);
+const MAX_SLUG_LENGTH = 200;
+
+/**
+ * Allocates one output filename stem per collection. `used` holds lower-cased
+ * stems so names that differ only by case (including the reserved catalog
+ * stem) cannot share a file on case-insensitive filesystems.
+ *
+ * The base is truncated to make room for the `-<id>[-<n>]` tail, never the
+ * tail itself: truncating the tail of a maximum-length base reproduced the
+ * base on every iteration, so the collision loop could not terminate.
+ * Exported for tests only.
+ */
+export function uniqueSlug(base: string, id: string, used: Set<string>): string {
+  if (!used.has(base.toLowerCase())) {
+    used.add(base.toLowerCase());
     return base;
   }
   const suffix = id.replace(/[^A-Za-z0-9._~-]/gu, '').slice(0, 32) || 'dup';
-  let candidate = `${base}-${suffix}`.slice(0, 200);
-  let sequence = 2;
-  while (used.has(candidate)) {
-    candidate = `${base}-${suffix}-${sequence}`.slice(0, 200);
-    sequence += 1;
+  const withTail = (tail: string) => `${base.slice(0, MAX_SLUG_LENGTH - tail.length)}${tail}`;
+  let candidate = withTail(`-${suffix}`);
+  // Every tail ends in a distinct `-<n>`, so each candidate is new and the
+  // loop ends after at most used.size further probes.
+  for (let sequence = 2; used.has(candidate.toLowerCase()); sequence += 1) {
+    candidate = withTail(`-${suffix}-${sequence}`);
   }
-  used.add(candidate);
+  used.add(candidate.toLowerCase());
   return candidate;
 }

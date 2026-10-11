@@ -2,6 +2,10 @@
  * Bookmark URL probe through the shared hardened egress facade.
  * Tests inject `connect` and `resolve`. Production Response.url is empty;
  * hop URLs come from wrapping `connect` and recording `target.url.href`.
+ *
+ * Bookmarks may legitimately be plain `http:` URLs, so this probe (and only
+ * this credential-free probe) opts into public HTTP egress; the address,
+ * metadata, userinfo, pinning and per-hop redirect rules are unchanged.
  */
 import {
   createHardenedEgressFetch,
@@ -65,6 +69,7 @@ export async function probeBookmarkUrl(
       connect,
       maxRedirects: LINK_HEALTH_MAX_REDIRECTS,
       label: 'link-health',
+      allowPublicHttp: true,
     });
     const init: RequestInit = {
       headers: {
