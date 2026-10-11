@@ -2,7 +2,7 @@ import type { FastifyRequest } from 'fastify';
 import { ProductHttpError } from '../product-error.js';
 import { productErrorStatus } from '../product-codes.js';
 
-const FAVICON_TIMEOUT_MESSAGE = 'Favicon policy is temporarily unavailable.';
+const DEFAULT_TIMEOUT_MESSAGE = 'This operation is temporarily unavailable.';
 
 function unavailable(message: string): ProductHttpError {
   return new ProductHttpError({
@@ -24,7 +24,7 @@ export async function withCancellation<T>(
   request: FastifyRequest,
   timeoutMs: number,
   work: (signal: AbortSignal) => Promise<T>,
-  timeoutMessage: string = FAVICON_TIMEOUT_MESSAGE,
+  timeoutMessage: string = DEFAULT_TIMEOUT_MESSAGE,
 ): Promise<T> {
   const timeoutError = () => unavailable(timeoutMessage);
   const controller = new AbortController();
