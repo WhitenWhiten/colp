@@ -169,17 +169,6 @@
   letter-spacing: var(--tracking-display);
 }
 
-/* ——— Sign-in and setup ——— */
-
-:root[data-edition='self-hosted'] .auth-card {
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-md);
-}
-
-:root[data-edition='self-hosted'] .auth-brand {
-  margin-bottom: var(--space-5);
-}
-
 /* ——— About ——— */
 
 :root[data-edition='self-hosted'] .self-hosted-about {

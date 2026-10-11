@@ -36,7 +36,7 @@ encodes who may override whom:
   `index.html` and set again by `main.tsx`), so it matches a strict subset of
   the base rule it restyles and the base rule stays the shared source that
   upstream changes port into. The edition keeps Know-N's colours and
-  shadows; its type scale and texture tokens are in the same scoped block of
+  shadows; its type-scale tokens are in the same scoped block of
   `tokens.css`, and `edition.css` holds only layout and type rules a token
   cannot express.
 
