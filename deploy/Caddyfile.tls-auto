@@ -5,6 +5,12 @@
 			header_up X-Forwarded-Proto https
 		}
 	}
+	# The self-hosted build ships no sitemap or llms.txt (robots.txt disallows
+	# all); without this the SPA fallback answers them 200 with index.html.
+	@absent path /sitemap.xml /sitemap-*.xml /llms.txt /llms-full.txt
+	handle @absent {
+		respond 404
+	}
 	handle {
 		root * /srv/web
 		try_files {path} /index.html
