@@ -12,7 +12,6 @@ import {
   parsePositiveInt,
   parseOrigins,
 } from './config-parse-helpers.js';
-import { loadPublicShellConfigs } from './config-public-shell.js';
 import { loadContentGovernanceConfig } from './config-governance.js';
 import { loadBetterAuthConfig, loadHttpSecurity } from './config-http-security.js';
 import {
@@ -538,7 +537,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       && (mcpConfig !== undefined || mcpWriteEnabled) && !mcpRateLimit.enabled) {
     throw new Error('Production multi-replica API (AUTH_API_REPLICAS > 1) with MCP enabled requires MCP_RATE_LIMIT_SHARED=true');
   }
-  const { publicShellMeta } = loadPublicShellConfigs(env);
 
   return {
     nodeEnv,
@@ -594,7 +592,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     ...(mcpConfig ? { mcp: mcpConfig } : {}),
     mcpWriteEnabled,
     ...(mcpWrite ? { mcpWrite } : {}),
-    publicShellMeta,
     accountCredentials: loadAccountCredentialsFeatureConfig(env),
   };
 }

@@ -57,7 +57,7 @@ RUN npm run build \
 FROM node:22-alpine@sha256:b6f26b36c8ff49624cfdac716b8ea1138d606df02586a77d364bb5536a634f85 AS runtime-deps
 WORKDIR /app
 COPY packages/server/runtime/package.json packages/server/runtime/package-lock.json ./
-# Native modules (@node-rs/argon2, @resvg/resvg-js) ship prebuilt binaries, so
+# Native modules (@node-rs/argon2) ship prebuilt binaries, so
 # lifecycle scripts stay off. The runtime lock is a pruned subset of the dev
 # lock (CI runs `npm run runtime:manifest:check`); test tooling must be absent.
 RUN npm ci --omit=dev --omit=peer --ignore-scripts --no-audit --no-fund \

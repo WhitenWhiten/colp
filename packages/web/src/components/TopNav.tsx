@@ -66,6 +66,9 @@ export function TopNav() {
 
   const authRoute = isAuthPath(location.pathname)
   const showChrome = !authRoute
+  // Site search covers the owner's library and answers a guest with a
+  // sign-in wall, so a visitor on a shared link is not offered it.
+  const showSearch = showChrome && isLoggedIn
   const primaryNav = isLoggedIn ? APP_NAV : []
   const showLogin = !isLoggedIn && location.pathname !== '/login'
 
@@ -82,10 +85,19 @@ export function TopNav() {
     setToolsOpen(false)
   }, [location.pathname])
 
+  // One gate for every entry: the buttons, ⌘/Ctrl+K and the custom event
+  // all go through the same owner check, and a sign-out closes the palette.
   useEffect(() => {
-    const openSearch = () => setSearchOpen(true)
+    if (!showSearch) setSearchOpen(false)
+  }, [showSearch])
+
+  useEffect(() => {
+    const openSearch = () => {
+      if (showSearch) setSearchOpen(true)
+    }
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        if (!showSearch) return
         e.preventDefault()
         setSearchOpen(true)
       }
@@ -108,7 +120,7 @@ export function TopNav() {
       window.removeEventListener(OPEN_SEARCH_PALETTE_EVENT, openSearch)
       window.removeEventListener('keydown', onKey)
     }
-  }, [accountOpen, toolsOpen, menuOpen])
+  }, [accountOpen, toolsOpen, menuOpen, showSearch])
 
   async function signOut() {
     const outcome = await logout()
@@ -159,7 +171,7 @@ export function TopNav() {
             </nav>
           )}
           <div className="nav-actions">
-            {showChrome && (
+            {showSearch && (
               <button
                 type="button"
                 className="nav-search"
@@ -172,7 +184,7 @@ export function TopNav() {
               </button>
             )}
 
-            {showChrome && (
+            {showSearch && (
               <button
                 type="button"
                 className="nav-search-compact"
@@ -266,7 +278,7 @@ export function TopNav() {
         )}
       </header>
 
-      {searchLoaded && (
+      {searchLoaded && showSearch && (
         <Suspense fallback={null}>
           <SearchPalette open={searchOpen} onClose={() => setSearchOpen(false)} />
         </Suspense>

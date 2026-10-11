@@ -140,7 +140,7 @@ export function useSyncCenterData() {
       setLoadError(apiError?.isAuthRequired
         ? 'Sign in again to view Sync status.'
         : apiError?.status === 403 ? 'You do not have access to the sync center.'
-          : apiError?.recoveryHint ?? "Couldn't load sync status")
+          : apiError?.recoveryHint ?? 'Check that the server is reachable, then try again.')
     } finally {
       // Clearing the busy flags is what re-enables the retry button, so a
       // superseded pass must still do it for its OWN request but must not stomp

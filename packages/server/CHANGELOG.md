@@ -14,11 +14,21 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 - Write tools describe what they do in `tools/list` instead of "Write tool <name>".
 - Approvals show what a move or delete does in the server's own words (`move Docs from /A to /B`), as the plan summary and per operation (`description`).
 - The edition OpenAPI documents `POST /api/v1/mcp/approvals/{planId}/undo` and `approvedBy`/`versionId` on approvals.
+- Web: Approvals is a primary destination (top bar and the phone tab bar) next to Library and Agents; the account menu link stays.
+- Web: Agents shows the compatibility and strict MCP endpoints as copyable fields; the Extension page shows this server's address with a Copy button in the "Connect this server" step.
+- Web: About reports the server status and transport from `/health` and the Manifest, the server address, and links to the Extension, Agents, Import and Sync pages; it sets the document title.
+- Web: Import shows which file is previewed, lists nested destination folders as a tree, and shows an "Import complete" card with "View collection" / "Import another file"; the chosen file is cleared after a completed import so Confirm cannot re-import it by accident.
+- Web: the library search palette has one owner gate for every entry (toolbar buttons, ⌘/Ctrl+K and the open-palette event); a visitor on a shared link no longer reaches the sign-in wall through the shortcut, and signing out closes an open palette.
 
 ### Changed
 
 - The in-memory MCP rate-limit stores reclaim expired buckets in a bounded step (at most 64 entries) when at capacity, instead of scanning every bucket; restarted buckets are re-inserted at the tail so the map stays ordered by window start.
 - `COLP_SERVER_SECRET` errors now say how the value was interpreted (base64 or UTF-8) and how many bytes it produced.
+- Removed the hosted public collection shell: the origin-injected HTML and Markdown for `/c/{slug}`, `/share`, `/path` and `/graph`, with `KNOWN_FEATURE_PUBLIC_SHELL_META` and `WEB_SHELL_ORIGIN`. It fetched and rewrote the hosted service's `index.html` and linked to its origin; the self-hosted web app renders `/c/{slug}` itself behind Caddy. `/c/{slug}` on the server still answers COLP clients (collection-metadata Accept or `Collection-Protocol-Version`) with the canonical tombstone; any other Accept answers `resource_not_found`.
+- E-mail subjects, chrome and signatures say "COLP Server" instead of the hosted service's name (sent only when the e-mail feature and SMTP are configured). The Manifest `title` default is "COLP Server" (`PUBLICATION_TITLE` still overrides it).
+- Removed the public collections sitemap (`/sitemap-collections.xml`), which was registered unconditionally and listed collections under the hosted service's origin instead of this server's, and the Open Graph card renderer (`/c/{slug}/og-image.png`), which only served the public shell that the self-hosted preset keeps off; `satori` and `@resvg/resvg-js` leave the runtime image with it. Caddy already answered the sitemap paths with 404.
+- The OAuth `invalid_client` message for an opaque `client_id` points at this server's Agents page and `deploy/INSTALL.md`, not at the hosted service.
+- A malformed `/reports/...` URL answers the same JSON problem as any other bad path; the branded HTML page for the removed reports feature is gone.
 - Removed features that are off in the self-hosted edition and have no user story: IndexNow, the Explore shell, publishing insights, readable replicas, AI organize plans, export jobs, link previews, favicon policy, jobs and uploads (with the children time sort behind the same flag), email without `COLP_SMTP_URL`, and classification with credits. Their routes, workers, settings and OpenAPI entries are gone; migrations are untouched. Library export (`colp-server export`, `/api/v1/collections/{id}/export`) is unaffected.
 - A rejected agent commit says why (the collection changed after the plan, not yet approved, expired, denied) instead of "MCP write operation rejected."
 - `changes.get` reports `requiresApproval: false` and `approvedBy: "policy"` for a plan a trusted policy approved, matching what `nodes.move` returned.
@@ -30,6 +40,10 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 
 - Collection pages retry database-aborted reads during concurrent bookmark sync, instead of immediately returning 503. Each attempt keeps the shared collection lock, repeatable-read snapshot, authorization and cursor revision checks; persistent conflicts still fail after three attempts.
 - IP-based HTTPS works through Docker's TLS ingress when the client omits SNI. Both TLS Compose services derive Caddy's default certificate selection name from `COLP_SERVER_ORIGIN` (IPv4, IPv6 and DNS, with optional ports), without an extra operator setting. CI verifies real certificate-chain and identity checks against the production Compose configuration.
+- Web: copying on the Agents page falls back to a selection copy when the Clipboard API is unavailable or rejects access, and reports a failure when neither method works.
+- Web: a visitor on a shared collection link is no longer offered "Search your library" (it only answered with a sign-in wall) or a breadcrumb into the owner's Library.
+- Web: the first-run "no owner account yet" note on Sign in is an informational notice with a "Create the owner account" button instead of an error band.
+- Web: the Sync center's error state no longer repeats "Couldn't load sync status" as both title and description.
 - Agent plans affecting a collection with more than 2,000 live folders and bookmarks are rejected before mutation in both manual and trusted mode. Manual commits no longer silently skip history and Undo; capacity failures report the limit and leave the plan available to cancel. Failed commits roll back their approval claim, and idempotent replays keep returning the original result without capturing history again.
 - An agent's OAuth sign-in works when the owner is not yet signed in: `/oauth2/authorize` sends the browser to `/login` instead of answering JSON 401, and `/login` resumes the authorization after sign-in instead of dropping it.
 - `/sitemap.xml`, `/sitemap-*.xml`, `/llms.txt` and `/llms-full.txt` answer 404 in all Caddy profiles instead of the web app's HTML.

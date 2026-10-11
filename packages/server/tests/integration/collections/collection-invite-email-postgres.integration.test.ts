@@ -195,7 +195,7 @@ describeWithPostgres('collection invite email postgres delivery', () => {
     assert.ok(knownMail, 'known mailbox missing');
     assert.ok(unknownMail, 'unknown mailbox missing');
     assert.equal(knownMail.subject, unknownMail.subject);
-    assert.equal(knownMail.subject, "You've been invited to collaborate on Know-N");
+    assert.equal(knownMail.subject, "You've been invited to collaborate on COLP Server");
     assert.match(knownMail.textBody, /\/login\?returnTo=\/library/u);
     assert.match(unknownMail.textBody, /\/login\?returnTo=\/library/u);
     assert.equal(normalizeBody(knownMail), normalizeBody(unknownMail));

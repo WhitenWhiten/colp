@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { APP_NAV, isAppNavActive, isAuthPath, loginPath } from './chrome'
 
 describe('chrome helpers', () => {
-  it('lists Library and Agents as the signed-in primary nav', () => {
-    expect(APP_NAV.map((item) => item.to)).toEqual(['/library', '/agents'])
-    expect(APP_NAV.map((item) => item.label)).toEqual(['Library', 'Agents'])
+  it('lists Library, Agents and Approvals as the signed-in primary nav', () => {
+    expect(APP_NAV.map((item) => item.to)).toEqual(['/library', '/agents', '/approvals'])
+    expect(APP_NAV.map((item) => item.label)).toEqual(['Library', 'Agents', 'Approvals'])
   })
 
   it('treats auth routes as auth paths', () => {

@@ -320,12 +320,12 @@ export function Collection() {
         className="collection-masthead page-head--editorial"
         style={{ viewTransitionName: `collection-${collection.id}` }}
         documentTitle={documentTitle}
-        breadcrumb={
+        breadcrumb={isLoggedIn ? (
           <Breadcrumb items={[
             { label: 'Library', to: '/library' },
             { label: collection.title },
           ]} />
-        }
+        ) : undefined}
         eyebrow={
           <span className="collection-kicker">
             <span>{kindLabel(collection.kind)}</span>

@@ -12,9 +12,11 @@ import {
 import { ProductApiError } from '../api/errors'
 import { useAuth } from '../auth/AuthContext'
 import { useConfirm } from '../components/ConfirmModal'
+import { CopyField } from '../components/CopyField'
 import { EmptyState } from '../components/EmptyState'
 import { PageHead } from '../components/PageHead'
 import { PageShell } from '../components/PageShell'
+import { copyTextToClipboard } from '../lib/clipboard'
 import { formatDateTime } from '../lib/formatDate'
 import { loginPath } from '../lib/chrome'
 import '../styles/agents.css'
@@ -127,7 +129,9 @@ export function Agents({
 
   async function copyText(value: string) {
     try {
-      await navigator.clipboard.writeText(value)
+      // lib/clipboard falls back to execCommand: navigator.clipboard is
+      // absent on the plain-HTTP LAN origins this edition supports (C4).
+      await copyTextToClipboard(value)
       setCopied(value)
     } catch {
       setCopied(null)
@@ -252,6 +256,10 @@ export function Agents({
           <p className="agents-meta">
             Claude Code and Codex use the compatibility endpoint, over HTTPS or this server&apos;s local HTTP address. Clients that speak MCP 2026-07-28 can use the strict endpoint.
           </p>
+          <div className="agents-endpoints">
+            <CopyField label="Compatibility endpoint" value={connect.compatUrl} />
+            <CopyField label="Strict endpoint (MCP 2026-07-28)" value={connect.strictUrl} />
+          </div>
           <h3>Claude Code</h3>
           <p className="agents-meta">OAuth. The login command opens this server: sign in, then approve on the consent page.</p>
           <pre className="agents-code">{connect.claude}</pre>
@@ -266,12 +274,6 @@ export function Agents({
           <div className="agents-actions">
             <button type="button" className="btn btn-secondary btn-sm" onClick={() => void copyText(connect.codex)}>
               {copied === connect.codex ? 'Copied' : 'Copy Codex commands'}
-            </button>
-            <button type="button" className="btn btn-secondary btn-sm" onClick={() => void copyText(connect.compatUrl)}>
-              {copied === connect.compatUrl ? 'Copied' : 'Copy compatibility endpoint'}
-            </button>
-            <button type="button" className="btn btn-secondary btn-sm" onClick={() => void copyText(connect.strictUrl)}>
-              {copied === connect.strictUrl ? 'Copied' : 'Copy strict endpoint'}
             </button>
           </div>
           <h3>API key</h3>

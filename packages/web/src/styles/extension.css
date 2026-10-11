@@ -40,4 +40,10 @@
     --stepper-step-pad: var(--space-5) var(--space-6);
     margin-top: var(--space-6);
   }
+
+  /* Step 02 carries the address to type into the extension. */
+  .extension-origin {
+    margin-top: var(--space-3);
+    max-width: var(--measure);
+  }
 }

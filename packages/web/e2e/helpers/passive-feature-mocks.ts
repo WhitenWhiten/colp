@@ -18,6 +18,12 @@ export async function fulfillPassiveFeatureRequest(route: Route): Promise<boolea
     await json(route, emptyPage)
     return true
   }
+  /* The login page reads whether first-run registration is open; a closed
+     answer keeps the sign-in form on its usual path under strict mocks. */
+  if (path === '/api/v1/auth/registration-state') {
+    await json(route, { open: false, reason: 'closed' })
+    return true
+  }
   if (path === '/api/v1/me/library-order') {
     await json(route, { sections: { mine: [], shared: [], following: [] } })
     return true

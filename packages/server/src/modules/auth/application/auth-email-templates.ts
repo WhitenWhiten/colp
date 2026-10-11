@@ -69,7 +69,7 @@ export type AuthEmailTemplateRenderResult =
   | { readonly ok: true; readonly message: AuthEmailTemplateMessage }
   | { readonly ok: false; readonly reason: string };
 
-const AUTH_EMAIL_SIGNATURE_LINE = '\u2014 Know-N';
+const AUTH_EMAIL_SIGNATURE_LINE = '\u2014 COLP Server';
 
 /**
  * Byte-equal MIRRORS of the shared email inner blocks
@@ -166,17 +166,17 @@ function renderForPurpose(
     case 'sign-in-otp': return renderSignInOtp(data as Partial<SignInOtpTemplateData>);
     case 'email-verification-otp':
       return renderNonSignInOtp(data as Partial<SignInOtpTemplateData>, {
-        subject: 'Your Know-N email verification code',
+        subject: 'Your COLP Server email verification code',
         heading: 'Your email verification code is:',
       });
     case 'forget-password-otp':
       return renderNonSignInOtp(data as Partial<SignInOtpTemplateData>, {
-        subject: 'Your Know-N password reset code',
+        subject: 'Your COLP Server password reset code',
         heading: 'Your password reset code is:',
       });
     case 'change-email-otp':
       return renderNonSignInOtp(data as Partial<SignInOtpTemplateData>, {
-        subject: 'Your Know-N email change code',
+        subject: 'Your COLP Server email change code',
         heading: 'Your email change code is:',
       });
     case 'email-verification': return renderEmailVerification(data as Partial<EmailVerificationTemplateData>);
@@ -199,7 +199,7 @@ function renderSignInOtp(data: Partial<SignInOtpTemplateData>): AuthEmailTemplat
   return {
     ok: true,
     message: {
-      subject: 'Your Know-N sign-in code',
+      subject: 'Your COLP Server sign-in code',
       textBody: `Your sign-in code is:\n\n${otp}\n\nThis code expires in 5 minutes. Never share it with anyone. If you did not request this code, you can safely ignore this email.\n\n${AUTH_EMAIL_SIGNATURE_LINE}`,
       htmlBody: `${p('Your sign-in code is:')}\n${otpBlock(otp)}\n${p('This code expires in 5 minutes. Never share it with anyone. If you did not request this code, you can safely ignore this email.')}\n${p(escapeAuthEmailHtml(AUTH_EMAIL_SIGNATURE_LINE))}`,
     },
@@ -231,7 +231,7 @@ function renderEmailVerification(data: Partial<EmailVerificationTemplateData>): 
   return {
     ok: true,
     message: {
-      subject: 'Verify your Know-N email',
+      subject: 'Verify your COLP Server email',
       textBody: `Confirm your email address to finish setting up your account:\n\n${verificationUrl}\n\nThis link expires soon. If you did not create an account, you can safely ignore this email.\n\n${AUTH_EMAIL_SIGNATURE_LINE}`,
       htmlBody: `${p('Confirm your email address to finish setting up your account:')}\n${p(ctaButton('Verify my email', verificationUrl))}\n${p('If the link does not work, copy this address into your browser:')}\n${p(escapeAuthEmailHtml(verificationUrl))}\n${p('This link expires soon. If you did not create an account, you can safely ignore this email.')}\n${p(escapeAuthEmailHtml(AUTH_EMAIL_SIGNATURE_LINE))}`,
     },
@@ -245,7 +245,7 @@ function renderPasswordReset(data: Partial<PasswordResetTemplateData>): AuthEmai
   return {
     ok: true,
     message: {
-      subject: 'Reset your Know-N password',
+      subject: 'Reset your COLP Server password',
       textBody: `We received a request to reset your password:\n\n${resetUrl}\n\nThis link expires soon and can only be used once. If you did not request a password reset, you can safely ignore this email.\n\n${AUTH_EMAIL_SIGNATURE_LINE}`,
       // Array-joined (not one template line): the secret scanner's
       // password-like pattern would otherwise read `password:'` plus the
@@ -272,7 +272,7 @@ function renderEmailChange(data: Partial<EmailChangeTemplateData>): AuthEmailTem
   return {
     ok: true,
     message: {
-      subject: 'Confirm your new Know-N email',
+      subject: 'Confirm your new COLP Server email',
       textBody: `We received a request to change the email address on your account to:\n\n${newEmailAddress}\n\nConfirm the change:\n\n${verificationUrl}\n\nThis link expires soon. If you did not request this change, you can safely ignore this email.\n\n${AUTH_EMAIL_SIGNATURE_LINE}`,
       htmlBody: `${p('We received a request to change the email address on your account to:')}\n${p(`<strong>${escapeAuthEmailHtml(newEmailAddress)}</strong>`)}\n${p('Confirm the change:')}\n${p(ctaButton('Confirm my new email', verificationUrl))}\n${p('This link expires soon. If you did not request this change, you can safely ignore this email.')}\n${p(escapeAuthEmailHtml(AUTH_EMAIL_SIGNATURE_LINE))}`,
     },
@@ -293,7 +293,7 @@ function renderMfaRecovery(data: Partial<MfaRecoveryTemplateData>): AuthEmailTem
   return {
     ok: true,
     message: {
-      subject: 'Your Know-N recovery codes',
+      subject: 'Your COLP Server recovery codes',
       textBody: `Save these recovery codes somewhere safe. Each code can be used once to regain access to your account:\n\n${codeList}\n\nKeep them private: anyone with these codes can access your account.\n\n${AUTH_EMAIL_SIGNATURE_LINE}`,
       htmlBody: `${p('Save these recovery codes somewhere safe. Each code can be used once to regain access to your account:')}\n${recoveryCodesBlock(codes)}\n${p('Keep them private: anyone with these codes can access your account.')}\n${p(escapeAuthEmailHtml(AUTH_EMAIL_SIGNATURE_LINE))}`,
     },

@@ -40,31 +40,6 @@ export const COLLECTION_CATALOG_TAGS_SQL =
 export const COLLECTION_CATALOG_LANGUAGE_SQL =
   `coalesce(nullif(c.payload_json->'extensions'->>'language', ''), nullif(c.payload_json->>'language', ''))`;
 
-export function createPostgresPublicationNodeCountReadPort(
-  runtime: Pick<DatabaseRuntime, 'pool'>,
-): {
-  loadByPublicationSlug(publicationSlug: string): Promise<number | null>;
-} {
-  return Object.freeze({
-    async loadByPublicationSlug(publicationSlug: string) {
-      const result = await runtime.pool.query<{ live_node_count: string | number }>(
-        `select ${collectionPublicVisibleNodeCountSql('c')} as live_node_count
-           from collections c
-          where publication_slug = $1
-          limit 1`,
-        [publicationSlug],
-      );
-      const row = result.rows[0];
-      if (row === undefined) return null;
-      const nodeCount = Number(row.live_node_count);
-      if (!Number.isSafeInteger(nodeCount) || nodeCount < 0) {
-        throw new Error('Publication Directory node count is invalid');
-      }
-      return nodeCount;
-    },
-  });
-}
-
 export function createPostgresPublicationDirectoryReadPort(
   runtime: Pick<DatabaseRuntime, 'pool' | 'cancelBackend'>,
 ): PublicationDirectoryReadPort {

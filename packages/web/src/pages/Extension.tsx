@@ -1,5 +1,6 @@
 import { subscriptionDeployment } from '../lib/bookmarkSubscriptionBridge'
 import { Link, useSearchParams } from 'react-router-dom'
+import { CopyField } from '../components/CopyField'
 import { Icon } from '../components/Icon'
 import { PageHead } from '../components/PageHead'
 import { PageSection, PageShell } from '../components/PageShell'
@@ -7,7 +8,8 @@ import { Stepper } from '../components/Stepper'
 import '../styles/extension.css'
 
 /** INSTALL.md §5: the extension connects to this server by its origin. */
-const steps = [
+function setupSteps(origin: string) {
+  return [
   {
     n: '01',
     title: 'Install',
@@ -16,7 +18,12 @@ const steps = [
   {
     n: '02',
     title: 'Connect this server',
-    body: 'In the extension, open Options → Account → Server and enter this page’s address. Grant access to the origin when asked.',
+    body: (
+      <>
+        <p className="stepper-text">In the extension, open Options → Account → Server and enter this server’s address. Grant access to the origin when asked.</p>
+        {origin ? <CopyField className="extension-origin" label="Server address" value={origin} /> : null}
+      </>
+    ),
   },
   {
     n: '03',
@@ -28,10 +35,13 @@ const steps = [
     title: 'Choose folders',
     body: 'Pick a collection and the browser folders to sync. Repeat in each browser; they converge within a minute.',
   },
-]
+  ]
+}
 
-export function Extension() {
+export function Extension({ origin }: { origin?: string } = {}) {
   const [params] = useSearchParams()
+  const serverOrigin = origin ?? (typeof window === 'undefined' ? '' : window.location.origin)
+  const steps = setupSteps(serverOrigin)
   const candidate = params.get('return')
   // The source pages that mount SubscribeButton: /c/:slug, /library/*.
   const returnPath = candidate && /^\/(?:library|c)(?:\/|\?|$)/.test(candidate) && !/[\\\u0000-\u001f]/.test(candidate) ? candidate : null

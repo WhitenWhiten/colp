@@ -23,14 +23,14 @@ function mailboxSink(): InProcessMailboxSink {
       {
         idempotencyKey: 'mail-key-1',
         to: 'owner@example.test',
-        subject: 'Your Know-N sign-in code',
+        subject: 'Your COLP Server sign-in code',
         textBody: 'Your code is 123456',
         receivedAt: '2026-09-01T10:00:00.000Z',
       },
       {
         idempotencyKey: 'mail-key-2',
         to: 'owner@example.test',
-        subject: 'Reset your Know-N password',
+        subject: 'Reset your COLP Server password',
         textBody: 'Open https://app.example.test/reset?token=abc',
         receivedAt: '2026-09-01T10:01:00.000Z',
       },

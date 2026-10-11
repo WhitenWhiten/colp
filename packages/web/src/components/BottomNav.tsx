@@ -10,6 +10,7 @@ type TabItem = { to: string; label: string; icon: IconName }
 const SESSION_TABS: readonly TabItem[] = [
   { to: '/library', label: 'Library', icon: 'bookmark' },
   { to: '/agents', label: 'Agents', icon: 'terminal' },
+  { to: '/approvals', label: 'Approvals', icon: 'check' },
 ]
 
 /** Persistent ≤719px primary destinations. Hidden on desktop via CSS. */

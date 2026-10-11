@@ -58,6 +58,13 @@
   overflow-wrap: anywhere;
 }
 
+/* The two MCP URLs, readable and copyable before any command. */
+.agents-endpoints {
+  display: grid;
+  gap: var(--space-3);
+  max-width: var(--measure);
+}
+
 .agents-clients {
   display: grid;
   gap: var(--space-3);

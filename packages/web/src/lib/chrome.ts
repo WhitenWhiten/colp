@@ -9,6 +9,9 @@ const AUTH_PATHS = [
 export const APP_NAV = [
   { to: '/library', label: 'Library' },
   { to: '/agents', label: 'Agents' },
+  // P2: "I approve once … with Undo on the approvals page" — the page an
+  // agent sends the owner to must be one click away, not inside a menu.
+  { to: '/approvals', label: 'Approvals' },
 ] as const
 
 export function isAuthPath(pathname: string): boolean {

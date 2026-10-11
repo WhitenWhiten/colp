@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 import { markServerFeatureAvailable, markServerFeatureUnavailable } from '../lib/serverFeatureAvailability'
+import { OPEN_SEARCH_PALETTE_EVENT } from '../lib/searchPaletteEvents'
 
 vi.mock('../auth/AuthContext', () => ({
   useAuth: () => mocks.auth,
@@ -31,7 +32,7 @@ vi.mock('../components/AppToast', () => ({
   useToast: () => ({ toast: mocks.toast, error: mocks.toastError }),
 }))
 vi.mock('./SearchPalette', () => ({
-  SearchPalette: () => null,
+  SearchPalette: ({ open }: { open: boolean }) => <div data-testid="search-palette" data-open={open ? 'true' : 'false'} />,
 }))
 
 describe('TopNav session chrome', () => {
@@ -80,8 +81,43 @@ describe('TopNav session chrome', () => {
     expect(document.querySelector('a[href="/login?returnTo=%2Fc%2Fbrowser-research"]')?.textContent).toBe('Sign in')
   })
 
+  it('offers guests no library search: the palette would only answer with a sign-in wall', () => {
+    render('/c/browser-research')
+    expect(document.querySelector('button.nav-search')).toBeNull()
+    expect(document.querySelector('button.nav-search-compact')).toBeNull()
+  })
+
+  it('ignores ⌘/Ctrl+K and the open-palette event for guests, and closes the palette on sign-out', async () => {
+    render('/c/browser-research')
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }))
+    })
+    expect(document.querySelector('[data-testid="search-palette"]')).toBeNull()
+    act(() => {
+      window.dispatchEvent(new Event(OPEN_SEARCH_PALETTE_EVENT))
+    })
+    expect(document.querySelector('[data-testid="search-palette"]')).toBeNull()
+    cleanup()
+    document.body.innerHTML = ''
+
+    signIn()
+    render('/library')
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }))
+      await Promise.resolve()
+    })
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)) })
+    expect(document.querySelector('[data-testid="search-palette"]')?.getAttribute('data-open')).toBe('true')
+    // The session ends while the palette is open: the palette goes with it.
+    mocks.auth.isLoggedIn = false
+    mocks.auth.user = null
+    render('/library')
+    expect(document.querySelector('[data-testid="search-palette"]')).toBeNull()
+  })
+
   it('marks the search trigger as opening a dialog', () => {
-    render('/')
+    signIn()
+    render('/library')
     const trigger = document.querySelector('button.nav-search')
     expect(trigger?.getAttribute('aria-haspopup')).toBe('dialog')
     expect(trigger?.getAttribute('aria-expanded')).toBe('false')
@@ -94,11 +130,11 @@ describe('TopNav session chrome', () => {
     expect(document.querySelector('a[href^="/login"]')).toBeNull()
   })
 
-  it('shows Library and Agents and a warning Sign out when signed in', () => {
+  it('shows Library, Agents and Approvals and a warning Sign out when signed in', () => {
     signIn()
     render('/library/col-1')
     const primary = [...document.querySelectorAll('[aria-label="Primary"] a')]
-    expect(primary.map((anchor) => anchor.getAttribute('href'))).toEqual(['/library', '/agents'])
+    expect(primary.map((anchor) => anchor.getAttribute('href'))).toEqual(['/library', '/agents', '/approvals'])
     expect(primary.every((anchor) => anchor.classList.contains('nav-link-core'))).toBe(true)
     expect(document.querySelector('[aria-label="Primary"] a[href="/library"]')?.classList.contains('is-active')).toBe(true)
     act(() => document.querySelector<HTMLButtonElement>('[data-testid="account-trigger"]')!.click())

@@ -1,0 +1,50 @@
+/* ——— Import bookmarks (pages/SelfHostedImport.tsx) ———
+   Route-owned stylesheet: the form rides .edit-form/.field/.option-row
+   (workbench-chrome.css, global.css); this file holds the preview line, the
+   inline error, and the completion card. */
+
+@layer pages {
+.import-form {
+  max-width: var(--measure-wide);
+}
+
+.import-preview {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+}
+
+.import-error {
+  margin: 0;
+  max-width: var(--measure);
+  line-height: var(--leading-normal);
+}
+
+.import-done {
+  display: grid;
+  gap: var(--space-2);
+  max-width: var(--measure-wide);
+}
+
+.import-done-title {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+}
+
+.import-done-text {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+}
+
+.import-done-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+}
