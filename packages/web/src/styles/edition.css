@@ -100,6 +100,24 @@
   font-weight: var(--weight-medium);
 }
 
+/* Comfort rows read like linkding and Raindrop's list: the title, then
+   host · folder · date directly under it, left-aligned, instead of a
+   right-hand meta column the eye has to cross the row to find. */
+@media (min-width: 720px) {
+  :root[data-edition='self-hosted'] .library-bookmark--comfort .library-bookmark-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--hair-20);
+  }
+
+  :root[data-edition='self-hosted'] .library-bookmark--comfort .meta-row {
+    justify-content: flex-start;
+    max-width: none;
+    padding-top: 0;
+    text-align: left;
+  }
+}
+
 /* Public collection board: titles at body size, not a headline each. */
 :root[data-edition='self-hosted'] .result-card-title {
   font-size: var(--text-base);
@@ -232,6 +250,40 @@
   font-weight: var(--weight-semibold);
   font-variant-numeric: tabular-nums;
   line-height: var(--leading-none);
+}
+
+/* A shared collection's masthead is its cover: pegboard fading in from the
+   top-right corner, behind the figures. */
+:root[data-edition='self-hosted'] .collection-masthead {
+  position: relative;
+  isolation: isolate;
+}
+
+:root[data-edition='self-hosted'] .collection-masthead::before {
+  content: none;
+}
+
+/* Wide screens only: there the figures sit at the right, clear of text. */
+@media (min-width: 900px) {
+  :root[data-edition='self-hosted'] .collection-masthead::before {
+    content: '';
+    position: absolute;
+    z-index: -1;
+    inset: 0 0 0 auto;
+    width: min(70%, 42rem);
+    background-image: var(--colp-grid);
+    background-size: var(--colp-grid-size);
+    background-position: right top;
+    mask-image: radial-gradient(ellipse 85% 95% at 85% 55%, black 15%, transparent 72%);
+    pointer-events: none;
+  }
+}
+
+/* The hairline separates the quiet tools from social actions this server
+   does not ship, so here it would divide nothing. */
+:root[data-edition='self-hosted'] .collection-masthead .social-actions-links {
+  padding-inline-start: 0;
+  border-inline-start: 0;
 }
 
 /* ——— About ——— */
