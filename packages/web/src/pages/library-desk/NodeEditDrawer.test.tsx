@@ -392,6 +392,19 @@ describe('Node edit drawer', () => {
     expect(mocks.createAnnotation.mock.calls[0]![2]).toMatchObject({ type: 'tldr', value: 'Folder-level takeaway' })
   })
 
+  it('hides favicon upload and the icon source on the self-hosted edition', async () => {
+    vi.stubEnv('VITE_EDITION', 'self-hosted')
+    try {
+      mountDrawer({ nodeId: 'col-1-loose' })
+      await waitForDom(domFinishedLoading)
+      expect(control('nd-url').value).toBe('https://loose.example')
+      expect(document.getElementById('nd-favicon')).toBeNull()
+      expect(mocks.getBookmarkFaviconSource).not.toHaveBeenCalled()
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
   it('sets the bookmark icon source with the server ETag and refreshes', async () => {
     /* Server state, not a call-order queue: reads describe the stored source,
        so StrictMode's remount re-reads the same pre-write revision. The write

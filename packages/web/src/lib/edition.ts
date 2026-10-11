@@ -133,6 +133,7 @@ export const SELF_HOSTED_CLOUD_FLAGS = [
   'linkPreview',
   'exportJobs',
   'readableReplica',
+  'faviconPolicy',
 ] as const
 
 export function featureFlagsForEdition<T extends Record<string, boolean>>(

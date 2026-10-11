@@ -10,6 +10,7 @@ import { Modal } from '../../components/Modal'
 import { NodeAnnotationFields } from '../../components/NodeAnnotationFields'
 import { TagInput } from '../../components/TagInput'
 import { bookmarkIconSrc } from '../../lib/bookmarkIcon'
+import { isSelfHostedEdition } from '../../lib/edition'
 import {
   NODE_DESCRIPTION_MAX,
   NODE_TITLE_MAX,
@@ -89,6 +90,8 @@ export function NodeEditDrawer({
 
   const canEdit = Boolean(snap?.capabilities.updateNode) && !node.readOnly
   const isBookmark = node.kind === 'bookmark'
+  // This server stores no favicon objects and has no favicon source routes.
+  const faviconControls = isBookmark && !isSelfHostedEdition()
   const favicon = isBookmark
     // Same library posture as bookmarkItem: never hotlink CDN favicons
     // for private nodes (see LibraryDesk.bookmark-icon.test).
@@ -182,7 +185,7 @@ export function NodeEditDrawer({
       {isBookmark && (
         <p className="field-hint">Icon changes apply immediately.</p>
       )}
-      {isBookmark && (
+      {faviconControls && (
         <FaviconDropCard
           inputId="nd-favicon"
           labelId="nd-favicon-label"
@@ -192,7 +195,7 @@ export function NodeEditDrawer({
           onRemove={() => void drawer.removeFavicon()}
         />
       )}
-      {isBookmark && snap && (
+      {faviconControls && snap && (
         <FaviconSourceControl
           collectionId={snap.collection.id}
           nodeId={node.id}
