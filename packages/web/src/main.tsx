@@ -58,6 +58,7 @@ import { isChunkLoadError, reloadOnce } from './lib/lazyWithRetry'
  *   agents.css            → pages/Agents.tsx
  *   collection-history.css→ pages/CollectionHistory.tsx
  *   extension.css         → pages/Extension.tsx
+ *   import.css            → pages/SelfHostedImport.tsx
  *   graph.css             → pages/Graph.tsx
  *   library-health.css    → pages/LibraryHealth.tsx
  *   resource-detail.css   → pages/ResourceDetail.tsx

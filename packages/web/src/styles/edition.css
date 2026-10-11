@@ -236,6 +236,23 @@
   text-align: end;
 }
 
+/* Status is prose ("Healthy · HTTPS"), not a value to copy. */
+:root[data-edition='self-hosted'] .self-hosted-about-status {
+  font-family: inherit;
+}
+
+:root[data-edition='self-hosted'] .self-hosted-about-next {
+  display: grid;
+  gap: var(--space-3);
+}
+
+:root[data-edition='self-hosted'] .self-hosted-about-next h2 {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+}
+
 :root[data-edition='self-hosted'] .self-hosted-about-links {
   display: flex;
   flex-wrap: wrap;

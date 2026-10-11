@@ -14,6 +14,10 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 - Write tools describe what they do in `tools/list` instead of "Write tool <name>".
 - Approvals show what a move or delete does in the server's own words (`move Docs from /A to /B`), as the plan summary and per operation (`description`).
 - The edition OpenAPI documents `POST /api/v1/mcp/approvals/{planId}/undo` and `approvedBy`/`versionId` on approvals.
+- Web: Approvals is a primary destination (top bar and the phone tab bar) next to Library and Agents; the account menu link stays.
+- Web: Agents shows the compatibility and strict MCP endpoints as copyable fields; the Extension page shows this server's address with a Copy button in the "Connect this server" step.
+- Web: About reports the server status and transport from `/health` and the Manifest, the server address, and links to the Extension, Agents, Import and Sync pages; it sets the document title.
+- Web: Import shows which file is previewed, lists nested destination folders as a tree, and shows an "Import complete" card with "View collection" / "Import another file"; the chosen file is cleared after a completed import so Confirm cannot re-import it by accident.
 
 ### Changed
 
@@ -28,6 +32,10 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 
 ### Fixed
 
+- Web: copying on the Agents page works on plain-HTTP (LAN) origins, where `navigator.clipboard` does not exist; it falls back to a selection copy.
+- Web: a visitor on a shared collection link is no longer offered "Search your library" (it only answered with a sign-in wall) or a breadcrumb into the owner's Library.
+- Web: the first-run "no owner account yet" note on Sign in is an informational notice with a "Create the owner account" button instead of an error band.
+- Web: the Sync center's error state no longer repeats "Couldn't load sync status" as both title and description.
 - Agent plans affecting a collection with more than 2,000 live folders and bookmarks are rejected before mutation in both manual and trusted mode. Manual commits no longer silently skip history and Undo; capacity failures report the limit and leave the plan available to cancel. Failed commits roll back their approval claim, and idempotent replays keep returning the original result without capturing history again.
 - An agent's OAuth sign-in works when the owner is not yet signed in: `/oauth2/authorize` sends the browser to `/login` instead of answering JSON 401, and `/login` resumes the authorization after sign-in instead of dropping it.
 - `/sitemap.xml`, `/sitemap-*.xml`, `/llms.txt` and `/llms-full.txt` answer 404 in all Caddy profiles instead of the web app's HTML.

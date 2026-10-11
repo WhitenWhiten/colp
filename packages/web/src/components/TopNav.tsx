@@ -66,6 +66,9 @@ export function TopNav() {
 
   const authRoute = isAuthPath(location.pathname)
   const showChrome = !authRoute
+  // Site search covers the owner's library and answers a guest with a
+  // sign-in wall, so a visitor on a shared link is not offered it.
+  const showSearch = showChrome && isLoggedIn
   const primaryNav = isLoggedIn ? APP_NAV : []
   const showLogin = !isLoggedIn && location.pathname !== '/login'
 
@@ -159,7 +162,7 @@ export function TopNav() {
             </nav>
           )}
           <div className="nav-actions">
-            {showChrome && (
+            {showSearch && (
               <button
                 type="button"
                 className="nav-search"
@@ -172,7 +175,7 @@ export function TopNav() {
               </button>
             )}
 
-            {showChrome && (
+            {showSearch && (
               <button
                 type="button"
                 className="nav-search-compact"

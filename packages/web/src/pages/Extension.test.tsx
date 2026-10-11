@@ -15,13 +15,17 @@ describe('Extension install page', () => {
   })
 
   it('walks through connecting the extension to this server and syncing owned collections', () => {
-    mountTree(<MemoryRouter><Extension /></MemoryRouter>)
+    mountTree(<MemoryRouter><Extension origin="https://colp.example" /></MemoryRouter>)
     expect(document.body.textContent).toContain('syncs browser folders into collections you own on this server')
     const setup = document.querySelector('[aria-label="Setup steps"]')
     expect([...setup!.querySelectorAll('h3, strong')].map((node) => node.textContent)).toEqual(
       expect.arrayContaining(['Install', 'Connect this server', 'Sign in', 'Choose folders']),
     )
     expect(setup?.textContent).toContain('Options → Account → Server')
+    // Step 02 shows the address to type into the extension, with a Copy button.
+    const address = setup?.querySelector('[data-testid="copy-field"]')
+    expect(address?.querySelector('[data-testid="copy-field-value"]')?.textContent).toBe('https://colp.example')
+    expect(address?.querySelector('button')?.getAttribute('aria-label')).toBe('Copy Server address')
     const permissions = document.querySelector('[aria-label="Permissions"]')
     expect(permissions?.textContent).toContain('Never uploads folders you did not select')
     expect(permissions?.textContent).toContain('Sync uses collections you own on this server')

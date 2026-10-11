@@ -49,7 +49,7 @@ describe('Write approvals navigation', () => {
   it('exposes the approvals destination from the account menu', () => {
     render()
     act(() => document.querySelector<HTMLButtonElement>('[data-testid="account-trigger"]')!.click())
-    const link = document.querySelector<HTMLAnchorElement>('a[href="/approvals"]')
+    const link = document.querySelector<HTMLAnchorElement>('#account-dropdown a[href="/approvals"]')
     expect(link?.textContent).toContain('Write approvals')
   })
 

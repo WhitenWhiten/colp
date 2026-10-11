@@ -80,8 +80,15 @@ describe('TopNav session chrome', () => {
     expect(document.querySelector('a[href="/login?returnTo=%2Fc%2Fbrowser-research"]')?.textContent).toBe('Sign in')
   })
 
+  it('offers guests no library search: the palette would only answer with a sign-in wall', () => {
+    render('/c/browser-research')
+    expect(document.querySelector('button.nav-search')).toBeNull()
+    expect(document.querySelector('button.nav-search-compact')).toBeNull()
+  })
+
   it('marks the search trigger as opening a dialog', () => {
-    render('/')
+    signIn()
+    render('/library')
     const trigger = document.querySelector('button.nav-search')
     expect(trigger?.getAttribute('aria-haspopup')).toBe('dialog')
     expect(trigger?.getAttribute('aria-expanded')).toBe('false')
@@ -94,11 +101,11 @@ describe('TopNav session chrome', () => {
     expect(document.querySelector('a[href^="/login"]')).toBeNull()
   })
 
-  it('shows Library and Agents and a warning Sign out when signed in', () => {
+  it('shows Library, Agents and Approvals and a warning Sign out when signed in', () => {
     signIn()
     render('/library/col-1')
     const primary = [...document.querySelectorAll('[aria-label="Primary"] a')]
-    expect(primary.map((anchor) => anchor.getAttribute('href'))).toEqual(['/library', '/agents'])
+    expect(primary.map((anchor) => anchor.getAttribute('href'))).toEqual(['/library', '/agents', '/approvals'])
     expect(primary.every((anchor) => anchor.classList.contains('nav-link-core'))).toBe(true)
     expect(document.querySelector('[aria-label="Primary"] a[href="/library"]')?.classList.contains('is-active')).toBe(true)
     act(() => document.querySelector<HTMLButtonElement>('[data-testid="account-trigger"]')!.click())
