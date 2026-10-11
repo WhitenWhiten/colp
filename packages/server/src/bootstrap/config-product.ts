@@ -1,7 +1,5 @@
 import {
   PRODUCT_EDITOR_CURSOR_MAX_PREVIOUS_KEYS,
-  DEFAULT_ORGANIZE_PLANNER_ID,
-  isHeuristicPlannerId,
 } from '../modules/collections/index.js';
 import {
   parseCanonicalUtcTimestamp,
@@ -10,13 +8,8 @@ import {
   DEV_EDITOR_CURSOR_KEY,
 } from './config-parse-helpers.js';
 import type {
-  ClassifyInboxFeatureConfig,
   CollectionHistoryFeatureConfig,
-  ExportJobsFeatureConfig,
-  ExportR2Config,
   LinkHealthFeatureConfig,
-  OrganizePlansFeatureConfig,
-  ReadableReplicaFeatureConfig,
   ProductEditorCursorConfig,
   ProductOwnedCollectionsCursorConfig,
 } from './config-types.js';
@@ -32,8 +25,6 @@ const DEV_OWNED_COLLECTIONS_CURSOR_KEY = 'dev-owned-collections-cursor-hmac-key-
 const DEV_OWNED_COLLECTIONS_CURSOR_KEY_ID = 'dev-owned-collections-v1';
 const DEV_LINK_HEALTH_CURSOR_KEY = 'dev-link-health-cursor-hmac-key-change-me';
 const DEV_LINK_HEALTH_CURSOR_KEY_ID = 'dev-link-health-v1';
-const DEV_CLASSIFY_INBOX_CURSOR_KEY = 'dev-classify-inbox-cursor-hmac-key-change-me';
-const DEV_CLASSIFY_INBOX_CURSOR_KEY_ID = 'dev-classify-inbox-v1';
 const DEV_COLLECTION_VERSIONS_CURSOR_KEY = 'dev-collection-versions-cursor-hmac-key-change-me';
 const DEV_COLLECTION_VERSIONS_CURSOR_KEY_ID = 'dev-collection-versions-v1';
 
@@ -52,8 +43,6 @@ export function assertPublicObjectPrefixesDoNotOverlap(
   faviconPrefix: string,
   livePrefix: string,
   probePrefix: string,
-  exportPrefix: string,
-  linkPreviewPrefix?: string,
 ): void {
   const overlaps = (left: string, right: string): boolean =>
     left === right || left.startsWith(right) || right.startsWith(left);
@@ -62,8 +51,6 @@ export function assertPublicObjectPrefixesDoNotOverlap(
     { name: 'favicon', prefix: faviconPrefix },
     { name: 'attachments live', prefix: livePrefix },
     { name: 'attachments probe', prefix: probePrefix },
-    { name: 'export', prefix: exportPrefix },
-    ...(linkPreviewPrefix === undefined ? [] : [{ name: 'link preview', prefix: linkPreviewPrefix }]),
   ];
   for (const [index, left] of labeled.entries()) {
     for (const right of labeled.slice(index + 1)) {
@@ -72,9 +59,7 @@ export function assertPublicObjectPrefixesDoNotOverlap(
           `${left.name} prefix ${JSON.stringify(left.prefix)} must not overlap `
           + `${right.name} prefix ${JSON.stringify(right.prefix)} `
           + `(avatar ${JSON.stringify(avatarPrefix)}, favicon ${JSON.stringify(faviconPrefix)}, `
-          + `live ${JSON.stringify(livePrefix)}, probe ${JSON.stringify(probePrefix)}, `
-          + `export ${JSON.stringify(exportPrefix)}`
-          + `${linkPreviewPrefix === undefined ? '' : `, link preview ${JSON.stringify(linkPreviewPrefix)}`})`,
+          + `live ${JSON.stringify(livePrefix)}, probe ${JSON.stringify(probePrefix)})`,
         );
       }
     }
@@ -136,39 +121,6 @@ export function parseProductEditorPreviousKeys(
       retainUntil: new Date(retainUntil).toISOString(),
     });
   }));
-}
-
-export function parseExportR2Config(env: NodeJS.ProcessEnv, prefix: string): ExportR2Config {
-  const endpoint = requireNonEmpty(env, 'EXPORT_R2_ENDPOINT');
-  let parsed: URL;
-  try {
-    parsed = new URL(endpoint);
-  } catch {
-    throw new Error('EXPORT_R2_ENDPOINT must be an absolute URL');
-  }
-  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-    throw new Error('EXPORT_R2_ENDPOINT must be an http(s) URL');
-  }
-  // Export archives contain complete private collections. A plaintext
-  // endpoint is acceptable for local development, but production must never
-  // put S3 credentials or archive bytes on an unauthenticated transport.
-  if (env.NODE_ENV === 'production' && parsed.protocol !== 'https:') {
-    throw new Error('EXPORT_R2_ENDPOINT must use https in production');
-  }
-  const region = requireNonEmpty(env, 'EXPORT_R2_REGION');
-  const bucket = requireNonEmpty(env, 'EXPORT_R2_BUCKET');
-  const accessKeyId = requireNonEmpty(env, 'EXPORT_R2_ACCESS_KEY_ID');
-  const secretAccessKey = requireNonEmpty(env, 'EXPORT_R2_SECRET_ACCESS_KEY');
-  const readAccessKeyId = env.EXPORT_R2_READ_ACCESS_KEY_ID?.trim() || accessKeyId;
-  const readSecretAccessKey = env.EXPORT_R2_READ_SECRET_ACCESS_KEY?.trim() || secretAccessKey;
-  return Object.freeze({
-    endpoint,
-    region,
-    bucket,
-    prefix,
-    rwCredential: Object.freeze({ accessKeyId, secretAccessKey }),
-    roCredential: Object.freeze({ accessKeyId: readAccessKeyId, secretAccessKey: readSecretAccessKey }),
-  });
 }
 
 export function loadProductEditorCursorConfig(
@@ -326,115 +278,6 @@ export function loadLinkHealthFeatureConfig(
   });
 }
 
-export function loadOrganizePlansFeatureConfig(env: NodeJS.ProcessEnv): OrganizePlansFeatureConfig {
-  const organizePlansFlag = (env.KNOWN_FEATURE_AI_ORGANIZE ?? 'false').trim().toLowerCase();
-  if (organizePlansFlag !== 'true' && organizePlansFlag !== 'false') {
-    throw new Error('KNOWN_FEATURE_AI_ORGANIZE must be true or false');
-  }
-  const organizePlannerIdRaw = (env.ORGANIZE_PLANNER_ID ?? '').trim();
-  const organizePlannerId = organizePlannerIdRaw.length === 0
-    ? DEFAULT_ORGANIZE_PLANNER_ID
-    : organizePlannerIdRaw;
-  if (!isHeuristicPlannerId(organizePlannerId)) {
-    throw new Error(`ORGANIZE_PLANNER_ID is not an allowed heuristic planner id: ${organizePlannerId}`);
-  }
-  return Object.freeze({
-    enabled: organizePlansFlag === 'true',
-    plannerId: organizePlannerId,
-  });
-}
-
-export function loadReadableReplicaFeatureConfig(env: NodeJS.ProcessEnv): ReadableReplicaFeatureConfig {
-  const flag = (env.KNOWN_FEATURE_READABLE_REPLICA ?? 'false').trim().toLowerCase();
-  if (flag !== 'true' && flag !== 'false') {
-    throw new Error('KNOWN_FEATURE_READABLE_REPLICA must be true or false');
-  }
-  const probeTimeoutMs = parsePositiveInt(
-    env.READABLE_REPLICA_PROBE_TIMEOUT_MS, 15_000, 'READABLE_REPLICA_PROBE_TIMEOUT_MS', { max: 30_000 },
-  );
-  const connectTimeoutMs = parsePositiveInt(
-    env.READABLE_REPLICA_CONNECT_TIMEOUT_MS, 5_000, 'READABLE_REPLICA_CONNECT_TIMEOUT_MS', { max: 30_000 },
-  );
-  const maxBodyBytes = parsePositiveInt(
-    env.READABLE_REPLICA_MAX_BODY_BYTES, 2_097_152, 'READABLE_REPLICA_MAX_BODY_BYTES', { max: 2_097_152 },
-  );
-  const workerConcurrency = parsePositiveInt(
-    env.READABLE_REPLICA_WORKER_CONCURRENCY, 2, 'READABLE_REPLICA_WORKER_CONCURRENCY', { max: 4 },
-  );
-  const perHostGapMs = parsePositiveInt(
-    env.READABLE_REPLICA_PER_HOST_GAP_MS, 2_000, 'READABLE_REPLICA_PER_HOST_GAP_MS', { max: 60_000 },
-  );
-  const workerPollIntervalMs = parsePositiveInt(
-    env.READABLE_REPLICA_WORKER_POLL_INTERVAL_MS, 1_000, 'READABLE_REPLICA_WORKER_POLL_INTERVAL_MS', { max: 60_000 },
-  );
-  const workerLeaseDurationMs = parsePositiveInt(
-    env.READABLE_REPLICA_WORKER_LEASE_DURATION_MS, 120_000, 'READABLE_REPLICA_WORKER_LEASE_DURATION_MS', { max: 300_000 },
-  );
-  const enqueueCooldownMs = parsePositiveInt(
-    env.READABLE_REPLICA_ENQUEUE_COOLDOWN_MS, 60_000, 'READABLE_REPLICA_ENQUEUE_COOLDOWN_MS', { max: 300_000 },
-  );
-  if (workerLeaseDurationMs < probeTimeoutMs) {
-    throw new Error(
-      'READABLE_REPLICA_WORKER_LEASE_DURATION_MS must be >= READABLE_REPLICA_PROBE_TIMEOUT_MS',
-    );
-  }
-  return Object.freeze({
-    enabled: flag === 'true',
-    probeTimeoutMs,
-    connectTimeoutMs,
-    maxBodyBytes,
-    workerConcurrency,
-    perHostGapMs,
-    workerPollIntervalMs,
-    workerLeaseDurationMs,
-    enqueueCooldownMs,
-  });
-}
-
-export function loadClassifyInboxFeatureConfig(
-  env: NodeJS.ProcessEnv,
-  nodeEnv: string,
-  siblingKeys: { readonly editorKey: string; readonly ownedKey: string; readonly linkHealthKey: string },
-): ClassifyInboxFeatureConfig {
-  const classifyFlag = (env.KNOWN_FEATURE_CLASSIFY ?? 'false').trim().toLowerCase();
-  if (classifyFlag !== 'true' && classifyFlag !== 'false') {
-    throw new Error('KNOWN_FEATURE_CLASSIFY must be true or false');
-  }
-  const classifyInboxCursorKey = requireNonEmpty(env, 'PRODUCT_CLASSIFY_INBOX_CURSOR_HMAC_KEY',
-    nodeEnv === 'production' ? undefined : DEV_CLASSIFY_INBOX_CURSOR_KEY);
-  const classifyInboxCursorKeyId = requireNonEmpty(env, 'PRODUCT_CLASSIFY_INBOX_CURSOR_KEY_ID',
-    nodeEnv === 'production' ? undefined : DEV_CLASSIFY_INBOX_CURSOR_KEY_ID);
-  if (!/^[A-Za-z0-9_-]{1,64}$/u.test(classifyInboxCursorKeyId)) {
-    throw new Error('PRODUCT_CLASSIFY_INBOX_CURSOR_KEY_ID must contain 1-64 URL-safe characters');
-  }
-  const classifyInboxPreviousKeys = parseProductEditorPreviousKeys(
-    env.PRODUCT_CLASSIFY_INBOX_CURSOR_PREVIOUS_KEYS?.trim() ?? '',
-    'PRODUCT_CLASSIFY_INBOX_CURSOR_PREVIOUS_KEYS',
-  );
-  const classifyInboxIds = [classifyInboxCursorKeyId, ...classifyInboxPreviousKeys.map((key) => key.id)];
-  const classifyInboxSecrets = [classifyInboxCursorKey, ...classifyInboxPreviousKeys.map((key) => key.key)];
-  if (new Set(classifyInboxIds).size !== classifyInboxIds.length
-    || new Set(classifyInboxSecrets).size !== classifyInboxSecrets.length) {
-    throw new Error('Classify inbox cursor key IDs and material must be unique');
-  }
-  if (nodeEnv === 'production' && (classifyInboxCursorKey === DEV_CLASSIFY_INBOX_CURSOR_KEY
-    || classifyInboxCursorKeyId === DEV_CLASSIFY_INBOX_CURSOR_KEY_ID
-    || classifyInboxCursorKey === siblingKeys.ownedKey
-    || classifyInboxCursorKey === siblingKeys.editorKey
-    || classifyInboxCursorKey === siblingKeys.linkHealthKey
-    || classifyInboxSecrets.some((key) => Buffer.byteLength(key, 'utf8') < 32))) {
-    throw new Error('Classify inbox cursor keys must be independent non-development values of at least 32 bytes in production');
-  }
-  return Object.freeze({
-    enabled: classifyFlag === 'true',
-    cursor: Object.freeze({
-      current: Object.freeze({ id: classifyInboxCursorKeyId, key: classifyInboxCursorKey }),
-      previous: Object.freeze(classifyInboxPreviousKeys),
-      ttlMs: PRODUCT_EDITOR_CURSOR_TTL_MS,
-    }),
-  });
-}
-
 export function loadCollectionHistoryFeatureConfig(
   env: NodeJS.ProcessEnv,
   nodeEnv: string,
@@ -442,7 +285,6 @@ export function loadCollectionHistoryFeatureConfig(
     readonly editorKey: string;
     readonly ownedKey: string;
     readonly linkHealthKey: string;
-    readonly classifyInboxKey: string;
   },
 ): CollectionHistoryFeatureConfig {
   const collectionHistoryFlag = (env.KNOWN_FEATURE_COLLECTION_HISTORY ?? 'false').trim().toLowerCase();
@@ -471,7 +313,6 @@ export function loadCollectionHistoryFeatureConfig(
     || collectionHistoryCursorKey === siblingKeys.ownedKey
     || collectionHistoryCursorKey === siblingKeys.editorKey
     || collectionHistoryCursorKey === siblingKeys.linkHealthKey
-    || collectionHistoryCursorKey === siblingKeys.classifyInboxKey
     || collectionHistorySecrets.some((key) => Buffer.byteLength(key, 'utf8') < 32))) {
     throw new Error('Collection history cursor keys must be independent non-development values of at least 32 bytes in production');
   }
@@ -482,29 +323,5 @@ export function loadCollectionHistoryFeatureConfig(
       previous: Object.freeze(collectionHistoryPreviousKeys),
       ttlMs: PRODUCT_EDITOR_CURSOR_TTL_MS,
     }),
-  });
-}
-
-export function loadExportJobsFeatureConfig(
-  env: NodeJS.ProcessEnv,
-  exportR2Prefix: string,
-): ExportJobsFeatureConfig {
-  const exportJobsFlag = (env.KNOWN_FEATURE_EXPORT_JOBS ?? 'true').trim().toLowerCase();
-  if (exportJobsFlag !== 'true' && exportJobsFlag !== 'false') {
-    throw new Error('KNOWN_FEATURE_EXPORT_JOBS must be true or false');
-  }
-  const exportR2 = exportJobsFlag === 'true' ? parseExportR2Config(env, exportR2Prefix) : null;
-  return Object.freeze({
-    enabled: exportJobsFlag === 'true',
-    prefix: exportR2Prefix,
-    r2: exportR2,
-    rateLimit: Object.freeze({
-      maxRequests: parsePositiveInt(env.EXPORT_JOB_RATE_LIMIT_MAX, 120, 'EXPORT_JOB_RATE_LIMIT_MAX', { max: 10_000 }),
-      windowMs: parsePositiveInt(env.EXPORT_JOB_RATE_LIMIT_WINDOW_MS, 60_000, 'EXPORT_JOB_RATE_LIMIT_WINDOW_MS', { max: 3_600_000 }),
-    }),
-    timeoutMs: parsePositiveInt(env.EXPORT_JOB_HTTP_TIMEOUT_MS, 2_000, 'EXPORT_JOB_HTTP_TIMEOUT_MS', { max: 30_000 }),
-    workerConcurrency: parsePositiveInt(env.EXPORT_JOB_WORKER_CONCURRENCY, 1, 'EXPORT_JOB_WORKER_CONCURRENCY', { max: 4 }),
-    workerPollIntervalMs: parsePositiveInt(env.EXPORT_JOB_WORKER_POLL_INTERVAL_MS, 1_000, 'EXPORT_JOB_WORKER_POLL_INTERVAL_MS', { max: 60_000 }),
-    workerLeaseDurationMs: parsePositiveInt(env.EXPORT_JOB_WORKER_LEASE_DURATION_MS, 60_000, 'EXPORT_JOB_WORKER_LEASE_DURATION_MS', { max: 300_000 }),
   });
 }

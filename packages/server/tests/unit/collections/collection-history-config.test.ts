@@ -39,15 +39,7 @@ test('collection history cursor key id rejects unsafe charset', () => {
   );
 });
 
-test('production rejects collection-versions HMAC that collides with classify, link-health, editor, or owned keys', () => {
-  const collidingClassify = productionEnv({
-    PRODUCT_COLLECTION_VERSIONS_CURSOR_HMAC_KEY: 'prod-classify-inbox-cursor-hmac-key-not-dev-default',
-    PRODUCT_COLLECTION_VERSIONS_CURSOR_KEY_ID: 'prod-collection-versions-v1',
-  });
-  assert.throws(
-    () => loadConfig(collidingClassify),
-    /independent non-development values of at least 32 bytes in production/u,
-  );
+test('production rejects collection-versions HMAC that collides with link-health, editor, or owned keys', () => {
   const collidingLinkHealth = productionEnv({
     PRODUCT_COLLECTION_VERSIONS_CURSOR_HMAC_KEY: 'prod-link-health-cursor-hmac-key-not-dev-default',
     PRODUCT_COLLECTION_VERSIONS_CURSOR_KEY_ID: 'prod-collection-versions-v1',

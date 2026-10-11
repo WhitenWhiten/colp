@@ -1,27 +1,12 @@
 /**
- * P5-28 email provider adapter public surface.
- *
- * Only bootstrap composition (and the P5-27/28 evidence harnesses) may reach
- * the Aliyun DirectMail adapter; the import-boundary graph allows
- * infrastructure:email -> module:notifications:facade (for the port types),
- * -> module:auth:facade (C1 auth email port types),
- * -> module:access-policy:facade (SC-04 invite email port types),
- * and -> telemetry.
- * The worker consumes the application port (EmailProviderAdapter) from the
- * notifications facade; the auth email surface (C1) is consumed by the auth
- * module port (AuthEmailSender) and bootstrap composition.
+ * Infrastructure email public surface.
  */
-export { AliyunDirectMailAdapter, validateIdempotencyKey } from './aliyun-directmail-adapter.js';
-export type {
-  AliyunDirectMailAdapterOptions,
-  EmailAdapterTransport,
-  AdapterTransportResponse,
-} from './aliyun-directmail-adapter.js';
 export {
   composeAuthEmailAdapter,
   createAuthEmailAdapter,
   createInProcessMailboxSink,
   createUnavailableAuthEmailSender,
+  redactEvidence,
 } from './auth-email-adapter.js';
 export type {
   AuthEmailAdapter,
@@ -32,6 +17,9 @@ export type {
   AuthEmailMailboxEntry,
   AuthEmailProvider,
   ComposeAuthEmailAdapterOptions,
+  EmailMessage,
+  EmailSendInput,
+  EmailSendResult,
   InProcessMailboxSink,
 } from './auth-email-adapter.js';
 export {
@@ -39,6 +27,7 @@ export {
   createInviteEmailAdapter,
   createInviteEmailMailboxSink,
   createUnavailableInviteEmailSender,
+  validateIdempotencyKey,
 } from './invite-email-adapter.js';
 export type {
   ComposeInviteEmailAdapterOptions,
@@ -56,7 +45,6 @@ export {
   mailClassForPurpose,
   parseEmailSkinConfig,
   wrapEmailMessage,
-  wrapEmailTemplateRenderers,
   EMAIL_SKIN_BODY_MAX_BYTES,
   EMAIL_SKIN_PURPOSES,
   EMAIL_SKIN_SUBJECT_MAX_CHARS,
@@ -91,12 +79,7 @@ export {
   UNIFIED_EMAIL_SKIN,
   wrapUnifiedEmailChrome,
 } from './unified-email-chrome.js';
-export {
-  createEmailDeliveryWorkerRuntime,
-  createPostgresEmailDeliveryWorkerRepository,
-} from './email-delivery-worker-postgres.js';
-export type {
-  EmailDeliveryWorkerLoopLogger,
-  EmailDeliveryWorkerRuntime,
-} from './email-delivery-worker-postgres.js';
-export { createPostgresEmailSuppressionOpsRepository } from './email-suppression-ops-postgres.js';
+
+export const EMAIL_SUBJECT_MAX_CHARS = 100;
+export const EMAIL_BODY_MAX_BYTES = 80 * 1024;
+export const EMAIL_IDEMPOTENCY_KEY_MAX_CHARS = 128;

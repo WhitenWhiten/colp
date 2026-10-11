@@ -22,7 +22,6 @@ import {
 import { observeBestEffort, settleBestEffort } from '../async/best-effort.js';
 import {
   BOOKMARK_FAVICON_MAX_BYTES,
-  LINK_PREVIEW_MAX_IMAGE_BYTES,
   readFaviconBodyCapped,
   type BookmarkFaviconObjectStore,
   type StoredBookmarkFavicon,
@@ -188,15 +187,4 @@ export function createR2FaviconStore(options: R2FaviconStoreOptions): BookmarkFa
       }
     },
   };
-}
-
-/**
- * LP-01 link preview object store: the same public-object adapter under its
- * own prefix, with the larger preview byte ceiling. Served only through the
- * same-origin `/api/v1/link-preview/:id` route.
- */
-export function createR2LinkPreviewStore(
-  options: Omit<R2FaviconStoreOptions, 'maxObjectBytes'>,
-): BookmarkFaviconObjectStore {
-  return createR2FaviconStore({ ...options, maxObjectBytes: LINK_PREVIEW_MAX_IMAGE_BYTES });
 }

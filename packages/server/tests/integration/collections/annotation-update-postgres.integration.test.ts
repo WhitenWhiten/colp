@@ -117,7 +117,7 @@ describeWithPostgres('P2B-05 PostgreSQL Annotation canonical update', () => {
     assert.equal(row.payload_json.format, row.format);
     assert.equal(row.payload_json.value, row.value_json);
     assert.equal(row.payload_json.visibility, row.visibility);
-    assert.deepEqual(row.payload_json.subject, seeded.annotation.subject);
+    assert.deepEqual({ ...row.payload_json.subject }, { ...seeded.annotation.subject });
     assert.deepEqual(row.payload_json.creator, seeded.annotation.creator);
     assert.equal(row.payload_json.createdAt, seeded.annotation.createdAt);
     assert.deepEqual(row.payload_json.extensions, { 'https://known.test/source': 'editor' });
@@ -187,13 +187,13 @@ describeWithPostgres('P2B-05 PostgreSQL Annotation canonical update', () => {
     }));
     assert.equal(visibility.kind, 'updated');
     if (visibility.kind !== 'updated') return;
-    assert.deepEqual(visibility.annotation.provenance, provenance);
+    assert.deepEqual({ ...visibility.annotation.provenance }, { ...provenance });
 
     const edited = await execute(updateInput(seeded.annotation.id, visibility.annotation.revision, {
       patch: { value: 'Human-revised AI output' },
     }));
     assert.equal(edited.kind, 'updated');
-    if (edited.kind === 'updated') assert.deepEqual(edited.annotation.provenance, {
+    if (edited.kind === 'updated') assert.deepEqual({ ...edited.annotation.provenance }, {
       ...provenance, editedByHuman: true,
     });
 

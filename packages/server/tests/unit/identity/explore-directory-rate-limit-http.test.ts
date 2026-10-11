@@ -7,7 +7,6 @@ import { afterEach, test } from 'vitest';
 import { loadConfig } from '../../support/test-config.js';
 import {
   createPublicationCursorKeyring,
-  type ExplorePageReadPort,
   type PublicationDirectoryQueryPorts,
   type PublicationDirectoryRecord,
 } from '../../../src/modules/publication/index.js';
@@ -74,29 +73,6 @@ function directoryQuery(): PublicationDirectoryQueryPorts {
   };
 }
 
-function explorePageQuery(): ExplorePageReadPort {
-  return {
-    async loadPage() {
-      return Object.freeze([{
-        id: 'public-one',
-        ownerSubjectId: 'owner',
-        title: 'public-one',
-        summary: null,
-        kind: 'bookmarks' as const,
-        visibility: 'public' as const,
-        publicationSlug: 'public-one',
-        tags: Object.freeze(['tag']),
-        nodeCount: 1,
-        orderingNodeCount: 1,
-        language: null,
-        hiddenPublic: false,
-        viewCount: 0,
-        updatedAt: '2026-07-24T00:00:00.000Z',
-        orderingUpdatedAtMicros: '1784851200000000',
-      }]);
-    },
-  };
-}
 
 function directoryHeaders(): Record<string, string> {
   return {
@@ -121,24 +97,6 @@ function generousLimiter(): ReturnType<typeof createMemorySearchRateLimiter> {
   });
 }
 
-test('anonymous Explore over budget is 429 rate_limited with Retry-After', async () => {
-  const app = buildApiApp({
-    config,
-    publicationDirectoryQuery: directoryQuery(),
-    explorePageQuery: explorePageQuery(),
-    exploreDirectoryRateLimiter: tightLimiter(),
-  });
-  apps.push(app);
-  const allowed = await app.inject({ method: 'GET', url: '/api/v1/explore/collections?sort=popular' });
-  assert.equal(allowed.statusCode, 200);
-  assert.equal(allowed.headers['cache-control'], 'public, max-age=60');
-  const denied = await app.inject({ method: 'GET', url: '/api/v1/explore/collections?sort=popular' });
-  assert.equal(denied.statusCode, 429);
-  assert.equal(denied.json().error.code, 'rate_limited');
-  assert.equal(denied.headers['retry-after'], '60');
-  assert.equal(denied.headers['ratelimit-policy'], 'search:anonymous:1:60000');
-  assert.equal((await app.inject({ method: 'HEAD', url: '/api/v1/explore/collections' })).statusCode, 429);
-});
 
 test('anonymous COLP directory over budget is 429 rate_limited', async () => {
   const limiter = tightLimiter();
@@ -171,7 +129,6 @@ test('Explore and COLP directory may share one limiter instance without sharing 
   const app = buildApiApp({
     config,
     publicationDirectoryQuery: directoryQuery(),
-    explorePageQuery: explorePageQuery(),
     exploreDirectoryRateLimiter: exploreLimiter,
     searchQuery: {
       execute: async () => ({
@@ -186,8 +143,8 @@ test('Explore and COLP directory may share one limiter instance without sharing 
     searchRateLimiter: searchLimiter,
   });
   apps.push(app);
-  assert.equal((await app.inject({ method: 'GET', url: '/api/v1/explore/collections' })).statusCode, 200);
-  assert.equal((await app.inject({ method: 'GET', url: '/api/v1/explore/collections' })).statusCode, 429);
+  assert.equal((await app.inject({ method: 'GET', url: '/colp/v0.1/directory', headers: directoryHeaders() })).statusCode, 200);
+  assert.equal((await app.inject({ method: 'GET', url: '/colp/v0.1/directory', headers: directoryHeaders() })).statusCode, 429);
   const search = await app.inject({ method: 'GET', url: '/api/v1/search?q=probe' });
   assert.equal(search.statusCode, 200);
 });
@@ -227,7 +184,7 @@ test('COLP directory account family does not share the anonymous IP bucket', asy
   assert.equal(member.statusCode, 200);
 });
 
-test('Explore Redis outage is 503 feature_temporarily_unavailable without quota facts', async () => {
+test('Explore/Directory Redis outage is 503 feature_temporarily_unavailable without quota facts', async () => {
   const failing: SearchRateLimiter = {
     consume: async () => ({
       kind: 'failed',
@@ -240,28 +197,23 @@ test('Explore Redis outage is 503 feature_temporarily_unavailable without quota 
   const app = buildApiApp({
     config,
     publicationDirectoryQuery: directoryQuery(),
-    explorePageQuery: explorePageQuery(),
     exploreDirectoryRateLimiter: failing,
   });
   apps.push(app);
-  const response = await app.inject({ method: 'GET', url: '/api/v1/explore/collections' });
+  const response = await app.inject({ method: 'GET', url: '/colp/v0.1/directory', headers: directoryHeaders() });
   assert.equal(response.statusCode, 503);
-  assert.equal(response.json().error.code, 'feature_temporarily_unavailable');
+  assert.equal(response.json().code, 'service_unavailable');
   assert.equal(response.headers['retry-after'], undefined);
   assert.equal(response.headers['ratelimit-policy'], undefined);
 });
 
-test('Explore rejects limit greater than 100; COLP directory allows 500', async () => {
+test('COLP directory allows 500', async () => {
   const app = buildApiApp({
     config,
     publicationDirectoryQuery: directoryQuery(),
-    explorePageQuery: explorePageQuery(),
     exploreDirectoryRateLimiter: generousLimiter(),
   });
   apps.push(app);
-  const overflow = await app.inject({ method: 'GET', url: '/api/v1/explore/collections?limit=101' });
-  assert.equal(overflow.statusCode, 400);
-  assert.equal(overflow.json().error.code, 'invalid_query');
   const colp = await app.inject({
     method: 'GET', url: '/colp/v0.1/directory?limit=500', headers: directoryHeaders(),
   });
@@ -272,10 +224,6 @@ test('omitted Explore limiter fails closed at composition when shared is off', (
   const unused = {} as never;
   assert.throws(
     () => buildApiApp({ config, publicationDirectoryQuery: directoryQuery() }),
-    /injected exploreDirectoryRateLimiter whenever Explore\/Directory routes are registered/,
-  );
-  assert.throws(
-    () => buildApiApp({ config, explorePageQuery: explorePageQuery() }),
     /injected exploreDirectoryRateLimiter whenever Explore\/Directory routes are registered/,
   );
   assert.throws(
@@ -321,10 +269,6 @@ test('shared explore-directory adapter without an injected limiter fails closed 
   const unused = {} as never;
   assert.throws(
     () => buildApiApp({ config: shared, publicationDirectoryQuery: directoryQuery() }),
-    /injected exploreDirectoryRateLimiter.*EXPLORE_DIRECTORY_RATE_LIMIT_SHARED=true/s,
-  );
-  assert.throws(
-    () => buildApiApp({ config: shared, explorePageQuery: explorePageQuery() }),
     /injected exploreDirectoryRateLimiter.*EXPLORE_DIRECTORY_RATE_LIMIT_SHARED=true/s,
   );
   assert.throws(
@@ -442,15 +386,15 @@ test('denied Explore limiter is 429 on COLP metadata GET and HEAD', async () => 
   })).statusCode, 429);
 });
 
-test('public Collection shares the Explore limiter instance', async () => {
+test('public Collection shares the Explore/Directory limiter instance', async () => {
   const app = buildApiApp({
     config,
-    explorePageQuery: explorePageQuery(),
+    publicationDirectoryQuery: directoryQuery(),
     productPublicCollectionQuery: {} as never,
     exploreDirectoryRateLimiter: tightLimiter(),
   });
   apps.push(app);
-  assert.equal((await app.inject({ method: 'GET', url: '/api/v1/explore/collections' })).statusCode, 200);
+  assert.equal((await app.inject({ method: 'GET', url: '/colp/v0.1/directory', headers: directoryHeaders() })).statusCode, 200);
   const denied = await app.inject({ method: 'GET', url: '/api/v1/collections/published' });
   assert.equal(denied.statusCode, 429);
   assert.equal(denied.json().error.code, 'rate_limited');

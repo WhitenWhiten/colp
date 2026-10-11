@@ -6,8 +6,11 @@ import {
   createInProcessMailboxSink,
 } from '../../../src/infrastructure/email/auth-email-adapter.js';
 import { parseEmailSkinConfig } from '../../../src/infrastructure/email/message-skins.js';
-import { UNIFIED_EMAIL_SKIN } from '../../../src/infrastructure/email/unified-email-chrome.js';
-import type { EmailSendInput, EmailSendResult } from '../../../src/modules/email/index.js';
+import {
+  UNIFIED_EMAIL_SKIN,
+  type EmailSendInput,
+  type EmailSendResult,
+} from '../../../src/infrastructure/email/index.js';
 import {
   renderAuthEmailTemplate,
   type AuthEmailPurpose,

@@ -8,7 +8,6 @@ export interface ApiRuntimeResources {
   readonly collaborationMembersCursorSigner: { destroy(): void };
   readonly myCollaborationInvitesCursorSigner: { destroy(): void };
   readonly linkHealthCursorSigner: { destroy(): void };
-  readonly classifyInboxCursorSigner: { destroy(): void };
   readonly collectionVersionCursorSigner: { destroy(): void };
   readonly syncRuntime?: { destroy(): void };
   readonly emailProvider?: { close(): Promise<void> };
@@ -28,13 +27,11 @@ export interface ApiRuntimeResources {
   readonly productRouteRateLimiters: readonly ProductAdmissionRateLimiter[];
   readonly effectPageRateLimiter?: { close(): Promise<void> };
   readonly syncAdmissionPolicy?: { close(): Promise<void> };
-  readonly publishingInsightsRateLimiter: { close(): Promise<void> };
   readonly collaborationInviteRateLimiter: { close(): Promise<void> };
   readonly mcpRateLimiter?: { close(): Promise<void> };
   readonly emailCallbackRateLimiter?: { close(): Promise<void> };
   readonly avatarStore?: { close?: () => Promise<void> };
   readonly faviconStore?: { close?: () => Promise<void> };
-  readonly linkPreviewStore?: { close?: () => Promise<void> };
   readonly cacheComposition: { close(): Promise<void> };
   readonly database: { close(): Promise<void> };
 }
@@ -95,7 +92,6 @@ export async function closeApiRuntimeResources(input: ApiRuntimeResources): Prom
     () => input.myCollaborationInvitesCursorSigner.destroy(),
   );
   attemptDestroy(failures, 'linkHealthCursorSigner', () => input.linkHealthCursorSigner.destroy());
-  attemptDestroy(failures, 'classifyInboxCursorSigner', () => input.classifyInboxCursorSigner.destroy());
   attemptDestroy(failures, 'collectionVersionCursorSigner', () => input.collectionVersionCursorSigner.destroy());
   if (input.syncRuntime !== undefined) {
     const syncRuntime = input.syncRuntime;
@@ -141,7 +137,6 @@ export async function closeApiRuntimeResources(input: ApiRuntimeResources): Prom
   }));
   await attemptOptionalClose(failures, 'effectPageRateLimiter', input.effectPageRateLimiter);
   await attemptOptionalClose(failures, 'syncAdmissionPolicy', input.syncAdmissionPolicy);
-  await attemptClose(failures, 'publishingInsightsRateLimiter', () => input.publishingInsightsRateLimiter.close());
   await attemptClose(failures, 'collaborationInviteRateLimiter', () => input.collaborationInviteRateLimiter.close());
   // FIX-M-018 graceful close: bounded + idempotent (memory adapter = no-op).
   await attemptOptionalClose(failures, 'mcpRateLimiter', input.mcpRateLimiter);
@@ -151,11 +146,6 @@ export async function closeApiRuntimeResources(input: ApiRuntimeResources): Prom
   if (faviconStore?.close !== undefined) {
     const close = faviconStore.close;
     await attemptClose(failures, 'faviconStore', () => close.call(faviconStore));
-  }
-  const linkPreviewStore = input.linkPreviewStore;
-  if (linkPreviewStore?.close !== undefined) {
-    const close = linkPreviewStore.close;
-    await attemptClose(failures, 'linkPreviewStore', () => close.call(linkPreviewStore));
   }
   const avatarStore = input.avatarStore;
   if (avatarStore?.close !== undefined) {

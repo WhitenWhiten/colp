@@ -298,7 +298,7 @@ async function executeScenario(input: {
         code: 'sync_base_unavailable', warnings: [],
       }], serverCursor: 'sync-unchanged' };
       const deferred = await sequence.coordinateAuthorized({ session, replicaId: input.right.replicaId,
-        leaseGeneration: String(binding.lease_generation), sequenceScope: `collection:${COLLECTION}`,
+        leaseGeneration: String(binding.lease_generation), sequenceScope: COLLECTION,
         sequence: 2, operationId: request.operations[0]!.opId, serverBatchId,
         endpointIdentity: '/runtime/push', mediaType: 'application/json',
         payload: Object.freeze({ atomic: request.atomic, operation: request.operations[0]! }),

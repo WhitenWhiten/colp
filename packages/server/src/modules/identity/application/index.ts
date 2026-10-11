@@ -20,11 +20,6 @@ export {
   type PublicProfileOwnerFactsReadPort,
 } from './public-profile-read.js';
 export {
-  EXPLORE_UNKNOWN_CREATOR_ID,
-  type ExploreCreatorFacts,
-  type ExploreCreatorsQueryPort,
-} from './explore-creators-query.js';
-export {
   ensureExtensionAccountIdentity,
   type EnsureExtensionAccountIdentityInput,
   type EnsureExtensionAccountIdentityOptions,

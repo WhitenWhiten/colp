@@ -6,13 +6,37 @@ import {
   type AuthEmailSender,
   type SendAuthEmailInput,
 } from '../../modules/auth/index.js';
-import type { EmailSendInput, EmailSendResult } from '../../modules/email/index.js';
-import { AliyunDirectMailAdapter, redactEvidence } from './aliyun-directmail-adapter.js';
+import { redactSensitiveText } from '../telemetry/index.js';
 import {
   defaultEmailSkinMap,
   wrapEmailMessage,
   type EmailSkinMap,
 } from './message-skins.js';
+
+export interface EmailMessage {
+  readonly to: string;
+  readonly subject: string;
+  readonly textBody?: string;
+  readonly htmlBody?: string;
+}
+
+export interface EmailSendInput {
+  readonly idempotencyKey: string;
+  readonly message: EmailMessage;
+  readonly signal?: AbortSignal;
+}
+
+export interface EmailSendResult {
+  readonly classification: 'success' | 'retryable' | 'permanent' | 'unknown';
+  readonly providerMessageId: string | null;
+  readonly requestId: string | null;
+  readonly errorCategory: string | null;
+  readonly redactedError?: string;
+}
+
+export function redactEvidence(value: unknown): string {
+  return redactSensitiveText(value);
+}
 
 /**
  * C1 authentication email adapter (infrastructure:email).
@@ -313,24 +337,5 @@ export function composeAuthEmailAdapter(options: ComposeAuthEmailAdapterOptions)
       close: async () => {},
     };
   }
-  if (!options.directMail.accountName) {
-    throw new Error('AUTH_EMAIL_DM_ACCOUNT_NAME is required when AUTH_EMAIL_ENABLED is enabled');
-  }
-  const credentials = options.resolveCredentials();
-  const directMail = new AliyunDirectMailAdapter({
-    endpoint: options.directMail.endpoint,
-    regionId: options.directMail.regionId,
-    accountName: options.directMail.accountName,
-    accessKeyId: credentials.accessKeyId,
-    accessKeySecret: credentials.accessKeySecret,
-    timeoutMs: options.directMail.timeoutMs,
-    tagPrefix: options.directMail.tagPrefix,
-    maxTagChars: options.directMail.maxTagChars,
-  });
-  const sender = createAuthEmailAdapter({
-    provider: directMail,
-    logger: options.logger,
-    ...(options.emailSkins === undefined ? {} : { emailSkins: options.emailSkins }),
-  });
-  return { sender, close: () => directMail.close() };
+  return { sender: createUnavailableAuthEmailSender(options.logger), close: async () => {} };
 }

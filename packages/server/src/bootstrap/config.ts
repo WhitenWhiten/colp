@@ -1,7 +1,5 @@
 import 'dotenv/config';
-import { loadClassificationConfig } from './config-classification.js';
 import { timingSafeEqual } from 'node:crypto';
-import { DEFAULT_EXPORT_R2_PREFIX } from '../modules/collections/index.js';
 import {
   assertFeedOperationsConfig,
   assertNotificationOperationsConfig,
@@ -22,7 +20,6 @@ import {
   loadDatabasePoolConfig,
   loadWorkerConcurrencyConfig,
   loadPublisherReceiptRetentionConfig,
-  loadPublicationInsightRetentionConfig,
   loadCacheConfig,
 } from './config-cache.js';
 import { assertDistinctRedisRoles } from './config-redis-roles.js';
@@ -56,13 +53,72 @@ import { loadOidcRuntimeConfig, loadOidcTransactionSecrets } from './config-auth
 import {
   assemblePublicationConfig,
   loadPublicationCore,
-  loadPublishingInsightsConfig,
 } from './config-publication.js';
-import {
-  loadEmailFeatureConfig,
-  loadAuthEmailFeatureConfig,
-  loadCollaborationInviteEmailConfig,
-} from './config-email.js';
+import type {
+  AuthEmailFeatureConfig,
+  CollaborationInviteEmailConfig,
+} from './config-types.js';
+const DEFAULT_AUTH_EMAIL_DM_ENDPOINT = 'https://dm.aliyuncs.com/';
+const DEFAULT_AUTH_EMAIL_DM_REGION_ID = 'cn-hangzhou';
+const DEFAULT_AUTH_EMAIL_DM_TIMEOUT_MS = 10_000;
+const DEFAULT_AUTH_EMAIL_DM_TAG_PREFIX = 'known-auth-';
+const DEFAULT_AUTH_EMAIL_DM_MAX_TAG_CHARS = 128;
+
+function loadAuthEmailFeatureConfig(env: NodeJS.ProcessEnv): AuthEmailFeatureConfig {
+  const authEmailFlag = (env.AUTH_EMAIL_ENABLED ?? 'false').trim().toLowerCase();
+  if (authEmailFlag !== 'true' && authEmailFlag !== 'false') {
+    throw new Error('AUTH_EMAIL_ENABLED must be true or false');
+  }
+  let authEmailEndpointUrl: URL;
+  try {
+    authEmailEndpointUrl = new URL(env.AUTH_EMAIL_DM_ENDPOINT?.trim() ?? DEFAULT_AUTH_EMAIL_DM_ENDPOINT);
+    if (authEmailEndpointUrl.protocol !== 'https:' || authEmailEndpointUrl.username
+        || authEmailEndpointUrl.password || authEmailEndpointUrl.search || authEmailEndpointUrl.hash) {
+      throw new Error();
+    }
+  } catch {
+    throw new Error('AUTH_EMAIL_DM_ENDPOINT must be a clean absolute https URL without userinfo, query or fragment');
+  }
+  const authEmailEndpoint = authEmailEndpointUrl.href;
+  const authEmailRegionId = env.AUTH_EMAIL_DM_REGION_ID?.trim() ?? DEFAULT_AUTH_EMAIL_DM_REGION_ID;
+  if (!/^[a-z]{2,3}(?:-[a-z0-9]+){1,4}$/u.test(authEmailRegionId)) {
+    throw new Error('AUTH_EMAIL_DM_REGION_ID must be an Aliyun region id like cn-hangzhou');
+  }
+  const authEmailAccountName = env.AUTH_EMAIL_DM_ACCOUNT_NAME?.trim() || null;
+  const authEmailTimeoutMs = parsePositiveInt(env.AUTH_EMAIL_DM_TIMEOUT_MS,
+    DEFAULT_AUTH_EMAIL_DM_TIMEOUT_MS, 'AUTH_EMAIL_DM_TIMEOUT_MS', { min: 500, max: 60_000 });
+  const authEmailTagPrefix = env.AUTH_EMAIL_DM_TAG_PREFIX?.trim() ?? DEFAULT_AUTH_EMAIL_DM_TAG_PREFIX;
+  if (!/^[A-Za-z0-9_-]{1,32}$/u.test(authEmailTagPrefix)) {
+    throw new Error('AUTH_EMAIL_DM_TAG_PREFIX must match [A-Za-z0-9_-]{1,32}');
+  }
+  const authEmailMaxTagChars = parsePositiveInt(env.AUTH_EMAIL_DM_MAX_TAG_CHARS,
+    DEFAULT_AUTH_EMAIL_DM_MAX_TAG_CHARS, 'AUTH_EMAIL_DM_MAX_TAG_CHARS', { min: 16, max: 128 });
+  if (authEmailFlag === 'true' && !authEmailAccountName) {
+    throw new Error('AUTH_EMAIL_DM_ACCOUNT_NAME is required when AUTH_EMAIL_ENABLED is enabled');
+  }
+  return Object.freeze({
+    enabled: authEmailFlag === 'true',
+    endpoint: authEmailEndpoint,
+    regionId: authEmailRegionId,
+    accountName: authEmailAccountName,
+    timeoutMs: authEmailTimeoutMs,
+    tagPrefix: authEmailTagPrefix,
+    maxTagChars: authEmailMaxTagChars,
+  });
+}
+
+function loadCollaborationInviteEmailConfig(env: NodeJS.ProcessEnv): CollaborationInviteEmailConfig {
+  const enabled = (env.COLLABORATION_INVITE_EMAIL_ENABLED ?? 'false').trim().toLowerCase() === 'true';
+  return Object.freeze({
+    enabled,
+    endpoint: 'https://dm.aliyuncs.com/',
+    regionId: 'cn-hangzhou',
+    accountName: env.COLLABORATION_INVITE_EMAIL_DM_ACCOUNT_NAME?.trim() || null,
+    timeoutMs: 10_000,
+    tagPrefix: 'known-invite-',
+    maxTagChars: 128,
+  });
+}
 import {
   loadFollowFeatureConfig,
   loadCollectionFollowFeatureConfig,
@@ -84,11 +140,7 @@ import {
   loadProductEditorCursorConfig,
   loadOwnedCollectionsCursorConfig,
   loadLinkHealthFeatureConfig,
-  loadOrganizePlansFeatureConfig,
-  loadReadableReplicaFeatureConfig,
-  loadClassifyInboxFeatureConfig,
   loadCollectionHistoryFeatureConfig,
-  loadExportJobsFeatureConfig,
 } from './config-product.js';
 import { parseEmailSkinConfig } from '../infrastructure/email/index.js';
 import type { AppConfig } from './config-types.js';
@@ -99,17 +151,12 @@ import {
   loadLedgerArchiveReaderRuntimeConfig,
 } from './config-ledger-archive-reader.js';
 import { loadDatabaseConnectionConfig } from '../infrastructure/config/database-connection.js';
-import { loadLinkPreviewFeatureConfig } from './config-link-preview.js';
 import { loadReportsFeatureConfig } from './config-reports.js'; import { loadAccountCredentialsFeatureConfig } from './config-account-credentials.js';
 
 export type * from './config-types.js';
 export { DEFAULT_MCP_WRITE_COMMIT_RATE_LIMIT } from './config-mcp.js';
 export { loadReportsFeatureConfig, parseReportsFeatureConfig } from './config-reports.js';
 export {
-  sanitizeEmailFeatureConfig,
-} from './config-email.js';
-export {
-  assertPublicObjectPrefixesDoNotOverlap,
   DEFAULT_AVATAR_R2_PREFIX,
   DEFAULT_FAVICON_R2_PREFIX,
 } from './config-product.js';
@@ -163,11 +210,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   if (notificationFlag !== 'true' && notificationFlag !== 'false') throw new Error('KNOWN_FEATURE_NOTIFICATIONS must be true or false');
   const notificationOperations = loadNotificationOperationsConfig(env);
 
-  const emailFlag = (env.KNOWN_FEATURE_EMAIL ?? 'false').trim().toLowerCase();
-  if (emailFlag !== 'true' && emailFlag !== 'false') throw new Error('KNOWN_FEATURE_EMAIL must be true or false');
-  const emailBase = loadEmailFeatureConfig(env, emailFlag);
   const authEmail = loadAuthEmailFeatureConfig(env);
-  const collaborationInviteEmail = loadCollaborationInviteEmailConfig(env, { nodeEnv, authEmail });
+  const collaborationInviteEmail = loadCollaborationInviteEmailConfig(env);
   const emailSkins = parseEmailSkinConfig(env);
 
   const productOrigin = requireNonEmpty(env, 'PRODUCT_ORIGIN', 'http://127.0.0.1:3000');
@@ -185,25 +229,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   }
   const allowedOrigins = parseOrigins(env.ALLOWED_ORIGINS, productOrigin);
   const betterAuth = loadBetterAuthConfig(env, nodeEnv, productOrigin, allowedOrigins);
-  if (emailBase.opsToken !== null && betterAuth.secret !== null) {
-    const tokenBytes = Buffer.from(emailBase.opsToken, 'utf8');
-    const secretBytes = Buffer.from(betterAuth.secret, 'utf8');
-    if (tokenBytes.length === secretBytes.length && timingSafeEqual(tokenBytes, secretBytes)) {
-      throw new Error('EMAIL_OPS_TOKEN must not equal BETTER_AUTH_SECRET');
-    }
-  }
 
   const avatarR2Prefix = env.AVATAR_R2_PREFIX?.trim() || DEFAULT_AVATAR_R2_PREFIX;
   const faviconR2Prefix = env.FAVICON_R2_PREFIX?.trim() || DEFAULT_FAVICON_R2_PREFIX;
-  const exportR2Prefix = env.EXPORT_R2_PREFIX?.trim() || DEFAULT_EXPORT_R2_PREFIX;
-  const linkPreview = loadLinkPreviewFeatureConfig(env);
   assertPublicObjectPrefixesDoNotOverlap(
     avatarR2Prefix,
     faviconR2Prefix,
     DEFAULT_ATTACHMENTS_LIVE_PREFIX,
     DEFAULT_ATTACHMENTS_PROBE_PREFIX,
-    exportR2Prefix,
-    linkPreview.r2Prefix,
   );
 
   const publicationCore = loadPublicationCore(env, { nodeEnv, productOrigin });
@@ -212,28 +245,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   });
   const productEditorCursor = loadProductEditorCursorConfig(env, nodeEnv);
   const productOwnedCollectionsCursor = loadOwnedCollectionsCursorConfig(env, nodeEnv);
-  const organizePlans = loadOrganizePlansFeatureConfig(env);
-  const readableReplica = loadReadableReplicaFeatureConfig(env);
-  const exportJobs = loadExportJobsFeatureConfig(env, exportR2Prefix);
   const linkHealth = loadLinkHealthFeatureConfig(env, nodeEnv, {
     editorKey: productEditorCursor.current.key,
     ownedKey: productOwnedCollectionsCursor.current.key,
-  });
-  const classifyInbox = loadClassifyInboxFeatureConfig(env, nodeEnv, {
-    editorKey: productEditorCursor.current.key,
-    ownedKey: productOwnedCollectionsCursor.current.key,
-    linkHealthKey: linkHealth.cursor.current.key,
   });
   const collectionHistory = loadCollectionHistoryFeatureConfig(env, nodeEnv, {
     editorKey: productEditorCursor.current.key,
     ownedKey: productOwnedCollectionsCursor.current.key,
     linkHealthKey: linkHealth.cursor.current.key,
-    classifyInboxKey: classifyInbox.cursor.current.key,
-  });
-  const publishingInsights = loadPublishingInsightsConfig(env, {
-    nodeEnv,
-    productEditorCursorKey: productEditorCursor.current.key,
-    ownedCursorKey: productOwnedCollectionsCursor.current.key,
   });
   const collaborationInviteRateLimit = loadCollaborationInviteRateLimitSharedConfig(env, nodeEnv);
   const collaborationSecret = collaborationInviteRateLimit.keySecret.toString('utf8');
@@ -244,8 +263,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     env.PUBLIC_ACTIVITY_RATE_LIMIT_KEY_SECRET?.trim() ?? '',
     env.PRODUCT_ROUTE_RATE_LIMIT_KEY_SECRET?.trim() ?? '',
     env.SYNC_RATE_LIMIT_KEY_SECRET?.trim() ?? '',
-    publishingInsights.visitorHmacKey.toString('utf8'),
-    publishingInsights.rateLimitHmacKey.toString('utf8'),
   ].filter((value) => value.length > 0));
   if (forbiddenCollaborationSecrets.has(collaborationSecret)) {
     throw new Error(
@@ -272,8 +289,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       env.SYNC_EFFECT_PAGE_RATE_LIMIT_KEY_SECRET?.trim() ?? '',
       env.PUBLIC_ACTIVITY_RATE_LIMIT_KEY_SECRET?.trim() ?? '',
       env.PRODUCT_ROUTE_RATE_LIMIT_KEY_SECRET?.trim() ?? '',
-      publishingInsights.visitorHmacKey.toString('utf8'),
-      publishingInsights.rateLimitHmacKey.toString('utf8'),
       collaborationSecret,
     ].filter((value) => value.length > 0));
     if (forbiddenExploreSecrets.has(exploreSecret)) {
@@ -312,8 +327,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       env.FEED_RATE_LIMIT_KEY_SECRET?.trim() ?? '',
       env.NOTIFICATION_RATE_LIMIT_KEY_SECRET?.trim() ?? '',
       env.SYNC_EFFECT_PAGE_RATE_LIMIT_KEY_SECRET?.trim() ?? '',
-      publishingInsights.visitorHmacKey.toString('utf8'),
-      publishingInsights.rateLimitHmacKey.toString('utf8'),
     ].filter((value) => value.length > 0));
     if (forbiddenSyncSecrets.has(syncSecret)) {
       throw new Error(
@@ -341,8 +354,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     [PUBLIC_ACTIVITY_RATE_LIMIT_FAMILY_ENV, publicActivityRateLimitShared],
     [PRODUCT_ROUTE_RATE_LIMIT_FAMILY_ENV, productRouteRateLimitShared],
   ] as const;
-  const publishingInsightsVisitorKey = publishingInsights.visitorHmacKey.toString('utf8');
-  const publishingInsightsRateLimitKey = publishingInsights.rateLimitHmacKey.toString('utf8');
   for (const [names, shared] of redisFamilyShared) {
     if (shared.keySecret === null) continue;
     const secret = shared.keySecret.toString('utf8');
@@ -364,8 +375,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
         .filter(([label, value]) => label !== names.keySecret && value.length > 0)
         .map(([, value]) => value),
     );
-    siblingSecrets.add(publishingInsightsVisitorKey);
-    siblingSecrets.add(publishingInsightsRateLimitKey);
     siblingSecrets.delete('');
     if (siblingSecrets.has(secret)) {
       throw new Error(
@@ -386,10 +395,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     ['PRODUCT_ROUTE_RATE_LIMIT_KEY_PREFIX', productRouteRateLimitShared.keyPrefix],
   ]);
   const syncEffectPageRateLimit = Object.freeze({ shared: effectPageRateLimitShared });
-  if (nodeEnv === 'production' && httpSecurity.authApiReplicas > 1
-      && !publishingInsights.rateLimitShared.enabled) {
-    throw new Error('Production multi-replica API (AUTH_API_REPLICAS > 1) requires PUBLISHING_INSIGHTS_RATE_LIMIT_SHARED=true');
-  }
   if (nodeEnv === 'production' && httpSecurity.authApiReplicas > 1
       && !collaborationInviteRateLimit.enabled) {
     throw new Error('Production multi-replica API (AUTH_API_REPLICAS > 1) requires COLLABORATION_INVITE_RATE_LIMIT_SHARED=true');
@@ -425,7 +430,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       siblingCursorSecrets: {
         followSecret: follow.cursorKeys.active.secret,
         feedSecret: feed.cursorKeys.active.secret,
-        classifyKey: classifyInbox.cursor.current.key,
         editorKey: productEditorCursor.current.key,
         ownedKey: productOwnedCollectionsCursor.current.key,
         linkHealthKey: linkHealth.cursor.current.key,
@@ -459,22 +463,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
         concurrency: linkHealth.enabled ? linkHealth.workerConcurrency : 0,
       },
       {
-        name: 'READABLE_REPLICA_WORKER_CONCURRENCY',
-        concurrency: readableReplica.enabled ? readableReplica.workerConcurrency : 0,
-      },
-      { name: 'LINK_PREVIEW_CONCURRENCY', concurrency: linkPreview.enabled ? linkPreview.workerConcurrency : 0 },
-      {
-        name: 'EXPORT_JOB_WORKER_CONCURRENCY',
-        concurrency: exportJobs.enabled ? exportJobs.workerConcurrency : 0,
-      },
-      {
         name: 'LEDGER_ARCHIVE_CONCURRENCY',
         concurrency: ledgerArchive.enabled ? ledgerArchive.concurrency : 0,
       },
     ],
   });
   const publisherReceipts = loadPublisherReceiptRetentionConfig(env);
-  const publicationInsightRetention = loadPublicationInsightRetentionConfig(env);
   const collaborationInviteCleanup = loadCollaborationInviteCleanupConfig(env);
   const cache = loadCacheConfig(env);
   assertDistinctRedisRoles(env, cache.redis.mode);
@@ -549,12 +543,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       && (mcpConfig !== undefined || mcpWriteEnabled) && !mcpRateLimit.enabled) {
     throw new Error('Production multi-replica API (AUTH_API_REPLICAS > 1) with MCP enabled requires MCP_RATE_LIMIT_SHARED=true');
   }
-  const emailCallbackRateLimitShared = loadEmailCallbackRateLimitSharedConfig(env);
-  if (nodeEnv === 'production' && httpSecurity.authApiReplicas > 1
-      && emailFlag === 'true' && emailBase.callback.hmacSecret !== null && !emailCallbackRateLimitShared.enabled) {
-    throw new Error('Production multi-replica API (AUTH_API_REPLICAS > 1) with the email callback ingress mounted requires EMAIL_CALLBACK_RATE_LIMIT_SHARED=true');
-  }
-
   const { publicShellMeta, publicProfileShell } = loadPublicShellConfigs(env);
 
   return {
@@ -575,16 +563,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     productEditorCursor,
     productOwnedCollectionsCursor,
     linkHealth,
-    classification: loadClassificationConfig(env),
-    organizePlans,
-    readableReplica,
-    linkPreview,
-    classifyInbox,
     collectionHistory,
-    exportJobs,
     ledgerArchive,
     ledgerArchiveReader,
-    publishingInsights,
     collaborationInviteRateLimit,
     exploreDirectoryRateLimit,
     publicActivityRateLimit,
@@ -599,7 +580,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     bookmarkSubscriptions: { enabled: env.KNOWN_FEATURE_BOOKMARK_SUBSCRIPTIONS === 'true', protocolReady: env.KNOWN_BOOKMARK_SUBSCRIPTIONS_PROTOCOL_READY === 'true' },
     worker,
     publisherReceipts,
-    publicationInsightRetention,
     syncTombstonePurge,
     syncEvidenceMaintenance,
     follow,
@@ -610,10 +590,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     feed,
     publicActivity,
     notifications,
-    email: Object.freeze({
-      ...emailBase,
-      callbackRateLimitShared: emailCallbackRateLimitShared,
-    }),
     authEmail,
     collaborationInviteEmail,
     emailSkins,

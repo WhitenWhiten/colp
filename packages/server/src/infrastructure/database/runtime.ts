@@ -1,10 +1,4 @@
 import type { BookmarkSubscriptionsDatabaseSchema } from './bookmark-subscription-tables.js';
-import type { CaptureDecisionTable } from '../collections/capture-records.js';
-import type { ClassificationEvidenceDatabaseSchema } from './classification-evidence-table.js';
-import type { ClassificationProfileDatabaseSchema } from './classification-profile-tables.js';
-import type { ClassificationAutoTagDatabaseSchema } from './classification-auto-tag-table.js';
-import type { ClassificationRunDatabaseSchema } from './classification-run-tables.js';
-import type { CreditDatabaseSchema } from './credit-tables.js';
 import type { CollectionTable, NodeTable } from './collection-tables.js';
 export type { CollectionTable, NodeTable } from './collection-tables.js';
 import { Kysely, PostgresDialect, type Generated, type GeneratedAlways } from 'kysely';
@@ -14,11 +8,7 @@ import { PostgresControlClient } from './postgres-control-client.js';
 import type { OutboxDatabaseSchema } from './outbox-tables.js'; import type { ReportsDatabaseSchema } from './reports-tables.js'; import type { GovernanceDatabaseSchema } from './governance-tables.js';
 import { TransactionPhaseDialect, type TransactionPhaseFaultInjector } from './transaction-phase-driver.js';
 export type { OutboxEventTable } from './outbox-tables.js';
-export interface DatabaseSchema extends BookmarkSubscriptionsDatabaseSchema, OutboxDatabaseSchema, ReportsDatabaseSchema, GovernanceDatabaseSchema, ClassificationRunDatabaseSchema, ClassificationAutoTagDatabaseSchema, ClassificationProfileDatabaseSchema, ClassificationEvidenceDatabaseSchema, CreditDatabaseSchema {
-  collection_classification_settings: import('./classification-tables.js').ClassificationSettingsTable;
-  classification_provider_executions: import('./classification-tables.js').ClassificationExecutionTable;
-  classification_call_attempts: import('./classification-tables.js').ClassificationCallAttemptTable;
-  classification_spend_budgets: import('./classification-tables.js').ClassificationSpendBudgetTable;
+export interface DatabaseSchema extends BookmarkSubscriptionsDatabaseSchema, OutboxDatabaseSchema, ReportsDatabaseSchema, GovernanceDatabaseSchema {
   account_credentials: import('./account-credentials-tables.js').AccountCredentialTable; account_credential_grants: import('./account-credential-grant-tables.js').AccountCredentialGrantTable; account_credential_plan_authorizations: import('./account-credential-grant-tables.js').AccountCredentialPlanAuthorizationTable; mcp_report_plans: import('./account-credential-grant-tables.js').McpReportPlanTable; ledger_archive_segments: import('./ledger-archive-tables.js').LedgerArchiveSegmentTable;
   ledger_archive_export_jobs: import('./ledger-archive-export-job-tables.js').LedgerArchiveExportJobTable;
   ledger_payload_purge_jobs: import('./ledger-payload-purge-tables.js').LedgerPayloadPurgeJobTable;
@@ -30,12 +20,11 @@ export interface DatabaseSchema extends BookmarkSubscriptionsDatabaseSchema, Out
   publisher_idempotency: PublisherIdempotencyTable;
   accounts: AccountTable;
   bookmark_preferences: BookmarkPreferencesTable;
-  bookmark_capture_decisions: CaptureDecisionTable;
-  bookmark_capture_edits: import('../collections/capture-records.js').CaptureEditTable;
-  bookmark_capture_feedback: import('../collections/capture-records.js').CaptureFeedbackTable;
-  bookmark_capture_learning: import('../collections/capture-records.js').CaptureLearningTable;
-  bookmark_capture_tasks: import('../collections/capture-records.js').CaptureTaskTable;
-  classification_evidence_erasure: { owner_subject_id: string; source: string; command_id: string; node_id: string };
+  bookmark_capture_decisions: Record<string, unknown>;
+  bookmark_capture_edits: Record<string, unknown>;
+  bookmark_capture_feedback: Record<string, unknown>;
+  bookmark_capture_learning: Record<string, unknown>;
+  bookmark_capture_tasks: Record<string, unknown>;
   profiles: ProfileTable;
   profile_handles: ProfileHandleTable;
   account_identities: AccountIdentityTable;

@@ -5,13 +5,31 @@ import {
   type InviteEmailSender,
   type SendInviteEmailInput,
 } from '../../modules/access-policy/index.js';
-import type { EmailSendInput, EmailSendResult } from '../../modules/email/index.js';
-import { AliyunDirectMailAdapter, redactEvidence, validateIdempotencyKey } from './aliyun-directmail-adapter.js';
+import {
+  type EmailSendInput,
+  type EmailSendResult,
+  redactEvidence,
+} from './auth-email-adapter.js';
 import {
   defaultEmailSkinMap,
   wrapEmailMessage,
   type EmailSkinMap,
 } from './message-skins.js';
+
+export function validateIdempotencyKey(
+  key: string,
+  limits: { readonly tagPrefix?: string; readonly maxTagChars?: number } = {},
+): { readonly ok: true } | { readonly ok: false; readonly reason: string } {
+  if (typeof key !== 'string' || key.length === 0 || key.length > INVITE_EMAIL_IDEMPOTENCY_KEY_MAX_CHARS) {
+    return { ok: false, reason: `idempotencyKey must be 1..${INVITE_EMAIL_IDEMPOTENCY_KEY_MAX_CHARS} chars` };
+  }
+  const prefix = limits.tagPrefix ?? '';
+  const maxChars = limits.maxTagChars ?? 128;
+  if (`${prefix}${key}`.length > maxChars) {
+    return { ok: false, reason: `TagName (tagPrefix + idempotencyKey) exceeds ${maxChars} chars` };
+  }
+  return { ok: true };
+}
 
 /**
  * SC-04 collection invite email adapter (infrastructure:email).
@@ -276,29 +294,5 @@ export function composeInviteEmailAdapter(options: ComposeInviteEmailAdapterOpti
       close: async () => {},
     };
   }
-  if (!options.directMail.accountName) {
-    throw new Error(
-      'COLLABORATION_INVITE_EMAIL_DM_ACCOUNT_NAME or AUTH_EMAIL_DM_ACCOUNT_NAME is required '
-      + 'when COLLABORATION_INVITE_EMAIL_ENABLED is enabled',
-    );
-  }
-  const credentials = options.resolveCredentials();
-  const directMail = new AliyunDirectMailAdapter({
-    endpoint: options.directMail.endpoint,
-    regionId: options.directMail.regionId,
-    accountName: options.directMail.accountName,
-    accessKeyId: credentials.accessKeyId,
-    accessKeySecret: credentials.accessKeySecret,
-    timeoutMs: options.directMail.timeoutMs,
-    tagPrefix: options.directMail.tagPrefix,
-    maxTagChars: options.directMail.maxTagChars,
-  });
-  const sender = createInviteEmailAdapter({
-    provider: directMail,
-    logger: options.logger,
-    tagPrefix: options.directMail.tagPrefix,
-    maxTagChars: options.directMail.maxTagChars,
-    ...(options.emailSkins === undefined ? {} : { emailSkins: options.emailSkins }),
-  });
-  return { sender, close: () => directMail.close() };
+  return { sender: createUnavailableInviteEmailSender(options.logger), close: async () => {} };
 }

@@ -39,8 +39,7 @@ import type {
   LockedNodeRow,
   NodeWritePort,
 } from './ports.js';
-import type { FaviconGcWritePort } from './favicon-job.js';
-import { faviconRetentionSeconds } from './favicon-job-execution.js';
+import { type FaviconGcWritePort, faviconRetentionSeconds } from './bookmark-favicon-command.js';
 import { CollectionPreconditionError } from '../domain/index.js';
 
 export const FAVICON_HELPER_CAPTURE_CONTRACT_VERSION = '1.0.0';

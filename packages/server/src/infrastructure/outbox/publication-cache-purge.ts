@@ -14,7 +14,6 @@ import {
   type OutboxHandlerContext,
   type OutboxRoute,
 } from './router.js';
-import type { IndexNowPublisher } from './indexnow.js';
 
 export const PUBLICATION_CACHE_PURGE_EVENT_TYPE = 'publication.cache_purge.requested';
 export const PUBLICATION_CACHE_PURGE_EVENT_VERSION_N_MINUS_1 = 1 as const;
@@ -223,8 +222,6 @@ export interface CreatePublicationCachePurgeRoutesOptions {
   readonly productOrigin: string;
   readonly timeoutMs: number;
   readonly metrics?: Metrics;
-  /** Optional best-effort IndexNow side effect; invoked only after provider success. */
-  readonly indexNowPublisher?: IndexNowPublisher;
   /** Current canonical public handle for the collection owner; no new outbox route/event fields. */
   readonly resolvePublicProfileHandle?: (
     collectionId: string,
@@ -306,8 +303,6 @@ async function requestFromContext(
       ...(publicProfileHandle === null
         ? []
         : [`${options.productOrigin}/u/${encodeURIComponent(publicProfileHandle)}`]),
-      // The injected /explore document lists the newest public collections.
-      `${options.productOrigin}/explore`,
       `${options.productOrigin}/sitemap-collections.xml`,
       `${options.productOrigin}/sitemap-profiles.xml`,
     ]),
@@ -385,8 +380,7 @@ export function createPublicationCachePurgeRoutes(
           `closed payload rejected for ${registration.eventType}@${registration.eventVersion}`,
         );
       }
-      const request = await invokeProvider(context, options);
-      options.indexNowPublisher?.notifyPublicationSlug(request.publicationSlug);
+      await invokeProvider(context, options);
     },
   }));
 }

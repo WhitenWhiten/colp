@@ -88,7 +88,5 @@ export {
 export * from './domain/snapshot-tree-capacity.js';
 export * from './domain/bookmark-pin.js';
 export * from './application/index.js';
-export * from './application/classification-exports.js';
-export * from './application/link-preview-exports.js';
 
 export * from './application/actor-bookmark-read.js';

@@ -1,4 +1,3 @@
-import { overlaySharedFaviconObjectIds } from './favicon-shared-projection.js';
 import type { Kysely } from 'kysely';
 import type {
   BookmarkIconReadPort,
@@ -51,7 +50,6 @@ export async function deleteBookmarkIconsForCollection(
     .execute();
 }
 
-/** Empty `nodeIds` must not issue SQL. Missing ids are omitted from the map. */
 export async function findBookmarkIconObjectIdsByNodeIds(
   db: DatabaseTransaction | Kysely<DatabaseSchema>,
   nodeIds: readonly string[],
@@ -62,7 +60,7 @@ export async function findBookmarkIconObjectIdsByNodeIds(
     .select(['node_id', 'object_id'])
     .where('node_id', 'in', [...nodeIds])
     .execute();
-  return overlaySharedFaviconObjectIds(db, nodeIds, new Map(rows.map((row) => [row.node_id, row.object_id])));
+  return new Map(rows.map((row) => [row.node_id, row.object_id]));
 }
 
 export function createPostgresBookmarkIconReadPort(

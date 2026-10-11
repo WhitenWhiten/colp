@@ -150,14 +150,17 @@ export async function lockLane(
   input: Readonly<SyncSequenceAdmissionInput>,
   authority: SequenceAuthority,
 ): Promise<void> {
+  const dbScope = input.sequenceScope.startsWith('collection:')
+    ? input.sequenceScope
+    : `collection:${authority.collectionId}`;
   await sql`
     insert into sync_sequence_lanes (replica_id,collection_id,sequence_scope)
-    values (${authority.replicaId},${authority.collectionId},${input.sequenceScope})
+    values (${authority.replicaId},${authority.collectionId},${dbScope})
     on conflict (replica_id,sequence_scope) do nothing
   `.execute(transaction);
   const locked = await sql<Record<string, unknown>>`
     select replica_id,collection_id,sequence_scope from sync_sequence_lanes
-    where replica_id=${authority.replicaId} and sequence_scope=${input.sequenceScope}
+    where replica_id=${authority.replicaId} and sequence_scope=${dbScope}
     for update
   `.execute(transaction);
   const row = locked.rows[0];

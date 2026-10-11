@@ -27,9 +27,22 @@ import {
   projectBookmarkIconUrl,
 } from './bookmark-icon-url.js';
 import type { BookmarkIconRow, BookmarkIconWritePort, CollectionWritePort, CollectionsClock, LockedNodeRow, NodeWritePort } from './ports.js';
-import type { FaviconGcWritePort } from './favicon-job.js';
-import { faviconRetentionSeconds } from './favicon-job-execution.js';
 import type { BookmarkIconSourceWritePort } from './favicon-icon-source.js';
+
+export interface FaviconGcWritePort {
+  recordRetired(item: {
+    objectId: string;
+    nodeId: string;
+    collectionId: string;
+    retiredAt: Date;
+    deletableAt: Date;
+  }): Promise<void>;
+}
+
+const DEFAULT_FAVICON_RETENTION_SECONDS = 31_536_000;
+export function faviconRetentionSeconds(): number {
+  return DEFAULT_FAVICON_RETENTION_SECONDS;
+}
 
 export const BOOKMARK_FAVICON_COMMAND_CONTRACT_VERSION = '1.0.0';
 
@@ -70,7 +83,7 @@ export interface BookmarkFaviconCommandPorts {
   readonly bookmarkIcons: BookmarkIconWritePort;
   readonly faviconStore: BookmarkFaviconObjectStore;
   /** Durable retirement of the displaced object (retention window). */
-  readonly faviconGc: Pick<FaviconGcWritePort, 'recordRetired'>;
+  readonly faviconGc?: Pick<FaviconGcWritePort, 'recordRetired'>;
   /** FO-01 source state; the real upload/delete persist uploaded/none here. */
   readonly faviconSources?: Pick<BookmarkIconSourceWritePort, 'setMode'>;
   readonly onOrphanCleanupFailure?: () => void;
@@ -203,7 +216,7 @@ export async function uploadBookmarkFavicon(
     // durable GC retention window instead of deleting it immediately. Public
     // reads already revoke the displaced binding before serving bytes.
     try {
-      await ports.faviconGc.recordRetired({
+      await ports.faviconGc?.recordRetired({
         objectId: previous.objectId,
         nodeId: previous.nodeId,
         collectionId: previous.collectionId,
@@ -254,7 +267,7 @@ export async function deleteBookmarkFavicon(
   if (previous !== null) {
     // DELETE → none is explicit intent, but the retired object still enters
     // the durable GC retention window (never an immediate object delete).
-    await ports.faviconGc.recordRetired({
+    await ports.faviconGc?.recordRetired({
       objectId: previous.objectId,
       nodeId: previous.nodeId,
       collectionId: previous.collectionId,

@@ -27,16 +27,118 @@ import type {
   LockedNodeRow,
   NodeWritePort,
 } from './ports.js';
-import type {
-  FaviconGcWritePort,
-  FaviconJobReadPort,
-} from './favicon-job.js';
-import type { FaviconSourceRestoreRow } from './favicon-batch-policy.js';
-import { faviconRetentionSeconds } from './favicon-job-execution.js';
-import {
-  faviconHostnameFromBookmarkUrl,
-  resolveFaviconProviderUrl,
-} from './favicon-fetch-policy.js';
+import { isIP } from 'node:net';
+import { type FaviconGcWritePort, faviconRetentionSeconds } from './bookmark-favicon-command.js';
+
+export interface FaviconSourceRestoreRow {
+  readonly nodeId: string;
+}
+
+export interface FaviconJobReadPort {
+  latestForNode(nodeId: string): Promise<{ status: string } | null>;
+}
+
+const RESERVED_HOST_SUFFIXES = Object.freeze([
+  '.local',
+  '.localhost',
+  '.internal',
+  '.corp',
+  '.home',
+  '.lan',
+  '.intranet',
+  '.test',
+  '.example',
+  '.invalid',
+  '.onion',
+] as const);
+
+const INTEGER_IPV4 = /^(?:0|[1-9]\d{0,9})$/u;
+const HEX_IPV4 = /^0x[0-9a-f]{1,8}$/iu;
+const IPV4_OCTET = /^(?:0|[1-9]\d*|0[0-7]+|0x[0-9a-f]+)$/iu;
+
+function stripIpv6Brackets(hostname: string): string {
+  const trimmed = hostname.trim();
+  if (trimmed.startsWith('[') && trimmed.endsWith(']')) return trimmed.slice(1, -1);
+  return trimmed;
+}
+
+export function isFaviconLiteralIpHostname(hostname: string): boolean {
+  if (typeof hostname !== 'string' || hostname.length === 0) return false;
+  const host = stripIpv6Brackets(hostname).toLowerCase().split('%')[0] ?? '';
+  if (host.includes(':')) return isIP(host) !== 0;
+  if (INTEGER_IPV4.test(host)) {
+    const value = Number(host);
+    if (Number.isInteger(value) && value >= 0 && value <= 0xffff_ffff) return true;
+  }
+  if (HEX_IPV4.test(host)) return true;
+  const parts = host.split('.');
+  return parts.length >= 2 && parts.length <= 4 && parts.every((part) => IPV4_OCTET.test(part));
+}
+
+export function isFaviconReservedHostname(hostname: string): boolean {
+  const folded = hostname.trim().replace(/\.+$/u, '').toLowerCase();
+  if (folded.length === 0 || folded === 'localhost') return true;
+  if (!folded.includes('.')) return true;
+  return RESERVED_HOST_SUFFIXES.some((suffix) => folded.endsWith(suffix));
+}
+
+const HOSTNAME_SEGMENT = /^[A-Za-z0-9._~-]{1,253}$/u;
+
+export function normalizeFaviconHostname(hostname: string): string | null {
+  let host = hostname.trim().toLowerCase();
+  if (host.startsWith('[') && host.endsWith(']')) host = host.slice(1, -1);
+  const zone = host.indexOf('%');
+  if (zone !== -1) host = host.slice(0, zone);
+  host = host.replace(/\.+$/u, '');
+  if (host.length === 0) return null;
+  if (isFaviconLiteralIpHostname(host)) return null;
+  if (isFaviconReservedHostname(host)) return null;
+  if (!HOSTNAME_SEGMENT.test(host)) return null;
+  return host;
+}
+
+export function faviconHostnameFromBookmarkUrl(value: string): string | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    return null;
+  }
+  const protocol = parsed.protocol.toLowerCase();
+  if (protocol !== 'http:' && protocol !== 'https:') return null;
+  if (parsed.username !== '' || parsed.password !== '') return null;
+  if (parsed.hostname.length < 1) return null;
+  return normalizeFaviconHostname(parsed.hostname);
+}
+
+export function resolveFaviconProviderUrl(
+  template: string,
+  hostname: string,
+): string | null {
+  if (typeof template !== 'string' || template.length === 0 || template.length > 2048) {
+    return null;
+  }
+  const markerCount = template.split('{hostname}').length - 1;
+  if (markerCount !== 1) return null;
+  const normalized = normalizeFaviconHostname(hostname);
+  if (normalized === null) return null;
+  const substituted = template.replace('{hostname}', normalized);
+  let parsed: URL;
+  try {
+    parsed = new URL(substituted);
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== 'https:') return null;
+  if (parsed.username !== '' || parsed.password !== '') return null;
+  if (parsed.hash !== '') return null;
+  if (parsed.port !== '' && parsed.port !== '443') return null;
+  const target = parsed.hostname.toLowerCase();
+  if (isFaviconLiteralIpHostname(target)) return null;
+  if (isFaviconReservedHostname(target)) return null;
+  if (target.includes('..')) return null;
+  return parsed.toString();
+}
 
 export const FAVICON_SOURCE_COMMAND_CONTRACT_VERSION = '1.0.0';
 export const FAVICON_SOURCE_ETAG_SCOPE = 'favicon-source';

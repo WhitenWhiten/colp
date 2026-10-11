@@ -1,11 +1,5 @@
-import { loadSharedFaviconConfig } from './config-favicon-shared.js';
-import { SharedFaviconCache } from '../infrastructure/collections/favicon-shared-cache.js';
-import { composeLinkPreviewWorker, composeLinkPreviewWorkerStore, type ComposedLinkPreviewWorker, type LinkPreviewWorkerSeam } from './link-preview-worker-composition.js';
-import { createScheduledFaviconFetcher } from '../infrastructure/collections/favicon-provider-scheduler.js';
 import { composeProductionOutboxProjectionRoutes,resolveProductionProjectionSink } from './worker-projection-composition.js';
 export { composeProductionOutboxProjectionRoutes,resolveProductionProjectionSink } from './worker-projection-composition.js';
-import { createPostgresClassificationAutoTagRoute } from '../infrastructure/collections/index.js';
-import { classificationAutoTagEnvelopeRegistration } from '../infrastructure/outbox/index.js';
 import {
   loadConfig,
   sanitizedRuntimeCapacity,
@@ -31,18 +25,12 @@ import {
   type RedisClientOptions,
 } from '../infrastructure/cache/index.js';
 import { createPostgresPublisherReceiptMaintenancePortFactory } from '../infrastructure/publisher/index.js';
-import { createPostgresPublicationInsightMaintenancePortFactory } from '../infrastructure/publication/index.js';
 import {
   schedulePublisherReceiptPurge,
   PUBLISHER_MIN_REPLAY_WINDOW_SECONDS,
   type PublisherReceiptMaintenancePortFactory,
   type PublisherReceiptPurgeSchedule,
 } from '../modules/publisher/index.js';
-import {
-  schedulePublicationInsightPurge,
-  type PublicationInsightMaintenancePortFactory,
-  type PublicationInsightPurgeSchedule,
-} from '../modules/publication/index.js';
 import {
   OutboxRouter,
   EventEnvelopeRegistry,
@@ -57,10 +45,7 @@ import {
   syncConflictEnvelopeRegistration,
   collectionInviteCreatedEnvelopeRegistration,
   createCollectionInviteEmailOutboxRoute,
-  BestEffortIndexNowPublisher,
   type CollectionMutationProjectionSink,
-  type IndexNowFetch,
-  type IndexNowPublisher,
   type PublicationCachePurgeProvider,
   type PublicationCachePurgeReadinessState,
   type OutboxRoute,
@@ -72,44 +57,18 @@ import {
 } from './publication-cache-purge-composition.js';
 export { resolvePublicationCachePurgeProvider } from './publication-cache-purge-composition.js';
 import {
-  createPostgresEmailDeliveryWorkerRepository,
-  createPostgresEmailSuppressionOpsRepository,
-  createEmailDeliveryWorkerRuntime,
-  type EmailDeliveryWorkerLoopLogger,
-  type EmailDeliveryWorkerRuntime,
-} from '../infrastructure/email/index.js';
-import {
   createLinkHealthWorkerRuntime,
   createPostgresLinkHealthWorkerRepository,
-  createReadableReplicaWorkerRuntime,
-  createPostgresReadableReplicaWorkerRepository,
-  createExportJobWorkerRuntime,
-  createPostgresExportJobWorkerRepository,
-  createPostgresExportLibraryProjectionPort,
-  createR2ExportStore,
-  createFaviconWorkerRuntime,
-  createPostgresFaviconJobWorkerRepository,
-  createPostgresFaviconJobWorkerUnitOfWork,
-  createPostgresFaviconGcRepository,
-  defaultFaviconDecompressedBudget,
-  fetchFaviconImage,
   linkHealthProbeInjectionFromEnv,
-  type FaviconWorkerRuntime,
   type LinkHealthWorkerLoopOptions,
   type LinkHealthWorkerRuntime,
-  type ReadableReplicaWorkerLoopOptions,
-  type ReadableReplicaWorkerRuntime,
-  type ExportJobWorkerRuntime,
 } from '../infrastructure/collections/index.js';
 import { createPostgresInviteEmailDeliveryRepository } from '../infrastructure/access-policy/index.js';
 import { createPostgresCollaborationInviteMaintenancePortFactory } from '../infrastructure/access-policy/index.js';
 import { buildInviteLoginUrl, processOne, scheduleCollaborationInviteCleanup,
   type CollaborationInviteCleanupSchedule,
   type CollaborationInviteMaintenancePortFactory } from '../modules/access-policy/index.js';
-import { createEmailDeliveryRetryPolicy, type EmailProviderAdapter }
-  from '../modules/email/index.js';
 import {
-  AliyunDirectMailAdapter,
   composeAuthEmailAdapter,
   composeInviteEmailAdapter,
   type AuthEmailAdapter,
@@ -117,7 +76,6 @@ import {
   type InviteEmailAdapter,
   type InviteEmailComposition,
 } from '../infrastructure/email/index.js';
-import { inspectEmailDeliveryMetrics } from '../modules/email/index.js';
 import { pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
 import {
@@ -145,7 +103,6 @@ import {
 import { composeLedgerArchiveWorker } from './ledger-archive-worker-composition.js';
 import type { LedgerArchiveExportWorkerRuntime } from '../infrastructure/ledger-archive/index.js';
 import type { LedgerArchiveSourceResolver } from './ledger-archive-worker-composition.js';
-import { composeFaviconObjectStore, type FaviconSecretResolver } from './favicon-object-storage-composition.js';
 import type { BookmarkFaviconObjectStore } from '../modules/collections/index.js';
 import {
   CACHE_WORKER_READINESS_GAUGE,
@@ -169,24 +126,14 @@ export interface WorkerRuntime {
   readonly projectionSink?: CollectionMutationProjectionSink;
   /** Configured vendor-neutral cache purge boundary, when available. */
   readonly publicationCachePurgeProvider?: PublicationCachePurgeProvider;
-  readonly indexNowPublisher?: IndexNowPublisher;
   /**
    * T11 live Redis cache readiness fact for the worker
    * (disabled/degraded/healthy). mode=off always reports disabled; shadow/serve
    * probe the worker-owned store health and refresh the readiness gauge.
    */
   cacheReadiness(): Promise<CacheReadinessState>;
-  /** P5-29 optional email delivery worker, composed only when the feature is enabled. */
-  readonly emailDelivery?: EmailDeliveryWorkerRuntime;
   /** LH-02 optional link-health probe worker, composed only when the feature is enabled. */
   readonly linkHealth?: LinkHealthWorkerRuntime;
-  /** RX-02 optional readable-replica worker, composed only when the feature is enabled. */
-  readonly readableReplica?: ReadableReplicaWorkerRuntime;
-  readonly linkPreview?: ComposedLinkPreviewWorker; // LP-03, composed only when the feature is enabled
-  /** EXJ-01 optional export-job worker, composed only when the feature is enabled. */
-  readonly exportJobs?: ExportJobWorkerRuntime;
-  /** FO-02 optional favicon job + GC workers, composed only when the feature is enabled. */
-  readonly faviconJobs?: FaviconWorkerRuntime;
   readonly ledgerArchive?: LedgerArchiveExportWorkerRuntime;
   /**
    * C1 auth email surface (plan §9 Task C1); present only when
@@ -246,8 +193,6 @@ export interface BuildWorkerOptions {
   readonly projectionSink?: CollectionMutationProjectionSink;
   /** Optional provider injection; production config otherwise builds the generic HTTP adapter. */
   readonly publicationCachePurgeProvider?: PublicationCachePurgeProvider;
-  /** Test seam that prevents real IndexNow egress. */
-  readonly indexNowFetch?: IndexNowFetch;
   /**
    * T11 test seam: replaces the Redis runtime factory for the worker's own
    * store. mode=off must never call it. Production builds createRedisCacheStore.
@@ -259,36 +204,19 @@ export interface BuildWorkerOptions {
   readonly cacheCloseTimeoutMs?: number;
   /** Optional maintenance adapter for deterministic lifecycle composition tests. */
   readonly receiptMaintenance?: PublisherReceiptMaintenancePortFactory;
-  /** Optional insight retention adapter for deterministic lifecycle composition tests. */
-  readonly insightMaintenance?: PublicationInsightMaintenancePortFactory;
   /** Optional overdue-invite expiry adapter for deterministic lifecycle composition tests. */
   readonly inviteCleanup?: CollaborationInviteMaintenancePortFactory;
   /** Optional Sync operations inspect seam so inspection failures stay unit-testable. */
   readonly syncOperations?: {
     inspect(): Promise<Parameters<typeof publishSyncOperationalTelemetry>[0]>;
   };
-  /** Optional logger injection for deterministic composition tests; production defaults to pino. */
-  readonly logger?: EmailDeliveryWorkerLoopLogger;
-  /**
-   * Optional P5-29 email provider injection. Production builds the P5-28 Aliyun
-   * DirectMail adapter from config + environment references and FAILS CLOSED
-   * when the feature is enabled but credentials are missing. Injection is a
-   * fixture-only seam (the P5-27/28 controlled fixture requires the test TLS
-   * acceptance flag); the production repository/loop are always composed.
-   */
-  readonly emailDelivery?: { readonly provider?: EmailProviderAdapter };
+  readonly logger?: ReturnType<typeof createLogger>;
   /**
    * LH-02 link-health probe injection. Tests supply `connect` + `resolve` so
    * the worker never opens a real socket. Production omits this and uses the
    * hardened egress defaults (HTTPS still only in infrastructure/collections).
    */
   readonly linkHealth?: Pick<LinkHealthWorkerLoopOptions, 'resolve' | 'connect'>;
-  /**
-   * RX-02 readable-replica fetch injection. Tests supply `connect` + `resolve`
-   * so the worker never opens a real socket. Production omits this.
-   */
-  readonly readableReplica?: Pick<ReadableReplicaWorkerLoopOptions, 'resolve' | 'connect'>;
-  readonly linkPreview?: LinkPreviewWorkerSeam; // LP-03 store + egress seam; production passes the process store
   /**
    * FO-02 favicon job/GC worker seam. Tests inject `store` + `resolve` +
    * `connect` so the worker never opens a real socket or R2 client. Production
@@ -326,73 +254,7 @@ export interface BuildWorkerOptions {
    */
   readonly closeDatabase?: boolean;
 }
-/**
- * FO-02 favicon worker composition. Fails closed when the feature is enabled
- * without a durable object store. Tests inject store/resolve/connect through
- * `BuildWorkerOptions.favicon`; production composes the shared R2 store and
- * uses hardened egress defaults.
- */
-function composeFaviconWorkerRuntime(
-  config: AppConfig,
-  database: DatabaseRuntime,
-  metrics: Metrics,
-  logger: EmailDeliveryWorkerLoopLogger,
-  options: BuildWorkerOptions,
-): FaviconWorkerRuntime {
-  const store = options.favicon?.store;
-  const resolve = options.favicon?.resolve;
-  const connect = options.favicon?.connect;
-  if (store === undefined) {
-    throw new Error(
-      'worker composition refused: KNOWN_FEATURE_FAVICON_POLICY enabled requires a favicon object store',
-    );
-  }
-  const sharedConfig = config.faviconPolicy.shared ?? loadSharedFaviconConfig({});
-  const scheduledFetch = createScheduledFaviconFetcher(database.pool, (input) => fetchFaviconImage({
-      url: input.url,
-      timeoutMs: input.timeoutMs,
-      maxBytes: input.maxBytes,
-      maxDecompressedBytes: input.maxDecompressedBytes,
-      maxRedirects: input.maxRedirects,
-      ...(resolve === undefined ? {} : { resolve }),
-      ...(connect === undefined ? {} : { connect }),
-    }), sharedConfig.providerIntervalMs);
-  const shared = new SharedFaviconCache(database.pool, store, scheduledFetch, {
-    providerTemplate: sharedConfig.providerTemplate,
-    refreshIntervalMs: sharedConfig.refreshIntervalMs,
-    retentionSeconds: config.faviconPolicy.historyRetentionSeconds,
-    fetch: {
-      timeoutMs: config.faviconPolicy.fetchTimeoutMs,
-      maxBytes: config.faviconPolicy.fetchMaxBytes,
-      maxDecompressedBytes: defaultFaviconDecompressedBudget(config.faviconPolicy.fetchMaxBytes),
-      maxRedirects: config.faviconPolicy.fetchMaxRedirects,
-    },
-  });
-  return createFaviconWorkerRuntime({
-    repository: createPostgresFaviconJobWorkerRepository(database.pool),
-    gc: createPostgresFaviconGcRepository(database.pool),
-    verify: createPostgresFaviconJobWorkerUnitOfWork(database.db),
-    fetcher: shared.fetch,
-    maintainSharedCache: () => shared.runOnce(),
-    store,
-    logger,
-    metrics,
-    concurrency: config.faviconPolicy.jobConcurrency,
-    pollIntervalMs: config.faviconPolicy.workerPollIntervalMs,
-    leaseDurationMs: config.faviconPolicy.workerLeaseDurationMs,
-    gcPollIntervalMs: config.faviconPolicy.gcPollIntervalMs,
-    batchSize: config.faviconPolicy.jobBatchSize,
-    options: {
-      maxAttempts: config.faviconPolicy.jobMaxAttempts,
-      backoffSeconds: config.faviconPolicy.retryBackoffSeconds,
-      retentionSeconds: config.faviconPolicy.historyRetentionSeconds,
-      maxBytes: config.faviconPolicy.fetchMaxBytes,
-      maxDecompressedBytes: defaultFaviconDecompressedBudget(config.faviconPolicy.fetchMaxBytes),
-      fetchTimeoutMs: config.faviconPolicy.fetchTimeoutMs,
-      maxRedirects: config.faviconPolicy.fetchMaxRedirects,
-    },
-  });
-}
+
 
 /** Honest publication cache purge provider readiness state for worker composition. */
 export function resolvePublicationCachePurgeReadinessState(
@@ -401,75 +263,14 @@ export function resolvePublicationCachePurgeReadinessState(
   if (provider === undefined) return 'missing';
   return provider.kind === 'stub' ? 'stubbed' : 'durable';
 }
-/**
- * P5-29 production email delivery composition.
- *
- * - Composed ONLY when the email feature is enabled AND a database runtime is
- *   present; otherwise no email worker runs.
- * - Fails closed at composition when the feature is enabled but provider
- *   credentials are missing (production adapter path). An injected provider is
- *   the fixture-only seam (controlled P5-27/28 fixture TLS) and bypasses the
- *   credential check; the production repository/loop are always used.
- * - The loop and the callback reconciler run through the production Postgres
- *   repository; the provider send/lookup/verify surface is the P5-28 adapter
- *   port injected from the notifications facade.
- */
-function composeEmailDeliveryRuntime(
-  config: AppConfig,
-  database: DatabaseRuntime,
-  metrics: Metrics,
-  logger: EmailDeliveryWorkerLoopLogger,
-  options: BuildWorkerOptions,
-): EmailDeliveryWorkerRuntime {
-  const email = config.email!;
-  const provider = options.emailDelivery?.provider ?? (() => {
-    const accessKeyId = process.env.ALIBABA_CLOUD_ACCESS_KEY_ID?.trim();
-    const accessKeySecret = process.env.ALIBABA_CLOUD_ACCESS_KEY_SECRET?.trim();
-    if (!accessKeyId || !accessKeySecret || !email.accountName) {
-      throw new Error(
-        'worker composition refused: KNOWN_FEATURE_EMAIL enabled requires '
-        + 'ALIBABA_CLOUD_ACCESS_KEY_ID/ALIBABA_CLOUD_ACCESS_KEY_SECRET and EMAIL_DM_ACCOUNT_NAME',
-      );
-    }
-    return new AliyunDirectMailAdapter({
-      endpoint: email.endpoint,
-      regionId: email.regionId,
-      accountName: email.accountName,
-      accessKeyId,
-      accessKeySecret,
-      timeoutMs: email.timeoutMs,
-      tagPrefix: email.tagPrefix,
-      maxTagChars: email.maxTagChars,
-      ...(email.callback.hmacSecret !== null
-        ? { callbackHmacSecret: email.callback.hmacSecret } : {}),
-      callbackTimestampReplayWindowMs: email.callback.timestampReplayWindowMs,
-    });
-  })();
-  return createEmailDeliveryWorkerRuntime({
-    repository: createPostgresEmailDeliveryWorkerRepository(database.pool),
-    provider,
-    logger,
-    metrics,
-    leaseDurationMs: email.worker.leaseDurationMs,
-    heartbeatIntervalMs: email.worker.heartbeatIntervalMs,
-    pollIntervalMs: email.worker.pollIntervalMs,
-    batchSize: email.worker.batchSize,
-    retryPolicy: createEmailDeliveryRetryPolicy({
-      baseDelayMs: email.worker.baseBackoffMs,
-      maxDelayMs: email.worker.maxBackoffMs,
-      maxAttempts: email.worker.maxAttempts,
-    }),
-    tagPrefix: email.tagPrefix,
-    emailSkins: config.emailSkins,
-  });
-}
+
 export function buildWorker(
   config: AppConfig = loadConfig(),
   database?: DatabaseRuntime,
   metrics: Metrics = new InMemoryMetrics(),
   options: BuildWorkerOptions = {},
 ): WorkerRuntime {
-  const logger: EmailDeliveryWorkerLoopLogger = options.logger ?? createLogger(config.logLevel);
+  const logger: ReturnType<typeof createLogger> = options.logger ?? createLogger(config.logLevel);
   const capacity = sanitizedRuntimeCapacity(config);
   if (config.syncTombstonePurge.enabled && !database) {
     throw new Error('worker composition refused: Sync Tombstone purge requires PostgreSQL');
@@ -542,22 +343,12 @@ export function buildWorker(
   });
   const publicationCachePurgeProvider = workerCacheComposition.publicationCachePurgeProvider
     ?? cdnPublicationCachePurgeProvider;
-  const indexNowPublisher = config.publication.indexNow.enabled
-    ? new BestEffortIndexNowPublisher({
-        key: config.publication.indexNow.key,
-        timeoutMs: config.publication.indexNow.timeoutMs,
-        metrics,
-        logger,
-        ...(options.indexNowFetch === undefined ? {} : { fetch: options.indexNowFetch }),
-      })
-    : undefined;
   const publicationCachePurgeRoutes = composePublicationCachePurgeRoutes({
     provider: publicationCachePurgeProvider,
     config,
     database,
     handlerTimeoutMs: capacity.worker.handlerTimeoutMs,
     metrics,
-    ...(indexNowPublisher === undefined ? {} : { indexNowPublisher }),
   });
   const syncConflictRoutes = database
     ? Object.freeze([createSyncConflictOutboxRoute(database.pool)])
@@ -596,10 +387,7 @@ export function buildWorker(
       }),
     })])
     : Object.freeze([]);
-  const autoTagRoute=database?createPostgresClassificationAutoTagRoute(database,config.classification,metrics,
-    false):undefined;
   const routes = Object.freeze([
-    ...(autoTagRoute?[autoTagRoute]:[]),
     ...projectionRoutes, ...syncConflictRoutes,
     ...publicationCachePurgeRoutes,
     ...collectionInviteEmailRoutes,
@@ -643,14 +431,6 @@ export function buildWorker(
     config.publisherReceipts.cleanupIntervalMs,
   );
   metrics.gauge(
-    'publication.insight_cleanup_batch_size',
-    config.publicationInsightRetention.cleanupBatchSize,
-  );
-  metrics.gauge(
-    'publication.insight_cleanup_interval_ms',
-    config.publicationInsightRetention.cleanupIntervalMs,
-  );
-  metrics.gauge(
     'collaboration.invite_cleanup_batch_size',
     config.collaborationInviteCleanup.cleanupBatchSize,
   );
@@ -662,7 +442,7 @@ export function buildWorker(
     repository: new PostgresOutboxRepository(database.pool),
     router: new OutboxRouter(routes),
     envelopes: new EventEnvelopeRegistry([
-      ...createCollectionMutationEnvelopeRegistrations(), classificationAutoTagEnvelopeRegistration,
+      ...createCollectionMutationEnvelopeRegistrations(),
       syncConflictEnvelopeRegistration,
       collectionInviteCreatedEnvelopeRegistration,
     ]),
@@ -684,18 +464,12 @@ export function buildWorker(
   const receiptMaintenance = options.receiptMaintenance
     ?? (database ? createPostgresPublisherReceiptMaintenancePortFactory(database.db) : undefined);
   let receiptPurgeSchedule: PublisherReceiptPurgeSchedule | undefined;
-  const insightMaintenance = options.insightMaintenance
-    ?? (database ? createPostgresPublicationInsightMaintenancePortFactory(database.db) : undefined);
-  let insightPurgeSchedule: PublicationInsightPurgeSchedule | undefined;
   const inviteCleanup = options.inviteCleanup
     ?? (database ? createPostgresCollaborationInviteMaintenancePortFactory(database.db) : undefined);
   let inviteCleanupSchedule: CollaborationInviteCleanupSchedule | undefined;
   let notificationOperationsTimer: NodeJS.Timeout | undefined;
   let syncOperationsTimer: NodeJS.Timeout | undefined;
   const syncOperationsInspectionGate = { running: false };
-  const emailDeliveryRuntime = (database && config.email?.enabled)
-    ? composeEmailDeliveryRuntime(config, database, metrics, logger, options)
-    : undefined;
   const linkHealthRuntime = (database && config.linkHealth.enabled)
     ? createLinkHealthWorkerRuntime({
         repository: createPostgresLinkHealthWorkerRepository(database.pool),
@@ -711,35 +485,6 @@ export function buildWorker(
         ...(options.linkHealth?.connect === undefined ? {} : { connect: options.linkHealth.connect }),
       })
     : undefined;
-  const readableReplicaRuntime = (database && config.readableReplica.enabled)
-    ? createReadableReplicaWorkerRuntime({
-        repository: createPostgresReadableReplicaWorkerRepository(database.pool),
-        logger,
-        metrics,
-        probeTimeoutMs: config.readableReplica.probeTimeoutMs,
-        connectTimeoutMs: config.readableReplica.connectTimeoutMs,
-        maxBodyBytes: config.readableReplica.maxBodyBytes,
-        concurrency: config.readableReplica.workerConcurrency,
-        perHostGapMs: config.readableReplica.perHostGapMs,
-        pollIntervalMs: config.readableReplica.workerPollIntervalMs,
-        leaseDurationMs: config.readableReplica.workerLeaseDurationMs,
-        ...(options.readableReplica?.resolve === undefined ? {} : { resolve: options.readableReplica.resolve }),
-        ...(options.readableReplica?.connect === undefined ? {} : { connect: options.readableReplica.connect }),
-      })
-    : undefined;
-  const linkPreviewRuntime = composeLinkPreviewWorker({ config, database, metrics, logger, seam: options.linkPreview });
-  const exportJobRuntime = (database && config.exportJobs.enabled && config.exportJobs.r2)
-    ? createExportJobWorkerRuntime({
-        repository: createPostgresExportJobWorkerRepository(database.pool),
-        projection: createPostgresExportLibraryProjectionPort(database.db),
-        store: createR2ExportStore(config.exportJobs.r2),
-        logger,
-        metrics,
-        concurrency: config.exportJobs.workerConcurrency,
-        pollIntervalMs: config.exportJobs.workerPollIntervalMs,
-        leaseDurationMs: config.exportJobs.workerLeaseDurationMs,
-      })
-    : undefined;
   const ledgerArchiveRuntime = composeLedgerArchiveWorker({
     config: config.ledgerArchive,
     database,
@@ -748,11 +493,6 @@ export function buildWorker(
     ...(options.ledgerArchiveWorkerId === undefined ? {} : { workerId: options.ledgerArchiveWorkerId }),
     logger,
   });
-  // FO-02: favicon refresh + GC workers. Composed only when the feature is
-  // enabled; fail closed (startup) when the durable store is missing.
-  const faviconJobsRuntime = (database && config.faviconPolicy.enabled)
-    ? composeFaviconWorkerRuntime(config, database, metrics, logger, options)
-    : undefined;
   // C1 auth email surface: composed only when AUTH_EMAIL_ENABLED=true (test
   // mode -> in-process mailbox sink; otherwise DirectMail, fail closed). The
   // fixture seam bypasses the credential check exactly like emailDelivery.
@@ -866,17 +606,11 @@ export function buildWorker(
   return {
     metrics,
     outbox,
-    emailDelivery: emailDeliveryRuntime,
     linkHealth: linkHealthRuntime,
-    readableReplica: readableReplicaRuntime,
-    linkPreview: linkPreviewRuntime,
-    exportJobs: exportJobRuntime,
-    faviconJobs: faviconJobsRuntime,
     ledgerArchive: ledgerArchiveRuntime,
     ...(authEmailComposition === undefined ? {} : { authEmail: { sender: authEmailComposition.sender } }),
     projectionSink,
     publicationCachePurgeProvider,
-    indexNowPublisher,
     cacheReadiness: workerCacheReadiness,
     capacity,
     async start() {
@@ -914,49 +648,8 @@ export function buildWorker(
       // otherwise an enabled-but-unwired connector would leave outbox/email
       // timers running after start() rejects.
       outbox?.start();
-      emailDeliveryRuntime?.loop.start();
       linkHealthRuntime?.loop.start();
-      readableReplicaRuntime?.loop.start();
-      linkPreviewRuntime?.loop.start();
-      exportJobRuntime?.loop.start();
-      faviconJobsRuntime?.jobs.start();
-      faviconJobsRuntime?.gc.start();
       ledgerArchiveRuntime?.start();
-      const emailSuppressionOps = emailDeliveryRuntime && database
-        ? createPostgresEmailSuppressionOpsRepository(database.pool)
-        : undefined;
-      metrics.gauge('notifications.email_delivery.enabled',
-        emailDeliveryRuntime ? 1 : 0);
-      metrics.gauge('notifications.email_delivery.worker_running',
-        emailDeliveryRuntime?.loop.isRunning() ? 1 : 0);
-      const publishNotificationStatus = () => runWorkerInspectionTick({
-        enabled: emailDeliveryRuntime !== undefined,
-        gate: { running: false },
-        inspect: async () => {
-          metrics.gauge('notifications.email_delivery.enabled',
-            emailDeliveryRuntime ? 1 : 0);
-          metrics.gauge('notifications.email_delivery.worker_running',
-            emailDeliveryRuntime?.loop.isRunning() ? 1 : 0);
-          await inspectEmailDeliveryMetrics(emailSuppressionOps, {
-            enabled: emailDeliveryRuntime !== undefined,
-            workerRunning: emailDeliveryRuntime?.loop.isRunning() ?? false,
-            probeStatus: 0,
-            optionalDeliveryAvailable: true,
-          }, metrics);
-        },
-        onError(error) {
-          metrics.increment('notifications.operations_inspect_error');
-          logger.warn(
-            { error: redactSensitiveText(error) },
-            'Notification operations inspection failed',
-          );
-        },
-      });
-      await publishNotificationStatus();
-      notificationOperationsTimer = setInterval(() => { void publishNotificationStatus(); },
-        Math.max(1_000, Math.min(30_000,
-          config.notifications?.operations.queueAgeNotReadyMs ?? 30_000)));
-      notificationOperationsTimer.unref();
       const publishSyncStatus = () => runWorkerInspectionTick({
         enabled: syncOperations !== undefined,
         gate: syncOperationsInspectionGate,
@@ -986,28 +679,6 @@ export function buildWorker(
             onError(error) {
               metrics.increment('publisher.receipt_cleanup_error');
               logger.warn({ error: redactSensitiveText(error) }, 'Publisher receipt cleanup failed');
-            },
-          },
-        );
-      }
-      if (insightMaintenance && !insightPurgeSchedule) {
-        insightPurgeSchedule = schedulePublicationInsightPurge(
-          insightMaintenance,
-          {
-            intervalMs: config.publicationInsightRetention.cleanupIntervalMs,
-            batchSize: config.publicationInsightRetention.cleanupBatchSize,
-            onPurged(counts) {
-              metrics.increment('publication.insight_cleanup_runs');
-              metrics.increment('publication.insight_purged_events', counts.events);
-              metrics.increment('publication.insight_purged_daily', counts.daily);
-              metrics.observe(
-                'publication.insight_cleanup_batch',
-                counts.events + counts.daily,
-              );
-            },
-            onError(error) {
-              metrics.increment('publication.insight_cleanup_error');
-              logger.warn({ error: redactSensitiveText(error) }, 'Publication insight cleanup failed');
             },
           },
         );
@@ -1062,10 +733,6 @@ export function buildWorker(
         await receiptPurgeSchedule?.stop();
         receiptPurgeSchedule = undefined;
       });
-      await attemptWorkerStop(failures, 'insightPurgeSchedule', async () => {
-        await insightPurgeSchedule?.stop();
-        insightPurgeSchedule = undefined;
-      });
       await attemptWorkerStop(failures, 'inviteCleanupSchedule', async () => {
         await inviteCleanupSchedule?.stop();
         inviteCleanupSchedule = undefined;
@@ -1074,16 +741,8 @@ export function buildWorker(
       // a connector can append fresh runs/events while the outbox is already
       // shutting down, leaving work stranded behind the drain boundary.
       await attemptWorkerStop(failures, 'outbox', () => outbox?.stop());
-      await attemptWorkerStop(failures, 'indexNowPublisher', () => indexNowPublisher?.close());
-      await attemptWorkerStop(failures, 'emailDeliveryLoop', () => emailDeliveryRuntime?.loop.stop());
       await attemptWorkerStop(failures, 'linkHealthLoop', () => linkHealthRuntime?.loop.stop());
-      await attemptWorkerStop(failures, 'readableReplicaLoop', () => readableReplicaRuntime?.loop.stop());
-      await attemptWorkerStop(failures, 'linkPreviewLoop', () => linkPreviewRuntime?.stop());
-      await attemptWorkerStop(failures, 'exportJobLoop', () => exportJobRuntime?.loop.stop());
-      await attemptWorkerStop(failures, 'faviconJobsLoop', () => faviconJobsRuntime?.jobs.stop());
-      await attemptWorkerStop(failures, 'faviconGcLoop', () => faviconJobsRuntime?.gc.stop());
       await attemptWorkerStop(failures, 'ledgerArchive', () => ledgerArchiveRuntime?.stop());
-      await attemptWorkerStop(failures, 'emailDeliveryProvider', () => emailDeliveryRuntime?.provider.close());
       // C1 auth email surface lifecycle (DirectMail adapter owned by the
       // composition; the unavailable sender and mailbox sink close as no-ops).
       await attemptWorkerStop(failures, 'authEmailComposition', () => authEmailComposition?.close());
@@ -1107,7 +766,7 @@ export function buildWorker(
 }
 
 export interface CreateWorkerProcessOptions {
-  readonly logger?: EmailDeliveryWorkerLoopLogger;
+  readonly logger?: ReturnType<typeof createLogger>;
   /** Default true. Self-hosted passes false so the shared pool outlives the worker. */
   readonly closeDatabase?: boolean;
   readonly env?: NodeJS.ProcessEnv;
@@ -1133,19 +792,6 @@ export async function createWorkerProcess(
         channel: createPostgresMcpChangeSignalChannel(config.mcp.serverUuid),
       })
     : undefined;
-  // Public object stores use AVATAR_R2_* directly. The resolver is unused.
-  const unresolvedPublicObjectSecret: FaviconSecretResolver = async () => {
-    throw new Error('public object storage does not resolve attachment secret refs');
-  };
-  const faviconObjectStore = config.faviconPolicy.enabled
-    ? await composeFaviconObjectStore(config, unresolvedPublicObjectSecret)
-    : undefined;
-  if (config.faviconPolicy.enabled && faviconObjectStore === undefined) {
-    throw new Error(
-      'worker composition refused: KNOWN_FEATURE_FAVICON_POLICY enabled requires favicon object storage',
-    );
-  }
-  const linkPreviewStore = await composeLinkPreviewWorkerStore(config, unresolvedPublicObjectSecret);
   const linkHealthProbe = linkHealthProbeInjectionFromEnv(env, config.nodeEnv);
   const metrics = new InMemoryMetrics();
   const metricsServer = createPrometheusMetricsServer({
@@ -1159,9 +805,7 @@ export async function createWorkerProcess(
       logger,
       closeDatabase: options.closeDatabase,
       mcpReadChangeSignalSource,
-      ...(linkPreviewStore === undefined ? {} : { linkPreview: { store: linkPreviewStore } }),
       ...(linkHealthProbe === undefined ? {} : { linkHealth: linkHealthProbe }),
-      ...(faviconObjectStore === undefined ? {} : { favicon: { store: faviconObjectStore } }),
     });
   } catch (error) {
     await mcpReadChangeSignalSource?.close?.();
@@ -1174,7 +818,7 @@ export async function createWorkerProcess(
       await metricsServer.start();
     },
     async stop() {
-      await closeWorkerProcessResources({ metricsServer, worker, faviconObjectStore });
+      await closeWorkerProcessResources({ metricsServer, worker });
     },
   };
 }

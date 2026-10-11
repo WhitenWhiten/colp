@@ -8,29 +8,21 @@ import {
 import type { ProductSurfaceRateLimitPurpose } from '../infrastructure/rate-limit/index.js';
 import { registerBrowserAuthRoutes } from './auth/browser-auth-routes.js';
 import { registerBookmarkFaviconRoutes } from './product/bookmark-favicon-routes.js';
-import { registerLinkPreviewRoutes } from './product/link-preview-routes.js';
 import { registerClientEventRoutes } from './product/client-event-routes.js';
-import { registerLinkPreviewCommandRoutes } from './product/link-preview-command-routes.js';
-import { registerFaviconPolicyRoutes } from './product/favicon-policy-routes.js';
-import { registerFaviconJobRoutes } from './product/favicon-job-routes.js';
 import { registerCollectionChildrenRoutes } from './product/collection-children-routes.js';
 import { registerBetterAuthRoutes } from './auth/better-auth-routes.js';
 import { registerOauthAuthorizationServerMetadataRoute } from './auth/oauth-authorization-server-routes.js';
 import { registerCollectionRoutes } from './product/collection-routes.js';
 import { registerPublicationSnapshotRoutes } from './product/publication-snapshot-routes.js';
 import { registerPublicationDirectoryRoutes } from './product/publication-directory-routes.js';
-import { registerExploreRoutes } from './product/explore-routes.js';
 import { registerPublicationMetadataRoutes } from './product/publication-metadata-routes.js';
 import { registerPublicShellRoutes } from './public-shell-routes.js';
 import { registerPublicOgImageRoutes } from './public-og-image-routes.js';
 import { createCollectionOgImageRenderer } from '../infrastructure/http/index.js';
 import { registerPublicProfileShellRoutes } from './public-profile-shell-routes.js';
-import { registerPublicExploreShellRoutes } from './public-explore-shell-routes.js';
 import { registerCollectionsSitemapRoutes, registerProfilesSitemapRoutes } from './collections-sitemap-routes.js';
 import { registerPublicationManifestRoutes } from './product/publication-manifest-routes.js';
 import { registerProductPublicCollectionRoutes } from './product/product-public-collection-routes.js';
-import { registerProductPublicInsightRoutes } from './product/product-public-insight-routes.js';
-import { registerProductPublishingInsightsRoutes } from './product/product-publishing-insights-routes.js';
 import { registerProductCollaborationRoutes } from './product/product-collaboration-routes.js';
 import { registerSharedCollectionRoutes } from './product/shared-collection-routes.js';
 import { registerProductSyncCenterRoutes } from './product/product-sync-center-routes.js';
@@ -38,14 +30,8 @@ import { registerAccountCredentialSurfaces } from './product/register-account-cr
 import { registerLibraryOrderRoutes } from './product/library-order-routes.js';
 import { registerAccountProductSurfaces } from './register-account-product-surfaces.js';
 import { registerLinkHealthRoutes } from './product/link-health-routes.js';
-import { registerExportJobRoutes } from './product/export-job-routes.js';
 import { registerCollectionExportRoutes } from './product/collection-export-routes.js';
-import { registerClassificationProductSurfaces } from './register-classification-surfaces.js';
-import { registerOrganizePlanRoutes } from './product/organize-plan-routes.js';
 import { registerCollectionVersionRoutes } from './product/collection-version-routes.js';
-import { registerReadableReplicaRoutes } from './product/readable-replica-routes.js';
-import { registerEmailCallbackRoutes } from './product/email-callback-routes.js';
-import { registerEmailOpsRoutes } from './product/email-ops-routes.js';
 import { registerSearchRoutes } from './product/search-routes.js';
 import type { AppDependencies } from './app-dependencies.js';
 import { mcpReadFeatureConfigAssertOptions } from '../modules/mcp/index.js';
@@ -91,9 +77,6 @@ export function registerProductSurfaces(
     searchTimeoutMs,
     publicationSnapshotQuery,
     publicationDirectoryQuery,
-    explorePageQuery,
-    exploreCreatorsQuery,
-    explorePublicMarks,
     publicationMetadataQuery,
     publicShell,
     publicationSitemapQuery,
@@ -102,8 +85,6 @@ export function registerProductSurfaces(
     publicationDirectoryCacheReader,
     publicationMetadataCacheReader,
     productPublicCollectionQuery,
-    productPublicInsight,
-    productPublishingInsights,
     productCollaboration,
     publicProfileQuery,
     searchQuery,
@@ -125,25 +106,11 @@ export function registerProductSurfaces(
     linkHealthQuery,
     linkHealthEnqueue,
     linkHealthRateLimiter,
-    exportJobReads,
-    exportJobEnqueue,
-    exportJobStore,
     collectionExportReads,
-    exportJobRateLimiter,
-    organizePlanReads,
-    organizePlanMutations,
-    organizePlanner,
-    organizePlanRateLimiter,
     collectionVersions,
     collectionVersionCursors,
     collectionVersionRateLimiter,
-    readableReplicas,
-    readableReplicaEnqueue,
-    linkPreviewCommands,
-    readableReplicaRateLimiter,
     publicObjectRateLimiter,
-    emailCallbackRoutes,
-    emailOpsRoutes,
   } = deps;
   const registerTestOidcAuthorizeRoute = extras.registerTestOidcAuthorizeRoute;
   const security = config.httpSecurity;
@@ -215,9 +182,6 @@ export function registerProductSurfaces(
     ...(metrics ? { metrics } : {}),
     publicObjectRateLimiter: publicObjectAdmissionRateLimiter,
   });
-  if (deps.linkPreviewStore) {
-    registerLinkPreviewRoutes(app, { store: deps.linkPreviewStore, publicObjectRateLimiter: publicObjectAdmissionRateLimiter, ...(deps.linkPreviewPublicAccess ? { linkPreviewPublicAccess: deps.linkPreviewPublicAccess } : {}) });
-  }
   // R15-13: web client errors and Web Vitals, logged as `client_event`.
   registerClientEventRoutes(app, { allowedOrigins: config.allowedOrigins, rateLimiter: publicObjectAdmissionRateLimiter });
   if (identityUnitOfWork && productSyncCenterUnitOfWork) {
@@ -267,20 +231,6 @@ export function registerProductSurfaces(
       ...(identityUnitOfWork ? { identityUnitOfWork } : {}),
       ...(config.contentGovernance.enabled || publicationDirectoryCacheReader === undefined ? {} : { reader: publicationDirectoryCacheReader }),
       rateLimiter: requireExploreDirectoryLimiter(),
-    });
-  }
-  if (explorePageQuery) {
-    registerExploreRoutes(app, {
-      page: explorePageQuery, config,
-      ...(exploreCreatorsQuery ? { creators: exploreCreatorsQuery } : {}),
-      ...(explorePublicMarks ? { publicMarks: explorePublicMarks } : {}),
-      ...(identityUnitOfWork ? { identityUnitOfWork } : {}),
-      rateLimiter: requireExploreDirectoryLimiter(),
-    });
-    registerPublicExploreShellRoutes(app, {
-      page: explorePageQuery,
-      ...(publicShell === undefined ? {} : { publicShell }),
-      rateLimiter: requireExploreDirectoryLimiter(), contentGovernanceEnabled: config.contentGovernance.enabled,
     });
   }
   if (publicationMetadataQuery) {
@@ -335,12 +285,6 @@ export function registerProductSurfaces(
       rateLimiter: requireExploreDirectoryLimiter(), contentGovernanceEnabled: config.contentGovernance.enabled,
     });
   }
-  if (productPublicInsight) {
-    registerProductPublicInsightRoutes(app, productPublicInsight);
-  }
-  if (productPublishingInsights) {
-    registerProductPublishingInsightsRoutes(app, productPublishingInsights);
-  }
   if (identityUnitOfWork && sharedCollectionsQuery) {
     if (!bookmarkCounts) {
       throw new Error('shared Collection list requires CollectionBookmarkCountReadPort');
@@ -377,21 +321,6 @@ export function registerProductSurfaces(
     });
   }
   if (identityUnitOfWork && collectionsUnitOfWork) {
-    registerFaviconPolicyRoutes(app, {
-      enabled: config.faviconPolicy.enabled,
-      allowedOrigins: config.allowedOrigins,
-      identityUnitOfWork,
-      collectionsUnitOfWork,
-      rateLimiter: resolveProductRouteRateLimiter('favicon-policy', faviconPolicyRateLimiter, defaultProductRouteBudget),
-      timeoutMs: config.faviconPolicy.timeoutMs,
-      productOrigin: config.productOrigin,
-    });
-    registerFaviconJobRoutes(app, {
-      enabled: config.faviconPolicy.enabled, allowedOrigins: config.allowedOrigins,
-      identityUnitOfWork, collectionsUnitOfWork,
-      rateLimiter: resolveProductRouteRateLimiter('favicon-policy', faviconPolicyRateLimiter, defaultProductRouteBudget),
-      timeoutMs: config.faviconPolicy.timeoutMs,
-    });
     if (collectionChildrenReadUnitOfWork) {
       registerCollectionChildrenRoutes(app, {
         enabled: config.faviconPolicy.enabled,
@@ -417,54 +346,12 @@ export function registerProductSurfaces(
       timeoutMs: config.linkHealth?.timeoutMs ?? 2_000,
     });
   }
-  registerClassificationProductSurfaces(app, deps, resolveProductRouteRateLimiter);
-  const exportJobPorts = [exportJobReads, exportJobEnqueue, exportJobStore];
-  if (exportJobPorts.some(Boolean) && exportJobPorts.some((port) => port === undefined)) {
-    throw new TypeError('Export-job read, enqueue, and store production ports must be configured together');
-  }
   if (identityUnitOfWork && collectionExportReads) {
     registerCollectionExportRoutes(app, {
       identityUnitOfWork,
       origin: config.publication.origin,
       reads: collectionExportReads,
-      // Collection exports and export jobs both materialize user-owned
-      // documents; use the same bounded admission domain so a caller cannot
-      // bypass the export budget through the synchronous endpoint.
-      rateLimiter: resolveProductRouteRateLimiter(
-        'export-job', exportJobRateLimiter, config.exportJobs.rateLimit,
-      ),
-      timeoutMs: config.exportJobs?.timeoutMs ?? 2_000,
-    });
-  }
-  if (identityUnitOfWork && exportJobReads && exportJobEnqueue && exportJobStore) {
-    registerExportJobRoutes(app, {
-      enabled: config.exportJobs?.enabled ?? false,
-      allowedOrigins: config.allowedOrigins,
-      identityUnitOfWork,
-      reads: exportJobReads,
-      enqueue: exportJobEnqueue,
-      store: exportJobStore,
-      rateLimiter: resolveProductRouteRateLimiter(
-        'export-job', exportJobRateLimiter, config.exportJobs.rateLimit,
-      ),
-      timeoutMs: config.exportJobs?.timeoutMs ?? 2_000,
-    });
-  }
-  const organizePlanPorts = [organizePlanReads, organizePlanMutations, organizePlanner];
-  if (organizePlanPorts.some(Boolean) && organizePlanPorts.some((port) => port === undefined)) {
-    throw new TypeError('Organize-plan read, mutation, and planner production ports must be configured together');
-  }
-  if (identityUnitOfWork && organizePlanReads && organizePlanMutations && organizePlanner) {
-    registerOrganizePlanRoutes(app, {
-      enabled: config.organizePlans?.enabled ?? false,
-      allowedOrigins: config.allowedOrigins,
-      identityUnitOfWork,
-      reads: organizePlanReads,
-      mutations: organizePlanMutations,
-      planner: organizePlanner,
-      rateLimiter: resolveProductRouteRateLimiter(
-        'organize-plan', organizePlanRateLimiter, defaultProductRouteBudget,
-      ),
+      rateLimiter: createFixedWindowRateLimiter(defaultProductRouteBudget),
       timeoutMs: 2_000,
     });
   }
@@ -485,30 +372,6 @@ export function registerProductSurfaces(
       timeoutMs: 2_000,
     });
   }
-  if (identityUnitOfWork) {
-    registerLinkPreviewCommandRoutes(app, {
-      enabled: config.linkPreview.enabled,
-      allowedOrigins: config.allowedOrigins,
-      identityUnitOfWork,
-      ...(linkPreviewCommands === undefined ? {} : { unitOfWork: linkPreviewCommands }),
-      rateLimiter: resolveProductRouteRateLimiter('readable-replica', readableReplicaRateLimiter, defaultProductRouteBudget),
-    });
-  }
-  if (identityUnitOfWork && readableReplicas) {
-    registerReadableReplicaRoutes(app, {
-      enabled: config.readableReplica?.enabled ?? false,
-      allowedOrigins: config.allowedOrigins,
-      identityUnitOfWork,
-      unitOfWork: readableReplicas,
-      ...(readableReplicaEnqueue === undefined ? {} : { enqueue: readableReplicaEnqueue }),
-      enqueueCooldownMs: config.readableReplica?.enqueueCooldownMs ?? 60_000,
-      rateLimiter: resolveProductRouteRateLimiter(
-        'readable-replica', readableReplicaRateLimiter, defaultProductRouteBudget,
-      ),
-    });
-  }
-  if (emailCallbackRoutes) registerEmailCallbackRoutes(app, emailCallbackRoutes);
-  if (emailOpsRoutes) registerEmailOpsRoutes(app, emailOpsRoutes);
   if (searchQuery) {
     registerSearchRoutes(app, { query: searchQuery, ...(identityUnitOfWork ? { identityUnitOfWork } : {}),
       rateLimiter: requireSearchRateLimiter(), contentGovernanceEnabled: config.contentGovernance.enabled, config,

@@ -139,3 +139,22 @@ Remaining server acceptance restoration (2026-10-08):
   policy port. The deployment metrics instance is initialized explicitly, and
   the official-client wrapper reports which method/tool failed without dumping
   authorization or request payloads.
+
+Task A8 flag-off feature pruning (2026-10-10):
+
+- Pruned all 10 flag-off features without stories according to 02-plan.md §3.3:
+  1. IndexNow
+  2. Explore shell
+  3. Publishing insights
+  4. Readable replicas
+  5. AI organize plans
+  6. Export jobs
+  7. Link previews
+  8. Favicon policy and jobs
+  9. Email when no COLP_SMTP_URL
+  10. Classification and credits
+- All 229 migrations in `migrations/*.ts` remained completely untouched.
+- Source code size metrics (`du -sh src`):
+  - Before A8 pruning: 11M
+  - After A8 pruning: 9.2M (215 files and 33,864 lines removed from `src`)
+

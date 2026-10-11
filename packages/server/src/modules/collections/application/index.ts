@@ -513,52 +513,6 @@ export type {
   UploadBookmarkFaviconInput,
 } from './bookmark-favicon-command.js';
 export { hostnameFromBookmarkUrl, normalizeBookmarkUrl } from './link-health-url.js';
-export { extractReadableArticle } from './readable-article.js';
-export type {
-  ReadableArticleClipInput,
-  ReadableArticleExtractResult,
-  ReadableArticleExtractor,
-  ReadableArticleExtractorInput,
-  ReadableArticleParagraph,
-  ReadableArticleSection,
-} from './readable-article.js';
-export {
-  ReadableReplicaNotFoundError,
-  freezeReadableReplicaEtag,
-  getNodeReadableReplica,
-  projectReadableReplicaView,
-} from './get-node-readable-replica.js';
-export type {
-  GetNodeReadableReplicaPorts,
-  ReadableReplicaBookmarkLoad,
-  ReadableReplicaFailureCode,
-  ReadableReplicaParagraph,
-  ReadableReplicaReadPort,
-  ReadableReplicaReadUnitOfWork,
-  ReadableReplicaRow,
-  ReadableReplicaSection,
-  ReadableReplicaStatus,
-  ReadableReplicaStoredStatus,
-  ReadableReplicaView,
-} from './get-node-readable-replica.js';
-export {
-  READABLE_REPLICA_EXTRACT_CONTRACT_VERSION,
-  ReadableReplicaCooldownError,
-  ReadableReplicaExtractError,
-  enqueueNodeReadableExtract,
-  parseReadableReplicaExtractRequest,
-  readableReplicaExtractCommandScope,
-  readableReplicaExtractFingerprint,
-  readableReplicaExtractRoute,
-} from './enqueue-node-readable-extract.js';
-export type {
-  EnqueueNodeReadableExtractInput,
-  EnqueueNodeReadableExtractResult,
-  ReadableReplicaEnqueuePort,
-  ReadableReplicaEnqueuePorts,
-  ReadableReplicaEnqueueState,
-  ReadableReplicaEnqueueUnitOfWork,
-} from './enqueue-node-readable-extract.js';
 export { mapLinkHealthProbeObservation } from './link-health-probe-status.js';
 export type {
   LinkHealthErrorClass,
@@ -582,113 +536,6 @@ export type {
   LinkHealthChecksFilter,
   LinkHealthChecksWritePort,
 } from './enqueue-my-link-health-checks.js';
-export {
-  EXPORT_JOB_COMMAND_SCOPE,
-  EXPORT_JOB_CONTRACT_VERSION,
-  EXPORT_JOB_CONFLICT_RETRY_AFTER_SECONDS,
-  EXPORT_JOB_LIST_LIMIT,
-  EXPORT_JOB_ROUTE,
-  EXPORT_JOB_TTL_MS,
-  EXPORT_LIBRARY_JSON_CONTENT_TYPE,
-  ExportJobCapacityError,
-  ExportJobConflictError,
-  ExportJobInputError,
-  createMyExportJob,
-  downloadMyExportJob,
-  encodeExportLibraryDocument,
-  exportJobsFingerprint,
-  getMyExportJob,
-  listMyExportJobs,
-  processExportJobClaim,
-  toExportJob,
-} from './export-jobs.js';
-export type {
-  CreateMyExportJobInput,
-  CreateMyExportJobPorts,
-  CreateMyExportJobResult,
-  ExportJobReceiptPort,
-  ExportCollection,
-  ExportJob,
-  ExportJobClaim,
-  ExportJobPage,
-  ExportJobReadPort,
-  ExportJobRecord,
-  ExportJobStatus,
-  ExportJobWorkerPort,
-  ExportJobWritePort,
-  ExportLibraryDocument,
-  ExportLibraryProjectionPort,
-  ExportNode,
-} from './export-jobs.js';
-export {
-  DEFAULT_EXPORT_R2_PREFIX,
-  EXPORT_JOB_MAX_BYTES,
-  createNeverCalledExportObjectStore,
-  exportObjectKey,
-  readExportBodyCapped,
-} from './export-object-store.js';
-export type { ExportObjectStore } from './export-object-store.js';
-export {
-  DEFAULT_ORGANIZE_PLANNER_ID,
-  HEURISTIC_PLANNER_IDS,
-  createOrganizePlanner,
-  isHeuristicPlannerId,
-} from './organize-planner-factory.js';
-export type { HeuristicPlannerId } from './organize-planner-factory.js';
-export { selectOrganizeSource } from './organize-inbox-selection.js';
-export {
-  ORGANIZE_PLAN_COMMAND_SCOPE,
-  ORGANIZE_PLAN_CONTRACT_VERSION,
-  ORGANIZE_PLAN_TTL_MS,
-  OrganizePlanInputError,
-  OrganizePlanNotFoundError,
-  OrganizePlanRateLimitError,
-  createCollectionOrganizePlan,
-  freezeOrganizePlanEtag,
-  isOrganizePlanExpired,
-  organizePlanCreateFingerprint,
-  organizePlanCreateRoute,
-  organizePlanItemRoute,
-  toOrganizePlanDto,
-  truncateOrganizePlanActions,
-} from './create-collection-organize-plan.js';
-export type {
-  CreateCollectionOrganizePlanInput,
-  CreateCollectionOrganizePlanPorts,
-  CreateCollectionOrganizePlanResult,
-  OrganizePlanActionDto,
-  OrganizePlanCollectionPort,
-  OrganizePlanCollectionSnapshot,
-  OrganizePlanDto,
-  OrganizePlanReadPort,
-  OrganizePlanReceiptPort,
-  OrganizePlanRecord,
-  OrganizePlanStatus,
-  OrganizePlanTree,
-  OrganizePlanWritePort,
-} from './create-collection-organize-plan.js';
-export {
-  ORGANIZE_PLAN_APPLY_CONTRACT_VERSION,
-  OrganizePlanInnerCommandError,
-  applyCollectionOrganizePlan,
-  normalizeOrganizePlanActionIds,
-  organizePlanApplyCommandScope,
-  organizePlanApplyFingerprint,
-  organizePlanApplyRoute,
-  organizePlanInternalCreateFingerprint,
-  organizePlanInternalMoveFingerprint,
-} from './apply-collection-organize-plan.js';
-export type {
-  ApplyCollectionOrganizePlanInput,
-  ApplyCollectionOrganizePlanPorts,
-  ApplyCollectionOrganizePlanResult,
-  OrganizePlanActionCommandIds,
-  OrganizePlanApplyPort,
-  OrganizePlanApplyReceiptDto,
-  OrganizePlanApplyReceiptMap,
-} from './apply-collection-organize-plan.js';
-export { getCollectionOrganizePlan } from './get-collection-organize-plan.js';
-export type { GetCollectionOrganizePlanInput } from './get-collection-organize-plan.js';
 export {
   COLLECTION_TREE_VERSION_FIFO_LIMIT,
   COLLECTION_TREE_VERSION_MAX_NODES,
@@ -792,15 +639,6 @@ export type {
   ProductCollectionVersionCursorSignerPort,
   ProductCollectionVersionCursorUnsignedPayload,
 } from './collection-version-cursor.js';
-export type {
-  OrganizePlanAction,
-  OrganizePlanTarget,
-  OrganizePlanner,
-  OrganizePlannerBookmark,
-  OrganizePlannerFolder,
-  OrganizePlannerInput,
-  OrganizePlannerOutput,
-} from './organize-planner.js';
 export {
   PRODUCT_LINK_HEALTH_COMPARATOR_VERSION,
   PRODUCT_LINK_HEALTH_CURSOR_PURPOSE,
@@ -841,93 +679,6 @@ export type {
   LinkHealthStatus,
 } from './get-my-link-health.js';
 
-// --- classify inbox eligibility (CL-S2) ---
-export { isClassifyInboxEligible } from './classify-inbox-eligibility.js';
-export type {
-  ClassifyInboxEligibilitySnapshot,
-  ClassifyInboxNodeKind,
-} from './classify-inbox-eligibility.js';
-
-// --- classify inbox scorer (CL-S1) ---
-export { scoreClassifyInboxSuggestions } from './classify-inbox-score.js';
-export type {
-  ClassifyInboxScoreBookmark,
-  ClassifyInboxScoreFolder,
-  ClassifyInboxScoreInput,
-  ClassifyInboxSuggestion,
-  ClassifyInboxSuggestionKind,
-} from './classify-inbox-score.js';
-
-export {
-  PRODUCT_CLASSIFY_INBOX_COMPARATOR_VERSION,
-  PRODUCT_CLASSIFY_INBOX_CURSOR_PURPOSE,
-  PRODUCT_CLASSIFY_INBOX_CURSOR_TTL_MS,
-  PRODUCT_CLASSIFY_INBOX_CURSOR_VERSION,
-  PRODUCT_CLASSIFY_INBOX_SORT,
-  ClassifyInboxCursorError,
-  createProductClassifyInboxCursorSigner,
-} from './classify-inbox-cursor.js';
-export type {
-  ClassifyInboxCursorAfter,
-  ProductClassifyInboxCursorKey,
-  ProductClassifyInboxCursorPayload,
-  ProductClassifyInboxCursorPreviousKey,
-  ProductClassifyInboxCursorSignerPort,
-  ProductClassifyInboxCursorUnsignedPayload,
-} from './classify-inbox-cursor.js';
-export {
-  CLASSIFY_INBOX_DEFAULT_LIMIT,
-  CLASSIFY_INBOX_MAX_LIMIT,
-  ClassifyInboxInputError,
-  getMyClassifyInboxPage,
-} from './get-my-classify-inbox.js';
-export type {
-  ClassifyInboxBookmarkRow,
-  ClassifyInboxFolderRow,
-  ClassifyInboxItem,
-  ClassifyInboxPage,
-  ClassifyInboxReadInput,
-  ClassifyInboxReadPort,
-  GetMyClassifyInboxPageInput,
-  GetMyClassifyInboxPagePorts,
-} from './get-my-classify-inbox.js';
-export {
-  CLASSIFY_INBOX_SKIP_COMMAND_SCOPE,
-  CLASSIFY_INBOX_SKIP_CONTRACT_VERSION,
-  CLASSIFY_INBOX_SKIP_ROUTE,
-  ClassifyInboxSkipError,
-  parseClassifyInboxSkipBody,
-  skipClassifyInboxFingerprint,
-  skipClassifyInboxItem,
-} from './skip-classify-inbox-item.js';
-export type {
-  ClassifyInboxDecisionReceipt,
-  ClassifyInboxSidecarStatus,
-  ClassifyInboxSkipInsertResult,
-  ClassifyInboxSkipSnapshot,
-  ClassifyInboxSkipWritePort,
-  SkipClassifyInboxItemInput,
-  SkipClassifyInboxItemPorts,
-  SkipClassifyInboxItemResult,
-} from './skip-classify-inbox-item.js';
-export {
-  CLASSIFY_INBOX_ACCEPT_COMMAND_SCOPE,
-  CLASSIFY_INBOX_ACCEPT_CONTRACT_VERSION,
-  CLASSIFY_INBOX_ACCEPT_ROUTE,
-  ClassifyInboxAcceptError,
-  parseClassifyInboxAcceptBody,
-  acceptClassifyInboxFingerprint,
-  acceptClassifyInboxItem,
-} from './accept-classify-inbox-item.js';
-export type {
-  AcceptClassifyInboxItemInput,
-  AcceptClassifyInboxItemPorts,
-  AcceptClassifyInboxItemResult,
-  ClassifyInboxAcceptInsertResult,
-  ClassifyInboxAcceptSnapshot,
-  ClassifyInboxAcceptWritePort,
-  MoveCollectionNodeFn,
-} from './accept-classify-inbox-item.js';
 export {
   LIBRARY_ORDER_COMMAND_CONTRACT_VERSION,
   LIBRARY_ORDER_COMMAND_SCOPE,

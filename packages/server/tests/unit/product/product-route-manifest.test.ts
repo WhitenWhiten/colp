@@ -13,7 +13,7 @@ import {
   installProductRouteManifestChecks,
   productRouteMetadata,
 } from '../../../src/transport/product-route-manifest.js';
-import { publishingInsightsIngestRateLimitFamilyForPath, collaborationInviteRateLimitFamilyForPath } from '../../../src/transport/http-security.js';
+import { collaborationInviteRateLimitFamilyForPath } from '../../../src/transport/http-security.js';
 
 test('generated Product route manifest contains owned Collections, public Profile, Sidecar, private state, Search, Write Approval, Attachment, Publishing Insights, and Collaboration operations', () => {
   const routesJson = JSON.parse(readFileSync(
@@ -209,10 +209,6 @@ test('generated Product route manifest contains owned Collections, public Profil
       { method: 'GET', path: '/api/v1/collections/{collectionId}/nodes/{nodeId}/readable', operationId: 'getNodeReadableReplica' },
       { method: 'POST', path: '/api/v1/collections/{collectionId}/nodes/{nodeId}/readable', operationId: 'enqueueNodeReadableExtract' },
     ],
-  );
-  assert.equal(
-    publishingInsightsIngestRateLimitFamilyForPath('/api/v1/public-collections/:slug/insight-events'),
-    'publishing-insights-ingest',
   );
   assert.deepEqual(
     PRODUCT_ROUTE_MANIFEST.filter((route) => route.path.includes('/members') || route.path.includes('collaboration-invites')),
@@ -431,40 +427,6 @@ test('the BYOK profile operations are derived from the manifest and cover the wh
     'testMyClassificationProviderProfile',
     'updateMyClassificationProviderProfile',
   ]);
-});
-
-test('a BYOK-off composition reaches readiness because the gated operations leave the coverage requirement', async () => {
-  const excluded = new Set(CLASSIFICATION_BYOK_OPERATION_IDS);
-  const registerApp = async (options: { classificationByokEnabled: boolean; registerGatedRoutes: boolean }) => {
-    const app = Fastify({ exposeHeadRoutes: false });
-    installProductRouteManifestChecks(app, { requireComplete: true, classificationByokEnabled: options.classificationByokEnabled });
-    for (const route of PRODUCT_ROUTE_MANIFEST) {
-      if (!options.registerGatedRoutes && excluded.has(route.operationId)) continue; // D4: unregistered while the gate is off
-      app.route({
-        method: route.method,
-        url: route.path,
-        config: productRouteMetadata(route.method, route.path),
-        handler: async () => ({}),
-      });
-    }
-    return app;
-  };
-
-  // The gate is off and its routes are absent: readiness holds.
-  const off = await registerApp({ classificationByokEnabled: false, registerGatedRoutes: false });
-  await off.ready();
-  assert.equal(off.findRoute({ method: 'GET', url: CLASSIFICATION_BYOK_PROFILE_PATH_PREFIX }), null);
-  await off.close();
-
-  // The gate is on, so the same absence fails readiness — the exclusion is not a blanket amnesty.
-  const onMissing = await registerApp({ classificationByokEnabled: true, registerGatedRoutes: false });
-  await assert.rejects(() => onMissing.ready(), /Product routes missing from registration/);
-  await onMissing.close();
-
-  // The gate on with its routes registered is unchanged.
-  const on = await registerApp({ classificationByokEnabled: true, registerGatedRoutes: true });
-  await on.ready();
-  await on.close();
 });
 
 test('route checks ignore Fastify implicit HEAD while retaining GET coverage', async () => {

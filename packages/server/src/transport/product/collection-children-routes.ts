@@ -16,8 +16,18 @@ import { ProductHttpError } from '../product-error.js';
 import { productErrorStatus } from '../product-codes.js';
 import { productRouteMetadata } from '../product-route-manifest.js';
 import { readCollectionIdParam } from './collection-route-helpers.js';
-import { rejectNonemptyBody, withCancellation } from './favicon-policy-routes.js';
+import { withCancellation } from './request-timeout.js';
 import { optionalSessionActor } from '../session-auth.js';
+
+function rejectNonemptyBody(request: FastifyRequest): void {
+  if (request.body !== undefined) {
+    throw new ProductHttpError({
+      statusCode: 400,
+      code: 'invalid_request',
+      message: 'This operation does not accept a request body.',
+    });
+  }
+}
 
 const CHILDREN = '/api/v1/collections/:collectionId/children';
 const UNAVAILABLE_MESSAGE = 'Collection children are temporarily unavailable.';
@@ -90,7 +100,7 @@ export function registerCollectionChildrenRoutes(
         }
         limit = Number(query.limit);
       }
-      const page = await withCancellation(request, deps.timeoutMs, (signal) =>
+      const page = await withCancellation(request, deps.timeoutMs, (signal: AbortSignal) =>
         deps.childrenReadUnitOfWork.execute((ports) => listCollectionChildren(ports, {
           actor: session
             ? { principalId: session.account.id, subjectId: session.account.subjectId }

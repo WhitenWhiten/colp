@@ -1,4 +1,3 @@
-import { loadSharedFaviconConfig } from './config-favicon-shared.js';
 import { parseCanonicalUtcTimestamp, parsePositiveInt, requireNonEmpty } from './config-parse-helpers.js';
 import type {
   CollectionFollowFeatureConfig,
@@ -209,7 +208,6 @@ export function loadCollectionFollowFeatureConfig(
     readonly siblingCursorSecrets: {
       readonly followSecret: string;
       readonly feedSecret: string;
-      readonly classifyKey: string;
       readonly editorKey: string;
       readonly ownedKey: string;
       readonly linkHealthKey: string;
@@ -228,7 +226,6 @@ export function loadCollectionFollowFeatureConfig(
     || cursorKeyId === DEV_FOLLOWED_COLLECTIONS_CURSOR_KEY_ID
     || cursorSecret === siblingCursorSecrets.followSecret
     || cursorSecret === siblingCursorSecrets.feedSecret
-    || cursorSecret === siblingCursorSecrets.classifyKey
     || cursorSecret === siblingCursorSecrets.editorKey
     || cursorSecret === siblingCursorSecrets.ownedKey
     || cursorSecret === siblingCursorSecrets.linkHealthKey
@@ -569,7 +566,6 @@ export function loadFaviconPolicyAdmissionConfig(env: NodeJS.ProcessEnv): Favico
     fetchTimeoutMs: parsePositiveInt(env.FAVICON_FETCH_TIMEOUT_MS, 10_000,
       'FAVICON_FETCH_TIMEOUT_MS', { min: 1_000, max: 30_000 }),
     fetchMaxBytes: parseConstInt(env.FAVICON_FETCH_MAX_BYTES, 65_536, 'FAVICON_FETCH_MAX_BYTES'),
-    shared: loadSharedFaviconConfig(env),
     fetchMaxRedirects: parseConstInt(env.FAVICON_FETCH_MAX_REDIRECTS, 3, 'FAVICON_FETCH_MAX_REDIRECTS'),
     jobBatchSize: parseConstInt(env.FAVICON_JOB_BATCH_SIZE, 100, 'FAVICON_JOB_BATCH_SIZE'),
     jobMaxAttempts: parseConstInt(env.FAVICON_JOB_MAX_ATTEMPTS, 5, 'FAVICON_JOB_MAX_ATTEMPTS'),

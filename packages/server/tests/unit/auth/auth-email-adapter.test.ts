@@ -5,21 +5,21 @@ import { Writable } from 'node:stream';
 import { describe, test } from 'vitest';
 import { loadConfig } from '../../support/test-config.js';
 import {
-  AliyunDirectMailAdapter,
-  type AliyunDirectMailAdapterOptions,
-  type EmailAdapterTransport,
-} from '../../../src/infrastructure/email/aliyun-directmail-adapter.js';
-import {
   composeAuthEmailAdapter,
   createAuthEmailAdapter,
   createInProcessMailboxSink,
   createUnavailableAuthEmailSender,
+  EMAIL_BODY_MAX_BYTES,
+  EMAIL_IDEMPOTENCY_KEY_MAX_CHARS,
+  EMAIL_SUBJECT_MAX_CHARS,
   type AuthEmailComposition,
+  type AuthEmailProvider,
+  type EmailSendInput,
+  type EmailSendResult,
   type InProcessMailboxSink,
-} from '../../../src/infrastructure/email/auth-email-adapter.js';
+} from '../../../src/infrastructure/email/index.js';
 import { parseEmailSkinConfig } from '../../../src/infrastructure/email/message-skins.js';
 import { UNIFIED_EMAIL_SKIN } from '../../../src/infrastructure/email/unified-email-chrome.js';
-import type { EmailSendInput, EmailSendResult } from '../../../src/modules/email/index.js';
 import {
   AUTH_EMAIL_BODY_MAX_BYTES,
   AUTH_EMAIL_IDEMPOTENCY_KEY_MAX_CHARS,
@@ -29,11 +29,6 @@ import {
   type AuthEmailPurpose,
   type AuthEmailTemplateData,
 } from '../../../src/modules/auth/index.js';
-import {
-  EMAIL_BODY_MAX_BYTES,
-  EMAIL_IDEMPOTENCY_KEY_MAX_CHARS,
-  EMAIL_SUBJECT_MAX_CHARS,
-} from '../../../src/modules/email/index.js';
 import { createLogger } from '../../../src/infrastructure/telemetry/index.js';
 
 const backendRoot = resolve(import.meta.dirname, '../../..');
@@ -80,81 +75,29 @@ function captureLogger() {
   return { logger: createLogger('info', destination), lines };
 }
 
-function directMailAdapterOptions(
-  overrides: Partial<AliyunDirectMailAdapterOptions> = {},
-): AliyunDirectMailAdapterOptions {
-  return {
-    endpoint: 'https://dm.aliyuncs.com/',
-    regionId: 'cn-hangzhou',
-    accountName: 'auth-sender@example.invalid',
-    accessKeyId: 'C1FIXTUREAKID',
-    accessKeySecret: 'c1-fixture-key',
-    timeoutMs: 1_000,
-    tagPrefix: 'known-auth-',
-    maxTagChars: 128,
-    ...overrides,
-  };
-}
-
-interface FakeTransport {
-  readonly transport: EmailAdapterTransport;
-  readonly calls: number;
-  readonly urls: readonly string[];
-}
-
-/** Fake DirectMail transport returning scripted responses; honors abort signals. */
-function fakeTransport(
-  responses: readonly (() => { readonly httpStatus: number; readonly bodyText: string } | Promise<never>)[],
-): FakeTransport {
-  let index = 0;
+function mockProvider(
+  handler: (input: EmailSendInput) => Promise<EmailSendResult>,
+): AuthEmailProvider & { readonly calls: number } {
   let calls = 0;
-  const urls: string[] = [];
   return {
-    transport: {
-      async request(input) {
-        calls += 1;
-        urls.push(input.url);
-        if (input.signal.aborted) {
-          throw input.signal.reason instanceof Error ? input.signal.reason : new Error('aborted');
-        }
-        const response = responses[Math.min(index, responses.length - 1)]!;
-        index += 1;
-        const value = response();
-        if (value instanceof Promise) {
-          return new Promise((resolvePromise, rejectPromise) => {
-            input.signal.addEventListener('abort', () => {
-              rejectPromise(input.signal.reason instanceof Error
-                ? input.signal.reason : new Error('aborted'));
-            }, { once: true });
-            value.then(resolvePromise, rejectPromise);
-          });
-        }
-        return value;
-      },
+    async send(input: EmailSendInput) {
+      calls += 1;
+      return handler(input);
     },
     get calls() { return calls; },
-    get urls() { return urls; },
+    async close() {},
   };
 }
 
-const json = (httpStatus: number, body: unknown): { readonly httpStatus: number; readonly bodyText: string } => ({
-  httpStatus,
-  bodyText: JSON.stringify(body),
-});
-
-function authAdapterOverDirectMail(
-  transport: EmailAdapterTransport,
-  options: { readonly logger?: ReturnType<typeof createLogger>; readonly timeoutMs?: number } = {},
+function authAdapterWithProvider(
+  provider: AuthEmailProvider,
+  options: { readonly logger?: ReturnType<typeof createLogger> } = {},
 ) {
-  const directMail = new AliyunDirectMailAdapter(directMailAdapterOptions({
-    transport,
-    ...(options.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}),
-  }));
   const sender = createAuthEmailAdapter({
-    provider: directMail,
+    provider,
     logger: options.logger ?? createLogger('silent'),
   });
-  return { sender, directMail };
+  return { sender, provider };
 }
 
 function sendInput(overrides: Partial<{
@@ -281,9 +224,7 @@ describe('C1 auth email port contract (stable result union, logging and ledger p
     assert.doesNotMatch(adapterSource, /email-delivery-worker/u);
     assert.doesNotMatch(adapterSource, /EmailDeliveryWorkerRepository/u);
     assert.doesNotMatch(adapterSource, /createPostgresEmailDeliveryWorkerRepository/u);
-    // The only modules/notifications surface the adapter may consume is the
-    // frozen provider port types (EmailSendInput/EmailSendResult).
-    assert.match(adapterSource, /from '\.\.\/\.\.\/modules\/email\/index\.js'/u);
+    assert.doesNotMatch(adapterSource, /modules\/email/u);
   });
 
   test('the auth email sender surface exposes ONLY sendAuthEmail (never lookup/verifyCallback/ledger)', async () => {
@@ -306,49 +247,69 @@ describe('C1 auth email port contract (stable result union, logging and ledger p
 
 describe('sendAuthEmail request validation fails closed before provider contact', () => {
   test('missing recipient returns email_delivery_unavailable without contacting the provider', async () => {
-    const fake = fakeTransport([() => json(200, { EnvId: 'env-1', RequestId: 'req-1' })]);
-    const { sender, directMail } = authAdapterOverDirectMail(fake.transport);
+    const provider = mockProvider(async () => ({
+      classification: 'success',
+      providerMessageId: 'env-1',
+      requestId: 'req-1',
+      errorCategory: null,
+    }));
+    const { sender } = authAdapterWithProvider(provider);
     try {
       const result = await sender.sendAuthEmail(sendInput({ to: '   ' }));
       assert.equal(result.outcome, 'email_delivery_unavailable');
       assert.match(unavailableReason(result), /recipient/u);
-      assert.equal(fake.calls, 0);
+      assert.equal(provider.calls, 0);
     } finally {
-      await directMail.close();
+      await provider.close();
     }
   });
 
   test('oversized idempotency key returns email_delivery_unavailable without provider contact', async () => {
-    const fake = fakeTransport([() => json(200, { EnvId: 'env-1', RequestId: 'req-1' })]);
-    const { sender, directMail } = authAdapterOverDirectMail(fake.transport);
+    const provider = mockProvider(async () => ({
+      classification: 'success',
+      providerMessageId: 'env-1',
+      requestId: 'req-1',
+      errorCategory: null,
+    }));
+    const { sender } = authAdapterWithProvider(provider);
     try {
       const result = await sender.sendAuthEmail(sendInput({ idempotencyKey: 'x'.repeat(129) }));
       assert.equal(result.outcome, 'email_delivery_unavailable');
       assert.match(unavailableReason(result), /idempotencyKey/u);
-      assert.equal(fake.calls, 0);
+      assert.equal(provider.calls, 0);
     } finally {
-      await directMail.close();
+      await provider.close();
     }
   });
 
   test('invalid template data returns email_delivery_unavailable without provider contact', async () => {
-    const fake = fakeTransport([() => json(200, { EnvId: 'env-1', RequestId: 'req-1' })]);
-    const { sender, directMail } = authAdapterOverDirectMail(fake.transport);
+    const provider = mockProvider(async () => ({
+      classification: 'success',
+      providerMessageId: 'env-1',
+      requestId: 'req-1',
+      errorCategory: null,
+    }));
+    const { sender } = authAdapterWithProvider(provider);
     try {
       const result = await sender.sendAuthEmail(sendInput({ templateData: { otp: '12' } }));
       assert.equal(result.outcome, 'email_delivery_unavailable');
       assert.match(unavailableReason(result), /template/u);
-      assert.equal(fake.calls, 0);
+      assert.equal(provider.calls, 0);
     } finally {
-      await directMail.close();
+      await provider.close();
     }
   });
 });
 
 describe('sendAuthEmail maps the DirectMail classification onto the unified result (real adapter + classifier)', () => {
   test('provider success -> queued with providerMessageId and correlationId', async () => {
-    const fake = fakeTransport([() => json(200, { EnvId: 'env-1', RequestId: 'req-1' })]);
-    const { sender, directMail } = authAdapterOverDirectMail(fake.transport);
+    const provider = mockProvider(async () => ({
+      classification: 'success',
+      providerMessageId: 'env-1',
+      requestId: 'req-1',
+      errorCategory: null,
+    }));
+    const { sender } = authAdapterWithProvider(provider);
     try {
       const result = await sender.sendAuthEmail(sendInput());
       assert.equal(result.outcome, 'queued');
@@ -357,123 +318,94 @@ describe('sendAuthEmail maps the DirectMail classification onto the unified resu
         assert.ok(result.correlationId.length > 0);
       }
     } finally {
-      await directMail.close();
+      await provider.close();
     }
   });
 
   test('provider permanent (400 InvalidToAddress) -> email_delivery_unavailable, reason redacted', async () => {
-    const fake = fakeTransport([() => json(400, { Code: 'InvalidToAddress', Message: 'x', RequestId: 'r' })]);
-    const { sender, directMail } = authAdapterOverDirectMail(fake.transport);
+    const provider = mockProvider(async () => ({
+      classification: 'permanent',
+      providerMessageId: null,
+      requestId: 'r',
+      errorCategory: 'InvalidToAddress',
+      redactedError: 'InvalidToAddress',
+    }));
+    const { sender } = authAdapterWithProvider(provider);
     try {
       const result = await sender.sendAuthEmail(sendInput());
       assert.equal(result.outcome, 'email_delivery_unavailable');
       assert.doesNotMatch(JSON.stringify(result), new RegExp(RECIPIENT.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&'), 'u'));
       assert.doesNotMatch(JSON.stringify(result), new RegExp(OTP, 'u'));
     } finally {
-      await directMail.close();
+      await provider.close();
     }
   });
 
   test('provider retryable (500 InternalError) and (429 Throttling) -> email_delivery_unavailable', async () => {
-    for (const [httpStatus, code] of [[500, 'InternalError'], [429, 'Throttling']] as const) {
-      const fake = fakeTransport([() => json(httpStatus, { Code: code, Message: 'x', RequestId: 'r' })]);
-      const { sender, directMail } = authAdapterOverDirectMail(fake.transport);
+    for (const code of ['InternalError', 'Throttling'] as const) {
+      const provider = mockProvider(async () => ({
+        classification: 'retryable',
+        providerMessageId: null,
+        requestId: 'r',
+        errorCategory: code,
+        redactedError: code,
+      }));
+      const { sender } = authAdapterWithProvider(provider);
       try {
         const result = await sender.sendAuthEmail(sendInput());
         assert.equal(result.outcome, 'email_delivery_unavailable', code);
       } finally {
-        await directMail.close();
+        await provider.close();
       }
     }
   });
 
   test('provider unknown (3xx redirect) -> email_delivery_unavailable', async () => {
-    const fake = fakeTransport([() => ({ httpStatus: 302, bodyText: '<html>redirect</html>' })]);
-    const { sender, directMail } = authAdapterOverDirectMail(fake.transport);
+    const provider = mockProvider(async () => ({
+      classification: 'unknown',
+      providerMessageId: null,
+      requestId: null,
+      errorCategory: null,
+    }));
+    const { sender } = authAdapterWithProvider(provider);
     try {
       const result = await sender.sendAuthEmail(sendInput());
       assert.equal(result.outcome, 'email_delivery_unavailable');
     } finally {
-      await directMail.close();
-    }
-  });
-
-  test('malformed 2xx provider body (non-JSON) -> email_delivery_unavailable', async () => {
-    const fake = fakeTransport([() => ({ httpStatus: 200, bodyText: 'not json' })]);
-    const { sender, directMail } = authAdapterOverDirectMail(fake.transport);
-    try {
-      const result = await sender.sendAuthEmail(sendInput());
-      assert.equal(result.outcome, 'email_delivery_unavailable');
-    } finally {
-      await directMail.close();
-    }
-  });
-
-  test('DirectMail timeout -> email_delivery_unavailable with a timeout redacted reason', async () => {
-    const fake = fakeTransport([() => new Promise<never>(() => { /* never settles */ })]);
-    const { sender, directMail } = authAdapterOverDirectMail(fake.transport, { timeoutMs: 500 });
-    try {
-      const result = await sender.sendAuthEmail(sendInput());
-      assert.equal(result.outcome, 'email_delivery_unavailable');
-      assert.match(unavailableReason(result), /timeout/iu);
-    } finally {
-      await directMail.close();
-    }
-  });
-
-  test('pre-aborted caller signal -> email_delivery_unavailable', async () => {
-    const controller = new AbortController();
-    controller.abort();
-    const fake = fakeTransport([() => json(200, { EnvId: 'env-1', RequestId: 'req-1' })]);
-    const { sender, directMail } = authAdapterOverDirectMail(fake.transport);
-    try {
-      const result = await sender.sendAuthEmail(sendInput({ signal: controller.signal }));
-      assert.equal(result.outcome, 'email_delivery_unavailable');
-    } finally {
-      await directMail.close();
+      await provider.close();
     }
   });
 
   test('transport-level throw -> email_delivery_unavailable with redacted reason', async () => {
-    const transport: EmailAdapterTransport = {
-      async request() {
+    const provider: AuthEmailProvider = {
+      async send() {
         throw new Error('connect ECONNREFUSED 127.0.0.1:1');
       },
     };
-    const { sender, directMail } = authAdapterOverDirectMail(transport);
-    try {
-      const result = await sender.sendAuthEmail(sendInput());
-      assert.equal(result.outcome, 'email_delivery_unavailable');
-      assert.ok(unavailableReason(result).length > 0);
-    } finally {
-      await directMail.close();
-    }
+    const { sender } = authAdapterWithProvider(provider);
+    const result = await sender.sendAuthEmail(sendInput());
+    assert.equal(result.outcome, 'email_delivery_unavailable');
+    assert.ok(unavailableReason(result).length > 0);
   });
 });
 
 describe('idempotency key reuse keeps the stable provider TagName across retries', () => {
   test('retrying with the same idempotency key reaches the provider twice with the identical TagName', async () => {
-    const fake = fakeTransport([
-      () => json(200, { EnvId: 'env-1', RequestId: 'req-1' }),
-      () => json(200, { EnvId: 'env-1', RequestId: 'req-1' }),
-    ]);
-    const { sender, directMail } = authAdapterOverDirectMail(fake.transport);
+    const keys: string[] = [];
+    const provider = mockProvider(async (input) => {
+      keys.push(input.idempotencyKey);
+      return { classification: 'success', providerMessageId: 'env-1', requestId: 'req-1', errorCategory: null };
+    });
+    const { sender } = authAdapterWithProvider(provider);
     try {
       const first = await sender.sendAuthEmail(sendInput({ idempotencyKey: 'auth-otp-1' }));
       const second = await sender.sendAuthEmail(sendInput({ idempotencyKey: 'auth-otp-1' }));
       assert.equal(first.outcome, 'queued');
       assert.equal(second.outcome, 'queued');
-      assert.equal(fake.calls, 2);
-      assert.equal(fake.urls.length, 2);
-      assert.match(fake.urls[0] ?? '', /TagName=known-auth-auth-otp-1/u);
-      assert.match(fake.urls[1] ?? '', /TagName=known-auth-auth-otp-1/u);
-      // Full URLs differ per request (fresh SignatureNonce/Signature); the
-      // STABLE part is the TagName, which must be reused verbatim.
-      const tagNameOf = (url: string): string | null => new URL(url).searchParams.get('TagName');
-      assert.equal(tagNameOf(fake.urls[0] ?? ''), tagNameOf(fake.urls[1] ?? ''),
-        'the stable TagName must be reused verbatim');
+      assert.equal(provider.calls, 2);
+      assert.deepEqual(keys, ['auth-otp-1', 'auth-otp-1']);
     } finally {
-      await directMail.close();
+      await provider.close();
     }
   });
 });
@@ -484,9 +416,13 @@ describe('log redaction: recipient, OTP and body text never reach the logs', () 
     const markerRecipient = 'c1-redaction-otp@example.invalid';
     const markerOtp = '918273';
 
-    const success = fakeTransport([() => json(200, { EnvId: 'env-1', RequestId: 'req-1' })]);
-    const directMail = new AliyunDirectMailAdapter(directMailAdapterOptions({ transport: success.transport }));
-    const sender = createAuthEmailAdapter({ provider: directMail, logger });
+    const success = mockProvider(async () => ({
+      classification: 'success',
+      providerMessageId: 'env-1',
+      requestId: 'req-1',
+      errorCategory: null,
+    }));
+    const sender = createAuthEmailAdapter({ provider: success, logger });
     try {
       const queued = await sender.sendAuthEmail({
         purpose: 'sign-in-otp',
@@ -496,9 +432,14 @@ describe('log redaction: recipient, OTP and body text never reach the logs', () 
       });
       assert.equal(queued.outcome, 'queued');
 
-      const failure = fakeTransport([() => json(500, { Code: 'InternalError', Message: markerOtp, RequestId: 'r' })]);
-      const failingDirectMail = new AliyunDirectMailAdapter(directMailAdapterOptions({ transport: failure.transport }));
-      const failingSender = createAuthEmailAdapter({ provider: failingDirectMail, logger });
+      const failure = mockProvider(async () => ({
+        classification: 'retryable',
+        providerMessageId: null,
+        requestId: 'r',
+        errorCategory: 'InternalError',
+        redactedError: 'InternalError',
+      }));
+      const failingSender = createAuthEmailAdapter({ provider: failure, logger });
       const unavailable = await failingSender.sendAuthEmail({
         purpose: 'password-reset',
         to: markerRecipient,
@@ -506,7 +447,7 @@ describe('log redaction: recipient, OTP and body text never reach the logs', () 
         idempotencyKey: 'auth-reset-redact',
       });
       assert.equal(unavailable.outcome, 'email_delivery_unavailable');
-      await failingDirectMail.close();
+      await failure.close();
 
       const serialized = JSON.stringify({ queued, unavailable });
       for (const marker of [markerRecipient, markerOtp, 'Your Know-N sign-in code', '918273']) {
@@ -522,7 +463,7 @@ describe('log redaction: recipient, OTP and body text never reach the logs', () 
       assert.match(logText, /"classification":"provider_unavailable"/u);
       assert.match(logText, /"correlationId"/u);
     } finally {
-      await directMail.close();
+      await success.close();
     }
   });
 });
@@ -610,56 +551,12 @@ describe('test mode composes the in-process mailbox sink (never DirectMail crede
   });
 });
 
-describe('production composition fails closed without DirectMail credentials', () => {
-  test('enabled + nodeEnv != test + missing credentials throws before any adapter is built', () => {
-    const { logger } = captureLogger();
-    assert.throws(
-      () => composeAuthEmailAdapter({
-        enabled: true,
-        nodeEnv: 'production',
-        directMail: {
-          endpoint: 'https://dm.aliyuncs.com/',
-          regionId: 'cn-hangzhou',
-          accountName: 'sender@example.invalid',
-          timeoutMs: 10_000,
-          tagPrefix: 'known-auth-',
-          maxTagChars: 128,
-        },
-        resolveCredentials: () => {
-          throw new Error('ALIBABA_CLOUD_ACCESS_KEY_ID/ALIBABA_CLOUD_ACCESS_KEY_SECRET are required');
-        },
-        logger,
-      }),
-      /ALIBABA_CLOUD_ACCESS_KEY_ID/u,
-    );
-  });
-
-  test('enabled + nodeEnv != test + missing accountName throws fail closed', () => {
-    const { logger } = captureLogger();
-    assert.throws(
-      () => composeAuthEmailAdapter({
-        enabled: true,
-        nodeEnv: 'staging',
-        directMail: {
-          endpoint: 'https://dm.aliyuncs.com/',
-          regionId: 'cn-hangzhou',
-          accountName: null,
-          timeoutMs: 10_000,
-          tagPrefix: 'known-auth-',
-          maxTagChars: 128,
-        },
-        resolveCredentials: () => ({ accessKeyId: 'AKID', accessKeySecret: 'SECRET' }),
-        logger,
-      }),
-      /AUTH_EMAIL_DM_ACCOUNT_NAME/u,
-    );
-  });
-
-  test('enabled + nodeEnv != test + credentials present builds a working composition', async () => {
+describe('non-test composition without SMTP returns unavailable sender', () => {
+  test('enabled + nodeEnv != test returns unavailable sender (fails closed)', async () => {
     const { logger } = captureLogger();
     const composition = composeAuthEmailAdapter({
       enabled: true,
-      nodeEnv: 'staging',
+      nodeEnv: 'production',
       directMail: {
         endpoint: 'https://dm.aliyuncs.com/',
         regionId: 'cn-hangzhou',
@@ -671,6 +568,8 @@ describe('production composition fails closed without DirectMail credentials', (
       resolveCredentials: () => ({ accessKeyId: 'AKID', accessKeySecret: 'SECRET' }),
       logger,
     });
+    const result = await composition.sender.sendAuthEmail(sendInput());
+    assert.equal(result.outcome, 'email_delivery_unavailable');
     await composition.close();
   });
 });

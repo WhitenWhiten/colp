@@ -65,20 +65,10 @@ export interface ApiSurfaceRateLimiters {
   readonly collectionFollowRateLimiter: ProductAdmissionRateLimiter;
   readonly feedRateLimiter: ProductAdmissionRateLimiter;
   readonly notificationRateLimiter: ProductAdmissionRateLimiter;
-  readonly creditsReadRateLimiter: ProductAdmissionRateLimiter;
   readonly libraryOrderRateLimiter: ProductAdmissionRateLimiter;
   readonly faviconPolicyRateLimiter: ProductAdmissionRateLimiter;
   readonly linkHealthRateLimiter: ProductAdmissionRateLimiter;
-  readonly classificationProfilesRateLimiter: ProductAdmissionRateLimiter;
-  readonly classificationRunsRateLimiter: ProductAdmissionRateLimiter;
-  readonly classificationSettingsRateLimiter: ProductAdmissionRateLimiter;
-  readonly classificationPreviewRateLimiter: ProductAdmissionRateLimiter;
-  readonly classificationConfirmationRateLimiter: ProductAdmissionRateLimiter;
-  readonly classifyInboxRateLimiter: ProductAdmissionRateLimiter;
-  readonly exportJobRateLimiter: ProductAdmissionRateLimiter;
-  readonly organizePlanRateLimiter: ProductAdmissionRateLimiter;
   readonly collectionVersionRateLimiter: ProductAdmissionRateLimiter;
-  readonly readableReplicaRateLimiter: ProductAdmissionRateLimiter;
   readonly publicObjectRateLimiter: ProductAdmissionRateLimiter;
   readonly reportsRateLimiter: ProductAdmissionRateLimiter;
   /** CS: four sealed contract families; each has its own counter. */
@@ -288,25 +278,11 @@ export function composeApiSurfaceRateLimiters(config: AppConfig): ApiSurfaceRate
     redisUrlEnv: 'PRODUCT_ROUTE_RATE_LIMIT_REDIS_URL',
     keySecretEnv: 'PRODUCT_ROUTE_RATE_LIMIT_KEY_SECRET',
   });
-  const creditsReadRateLimiter = createProductBurstRateLimiter(
-    productRouteLimiter('credits-read', { maxRequests: 60, windowMs: 60_000 }),
-    productRouteLimiter('credits-read', { maxRequests: 10, windowMs: 1_000 }),
-    'credits-read',
-  );
   const defaultProductRouteBudget = Object.freeze({ maxRequests: 120, windowMs: 60_000 });
   const libraryOrderRateLimiter = productRouteLimiter('library-order', config.libraryOrder.rateLimit);
   const faviconPolicyRateLimiter = productRouteLimiter('favicon-policy', defaultProductRouteBudget);
   const linkHealthRateLimiter = productRouteLimiter('link-health', config.linkHealth.rateLimit);
-  const classificationProfilesRateLimiter = productRouteLimiter('classification-profile', {maxRequests:20,windowMs:60000});
-  const classificationRunsRateLimiter = productRouteLimiter('classification-run', defaultProductRouteBudget);
-  const classificationSettingsRateLimiter = productRouteLimiter('classification-settings', defaultProductRouteBudget);
-  const classificationPreviewRateLimiter = productRouteLimiter('classification-preview', defaultProductRouteBudget);
-  const classificationConfirmationRateLimiter = productRouteLimiter('classification-confirmation', defaultProductRouteBudget);
-  const classifyInboxRateLimiter = productRouteLimiter('classify-inbox', defaultProductRouteBudget);
-  const exportJobRateLimiter = productRouteLimiter('export-job', config.exportJobs.rateLimit);
-  const organizePlanRateLimiter = productRouteLimiter('organize-plan', defaultProductRouteBudget);
   const collectionVersionRateLimiter = productRouteLimiter('collection-version', defaultProductRouteBudget);
-  const readableReplicaRateLimiter = productRouteLimiter('readable-replica', defaultProductRouteBudget);
   const publicObjectRateLimiter = productRouteLimiter('public-object', defaultProductRouteBudget);
   const reportsRateLimiter = productRouteLimiter('reports', defaultProductRouteBudget);
   // CS contract COMMUNITY_RATE_LIMITS: four independent admission families.
@@ -419,18 +395,10 @@ export function composeApiSurfaceRateLimiters(config: AppConfig): ApiSurfaceRate
     collectionFollowRateLimiter,
     feedRateLimiter,
     notificationRateLimiter,
-    creditsReadRateLimiter,
     libraryOrderRateLimiter,
     faviconPolicyRateLimiter,
     linkHealthRateLimiter,
-    classificationProfilesRateLimiter, classificationRunsRateLimiter, classificationSettingsRateLimiter,
-    classificationPreviewRateLimiter,
-    classificationConfirmationRateLimiter,
-    classifyInboxRateLimiter,
-    exportJobRateLimiter,
-    organizePlanRateLimiter,
     collectionVersionRateLimiter,
-    readableReplicaRateLimiter,
     publicObjectRateLimiter,
     reportsRateLimiter,
     communityRateLimiters,

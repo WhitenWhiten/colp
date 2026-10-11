@@ -15,3 +15,5 @@
 Thumbs.db
 # Temporary migration-subset folders created by server tests (tests/support/migration-subset-directory.ts).
 packages/server/.migrations-subset-*/
+run-i1-i2/
+scripts/verify-i3-agents.mjs

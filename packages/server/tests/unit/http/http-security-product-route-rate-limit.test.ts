@@ -18,14 +18,7 @@ import {
 const PURPOSES = [
   'library-order',
   'link-health',
-  'classify-inbox',
-  'classification-profile', 'classification-run', 'classification-settings',
-  'classification-preview',
-  'classification-confirmation',
-  'export-job',
-  'organize-plan',
   'collection-version',
-  'readable-replica',
   'public-object',
   'reports',
   // CS contract COMMUNITY_RATE_LIMITS: four sealed product-surface purposes.
@@ -37,7 +30,7 @@ const PURPOSES = [
   'governance-action',
   'governance-appeal',
 ] as const satisfies readonly ProductSurfaceRateLimitPurpose[];
-const ALL_SHARED_PURPOSES = [...PURPOSES.slice(0, 13), 'credits-read', ...PURPOSES.slice(13)];
+const ALL_SHARED_PURPOSES = PURPOSES;
 
 const apps: Array<ReturnType<typeof buildApiApp>> = [];
 
@@ -70,18 +63,8 @@ function sharedDependencies(
 ): Pick<AppDependencies,
   | 'libraryOrderRateLimiter'
   | 'linkHealthRateLimiter'
-  | 'classifyInboxRateLimiter'
-  | 'classificationProfilesRateLimiter'
-  | 'classificationRunsRateLimiter'
-  | 'classificationSettingsRateLimiter'
-  | 'classificationPreviewRateLimiter'
-  | 'classificationConfirmationRateLimiter'
-  | 'exportJobRateLimiter'
-  | 'organizePlanRateLimiter'
   | 'collectionVersionRateLimiter'
-  | 'readableReplicaRateLimiter'
   | 'publicObjectRateLimiter'
-  | 'creditsReadRateLimiter'
   | 'reportsRateLimiter'
   | 'faviconPolicyRateLimiter'
   | 'communityRateLimiters'
@@ -93,18 +76,8 @@ function sharedDependencies(
   return {
     libraryOrderRateLimiter: limiter('library-order'),
     linkHealthRateLimiter: limiter('link-health'),
-    classifyInboxRateLimiter: limiter('classify-inbox'),
-    classificationProfilesRateLimiter: limiter('classification-profile'),
-    classificationRunsRateLimiter: limiter('classification-run'),
-    classificationSettingsRateLimiter: limiter('classification-settings'),
-    classificationPreviewRateLimiter: limiter('classification-preview'),
-    classificationConfirmationRateLimiter: limiter('classification-confirmation'),
-    exportJobRateLimiter: limiter('export-job'),
-    organizePlanRateLimiter: limiter('organize-plan'),
     collectionVersionRateLimiter: limiter('collection-version'),
-    readableReplicaRateLimiter: limiter('readable-replica'),
     publicObjectRateLimiter: limiter('public-object'),
-    creditsReadRateLimiter: limiter('credits-read'),
     reportsRateLimiter: limiter('reports'),
     faviconPolicyRateLimiter: limiter('favicon-policy'),
     communityRateLimiters: {
@@ -128,8 +101,6 @@ function productionReplicaPrerequisites(overrides: Record<string, string> = {}) 
     SEARCH_RATE_LIMIT_SHARED: 'true',
     SEARCH_RATE_LIMIT_REDIS_URL: 'redis://127.0.0.1:6379',
     SEARCH_RATE_LIMIT_KEY_SECRET: 'search-rate-limit-hmac-secret-006',
-    PUBLISHING_INSIGHTS_RATE_LIMIT_SHARED: 'true',
-    PUBLISHING_INSIGHTS_RATE_LIMIT_REDIS_URL: 'redis://127.0.0.1:6379',
     COLLABORATION_INVITE_RATE_LIMIT_SHARED: 'true',
     COLLABORATION_INVITE_RATE_LIMIT_REDIS_URL: 'redis://127.0.0.1:6379',
     COLLABORATION_INVITE_RATE_LIMIT_KEY_SECRET: 'collaboration-invite-rate-limit-hmac-secret',
@@ -155,16 +126,7 @@ describe('shared product-route rate-limit families', () => {
     const limiters = [
       composed.libraryOrderRateLimiter,
       composed.linkHealthRateLimiter,
-      composed.classifyInboxRateLimiter,
-      composed.classificationProfilesRateLimiter,
-      composed.classificationRunsRateLimiter,
-      composed.classificationSettingsRateLimiter,
-      composed.classificationPreviewRateLimiter,
-      composed.classificationConfirmationRateLimiter,
-      composed.exportJobRateLimiter,
-      composed.organizePlanRateLimiter,
       composed.collectionVersionRateLimiter,
-      composed.readableReplicaRateLimiter,
       composed.publicObjectRateLimiter,
       composed.reportsRateLimiter,
       composed.communityRateLimiters.vote,
@@ -180,16 +142,6 @@ describe('shared product-route rate-limit families', () => {
       assert.equal('readiness' in limiter, false);
       assert.equal(typeof (limiter as { size?: unknown }).size, 'function');
     }
-    const creditLimiter = composed.creditsReadRateLimiter;
-    assert.equal('readiness' in creditLimiter, true);
-    for (let index = 0; index < 10; index += 1) {
-      assert.deepEqual(await creditLimiter.consume('credits-read-test'), {
-        kind: 'allowed', decision: { allowed: true, retryAfterSeconds: 0 },
-      });
-    }
-    const burstDenied = await creditLimiter.consume('credits-read-test');
-    assert.equal(burstDenied.kind, 'denied');
-    await creditLimiter.close();
   });
 
   test('shared configuration validates its Redis URL, secret, prefix and boolean', () => {
@@ -258,7 +210,7 @@ describe('shared product-route rate-limit families', () => {
 
     const degraded = buildApiApp({
       config,
-      ...sharedDependencies({ 'organize-plan': 'degraded' }),
+      ...sharedDependencies({ reports: 'degraded' }),
     });
     apps.push(degraded);
     await degraded.ready();
@@ -266,7 +218,6 @@ describe('shared product-route rate-limit families', () => {
     assert.equal(notReady.statusCode, 503, notReady.body);
   });
 });
-
 
 test('exported shared composition requires all enabled credential and token limiters', async () => {
   const base = loadConfig(testEnv(productRouteRateLimitSharedEnv()));

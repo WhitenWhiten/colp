@@ -67,7 +67,7 @@ describe('P3-10 Sequence binding and retention contract', () => {
       { ...legal, sequence: 0 }, { ...legal, sequence: Number.MAX_SAFE_INTEGER + 1 },
       { ...legal, leaseGeneration: '0' }, { ...legal, leaseGeneration: '01' },
       { ...legal, sequenceScope: 'collection:other' },
-      { ...legal, sequenceScope: session.collectionId ?? '' },
+      { ...legal, sequenceScope: '' },
       { ...legal, serverBatchId: 'client-selected-unbound-batch' },
     ]) assert.throws(() => validateSyncSequenceAdmissionInput(invalid));
   });

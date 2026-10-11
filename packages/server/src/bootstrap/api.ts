@@ -38,8 +38,6 @@ import { createLogger, InMemoryMetrics } from '../infrastructure/telemetry/index
 import { composeReadinessProbe, type ReadinessProbe } from '../infrastructure/health.js';
 import {
   composeCollaborationInviteRateLimiter,
-  composePublishingInsightsIngestRateLimiter,
-  type PublishingInsightsIngestRateLimiter,
 } from '../infrastructure/rate-limit/index.js';
 import {
   assertMcpWriteOAuthRequirement,
@@ -59,7 +57,6 @@ import { composeApiEmail } from './api-email-composition.js';
 import { composeApiAccountServices } from './api-account-services.js';
 import { composeApiMcpSurface } from './api-mcp-surface-composition.js';
 import { createApiPostgresPorts, createApiPostgresAppDependencies } from './api-postgres-ports.js';
-import { createPostgresLinkPreviewPublicAccess } from '../infrastructure/collections/index.js';
 import {
   isAvatarPublicationRestricted,
   isFaviconPubliclyAccessible,
@@ -209,16 +206,10 @@ export async function startApi(options: StartApiOptions = {}): Promise<StartedAp
     collectionFollowRateLimiter,
     feedRateLimiter,
     notificationRateLimiter,
-    creditsReadRateLimiter,
     libraryOrderRateLimiter,
     faviconPolicyRateLimiter,
     linkHealthRateLimiter,
-    classificationSettingsRateLimiter, classificationPreviewRateLimiter, classificationConfirmationRateLimiter, classificationProfilesRateLimiter, classificationRunsRateLimiter,
-    classifyInboxRateLimiter,
-    exportJobRateLimiter,
-    organizePlanRateLimiter,
     collectionVersionRateLimiter,
-    readableReplicaRateLimiter,
     publicObjectRateLimiter,
     reportsRateLimiter,
     communityRateLimiters,
@@ -232,12 +223,6 @@ export async function startApi(options: StartApiOptions = {}): Promise<StartedAp
     effectPageRateLimiter,
     syncAdmissionPolicy,
   } = surfaceLimiters;
-  const publishingInsightsRateLimiter: PublishingInsightsIngestRateLimiter =
-    composePublishingInsightsIngestRateLimiter({
-      environment: config.nodeEnv,
-      keySecret: config.publishingInsights.rateLimitHmacKey,
-      shared: config.publishingInsights.rateLimitShared,
-    });
   const collaborationInviteRateLimiter = composeCollaborationInviteRateLimiter({
     environment: config.nodeEnv,
     keySecret: config.collaborationInviteRateLimit.keySecret,
@@ -330,7 +315,6 @@ export async function startApi(options: StartApiOptions = {}): Promise<StartedAp
     metrics,
     ports,
     collaborationInviteRateLimiter,
-    publishingInsightsRateLimiter,
     identityUnitOfWork: ports.identityUnitOfWork,
   });
   const accountCredentialCursors = config.accountCredentials.enabled && config.accountCredentials.cursorHmacKey
@@ -372,7 +356,6 @@ export async function startApi(options: StartApiOptions = {}): Promise<StartedAp
     collaborationMembersCursorSigner: ports.collaborationMembersCursorSigner,
     myCollaborationInvitesCursorSigner: ports.myCollaborationInvitesCursorSigner,
     linkHealthCursorSigner: ports.linkHealthCursorSigner,
-    classifyInboxCursorSigner: ports.classifyInboxCursorSigner,
     collectionVersionCursorSigner: ports.collectionVersionCursorSigner,
     syncRuntime,
     emailProvider: email.emailProvider,
@@ -389,18 +372,11 @@ export async function startApi(options: StartApiOptions = {}): Promise<StartedAp
     collectionFollowRateLimiter,
     feedRateLimiter,
     notificationRateLimiter,
-    creditsReadRateLimiter,
     productRouteRateLimiters: [
       libraryOrderRateLimiter,
       faviconPolicyRateLimiter,
-      creditsReadRateLimiter,
       linkHealthRateLimiter,
-      classificationSettingsRateLimiter, classificationPreviewRateLimiter, classificationConfirmationRateLimiter, classificationProfilesRateLimiter, classificationRunsRateLimiter,
-      classifyInboxRateLimiter,
-      exportJobRateLimiter,
-      organizePlanRateLimiter,
       collectionVersionRateLimiter,
-      readableReplicaRateLimiter,
       publicObjectRateLimiter,
       reportsRateLimiter,
       communityRateLimiters.vote,
@@ -417,7 +393,6 @@ export async function startApi(options: StartApiOptions = {}): Promise<StartedAp
     ],
     effectPageRateLimiter,
     syncAdmissionPolicy,
-    publishingInsightsRateLimiter,
     collaborationInviteRateLimiter,
     mcpRateLimiter,
     emailCallbackRateLimiter: email.emailCallbackRateLimiter,
@@ -430,14 +405,12 @@ export async function startApi(options: StartApiOptions = {}): Promise<StartedAp
   try {
     app = buildApiApp({
     config,
-    creditLedgerRead: ports.creditLedgerRead,
     // F2: readiness reflects only enabled dependencies. Legacy OIDC is never one.
     readiness: composeReadinessProbe([options.readiness, database]),
     identityUnitOfWork: ports.identityUnitOfWork,
     avatarStore,
     ...publicObjects.publicObjectStores,
     faviconPublicAccess: { isPubliclyAccessible: (objectId) => isFaviconPubliclyAccessible(database.db, objectId, KNOWN_FAVICON_DOMAINS) },
-    linkPreviewPublicAccess: { isServable: (objectId, signal) => createPostgresLinkPreviewPublicAccess(database.db, { cancelBackend: database.cancelBackend }).isServable(objectId, signal) },
     avatarPublicAccess: { isPublicationRestricted: (objectId) => isAvatarPublicationRestricted(database.db, objectId) },
     authRateLimiter,
     mcpRateLimiter,
@@ -450,7 +423,6 @@ export async function startApi(options: StartApiOptions = {}): Promise<StartedAp
     ownedCollectionsQuery: ports.ownedCollectionsQueryPorts,
     sharedCollectionsQuery: ports.sharedCollectionsQueryPorts,
     linkHealthQuery: ports.linkHealthQueryPorts,
-    classifyInboxQuery: ports.classifyInboxQueryPorts,
     bookmarkCounts: collectionBookmarkCounts,
     annotationMutationUnitOfWork: ports.annotationMutationUnitOfWork,
     annotationReadUnitOfWork: ports.annotationReadUnitOfWork,
@@ -551,20 +523,12 @@ export async function startApi(options: StartApiOptions = {}): Promise<StartedAp
     collectionFollowRateLimiter,
     feedRateLimiter,
     notificationRateLimiter,
-    creditsReadRateLimiter,
     libraryOrderRateLimiter,
     faviconPolicyRateLimiter,
     linkHealthRateLimiter,
-    classificationSettingsRateLimiter, classificationPreviewRateLimiter, classificationConfirmationRateLimiter, classificationProfilesRateLimiter, classificationRunsRateLimiter,
-    classifyInboxRateLimiter,
-    exportJobRateLimiter,
-    organizePlanRateLimiter,
     collectionVersionRateLimiter,
-    readableReplicaRateLimiter,
     publicObjectRateLimiter,
     communityRateLimiters,
-    ...(email.emailCallbackRoutes === undefined ? {} : { emailCallbackRoutes: email.emailCallbackRoutes }),
-    ...(email.emailOpsRoutes === undefined ? {} : { emailOpsRoutes: email.emailOpsRoutes }),
     ...postgresApp,
     accountCredentialUnitOfWork,
     accountCredentialCursors,

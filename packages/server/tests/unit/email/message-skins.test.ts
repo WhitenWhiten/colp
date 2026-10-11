@@ -11,7 +11,6 @@ import {
   mailClassForPurpose,
   parseEmailSkinConfig,
   wrapEmailMessage,
-  wrapEmailTemplateRenderers,
   type EmailSkinMessage,
   type EmailSkinPurpose,
 } from '../../../src/infrastructure/email/message-skins.js';
@@ -21,12 +20,6 @@ import {
   UNIFIED_EMAIL_SKIN,
 } from '../../../src/infrastructure/email/unified-email-chrome.js';
 import { renderEmailHeading } from '../../../src/infrastructure/email/email-inner-blocks.js';
-import { createEmailTemplateRenderers } from '../../../src/modules/email/index.js';
-import type {
-  EmailTemplateContext,
-  EmailTemplateMessage,
-  EmailTemplateNotificationType,
-} from '../../../src/modules/email/index.js';
 
 const OTP = '483920';
 const backendRoot = resolve(import.meta.dirname, '../../..');
@@ -254,62 +247,6 @@ describe('wrapEmailMessage', () => {
   });
 });
 
-describe('wrapEmailTemplateRenderers', () => {
-  const context = Object.freeze({
-    notificationType: 'follow_activity' as const,
-    actorName: 'Ada',
-    collectionTitle: null,
-    occurredAt: new Date('2026-08-23T00:00:00.000Z'),
-  });
-
-  test('purpose skin keeps the inner renderer copy pixel-equal', () => {
-    const inner = createEmailTemplateRenderers();
-    const wrapped = wrapEmailTemplateRenderers(
-      inner,
-      parseEmailSkinConfig({ EMAIL_SKIN_DEFAULT: 'purpose' }),
-    );
-    assert.deepEqual(
-      wrapped.render('follow_activity', context),
-      inner.render('follow_activity', context),
-    );
-  });
-
-  test('unified follow_activity html carries the chrome marker', () => {
-    const inner = createEmailTemplateRenderers();
-    const wrapped = wrapEmailTemplateRenderers(
-      inner,
-      parseEmailSkinConfig({ EMAIL_SKIN_FOLLOW_ACTIVITY: 'unified' }),
-    );
-    const message = wrapped.render('follow_activity', context);
-    assert.match(message.htmlBody ?? '', new RegExp(`data-known-email-skin="${UNIFIED_EMAIL_SKIN}"`, 'u'));
-    assert.doesNotMatch(message.htmlBody ?? '', /unsubscribe/iu);
-  });
-
-  test('over-budget wrap throws a static TypeError without sending copy', () => {
-    const inner = {
-    render(
-      notificationType: EmailTemplateNotificationType,
-      context: EmailTemplateContext,
-    ): EmailTemplateMessage {
-      void notificationType;
-      void context;
-      return {
-        subject: 'K'.repeat(EMAIL_SKIN_SUBJECT_MAX_CHARS + 1),
-        textBody: 'x',
-        htmlBody: '<p>x</p>',
-      };
-    },
-    };
-    const wrapped = wrapEmailTemplateRenderers(inner, defaultEmailSkinMap());
-    assert.throws(
-      () => wrapped.render('follow_activity', context),
-      (error: unknown) => error instanceof TypeError
-        && /subject exceeds/u.test((error as TypeError).message)
-        && !new RegExp(OTP, 'u').test((error as TypeError).message),
-    );
-  });
-});
-
 describe('marketing-notice renderer', () => {
   const input = {
     heading: 'A Know-N product notice',
@@ -358,26 +295,6 @@ describe('marketing-notice renderer', () => {
 });
 
 describe('MAIL-01 source negatives', () => {
-  test('SingleSendMail param builder still has no TemplateName', () => {
-    const source = readFileSync(
-      resolve(backendRoot, 'src/infrastructure/email/aliyun-directmail-adapter.ts'),
-      'utf8',
-    );
-    assert.match(source, /function buildSingleSendMailParams/u);
-    assert.doesNotMatch(source, /TemplateName/u);
-  });
-
-  test('application email delivery worker still has no chrome import', () => {
-    const source = readFileSync(
-      resolve(backendRoot, 'src/modules/email/email-delivery-worker.ts'),
-      'utf8',
-    );
-    assert.doesNotMatch(source, /unified-email-chrome/u);
-    assert.doesNotMatch(source, /message-skins/u);
-    assert.doesNotMatch(source, /wrapUnifiedEmailChrome/u);
-    assert.doesNotMatch(source, /wrapEmailMessage/u);
-    assert.doesNotMatch(source, /infrastructure\/email/u);
-  });
 
   test('closed purpose set includes the required auth, invite, notification, and marketing names', () => {
     const expected: readonly EmailSkinPurpose[] = [

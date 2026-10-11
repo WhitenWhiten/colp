@@ -21,7 +21,6 @@ import {
   createSyncTransportSecurity,
 } from '../../../src/transport/colp-sync/sync-transport-security.js';
 import { registerPublicationManifestRoutes } from '../../../src/transport/product/publication-manifest-routes.js';
-import { createCaptureRuntime } from '../../../src/infrastructure/collections/capture-runtime.js';
 import {
   BETTER_AUTH_PROD_SECRET,
   betterAuthTestEnv,
@@ -253,17 +252,4 @@ test('startup in insecure HTTP mode logs the exact warning and skips HSTS', asyn
   } finally {
     console.warn = original;
   }
-});
-
-test('capture-capabilities reports cloud features off for the self-hosted edition', () => {
-  const runtime = createCaptureRuntime({} as never, {} as never, {
-    enabled: true,
-    tagsEnabled: true,
-    autoTagsEnabled: true,
-  });
-  assert.equal(runtime.capabilities().automaticFolderAvailable, true);
-  process.env.KNOWN_EDITION = 'self-hosted';
-  const selfHosted = runtime.capabilities();
-  assert.equal(selfHosted.automaticFolderAvailable, false);
-  assert.equal(selfHosted.automaticTagsAvailable, false);
 });

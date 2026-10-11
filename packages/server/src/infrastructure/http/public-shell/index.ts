@@ -44,18 +44,6 @@ export {
   sanitizePublicShellText,
   truncatePublicShellDescription,
 } from './sanitize-public-shell-text.js';
-export {
-  buildExploreJsonLd,
-  buildPublicExploreMarkdown,
-  injectPublicExploreShell,
-  normalizeExploreItems,
-  PUBLIC_EXPLORE_DESCRIPTION,
-  PUBLIC_EXPLORE_HEADING,
-  PUBLIC_EXPLORE_ITEM_LIMIT,
-  PUBLIC_EXPLORE_PATH,
-  PUBLIC_EXPLORE_TITLE,
-  type PublicExploreShellItem,
-} from './public-explore-shell.js';
 export { wantsColpCanonicalTombstone, wantsPublicShellMarkdown } from './negotiate-public-shell.js';
 export {
   buildPublicCollectionMarkdown,

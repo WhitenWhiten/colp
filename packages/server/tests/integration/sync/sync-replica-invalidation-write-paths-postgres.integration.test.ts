@@ -4,15 +4,11 @@ import { afterAll, beforeAll, test } from 'vitest';
 import { createMcpWriteProductPorts } from '../../../src/bootstrap/mcp-write-postgres-ports.js';
 import {
   backfillResourcePayloads,
-  createPostgresClassifyInboxAcceptUnitOfWork,
 } from '../../../src/infrastructure/collections/index.js';
 import { runMigrations } from '../../../src/infrastructure/database/index.js';
 import { createUnitOfWork } from '../../../src/infrastructure/database/unit-of-work.js';
 import { createPostgresReplicaStore } from '../../../src/infrastructure/sync/index.js';
-import {
-  acceptClassifyInboxItem,
-  type ProductCollectionCanonicalPorts,
-} from '../../../src/modules/collections/index.js';
+import type { ProductCollectionCanonicalPorts } from '../../../src/modules/collections/index.js';
 import { createPhase4bMcpLowRiskNodeCreateService } from '../../../src/modules/mcp/index.js';
 import {
   createIsolatedPostgresRuntime,
@@ -182,54 +178,6 @@ describeWithPostgres('A-03 invisible write paths invalidate active replicas', ()
       operationsAfter.withSyncWire,
       0,
       'changes.commit Operations must persist sync_wire_present = false',
-    );
-
-    await assertEveryActiveReplicaInvalidated(replicasBefore);
-  }, 60_000);
-
-  test('classify-inbox accept forces every active replica into Snapshot recovery', async () => {
-    // Seeding the replica inside the case keeps it independent of the MCP case:
-    // whatever else is still `active` at this point is asserted on as well.
-    const seeded = await createActiveReplica();
-    assert.equal(seeded.status, 'active');
-
-    const replicasBefore = await readReplicaRows();
-    const activeBefore = replicasBefore.filter((row) => row.status === 'active');
-    assert.ok(
-      activeBefore.some((row) => row.replicaId === seeded.replicaId),
-      'the freshly seeded replica must be an active reader before the accept',
-    );
-    const operationsBefore = await readOperationWireFacts();
-
-    const accept = createPostgresClassifyInboxAcceptUnitOfWork(isolated.runtime.db);
-    const result = await accept.execute((ports) => acceptClassifyInboxItem(ports, {
-      actor: { principalId: OWNER_ACCOUNT_ID, subjectId: OWNER_SUBJECT_ID },
-      commandId: randomUUID(),
-      nodeId: INBOX_BOOKMARK_ID,
-      ifMatch: `"${INBOX_BOOKMARK_REVISION}"`,
-      body: { suggestionId: INBOX_FOLDER_ID },
-    }));
-    assert.equal(result.kind, 'succeeded');
-
-    const moved = await isolated.runtime.pool.query<{ parent_id: string | null }>(
-      'select parent_id from nodes where id = $1 and deleted_at is null',
-      [INBOX_BOOKMARK_ID],
-    );
-    assert.equal(
-      moved.rows[0]?.parent_id,
-      INBOX_FOLDER_ID,
-      'the accept must move the node into the suggested folder',
-    );
-
-    const operationsAfter = await readOperationWireFacts();
-    assert.ok(
-      operationsAfter.total > operationsBefore.total,
-      'the accept must append at least one Operation',
-    );
-    assert.equal(
-      operationsAfter.withSyncWire,
-      0,
-      'classify-inbox accept Operations must persist sync_wire_present = false',
     );
 
     await assertEveryActiveReplicaInvalidated(replicasBefore);

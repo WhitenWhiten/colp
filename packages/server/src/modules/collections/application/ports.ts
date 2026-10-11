@@ -425,8 +425,6 @@ export interface ProductCollectionCanonicalPorts {
   readonly productOrigin?: string;
   /** Optional so existing create/update/move doubles keep compiling. */
   readonly bookmarkIcons?: Pick<BookmarkIconWritePort, 'findByNodeId' | 'findObjectIdsByNodeIds'>;
-  /** FO-07: tx-scoped favicon ports for the create-time online auto-fetch. */
-  readonly faviconAutoRefresh?: import('./favicon-job.js').FaviconAutoEnqueuePorts;
   readonly accountControl?: { accountControl(accountId: string): Promise<{ readonly restrictPublication: boolean }> };
 }
 
@@ -496,11 +494,8 @@ export interface CollectionsWritePorts {
   readonly bookmarkIcons?: BookmarkIconWritePort;
   readonly faviconPolicies?: import('./favicon-policy.js').FaviconPolicyWritePort;
   readonly faviconSources?: import('./favicon-icon-source.js').BookmarkIconSourceWritePort;
-  /** FO-02 durable favicon refresh jobs (enqueue + worker); optional for existing doubles. */
-  readonly faviconJobs?: import('./favicon-job.js').FaviconJobWritePort;
-  readonly faviconJobsRead?: import('./favicon-job.js').FaviconJobReadPort;
   /** FO-07 durable favicon object retirement (retention window); optional for existing doubles. */
-  readonly faviconGc?: import('./favicon-job.js').FaviconGcWritePort;
+  readonly faviconGc?: import('./bookmark-favicon-command.js').FaviconGcWritePort;
   readonly faviconSourceMembership?: import('./favicon-icon-source.js').FaviconSourceMembershipReadPort;
 }
 

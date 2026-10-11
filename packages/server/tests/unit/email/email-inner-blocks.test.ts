@@ -14,10 +14,6 @@ import { EMAIL_FONT_SANS, EMAIL_SIGNATURE } from '../../../src/infrastructure/em
 import { renderMarketingNotice } from '../../../src/infrastructure/email/marketing-notice.js';
 import { renderAuthEmailTemplate } from '../../../src/modules/auth/index.js';
 import { renderInviteEmailTemplate } from '../../../src/modules/access-policy/index.js';
-import {
-  renderCollectionChangeEmail,
-  renderFollowActivityEmail,
-} from '../../../src/modules/email/index.js';
 
 /**
  * The module-layer template leaves (modules/auth, modules/access-policy,
@@ -159,19 +155,6 @@ describe('module template mirrors stay byte-equal to the canonical blocks', () =
     }
   });
 
-  test('notification templates: paragraph style mirror (no CTA — context carries no URL)', () => {
-    const context = {
-      notificationType: 'follow_activity' as const,
-      actorName: 'Ada',
-      collectionTitle: null,
-      occurredAt: new Date('2026-08-23T00:00:00.000Z'),
-    };
-    const follow = renderFollowActivityEmail(context);
-    assert.ok((follow.htmlBody ?? '').includes(`<p style="${EMAIL_INNER_P_STYLE}">`));
-    const change = renderCollectionChangeEmail({ ...context, collectionTitle: 'Notes' });
-    assert.ok((change.htmlBody ?? '').includes(`<p style="${EMAIL_INNER_P_STYLE}">`));
-  });
-
   test('module signature mirrors stay byte-equal to EMAIL_SIGNATURE (chrome strips this exact line)', () => {
     // The unified chrome strips a trailing `<p>— Know-N</p>` / "\n— Know-N";
     // if a module's local signature constant drifted, stripping would silently
@@ -197,15 +180,6 @@ describe('module template mirrors stay byte-equal to the canonical blocks', () =
       assert.ok(invite.htmlBody.endsWith(signatureParagraph));
       assert.ok(invite.textBody.endsWith(`\n${EMAIL_SIGNATURE}`));
     }
-
-    const follow = renderFollowActivityEmail({
-      notificationType: 'follow_activity',
-      actorName: 'Ada',
-      collectionTitle: null,
-      occurredAt: new Date('2026-08-23T00:00:00.000Z'),
-    });
-    assert.ok((follow.htmlBody ?? '').endsWith(signatureParagraph));
-    assert.ok((follow.textBody ?? '').endsWith(`\n\n${EMAIL_SIGNATURE}`));
   });
 
   test('marketing notice uses the canonical button with a verb label, never the URL as link text', () => {

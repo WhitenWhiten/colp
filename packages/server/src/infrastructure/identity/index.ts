@@ -30,13 +30,4 @@ export {
 export { createR2AvatarStore, type R2AvatarStoreOptions } from './avatar-r2-adapter.js';
 export { createPostgresExtensionIdentityBindingPort, createPostgresExtensionOwnerSubjectPort,
   createPostgresExtensionOwnerAccountPort } from './postgres-extension-identity-binding.js';
-export { createPostgresExploreCreatorsQueryPort } from './postgres-explore-creators-query.js';
-export {
-  createPostgresAccountCreditsPort, createCreditUnitOfWork, reconcileAccountCredits,
-  type PostgresAccountCreditsFactory,
-} from './credits-postgres.js';
-export { rethrowCreditError } from './credit-errors.js';
-export { createPostgresCreditLedgerReadPort } from './credit-ledger-read-postgres.js';
-export { createPostgresCreditHealthObserver } from './credit-health-postgres.js';
-
 export { createPersistentAvatarStore, type PersistentAvatarStore } from './avatar-lifecycle-store.js';

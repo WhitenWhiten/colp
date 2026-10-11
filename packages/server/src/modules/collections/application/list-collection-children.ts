@@ -9,7 +9,6 @@ import {
 } from '../domain/errors.js';
 import type { CollectionKind } from '../domain/validation.js';
 import { iconUrlForNode, loadBookmarkIconObjectIds } from './bookmark-icon-url.js';
-import { attachBookmarkPreviewImages, type BookmarkPreviewImageView, type LinkPreviewReadPort } from './link-preview-read.js';
 import {
   COLLECTION_CHILDREN_SORTS,
   PRODUCT_COLLECTION_CHILDREN_CURSOR_TTL_MS,
@@ -119,7 +118,6 @@ export interface ListCollectionChildrenPorts {
   readonly clock: CollectionsClock;
   /** Batch live bookmark_icons lookup; missing/empty → every bookmark `iconUrl` is null. */
   readonly bookmarkIcons?: BookmarkIconReadPort;
-  readonly linkPreviews?: LinkPreviewReadPort; // LP-04; absent → every bookmark previewImage is null
   /** PRODUCT_ORIGIN used to project same-origin `/api/v1/favicon/{uuid}` URLs. */
   readonly productOrigin?: string;
   /**
@@ -173,7 +171,7 @@ export interface BrowseNode {
   readonly createdAt: string;
   readonly updatedAt: string;
   readonly iconUrl: string | null;
-  readonly previewImage?: BookmarkPreviewImageView | null; // LP-04: bookmarks only; null for tombstones and misses
+  readonly previewImage?: null;
   /**
    * FO-08: per-node CDN opt-out mirroring the public snapshot. Explicit `none`
    * bookmark nodes must never fall back to the third-party CDN, whatever the
@@ -336,11 +334,11 @@ export async function listCollectionChildren(
     fetched.filter((row) => row.kind === 'bookmark' && !row.moderationHidden).map((row) => row.id),
   );
   const collectionCdnAllowed = collection.visibility === 'public';
-  const candidates = await attachBookmarkPreviewImages(ports.linkPreviews, ports.productOrigin, fetched.map((row) => {
+  const candidates = fetched.map((row) => {
     const node = mapBrowseNode(row, iconObjectIds, ports.productOrigin, collectionCdnAllowed, faviconSourceModes);
     // Public readers get an inert tombstone (url null → previewImage null); moderation never silently shrinks the page.
     return row.moderationHidden && !managementRead ? hiddenBookmarkTombstone(node) : node;
-  }));
+  });
 
   const issuedAt = formatChildrenCursorTime(now);
   const expiresAt = formatChildrenCursorTime(new Date(now.getTime() + PRODUCT_COLLECTION_CHILDREN_CURSOR_TTL_MS));
@@ -584,6 +582,7 @@ function mapBrowseNode(
     updatedAt: formatChildrenCursorTime(row.updatedAt),
     iconUrl: iconUrlForNode(row.id, iconObjectIds, productOrigin),
     ...(nodeCdnAllowed === undefined ? {} : { faviconCdnAllowed: nodeCdnAllowed }),
+    ...(row.kind === 'bookmark' ? { previewImage: null } : {}),
     ...(row.kind === 'bookmark' && row.pinned === true ? { pinned: true as const } : {}),
   };
 }

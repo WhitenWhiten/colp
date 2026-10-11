@@ -143,15 +143,6 @@ test('configuration validates the TCP port and supplies deterministic defaults',
   assert.equal(config.port, 3000);
   assert.ok(config.oidcTransactionSecrets.hmacSecret.length > 0);
   assert.ok(config.oidcTransactionSecrets.encryptionKeys.length >= 1);
-  assert.equal(
-    config.publishingInsights.visitorHmacKey.toString('utf8'),
-    'dev-publishing-insights-visitor-hmac-key-change-me',
-  );
-  assert.equal(
-    config.publishingInsights.rateLimitHmacKey.toString('utf8'),
-    'dev-publishing-insights-ratelimit-hmac-key-change-me',
-  );
-  assert.equal(config.publishingInsights.rateLimitShared.enabled, false);
   assert.throws(
     () => loadConfig({ DATABASE_URL: 'postgres://localhost/known', PORT: '70000' }),
     /PORT must be a valid TCP port/,
@@ -176,8 +167,6 @@ test('configuration requires OIDC transaction secrets in production', () => {
     PRODUCT_CLASSIFY_INBOX_CURSOR_KEY_ID: 'prod-classify-inbox-v1',
     PRODUCT_COLLECTION_VERSIONS_CURSOR_HMAC_KEY: 'prod-collection-versions-cursor-hmac-key-not-dev-default',
     PRODUCT_COLLECTION_VERSIONS_CURSOR_KEY_ID: 'prod-collection-versions-v1',
-    PUBLISHING_INSIGHTS_VISITOR_HMAC_KEY: 'prod-publishing-insights-visitor-hmac-key-32b',
-    PUBLISHING_INSIGHTS_RATELIMIT_HMAC_KEY: 'prod-publishing-insights-ratelimit-hmac-key-32b',
     COLLABORATION_INVITE_RATE_LIMIT_KEY_SECRET: 'prod-collaboration-invite-rate-limit-hmac',
     PRODUCT_EDITOR_CURSOR_ISSUANCE_FORMAT: 'keyed',
     PUBLICATION_SERVER_UUID: '019f9031-c541-74d0-bc83-15a5526fbb54',
@@ -278,52 +267,6 @@ test('configuration requires OIDC transaction secrets in production', () => {
       /must not use development defaults/,
     );
   }
-  assert.throws(
-    () => loadConfig({ ...completeProd, PUBLISHING_INSIGHTS_VISITOR_HMAC_KEY: '' }),
-    /PUBLISHING_INSIGHTS_VISITOR_HMAC_KEY is required/,
-  );
-  assert.throws(
-    () => loadConfig({ ...completeProd, PUBLISHING_INSIGHTS_RATELIMIT_HMAC_KEY: '' }),
-    /PUBLISHING_INSIGHTS_RATELIMIT_HMAC_KEY is required/,
-  );
-  assert.throws(
-    () => loadConfig({
-      ...completeProd,
-      PUBLISHING_INSIGHTS_VISITOR_HMAC_KEY: 'dev-publishing-insights-visitor-hmac-key-change-me',
-    }),
-    /must not use the development default/,
-  );
-  assert.throws(
-    () => loadConfig({
-      ...completeProd,
-      PUBLISHING_INSIGHTS_RATELIMIT_HMAC_KEY: 'dev-publishing-insights-ratelimit-hmac-key-change-me',
-    }),
-    /must not use the development default/,
-  );
-  assert.throws(
-    () => loadConfig({ ...completeProd, PUBLISHING_INSIGHTS_VISITOR_HMAC_KEY: 'short-insight-visitor-key' }),
-    /at least 32 bytes in production/,
-  );
-  assert.throws(
-    () => loadConfig({
-      ...completeProd,
-      PUBLISHING_INSIGHTS_VISITOR_HMAC_KEY: 'prod-publishing-insights-shared-hmac-key-32bxx',
-      PUBLISHING_INSIGHTS_RATELIMIT_HMAC_KEY: 'prod-publishing-insights-shared-hmac-key-32bxx',
-    }),
-    /must be independent from the visitor HMAC key/,
-  );
-  assert.throws(
-    () => loadConfig({
-      ...completeProd,
-      PUBLISHING_INSIGHTS_VISITOR_HMAC_KEY: completeProd.PRODUCT_EDITOR_CURSOR_HMAC_KEY,
-    }),
-    /must not reuse search, auth, or cursor secrets/,
-  );
-  const insights = loadConfig(completeProd).publishingInsights;
-  assert.equal(insights.visitorHmacKey.toString('utf8'), 'prod-publishing-insights-visitor-hmac-key-32b');
-  assert.equal(insights.rateLimitHmacKey.toString('utf8'), 'prod-publishing-insights-ratelimit-hmac-key-32b');
-  assert.equal(insights.rateLimitShared.enabled, false);
-  assert.equal(insights.rateLimitShared.redisUrl, null);
 });
 
 test('owned Collections cursor rotation is independent and retains keys for the full TTL', () => {

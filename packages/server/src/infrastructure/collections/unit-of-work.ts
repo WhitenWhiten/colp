@@ -32,7 +32,6 @@ import {
 import { createPostgresCollectionEditorSnapshotPort } from './editor-query.js';
 import { createPostgresCollectionChildrenPorts } from './collection-children-query.js';
 import { createPostgresBookmarkIconReadPort } from './bookmark-icon-postgres.js';
-import { createPostgresLinkPreviewReadPort } from './link-preview-read-postgres.js';
 import { createPostgresFaviconSourceModeReadPort } from './favicon-source-postgres.js';
 import {
   createPostgresCollectionWritePort,
@@ -88,8 +87,6 @@ export interface PostgresCollectionsEditorReadUnitOfWorkOptions {
   readonly faultInjector?: UnitOfWorkOptions['faultInjector'];
   readonly metrics?: Metrics;
   readonly productOrigin?: string;
-  /** LP-04: attach `previewImage` (KNOWN_FEATURE_LINK_PREVIEW); off → null on every bookmark. */
-  readonly linkPreviews?: boolean;
 }
 
 /**
@@ -125,7 +122,6 @@ export function createPostgresCollectionsEditorReadUnitOfWork(
             cursorSigner: options.cursorSigner,
             cursorTtlMs: options.cursorTtlMs,
             bookmarkIcons: createPostgresBookmarkIconReadPort(transaction),
-            ...(options.linkPreviews === true ? { linkPreviews: createPostgresLinkPreviewReadPort(transaction) } : {}),
             ...(options.productOrigin === undefined ? {} : { productOrigin: options.productOrigin }),
           };
           return work(ports);
@@ -145,8 +141,6 @@ export interface PostgresCollectionChildrenReadUnitOfWorkOptions {
   readonly metrics?: Metrics;
   readonly productOrigin?: string;
   readonly cancelBackend?: UnitOfWorkOptions['cancelBackend'];
-  /** LP-04: attach `previewImage` (KNOWN_FEATURE_LINK_PREVIEW); off → null on every bookmark. */
-  readonly linkPreviews?: boolean;
 }
 
 /**
@@ -202,7 +196,6 @@ export function createPostgresCollectionChildrenReadUnitOfWork(
             cursorSigner: options.cursorSigner,
             bookmarkIcons: createPostgresBookmarkIconReadPort(transaction),
             faviconSources: createPostgresFaviconSourceModeReadPort(transaction),
-            ...(options.linkPreviews === true ? { linkPreviews: createPostgresLinkPreviewReadPort(transaction) } : {}),
             ...(options.productOrigin === undefined ? {} : { productOrigin: options.productOrigin }),
           };
           return work(ports);

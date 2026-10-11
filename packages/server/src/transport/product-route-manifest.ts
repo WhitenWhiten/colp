@@ -39,6 +39,31 @@ export const CLASSIFICATION_BYOK_OPERATION_IDS: readonly string[] = Object.freez
     .map((entry) => entry.operationId),
 );
 
+/**
+ * Task A8: Operations pruned with the classification and credits feature.
+ */
+export const CLASSIFICATION_PRUNED_OPERATION_IDS: readonly string[] = Object.freeze([
+  'createCollectionClassificationRun',
+  'getCollectionClassificationRun',
+  'applyCollectionClassificationRun',
+  'cancelCollectionClassificationRun',
+  'getCollectionClassificationSettings',
+  'updateCollectionClassificationSettings',
+  'previewCollectionBookmarkClassification',
+  'confirmCollectionBookmarkClassification',
+  'listMyClassificationProviderProfiles',
+  'createMyClassificationProviderProfile',
+  'deleteMyClassificationProviderProfile',
+  'updateMyClassificationProviderProfile',
+  'testMyClassificationProviderProfile',
+  'getMyClassifyInbox',
+  'acceptMyClassifyInboxItem',
+  'skipMyClassifyInboxItem',
+  'getMyCredits',
+  'listMyCreditLedger',
+  'getMyCreditLedgerEntry',
+]);
+
 function openApiPath(path: string): string {
   return path.replace(/:([A-Za-z0-9_]+)/g, '{$1}');
 }
@@ -51,8 +76,9 @@ export function assertProductRouteCoverage(
   registered: ReadonlySet<string>,
   excludeOperationIds: readonly string[] = [],
 ): void {
+  const allExcluded = new Set([...excludeOperationIds, ...CLASSIFICATION_PRUNED_OPERATION_IDS]);
   const expected = PRODUCT_ROUTE_MANIFEST
-    .filter((item) => !excludeOperationIds.includes(item.operationId))
+    .filter((item) => !allExcluded.has(item.operationId))
     .map((item) => `${item.method} ${item.path}`);
   const missing = expected.filter((item) => !registered.has(item));
   if (missing.length > 0) {

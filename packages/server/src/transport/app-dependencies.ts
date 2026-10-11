@@ -13,33 +13,19 @@ import type {
   GetOwnedCollectionsPagePorts,
   GetSharedCollectionsPagePorts,
   GetMyLinkHealthPagePorts,
-  GetMyClassifyInboxPagePorts,
   EnqueueMyLinkHealthChecksPorts,
-  SkipClassifyInboxItemPorts,
-  AcceptClassifyInboxItemPorts,
-  CreateMyExportJobPorts,
-  ExportJobReadPort,
-  ExportObjectStore,
   BookmarkFaviconObjectStore,
-  ApplyCollectionOrganizePlanPorts,
-  OrganizePlanReadPort,
-  OrganizePlanner,
   CreateCollectionVersionPorts,
   ProductCollectionVersionCursorSignerPort,
-  ReadableReplicaEnqueueUnitOfWork,
-  ReadableReplicaReadUnitOfWork,
   LibraryOrderCommandPorts,
   LibraryOrderQueryPorts,
 } from '../modules/collections/index.js';
 import type {
-  CreditLedgerReadPort,
   BookmarkPreferencesPorts,
   BookmarkPreferencesStore,
   IdentityUnitOfWork,
   AvatarObjectStore,
-  ExploreCreatorsQueryPort,
 } from '../modules/identity/index.js';
-import type { ExploreCollectionMarksPort } from './product/explore-routes.js';
 import type { BrowserSessionAuthority, AccountLinkingService, AccountRecoveryService, AccountDeletionService, SecurityEpochBridge } from '../modules/auth/index.js';
 import type {
   PublicationDirectoryQueryPorts,
@@ -48,7 +34,6 @@ import type {
   PublicationSnapshotQueryPorts,
   Phase2PublicationProfileClaims,
   Phase2PublicationProfileClaimController,
-  ExplorePageReadPort,
 } from '../modules/publication/index.js';
 import type {
   Phase4bMcpReadOperations,
@@ -73,8 +58,6 @@ import type { PublicationMetadataRouteReader } from './product/publication-metad
 import type { PublicShellRoutePorts } from './public-shell-routes.js';
 import type { CollectionOgImageRenderer } from '../infrastructure/http/index.js';
 import type { ProfileSitemapQueryPort, PublicationSitemapQueryPort } from './collections-sitemap-routes.js';
-import type { ProductPublicInsightRouteDependencies } from './product/product-public-insight-routes.js';
-import type { ProductPublishingInsightsRouteDependencies } from './product/product-publishing-insights-routes.js';
 import type { ProductCollaborationRouteDependencies } from './product/product-collaboration-routes.js';
 import type { ProductPublicProfileQuery } from './public-profile-shell-routes.js';
 import type { SyncSessionRouteDependencies } from './colp-sync/sync-session-routes.js';
@@ -92,8 +75,6 @@ import type {
   Phase3SyncProfileClaims,
   Phase3SyncProfileClaimController,
 } from '../modules/sync/index.js';
-import type { EmailCallbackRoutesDependencies } from './product/email-callback-routes.js';
-import type { EmailOpsRoutesDependencies } from './product/email-ops-routes.js';
 import type { McpReadTransportDependencies } from './mcp/mcp-read-routes.js';
 import type { McpWriteApprovalRoutesDependencies } from './mcp/mcp-write-approval-routes.js';
 
@@ -105,8 +86,6 @@ export interface AppDependencies {
   /** T10 optional /ready/features/cache capability payload provider. */
   readonly cacheCapabilityReadiness?: () => Promise<CacheCapabilityReadiness>;
   readonly identityUnitOfWork?: IdentityUnitOfWork;
-  readonly creditLedgerRead?: CreditLedgerReadPort;
-  readonly creditsReadRateLimiter?: ProductAdmissionRateLimiter;
   /** Optional public avatar object store. When present registers avatar upload/serve routes. */
   readonly avatarStore?: AvatarObjectStore;
   /**
@@ -114,10 +93,6 @@ export interface AppDependencies {
    * GET /api/v1/favicon/:id independently of identityUnitOfWork.
    */
   readonly faviconStore?: BookmarkFaviconObjectStore;
-  /** LP-04 link preview object store; present registers GET /api/v1/link-preview/:previewId. */
-  readonly linkPreviewStore?: BookmarkFaviconObjectStore;
-  /** Live public attribution for that object route. Absent fails closed. */
-  readonly linkPreviewPublicAccess?: { isServable(objectId: string, signal?: AbortSignal): Promise<boolean> };
   readonly faviconPublicAccess?: { isPubliclyAccessible(objectId: string): Promise<boolean> };
   readonly avatarPublicAccess?: { isPublicationRestricted(objectId: string): Promise<boolean> };
   readonly collectionsUnitOfWork?: CollectionsUnitOfWork;
@@ -130,56 +105,13 @@ export interface AppDependencies {
   readonly ownedCollectionsQuery?: GetOwnedCollectionsPagePorts;
   readonly sharedCollectionsQuery?: GetSharedCollectionsPagePorts;
   readonly linkHealthQuery?: GetMyLinkHealthPagePorts;
-  readonly classificationSettings?: {
-    readonly autoEnabled?:boolean;
-    readonly reads: Pick<import('../modules/collections/index.js').ClassificationSettingsStore, 'loadOwned'>;
-    readonly commands: import('../modules/collections/index.js').ClassificationSettingsUnitOfWork;
-  };
-  readonly classificationProfiles?: import('../modules/collections/index.js').ClassificationProfilesRuntime;
-  readonly classificationProfilesRateLimiter?: ProductAdmissionRateLimiter;
-  readonly classificationRuns?: import('../modules/collections/index.js').ClassificationRunRuntime;
-  readonly classificationRunsRateLimiter?: ProductAdmissionRateLimiter;
-  readonly classificationSettingsRateLimiter?: ProductAdmissionRateLimiter;
-  readonly classificationPreviewRateLimiter?: ProductAdmissionRateLimiter;
-  readonly classificationConfirmationRateLimiter?: ProductAdmissionRateLimiter;
-  readonly classificationConfirmation?: import('../modules/collections/index.js').ClassificationConfirmationUnitOfWork;
-  readonly classificationPreview?: import('../modules/collections/index.js').ClassificationPreviewRuntime;
-  readonly classifyInboxQuery?: GetMyClassifyInboxPagePorts;
-  readonly classifyInboxSkip?: {
-    execute<Result>(
-      work: (ports: SkipClassifyInboxItemPorts) => Promise<Result>,
-      options?: { readonly signal?: AbortSignal },
-    ): Promise<Result>;
-  };
-  readonly classifyInboxAccept?: {
-    execute<Result>(
-      work: (ports: AcceptClassifyInboxItemPorts) => Promise<Result>,
-      options?: { readonly signal?: AbortSignal },
-    ): Promise<Result>;
-  };
   readonly linkHealthEnqueue?: {
     execute<Result>(
       work: (ports: EnqueueMyLinkHealthChecksPorts) => Promise<Result>,
       options?: { readonly signal?: AbortSignal },
     ): Promise<Result>;
   };
-  readonly exportJobReads?: ExportJobReadPort;
   readonly collectionExportReads?: import('../modules/collections/index.js').CollectionExportReadPort;
-  readonly exportJobEnqueue?: {
-    execute<Result>(
-      work: (ports: CreateMyExportJobPorts) => Promise<Result>,
-      options?: { readonly signal?: AbortSignal },
-    ): Promise<Result>;
-  };
-  readonly exportJobStore?: ExportObjectStore;
-  readonly organizePlanReads?: OrganizePlanReadPort;
-  readonly organizePlanMutations?: {
-    execute<Result>(
-      work: (ports: ApplyCollectionOrganizePlanPorts) => Promise<Result>,
-      options?: { readonly signal?: AbortSignal },
-    ): Promise<Result>;
-  };
-  readonly organizePlanner?: OrganizePlanner;
   readonly collectionVersions?: {
     execute<Result>(
       work: (ports: CreateCollectionVersionPorts) => Promise<Result>,
@@ -188,11 +120,6 @@ export interface AppDependencies {
   };
   readonly collectionVersionCursors?: ProductCollectionVersionCursorSignerPort;
   readonly collectionVersionRateLimiter?: ProductAdmissionRateLimiter;
-  readonly readableReplicas?: ReadableReplicaReadUnitOfWork;
-  readonly readableReplicaEnqueue?: ReadableReplicaEnqueueUnitOfWork;
-  /** LP-05 preview request and owner-mode commands; routes 404 while the feature is off. */
-  readonly linkPreviewCommands?: import('../modules/collections/index.js').LinkPreviewCommandUnitOfWork;
-  readonly readableReplicaRateLimiter?: ProductAdmissionRateLimiter;
   readonly bookmarkCounts?: CollectionListBookmarkCountsPort;
   readonly annotationMutationUnitOfWork?: AnnotationMutationUnitOfWork;
   readonly annotationReadUnitOfWork?: AnnotationReadUnitOfWork;
@@ -291,12 +218,6 @@ export interface AppDependencies {
   readonly searchTimeoutMs?: number;
   readonly publicationSnapshotQuery?: PublicationSnapshotQueryPorts;
   readonly publicationDirectoryQuery?: PublicationDirectoryQueryPorts;
-  /** Product Explore page (viewCount + sort keyset). Independent of COLP directory. */
-  readonly explorePageQuery?: ExplorePageReadPort;
-  /** Identity query port that completes Explore collection creators. */
-  readonly exploreCreatorsQuery?: ExploreCreatorsQueryPort;
-  /** Batch public collection tldr lookup that completes Explore curator notes. */
-  readonly explorePublicMarks?: ExploreCollectionMarksPort;
   readonly publicationMetadataQuery?: PublicationMetadataQueryPorts;
   /** T-10 origin-injected HTML shells for /c|/share|/path. */
   readonly publicShell?: PublicShellRoutePorts;
@@ -313,8 +234,6 @@ export interface AppDependencies {
   /** T10 optional cache-aware Metadata reader (serve/shadow); defaults to PostgreSQL. */
   readonly publicationMetadataCacheReader?: PublicationMetadataRouteReader;
   readonly productPublicCollectionQuery?: ProductPublicCollectionQueryPorts;
-  readonly productPublicInsight?: ProductPublicInsightRouteDependencies;
-  readonly productPublishingInsights?: ProductPublishingInsightsRouteDependencies;
   readonly productCollaboration?: ProductCollaborationRouteDependencies;
   readonly publicProfileQuery?: ProductPublicProfileQuery;
   readonly searchQuery?: SearchProductQuery;
@@ -375,24 +294,14 @@ export interface AppDependencies {
   };
   readonly bookmarkPreferencesQuery?: BookmarkPreferencesStore;
   readonly bookmarkSubscriptionUnitOfWork?: import('../modules/bookmark-subscriptions/index.js').BookmarkSubscriptionUnitOfWork;
-  readonly captureRuntime?: import('../modules/collections/index.js').CaptureRuntime;
-  readonly captureHistory?: import('../modules/collections/index.js').CaptureHistoryRuntime;
-  readonly captureLearning?: import('./product/capture-learning-routes.js').CaptureLearningRuntime;
   readonly governanceReportRateLimiter?: ProductAdmissionRateLimiter;
   readonly governanceActionRateLimiter?: ProductAdmissionRateLimiter;
   readonly governanceAppealRateLimiter?: ProductAdmissionRateLimiter;
   readonly feedRateLimiter?: ProductAdmissionRateLimiter;
   readonly linkHealthRateLimiter?: ProductAdmissionRateLimiter;
-  readonly classifyInboxRateLimiter?: ProductAdmissionRateLimiter;
-  readonly exportJobRateLimiter?: ProductAdmissionRateLimiter;
-  readonly organizePlanRateLimiter?: ProductAdmissionRateLimiter;
   /** Shared family for public avatar and bookmark-favicon origin GETs. */
   readonly publicObjectRateLimiter?: ProductAdmissionRateLimiter;
   readonly notificationRateLimiter?: ProductAdmissionRateLimiter;
-  /** P5-31 optional email delivery-result callback ingress (disabled when unconfigured). */
-  readonly emailCallbackRoutes?: EmailCallbackRoutesDependencies;
-  /** P5-31 ops-only suppression surface (disabled when unconfigured). */
-  readonly emailOpsRoutes?: EmailOpsRoutesDependencies;
   /** P4B-R06 MCP transport OAuth/timeout seam (anonymous Modern calls need no port). */
   readonly mcpReadTransport?: McpReadTransportDependencies;
   /** P4B-R13 MCP Read operations registry; created from config when absent. */

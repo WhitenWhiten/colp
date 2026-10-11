@@ -7,11 +7,6 @@ import {
   type ProductCommandResult,
 } from '../../commands/index.js';
 import { CollectionPreconditionError } from '../domain/index.js';
-import {
-  insertPolicyBatchJob,
-  type FaviconPolicyBatchJobCommandPorts,
-} from './favicon-batch-job.js';
-import { faviconPolicyBatchTrigger } from './favicon-batch-policy.js';
 
 export const FAVICON_POLICY_COMMAND_CONTRACT_VERSION = '1.0.0';
 export const FAVICON_POLICY_COMMAND_SCOPE = 'collections:favicon-policy:v1';
@@ -67,8 +62,6 @@ export interface FaviconPolicyCommandPorts {
   readonly receipts: ProductCommandReceiptPort;
   readonly clock: { now(): Promise<Date> };
   readonly policies: FaviconPolicyWritePort;
-  /** FO-03 batch job + item persistence (policy change → durable reconcile job). */
-  readonly batchJobs: FaviconPolicyBatchJobCommandPorts;
 }
 
 export class FaviconPolicyCommandError extends Error {
@@ -330,19 +323,7 @@ export async function updateMyFaviconPolicy(
     });
   }
 
-  // FO-03: a policy change that activates a batch behavior creates the durable
-  // reconcile job in the SAME transaction as the policy write and the receipt.
-  const trigger = faviconPolicyBatchTrigger(current, input.patch);
-  let jobId: string | null = null;
-  if (trigger !== null) {
-    jobId = await insertPolicyBatchJob(ports.batchJobs, {
-      accountId: input.actor.principalId,
-      subjectId: input.actor.subjectId,
-      policy: written.row,
-      operation: trigger,
-      now,
-    });
-  }
+  const jobId: string | null = null;
   await ports.receipts.complete(binding, fingerprint, policyProductResult(written.row, jobId));
   return { kind: 'succeeded', policy: written.row, changed: true, jobId };
 }

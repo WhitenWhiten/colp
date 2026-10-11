@@ -470,13 +470,6 @@ const via = (name: RegExp): [string, RegExp] => [CRED_FACADE, name];
 
 /** Every discovered ETag-replay route, pinned to the command whose stored result must snapshot `etag`. */
 const REQUIRED_ETAG_RECEIPTS: readonly PinnedRoute[] = [
-  pin('POST /api/v1/collections/:collectionId/nodes/:nodeId/classification-confirmations', 'product/classification-confirmation-routes.ts', 'confirmCollectionBookmarkClassification', `${COLL}/confirm-classification.ts`),
-  pin('PATCH /api/v1/collections/:collectionId/classification-settings', 'product/classification-settings-routes.ts', 'updateClassificationSettings', `${COLL}/classification-settings.ts`),
-  // FO favicon commands — the fixed instances of this defect class.
-  pin('PATCH /api/v1/me/favicon-policy', 'product/favicon-policy-routes.ts', 'updateMyFaviconPolicy', `${COLL}/favicon-policy.ts`),
-  pin('PUT /api/v1/collections/:collectionId/nodes/:nodeId/favicon-source', 'product/favicon-policy-routes.ts', 'setBookmarkFaviconSource', `${COLL}/favicon-icon-source.ts`),
-  pin('PUT /api/v1/collections/:collectionId/nodes/:nodeId/preview-image-mode', 'product/link-preview-command-routes.ts', 'setBookmarkPreviewMode', `${COLL}/link-preview-commands.ts`),
-  pin('POST /api/v1/collections/:collectionId/nodes/:nodeId/favicon-refresh', 'product/favicon-policy-routes.ts', 'enqueueBookmarkFaviconRefresh', `${COLL}/favicon-job.ts`),
   // Extension helper capture/clear (replay keeps a live recompute fallback for pre-snapshot receipts).
   pin('POST /colp/v0.1/sync/collections/:collectionId/nodes/:nodeId/favicon', 'colp-sync/sync-favicon-helper-routes.ts', 'captureBookmarkFavicon', `${COLL}/favicon-helper-capture.ts`),
   pin('DELETE /colp/v0.1/sync/collections/:collectionId/nodes/:nodeId/favicon', 'colp-sync/sync-favicon-helper-routes.ts', 'clearCapturedBookmarkFavicon', `${COLL}/favicon-helper-capture.ts`),
@@ -493,11 +486,9 @@ const REQUIRED_ETAG_RECEIPTS: readonly PinnedRoute[] = [
   pin('POST /api/v1/collections', 'product/collection-resource-routes.ts', 'createOwnedCollectionCanonical', `${COLL}/create-owned-collection.ts`),
   pin('PATCH /api/v1/collections/:collectionId', 'product/collection-resource-routes.ts', 'updateCollectionMetadataCanonical', `${COLL}/update-collection-metadata.ts`),
   pin('POST /api/v1/collections/:collectionId/versions', 'product/collection-version-routes.ts', 'createCollectionVersion', `${COLL}/create-collection-version.ts`),
-  pin('POST /api/v1/collections/:collectionId/organize-plans', 'product/organize-plan-routes.ts', 'createCollectionOrganizePlan', `${COLL}/create-collection-organize-plan.ts`),
   pin('POST /api/v1/collections/:collectionId/nodes', 'product/node-routes.ts', 'createCollectionNode', `${COLL}/create-collection-node.ts`),
   pin('PATCH /api/v1/collections/:collectionId/nodes/:nodeId', 'product/node-routes.ts', 'updateCollectionNode', `${COLL}/update-collection-node.ts`),
   pin('POST /api/v1/collections/:collectionId/nodes/:nodeId/move', 'product/node-routes.ts', 'moveCollectionNode', `${COLL}/move-collection-node.ts`),
-  pin('POST /api/v1/collections/:collectionId/nodes/:nodeId/readable', 'product/readable-replica-routes.ts', 'enqueueNodeReadableExtract', `${COLL}/enqueue-node-readable-extract.ts`),
   pin('POST /api/v1/collections/:collectionId/annotations', 'product/annotation-routes.ts', 'createAnnotation', `${COLL}/create-annotation.ts`),
   pin('PATCH /api/v1/collections/:collectionId/annotations/:annotationId', 'product/annotation-routes.ts', 'updateAnnotation', `${COLL}/update-annotation.ts`),
   pin('DELETE /api/v1/collections/:collectionId/annotations/:annotationId', 'product/annotation-routes.ts', 'deleteAnnotation', `${COLL}/delete-annotation.ts`),
@@ -551,7 +542,7 @@ describe('receipt-replay ETag parity', () => {
   const byLabel = new Map(discovered.map((route) => [route.label, route]));
 
   test('the scan finds a real inventory (fail-closed)', () => {
-    assert.ok(discovered.length >= 34,
+    assert.ok(discovered.length >= 25,
       `expected a broad ETag-receipt route inventory, found ${discovered.length} — the scanner is silently broken`);
   });
 

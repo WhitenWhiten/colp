@@ -4,18 +4,13 @@ import {
   parsePositiveInt,
   DEV_PUBLICATION_CURSOR_SECRET,
 } from './config-parse-helpers.js';
-import { loadPublishingInsightsRateLimitSharedConfig } from './config-rate-limit.js';
 import type {
   PublicationConfig,
-  PublishingInsightsConfig,
   SyncSessionConfig,
 } from './config-types.js';
 
 const DEFAULT_PUBLICATION_CACHE_PURGE_TIMEOUT_MS = 5_000;
-const INDEXNOW_TIMEOUT_MS = 5_000 as const;
 const MAX_HANDLER_TIMEOUT_MS = 600_000;
-const DEV_PUBLISHING_INSIGHTS_VISITOR_HMAC_KEY = 'dev-publishing-insights-visitor-hmac-key-change-me';
-const DEV_PUBLISHING_INSIGHTS_RATELIMIT_HMAC_KEY = 'dev-publishing-insights-ratelimit-hmac-key-change-me';
 const DEV_PUBLICATION_SERVER_UUID = '019b3c67-a03c-7f02-9c7e-1ee8d50a77de';
 
 export function parsePublicationRetainedKeys(raw: string): readonly { readonly id: string; readonly secret: string }[] {
@@ -53,7 +48,6 @@ export interface PublicationCoreConfig {
   readonly cursorSecret: string;
   readonly retainedKeys: readonly { readonly id: string; readonly secret: string }[];
   readonly cachePurge: PublicationConfig['cachePurge'];
-  readonly indexNow: PublicationConfig['indexNow'];
 }
 
 export function loadPublicationCore(
@@ -138,19 +132,6 @@ export function loadPublicationCore(
     });
   }
 
-  const indexNowFlag = env.KNOWN_FEATURE_INDEXNOW ?? 'false';
-  if (indexNowFlag !== 'true' && indexNowFlag !== 'false') {
-    throw new Error('KNOWN_FEATURE_INDEXNOW must be true or false');
-  }
-  let indexNow: PublicationConfig['indexNow'] = Object.freeze({ enabled: false });
-  if (indexNowFlag === 'true') {
-    const key = env.KNOWN_INDEXNOW_KEY ?? '';
-    if (!/^[0-9a-f]{32}$/u.test(key)) {
-      throw new Error('KNOWN_INDEXNOW_KEY must be exactly 32 lowercase hexadecimal characters');
-    }
-    indexNow = Object.freeze({ enabled: true, key, timeoutMs: INDEXNOW_TIMEOUT_MS });
-  }
-
   return {
     origin: publicationOrigin,
     serverUuid: publicationServerUuid,
@@ -161,7 +142,6 @@ export function loadPublicationCore(
     cursorSecret: publicationCursorSecret,
     retainedKeys: publicationRetainedKeys,
     cachePurge: publicationCachePurge,
-    indexNow,
   };
 }
 
@@ -201,61 +181,7 @@ export function assemblePublicationConfig(
       active: Object.freeze({ id: core.cursorKeyId, secret: core.cursorSecret }),
       retained: core.retainedKeys,
     }),
-    indexNow: core.indexNow,
     ...(core.cachePurge ? { cachePurge: core.cachePurge } : {}),
   });
 }
 
-export function loadPublishingInsightsConfig(
-  env: NodeJS.ProcessEnv,
-  args: {
-    readonly nodeEnv: string;
-    readonly productEditorCursorKey: string;
-    readonly ownedCursorKey: string;
-  },
-): PublishingInsightsConfig {
-  const { nodeEnv, productEditorCursorKey, ownedCursorKey } = args;
-  const publishingInsightsVisitorKey = requireNonEmpty(
-    env,
-    'PUBLISHING_INSIGHTS_VISITOR_HMAC_KEY',
-    nodeEnv === 'production' ? undefined : DEV_PUBLISHING_INSIGHTS_VISITOR_HMAC_KEY,
-  );
-  const publishingInsightsRateLimitKey = requireNonEmpty(
-    env,
-    'PUBLISHING_INSIGHTS_RATELIMIT_HMAC_KEY',
-    nodeEnv === 'production' ? undefined : DEV_PUBLISHING_INSIGHTS_RATELIMIT_HMAC_KEY,
-  );
-  if (nodeEnv === 'production' && publishingInsightsVisitorKey === DEV_PUBLISHING_INSIGHTS_VISITOR_HMAC_KEY) {
-    throw new Error('PUBLISHING_INSIGHTS_VISITOR_HMAC_KEY must not use the development default in production');
-  }
-  if (nodeEnv === 'production' && publishingInsightsRateLimitKey === DEV_PUBLISHING_INSIGHTS_RATELIMIT_HMAC_KEY) {
-    throw new Error('PUBLISHING_INSIGHTS_RATELIMIT_HMAC_KEY must not use the development default in production');
-  }
-  if (nodeEnv === 'production' && (
-    Buffer.byteLength(publishingInsightsVisitorKey, 'utf8') < 32
-    || Buffer.byteLength(publishingInsightsRateLimitKey, 'utf8') < 32
-  )) {
-    throw new Error('Publishing Insights HMAC keys must be at least 32 bytes in production');
-  }
-  if (publishingInsightsVisitorKey === publishingInsightsRateLimitKey) {
-    throw new Error('PUBLISHING_INSIGHTS_RATELIMIT_HMAC_KEY must be independent from the visitor HMAC key');
-  }
-  const forbiddenInsightSecrets = new Set([
-    productEditorCursorKey,
-    ownedCursorKey,
-    env.AUTH_RATE_LIMIT_KEY_SECRET?.trim() ?? '',
-    env.SEARCH_RATE_LIMIT_KEY_SECRET?.trim() ?? '',
-    env.EXPLORE_DIRECTORY_RATE_LIMIT_KEY_SECRET?.trim() ?? '',
-    env.PUBLIC_ACTIVITY_RATE_LIMIT_KEY_SECRET?.trim() ?? '',
-    env.SYNC_RATE_LIMIT_KEY_SECRET?.trim() ?? '',
-  ].filter((value) => value.length > 0));
-  if (forbiddenInsightSecrets.has(publishingInsightsVisitorKey)
-    || forbiddenInsightSecrets.has(publishingInsightsRateLimitKey)) {
-    throw new Error('Publishing Insights HMAC keys must not reuse search, auth, or cursor secrets');
-  }
-  return Object.freeze({
-    visitorHmacKey: Buffer.from(publishingInsightsVisitorKey, 'utf8'),
-    rateLimitHmacKey: Buffer.from(publishingInsightsRateLimitKey, 'utf8'),
-    rateLimitShared: loadPublishingInsightsRateLimitSharedConfig(env),
-  });
-}

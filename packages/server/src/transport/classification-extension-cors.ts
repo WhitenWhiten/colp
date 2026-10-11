@@ -2,18 +2,6 @@ import type { FastifyInstance } from 'fastify';
 import { extensionProductAllowedOrigins, type ExtensionProductOriginConfiguration } from './extension-product-origins.js';
 export { extensionProductAllowedOrigins as classificationProductAllowedOrigins } from './extension-product-origins.js';
 
-const CREDIT_LEDGER_PATH = /^\/api\/v1\/me\/credits(?:\/ledger(?:\/[^/]+)?)?$/u;
-
-export function isCreditLedgerPath(path: string): boolean {
-  return CREDIT_LEDGER_PATH.test(path);
-}
-
-export function isTrustedClassificationExtensionOrigin(config: ExtensionProductOriginConfiguration, origin: string): boolean {
-  return config.betterAuth.enabled
-    && /^chrome-extension:\/\/[a-p]{32}$/u.test(origin)
-    && config.betterAuth.trustedOrigins.includes(origin);
-}
-
 /** Only explicitly listed Product surfaces opt into Extension cookies. */
 export function installClassificationExtensionCors(app: FastifyInstance, config: ExtensionProductOriginConfiguration): void {
   const origins = new Set(extensionProductAllowedOrigins(config).filter(origin => origin.startsWith('chrome-extension://')));
@@ -21,32 +9,23 @@ export function installClassificationExtensionCors(app: FastifyInstance, config:
     const origin = request.headers.origin;
     if (typeof origin !== 'string' || !origins.has(origin)) return;
     const path = request.url.split('?', 1)[0]!;
-    const creditPath = isCreditLedgerPath(path);
     const subscriptionMethods = bookmarkSubscriptionCorsMethods(path);
     const annotationMethods = /^\/api\/v1\/collections\/[^/]+\/annotations$/u.test(path) ? 'GET, POST, OPTIONS'
       : /^\/api\/v1\/collections\/[^/]+\/annotations\/[^/]+$/u.test(path) ? 'GET, PATCH, DELETE, OPTIONS' : null;
-    const methods = annotationMethods ?? subscriptionMethods ?? (path === '/api/v1/me/capture-learning' ? 'GET, OPTIONS'
-      : path === '/api/v1/me/capture-learning/clear' ? 'POST, OPTIONS'
-      : path === '/api/v1/me/bookmark-captures' ? 'GET, POST, OPTIONS'
-      : path === '/api/v1/me/bookmark-captures/aggregate' ? 'GET, OPTIONS'
-      : path === '/api/v1/me/capture-capabilities' ? 'GET, OPTIONS'
-      : /^\/api\/v1\/collections\/[^/]+\/capture-decisions(?:\/[^/]+(?:\/(?:apply|undo|correct|feedback))?)?$/u.test(path) ? 'GET, POST, OPTIONS'
-      : path === '/api/v1/session' ? 'GET, OPTIONS'
-      : creditPath ? 'GET, OPTIONS'
+    const methods = annotationMethods ?? subscriptionMethods ?? (
+      path === '/api/v1/session' ? 'GET, OPTIONS'
       : path === '/api/v1/me/bookmark-preferences' ? 'GET, PATCH, OPTIONS'
-      : /^\/api\/v1\/collections\/[^/]+\/editor$/u.test(path) ? 'GET, OPTIONS'
-      : /^\/api\/v1\/collections\/[^/]+\/classification-settings$/u.test(path) ? 'GET, PATCH, OPTIONS'
-        : /^\/api\/v1\/collections\/[^/]+\/(?:classification\/preview|nodes\/[^/]+\/classification-confirmations)$/u.test(path) ? 'POST, OPTIONS' : null);
+      : /^\/api\/v1\/collections\/[^/]+\/editor$/u.test(path) ? 'GET, OPTIONS' : null
+    );
     if (!methods) return;
     reply.header('Access-Control-Allow-Origin', origin).header('Access-Control-Allow-Credentials', 'true').header('Vary', 'Origin')
-      .header('Access-Control-Allow-Headers', creditPath ? 'Content-Type, Origin' : 'Content-Type, Known-Command-Id, X-CSRF-Token, If-Match, If-None-Match, Known-Subscription-Exit-Preview'
+      .header('Access-Control-Allow-Headers', 'Content-Type, Known-Command-Id, X-CSRF-Token, If-Match, If-None-Match, Known-Subscription-Exit-Preview'
         + (annotationMethods ? ', Known-Annotation-Session' : ''))
-      .header('Access-Control-Expose-Headers', creditPath ? 'Cache-Control, Retry-After, X-Request-Id' : 'ETag, Cache-Control, Retry-After, X-Request-Id'
+      .header('Access-Control-Expose-Headers', 'ETag, Cache-Control, Retry-After, X-Request-Id'
         + (subscriptionMethods ? ', Known-Subscription-Session, Known-Bookmark-Session' : '')
         + (annotationMethods ? ', Known-Annotation-Session' : '')
         + (path === '/api/v1/me/bookmark-preferences' ? ', Known-Bookmark-Session' : '')
-        + (/\/editor$/u.test(path) ? ', Known-Editor-Session' : '')
-        + ((path.startsWith('/api/v1/me/bookmark-captures') || path.startsWith('/api/v1/me/capture-learning') || path.includes('/capture-decisions')) ? ', Known-Capture-Session' : ''))
+        + (/\/editor$/u.test(path) ? ', Known-Editor-Session' : ''))
       .header('Access-Control-Allow-Methods', methods);
     if (request.method === 'OPTIONS') return reply.code(204).send();
   });

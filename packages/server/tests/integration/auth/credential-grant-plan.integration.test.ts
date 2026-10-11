@@ -68,7 +68,6 @@ function destroyPostgresCursorKeys(ports: ReturnType<typeof createApiPostgresPor
   ports.collaborationMembersCursorSigner.destroy();
   ports.myCollaborationInvitesCursorSigner.destroy();
   ports.linkHealthCursorSigner.destroy();
-  ports.classifyInboxCursorSigner.destroy();
   ports.collectionVersionCursorSigner.destroy();
   ports.followCursorKeys?.destroy();
   ports.followedCollectionsCursorKeys?.destroy();

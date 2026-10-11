@@ -82,13 +82,12 @@ describe('database connection budget (PGC-01 / T-06)', () => {
   test('loadConfig wires enabled feature loops into the budget', () => {
     // Defaults pass: outbox 1 <= 10 - 2.
     loadConfig({ ...BASE_ENV });
-    // link-health (4) + readable-replica (2) + outbox (4) = 10 > 8.
+    // link-health (5) + outbox (5) = 10 > 8.
     assert.throws(
       () => loadConfig({
         ...BASE_ENV,
-        WORKER_CONCURRENCY: '4',
+        WORKER_CONCURRENCY: '5',
         KNOWN_FEATURE_LINK_HEALTH: 'true',
-        KNOWN_FEATURE_READABLE_REPLICA: 'true',
       }),
       /Worker loop concurrency total .* must be <= DATABASE_POOL_MAX - 2/,
     );
@@ -96,9 +95,8 @@ describe('database connection budget (PGC-01 / T-06)', () => {
     loadConfig({
       ...BASE_ENV,
       DATABASE_POOL_MAX: '16',
-      WORKER_CONCURRENCY: '4',
+      WORKER_CONCURRENCY: '5',
       KNOWN_FEATURE_LINK_HEALTH: 'true',
-      KNOWN_FEATURE_READABLE_REPLICA: 'true',
     });
     // The server budget rejects an over-provisioned replica count.
     assert.throws(

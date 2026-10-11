@@ -2,9 +2,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import { beforeAll, afterAll, test } from 'vitest';
-import { createPostgresExportJobEnqueueUnitOfWork } from '../../../src/infrastructure/collections/export-job-postgres.js';
 import { createPostgresLinkHealthEnqueueUnitOfWork } from '../../../src/infrastructure/collections/link-health-worker-postgres.js';
-import { createPostgresOrganizePlanMutationUnitOfWork } from '../../../src/infrastructure/collections/organize-plan-postgres.js';
 import { createPostgresCollectionVersionUnitOfWork } from '../../../src/infrastructure/collections/collection-tree-version-postgres.js';
 import { runMigrations } from '../../../src/infrastructure/database/index.js';
 import type { ProductCommandReceiptPort } from '../../../src/modules/commands/index.js';
@@ -17,8 +15,7 @@ describeWithPostgres('C-05 request transaction cancellation', () => {
     await runMigrations(isolated.runtime.db, 'latest');
   }, 180_000);
   afterAll(async () => isolated?.close());
-  const factories = [createPostgresExportJobEnqueueUnitOfWork, createPostgresLinkHealthEnqueueUnitOfWork,
-    createPostgresOrganizePlanMutationUnitOfWork, createPostgresCollectionVersionUnitOfWork];
+  const factories = [createPostgresLinkHealthEnqueueUnitOfWork, createPostgresCollectionVersionUnitOfWork];
   for (const factory of factories) {
     test(`${factory.name}: pre-abort never enters callback`, async () => {
       let entered = false;

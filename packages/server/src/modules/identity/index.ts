@@ -163,9 +163,6 @@ export {
   ensureExtensionAccountIdentity,
   type EnsureExtensionAccountIdentityInput,
   type EnsureExtensionAccountIdentityOptions,
-  EXPLORE_UNKNOWN_CREATOR_ID,
-  type ExploreCreatorFacts,
-  type ExploreCreatorsQueryPort,
   assertAvatarImage,
   assertAvatarPrefixesDoNotOverlap,
   avatarUploadBodyFingerprint,
@@ -216,20 +213,3 @@ export {
   type VerifiedExtensionCredential,
   type VerifiedPkceIdToken,
 } from './extension-auth.js';
-export {
-  CLASSIFICATION_CREDIT_PRICE, MAX_CREDIT_POINTS, CreditError, checkClassificationCreditConsent,
-  type CreditFailureCode, type CreditQuoteContext, type CreditReservation, type CreditBalanceFacts,
-  type CreditReconciliation, type CreditReleaseReason, type CreditChargeTotals, type AccountCreditsPort,
-} from './application/credits.js';
-export type {
-  CreditLedgerBalanceFacts, CreditLedgerEntryBalanceFacts, CreditLedgerEntryFacts, CreditLedgerFilters, CreditLedgerKind,
-  CreditLedgerReadPageFacts, CreditLedgerReadPort, CreditLedgerSnapshotFacts, CreditLedgerSource,
-  CreditLedgerTaskFacts,
-} from './application/credit-ledger-read.js';
-export {
-  CREDIT_LEDGER_CURSOR_PURPOSE, CREDIT_LEDGER_CURSOR_TTL_MS,
-  createCreditLedgerCursorCodec,
-} from './application/credit-ledger-cursor.js';
-export type {
-  CreditLedgerCursorBalance, CreditLedgerCursorKeyConfig, CreditLedgerCursorPayload,
-} from './application/credit-ledger-cursor.js';

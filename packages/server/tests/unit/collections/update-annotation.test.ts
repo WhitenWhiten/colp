@@ -209,7 +209,7 @@ test('implements RFC 7396 null semantics and validates the complete format/value
   assert.equal(json.kind, 'updated');
   if (json.kind === 'updated') {
     assert.equal(json.annotation.format, 'json');
-    assert.deepEqual(json.annotation.value, { message: 'structured' });
+    assert.deepEqual({ ...json.annotation.value }, { message: 'structured' });
   }
 });
 
@@ -280,17 +280,17 @@ test('preserves AI identity exactly and monotonically marks trusted human format
   };
   const visibility = await updateAnnotation(fakePorts({ record: aiRecord }), input({ patch: { visibility: 'private' } }));
   assert.equal(visibility.kind, 'updated');
-  if (visibility.kind === 'updated') assert.deepEqual(visibility.annotation.provenance, provenance);
+  if (visibility.kind === 'updated') assert.deepEqual({ ...visibility.annotation.provenance }, provenance);
 
   const formatted = await updateAnnotation(fakePorts({ record: aiRecord }), input({ patch: { format: 'markdown' } }));
   assert.equal(formatted.kind, 'updated');
-  if (formatted.kind === 'updated') assert.deepEqual(formatted.annotation.provenance, {
+  if (formatted.kind === 'updated') assert.deepEqual({ ...formatted.annotation.provenance }, {
     ...provenance, editedByHuman: true,
   });
 
   const edited = await updateAnnotation(fakePorts({ record: aiRecord }), input({ patch: { value: 'Human edit' } }));
   assert.equal(edited.kind, 'updated');
-  if (edited.kind === 'updated') assert.deepEqual(edited.annotation.provenance, {
+  if (edited.kind === 'updated') assert.deepEqual({ ...edited.annotation.provenance }, {
     ...provenance, editedByHuman: true,
   });
   const alreadyEdited: AnnotationAuthorityRecord = {

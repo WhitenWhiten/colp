@@ -8,7 +8,6 @@ import type {
   CacheMode,
   CacheTtlConfig,
   DatabasePoolConfig,
-  PublicationInsightRetentionConfig,
   PublisherReceiptRetentionConfig,
   WorkerConcurrencyConfig,
 } from './config-types.js';
@@ -34,8 +33,6 @@ const MAX_HANDLER_TIMEOUT_MS = 600_000;
 const MAX_DB_TIMEOUT_MS = 600_000;
 const DEFAULT_PUBLISHER_CLEANUP_INTERVAL_MS = 60_000;
 const DEFAULT_PUBLISHER_CLEANUP_BATCH_SIZE = 100;
-const DEFAULT_PUBLICATION_INSIGHT_CLEANUP_INTERVAL_MS = 60_000;
-const DEFAULT_PUBLICATION_INSIGHT_CLEANUP_BATCH_SIZE = 5_000;
 const DEFAULT_CACHE_MODE: CacheMode = 'off';
 const DEFAULT_CACHE_REQUIRED = false;
 const DEFAULT_REDIS_COMMAND_TIMEOUT_MS = 75;
@@ -279,23 +276,6 @@ export function loadPublisherReceiptRetentionConfig(
   });
 }
 
-export function loadPublicationInsightRetentionConfig(
-  env: NodeJS.ProcessEnv,
-): PublicationInsightRetentionConfig {
-  return Object.freeze({
-    cleanupIntervalMs: parsePositiveInt(
-      env.PUBLICATION_INSIGHT_CLEANUP_INTERVAL_MS,
-      DEFAULT_PUBLICATION_INSIGHT_CLEANUP_INTERVAL_MS,
-      'PUBLICATION_INSIGHT_CLEANUP_INTERVAL_MS',
-    ),
-    cleanupBatchSize: parsePositiveInt(
-      env.PUBLICATION_INSIGHT_CLEANUP_BATCH_SIZE,
-      DEFAULT_PUBLICATION_INSIGHT_CLEANUP_BATCH_SIZE,
-      'PUBLICATION_INSIGHT_CLEANUP_BATCH_SIZE',
-      { max: 10_000 },
-    ),
-  });
-}
 
 
 export function loadCacheTtlPair(

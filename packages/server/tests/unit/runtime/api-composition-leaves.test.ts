@@ -122,7 +122,6 @@ function destroyPostgresCursorKeys(ports: ReturnType<typeof createApiPostgresPor
   ports.collaborationMembersCursorSigner.destroy();
   ports.myCollaborationInvitesCursorSigner.destroy();
   ports.linkHealthCursorSigner.destroy();
-  ports.classifyInboxCursorSigner.destroy();
   ports.collectionVersionCursorSigner.destroy();
   ports.publicationCursorKeys.destroy();
 }
@@ -155,7 +154,6 @@ describe('API composition leaves', () => {
       ports.ownedCollectionsQueryPorts,
       ports.sharedCollectionsQueryPorts,
       ports.linkHealthQueryPorts,
-      ports.classifyInboxQueryPorts,
     ]) {
       assert.ok(await query.clock.now() instanceof Date);
     }
@@ -182,7 +180,6 @@ describe('API composition leaves', () => {
     assert.equal(email.authMailboxSink, undefined);
     assert.equal(email.emailProvider, undefined);
     assert.equal(email.emailCallbackRoutes, undefined);
-    assert.equal(email.emailOpsRoutes.enabled, false);
 
     const rateLimiters = composeApiSurfaceRateLimiters(config);
     assert.equal(rateLimiters.authRateLimiter, undefined);
@@ -204,11 +201,7 @@ describe('API composition leaves', () => {
       rateLimiters.notificationRateLimiter,
       rateLimiters.libraryOrderRateLimiter,
       rateLimiters.linkHealthRateLimiter,
-      rateLimiters.classifyInboxRateLimiter,
-      rateLimiters.exportJobRateLimiter,
-      rateLimiters.organizePlanRateLimiter,
       rateLimiters.collectionVersionRateLimiter,
-      rateLimiters.readableReplicaRateLimiter,
       rateLimiters.publicObjectRateLimiter,
     ]) {
       assert.equal(typeof limiter.consume, 'function');
@@ -356,28 +349,21 @@ describe('API composition leaves', () => {
     assert.deepEqual(deletedAuthUsers, ['auth-user-1']);
   });
 
-  test('enabled product email composes one memory callback limiter without querying PostgreSQL', async () => {
+  test('enabled product email composes auth email without querying PostgreSQL', async () => {
     process.env.ALIBABA_CLOUD_ACCESS_KEY_ID = 'composition-access-id';
     process.env.ALIBABA_CLOUD_ACCESS_KEY_SECRET = 'composition-access-secret';
     const database = noSqlDatabase();
     const composed = composeApiEmail({
       config: loadConfig(testEnv({
-        KNOWN_FEATURE_EMAIL: 'true',
-        EMAIL_DM_ACCOUNT_NAME: 'no-reply@example.invalid',
+        AUTH_EMAIL_ENABLED: 'true',
+        AUTH_EMAIL_DM_ACCOUNT_NAME: 'no-reply@example.invalid',
       })),
       database,
       metrics: new InMemoryMetrics(),
       metricsLogger: createLogger('silent'),
     });
-    assert.ok(composed.emailProvider);
-    assert.ok(composed.emailCallbackRoutes);
-    assert.equal(composed.emailCallbackRoutes.enabled, false);
-    assert.equal(composed.emailCallbackRoutes.verifier, composed.emailProvider);
-    assert.equal(composed.emailCallbackRoutes.rateLimiter, composed.emailCallbackRateLimiter);
-    assert.equal(composed.emailCallbackRateLimiter?.readiness().status, 'healthy');
+    assert.ok(composed.authEmailComposition);
     assert.equal(database.sqlCalls.length, 0);
-    await composed.emailCallbackRateLimiter?.close();
-    await composed.emailProvider.close();
     await composed.authEmailComposition.close();
   });
 

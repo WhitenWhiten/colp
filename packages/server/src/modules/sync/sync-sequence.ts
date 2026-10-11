@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import {
   collectionSequenceScopeKey,
   isVerifiedSyncSession,
+  sequenceScopeMatchesCollection,
   type VerifiedSyncSession,
 } from '@know-n/colp/sync';
 import {
@@ -163,10 +164,13 @@ export function canonicalSyncSequenceAttemptDigest(input: SyncSequenceAdmissionI
 /** Logical Operation digest. Session, Bearer, batch, and endpoint are attempt identity. */
 export function canonicalSyncSequenceLogicalDigest(input: Pick<SyncSequenceAdmissionInput,
   'replicaId' | 'sequenceScope' | 'sequence' | 'operationId' | 'payload'>): string {
+  const sequenceScope = input.sequenceScope.startsWith('collection:')
+    ? input.sequenceScope.slice('collection:'.length)
+    : input.sequenceScope;
   return digest({
     contract: SYNC_SEQUENCE_DIGEST_LOGICAL_V2,
     replicaId: input.replicaId,
-    sequenceScope: input.sequenceScope,
+    sequenceScope,
     sequence: input.sequence,
     operationId: input.operationId,
     payload: input.payload,
@@ -253,7 +257,7 @@ export function validateSyncSequenceAdmissionInput(value: unknown): Readonly<Syn
   }
   const replicaId = nonEmpty(input.replicaId, 'Replica ID', 128);
   const sequenceScope = nonEmpty(input.sequenceScope, 'Sequence scope', 640);
-  if (sequenceScope !== collectionSequenceScopeKey(session.collectionId)) {
+  if (!sequenceScopeMatchesCollection(sequenceScope, session.collectionId)) {
     throw new TypeError('Sequence scope must match the verified Session Collection');
   }
   if (!Number.isSafeInteger(input.sequence) || (input.sequence as number) < 1) {

@@ -1,5 +1,3 @@
-import type { ClassifyInboxFeatureConfig } from './config-classification.js';
-export type { ClassifyInboxFeatureConfig } from './config-classification.js';
 import type { EmailSkinMap } from '../infrastructure/email/index.js';
 import type { McpReadFeatureConfig } from '../modules/mcp/index.js';
 import type { ExtensionAuthConfig, OidcEncryptionKey } from '../modules/identity/index.js';
@@ -138,96 +136,12 @@ export interface ContentGovernanceFeatureConfig {
   readonly reportRate: { readonly maxRequests: 10; readonly windowMs: 3_600_000 };
   readonly actionRate: { readonly maxRequests: 60; readonly windowMs: 60_000 }; readonly appealRate: { readonly maxRequests: 10; readonly windowMs: 86_400_000 }; }
 
-export interface OrganizePlansFeatureConfig {
-  readonly enabled: boolean;
-  readonly plannerId: string;
-}
-
-export interface ReadableReplicaFeatureConfig {
-  /** Exposure control only; routes stay registered while false. */
-  readonly enabled: boolean;
-  /** Whole-probe AbortController budget (default 15s). Not an egress options field. */
-  readonly probeTimeoutMs: number;
-  /** Optional per-hop connect wrap (default 5s). Not an egress options field. */
-  readonly connectTimeoutMs: number;
-  /** Bounded HTML body cap (default 2 MiB). Not an egress options field. */
-  readonly maxBodyBytes: number;
-  /** Worker global concurrency cap (default 2, max 4). */
-  readonly workerConcurrency: number;
-  /** Minimum interval between fetches of the same normalized host (default 2s). */
-  readonly perHostGapMs: number;
-  readonly workerPollIntervalMs: number;
-  readonly workerLeaseDurationMs: number;
-  readonly enqueueCooldownMs: number;
-}
-
 export interface CollectionHistoryFeatureConfig {
   /** Exposure control only; collection-history routes stay registered while false (handlers 404). */
   readonly enabled: boolean;
   readonly cursor: ProductOwnedCollectionsCursorConfig;
 }
 
-export interface ExportR2Config {
-  readonly endpoint: string;
-  readonly region: string;
-  readonly bucket: string;
-  readonly prefix: string;
-  readonly rwCredential: { readonly accessKeyId: string; readonly secretAccessKey: string };
-  readonly roCredential: { readonly accessKeyId: string; readonly secretAccessKey: string };
-}
-
-export interface ExportJobsFeatureConfig {
-  /** Exposure control only; routes stay registered while false (handlers 404). */
-  readonly enabled: boolean;
-  /**
-   * Object-key prefix (`EXPORT_R2_PREFIX`). Default `export/`. Always asserted
-   * against avatar/favicon/attachments live/probe even when the flag is false.
-   */
-  readonly prefix: string;
-  /** Private R2 settings; present only when the flag is true. */
-  readonly r2: ExportR2Config | null;
-  readonly rateLimit: { readonly maxRequests: number; readonly windowMs: number };
-  readonly timeoutMs: number;
-  readonly workerConcurrency: number;
-  readonly workerPollIntervalMs: number;
-  readonly workerLeaseDurationMs: number;
-}
-
-export interface PublishingInsightsConfig {
-  /** HMAC pepper for visitor_hash. Rotation resets visitor identity (no previous keys). */
-  readonly visitorHmacKey: Buffer;
-  /** Independent HMAC pepper for ingest rate-limit keys. Must not equal visitorHmacKey. */
-  readonly rateLimitHmacKey: Buffer;
-  /**
-   * Cross-instance shared ingest rate-limit adapter. When enabled, the
-   * production composition injects Redis. HMAC pepper stays
-   * `rateLimitHmacKey` (`PUBLISHING_INSIGHTS_RATELIMIT_HMAC_KEY`), never
-   * search/auth peppers. Redis URL may reuse search's URL.
-   */
-  readonly rateLimitShared: PublishingInsightsRateLimitSharedConfig;
-}
-
-/**
- * Cross-instance shared Publishing Insights ingest rate-limit adapter (S-02).
- *
- * Mirrors SEARCH_RATE_LIMIT_SHARED (URL, timeouts, prefix). There is no
- * independent key-secret env: pepper is always
- * PUBLISHING_INSIGHTS_RATELIMIT_HMAC_KEY. Redis failures fail closed (503).
- */
-export interface PublishingInsightsRateLimitSharedConfig {
-  /** Shared Redis adapter enabled (PUBLISHING_INSIGHTS_RATE_LIMIT_SHARED=true). */
-  readonly enabled: boolean;
-  /** redis:// or rediss:// endpoint; null when disabled without a URL. */
-  readonly redisUrl: string | null;
-  /** Redis key namespace prefix; default 'known'. */
-  readonly keyPrefix: string;
-  /** Per-command timeout (ms); default 75, hard ceiling 5000. */
-  readonly commandTimeoutMs: number;
-  /** Connect timeout (ms); default 1000, hard ceiling 30000. */
-  readonly connectTimeoutMs: number;
-  /** Bounded retries per request; default 1, range 0..10. */
-  readonly maxRetriesPerRequest: number;
-}
 
 /**
  * Cross-instance shared collaboration-invite rate-limit adapter (S-04).
@@ -580,20 +494,6 @@ export interface PublisherReceiptRetentionConfig {
   readonly cleanupBatchSize: number;
 }
 
-/**
- * Background publication-insight retention (P-01). Cleanup never runs in an
- * ingest request transaction. Defaults match publisher-style cadence; batch
- * default is PUBLICATION_INSIGHT_PURGE_LIMIT (5000) so one tick stays bounded.
- *
- * Env: PUBLICATION_INSIGHT_CLEANUP_INTERVAL_MS (default 60000),
- * PUBLICATION_INSIGHT_CLEANUP_BATCH_SIZE (default 5000, max 10000).
- */
-export interface PublicationInsightRetentionConfig {
-  /** Background cleanup cadence. Cleanup never runs in an ingest transaction. */
-  readonly cleanupIntervalMs: number;
-  /** Maximum expired event rows and daily rows deleted per table per tick. */
-  readonly cleanupBatchSize: number;
-}
 
 export interface PublicationConfig {
   readonly origin: string;
@@ -624,7 +524,6 @@ export interface PublicationConfig {
     readonly active: { readonly id: string; readonly secret: string };
     readonly retained: readonly { readonly id: string; readonly secret: string }[];
   };
-  readonly indexNow: { readonly enabled: false } | { readonly enabled: true; readonly key: string; readonly timeoutMs: 5_000 };
   /** Vendor-neutral purge gateway used by the Worker; tests may inject the provider port. */
   readonly cachePurge?: {
     readonly endpoint: string;
@@ -761,16 +660,9 @@ export interface AppConfig {
   readonly productEditorCursor: ProductEditorCursorConfig;
   readonly productOwnedCollectionsCursor: ProductOwnedCollectionsCursorConfig;
   readonly linkHealth: LinkHealthFeatureConfig;
-  readonly classification: ReturnType<typeof import('./config-classification.js').loadClassificationConfig>;
-  readonly organizePlans: OrganizePlansFeatureConfig;
-  readonly readableReplica: ReadableReplicaFeatureConfig;
-  readonly linkPreview: import('./config-link-preview.js').LinkPreviewFeatureConfig;
-  readonly classifyInbox: ClassifyInboxFeatureConfig;
   readonly collectionHistory: CollectionHistoryFeatureConfig;
-  readonly exportJobs: ExportJobsFeatureConfig;
   readonly ledgerArchive: LedgerArchiveRuntimeConfig;
   readonly ledgerArchiveReader: import('./config-ledger-archive-reader.js').LedgerArchiveReaderRuntimeConfig;
-  readonly publishingInsights: PublishingInsightsConfig;
   /** Cross-instance shared collaboration-invite limiter (S-04). */
   readonly collaborationInviteRateLimit: CollaborationInviteRateLimitSharedConfig;
   /** Cross-instance Explore / COLP Directory limiter (P-04); independent from Search. */
@@ -808,7 +700,6 @@ export interface AppConfig {
   readonly contentGovernance: ContentGovernanceFeatureConfig;
   readonly worker: WorkerConcurrencyConfig;
   readonly publisherReceipts: PublisherReceiptRetentionConfig;
-  readonly publicationInsightRetention: PublicationInsightRetentionConfig;
   readonly syncTombstonePurge: SyncTombstonePurgeConfig;
   readonly syncEvidenceMaintenance: SyncEvidenceMaintenanceConfig;
   readonly publication: PublicationConfig;
@@ -823,7 +714,6 @@ export interface AppConfig {
   readonly feed?: FeedFeatureConfig;
   readonly publicActivity: PublicActivityFeatureConfig;
   readonly notifications?: NotificationFeatureConfig;
-  readonly email?: EmailFeatureConfig;
   /**
    * Better Auth feature section (A1; G1 §6/§16). Always present with closed
    * defaults: `enabled=false` (production default) registers zero Better Auth
@@ -937,7 +827,6 @@ export interface CommunityFeatureConfig {
  * enforced exactly, ranges are clamped-fail-closed at startup).
  */
 export interface FaviconPolicyAdmissionConfig {
-  readonly shared?: import('./config-favicon-shared.js').SharedFaviconConfig;
   readonly enabled: boolean;
   readonly timeoutMs: number;
   /**

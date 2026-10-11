@@ -22,37 +22,21 @@ import {
   createPostgresRelationReadUnitOfWork,
   createPostgresOwnedCollectionsReadPort,
   createPostgresLinkHealthReadPort,
-  createPostgresClassificationServices,
-  createPostgresClassifyInboxReadPort,
-  createPostgresClassifyInboxSkipUnitOfWork,
-  createPostgresClassifyInboxAcceptUnitOfWork,
   createPostgresLinkHealthEnqueueUnitOfWork,
-  createPostgresExportJobEnqueueUnitOfWork,
-  createPostgresExportJobReadPort,
   createPostgresCollectionExportReadPort,
-  createPostgresOrganizePlanMutationUnitOfWork,
-  createPostgresOrganizePlanReadPort,
   createPostgresCollectionVersionUnitOfWork,
-  createPostgresReadableReplicaEnqueueUnitOfWork,
-  createPostgresReadableReplicaUnitOfWork,
-  createR2ExportStore,
   createPostgresSharedCollectionsReadPort,
   createPostgresCollectionBookmarkCountReadPort,
   createPostgresBookmarkIconReadPort,
-  createPostgresLinkPreviewCommandUnitOfWork,
-  createPostgresLinkPreviewReadPort,
   createPostgresFaviconSourceModeReadPort,
   createPostgresLibraryOrderCommandUnitOfWork,
   createPostgresLibraryOrderQueryUnitOfWork,
 } from '../infrastructure/collections/index.js';
 import {
-  createPostgresExploreCreatorsQueryPort,
-  createPostgresAccountCreditsPort, createPostgresCreditHealthObserver,
   createPostgresBookmarkPreferencesQuery,
   createPostgresBookmarkPreferencesUnitOfWork,
   createPostgresExtensionOwnerSubjectPort,
   createPostgresIdentityUnitOfWork,
-  createPostgresCreditLedgerReadPort,
   createPostgresPublicProfileFactsReadPort,
 } from '../infrastructure/identity/index.js';
 import {
@@ -63,10 +47,7 @@ import {
   createProductOwnedCollectionsCursorSigner,
   createProductSharedCollectionsCursorSigner,
   createProductLinkHealthCursorSigner,
-  createProductClassifyInboxCursorSigner,
   createProductCollectionVersionCursorSigner,
-  createNeverCalledExportObjectStore,
-  createOrganizePlanner,
 } from '../modules/collections/index.js';
 import {
   createProductCollaborationMembersCursorSigner,
@@ -75,10 +56,8 @@ import {
 import {
   createPublicationCursorKeyring,
   getPublicationSnapshotPage,
-  getPublishingInsights,
   PublicationNotFoundError,
   PUBLICATION_SNAPSHOT_MAX_LIMIT,
-  recordInsightEvent,
 } from '../modules/publication/index.js';
 import { createPhase4bMcpWriteOperations } from '../modules/mcp/index.js';
 import {
@@ -87,7 +66,6 @@ import {
   createPostgresProfileSitemapReadPort,
   createPostgresSearchIndexingExclusionReadPort,
   createPostgresPublicationNodeCountReadPort,
-  createPostgresExplorePageReadPort,
   createPostgresPublicationAnnotationReadPort,
   createPostgresPublicationRelationReadPort,
   createPostgresPublicationMetadataReadPort,
@@ -95,11 +73,7 @@ import {
   createPostgresProductPublicCollectionViewCountReadPort,
   createPostgresPublicMarksReadPort,
   createPostgresPublicationSnapshotReadPort,
-  createPostgresPublicationInsightFactsPort,
-  createPostgresPublicationInsightStore,
-  createPostgresPublishingInsightsDashboardPort,
   createPostgresSearchCatalogDisplayTargetPort,
-  createVisitorHashPort,
   createPostgresPublicationCollectionControlPort,
 } from '../infrastructure/publication/index.js';
 import { createPostgresAccessPolicyFactsPort } from '../infrastructure/access-policy/index.js';
@@ -112,7 +86,6 @@ import { createApiPostgresProductCursors } from './api-postgres-product-cursors.
 import { createLogger, type Metrics } from '../infrastructure/telemetry/index.js';
 import type {
   CollaborationInviteRateLimiter,
-  PublishingInsightsIngestRateLimiter,
 } from '../infrastructure/rate-limit/index.js';
 import type { IdentityUnitOfWork } from '../modules/identity/index.js';
 
@@ -129,7 +102,6 @@ export interface ApiPostgresPorts {
   readonly collaborationMembersCursorSigner: ReturnType<typeof createProductCollaborationMembersCursorSigner>;
   readonly myCollaborationInvitesCursorSigner: ReturnType<typeof createProductMyCollaborationInvitesCursorSigner>;
   readonly linkHealthCursorSigner: ReturnType<typeof createProductLinkHealthCursorSigner>;
-  readonly classifyInboxCursorSigner: ReturnType<typeof createProductClassifyInboxCursorSigner>;
   readonly collectionVersionCursorSigner: ReturnType<typeof createProductCollectionVersionCursorSigner>;
   readonly annotationMutationUnitOfWork: ReturnType<typeof createPostgresAnnotationMutationUnitOfWork>;
   readonly annotationReadUnitOfWork: ReturnType<typeof createPostgresAnnotationReadUnitOfWork>;
@@ -175,14 +147,7 @@ export interface ApiPostgresPorts {
     readonly cursors: ReturnType<typeof createProductLinkHealthCursorSigner>;
     readonly clock: { now: () => Promise<Date> };
   };
-  readonly classifyInboxQueryPorts: {
-    readonly reads: ReturnType<typeof createPostgresClassifyInboxReadPort>;
-    readonly cursors: ReturnType<typeof createProductClassifyInboxCursorSigner>;
-    readonly clock: { now: () => Promise<Date> };
-  };
   readonly collectionBookmarkCountOrigin: ReturnType<typeof createPostgresCollectionBookmarkCountReadPort>;
-  readonly publishingInsightsVisitorHash: ReturnType<typeof createVisitorHashPort>;
-  readonly creditLedgerRead: ReturnType<typeof createPostgresCreditLedgerReadPort>;
 }
 export function createApiPostgresPorts(input: {
   readonly database: DatabaseRuntime;
@@ -224,7 +189,6 @@ export function createApiPostgresPorts(input: {
       cursorTtlMs: config.productEditorCursor.ttlMs,
       metrics,
       productOrigin: config.productOrigin,
-      linkPreviews: config.linkPreview.enabled,
     },
   );
   const collectionChildrenReadUnitOfWork = createPostgresCollectionChildrenReadUnitOfWork(
@@ -234,11 +198,10 @@ export function createApiPostgresPorts(input: {
       metrics,
       productOrigin: config.productOrigin,
       cancelBackend: database.cancelBackend,
-      linkPreviews: config.linkPreview.enabled,
     },
   );
   const { ownedCollectionsCursorSigner, sharedCollectionsCursorSigner, collaborationMembersCursorSigner,
-    myCollaborationInvitesCursorSigner, linkHealthCursorSigner, classifyInboxCursorSigner,
+    myCollaborationInvitesCursorSigner, linkHealthCursorSigner,
     collectionVersionCursorSigner } = createApiPostgresProductCursors(config);
   const annotationMutationUnitOfWork = createPostgresAnnotationMutationUnitOfWork(database.db, { ...(reportSourceInvalidation === undefined ? {} : { reportSourceInvalidation }) });
   const annotationReadUnitOfWork = createPostgresAnnotationReadUnitOfWork(database.db, {
@@ -300,14 +263,7 @@ export function createApiPostgresPorts(input: {
     cursors: linkHealthCursorSigner,
     clock: { now: async () => new Date() },
   };
-  const classifyInboxQueryPorts = {
-    reads: createPostgresClassifyInboxReadPort(database.db),
-    cursors: classifyInboxCursorSigner,
-    clock: { now: async () => new Date() },
-  };
   const collectionBookmarkCountOrigin = createPostgresCollectionBookmarkCountReadPort(database.db);
-  const publishingInsightsVisitorHash = createVisitorHashPort(config.publishingInsights.visitorHmacKey);
-  const creditLedgerRead = createPostgresCreditLedgerReadPort(database.db);
   return {
     ...(reportSourceInvalidation === undefined ? {} : { reportSourceInvalidation }),
     identityUnitOfWork,
@@ -320,7 +276,6 @@ export function createApiPostgresPorts(input: {
     collaborationMembersCursorSigner,
     myCollaborationInvitesCursorSigner,
     linkHealthCursorSigner,
-    classifyInboxCursorSigner,
     collectionVersionCursorSigner,
     annotationMutationUnitOfWork,
     annotationReadUnitOfWork,
@@ -336,10 +291,7 @@ export function createApiPostgresPorts(input: {
     ownedCollectionsQueryPorts,
     sharedCollectionsQueryPorts,
     linkHealthQueryPorts,
-    classifyInboxQueryPorts,
     collectionBookmarkCountOrigin,
-    publishingInsightsVisitorHash,
-    creditLedgerRead,
   };
 }
 export function createApiPostgresAppDependencies(input: {
@@ -348,15 +300,14 @@ export function createApiPostgresAppDependencies(input: {
   readonly metrics: Metrics;
   readonly ports: ApiPostgresPorts;
   readonly collaborationInviteRateLimiter: CollaborationInviteRateLimiter;
-  readonly publishingInsightsRateLimiter: PublishingInsightsIngestRateLimiter;
   readonly identityUnitOfWork: IdentityUnitOfWork;
 }) {
   const { database, config, metrics, ports, collaborationInviteRateLimiter,
-    publishingInsightsRateLimiter, identityUnitOfWork } = input;
+    identityUnitOfWork } = input;
   const reportSourceInvalidation = ports.reportSourceInvalidation;
   const { publicationSnapshotQuery, publicationCursorKeys, publicationDirectoryReads,
     collaborationMembersCursorSigner, myCollaborationInvitesCursorSigner,
-    collectionVersionCursorSigner, publishingInsightsVisitorHash, searchPorts } = ports;
+    collectionVersionCursorSigner, searchPorts } = ports;
   const publicProfileFacts = createPostgresPublicProfileFactsReadPort(database);
   const searchIndexingExclusion = createPostgresSearchIndexingExclusionReadPort(database);
   const publicationNodeCount = createPostgresPublicationNodeCountReadPort(database);
@@ -372,24 +323,10 @@ export function createApiPostgresAppDependencies(input: {
         database.db, config.syncSession.conflictPayloadKeyring,
       ),
     } : {}),
-    ...createPostgresClassificationServices(database,config.classification,metrics,reportSourceInvalidation,createPostgresAccountCreditsPort,createPostgresCreditHealthObserver(database.db,metrics)),
-    classifyInboxSkip: createPostgresClassifyInboxSkipUnitOfWork(database.db),
-    classifyInboxAccept: createPostgresClassifyInboxAcceptUnitOfWork(database.db, { ...(reportSourceInvalidation === undefined ? {} : { reportSourceInvalidation }) }),
     linkHealthEnqueue: createPostgresLinkHealthEnqueueUnitOfWork(database.db),
-    exportJobReads: createPostgresExportJobReadPort(database.db),
     collectionExportReads: createPostgresCollectionExportReadPort(database.db),
-    exportJobEnqueue: createPostgresExportJobEnqueueUnitOfWork(database.db),
-    exportJobStore: config.exportJobs.enabled && config.exportJobs.r2
-      ? createR2ExportStore(config.exportJobs.r2)
-      : createNeverCalledExportObjectStore(),
-    organizePlanReads: createPostgresOrganizePlanReadPort(database.db),
-    organizePlanMutations: createPostgresOrganizePlanMutationUnitOfWork(database.db, { productOrigin: config.productOrigin, metrics, collectionHistoryEnabled: config.collectionHistory.enabled, ...(reportSourceInvalidation === undefined ? {} : { reportSourceInvalidation }) }),
-    organizePlanner: createOrganizePlanner(config.organizePlans.plannerId),
     collectionVersions: createPostgresCollectionVersionUnitOfWork(database.db, { ...(reportSourceInvalidation === undefined ? {} : { reportSourceInvalidation }) }),
     collectionVersionCursors: collectionVersionCursorSigner,
-    readableReplicas: createPostgresReadableReplicaUnitOfWork(database.db),
-    readableReplicaEnqueue: createPostgresReadableReplicaEnqueueUnitOfWork(database.db),
-    linkPreviewCommands: createPostgresLinkPreviewCommandUnitOfWork(database.db, { productOrigin: config.productOrigin }),
     publicationSnapshotQuery,
     publicationDirectoryQuery: {
       reads: publicationDirectoryReads,
@@ -397,8 +334,6 @@ export function createApiPostgresAppDependencies(input: {
       origin: config.publication.origin,
       maxPageSize: config.publication.maxPageSize,
     },
-    explorePageQuery: createPostgresExplorePageReadPort(database),
-    exploreCreatorsQuery: createPostgresExploreCreatorsQueryPort(database.db),
     publicationMetadataQuery: {
       reads: ports.publicationMetadataReads,
       origin: config.publication.origin,
@@ -454,29 +389,6 @@ export function createApiPostgresAppDependencies(input: {
       bookmarkIcons: createPostgresBookmarkIconReadPort(database.db),
       faviconSources: createPostgresFaviconSourceModeReadPort(database.db),
       publicMarks: createPostgresPublicMarksReadPort(database),
-      ...(config.linkPreview.enabled ? { linkPreviews: createPostgresLinkPreviewReadPort(database.db) } : {}),
-    },
-    explorePublicMarks: createPostgresPublicMarksReadPort(database),
-    productPublicInsight: {
-      allowedOrigins: config.allowedOrigins,
-      identityUnitOfWork,
-      visitorHash: publishingInsightsVisitorHash,
-      rateLimiter: publishingInsightsRateLimiter,
-      rateLimitKeySecret: config.publishingInsights.rateLimitHmacKey,
-      insightCookieSigningKey: config.publishingInsights.visitorHmacKey,
-      record: (insightInput: Parameters<typeof recordInsightEvent>[1]) => createUnitOfWork(database.db).execute(async ({ transaction }) => (
-        recordInsightEvent({
-          facts: createPostgresPublicationInsightFactsPort(transaction),
-          store: createPostgresPublicationInsightStore(transaction),
-          visitorHash: publishingInsightsVisitorHash,
-        }, insightInput)
-      )),
-    },
-    productPublishingInsights: {
-      identityUnitOfWork,
-      getInsights: (actor: Parameters<typeof getPublishingInsights>[1], now: Parameters<typeof getPublishingInsights>[2]) => getPublishingInsights({
-        dashboard: createPostgresPublishingInsightsDashboardPort(database.db),
-      }, actor, now),
     },
     productCollaboration: {
       identityUnitOfWork,

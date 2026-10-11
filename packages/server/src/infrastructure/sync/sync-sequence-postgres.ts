@@ -1,6 +1,7 @@
 import {
   collectionSequenceScopeKey,
   createSyncHost,
+  sequenceScopeMatchesCollection,
   type SequenceCoordinatorResult,
   type SequenceCoordinatorTransaction,
   type SequenceEvaluation,
@@ -119,10 +120,10 @@ function asSafeSequence(value: unknown, label: string): number {
   return numeric;
 }
 
-function parseClaim(row: Record<string, unknown>): SyncOperationClaim {
+function parseClaim(row: Record<string, unknown>, expectedScope?: string): SyncOperationClaim {
   return {
     operationId: String(row.operation_id), digest: String(row.canonical_digest),
-    replicaId: String(row.replica_id), sequenceScope: String(row.sequence_scope),
+    replicaId: String(row.replica_id), sequenceScope: expectedScope ?? String(row.sequence_scope),
     sequence: asSafeSequence(row.sequence_number, 'claim Sequence'),
   };
 }
@@ -147,18 +148,24 @@ function createTransactionAdapter<Result>(
   options: Readonly<PostgresSyncSequencePortOptions>,
 ): PostgresSyncSequenceTransaction<Result> {
   const requestDigest = canonicalSyncSequenceDigest(input);
+  const dbScope = input.sequenceScope.startsWith('collection:')
+    ? input.sequenceScope
+    : `collection:${authority.collectionId}`;
 
   async function readReceipt(
     lane: SequenceLaneKey,
     sequence: number,
   ): Promise<StoredSyncSequenceReceipt<Result> | undefined> {
+    const laneDbScope = lane.sequenceScope.startsWith('collection:')
+      ? lane.sequenceScope
+      : `collection:${authority.collectionId}`;
     const result = await sql<Record<string, unknown>>`
       select replica_id,collection_id,sequence_scope,sequence_number,operation_id,
         canonical_digest,digest_algorithm,session_id,lease_generation,server_batch_id,media_type,
         endpoint_identity,status,result_json,result_digest,retention_policy,
         retained_through_retirement
       from sync_sequence_receipts
-      where replica_id=${lane.replicaId} and sequence_scope=${lane.sequenceScope}
+      where replica_id=${lane.replicaId} and sequence_scope=${laneDbScope}
         and sequence_number=${sequence}
     `.execute(transaction);
     const row = result.rows[0];
@@ -172,7 +179,7 @@ function createTransactionAdapter<Result>(
     return {
       operationId: String(row.operation_id),
       replicaId: String(row.replica_id),
-      sequenceScope: String(row.sequence_scope),
+      sequenceScope: lane.sequenceScope,
       sequence: asSafeSequence(row.sequence_number, 'receipt Sequence'),
       digest: presentSequenceReceiptDigestFromStored(row, input),
       status: row.status as StoredSyncSequenceReceipt<Result>['status'],
@@ -181,7 +188,9 @@ function createTransactionAdapter<Result>(
   }
 
   async function claimOperation(claim: SyncOperationClaim): Promise<void> {
-    if (claim.replicaId !== input.replicaId || claim.sequenceScope !== input.sequenceScope
+    if (claim.replicaId !== input.replicaId
+        || (!sequenceScopeMatchesCollection(claim.sequenceScope, authority.collectionId)
+            && claim.sequenceScope !== input.sequenceScope)
         || claim.sequence !== input.sequence || claim.digest !== requestDigest
         || claim.operationId !== input.operationId) persistenceError('integrity_failure');
     await sql`
@@ -190,7 +199,7 @@ function createTransactionAdapter<Result>(
         digest_algorithm
       ) values (
         ${claim.operationId},${claim.replicaId},${authority.collectionId},
-        ${claim.sequenceScope},${claim.sequence},${claim.digest},
+        ${dbScope},${claim.sequence},${claim.digest},
         ${SYNC_SEQUENCE_DIGEST_LOGICAL_V2}
       )
     `.execute(transaction);
@@ -201,7 +210,9 @@ function createTransactionAdapter<Result>(
     condition: SequenceReceiptWriteCondition,
   ): Promise<void> {
     if (receipt.operationId !== input.operationId || receipt.replicaId !== input.replicaId
-        || receipt.sequenceScope !== input.sequenceScope || receipt.sequence !== input.sequence
+        || (!sequenceScopeMatchesCollection(receipt.sequenceScope, authority.collectionId)
+            && receipt.sequenceScope !== input.sequenceScope)
+        || receipt.sequence !== input.sequence
         || receipt.digest !== requestDigest) persistenceError('integrity_failure');
     await options.faultInjector?.afterPhase?.('before_receipt_finalize');
     const resultDigest = canonicalSyncSequenceResultDigest(receipt.result);
@@ -212,7 +223,7 @@ function createTransactionAdapter<Result>(
           digest_algorithm,session_id,lease_generation,server_batch_id,media_type,endpoint_identity,
           status,result_json,result_digest,finalized_at
         ) values (
-          ${receipt.replicaId},${authority.collectionId},${receipt.sequenceScope},${receipt.sequence},
+          ${receipt.replicaId},${authority.collectionId},${dbScope},${receipt.sequence},
           ${receipt.operationId},${receipt.digest},${SYNC_SEQUENCE_DIGEST_LOGICAL_V2},
           ${input.session.sessionId},
           ${input.leaseGeneration}::bigint,${input.serverBatchId},${input.mediaType},
@@ -228,7 +239,7 @@ function createTransactionAdapter<Result>(
         status=${receipt.status},result_json=${JSON.stringify(receipt.result)}::jsonb,
         result_digest=${resultDigest},
         finalized_at=case when ${receipt.status}='deferred' then null else current_timestamp end
-      where replica_id=${receipt.replicaId} and sequence_scope=${receipt.sequenceScope}
+      where replica_id=${receipt.replicaId} and sequence_scope=${dbScope}
         and sequence_number=${receipt.sequence} and status='deferred'
     `.execute(transaction);
     if (updated.numAffectedRows !== 1n) persistenceError('integrity_failure');
@@ -276,7 +287,7 @@ function createTransactionAdapter<Result>(
           select operation_id,replica_id,sequence_scope,sequence_number,canonical_digest
           from sync_sequence_operation_claims where operation_id=${operationId}`.execute(transaction);
         if (!result.rows[0]) return undefined;
-        const claim = parseClaim(result.rows[0]);
+        const claim = parseClaim(result.rows[0], collectionSequenceScopeKey(authority.collectionId));
         const receipt = await readReceipt(claim, claim.sequence);
         return receipt ? { ...claim, digest: receipt.digest } : claim;
       },
@@ -305,10 +316,13 @@ function createTransactionAdapter<Result>(
     },
     receipts: { load: readReceipt, save: finalizeReceipt },
     async loadLaneState(lane: SequenceLaneKey): Promise<SequenceLaneState | undefined> {
+      const laneDbScope = lane.sequenceScope.startsWith('collection:')
+        ? lane.sequenceScope
+        : `collection:${authority.collectionId}`;
       const result = await sql<Record<string, unknown>>`
         select next_sequence,collection_id,retention_policy,retained_through_retirement
         from sync_sequence_lanes where replica_id=${lane.replicaId}
-          and sequence_scope=${lane.sequenceScope}
+          and sequence_scope=${laneDbScope}
       `.execute(transaction);
       const row = result.rows[0];
       if (!row) return undefined;
@@ -318,16 +332,19 @@ function createTransactionAdapter<Result>(
       if (nextSequence > 1) {
         const predecessor = await sql<Record<string, unknown>>`
           select terminal from sync_sequence_receipts where replica_id=${lane.replicaId}
-            and sequence_scope=${lane.sequenceScope} and sequence_number=${nextSequence - 1}
+            and sequence_scope=${laneDbScope} and sequence_number=${nextSequence - 1}
         `.execute(transaction);
         if (predecessor.rows[0]?.terminal !== true) persistenceError('receipt_missing');
       }
       return { nextSequence };
     },
     async saveLaneState(lane: SequenceLaneKey, state: SequenceLaneState): Promise<void> {
+      const laneDbScope = lane.sequenceScope.startsWith('collection:')
+        ? lane.sequenceScope
+        : `collection:${authority.collectionId}`;
       const updated = await sql`
         update sync_sequence_lanes set next_sequence=${state.nextSequence}
-        where replica_id=${lane.replicaId} and sequence_scope=${lane.sequenceScope}
+        where replica_id=${lane.replicaId} and sequence_scope=${laneDbScope}
       `.execute(transaction);
       if (updated.numAffectedRows !== 1n) persistenceError('integrity_failure');
     },
@@ -341,7 +358,7 @@ export async function claimSyncResolutionLaneSlot(
   rawClaim: SyncResolutionLaneClaim,
 ): Promise<number> {
   const claim = validateSyncResolutionLaneClaim(rawClaim);
-  const sequenceScope = collectionSequenceScopeKey(claim.collectionId);
+  const sequenceScope = `collection:${claim.collectionId}`;
   // Lock the Collection before the lane so the global lock order (Collection -> lane ->
   // nodes) matches the Sequence coordinator's own push path and cannot invert against it.
   const collection = await sql<Record<string, unknown>>`
@@ -443,11 +460,13 @@ export function createPostgresSyncSequencePort(
               },
             },
           }).execute(async ({ transaction }) => {
-            if (lane.replicaId !== input.replicaId || lane.sequenceScope !== input.sequenceScope) {
-              persistenceError('integrity_failure');
-            }
             const locked = await lockAuthority(transaction, input);
             const { authority } = locked;
+            if (lane.replicaId !== input.replicaId
+                || (!sequenceScopeMatchesCollection(lane.sequenceScope, authority.collectionId)
+                    && lane.sequenceScope !== input.sequenceScope)) {
+              persistenceError('integrity_failure');
+            }
             await lockLane(transaction, input, authority);
             if (requireAuthority) {
               const priorBatch = await transaction.selectFrom('sync_sequence_receipts')

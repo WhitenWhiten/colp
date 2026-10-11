@@ -14,11 +14,11 @@ import {
   type InviteEmailDeliveryResult,
 } from '../../../src/modules/access-policy/index.js';
 import { createLogger } from '../../../src/infrastructure/telemetry/index.js';
-import {
-  AliyunDirectMailAdapter,
-  type AliyunDirectMailAdapterOptions,
-  type EmailAdapterTransport,
-} from '../../../src/infrastructure/email/aliyun-directmail-adapter.js';
+import type {
+  EmailSendInput,
+  EmailSendResult,
+  InviteEmailProvider,
+} from '../../../src/infrastructure/email/index.js';
 
 const RECIPIENT = 'invitee-redact@example.invalid';
 const MESSAGE = {
@@ -55,83 +55,67 @@ function unavailableReason(result: InviteEmailDeliveryResult): string {
   return result.outcome === 'email_delivery_unavailable' ? result.redactedReason : '';
 }
 
-function directMailOptions(
-  overrides: Partial<AliyunDirectMailAdapterOptions> = {},
-): AliyunDirectMailAdapterOptions {
-  return {
-    endpoint: 'https://dm.aliyuncs.com/',
-    regionId: 'cn-hangzhou',
-    accountName: 'invite-sender@example.invalid',
-    accessKeyId: 'INVITEFIXTUREAKID',
-    accessKeySecret: 'invite-fixture-key',
-    timeoutMs: 1_000,
-    tagPrefix: 'known-invite-',
-    maxTagChars: 128,
-    ...overrides,
-  };
-}
-
-function fakeTransport(
-  responses: readonly (() => { readonly httpStatus: number; readonly bodyText: string })[],
-): { readonly transport: EmailAdapterTransport; readonly calls: number } {
+function mockProvider(
+  handler: (input: EmailSendInput) => Promise<EmailSendResult>,
+): InviteEmailProvider & { readonly calls: number } {
   let calls = 0;
-  let index = 0;
   return {
-    transport: {
-      async request(input) {
-        calls += 1;
-        if (input.signal.aborted) {
-          throw input.signal.reason instanceof Error ? input.signal.reason : new Error('aborted');
-        }
-        const response = responses[Math.min(index, responses.length - 1)]!;
-        index += 1;
-        return response();
-      },
+    async send(input: EmailSendInput) {
+      calls += 1;
+      return handler(input);
     },
     get calls() { return calls; },
+    async close() {},
   };
 }
-
-const json = (httpStatus: number, body: unknown) => ({
-  httpStatus,
-  bodyText: JSON.stringify(body),
-});
 
 describe('invite email adapter unavailable dichotomy', () => {
   test('provider success is queued; every failure is email_delivery_unavailable', async () => {
-    const success = fakeTransport([() => json(200, { EnvId: 'env-1', RequestId: 'req-1' })]);
-    const directMail = new AliyunDirectMailAdapter(directMailOptions({ transport: success.transport }));
-    const sender = createInviteEmailAdapter({ provider: directMail, logger: createLogger('silent') });
+    const success = mockProvider(async () => ({
+      classification: 'success',
+      providerMessageId: 'env-1',
+      requestId: 'req-1',
+      errorCategory: null,
+    }));
+    const sender = createInviteEmailAdapter({ provider: success, logger: createLogger('silent') });
     try {
       const queued = await sender.sendInviteEmail(sendInput());
       assert.equal(queued.outcome, 'queued');
     } finally {
-      await directMail.close();
+      await success.close();
     }
 
-    const failure = fakeTransport([() => json(500, { Code: 'InternalError', Message: 'x', RequestId: 'r' })]);
-    const failing = new AliyunDirectMailAdapter(directMailOptions({ transport: failure.transport }));
+    const failure = mockProvider(async () => ({
+      classification: 'retryable',
+      providerMessageId: null,
+      requestId: 'r',
+      errorCategory: 'InternalError',
+    }));
     const failingSender = createInviteEmailAdapter({
-      provider: failing, logger: createLogger('silent'),
+      provider: failure, logger: createLogger('silent'),
     });
     try {
       const unavailable = await failingSender.sendInviteEmail(sendInput());
       assert.equal(unavailable.outcome, 'email_delivery_unavailable');
     } finally {
-      await failing.close();
+      await failure.close();
     }
 
-    const blank = fakeTransport([() => json(200, { EnvId: 'env-1', RequestId: 'req-1' })]);
-    const blankMail = new AliyunDirectMailAdapter(directMailOptions({ transport: blank.transport }));
+    const blank = mockProvider(async () => ({
+      classification: 'success',
+      providerMessageId: 'env-1',
+      requestId: 'req-1',
+      errorCategory: null,
+    }));
     const blankSender = createInviteEmailAdapter({
-      provider: blankMail, logger: createLogger('silent'),
+      provider: blank, logger: createLogger('silent'),
     });
     try {
       const missingTo = await blankSender.sendInviteEmail(sendInput({ to: '   ' }));
       assert.equal(missingTo.outcome, 'email_delivery_unavailable');
       assert.equal(blank.calls, 0);
     } finally {
-      await blankMail.close();
+      await blank.close();
     }
   });
 
@@ -151,9 +135,13 @@ describe('invite email adapter unavailable dichotomy', () => {
 describe('invite email adapter request validation', () => {
   test('idempotencyKey longer than 128 chars is rejected before provider contact', async () => {
     assert.equal(INVITE_EMAIL_IDEMPOTENCY_KEY_MAX_CHARS, 128);
-    const fake = fakeTransport([() => json(200, { EnvId: 'env-1', RequestId: 'req-1' })]);
-    const directMail = new AliyunDirectMailAdapter(directMailOptions({ transport: fake.transport }));
-    const sender = createInviteEmailAdapter({ provider: directMail, logger: createLogger('silent') });
+    const fake = mockProvider(async () => ({
+      classification: 'success',
+      providerMessageId: 'env-1',
+      requestId: 'req-1',
+      errorCategory: null,
+    }));
+    const sender = createInviteEmailAdapter({ provider: fake, logger: createLogger('silent') });
     try {
       const result = await sender.sendInviteEmail(sendInput({
         idempotencyKey: 'x'.repeat(INVITE_EMAIL_IDEMPOTENCY_KEY_MAX_CHARS + 1),
@@ -162,7 +150,7 @@ describe('invite email adapter request validation', () => {
       assert.match(unavailableReason(result), /idempotencyKey/u);
       assert.equal(fake.calls, 0);
     } finally {
-      await directMail.close();
+      await fake.close();
     }
   });
 });

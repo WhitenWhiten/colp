@@ -1,12 +1,9 @@
 import type { Relation, SnapshotNode } from '@know-n/colp/types';
 import {
-  attachBookmarkPreviewImages,
   knownFaviconForUrl,
   iconUrlForNode,
   isBookmarkPinned,
   loadBookmarkIconObjectIds,
-  type BookmarkPreviewImageView,
-  type LinkPreviewReadPort,
 } from '../../collections/index.js';
 import type { PublicationCursorKeyring } from './cursor-keyring.js';
 import {
@@ -45,8 +42,6 @@ export interface ProductPublicCollectionQueryPorts {
   readonly bookmarkIcons?: {
     findObjectIdsByNodeIds(nodeIds: readonly string[]): Promise<ReadonlyMap<string, string>>;
   };
-  /** LP-04 preview images; absent (feature off) → every bookmark previewImage is null. */
-  readonly linkPreviews?: LinkPreviewReadPort;
   /**
    * Batch icon-source lookup driving the per-node CDN fallback. An explicit
    * `none` is an owner opt-out: the shared page must not hotlink a third-party
@@ -111,7 +106,7 @@ export type ProductPublicCollectionNode = Readonly<{
   position: string | null;
   iconUrl: string | null;
   /** LP-04 same-origin preview image on bookmarks (null when none); absent on folders and tombstones. */
-  previewImage?: BookmarkPreviewImageView | null;
+  previewImage?: null;
   /**
    * Whether this exact node may fall back to the third-party favicon CDN.
    * Present on bookmark nodes: it is false when the owner explicitly set the
@@ -243,8 +238,8 @@ export async function getProductPublicCollectionPage(
     ...(input.includeRelations ? { relations: result.snapshot.relations.map(({ id, fromNodeId, toNodeId, type, label }) =>
       Object.freeze({ id, fromNodeId, toNodeId, type, ...(label === undefined ? {} : { label }) })) } : {}),
     nodes: mergeModerationTombstones(
-      await attachBookmarkPreviewImages(ports.linkPreviews, ports.productOrigin, result.snapshot.nodes.map((node) =>
-        mapNode(node, iconObjectIds, ports.productOrigin, marksByNodeId, faviconSourceModes, cdnAllowed))),
+      result.snapshot.nodes.map((node) =>
+        mapNode(node, iconObjectIds, ports.productOrigin, marksByNodeId, faviconSourceModes, cdnAllowed)),
       result.moderationHiddenBookmarks,
     ),
     page: Object.freeze({
@@ -342,6 +337,7 @@ function mapNode(
       ? iconUrlForNode(node.id, iconObjectIds, productOrigin)
       : null,
     ...(nodeCdnAllowed === undefined ? {} : { faviconCdnAllowed: nodeCdnAllowed }),
+    ...(node.kind === 'bookmark' ? { previewImage: null } : {}),
     ...(node.kind === 'bookmark' && isBookmarkPinned(node.extensions) ? { pinned: true as const } : {}),
     ...(marks?.tldr ? { tldr: marks.tldr } : {}),
     ...(marks?.note ? { note: marks.note } : {}),

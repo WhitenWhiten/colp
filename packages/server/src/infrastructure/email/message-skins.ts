@@ -9,12 +9,6 @@
  * must not import this file.
  */
 
-import type {
-  EmailTemplateContext,
-  EmailTemplateMessage,
-  EmailTemplateNotificationType,
-  EmailTemplateRenderers,
-} from '../../modules/email/index.js';
 import {
   wrapUnifiedEmailChrome,
   type EmailMailClass,
@@ -167,42 +161,3 @@ export function wrapEmailMessage(input: {
   return { ok: true, message: Object.freeze({ ...budget.message }) };
 }
 
-/**
- * Postgres worker helper: run the inner renderer, then wrap for that
- * notification type. Over-budget throws a static TypeError so the existing
- * loop failure mapper classifies the claim without sending.
- */
-export function wrapEmailTemplateRenderers(
-  inner: EmailTemplateRenderers,
-  skins: EmailSkinMap = DEFAULT_EMAIL_SKIN_MAP,
-): EmailTemplateRenderers {
-  return Object.freeze({
-    render(
-      notificationType: EmailTemplateNotificationType,
-      context: EmailTemplateContext,
-    ): EmailTemplateMessage {
-      const rendered = inner.render(notificationType, context);
-      const skin = skins[notificationType];
-      const wrapInput: EmailSkinMessage = {
-        subject: rendered.subject,
-        textBody: rendered.textBody ?? '',
-        htmlBody: rendered.htmlBody ?? '',
-      };
-      const wrapped = wrapEmailMessage({
-        purpose: notificationType,
-        skin,
-        mailClass: 'transactional',
-        message: wrapInput,
-      });
-      if (!wrapped.ok) {
-        throw new TypeError(wrapped.reason);
-      }
-      if (skin === 'purpose') return rendered;
-      return Object.freeze({
-        subject: wrapped.message.subject,
-        textBody: wrapped.message.textBody,
-        htmlBody: wrapped.message.htmlBody,
-      });
-    },
-  });
-}

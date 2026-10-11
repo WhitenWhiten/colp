@@ -8,7 +8,6 @@ import { afterAll, beforeAll, test } from 'vitest';
 import {
   createPostgresCanonicalMutationPorts,
   createPostgresCanonicalMutationUnitOfWork,
-  createPostgresFaviconGcRepository,
   createPostgresNodeWritePort,
 } from '../../../src/infrastructure/collections/index.js';
 import { createMigrator, createUnitOfWork } from '../../../src/infrastructure/database/index.js';
@@ -21,7 +20,6 @@ import {
   moveCollectionNode,
   strongEntityTag,
 } from '../../../src/modules/collections/index.js';
-import { processFaviconGcClaim } from '../../../src/modules/collections/application/favicon-gc.js';
 import {
   createIsolatedPostgresRuntime,
   describeWithPostgres,
@@ -222,29 +220,6 @@ describeWithPostgres('bookmark_icons schema and soft-delete hook (real PostgreSQ
       pending.rows[0]!.deletable_at.getTime() > Date.now() + 300 * 24 * 3600 * 1000,
       `deletable_at is in the far future, was ${pending.rows[0]!.deletable_at.toISOString()}`,
     );
-
-    // Once the window passes the object is claimable and collectable.
-    await isolated.runtime.pool.query(
-      `update favicon_pending_deletions
-          set deletable_at = now() - interval '1 second', next_attempt_at = now() - interval '1 second'
-        where object_id = $1`, [OBJECT_A]);
-    const gc = createPostgresFaviconGcRepository(isolated.runtime.pool);
-    const claimed = await gc.claimDue({ limit: 10, leaseOwner: 'fo07-gc', leaseDurationMs: 60_000 });
-    const claim = claimed.find((candidate) => candidate.objectId === OBJECT_A);
-    assert.ok(claim, 'the retired object is claimable once the window passes');
-    const deleted: string[] = [];
-    const result = await processFaviconGcClaim({
-      store: {
-        async delete(objectId: string) { deleted.push(objectId); },
-      },
-      repository: gc.repository,
-      backoffSeconds: [1],
-      now: () => new Date(),
-    }, claim!);
-    assert.equal(result.outcome, 'deleted');
-    assert.deepEqual(deleted, [OBJECT_A]);
-    assert.equal((await isolated.runtime.pool.query(
-      `select 1 from favicon_pending_deletions where object_id = $1`, [OBJECT_A])).rows.length, 0);
   });
 
   test('Product recursive folder delete records every descendant icon for GC', async () => {

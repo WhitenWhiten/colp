@@ -29,7 +29,9 @@ import type { ProductAdmissionRateLimiter } from '../http-security.js';
 import { consumeProductAdmission, rateLimitClientKey } from '../http-security.js';
 import { mapAuthorizationOutcome } from '../product-command-mapping.js';
 import { ProductHttpError } from '../product-error.js';
-import { mapFaviconPolicyRouteError, mapFaviconSourceRouteError, withCancellation } from '../product/favicon-policy-routes.js';
+import { productErrorStatus } from '../product-codes.js';
+import { withCancellation } from '../product/request-timeout.js';
+import { FaviconPolicyCommandError } from '../../modules/collections/index.js';
 import { readCollectionIdParam, readKnownCommandId, readNodeIdParam, readRequiredIfMatch } from '../product/collection-route-helpers.js';
 import type { ExtensionCollectionRouteDependencies } from './extension-collection-routes.js';
 import { colpAuthorizationFromRawHeaders } from './sync-colp-authorization.js';
@@ -74,20 +76,12 @@ type HelperPorts = CollectionsWritePorts & {
   readonly faviconSources: NonNullable<CollectionsWritePorts['faviconSources']>;
   readonly faviconPolicies: NonNullable<CollectionsWritePorts['faviconPolicies']>;
   readonly bookmarkIcons: NonNullable<CollectionsWritePorts['bookmarkIcons']>;
-  readonly faviconGc: NonNullable<CollectionsWritePorts['faviconGc']>;
-  /**
-   * F-A8: pending force-restore lookup (restorable projection). The write
-   * port carries the per-node `findByNodeId` the icon-source projection needs
-   * (`faviconRestoreRead` only lists by account); absent ⇒ fail closed.
-   */
-  readonly faviconRestores: import('../../modules/collections/index.js').FaviconSourceRestoreWritePort;
 };
 
 function requireHelperPorts(ports: CollectionsWritePorts): asserts ports is HelperPorts {
   const candidate = ports as HelperPorts;
   if (candidate.faviconSources === undefined || candidate.faviconPolicies === undefined
-      || candidate.bookmarkIcons === undefined || candidate.faviconGc === undefined
-      || candidate.faviconRestores === undefined) {
+      || candidate.bookmarkIcons === undefined) {
     throw featureUnavailable('Bookmark favicon helper storage is not available on this deployment.');
   }
 }
@@ -125,7 +119,7 @@ export function registerSyncFaviconHelperRoutes(
     rejectNonemptyBody(request);
     const actor = await helperActor(request, deps);
     try {
-      const row: FaviconPolicyRow = await withCancellation(request, deps.timeoutMs, (signal) =>
+      const row: FaviconPolicyRow = await withCancellation(request, deps.timeoutMs, (signal: AbortSignal) =>
         deps.collectionsUnitOfWork!.execute((ports) => {
           requireHelperPorts(ports);
           return getMyFaviconPolicy(
@@ -156,7 +150,7 @@ export function registerSyncFaviconHelperRoutes(
     const collectionId = readCollectionIdParam(request);
     const nodeId = readNodeIdParam(request);
     try {
-      const view: IconSourceView = await withCancellation(request, deps.timeoutMs, (signal) =>
+      const view: IconSourceView = await withCancellation(request, deps.timeoutMs, (signal: AbortSignal) =>
         deps.collectionsUnitOfWork!.execute((ports) => {
           requireHelperPorts(ports);
           return getBookmarkFaviconSource(sourceQueryPorts(ports), {
@@ -200,7 +194,7 @@ export function registerSyncFaviconHelperRoutes(
       });
     }
     try {
-      const result = await withCancellation(request, deps.timeoutMs, (signal) =>
+      const result = await withCancellation(request, deps.timeoutMs, (signal: AbortSignal) =>
         deps.collectionsUnitOfWork!.execute(async (ports) => {
           requireHelperPorts(ports);
           const outcome = await captureBookmarkFavicon(capturePorts(ports, deps), {
@@ -241,7 +235,7 @@ export function registerSyncFaviconHelperRoutes(
     const nodeId = readNodeIdParam(request);
     rejectNonemptyBody(request);
     try {
-      const result = await withCancellation(request, deps.timeoutMs, (signal) =>
+      const result = await withCancellation(request, deps.timeoutMs, (signal: AbortSignal) =>
         deps.collectionsUnitOfWork!.execute(async (ports) => {
           requireHelperPorts(ports);
           const outcome = await clearCapturedBookmarkFavicon(capturePorts(ports, deps), {
@@ -270,8 +264,6 @@ function sourceQueryPorts(ports: HelperPorts): GetBookmarkFaviconSourcePorts {
     sources: ports.faviconSources,
     policies: ports.faviconPolicies,
     bookmarkIcons: ports.bookmarkIcons,
-    // F-A8: pending force-restore lookup drives the restorable projection.
-    restores: ports.faviconRestores,
   };
 }
 
@@ -289,7 +281,7 @@ function capturePorts(
     policies: ports.faviconPolicies,
     bookmarkIcons: ports.bookmarkIcons,
     faviconStore: deps.faviconStore!,
-    gc: ports.faviconGc,
+    gc: ports.faviconGc ?? { recordRetired: async () => {} },
     onOrphanCleanupFailure: () => deps.metrics?.increment('favicon_helper.r2_delete.failed'),
     // FO-C-02: fresh-transaction ledger; the helper tx is already aborted.
     orphanLedger: async (input) => {
@@ -514,6 +506,85 @@ export function mapFaviconHelperRouteError(error: unknown): ProductHttpError {
     });
   }
   return mapFaviconPolicyRouteError(error);
+}
+
+function isPreconditionError(error: unknown): error is { readonly message: string; readonly currentEtag: string } {
+  return typeof error === 'object'
+    && error !== null
+    && (error as { code?: unknown }).code === 'precondition_failed'
+    && typeof (error as { currentEtag?: unknown }).currentEtag === 'string'
+    && typeof (error as { message?: unknown }).message === 'string';
+}
+
+function mapRouteDatabaseError(error: unknown, fallback: string): ProductHttpError {
+  if (error instanceof TypeError) {
+    return new ProductHttpError({
+      statusCode: productErrorStatus('invalid_request'),
+      code: 'invalid_request',
+      message: 'The request is invalid.',
+    });
+  }
+  const code = (error as { code?: unknown } | null)?.code;
+  if (code === '57014' || code === 'ECONNRESET' || code === 'ECONNREFUSED' || code === 'ETIMEDOUT') {
+    return unavailable();
+  }
+  const kind = (error as { kind?: unknown } | null)?.kind;
+  if (kind === 'serialization_failure' || kind === 'deadlock' || kind === 'lock_timeout' || kind === 'unavailable') {
+    return unavailable();
+  }
+  return new ProductHttpError({
+    statusCode: productErrorStatus('internal_error'),
+    code: 'internal_error',
+    message: fallback,
+    recovery: 'same_request',
+  });
+}
+
+export function mapFaviconPolicyRouteError(error: unknown): ProductHttpError {
+  if (error instanceof ProductHttpError) return error;
+  if (error instanceof FaviconPolicyCommandError) {
+    return new ProductHttpError({
+      statusCode: productErrorStatus('invalid_request'),
+      code: 'invalid_request',
+      message: error.message,
+    });
+  }
+  if (isPreconditionError(error)) {
+    return new ProductHttpError({
+      statusCode: 412,
+      code: 'precondition_failed',
+      message: error.message ?? 'The favicon policy ETag does not match the current representation.',
+      recovery: 'refresh_and_retry',
+      precondition: 'resource',
+      currentEtag: error.currentEtag,
+    });
+  }
+  return mapRouteDatabaseError(error, 'The favicon policy request could not be completed.');
+}
+
+export function mapFaviconSourceRouteError(error: unknown): ProductHttpError {
+  if (error instanceof ProductHttpError) return error;
+  if (error instanceof FaviconSourceCommandError) {
+    return new ProductHttpError({
+      statusCode: productErrorStatus('invalid_request'),
+      code: 'invalid_request',
+      message: error.message,
+    });
+  }
+  if (error instanceof CollectionAuthorizationError) {
+    return mapAuthorizationOutcome(error.outcome);
+  }
+  if (isPreconditionError(error)) {
+    return new ProductHttpError({
+      statusCode: 412,
+      code: 'precondition_failed',
+      message: error.message ?? 'The favicon source ETag does not match the current representation.',
+      recovery: 'refresh_and_retry',
+      precondition: 'resource',
+      currentEtag: error.currentEtag,
+    });
+  }
+  return mapRouteDatabaseError(error, 'The favicon source request could not be completed.');
 }
 
 function declaredContentType(request: FastifyRequest): string {

@@ -166,7 +166,7 @@ test('the release map is dynamically derived from the exact Core and Publication
     .sort();
   const mapping = createPhase2ReleaseRequirementMapping();
 
-  assert.equal(expected.length, 74);
+  assert.equal(expected.length, 75);
   assert.deepEqual(packageRequired, expected);
   assert.deepEqual(mapping.requirements.map(({ id }) => id), expected);
   assert.equal(mapping.expected, expected.length);

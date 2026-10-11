@@ -16,7 +16,7 @@
     "@better-auth/kysely-adapter": "1.7.7",
     "@better-auth/mcp": "1.7.7",
     "@better-auth/oauth-provider": "1.7.7",
-    "@know-n/colp": "0.1.1",
+    "@know-n/colp": "0.1.2",
     "@modelcontextprotocol/node": "2.0.0",
     "@modelcontextprotocol/server": "2.3.1",
     "@mozilla/readability": "0.6.0",

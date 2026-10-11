@@ -15,9 +15,6 @@ export function workerReservedConnections(config: AppConfig): number {
   return config.worker.concurrency
     + (config.reports.schedulerEnabled ? 1 : 0)
     + (config.linkHealth.enabled ? config.linkHealth.workerConcurrency : 0)
-    + (config.readableReplica.enabled ? config.readableReplica.workerConcurrency : 0)
-    + (config.linkPreview.enabled ? config.linkPreview.workerConcurrency : 0)
-    + (config.exportJobs.enabled ? config.exportJobs.workerConcurrency : 0)
     + (config.ledgerArchive.enabled ? config.ledgerArchive.concurrency : 0);
 }
 

@@ -9,7 +9,6 @@ import type {
   EmailCallbackRateLimitSharedConfig,
   ExploreDirectoryRateLimitSharedConfig,
   McpRateLimitSharedConfig,
-  PublishingInsightsRateLimitSharedConfig,
   RedisRateLimitFamilySharedConfig,
   SyncColpRateLimitSharedConfig,
 } from './config-types.js';
@@ -129,55 +128,6 @@ export function loadEmailCallbackRateLimitSharedConfig(env: NodeJS.ProcessEnv): 
   });
 }
 
-/**
- * S-02 shared Redis limiter for Publishing Insights ingest. Mirrors
- * SEARCH_RATE_LIMIT_SHARED (URL, prefix, timeouts). Pepper is always
- * PUBLISHING_INSIGHTS_RATELIMIT_HMAC_KEY — this loader does not accept a
- * third production secret. Redis URL may reuse SEARCH_RATE_LIMIT_REDIS_URL.
- */
-export function loadPublishingInsightsRateLimitSharedConfig(
-  env: NodeJS.ProcessEnv,
-): PublishingInsightsRateLimitSharedConfig {
-  const enabled = parseCacheBooleanEnv(env, 'PUBLISHING_INSIGHTS_RATE_LIMIT_SHARED', false);
-  const redisUrl = resolveLimiterRedisUrl(env, 'PUBLISHING_INSIGHTS_RATE_LIMIT_REDIS_URL', {
-    enabled,
-    allowSearchFallback: true,
-    requiredMessage:
-      'PUBLISHING_INSIGHTS_RATE_LIMIT_REDIS_URL is required when PUBLISHING_INSIGHTS_RATE_LIMIT_SHARED=true',
-  });
-  const keyPrefix = (env.PUBLISHING_INSIGHTS_RATE_LIMIT_KEY_PREFIX ?? 'known').trim();
-  if (!/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$/u.test(keyPrefix)) {
-    throw new Error(
-      'PUBLISHING_INSIGHTS_RATE_LIMIT_KEY_PREFIX must be 1-64 characters starting with an alphanumeric and using only [A-Za-z0-9_.:-]',
-    );
-  }
-  const commandTimeoutMs = parsePositiveInt(
-    env.PUBLISHING_INSIGHTS_RATE_LIMIT_COMMAND_TIMEOUT_MS,
-    75,
-    'PUBLISHING_INSIGHTS_RATE_LIMIT_COMMAND_TIMEOUT_MS',
-    { max: 5_000 },
-  );
-  const connectTimeoutMs = parsePositiveInt(
-    env.PUBLISHING_INSIGHTS_RATE_LIMIT_CONNECT_TIMEOUT_MS,
-    1_000,
-    'PUBLISHING_INSIGHTS_RATE_LIMIT_CONNECT_TIMEOUT_MS',
-    { max: 30_000 },
-  );
-  const maxRetriesPerRequest = parsePositiveInt(
-    env.PUBLISHING_INSIGHTS_RATE_LIMIT_MAX_RETRIES_PER_REQUEST,
-    1,
-    'PUBLISHING_INSIGHTS_RATE_LIMIT_MAX_RETRIES_PER_REQUEST',
-    { min: 0, max: 10 },
-  );
-  return Object.freeze({
-    enabled,
-    redisUrl,
-    keyPrefix,
-    commandTimeoutMs,
-    connectTimeoutMs,
-    maxRetriesPerRequest,
-  });
-}
 
 /**
  * S-04 shared Redis limiter for collaboration invites. Mirrors

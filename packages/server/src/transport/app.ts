@@ -1,4 +1,4 @@
-import { installClassificationExtensionCors, isCreditLedgerPath } from './classification-extension-cors.js';
+import { installClassificationExtensionCors } from './classification-extension-cors.js';
 import { assertSharedProductRateLimiters } from './product-rate-limit-assertion.js';
 import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, Server, ServerResponse } from 'node:http';
@@ -21,25 +21,14 @@ import type {
   GetOwnedCollectionsPagePorts,
   GetSharedCollectionsPagePorts,
   GetMyLinkHealthPagePorts,
-  GetMyClassifyInboxPagePorts,
   EnqueueMyLinkHealthChecksPorts,
-  SkipClassifyInboxItemPorts,
-  AcceptClassifyInboxItemPorts,
-  CreateMyExportJobPorts,
-  ExportJobReadPort,
-  ExportObjectStore,
   BookmarkFaviconObjectStore,
-  ApplyCollectionOrganizePlanPorts,
-  OrganizePlanReadPort,
-  OrganizePlanner,
   CreateCollectionVersionPorts,
   ProductCollectionVersionCursorSignerPort,
-  ReadableReplicaEnqueueUnitOfWork,
-  ReadableReplicaReadUnitOfWork,
   LibraryOrderCommandPorts,
   LibraryOrderQueryPorts,
 } from '../modules/collections/index.js';
-import type { IdentityUnitOfWork, AvatarObjectStore, ExploreCreatorsQueryPort } from '../modules/identity/index.js';
+import type { IdentityUnitOfWork, AvatarObjectStore } from '../modules/identity/index.js';
 import type { BrowserSessionAuthority, AccountLinkingService, AccountRecoveryService, AccountDeletionService, SecurityEpochBridge } from '../modules/auth/index.js';
 import type {
   PublicationDirectoryQueryPorts,
@@ -48,7 +37,6 @@ import type {
   PublicationSnapshotQueryPorts,
   Phase2PublicationProfileClaims,
   Phase2PublicationProfileClaimController,
-  ExplorePageReadPort,
 } from '../modules/publication/index.js';
 import type {
   Phase4bMcpReadOperations,
@@ -114,21 +102,12 @@ import {
   registerPublicationDirectoryRoutes,
   type PublicationDirectoryRouteReader,
 } from './product/publication-directory-routes.js';
-import { EXPLORE_OPERATION_IDS, registerExploreRoutes } from './product/explore-routes.js';
 import {
   registerPublicationMetadataRoutes,
   type PublicationMetadataRouteReader,
 } from './product/publication-metadata-routes.js';
 import { registerPublicationManifestRoutes } from './product/publication-manifest-routes.js';
 import { registerProductPublicCollectionRoutes } from './product/product-public-collection-routes.js';
-import {
-  registerProductPublicInsightRoutes,
-  type ProductPublicInsightRouteDependencies,
-} from './product/product-public-insight-routes.js';
-import {
-  registerProductPublishingInsightsRoutes,
-  type ProductPublishingInsightsRouteDependencies,
-} from './product/product-publishing-insights-routes.js';
 import {
   registerProductCollaborationRoutes,
   type ProductCollaborationRouteDependencies,
@@ -159,8 +138,6 @@ import type {
   Phase3SyncProfileClaims,
   Phase3SyncProfileClaimController,
 } from '../modules/sync/index.js';
-import { registerEmailCallbackRoutes, type EmailCallbackRoutesDependencies } from './product/email-callback-routes.js';
-import { registerEmailOpsRoutes, type EmailOpsRoutesDependencies } from './product/email-ops-routes.js';
 import {
   allowedMethods,
   isMalformedUrlError,
@@ -204,7 +181,7 @@ export function buildApiApp(input: AppDependencies) {
   cacheCapabilityReadiness,
   identityUnitOfWork,
   avatarStore,
-  faviconStore, linkPreviewStore,
+  faviconStore,
   collectionsUnitOfWork,
   productCollectionMutationUnitOfWork,
   collectionMetadataMutationRoutes = 'enabled',
@@ -235,14 +212,10 @@ export function buildApiApp(input: AppDependencies) {
   searchTimeoutMs,
   publicationSnapshotQuery,
   publicationMetadataQuery,
-  explorePageQuery,
-  exploreCreatorsQuery,
   publicationSnapshotCacheReader,
   publicationDirectoryCacheReader,
   publicationMetadataCacheReader,
   productPublicCollectionQuery,
-  productPublicInsight,
-  productPublishingInsights,
   productCollaboration,
   publicProfileQuery,
   searchQuery,
@@ -274,15 +247,9 @@ export function buildApiApp(input: AppDependencies) {
   bookmarkPreferencesUnitOfWork, bookmarkPreferencesQuery,
   feedRateLimiter,
   linkHealthRateLimiter,
-  classifyInboxRateLimiter,
-  exportJobRateLimiter,
-  organizePlanRateLimiter,
   collectionVersionRateLimiter,
-  readableReplicaRateLimiter,
   publicObjectRateLimiter,
   notificationRateLimiter,
-  emailCallbackRoutes,
-  emailOpsRoutes,
   mcpReadTransport,
   mcpReadOperations,
   mcpReadResourceProjection,
@@ -320,18 +287,8 @@ export function buildApiApp(input: AppDependencies) {
   const productRouteRateLimiters = [
     { purpose: 'library-order', limiter: libraryOrderRateLimiter },
     { purpose: 'link-health', limiter: linkHealthRateLimiter },
-    { purpose: 'classify-inbox', limiter: classifyInboxRateLimiter },
-    { purpose: 'classification-profile', limiter: input.classificationProfilesRateLimiter },
-    { purpose: 'classification-run', limiter: input.classificationRunsRateLimiter },
-    { purpose: 'classification-settings', limiter: input.classificationSettingsRateLimiter },
-    { purpose: 'classification-preview', limiter: input.classificationPreviewRateLimiter },
-    { purpose: 'classification-confirmation', limiter: input.classificationConfirmationRateLimiter },
-    { purpose: 'export-job', limiter: exportJobRateLimiter },
-    { purpose: 'organize-plan', limiter: organizePlanRateLimiter },
     { purpose: 'collection-version', limiter: collectionVersionRateLimiter },
-    { purpose: 'readable-replica', limiter: readableReplicaRateLimiter },
     { purpose: 'public-object', limiter: publicObjectRateLimiter },
-    { purpose: 'credits-read', limiter: input.creditsReadRateLimiter },
     { purpose: 'reports', limiter: input.reportsRateLimiter },
     ...(config.accountCredentials.enabled ? [
       { purpose: 'credentials' as const, limiter: input.credentialsRateLimiter },
@@ -357,17 +314,6 @@ export function buildApiApp(input: AppDependencies) {
       && (config.mcp !== undefined || config.mcpWriteEnabled)) {
     throw new Error(
       'buildApiApp requires an injected mcpRateLimiter when MCP_RATE_LIMIT_SHARED=true (production composition must inject the Redis adapter)',
-    );
-  }
-  // T-EMAIL-004 composition guard: the shared email callback limiter must be
-  // injected when EMAIL_CALLBACK_RATE_LIMIT_SHARED=true and the email feature
-  // is enabled (the production composition injects the Redis adapter; a
-  // memory adapter keeps the shared config inert in tests). Fail closed
-  // BEFORE any callback route can silently stay unmounted.
-  if (config.email?.enabled === true && config.email.callbackRateLimitShared.enabled === true
-      && emailCallbackRoutes === undefined) {
-    throw new Error(
-      'buildApiApp requires injected emailCallbackRoutes when EMAIL_CALLBACK_RATE_LIMIT_SHARED=true (production composition must inject the Redis adapter)',
     );
   }
   if (
@@ -449,7 +395,7 @@ export function buildApiApp(input: AppDependencies) {
       && productSyncCenterUnitOfWork
       && libraryOrderCommandUnitOfWork
       && libraryOrderQueryUnitOfWork
-      && bookmarkPreferencesUnitOfWork && bookmarkPreferencesQuery && input.captureRuntime && input.captureHistory && input.captureLearning
+      && bookmarkPreferencesUnitOfWork && bookmarkPreferencesQuery
       && mcpWriteApprovalRoutes !== undefined
     ),
     // F2: Better Auth mode composes zero legacy OIDC routes while the
@@ -462,11 +408,11 @@ export function buildApiApp(input: AppDependencies) {
     excludeOperationIds: [
       ...(config.betterAuth.enabled ? LEGACY_OIDC_OPERATION_IDS : []),
       ...BOOKMARK_FAVICON_DEFERRED_OPERATION_IDS,
-      ...(faviconStore ? [] : ['getBookmarkFavicon']), ...(linkPreviewStore ? [] : ['getLinkPreviewObject']),
-      ...(explorePageQuery ? [] : [...EXPLORE_OPERATION_IDS]),
+      ...(faviconStore ? [] : ['getBookmarkFavicon']),
+      'getLinkPreviewObject',
       'listPublicProfileActivity',
       'headPublicProfileActivity',
-    ], classificationByokEnabled: config.classification?.enabled === true && config.classification?.byokEnabled === true,
+    ],
   });
   app.decorate('metrics', metrics);
   app.decorate('tracer', new NoopTracer());
@@ -499,12 +445,12 @@ export function buildApiApp(input: AppDependencies) {
   });
 
   installClassificationExtensionCors(app, config);
+
   // Precise CORS for same-site browser clients (credentials, no wildcard).
   app.addHook('onRequest', async (request, reply) => {
     const origin = request.headers.origin;
     const productOrigin = typeof origin === 'string' && config.allowedOrigins.includes(origin);
     const requestPath = request.url.split('?', 1)[0] ?? request.url;
-    if (isCreditLedgerPath(requestPath) && reply.hasHeader('Access-Control-Allow-Origin')) return;
     const betterAuthExtensionOrigin = typeof origin === 'string'
       && origin.startsWith('chrome-extension://')
       && config.betterAuth.enabled

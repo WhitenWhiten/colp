@@ -7,7 +7,6 @@ import {
   createPublicationCachePurgeRoutes,
   createNoopPublicationCachePurgeProvider,
   FetchPublicationCachePurgeProvider,
-  type IndexNowPublisher,
   type OutboxRoute,
   type PublicationCachePurgeProvider,
 } from '../infrastructure/outbox/index.js';
@@ -35,7 +34,6 @@ export function composePublicationCachePurgeRoutes(input: {
   readonly database: DatabaseRuntime | undefined;
   readonly handlerTimeoutMs: number;
   readonly metrics: Metrics;
-  readonly indexNowPublisher?: IndexNowPublisher;
 }): readonly OutboxRoute[] {
   if (input.provider === undefined) return Object.freeze([]);
   return createPublicationCachePurgeRoutes({
@@ -45,9 +43,6 @@ export function composePublicationCachePurgeRoutes(input: {
     timeoutMs: input.config.publication.cachePurge?.timeoutMs
       ?? Math.min(5_000, input.handlerTimeoutMs),
     metrics: input.metrics,
-    ...(input.indexNowPublisher === undefined ? {} : {
-      indexNowPublisher: input.indexNowPublisher,
-    }),
     ...(input.database === undefined ? {} : {
       resolvePublicProfileHandle: createPostgresPublicationPublicProfileHandleResolver(input.database),
       isCanonicalPublicProfileHandle,

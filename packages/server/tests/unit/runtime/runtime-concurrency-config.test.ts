@@ -36,10 +36,6 @@ describe('runtime concurrency configuration', () => {
       cleanupIntervalMs: 60_000,
       cleanupBatchSize: 100,
     });
-    assert.deepEqual(config.publicationInsightRetention, {
-      cleanupIntervalMs: 60_000,
-      cleanupBatchSize: 5_000,
-    });
     assert.deepEqual(config.syncTombstonePurge, {
       enabled: false,
       intervalMs: 60_000,
@@ -83,10 +79,6 @@ describe('runtime concurrency configuration', () => {
     assert.deepEqual(config.publisherReceipts, {
       cleanupIntervalMs: 30_000,
       cleanupBatchSize: 250,
-    });
-    assert.deepEqual(config.publicationInsightRetention, {
-      cleanupIntervalMs: 45_000,
-      cleanupBatchSize: 2_500,
     });
     assert.deepEqual(config.syncTombstonePurge, {
       enabled: true, intervalMs: 45_000, batchSize: 500, leaseDurationMs: 20_000,
@@ -139,10 +131,6 @@ describe('runtime concurrency configuration', () => {
     assert.throws(
       () => loadConfig({ ...BASE_ENV, PUBLISHER_RECEIPT_CLEANUP_BATCH_SIZE: '10001' }),
       /PUBLISHER_RECEIPT_CLEANUP_BATCH_SIZE must be <= 10000/,
-    );
-    assert.throws(
-      () => loadConfig({ ...BASE_ENV, PUBLICATION_INSIGHT_CLEANUP_BATCH_SIZE: '10001' }),
-      /PUBLICATION_INSIGHT_CLEANUP_BATCH_SIZE must be <= 10000/,
     );
   });
 

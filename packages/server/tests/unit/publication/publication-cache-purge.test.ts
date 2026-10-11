@@ -255,7 +255,6 @@ describe('publication cache purge versioned contract', () => {
       'https://app.example.test/path/engineering-notes',
       'https://app.example.test/graph/engineering-notes',
       'https://app.example.test/u/ada_curator',
-      'https://app.example.test/explore',
       'https://app.example.test/sitemap-collections.xml',
       'https://app.example.test/sitemap-profiles.xml',
     ]);

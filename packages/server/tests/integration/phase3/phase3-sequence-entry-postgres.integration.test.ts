@@ -398,7 +398,7 @@ describeWithPostgres('P3-02 PostgreSQL Sequence owner exact retry entry gate', (
       await assert.rejects(
         client.query(
           `update p3_sequence_receipts set result_json = '{"status":"applied"}'::jsonb
-           where replica_id=$1 and sequence_scope=$2 and sequence_number=1`,
+           where replica_id=$1 and (sequence_scope=$2 or sequence_scope=replace($2, 'collection:', '')) and sequence_number=1`,
           [FIXTURE.replicaId, FIXTURE.sequenceScope],
         ),
         (error: unknown) => (error as { code?: string }).code === '23514',
@@ -406,7 +406,7 @@ describeWithPostgres('P3-02 PostgreSQL Sequence owner exact retry entry gate', (
       await assert.rejects(
         client.query(
           `delete from p3_sequence_receipts
-           where replica_id=$1 and sequence_scope=$2 and sequence_number=1`,
+           where replica_id=$1 and (sequence_scope=$2 or sequence_scope=replace($2, 'collection:', '')) and sequence_number=1`,
           [FIXTURE.replicaId, FIXTURE.sequenceScope],
         ),
         (error: unknown) => (error as { code?: string }).code === '23514',

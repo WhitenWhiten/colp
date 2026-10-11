@@ -39,7 +39,7 @@ export function syncSequenceAdmission(
     session,
     replicaId,
     leaseGeneration: '1',
-    sequenceScope: collectionSequenceScopeKey(collectionId),
+    sequenceScope: `collection:${collectionId}`,
     sequence: 1,
     operationId: `${replicaId}.operation.1`,
     serverBatchId: `${session.sessionId}.batch.1`,

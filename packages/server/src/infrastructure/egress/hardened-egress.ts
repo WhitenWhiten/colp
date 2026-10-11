@@ -321,7 +321,7 @@ function isSameOrigin(left: URL, right: URL): boolean {
  * GET (and 303 always is), which drops the request body. 307/308 preserve the
  * method and body. A cross-origin hop additionally loses every credential
  * header — without this, a redirect to any other host replayed the original
- * `Authorization: Bearer` (publication cache purge), the IndexNow key body and
+ * `Authorization: Bearer` (publication cache purge), or
  * the idempotency key to a host the caller never chose has no business
  * receiving it either.
  *

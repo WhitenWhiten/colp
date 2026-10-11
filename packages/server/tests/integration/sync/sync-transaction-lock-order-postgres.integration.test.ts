@@ -1,6 +1,4 @@
 import { createPostgresCollectionVersionStore } from '../../../src/infrastructure/collections/collection-tree-version-postgres.js';
-import { createPostgresOrganizePlanCollectionPort } from '../../../src/infrastructure/collections/organize-plan-postgres.js';
-import { lockRunContext } from '../../../src/infrastructure/collections/classification-run-billing.js';
 import { purgeOwnedTrashInTransaction } from '../../../src/infrastructure/sync/sync-tombstone-user-purge-postgres.js';
 import { PostgresSyncTombstonePurgeCoordinator, SyncTombstonePurgeFenceLostError } from '../../../src/infrastructure/sync/sync-tombstone-purge-postgres.js';
 import assert from 'node:assert/strict';
@@ -111,7 +109,7 @@ describeWithPostgres('Sync transaction lock order (ADR-0027)', () => {
     }
   }, 40_000);
 
-  test.each(['version', 'organize-plan', 'classification-run', 'user-purge', 'background-purge'] as const)(
+  test.each(['version', 'user-purge', 'background-purge'] as const)(
     'BECORE-01 %s admission waits on replicas before holding collection', async (entry) => {
       await harness.isolated.runtime.db.updateTable('sync_replicas').set({ status: 'active' })
         .where('replica_id', '=', replicaId).execute();
@@ -134,17 +132,6 @@ describeWithPostgres('Sync transaction lock order (ADR-0027)', () => {
             if (entry === 'version') {
               assert.ok(await createPostgresCollectionVersionStore(transaction)
                 .lockOwnedLive(collectionId, 'owner-subject'));
-            } else if (entry === 'organize-plan') {
-              // The production organize-plan admission port, unlocked by the
-              // real account subject the Sync harness seeds.
-              const owned = await createPostgresOrganizePlanCollectionPort(transaction)
-                .lockOwnedLive(collectionId, 'owner-subject');
-              assert.ok(owned, 'the seeded collection must be owned by the fixture subject');
-            } else if (entry === 'classification-run') {
-              // The real classification run-context helper, called by the run
-              // apply path (and the run worker job/lease transitions) before
-              // canonical node mutations that invalidate replicas.
-              await lockRunContext(transaction, 'lock-order-run', collectionId);
             } else {
               await purgeOwnedTrashInTransaction(transaction, {
                 collectionId, workerId: 'lock-order', leaseDurationMs: 30_000,

@@ -20,7 +20,6 @@ import {
 } from './editor-cursor.js';
 import type { CollectionsClock, BookmarkIconReadPort, CollectionWritePort } from './ports.js';
 import { iconUrlForNode, loadBookmarkIconObjectIds } from './bookmark-icon-url.js';
-import { attachBookmarkPreviewImages, type BookmarkPreviewImageView, type LinkPreviewReadPort } from './link-preview-read.js';
 
 export const EDITOR_PAGE_DEFAULT_LIMIT = 200;
 export const EDITOR_PAGE_MAX_LIMIT = 500;
@@ -103,6 +102,12 @@ export interface FolderNodeView {
   readonly updatedAt: string;
 }
 
+export interface BookmarkPreviewImageView {
+  readonly url: string;
+  readonly width: number;
+  readonly height: number;
+}
+
 export interface BookmarkNodeView {
   readonly id: string;
   readonly collectionId: string;
@@ -120,6 +125,7 @@ export interface BookmarkNodeView {
   readonly readOnlyReason: null;
   readonly createdAt: string;
   readonly updatedAt: string;
+
   /** Live same-origin `/api/v1/favicon/{uuid}` URL, or JSON null when unbound. */
   readonly iconUrl: string | null;
   /** LP-04 same-origin preview image; null when none. Omitted by mutation responses. */
@@ -251,7 +257,6 @@ export interface GetCollectionEditorPagePorts {
   readonly productOrigin?: string;
   /** Batch live bookmark_icons lookup; missing/empty → every bookmark `iconUrl` is null. */
   readonly bookmarkIcons?: BookmarkIconReadPort;
-  readonly linkPreviews?: LinkPreviewReadPort;
 }
 
 /** Application-level input error for transport to map to invalid_query. */
@@ -370,8 +375,7 @@ export async function getCollectionEditorPage(
   );
 
   // Adapter returns at most limit+1 rows; map only what we may return (+1 probe).
-  const mapped: EditableNodeView[] = await attachBookmarkPreviewImages(ports.linkPreviews, ports.productOrigin,
-    snapshot.nodes.map((row) => mapEditableNodeView(row, iconObjectIds, ports.productOrigin)));
+  const mapped: EditableNodeView[] = snapshot.nodes.map((row) => mapEditableNodeView(row, iconObjectIds, ports.productOrigin));
 
   const selection = selectNodesWithinBudgets(mapped, limit, {
     collection,
@@ -644,6 +648,7 @@ function mapEditableNodeView(
     kind: 'bookmark',
     url: row.url,
     iconUrl: iconUrlForNode(row.id, iconObjectIds, productOrigin),
+    previewImage: null,
     ...(row.pinned === true ? { pinned: true as const } : {}),
   };
 }

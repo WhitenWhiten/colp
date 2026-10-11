@@ -21,7 +21,6 @@ import {
 import {
   type AuthRateLimiter,
   type SearchRateLimiter,
-  createMemoryEmailCallbackRateLimiter,
 } from '../../../src/infrastructure/rate-limit/index.js';
 import { buildSessionSetCookie, SESSION_COOKIE_NAME } from '../../../src/transport/session-cookie.js';
 import {
@@ -243,31 +242,6 @@ describe('OIDC endpoint policy', () => {
   });
 });
 
-describe('EMAIL_OPS_TOKEN startup gate (SEC-T-08)', () => {
-  test('a length-8 token refuses startup', () => {
-    assert.throws(
-      () => loadConfig(testEnv({ EMAIL_OPS_TOKEN: 'shorttok' })),
-      /EMAIL_OPS_TOKEN must be at least 32 characters/u,
-    );
-  });
-
-  test('unset EMAIL_OPS_TOKEN stays null', () => {
-    const config = loadConfig(testEnv());
-    assert.equal(config.email.opsToken, null);
-  });
-
-  test('EMAIL_OPS_TOKEN must not equal a loaded BETTER_AUTH_SECRET', () => {
-    const secret = 'prod-better-auth-secret-0123456789abcdef'; // secret-scan: allow 'prod-better-auth-secret-0123456789abcdef'
-    assert.throws(
-      () => loadConfig(testEnv({
-        BETTER_AUTH_ENABLED: 'true',
-        BETTER_AUTH_SECRET: secret,
-        EMAIL_OPS_TOKEN: secret,
-      })),
-      /EMAIL_OPS_TOKEN must not equal BETTER_AUTH_SECRET/u,
-    );
-  });
-});
 
 describe('session cookie production settings', () => {
   test('__Host- cookie attributes are production-safe', () => {
@@ -978,31 +952,26 @@ describe('shared auth rate-limit adapter config (FIX-M-001)', () => {
     );
     assert.throws(
       () => loadConfig(productionEnv(sharedEnv(searchSharedEnv({ AUTH_API_REPLICAS: '2' })))),
-      /AUTH_API_REPLICAS > 1.*PUBLISHING_INSIGHTS_RATE_LIMIT_SHARED=true/s,
-    );
-    assert.throws(
-      () => loadConfig(productionEnv(sharedEnv(searchSharedEnv(insightsSharedEnv({ AUTH_API_REPLICAS: '2' }))))),
       /AUTH_API_REPLICAS > 1.*COLLABORATION_INVITE_RATE_LIMIT_SHARED=true/s,
     );
     assert.throws(
-      () => loadConfig(productionEnv(sharedEnv(searchSharedEnv(insightsSharedEnv(collaborationInviteSharedEnv({ AUTH_API_REPLICAS: '2' })))))),
+      () => loadConfig(productionEnv(sharedEnv(searchSharedEnv(collaborationInviteSharedEnv({ AUTH_API_REPLICAS: '2' }))))),
       /AUTH_API_REPLICAS > 1.*EXPLORE_DIRECTORY_RATE_LIMIT_SHARED=true/s,
     );
     assert.throws(
-      () => loadConfig(productionEnv(sharedEnv(searchSharedEnv(insightsSharedEnv(collaborationInviteSharedEnv(exploreDirectorySharedEnv({ AUTH_API_REPLICAS: '2' }))))))),
+      () => loadConfig(productionEnv(sharedEnv(searchSharedEnv(collaborationInviteSharedEnv(exploreDirectorySharedEnv({ AUTH_API_REPLICAS: '2' })))))),
       /AUTH_API_REPLICAS > 1.*PUBLIC_ACTIVITY_RATE_LIMIT_SHARED=true/s,
     );
     assert.throws(
-      () => loadConfig(productionEnv(sharedEnv(searchSharedEnv(insightsSharedEnv(collaborationInviteSharedEnv(exploreDirectorySharedEnv(publicActivityRateLimitSharedEnv({ AUTH_API_REPLICAS: '2' })))))))),
+      () => loadConfig(productionEnv(sharedEnv(searchSharedEnv(collaborationInviteSharedEnv(exploreDirectorySharedEnv(publicActivityRateLimitSharedEnv({ AUTH_API_REPLICAS: '2' }))))))),
       /AUTH_API_REPLICAS > 1.*PRODUCT_ROUTE_RATE_LIMIT_SHARED=true/s,
     );
     // Multi-replica production requires every always-mounted family, including
     // public Activity and the eight product-route admission purposes.
-    const ok = loadConfig(productionEnv(sharedEnv(searchSharedEnv(insightsSharedEnv(collaborationInviteSharedEnv(exploreDirectorySharedEnv(publicActivityRateLimitSharedEnv(productRouteRateLimitSharedEnv({ AUTH_API_REPLICAS: '2' })))))))));
+    const ok = loadConfig(productionEnv(sharedEnv(searchSharedEnv(collaborationInviteSharedEnv(exploreDirectorySharedEnv(publicActivityRateLimitSharedEnv(productRouteRateLimitSharedEnv({ AUTH_API_REPLICAS: '2' }))))))));
     assert.equal(ok.httpSecurity.authApiReplicas, 2);
     assert.equal(ok.httpSecurity.authRateLimit.shared.enabled, true);
     assert.equal(ok.httpSecurity.searchRateLimit.shared.enabled, true);
-    assert.equal(ok.publishingInsights.rateLimitShared.enabled, true);
     assert.equal(ok.collaborationInviteRateLimit.enabled, true);
     assert.equal(ok.exploreDirectoryRateLimit.shared.enabled, true);
     assert.equal(ok.publicActivityRateLimit.shared.enabled, true);
@@ -1352,110 +1321,7 @@ describe('shared Sync COLP rate-limit adapter config (P-09)', () => {
   });
 });
 
-describe('shared email callback rate-limit adapter config (FIX-L-061 / T-EMAIL-004)', () => {
-  /** Auth shared adapter env (local copy: the FIX-M-001 helper is describe-scoped). */
-  const authSharedEnv = (overrides: Record<string, string> = {}) => ({
-    AUTH_RATE_LIMIT_SHARED: 'true',
-    AUTH_RATE_LIMIT_REDIS_URL: 'redis://127.0.0.1:6379',
-    AUTH_RATE_LIMIT_KEY_SECRET: 'auth-rate-limit-hmac-secret-001',
-    ...overrides,
-  });
 
-  /** Email feature env with the callback ingress mounted (HMAC secret set). */
-  const emailCallbackEnv = (overrides: Record<string, string> = {}) => ({
-    KNOWN_FEATURE_EMAIL: 'true',
-    EMAIL_DM_ACCOUNT_NAME: 'no-reply@example.invalid',
-    EMAIL_DM_CALLBACK_HMAC_SECRET: 'p528-hmac-callback-secret-not-prod-default',
-    ...overrides,
-  });
-
-  /** Email callback shared adapter env (T-EMAIL-004, mirrors the MCP loader). */
-  const emailSharedEnv = (overrides: Record<string, string> = {}) => ({
-    EMAIL_CALLBACK_RATE_LIMIT_SHARED: 'true',
-    EMAIL_CALLBACK_RATE_LIMIT_REDIS_URL: 'redis://127.0.0.1:6379',
-    EMAIL_CALLBACK_RATE_LIMIT_KEY_SECRET: 'email-callback-rate-limit-hmac-secret-061',
-    ...overrides,
-  });
-
-  test('production multi-replica email callback ingress without the shared limiter fails startup', () => {
-    // Email callback mounted + production + replicas>1 without the shared
-    // limiter fails (the auth/search shared adapters are present so the
-    // email callback gate is the one that fails startup).
-    const prodMultiReplicaEmail = (overrides: Record<string, string> = {}) =>
-      productionEnv(authSharedEnv(searchSharedEnv(insightsSharedEnv(collaborationInviteSharedEnv(exploreDirectorySharedEnv(publicActivityRateLimitSharedEnv(productRouteRateLimitSharedEnv(emailCallbackEnv({ AUTH_API_REPLICAS: '2', ...overrides })))))))));
-    assert.throws(
-      () => loadConfig(prodMultiReplicaEmail()),
-      /AUTH_API_REPLICAS > 1.*EMAIL_CALLBACK_RATE_LIMIT_SHARED=true/s,
-    );
-    // The gate error must stay sanitized: never the Redis URL, the callback
-    // HMAC secret, or the shared key secret.
-    assert.throws(
-      () => loadConfig(prodMultiReplicaEmail()),
-      (err: Error) => !err.message.includes('redis://')
-        && !err.message.includes('email-callback-rate-limit-hmac-secret-061')
-        && !err.message.includes('p528-hmac-callback-secret-not-prod-default'),
-    );
-    // Single-instance production keeps the in-process memory limiter.
-    const single = loadConfig(productionEnv(emailCallbackEnv()));
-    assert.equal(single.email!.callbackRateLimitShared.enabled, false);
-    // Callback HMAC unconfigured (the surface answers 404) never forces Redis.
-    assert.doesNotThrow(() => loadConfig(productionEnv(authSharedEnv(searchSharedEnv(insightsSharedEnv(collaborationInviteSharedEnv(exploreDirectorySharedEnv(publicActivityRateLimitSharedEnv(productRouteRateLimitSharedEnv({
-      AUTH_API_REPLICAS: '2',
-      KNOWN_FEATURE_EMAIL: 'true',
-      EMAIL_DM_ACCOUNT_NAME: 'no-reply@example.invalid',
-    }))))))))));
-    // Email feature off never forces Redis either.
-    assert.doesNotThrow(() => loadConfig(productionEnv(authSharedEnv(searchSharedEnv(insightsSharedEnv(collaborationInviteSharedEnv(exploreDirectorySharedEnv(publicActivityRateLimitSharedEnv(productRouteRateLimitSharedEnv({ AUTH_API_REPLICAS: '2' }))))))))));
-    // Multi-replica production WITH the shared email callback adapter is valid.
-    const ok = loadConfig(prodMultiReplicaEmail(emailSharedEnv()));
-    assert.equal(ok.httpSecurity.authApiReplicas, 2);
-    assert.equal(ok.email!.callbackRateLimitShared.enabled, true);
-    assert.equal(ok.email!.callbackRateLimitShared.redisUrl, 'redis://127.0.0.1:6379');
-    // Non-production multi-replica may keep the in-process limiter.
-    assert.doesNotThrow(() => loadConfig(testEnv(emailCallbackEnv({ AUTH_API_REPLICAS: '2' }))));
-    const { OIDC_ALLOW_TEST_PROVIDER: _testProvider, ...devBase } = testEnv();
-    assert.doesNotThrow(() => loadConfig({
-      ...devBase,
-      ...emailCallbackEnv({ AUTH_API_REPLICAS: '2' }),
-      NODE_ENV: 'development',
-      OIDC_JWKS_URI: 'https://issuer.example/realms/known/certs',
-    }));
-  });
-
-  test('shared=true without URL or secret keeps failing closed (FIX-L-061 parsing unchanged)', () => {
-    assert.throws(
-      () => loadConfig(testEnv(emailCallbackEnv({ EMAIL_CALLBACK_RATE_LIMIT_SHARED: 'true' }))),
-      /EMAIL_CALLBACK_RATE_LIMIT_REDIS_URL is required/,
-    );
-    assert.throws(
-      () => loadConfig(testEnv(emailCallbackEnv(emailSharedEnv({ EMAIL_CALLBACK_RATE_LIMIT_KEY_SECRET: '' })))),
-      /EMAIL_CALLBACK_RATE_LIMIT_KEY_SECRET is required/,
-    );
-  });
-
-  test('shared email callback adapter enabled without injected emailCallbackRoutes fails closed at composition', () => {
-    const config = loadConfig(testEnv(emailCallbackEnv(emailSharedEnv())));
-    assert.equal(config.email!.callbackRateLimitShared.enabled, true);
-    assert.throws(
-      () => buildApiApp({ config, identityUnitOfWork: emptyIdentityUnitOfWork() }),
-      /injected emailCallbackRoutes.*EMAIL_CALLBACK_RATE_LIMIT_SHARED=true/s,
-    );
-    // Injecting the callback routes (memory limiter for tests) keeps the
-    // shared config inert; the production composition injects the Redis
-    // adapter and must never silently fall back to a memory limiter.
-    const app = buildApiApp({
-      config,
-      identityUnitOfWork: emptyIdentityUnitOfWork(),
-      emailCallbackRoutes: {
-        enabled: true,
-        rateLimiter: createMemoryEmailCallbackRateLimiter({
-          ip: config.email!.callbackRateLimit,
-        }),
-      },
-    });
-    apps.push(app);
-  });
-});
 
 describe('Search rate-limit port and fail-closed responses (FIX-M-006)', () => {
   test('memory adapter keys by family and subject with INDEPENDENT budgets', async () => {

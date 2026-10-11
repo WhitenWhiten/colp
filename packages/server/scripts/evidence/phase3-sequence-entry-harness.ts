@@ -523,7 +523,7 @@ export function createPhase3SequenceEntryHarness(
                   where claim.operation_id=${operationId}
                     and claim.digest=${digest}
                     and claim.replica_id=${request.replicaId}
-                    and claim.sequence_scope=${request.sequenceScope}
+                    and (claim.sequence_scope=${request.sequenceScope} or claim.sequence_scope=${request.sequenceScope.replace(/^collection:/, '')} or claim.sequence_scope=${'collection:' + request.sequenceScope.replace(/^collection:/, '')})
                     and claim.sequence_number=${request.sequence}
                     and ledger.resource_type='operation'
                 `.execute(tx);
@@ -627,13 +627,15 @@ export function createPhase3SequenceEntryHarness(
           status, result_json, session_id, lease_generation, batch_id, media_type,
           endpoint_identity
         from p3_sequence_receipts
-        where replica_id=${replicaId} and sequence_scope=${sequenceScope}
+        where replica_id=${replicaId}
+          and (sequence_scope=${sequenceScope} or sequence_scope=${sequenceScope.replace(/^collection:/, '')} or sequence_scope=${'collection:' + sequenceScope.replace(/^collection:/, '')})
           and sequence_number=${sequence}
       `.execute(db);
       const row = result.rows[0];
       if (row === undefined) return undefined;
       return {
         ...parseReceipt(row),
+        sequenceScope,
         sessionId: String(row.session_id),
         leaseGeneration: Number(row.lease_generation),
         batchId: String(row.batch_id),

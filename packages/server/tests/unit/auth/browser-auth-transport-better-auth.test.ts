@@ -228,9 +228,16 @@ describe('browser auth transport with the real Better Auth composition', () => {
       headers: { origin: TRUSTED_ORIGIN },
     });
     assert.equal(verify.statusCode, 200, 'mailbox verification must succeed');
-    const rawCookies = Array.isArray(verify.headers['set-cookie']) ? verify.headers['set-cookie'] : [verify.headers['set-cookie']];
+    const signIn = await app.inject({
+      method: 'POST',
+      url: `${BASE_PATH}/sign-in/email`,
+      headers: { origin: TRUSTED_ORIGIN, 'content-type': 'application/json' },
+      body: JSON.stringify({ email, password: PASSWORD }),
+    });
+    assert.equal(signIn.statusCode, 200, 'sign-in after verification must succeed');
+    const rawCookies = Array.isArray(signIn.headers['set-cookie']) ? signIn.headers['set-cookie'] : [signIn.headers['set-cookie']];
     const sessionEntry = rawCookies.find((cookie) => cookie?.startsWith('__Host-known_session='));
-    assert.ok(sessionEntry, 'autoSignInAfterVerification must set the session cookie');
+    assert.ok(sessionEntry, 'sign-in must set the session cookie');
     const value = sessionEntry.split(';', 1)[0]!.split('=', 2)[1]!;
     const token = value.slice(0, value.indexOf('.'));
     assert.ok(token.length > 0, 'the cookie value must carry the raw session token');

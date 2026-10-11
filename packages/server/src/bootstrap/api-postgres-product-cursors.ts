@@ -1,5 +1,4 @@
 import {
-  createProductClassifyInboxCursorSigner,
   createProductCollectionVersionCursorSigner,
   createProductLinkHealthCursorSigner,
   createProductOwnedCollectionsCursorSigner,
@@ -22,10 +21,6 @@ export function createApiPostgresProductCursors(config: ReturnType<typeof loadCo
     linkHealthCursorSigner: createProductLinkHealthCursorSigner({
       current: config.linkHealth.cursor.current,
       previous: config.linkHealth.cursor.previous,
-    }),
-    classifyInboxCursorSigner: createProductClassifyInboxCursorSigner({
-      current: config.classifyInbox.cursor.current,
-      previous: config.classifyInbox.cursor.previous,
     }),
     collectionVersionCursorSigner: createProductCollectionVersionCursorSigner({
       current: config.collectionHistory.cursor.current,

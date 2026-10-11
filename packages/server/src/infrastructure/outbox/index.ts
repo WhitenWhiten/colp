@@ -47,21 +47,7 @@ export type {
   RoutableOutboxDelivery,
   SideEffectDurability,
 } from './router.js';
-export {
-  BestEffortIndexNowPublisher,
-  INDEXNOW_ENDPOINT,
-  INDEXNOW_FAILURE_METRIC,
-  INDEXNOW_KEY_LOCATION,
-  INDEXNOW_SUCCESS_METRIC,
-  buildIndexNowPayload,
-} from './indexnow.js';
-export type {
-  BestEffortIndexNowPublisherOptions,
-  IndexNowFetch,
-  IndexNowLogger,
-  IndexNowPayload,
-  IndexNowPublisher,
-} from './indexnow.js';
+
 export {
   FetchPublicationCachePurgeProvider,
   PUBLICATION_CACHE_PURGE_EVENT_TYPE,
@@ -217,4 +203,3 @@ export {
 export type {
   AppendCollectionInviteCreatedOutboxInput,
 } from './collection-invite-email.js';
-export { classificationAutoTagEnvelopeRegistration } from './classification-auto-tag.js';

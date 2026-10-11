@@ -1,7 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { HttpSecurityConfig } from '../bootstrap/config.js';
 import {
-  PUBLISHING_INSIGHTS_INGEST_RATE_LIMIT_FAMILY,
   COLLABORATION_INVITE_RATE_LIMIT_FAMILY,
   type AuthRateLimiter,
   type AuthRateLimitOutcome,
@@ -11,7 +10,6 @@ import {
   type EffectPageRateLimiter,
   type EffectPageRateLimitOutcome,
   type EffectPageRateLimitSubject,
-  type PublishingInsightsIngestRateLimitFamily,
   type ProductSurfaceRateLimiter,
   type SearchRateLimitOutcome,
   type SearchRateLimitRouteFamily,
@@ -51,23 +49,6 @@ export const AUTH_RATE_LIMITED_PATHS: readonly string[] = Object.freeze(
  * The route handler consumes this family; the map is the sealed path→family
  * registration (same hang as AUTH_RATE_LIMIT_FAMILY_BY_PATH).
  */
-export const PUBLISHING_INSIGHTS_INGEST_RATE_LIMITED_PATHS: readonly string[] = Object.freeze([
-  '/api/v1/public-collections/:slug/insight-events',
-  '/api/v1/public-collections/{slug}/insight-events',
-]);
-
-const PUBLISHING_INSIGHTS_INGEST_FAMILY_BY_PATH: Readonly<
-  Record<string, PublishingInsightsIngestRateLimitFamily>
-> = Object.freeze({
-  '/api/v1/public-collections/:slug/insight-events': PUBLISHING_INSIGHTS_INGEST_RATE_LIMIT_FAMILY,
-  '/api/v1/public-collections/{slug}/insight-events': PUBLISHING_INSIGHTS_INGEST_RATE_LIMIT_FAMILY,
-});
-
-export function publishingInsightsIngestRateLimitFamilyForPath(
-  urlPath: string,
-): PublishingInsightsIngestRateLimitFamily | null {
-  return PUBLISHING_INSIGHTS_INGEST_FAMILY_BY_PATH[urlPath] ?? null;
-}
 
 export const COLLABORATION_INVITE_RATE_LIMITED_PATHS: readonly string[] = Object.freeze([
   '/api/v1/collections/:collectionId/members/invites',
