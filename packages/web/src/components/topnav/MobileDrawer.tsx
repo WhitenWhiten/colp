@@ -6,9 +6,6 @@ import type { ToolItem } from './ToolsMenu'
 
 type Props = {
   toolItems: readonly ToolItem[]
-  isLoggedIn: boolean
-  showLogin: boolean
-  loginTo: string
   /** Exit phase: plays the drawer lift before unmount. */
   closing: boolean
   onOpenSearch: () => void
@@ -16,14 +13,12 @@ type Props = {
   onSignOut: () => void
 }
 
-/** Top-anchored mobile drawer: search, tools, and account only.
-   Primary destinations live on BottomNav. Route changes close it via the
-   parent (TopNav resets on pathname). */
+/** Top-anchored mobile drawer for the signed-in owner: search, tools, and
+   account. Primary destinations live on BottomNav; a guest gets neither
+   (Sign in sits in the bar). Route changes close it via the parent (TopNav
+   resets on pathname). */
 export function MobileDrawer({
   toolItems,
-  isLoggedIn,
-  showLogin,
-  loginTo,
   closing,
   onOpenSearch,
   onOpenSettings,
@@ -36,16 +31,14 @@ export function MobileDrawer({
       aria-label="Mobile"
       inert={closing || undefined}
     >
-      {isLoggedIn && (
-        <button
-          type="button"
-          className="mobile-search"
-          onClick={onOpenSearch}
-        >
-          <Icon name="search" />
-          <span>{SITE_SEARCH_PLACEHOLDER}</span>
-        </button>
-      )}
+      <button
+        type="button"
+        className="mobile-search"
+        onClick={onOpenSearch}
+      >
+        <Icon name="search" />
+        <span>{SITE_SEARCH_PLACEHOLDER}</span>
+      </button>
 
       {/* Ungrouped items are the library tools; a grouped run (Moderation)
           gets its own labelled section, as in the desktop Tools menu. */}
@@ -73,34 +66,26 @@ export function MobileDrawer({
 
       <div className="mobile-drawer-section mobile-account-section">
         <span className="mobile-drawer-label">Account</span>
-        {isLoggedIn ? (
-          <>
-            <div className="mobile-drawer-grid">
-              <NavLink to="/approvals">Approvals</NavLink>
-              <button
-                type="button"
-                onClick={() => {
-                  onOpenSettings()
-                }}
-              >
-                Settings
-              </button>
-            </div>
-            <button
-              type="button"
-              className="mobile-logout"
-              onClick={() => {
-                onSignOut()
-              }}
-            >
-              Sign out
-            </button>
-          </>
-        ) : (
-          <div className="mobile-drawer-grid">
-            {showLogin && <NavLink to={loginTo}>Sign in</NavLink>}
-          </div>
-        )}
+        <div className="mobile-drawer-grid">
+          <NavLink to="/approvals">Approvals</NavLink>
+          <button
+            type="button"
+            onClick={() => {
+              onOpenSettings()
+            }}
+          >
+            Settings
+          </button>
+        </div>
+        <button
+          type="button"
+          className="mobile-logout"
+          onClick={() => {
+            onSignOut()
+          }}
+        >
+          Sign out
+        </button>
       </div>
     </nav>
   )

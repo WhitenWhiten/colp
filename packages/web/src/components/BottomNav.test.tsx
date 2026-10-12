@@ -45,10 +45,9 @@ describe('BottomNav', () => {
     expect(labels).toEqual(['Library', 'Agents', 'Approvals'])
   })
 
-  it('offers only Sign in to guests, pointing back at the current page', () => {
+  it('renders nothing for a guest: Sign in already sits in the top bar', () => {
     render('/c/research-notes?folder=f-1')
-    expect(tabHrefs()).toEqual(['/login?returnTo=%2Fc%2Fresearch-notes%3Ffolder%3Df-1'])
-    expect(document.querySelector('[data-testid="bottom-nav-label"]')?.textContent).toBe('Sign in')
+    expect(document.querySelector('[aria-label="Mobile primary"]')).toBeNull()
   })
 
   it('marks Library current on a nested collection path', () => {

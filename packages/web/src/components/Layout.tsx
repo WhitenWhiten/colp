@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useRef, useState } from 'react'
+import { Suspense, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { TopNav } from './TopNav'
 import { BottomNav } from './BottomNav'
@@ -9,7 +9,7 @@ import { TooltipHost } from './TooltipHost'
 import { NavigationScrollManager } from './NavigationScrollManager'
 import { ToastProvider, ToastRouteReset } from './AppToast'
 import { ConfirmProvider } from './ConfirmModal'
-import { AuthProvider } from '../auth/AuthContext'
+import { AuthProvider, useAuth } from '../auth/AuthContext'
 import { RouteLoading } from './RouteLoading'
 import { ChromeErrorBoundary } from './ChromeErrorBoundary'
 import { RouteErrorBoundary } from './RouteErrorBoundary'
@@ -44,6 +44,13 @@ function useOnlineStatus() {
 
 function depthOf(path: string) {
   return path.split('/').filter(Boolean).length
+}
+
+/** The shell holds the tab bar's room (--bottom-nav-h, ≤719px) only when
+    the bar is there: outside the auth pages, for the signed-in owner. */
+function AppShell({ tabs, children }: { tabs: boolean; children: ReactNode }) {
+  const { isLoggedIn } = useAuth()
+  return <div className={tabs && isLoggedIn ? 'app-shell app-shell--tabs' : 'app-shell'}>{children}</div>
 }
 
 export function Layout() {
@@ -148,13 +155,12 @@ export function Layout() {
 
   const pageClass = `page page-enter page-enter-${direction}`
   const showTabs = !isAuthPath(location.pathname)
-  const shellClass = showTabs ? 'app-shell app-shell--tabs' : 'app-shell'
 
   return (
     <AuthProvider>
       {/* Toast lives inside the shell so ≤719 stacking can inherit
           --bottom-nav-h from .app-shell--tabs. */}
-      <div className={shellClass}>
+      <AppShell tabs={showTabs}>
         <ToastProvider>
           {/* R9-19: one promise-based destructive-confirm host for every
               workflow under the shell (replaces window.confirm). */}
@@ -195,7 +201,7 @@ export function Layout() {
             )}
           </ConfirmProvider>
         </ToastProvider>
-      </div>
+      </AppShell>
     </AuthProvider>
   )
 }

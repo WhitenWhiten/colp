@@ -61,6 +61,12 @@ describe('Footer session chrome', () => {
     expect(document.querySelector('footer')?.textContent).toContain('COLP Server')
   })
 
+  it('drops Sign in on the auth pages, which link to it themselves', () => {
+    render('/login')
+    const links = [...document.querySelectorAll('nav[aria-label="Footer"] a')].map((anchor) => anchor.textContent)
+    expect(links).toEqual(['About'])
+  })
+
   it('replaces Sign in with Settings, About and Agents after sign-in', () => {
     mocks.auth.isLoggedIn = true
     mocks.auth.user = {

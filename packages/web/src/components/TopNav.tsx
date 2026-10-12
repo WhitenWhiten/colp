@@ -70,7 +70,11 @@ export function TopNav() {
   // sign-in wall, so a visitor on a shared link is not offered it.
   const showSearch = showChrome && isLoggedIn
   const primaryNav = isLoggedIn ? APP_NAV : []
-  const showLogin = !isLoggedIn && location.pathname !== '/login'
+  // Sign-in and sign-up pages link to each other in their cards already.
+  const showLogin = !isLoggedIn && !authRoute
+  // The drawer holds the owner's tools and account; a visitor has none, and
+  // Sign in already sits in the bar.
+  const showMenu = showChrome && isLoggedIn
 
   useEffect(() => {
     const sync = () => setScrolled(window.scrollY > 8)
@@ -228,13 +232,14 @@ export function TopNav() {
               />
             ) : (
               showLogin && (
-                <Link to={loginPath(location.pathname, location.search)} className="btn btn-primary btn-sm">
+                /* Quiet: a shared link's visitors read; only the owner signs in. */
+                <Link to={loginPath(location.pathname, location.search)} className="btn btn-secondary btn-sm">
                   Sign in
                 </Link>
               )
             )}
 
-            {showChrome && (
+            {showMenu && (
               <button
                 type="button"
                 ref={burgerRef}
@@ -254,12 +259,9 @@ export function TopNav() {
           </div>
         </div>
 
-        {menuMounted && showChrome && (
+        {menuMounted && showMenu && (
           <MobileDrawer
             toolItems={toolItems}
-            isLoggedIn={isLoggedIn}
-            showLogin={showLogin}
-            loginTo={loginPath(location.pathname, location.search)}
             closing={menuClosing}
             onOpenSearch={() => {
               burgerRef.current?.focus({ preventScroll: true })

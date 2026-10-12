@@ -6,13 +6,15 @@ import { Layout } from './Layout'
 import { cleanup, mountTree, waitForDom } from '../test/render'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
 
+const auth = vi.hoisted(() => ({
+  user: null,
+  isLoggedIn: false,
+  logout: async () => {},
+}))
+
 vi.mock('../auth/AuthContext', () => ({
   AuthProvider: ({ children }: { children: React.ReactNode }) => children,
-  useAuth: () => ({
-    user: null,
-    isLoggedIn: false,
-    logout: async () => {},
-  }),
+  useAuth: () => auth,
 }))
 
 describe('Layout internal link interceptor', () => {
@@ -65,6 +67,7 @@ describe('Layout mobile tab bar gating', () => {
 
   afterEach(() => {
     cleanup()
+    auth.isLoggedIn = false
   })
 
   function renderAt(path: string) {
@@ -87,14 +90,18 @@ describe('Layout mobile tab bar gating', () => {
     expect(document.querySelector('#main')?.closest('.app-shell')?.classList.contains('app-shell--tabs')).toBe(false)
   })
 
-  it('mounts a guest tab bar with only Sign in', () => {
+  it('gives a guest no tab bar and no room held for one', () => {
     renderAt('/c/research-notes')
-    const tabs = document.querySelector('[aria-label="Mobile primary"]')
-    expect(tabs).not.toBeNull()
-    expect([...tabs!.querySelectorAll('a')].map((anchor) => anchor.getAttribute('href'))).toEqual([
-      '/login?returnTo=%2Fc%2Fresearch-notes',
-    ])
+    expect(document.querySelector('[aria-label="Mobile primary"]')).toBeNull()
+    expect(document.querySelector('#main')?.closest('.app-shell')?.classList.contains('app-shell--tabs')).toBe(false)
     expect(document.querySelector('a[href="/library"]')).toBeNull()
+  })
+
+  it('mounts the tab bar and its padding for the signed-in owner', () => {
+    auth.isLoggedIn = true
+    renderAt('/c/research-notes')
+    expect(document.querySelector('[aria-label="Mobile primary"]')).not.toBeNull()
+    expect(document.querySelector('#main')?.closest('.app-shell')?.classList.contains('app-shell--tabs')).toBe(true)
   })
 })
 

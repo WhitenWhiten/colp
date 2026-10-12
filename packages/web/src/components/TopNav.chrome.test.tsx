@@ -75,10 +75,11 @@ describe('TopNav session chrome', () => {
     document.body.innerHTML = ''
   })
 
-  it('offers guests only Sign in, with no primary nav or tools', () => {
+  it('offers guests only Sign in, with no primary nav, tools or menu', () => {
     render('/c/browser-research')
     expect(document.querySelector('[aria-label="Primary"]')).toBeNull()
     expect(document.querySelector('[data-testid="tools-trigger"]')).toBeNull()
+    expect(document.querySelector('[aria-controls="mobile-navigation"]')).toBeNull()
     expect(document.querySelector('a[href="/login?returnTo=%2Fc%2Fbrowser-research"]')?.textContent).toBe('Sign in')
   })
 
@@ -128,6 +129,11 @@ describe('TopNav session chrome', () => {
   it('drops the primary nav and the Sign in link on auth routes', () => {
     render('/login')
     expect(document.querySelector('[aria-label="Primary"]')).toBeNull()
+    expect(document.querySelector('a[href^="/login"]')).toBeNull()
+    cleanup()
+    document.body.innerHTML = ''
+    // The sign-up card links to sign-in itself.
+    render('/register')
     expect(document.querySelector('a[href^="/login"]')).toBeNull()
   })
 
@@ -198,7 +204,8 @@ describe('TopNav session chrome', () => {
   })
 
   it('traps Tab inside the open mobile drawer overlay', () => {
-    render('/')
+    signIn()
+    render('/library')
     act(() => document.querySelector<HTMLButtonElement>('[aria-controls="mobile-navigation"]')!.click())
     expect(document.getElementById('mobile-navigation')).not.toBeNull()
     const outside = document.createElement('button')
@@ -210,13 +217,6 @@ describe('TopNav session chrome', () => {
     expect(document.querySelector('header.topnav')?.contains(document.activeElement)).toBe(true)
     expect(document.activeElement).not.toBe(outside)
     outside.remove()
-  })
-
-  it('offers only Sign in in the guest mobile drawer', () => {
-    render('/')
-    act(() => document.querySelector<HTMLButtonElement>('[aria-controls="mobile-navigation"]')!.click())
-    const drawer = document.getElementById('mobile-navigation')
-    expect([...drawer!.querySelectorAll('a')].map((anchor) => anchor.textContent)).toEqual(['Sign in'])
   })
 
   it('exposes the account dropdown as disclosure navigation, not a menu', () => {

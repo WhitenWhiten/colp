@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom'
 import { BrandName } from './Brand'
 import { useAuth } from '../auth/AuthContext'
-import { loginPath } from '../lib/chrome'
+import { isAuthPath, loginPath } from '../lib/chrome'
 import { useSettingsDialog } from '../lib/useSettingsDialog'
 
 export function Footer() {
@@ -27,9 +27,12 @@ export function Footer() {
               <Link to="/agents">Agents</Link>
             </>
           ) : (
-            // A visitor on someone's server (a shared collection link) can only sign in.
+            // A visitor on someone's server (a shared collection link) can only
+            // sign in; the sign-in and sign-up cards already link to it.
             <>
-              <Link to={loginPath(location.pathname, location.search)}>Sign in</Link>
+              {!isAuthPath(location.pathname) && (
+                <Link to={loginPath(location.pathname, location.search)}>Sign in</Link>
+              )}
               <Link to="/about">About</Link>
             </>
           )}

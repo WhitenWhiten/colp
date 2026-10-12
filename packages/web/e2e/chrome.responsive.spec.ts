@@ -83,33 +83,19 @@ test.describe('top bar follows the nav cuts', () => {
     }
   })
 
-  test('a guest gets only Sign in, in the bar or the mobile tab bar', async ({ page }) => {
+  test('a guest gets only Sign in, in the bar at every width', async ({ page }) => {
     await mockGuestPublicCollection(page)
     await page.goto(GUEST_PAGE)
     await expect(page.getByTestId('public-collection-page')).toBeVisible()
     await expect(page.getByRole('navigation', { name: 'Primary', exact: true })).toHaveCount(0)
-    const signIn = page.getByRole('link', { name: 'Sign in', exact: true })
-    if (viewportWidth(page) >= 720) {
-      await expect(signIn.first()).toBeVisible()
-      await expect(signIn.first()).toHaveAttribute('href', `/login?returnTo=${encodeURIComponent(GUEST_PAGE)}`)
-    } else {
-      const tabs = page.getByRole('navigation', { name: 'Mobile primary' })
-      await expect(tabs.getByRole('link')).toHaveText(['Sign in'])
-    }
-  })
-
-  test('a guest drawer offers Sign in and no library search', async ({ page }) => {
-    await mockGuestPublicCollection(page)
-    await page.goto(GUEST_PAGE)
-    test.skip(viewportWidth(page) >= 1100, 'full chrome has no drawer')
-
-    await page.getByRole('button', { name: 'Open menu' }).click()
-    const drawer = page.getByRole('navigation', { name: 'Mobile', exact: true })
-    await expect(drawer).toBeVisible()
-    await expect(drawer.getByRole('link')).toHaveText(['Sign in'])
+    const signIn = page.locator('.nav-actions').getByRole('link', { name: 'Sign in', exact: true })
+    await expect(signIn).toBeVisible()
+    await expect(signIn).toHaveAttribute('href', `/login?returnTo=${encodeURIComponent(GUEST_PAGE)}`)
+    // No drawer, no tab bar: a visitor has nothing to reach but Sign in.
+    await expect(page.getByRole('button', { name: 'Open menu' })).toHaveCount(0)
+    await expect(page.getByRole('navigation', { name: 'Mobile primary' })).toHaveCount(0)
     // Site search answers a guest with a sign-in wall, so it is not offered.
-    await expect(drawer.locator('.mobile-search')).toHaveCount(0)
-    await expect(page.locator('.nav-search-compact')).toHaveCount(0)
+    await expect(page.locator('.nav-search, .nav-search-compact')).toHaveCount(0)
   })
 
   test('the drawer opens from the burger, exposes search, and closes on Escape', async ({ page }) => {

@@ -12,9 +12,22 @@ function json(route: Route, body: unknown, status = 200) {
   return route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
 }
 
-async function openLongCollection(page: Page) {
+type Reader = 'guest' | 'owner'
+
+/** Only the signed-in owner gets the phone tab bar; a guest has the header. */
+async function openLongCollection(page: Page, reader: Reader) {
   await installPassiveFeatureMocks(page)
-  await page.route('**/api/v1/session', (route) => json(route, { authenticated: false }))
+  if (reader === 'owner') {
+    await page.route('**/api/v1/session', (route) => json(route, {
+      authenticated: true, csrfToken: 'e2e-csrf', idleExpiresAt: '2099-01-01T00:00:00.000Z', absoluteExpiresAt: '2099-01-02T00:00:00.000Z',
+    }))
+    await page.route('**/api/v1/me', (route) => json(route, {
+      account: { id: 'acc-1', email: 'owner@colp.test' },
+      profile: { id: 'prof-1', handle: 'owner', displayName: 'Owner', avatarUrl: null },
+    }))
+  } else {
+    await page.route('**/api/v1/session', (route) => json(route, { authenticated: false }))
+  }
   await page.route(`**/api/v1/collections/${slug}*`, (route) => json(route, {
     collection: {
       id: 'col-focus', slug, title: 'Focus clearance', summary: 'A long list of links.',
@@ -51,31 +64,32 @@ async function focusedIsUncovered(page: Page) {
   })
 }
 
-test('Tab and Shift+Tab keep the focused control clear of sticky chrome', async ({ page }) => {
-  await openLongCollection(page)
-  const failures: string[] = []
-  await page.getByText('Reference 0').first().focus()
-  for (let i = 0; i < 30; i += 1) {
-    await page.keyboard.press('Tab')
-    const result = await focusedIsUncovered(page)
-    if (!result.ok) failures.push(`Tab ${i}: ${result.what}`)
-  }
-  for (let i = 0; i < 30; i += 1) {
-    await page.keyboard.press('Shift+Tab')
-    const result = await focusedIsUncovered(page)
-    if (!result.ok) failures.push(`Shift+Tab ${i}: ${result.what}`)
-  }
-  expect(failures).toEqual([])
-})
+for (const reader of ['guest', 'owner'] as const) {
+  test(`Tab and Shift+Tab keep the focused control clear of sticky chrome (${reader})`, async ({ page }) => {
+    await openLongCollection(page, reader)
+    const failures: string[] = []
+    await page.getByText('Reference 0').first().focus()
+    for (let i = 0; i < 30; i += 1) {
+      await page.keyboard.press('Tab')
+      const result = await focusedIsUncovered(page)
+      if (!result.ok) failures.push(`Tab ${i}: ${result.what}`)
+    }
+    for (let i = 0; i < 30; i += 1) {
+      await page.keyboard.press('Shift+Tab')
+      const result = await focusedIsUncovered(page)
+      if (!result.ok) failures.push(`Shift+Tab ${i}: ${result.what}`)
+    }
+    expect(failures).toEqual([])
+  })
+}
 
 test('a short viewport unsticks the header and the tab bar', async ({ page }) => {
   await page.setViewportSize({ width: 683, height: 305 })
-  await openLongCollection(page)
+  await openLongCollection(page, 'owner')
   expect(await page.locator('.topnav').evaluate((element) => getComputedStyle(element).position)).toBe('relative')
   const bottomNav = page.locator('.bottom-nav')
-  if (await bottomNav.count()) {
-    expect(await bottomNav.evaluate((element) => getComputedStyle(element).position)).toBe('static')
-  }
+  await expect(bottomNav).toHaveCount(1)
+  expect(await bottomNav.evaluate((element) => getComputedStyle(element).position)).toBe('static')
   await page.mouse.wheel(0, 600)
   await expect.poll(() => page.evaluate(() => {
     const hit = document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2)
