@@ -16,7 +16,7 @@ describeWithPostgres('recovery request evidence lifetime', () => {
 
   // Reproduces production: downloading and projecting a Snapshot outlives the
   // evidence cached at Session creation, but this request is freshly verified.
-  test.fails('accepts a fresh 0.2 recovery Ack after cached evidence expires', async () => {
+  test('accepts a fresh 0.2 recovery Ack after cached evidence expires', async () => {
     const f = await seedRecoveryFixture(isolated, 'expired-cache', undefined, true, undefined, '0.2');
     await f.application.requireRecoveryForStaleCursor({ credential: f.credential,
       sessionId: f.sessionId, cursor: f.cursorBeforeBoundary });
@@ -32,5 +32,25 @@ describeWithPostgres('recovery request evidence lifetime', () => {
       sessionId: f.sessionId, capability, explicitCapability: true,
       idempotencyKey: 'fresh-request', requestFingerprint: 'fresh-request' });
     assert.equal(result.ackedCursor, capability);
+  });
+
+  test.each(['revoked', 'account_disabled', 'epoch_changed'])('still denies %s credentials', async reason => {
+    const f = await seedRecoveryFixture(isolated, reason, undefined, true, undefined, '0.2');
+    await f.application.requireRecoveryForStaleCursor({ credential: f.credential,
+      sessionId: f.sessionId, cursor: f.cursorBeforeBoundary });
+    await f.recordAllPages();
+    const capability = await f.application.issueCapability({ credential: f.credential,
+      sessionId: f.sessionId, snapshotId: f.snapshotId });
+    if (reason === 'revoked') {
+      await isolated.runtime.db.updateTable('sync_extension_credentials').set({ revoked_at: new Date() })
+        .where('credential_id', '=', f.credential.credentialId).execute();
+    } else {
+      await isolated.runtime.db.updateTable('accounts').set(reason === 'account_disabled'
+        ? { status: 'disabled' } : { security_epoch: 1n }).where('id', '=', f.accountId).execute();
+    }
+    await assert.rejects(f.application.bootstrapAcknowledge({ credential: f.credential,
+      sessionId: f.sessionId, capability, explicitCapability: true,
+      idempotencyKey: reason, requestFingerprint: reason }),
+    (error: unknown) => error instanceof Error && 'code' in error && error.code === 'resource_not_found');
   });
 });

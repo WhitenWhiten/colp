@@ -1,3 +1,4 @@
+import { syncCredentialIsAuthorized } from '../sync-credential-authority.js';
 import { createHash } from 'node:crypto';
 import { sql, type Kysely, type Selectable } from 'kysely';
 import { createValidatorRegistry } from '@know-n/colp/schema';
@@ -279,16 +280,7 @@ async function loadAuthority(transaction: DatabaseTransaction, input: SyncAckApp
   }
   const authorized = !!account && account.status === 'active'
     && BigInt(account.security_epoch) === BigInt(session.account_security_epoch)
-    && !!credential && credential.revoked_at === null
-    && credential.credential_digest === input.credential.credentialDigest
-    && credential.subject === input.credential.subject && credential.account_id === account.id
-    && credential.client_id === input.credential.clientId
-    && credential.audience === canonicalAudience(input.credential.audience)
-    && input.credential.scopes.includes('known.sync')
-    && Array.isArray(credential.scopes_json) && credential.scopes_json.includes('known.sync')
-    && BigInt(credential.security_epoch) === BigInt(account.security_epoch)
-    && credential.credential_expires_at > now && input.credential.credentialExpiresAt > now
-    && input.credential.evidenceExpiresAt > now
+    && syncCredentialIsAuthorized(credential, input.credential, account, now)
     && session.credential_issuer === input.credential.issuer
     && session.credential_id === input.credential.credentialId
     && session.oauth_client_id === input.credential.clientId
@@ -442,9 +434,6 @@ function digestResult(result: SyncAckResult) {
 async function databaseNow(transaction: DatabaseTransaction): Promise<Date> {
   const result = await sql<{ now: Date }>`select current_timestamp as now`.execute(transaction);
   const now = result.rows[0]?.now; if (!(now instanceof Date)) deny('internal_error'); return now;
-}
-function canonicalAudience(audience: string | readonly string[]) {
-  return typeof audience === 'string' ? audience : [...audience].sort().join(' ');
 }
 function assertOptions(options: PostgresSyncAckOptions): void {
   if (!options || !Number.isSafeInteger(options.leaseExtensionSeconds) || options.leaseExtensionSeconds < 1

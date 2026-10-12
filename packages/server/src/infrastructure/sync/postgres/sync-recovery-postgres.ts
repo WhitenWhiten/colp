@@ -1,3 +1,4 @@
+import { syncCredentialIsAuthorized } from '../sync-credential-authority.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { sql, type Kysely, type Selectable } from 'kysely';
 import { createValidatorRegistry } from '@know-n/colp/schema';
@@ -443,17 +444,9 @@ async function loadAuthority(transaction: DatabaseTransaction, credential: Verif
   const role = collection?.owner_subject_id === account?.subject_id ? 'owner' : membership?.role;
   if (replica && session.status !== 'active'
       && BigInt(replica.lease_generation) > BigInt(session.lease_generation)) deny('stale_replica');
-  if (!account || account.status !== 'active' || !storedCredential || storedCredential.revoked_at !== null
-      || storedCredential.credential_digest !== credential.credentialDigest
-      || storedCredential.subject !== credential.subject || storedCredential.account_id !== account.id
-      || storedCredential.client_id !== credential.clientId
-      || storedCredential.audience !== canonicalAudience(credential.audience)
-      || !Array.isArray(storedCredential.scopes_json) || !storedCredential.scopes_json.includes('known.sync')
-      || !credential.scopes.includes('known.sync')
-      || BigInt(storedCredential.security_epoch) !== BigInt(account.security_epoch)
+  if (!account || account.status !== 'active'
+      || !syncCredentialIsAuthorized(storedCredential, credential, account, now)
       || BigInt(session.account_security_epoch) !== BigInt(account.security_epoch)
-      || credential.credentialExpiresAt <= now || credential.evidenceExpiresAt <= now
-      || storedCredential.credential_expires_at <= now || storedCredential.evidence_expires_at <= now
       || session.credential_issuer !== credential.issuer || session.credential_id !== credential.credentialId
       || session.oauth_client_id !== credential.clientId
       || session.status !== 'active' || session.expires_at <= now || !replica || !collection
@@ -493,20 +486,14 @@ async function loadReplayScope(transaction: DatabaseTransaction, credential: Ver
   // current_timestamp always yields exactly one row; a missing row is an internal fault.
   if (!(nowValue instanceof Date)) deny('internal_error');
   const now = nowValue;
-  if (!account || account.status !== 'active' || !storedCredential || storedCredential.revoked_at !== null
-      || storedCredential.credential_digest !== credential.credentialDigest
-      || storedCredential.subject !== credential.subject || storedCredential.account_id !== account.id
-      || storedCredential.client_id !== credential.clientId
-      || storedCredential.audience !== canonicalAudience(credential.audience)
-      || !credential.scopes.includes('known.sync')
-      || BigInt(storedCredential.security_epoch) !== BigInt(account.security_epoch)
+  if (!account || account.status !== 'active'
+      || !syncCredentialIsAuthorized(storedCredential, credential, account, now)
       || BigInt(session.account_security_epoch) !== BigInt(account.security_epoch)
       || session.credential_issuer !== credential.issuer || session.credential_id !== credential.credentialId
       || session.oauth_client_id !== credential.clientId
       || !collection || collection.deleted_at !== null || collection.policy_revision !== session.policy_revision
       || (role !== 'owner' && role !== 'editor' && role !== 'viewer')
-      || storedCredential.credential_expires_at <= now || storedCredential.evidence_expires_at <= now
-      || credential.credentialExpiresAt <= now || credential.evidenceExpiresAt <= now) deny('resource_not_found');
+) deny('resource_not_found');
   return Object.freeze({ replicaId: session.replica_id });
 }
 
@@ -614,9 +601,6 @@ function compareTuple(left: SyncRecoveryBoundary, right: SyncRecoveryBoundary): 
 }
 function kindOrder(kind: SyncRecoveryBoundary['streamKind']): number { return kind === 'operation' ? 0 : 1; }
 function digest(value: string): string { return createHash('sha256').update(value, 'utf8').digest('hex'); }
-function canonicalAudience(audience: string | readonly string[]): string {
-  return typeof audience === 'string' ? audience : [...audience].sort().join(' ');
-}
 function assertOptions(options: PostgresSyncRecoveryOptions): void { if (!options.capabilityKeys
   || !Number.isSafeInteger(options.leaseExtensionSeconds) || options.leaseExtensionSeconds < 1
   || !Number.isSafeInteger(options.maxLeaseLifetimeSeconds)

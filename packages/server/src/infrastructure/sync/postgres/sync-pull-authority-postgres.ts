@@ -1,3 +1,4 @@
+import { syncCredentialIsAuthorized } from '../sync-credential-authority.js';
 import { sql } from 'kysely';
 import {
   SyncPullReadError,
@@ -88,7 +89,8 @@ function bindingIdentityFingerprint(binding: {
 function buildPullAuthorityFingerprint(input: {
   readonly account: { readonly status: string; readonly security_epoch: bigint | string;
     readonly subject_id: string; readonly id: string } | undefined;
-  readonly credential: { readonly revoked_at: Date | null; readonly credential_digest: string;
+  readonly credential: { readonly issuer: string; readonly credential_id: string;
+    readonly revoked_at: Date | null; readonly credential_digest: string;
     readonly subject: string; readonly account_id: string; readonly client_id: string;
     readonly audience: string; readonly scopes_json: unknown; readonly security_epoch: bigint | string;
     readonly credential_expires_at: Date } | undefined;
@@ -197,7 +199,8 @@ function assertPullAuthorizationOutcome(input: {
   readonly now: Date;
   readonly account: { readonly status: string; readonly security_epoch: bigint | string;
     readonly subject_id: string; readonly id: string } | undefined;
-  readonly credential: { readonly revoked_at: Date | null; readonly credential_digest: string;
+  readonly credential: { readonly issuer: string; readonly credential_id: string;
+    readonly revoked_at: Date | null; readonly credential_digest: string;
     readonly subject: string; readonly account_id: string; readonly client_id: string;
     readonly audience: string; readonly scopes_json: unknown; readonly security_epoch: bigint | string;
     readonly credential_expires_at: Date } | undefined;
@@ -227,18 +230,7 @@ function assertPullAuthorizationOutcome(input: {
   const role = input.membershipRole;
   const authorized = !!input.account && input.account.status === 'active'
     && BigInt(input.account.security_epoch) === BigInt(input.session.account_security_epoch)
-    && !!input.credential && input.credential.revoked_at === null
-    && input.credential.credential_digest === input.request.credential.credentialDigest
-    && input.credential.subject === input.request.credential.subject
-    && input.credential.account_id === input.account.id
-    && input.credential.client_id === input.request.credential.clientId
-    && input.credential.audience === canonicalAudience(input.request.credential.audience)
-    && input.request.credential.scopes.includes('known.sync')
-    && Array.isArray(input.credential.scopes_json) && input.credential.scopes_json.includes('known.sync')
-    && BigInt(input.credential.security_epoch) === BigInt(input.account.security_epoch)
-    && input.credential.credential_expires_at > input.now
-    && input.request.credential.credentialExpiresAt > input.now
-    && input.request.credential.evidenceExpiresAt > input.now
+    && syncCredentialIsAuthorized(input.credential, input.request.credential, input.account, input.now)
     && input.session.credential_issuer === input.request.credential.issuer
     && input.session.credential_id === input.request.credential.credentialId
     && input.session.oauth_client_id === input.request.credential.clientId
