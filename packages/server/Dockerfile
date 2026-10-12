@@ -18,7 +18,7 @@
 # mounts the same volume read-only and serves it). That mount hides the image
 # directory, so the UI is also stored at /opt/colp-web, which is not mounted.
 # The entrypoint refreshes /srv/web from /opt/colp-web on every start,
-# including upgrades, and removes stale shipped assets. The Node process does not serve the UI and this image does not
+# including upgrades, retaining hashed assets for tabs opened before an upgrade. The Node process does not serve the UI and this image does not
 # add a second server.
 
 FROM node:22-alpine@sha256:b6f26b36c8ff49624cfdac716b8ea1138d606df02586a77d364bb5536a634f85 AS web-build

@@ -16,7 +16,13 @@
 	handle @absent {
 		respond 404
 	}
+	# Missing chunks must never become cacheable HTML at a CSS/JS URL.
+	handle /assets/* {
+		root * /srv/web
+		file_server
+	}
 	handle {
+		header Cache-Control "no-cache"
 		root * /srv/web
 		try_files {path} /index.html
 		file_server

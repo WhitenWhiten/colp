@@ -32,6 +32,11 @@ export default defineConfig(({ mode }) => {
         }),
     ].filter(Boolean),
     build: {
+      // Retire asset URLs at which older deployments could cache the SPA HTML
+      // fallback. The ingress now returns 404 for missing assets instead.
+      rollupOptions: {
+        output: { assetFileNames: 'assets/[name].[hash][extname]' },
+      },
       // print.css is linked from index.html with media="print"; left to the
       // default 4 KB limit Vite would inline it as a base64 data: URI, which
       // bloats the HTML every visitor downloads for a stylesheet almost none

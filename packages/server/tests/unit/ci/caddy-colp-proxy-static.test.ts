@@ -44,13 +44,19 @@ describe('Caddy ingress keeps COLP, MCP and OAuth discovery on the server', () =
       const spaIndex = source.indexOf('\n\thandle {');
       assert.ok(proxiedIndex >= 0 && spaIndex > proxiedIndex,
         'the proxied handle must be declared before the SPA catch-all');
-      const proxied = source.slice(proxiedIndex, spaIndex);
+      const proxied = source.slice(proxiedIndex, source.indexOf('\n\t}', proxiedIndex) + 4);
       assert.match(proxied, /reverse_proxy server:3000/u);
       assert.match(proxied, /header_up X-Forwarded-Proto (https|http)\b/u);
       assert.doesNotMatch(proxied, /try_files|file_server/u,
         'proxied surfaces must never fall back to static files');
 
+      const assetsIndex = source.indexOf('handle /assets/* {');
+      assert.ok(assetsIndex > proxiedIndex && assetsIndex < spaIndex);
+      const assets = source.slice(assetsIndex, source.indexOf('\n\t}', assetsIndex) + 4);
+      assert.match(assets, /file_server/u);
+      assert.doesNotMatch(assets, /try_files/u, 'missing assets must return 404');
       const spa = source.slice(spaIndex);
+      assert.match(spa, /header Cache-Control "no-cache"/u);
       assert.match(spa, /try_files \{path\} \/index\.html/u);
       assert.match(spa, /file_server/u);
       assert.doesNotMatch(spa, /reverse_proxy/u);
