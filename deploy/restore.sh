@@ -54,6 +54,18 @@ fi
 "${reader[@]}" | docker compose exec -T db pg_restore -U "${db_user}" -d "${db_name}" \
   --exit-on-error --single-transaction
 
+# Restored rules never resume admission before the Owner revalidates them.
+docker compose exec -T db psql -U "${db_user}" -d "${db_name}" -v ON_ERROR_STOP=1 <<'SQL'
+DO $$ BEGIN
+  IF to_regclass('automation_settings') IS NOT NULL THEN
+    INSERT INTO automation_settings (owner_id, paused, paused_at, paused_by, revision)
+      SELECT id, true, now(), 'restore', 1 FROM accounts
+      ON CONFLICT (owner_id) DO UPDATE SET paused = true, paused_at = now(),
+        paused_by = 'restore', revision = automation_settings.revision + 1;
+  END IF;
+END $$;
+SQL
+
 docker compose up -d
 
 # Ask the server inside its container, so a tls-internal CA the host does not

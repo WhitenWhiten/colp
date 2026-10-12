@@ -26,7 +26,7 @@
  * the runtime lock and asserts that vitest, tinypool and tsx are absent.
  */
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -59,6 +59,8 @@ function generate(targetDir) {
     throw new Error('Runtime manifest generation requires npm 10 to match CI; use Node 22 with its bundled npm (see .nvmrc)');
   }
   mkdirSync(targetDir, { recursive: true });
+  const vendor = resolve(packageRoot, 'vendor');
+  if (existsSync(vendor)) cpSync(vendor, resolve(targetDir, 'vendor'), { recursive: true });
   const devManifest = readJson(resolve(packageRoot, 'package.json'));
   writeFileSync(resolve(targetDir, 'package.json'), `${JSON.stringify(runtimeManifestFrom(devManifest), null, 2)}\n`);
   copyFileSync(resolve(packageRoot, 'package-lock.json'), resolve(targetDir, 'package-lock.json'));

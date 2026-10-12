@@ -16,3 +16,6 @@
 Thumbs.db
 # Temporary migration-subset folders created by server tests (tests/support/migration-subset-directory.ts).
 packages/server/.migrations-subset-*/
+
+# Generated scratch copy of the local shared-package artifact.
+packages/server/runtime/vendor/
