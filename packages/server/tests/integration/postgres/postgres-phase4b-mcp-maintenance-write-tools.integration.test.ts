@@ -92,6 +92,16 @@ describeWithPostgres('MCP maintenance Write Tools over PostgreSQL', () => {
     )).rows[0];
     assert.equal(nodeRow?.title, 'W06 updated bookmark');
     assert.equal(nodeRow?.resource_revision, nodeOutput.revision);
+    assert.equal((nodeResult.structuredContent as { applied: boolean }).applied, true);
+    const replay = await bundle.adapter.callTool(writeToolContext(BINDING, SCOPES, 'nodes.update', fixture.collectionId), {
+      name: 'nodes.update', arguments: { collectionId: fixture.collectionId, nodeId: fixture.nodeId,
+        baseRevision: fixture.resourceRevision, patch: { title: 'W06 updated bookmark' }, returnRepresentation: true },
+    });
+    const represented = replay.structuredContent as { status: string; node: { title: string; revision: string } };
+    assert.equal(represented.status, 'committed');
+    assert.equal(represented.node.title, 'W06 updated bookmark');
+    assert.equal(represented.node.revision, nodeOutput.revision);
+
 
     const collectionBefore = (await runtime.pool.query<{ resource_revision: string }>(
       `select resource_revision from collections where id = $1`,
@@ -144,6 +154,7 @@ describeWithPostgres('MCP maintenance Write Tools over PostgreSQL', () => {
       },
     });
     assert.equal((preview.structuredContent as { resultType?: string }).resultType, 'preview');
+    assert.equal((preview.structuredContent as { applied: boolean }).applied, false);
     assert.equal((await runtime.pool.query<{ count: number }>(
       `select count(*)::int count from annotations`,
     )).rows[0]?.count, before);

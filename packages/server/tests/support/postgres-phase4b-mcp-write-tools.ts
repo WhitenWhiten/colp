@@ -423,7 +423,7 @@ export function planContext(
       params: Object.freeze({
         _meta: Object.freeze({
           'io.modelcontextprotocol/protocolVersion': '2026-07-28',
-          'io.modelcontextprotocol/clientCapabilities': Object.freeze({}),
+          'io.modelcontextprotocol/clientCapabilities': Object.freeze({ elicitation: Object.freeze({ url: Object.freeze({}) }) }),
         }),
         name: 'changes.plan',
       }),
@@ -461,7 +461,7 @@ export function nodeCreateContext(
       params: Object.freeze({
         _meta: Object.freeze({
           'io.modelcontextprotocol/protocolVersion': '2026-07-28',
-          'io.modelcontextprotocol/clientCapabilities': Object.freeze({}),
+          'io.modelcontextprotocol/clientCapabilities': Object.freeze({ elicitation: Object.freeze({ url: Object.freeze({}) }) }),
         }),
         name: 'nodes.create',
         arguments: Object.freeze({ collectionId: 'collection-fixture' }),
@@ -505,7 +505,7 @@ export function writeToolContext(
       params: Object.freeze({
         _meta: Object.freeze({
           'io.modelcontextprotocol/protocolVersion': '2026-07-28',
-          'io.modelcontextprotocol/clientCapabilities': Object.freeze({}),
+          'io.modelcontextprotocol/clientCapabilities': Object.freeze({ elicitation: Object.freeze({ url: Object.freeze({}) }) }),
         }),
         name,
         arguments: collectionId === undefined
@@ -548,7 +548,7 @@ export function commitContext(
       params: Object.freeze({
         _meta: Object.freeze({
           'io.modelcontextprotocol/protocolVersion': '2026-07-28',
-          'io.modelcontextprotocol/clientCapabilities': Object.freeze({}),
+          'io.modelcontextprotocol/clientCapabilities': Object.freeze({ elicitation: Object.freeze({ url: Object.freeze({}) }) }),
         }),
         name: 'changes.commit',
       }),

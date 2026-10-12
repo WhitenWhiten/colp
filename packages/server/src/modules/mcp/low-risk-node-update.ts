@@ -54,6 +54,7 @@ const INPUT_KEYS = Object.freeze([
   'patch',
   'dryRun',
   'reason',
+  'returnRepresentation',
 ] as const);
 
 const PATCH_KEYS = Object.freeze([
@@ -68,6 +69,7 @@ export interface Phase4bMcpLowRiskNodeUpdateCompleteOutput {
   readonly nodeId: string;
   readonly collectionId: string;
   readonly revision: string;
+  readonly node?: Readonly<Record<string, unknown>>;
 }
 
 export interface Phase4bMcpLowRiskNodeUpdatePreviewOutput {
@@ -99,6 +101,7 @@ interface ParsedNodeUpdateInput {
   readonly patch: NodeMergePatch;
   readonly reason: string | undefined;
   readonly dryRun: boolean;
+  readonly returnRepresentation: boolean;
 }
 
 export function createPhase4bMcpLowRiskNodeUpdateService(
@@ -166,7 +169,7 @@ export function createPhase4bMcpLowRiskNodeUpdateService(
             ifMatch: parsed.baseRevision,
             patch: parsed.patch,
           }));
-        return projectNodeUpdateOutput(outcome);
+        return projectNodeUpdateOutput(outcome, parsed.returnRepresentation);
       } catch (error) {
         mapCanonicalWriteError(error, PHASE4B_MCP_NODES_UPDATE_TOOL_NAME);
       }
@@ -231,6 +234,7 @@ async function executePreview(
 
 function projectNodeUpdateOutput(
   outcome: UpdateCollectionNodeResult,
+  returnRepresentation: boolean,
 ): Phase4bMcpLowRiskNodeUpdateCompleteOutput {
   if (outcome.kind === 'updated') {
     return Object.freeze({
@@ -238,10 +242,11 @@ function projectNodeUpdateOutput(
       nodeId: outcome.node.id,
       collectionId: outcome.node.collectionId,
       revision: outcome.node.revision,
+      ...(returnRepresentation ? { node: Object.freeze({ ...outcome.node }) } : {}),
     });
   }
   if (outcome.kind === 'replay') {
-    return decodeReplayNodeUpdate(outcome.body);
+    return decodeReplayNodeUpdate(outcome.body, returnRepresentation);
   }
   throw new Phase4bMcpLowRiskNodeCreateError(
     'commit_unknown',
@@ -249,7 +254,7 @@ function projectNodeUpdateOutput(
   );
 }
 
-function decodeReplayNodeUpdate(body: Uint8Array): Phase4bMcpLowRiskNodeUpdateCompleteOutput {
+function decodeReplayNodeUpdate(body: Uint8Array, returnRepresentation: boolean): Phase4bMcpLowRiskNodeUpdateCompleteOutput {
   let parsed: unknown;
   try {
     parsed = JSON.parse(new TextDecoder().decode(body)) as unknown;
@@ -288,6 +293,7 @@ function decodeReplayNodeUpdate(body: Uint8Array): Phase4bMcpLowRiskNodeUpdateCo
     nodeId,
     collectionId,
     revision,
+    ...(returnRepresentation ? { node: Object.freeze({ ...nodeRecord }) } : {}),
   });
 }
 
@@ -307,7 +313,11 @@ function parseNodeUpdateInput(
   const patch = parseNodePatch(readRequiredObject(input, 'patch'));
   const dryRun = readDryRun(input, PHASE4B_MCP_NODES_UPDATE_TOOL_NAME);
   const reason = readOptionalReason(input, PHASE4B_MCP_NODES_UPDATE_TOOL_NAME);
+  if (input.returnRepresentation !== undefined && typeof input.returnRepresentation !== 'boolean') {
+    throw new Phase4bMcpLowRiskNodeCreateError('invalid_catalog_input', 'returnRepresentation must be a boolean.', nodeUpdateHint('returnRepresentation'));
+  }
   return Object.freeze({
+    returnRepresentation: input.returnRepresentation === true,
     collectionId,
     nodeId,
     baseRevision,

@@ -1,4 +1,5 @@
 import { createPhase4bMcpResult } from './results.js';
+import { withWriteReceipt, withWriteReceiptSchema } from './write-result-receipt.js';
 import type { Phase4bMcpChangePlanService } from './change-plan-service.js';
 import { PHASE4B_MCP_MOVE_BATCH_LIMIT } from './change-plan-planner.js';
 import { MCP_OWN_DATA_DEFAULT_BUDGET, snapshotMcpOwnData as snapshotPhase4bData } from './own-data.js';
@@ -111,7 +112,7 @@ export const PHASE4B_MCP_WRITE_TOOL_DESCRIPTIONS: Readonly<Record<string, string
   'collections.create': 'Create a new private library (collection) you own. Applies at once; reuse the same idempotencyKey only to retry the same request.',
   'collections.update': 'Change a library\'s title or summary. Pass the revision you read as baseRevision (or ifMatch). Applies at once.',
   'nodes.create': 'Add a folder or bookmark to a library under parentId. Applies at once unless dryRun is true or confirmApply is false.',
-  'nodes.update': 'Change a folder or bookmark: title, URL, description, tags or visibility. Pass the revision you read as baseRevision (or ifMatch). Applies at once.',
+  'nodes.update': 'Change a folder or bookmark title, URL, description or tags. Pass the node revision as baseRevision (or ifMatch). Applies at once. Set returnRepresentation true to receive the updated node. Visibility changes require a plan.',
   'nodes.move': 'Move folders or bookmarks to another folder in the same library. Pass nodeId for one node, or nodeIds (up to 50, moved in order and appended to the destination) to move several in one plan. Returns a plan: unless the owner trusts this agent, they approve it on its approval link, then call changes.commit.',
   'nodes.delete_subtree': 'Delete a folder or bookmark with everything inside it. Returns a plan the owner must approve before changes.commit; deleted items go to the library\'s trash.',
   'annotations.create': 'Add a note to a bookmark or folder. Applies at once.',
@@ -243,6 +244,9 @@ const nodeMoveOutputSchema = Object.freeze({
     risk: Object.freeze({ enum: ['medium', 'high'] }),
     requiresApproval: Object.freeze({ type: 'boolean' }),
     status: Object.freeze({ enum: ['pending', 'consumed'] }),
+    applied: { type: 'boolean' },
+    approvalUri: { type: 'string' },
+    expiresAt: { type: 'string' },
     approvedBy: Object.freeze({ const: 'policy' }),
     versionId: Object.freeze({ type: 'string' }),
     impact: Object.freeze({
@@ -312,6 +316,7 @@ const nodeUpdateInputSchema = Object.freeze({
     baseRevision: revisionTokenProperty,
     ifMatch: revisionTokenProperty,
     patch: PHASE4B_MCP_NODE_UPDATE_PATCH_SCHEMA,
+    returnRepresentation: { type: 'boolean', description: 'Include the authoritative updated node; omit for a compact receipt.' },
     dryRun: Object.freeze({ const: true }),
     reason: Object.freeze({ type: 'string', minLength: 1, maxLength: 1_000 }),
   }),
@@ -327,6 +332,7 @@ const nodeUpdateOutputSchema = Object.freeze({
   additionalProperties: false,
   properties: Object.freeze({
     resultType: Object.freeze({ type: 'string', enum: Object.freeze(['complete', 'preview']) }),
+    node: { type: 'object' },
     nodeId: Object.freeze({ type: 'string', minLength: 1 }),
     collectionId: Object.freeze({ type: 'string', minLength: 1 }),
     revision: Object.freeze({ type: 'string', minLength: 1 }),
@@ -583,11 +589,12 @@ function withMcpAccountSubject(
           return createPhase4bMcpResult({ method: 'tools/call', fields: { structuredContent: {
             planId: plan.planId, risk: plan.risk, requiresApproval: plan.requiresApproval,
             impact: plan.operations.map((operation) => (operation as { impact: string }).impact), operations: plan.operations,
-            status: plan.status, ...(plan.approvedBy ? { approvedBy: plan.approvedBy } : {}),
+            status: plan.status, applied: plan.status === 'consumed', expiresAt: plan.expiresAt,
+            ...(plan.approvalUri ? { approvalUri: plan.approvalUri } : {}), ...(plan.approvedBy ? { approvedBy: plan.approvedBy } : {}),
             ...(plan.versionId ? { versionId: plan.versionId } : {}),
           } }, cache: { ttlMs: 0, cacheScope: 'private' } }, true);
         }
-        return adapter.callTool(context, input);
+        return withWriteReceipt(await adapter.callTool(context, input), String(call.name));
       }).catch(rethrowPhase4bMcpWriteAdapterError),
     recordOutOfBandApproval: (planId, context) =>
       bindMcpAccountSubject(context, () => adapter.recordOutOfBandApproval(planId, context)),
@@ -608,7 +615,7 @@ function withHostWriteToolDescriptions(listed: Mcp20260728Result): Mcp20260728Re
         ? PHASE4B_MCP_CHANGES_PLAN_DESCRIPTION
         : typeof name === 'string' ? PHASE4B_MCP_WRITE_TOOL_DESCRIPTIONS[name] : undefined;
       if (description === undefined) return tool;
-      return Object.freeze({ ...(tool as Record<string, unknown>), description });
+      return Object.freeze({ ...withWriteReceiptSchema(tool as Record<string, unknown>), description });
     })),
   });
 }
