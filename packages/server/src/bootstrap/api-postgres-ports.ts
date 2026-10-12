@@ -27,6 +27,7 @@ import {
   createPostgresSharedCollectionsReadPort,
   createPostgresCollectionBookmarkCountReadPort,
   createPostgresBookmarkIconReadPort,
+  createPostgresLinkPreviewReadPort,
   createPostgresFaviconSourceModeReadPort,
   createPostgresLibraryOrderCommandUnitOfWork,
   createPostgresLibraryOrderQueryUnitOfWork,
@@ -176,6 +177,7 @@ export function createApiPostgresPorts(input: {
       cursorTtlMs: config.productEditorCursor.ttlMs,
       metrics,
       productOrigin: config.productOrigin,
+      linkPreviews: config.linkPreview?.enabled === true,
     },
   );
   const { ownedCollectionsCursorSigner, sharedCollectionsCursorSigner, collaborationMembersCursorSigner,
@@ -324,6 +326,8 @@ export function createApiPostgresAppDependencies(input: {
       bookmarkIcons: createPostgresBookmarkIconReadPort(database.db),
       faviconSources: createPostgresFaviconSourceModeReadPort(database.db),
       publicMarks: createPostgresPublicMarksReadPort(database),
+      ...(config.linkPreview?.enabled === true
+        ? { linkPreviews: createPostgresLinkPreviewReadPort(database.db) } : {}),
     },
     productCollaboration: {
       identityUnitOfWork,

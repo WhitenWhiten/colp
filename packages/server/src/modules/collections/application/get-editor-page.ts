@@ -21,6 +21,7 @@ import {
 import type { CollectionsClock, BookmarkIconReadPort, CollectionWritePort } from './ports.js';
 import { iconUrlForNode, loadBookmarkIconObjectIds } from './bookmark-icon-url.js';
 
+import { attachBookmarkPreviewImages, type BookmarkPreviewImageView, type LinkPreviewReadPort } from './link-preview-read.js';
 export const EDITOR_PAGE_DEFAULT_LIMIT = 200;
 export const EDITOR_PAGE_MAX_LIMIT = 500;
 /** Full EditorPage JSON body budget (4 MiB). */
@@ -100,12 +101,6 @@ export interface FolderNodeView {
   readonly childrenEtag: string;
   readonly createdAt: string;
   readonly updatedAt: string;
-}
-
-export interface BookmarkPreviewImageView {
-  readonly url: string;
-  readonly width: number;
-  readonly height: number;
 }
 
 export interface BookmarkNodeView {
@@ -257,6 +252,8 @@ export interface GetCollectionEditorPagePorts {
   readonly productOrigin?: string;
   /** Batch live bookmark_icons lookup; missing/empty → every bookmark `iconUrl` is null. */
   readonly bookmarkIcons?: BookmarkIconReadPort;
+  /** LP-04 ready preview images; missing → every bookmark `previewImage` is null. */
+  readonly linkPreviews?: LinkPreviewReadPort;
 }
 
 /** Application-level input error for transport to map to invalid_query. */
@@ -375,7 +372,8 @@ export async function getCollectionEditorPage(
   );
 
   // Adapter returns at most limit+1 rows; map only what we may return (+1 probe).
-  const mapped: EditableNodeView[] = snapshot.nodes.map((row) => mapEditableNodeView(row, iconObjectIds, ports.productOrigin));
+  const mapped: EditableNodeView[] = await attachBookmarkPreviewImages(ports.linkPreviews, ports.productOrigin,
+    snapshot.nodes.map((row) => mapEditableNodeView(row, iconObjectIds, ports.productOrigin)));
 
   const selection = selectNodesWithinBudgets(mapped, limit, {
     collection,

@@ -12,6 +12,7 @@ describe('FEATURE_FLAGS', () => {
       // Live since the MCP write-approval flow shipped (the W08 boundary pins it on).
       writeApprovals: true,
       linkHealth: true,
+      linkPreview: true,
     })
   })
 })

@@ -71,6 +71,12 @@ import {
   linkHealthProbeInjectionFromEnv,
   type LinkHealthWorkerLoopOptions,
   type LinkHealthWorkerRuntime,
+  createDatabaseLinkPreviewStore,
+  createLinkPreviewWorkerRuntime,
+  createPostgresLinkPreviewRepository,
+  linkPreviewEgressFromEnv,
+  type LinkPreviewWorkerLoopOptions,
+  type LinkPreviewWorkerRuntime,
 } from '../infrastructure/collections/index.js';
 import { createPostgresInviteEmailDeliveryRepository } from '../infrastructure/access-policy/index.js';
 import { createPostgresCollaborationInviteMaintenancePortFactory } from '../infrastructure/access-policy/index.js';
@@ -112,7 +118,7 @@ import {
 import { composeLedgerArchiveWorker } from './ledger-archive-worker-composition.js';
 import type { LedgerArchiveExportWorkerRuntime } from '../infrastructure/ledger-archive/index.js';
 import type { LedgerArchiveSourceResolver } from './ledger-archive-worker-composition.js';
-import type { BookmarkFaviconObjectStore } from '../modules/collections/index.js';
+import type { BookmarkFaviconObjectStore, LinkPreviewObjectStore } from '../modules/collections/index.js';
 import {
   CACHE_WORKER_READINESS_GAUGE,
   CACHE_WORKER_READINESS_METRIC,
@@ -143,6 +149,8 @@ export interface WorkerRuntime {
   cacheReadiness(): Promise<CacheReadinessState>;
   /** LH-02 optional link-health probe worker, composed only when the feature is enabled. */
   readonly linkHealth?: LinkHealthWorkerRuntime;
+  /** LP-03 link preview fetch loop, composed only when the feature is enabled. */
+  readonly linkPreview?: LinkPreviewWorkerRuntime;
   readonly faviconJobs?: FaviconWorkerRuntime;
   readonly ledgerArchive?: LedgerArchiveExportWorkerRuntime;
   /**
@@ -227,6 +235,10 @@ export interface BuildWorkerOptions {
    * hardened egress defaults (HTTPS still only in infrastructure/collections).
    */
   readonly linkHealth?: Pick<LinkHealthWorkerLoopOptions, 'resolve' | 'connect'>;
+  /** LP-03 link preview seam: tests inject a store and egress fakes. */
+  readonly linkPreview?: Partial<Pick<LinkPreviewWorkerLoopOptions, 'resolve' | 'connect'>> & {
+    readonly store?: LinkPreviewObjectStore;
+  };
   /**
    * FO-02 favicon job/GC worker seam. Tests inject `store` + `resolve` +
    * `connect` so the worker never opens a real socket or R2 client. Production
@@ -558,6 +570,19 @@ export function buildWorker(
         ...(options.linkHealth?.connect === undefined ? {} : { connect: options.linkHealth.connect }),
       })
     : undefined;
+  const linkPreviewRuntime = (database && config.linkPreview?.enabled === true)
+    ? createLinkPreviewWorkerRuntime({
+        repository: createPostgresLinkPreviewRepository(database.pool, { cancelBackend: database.cancelBackend }),
+        store: options.linkPreview?.store ?? createDatabaseLinkPreviewStore(database.db),
+        logger,
+        metrics,
+        retentionSeconds: config.linkPreview.retentionSeconds,
+        concurrency: config.linkPreview.workerConcurrency,
+        perHostGapMs: config.linkPreview.perHostGapMs,
+        ...(options.linkPreview?.resolve === undefined ? {} : { resolve: options.linkPreview.resolve }),
+        ...(options.linkPreview?.connect === undefined ? {} : { connect: options.linkPreview.connect }),
+      })
+    : undefined;
   const faviconJobsRuntime = (database && config.faviconPolicy.enabled)
     ? composeFaviconWorkerRuntime(config, database, metrics, logger, options)
     : undefined;
@@ -683,6 +708,7 @@ export function buildWorker(
     metrics,
     outbox,
     linkHealth: linkHealthRuntime,
+    linkPreview: linkPreviewRuntime,
     faviconJobs: faviconJobsRuntime,
     ledgerArchive: ledgerArchiveRuntime,
     ...(authEmailComposition === undefined ? {} : { authEmail: { sender: authEmailComposition.sender } }),
@@ -726,6 +752,7 @@ export function buildWorker(
       // timers running after start() rejects.
       outbox?.start();
       linkHealthRuntime?.loop.start();
+      linkPreviewRuntime?.loop.start();
       faviconJobsRuntime?.jobs.start();
       faviconJobsRuntime?.gc.start();
       ledgerArchiveRuntime?.start();
@@ -821,6 +848,7 @@ export function buildWorker(
       // shutting down, leaving work stranded behind the drain boundary.
       await attemptWorkerStop(failures, 'outbox', () => outbox?.stop());
       await attemptWorkerStop(failures, 'linkHealthLoop', () => linkHealthRuntime?.loop.stop());
+      await attemptWorkerStop(failures, 'linkPreviewLoop', () => linkPreviewRuntime?.loop.stop());
       await attemptWorkerStop(failures, 'faviconJobsLoop', () => faviconJobsRuntime?.jobs.stop());
       await attemptWorkerStop(failures, 'faviconGcLoop', () => faviconJobsRuntime?.gc.stop());
       await attemptWorkerStop(failures, 'ledgerArchive', () => ledgerArchiveRuntime?.stop());
@@ -874,6 +902,7 @@ export async function createWorkerProcess(
       })
     : undefined;
   const linkHealthProbe = linkHealthProbeInjectionFromEnv(env, config.nodeEnv);
+  const linkPreviewEgress = linkPreviewEgressFromEnv(env, config.nodeEnv);
   const metrics = new InMemoryMetrics();
   const faviconObjectStore = config.faviconPolicy.enabled
     ? (await composeFaviconObjectStore(config)) ?? createDatabaseFaviconStore(database.db)
@@ -891,6 +920,7 @@ export async function createWorkerProcess(
       closeDatabase: options.closeDatabase,
       mcpReadChangeSignalSource,
       ...(linkHealthProbe === undefined ? {} : { linkHealth: linkHealthProbe }),
+      ...(linkPreviewEgress === undefined ? {} : { linkPreview: linkPreviewEgress }),
     });
   } catch (error) {
     await mcpReadChangeSignalSource?.close?.();

@@ -1,5 +1,10 @@
 import { isFaviconReadableBySubject } from '../infrastructure/database/index.js';
-import { createDatabaseFaviconStore } from '../infrastructure/collections/index.js';
+import {
+  createDatabaseFaviconStore,
+  createDatabaseLinkPreviewStore,
+  createPostgresLinkPreviewCommandUnitOfWork,
+  createPostgresLinkPreviewPublicAccess,
+} from '../infrastructure/collections/index.js';
 import { KNOWN_FAVICON_DOMAINS } from '../modules/collections/index.js';
 import { createPersistentAvatarStore } from '../infrastructure/identity/index.js';
 import { createPostgresAccountDeletionStore } from '../infrastructure/auth/business-account-unit-of-work.js';
@@ -418,6 +423,13 @@ export async function startApi(options: StartApiOptions = {}): Promise<StartedAp
     ...publicObjects.publicObjectStores,
     faviconPublicAccess: { isPubliclyAccessible: (objectId) => isFaviconPubliclyAccessible(database.db, objectId, KNOWN_FAVICON_DOMAINS), isReadableBySubject: (objectId, subjectId) => isFaviconReadableBySubject(database.db, objectId, subjectId) },
     avatarPublicAccess: { isPublicationRestricted: (objectId) => isAvatarPublicationRestricted(database.db, objectId) },
+    ...(config.linkPreview?.enabled === true ? {
+      linkPreview: {
+        store: createDatabaseLinkPreviewStore(database.db),
+        publicAccess: createPostgresLinkPreviewPublicAccess(database.db, { cancelBackend: database.cancelBackend }),
+        commands: createPostgresLinkPreviewCommandUnitOfWork(database.db),
+      },
+    } : {}),
     authRateLimiter,
     mcpRateLimiter,
     collectionsUnitOfWork: ports.collectionsUnitOfWork,

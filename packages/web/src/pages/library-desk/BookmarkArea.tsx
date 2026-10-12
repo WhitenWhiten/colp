@@ -16,6 +16,7 @@ import { hostOf } from '../../lib/libraryTree'
 import { pluralNoun } from '../../lib/plural'
 import { useBookmarkAnnotations } from '../../lib/useBookmarkAnnotations'
 import { previewCover } from '../../lib/linkPreview'
+import { useLinkPreviewRequests } from '../../lib/useLinkPreviewRequests'
 import type { useOwnedCollections } from '../../lib/useOwnedCollections'
 import type { useSharedCollections } from '../../lib/useSharedCollections'
 import { KIND_LABEL, libraryBookmarkItem } from './bookmarkItem'
@@ -133,8 +134,10 @@ export function BookmarkArea({
     () => (snap ? immediateEntries(snap.root, snap.nodes, folderId) : null),
     [folderId, snap],
   )
-  /* LP-07 Gallery: covers for what is on screen, from the stored preview images. */
+  /* LP-07 Gallery: covers for what is on screen. Owners and editors ask for
+     the missing ones (the consent that lets the server fetch private pages). */
   const [gallery, setGallery] = useDeskGallery()
+  const visibleBookmarks = filtering ? bookmarks.map((row) => row.node) : layer?.bookmarks ?? []
   /* Folder cards on the current layer: subtree bookmark count, direct
      subfolders, and (in Gallery) the first covers filed anywhere inside. */
   const folderCards = useMemo(() => {
@@ -149,6 +152,19 @@ export function BookmarkArea({
       }
     })
   }, [filtering, layer, snap])
+  // A folder's mosaic is on screen too: ask for the first few covers inside.
+  const folderCoverCandidates = gallery
+    ? folderCards.flatMap(({ inside }) => inside.slice(0, FOLDER_COVER_LIMIT))
+    : []
+  useLinkPreviewRequests({
+    collectionId: snap?.collection.id ?? null,
+    enabled: gallery && caps?.updateNode === true,
+    missingNodeIds: [...visibleBookmarks, ...folderCoverCandidates]
+      .filter((node) => !node.previewImage).map((node) => node.id),
+    onRefresh: () => {
+      if (snap) void loadTree(snap.collection.id, { silent: true })
+    },
+  })
   // Subtree total stays the headline count. "here" is the layer actually on
   // screen, and only when that layer is smaller (search replaces the layer)
   // and holds bookmarks of its own — "· 0 here" over a folders-only layer

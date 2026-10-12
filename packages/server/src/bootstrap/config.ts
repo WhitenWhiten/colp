@@ -13,6 +13,7 @@ import {
   parseOrigins,
 } from './config-parse-helpers.js';
 import { loadContentGovernanceConfig } from './config-governance.js';
+import { loadLinkPreviewFeatureConfig } from './config-link-preview.js';
 import { loadBetterAuthConfig, loadHttpSecurity } from './config-http-security.js';
 import {
   assertDatabaseConnectionBudget,
@@ -442,6 +443,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
 
   const database = loadDatabasePoolConfig(env);
   const worker = loadWorkerConcurrencyConfig(env, database);
+  const linkPreview = loadLinkPreviewFeatureConfig(env);
   assertFeedOperationsConfig(feedOperations, { workerConcurrency: worker.concurrency,
     workerBatchSize: worker.batchSize, workerLeaseDurationMs: worker.leaseDurationMs,
     workerHandlerTimeoutMs: worker.handlerTimeoutMs });
@@ -464,6 +466,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       {
         name: 'LEDGER_ARCHIVE_CONCURRENCY',
         concurrency: ledgerArchive.enabled ? ledgerArchive.concurrency : 0,
+      },
+      {
+        name: 'LINK_PREVIEW_CONCURRENCY',
+        concurrency: linkPreview.enabled ? linkPreview.workerConcurrency : 0,
       },
     ],
   });
@@ -585,6 +591,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     community,
     libraryOrder,
     faviconPolicy: loadFaviconPolicyAdmissionConfig(env),
+    linkPreview,
     feed,
     publicActivity,
     notifications,

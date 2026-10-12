@@ -41,6 +41,7 @@ import { createAnnotationsTransport } from './product-transport-annotations'
 import { createEditorTransport } from './product-transport-editor'
 import { createVersionsTransport } from './product-transport-versions'
 import { createLibraryTransport } from './product-transport-library'
+import { createLinkPreviewTransport } from './product-transport-link-preview'
 import { createRelationsTransport } from './product-transport-relations'
 import { createSearchPublicTransport } from './product-transport-search'
 import { createSessionTransport } from './product-transport-session'
@@ -56,6 +57,7 @@ export function createProductTransport(
     ...createSessionTransport(http),
     ...createEditorTransport(http),
     ...createFaviconTransport(http),
+    ...createLinkPreviewTransport(http),
     ...createSearchPublicTransport(http),
     ...createLibraryTransport(http),
     ...createSyncTransport(http),

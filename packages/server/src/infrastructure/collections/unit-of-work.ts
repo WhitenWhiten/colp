@@ -26,6 +26,7 @@ import {
 } from '../database/unit-of-work.js';
 import { createPostgresCollectionEditorSnapshotPort } from './editor-query.js';
 import { createPostgresBookmarkIconReadPort } from './bookmark-icon-postgres.js';
+import { createPostgresLinkPreviewReadPort } from './link-preview-read-postgres.js';
 import {
   createPostgresCollectionWritePort,
   createPostgresCollectionsClock,
@@ -79,6 +80,8 @@ export interface PostgresCollectionsEditorReadUnitOfWorkOptions {
   readonly faultInjector?: UnitOfWorkOptions['faultInjector'];
   readonly metrics?: Metrics;
   readonly productOrigin?: string;
+  /** KNOWN_FEATURE_LINK_PREVIEW: attach ready preview images to bookmarks. */
+  readonly linkPreviews?: boolean;
 }
 
 /**
@@ -117,6 +120,7 @@ export function createPostgresCollectionsEditorReadUnitOfWork(
             cursorSigner: options.cursorSigner,
             cursorTtlMs: options.cursorTtlMs,
             bookmarkIcons: createPostgresBookmarkIconReadPort(transaction),
+            ...(options.linkPreviews === true ? { linkPreviews: createPostgresLinkPreviewReadPort(transaction) } : {}),
             ...(options.productOrigin === undefined ? {} : { productOrigin: options.productOrigin }),
           };
           return work(ports);

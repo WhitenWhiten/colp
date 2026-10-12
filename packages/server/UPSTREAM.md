@@ -239,3 +239,20 @@ Editor reads during sync (2026-10-11):
   unknown commit outcomes retain the existing no-retry contract.
 - A real PostgreSQL regression commits an update while the editor waits
   for its shared lock and checks the fresh content revision after retry.
+
+Link previews restored (2026-10-12, A8 feature 7):
+
+- The web kept Gallery and read `previewImage`, which the server always
+  returned as null after the prune. The LP-01..05 module, worker, read port
+  and routes are back from Know-N behind `KNOWN_FEATURE_LINK_PREVIEW` (on in
+  the self-hosted preset). Departures: bytes live in PostgreSQL
+  (`link_preview_object_bytes`, migration `202610290100`) instead of R2; the
+  page fetch is a local `link-preview-page-fetch.ts` over hardened egress;
+  `GET /api/v1/link-preview/{previewId}` also serves a signed-in owner or
+  member their private collection's objects with `private, no-store`; the
+  per-bookmark preview-mode routes stay pruned (rows in
+  `bookmark_preview_prefs` are still honoured).
+- `openapi/colp-server-v1.yaml` regains the two paths, `LinkPreviewId`,
+  `LinkPreviewRequest(Accepted)`, `LinkPreviewNotFound` and two cache headers.
+- The self-hosted shared-pool worker reserve cap is 9 (was 7) and the preset
+  pool default is 12, so the API keeps 3 connections.

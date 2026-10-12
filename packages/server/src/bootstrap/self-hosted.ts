@@ -23,10 +23,12 @@ import type { ReadinessProbe } from '../infrastructure/health.js';
 import { firstRunMessage, prepareColpInstance } from '../infrastructure/auth/colp-instance-settings.js';
 
 /**
- * Link health is on and its unset default is 4. Together with the outbox
- * default of 1 and favicon job/cleanup reserves of 4 must fit the shared-pool cap of 7.
+ * Link health is on and its unset default is 4. Capped at 2 here, it fits the
+ * shared-pool cap of 9 with the outbox (1), favicon jobs and cleanup (4) and
+ * link previews (2). The pool grows to 12 so the API keeps 3 connections.
  */
 const LINK_HEALTH_SHARED_POOL_CONCURRENCY = '2';
+const SHARED_POOL_MAX = '12';
 
 export interface MigrationCurrencyGate extends ReadinessProbe {
   markCurrent(): void;
@@ -83,6 +85,9 @@ function migrationDirectory(): string | undefined {
 function capUnsetWorkerReserve(env: NodeJS.ProcessEnv): void {
   if (env.LINK_HEALTH_WORKER_CONCURRENCY === undefined || env.LINK_HEALTH_WORKER_CONCURRENCY.trim() === '') {
     env.LINK_HEALTH_WORKER_CONCURRENCY = LINK_HEALTH_SHARED_POOL_CONCURRENCY;
+  }
+  if (env.DATABASE_POOL_MAX === undefined || env.DATABASE_POOL_MAX.trim() === '') {
+    env.DATABASE_POOL_MAX = SHARED_POOL_MAX;
   }
 }
 

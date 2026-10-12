@@ -100,3 +100,13 @@ Browsers display stored objects; public pages never contact a third-party icon p
 Private objects require a current owner/member browser session and use `private, no-store` caching.
 The extension's favicon helper uploads bytes separately after syncing a bookmark; images are
 not embedded in COLP Push operations. Existing helper paths and ETag checks are preserved.
+
+### Gallery preview images
+
+Gallery cards show the bookmark page's own sharing image (`og:image`, `twitter:image` or
+`link rel=image_src`). The worker fetches pages over HTTPS with the same private-network
+blocking as favicons, decodes the image and keeps a validated copy in PostgreSQL; browsers load
+it from this server, never from the third-party site. Public and unlisted collections are filled
+in the background. A private collection's pages are fetched only after its owner or an editor
+opens it in Gallery. `KNOWN_FEATURE_LINK_PREVIEW=false` turns previews off; `LINK_PREVIEW_CONCURRENCY`
+(default 2) sets the worker's parallel fetches.

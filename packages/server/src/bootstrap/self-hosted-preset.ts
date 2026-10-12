@@ -18,8 +18,8 @@ import { createECDH, createHash, hkdfSync } from 'node:crypto';
  * - Object storage is not configured. Flag-off features that would require a
  *   bucket stay off, so loadConfig does not demand R2 credentials.
  * - KNOWN_FEATURE flags other than MCP read/write/compat, account credentials,
- *   collection history, and link health are false, which skips their
- *   production credential checks.
+ *   collection history, favicon policy, link health and link preview are
+ *   false, which skips their production credential checks.
  * - Sync Sessions are on. SYNC_OAUTH_JWKS_URI is checked with the relaxed
  *   endpoint policy, and the SYNC_OAUTH_* URLs may be loopback http where the
  *   origin may be (bootstrap/config-sync.ts).
@@ -116,6 +116,7 @@ export const FEATURE_NAMES = [
   'KNOWN_FEATURE_FEED',
   'KNOWN_FEATURE_FOLLOW',
   'KNOWN_FEATURE_LINK_HEALTH',
+  'KNOWN_FEATURE_LINK_PREVIEW',
   'KNOWN_FEATURE_MCP_COMPAT',
   'KNOWN_FEATURE_MCP_READ',
   'KNOWN_FEATURE_MCP_WRITE',
@@ -135,6 +136,7 @@ export const FEATURES_ON = new Set<string>([
   'KNOWN_FEATURE_ACCOUNT_CREDENTIALS',
   'KNOWN_FEATURE_COLLECTION_HISTORY',
   'KNOWN_FEATURE_LINK_HEALTH',
+  'KNOWN_FEATURE_LINK_PREVIEW',
 ]);
 
 const URL_NAMESPACE = '6ba7b811-9dad-11d1-80b4-00c04fd430c8';

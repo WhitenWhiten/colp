@@ -90,6 +90,12 @@ export interface AppDependencies {
   readonly faviconStore?: BookmarkFaviconObjectStore;
   readonly faviconPublicAccess?: { isPubliclyAccessible(objectId: string): Promise<boolean>; isReadableBySubject?(objectId: string, subjectId: string): Promise<boolean> };
   readonly avatarPublicAccess?: { isPublicationRestricted(objectId: string): Promise<boolean> };
+  /** LP bookmark preview images; present when KNOWN_FEATURE_LINK_PREVIEW is on. */
+  readonly linkPreview?: {
+    readonly store: import('../modules/collections/index.js').LinkPreviewObjectStore;
+    readonly publicAccess: import('./product/link-preview-routes.js').LinkPreviewPublicAccess;
+    readonly commands: import('../modules/collections/index.js').LinkPreviewCommandUnitOfWork;
+  };
   readonly collectionsUnitOfWork?: CollectionsUnitOfWork;
   readonly productCollectionMutationUnitOfWork?: ProductCollectionMutationUnitOfWork;
   /** Explicitly disable collection create/metadata-update routes in narrow test compositions. */

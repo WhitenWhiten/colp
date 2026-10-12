@@ -1,4 +1,4 @@
-import type { BookmarkNodeView } from './types'
+import type { BookmarkNodeView, LinkPreviewRequestAccepted } from './types'
 import type { BookmarkFaviconSource, FaviconCreateIconJobRequest, FaviconIconJob, FaviconIconJobAccepted, FaviconIconPolicy, FaviconIconPolicyPatch, FaviconPolicyResult, SetBookmarkFaviconSourceRequest, FaviconJobStatus } from './types'
 /**
  * Shared Product transport types. Domain transport modules and the barrel
@@ -204,6 +204,8 @@ export type ProductTransport = {
     nodeId: string,
     opts: MutationCallOptions,
   ) => Promise<BookmarkNodeView>
+  requestCollectionLinkPreviews: (collectionId: string, nodeIds: readonly string[], opts: MutationCallOptions) =>
+    Promise<LinkPreviewRequestAccepted>
   getSession: (opts?: SessionCallOptions) => Promise<SessionView>
   getMe: (opts?: SessionCallOptions) => Promise<MeView>
   updateMe: (body: UpdateMeRequest, opts: MutationCallOptions) => Promise<MeView>

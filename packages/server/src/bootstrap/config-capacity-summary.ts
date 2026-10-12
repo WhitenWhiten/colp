@@ -6,17 +6,19 @@ import { sanitizeLedgerArchiveReaderRuntimeConfig } from './config-ledger-archiv
  * Credential-free capacity snapshot for startup logs and readiness probes.
  * Never includes DATABASE_URL, secrets, or connection userinfo.
  *
- * API and worker share DATABASE_POOL_MAX (default 10). On the self-hosted
- * edition reserves at most 7 connections: 3 base workers, 2 favicon jobs
- * and 2 favicon cleanup tasks.
+ * API and worker share DATABASE_POOL_MAX (default 10; the self-hosted edition
+ * defaults it to 12). The self-hosted worker reserves at most 9 connections:
+ * the outbox, 2 link-health probes, 2 favicon jobs, 2 favicon cleanup tasks
+ * and 2 link preview fetches, which leaves the API 3.
  */
-export const SHARED_POOL_WORKER_RESERVE_MAX = 7;
+export const SHARED_POOL_WORKER_RESERVE_MAX = 9;
 
 export function workerReservedConnections(config: AppConfig): number {
   return config.worker.concurrency
     + (config.reports.schedulerEnabled ? 1 : 0)
     + (config.linkHealth.enabled ? config.linkHealth.workerConcurrency : 0)
     + (config.faviconPolicy.enabled ? 2 * config.faviconPolicy.jobConcurrency : 0)
+    + (config.linkPreview?.enabled === true ? config.linkPreview.workerConcurrency : 0)
     + (config.ledgerArchive.enabled ? config.ledgerArchive.concurrency : 0);
 }
 

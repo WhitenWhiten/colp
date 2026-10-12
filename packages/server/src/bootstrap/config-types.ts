@@ -711,6 +711,8 @@ export interface AppConfig {
   readonly libraryOrder: LibraryOrderAdmissionConfig;
   /** FO-01 favicon policy/source admission (KNOWN_FEATURE_FAVICON_POLICY). */
   readonly faviconPolicy: FaviconPolicyAdmissionConfig;
+  /** LP bookmark preview images (KNOWN_FEATURE_LINK_PREVIEW); absent in hand-built test configs. */
+  readonly linkPreview?: import('./config-link-preview.js').LinkPreviewFeatureConfig;
   readonly feed?: FeedFeatureConfig;
   readonly publicActivity: PublicActivityFeatureConfig;
   readonly notifications?: NotificationFeatureConfig;

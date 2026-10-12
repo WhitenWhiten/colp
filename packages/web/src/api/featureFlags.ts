@@ -17,6 +17,8 @@ export const FEATURE_FLAGS = {
   // links resume after sign-in.
   writeApprovals: true,
   linkHealth: true,
+  // Gallery asks for the preview images of the bookmarks on screen.
+  linkPreview: true,
 } as const
 
 export type FeatureFlag = keyof typeof FEATURE_FLAGS

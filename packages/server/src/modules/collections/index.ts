@@ -90,3 +90,4 @@ export * from './domain/bookmark-pin.js';
 export * from './application/index.js';
 
 export * from './application/actor-bookmark-read.js';
+export * from './application/link-preview-exports.js';

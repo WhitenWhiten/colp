@@ -7,6 +7,7 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 ### Added
 
 - Restored bookmark favicon upload/removal, extension capture helpers, account/source settings and durable missing-icon filling with retries and cleanup. Self-hosted instances store icons in PostgreSQL by default, with existing R2 configuration supported; private reads require a live authorized session.
+- Restored bookmark preview images for Gallery (`KNOWN_FEATURE_LINK_PREVIEW`, on in the self-hosted preset). The worker reads each bookmark page's own `og:image`, `twitter:image` or `image_src` and keeps a validated copy in PostgreSQL (`link_preview_object_bytes`), served same-origin at `GET /api/v1/link-preview/{previewId}`. Public and unlisted collections are filled in the background; a private collection's pages are fetched only after its owner or an editor opens it in Gallery (`POST /api/v1/collections/{collectionId}/link-preview-requests`). Signed-in owners and members read private previews with `private, no-store`.
 
 - `colp-server --help` (also `-h`, `help`) prints the command list and exits 0.
 - `npm run test:static` runs the static contract project; CI runs it after the unit suite.
@@ -34,7 +35,7 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 - Removed the public collections sitemap (`/sitemap-collections.xml`), which was registered unconditionally and listed collections under the hosted service's origin instead of this server's, and the Open Graph card renderer (`/c/{slug}/og-image.png`), which only served the public shell that the self-hosted preset keeps off; `satori` and `@resvg/resvg-js` leave the runtime image with it. Caddy already answered the sitemap paths with 404.
 - The OAuth `invalid_client` message for an opaque `client_id` points at this server's Agents page and `deploy/INSTALL.md`, not at the hosted service.
 - A malformed `/reports/...` URL answers the same JSON problem as any other bad path; the branded HTML page for the removed reports feature is gone.
-- Removed features that are off in the self-hosted edition and have no user story: IndexNow, the Explore shell, publishing insights, readable replicas, AI organize plans, export jobs, link previews, email without `COLP_SMTP_URL`, and classification with credits. Their routes, workers, settings and OpenAPI entries are gone; migrations are untouched. Library export (`colp-server export`, `/api/v1/collections/{id}/export`) is unaffected.
+- Removed features that are off in the self-hosted edition and have no user story: IndexNow, the Explore shell, publishing insights, readable replicas, AI organize plans, export jobs, email without `COLP_SMTP_URL`, and classification with credits. Their routes, workers, settings and OpenAPI entries are gone; migrations are untouched. Library export (`colp-server export`, `/api/v1/collections/{id}/export`) is unaffected.
 - A rejected agent commit says why (the collection changed after the plan, not yet approved, expired, denied) instead of "MCP write operation rejected."
 - `changes.get` reports `requiresApproval: false` and `approvedBy: "policy"` for a plan a trusted policy approved, matching what `nodes.move` returned.
 - Product route timeouts answer "This operation is temporarily unavailable."
@@ -80,6 +81,8 @@ and `deploy/caddy-entrypoint.sh` from the same revision. Update the checkout
 retain their CA and certificates, so this update does not require a new CA import.
 
 Operators who relied on the implicit plaintext legacy session window must set `BETTER_AUTH_SESSION_TOKEN_LEGACY_READ_UNTIL` explicitly; new installations are unaffected.
+
+Migration `202610290100_link_preview_object_bytes` adds the preview byte table. The self-hosted preset now defaults `DATABASE_POOL_MAX` to 12 and caps the worker's shared-pool reserve at 9 (two connections for link previews; `LINK_PREVIEW_CONCURRENCY`, default 2). An explicit `DATABASE_POOL_MAX` below 10 must be raised, or set `KNOWN_FEATURE_LINK_PREVIEW=false`.
 
 Migration `202610260000_mcp_plan_receipt_owner_approval` widens a check constraint and runs at start. Rolling back past it deletes owner-approved Undo receipts (their saved versions stay in History). Scripts that treated a 404 from `/api/v1/auth/key-token` as "bad key" should also accept 401.
 

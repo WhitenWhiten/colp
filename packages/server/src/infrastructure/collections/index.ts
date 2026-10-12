@@ -200,3 +200,22 @@ export type {
   FaviconWorkerRuntime,
 } from './favicon-worker.js';
 export { createDatabaseFaviconStore } from './favicon-database-store.js';
+export { createDatabaseLinkPreviewStore } from './link-preview-database-store.js';
+export { extractPreviewCandidates } from './link-preview-head.js';
+export { createPostgresLinkPreviewRepository, type LinkPreviewClaim, type LinkPreviewRepository } from './link-preview-postgres.js';
+export { createPostgresLinkPreviewReadPort } from './link-preview-read-postgres.js';
+export { createPostgresLinkPreviewPublicAccess } from './link-preview-public-access.js';
+export { createPostgresLinkPreviewCommandUnitOfWork } from './link-preview-command-postgres.js';
+export {
+  createLinkPreviewWorkerRuntime,
+  LinkPreviewWorkerLoop,
+  type LinkPreviewWorkerLogger,
+  type LinkPreviewWorkerLoopOptions,
+  type LinkPreviewWorkerRuntime,
+} from './link-preview-worker.js';
+export {
+  LINK_PREVIEW_EGRESS_FIXTURE_ENV,
+  createLinkPreviewEgressFixture,
+  linkPreviewEgressFromEnv,
+  type LinkPreviewEgressInjection,
+} from './link-preview-egress-fixture.js';

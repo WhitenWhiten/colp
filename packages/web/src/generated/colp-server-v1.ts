@@ -1913,6 +1913,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/collections/{collectionId}/link-preview-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask for preview images of bookmarks the caller is looking at
+         * @description Session + CSRF mutation for the collection owner or an editor; viewers are 403 and non-members 404. Known-Command-Id required; replays return the stored 202. Body nodeIds holds 1 to 100 distinct node ids; unknown, foreign, folder, and owner-hidden ids are skipped silently. The caller's explicit request is what allows the server to fetch the pages of a private collection. Returns the number of URLs queued (already cached URLs count too). 404 while KNOWN_FEATURE_LINK_PREVIEW is off.
+         */
+        post: operations["requestCollectionLinkPreviews"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/link-preview/{previewId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a bookmark preview image by id
+         * @description Preview image bytes: a validated copy of a bookmark page's own sharing image (og:image, twitter:image, or link rel=image_src), served from the server's origin so clients never hotlink third parties. previewId is a lowercase UUID. Anonymous readers get the image while a public or unlisted bookmark still exposes it (public, max-age=60, must-revalidate). A signed-in owner or member also gets the images of their private collections (private, no-store). Illegal ids, missing objects, objects the reader cannot see, and bytes that fail image validation share the same 404 resource_not_found shape (no existence oracle). Registered only while KNOWN_FEATURE_LINK_PREVIEW is on; otherwise every id is 404. No Set-Cookie.
+         */
+        get: operations["getLinkPreviewObject"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/collections/{collectionId}/nodes/{nodeId}/favicon": {
         parameters: {
             query?: never;
@@ -3364,6 +3404,12 @@ export interface components {
             width: number;
             height: number;
         };
+        LinkPreviewRequest: {
+            nodeIds: components["schemas"]["OpaqueId"][];
+        };
+        LinkPreviewRequestAccepted: {
+            enqueued: number;
+        };
         /**
          * Format: uri
          * @description Absolute PRODUCT_ORIGIN URL (HTTPS, or HTTP on loopback) whose path is exactly /api/v1/favicon/{uuid}. Servers never persist or return a CDN URL here.
@@ -4800,6 +4846,17 @@ export interface components {
                 };
             };
         };
+        /** @description resource_not_found for a link preview object. Illegal previewId values and missing objects share this shape (no existence oracle). */
+        LinkPreviewNotFound: {
+            headers: {
+                "Cache-Control": components["headers"]["LinkPreviewMissCache"];
+                "X-Request-Id": components["headers"]["XRequestId"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ProductErrorEnvelope"];
+            };
+        };
         /** @description resource_not_found for a favicon object. Illegal faviconId values and missing objects share this shape (no existence oracle). */
         FaviconNotFound: {
             headers: {
@@ -4813,6 +4870,8 @@ export interface components {
         };
     };
     parameters: {
+        /** @description Opaque lowercase UUID. Illegal values and missing objects share the same 404 resource_not_found shape (no existence oracle). */
+        LinkPreviewId: string;
         AccountCredentialId: components["schemas"]["OpaqueId"];
         /** @description One raw header field containing RFC entity-tag validators or *. Duplicate header fields are rejected before framework normalization. */
         IfNoneMatch: string;
@@ -4956,6 +5015,10 @@ export interface components {
         RetryAfter: number;
         /** @description Session or one-time OIDC transaction cookie. */
         SetCookie: string;
+        /** @description Short revalidated public cache while a public or unlisted bookmark exposes the image, so a later revocation takes effect; private, no-store when only the signed-in reader's own collection exposes it. */
+        LinkPreviewImageCache: "public, max-age=60, must-revalidate" | "private, no-store";
+        /** @description Short public cache for anonymous misses; private, no-store when the request carried a cookie. */
+        LinkPreviewMissCache: "public, max-age=60" | "private, no-store";
         /** @description Short public cache for favicon object misses. */
         PublicShortCache: "public, max-age=60";
         /** @description Anonymous public report projection cache policy. */
@@ -10248,6 +10311,93 @@ export interface operations {
             429: components["responses"]["FaviconOrderingError429"];
             500: components["responses"]["FaviconOrderingError500"];
             503: components["responses"]["FaviconOrderingError503"];
+        };
+    };
+    requestCollectionLinkPreviews: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Exact allowed Product Web origin. Duplicate or null values fail. */
+                Origin: components["parameters"]["Origin"];
+                /** @description Session-bound CSRF token returned by getSession. */
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+                /** @description Stable ID for one user intent. Reuse only for an exact retry of that intent. Full replay results are retained for at least 30 days. */
+                "Known-Command-Id": components["parameters"]["CommandId"];
+            };
+            path: {
+                /** @description Case-sensitive opaque Collection ID. */
+                collectionId: components["parameters"]["CollectionId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LinkPreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description The bookmark URLs were queued for preview fetching. */
+            202: {
+                headers: {
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LinkPreviewRequestAccepted"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["AuthenticationRequired"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description command_id_reused, or command_in_progress while the first attempt is running. */
+            409: {
+                headers: {
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductErrorEnvelope"];
+                };
+            };
+            410: components["responses"]["Gone"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            422: components["responses"]["InvalidDocument"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    getLinkPreviewObject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Opaque lowercase UUID. Illegal values and missing objects share the same 404 resource_not_found shape (no existence oracle). */
+                previewId: components["parameters"]["LinkPreviewId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Preview image bytes. */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["LinkPreviewImageCache"];
+                    "X-Content-Type-Options": components["headers"]["XContentTypeOptions"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/png": string;
+                    "image/jpeg": string;
+                    "image/webp": string;
+                };
+            };
+            404: components["responses"]["LinkPreviewNotFound"];
         };
     };
     uploadBookmarkFavicon: {

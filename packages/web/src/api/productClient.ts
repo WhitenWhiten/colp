@@ -27,6 +27,7 @@ import { createBookmarkPreferencesWebClient } from './product-client-bookmark-pr
 import { createProductCollectionsClient } from './product-client-collections'
 import { createProductGeneratedClient } from './product-client-generated'
 import { createProductLibraryClient } from './product-client-library'
+import { createProductLinkPreviewClient } from './product-client-link-preview'
 import { createProductSearchPublicClient } from './product-client-search-public'
 import { createProductSessionClient } from './product-client-session'
 import { createProductSyncClient } from './product-client-sync'
@@ -52,6 +53,7 @@ const searchPublicClient = createProductSearchPublicClient(productTransport)
 const libraryClient = createProductLibraryClient(productTransport, mutationCall)
 const syncClient = createProductSyncClient(productTransport, mutationCall, sessionClient.getSession)
 const generatedClient = createProductGeneratedClient(mutationCall, requireCsrf)
+const linkPreviewClient = createProductLinkPreviewClient(productTransport, mutationCall)
 
 /** The sole application-level Product client instance. */
 export const productClient = Object.freeze({
@@ -102,6 +104,7 @@ export const productClient = Object.freeze({
   abandonWriteApprovalIntent: libraryClient.abandonWriteApprovalIntent,
   getMyLinkHealth: libraryClient.getMyLinkHealth,
   enqueueMyLinkHealthChecks: libraryClient.enqueueMyLinkHealthChecks,
+  requestLinkPreviews: linkPreviewClient.requestLinkPreviews,
   createCollectionVersion: libraryClient.createCollectionVersion,
   listCollectionVersions: libraryClient.listCollectionVersions,
   getCollectionVersion: libraryClient.getCollectionVersion,

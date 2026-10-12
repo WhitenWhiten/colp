@@ -145,14 +145,14 @@ describe('self-hosted entry', () => {
     expect(seenByWorker).toBe(runtime);
     expect(seenByApi).not.toBe(migrator);
     expect(migrator.closed()).toBe(true);
-    expect(running.config.database.maxConnections).toBe(10);
+    expect(running.config.database.maxConnections).toBe(12);
     expect((await app.inject({ method: 'GET', url: '/ready' })).statusCode).toBe(200);
     await running.stop();
     expect(order).toEqual(['worker', 'api']);
     expect(shared.closed()).toBe(true);
   });
 
-  it('keeps an explicit link-health reserve and accounts for favicon workers and rejects a reserve above 7', () => {
+  it('keeps an explicit link-health reserve and accounts for favicon and link preview workers and rejects a reserve above 9', () => {
     const capped = baseEnv();
     applySelfHostedPreset(capped);
     capped.LINK_HEALTH_WORKER_CONCURRENCY = '2';
@@ -166,8 +166,8 @@ describe('self-hosted entry', () => {
     try {
       const capacity = sanitizedRuntimeCapacity(within);
       expect(capacity.database.maxConnections).toBe(10);
-      expect(capacity.workerReservedConnections).toBe(7);
-      expect(() => sanitizedRuntimeCapacity(tooWide)).toThrow(/exceeds the cap of 7/);
+      expect(capacity.workerReservedConnections).toBe(9);
+      expect(() => sanitizedRuntimeCapacity(tooWide)).toThrow(/exceeds the cap of 9/);
     } finally {
       if (previous === undefined) delete process.env.KNOWN_EDITION;
       else process.env.KNOWN_EDITION = previous;

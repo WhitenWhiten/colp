@@ -26,6 +26,8 @@ import { registerAccountCredentialSurfaces } from './product/register-account-cr
 import { registerLibraryOrderRoutes } from './product/library-order-routes.js';
 import { registerAccountProductSurfaces } from './register-account-product-surfaces.js';
 import { registerLinkHealthRoutes } from './product/link-health-routes.js';
+import { registerLinkPreviewCommandRoutes } from './product/link-preview-command-routes.js';
+import { registerLinkPreviewRoutes } from './product/link-preview-routes.js';
 import { registerCollectionExportRoutes } from './product/collection-export-routes.js';
 import { registerCollectionVersionRoutes } from './product/collection-version-routes.js';
 import { registerSearchRoutes } from './product/search-routes.js';
@@ -173,6 +175,24 @@ export function registerProductSurfaces(
     ...(metrics ? { metrics } : {}),
     publicObjectRateLimiter: publicObjectAdmissionRateLimiter,
   });
+  if (deps.linkPreview) {
+    registerLinkPreviewRoutes(app, {
+      store: deps.linkPreview.store,
+      publicAccess: deps.linkPreview.publicAccess,
+      publicObjectRateLimiter: publicObjectAdmissionRateLimiter,
+      requestTimeoutMs: config.httpSecurity.requestTimeoutMs,
+      ...(identityUnitOfWork ? { identityUnitOfWork } : {}),
+    });
+    if (identityUnitOfWork) {
+      registerLinkPreviewCommandRoutes(app, {
+        enabled: true,
+        allowedOrigins: config.allowedOrigins,
+        identityUnitOfWork,
+        unitOfWork: deps.linkPreview.commands,
+        rateLimiter: createFixedWindowRateLimiter(defaultProductRouteBudget),
+      });
+    }
+  }
   // R15-13: web client errors and Web Vitals, logged as `client_event`.
   registerClientEventRoutes(app, { allowedOrigins: config.allowedOrigins, rateLimiter: publicObjectAdmissionRateLimiter });
   if (identityUnitOfWork && productSyncCenterUnitOfWork) {

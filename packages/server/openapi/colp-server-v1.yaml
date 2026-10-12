@@ -7467,6 +7467,99 @@ paths:
         '429': { $ref: '#/components/responses/FaviconOrderingError429' }
         '500': { $ref: '#/components/responses/FaviconOrderingError500' }
         '503': { $ref: '#/components/responses/FaviconOrderingError503' }
+  /api/v1/collections/{collectionId}/link-preview-requests:
+    post:
+      tags: [ Collections ]
+      operationId: requestCollectionLinkPreviews
+      summary: Ask for preview images of bookmarks the caller is looking at
+      description: >-
+        Session + CSRF mutation for the collection owner or an editor; viewers
+        are 403 and non-members 404. Known-Command-Id required; replays return
+        the stored 202. Body nodeIds holds 1 to 100 distinct node ids; unknown,
+        foreign, folder, and owner-hidden ids are skipped silently. The caller's
+        explicit request is what allows the server to fetch the pages of a
+        private collection. Returns the number of URLs queued (already cached
+        URLs count too). 404 while KNOWN_FEATURE_LINK_PREVIEW is off.
+      security:
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CollectionId'
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CsrfToken'
+        - $ref: '#/components/parameters/CommandId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LinkPreviewRequest' }
+      responses:
+        '202':
+          description: The bookmark URLs were queued for preview fetching.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/PrivateNoStore' }
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LinkPreviewRequestAccepted' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/AuthenticationRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: command_id_reused, or command_in_progress while the first attempt is running.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/PrivateNoStore' }
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProductErrorEnvelope' }
+        '410': { $ref: '#/components/responses/Gone' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '422': { $ref: '#/components/responses/InvalidDocument' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/v1/link-preview/{previewId}:
+    get:
+      tags: [ Collections ]
+      operationId: getLinkPreviewObject
+      summary: Get a bookmark preview image by id
+      description: >-
+        Preview image bytes: a validated copy of a bookmark page's own sharing
+        image (og:image, twitter:image, or link rel=image_src), served from the
+        server's origin so clients never hotlink third parties. previewId is a
+        lowercase UUID. Anonymous readers get the image while a public or
+        unlisted bookmark still exposes it (public, max-age=60,
+        must-revalidate). A signed-in owner or member also gets the images of
+        their private collections (private, no-store). Illegal ids, missing
+        objects, objects the reader cannot see, and bytes that fail image
+        validation share the same 404 resource_not_found shape (no existence
+        oracle). Registered only while KNOWN_FEATURE_LINK_PREVIEW is on;
+        otherwise every id is 404. No Set-Cookie.
+      security:
+        - {}
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/LinkPreviewId'
+      responses:
+        '200':
+          description: Preview image bytes.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/LinkPreviewImageCache' }
+            X-Content-Type-Options:
+              $ref: '#/components/headers/XContentTypeOptions'
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            image/png:
+              schema: { type: string, format: binary }
+            image/jpeg:
+              schema: { type: string, format: binary }
+            image/webp:
+              schema: { type: string, format: binary }
+        '404':
+          $ref: '#/components/responses/LinkPreviewNotFound'
   /api/v1/collections/{collectionId}/nodes/{nodeId}/favicon:
     post:
       tags: [ Nodes ]
@@ -7741,6 +7834,18 @@ components:
         Cookie and Authorization together are rejected. JWT aud is
         PRODUCT_ORIGIN.
   parameters:
+    LinkPreviewId:
+      name: previewId
+      in: path
+      required: true
+      description: >-
+        Opaque lowercase UUID. Illegal values and missing objects share the same
+        404 resource_not_found shape (no existence oracle).
+      schema:
+        type: string
+        minLength: 36
+        maxLength: 36
+        pattern: '^[a-f0-9-]{36}$'
     AccountCredentialId:
       name: credentialId
       in: path
@@ -8352,6 +8457,19 @@ components:
       schema:
         type: string
         minLength: 1
+    LinkPreviewImageCache:
+      description: >-
+        Short revalidated public cache while a public or unlisted bookmark
+        exposes the image, so a later revocation takes effect; private, no-store
+        when only the signed-in reader's own collection exposes it.
+      schema:
+        type: string
+        enum: [ 'public, max-age=60, must-revalidate', 'private, no-store' ]
+    LinkPreviewMissCache:
+      description: Short public cache for anonymous misses; private, no-store when the request carried a cookie.
+      schema:
+        type: string
+        enum: [ 'public, max-age=60', 'private, no-store' ]
     PublicShortCache:
       description: Short public cache for favicon object misses.
       schema:
@@ -12846,6 +12964,23 @@ components:
         - url
         - width
         - height
+    LinkPreviewRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        nodeIds:
+          type: array
+          minItems: 1
+          maxItems: 100
+          uniqueItems: true
+          items: { $ref: '#/components/schemas/OpaqueId' }
+      required: [ nodeIds ]
+    LinkPreviewRequestAccepted:
+      type: object
+      additionalProperties: false
+      properties:
+        enqueued: { type: integer, minimum: 0, maximum: 100 }
+      required: [ enqueued ]
     BookmarkFaviconUrl:
       type: string
       format: uri
@@ -16155,6 +16290,16 @@ components:
                           type: string,
                           enum: [ invalid_request, invalid_json, invalid_query, invalid_cursor ]
                         }
+    LinkPreviewNotFound:
+      description: >-
+        resource_not_found for a link preview object. Illegal previewId values
+        and missing objects share this shape (no existence oracle).
+      headers:
+        Cache-Control: { $ref: '#/components/headers/LinkPreviewMissCache' }
+        X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ProductErrorEnvelope' }
     FaviconNotFound:
       description: >-
         resource_not_found for a favicon object. Illegal faviconId values and
