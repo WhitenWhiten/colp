@@ -1,6 +1,7 @@
 import { createPhase4bMcpResult } from './results.js';
 import { withWriteReceipt, withWriteReceiptSchema } from './write-result-receipt.js';
 import { assertHostPlanOperations, narrowHostPlanSchema } from './plan-tool-schema.js';
+import { withApprovalInteraction, withApprovalSchema } from './approval-interaction.js';
 import type { Phase4bMcpChangePlanService } from './change-plan-service.js';
 import { PHASE4B_MCP_MOVE_BATCH_LIMIT } from './change-plan-planner.js';
 import { MCP_OWN_DATA_DEFAULT_BUDGET, snapshotMcpOwnData as snapshotPhase4bData } from './own-data.js';
@@ -598,7 +599,7 @@ function withMcpAccountSubject(
             ...(plan.versionId ? { versionId: plan.versionId } : {}),
           } }, cache: { ttlMs: 0, cacheScope: 'private' } }, true);
         }
-        return withWriteReceipt(await adapter.callTool(context, input), String(call.name));
+        return withWriteReceipt(withApprovalInteraction(await adapter.callTool(context, input), context, call.inputResponses), String(call.name));
       }).catch(rethrowPhase4bMcpWriteAdapterError),
     recordOutOfBandApproval: (planId, context) =>
       bindMcpAccountSubject(context, () => adapter.recordOutOfBandApproval(planId, context)),
@@ -610,7 +611,7 @@ function withMcpAccountSubject(
 function withHostWriteToolDescriptions(listed: Mcp20260728Result): Mcp20260728Result {
   const tools = listed.tools;
   if (!Array.isArray(tools)) return listed;
-  return Object.freeze({
+  return snapshotPhase4bData({
     ...listed,
     tools: Object.freeze(tools.map((tool) => {
       if (typeof tool !== 'object' || tool === null) return tool;
@@ -618,10 +619,11 @@ function withHostWriteToolDescriptions(listed: Mcp20260728Result): Mcp20260728Re
       const description = name === 'changes.plan'
         ? PHASE4B_MCP_CHANGES_PLAN_DESCRIPTION
         : typeof name === 'string' ? PHASE4B_MCP_WRITE_TOOL_DESCRIPTIONS[name] : undefined;
-      if (description === undefined) return tool;
-      return Object.freeze({ ...narrowHostPlanSchema(withWriteReceiptSchema(tool as Record<string, unknown>)), description });
+      const surfaced = withApprovalSchema(tool as Record<string, unknown>);
+      if (description === undefined) return surfaced;
+      return Object.freeze({ ...narrowHostPlanSchema(withWriteReceiptSchema(surfaced)), description });
     })),
-  });
+  }, MCP_OWN_DATA_DEFAULT_BUDGET) as Mcp20260728Result;
 }
 
 /**
