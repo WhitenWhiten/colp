@@ -77,7 +77,7 @@ describeWithPostgres('R11 member recall plan evidence at 80k volume', () => {
     planClient = await isolated.runtime.pool.connect();
     await planClient.query('set max_parallel_workers_per_gather=0');
     await planClient.query(`set pg_trgm.word_similarity_threshold='0.15'`);
-  }, 360_000);
+  }, 600_000);
 
   afterAll(async () => {
     planClient?.release();
@@ -499,6 +499,10 @@ async function seedMemberRecallPlanCorpus(isolatedRuntime: IsolatedPostgresRunti
     // fanout seeding idiom); the beforeAll wall-clock cap still bounds the whole seed.
     await client.query('set local statement_timeout = 0');
     await client.query('set constraints all deferred');
+    // The per-row Snapshot capacity trigger queues a dirty row (and a deferred
+    // FK check) for each of the ~135k seeded nodes, which pushed this seed past
+    // the beforeAll cap on CI. Search plans never read the capacity ledger.
+    await client.query('alter table nodes disable trigger canonical_tree_capacity_node_change');
 
     await client.query(`
       insert into accounts(id, subject_id, status, security_epoch) values
@@ -679,6 +683,9 @@ async function seedMemberRecallPlanCorpus(isolatedRuntime: IsolatedPostgresRunti
                 from generate_series(1, 10000) n) seeded
     `);
 
+    // ALTER TABLE refuses while deferred FK checks on nodes are still pending.
+    await client.query('set constraints all immediate');
+    await client.query('alter table nodes enable trigger canonical_tree_capacity_node_change');
     await client.query('commit');
   } catch (error: unknown) {
     await client.query('rollback');

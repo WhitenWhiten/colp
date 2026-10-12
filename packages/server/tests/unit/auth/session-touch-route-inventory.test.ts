@@ -471,6 +471,7 @@ const SESSION_GATED_GET_GOLD = [
   '/api/v1/collections/:collectionId/relations',
   '/api/v1/collections/:collectionId/relations/:relationId',
   '/api/v1/favicon/:faviconId',
+  '/api/v1/link-preview/:previewId',
   '/api/v1/mcp/approvals',
   '/api/v1/mcp/approvals/:planId',
   '/api/v1/me',

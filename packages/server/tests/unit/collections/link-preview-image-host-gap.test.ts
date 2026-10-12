@@ -22,6 +22,11 @@ function repository(due: LinkPreviewClaim[]): LinkPreviewRepository {
   };
 }
 
+// The gate stamps its start before the lease check; the connector below stamps
+// after it, and Date.now() truncates to whole milliseconds, so a 300ms gate can
+// read as 299ms here. Ungated fetches would start ~0ms apart.
+const CLOCK_SLACK_MS = 5;
+
 test('image candidates on one victim host honor the configured host gap', async () => {
   const png = makePng(400, 210);
   const victim = 'https://victim.example/image.png';
@@ -45,7 +50,7 @@ test('image candidates on one victim host honor the configured host gap', async 
   });
   await loop.runOnce();
   assert.equal(victimStarts.length, 2);
-  assert.ok(victimStarts[1]! - victimStarts[0]! >= 300, `victim fetches ${victimStarts.join(',')}`);
+  assert.ok(victimStarts[1]! - victimStarts[0]! >= 300 - CLOCK_SLACK_MS, `victim fetches ${victimStarts.join(',')}`);
 });
 
 test('a redirect hop is gated by the destination host, not the original image host', async () => {
@@ -75,7 +80,7 @@ test('a redirect hop is gated by the destination host, not the original image ho
   });
   await loop.runOnce();
   assert.equal(victimStarts.length, 2);
-  assert.ok(victimStarts[1]! - victimStarts[0]! >= 300, `redirected victim fetches ${victimStarts.join(',')}`);
+  assert.ok(victimStarts[1]! - victimStarts[0]! >= 300 - CLOCK_SLACK_MS, `redirected victim fetches ${victimStarts.join(',')}`);
 });
 
 test('crossed image hosts finish instead of holding each page host', async () => {
