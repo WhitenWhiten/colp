@@ -25,7 +25,6 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 ### Changed
 
 - Web: sign-in, registration, Agents, Approvals, Get started, Sync, Import, the shared collection page, Search, About and the 404 page are redesigned on Know-N's palette with the pegboard and ribbon motif. Collaborators is hidden until multi-user, and the account menu no longer shows the generated profile handle.
-
 - The in-memory MCP rate-limit stores reclaim expired buckets in a bounded step (at most 64 entries) when at capacity, instead of scanning every bucket; restarted buckets are re-inserted at the tail so the map stays ordered by window start.
 - `COLP_SERVER_SECRET` errors now say how the value was interpreted (base64 or UTF-8) and how many bytes it produced.
 - Removed the hosted public collection shell: the origin-injected HTML and Markdown for `/c/{slug}`, `/share`, `/path` and `/graph`, with `KNOWN_FEATURE_PUBLIC_SHELL_META` and `WEB_SHELL_ORIGIN`. It fetched and rewrote the hosted service's `index.html` and linked to its origin; the self-hosted web app renders `/c/{slug}` itself behind Caddy. `/c/{slug}` on the server still answers COLP clients (collection-metadata Accept or `Collection-Protocol-Version`) with the canonical tombstone; any other Accept answers `resource_not_found`.
@@ -74,6 +73,18 @@ retain their CA and certificates, so this update does not require a new CA impor
 Operators who relied on the implicit plaintext legacy session window must set `BETTER_AUTH_SESSION_TOKEN_LEGACY_READ_UNTIL` explicitly; new installations are unaffected.
 
 Migration `202610260000_mcp_plan_receipt_owner_approval` widens a check constraint and runs at start. Rolling back past it deletes owner-approved Undo receipts (their saved versions stay in History). Scripts that treated a 404 from `/api/v1/auth/key-token` as "bad key" should also accept 401.
+
+## [0.1.0-rc.3]
+
+### Changed
+
+- Release candidate for the 0.1.0 acceptance runs, built from `main` with every change listed under Unreleased since 0.1.0-rc.2. Highlights: a manually approved agent plan saves a version and can be undone; `nodes.move` moves up to 50 nodes in one plan; plans on a collection over the 2,000-node history limit are rejected before they change anything; an agent's OAuth sign-in works when the owner is signed out; IP-based HTTPS works without SNI; link health probes plain `http://` bookmarks; the web UI is redesigned; Product API 1.93.0 adds `nodeKind` to search results and `username` to `/api/v1/me`.
+
+### Upgrade notes
+
+From 0.1.0-rc.2, update the `deploy/` files from the same revision (`git pull --ff-only`) and recreate the active TLS ingress, for example
+`docker compose --profile tls-internal up -d --no-deps --force-recreate caddy-tls-internal`
+(`caddy-tls-auto` for the `tls-auto` profile). Migration `202610260000_mcp_plan_receipt_owner_approval` runs at start. An operator who relied on the implicit plaintext legacy session window must set `BETTER_AUTH_SESSION_TOKEN_LEGACY_READ_UNTIL` explicitly. The final 0.1.0 release has not been accepted.
 
 ## [0.1.0-rc.2]
 
