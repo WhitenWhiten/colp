@@ -704,6 +704,24 @@ test('anonymous tools/list returns the public read tools', async () => {
   assert.equal(tools.some((tool) => /write|plan|commit|cancel/iu.test(tool.name)), false);
 });
 
+test('ordinary tool calls accept clients with no optional capabilities', async () => {
+  const server = await startApi(mcpEnv(), {}, hostToolSurface());
+  const body = JSON.parse(modernBody('tools/call', 202, {
+    name: 'collections.get',
+    arguments: { collectionId: 'collection-1 公共' },
+  }));
+  body.params._meta['io.modelcontextprotocol/clientCapabilities'] = {};
+  const response = await postJson(server, 'tools/call', 202, {
+    headers: {
+      'mcp-name': 'collections.get',
+      [`mcp-param-${PHASE4B_MCP_READ_TOOL_COLLECTION_ID_HEADER}`]: encodeMcp20260728ParamValue('collection-1 公共'),
+    },
+    body: JSON.stringify(body),
+  });
+  assert.equal(response.status, 200);
+  assert.equal(parseJsonRpc(await response.text()).result?.resultType, 'complete');
+});
+
 test('authenticated Modern clients discover and call bounded read Tools with encoded custom headers', async () => {
   const fixture = await authFixture();
   const server = await startApi(mcpEnv(), { oauthVerifier: fixture.verifier }, hostToolSurface());

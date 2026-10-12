@@ -57,7 +57,6 @@ import {
   createPhase4bMcpRequestContext,
   createPhase4bMcpResult,
   normalizePhase4bMcpError,
-  requirePhase4bMcpClientCapability,
   validatePhase4bMcpDiscoverRequest,
   McpOauthVerificationError,
   requiredScopesForMcpReadOperation,
@@ -1206,7 +1205,6 @@ async function dispatch(
     }
     case 'tools/call': {
       const params = resourceMethodParams(body);
-      requirePhase4bMcpClientCapability(context, ['tools', 'call']);
       try {
         return {
           kind: 'result',
