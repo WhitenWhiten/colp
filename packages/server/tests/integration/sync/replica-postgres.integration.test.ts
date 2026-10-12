@@ -94,6 +94,7 @@ describeWithPostgres('P3-05 authoritative Replica PostgreSQL port', () => {
       'sync_pull_cursor_evidence', 'sync_pull_cursor_lineage', 'sync_pull_cursor_recovery_proofs',
       'sync_pull_page_evidence',
       'sync_purged_node_id_watermarks',
+      'sync_push_request_bindings',
       'sync_recovery_ack_receipts', 'sync_recovery_capabilities',
       'sync_replica_generations',
       'sync_replica_id_ledger', 'sync_replica_retirement_receipts', 'sync_replicas', 'sync_resolution_authors', 'sync_restored_tombstones',
