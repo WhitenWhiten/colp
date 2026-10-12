@@ -86,7 +86,7 @@ export function legacyCallToolExecutionClass(
 export function mapLegacyCallToolResult(result: McpApplicationToolResult): CallToolResult {
   if (result.kind === 'complete') {
     const content = Array.isArray(result.content)
-      ? result.content as CallToolResult['content']
+      ? (result.content as CallToolResult['content']).map(omitCompatFractionalPriority)
       : [{ type: 'text' as const, text: '' }];
     return {
       content,
@@ -112,6 +112,22 @@ export function mapLegacyCallToolResult(result: McpApplicationToolResult): CallT
     content: [{ type: 'text', text: JSON.stringify(awaiting) }],
     structuredContent: { ...awaiting },
   };
+}
+
+/**
+ * Codex 0.162.1 rejects fractional annotation priorities with `Unexpected
+ * response type`. Omit this optional hint at the compat boundary without
+ * changing the shared result used by the strict endpoint.
+ */
+function omitCompatFractionalPriority(
+  block: CallToolResult['content'][number],
+): CallToolResult['content'][number] {
+  if (block.annotations?.priority === undefined || Number.isInteger(block.annotations.priority)) {
+    return block;
+  }
+  const annotations = { ...block.annotations };
+  delete annotations.priority;
+  return { ...block, annotations };
 }
 
 function schemaForCompatValidator(

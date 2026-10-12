@@ -392,6 +392,7 @@ test('collections.get_snapshot returns a bounded COLP Resource Link result', asy
   assert.equal(link.type, 'resource_link');
   assert.equal(link.uri, `colp://${SERVER_UUID}/collections/collection-1/snapshot`);
   assert.equal(link.mimeType, 'application/vnd.collection-protocol.snapshot+json');
+  assert.equal((link.annotations as { readonly priority?: number }).priority, 0.8);
   assert.equal(
     (link.annotations as { readonly lastModified?: string }).lastModified,
     '2026-08-05T00:00:00.000Z',

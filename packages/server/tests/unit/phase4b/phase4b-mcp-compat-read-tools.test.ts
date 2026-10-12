@@ -150,11 +150,19 @@ test('compat tools/call collections.get_snapshot returns resource_link content w
   );
   assert.equal(called.statusCode, 200);
   const result = compatJsonRpc(called).result ?? {};
-  const content = result.content as readonly { readonly type?: string; readonly uri?: string; readonly text?: string }[] | undefined;
+  const content = result.content as readonly {
+    readonly type?: string;
+    readonly uri?: string;
+    readonly text?: string;
+    readonly annotations?: { readonly audience?: readonly string[]; readonly lastModified?: string; readonly priority?: number };
+  }[] | undefined;
   assert.equal(content?.[0]?.type, 'text');
   assert.equal(JSON.parse(content?.[0]?.text ?? '{}').collection.id, 'collection-1');
   assert.equal(content?.[1]?.type, 'resource_link');
   assert.match(content?.[1]?.uri ?? '', /\/collections\/collection-1\/snapshot$/u);
+  assert.equal(content?.[1]?.annotations?.priority, undefined);
+  assert.deepEqual(content?.[1]?.annotations?.audience, ['user', 'assistant']);
+  assert.equal(typeof content?.[1]?.annotations?.lastModified, 'string');
   assert.equal(
     (result.structuredContent as { collection?: { id?: string } } | undefined)?.collection?.id,
     'collection-1',

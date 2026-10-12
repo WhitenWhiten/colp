@@ -141,6 +141,37 @@ test('legacy mapper emits awaiting_approval in both text and structuredContent w
   assert.doesNotMatch(JSON.stringify(mapped), /bindingSummary|leaked/u);
 });
 
+test('legacy mapper omits fractional priorities without mutating shared content or snapshot data', () => {
+  const structuredContent = Object.freeze({ collection: Object.freeze({ id: 'collection-1' }) });
+  const text = Object.freeze({ type: 'text' as const, text: JSON.stringify(structuredContent) });
+  const link = Object.freeze({
+    type: 'resource_link' as const,
+    name: 'Snapshot',
+    uri: 'colp://server/collections/collection-1/snapshot',
+    mimeType: 'application/vnd.collection-protocol.snapshot+json',
+    annotations: Object.freeze({
+      audience: Object.freeze(['user', 'assistant'] as const),
+      priority: 0.8,
+      lastModified: '2026-08-05T00:00:00.000Z',
+    }),
+  });
+  const content = Object.freeze([text, link]);
+  const mapped = mapLegacyCallToolResult({ kind: 'complete', content, structuredContent });
+  const { priority, ...annotations } = link.annotations;
+  assert.equal(priority, 0.8);
+  assert.deepEqual(mapped.content, [text, { ...link, annotations }]);
+  assert.equal(link.annotations.priority, 0.8);
+  assert.equal(mapped.structuredContent, structuredContent);
+});
+
+test('legacy mapper preserves integer and absent annotation priorities', () => {
+  for (const annotations of [{ priority: 0 }, { priority: 1 }, { audience: ['assistant'] as const }]) {
+    const content = [{ type: 'text' as const, text: 'unchanged', annotations }];
+    const mapped = mapLegacyCallToolResult({ kind: 'complete', content });
+    assert.deepEqual(mapped.content, content);
+  }
+});
+
 test('compatListedToolInputSchema compiles COLP $ref write schemas', () => {
   assert.doesNotThrow(() => compatListedToolInputSchema({
     name: 'changes.commit',

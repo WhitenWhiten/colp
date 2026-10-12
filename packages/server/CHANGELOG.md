@@ -41,6 +41,7 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 
 ### Fixed
 
+- MCP compatibility tool results omit fractional annotation priorities, fixing `collections.get_snapshot` failing with `Unexpected response type` in Codex 0.162.1. Snapshot data, resource links and other annotations are preserved.
 - Collection pages retry database-aborted reads during concurrent bookmark sync, instead of immediately returning 503. Each attempt keeps the shared collection lock, repeatable-read snapshot, authorization and cursor revision checks; persistent conflicts still fail after three attempts.
 - IP-based HTTPS works through Docker's TLS ingress when the client omits SNI. Both TLS Compose services derive Caddy's default certificate selection name from `COLP_SERVER_ORIGIN` (IPv4, IPv6 and DNS, with optional ports), without an extra operator setting. CI verifies real certificate-chain and identity checks against the production Compose configuration.
 - Web: copying on the Agents page falls back to a selection copy when the Clipboard API is unavailable or rejects access, and reports a failure when neither method works.
