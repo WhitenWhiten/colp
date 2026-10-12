@@ -300,7 +300,6 @@ export function Agents({
         title="Agents"
         documentTitle="Agents"
         lede="Let AI agents read and organize your library over MCP. You approve what they change."
-        actions={isLoggedIn ? <Link to="/approvals" className="btn btn-secondary btn-sm">Open approvals</Link> : undefined}
       />
 
       <div className="agents-layout">
@@ -336,7 +335,7 @@ export function Agents({
               {!loading && !loadError && agents.length === 0 && (
                 <EmptyState
                   icon="compass"
-                  className="agents-empty"
+                  className="empty-state--compact agents-empty"
                   title="No agents yet"
                   description="Connect Claude Code or Codex below, or issue a key for a script. Each agent shows up here with its own approval policy."
                 />
@@ -381,6 +380,12 @@ export function Agents({
               </li>
             ))}
           </ul>
+          {isLoggedIn && (
+            <Link to="/approvals" className="agents-aside-link">
+              Review plans on Approvals
+              <Icon name="arrow-right" />
+            </Link>
+          )}
         </aside>
       </div>
     </PageShell>

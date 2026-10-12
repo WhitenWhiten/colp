@@ -3,7 +3,7 @@ import type { AgentAuditRecord, AgentPolicy, AgentSummary } from '../../api/agen
 import { Icon } from '../../components/Icon'
 import { StatusBadge, type StatusTone } from '../../components/StatusBadge'
 import { formatDate, formatDateTime, formatRelative } from '../../lib/formatDate'
-import { consentScopeMeta } from '../../lib/oauthScopes'
+import { consentScopeMeta, groupScopes } from '../../lib/oauthScopes'
 
 export type AgentActivity =
   | { status: 'closed' }
@@ -55,16 +55,19 @@ function ScopeList({ scopes, kind }: { scopes: readonly string[]; kind: AgentSum
       </p>
     )
   }
+  // One chip per permission group; the scope names are in the tooltip.
   return (
     <ul className="agent-scopes" aria-label="Permissions">
-      {scopes.map((scope) => {
-        const meta = consentScopeMeta(scope)
-        return (
-          <li key={scope} className="agent-scope" title={scope}>
-            {meta ? meta.name : <code>{scope}</code>}
-          </li>
-        )
-      })}
+      {groupScopes(scopes).map((group) => (
+        <li
+          key={group.id}
+          className="agent-scope"
+          title={group.scopes.map((scope) => consentScopeMeta(scope)?.name ?? scope).join(', ')}
+        >
+          <Icon name={group.icon} />
+          {group.name}
+        </li>
+      ))}
     </ul>
   )
 }
