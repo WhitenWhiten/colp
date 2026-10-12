@@ -18,9 +18,8 @@ import { buildElement, computedFor, mountCascade, prop, unmountCascade } from '.
 
 const stylesDir = resolve(import.meta.dirname)
 
-/* The Know-N checkout kept popup.css next to Known-Frontend. This copy
-   vendors that file so the contract still runs inside the colp repo. */
-const extensionPopupPath = resolve(stylesDir, '../../upstream-fixtures/popup.css')
+/* The browser extension's popup, which shares these wrap rules. */
+const extensionPopupPath = resolve(stylesDir, '../../../extension/popup.css')
 
 /** Entry order from main.tsx plus the route-owned files these elements live in. */
 const CASCADE = [
