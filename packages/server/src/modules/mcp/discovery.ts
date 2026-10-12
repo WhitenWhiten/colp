@@ -46,6 +46,14 @@ export const PHASE4B_MCP_DISCOVERY_CAPABILITIES = Object.freeze({
   }),
 } as const);
 
+export const PHASE4B_MCP_INSTRUCTIONS =
+  'Use collections.list for owned libraries; resources/list lists published libraries. '
+  + 'Read collections.get or nodes.get for write baseRevision: publication revisions are different fences. '
+  + 'For direct writes omit dryRun to apply, or set dryRun true to preview. '
+  + 'changes.plan with dryRun true stores a real pending plan. '
+  + 'Check applied and status before committing: consumed means already committed. '
+  + 'Show approvalUri to the owner, then use changes.get and changes.commit after approval.';
+
 /** Builds a fresh frozen discovery result; never accepts request-derived input. */
 export function createPhase4bMcpDiscoverResult(
   writeEnabled = false,
@@ -53,6 +61,7 @@ export function createPhase4bMcpDiscoverResult(
   return createMcp20260728DiscoverResult({
     serverInfo: resolvePhase4bMcpServerInfo(writeEnabled),
     capabilities: PHASE4B_MCP_DISCOVERY_CAPABILITIES,
+    instructions: PHASE4B_MCP_INSTRUCTIONS,
   });
 }
 

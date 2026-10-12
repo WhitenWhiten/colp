@@ -109,7 +109,7 @@ test('empty resource and tool list ports return complete cacheable Modern result
     assert.equal(response.status, 200, method);
     const payload = parseJsonRpc(await response.text());
     assert.equal(payload.result?.resultType, 'complete', method);
-    assert.equal(payload.result?.ttlMs, 0, method);
+    assert.equal(payload.result?.ttlMs, method === 'tools/list' ? 30_000 : method === 'resources/templates/list' ? 60_000 : 0, method);
   }
 
   const resources = parseJsonRpc(await (await postJson(server, 'resources/list', 11)).text());

@@ -6,3 +6,5 @@
  * projections must stamp public cache explicitly.
  */
 export const PHASE4B_MCP_PUBLIC_READ_CACHE_TTL_MS = 60_000;
+/** Catalog caching is private to the caller's authorization context. Calls still authorize afresh. */
+export const PHASE4B_MCP_TOOL_CATALOG_CACHE_TTL_MS = 30_000;

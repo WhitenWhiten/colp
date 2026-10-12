@@ -328,7 +328,7 @@ describe('P4B-R07 MCP resource transport shell', () => {
     assert.equal(response.status, 200);
     const payload = parseJsonRpc(await response.text());
     assert.equal(payload.result?.resultType, 'complete');
-    assert.equal(payload.result?.ttlMs, 0);
+    assert.equal(payload.result?.ttlMs, 60_000);
     assert.equal(payload.result?.cacheScope, 'public');
     assert.deepEqual(payload.result?.resourceTemplates, expectedTemplates);
     assert.deepEqual(

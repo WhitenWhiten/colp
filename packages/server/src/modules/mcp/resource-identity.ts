@@ -23,11 +23,12 @@ import {
   type McpReadFeatureConfig,
   type McpReadFeatureConfigAssertOptions,
 } from './config.js';
+import { PHASE4B_MCP_PUBLIC_READ_CACHE_TTL_MS } from './read-cache.js';
 
 /** Conservative cache shell for the static public Resource template set. */
 export const PHASE4B_MCP_RESOURCE_TEMPLATES_CACHE_METADATA: Mcp20260728CacheMetadata =
   Object.freeze({
-    ttlMs: 0,
+    ttlMs: PHASE4B_MCP_PUBLIC_READ_CACHE_TTL_MS,
     cacheScope: 'public',
   } as const);
 
