@@ -106,7 +106,7 @@ describe('Settings dialog routing', () => {
     expect(router.state.location.search).toBe('?settings=nope')
     expect(document.querySelector('[role="dialog"]')).not.toBeNull()
     expect(document.querySelector('[data-settings-nav] [aria-current="true"]')?.textContent).toBe('Profile')
-    expect(document.querySelector('#set-handle')).not.toBeNull()
+    expect(document.querySelector('#set-name')).not.toBeNull()
   })
 
   it('switches sections with replace and does not grow history', () => {

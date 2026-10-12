@@ -3,18 +3,12 @@ import { isProductApiError, productClient } from '../../api'
 import { useAuth } from '../../auth/AuthContext'
 import { useToast } from '../AppToast'
 
-/**
- * Mirrors HANDLE_CLAIM_MAX in the identity domain. The wire contract still
- * accepts 64 so handles minted under the retired opaque scheme keep resolving;
- * this is the bound the server applies to a handle changing hands.
- */
-const HANDLE_CLAIM_MAX = 30
-
 export function ProfileSection({ onDirtyChange }: { onDirtyChange?: (dirty: boolean) => void }) {
   const [name, setName] = useState('')
+  // There are no public profile pages, so the generated handle and the About
+  // text are not edited here; both are sent back unchanged so saving never
+  // changes them. The sign-in username is what identifies the owner.
   const [handle, setHandle] = useState('')
-  // There are no public profile pages, so the About text is not edited
-  // here; it is sent back unchanged so saving never clears it.
   const [about, setAbout] = useState('')
   const [savingProfile, setSavingProfile] = useState(false)
   const [profileDirty, setProfileDirty] = useState(false)
@@ -57,11 +51,9 @@ export function ProfileSection({ onDirtyChange }: { onDirtyChange?: (dirty: bool
         if (err.fieldErrors.length > 0) {
           setProfileError(null)
         } else {
-          const message = err.code === 'handle_taken'
-            ? 'That handle is already taken.'
-            : err.code === 'csrf_failed'
-              ? 'Session security token expired. Try again.'
-              : err.recoveryHint
+          const message = err.code === 'csrf_failed'
+            ? 'Session security token expired. Try again.'
+            : err.recoveryHint
           setProfileError(message)
         }
       } else {
@@ -76,7 +68,7 @@ export function ProfileSection({ onDirtyChange }: { onDirtyChange?: (dirty: bool
     <section className="settings-section">
       <div className="settings-section-head">
         <h3 className="settings-toggle-label">Profile</h3>
-        <p className="meta">Your name and handle on this server.</p>
+        <p className="meta">Your name in the account menu and on collections you share.</p>
       </div>
       <form
         className="stack settings-form gap-4"
@@ -87,12 +79,13 @@ export function ProfileSection({ onDirtyChange }: { onDirtyChange?: (dirty: bool
           <input id="set-name" value={name} disabled={bootstrapping || !user || savingProfile} aria-invalid={!!fieldErrors['/displayName']} aria-describedby={fieldErrors['/displayName'] ? 'set-name-error' : undefined} onChange={(e) => { setName(e.target.value); setProfileDirty(true) }} />
           {fieldErrors['/displayName'] && <span className="field-error" id="set-name-error" role="alert" data-testid="field-error">{fieldErrors['/displayName']}</span>}
         </div>
-        <div className="field">
-          <label htmlFor="set-handle">Handle</label>
-          <input id="set-handle" value={handle} maxLength={HANDLE_CLAIM_MAX} disabled={bootstrapping || !user || savingProfile} aria-invalid={!!fieldErrors['/handle']} aria-describedby={fieldErrors['/handle'] ? 'set-handle-hint set-handle-error' : 'set-handle-hint'} onChange={(e) => { setHandle(e.target.value); setProfileDirty(true) }} />
-          <span className="field-hint" id="set-handle-hint">Shown in your account menu. Change it whenever you like.</span>
-          {fieldErrors['/handle'] && <span className="field-error" id="set-handle-error" role="alert" data-testid="field-error">{fieldErrors['/handle']}</span>}
-        </div>
+        {user?.username && (
+          <div className="field">
+            <label htmlFor="set-username">Username</label>
+            <input id="set-username" value={user.username} readOnly aria-describedby="set-username-hint" />
+            <span className="field-hint" id="set-username-hint">You sign in with it, here and in the browser extension.</span>
+          </div>
+        )}
         {profileError && <p className="field-error" role="alert">{profileError}</p>}
         <button type="submit" className="btn btn-primary settings-save-btn" disabled={bootstrapping || !user || savingProfile}>
           {savingProfile ? 'Saving…' : 'Save profile'}

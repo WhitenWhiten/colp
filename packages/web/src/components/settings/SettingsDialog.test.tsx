@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
     user: {
       name: 'Phase 1 Real Stack', handle: 'original_handle', email: 'user@example.test',
       initials: 'P1', accountId: 'account-1', profileId: 'account-1',
-    } as { name: string; handle: string; email: string; initials: string; accountId: string; profileId: string; avatarUrl?: string | null; about?: string } | null,
+    } as { name: string; handle: string; email: string; initials: string; accountId: string; profileId: string; avatarUrl?: string | null; about?: string; username?: string } | null,
     bootstrapping: false,
     sessionState: 'ready' as string,
     runAuthMutation: vi.fn(),
@@ -121,21 +121,21 @@ describe('Settings profile persistence', () => {
 
   it('does not overwrite dirty fields when the same account refreshes asynchronously', () => {
     render()
-    const handle = document.querySelector<HTMLInputElement>('#set-handle')!
-    expect(handle.value).toBe('original_handle')
-    change(handle, 'draft_handle')
+    const name = document.querySelector<HTMLInputElement>('#set-name')!
+    expect(name.value).toBe('Phase 1 Real Stack')
+    change(name, 'Draft name')
 
-    mocks.auth.user = { ...mocks.auth.user!, name: 'Refreshed Name', handle: 'original_handle' }
+    mocks.auth.user = { ...mocks.auth.user!, name: 'Refreshed Name' }
     render()
-    expect(handle.value).toBe('draft_handle')
+    expect(name.value).toBe('Draft name')
   })
 
-  it('submits the real profile mutation and exposes a conflict as an alert', async () => {
+  it('submits the real profile mutation with the handle unchanged and exposes a conflict as an alert', async () => {
     mocks.updateMe.mockRejectedValue({
-      code: 'handle_taken', message: 'conflict', fieldErrors: [],
+      code: 'mutation_conflict', message: 'conflict', fieldErrors: [], recoveryHint: 'Reload and try again.',
     })
     render()
-    change(document.querySelector<HTMLInputElement>('#set-handle')!, 'taken_handle')
+    change(document.querySelector<HTMLInputElement>('#set-name')!, 'Renamed')
     await act(async () => {
       document.querySelector<HTMLFormElement>('form')!.dispatchEvent(
         new Event('submit', { bubbles: true, cancelable: true }),
@@ -143,10 +143,10 @@ describe('Settings profile persistence', () => {
     })
 
     expect(mocks.updateMe).toHaveBeenCalledWith(
-      { handle: 'taken_handle', displayName: 'Phase 1 Real Stack', about: '' },
+      { handle: 'original_handle', displayName: 'Renamed', about: '' },
       { intentId: 'update-me:command-1' },
     )
-    expect(document.querySelector('[role="alert"]')?.textContent).toBe('That handle is already taken.')
+    expect(document.querySelector('[role="alert"]')?.textContent).toBe('Reload and try again.')
     expect(mocks.error).not.toHaveBeenCalled()
   })
 
@@ -168,7 +168,6 @@ describe('Settings profile persistence', () => {
     expect(button.disabled).toBe(true)
     expect(button.textContent).toBe('Saving…')
     expect((document.querySelector<HTMLInputElement>('#set-name')!).disabled).toBe(true)
-    expect((document.querySelector<HTMLInputElement>('#set-handle')!).disabled).toBe(true)
 
     await act(async () => {
       resolveSave({
@@ -181,37 +180,43 @@ describe('Settings profile persistence', () => {
     expect(document.querySelector<HTMLButtonElement>('form button[type="submit"]')!.disabled).toBe(false)
     expect(document.querySelector<HTMLButtonElement>('form button[type="submit"]')!.textContent).toBe('Save profile')
     expect((document.querySelector<HTMLInputElement>('#set-name')!).disabled).toBe(false)
-    expect((document.querySelector<HTMLInputElement>('#set-handle')!).disabled).toBe(false)
     expect(mocks.success).toHaveBeenCalledWith('Profile saved')
   })
 
-  it('renders a field validation failure once, inline under the handle input', async () => {
-    const message = 'handle must be 1..64 characters of [A-Za-z0-9._~-]'
+  it('renders a field validation failure once, inline under the display name', async () => {
+    const message = 'displayName must be 1..80 characters'
     mocks.updateMe.mockRejectedValue({
-      code: 'invalid_handle', message, fieldErrors: [{ path: '/handle', code: 'invalid_handle', message }],
+      code: 'invalid_display_name', message, fieldErrors: [{ path: '/displayName', code: 'invalid_display_name', message }],
     })
     render()
-    change(document.querySelector<HTMLInputElement>('#set-handle')!, 'bad handle!')
+    change(document.querySelector<HTMLInputElement>('#set-name')!, ' ')
     await act(async () => {
       document.querySelector<HTMLFormElement>('form')!.dispatchEvent(
         new Event('submit', { bubbles: true, cancelable: true }),
       )
     })
 
-    // Sibling rather than adjacent: the standing handle hint sits between the
-    // input and its validation message.
-    expect(document.querySelector('#set-handle ~ .field-error')?.textContent).toBe(message)
+    expect(document.querySelector('#set-name ~ .field-error')?.textContent).toBe(message)
     expect(document.querySelectorAll('[data-testid="field-error"]')).toHaveLength(1)
-    expect([...document.querySelectorAll('[role="alert"]')].map((node) => node.id)).toEqual(['set-handle-error'])
+    expect([...document.querySelectorAll('[role="alert"]')].map((node) => node.id)).toEqual(['set-name-error'])
     expect(mocks.error).not.toHaveBeenCalled()
   })
 
-  it('describes the handle and bounds the input at the claim length', () => {
+  it('shows the sign-in username for reference and no generated handle', () => {
+    mocks.auth.user = { ...mocks.auth.user!, username: 'ada' }
     render()
-    const input = document.querySelector<HTMLInputElement>('#set-handle')!
-    expect(input.maxLength).toBe(30)
-    expect(input.getAttribute('aria-describedby')).toBe('set-handle-hint')
-    expect(document.querySelector('#set-handle-hint')?.textContent).toContain('Change it whenever you like')
+    expect(document.querySelector('#set-handle')).toBeNull()
+    const input = document.querySelector<HTMLInputElement>('#set-username')!
+    expect(input.value).toBe('ada')
+    expect(input.readOnly).toBe(true)
+    expect(input.getAttribute('aria-describedby')).toBe('set-username-hint')
+    expect(document.querySelector('#set-username-hint')?.textContent).toContain('You sign in with it')
+  })
+
+  it('leaves the username out for an account without one', () => {
+    render()
+    expect(document.querySelector('#set-username')).toBeNull()
+    expect(document.querySelector('#set-name')).not.toBeNull()
   })
 
   it('retries a stale CSRF token once when saving the profile', async () => {

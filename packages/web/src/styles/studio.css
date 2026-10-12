@@ -278,6 +278,13 @@
   width: 100%;
 }
 
+/* A value shown for reference (the sign-in username): selectable, but read
+   as fixed, like a disabled control. */
+.settings-form .field input[readonly] {
+  color: var(--ink-2);
+  background-color: var(--paper-2);
+}
+
 /* One settings concern = one single-column section. Head above, controls below. */
 .settings-section {
   display: flex;

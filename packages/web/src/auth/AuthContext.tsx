@@ -14,6 +14,7 @@ import {
 } from '../api'
 import type { MeView, SessionSnapshot } from '../api'
 import { captureMutationSession } from '../api/mutation-session'
+import { profileInitials } from '../lib/initials'
 
 export type AuthUser = {
   name: string
@@ -85,12 +86,8 @@ export type LogoutOutcome = 'signed-out' | 'failed'
 
 function meToUser(me: MeView): AuthUser {
   const name = me.profile.displayName || me.profile.handle
-  const initials = name
-    .split(/\s+/)
-    .map((p) => p[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase() || me.profile.handle.slice(0, 2).toUpperCase()
+  // The same monogram as the "Curated by" chip on this owner's collections.
+  const initials = profileInitials(me.profile.displayName, me.profile.handle)
   return {
     name,
     handle: me.profile.handle,

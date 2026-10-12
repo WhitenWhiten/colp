@@ -44,7 +44,7 @@ let logoutResult: Promise<unknown> | null = null
 function Harness() {
   const auth = useAuth()
   return (
-    <div data-testid="auth" data-logged-in={auth.isLoggedIn} data-session-state={auth.sessionState}>
+    <div data-testid="auth" data-logged-in={auth.isLoggedIn} data-session-state={auth.sessionState} data-initials={auth.user?.initials}>
       {auth.user?.name ?? 'signed out'}
       <button onClick={() => void auth.refreshSession()}>Refresh</button>
       <button onClick={() => { logoutResult = auth.logout() }}>Logout</button>
@@ -109,6 +109,19 @@ describe('AuthProvider session ordering', () => {
     expect(getCsrfToken()).toBeNull()
     expect(getSessionSnapshot().authenticated).toBe(false)
     expect(getSessionSnapshot().me).toBeNull()
+  })
+
+  it('gives the account avatar the same monogram as the owner\'s curator chip', async () => {
+    const single: MeView = { ...me, profile: { ...me.profile, handle: 'ada', displayName: 'ada' } }
+    mocks.bootstrap.mockImplementation(async () => {
+      applySessionView(session)
+      applyMeView(single)
+      return { session, me: single }
+    })
+    render()
+    await waitForDom(() => loggedInState() === 'true')
+    // profileInitials: a one-word name gives its first two letters, not one.
+    expect(document.querySelector('[data-testid="auth"]')?.getAttribute('data-initials')).toBe('AD')
   })
 
   it('treats /session occupancy as verification-required, not signed out', async () => {
