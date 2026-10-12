@@ -18,6 +18,7 @@ export const mocks = {
   loadEditorSnapshot: vi.fn(),
   loadPublicCollectionSnapshot: vi.fn(),
   loadAnnotations: vi.fn(),
+  getBookmarkFaviconSource: vi.fn(),
   createCollectionNode: vi.fn(),
   updateCollectionNode: vi.fn(),
   moveCollectionNode: vi.fn(),

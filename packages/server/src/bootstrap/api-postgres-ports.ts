@@ -27,6 +27,7 @@ import {
   createPostgresSharedCollectionsReadPort,
   createPostgresCollectionBookmarkCountReadPort,
   createPostgresBookmarkIconReadPort,
+  createPostgresFaviconSourceModeReadPort,
   createPostgresLibraryOrderCommandUnitOfWork,
   createPostgresLibraryOrderQueryUnitOfWork,
 } from '../infrastructure/collections/index.js';
@@ -154,7 +155,7 @@ export function createApiPostgresPorts(input: {
   });
   const productCollectionMutationUnitOfWork = createPostgresCanonicalMutationUnitOfWork(
     database.db,
-    { metrics, productOrigin: config.productOrigin, ...(reportSourceInvalidation === undefined ? {} : { reportSourceInvalidation }) },
+    { metrics, productOrigin: config.productOrigin, faviconPolicyEnabled: config.faviconPolicy.enabled, ...(reportSourceInvalidation === undefined ? {} : { reportSourceInvalidation }) },
   );
   const cursorSigner = createProductEditorCursorSigner({
     current: config.productEditorCursor.current,
@@ -321,6 +322,7 @@ export function createApiPostgresAppDependencies(input: {
       owners: publicProfileFacts,
       productOrigin: config.productOrigin,
       bookmarkIcons: createPostgresBookmarkIconReadPort(database.db),
+      faviconSources: createPostgresFaviconSourceModeReadPort(database.db),
       publicMarks: createPostgresPublicMarksReadPort(database),
     },
     productCollaboration: {

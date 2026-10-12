@@ -24,7 +24,7 @@ import { firstRunMessage, prepareColpInstance } from '../infrastructure/auth/col
 
 /**
  * Link health is on and its unset default is 4. Together with the outbox
- * default of 1 that would exceed the shared-pool worker cap of 3.
+ * default of 1 and favicon job/cleanup reserves of 4 must fit the shared-pool cap of 7.
  */
 const LINK_HEALTH_SHARED_POOL_CONCURRENCY = '2';
 

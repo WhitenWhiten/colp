@@ -1704,4 +1704,51 @@ html:has(.collection-toolbar.is-sticky) {
     scroll-padding-block: 0;
   }
 }
+/* File drop card (FE-09): neutral upload primitive generalized from the
+   settings avatar card. The label is the click target; the native file input
+   is visually hidden but stays in the accessibility tree. */
+.file-drop-card {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  border: 1px dashed var(--line-heavy);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  cursor: pointer;
+  transition:
+    border-color var(--duration-fast) var(--ease-quart),
+    background var(--duration-fast) var(--ease-quart),
+    box-shadow var(--duration-fast) var(--ease-quart);
+}
+
+.file-drop-card:hover { border-color: var(--accent); background: var(--accent-soft); box-shadow: var(--shadow-sm); }
+.file-drop-card:focus-within { border-color: var(--focus); box-shadow: var(--shadow-ring); }
+.file-drop-card input[type='file'] {
+  position: absolute;
+  width: 1px; height: 1px;
+  opacity: 0; overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.file-drop-card-preview {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: var(--radius-xs);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  color: var(--ink);
+  flex-shrink: 0;
+}
+.file-drop-card:hover .file-drop-card-preview { background: var(--ink); color: var(--paper); }
+.file-drop-card-preview img { width: 1.25rem; height: 1.25rem; border-radius: var(--radius-2xs); }
+.file-drop-card-copy { display: flex; flex-direction: column; gap: var(--hair-15); min-width: 0; }
+.file-drop-card-copy strong { font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--ink-2); }
+.file-drop-card-copy small { font-size: var(--text-xs); color: var(--faint); }
+
+
 }

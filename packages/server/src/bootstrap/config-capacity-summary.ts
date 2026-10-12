@@ -7,14 +7,16 @@ import { sanitizeLedgerArchiveReaderRuntimeConfig } from './config-ledger-archiv
  * Never includes DATABASE_URL, secrets, or connection userinfo.
  *
  * API and worker share DATABASE_POOL_MAX (default 10). On the self-hosted
- * edition the worker side of that one pool may reserve at most 3 connections.
+ * edition reserves at most 7 connections: 3 base workers, 2 favicon jobs
+ * and 2 favicon cleanup tasks.
  */
-export const SHARED_POOL_WORKER_RESERVE_MAX = 3;
+export const SHARED_POOL_WORKER_RESERVE_MAX = 7;
 
 export function workerReservedConnections(config: AppConfig): number {
   return config.worker.concurrency
     + (config.reports.schedulerEnabled ? 1 : 0)
     + (config.linkHealth.enabled ? config.linkHealth.workerConcurrency : 0)
+    + (config.faviconPolicy.enabled ? 2 * config.faviconPolicy.jobConcurrency : 0)
     + (config.ledgerArchive.enabled ? config.ledgerArchive.concurrency : 0);
 }
 
@@ -29,6 +31,9 @@ function assertSharedPoolWorkerReserve(reserved: number): void {
 export function sanitizedRuntimeCapacity(config: AppConfig): SanitizedRuntimeCapacity {
   const reserved = workerReservedConnections(config);
   assertSharedPoolWorkerReserve(reserved);
+  if (reserved >= config.database.maxConnections) {
+    throw new Error('worker reserve must leave at least one database connection for API requests');
+  }
   return Object.freeze({
     database: Object.freeze({ ...config.database }),
     worker: Object.freeze({ ...config.worker }),

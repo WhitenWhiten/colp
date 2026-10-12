@@ -408,7 +408,8 @@ const bootstrapTargets = new Set([
   'bootstrap/ledger-archive-worker-composition.ts',
   'bootstrap/ledger-archive-reader-composition.ts',
   'bootstrap/attachments-object-storage-composition.ts',
-  // Public avatar R2 store composition used by the API (A8 removed favicons).
+  // FO-02: the worker shares the favicon R2 store composition with the API
+  // (same bucket/prefix rule set; isolated FAVICON_R2_PREFIX).
   'bootstrap/public-object-storage-composition.ts',
   // Shared-favicon provider template + refresh cadence is a bootstrap config
   // leaf consumed by config-social, config-types, and the worker.

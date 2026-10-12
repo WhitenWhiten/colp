@@ -1,3 +1,6 @@
+import { isFaviconReadableBySubject } from '../infrastructure/database/index.js';
+import { createDatabaseFaviconStore } from '../infrastructure/collections/index.js';
+import { KNOWN_FAVICON_DOMAINS } from '../modules/collections/index.js';
 import { createPersistentAvatarStore } from '../infrastructure/identity/index.js';
 import { createPostgresAccountDeletionStore } from '../infrastructure/auth/business-account-unit-of-work.js';
 import { loadConfig, sanitizedRuntimeCapacity, type AppConfig } from './config.js';
@@ -58,6 +61,7 @@ import { composeApiMcpSurface } from './api-mcp-surface-composition.js';
 import { createApiPostgresPorts, createApiPostgresAppDependencies } from './api-postgres-ports.js';
 import {
   isAvatarPublicationRestricted,
+  isFaviconPubliclyAccessible,
 } from '../infrastructure/database/index.js';
 import { closeApiRuntimeResources } from './api-lifecycle.js';
 import { composeLedgerArchiveColdReaders } from './ledger-archive-reader-composition.js';
@@ -193,7 +197,10 @@ export async function startApi(options: StartApiOptions = {}): Promise<StartedAp
     environment: config.nodeEnv,
     clock: () => Date.now(),
   });
-  const publicObjects = await composeApiPublicObjectStores(config);
+  const composedObjects = await composeApiPublicObjectStores(config);
+  const faviconStore = composedObjects.faviconStore
+    ?? createDatabaseFaviconStore(database.db);
+  const publicObjects = { ...composedObjects, faviconStore, publicObjectStores: { faviconStore } };
   const {
     authRateLimiter,
     searchRateLimiter,
@@ -205,6 +212,7 @@ export async function startApi(options: StartApiOptions = {}): Promise<StartedAp
     feedRateLimiter,
     notificationRateLimiter,
     libraryOrderRateLimiter,
+    faviconPolicyRateLimiter,
     linkHealthRateLimiter,
     collectionVersionRateLimiter,
     publicObjectRateLimiter,
@@ -249,6 +257,7 @@ export async function startApi(options: StartApiOptions = {}): Promise<StartedAp
     ? createSyncSessionRuntime(database, config.syncSession, metrics,
       config.publication.endpoints.syncSnapshot, {
         telemetryLogger: metricsLogger,
+        faviconPolicyEnabled: config.faviconPolicy.enabled,
         effectPageOrigin: config.publication.origin,
         attachmentExposure: createAttachmentExposurePolicyAdapter(createPostgresSharedExposureFactsPort(database)),
         ...(archiveColdReaders === undefined
@@ -371,6 +380,7 @@ export async function startApi(options: StartApiOptions = {}): Promise<StartedAp
     notificationRateLimiter,
     productRouteRateLimiters: [
       libraryOrderRateLimiter,
+      faviconPolicyRateLimiter,
       linkHealthRateLimiter,
       collectionVersionRateLimiter,
       publicObjectRateLimiter,
@@ -393,6 +403,7 @@ export async function startApi(options: StartApiOptions = {}): Promise<StartedAp
     mcpRateLimiter,
     emailCallbackRateLimiter: email.emailCallbackRateLimiter,
     avatarStore,
+    ...publicObjects.publicObjectStores,
     cacheComposition,
     database: releaseDatabaseOnApiClose ? database : { async close() {} },
   };
@@ -404,6 +415,8 @@ export async function startApi(options: StartApiOptions = {}): Promise<StartedAp
     readiness: composeReadinessProbe([options.readiness, database]),
     identityUnitOfWork: ports.identityUnitOfWork,
     avatarStore,
+    ...publicObjects.publicObjectStores,
+    faviconPublicAccess: { isPubliclyAccessible: (objectId) => isFaviconPubliclyAccessible(database.db, objectId, KNOWN_FAVICON_DOMAINS), isReadableBySubject: (objectId, subjectId) => isFaviconReadableBySubject(database.db, objectId, subjectId) },
     avatarPublicAccess: { isPublicationRestricted: (objectId) => isAvatarPublicationRestricted(database.db, objectId) },
     authRateLimiter,
     mcpRateLimiter,
@@ -514,6 +527,7 @@ export async function startApi(options: StartApiOptions = {}): Promise<StartedAp
     feedRateLimiter,
     notificationRateLimiter,
     libraryOrderRateLimiter,
+    faviconPolicyRateLimiter,
     linkHealthRateLimiter,
     collectionVersionRateLimiter,
     publicObjectRateLimiter,

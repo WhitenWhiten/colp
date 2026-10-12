@@ -10,6 +10,7 @@ type MockNode = {
   kind: 'folder' | 'bookmark'
   title: string
   url?: string
+  iconUrl?: string | null
   etag: string
   parentId: string
 }
@@ -200,7 +201,7 @@ function editorPage(state: MockState, config?: ProductRequestExpectation['editor
             childrenRevision: '1',
             childrenEtag: '"ch-folder-1"',
           }
-        : { ...common, kind: 'bookmark', url: node.url! }
+        : { ...common, kind: 'bookmark', url: node.url!, iconUrl: node.iconUrl ?? null }
     }),
     capabilities: {
       updateCollection: true,

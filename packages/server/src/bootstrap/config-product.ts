@@ -15,6 +15,7 @@ import type {
 } from './config-types.js';
 
 export const DEFAULT_AVATAR_R2_PREFIX = 'avatar/';
+export const DEFAULT_FAVICON_R2_PREFIX = 'favicon/';
 export const DEFAULT_ATTACHMENTS_LIVE_PREFIX = 'attachments/live/';
 export const DEFAULT_ATTACHMENTS_PROBE_PREFIX = 'attachments/probe/';
 
@@ -28,13 +29,18 @@ const DEV_COLLECTION_VERSIONS_CURSOR_KEY = 'dev-collection-versions-cursor-hmac-
 const DEV_COLLECTION_VERSIONS_CURSOR_KEY_ID = 'dev-collection-versions-v1';
 
 /**
- * Bootstrap-time guard: object prefixes (avatar, attachments live,
- * attachments probe) must never overlap. Any pair that is equal or in
+ * Bootstrap-time guard: object prefixes (avatar, favicon, attachments live,
+ * attachments probe, export, and link preview when given) must never overlap. Any pair that is equal or in
  * a bidirectional string-prefix relation is rejected. Empty string is a prefix
  * of every key.
+ *
+ * Identity's three-argument assertAvatarPrefixesDoNotOverlap stays as
+ * defense-in-depth and is never taught about favicon or export; favicon vs
+ * avatar vs export is covered here.
  */
 export function assertPublicObjectPrefixesDoNotOverlap(
   avatarPrefix: string,
+  faviconPrefix: string,
   livePrefix: string,
   probePrefix: string,
 ): void {
@@ -42,6 +48,7 @@ export function assertPublicObjectPrefixesDoNotOverlap(
     left === right || left.startsWith(right) || right.startsWith(left);
   const labeled: ReadonlyArray<{ readonly name: string; readonly prefix: string }> = [
     { name: 'avatar', prefix: avatarPrefix },
+    { name: 'favicon', prefix: faviconPrefix },
     { name: 'attachments live', prefix: livePrefix },
     { name: 'attachments probe', prefix: probePrefix },
   ];
@@ -51,7 +58,7 @@ export function assertPublicObjectPrefixesDoNotOverlap(
         throw new RangeError(
           `${left.name} prefix ${JSON.stringify(left.prefix)} must not overlap `
           + `${right.name} prefix ${JSON.stringify(right.prefix)} `
-          + `(avatar ${JSON.stringify(avatarPrefix)}, `
+          + `(avatar ${JSON.stringify(avatarPrefix)}, favicon ${JSON.stringify(faviconPrefix)}, `
           + `live ${JSON.stringify(livePrefix)}, probe ${JSON.stringify(probePrefix)})`,
         );
       }

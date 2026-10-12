@@ -2381,4 +2381,35 @@ body[data-bookmark-drag] {
     align-self: center;
   }
 }
+.favicon-source-control {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+/* A <legend> can't sit inside .field markup, so it carries the canonical
+   field-label caps rung itself — same as .node-drawer-annotation-head label. */
+.favicon-source-control legend {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--ink-2);
+}
+
+.favicon-source-preview {
+  width: 1.35rem;
+  height: 1.35rem;
+  flex-shrink: 0;
+  border-radius: var(--radius-xs);
+  object-fit: contain;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+
+.favicon-source-preview-fallback {
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+
+
 }

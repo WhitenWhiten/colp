@@ -176,7 +176,7 @@ const FAVICON_URL_MAX = 2048;
 const FAVICON_URL_MAX_BYTES = 2048;
 const SAME_ORIGIN_FAVICON_PATH_PATTERN = /^\/api\/v1\/favicon\/[a-f0-9-]{36}$/iu;
 
-function parseStrictHttpsFaviconUrl(value: string): string | null {
+function parseStrictFaviconUrl(value: string): string | null {
   for (const char of value) {
     const code = char.codePointAt(0) ?? 0;
     if (code < 0x20 || code === 0x7f) return null;
@@ -187,10 +187,11 @@ function parseStrictHttpsFaviconUrl(value: string): string | null {
   } catch {
     return null;
   }
-  if (parsed.protocol !== 'https:'
+  const loopback = ['localhost', '127.0.0.1', '[::1]'].includes(parsed.hostname);
+  if ((parsed.protocol !== 'https:' && !(parsed.protocol === 'http:' && loopback))
       || parsed.username !== ''
       || parsed.password !== ''
-      || parsed.port !== ''
+      || parsed.search !== ''
       || parsed.href.includes('#')) {
     return null;
   }
@@ -200,18 +201,18 @@ function parseStrictHttpsFaviconUrl(value: string): string | null {
 }
 
 /**
- * Same-origin Product favicon URL: HTTPS, no userinfo, no fragment, no
- * non-default port, path exactly `/api/v1/favicon/{uuid}` with `[a-f0-9-]{36}` i.
+ * Same-origin Product favicon URL: HTTPS (HTTP only on loopback), no userinfo,
+ * query or fragment, path exactly `/api/v1/favicon/{uuid}` with `[a-f0-9-]{36}` i.
  * External URLs are rejected. Do not import identity for this predicate.
  */
 export function assertSameOriginFaviconUrl(
   faviconUrl: string,
   productOrigin: string,
 ): string {
-  const canonical = parseStrictHttpsFaviconUrl(faviconUrl);
+  const canonical = parseStrictFaviconUrl(faviconUrl);
   if (canonical === null) {
     throw new BookmarkFaviconValidationError(
-      'favicon URL must be an absolute https URL without userinfo, fragment, or non-default port',
+      'favicon URL must use HTTPS (HTTP only on loopback), without userinfo, query, or fragment',
     );
   }
   let origin: URL;

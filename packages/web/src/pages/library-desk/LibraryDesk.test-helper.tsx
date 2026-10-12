@@ -312,6 +312,7 @@ export function setUpLibraryDesk() {
   mocks.invites.decline.mockResolvedValue(undefined)
   mocks.loadEditorSnapshot.mockImplementation((id: string) => Promise.resolve(snapshot(id, id === 'col-2' ? 'Second shelf' : id === 'col-shared' ? 'Live Shared Shelf' : 'Reading queue')))
   resetBookmarkAnnotationsCacheForTests()
+  mocks.getBookmarkFaviconSource.mockResolvedValue({ sourceMode: 'inherit', effectiveMode: 'capture', revision: '1', etag: '"favicon-source:1:1"', iconUrl: null, directUrl: null, status: 'missing' })
   mocks.loadAnnotations.mockResolvedValue([])
   mocks.loadPublicCollectionSnapshot.mockResolvedValue({
     collection: {

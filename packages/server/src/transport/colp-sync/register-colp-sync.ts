@@ -14,6 +14,7 @@ import { registerSyncEffectPageRoutes } from './sync-effect-page-routes.js';
 import { registerSyncAckRoutes } from './sync-ack-routes.js';
 import { registerSyncRetireRoutes } from './sync-retire-routes.js';
 import { registerExtensionCollectionRoutes } from './extension-collection-routes.js';
+import { registerSyncFaviconHelperRoutes } from './sync-favicon-helper-routes.js';
 import { createSyncTransportSecurity } from './sync-transport-security.js';
 import type { SyncAdmissionPolicy } from '../../infrastructure/rate-limit/index.js';
 import type { AppDependencies } from '../app.js';
@@ -223,4 +224,35 @@ export function registerColpSync(app: FastifyInstance, deps: AppDependencies): v
     ...withAdmission(extensionCollectionRoutes, syncAdmissionPolicy),
     transportSecurity: extensionTransportSecurity,
   });
+  // FO-04: the four extension favicon helper operations under /colp/v0.1/sync.
+  // They reuse the original COLP extension credential authority and are gated
+  // by the same KNOWN_FEATURE_FAVICON_POLICY flag as the Product favicon
+  // policy/source surface (off => 404). Registered after RegisterProductSurfaces
+  // so the shared favicon image body parsers already exist on the app.
+  registerSyncFaviconHelperRoutes(app, {
+    enabled: config.faviconPolicy.enabled,
+    ...(extensionCollectionRoutes ? { extensionCollectionRoutes } : {}),
+    ...(deps.identityUnitOfWork ? { identityUnitOfWork: deps.identityUnitOfWork } : {}),
+    ...(deps.collectionsUnitOfWork ? { collectionsUnitOfWork: deps.collectionsUnitOfWork } : {}),
+    ...(deps.faviconStore ? { faviconStore: deps.faviconStore } : {}),
+    productOrigin: config.productOrigin,
+    // SYNC-Q-014: never mint a route-local limiter here. Shared mode stays
+    // fail-closed (the composition must inject the Redis adapter); without the
+    // shared limiter the helper simply runs without local rate limiting, like
+    // every other COLP-sync route.
+    ...(config.productRouteRateLimitShared.enabled
+      ? { rateLimiter: deps.faviconPolicyRateLimiter ?? failMissingSharedFaviconLimit() }
+      : deps.faviconPolicyRateLimiter === undefined
+        ? {}
+        : { rateLimiter: deps.faviconPolicyRateLimiter }),
+    timeoutMs: config.faviconPolicy.timeoutMs,
+    ...(deps.metrics ? { metrics: deps.metrics } : {}),
+    transportSecurity: extensionTransportSecurity,
+  });
+}
+
+function failMissingSharedFaviconLimit(): never {
+  throw new Error(
+    'buildApiApp requires an injected faviconPolicyRateLimiter when PRODUCT_ROUTE_RATE_LIMIT_SHARED=true (production composition must inject the Redis adapter)',
+  );
 }

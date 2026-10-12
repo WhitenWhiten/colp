@@ -2,7 +2,7 @@ import { useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
 
 export const SETTINGS_PARAM = 'settings'
-export const SETTINGS_SECTIONS = ['profile', 'bookmarks', 'security'] as const
+export const SETTINGS_SECTIONS = ['profile', 'bookmarks', 'favicon', 'security'] as const
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number]
 export const DEFAULT_SETTINGS_SECTION: SettingsSection = 'profile'
 export const SECURITY_SETTINGS_URL = '/library?settings=security'

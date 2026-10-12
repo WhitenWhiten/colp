@@ -1,3 +1,5 @@
+import { registerFaviconPolicyRoutes } from './product/favicon-policy-routes.js';
+import { registerFaviconJobRoutes } from './product/favicon-job-routes.js';
 import type { FastifyInstance } from 'fastify';
 import { InMemoryMetrics } from '../infrastructure/telemetry/index.js';
 import {
@@ -7,6 +9,7 @@ import {
 } from './http-security.js';
 import type { ProductSurfaceRateLimitPurpose } from '../infrastructure/rate-limit/index.js';
 import { registerBrowserAuthRoutes } from './auth/browser-auth-routes.js';
+import { registerBookmarkFaviconRoutes } from './product/bookmark-favicon-routes.js';
 import { registerClientEventRoutes } from './product/client-event-routes.js';
 import { registerBetterAuthRoutes } from './auth/better-auth-routes.js';
 import { registerOauthAuthorizationServerMetadataRoute } from './auth/oauth-authorization-server-routes.js';
@@ -44,6 +47,7 @@ export function registerProductSurfaces(
     config,
     identityUnitOfWork,
     avatarStore,
+    faviconStore,
     collectionsUnitOfWork,
     productCollectionMutationUnitOfWork,
     collectionMetadataMutationRoutes = 'enabled',
@@ -89,6 +93,7 @@ export function registerProductSurfaces(
     libraryOrderCommandUnitOfWork,
     libraryOrderQueryUnitOfWork,
     libraryOrderRateLimiter,
+    faviconPolicyRateLimiter,
     linkHealthQuery,
     linkHealthEnqueue,
     linkHealthRateLimiter,
@@ -159,6 +164,15 @@ export function registerProductSurfaces(
       ...(accountDeletion ? { accountDeletion } : {}),
     });
   }
+  registerBookmarkFaviconRoutes(app, {
+    config,
+    ...(faviconStore ? { faviconStore } : {}), ...(deps.faviconPublicAccess ? { faviconPublicAccess: deps.faviconPublicAccess } : {}),
+    ...(identityUnitOfWork ? { identityUnitOfWork } : {}),
+    ...(collectionsUnitOfWork ? { collectionsUnitOfWork } : {}),
+    ...(extensionCollectionRoutes ? { extensionCollectionRoutes } : {}),
+    ...(metrics ? { metrics } : {}),
+    publicObjectRateLimiter: publicObjectAdmissionRateLimiter,
+  });
   // R15-13: web client errors and Web Vitals, logged as `client_event`.
   registerClientEventRoutes(app, { allowedOrigins: config.allowedOrigins, rateLimiter: publicObjectAdmissionRateLimiter });
   if (identityUnitOfWork && productSyncCenterUnitOfWork) {
@@ -269,6 +283,23 @@ export function registerProductSurfaces(
       queryUnitOfWork: libraryOrderQueryUnitOfWork,
       rateLimiter: resolveProductRouteRateLimiter('library-order', libraryOrderRateLimiter, config.libraryOrder.rateLimit),
       timeoutMs: config.libraryOrder.timeoutMs,
+    });
+  }
+  if (identityUnitOfWork && collectionsUnitOfWork) {
+    registerFaviconPolicyRoutes(app, {
+      enabled: config.faviconPolicy.enabled,
+      allowedOrigins: config.allowedOrigins,
+      identityUnitOfWork,
+      collectionsUnitOfWork,
+      rateLimiter: resolveProductRouteRateLimiter('favicon-policy', faviconPolicyRateLimiter, defaultProductRouteBudget),
+      timeoutMs: config.faviconPolicy.timeoutMs,
+      productOrigin: config.productOrigin,
+    });
+    registerFaviconJobRoutes(app, {
+      enabled: config.faviconPolicy.enabled, allowedOrigins: config.allowedOrigins,
+      identityUnitOfWork, collectionsUnitOfWork,
+      rateLimiter: resolveProductRouteRateLimiter('favicon-policy', faviconPolicyRateLimiter, defaultProductRouteBudget),
+      timeoutMs: config.faviconPolicy.timeoutMs,
     });
   }
   registerAccountProductSurfaces(app, deps);

@@ -1,3 +1,8 @@
+import { createPostgresFaviconBatchJobWritePort } from '../../collections/favicon-job-items-postgres.js';
+import { enqueueFaviconRefreshForNewBookmark } from '../../../modules/collections/index.js';
+import { createPostgresFaviconPolicyPort } from '../../collections/favicon-policy-postgres.js';
+import { createPostgresFaviconSourcePort } from '../../collections/favicon-source-postgres.js';
+import { createPostgresFaviconJobWritePort } from '../../collections/favicon-job-postgres.js';
 import { randomBytes } from 'node:crypto';
 import type { Operation, SyncPushResult } from '@know-n/colp/types';
 import { sql } from 'kysely';
@@ -57,7 +62,7 @@ export async function evaluateCanonicalNodeCreate(
     throw error;
   }
   const tx = transaction.databaseTransaction;
-  const collection = await tx.selectFrom('collections').select(['id', 'root_node_id'])
+  const collection = await tx.selectFrom('collections').select(['id', 'root_node_id', 'owner_subject_id'])
     .where('id', '=', transaction.authority.collectionId).forUpdate().executeTakeFirst();
   if (!collection) throw new SyncPushHttpError('resource_not_found');
   if (mapped.folderRole && mapped.folderRole !== 'managed-bookmarks') {
@@ -160,6 +165,20 @@ export async function evaluateCanonicalNodeCreate(
   await persistSyncOperationProjection(transaction.databaseTransaction, operation);
   const revision = mutation.allocation.resourceRevision;
   if (!revision) throw new SyncPushHttpError('internal_error');
+  // Capture and online fill remain sidecars, committed atomically with sync creation.
+  if (options.faviconPolicyEnabled !== false
+      && mapped.fields.kindFields.kind === 'bookmark' && typeof mapped.fields.kindFields.url === 'string') {
+    const owner = await tx.selectFrom('accounts').select(['id', 'subject_id'])
+      .where('subject_id', '=', collection.owner_subject_id).executeTakeFirst();
+    if (owner) await enqueueFaviconRefreshForNewBookmark({
+      sources: createPostgresFaviconSourcePort(tx), policies: createPostgresFaviconPolicyPort(tx),
+      jobs: createPostgresFaviconJobWritePort(tx), forceJobs: createPostgresFaviconBatchJobWritePort(tx),
+    }, {
+      accountId: owner.id, ownerSubjectId: owner.subject_id,
+      collectionId: collection.id, nodeId, url: mapped.fields.kindFields.url,
+      nodeResourceRevision: revision, now: new Date(),
+    });
+  }
   const cursor = `sync-create-${mutation.allocation.commitOrdinal}`;
   await persistAuthoritativeOperationEffect({
     transaction: transaction.databaseTransaction, operation,

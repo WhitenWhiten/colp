@@ -99,3 +99,5 @@ export { privateSessionIdentity, subscribeSession } from './sessionStore'
 // Feature flags.
 export { FEATURE_FLAGS, isLive, isWriteApprovalsExposureEnabled, isLinkHealthExposureEnabled, isCollectionHistoryExposureEnabled } from './featureFlags'
 export type { FeatureFlag } from './featureFlags'
+
+export type { BookmarkFaviconSource, FaviconCreateIconJobRequest, FaviconIconJob, FaviconIconJobAccepted, FaviconIconPolicy, FaviconIconPolicyPatch, FaviconPolicyResult, SetBookmarkFaviconSourceRequest, FaviconJobStatus } from './types'

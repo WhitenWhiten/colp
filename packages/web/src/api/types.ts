@@ -158,3 +158,15 @@ export type PublicCollectionSnapshot = {
   nodes: PublicCollectionNode[]
   page: PublicCollectionPageState
 }
+
+export type FaviconIconPolicy = Schemas['FaviconOrderingIconPolicy']
+export type FaviconIconPolicyPatch = Schemas['FaviconOrderingIconPolicyPatch']
+export type FaviconPolicyResult = Schemas['FaviconOrderingPolicyResult']
+export type BookmarkFaviconSource = Schemas['FaviconOrderingIconSource']
+export type SetBookmarkFaviconSourceRequest = Schemas['FaviconOrderingSetIconSource']
+export type FaviconIconJobAccepted = Schemas['FaviconOrderingIconJobAccepted']
+export type FaviconIconJob = Schemas['FaviconOrderingIconJob']
+export type FaviconCreateIconJobRequest = Schemas['FaviconOrderingCreateIconJob']
+export type FaviconJobStatus = FaviconIconJob['status']
+
+export type BookmarkNodeView = Schemas['BookmarkNodeView']

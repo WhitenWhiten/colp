@@ -49,6 +49,7 @@ vi.mock('../../api', async (importOriginal) => {
       ...actual.productClient,
       loadEditorSnapshot: mocks.loadEditorSnapshot,
       loadAnnotations: mocks.loadAnnotations,
+      getBookmarkFaviconSource: mocks.getBookmarkFaviconSource,
       loadPublicCollectionSnapshot: mocks.loadPublicCollectionSnapshot,
       createCollectionNode: mocks.createCollectionNode,
       updateCollectionNode: mocks.updateCollectionNode,
@@ -349,11 +350,12 @@ describe('Node edit drawer', () => {
     expect(mocks.createAnnotation.mock.calls[0]![2]).toMatchObject({ type: 'tldr', value: 'Folder-level takeaway' })
   })
 
-  it('offers no favicon upload or icon source: this server has no object storage', async () => {
+  it('offers favicon upload and source controls for bookmarks', async () => {
     mountDrawer({ nodeId: 'col-1-loose' })
     await waitForDom(domFinishedLoading)
     expect(control('nd-url').value).toBe('https://loose.example')
-    expect(document.getElementById('nd-favicon')).toBeNull()
+    expect(document.getElementById('nd-favicon')).not.toBeNull()
+    expect(document.querySelector('[data-testid="favicon-source-control"]')).not.toBeNull()
   })
 
   it('confirms before discarding unsaved edits on close', async () => {

@@ -57,6 +57,7 @@ export function createSyncSessionRuntime(
   metrics: Metrics,
   snapshotUrl: string | undefined,
   overrides: {
+    readonly faviconPolicyEnabled?: boolean;
     readonly credentialVerifier?: ExtensionCredentialEvidencePort;
     /**
      * Structured sink for sync telemetry and unexpected push failures. The
@@ -221,6 +222,7 @@ export function createSyncSessionRuntime(
       credentialVerifier,
       application: createPostgresSyncPushApplication(database.db, issuer, {
         managedBookmarkWrites: config.push.managedBookmarkWrites,
+        faviconPolicyEnabled: overrides.faviconPolicyEnabled,
         tombstoneRetentionSeconds: config.tombstoneRetentionSeconds,
         conflictPayloadEncryption: config.conflictPayloadKeyring.active,
         metrics,

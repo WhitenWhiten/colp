@@ -1,3 +1,6 @@
+import { FaviconDropCard } from '../../components/FaviconDropCard'
+import { FaviconSourceControl } from '../../components/FaviconSourceControl'
+import { bookmarkIconSrc } from '../../lib/bookmarkIcon'
 import { useCallback, useRef } from 'react'
 import type { NavigateFunction } from 'react-router-dom'
 import type { EditorSnapshot } from '../../api'
@@ -85,6 +88,8 @@ export function NodeEditDrawer({
 
   const canEdit = Boolean(snap?.capabilities.updateNode) && !node.readOnly
   const isBookmark = node.kind === 'bookmark'
+  const favicon = isBookmark ? bookmarkIconSrc({ iconUrl: node.iconUrl, pageUrl: node.url, faviconCdnAllowed: false }) : null
+  const faviconUrl = favicon?.kind === 'object' ? favicon.src : null
   return (
     <Modal
       open={nodeId !== null}
@@ -169,6 +174,27 @@ export function NodeEditDrawer({
           disabled={!canEdit}
         />
       </div>
+      {isBookmark && (
+        <FaviconDropCard
+          inputId="nd-favicon"
+          labelId="nd-favicon-label"
+          currentIconUrl={faviconUrl}
+          disabled={!canEdit || drawer.faviconBusy}
+          onPick={(file) => void drawer.uploadFavicon(file)}
+          onRemove={() => void drawer.removeFavicon()}
+        />
+      )}
+      {isBookmark && snap && (
+        <FaviconSourceControl
+          collectionId={snap.collection.id}
+          nodeId={node.id}
+          disabled={!canEdit || drawer.faviconBusy}
+          /* Same contract the inspector kept: an upload/delete through the
+             drop card above updates iconUrl — bumping this key refetches the
+             source instead of showing stale radios. */
+          refreshKey={node.iconUrl ?? null}
+        />
+      )}
       <NodeAnnotationFields
         idPrefix="nd"
         disabled={!canEdit || drawer.annotation.state === 'loading'}

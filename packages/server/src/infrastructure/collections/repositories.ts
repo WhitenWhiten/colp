@@ -1,3 +1,4 @@
+import { createDatabaseFaviconStore } from './favicon-database-store.js';
 import { sql } from 'kysely';
 import type {
   BootstrapAuditPort,
@@ -32,6 +33,10 @@ import { createPostgresResourceIdLedgerPort } from '../database/resource-id-ledg
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
 import type { Metrics } from '../telemetry/index.js';
 import { deleteBookmarkIconsForNodeIds, createPostgresBookmarkIconWritePort } from './bookmark-icon-postgres.js';
+import { createPostgresFaviconPolicyPort } from './favicon-policy-postgres.js';
+import { createPostgresFaviconSourcePort, createPostgresFaviconSourceMembershipPort } from './favicon-source-postgres.js';
+import { createPostgresFaviconJobWritePort, createPostgresFaviconJobReadPort, createPostgresFaviconGcWritePort } from './favicon-job-postgres.js';
+import { createPostgresFaviconBatchWritePorts } from './favicon-job-items-postgres.js';
 import {
   dualReadCollectionPayload,
   dualReadNodePayload,
@@ -780,5 +785,13 @@ export function createPostgresCollectionsWritePorts(
     accessPolicy: createPostgresAccessPolicyWritePort(transaction),
     accessPolicyFacts: createPostgresAccessPolicyFactsPort(transaction),
     bookmarkIcons: createPostgresBookmarkIconWritePort(transaction),
+    faviconStore: createDatabaseFaviconStore(transaction),
+    faviconPolicies: createPostgresFaviconPolicyPort(transaction),
+    faviconSources: createPostgresFaviconSourcePort(transaction),
+    faviconJobs: createPostgresFaviconJobWritePort(transaction),
+    faviconJobsRead: createPostgresFaviconJobReadPort(transaction),
+    faviconGc: createPostgresFaviconGcWritePort(transaction),
+    faviconSourceMembership: createPostgresFaviconSourceMembershipPort(transaction),
+    ...createPostgresFaviconBatchWritePorts(transaction),
   };
 }

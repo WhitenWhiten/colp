@@ -44,6 +44,16 @@ export async function fulfillPassiveFeatureRequest(route: Route): Promise<boolea
     await json(route, { annotations: [], page: { returnedCount: 0, hasMore: false, nextCursor: null } })
     return true
   }
+  const source = path.match(/^\/api\/v1\/collections\/([^/]+)\/nodes\/([^/]+)\/favicon-source$/u)
+  if (source) {
+    await route.fulfill({ json: {
+      collectionId: source[1], nodeId: source[2], nodeResourceRevision: '1', revision: '1',
+      policyRevision: '1', sourceMode: 'inherit', effectiveMode: 'capture', iconUrl: null,
+      iconVersion: null, directUrl: null, status: 'missing', restorable: false,
+      updatedAt: '2026-07-22T00:00:00.000Z',
+    }, headers: { ETag: '"favicon-source:1:1"' } })
+    return true
+  }
   return false
 }
 

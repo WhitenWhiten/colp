@@ -1,32 +1,73 @@
 /**
- * Public R2 avatar store from the AVATAR_R2_* environment path. Attachment
- * buckets are not composed.
+ * Public R2 object stores (avatar, favicon) from the AVATAR_R2_*
+ * environment path. Attachment buckets are not composed.
  */
 import type { AppConfig } from './config.js';
+import type { BookmarkFaviconObjectStore } from '../modules/collections/index.js';
 import type { AvatarObjectStore } from '../modules/identity/index.js';
+import { createR2FaviconStore } from '../infrastructure/collections/index.js';
 import { createR2AvatarStore } from '../infrastructure/identity/index.js';
+
+/** Optional R2 backend; the caller falls back to the instance database. */
+export async function composeFaviconObjectStore(
+  config: AppConfig,
+): Promise<BookmarkFaviconObjectStore | undefined> {
+  return composePublicObjectStore(config.faviconR2Prefix, createR2FaviconStore);
+}
+
+async function composePublicObjectStore(
+  prefix: string,
+  create: typeof createR2FaviconStore,
+): Promise<BookmarkFaviconObjectStore | undefined> {
+  const endpoint = process.env.AVATAR_R2_ENDPOINT?.trim();
+  const bucket = process.env.AVATAR_R2_BUCKET?.trim();
+  const rwAccessKeyId = process.env.AVATAR_R2_ACCESS_KEY_ID?.trim();
+  const rwSecretAccessKey = process.env.AVATAR_R2_SECRET_ACCESS_KEY?.trim();
+  if (!endpoint || !bucket || !rwAccessKeyId || !rwSecretAccessKey) return undefined;
+  const readAccessKeyId = process.env.AVATAR_R2_READ_ACCESS_KEY_ID?.trim() || rwAccessKeyId;
+  const readSecretAccessKey = process.env.AVATAR_R2_READ_SECRET_ACCESS_KEY?.trim() || rwSecretAccessKey;
+  return create({
+    endpoint,
+    region: process.env.AVATAR_R2_REGION?.trim() || 'auto',
+    bucket,
+    prefix,
+    rwCredential: { accessKeyId: rwAccessKeyId, secretAccessKey: rwSecretAccessKey },
+    roCredential: { accessKeyId: readAccessKeyId, secretAccessKey: readSecretAccessKey },
+  });
+}
 
 export interface ApiPublicObjectStores {
   readonly avatarStore: AvatarObjectStore | undefined;
+  readonly faviconStore: BookmarkFaviconObjectStore | undefined;
+  readonly publicObjectStores: {
+    readonly faviconStore: BookmarkFaviconObjectStore | undefined;
+  };
 }
 
-/** Avatar store only. No attachment, favicon, or delivery surface. */
+/** Avatar and favicon stores. No attachment or delivery surface. */
 export async function composeApiPublicObjectStores(config: AppConfig): Promise<ApiPublicObjectStores> {
   const endpoint = process.env.AVATAR_R2_ENDPOINT?.trim();
   const bucket = process.env.AVATAR_R2_BUCKET?.trim();
   const rwAccessKeyId = process.env.AVATAR_R2_ACCESS_KEY_ID?.trim();
   const rwSecretAccessKey = process.env.AVATAR_R2_SECRET_ACCESS_KEY?.trim();
-  if (!endpoint || !bucket || !rwAccessKeyId || !rwSecretAccessKey) return { avatarStore: undefined };
-  const readAccessKeyId = process.env.AVATAR_R2_READ_ACCESS_KEY_ID?.trim() || rwAccessKeyId;
-  const readSecretAccessKey = process.env.AVATAR_R2_READ_SECRET_ACCESS_KEY?.trim() || rwSecretAccessKey;
+  let avatarStore: AvatarObjectStore | undefined;
+  let faviconStore: BookmarkFaviconObjectStore | undefined;
+  if (endpoint && bucket && rwAccessKeyId && rwSecretAccessKey) {
+    const readAccessKeyId = process.env.AVATAR_R2_READ_ACCESS_KEY_ID?.trim() || rwAccessKeyId;
+    const readSecretAccessKey = process.env.AVATAR_R2_READ_SECRET_ACCESS_KEY?.trim() || rwSecretAccessKey;
+    const rwCredential = { accessKeyId: rwAccessKeyId, secretAccessKey: rwSecretAccessKey };
+    const roCredential = { accessKeyId: readAccessKeyId, secretAccessKey: readSecretAccessKey };
+    const region = process.env.AVATAR_R2_REGION?.trim() || 'auto';
+    avatarStore = createR2AvatarStore({
+      endpoint, region, bucket, prefix: config.avatarR2Prefix, rwCredential, roCredential,
+    });
+    faviconStore = createR2FaviconStore({
+      endpoint, region, bucket, prefix: config.faviconR2Prefix, rwCredential, roCredential,
+    });
+  }
   return {
-    avatarStore: createR2AvatarStore({
-      endpoint,
-      region: process.env.AVATAR_R2_REGION?.trim() || 'auto',
-      bucket,
-      prefix: config.avatarR2Prefix,
-      rwCredential: { accessKeyId: rwAccessKeyId, secretAccessKey: rwSecretAccessKey },
-      roCredential: { accessKeyId: readAccessKeyId, secretAccessKey: readSecretAccessKey },
-    }),
+    avatarStore,
+    faviconStore,
+    publicObjectStores: { faviconStore },
   };
 }

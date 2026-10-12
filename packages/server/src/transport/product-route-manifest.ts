@@ -18,6 +18,12 @@ export const LEGACY_OIDC_OPERATION_IDS: readonly string[] = Object.freeze(
 );
 
 /**
+ * BF-02: favicon GET is registered when a store is composed. POST/DELETE are
+ * registered by BF-03 even when the store is absent (503 fail-closed).
+ */
+export const BOOKMARK_FAVICON_DEFERRED_OPERATION_IDS: readonly string[] = Object.freeze([]);
+
+/**
  * D4: the server-BYOK provider-profile operations are hard-gated. With
  * `KNOWN_FEATURE_CLASSIFICATION_BYOK=false` their routes are not registered at
  * all, so the readiness coverage assertion must stop requiring them while the
@@ -58,24 +64,8 @@ export const CLASSIFICATION_PRUNED_OPERATION_IDS: readonly string[] = Object.fre
   'getMyCreditLedgerEntry',
 ]);
 
-/**
- * Task A8: Operations pruned with favicon policy, sources, jobs, uploads and
- * the FO-05 children time sort.
- */
-export const FAVICON_PRUNED_OPERATION_IDS: readonly string[] = Object.freeze([
-  'listCollectionChildren',
-  'deleteBookmarkFavicon',
-  'uploadBookmarkFavicon',
-  'refreshBookmarkFavicon',
-  'getBookmarkFaviconSource',
-  'setBookmarkFaviconSource',
-  'getBookmarkFavicon',
-  'createMyFaviconJob',
-  'getMyFaviconJob',
-  'retryMyFaviconJob',
-  'getMyFaviconPolicy',
-  'updateMyFaviconPolicy',
-]);
+// The frozen upstream manifest includes this edition-unsupported browse/sort API.
+const UNSUPPORTED_COLLECTION_OPERATION_IDS = ['listCollectionChildren'];
 
 function openApiPath(path: string): string {
   return path.replace(/:([A-Za-z0-9_]+)/g, '{$1}');
@@ -89,11 +79,7 @@ export function assertProductRouteCoverage(
   registered: ReadonlySet<string>,
   excludeOperationIds: readonly string[] = [],
 ): void {
-  const allExcluded = new Set([
-    ...excludeOperationIds,
-    ...CLASSIFICATION_PRUNED_OPERATION_IDS,
-    ...FAVICON_PRUNED_OPERATION_IDS,
-  ]);
+  const allExcluded = new Set([...excludeOperationIds, ...CLASSIFICATION_PRUNED_OPERATION_IDS, ...UNSUPPORTED_COLLECTION_OPERATION_IDS]);
   const expected = PRODUCT_ROUTE_MANIFEST
     .filter((item) => !allExcluded.has(item.operationId))
     .map((item) => `${item.method} ${item.path}`);

@@ -164,6 +164,7 @@ describeWithPostgres('P3-12 real Fastify/PostgreSQL canonical Node creates', () 
   async function start(value: Awaited<ReturnType<typeof context>>, options: {
     readonly nodeId?: () => string;
     readonly managedBookmarkWrites?: boolean;
+    readonly faviconPolicyEnabled?: boolean;
     readonly failAt?: PostgresSyncNodeCreateFaultPhase;
     readonly responseGate?: Promise<void>;
     readonly onResponseReady?: () => void;
@@ -185,6 +186,7 @@ describeWithPostgres('P3-12 real Fastify/PostgreSQL canonical Node creates', () 
       application: createPostgresSyncPushApplication(isolated.runtime.db, value.issuer, {
         ...(options.nodeId ? { nodeId: options.nodeId } : {}),
         managedBookmarkWrites: options.managedBookmarkWrites ?? false,
+        faviconPolicyEnabled: options.faviconPolicyEnabled,
         ...(options.failAt ? { faultInjector: { afterPhase(phase) {
           if (phase === options.failAt) throw new Error(`P3-12 injected ${phase}`);
         } } } : {}),
@@ -546,6 +548,36 @@ describeWithPostgres('P3-12 real Fastify/PostgreSQL canonical Node creates', () 
     assert.deepEqual(replay.body, committed.receipt);
     assert.deepEqual(await facts(value.replica.replicaId, nodeId), committed);
   }, 20_000);
+  test('favicon jobs follow the owner policy atomically with sync creates and respect the deployment flag', async () => {
+    await isolated.runtime.pool.query(`INSERT INTO account_favicon_policies
+      (account_id, new_default, provider_template, fill_missing, force_all_online, revision, updated_at)
+      VALUES ($1, 'capture', 'https://favicone.com/{hostname}', true, false, 2, now())
+      ON CONFLICT (account_id) DO UPDATE SET new_default='capture', fill_missing=true, force_all_online=false`, [ACCOUNT]);
+    for (const enabled of [true, false]) {
+      const value = await context();
+      const nodeId = `favicon-sync-${randomUUID()}`;
+      const server = await start(value, { nodeId: () => nodeId, faviconPolicyEnabled: enabled });
+      const request = syncNodeCreatePushRequest({
+        sessionId: value.session.sessionId, replicaId: value.replica.replicaId,
+        collectionId: COLLECTION, opId: randomUUID(), parentId: ROOT,
+        node: { kind: 'bookmark', title: 'Synced icon', url: 'https://syncicons.example.org/bookmark' },
+      });
+      const idempotencyKey = `favicon-sync-${randomUUID()}`;
+      const client = blackBox(server.origin);
+      const first = await client.push({ idempotencyKey, request });
+      assert.equal(first.status, 200);
+      assert.equal(result(first.body).results[0]!.status, 'applied');
+      assert.equal((await client.push({ idempotencyKey, request })).status, 200);
+      const jobs = (await isolated.runtime.pool.query('SELECT source_url,owner_subject_id,node_resource_revision FROM favicon_jobs WHERE node_id=$1', [nodeId])).rows;
+      assert.equal(jobs.length, enabled ? 1 : 0);
+      if (enabled) {
+        assert.equal(jobs[0].source_url, 'https://favicone.com/syncicons.example.org');
+        assert.equal(jobs[0].owner_subject_id, SUBJECT);
+        assert.equal(jobs[0].node_resource_revision, result(first.body).results[0]!.revision);
+      }
+    }
+  });
+
 });
 
 function manifestFor(app: FastifyInstance): Manifest {

@@ -1,7 +1,9 @@
+import { loadSharedFaviconConfig } from './config-favicon-shared.js';
 import { parseCanonicalUtcTimestamp, parsePositiveInt, requireNonEmpty } from './config-parse-helpers.js';
 import type {
   CollectionFollowFeatureConfig,
   CommunityFeatureConfig,
+  FaviconPolicyAdmissionConfig,
   FeedFeatureConfig,
   FeedOperationsConfig,
   FollowFeatureConfig,
@@ -542,6 +544,58 @@ export function loadNotificationFeatureConfig(
     timeoutMs: parsePositiveInt(env.NOTIFICATION_HTTP_TIMEOUT_MS, 2_000, 'NOTIFICATION_HTTP_TIMEOUT_MS', { max: 30_000 }),
     operations,
   });
+}
+
+/**
+ * FO-01/FO-02 favicon policy/source feature gate + durable job worker config.
+ * The flag defaults to false and booleans accept only the exact strings
+ * true/false; malformed enabled configuration fails startup (contract
+ * `x-config`). The FAVICON_* values implement the frozen contract: const
+ * entries must match; ranged values are validated for their runtime consumers.
+ */
+export function loadFaviconPolicyAdmissionConfig(env: NodeJS.ProcessEnv): FaviconPolicyAdmissionConfig {
+  const flag = (env.KNOWN_FEATURE_FAVICON_POLICY ?? 'false').trim().toLowerCase();
+  if (flag !== 'true' && flag !== 'false') {
+    throw new Error('KNOWN_FEATURE_FAVICON_POLICY must be true or false');
+  }
+  const retryBackoff = parseFaviconRetryBackoff(env.FAVICON_RETRY_BACKOFF_SECONDS);
+  return Object.freeze({
+    enabled: flag === 'true',
+    timeoutMs: parsePositiveInt(env.FAVICON_POLICY_TIMEOUT_MS, 2_000,
+      'FAVICON_POLICY_TIMEOUT_MS', { max: 30_000 }),
+    fetchTimeoutMs: parsePositiveInt(env.FAVICON_FETCH_TIMEOUT_MS, 10_000,
+      'FAVICON_FETCH_TIMEOUT_MS', { min: 1_000, max: 30_000 }),
+    fetchMaxBytes: parseConstInt(env.FAVICON_FETCH_MAX_BYTES, 65_536, 'FAVICON_FETCH_MAX_BYTES'),
+    fetchMaxRedirects: parseConstInt(env.FAVICON_FETCH_MAX_REDIRECTS, 3, 'FAVICON_FETCH_MAX_REDIRECTS'),
+    jobBatchSize: parseConstInt(env.FAVICON_JOB_BATCH_SIZE, 100, 'FAVICON_JOB_BATCH_SIZE'),
+    jobMaxAttempts: parseConstInt(env.FAVICON_JOB_MAX_ATTEMPTS, 5, 'FAVICON_JOB_MAX_ATTEMPTS'),
+    historyRetentionSeconds: parseConstInt(
+      env.FAVICON_HISTORY_RETENTION_SECONDS, 31_536_000, 'FAVICON_HISTORY_RETENTION_SECONDS'),
+    jobConcurrency: parseConstInt(env.FAVICON_JOB_CONCURRENCY, 2, 'FAVICON_JOB_CONCURRENCY'),
+    retryBackoffSeconds: retryBackoff,
+    workerPollIntervalMs: 1_000,
+    workerLeaseDurationMs: 60_000,
+    gcPollIntervalMs: 60_000,
+    shared: loadSharedFaviconConfig(env),
+  });
+}
+
+/** FAVICON_RETRY_BACKOFF_SECONDS: const [1,2,4,8,16]. */
+function parseFaviconRetryBackoff(raw: string | undefined): readonly number[] {
+  const expected = [1, 2, 4, 8, 16];
+  if (raw === undefined || raw.trim() === '') return Object.freeze([...expected]);
+  const parts = raw.trim().split(',').map((part) => part.trim());
+  if (parts.length !== expected.length) {
+    throw new Error('FAVICON_RETRY_BACKOFF_SECONDS must be exactly "1,2,4,8,16"');
+  }
+  const parsed = parts.map((part, index) => {
+    const value = Number(part);
+    if (!Number.isInteger(value) || value !== expected[index]) {
+      throw new Error('FAVICON_RETRY_BACKOFF_SECONDS must be exactly "1,2,4,8,16"');
+    }
+    return value;
+  });
+  return Object.freeze(parsed);
 }
 
 /** Contract `const` integer: absent uses the default; present must equal it exactly. */

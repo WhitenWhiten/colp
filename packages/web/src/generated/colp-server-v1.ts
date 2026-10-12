@@ -1809,6 +1809,178 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/favicon/{faviconId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a bookmark favicon image by id
+         * @description Public favicon bytes are readable anonymously. Private bytes require a current owner/member browser session and use private, no-store caching. faviconId is a 36-character UUID leaf matching /^[a-f0-9-]{36}$/i. Illegal ids and missing objects share the same 404 resource_not_found shape (no existence oracle). Transport may use public-revalidate so admission does not fill no-store; 200 and 404 pin Cache-Control themselves. 200 is public, max-age=30, must-revalidate. Anonymous 404 is public, max-age=60; session misses use private, no-store. The route confirms the current live bookmark binding and publication state before serving bytes. No Set-Cookie.
+         */
+        get: operations["getBookmarkFavicon"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/favicon-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the account favicon icon-source policy
+         * @description FO-01. Session-required private read of the account singleton favicon policy (newDefault, provider template, fill/force defaults). A missing row exposes virtual defaults with revision 1; the response ETag is the If-Match validator for PATCH. Does not accept a request body. Feature flag KNOWN_FEATURE_FAVICON_POLICY=false returns 404.
+         */
+        get: operations["getMyFaviconPolicy"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change the account favicon icon-source policy default
+         * @description FO-03. Session + Origin + CSRF + Known-Command-Id. Requires If-Match (one strong `"favicon-policy:<revision>"` ETag from GET). Any non-empty subset of newDefault (capture/online/none), providerTemplate, fillMissing and forceAllOnline is writable. A no-op patch returns the same revision with jobId null; a policy change that activates a batch behavior atomically creates a durable reconcile job (fill_missing / refresh_online / apply_force_online / restore_sources) and returns its jobId. Exact retries reuse Known-Command-Id and replay the first receipt; changed requests are 409 command_id_reused.
+         */
+        patch: operations["updateMyFaviconPolicy"];
+        trace?: never;
+    };
+    "/api/v1/me/favicon-jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create a durable batch favicon job
+         * @description FO-03. Session + Origin + CSRF + Known-Command-Id. Creates a durable batch job (fill_missing or refresh_online) against the current policy revision; the created job is tracked by the returned jobId and the UI polls it. An active job of the same operation on the same policy revision is returned instead of enqueueing the same jobId twice; creating a new job supersedes older active batch jobs of the account. Stale policyRevision => 409 revision_conflict. Exact retries reuse Known-Command-Id and replay the first 202 receipt; changed requests are 409 command_id_reused. Feature flag off returns 404.
+         */
+        post: operations["createMyFaviconJob"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/favicon-jobs/{jobId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read one owned favicon job
+         * @description FO-03. Session-required owner-only read of one durable favicon job (refresh_one and batch operations). The errors array lists the first 100 failed items in stable node-ID order; the counters reflect all items. A missing or foreign job conceals as 404. Does not accept a request body. Feature flag off returns 404.
+         */
+        get: operations["getMyFaviconJob"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/favicon-jobs/{jobId}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retry the failed items of a terminal favicon job
+         * @description FO-03. Session + Origin + CSRF + Known-Command-Id. Accepts only a terminal failed or partial job; the new job retries ONLY the failed items under the current policy and never re-runs succeeded/skipped items. A policy revision change since the failed job is 409 revision_conflict; an active job of the same operation is returned so retries never pile up. Exact retries replay the same new jobId. No request body. Feature flag off returns 404.
+         */
+        post: operations["retryMyFaviconJob"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/collections/{collectionId}/nodes/{nodeId}/favicon": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload a bookmark favicon image
+         * @description Product Session + CSRF. Requires capability update_node. Body hard cap 65536 bytes (64 KiB). In-progress is 429 rate_limited + Retry-After, never 409 command_in_progress. Does not bump Node revision. Last-upload-wins on the icon row only. Declared SVG/GIF/HTML → 415 unsupported_media_type. Exact retries reuse Known-Command-Id. command_id_reused is 409; command_result_expired is 410.
+         */
+        post: operations["uploadBookmarkFavicon"];
+        /**
+         * Delete a bookmark favicon binding
+         * @description Product Session + CSRF. Requires capability update_node. Does not accept If-Match and does not bump Node revision. Success returns BookmarkNodeView with iconUrl null. In-progress is 429 rate_limited + Retry-After, never 409 command_in_progress. command_id_reused is 409; command_result_expired is 410. Idempotent when no icon row exists.
+         */
+        delete: operations["deleteBookmarkFavicon"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/collections/{collectionId}/nodes/{nodeId}/favicon-source": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the icon source state of one bookmark node
+         * @description FO-01. Session-required owner-only read of the per-node favicon source (inherit/none; uploaded is only reachable through a real Product upload and reads as uploaded/ready). sourceMode=inherit projects the account policy newDefault as effectiveMode. The strong ETag fences both the node resource revision and the source revision. Does not accept a request body. Missing and foreign targets are concealed as 404; a caller-owned node that is not a bookmark is 400 invalid_request. Feature flag KNOWN_FEATURE_FAVICON_POLICY=false returns 404.
+         */
+        get: operations["getBookmarkFaviconSource"];
+        /**
+         * Set the icon source mode of one bookmark node
+         * @description FO-02. Session + Origin + CSRF + Known-Command-Id. Owner-only. Requires If-Match (one strong ETag returned by the favicon-source GET) that fences the current node resource revision and source revision; a URL change or concurrent source write makes the old ETag stale (412 with currentEtag). sourceMode accepts inherit, online and none. uploaded cannot be written here — it only enters through the real image upload and is removed again by the explicit Product delete. Switching away from an uploaded image deletes the binding and its immutable object. Exact retries reuse Known-Command-Id and replay the first receipt.
+         */
+        put: operations["setBookmarkFaviconSource"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/collections/{collectionId}/nodes/{nodeId}/favicon-refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Enqueue a durable refresh of one online favicon
+         * @description FO-02. Session + Origin + CSRF + Known-Command-Id. Owner-only. Requires If-Match (one strong favicon-source ETag). No request body. Produces a durable refresh_one job persisted with the account, node, resolved provider URL, source revision and policy revision; the real worker fetches, decodes, fixes the immutable object and CAS-switches the binding out-of-band. 202 returns only { jobId }; the client tracks that jobId while it polls the effective source state. The effective icon source must be online, otherwise 400 invalid_request. Closing the UI never cancels the durable job. Exact retries reuse Known-Command-Id and replay the first 202. Feature flag KNOWN_FEATURE_FAVICON_POLICY=false returns 404.
+         */
+        post: operations["refreshBookmarkFavicon"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -3194,7 +3366,7 @@ export interface components {
         };
         /**
          * Format: uri
-         * @description Absolute https PRODUCT_ORIGIN URL whose path is exactly /api/v1/favicon/{uuid}. Servers never persist or return a CDN URL here.
+         * @description Absolute PRODUCT_ORIGIN URL (HTTPS, or HTTP on loopback) whose path is exactly /api/v1/favicon/{uuid}. Servers never persist or return a CDN URL here.
          */
         BookmarkFaviconUrl: string;
         /** @enum {string} */
@@ -4047,6 +4219,86 @@ export interface components {
         ProfileSettingsErrorEnvelope: {
             error: components["schemas"]["ProfileSettingsError"];
         };
+        /** @description FO-02. Acceptance of a durable icon job; clients track the returned jobId while they poll the effective source state. */
+        FaviconOrderingIconJobAccepted: {
+            jobId: components["schemas"]["OpaqueId"];
+        };
+        FaviconOrderingIconSource: {
+            collectionId: components["schemas"]["OpaqueId"];
+            nodeId: components["schemas"]["OpaqueId"];
+            revision: components["schemas"]["FaviconOrderingRevision"];
+            policyRevision: components["schemas"]["FaviconOrderingRevision"];
+            /** @enum {string} */
+            sourceMode: "inherit" | "online" | "uploaded" | "none";
+            /** @enum {string} */
+            effectiveMode: "capture" | "online" | "uploaded" | "none";
+            iconUrl: string | null;
+            iconVersion: components["schemas"]["OpaqueId"] | null;
+            directUrl: string | null;
+            /** @enum {string} */
+            status: "ready" | "missing" | "pending" | "failed";
+            restorable: boolean;
+            updatedAt: components["schemas"]["FaviconOrderingTimestamp"];
+        };
+        /**
+         * Format: date-time
+         * @example 2026-09-14T00:00:00.000Z
+         */
+        FaviconOrderingTimestamp: string;
+        /** @example 1 */
+        FaviconOrderingRevision: string;
+        /** @description FO-02 accepts inherit, online and none; online becomes available with the durable refresh chain (FO-02). uploaded cannot be written through this endpoint. Selecting online does not change the account newDefault; the providerTemplate existing alone never enables online. */
+        FaviconOrderingSetIconSource: {
+            /** @enum {string} */
+            sourceMode: "inherit" | "online" | "none";
+        };
+        /** @description FO-03. One durable favicon job. errors lists the first 100 failed items in stable node-ID order; the counters reflect all items. */
+        FaviconOrderingIconJob: {
+            id: components["schemas"]["OpaqueId"];
+            /** @enum {string} */
+            operation: "refresh_one" | "fill_missing" | "refresh_online" | "apply_force_online" | "restore_sources";
+            policyRevision: components["schemas"]["FaviconOrderingRevision"];
+            /** @enum {string} */
+            status: "pending" | "running" | "succeeded" | "partial" | "failed" | "superseded";
+            total: number;
+            succeeded: number;
+            failed: number;
+            skipped: number;
+            errors: {
+                nodeId: components["schemas"]["OpaqueId"];
+                /** @enum {string} */
+                reason: "fetch_failed" | "invalid_image" | "unsafe_source" | "stale_policy" | "source_changed" | "permission_changed" | "storage_unavailable";
+            }[];
+            createdAt: components["schemas"]["FaviconOrderingTimestamp"];
+            updatedAt: components["schemas"]["FaviconOrderingTimestamp"];
+        };
+        /** @description FO-03. Create a durable batch job against the current policy revision; a stale policyRevision is 409 revision_conflict. */
+        FaviconOrderingCreateIconJob: {
+            /** @enum {string} */
+            operation: "fill_missing" | "refresh_online";
+            policyRevision: components["schemas"]["FaviconOrderingRevision"];
+        };
+        FaviconOrderingPolicyResult: {
+            policy: components["schemas"]["FaviconOrderingIconPolicy"];
+            jobId: components["schemas"]["OpaqueId"] | null;
+        };
+        FaviconOrderingIconPolicy: {
+            revision: components["schemas"]["FaviconOrderingRevision"];
+            /** @enum {string} */
+            newDefault: "capture" | "online" | "none";
+            providerTemplate: string;
+            fillMissing: boolean;
+            forceAllOnline: boolean;
+            updatedAt: components["schemas"]["FaviconOrderingTimestamp"];
+        };
+        /** @description FO-03. Any non-empty subset of newDefault, providerTemplate, fillMissing and forceAllOnline. A no-op patch returns the same revision with jobId null. Enabling fillMissing / forceAllOnline or making an online provider active atomically creates a bounded durable reconcile job whose jobId is returned in PolicyResult (policy, job row and receipt committed in one transaction). */
+        FaviconOrderingIconPolicyPatch: {
+            /** @enum {string} */
+            newDefault?: "capture" | "online" | "none";
+            providerTemplate?: string;
+            fillMissing?: boolean;
+            forceAllOnline?: boolean;
+        };
     };
     responses: {
         /** @description invalid_request, invalid_json, invalid_query, or invalid_cursor. */
@@ -4322,6 +4574,243 @@ export interface components {
                 "application/json": components["schemas"]["ProductErrorEnvelope"];
             };
         };
+        /** @description feature_temporarily_unavailable with Retry-After. Stable envelope. */
+        FaviconOrderingError503: {
+            headers: {
+                "Cache-Control": components["headers"]["PrivateNoStore"];
+                "X-Request-Id": components["headers"]["XRequestId"];
+                "Retry-After"?: string;
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ProductErrorEnvelope"] & {
+                    error?: {
+                        /** @enum {string} */
+                        code?: "feature_temporarily_unavailable";
+                    };
+                };
+            };
+        };
+        /** @description internal_error. Stable envelope. */
+        FaviconOrderingError500: {
+            headers: {
+                "Cache-Control": components["headers"]["PrivateNoStore"];
+                "X-Request-Id": components["headers"]["XRequestId"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ProductErrorEnvelope"] & {
+                    error?: {
+                        /** @enum {string} */
+                        code?: "internal_error";
+                    };
+                };
+            };
+        };
+        /** @description rate_limited with Retry-After. Stable envelope. */
+        FaviconOrderingError429: {
+            headers: {
+                "Cache-Control": components["headers"]["PrivateNoStore"];
+                "X-Request-Id": components["headers"]["XRequestId"];
+                "Retry-After"?: string;
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ProductErrorEnvelope"] & {
+                    error?: {
+                        /** @enum {string} */
+                        code?: "rate_limited";
+                    };
+                };
+            };
+        };
+        /** @description precondition_required (If-Match is required). Stable envelope. */
+        FaviconOrderingError428: {
+            headers: {
+                "Cache-Control": components["headers"]["PrivateNoStore"];
+                "X-Request-Id": components["headers"]["XRequestId"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ProductErrorEnvelope"] & {
+                    error?: {
+                        /** @enum {string} */
+                        code?: "precondition_required";
+                    };
+                };
+            };
+        };
+        /** @description unsupported_media_type. Stable envelope. */
+        FaviconOrderingError415: {
+            headers: {
+                "Cache-Control": components["headers"]["PrivateNoStore"];
+                "X-Request-Id": components["headers"]["XRequestId"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ProductErrorEnvelope"] & {
+                    error?: {
+                        /** @enum {string} */
+                        code?: "unsupported_media_type";
+                    };
+                };
+            };
+        };
+        /** @description payload_too_large. Stable envelope. */
+        FaviconOrderingError413: {
+            headers: {
+                "Cache-Control": components["headers"]["PrivateNoStore"];
+                "X-Request-Id": components["headers"]["XRequestId"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ProductErrorEnvelope"] & {
+                    error?: {
+                        /** @enum {string} */
+                        code?: "payload_too_large";
+                    };
+                };
+            };
+        };
+        /** @description precondition_failed with currentEtag for the authorized resource. Stable envelope. */
+        FaviconOrderingError412: {
+            headers: {
+                "Cache-Control": components["headers"]["PrivateNoStore"];
+                "X-Request-Id": components["headers"]["XRequestId"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ProductErrorEnvelope"] & {
+                    error?: {
+                        /** @enum {string} */
+                        code?: "precondition_failed";
+                    };
+                };
+            };
+        };
+        /** @description command_result_expired. Stable envelope. */
+        FaviconOrderingError410: {
+            headers: {
+                "Cache-Control": components["headers"]["PrivateNoStore"];
+                "X-Request-Id": components["headers"]["XRequestId"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ProductErrorEnvelope"] & {
+                    error?: {
+                        /** @enum {string} */
+                        code?: "command_result_expired";
+                    };
+                };
+            };
+        };
+        /** @description command_id_reused / command_in_progress / snapshot_expired (=> restart_from_first_page) / revision_conflict. Stable envelope. */
+        FaviconOrderingError409: {
+            headers: {
+                "Cache-Control": components["headers"]["PrivateNoStore"];
+                "X-Request-Id": components["headers"]["XRequestId"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ProductErrorEnvelope"] & {
+                    error?: {
+                        /** @enum {string} */
+                        code?: "command_id_reused" | "command_in_progress" | "snapshot_expired" | "revision_conflict";
+                    };
+                };
+            };
+        };
+        /** @description method_not_allowed. */
+        FaviconOrderingError405: {
+            headers: {
+                "Cache-Control": components["headers"]["PrivateNoStore"];
+                "X-Request-Id": components["headers"]["XRequestId"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ProductErrorEnvelope"] & {
+                    error?: {
+                        /** @enum {string} */
+                        code?: "method_not_allowed";
+                    };
+                };
+            };
+        };
+        /** @description resource_not_found, including concealed resources and the disabled feature flag. */
+        FaviconOrderingError404: {
+            headers: {
+                "Cache-Control": components["headers"]["PrivateNoStore"];
+                "X-Request-Id": components["headers"]["XRequestId"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ProductErrorEnvelope"] & {
+                    error?: {
+                        /** @enum {string} */
+                        code?: "resource_not_found";
+                    };
+                };
+            };
+        };
+        /** @description csrf_failed / insufficient_permission. Stable envelope. */
+        FaviconOrderingError403: {
+            headers: {
+                "Cache-Control": components["headers"]["PrivateNoStore"];
+                "X-Request-Id": components["headers"]["XRequestId"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ProductErrorEnvelope"] & {
+                    error?: {
+                        /** @enum {string} */
+                        code?: "csrf_failed" | "insufficient_permission";
+                    };
+                };
+            };
+        };
+        /** @description authentication_required. Stable envelope. */
+        FaviconOrderingError401: {
+            headers: {
+                "Cache-Control": components["headers"]["PrivateNoStore"];
+                "X-Request-Id": components["headers"]["XRequestId"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ProductErrorEnvelope"] & {
+                    error?: {
+                        /** @enum {string} */
+                        code?: "authentication_required";
+                    };
+                };
+            };
+        };
+        /** @description invalid_request / invalid_json / invalid_query / invalid_cursor (=> restart_from_first_page). Stable envelope; no stack, SQL, secrets or concealed resource metadata. */
+        FaviconOrderingError400: {
+            headers: {
+                "Cache-Control": components["headers"]["PrivateNoStore"];
+                "X-Request-Id": components["headers"]["XRequestId"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ProductErrorEnvelope"] & {
+                    error?: {
+                        /** @enum {string} */
+                        code?: "invalid_request" | "invalid_json" | "invalid_query" | "invalid_cursor";
+                    };
+                };
+            };
+        };
+        /** @description resource_not_found for a favicon object. Illegal faviconId values and missing objects share this shape (no existence oracle). */
+        FaviconNotFound: {
+            headers: {
+                "Cache-Control": components["headers"]["PublicShortCache"];
+                "X-Request-Id": components["headers"]["XRequestId"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ProductErrorEnvelope"];
+            };
+        };
     };
     parameters: {
         AccountCredentialId: components["schemas"]["OpaqueId"];
@@ -4438,6 +4927,10 @@ export interface components {
         OidcSessionState: string;
         OidcErrorDescription: string;
         OidcErrorUri: string;
+        /** @description Case-sensitive opaque export job ID. */
+        ExportJobId: components["schemas"]["OpaqueId"];
+        /** @description Opaque 36-character UUID leaf. Illegal values and missing objects share the same 404 resource_not_found shape (no existence oracle). */
+        FaviconId: string;
     };
     requestBodies: never;
     headers: {
@@ -4463,6 +4956,10 @@ export interface components {
         RetryAfter: number;
         /** @description Session or one-time OIDC transaction cookie. */
         SetCookie: string;
+        /** @description Short public cache for favicon object misses. */
+        PublicShortCache: "public, max-age=60";
+        /** @description Anonymous public report projection cache policy. */
+        PublicRevalidate: "public, max-age=30, must-revalidate";
     };
     pathItems: never;
 }
@@ -9517,6 +10014,501 @@ export interface operations {
                 };
                 content?: never;
             };
+        };
+    };
+    getBookmarkFavicon: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Opaque 36-character UUID leaf. Illegal values and missing objects share the same 404 resource_not_found shape (no existence oracle). */
+                faviconId: components["parameters"]["FaviconId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Favicon image bytes. */
+            200: {
+                headers: {
+                    /** @description Public bindings use public, max-age=30, must-revalidate; private reads use private, no-store. */
+                    "Cache-Control"?: string;
+                    "X-Content-Type-Options": components["headers"]["XContentTypeOptions"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/png": string;
+                    "image/jpeg": string;
+                    "image/webp": string;
+                    "image/x-icon": string;
+                };
+            };
+            404: components["responses"]["FaviconNotFound"];
+        };
+    };
+    getMyFaviconPolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The current favicon policy and its strong ETag. */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    ETag: components["headers"]["ETag"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FaviconOrderingIconPolicy"];
+                };
+            };
+            400: components["responses"]["FaviconOrderingError400"];
+            401: components["responses"]["FaviconOrderingError401"];
+            403: components["responses"]["FaviconOrderingError403"];
+            404: components["responses"]["FaviconOrderingError404"];
+            405: components["responses"]["FaviconOrderingError405"];
+            429: components["responses"]["FaviconOrderingError429"];
+            500: components["responses"]["FaviconOrderingError500"];
+            503: components["responses"]["FaviconOrderingError503"];
+        };
+    };
+    updateMyFaviconPolicy: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Exact allowed Product Web origin. Duplicate or null values fail. */
+                Origin: components["parameters"]["Origin"];
+                /** @description Session-bound CSRF token returned by getSession. */
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+                /** @description Stable ID for one user intent. Reuse only for an exact retry of that intent. Full replay results are retained for at least 30 days. */
+                "Known-Command-Id": components["parameters"]["CommandId"];
+                /** @description One strong resource ETag. Weak tags, lists, and * are rejected. */
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FaviconOrderingIconPolicyPatch"];
+            };
+        };
+        responses: {
+            /** @description The updated policy with the new revision; jobId is always null in FO-01. */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    ETag: components["headers"]["ETag"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FaviconOrderingPolicyResult"];
+                };
+            };
+            400: components["responses"]["FaviconOrderingError400"];
+            401: components["responses"]["FaviconOrderingError401"];
+            403: components["responses"]["FaviconOrderingError403"];
+            404: components["responses"]["FaviconOrderingError404"];
+            405: components["responses"]["FaviconOrderingError405"];
+            409: components["responses"]["FaviconOrderingError409"];
+            410: components["responses"]["FaviconOrderingError410"];
+            412: components["responses"]["FaviconOrderingError412"];
+            413: components["responses"]["FaviconOrderingError413"];
+            415: components["responses"]["FaviconOrderingError415"];
+            428: components["responses"]["FaviconOrderingError428"];
+            429: components["responses"]["FaviconOrderingError429"];
+            500: components["responses"]["FaviconOrderingError500"];
+            503: components["responses"]["FaviconOrderingError503"];
+        };
+    };
+    createMyFaviconJob: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Exact allowed Product Web origin. Duplicate or null values fail. */
+                Origin: components["parameters"]["Origin"];
+                /** @description Session-bound CSRF token returned by getSession. */
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+                /** @description Stable ID for one user intent. Reuse only for an exact retry of that intent. Full replay results are retained for at least 30 days. */
+                "Known-Command-Id": components["parameters"]["CommandId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FaviconOrderingCreateIconJob"];
+            };
+        };
+        responses: {
+            /** @description The durable job was created; clients poll GET /api/v1/me/favicon-jobs/{jobId}. */
+            202: {
+                headers: {
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FaviconOrderingIconJobAccepted"];
+                };
+            };
+            400: components["responses"]["FaviconOrderingError400"];
+            401: components["responses"]["FaviconOrderingError401"];
+            403: components["responses"]["FaviconOrderingError403"];
+            404: components["responses"]["FaviconOrderingError404"];
+            405: components["responses"]["FaviconOrderingError405"];
+            409: components["responses"]["FaviconOrderingError409"];
+            410: components["responses"]["FaviconOrderingError410"];
+            413: components["responses"]["FaviconOrderingError413"];
+            415: components["responses"]["FaviconOrderingError415"];
+            429: components["responses"]["FaviconOrderingError429"];
+            500: components["responses"]["FaviconOrderingError500"];
+            503: components["responses"]["FaviconOrderingError503"];
+        };
+    };
+    getMyFaviconJob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Case-sensitive opaque export job ID. */
+                jobId: components["parameters"]["ExportJobId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The durable job state. */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FaviconOrderingIconJob"];
+                };
+            };
+            400: components["responses"]["FaviconOrderingError400"];
+            401: components["responses"]["FaviconOrderingError401"];
+            403: components["responses"]["FaviconOrderingError403"];
+            404: components["responses"]["FaviconOrderingError404"];
+            405: components["responses"]["FaviconOrderingError405"];
+            429: components["responses"]["FaviconOrderingError429"];
+            500: components["responses"]["FaviconOrderingError500"];
+            503: components["responses"]["FaviconOrderingError503"];
+        };
+    };
+    retryMyFaviconJob: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Exact allowed Product Web origin. Duplicate or null values fail. */
+                Origin: components["parameters"]["Origin"];
+                /** @description Session-bound CSRF token returned by getSession. */
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+                /** @description Stable ID for one user intent. Reuse only for an exact retry of that intent. Full replay results are retained for at least 30 days. */
+                "Known-Command-Id": components["parameters"]["CommandId"];
+            };
+            path: {
+                /** @description Case-sensitive opaque export job ID. */
+                jobId: components["parameters"]["ExportJobId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The retry job was created (or an active job of the operation returned). */
+            202: {
+                headers: {
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FaviconOrderingIconJobAccepted"];
+                };
+            };
+            400: components["responses"]["FaviconOrderingError400"];
+            401: components["responses"]["FaviconOrderingError401"];
+            403: components["responses"]["FaviconOrderingError403"];
+            404: components["responses"]["FaviconOrderingError404"];
+            405: components["responses"]["FaviconOrderingError405"];
+            409: components["responses"]["FaviconOrderingError409"];
+            410: components["responses"]["FaviconOrderingError410"];
+            413: components["responses"]["FaviconOrderingError413"];
+            415: components["responses"]["FaviconOrderingError415"];
+            429: components["responses"]["FaviconOrderingError429"];
+            500: components["responses"]["FaviconOrderingError500"];
+            503: components["responses"]["FaviconOrderingError503"];
+        };
+    };
+    uploadBookmarkFavicon: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Exact allowed Product Web origin. Duplicate or null values fail. */
+                Origin: components["parameters"]["Origin"];
+                /** @description Session-bound CSRF token returned by getSession. */
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+                /** @description Stable ID for one user intent. Reuse only for an exact retry of that intent. Full replay results are retained for at least 30 days. */
+                "Known-Command-Id": components["parameters"]["CommandId"];
+            };
+            path: {
+                /** @description Case-sensitive opaque Collection ID. */
+                collectionId: components["parameters"]["CollectionId"];
+                /** @description Case-sensitive opaque Node ID. */
+                nodeId: components["parameters"]["NodeId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "image/png": string;
+                "image/jpeg": string;
+                "image/webp": string;
+                "image/x-icon": string;
+                "image/vnd.microsoft.icon": string;
+                "application/octet-stream": string;
+            };
+        };
+        responses: {
+            /** @description Updated BookmarkNodeView with the new iconUrl. Node revision is unchanged. */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookmarkNodeView"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["AuthenticationRequired"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description command_id_reused only. In-progress never uses this status. */
+            409: {
+                headers: {
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductErrorEnvelope"];
+                };
+            };
+            410: components["responses"]["Gone"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    deleteBookmarkFavicon: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Exact allowed Product Web origin. Duplicate or null values fail. */
+                Origin: components["parameters"]["Origin"];
+                /** @description Session-bound CSRF token returned by getSession. */
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+                /** @description Stable ID for one user intent. Reuse only for an exact retry of that intent. Full replay results are retained for at least 30 days. */
+                "Known-Command-Id": components["parameters"]["CommandId"];
+            };
+            path: {
+                /** @description Case-sensitive opaque Collection ID. */
+                collectionId: components["parameters"]["CollectionId"];
+                /** @description Case-sensitive opaque Node ID. */
+                nodeId: components["parameters"]["NodeId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description BookmarkNodeView with iconUrl null. Node revision is unchanged. */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookmarkNodeView"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["AuthenticationRequired"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description command_id_reused only. In-progress never uses this status. */
+            409: {
+                headers: {
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductErrorEnvelope"];
+                };
+            };
+            410: components["responses"]["Gone"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    getBookmarkFaviconSource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Case-sensitive opaque Collection ID. */
+                collectionId: components["parameters"]["CollectionId"];
+                /** @description Case-sensitive opaque Node ID. */
+                nodeId: components["parameters"]["NodeId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The projected icon source state and its strong ETag. */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    ETag: components["headers"]["ETag"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FaviconOrderingIconSource"];
+                };
+            };
+            400: components["responses"]["FaviconOrderingError400"];
+            401: components["responses"]["FaviconOrderingError401"];
+            403: components["responses"]["FaviconOrderingError403"];
+            404: components["responses"]["FaviconOrderingError404"];
+            405: components["responses"]["FaviconOrderingError405"];
+            429: components["responses"]["FaviconOrderingError429"];
+            500: components["responses"]["FaviconOrderingError500"];
+            503: components["responses"]["FaviconOrderingError503"];
+        };
+    };
+    setBookmarkFaviconSource: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Exact allowed Product Web origin. Duplicate or null values fail. */
+                Origin: components["parameters"]["Origin"];
+                /** @description Session-bound CSRF token returned by getSession. */
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+                /** @description Stable ID for one user intent. Reuse only for an exact retry of that intent. Full replay results are retained for at least 30 days. */
+                "Known-Command-Id": components["parameters"]["CommandId"];
+                /** @description One strong resource ETag. Weak tags, lists, and * are rejected. */
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path: {
+                /** @description Case-sensitive opaque Collection ID. */
+                collectionId: components["parameters"]["CollectionId"];
+                /** @description Case-sensitive opaque Node ID. */
+                nodeId: components["parameters"]["NodeId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FaviconOrderingSetIconSource"];
+            };
+        };
+        responses: {
+            /** @description The projected icon source state after the change. */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    ETag: components["headers"]["ETag"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FaviconOrderingIconSource"];
+                };
+            };
+            400: components["responses"]["FaviconOrderingError400"];
+            401: components["responses"]["FaviconOrderingError401"];
+            403: components["responses"]["FaviconOrderingError403"];
+            404: components["responses"]["FaviconOrderingError404"];
+            405: components["responses"]["FaviconOrderingError405"];
+            409: components["responses"]["FaviconOrderingError409"];
+            410: components["responses"]["FaviconOrderingError410"];
+            412: components["responses"]["FaviconOrderingError412"];
+            413: components["responses"]["FaviconOrderingError413"];
+            415: components["responses"]["FaviconOrderingError415"];
+            428: components["responses"]["FaviconOrderingError428"];
+            429: components["responses"]["FaviconOrderingError429"];
+            500: components["responses"]["FaviconOrderingError500"];
+            503: components["responses"]["FaviconOrderingError503"];
+        };
+    };
+    refreshBookmarkFavicon: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Exact allowed Product Web origin. Duplicate or null values fail. */
+                Origin: components["parameters"]["Origin"];
+                /** @description Session-bound CSRF token returned by getSession. */
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+                /** @description Stable ID for one user intent. Reuse only for an exact retry of that intent. Full replay results are retained for at least 30 days. */
+                "Known-Command-Id": components["parameters"]["CommandId"];
+                /** @description One strong resource ETag. Weak tags, lists, and * are rejected. */
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path: {
+                /** @description Case-sensitive opaque Collection ID. */
+                collectionId: components["parameters"]["CollectionId"];
+                /** @description Case-sensitive opaque Node ID. */
+                nodeId: components["parameters"]["NodeId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The durable job was accepted; poll the effective source state for the version switch. */
+            202: {
+                headers: {
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    ETag: components["headers"]["ETag"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FaviconOrderingIconJobAccepted"];
+                };
+            };
+            400: components["responses"]["FaviconOrderingError400"];
+            401: components["responses"]["FaviconOrderingError401"];
+            403: components["responses"]["FaviconOrderingError403"];
+            404: components["responses"]["FaviconOrderingError404"];
+            405: components["responses"]["FaviconOrderingError405"];
+            409: components["responses"]["FaviconOrderingError409"];
+            410: components["responses"]["FaviconOrderingError410"];
+            412: components["responses"]["FaviconOrderingError412"];
+            413: components["responses"]["FaviconOrderingError413"];
+            415: components["responses"]["FaviconOrderingError415"];
+            428: components["responses"]["FaviconOrderingError428"];
+            429: components["responses"]["FaviconOrderingError429"];
+            500: components["responses"]["FaviconOrderingError500"];
+            503: components["responses"]["FaviconOrderingError503"];
         };
     };
 }

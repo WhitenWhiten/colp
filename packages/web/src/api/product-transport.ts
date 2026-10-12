@@ -1,3 +1,4 @@
+import { createFaviconTransport } from './product-transport-favicon'
 /**
  * Internal Product HTTP transport.
  *
@@ -54,6 +55,7 @@ export function createProductTransport(
   return {
     ...createSessionTransport(http),
     ...createEditorTransport(http),
+    ...createFaviconTransport(http),
     ...createSearchPublicTransport(http),
     ...createLibraryTransport(http),
     ...createSyncTransport(http),

@@ -33,6 +33,7 @@ vi.mock('../../api', async (importOriginal) => {
       ...actual.productClient,
       loadEditorSnapshot: mocks.loadEditorSnapshot,
       loadAnnotations: mocks.loadAnnotations,
+      getBookmarkFaviconSource: mocks.getBookmarkFaviconSource,
       loadPublicCollectionSnapshot: mocks.loadPublicCollectionSnapshot,
       createCollectionNode: mocks.createCollectionNode,
       moveCollectionNode: mocks.moveCollectionNode,

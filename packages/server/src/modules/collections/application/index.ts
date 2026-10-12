@@ -481,6 +481,37 @@ export type {
   LoadCollectionEditorSnapshotInput,
   RootNodeView,
 } from './get-editor-page.js';
+export {
+  BOOKMARK_FAVICON_CANONICAL_CONTENT_TYPES,
+  BOOKMARK_FAVICON_MAX_BYTES,
+  BookmarkFaviconImageError,
+  assertBookmarkFaviconImage,
+  readFaviconBodyCapped,
+  sniffBookmarkFaviconCanonicalMime,
+} from './favicon-store.js';
+export type {
+  BookmarkFaviconCanonicalMime,
+  BookmarkFaviconObjectStore,
+  StoredBookmarkFavicon,
+} from './favicon-store.js';
+export {
+  BOOKMARK_FAVICON_COMMAND_CONTRACT_VERSION,
+  BookmarkFaviconCommandError,
+  bookmarkFaviconBodyFingerprint,
+  bookmarkFaviconDeleteCommandScope,
+  bookmarkFaviconProductRoute,
+  bookmarkFaviconUploadCommandScope,
+  deleteBookmarkFavicon,
+  mapBookmarkFaviconCommandError,
+  uploadBookmarkFavicon,
+} from './bookmark-favicon-command.js';
+export type {
+  BookmarkFaviconCommandActor,
+  BookmarkFaviconCommandPorts,
+  BookmarkFaviconCommandResult,
+  DeleteBookmarkFaviconInput,
+  UploadBookmarkFaviconInput,
+} from './bookmark-favicon-command.js';
 export { hostnameFromBookmarkUrl, normalizeBookmarkUrl } from './link-health-url.js';
 export { mapLinkHealthProbeObservation } from './link-health-probe-status.js';
 export type {
@@ -673,3 +704,6 @@ export * from './favicon-exports.js';
 // these through the collections facade.
 export * from './export-collection.js';
 export * from './netscape-serializer.js';
+
+export { executeFaviconCommand } from './favicon-command-unit-of-work.js';
+export type { FaviconCommandWriteContext } from './favicon-command-unit-of-work.js';

@@ -1,3 +1,12 @@
+import { createDatabaseFaviconStore } from '../infrastructure/collections/index.js';
+import { loadSharedFaviconConfig } from './config-favicon-shared.js';
+import { SharedFaviconCache } from '../infrastructure/collections/favicon-shared-cache.js';
+import { createScheduledFaviconFetcher } from '../infrastructure/collections/favicon-provider-scheduler.js';
+import { composeFaviconObjectStore } from './public-object-storage-composition.js';
+import { createFaviconWorkerRuntime, createPostgresFaviconJobWorkerRepository,
+  createPostgresFaviconJobWorkerUnitOfWork, createPostgresFaviconGcRepository,
+  defaultFaviconDecompressedBudget, fetchFaviconImage, type FaviconWorkerRuntime,
+} from '../infrastructure/collections/index.js';
 import { composeProductionOutboxProjectionRoutes,resolveProductionProjectionSink } from './worker-projection-composition.js';
 export { composeProductionOutboxProjectionRoutes,resolveProductionProjectionSink } from './worker-projection-composition.js';
 import {
@@ -103,6 +112,7 @@ import {
 import { composeLedgerArchiveWorker } from './ledger-archive-worker-composition.js';
 import type { LedgerArchiveExportWorkerRuntime } from '../infrastructure/ledger-archive/index.js';
 import type { LedgerArchiveSourceResolver } from './ledger-archive-worker-composition.js';
+import type { BookmarkFaviconObjectStore } from '../modules/collections/index.js';
 import {
   CACHE_WORKER_READINESS_GAUGE,
   CACHE_WORKER_READINESS_METRIC,
@@ -133,6 +143,7 @@ export interface WorkerRuntime {
   cacheReadiness(): Promise<CacheReadinessState>;
   /** LH-02 optional link-health probe worker, composed only when the feature is enabled. */
   readonly linkHealth?: LinkHealthWorkerRuntime;
+  readonly faviconJobs?: FaviconWorkerRuntime;
   readonly ledgerArchive?: LedgerArchiveExportWorkerRuntime;
   /**
    * C1 auth email surface (plan §9 Task C1); present only when
@@ -149,6 +160,7 @@ export interface WorkerRuntime {
 export interface WorkerProcessResources {
   readonly metricsServer: { close(): Promise<void> };
   readonly worker: { stop(): Promise<void> };
+  readonly faviconObjectStore?: { close?: () => Promise<void> };
 }
 interface WorkerStopFailure {
   readonly resource: string;
@@ -169,6 +181,11 @@ export async function closeWorkerProcessResources(input: WorkerProcessResources)
   const failures: WorkerStopFailure[] = [];
   await attemptWorkerStop(failures, 'metricsServer', () => input.metricsServer.close());
   await attemptWorkerStop(failures, 'worker', () => input.worker.stop());
+  const faviconStore = input.faviconObjectStore;
+  if (faviconStore?.close !== undefined) {
+    const close = faviconStore.close;
+    await attemptWorkerStop(failures, 'faviconObjectStore', () => close.call(faviconStore));
+  }
   if (failures.length > 0) {
     throw new AggregateError(
       failures.map(({ error }) => error),
@@ -211,6 +228,17 @@ export interface BuildWorkerOptions {
    */
   readonly linkHealth?: Pick<LinkHealthWorkerLoopOptions, 'resolve' | 'connect'>;
   /**
+   * FO-02 favicon job/GC worker seam. Tests inject `store` + `resolve` +
+   * `connect` so the worker never opens a real socket or R2 client. Production
+   * composes the R2 favicon store from the same attachment/avatar secrets the
+   * API uses and uses the hardened egress defaults.
+   */
+  readonly favicon?: {
+    readonly store?: BookmarkFaviconObjectStore;
+    readonly resolve?: import('../infrastructure/egress/index.js').HardenedEgressResolver;
+    readonly connect?: import('../infrastructure/egress/index.js').HardenedEgressConnector;
+  };
+  /**
    * C1 auth email sender injection (fixture-only seam; production composes the
    * DirectMail adapter / test-mode mailbox sink from config and FAILS CLOSED
    * when the flag is on but credentials are missing, exactly like
@@ -235,6 +263,69 @@ export interface BuildWorkerOptions {
    * shares one pool and closes it after the API stops.
    */
   readonly closeDatabase?: boolean;
+}
+
+
+function composeFaviconWorkerRuntime(
+  config: AppConfig,
+  database: DatabaseRuntime,
+  metrics: Metrics,
+  logger: ReturnType<typeof createLogger>,
+  options: BuildWorkerOptions,
+): FaviconWorkerRuntime {
+  const store = options.favicon?.store;
+  const resolve = options.favicon?.resolve;
+  const connect = options.favicon?.connect;
+  if (store === undefined) {
+    throw new Error(
+      'worker composition refused: KNOWN_FEATURE_FAVICON_POLICY enabled requires a favicon object store',
+    );
+  }
+  const sharedConfig = config.faviconPolicy.shared ?? loadSharedFaviconConfig({});
+  const scheduledFetch = createScheduledFaviconFetcher(database.pool, (input) => fetchFaviconImage({
+      url: input.url,
+      timeoutMs: input.timeoutMs,
+      maxBytes: input.maxBytes,
+      maxDecompressedBytes: input.maxDecompressedBytes,
+      maxRedirects: input.maxRedirects,
+      ...(resolve === undefined ? {} : { resolve }),
+      ...(connect === undefined ? {} : { connect }),
+    }), sharedConfig.providerIntervalMs);
+  const shared = new SharedFaviconCache(database.pool, store, scheduledFetch, {
+    providerTemplate: sharedConfig.providerTemplate,
+    refreshIntervalMs: sharedConfig.refreshIntervalMs,
+    retentionSeconds: config.faviconPolicy.historyRetentionSeconds,
+    fetch: {
+      timeoutMs: config.faviconPolicy.fetchTimeoutMs,
+      maxBytes: config.faviconPolicy.fetchMaxBytes,
+      maxDecompressedBytes: defaultFaviconDecompressedBudget(config.faviconPolicy.fetchMaxBytes),
+      maxRedirects: config.faviconPolicy.fetchMaxRedirects,
+    },
+  });
+  return createFaviconWorkerRuntime({
+    repository: createPostgresFaviconJobWorkerRepository(database.pool),
+    gc: createPostgresFaviconGcRepository(database.pool),
+    verify: createPostgresFaviconJobWorkerUnitOfWork(database.db),
+    fetcher: shared.fetch,
+    maintainSharedCache: () => shared.runOnce(),
+    store,
+    logger,
+    metrics,
+    concurrency: config.faviconPolicy.jobConcurrency,
+    pollIntervalMs: config.faviconPolicy.workerPollIntervalMs,
+    leaseDurationMs: config.faviconPolicy.workerLeaseDurationMs,
+    gcPollIntervalMs: config.faviconPolicy.gcPollIntervalMs,
+    batchSize: config.faviconPolicy.jobBatchSize,
+    options: {
+      maxAttempts: config.faviconPolicy.jobMaxAttempts,
+      backoffSeconds: config.faviconPolicy.retryBackoffSeconds,
+      retentionSeconds: config.faviconPolicy.historyRetentionSeconds,
+      maxBytes: config.faviconPolicy.fetchMaxBytes,
+      maxDecompressedBytes: defaultFaviconDecompressedBudget(config.faviconPolicy.fetchMaxBytes),
+      fetchTimeoutMs: config.faviconPolicy.fetchTimeoutMs,
+      maxRedirects: config.faviconPolicy.fetchMaxRedirects,
+    },
+  });
 }
 
 
@@ -467,6 +558,9 @@ export function buildWorker(
         ...(options.linkHealth?.connect === undefined ? {} : { connect: options.linkHealth.connect }),
       })
     : undefined;
+  const faviconJobsRuntime = (database && config.faviconPolicy.enabled)
+    ? composeFaviconWorkerRuntime(config, database, metrics, logger, options)
+    : undefined;
   const ledgerArchiveRuntime = composeLedgerArchiveWorker({
     config: config.ledgerArchive,
     database,
@@ -589,6 +683,7 @@ export function buildWorker(
     metrics,
     outbox,
     linkHealth: linkHealthRuntime,
+    faviconJobs: faviconJobsRuntime,
     ledgerArchive: ledgerArchiveRuntime,
     ...(authEmailComposition === undefined ? {} : { authEmail: { sender: authEmailComposition.sender } }),
     projectionSink,
@@ -631,6 +726,8 @@ export function buildWorker(
       // timers running after start() rejects.
       outbox?.start();
       linkHealthRuntime?.loop.start();
+      faviconJobsRuntime?.jobs.start();
+      faviconJobsRuntime?.gc.start();
       ledgerArchiveRuntime?.start();
       const publishSyncStatus = () => runWorkerInspectionTick({
         enabled: syncOperations !== undefined,
@@ -724,6 +821,8 @@ export function buildWorker(
       // shutting down, leaving work stranded behind the drain boundary.
       await attemptWorkerStop(failures, 'outbox', () => outbox?.stop());
       await attemptWorkerStop(failures, 'linkHealthLoop', () => linkHealthRuntime?.loop.stop());
+      await attemptWorkerStop(failures, 'faviconJobsLoop', () => faviconJobsRuntime?.jobs.stop());
+      await attemptWorkerStop(failures, 'faviconGcLoop', () => faviconJobsRuntime?.gc.stop());
       await attemptWorkerStop(failures, 'ledgerArchive', () => ledgerArchiveRuntime?.stop());
       // C1 auth email surface lifecycle (DirectMail adapter owned by the
       // composition; the unavailable sender and mailbox sink close as no-ops).
@@ -776,6 +875,9 @@ export async function createWorkerProcess(
     : undefined;
   const linkHealthProbe = linkHealthProbeInjectionFromEnv(env, config.nodeEnv);
   const metrics = new InMemoryMetrics();
+  const faviconObjectStore = config.faviconPolicy.enabled
+    ? (await composeFaviconObjectStore(config)) ?? createDatabaseFaviconStore(database.db)
+    : undefined;
   const metricsServer = createPrometheusMetricsServer({
     metrics,
     host: env.WORKER_METRICS_HOST?.trim() || '127.0.0.1',
@@ -784,6 +886,7 @@ export async function createWorkerProcess(
   let worker: WorkerRuntime;
   try {
     worker = buildWorker(config, database, metrics, {
+      ...(faviconObjectStore === undefined ? {} : { favicon: { store: faviconObjectStore } }),
       logger,
       closeDatabase: options.closeDatabase,
       mcpReadChangeSignalSource,
@@ -791,6 +894,7 @@ export async function createWorkerProcess(
     });
   } catch (error) {
     await mcpReadChangeSignalSource?.close?.();
+    await faviconObjectStore?.close?.();
     throw error;
   }
   return {
@@ -800,7 +904,7 @@ export async function createWorkerProcess(
       await metricsServer.start();
     },
     async stop() {
-      await closeWorkerProcessResources({ metricsServer, worker });
+      await closeWorkerProcessResources({ metricsServer, worker, faviconObjectStore });
     },
   };
 }
