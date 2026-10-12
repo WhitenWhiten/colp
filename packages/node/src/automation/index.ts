@@ -5,3 +5,6 @@ export * from './normalize.js';
 export * from './fingerprint.js';
 export * from './predicate.js';
 export * from './compile.js';
+export * from './task-contracts.js';
+export * from './validate-graph.js';
+export * from './arbitrate.js';
