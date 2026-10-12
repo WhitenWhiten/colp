@@ -109,11 +109,11 @@ describe('ResourceDetail favicon CDN gate', () => {
     expect(document.body.innerHTML).not.toContain('favicon.im')
   })
 
-  it('still uses the CDN on a public projection with the collection gate open', async () => {
+  it('ignores a legacy public CDN opt-in and uses the local fallback', async () => {
     mocks.loadPublicCollectionSnapshot.mockResolvedValue(publicSnapshot(true))
     mountAt(`/r/${NODE_ID}?slug=public`)
     await waitForDom(domFinishedLoading)
-    expect(markSrcs()).toEqual(['https://a.favicon.im/public.example?throw-error-on-404=true'])
+    expect(markSrcs()).toEqual([])
   })
 
   it('honours the collection gate and the per-node opt-out on public projections', async () => {

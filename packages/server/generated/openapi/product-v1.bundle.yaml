@@ -26338,7 +26338,7 @@ components:
           $ref: '#/components/schemas/ProfileSummaryDto'
         faviconCdnAllowed:
           type: boolean
-          description: True only when collection.visibility is public and this page's snapshot projection access is public. Absent or not true MUST be treated as false. Clients must not hotlink a third-party favicon CDN unless this is true.
+          description: 'Legacy compatibility field. Always false: public pages use stored site icons or a local fallback and never contact a third-party favicon CDN.'
         viewCount:
           type: integer
           minimum: 0
@@ -26422,7 +26422,7 @@ components:
           description: Same-origin preview image for a bookmark node, or null when none is known, the owner hid it, or link previews are disabled. Present on bookmark nodes only; absent on folder, root, and moderation tombstone nodes and on responses from older servers.
         faviconCdnAllowed:
           type: boolean
-          description: 'Whether this exact bookmark node may fall back to the third-party favicon CDN. Present on bookmark nodes only. It is false when the owner explicitly set the node icon source to none (an opt-out that must never be revived by a hotlink) and otherwise mirrors the collection-level faviconCdnAllowed fact. Absent on responses from older servers: the collection-level faviconCdnAllowed fact governs (that was the pre-FO-07 behavior); where that field is absent too, no CDN fallback occurs.'
+          description: Legacy compatibility field, false on bookmark nodes. Public pages never use a third-party favicon CDN. Absent on folders and roots.
         pinned:
           type: boolean
           const: true

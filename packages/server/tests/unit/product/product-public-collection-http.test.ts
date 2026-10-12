@@ -344,7 +344,7 @@ test('conceals invalid and unknown slugs and validates paging input', async () =
   assert.match(duplicate.headers['cache-control'] ?? '', /(?:^|,\s*)no-store(?:,|$)/u);
 });
 
-test('HTTP anonymous public page sets faviconCdnAllowed true and sends iconUrl null without a row', async () => {
+test('HTTP anonymous public page disables external favicon fallback and sends iconUrl null without a row', async () => {
   visibility = 'public';
   const response = await app.inject({
     method: 'GET', url: '/api/v1/collections/published?limit=2',
@@ -356,7 +356,7 @@ test('HTTP anonymous public page sets faviconCdnAllowed true and sends iconUrl n
     nodes: Array<{ id: string; kind: string; iconUrl?: string | null }>;
   };
   assert.equal(body.collection.access, 'public');
-  assert.equal(body.collection.faviconCdnAllowed, true);
+  assert.equal(body.collection.faviconCdnAllowed, false);
   const bookmark = body.nodes.find((item) => item.kind === 'bookmark');
   const root = body.nodes.find((item) => item.kind === 'root');
   assert.equal(Object.hasOwn(bookmark ?? {}, 'iconUrl'), true);
@@ -476,7 +476,7 @@ test('HTTP live JOIN returns same-origin iconUrl for a public bookmark', async (
     collection: { faviconCdnAllowed?: boolean };
     nodes: Array<{ id: string; kind: string; iconUrl?: string | null }>;
   };
-  assert.equal(body.collection.faviconCdnAllowed, true);
+  assert.equal(body.collection.faviconCdnAllowed, false);
   assert.equal(
     body.nodes.find((item) => item.id === 'a')?.iconUrl,
     `${PRODUCT_ORIGIN}/api/v1/favicon/${ICON_OBJECT_A}`,

@@ -65,7 +65,7 @@ describeWithPostgres('BF-04 PostgreSQL live bookmark icon JOIN on public Collect
         nodes: Array<{ id: string; kind: string; iconUrl?: string | null }>;
       };
       assert.equal(body.collection.access, 'public');
-      assert.equal(body.collection.faviconCdnAllowed, true);
+      assert.equal(body.collection.faviconCdnAllowed, false);
       assert.equal(body.nodes.some((node) => node.id === 'icon-secret'), false);
       assert.equal(JSON.stringify(body).includes(ICON_SECRET), false);
       const folder = body.nodes.find((node) => node.id === 'icon-folder');

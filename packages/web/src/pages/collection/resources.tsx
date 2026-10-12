@@ -123,22 +123,18 @@ export function SaveResourcePicker({ resource, onClose }: {
 
 export function ResourceIcon({
   resource,
-  faviconCdnAllowed,
 }: {
   resource: CollectionResource
-  /** Collection-level CDN fact; the node may still opt out (icon source none). */
+  /** Legacy policy field; public pages always use local icon fallbacks. */
   faviconCdnAllowed: boolean
 }) {
-  // FO-07 fix: an explicit `none` never hotlinks the CDN. The node-level fact
-  // is authoritative when present; an older server response omits it, which
-  // keeps the collection-level behavior.
-  const nodeCdnAllowed = resource.node.faviconCdnAllowed ?? faviconCdnAllowed
+  // Ignore legacy CDN opt-ins so cached responses cannot trigger third-party requests.
   return (
     <BookmarkIcon
       icon={bookmarkIconSrc({
         iconUrl: resource.node.iconUrl,
         pageUrl: resource.node.url,
-        faviconCdnAllowed: faviconCdnAllowed && nodeCdnAllowed,
+        faviconCdnAllowed: false,
       })}
       letter={<DomainMark host={resource.host} small />}
     />

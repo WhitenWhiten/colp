@@ -227,7 +227,7 @@ function fromPublic(snapshot: PublicCollectionSnapshot, nodeId: string, allowCon
   if (!found) return { status: 'unavailable' }
   if (found.kind !== 'bookmark' && !allowContainers) return { status: 'folder', title: found.title }
   const bookmarks = snapshot.nodes.filter((node) => node.kind === 'bookmark')
-  const cdnAllowed = snapshot.collection.faviconCdnAllowed === true
+  const cdnAllowed = false
   return {
     status: 'ready',
     node: toResolved(found.id === snapshot.collection.rootNodeId ? { ...found, kind: 'root' } : found, cdnAllowed),

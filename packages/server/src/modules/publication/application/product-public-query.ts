@@ -1,6 +1,5 @@
 import type { Relation, SnapshotNode } from '@know-n/colp/types';
 import {
-  knownFaviconForUrl,
   iconUrlForNode,
   isBookmarkPinned,
   loadBookmarkIconObjectIds,
@@ -43,10 +42,8 @@ export interface ProductPublicCollectionQueryPorts {
     findObjectIdsByNodeIds(nodeIds: readonly string[]): Promise<ReadonlyMap<string, string>>;
   };
   /**
-   * Batch icon-source lookup driving the per-node CDN fallback. An explicit
-   * `none` is an owner opt-out: the shared page must not hotlink a third-party
-   * favicon CDN for that node ("自动任务…不得复活 none"). A missing row keeps
-   * the legacy fallback, so untouched bookmarks are unaffected.
+   * Batch icon-source lookup. An explicit `none` suppresses the stored icon.
+   * Public pages use stored site icons or a local fallback, never a CDN.
    */
   readonly faviconSources?: {
     findModesByNodeIds(
@@ -214,7 +211,8 @@ export async function getProductPublicCollectionPage(
   if (!Number.isSafeInteger(viewCount) || viewCount < 0) {
     throw new Error('Public collection view count is invalid');
   }
-  const cdnAllowed = collection.visibility === 'public' && result.projection === 'public';
+  // Visitors never disclose their bookmark hosts to an external favicon service.
+  const cdnAllowed = false;
   return Object.freeze({
     collection: Object.freeze({
       id: collection.id,
@@ -320,11 +318,10 @@ function mapNode(
     throw new Error('Publication Snapshot Bookmark is missing its URL');
   }
   const marks = marksByNodeId?.get(node.id);
-  // An explicit `none` never falls back to the third-party CDN, whatever the
-  // collection-level fact says. Folder/root nodes carry no icon.
+  // Keep the legacy policy field false for old clients as well. Folder/root nodes carry no icon.
   const nodeCdnAllowed = node.kind !== 'bookmark'
     ? undefined
-    : collectionCdnAllowed && faviconSourceModes.get(node.id) !== 'none' && knownFaviconForUrl(node.url) === null;
+    : collectionCdnAllowed;
   return Object.freeze({
     id: node.id,
     parentId: node.parentId,
@@ -333,7 +330,7 @@ function mapNode(
     description: node.description ?? null,
     url: node.kind === 'bookmark' ? node.url! : null,
     position: node.position,
-    iconUrl: node.kind === 'bookmark'
+    iconUrl: node.kind === 'bookmark' && faviconSourceModes.get(node.id) !== 'none'
       ? iconUrlForNode(node.id, iconObjectIds, productOrigin)
       : null,
     ...(nodeCdnAllowed === undefined ? {} : { faviconCdnAllowed: nodeCdnAllowed }),

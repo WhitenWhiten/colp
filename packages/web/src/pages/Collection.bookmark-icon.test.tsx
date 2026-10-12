@@ -109,7 +109,6 @@ function snapshot(
 
 const OBJECT_ID = '01234567-89ab-4cde-8f01-23456789abcd'
 const OBJECT_ICON = `https://known.example/api/v1/favicon/${OBJECT_ID}`
-const GITHUB_CDN = 'https://a.favicon.im/github.com?throw-error-on-404=true'
 
 function imgSrcs(root: ParentNode = document): string[] {
   return [...root.querySelectorAll('img')].map((img) => img.getAttribute('src') ?? '')
@@ -235,7 +234,7 @@ describe('public Collection bookmark icons (BF-05)', () => {
       await act(async () => viewButton('Compact').click())
     }
 
-    it('hotlinks the exact CDN src when faviconCdnAllowed is true and iconUrl is missing', async () => {
+    it('uses a local fallback even when an older response allows the CDN', async () => {
       // The snapshot endpoint answers every mount with this projection:
       // StrictMode's remount re-reads it, so the fixture must not be a
       // one-shot queue.
@@ -246,7 +245,7 @@ describe('public Collection bookmark icons (BF-05)', () => {
       ))
       renderCollection()
       await waitForDom(domFinishedLoading)
-      expect(imgSrcs()).toContain(GITHUB_CDN)
+      expect(thirdPartyFaviconSrcs()).toEqual([])
       expect(imgSrcs()).not.toContain('https://favicon.im/github.com')
       expect(imgSrcs().some((src) => src.includes('icons.duckduckgo.com'))).toBe(false)
     })
@@ -290,7 +289,7 @@ describe('public Collection bookmark icons (BF-05)', () => {
       renderCollection()
       await waitForDom(domFinishedLoading)
       const srcs = thirdPartyFaviconSrcs()
-      expect(srcs).toEqual(['https://a.favicon.im/gitlab.com?throw-error-on-404=true'])
+      expect(srcs).toEqual([])
       const rows = [...document.querySelectorAll('[data-collection-resource]')]
       const optedOutRow = rows.find((row) => row.textContent?.includes('Opted out'))
       expect(optedOutRow?.querySelector('span[aria-hidden]')?.textContent).toBe('G')
@@ -343,17 +342,16 @@ describe('public Collection bookmark icons (BF-05)', () => {
       expect(document.querySelector('[data-collection-resource] span[aria-hidden]')?.textContent).toBe('G')
     })
 
-    it('compact view has an icon slot for object, CDN, and letter', async () => {
+    it('compact view has local icon slots for stored icons and missing icons', async () => {
       const cases: Array<{
         name: string
         iconUrl?: string | null
         faviconCdnAllowed?: boolean
         expectObject?: boolean
-        expectCdn?: boolean
         expectLetter?: boolean
       }> = [
         { name: 'object', iconUrl: OBJECT_ICON, faviconCdnAllowed: true, expectObject: true },
-        { name: 'cdn', faviconCdnAllowed: true, expectCdn: true },
+        { name: 'legacy-cdn-opt-in', faviconCdnAllowed: true, expectLetter: true },
         { name: 'letter', faviconCdnAllowed: false, expectLetter: true },
       ]
       for (const row of cases) {
@@ -375,9 +373,6 @@ describe('public Collection bookmark icons (BF-05)', () => {
         if (row.expectObject) {
           expect(srcs, row.name).toContain(OBJECT_ICON)
           expect(thirdPartyFaviconSrcs(compact ?? document), row.name).toEqual([])
-        }
-        if (row.expectCdn) {
-          expect(srcs, row.name).toContain(GITHUB_CDN)
         }
         if (row.expectLetter) {
           expect(thirdPartyFaviconSrcs(compact ?? document), row.name).toEqual([])

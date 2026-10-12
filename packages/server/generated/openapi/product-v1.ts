@@ -7573,7 +7573,7 @@ export interface components {
             /** @enum {string} */
             access: "public" | "member";
             owner?: components["schemas"]["ProfileSummaryDto"];
-            /** @description True only when collection.visibility is public and this page's snapshot projection access is public. Absent or not true MUST be treated as false. Clients must not hotlink a third-party favicon CDN unless this is true. */
+            /** @description Legacy compatibility field. Always false: public pages use stored site icons or a local fallback and never contact a third-party favicon CDN. */
             faviconCdnAllowed?: boolean;
             /** @description Sum of collection_view counts over 30 UTC calendar days including today. Zero when the collection has no publication_insight_daily rows in that window. */
             viewCount?: number;
@@ -7595,7 +7595,7 @@ export interface components {
             iconUrl?: components["schemas"]["BookmarkFaviconUrl"] | null;
             /** @description Same-origin preview image for a bookmark node, or null when none is known, the owner hid it, or link previews are disabled. Present on bookmark nodes only; absent on folder, root, and moderation tombstone nodes and on responses from older servers. */
             previewImage?: components["schemas"]["BookmarkPreviewImage"] | null;
-            /** @description Whether this exact bookmark node may fall back to the third-party favicon CDN. Present on bookmark nodes only. It is false when the owner explicitly set the node icon source to none (an opt-out that must never be revived by a hotlink) and otherwise mirrors the collection-level faviconCdnAllowed fact. Absent on responses from older servers: the collection-level faviconCdnAllowed fact governs (that was the pre-FO-07 behavior); where that field is absent too, no CDN fallback occurs. */
+            /** @description Legacy compatibility field, false on bookmark nodes. Public pages never use a third-party favicon CDN. Absent on folders and roots. */
             faviconCdnAllowed?: boolean;
             /**
              * @description Bookmarks only. The owner pinned this bookmark in a browser, which keeps it between the folder's subfolders and its other bookmarks; Position already reflects that order. Absent when unpinned and on responses from servers before 1.90.0.

@@ -71,20 +71,20 @@ test('maps anonymous public and unlisted Snapshot pages to the explicit Product 
       'title', 'updatedAt', 'viewCount',
     ]);
     assert.equal(page.collection.viewCount, 0);
-    assert.equal(page.collection.faviconCdnAllowed, value === 'public');
+    assert.equal(page.collection.faviconCdnAllowed, false);
     assert.equal('revision' in page.collection, false);
     assert.equal('visibility' in page.collection, false);
     assert.equal('ownerSubjectId' in page.collection, false);
   }
 });
 
-test('directory-public anonymous page sets faviconCdnAllowed true', async () => {
+test('directory-public anonymous page disables external favicon fallback', async () => {
   visibility = 'public';
   const page = await getProductPublicCollectionPage(ports(), {
     slug: 'published', principal: { kind: 'anonymous' }, limit: 4,
   });
   assert.equal(page.collection.access, 'public');
-  assert.equal(page.collection.faviconCdnAllowed, true);
+  assert.equal(page.collection.faviconCdnAllowed, false);
 });
 
 test('unlisted anonymous page sets faviconCdnAllowed false even when access is public', async () => {
