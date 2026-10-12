@@ -348,6 +348,7 @@ export function createMcp20260728WriteToolAdapter(
     trusted: McpTrustedWriteRequestContext,
     args: Readonly<Record<string, unknown>> | undefined,
     requestState: string | undefined,
+    interactive: boolean,
   ): Promise<Mcp20260728Result> => {
     const binding = trusted.binding;
     const budget = trusted.budget;
@@ -368,7 +369,7 @@ export function createMcp20260728WriteToolAdapter(
         { planId, method: 'changes.plan', inputDigest: computeInputDigest(args, budget) },
         binding,
       );
-      return buildInputRequiredResult(serverInfo, budget, state, structuredContent);
+      return buildInputRequiredResult(serverInfo, budget, state, structuredContent, interactive);
     }
     const payload = verifyState(requestState, 'changes.plan', computeInputDigest(args, budget), binding);
     const resolution = await resolvePlanStatus(payload.planId, binding);
@@ -383,6 +384,7 @@ export function createMcp20260728WriteToolAdapter(
           budget,
           mintState({ planId: payload.planId, method: 'changes.plan', inputDigest: payload.inputDigest }, binding),
           resolution.plan,
+          interactive,
         );
       }
       case 'approved': {
@@ -406,6 +408,7 @@ export function createMcp20260728WriteToolAdapter(
     trusted: McpTrustedWriteRequestContext,
     args: Readonly<Record<string, unknown>> | undefined,
     requestState: string | undefined,
+    interactive: boolean,
   ): Promise<Mcp20260728Result> => {
     const binding = trusted.binding;
     const budget = trusted.budget;
@@ -426,7 +429,7 @@ export function createMcp20260728WriteToolAdapter(
             case 'approved':
             case 'committing': {
               const state = mintState({ planId, method: 'changes.commit', inputDigest: digest }, binding);
-              return buildInputRequiredResult(serverInfo, budget, state, resolution.plan);
+              return buildInputRequiredResult(serverInfo, budget, state, resolution.plan, interactive);
             }
             case 'consumed':
               throw rejectedWrite('plan_already_consumed');
@@ -454,6 +457,7 @@ export function createMcp20260728WriteToolAdapter(
           budget,
           mintState({ planId: payload.planId, method: 'changes.commit', inputDigest: payload.inputDigest }, binding),
           resolution.plan,
+          interactive,
         );
       }
       case 'approved':
@@ -510,10 +514,10 @@ export function createMcp20260728WriteToolAdapter(
         throw new McpWriteToolScopeDeniedError();
       }
       if (request.name === 'changes.plan') {
-        return await handlePlan(trusted, request.arguments, request.requestState);
+        return await handlePlan(trusted, request.arguments, request.requestState, supportsApprovalElicitation(ctx, request.inputResponses));
       }
       if (request.name === 'changes.commit') {
-        return await handleCommit(trusted, request.arguments, request.requestState);
+        return await handleCommit(trusted, request.arguments, request.requestState, supportsApprovalElicitation(ctx, request.inputResponses));
       }
       return await handleNormal(trusted, request.name, request.arguments);
     } catch (error) {
@@ -555,14 +559,56 @@ function buildCompleteResult(
   return buildToolResult('tools/call', serverInfo, budget, fields, undefined);
 }
 
+function supportsApprovalElicitation(context: Mcp20260728RequestContext, responses: unknown): boolean {
+  const elicitation = context.clientCapabilities.elicitation;
+  const url = typeof elicitation === 'object' && elicitation !== null
+    ? readOwnValue(elicitation, 'url') : undefined;
+  // One prompt per call: accepting or dismissing it never grants approval and
+  // must not create a tight retry loop while the owner is still reviewing.
+  return typeof url === 'object' && url !== null
+    && (responses === undefined || readOwnValue(responses as object, 'approval') === undefined);
+}
+
+const awaitingApprovalSchema = Object.freeze({
+  type: 'object', additionalProperties: false,
+  properties: {
+    status: { const: 'awaiting_approval' },
+    planId: { type: 'string' }, approvalUri: { type: 'string' }, expiresAt: { type: 'string' },
+  },
+  required: ['status', 'planId', 'approvalUri', 'expiresAt'],
+});
+
 function buildInputRequiredResult(
   serverInfo: Mcp20260728ServerInfo,
   budget: McpWriteInputBudget,
   requestState: string,
   plan: unknown,
+  interactive: boolean,
 ): Mcp20260728Result {
+  const projection = snapshotMcpData(plan, budget) as Readonly<Record<string, unknown>>;
+  const { planId, approvalUri, expiresAt } = projection;
+  if (typeof planId !== 'string' || typeof approvalUri !== 'string' || typeof expiresAt !== 'string') {
+    throw new Mcp20260728WriteHostError('Pending approval requires a plan ID, approval URI and expiry.');
+  }
+  if (!interactive) {
+    const pending = { status: 'awaiting_approval', planId, approvalUri, expiresAt };
+    return buildCompleteResult(serverInfo, budget, {
+      content: [{ type: 'text', text: JSON.stringify(pending) }],
+      structuredContent: pending,
+    });
+  }
   const fields: Record<string, unknown> = {
-    inputRequests: Object.freeze({}),
+    inputRequests: {
+      approval: {
+        method: 'elicitation/create',
+        params: {
+          mode: 'url',
+          message: 'Open the approval link to review this change. Approval must be recorded by the owner before it can be committed.',
+          url: approvalUri,
+          elicitationId: planId,
+        },
+      },
+    },
     requestState,
   };
   if (plan !== undefined) fields.plan = plan;
@@ -788,7 +834,9 @@ function readToolEntries(
       name,
       description,
       inputSchema: inputSchema as McpToolInputSchema,
-      ...(outputSchema !== undefined ? { outputSchema: outputSchema as McpToolOutputSchema } : {}),
+      ...(outputSchema !== undefined ? { outputSchema: name === 'changes.plan' || name === 'changes.commit'
+        ? { anyOf: [outputSchema, awaitingApprovalSchema] } as McpToolOutputSchema
+        : outputSchema as McpToolOutputSchema } : {}),
     });
     if (!ToolSchema.safeParse(modern).success) {
       throw configError();

@@ -538,5 +538,5 @@ test('strict write Plan still uses MRTR input_required and requestState', async 
   const payload = JSON.parse(planned.payload) as { readonly result?: Record<string, unknown> };
   assert.equal(payload.result?.resultType, 'input_required');
   assert.equal(typeof payload.result?.requestState, 'string');
-  assert.deepEqual(payload.result?.inputRequests, {});
+  assert.equal((payload.result?.inputRequests as { approval?: { method?: string } })?.approval?.method, 'elicitation/create');
 });

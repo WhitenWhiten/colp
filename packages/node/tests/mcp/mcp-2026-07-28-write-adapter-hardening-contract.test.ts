@@ -176,7 +176,7 @@ describe('MCP 2026-07-28 Modern Write adapter — inputResponses validation [evi
       arguments: planRequest(),
       requestState: first.requestState as string,
       inputResponses: {
-        approval: { action: 'accept', content: { ok: true } },
+        unrequested: { action: 'accept', content: { ok: true } },
         roots: { roots: [] },
         sample: { role: 'assistant', content: { type: 'text', text: 'ok' } },
       },

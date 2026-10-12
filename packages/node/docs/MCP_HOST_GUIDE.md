@@ -197,10 +197,14 @@ core onto `2026-07-28` results:
 
 - Normal results are `complete`: low-risk Tools, `changes.cancel`, approved
   commit receipts, and `tools/list`.
-- A call that waits for out-of-band approval returns `input_required` with an
-  `inputRequests` map and a server-minted `requestState`. COLP never sends
-  roots, sampling, or elicitation requests to the client, so the map is empty;
-  the client retries after the host records the approval.
+- Clients declaring `elicitation.url` receive a standard URL elicitation in
+  `inputRequests` and a server-minted `requestState`. The owner reviews and
+  approves the plan at that URL; an elicitation answer never grants approval.
+- Clients without URL elicitation receive a `complete` result containing
+  `status: awaiting_approval`, `planId`, `approvalUri`, and `expiresAt`.
+  Resume with `changes.commit` after the owner approves. If an elicitation
+  answer arrives while approval is still pending, the same fallback ends the
+  interactive call instead of repeatedly prompting or exhausting SDK retries.
 - A retry echoes `requestState` (and optional `inputResponses`). The adapter
   verifies its HMAC integrity, expiry, principal binding, method, and input
   digest, then resumes the same plan. A call without `requestState` always

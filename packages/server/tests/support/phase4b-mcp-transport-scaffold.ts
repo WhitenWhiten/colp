@@ -343,7 +343,7 @@ export function modernBody(
       _meta: {
         'io.modelcontextprotocol/protocolVersion': '2026-07-28',
         'io.modelcontextprotocol/clientCapabilities': {
-          tools: { call: true },
+          elicitation: { url: {} },
         },
         'io.modelcontextprotocol/clientInfo': {
           name: 'known-r06-test',

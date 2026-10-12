@@ -7,7 +7,7 @@
  * - normal results are always `complete` (low-risk Tools, changes.cancel,
  *   approved commit receipts, tools/list);
  * - waiting for approval returns MRTR `input_required` carrying an
- *   `inputRequests` map (empty: COLP never elicits/samples/lists roots) and
+ *   standard URL elicitation in `inputRequests` and
  *   a server-minted `requestState` that associates the cross-request plan
  *   business state;
  * - retries echo `requestState` (+ optional `inputResponses`); the adapter
@@ -26,6 +26,9 @@ import { createInMemoryPlanStore } from '../../src/mcp/change-plan.js';
 import type { Mcp20260728Result } from '../../src/mcp/2026-07-28/results.js';
 import {
   harness,
+  createContext,
+  meta,
+  CLIENT_CAPABILITIES_META_KEY,
   lowRiskDescriptor,
   planStatusResolver,
   commitInput,
@@ -46,7 +49,7 @@ describe('MCP 2026-07-28 Modern Write adapter — changes.plan MRTR [evidence:mc
     const result = await firstPlanResult(adapter, context);
 
     expect(result.resultType).toBe('input_required');
-    expect(result.inputRequests).toEqual({});
+    expect(result.inputRequests).toMatchObject({ approval: { method: 'elicitation/create', params: { mode: 'url', url: expect.stringContaining('/approvals/') } } });
     expect(typeof result.requestState).toBe('string');
     expect((result.requestState as string).length).toBeGreaterThan(0);
     expect(result.ttlMs).toBeUndefined();
@@ -194,7 +197,7 @@ describe('MCP 2026-07-28 Modern Write adapter — changes.commit/cancel [evidenc
       arguments: commitInput(planId),
     });
     expect(result.resultType).toBe('input_required');
-    expect(result.inputRequests).toEqual({});
+    expect(result.inputRequests).toMatchObject({ approval: { method: 'elicitation/create', params: { mode: 'url', url: expect.stringContaining('/approvals/') } } });
     expect(typeof result.requestState).toBe('string');
     expect(resultPlan(result).planId).toBe(planId);
     expect(CallToolResultSchema.safeParse(result).success).toBe(true);
@@ -399,3 +402,30 @@ describe('MCP 2026-07-28 Modern Write adapter — tools/list [evidence:mcp.mrtr-
 });
 
 
+
+
+describe('approval interoperability', () => {
+  it('returns a resumable approval link without MRTR for clients without URL elicitation', async () => {
+    const { adapter, binding, planStore } = harness();
+    const context = createContext(binding, { body: { method: 'tools/call', params: {
+      _meta: meta({ [CLIENT_CAPABILITIES_META_KEY]: {} }),
+    } } });
+    const result = await firstPlanResult(adapter, context);
+    expect(result.resultType).toBe('complete');
+    expect(result.inputRequests).toBeUndefined();
+    expect(result.structuredContent).toMatchObject({ status: 'awaiting_approval', planId: expect.any(String), approvalUri: expect.any(String) });
+    expect(planStore.stats().plans).toBe(1);
+  });
+
+  it('does not treat an elicitation answer as owner approval or prompt repeatedly', async () => {
+    const { adapter, context, planStore } = harness();
+    const first = await firstPlanResult(adapter, context);
+    for (const action of ['accept', 'decline', 'cancel']) {
+      const retry = await adapter.callTool(context, { name: 'changes.plan', arguments: planRequest(),
+        requestState: first.requestState, inputResponses: { approval: { action } } });
+      expect(retry.resultType).toBe('complete');
+      expect(retry.structuredContent).toMatchObject({ status: 'awaiting_approval' });
+      expect((await planStore.get(resultPlan(first).planId as string))?.status).toBe('pending');
+    }
+  });
+});

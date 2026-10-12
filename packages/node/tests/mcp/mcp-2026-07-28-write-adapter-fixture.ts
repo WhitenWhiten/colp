@@ -146,7 +146,7 @@ export function header(name: string, value: string): Mcp20260728HeaderField {
 export function meta(overrides: Readonly<Record<string, unknown>> = {}): Record<string, unknown> {
   return {
     [PROTOCOL_VERSION_META_KEY]: '2026-07-28',
-    [CLIENT_CAPABILITIES_META_KEY]: {},
+    [CLIENT_CAPABILITIES_META_KEY]: { elicitation: { url: {} } },
     ...overrides,
   };
 }
