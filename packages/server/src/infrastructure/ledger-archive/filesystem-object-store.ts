@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { createReadStream } from 'node:fs';
-import { link, mkdir, open, stat, unlink } from 'node:fs/promises';
+import { link, mkdir, open, stat, unlink, type FileHandle } from 'node:fs/promises';
 import { dirname, join, resolve, sep } from 'node:path';
 
 import { settleBestEffort } from '../async/best-effort.js';
@@ -90,7 +90,7 @@ export function createFilesystemLedgerArchiveObjectStore(
           if (input.signal?.aborted) throw abortError();
           hash.update(chunk);
           written += BigInt(chunk.byteLength);
-          await handle.write(chunk);
+          await writeAll(handle, chunk);
         }
         await handle.sync();
         await handle.close();
@@ -135,6 +135,23 @@ export function createFilesystemLedgerArchiveObjectStore(
     },
   };
   return Object.freeze(store);
+}
+
+/**
+ * FileHandle.write may legally store fewer bytes than requested. The hash and
+ * length above describe the input, so publishing after a short write would
+ * bind truncated bytes to the full content address; write every byte or fail
+ * before the spool is linked.
+ */
+async function writeAll(handle: FileHandle, chunk: Uint8Array): Promise<void> {
+  let offset = 0;
+  while (offset < chunk.byteLength) {
+    const { bytesWritten } = await handle.write(chunk, offset, chunk.byteLength - offset);
+    if (!Number.isSafeInteger(bytesWritten) || bytesWritten <= 0 || bytesWritten > chunk.byteLength - offset) {
+      throw new Error('archive spool write made no valid progress');
+    }
+    offset += bytesWritten;
+  }
 }
 
 async function* boundedFileBody(

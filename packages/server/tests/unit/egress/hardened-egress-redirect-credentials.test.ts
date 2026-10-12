@@ -205,3 +205,53 @@ describe('hardened egress redirect hops follow fetch credential rules', () => {
     assert.equal(redirected?.body.includes('purge-token-value'), false);
   });
 });
+
+describe('hardened egress redirect hops keep HEAD and the existing body-dropping downgrade', () => {
+  function scriptedFetch(status: number, location: string) {
+    const hops: Hop[] = [];
+    const connect: HardenedEgressConnector = async (target, init) => {
+      hops.push({ url: target.url.toString(), method: init.method ?? 'GET',
+        headers: headerRecord(init.headers), body: bodyText(init.body) });
+      if (hops.length === 1) return new Response(null, { status, headers: { location } });
+      return new Response(null, { status: 200 });
+    };
+    return { fetchImpl: createHardenedEgressFetch({ resolve: async () => [PUBLIC_IP], connect }), hops };
+  }
+
+  for (const status of [301, 302, 303] as const) {
+    test(`HEAD stays HEAD across a same-origin ${status}`, async () => {
+      const { fetchImpl, hops } = scriptedFetch(status, '/moved');
+      await fetchImpl('https://bookmarks.example.test/start', {
+        method: 'HEAD', headers: { 'user-agent': 'probe', authorization: AUTHORIZATION },
+      });
+      assert.deepEqual(hops.map((hop) => [hop.url, hop.method]), [
+        ['https://bookmarks.example.test/start', 'HEAD'],
+        ['https://bookmarks.example.test/moved', 'HEAD'],
+      ]);
+      assert.equal(hops[1]?.headers['user-agent'], 'probe');
+      assert.equal(hops[1]?.headers.authorization, AUTHORIZATION, 'same-origin credentials are preserved');
+    });
+  }
+
+  test('a lower-case head method is still not rewritten, and a cross-origin hop strips credentials', async () => {
+    const { fetchImpl, hops } = scriptedFetch(302, 'https://other.example.test/elsewhere');
+    await fetchImpl('https://bookmarks.example.test/start', {
+      method: 'head', headers: { authorization: AUTHORIZATION, cookie: 'session=abc' },
+    });
+    assert.equal(hops[1]?.method.toUpperCase(), 'HEAD');
+    assert.equal(hops[1]?.headers.authorization, undefined);
+    assert.equal(hops[1]?.headers.cookie, undefined);
+  });
+
+  test('POST is still downgraded to a bodyless GET on 301 and 303', async () => {
+    for (const status of [301, 303] as const) {
+      const { fetchImpl, hops } = scriptedFetch(status, '/after');
+      await fetchImpl(PURGE_ENDPOINT, {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"secret":"payload"}',
+      });
+      assert.equal(hops[1]?.method, 'GET', String(status));
+      assert.equal(hops[1]?.body, '', String(status));
+      assert.equal(hops[1]?.headers['content-type'], undefined, String(status));
+    }
+  });
+});

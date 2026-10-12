@@ -42,6 +42,7 @@ import {
   validateManifestSemantics,
   validateSnapshotSemantics,
 } from '../semantic/index.js';
+import { assertEndpointExpansionKeepsPathSegments } from '../semantic/endpoint-path-segments.js';
 export * from '../shared/url-hash.js';
 import { isPrivateOrLocalLiteralHostname } from '../shared/private-or-local-literal-host.js';
 export { isPrivateOrLocalAddress, isPrivateOrLocalLiteralHostname } from '../shared/private-or-local-literal-host.js';
@@ -1057,6 +1058,7 @@ export class ColpClient {
     const source = mount.endpoints[key];
     if (typeof source !== 'string') throw new RangeError(`Manifest endpoint ${key} is missing.`);
     assertManifestEndpointTemplateBudget(source);
+    assertEndpointExpansionKeepsPathSegments(source, values);
     const url = normalizeUrl(new URL(parseTemplate(source).expand(values)));
     rejectDowngrade(new URL(mount.baseUrl), url);
     assertPublisherEndpointOrigin(url, mount.baseUrl);

@@ -48,6 +48,10 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 - An agent's OAuth sign-in works when the owner is not yet signed in: `/oauth2/authorize` sends the browser to `/login` instead of answering JSON 401, and `/login` resumes the authorization after sign-in instead of dropping it.
 - `/sitemap.xml`, `/sitemap-*.xml`, `/llms.txt` and `/llms-full.txt` answer 404 in all Caddy profiles instead of the web app's HTML.
 - The static contract tests referenced Know-N paths that are not part of this package; they are adapted to the self-hosted repository (Caddy ingress, PostgreSQL project, in-package frozen lists) or removed with their module (see `tests/EXTRACTION.md`).
+- `colp-server export` no longer overwrites a collection's snapshot with the directory catalog when the collection's title or publication slug is `index`: the `index` stem is reserved for `index.json`, stems are de-duplicated case-insensitively, and suffixed names keep their `-<id>` tail at the 200-character limit (maximum-length duplicate slugs could previously loop forever).
+- Link health probes plain `http://` bookmarks instead of recording every one as broken/denied. Only the bookmark probe opts in; every other outbound fetch stays HTTPS-only, and HTTP hops pass the same address, metadata-host, userinfo, pinning and per-redirect checks as HTTPS.
+- Hardened egress keeps `HEAD` as `HEAD` across 301/302/303 redirects, so a link-health HEAD probe no longer turns into a GET that downloads the redirected body. Other methods keep the existing bodyless-GET downgrade.
+- The development filesystem ledger-archive store writes every byte of each chunk before linking the content-addressed object; a short write could previously publish a truncated object under the full digest, and a zero-progress write now fails without installing the key.
 
 ### Security
 

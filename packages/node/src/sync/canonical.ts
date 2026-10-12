@@ -7,6 +7,7 @@
 import { sha256 } from '@noble/hashes/sha2.js';
 import { parseTemplate } from 'url-template';
 
+import { assertEndpointExpansionKeepsPathSegments } from '../semantic/endpoint-path-segments.js';
 import { isPrivateOrLocalLiteralHostname } from '../shared/private-or-local-literal-host.js';
 import {
   canonicalJsonSnapshot,
@@ -168,7 +169,11 @@ export function expandAuthoritativeEffectPageUrl(
   if (variables.length !== 2 || variables[0] !== 'effectId' || variables[1] !== 'pageNumber') {
     throw new TypeError('Authoritative Pull effect page template requires exactly effectId and pageNumber.');
   }
-  const expanded = parseTemplate(raw).expand({ effectId, pageNumber: String(pageNumber) });
+  const values = { effectId, pageNumber: String(pageNumber) };
+  // effectId is an opaque wire ID and may be `.` or `..`; the returned URL must
+  // still address this effect's page after URL normalization.
+  assertEndpointExpansionKeepsPathSegments(raw, values);
+  const expanded = parseTemplate(raw).expand(values);
   assertAuthoritativeEffectPageUrlSafe(expanded);
   return expanded;
 }

@@ -9,6 +9,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Added `negotiatePublicationVersion` and `normalizePublicationSupportedVersions` (`server`), and `PublicationHttpReadInput.protocolVersionHeader` / `accept` / `supportedVersions`. `publicationHttpReadFromRequest` now reads `Collection-Protocol-Version` and `Accept` so hosts composed through `publicationHttpRead` answer `406 unsupported_version` with `supportedVersions` (SPECIFICATION §12) for an unsupported exact header value or an unsupported `Accept` `version` parameter, while quoted parameters, `q=0` ranges, unrelated media types and supported or absent versions are not rejected (PUB-0041).
 - The static example `examples/publication-server.mjs` documents that it ignores `limit`/cursor and what a paging host must do.
 - Heavy tests carry explicit timeouts instead of relying on wall-clock defaults.
+- Publication GET and publisher write URLs are rejected before dispatch when a valid opaque ID such as `.` or `..` would expand to a whole path segment that URL normalization removes (which retargeted the request, with credentials, to another resource). The same guard applies to `expandAuthoritativeEffectPageUrl` and paged-effect validation in `@know-n/colp/sync`, so an effect-page URL can no longer resolve to a different path than the effect it names. Query-bound and sentinel-bound templates (`?id={id}`, `/c/~{id}`, `{id}.json`) and the opaque-ID grammar are unchanged.
 
 ### Conformance runner
 

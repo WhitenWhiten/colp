@@ -239,3 +239,94 @@ test('same-host gate expires idle gap state instead of retaining hostnames', asy
   await vi.advanceTimersByTimeAsync(1_000);
   assert.equal(gate.trackedHostCount(), 0);
 });
+
+const HTTP_START = 'http://bookmarks.test/old';
+const HTTPS_UPGRADE = 'https://bookmarks.test/old';
+
+test('a public plain-HTTP bookmark is actually probed instead of recorded as denied', async () => {
+  const { resolve, calls } = fakeResolve();
+  const seen: Array<{ url: string; ip: string; method: string }> = [];
+  const result = await probeBookmarkUrl({
+    url: HTTP_START, timeoutMs: 8_000, connectTimeoutMs: 3_000, resolve,
+    connect: async (target, init) => {
+      seen.push({ url: target.url.href, ip: target.ip, method: String(init.method) });
+      return new Response(null, { status: 200 });
+    },
+  });
+  assert.deepEqual(result.fact, { status: 'healthy', httpStatus: 200, finalUrl: null, errorClass: null });
+  assert.deepEqual(seen, [{ url: HTTP_START, ip: PUBLIC_PIN, method: 'HEAD' }]);
+  assert.deepEqual(calls, ['bookmarks.test']);
+});
+
+test('an HTTP bookmark that upgrades to HTTPS is reported as a redirect and keeps HEAD', async () => {
+  const { resolve } = fakeResolve();
+  const methods: string[] = [];
+  const connector = recordingConnect(async (target, init) => {
+    methods.push(String(init.method));
+    if (target.url.protocol === 'http:') {
+      return new Response(null, { status: 301, headers: { location: HTTPS_UPGRADE } });
+    }
+    return new Response(null, { status: 200 });
+  });
+  const result = await probeBookmarkUrl({
+    url: HTTP_START, timeoutMs: 8_000, connectTimeoutMs: 3_000, resolve, connect: connector.connect,
+  });
+  assert.deepEqual(result.fact, { status: 'redirect', httpStatus: 200, finalUrl: HTTPS_UPGRADE, errorClass: null });
+  assert.deepEqual(connector.hops, [HTTP_START, HTTPS_UPGRADE]);
+  assert.deepEqual(methods, ['HEAD', 'HEAD']);
+});
+
+test('an HTTP redirect into a private address is still denied before its hop connects', async () => {
+  for (const location of ['http://10.0.0.1/admin', 'http://internal.bookmarks.test/admin']) {
+    const resolve = async (hostname: string) => hostname === 'internal.bookmarks.test' ? ['10.0.0.1'] : [PUBLIC_PIN];
+    const connector = recordingConnect(async () => new Response(null, { status: 302, headers: { location } }));
+    const result = await probeBookmarkUrl({
+      url: HTTP_START, timeoutMs: 8_000, connectTimeoutMs: 3_000, resolve, connect: connector.connect,
+    });
+    assert.equal(result.fact.status, 'broken', location);
+    assert.equal(result.fact.errorClass, 'denied', location);
+    assert.deepEqual(connector.hops, [HTTP_START], `${location}: only the public first hop may connect`);
+  }
+});
+
+test('an HTTP to HTTPS to private-DNS redirect chain is denied before the private hop connects', async () => {
+  const resolve = async (hostname: string) => hostname === 'internal.bookmarks.test' ? ['10.0.0.1'] : [PUBLIC_PIN];
+  const connector = recordingConnect(async (target) => target.url.protocol === 'http:'
+    ? new Response(null, { status: 301, headers: { location: HTTPS_UPGRADE } })
+    : new Response(null, { status: 302, headers: { location: 'http://internal.bookmarks.test/admin' } }));
+  const result = await probeBookmarkUrl({
+    url: HTTP_START, timeoutMs: 8_000, connectTimeoutMs: 3_000, resolve, connect: connector.connect,
+  });
+  assert.equal(result.fact.status, 'broken');
+  assert.equal(result.fact.errorClass, 'denied');
+  assert.deepEqual(connector.hops, [HTTP_START, HTTPS_UPGRADE]);
+});
+
+test('HTTP bookmarks on private, loopback or metadata hosts are denied without connecting', async () => {
+  for (const url of ['http://127.0.0.1/', 'http://192.168.1.10/router', 'http://169.254.169.254/latest/meta-data',
+    'http://metadata.google.internal/computeMetadata/v1/']) {
+    const connector = recordingConnect(async () => new Response(null, { status: 200 }));
+    const result = await probeBookmarkUrl({
+      url, timeoutMs: 8_000, connectTimeoutMs: 3_000, resolve: fakeResolve().resolve, connect: connector.connect,
+    });
+    assert.equal(result.fact.errorClass, 'denied', url);
+    assert.equal(connector.connectCalls, 0, url);
+  }
+});
+
+test('an HTTPS 301 keeps HEAD instead of downloading the redirected body with GET', async () => {
+  const { resolve } = fakeResolve();
+  const methods: string[] = [];
+  const result = await probeBookmarkUrl({
+    url: START, timeoutMs: 8_000, connectTimeoutMs: 3_000, resolve,
+    connect: async (target, init) => {
+      methods.push(String(init.method));
+      return target.url.pathname === '/from'
+        ? new Response(null, { status: 301, headers: { location: '/to' } })
+        : new Response(null, { status: 200 });
+    },
+  });
+  assert.deepEqual(methods, ['HEAD', 'HEAD']);
+  assert.equal(result.fact.status, 'redirect');
+  assert.equal(result.fact.finalUrl, FINAL);
+});

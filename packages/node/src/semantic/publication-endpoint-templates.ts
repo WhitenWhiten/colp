@@ -10,6 +10,7 @@ import {
   type HttpOperationContract,
   validateEndpointVariables,
 } from './endpoint-contracts.js';
+import { assertEndpointExpansionKeepsPathSegments } from './endpoint-path-segments.js';
 import { publicationRequiredEndpoints } from './publication-endpoints.js';
 
 export type PublicationEndpointKey = (typeof publicationRequiredEndpoints)[number];
@@ -146,6 +147,7 @@ export function expandPublicationEndpointTemplate(
   if (!variableValidation.valid) {
     throw new TypeError(variableValidation.errors.join(' '));
   }
+  assertEndpointExpansionKeepsPathSegments(template, variableValidation.value);
 
   const url = new URL(parseTemplate(template).expand(variableValidation.value));
   assertPublicationEndpointRequestUrl(url);

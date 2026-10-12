@@ -6,7 +6,9 @@
  *
  * - the target URL must pass the production OIDC endpoint policy (HTTPS, no
  *   userinfo, no loopback/private/link-local hosts, no cloud metadata hosts)
- *   via `bootstrap/oidc-endpoint-policy.ts`;
+ *   via `bootstrap/oidc-endpoint-policy.ts`; only a caller that explicitly
+ *   opts into `allowPublicHttp` (bookmark link-health) may also reach plain
+ *   `http:` targets, which then pass the very same rules apart from the scheme;
  * - the hostname is resolved to ALL A and AAAA records and every record is
  *   classified; a single reserved address fails the whole hop (fail closed),
  *   which also defeats DNS-rebinding record mixes;
@@ -15,8 +17,9 @@
  * - every redirect hop is re-validated and re-pinned with its own resolution;
  * - every redirect hop also follows fetch's credential rules: a cross-origin
  *   hop drops `authorization`/`cookie`-class headers, and 301/302/303 are
- *   rewritten to a bodyless GET, so a redirect can neither replay a Bearer
- *   token nor resend a POST payload to a host the caller never chose;
+ *   rewritten to a bodyless GET (HEAD stays HEAD), so a redirect can neither
+ *   replay a Bearer token nor resend a POST payload to a host the caller
+ *   never chose;
  * - environment proxy variables are never read: no proxy is ever configured,
  *   so HTTP_PROXY/HTTPS_PROXY/NO_PROXY cannot redirect traffic.
  *
@@ -24,9 +27,9 @@
  * Tests inject the resolver and the connector; no real network is required.
  */
 import { Resolver } from 'node:dns/promises';
+import http, { type ClientRequest, type IncomingMessage, type OutgoingHttpHeaders } from 'node:http';
 import https from 'node:https';
 import { Readable } from 'node:stream';
-import type { OutgoingHttpHeaders } from 'node:http';
 import { isIP, type LookupFunction } from 'node:net';
 import { assertOidcEndpointUrl } from '../../bootstrap/oidc-endpoint-policy.js';
 import { settleBestEffort } from '../async/best-effort.js';
@@ -46,7 +49,7 @@ export interface HardenedEgressResolver {
   (hostname: string, signal?: AbortSignal): Promise<readonly string[]>;
 }
 
-/** Single-hop transport; production uses node:https pinned to the validated IP. */
+/** Single-hop transport; production uses node:https (or opted-in node:http) pinned to the validated IP. */
 export interface HardenedEgressConnector {
   (target: HardenedEgressTarget, init: RequestInit): Promise<Response>;
 }
@@ -69,6 +72,19 @@ export interface HardenedEgressFetchOptions {
   readonly followRedirects?: boolean;
   /** Stable label used in non-secret error messages. */
   readonly label?: string;
+  /**
+   * Also permit plain `http:` hops to public hosts. Only for credential-free
+   * probes of user-supplied bookmark URLs; every other rule (userinfo and
+   * metadata denial, private-literal denial, full A/AAAA classification,
+   * pinning, per-hop re-planning and the redirect budget) is unchanged.
+   * Default false: HTTPS only.
+   */
+  readonly allowPublicHttp?: boolean;
+}
+
+/** URL-scheme policy shared by the planner for one fetch and all its redirect hops. */
+export interface HardenedEgressPlanPolicy {
+  readonly allowPublicHttp?: boolean;
 }
 
 export type HardenedEgressErrorReason =
@@ -173,6 +189,7 @@ export async function planHardenedEgressTarget(
   input: string | URL,
   resolve: HardenedEgressResolver,
   signal?: AbortSignal,
+  policy: HardenedEgressPlanPolicy = {},
 ): Promise<HardenedEgressTarget> {
   signal?.throwIfAborted();
   const value = typeof input === 'string' ? input : input.toString();
@@ -183,7 +200,7 @@ export async function planHardenedEgressTarget(
     throw new HardenedEgressError('invalid_url', `${label} must be a valid absolute URL`);
   }
   try {
-    assertOidcEndpointUrl(label, value, 'strict');
+    assertOidcEndpointUrl(label, strictPolicyInput(parsed, value, policy), 'strict');
   } catch {
     throw new HardenedEgressError('denied', `${label} is not an allowed egress target`);
   }
@@ -233,6 +250,19 @@ export async function planHardenedEgressTarget(
   return { url: parsed, ip: pinned.ip, family: pinned.family };
 }
 
+/**
+ * The strict OIDC policy stays the single source of URL rules. For an
+ * opted-in public-HTTP caller only the scheme is substituted before that
+ * policy runs, so userinfo, metadata-host and private-literal denial remain
+ * byte-for-byte the same as for HTTPS.
+ */
+function strictPolicyInput(parsed: URL, value: string, policy: HardenedEgressPlanPolicy): string {
+  if (policy.allowPublicHttp !== true || parsed.protocol !== 'http:') return value;
+  const asHttps = new URL(parsed.href);
+  asHttps.protocol = 'https:';
+  return asHttps.href;
+}
+
 function normalizeEgressHostname(hostname: string): string {
   let host = hostname.toLowerCase();
   if (host.startsWith('[') && host.endsWith(']')) host = host.slice(1, -1);
@@ -263,9 +293,10 @@ export function createHardenedEgressFetch(options: HardenedEgressFetchOptions = 
   const followRedirects = options.followRedirects ?? true;
   const maxRedirects = options.maxRedirects ?? DEFAULT_MAX_REDIRECTS;
   const label = options.label ?? 'egress target';
+  const policy: HardenedEgressPlanPolicy = { allowPublicHttp: options.allowPublicHttp === true };
 
   return async (input, init = {}) => {
-    let target = await planHardenedEgressTarget(label, input, resolve, init.signal ?? undefined);
+    let target = await planHardenedEgressTarget(label, input, resolve, init.signal ?? undefined, policy);
     for (let hop = 0; ; hop += 1) {
       if (init.signal?.aborted) {
         throw new DOMException('The operation was aborted.', 'AbortError');
@@ -290,7 +321,7 @@ export function createHardenedEgressFetch(options: HardenedEgressFetchOptions = 
         throw new HardenedEgressError('redirect_invalid', 'egress redirect location is invalid');
       }
       init = redirectInit(init, response.status, target.url, nextUrl);
-      target = await planHardenedEgressTarget(label, nextUrl, resolve, init.signal ?? undefined);
+      target = await planHardenedEgressTarget(label, nextUrl, resolve, init.signal ?? undefined, policy);
     }
   };
 }
@@ -317,9 +348,13 @@ function isSameOrigin(left: URL, right: URL): boolean {
 /**
  * Request options for the next redirect hop.
  *
- * Standard fetch semantics: with redirect handling, 301/302 are rewritten to
- * GET (and 303 always is), which drops the request body. 307/308 preserve the
- * method and body. A cross-origin hop additionally loses every credential
+ * Method rules (deliberately conservative, not a full copy of fetch): on
+ * 301/302/303 every method except HEAD is rewritten to a bodyless GET. HEAD
+ * stays HEAD as in fetch, so a HEAD probe never downloads a redirected body.
+ * Fetch would only rewrite POST on 301/302 (and non-HEAD on 303); rewriting
+ * other methods too is kept as the pre-existing, stricter behavior that never
+ * replays a body. 307/308 preserve the method
+ * and body. A cross-origin hop additionally loses every credential
  * header — without this, a redirect to any other host replayed the original
  * `Authorization: Bearer` (publication cache purge), or
  * the idempotency key to a host the caller never chose has no business
@@ -331,7 +366,8 @@ function isSameOrigin(left: URL, right: URL): boolean {
  * instead of silently.
  */
 function redirectInit(init: RequestInit, status: number, from: URL, to: URL): RequestInit {
-  const downgrade = status === 303 || status === 301 || status === 302;
+  const method = (init.method ?? 'GET').toUpperCase();
+  const downgrade = (status === 303 || status === 301 || status === 302) && method !== 'HEAD';
   const sameOrigin = isSameOrigin(from, to);
   const headers = new Headers(init.headers ?? undefined);
   if (!sameOrigin) {
@@ -435,23 +471,44 @@ export function createFetchResponseFromNodeHttp(input: {
   });
 }
 
-/** Production transport: node:https with the socket lookup pinned to the validated IP. */
+/**
+ * Opens one pinned request on the transport that matches the planned target:
+ * node:https for `https:` (TLS still verifies the URL hostname) and node:http
+ * only for `http:` targets that an opted-in planner already approved.
+ */
+function openPinnedEgressRequest(
+  target: HardenedEgressTarget,
+  init: RequestInit,
+  onResponse: (response: IncomingMessage) => void,
+): { readonly agent: http.Agent; readonly request: ClientRequest } {
+  const agentOptions = {
+    lookup: createPinnedLookup(target.ip, target.family),
+    keepAlive: false,
+    // Node 22 Happy Eyeballs calls lookup with options.all; we handle that
+    // in createPinnedLookup, and also turn the feature off so a string
+    // callback cannot become `Invalid IP address: undefined`.
+    autoSelectFamily: false,
+  };
+  const requestOptions = {
+    method: init.method ?? 'GET',
+    headers: normalizeOutgoingHeaders(init.headers),
+    signal: init.signal ?? undefined,
+  };
+  if (target.url.protocol === 'http:') {
+    const agent = new http.Agent(agentOptions);
+    return { agent, request: http.request(target.url, { ...requestOptions, agent }, onResponse) };
+  }
+  if (target.url.protocol !== 'https:') {
+    throw new HardenedEgressError('denied', 'egress connector supports only http and https targets');
+  }
+  const agent = new https.Agent(agentOptions);
+  return { agent, request: https.request(target.url, { ...requestOptions, agent }, onResponse) };
+}
+
+/** Production transport: node:https (or planner-approved node:http) pinned to the validated IP. */
 export function createProductionEgressConnector(): HardenedEgressConnector {
   return (target, init) => new Promise<Response>((resolvePromise, rejectPromise) => {
-    const agent = new https.Agent({
-      lookup: createPinnedLookup(target.ip, target.family),
-      keepAlive: false,
-      // Node 22 Happy Eyeballs calls lookup with options.all; we handle that
-      // in createPinnedLookup, and also turn the feature off so a string
-      // callback cannot become `Invalid IP address: undefined`.
-      autoSelectFamily: false,
-    });
-    const request = https.request(target.url, {
-      method: init.method ?? 'GET',
-      headers: normalizeOutgoingHeaders(init.headers),
-      agent,
-      signal: init.signal ?? undefined,
-    }, (response) => {
+    const { agent, request } = openPinnedEgressRequest(target, init, (response) => {
       const status = response.statusCode;
       if (status !== undefined && isFetchNullBodyStatus(status)) {
         response.once('close', () => agent.destroy());
