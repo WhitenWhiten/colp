@@ -19,20 +19,28 @@ test('every direct write receipt conforms to the output schema a strict client d
     authorization: { accountSubjectId: 'owner' },
   });
   const tools = (await bundle.adapter.listTools(context)).tools as Record<string, unknown>[];
-  const cases: [string, Record<string, unknown>][] = [
-    ['collections.create', { title: 'Notebook', idempotencyKey: randomUUID() }],
-    ['collections.update', { collectionId: 'collection-1', baseRevision: 'r1', patch: { title: 'Notebook' } }],
-    ['nodes.create', { collectionId: 'collection-1', node: { kind: 'folder', title: 'Inbox' } }],
-    ['nodes.create', { collectionId: 'collection-1', node: { kind: 'folder', title: 'Inbox' }, dryRun: true, confirmApply: false }],
-    ['nodes.update', { collectionId: 'collection-1', nodeId: 'node-1', baseRevision: 'r1', patch: { title: 'Updated' } }],
-    ['annotations.create', { collectionId: 'collection-1', nodeId: 'node-1', value: 'Note' }],
-    ['annotations.update', { collectionId: 'collection-1', annotationId: 'annotation-1', baseRevision: 'r1', patch: { value: 'Updated' } }],
+  const cases: [string, Record<string, unknown>, boolean][] = [
+    ['collections.create', { title: 'Notebook', idempotencyKey: randomUUID() }, true],
+    ['collections.update', { collectionId: 'collection-1', baseRevision: 'r1', patch: { title: 'Notebook' } }, true],
+    ['nodes.create', { collectionId: 'collection-1', node: { kind: 'folder', title: 'Inbox' } }, true],
+    ['nodes.create', { collectionId: 'collection-1', node: { kind: 'folder', title: 'Inbox' }, dryRun: true, confirmApply: false }, false],
+    ['nodes.update', { collectionId: 'collection-1', nodeId: 'node-1', baseRevision: 'r1', patch: { title: 'Updated' } }, true],
+    ['annotations.create', { collectionId: 'collection-1', nodeId: 'node-1', value: 'Note' }, true],
+    ['annotations.update', { collectionId: 'collection-1', annotationId: 'annotation-1', baseRevision: 'r1', patch: { value: 'Updated' } }, true],
   ];
-  for (const [name, args] of cases) {
+  cases.push(
+    ['nodes.create', { collectionId: 'collection-1', node: { kind: 'folder', title: 'Inbox' }, dryRun: true }, false],
+    ['nodes.create', { collectionId: 'collection-1', node: { kind: 'folder', title: 'Inbox' }, confirmApply: false }, false],
+    ['nodes.update', { collectionId: 'collection-1', nodeId: 'node-1', baseRevision: 'r1', patch: { title: 'Preview' }, dryRun: true }, false],
+    ['collections.update', { collectionId: 'collection-1', baseRevision: 'r1', patch: { title: 'Preview' }, dryRun: true }, false],
+    ['annotations.create', { collectionId: 'collection-1', nodeId: 'node-1', value: 'Preview', dryRun: true }, false],
+    ['annotations.update', { collectionId: 'collection-1', annotationId: 'annotation-1', baseRevision: 'r1', patch: { value: 'Preview' }, dryRun: true }, false],
+  );
+  for (const [name, args, expectedApplied] of cases) {
     const result = await bundle.adapter.callTool(context, { name, arguments: args });
     const schema = tools.find((tool) => tool.name === name)!.outputSchema as Record<string, unknown>;
     const validate = createMcpToolInputValidator(materializeClosedMcpToolSchema(schema));
     assert.doesNotThrow(() => validate(result.structuredContent), name);
-    assert.equal((result.structuredContent as { applied: boolean }).applied, args.dryRun !== true);
+    assert.equal((result.structuredContent as { applied: boolean }).applied, expectedApplied);
   }
 });
