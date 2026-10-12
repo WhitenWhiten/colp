@@ -20,6 +20,11 @@ export const SYNC_TELEMETRY_BUCKETS = Object.freeze([
 export type SyncTelemetryEndpoint = (typeof SYNC_TELEMETRY_ENDPOINTS)[number];
 export type SyncTelemetryOutcome = (typeof SYNC_TELEMETRY_OUTCOMES)[number];
 export type SyncTelemetryProblem = (typeof SYNC_TELEMETRY_PROBLEMS)[number];
+export function syncTelemetryProblemOf(error: unknown): SyncTelemetryProblem {
+  const code = error && typeof error === 'object' && 'code' in error ? error.code : undefined;
+  return typeof code === 'string' && SYNC_TELEMETRY_PROBLEMS.includes(code as SyncTelemetryProblem)
+    ? code as SyncTelemetryProblem : 'internal_error';
+}
 export type SyncTelemetryBucket = (typeof SYNC_TELEMETRY_BUCKETS)[number];
 
 export interface SyncServerTelemetryRecord {

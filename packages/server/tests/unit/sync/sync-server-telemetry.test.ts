@@ -6,9 +6,14 @@ import {
   SYNC_TELEMETRY_ENDPOINTS,
   SYNC_TELEMETRY_OUTCOMES,
   createSyncServerTelemetry,
+  syncTelemetryProblemOf,
 } from '../../../src/infrastructure/telemetry/sync-server.js';
 
 describe('server Sync telemetry', () => {
+  test('retains actionable failure codes without admitting arbitrary labels', () => {
+    assert.equal(syncTelemetryProblemOf({ code: 'resource_not_found' }), 'resource_not_found');
+    assert.equal(syncTelemetryProblemOf({ code: 'secret-cursor-value' }), 'internal_error');
+  });
   test('emits only fixed low-cardinality dimensions for success, replay, retry, abort, timeout and failures', () => {
     const metrics = new InMemoryMetrics();
     const records: string[] = [];

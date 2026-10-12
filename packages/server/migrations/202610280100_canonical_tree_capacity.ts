@@ -27,7 +27,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
   )`.execute(db);
   await sql`create function mark_canonical_tree_capacity_dirty() returns trigger language plpgsql as $$
     begin
-      if TG_OP <> 'INSERT' then
+      if TG_OP <> 'INSERT' and exists (select 1 from collections where id=OLD.collection_id) then
         insert into canonical_tree_capacity_dirty values (OLD.collection_id, OLD.id)
           on conflict do nothing;
       end if;

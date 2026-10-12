@@ -56,3 +56,19 @@ operation's idempotency key. The outer `Idempotency-Key` binds the complete orde
 array. If a non-atomic batch fails midway, earlier commits remain durable and the
 client can recover them by sending singleton requests with the original operation
 bytes and `Idempotency-Key: <opId>`. Multi-operation atomic batches are rejected.
+
+Snapshot capacity admission uses an exact incremental ledger. Migration
+`202610280100_canonical_tree_capacity` installs transactional change tracking;
+existing collections initialize on their first admission. To backfill and verify
+all collections before serving traffic, build the server and run
+`node scripts/backfill-canonical-tree-capacity.mjs --check` with `DATABASE_URL` set.
+The command locks one collection at a time and compares the ledger to the full
+Snapshot serializer. Keep the tracking migration installed when rolling back an
+application binary so writes continue to invalidate cached contributions.
+
+Session negotiation reissues retained, acknowledged checkpoints under the new
+Session without advancing their position. Clients adopt the returned
+`collection.serverCursor` at a fully acknowledged local boundary. Empty Pulls
+still echo their input cursor; missing retained history still requires recovery.
+Recovery uses fresh request credential evidence, while durable credential rows
+continue to enforce identity, revocation, token expiry and account security epochs.
