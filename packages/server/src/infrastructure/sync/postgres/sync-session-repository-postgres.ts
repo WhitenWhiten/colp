@@ -248,9 +248,8 @@ export async function prepareReplicaForSession(
         || window.snapshotUrl.length > 2048) {
       throw new SyncSessionIssueError('integrity_failure');
     }
-    const coversHead = current.checkpoint_commit_ordinal !== null
-      && BigInt(current.checkpoint_commit_ordinal) >= authority.commitOrdinal;
-    const complete = coversHead && checkpointAtOrBeyond(current, window.earliestPullTuple,
+    const validCheckpoint = current.checkpoint_commit_ordinal !== null;
+    const complete = validCheckpoint && checkpointAtOrBeyond(current, window.earliestPullTuple,
       window.earliestPull.commitOrdinal)
       && checkpointAtOrBeyond(current, window.purgedThroughTuple,
         window.purgedThrough.commitOrdinal);
@@ -374,11 +373,15 @@ export async function reissueExpiredResumeCursor(
 ): Promise<Selectable<SyncReplicaTable>> {
   const previousGeneration = BigInt(authority.replica.lease_generation);
   const nextGeneration = BigInt(renewed.lease_generation);
-  if (!options.pullCursorKeyring || nextGeneration === previousGeneration) return renewed;
-  if (nextGeneration !== previousGeneration + 1n || renewed.status !== 'active'
+  if (!options.pullCursorKeyring || renewed.status !== 'active') return renewed;
+  const sameGeneration = nextGeneration === previousGeneration;
+  if ((!sameGeneration && nextGeneration !== previousGeneration + 1n)
       || renewed.checkpoint_cursor === null || renewed.checkpoint_commit_ordinal === null
       || renewed.checkpoint_stream_kind === null || renewed.checkpoint_stable_id === null
-      || !options.retentionWindow) throw new SyncSessionIssueError('integrity_failure');
+      || !options.retentionWindow) {
+    if (sameGeneration) return renewed;
+    throw new SyncSessionIssueError('integrity_failure');
+  }
 
   const priorDigest = createHash('sha256').update(renewed.checkpoint_cursor, 'utf8').digest('hex');
   const evidence = await transaction.selectFrom('sync_pull_cursor_evidence').selectAll()
@@ -391,9 +394,17 @@ export async function reissueExpiredResumeCursor(
       || evidence.tuple_stream_kind !== renewed.checkpoint_stream_kind
       || evidence.tuple_stable_id !== renewed.checkpoint_stable_id
       || !Number.isSafeInteger(evidence.page_limit) || evidence.page_limit < 1 || evidence.page_limit > 1_000) {
+    if (sameGeneration) return renewed;
     throw new SyncSessionIssueError('integrity_failure');
   }
   const window = await options.retentionWindow.load(transaction, renewed.collection_id);
+  if (!checkpointAtOrBeyond(renewed, window.earliestPullTuple, window.earliestPull.commitOrdinal)
+      || !checkpointAtOrBeyond(renewed, window.purgedThroughTuple, window.purgedThrough.commitOrdinal)) {
+    // The old token still follows the existing 410/recovery contract. Never
+    // renew authority over a missing portion of the replication stream.
+    if (sameGeneration) return renewed;
+    throw new SyncSessionIssueError('replica_recovery_required');
+  }
   const retained = window.purgedThroughTuple;
   if (!retained) throw new SyncSessionIssueError('integrity_failure');
   const purgeBoundary: SyncPullTuple = { commitOrdinal: retained.commitOrdinal,

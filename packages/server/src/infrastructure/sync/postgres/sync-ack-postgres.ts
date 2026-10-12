@@ -341,6 +341,7 @@ async function cursorCheckpointRebindProof(
     && sameCursorHandoffFacts(checkpointEvidence, checkpointProof)
     && sameCursorHandoffFacts(candidate, candidateProof)
     && purgeComparison <= 0 && (sessionChanged || purgeComparison < 0)
+    && candidate.cursor_expires_at >= checkpointEvidence.cursor_expires_at
     && compareTuple(purgeTuple(candidate), evidenceTuple(candidate)) <= 0
     && checkpointProof.account_id === authority.accountId
     && checkpointProof.collection_id === authority.collectionId
