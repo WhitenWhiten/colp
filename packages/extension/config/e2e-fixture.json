@@ -1,0 +1,29 @@
+{
+  "environment": "production",
+  "deploymentId": "e2e-fixture",
+  "extensionId": "pplpnpegpnghcddhmpgkbfkdfadjiaen",
+  "serverOrigin": "https://known.example",
+  "manifestUrl": "https://known.example/.well-known/collection-protocol",
+  "issuer": "https://known.example/",
+  "authorizationEndpoint": "https://known.example/api/v1/auth/sign-in/email",
+  "tokenEndpoint": "https://known.example/api/v1/auth/get-session",
+  "jwksUri": "https://known.example/.well-known/jwks.json",
+  "revocationEndpoint": "https://known.example/api/v1/auth/sign-out",
+  "clientId": "known-chromium-extension",
+  "audience": "known-sync-api",
+  "scopes": [
+    "openid",
+    "offline_access",
+    "known.sync"
+  ],
+  "allowedAlgorithms": [
+    "RS256"
+  ],
+  "refreshBeforeExpirySeconds": 60,
+  "subscriptionBridgeOrigins": [
+    {
+      "webOrigin": "https://known.example",
+      "serverOrigin": "https://known.example"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "kind": "local-match-report",
+  "scopeKey": "scope-1",
+  "reportDigest": "sha256:local-only",
+  "candidates": [
+    {
+      "kind": "duplicate_candidate",
+      "url": "https://example.com/dup",
+      "nodeIds": ["bookmark-a", "bookmark-b"],
+      "parents": ["folder-a", "folder-b"]
+    }
+  ]
+}

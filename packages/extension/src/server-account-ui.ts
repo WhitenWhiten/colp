@@ -1,0 +1,60 @@
+import { isOlderThanSupportedServerMinor, RUNTIME_ORIGIN_KEY } from './config.js';
+import { t } from './i18n.js';
+import { fetchEditionVersion } from './server-edition.js';
+import type { ExtensionResponse } from './types.js';
+
+export interface ServerAccountPorts {
+  readonly busy: (text: string) => void;
+  readonly render: (response: ExtensionResponse) => void;
+  readonly requestDisconnect: () => Promise<ExtensionResponse>;
+}
+
+/** Account tab: edition version, older-server notice, and Disconnect server. */
+export function bindServerAccount(ports: ServerAccountPorts): { refresh(origin: string): void } {
+  const button = document.getElementById('disconnect-server');
+  let shown: string | undefined;
+  const refresh = (origin: string): void => {
+    if (origin === shown) return;
+    shown = origin;
+    // A stubbed options page has no extension id, so it must not fetch the manifest.
+    if (!chrome.runtime?.id) return;
+    void paintServerEdition(origin);
+  };
+  button?.addEventListener('click', (event) => {
+    if (!event.isTrusted || !navigator.userActivation.isActive) return;
+    void (async () => {
+      ports.busy(t('options_disconnectingServer', 'Disconnecting server…'));
+      const response = await ports.requestDisconnect();
+      shown = undefined;
+      ports.render(response);
+      const input = document.getElementById('server-origin') as HTMLInputElement | null;
+      if (!input || input.disabled) return;
+      try {
+        const stored = (await chrome.storage.local.get(RUNTIME_ORIGIN_KEY))[RUNTIME_ORIGIN_KEY];
+        if (typeof stored !== 'string') input.value = '';
+      } catch { /* storage unavailable */ }
+    })();
+  });
+  return { refresh };
+}
+
+export async function paintServerEdition(origin: string, fetcher?: typeof fetch): Promise<void> {
+  const versionNode = document.getElementById('server-edition-version');
+  const notice = document.getElementById('server-edition-notice');
+  if (!versionNode || !notice) return;
+  const version = origin ? await fetchEditionVersion(origin, fetcher) : undefined;
+  if (!version) {
+    versionNode.textContent = t('options_serverVersionUnavailable', 'Server version unavailable');
+    notice.hidden = true;
+    notice.textContent = '';
+    return;
+  }
+  versionNode.textContent = version;
+  if (!isOlderThanSupportedServerMinor(version)) {
+    notice.hidden = true;
+    notice.textContent = '';
+    return;
+  }
+  notice.hidden = false;
+  notice.textContent = t('options_serverMinorOlder', 'This server is older than the versions this extension supports. Upgrade the server.');
+}

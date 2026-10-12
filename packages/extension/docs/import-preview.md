@@ -1,0 +1,13 @@
+# Import preview boundary
+
+P3-34 exposes pure adapters for Netscape bookmark HTML bytes and complete Chromium native trees. Both return a public COLP `conversionPreview`, a normalized `Folder` / `Bookmark` / `Separator` tree, a source identity, and a canonical preview digest. They do not receive queue, network, DOM, storage, or server ports. P3-35 owns any later commit workflow.
+
+The default resource budget is 4 MiB of source input, depth 64, 64 members or HTML attributes per source node, and 20,000 visited nodes. Netscape bytes are rejected before UTF-8 decoding or parse5 parsing; the resulting inert parse tree is budgeted before it is inspected for entries or unsafe elements. Chromium input is descriptor-validated, rejects accessors and unknown members, then enforces cycles, unique native IDs, a single root, exact parent/index ordering, complete folder children, leaf shapes, and the same depth/member/node budgets.
+
+Every source occurrence receives an identity derived from the source digest and structural path. Equal title/URL pairs are never identity-deduplicated: the later occurrence is preserved and receives `duplicate_candidate`. `javascript:`, `data:`, and other URLs outside COLP `bookmarkUrl` are omitted with a lossy warning. `file:` and other protocol-valid non-web schemes remain inert authority data with `unsupported_url_scheme`; a later target mount policy decides whether they can be materialized.
+
+Scripts and styles are inert parse tree nodes and are discarded with `unsafe_element_ignored`. Favicons are never decoded or fetched during preview and produce `favicon_sidecar_only`. Unknown Netscape attributes are preserved in `https://know-n.com/colp/ns/netscape-bookmark-html/v1` and produce `unknown_extension_preserved_remote_only`. Missing HREF, invalid timestamps, and every lossy omission are explicit in `warnings` and `lossy`.
+
+P3-35 accepts that immutable preview into a scoped IndexedDB import plan. The plan ID and every node `opId` are stable across re-preview and restart. Explicit top-level destination or Skip choices are persisted without source file bytes; descendants inherit their source root choice. Eligible nodes enter the existing single-operation outbound queue in one transaction with their sequence, provisional mapping, and synthetic bookmark event. A child remains staged until its parent's terminal receipt has rebound the provisional identity.
+
+Options progress is rebuilt from import nodes, queue states, and receipts. Pause, resume, and retry update durable state; no timer estimates batch completion. Netscape bytes remain in the options-to-worker preview request only and are never written to IndexedDB, analytics, logs, or evidence.

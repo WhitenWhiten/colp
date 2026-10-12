@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "id": "kns-09-offline-pending-queue",
+  "databaseVersion": 20,
+  "coordinatorMutations": false,
+  "uiMutations": false,
+  "firstRun": "running",
+  "mappingCount": 2,
+  "queue": [
+    {
+      "status": "claimed",
+      "payloadType": "create_node",
+      "retryAttempt": 1,
+      "opIdHash": "aaaaaaaaaaaaaaaa"
+    },
+    {
+      "status": "pending",
+      "payloadType": "create_node",
+      "retryAttempt": 0,
+      "opIdHash": "bbbbbbbbbbbbbbbb"
+    }
+  ],
+  "engine": {
+    "phase": "offline",
+    "recoveryFrozen": false,
+    "lastError": null
+  },
+  "stopCounts": {
+    "duplicateNode": 0,
+    "outOfScopeUpload": 0,
+    "unconfirmedDelete": 0,
+    "cursorDivergence": 0,
+    "recoveryLoop": 0,
+    "mappingIdentityCollision": 0
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "contract": "kns-00",
+  "protocolVersion": "0.2",
+  "sessionBinding": {
+    "browserProfileId": "profile-1",
+    "mountMode": "whole-profile",
+    "mountNativeId": null,
+    "generation": "1"
+  },
+  "files": [
+    "golden-scenarios.json",
+    "fail-closed.json"
+  ]
+}

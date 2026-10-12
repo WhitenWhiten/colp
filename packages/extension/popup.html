@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=380, initial-scale=1.0">
+  <title>Know-N</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body class="pp" data-state="loading" data-capture-mode="pending">
+  <header class="pp-head">
+    <!-- The web's drawn vector wordmark (Brand.tsx), copied into dist by
+         scripts/build.mjs, so the popup and the site show one brand. -->
+    <img class="brand-wordmark" src="brand-wordmark.svg" alt="Know-N" width="438" height="128" draggable="false">
+    <div class="pp-head-actions">
+      <!-- Overflow for the two conditional save-lane actions; the details
+           itself stays hidden until one of them becomes actionable. -->
+      <details id="popup-more" class="popup-more" hidden>
+        <summary class="icon-btn" aria-label="More actions" data-i18n-aria-label="common_moreActions">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false" data-icon="more-vertical"></svg>
+        </summary>
+        <div class="popup-more-menu">
+          <button id="open-native-wait" class="menu-item" type="button" hidden data-i18n="nativeWait_viewItemsWaitingConfirmation">View items waiting for confirmation</button>
+          <!-- FO-04 clear consumer: only visible when the current page is already
+               bookmarked; clears the auto-captured icon from the synced collection. -->
+          <button id="clear-icon" class="menu-item" type="button" hidden data-i18n="popup_clearAutoCapturedIcon">Clear auto-captured icon</button>
+        </div>
+      </details>
+      <!-- Empty until renderAuth writes the real state. The avatar exists only
+           for a signed-in account; its dot marks sync that needs the user. -->
+      <button id="open-account" class="pp-avatar-btn" type="button" hidden aria-label="Account" data-i18n-aria-label="common_account">
+        <span id="account-label" class="avatar-wrap"></span>
+      </button>
+      <button id="open-options" class="icon-btn" type="button" aria-label="Settings" data-i18n-aria-label="common_settings">
+        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false" data-icon="settings"></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- While a sync runs: the count and a thin bar; the button opens Sync status. -->
+  <button id="sync-progress-strip" class="pp-sync" type="button" hidden>
+    <span class="pp-sync-row">
+      <svg width="14" height="14" aria-hidden="true" focusable="false" data-icon="sync"></svg>
+      <span id="sync-progress-short" class="pp-sync-text"></span>
+      <span class="pp-sync-more" data-i18n="syncProgress_details">Details</span>
+    </span>
+    <span id="sync-progress-strip-bar" class="sync-bar sync-bar--thin" aria-hidden="true"><span></span></span>
+  </button>
+
+  <!-- Automatic result only: the auto-close line, frozen once the pointer or focus enters. -->
+  <div id="capture-progress" class="pp-progress" aria-hidden="true" hidden><span></span></div>
+
+  <main class="pp-body">
+    <section id="capture" class="capture" hidden>
+      <div id="permission-note" class="inline-alert" data-tone="warning" hidden>
+        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false" data-icon="alert"></svg>
+        <p id="permission-note-text" data-i18n="popup_bookmarkAccessOffAllow">Bookmark access is off — allow it to save bookmarks to this browser.</p>
+        <button id="permission-grant" class="btn btn-secondary btn-sm" type="button" data-i18n="common_allowBookmarkAccess">Allow bookmark access</button>
+      </div>
+      <!-- Capture could not start / needs attention (automatic result). -->
+      <div id="capture-alert" class="inline-alert" data-tone="warning" role="status" hidden>
+        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false" data-icon="alert"></svg>
+        <p id="capture-alert-text"></p>
+      </div>
+      <!-- Saved / Already saved / Removed. Painted by popup-status.ts. -->
+      <div id="capture-status" class="pp-status" role="status" aria-live="polite" hidden>
+        <svg id="capture-status-icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false" data-icon="check-circle"></svg>
+        <span id="capture-status-text" class="pp-status-text"></span>
+        <span id="capture-status-meta" class="pp-status-meta"></span>
+      </div>
+
+      <div class="pp-page">
+        <span class="pp-tile" aria-hidden="true">
+          <img id="tab-favicon" width="20" height="20" alt="" hidden>
+          <svg id="tab-fallback" viewBox="0 0 24 24" focusable="false" data-icon="file"></svg>
+        </span>
+        <div class="pp-page-text">
+          <label class="visually-hidden" for="tab-title" data-i18n="common_name">Name</label>
+          <textarea id="tab-title" class="pp-title" rows="1" autocomplete="off" spellcheck="false"></textarea>
+          <button id="tab-url-display" class="pp-url" type="button"></button>
+          <label class="visually-hidden" for="tab-url" data-i18n="common_url">URL</label>
+          <input id="tab-url" class="field-quiet" type="text" inputmode="url" autocomplete="off" spellcheck="false" hidden>
+        </div>
+      </div>
+
+      <!-- Folder / Tags / Note. The synced library is derived from the folder,
+           never picked here: choosing one rebinds the whole extension's sync
+           scope, so that lives in Options › Sync. -->
+      <div id="pp-fields" class="pp-fields" hidden>
+        <span id="folder-label" class="pp-label" data-i18n="sync_folder">Folder</span>
+        <div class="pp-control">
+          <!-- The pill shrinks (ellipsis) before "AI pick" and its retry button wrap or squeeze. -->
+          <span class="folder-line">
+            <button id="dest-toggle" class="folder-pill" type="button" aria-expanded="false" aria-controls="dest-panel" aria-labelledby="folder-label dest-current">
+              <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" data-icon="folder"></svg>
+              <span id="dest-current"><span id="dest-placeholder" data-i18n="popup_chooseAFolder">Choose a folder</span><span id="dest-parent" class="folder-pill-parent" hidden></span><span id="dest-folder" class="folder-pill-name"></span></span>
+              <svg class="chev" viewBox="0 0 24 24" width="12" height="12" aria-hidden="true" focusable="false" data-icon="chevron-down"></svg>
+            </button>
+            <span id="ai-mark" class="ai-mark" hidden>
+              <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true" focusable="false" data-icon="sparkle"></svg><span data-i18n="popup_aiPick">AI pick</span>
+              <button id="folder-retry" class="ai-retry" type="button" hidden aria-label="Suggest another folder" title="Suggest another folder" data-i18n-aria-label="popup_suggestAnotherFolder" data-i18n-title="popup_suggestAnotherFolder">
+                <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true" focusable="false" data-icon="refresh"></svg>
+              </button>
+            </span>
+          </span>
+          <button id="folder-suggest" class="chip chip--suggest" type="button" hidden>
+            <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true" focusable="false" data-icon="sparkle"></svg><span id="folder-suggest-label"></span>
+          </button>
+          <!-- Pin below the folders; offered only where the chosen folder takes pins (src/popup-pin.ts). -->
+          <button id="folder-pin" class="folder-pin" type="button" aria-pressed="false" aria-label="Pin" title="Pin" data-i18n-aria-label="pin_pin" data-i18n-title="pin_pin" hidden>
+            <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false" data-icon="pin"></svg>
+          </button>
+        </div>
+        <p id="folder-pin-hint" class="pp-pin-hint" role="status" hidden></p>
+        <div id="dest-panel" class="folder-panel" hidden>
+          <label class="folder-search">
+            <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false" data-icon="search"></svg>
+            <input id="dest-search" type="search" autocomplete="off" placeholder="Search folders" aria-label="Search folders" data-i18n-placeholder="popup_searchFolders" data-i18n-aria-label="popup_searchFolders">
+          </label>
+          <div id="folder-tree" class="folder-list" role="listbox" aria-label="Folder" data-i18n-aria-label="sync_folder"></div>
+          <form id="folder-new" class="folder-new-form">
+            <button id="folder-new-open" class="folder-new" type="button">
+              <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false" data-icon="plus"></svg><span id="folder-new-label"></span>
+            </button>
+            <div id="folder-create" class="folder-create" hidden>
+              <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false" data-icon="plus"></svg>
+              <input id="folder-new-name" type="text" placeholder="New folder" aria-label="New folder name (created inside the selected folder)" autocomplete="off" data-i18n-placeholder="subscription_newFolder" data-i18n-aria-label="popup_newFolderNameCreated">
+              <button class="btn btn-ghost btn-sm" type="submit" data-i18n="common_create">Create</button>
+            </div>
+          </form>
+        </div>
+
+        <label class="pp-label" for="tag-text" data-i18n="common_tags">Tags</label>
+        <div class="pp-control pp-control--block">
+          <div id="tag-field" class="field-quiet tag-input">
+            <input id="tag-text" type="text" autocomplete="off" spellcheck="false" placeholder="Add tags…" data-i18n-placeholder="popup_addTags">
+          </div>
+          <div id="tag-suggest" class="pp-suggest" role="group" aria-label="Suggested tags" data-i18n-aria-label="popup_suggestedTags" hidden></div>
+        </div>
+
+        <label class="pp-label" for="note-text" data-i18n="common_note">Note</label>
+        <div class="pp-control">
+          <textarea id="note-text" class="field-quiet" rows="2" placeholder="Add a note…" data-i18n-placeholder="popup_addNote"></textarea>
+        </div>
+      </div>
+
+      <p id="pp-note" class="pp-note" role="status" aria-live="polite" hidden></p>
+    </section>
+
+    <!-- Boot: the same layout as the page block, so nothing jumps when it paints. -->
+    <div id="capture-boot" class="pp-skeleton" role="status" aria-live="polite">
+      <span class="visually-hidden" data-i18n="popup_preparingBookmarkCapture">Preparing bookmark capture…</span>
+      <span class="pp-tile" aria-hidden="true"></span>
+      <span class="pp-skeleton-lines" aria-hidden="true"><span></span><span></span></span>
+    </div>
+  </main>
+
+  <footer id="popup-foot" class="pp-foot" data-mode="manual" hidden>
+    <div class="pp-foot-start">
+      <button id="open-bookmarks" class="btn btn-ghost btn-sm" type="button" data-foot="manual">
+        <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" data-icon="bookmark"></svg><span data-i18n="options_bookmarksPane">Bookmarks</span>
+      </button>
+      <button id="save-tabs" class="btn btn-ghost btn-sm" type="button" data-foot="manual">
+        <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" data-icon="browser"></svg><span data-i18n="common_saveTabs">Save tabs</span>
+      </button>
+      <button id="capture-undo" class="btn btn-ghost btn-sm" type="button" data-foot="result">
+        <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" data-icon="arrow-left"></svg><span data-i18n="common_undo">Undo</span>
+      </button>
+      <button id="capture-history" class="btn btn-ghost btn-sm" type="button" data-foot="result">
+        <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" data-icon="clock"></svg><span data-i18n="common_history">History</span>
+      </button>
+      <!-- Remove appears only while the popup edits the page's existing
+           bookmark (Remove · Done), like the browser's own star dialog. -->
+      <button id="remove-bookmark" class="btn btn-ghost btn-sm" type="button" data-foot="existing result" data-danger hidden>
+        <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" data-icon="trash"></svg><span data-i18n="common_remove">Remove</span>
+      </button>
+    </div>
+    <div class="pp-foot-end">
+      <button id="save" class="btn btn-primary btn-save" type="button" disabled data-foot="manual existing saved" title="Save (Ctrl/Cmd+Enter)" data-i18n-title="common_saveCtrlCmdEnter" data-i18n="common_save">Save</button>
+      <button id="capture-done" class="btn btn-primary" type="button" data-foot="result" data-i18n="common_done">Done</button>
+    </div>
+  </footer>
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

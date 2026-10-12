@@ -2,6 +2,7 @@
 **/dist/
 **/coverage/
 **/reports/
+/test-results/
 **/.stryker-tmp/
 **/.vite/
 **/__pycache__/

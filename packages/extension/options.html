@@ -1,0 +1,969 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title data-i18n="options_pageTitle">Know-N · Bookmarks &amp; Settings</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body class="opt" data-state="signed_out" data-pane="bookmarks">
+  <div class="shell">
+    <aside class="side">
+      <a id="brand-link" class="side-brand" href="https://know-n.com" rel="noreferrer" target="_blank" title="Open Know-N" aria-label="Know-N home" data-i18n-title="common_openKnowN" data-i18n-aria-label="common_knowNHome">
+        <img class="brand-wordmark" src="brand-wordmark.svg" alt="Know-N" width="438" height="128" draggable="false">
+      </a>
+      <!-- One identity, one status line: who this browser is signed in as and what sync is doing. -->
+      <div class="side-id">
+        <span class="avatar" id="side-avatar" aria-hidden="true"></span>
+        <span class="side-id-name" id="side-name"></span>
+        <span class="side-id-meta">
+          <span class="set-dot" id="hub-dot" aria-hidden="true" hidden></span>
+          <a id="hub-signin" href="#account" data-i18n="common_signIn">Sign in</a>
+          <span id="hub-status"></span>
+        </span>
+        <span id="hub-progress" class="sync-bar sync-bar--thin side-id-progress" aria-hidden="true" hidden><span></span></span>
+      </div>
+      <nav class="side-nav" aria-label="Settings" data-i18n-aria-label="common_settings">
+        <div class="side-label" data-i18n="shell_library">Library</div>
+        <a class="side-item" data-step="bookmarks" id="nav-bookmarks" href="#bookmarks"><svg class="nav-icon" width="16" height="16" aria-hidden="true" focusable="false" data-icon="folder"></svg><span data-i18n="options_bookmarksPane">Bookmarks</span></a>
+        <a class="side-item" data-step="history" id="nav-history" href="#history"><svg class="nav-icon" width="16" height="16" aria-hidden="true" focusable="false" data-icon="clock"></svg><span data-i18n="common_history">History</span></a>
+        <a class="side-item" data-step="subscriptions" id="nav-subscriptions" href="#subscriptions"><svg class="nav-icon" width="16" height="16" aria-hidden="true" focusable="false" data-icon="rss"></svg><span data-i18n="common_subscriptions">Subscriptions</span></a>
+        <a class="side-item" data-step="sync" id="nav-sync" href="#sync"><svg class="nav-icon" width="16" height="16" aria-hidden="true" focusable="false" data-icon="sync"></svg><span data-i18n="common_sync">Sync</span></a>
+        <div class="side-label" data-i18n="common_settings">Settings</div>
+        <a class="side-item" data-step="saving" id="nav-saving" href="#saving"><svg class="nav-icon" width="16" height="16" aria-hidden="true" focusable="false" data-icon="bookmark"></svg><span data-i18n="common_saving2">Saving</span></a>
+        <a class="side-item" data-step="ai" id="nav-ai" href="#ai"><svg class="nav-icon" width="16" height="16" aria-hidden="true" focusable="false" data-icon="sparkle"></svg><span data-i18n="prefs_aiSuggestions">AI suggestions</span></a>
+        <a class="side-item" data-step="general" id="nav-general" href="#general"><svg class="nav-icon" width="16" height="16" aria-hidden="true" focusable="false" data-icon="settings"></svg><span data-i18n="shell_general">General</span></a>
+        <a class="side-item" data-step="account" id="nav-account" href="#account"><svg class="nav-icon" width="16" height="16" aria-hidden="true" focusable="false" data-icon="person"></svg><span data-i18n="common_account">Account</span></a>
+      </nav>
+      <div class="side-foot">
+        <a class="side-item" data-step="help" id="nav-help" href="#help"><svg class="nav-icon" width="16" height="16" aria-hidden="true" focusable="false" data-icon="terminal"></svg><span data-i18n="shell_helpDiagnostics">Help &amp; diagnostics</span></a>
+        <div class="side-version" id="side-version"></div>
+      </div>
+    </aside>
+
+    <main class="main" id="main">
+      <!-- Preference conflicts surface here; reminder messages use the web-style toast in the bottom right. -->
+      <div id="bookmark-preferences-notice" class="inline-alert" data-tone="warning" hidden>
+        <svg width="16" height="16" aria-hidden="true" focusable="false" data-icon="alert"></svg>
+        <div class="notice-body">
+          <p id="bookmark-preferences-status" role="status" aria-live="polite"></p>
+          <dl id="bookmark-preferences-conflict-values" class="facts" hidden></dl>
+        </div>
+        <button id="bookmark-preferences-use-server" class="btn btn-ghost btn-sm" type="button" hidden data-i18n="options_useServerValues">Use server values</button>
+        <button id="bookmark-preferences-use-local" class="btn btn-ghost btn-sm" type="button" hidden data-i18n="options_keepBrowsersValues">Keep this browser's values</button>
+      </div>
+
+      <!-- Bookmarks -->
+      <section id="bookmarks-card" class="main-inner main-inner--wide bookmark-hub" hidden aria-labelledby="bookmarks-heading">
+        <header class="page-head">
+          <div class="page-head-copy">
+            <h1 id="bookmarks-heading" data-i18n="options_bookmarksPane">Bookmarks</h1>
+            <p data-i18n="shell_bookmarksLede">This browser's bookmarks. Changes apply to your browser right away.</p>
+          </div>
+          <div class="page-head-actions"><button id="manager-import" class="btn btn-secondary btn-sm" type="button" data-i18n="common_import">Import</button>
+            <button id="manager-export" class="btn btn-secondary btn-sm" type="button" data-i18n="common_export">Export</button></div>
+        </header>
+        <!-- An import or restore that stopped part-way; src/local-import/view.ts fills and shows it. -->
+        <div id="local-import" class="inline-alert" data-tone="warning" hidden></div>
+        <div id="local-backup" hidden></div>
+        <section id="welcome" class="welcome set-group" hidden aria-labelledby="welcome-heading">
+          <div class="set-card welcome-card">
+            <div class="welcome-copy">
+              <h2 id="welcome-heading" data-i18n="welcome_title">Welcome to Know-N</h2>
+              <p id="welcome-copy" data-i18n="welcome_lede">Save, tag and organize bookmarks on this browser. No account needed.</p>
+              <ol id="welcome-steps" class="steps"></ol>
+            </div>
+            <div class="welcome-actions">
+              <button id="dismiss-welcome" class="btn btn-ghost btn-sm" type="button" data-i18n="common_dismiss">Dismiss</button>
+              <button id="welcome-import" class="btn btn-primary btn-sm" type="button" data-i18n="common_importBookmarks">Import bookmarks</button>
+            </div>
+          </div>
+        </section>
+        <div id="manager-gate" class="list-card manager-gate">
+          <div class="empty">
+            <span class="empty-icon" aria-hidden="true"><svg width="18" height="18" aria-hidden="true" focusable="false" data-icon="lock"></svg></span>
+            <h2 class="empty-title" data-i18n="options_bookmarkAccessOff">Bookmark access is off</h2>
+            <p class="empty-hint" data-i18n="options_allowOptionalBookmarksPermission">Allow bookmark access to browse and organize bookmarks here. You can remove it any time under General › Permissions.</p>
+            <p id="manager-reload-hint" class="empty-hint" hidden data-i18n="options_accessJustGrantedReload">Access was just granted. Reload this page to finish turning it on.</p>
+            <button id="manager-grant" class="btn btn-primary btn-sm" type="button" data-i18n="common_allowBookmarkAccess">Allow bookmark access</button>
+          </div>
+        </div>
+        <div id="manager-body" class="manager" hidden>
+          <div class="toolbar manager-toolbar">
+            <label class="search-compact"><svg width="14" height="14" aria-hidden="true" focusable="false" data-icon="search"></svg>
+              <input id="manager-search" type="search" autocomplete="off" placeholder="Search bookmarks, tags and notes" aria-label="Search bookmarks, tags and notes" data-i18n-placeholder="manager_searchPlaceholder" data-i18n-aria-label="manager_searchPlaceholder"></label>
+            <button id="manager-new-folder" class="btn btn-secondary btn-sm" type="button"><svg width="14" height="14" aria-hidden="true" focusable="false" data-icon="plus"></svg><span data-i18n="subscription_newFolder">New folder</span></button>
+            <button id="manager-new-bookmark" class="btn btn-secondary btn-sm" type="button"><svg width="14" height="14" aria-hidden="true" focusable="false" data-icon="plus"></svg><span data-i18n="common_newBookmark">New bookmark</span></button>
+            <span id="manager-feedback" class="feedback manager-feedback" role="status" aria-live="polite"></span>
+          </div>
+          <div id="manager-card" class="list-card">
+            <div class="mgr">
+              <div id="manager-tree" class="mgr-tree" role="group" aria-label="Bookmark folders" data-i18n-aria-label="common_bookmarkFolders"></div>
+              <div class="mgr-main">
+                <div class="mgr-path">
+                  <div id="manager-path" class="mgr-crumbs" aria-label="Current folder" data-i18n-aria-label="common_currentFolder"></div>
+                  <span id="manager-sync-state" class="set-row-value mgr-sync" hidden></span>
+                  <button id="manager-select" class="btn btn-ghost btn-sm" type="button" aria-pressed="false" data-i18n="manager_select">Select</button>
+                </div>
+                <div id="manager-list" class="mgr-list" role="group" aria-label="Folder contents" data-i18n-aria-label="common_folderContents"></div>
+                <!-- Below the rows and sticky to the window's bottom edge: the actions stay in reach however far the list scrolls. -->
+                <div id="manager-selection-bar" class="card-bar mgr-bar" role="toolbar" aria-label="Selected items" data-i18n-aria-label="manager_selectionActions">
+                  <span id="manager-selection-count" class="mgr-bar-count" role="status" hidden></span>
+                  <button id="manager-select-all" class="btn btn-ghost btn-sm" type="button" hidden data-i18n="manager_selectAll">Select all</button>
+                  <span class="grow"></span>
+                  <button id="manager-batch-move" class="btn btn-ghost btn-sm" type="button" disabled hidden data-i18n="common_move">Move</button>
+                  <button id="manager-batch-rename" class="btn btn-ghost btn-sm" type="button" disabled hidden data-i18n="common_rename">Rename</button>
+                  <button id="manager-batch-tag" class="btn btn-ghost btn-sm" type="button" aria-haspopup="dialog" disabled hidden data-i18n="manager_tagAction">Tag…</button>
+                  <button id="manager-batch-delete" class="btn btn-ghost btn-sm" type="button" disabled hidden data-i18n="common_delete">Delete</button>
+                  <button id="manager-batch-undo" class="btn btn-ghost btn-sm" type="button" hidden data-i18n="common_undo">Undo</button>
+                  <span id="manager-batch-undo-deadline" hidden aria-live="off"></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- History -->
+      <section id="history-card" class="main-inner main-inner--wide capture-card" hidden aria-labelledby="history-heading">
+        <header class="page-head">
+          <div class="page-head-copy">
+            <h1 id="history-heading" data-i18n="common_history">History</h1>
+            <p data-i18n="shell_historyLede">Everything you saved with Know-N on this browser.</p>
+          </div>
+          <div class="page-head-actions"><a class="btn btn-secondary btn-sm" href="capture-tabs.html" data-i18n="common_saveTabs">Save tabs</a></div>
+        </header>
+        <!-- Where saves go and whether suggestions are paused; capture/control-view.ts fills the rows. -->
+        <div class="set-card history-saves" data-capture-controls></div>
+        <section role="region" data-capture-view="history" id="capture-history" aria-label="Saved pages" data-i18n-aria-label="shell_savedPages">
+          <div data-capture-content></div>
+        </section>
+      </section>
+
+      <!-- Subscriptions -->
+      <section id="subscriptions-card" class="main-inner main-inner--wide" hidden aria-labelledby="subscriptions-heading">
+        <header class="page-head">
+          <div class="page-head-copy">
+            <h1 id="subscriptions-heading" data-i18n="common_subscriptions">Subscriptions</h1>
+            <p data-i18n="options_collectionsDigestsFollowKept">Collections and digests you follow, kept up to date as read-only folders in this browser.</p>
+          </div>
+          <div class="page-head-actions" data-subscriptions-actions></div>
+        </header>
+        <div data-subscriptions-content></div>
+        <div id="subscription-defaults" class="subscription-defaults">
+          <section id="pref-subscriptions" class="set-group" aria-labelledby="pref-subscriptions-heading">
+            <div class="set-group-head"><h2 id="pref-subscriptions-heading" data-i18n="shell_subscriptionDefaults">Defaults for new subscriptions</h2>
+              <p data-i18n="options_defaultsNewSubscriptionsSubscription">Subscription folders are read-only and never get folder suggestions.</p></div>
+            <div id="subscription-preferences-notice" class="inline-alert" hidden>
+              <svg width="16" height="16" aria-hidden="true" focusable="false" data-icon="info"></svg>
+              <p id="subscription-preferences-support" role="status" data-i18n="options_signLoadAccountSubscription">Sign in to load account subscription preferences.</p>
+            </div>
+            <fieldset id="subscription-preferences" class="set-card" aria-describedby="subscription-preferences-support">
+              <legend class="visually-hidden" data-i18n="common_subscriptionDefaults">Subscription defaults</legend>
+              <div class="set-row"><div class="set-row-text"><label class="set-row-title" for="subscription-on-unfollow" data-i18n="options_whenUnfollowSource">When you unfollow a source</label></div>
+                <div class="set-row-control"><select id="subscription-on-unfollow" class="select-quiet" disabled><option value="keep" data-i18n="subscription_keep">Keep the bookmarks as your own</option><option value="remove" data-i18n="subscription_remove">Delete the folder</option></select></div></div>
+              <div class="set-row"><div class="set-row-text"><label class="set-row-title" for="subscription-on-unsubscribe" data-i18n="subscription_afterUnsubscribe">When you unsubscribe</label></div>
+                <div class="set-row-control"><select id="subscription-on-unsubscribe" class="select-quiet" disabled><option value="keep" data-i18n="subscription_keep">Keep the bookmarks as your own</option><option value="remove" data-i18n="subscription_remove">Delete the folder</option></select></div></div>
+              <div class="set-row"><div class="set-row-text"><label class="set-row-title" for="subscription-default-interval" data-i18n="prefs_defaultCheckInterval">Default check interval</label></div>
+                <div class="set-row-control"><select id="subscription-default-interval" class="select-quiet" disabled><option value="5" data-i18n="subscription_fiveMinutes">5 minutes</option><option value="15" data-i18n="subscription_fifteenMinutes">15 minutes</option><option value="60" data-i18n="subscription_oneHour">1 hour</option><option value="manual" data-i18n="common_manual">Manual</option></select></div></div>
+              <div class="set-row"><div class="set-row-text"><label class="set-row-title" for="subscription-default-mode" data-i18n="prefs_defaultDigestContent">Default Digest content</label></div>
+                <div class="set-row-control"><select id="subscription-default-mode" class="select-quiet" disabled><option value="latest" data-i18n="subscription_latest">Latest readable issue</option><option value="recent" data-i18n="subscription_recent">Recent issues (maximum 20)</option></select></div></div>
+              <div class="set-row" id="subscription-default-limit-field"><div class="set-row-text"><label class="set-row-title" for="subscription-default-limit" data-i18n="subscription_issueCount">Number of recent issues</label>
+                <p id="subscription-limit-error" class="set-row-hint" role="status" data-i18n="subscription_limitHint">Choose a whole number from 1 to 20.</p></div>
+                <div class="set-row-control"><input id="subscription-default-limit" class="field-quiet field-quiet--narrow" type="number" min="1" max="20" step="1" value="10" aria-describedby="subscription-limit-error" disabled></div></div>
+              <div class="set-row"><p class="set-row-hint"><span data-i18n="options_newSubscriptionsStartThese">New subscriptions start with these settings. Existing folders keep theirs.</span> <span data-i18n="options_ifBrowserAlsoSyncs">If your browser also syncs bookmarks, private subscription content can appear in your other browser profiles. Add subscriptions in each profile separately.</span></p></div>
+            </fieldset>
+          </section>
+          <section id="subscription-directory-preferences" class="set-group" aria-labelledby="subscription-directories-heading">
+            <div class="set-group-head"><h2 id="subscription-directories-heading" data-i18n="options_foldersBrowser">Folders in this browser</h2></div>
+            <div class="set-card" data-subscription-directory-preferences></div>
+          </section>
+        </div>
+      </section>
+
+      <!-- Sync -->
+      <section id="sync-card" class="main-inner" hidden aria-labelledby="sync-heading" data-view-pane="sync">
+        <header class="page-head">
+          <div class="page-head-copy">
+            <h1 id="sync-heading" data-i18n="common_sync">Sync</h1>
+            <p data-i18n="sync_pageLede">Keep this browser’s bookmarks in sync with your Know-N collection.</p>
+          </div>
+        </header>
+        <div class="view-switch page-tabs" role="tablist" aria-label="Sync sections" data-tabs="sync" data-i18n-aria-label="common_syncSections">
+          <button type="button" role="tab" data-view="collections" id="tab-sync-collections" aria-controls="collection-card" aria-selected="true" data-i18n="sync_tabCollection">Collection</button>
+          <button type="button" role="tab" data-view="folders" id="tab-sync-folders" aria-controls="folder-card" aria-selected="false" tabindex="-1" data-i18n="common_folders">Folders</button>
+          <button type="button" role="tab" data-view="center" id="tab-sync-center" aria-controls="sync-center" aria-selected="false" tabindex="-1" data-i18n="subscription_status">Status</button>
+          <button type="button" role="tab" data-view="import" id="tab-sync-import" aria-controls="import-card" aria-selected="false" tabindex="-1" data-i18n="sync_tabImport">Import</button>
+        </div>
+        <!-- While a sync runs (sync-progress-dom.ts): how far it is, why it is
+             not moving if it is not, and what is safe to do meanwhile. Above
+             the panels so every Sync tab shows it. -->
+        <section id="sync-progress" class="set-card sync-progress" aria-labelledby="sync-progress-title" hidden>
+          <div class="sync-progress-head">
+            <span class="sync-progress-icon" aria-hidden="true">
+              <svg class="sync-progress-icon-run" width="16" height="16" aria-hidden="true" focusable="false" data-icon="sync"></svg>
+              <svg class="sync-progress-icon-paused" width="16" height="16" aria-hidden="true" focusable="false" data-icon="pause"></svg>
+              <svg class="sync-progress-icon-done" width="16" height="16" aria-hidden="true" focusable="false" data-icon="check"></svg>
+            </span>
+            <h2 id="sync-progress-title" class="sync-progress-title"></h2>
+            <button id="sync-progress-resume" class="btn btn-secondary btn-sm sync-progress-resume" type="button" aria-haspopup="dialog" hidden data-i18n="syncProgress_resume">Resume sync…</button>
+          </div>
+          <div id="sync-progress-bar" class="sync-bar" role="progressbar" aria-labelledby="sync-progress-title" aria-valuemin="0" aria-valuemax="100"><span></span></div>
+          <p id="sync-progress-detail" class="sync-progress-detail" role="status" aria-live="polite"></p>
+          <p id="sync-progress-note" class="sync-progress-note" hidden></p>
+          <div id="sync-progress-help" class="sync-progress-help" hidden>
+            <p class="sync-progress-help-title" data-i18n="syncProgress_whileItRuns">While it runs</p>
+            <ul id="sync-progress-guidance" class="sync-progress-guidance"></ul>
+          </div>
+        </section>
+        <!-- Every panel below needs an account; while there is none the pane
+             shows this one card instead of four decks of dead controls. -->
+        <div id="sync-connect" class="set-card connect-card" hidden>
+          <div class="empty">
+            <span class="empty-icon"><svg width="18" height="18" aria-hidden="true" focusable="false" data-icon="sync"></svg></span>
+            <p class="empty-title" data-i18n="options_connectThisBrowser">Connect this browser</p>
+            <p class="empty-hint" data-i18n="options_collectionsSyncedFoldersConfirmations2">Sign in to sync with Know-N and import into your collection. Saving, organizing and HTML import work without an account.</p>
+            <a class="btn btn-primary btn-sm" href="#account" data-i18n="common_signIn">Sign in</a>
+          </div>
+        </div>
+
+        <section role="tabpanel" data-view-panel="collections" id="collection-card" class="set-group collection-card" aria-labelledby="tab-sync-collections">
+          <div class="set-group-head">
+            <h2 data-i18n="sync_collectionHeading">Collection</h2>
+            <p data-i18n="sync_collectionLede">This browser syncs into one collection you own. Collections shared with you cannot be chosen.</p>
+          </div>
+          <div class="set-card">
+            <div id="collection-empty" class="empty">
+              <p id="collection-empty-copy" class="empty-title" data-i18n="options_loadingYourCollections">Loading your collections…</p>
+              <a id="collection-signin-link" href="#account" class="btn btn-secondary btn-sm" hidden data-i18n="options_goAccountSign">Go to Account to sign in</a>
+            </div>
+            <div id="collection-grid" class="collection-grid" hidden role="group" aria-label="Your collections" data-i18n-aria-label="common_yourCollections"></div>
+            <div id="library-new" class="set-row">
+              <div class="set-row-text">
+                <p class="set-row-title" data-i18n="sync_newCollection">New collection</p>
+                <p class="set-row-hint" data-i18n="sync_newCollectionHint">Start an empty collection for this browser.</p>
+              </div>
+              <div class="set-row-control">
+                <button id="library-create-open" class="btn btn-ghost btn-sm" type="button"><svg width="14" height="14" aria-hidden="true" focusable="false" data-icon="plus"></svg><span data-i18n="sync_createCollection">Create</span></button>
+              </div>
+            </div>
+            <form id="library-create" class="library-create set-row set-row--stack" hidden>
+              <div class="library-create-field">
+                <label id="library-create-title-label" for="library-create-title" data-i18n="firstRun_collectionName">Collection name</label>
+                <input id="library-create-title" name="title" type="text" maxlength="512" autocomplete="off" required>
+              </div>
+              <div class="set-row-control">
+                <button id="library-create-submit" class="btn btn-primary btn-sm" type="submit" data-i18n="firstRun_createCollection">Create collection</button>
+                <button id="library-create-cancel" class="btn btn-ghost btn-sm" type="button" data-i18n="common_cancel">Cancel</button>
+              </div>
+            </form>
+            <p id="collection-feedback" class="feedback set-row" role="status" aria-live="polite"></p>
+          </div>
+          <div class="page-foot-links">
+            <a id="open-collections" href="https://know-n.com/library" target="_blank" rel="noreferrer"><span data-i18n="sync_openCollectionsWeb">Open collections on the web</span><svg aria-hidden="true" focusable="false" data-icon="arrow-up-right"></svg></a>
+            <button id="goto-folders" type="button" hidden data-i18n="sync_chooseFolders">Choose folders to sync</button>
+            <button id="refresh-collections" type="button" disabled data-i18n="common_refreshList">Refresh list</button>
+          </div>
+        </section>
+
+        <section role="tabpanel" data-view-panel="folders" id="folder-card" class="set-group folder-access" aria-labelledby="tab-sync-folders" hidden>
+          <div class="set-group-head">
+            <h2 id="folder-heading" data-i18n="options_foldersThatSync">Folders that sync</h2>
+            <p id="folder-intro" data-i18n="sync_foldersLede">Bookmarks in checked folders sync to your collection, along with the folders inside them. Others stay on this browser only.</p>
+          </div>
+          <div id="root-alert" class="inline-alert" data-tone="warning" role="status" aria-live="polite" hidden>
+            <svg width="16" height="16" aria-hidden="true" focusable="false" data-icon="alert"></svg>
+            <p id="root-alert-copy"></p>
+            <button id="request-bookmark-permission" class="btn btn-secondary btn-sm" type="button" hidden
+              aria-label="Allow bookmark access" data-i18n-aria-label="common_allowBookmarkAccess" data-i18n="common_allowBookmarkAccess">Allow bookmark access</button>
+            <button id="root-retry" class="btn btn-ghost btn-sm" type="button" hidden data-i18n="common_retry">Retry</button>
+          </div>
+          <div class="list-card folder-tree-card">
+            <div class="card-bar">
+              <span class="grow"><span id="folder-count" aria-live="polite"></span><button type="button" class="info-pill" data-tip="This does not change the default save folder. Changes are previewed before anything syncs. Your browser’s own bookmark sync is separate." aria-label="More about synced folders" data-i18n-data-tip="options_doesNotChangeDefault" data-i18n-aria-label="options_moreAboutSyncedFolders"><svg width="20" height="20" aria-hidden="true" focusable="false" data-icon="info"></svg></button></span>
+              <button id="tree-select-level" class="btn btn-ghost btn-sm" type="button" disabled data-i18n="sync_selectAll">Select all</button>
+              <button id="tree-invert" class="btn btn-ghost btn-sm" type="button" disabled data-i18n="sync_invert">Invert</button>
+              <button id="refresh-roots" class="btn btn-ghost btn-sm btn-icon" type="button" disabled
+                aria-label="Refresh folders" title="Refresh folders" data-i18n-title="common_refreshFolders" data-i18n-aria-label="common_refreshFolders">
+                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false" data-icon="refresh"></svg>
+              </button>
+            </div>
+            <p id="first-run-permission-hint" class="card-note" hidden data-i18n="firstRun_readSyncBookmarkFolders">Read and sync the bookmark folders you choose</p>
+            <div id="root-tree" class="check-tree root-tree" role="group" aria-label="Bookmark folders" data-i18n-aria-label="common_bookmarkFolders"></div>
+            <p id="first-run-empty" class="card-note" hidden></p>
+            <div class="card-foot folder-foot">
+              <span class="grow"><span id="folder-foot-hint" data-i18n="sync_changesPreviewed">Changes are previewed before anything syncs.</span><span id="root-feedback" class="feedback" aria-live="polite"></span></span>
+              <button id="cancel-roots" class="btn btn-ghost btn-sm" type="button" disabled data-i18n="common_cancel">Cancel</button>
+              <button id="save-roots" class="btn btn-primary btn-sm" type="button" disabled data-i18n="sync_reviewChanges">Review changes</button>
+            </div>
+          </div>
+
+          <div id="first-run-confirm" class="set-card confirm-card" hidden>
+            <div class="set-row set-row--stack">
+              <p id="first-run-totals" class="set-row-title confirm-totals"></p>
+              <p id="first-run-merge-copy" class="set-row-hint" data-i18n="firstRun_firstSyncKeepsBookmarks">First sync keeps bookmarks on this browser and in Know-N. Items that cannot be matched as the same bookmark are kept as two copies and are not deleted automatically.</p>
+            </div>
+            <details id="first-run-advanced" class="disclosure first-run-advanced">
+              <summary data-i18n="options_advancedSyncPolicy">Advanced sync policy</summary>
+              <div class="set-row set-row--stack">
+                <p id="first-run-advanced-hint" class="set-row-hint"></p>
+                <label for="first-run-advanced-mode" class="set-row-title" data-i18n="options_firstSyncMethod">First sync method</label>
+                <select id="first-run-advanced-mode" class="select-quiet">
+                  <option value="merge" data-i18n="firstRun_autoMergeKeepBoth">Auto-merge, keep both sides (recommended)</option>
+                  <option value="upload" data-i18n="firstRun_deviceWins">This device wins</option>
+                  <option value="download" data-i18n="firstRun_knowNWins">Know-N wins</option>
+                  <option value="preview-only" data-i18n="firstRun_previewOnlyDoNot">Preview only, do not run</option>
+                </select>
+                <div class="set-row-control">
+                  <button id="first-run-advanced-preview" class="btn btn-secondary btn-sm" type="button" data-i18n="options_viewChangeList">View change list</button>
+                </div>
+                <ul id="first-run-delete-list" class="first-run-delete-list" hidden></ul>
+                <div class="set-row-control">
+                  <button id="first-run-advanced-confirm" class="btn btn-danger btn-sm" type="button" hidden disabled data-i18n="firstRun_confirmRun">Confirm and run</button>
+                </div>
+              </div>
+            </details>
+            <div class="inline-alert first-run-alert" data-tone="warning">
+              <!-- A progress note (no tone) wears the info mark; only a warning wears the alert mark. -->
+              <svg class="first-run-alert-warning" width="16" height="16" aria-hidden="true" focusable="false" data-icon="alert"></svg>
+              <svg class="first-run-alert-info" width="16" height="16" aria-hidden="true" focusable="false" data-icon="info"></svg>
+              <p id="first-run-error" hidden role="status" aria-live="polite"></p>
+            </div>
+            <div id="first-run-attention" class="first-run-attention set-row set-row--stack" hidden>
+              <div class="set-row-control">
+                <button id="first-run-view-attention" class="btn btn-secondary btn-sm" type="button" data-i18n="firstRun_viewItemsNeedAttention">View items that need attention</button>
+              </div>
+              <p id="first-run-conflict-link" class="set-row-hint" hidden>
+                <a rel="noreferrer" target="_blank" data-i18n="firstRun_reviewConflictsSyncCenter">Review conflicts in Sync center on the web</a>
+              </p>
+              <ul id="first-run-attention-list" class="first-run-attention-list" hidden></ul>
+            </div>
+            <div class="card-foot confirm-actions">
+              <button id="first-run-later" class="btn btn-ghost btn-sm" type="button" data-i18n="common_later">Later</button>
+              <button id="first-run-start" class="btn btn-primary btn-sm" type="button" data-i18n="firstRun_startFirstSync">Start first sync</button>
+            </div>
+          </div>
+
+          <div id="range-preview" class="set-card confirm-card" hidden>
+            <div class="set-row set-row--stack">
+              <p id="range-preview-totals" class="set-row-title confirm-totals"></p>
+              <ul id="range-shift-list" class="first-run-delete-list" hidden></ul>
+              <ul id="range-remove-list" class="first-run-delete-list" hidden></ul>
+              <label id="range-remote-delete-label" class="check-line" hidden>
+                <input id="range-remote-delete" type="checkbox">
+                <span data-i18n="options_alsoMoveKnowN">Also move Know-N copies to trash</span>
+              </label>
+            </div>
+            <div class="inline-alert" data-tone="warning"><svg width="16" height="16" aria-hidden="true" focusable="false" data-icon="alert"></svg><p id="range-preview-warnings"></p></div>
+            <div class="inline-alert" data-tone="danger"><svg width="16" height="16" aria-hidden="true" focusable="false" data-icon="alert"></svg><p id="range-error" hidden role="status" aria-live="polite"></p></div>
+            <div class="card-foot confirm-actions">
+              <button id="range-cancel" class="btn btn-ghost btn-sm" type="button" data-i18n="common_cancel">Cancel</button>
+              <button id="range-confirm" class="btn btn-primary btn-sm" type="button" data-i18n="options_confirmFolderChanges">Confirm folder changes</button>
+            </div>
+          </div>
+
+          <div class="page-foot-links">
+            <!-- Rare and destructive: a quiet link after the list, not a button beside Save. -->
+            <button id="remove-bookmark-permission" class="folder-revoke" type="button" hidden disabled data-i18n="options_removeBookmarkAccess">Remove bookmark access</button>
+          </div>
+        </section>
+
+        <section role="tabpanel" data-view-panel="center" id="sync-center" aria-labelledby="tab-sync-center" hidden>
+          <!-- Action first, setting last: what is waiting or stuck leads the
+               page; the set-once deletion policy follows. -->
+          <div id="sync-summary" class="inline-alert" data-tone="warning" role="status" hidden>
+            <svg width="16" height="16" aria-hidden="true" focusable="false" data-icon="alert"></svg>
+            <p id="sync-summary-copy"></p>
+            <button id="sync-summary-review" class="btn btn-ghost btn-sm" type="button" data-i18n="sync_review">Review</button>
+          </div>
+          <section id="sync-attention-settings" class="sync-attention-settings" aria-labelledby="sync-attention-heading" hidden>
+            <h2 id="sync-attention-heading" class="visually-hidden" data-i18n="common_syncStatus">Sync status</h2>
+            <!-- The conflict deep link stays owned by the remote-delete card below
+                 (`#remote-delete-conflict`), which already renders the backend's
+                 conflictHref; this card carries the freeze exit only. -->
+            <div class="inline-alert" data-tone="warning"><svg width="16" height="16" aria-hidden="true" focusable="false" data-icon="alert"></svg><p id="sync-attention-settings-rejected" hidden></p></div>
+            <div id="sync-attention-settings-recovery" class="inline-alert" data-tone="warning" role="status" hidden>
+              <div class="inline-alert-body">
+                <p id="sync-attention-settings-recovery-copy"></p>
+                <div class="inline-alert-actions">
+                  <button id="sync-attention-settings-retry" class="btn btn-secondary btn-sm" type="button" data-i18n="sync_retrySync">Retry sync</button>
+                  <button id="sync-attention-settings-recovery-diagnostics" class="btn btn-ghost btn-sm" type="button" data-i18n="sync_copyDetails">Copy details</button>
+                </div>
+              </div>
+            </div>
+            <div id="sync-attention-settings-terminal" class="inline-alert sync-attention-terminal" data-tone="danger" role="alert" hidden>
+              <svg width="16" height="16" aria-hidden="true" focusable="false" data-icon="alert"></svg>
+              <div class="inline-alert-body">
+                <p id="sync-attention-settings-terminal-copy"></p>
+                <div class="inline-alert-actions">
+                  <button id="sync-attention-settings-rebuild" class="btn btn-secondary btn-sm" type="button" data-i18n="sync_resetSyncDevice">Reset sync on this device</button>
+                  <button id="sync-attention-settings-copy-diagnostics" class="btn btn-ghost btn-sm" type="button" data-keep-label data-i18n="sync_copyDetails">Copy details</button>
+                  <a id="sync-attention-settings-sync-center" class="btn btn-ghost btn-sm" rel="noreferrer" target="_blank" hidden data-i18n="sync_openSyncCenterWeb">Open Sync center on the web</a>
+                </div>
+              </div>
+            </div>
+          </section>
+          <p id="sync-attention-settings-feedback" class="feedback" hidden role="status" aria-live="polite"></p>
+          <section id="native-wait-settings" class="set-group native-wait-settings" aria-labelledby="native-wait-heading">
+            <div class="set-group-head">
+              <h2 id="native-wait-heading" data-i18n="sync_waitingForYou">Waiting for you</h2>
+              <p id="native-wait-intro" class="detail" data-i18n="nativeWait_intro">Incoming sync pauses until you decide; uploads continue. “Don’t place” keeps the item in your collection but not on this browser.</p>
+            </div>
+            <ul id="native-wait-list" class="set-card native-wait-list"></ul>
+            <div class="inline-alert"><svg width="16" height="16" aria-hidden="true" focusable="false" data-icon="info"></svg><p id="native-wait-feedback" hidden role="status" aria-live="polite"></p></div>
+            <template id="native-wait-item">
+              <li class="set-row native-wait-item">
+                <div class="set-row-text">
+                  <p class="set-row-title native-wait-target"></p>
+                  <p class="set-row-hint native-wait-reason"></p>
+                  <div class="native-wait-choice"></div>
+                </div>
+                <div class="set-row-control">
+                  <button class="btn btn-secondary btn-sm" type="button" data-native-wait-action="bind">Use a bookmark already on this device</button>
+                  <button class="btn btn-ghost btn-sm" type="button" data-native-wait-action="keep_local_and_create">Keep on this device and create a new one</button>
+                </div>
+              </li>
+            </template>
+          </section>
+          <section id="remote-delete-settings" class="set-group remote-delete-settings">
+            <div class="set-group-head">
+              <h2 data-i18n="sync_deletions">Deletions</h2>
+              <p id="remote-delete-pending-count" hidden>Cloud deletions waiting for confirmation: 0</p>
+            </div>
+            <div id="remote-delete-inbox" class="set-card remote-delete-inbox">
+              <ul id="remote-delete-pending-list"></ul>
+            </div>
+            <div class="set-card">
+              <div class="set-row">
+                <div class="set-row-text">
+                  <label class="set-row-title" for="remote-delete-policy" data-i18n="sync_whenDeletedElsewhere">When a bookmark is deleted on another device</label>
+                  <p id="remote-delete-policy-hint" class="set-row-hint"></p>
+                </div>
+                <div class="set-row-control">
+                  <select id="remote-delete-policy" class="select-quiet">
+                    <option value="sync" data-i18n="sync_deleteHereToo">Delete it here too</option>
+                    <option value="confirm" data-i18n="sync_askFirst">Ask me first</option>
+                    <option value="keep_local" data-i18n="sync_keepHere">Keep it here</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div id="remote-delete-conflict" class="inline-alert" data-tone="warning" hidden>
+              <svg width="16" height="16" aria-hidden="true" focusable="false" data-icon="alert"></svg>
+              <p><a id="remote-delete-conflict-link" rel="noreferrer" target="_blank" data-i18n="firstRun_reviewConflictsSyncCenter">Review conflicts in Sync center on the web</a></p>
+            </div>
+            <div class="inline-alert" data-tone="warning"><svg width="16" height="16" aria-hidden="true" focusable="false" data-icon="alert"></svg><p id="remote-delete-feedback" hidden role="status" aria-live="polite"></p></div>
+          </section>
+          <div class="page-foot-links"><a href="#help?category=sync" data-i18n="sync_diagnostics">Sync diagnostics</a></div>
+        </section>
+
+        <section role="tabpanel" data-view-panel="import" id="import-card" class="set-group bookmark-import" aria-labelledby="tab-sync-import" hidden>
+          <div class="set-group-head">
+            <h2 id="import-heading" data-i18n="options_importToKnowN">Import to Know-N</h2>
+            <p data-i18n="sync_importLede">Copies bookmarks into your Know-N collection. Nothing changes on this browser.</p>
+          </div>
+          <div class="source-pair import-sources" role="group" aria-label="Import source" data-i18n-aria-label="common_importSource">
+            <label class="source" for="import-file">
+              <span class="source-icon"><svg width="18" height="18" aria-hidden="true" focusable="false" data-icon="lines"></svg></span>
+              <strong data-i18n="sync_htmlFile">HTML bookmarks file</strong>
+              <span data-i18n="sync_htmlFileHint">Exported from any browser or service</span>
+            </label>
+            <input id="import-file" type="file" accept=".html,text/html" disabled>
+            <button id="import-native" class="source" type="button" disabled>
+              <span class="source-icon"><svg width="18" height="18" aria-hidden="true" focusable="false" data-icon="browser"></svg></span>
+              <strong data-i18n="sync_thisBrowserBookmarks">This browser’s bookmarks</strong>
+              <span data-i18n="sync_thisBrowserHint">Pick folders to copy</span>
+            </button>
+          </div>
+          <div class="inline-alert" data-tone="warning" id="import-alert" hidden><svg width="16" height="16" aria-hidden="true" focusable="false" data-icon="alert"></svg><p id="import-feedback" role="status" aria-live="polite"></p></div>
+          <div id="import-preview" class="set-card import-preview" hidden>
+            <div class="set-row">
+              <div class="set-row-text">
+                <h3 class="set-row-title" data-i18n="common_importPreview">Import preview</h3>
+                <p id="import-count" class="set-row-hint"></p>
+              </div>
+            </div>
+            <details id="import-notes" class="disclosure import-notes" hidden>
+              <summary id="import-notes-summary"></summary>
+              <ul id="import-warnings" class="import-warnings"></ul>
+            </details>
+            <div class="card-bar map-legend" aria-hidden="true"><span class="grow" data-i18n="common_localFolder">Local folder</span><span data-i18n="common_targetCollection">Target collection</span></div>
+            <div id="import-mappings" class="import-mappings" role="group" aria-label="Folder mappings" data-i18n-aria-label="common_folderMappings"></div>
+            <div class="card-foot confirm-actions">
+              <button id="cancel-import" class="btn btn-ghost btn-sm" type="button" data-i18n="common_cancel">Cancel</button>
+              <button id="commit-import" class="btn btn-primary btn-sm" type="button" disabled data-i18n="common_importBookmarks">Import bookmarks</button>
+            </div>
+          </div>
+          <div id="import-progress" class="set-card import-progress" hidden aria-live="polite">
+            <div class="set-row set-row--stack">
+              <div class="progress-head"><span id="import-state" class="set-row-title"></span><span id="import-progress-count" class="set-row-value"></span></div>
+              <div id="import-progress-meter" class="meter" role="progressbar" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><span></span></div>
+              <p id="import-progress-copy" class="set-row-hint"></p>
+              <div class="progress-foot">
+                <button id="pause-import" class="btn btn-secondary btn-sm" type="button" data-i18n="common_pause">Pause</button>
+                <button id="resume-import" class="btn btn-secondary btn-sm" type="button" data-i18n="common_resumeImport">Resume import</button>
+                <button id="retry-import" class="btn btn-secondary btn-sm" type="button" data-i18n="sync_retryFailed">Retry failed items</button>
+                <span id="import-eta" class="set-row-hint"></span>
+              </div>
+            </div>
+            <div id="import-attention-actions" class="import-attention-links card-foot" hidden>
+              <span class="grow" data-i18n="sync_importAttentionHint">Some items did not import. Check folder access or review Status, then retry.</span>
+              <button id="import-goto-sync" class="btn btn-ghost btn-sm" type="button" data-i18n="options_reviewSyncStatus">Review Sync › Status</button>
+              <button id="import-goto-folders" class="btn btn-ghost btn-sm" type="button" data-i18n="options_checkFolderAccess">Check folder access</button>
+            </div>
+          </div>
+        </section>
+      </section>
+
+      <!-- Saving -->
+      <section id="saving-card" class="main-inner" hidden aria-labelledby="saving-heading">
+        <header class="page-head">
+          <div class="page-head-copy">
+            <h1 id="saving-heading" data-i18n="common_saving2">Saving</h1>
+            <p data-i18n="shell_savingLede">What happens when you save a page with Know-N.</p>
+          </div>
+        </header>
+        <section id="pref-capture" class="set-group" aria-labelledby="pref-capture-heading">
+          <div class="set-group-head"><h2 id="pref-capture-heading" data-i18n="shell_toolbarButton">Toolbar button</h2></div>
+          <div class="set-card">
+            <fieldset class="set-row set-row--stack" id="capture-mode-choices">
+              <legend class="visually-hidden" data-i18n="options_whenClickKnowN">When you click the Know-N button</legend>
+              <div class="choice-pair">
+                <label class="choice"><span class="choice-art" aria-hidden="true"><svg data-illustration viewBox="0 0 120 64" focusable="false"><rect class="art-frame" x="1.5" y="1.5" width="117" height="61" rx="6"/><path class="art-frame" d="M1.5 12.5h117"/><circle class="art-dot" cx="8" cy="7" r="1.6"/><circle class="art-dot" cx="13" cy="7" r="1.6"/><circle class="art-dot" cx="18" cy="7" r="1.6"/><rect class="art-line" x="10" y="20" width="40" height="4" rx="2"/><rect class="art-line" x="10" y="29" width="30" height="4" rx="2"/><rect class="art-line" x="10" y="38" width="36" height="4" rx="2"/><rect class="art-panel" x="62" y="16" width="50" height="42" rx="4"/><rect class="art-field" x="68" y="23" width="38" height="6" rx="2"/><rect class="art-field" x="68" y="33" width="38" height="6" rx="2"/><rect class="art-accent" x="86" y="45" width="20" height="7" rx="2"/></svg></span><input type="radio" name="capture-mode-choice" value="manual"><span class="choice-title" data-i18n="common_manual">Manual</span><span class="choice-hint" data-i18n="shell_manualHint">A small form opens so you can check the title, folder, tags and note, then save.</span></label>
+                <label class="choice"><span class="choice-art" aria-hidden="true"><svg data-illustration viewBox="0 0 120 64" focusable="false"><rect class="art-frame" x="1.5" y="1.5" width="117" height="61" rx="6"/><path class="art-frame" d="M1.5 12.5h117"/><circle class="art-dot" cx="8" cy="7" r="1.6"/><circle class="art-dot" cx="13" cy="7" r="1.6"/><circle class="art-dot" cx="18" cy="7" r="1.6"/><rect class="art-line" x="10" y="20" width="40" height="4" rx="2"/><rect class="art-line" x="10" y="29" width="30" height="4" rx="2"/><rect class="art-line" x="10" y="38" width="36" height="4" rx="2"/><rect class="art-panel" x="58" y="16" width="54" height="18" rx="4"/><circle class="art-ok" cx="67" cy="25" r="4"/><path class="art-check" d="m65.2 25 1.3 1.3 2.4-2.6"/><rect class="art-field" x="75" y="21" width="30" height="3.5" rx="1.75"/><rect class="art-line" x="75" y="27" width="22" height="3" rx="1.5"/></svg></span><input type="radio" name="capture-mode-choice" value="automatic"><span class="choice-title" data-i18n="capture_modeAutomatic">Automatic</span><span class="choice-hint" data-i18n="shell_automaticHint">One click saves the page. A short panel lets you change the folder.</span></label>
+              </div>
+            </fieldset>
+            <!-- The cards drive this select; bookmark-preferences-ui.ts reads and saves it. -->
+            <select id="capture-mode" hidden aria-hidden="true" tabindex="-1"><option value="manual" data-i18n="common_manual">Manual</option><option value="automatic" data-i18n="capture_modeAutomatic">Automatic</option></select>
+            <!-- data-ai-only rows: capture/control-view.ts shows them once suggestions can run. -->
+            <div class="set-row" id="manual-classification-settings" data-mode-only="manual" data-ai-only data-ai-off>
+              <div class="set-row-text"><p class="set-row-title" id="capture-manual-suggestions-title" data-i18n="shell_suggestWhenFormOpens">Suggest when the form opens</p>
+                <p class="set-row-hint" data-i18n="shell_suggestWhenFormOpensHint">Picks a folder as the form opens. You still confirm with Save.</p></div>
+              <div class="set-row-control"><button id="capture-manual-suggestions" class="toggle" type="button" role="switch" aria-checked="false" aria-labelledby="capture-manual-suggestions-title"></button></div>
+            </div>
+            <div class="set-row" id="ai-tag-mode-row" data-ai-only data-ai-off>
+              <div class="set-row-text"><p class="set-row-title" id="ai-tag-mode-title" data-i18n="shell_tagsFromAi">Tags from AI</p>
+                <p class="set-row-hint" id="ai-tag-mode-hint"></p></div>
+              <div class="set-row-control"><div class="view-switch view-switch--compact" role="radiogroup" aria-labelledby="ai-tag-mode-title" id="ai-tag-mode">
+                <button type="button" role="radio" aria-checked="false" data-value="off" data-i18n="shell_off">Off</button>
+                <button type="button" role="radio" aria-checked="false" data-value="suggest" data-i18n="shell_tagModeSuggest">Suggest</button>
+                <button type="button" role="radio" aria-checked="false" data-value="add" data-i18n="shell_tagModeAdd">Add</button>
+              </div></div>
+            </div>
+            <div class="set-row" data-mode-only="automatic">
+              <div class="set-row-text"><label class="set-row-title" for="capture-panel-duration" data-i18n="shell_closePanel">Close the result panel</label>
+                <p class="set-row-hint" data-i18n="shell_automaticOnly">Automatic mode only.</p></div>
+              <div class="set-row-control"><select id="capture-panel-duration" class="select-quiet"><option value="3000" data-i18n="common_n3Seconds">3 seconds</option><option value="5000" data-i18n="common_n5Seconds">5 seconds</option><option value="10000" data-i18n="common_n10Seconds">10 seconds</option><option value="30000" data-i18n="common_n30Seconds">30 seconds</option><option value="0" data-i18n="common_closeManually">Close manually</option></select></div>
+            </div>
+            <div class="set-row" data-mode-only="automatic">
+              <div class="set-row-text"><p class="set-row-title" data-i18n="shell_previewPanel">Preview the result panel</p>
+                <p class="set-row-hint" data-i18n="shell_previewPanelHint">Shows a sample. Nothing is saved or charged.</p></div>
+              <div class="set-row-control"><a class="btn btn-secondary btn-sm" href="popup.html?preview=compact" target="_blank" data-i18n="shell_preview">Preview</a></div>
+            </div>
+          </div>
+        </section>
+        <section id="bookmark-preferences" class="set-group bookmark-preferences" aria-labelledby="bookmark-preferences-heading">
+          <div class="set-group-head"><h2 id="bookmark-preferences-heading" data-i18n="shell_whereBookmarksGo">Where bookmarks go</h2></div>
+          <div class="set-card">
+            <!-- capture/control-view.ts paints the default-folder row (and its folder picker) here. -->
+            <div data-capture-default-target></div>
+            <div class="set-row">
+              <div class="set-row-text"><p class="set-row-title" id="bookmark-insert-title" data-i18n="options_newBookmarksGo">New bookmarks go</p></div>
+              <div class="set-row-control"><div class="view-switch view-switch--compact" role="radiogroup" aria-labelledby="bookmark-insert-title">
+                <button id="bookmark-insert-top" type="button" role="radio" aria-checked="false" data-value="top" data-i18n="shell_topOfFolder">Top of folder</button>
+                <button id="bookmark-insert-bottom" type="button" role="radio" aria-checked="false" data-value="bottom" data-i18n="shell_bottomOfFolder">Bottom of folder</button>
+              </div></div>
+            </div>
+            <div class="set-row">
+              <div class="set-row-text"><p class="set-row-title" id="bookmark-folders-first-title" data-i18n="options_showFoldersBeforeBookmarks">Show folders before bookmarks</p>
+                <p class="set-row-hint" data-i18n="shell_foldersFirstHint">Also reorders your browser bookmarks, keeping the order within each group. Read-only folders are excluded. Turning this off stops sorting without restoring the previous order.</p></div>
+              <div class="set-row-control"><button id="bookmark-folders-first" class="toggle" type="button" role="switch" aria-checked="false" aria-labelledby="bookmark-folders-first-title"></button></div>
+            </div>
+            <div class="set-row">
+              <div class="set-row-text"><p class="set-row-title" data-i18n="organize_existingTitle">Organize existing bookmarks</p>
+                <p class="set-row-hint" data-i18n="organize_existingHint">Choose folders to organize this browser's existing bookmarks with folders first.</p></div>
+              <div class="set-row-control"><button id="manager-organize" class="btn btn-secondary btn-sm" type="button" aria-haspopup="dialog"><svg width="14" height="14" aria-hidden="true" focusable="false" data-icon="folder"></svg><span data-i18n="organize_action">Organize</span></button></div>
+            </div>
+          </div>
+        </section>
+        <section class="set-group" aria-labelledby="pref-shortcuts-heading" data-capture-shortcuts hidden>
+          <div class="set-group-head"><h2 id="pref-shortcuts-heading" data-i18n="common_keyboardShortcuts">Keyboard shortcuts</h2></div>
+          <div class="set-card" data-capture-shortcut-rows></div>
+        </section>
+      </section>
+
+      <!-- AI suggestions -->
+      <section id="ai-card" class="main-inner" hidden aria-labelledby="ai-heading">
+        <header class="page-head">
+          <div class="page-head-copy">
+            <h1 id="ai-heading" data-i18n="prefs_aiSuggestions">AI suggestions</h1>
+            <p data-i18n="shell_aiLede">Optional. Know-N can suggest a folder and tags when you save.</p>
+          </div>
+        </header>
+        <section id="pref-classification-options" class="set-group" aria-labelledby="pref-source-heading">
+          <div class="set-group-head"><h2 id="pref-source-heading" data-i18n="shell_suggestionsComeFrom">Suggestions come from</h2></div>
+          <div class="set-card">
+            <fieldset class="set-row set-row--stack" id="classification-source-choices">
+              <legend class="visually-hidden" data-i18n="shell_suggestionsComeFrom">Suggestions come from</legend>
+              <div class="choice-pair">
+                <label class="choice"><input type="radio" name="classification-source" value="know-n" id="classification-source-know-n"><span class="choice-title" data-i18n="common_knowN">Know-N</span><span class="choice-hint" data-i18n="shell_sourceKnowNHint">Needs an account. Uses credits and learns from your synced collection.</span></label>
+                <label class="choice"><input type="radio" name="classification-source" value="own" id="classification-source-own"><span class="choice-title" data-i18n="shell_sourceOwn">Your own AI service</span><span class="choice-hint" data-i18n="shell_sourceOwnHint">Requests go straight from this browser to your provider. No account needed.</span></label>
+              </div>
+            </fieldset>
+          </div>
+        </section>
+        <section id="pref-classification" class="set-group" data-source-group="know-n" aria-labelledby="pref-know-n-heading">
+          <div class="set-group-head"><h2 id="pref-know-n-heading" data-i18n="shell_knowNSuggestions">Know-N suggestions</h2></div>
+          <!-- capture/control-view.ts paints the spending-limit row and its form here. -->
+          <div class="set-card" data-capture-authorization></div>
+        </section>
+        <section id="classification-local-settings" class="set-group classification-local-settings" data-source-group="own" hidden aria-labelledby="classification-local-heading">
+          <div class="set-group-head"><h2 id="classification-local-heading" data-i18n="shell_ownService">Your AI service</h2></div>
+          <div id="classification-local-alert" class="inline-alert" hidden>
+            <svg width="16" height="16" aria-hidden="true" focusable="false" data-icon="info"></svg>
+            <p id="classification-local-status" role="status"></p>
+          </div>
+          <div class="set-card">
+            <div class="set-row">
+              <div class="set-row-text"><label class="set-row-title" for="classification-local-preset" data-i18n="common_preset">Preset</label></div>
+              <div class="set-row-control"><select id="classification-local-preset" class="select-quiet">
+                <option value="typesafe" selected>TypeSafe (api.typesafe.ai)</option>
+                <option value="cloudflare">Cloudflare AI Gateway</option>
+                <option value="vercel">Vercel AI Gateway</option>
+                <option value="custom" data-i18n="classification_customEndpoint">Custom endpoint</option>
+              </select></div>
+            </div>
+            <div class="set-row">
+              <div class="set-row-text"><label class="set-row-title" for="classification-local-secret" id="classification-local-secret-label" data-i18n="classification_typesafeApiKey">TypeSafe API key</label></div>
+              <div class="set-row-control"><input id="classification-local-secret" class="field-quiet field-quiet--key" type="password" autocomplete="off" spellcheck="false" maxlength="4096"></div>
+            </div>
+            <div class="set-row set-row--stack">
+              <details id="classification-local-advanced" class="disclosure"><summary data-i18n="prefs_advancedProviderSettings">Advanced service settings</summary>
+                <div class="set-fields">
+                  <p class="set-row-hint" data-i18n="classification_customApiContract">A custom endpoint must speak the System One classification API. Test connection checks this.</p>
+                  <div class="set-field" id="classification-local-account-field" hidden><label for="classification-local-account" data-i18n="options_cloudflareAccountId">Cloudflare account ID</label>
+                    <input id="classification-local-account" class="field-quiet" type="text" autocomplete="off" spellcheck="false" maxlength="32"></div>
+                  <div class="set-field" id="classification-local-cf-fields" hidden><label for="classification-local-gateway" data-i18n="common_gatewayId">Gateway ID</label>
+                    <input id="classification-local-gateway" class="field-quiet" type="text" autocomplete="off" spellcheck="false" value="default" maxlength="64"></div>
+                  <div class="set-field"><label for="classification-local-endpoint" data-i18n="common_endpointUrl">Endpoint URL</label>
+                    <input id="classification-local-endpoint" class="field-quiet" type="text" autocomplete="off" spellcheck="false" value="https://api.typesafe.ai/v1/systemone">
+                    <p id="classification-local-http-warning" class="set-row-hint" hidden data-i18n="options_plainHttpLocalAddress">Plain HTTP on a local address sends the token and bookmark text unencrypted. Use it only for a classifier you run yourself.</p></div>
+                  <div class="set-field"><label for="classification-local-model" data-i18n="common_model">Model</label>
+                    <input id="classification-local-model" class="field-quiet" type="text" autocomplete="off" spellcheck="false" value="jev-latest" list="classification-local-model-candidates">
+                    <datalist id="classification-local-model-candidates"></datalist></div>
+                  <p id="classification-local-cf-hint" class="set-row-hint" data-i18n="options_keepTypesafeKeyOwn">Keep your TypeSafe key in your own Cloudflare AI Gateway (alias "default"). The extension only stores the Cloudflare token.</p>
+                </div>
+              </details>
+            </div>
+            <div class="set-row set-row--stack" id="classification-local-disclosure-option">
+              <label class="check-line"><input id="classification-local-disclosure" type="checkbox"><span data-i18n="shell_consent">Send page titles, URLs and folder names to this service.</span></label>
+              <details class="disclosure"><summary data-i18n="shell_whatIsSent">What is sent</summary>
+                <p class="set-row-hint" data-i18n="options_iUnderstandCurrentBookmark">The page's URL and title, your folder names and descriptions, and a few bookmark titles and domains from each folder. Tag names are included when a collection is synced. Know-N never sees the request or the reply. The key stays on this browser and is never synced.</p></details>
+            </div>
+            <div class="set-row set-row--actions">
+              <div class="set-row-control classification-local-actions"><button id="classification-local-test" class="btn btn-secondary btn-sm" type="button" data-i18n="common_testConnection">Test connection</button><button id="classification-local-enable" class="btn btn-primary btn-sm" type="button" data-i18n="options_enableLocalClassification">Use this AI service</button><button id="classification-local-disable" class="btn btn-ghost btn-sm" type="button" hidden data-i18n="options_useServerClassification">Use Know-N suggestions</button></div>
+            </div>
+          </div>
+        </section>
+        <section id="classification-behavior" class="set-group" hidden aria-labelledby="classification-behavior-heading">
+          <div class="set-group-head"><h2 id="classification-behavior-heading" data-i18n="shell_whenSuggestionsRun">When suggestions run</h2></div>
+          <div class="set-card">
+            <div class="set-row" id="capture-classification-automatic-only" data-mode-only="automatic">
+              <div class="set-row-text"><p class="set-row-title" id="capture-resume-online-title" data-i18n="shell_finishAfterReconnect">Finish suggestions after reconnecting</p>
+                <p class="set-row-hint" data-i18n="shell_finishAfterReconnectHint">Runs suggestions that were waiting while you were offline.</p></div>
+              <div class="set-row-control"><button id="capture-resume-online" class="toggle" type="button" role="switch" aria-checked="false" aria-labelledby="capture-resume-online-title"></button></div>
+            </div>
+            <div class="set-row">
+              <div class="set-row-text"><p class="set-row-title" id="capture-learning-title" data-i18n="shell_learnFromCorrections">Learn from my corrections</p>
+                <p class="set-row-hint" data-i18n="shell_learnFromCorrectionsHint">Folders you pick after a suggestion improve future ones.</p></div>
+              <div class="set-row-control"><button id="capture-learning" class="toggle" type="button" role="switch" aria-checked="false" aria-labelledby="capture-learning-title"></button></div>
+            </div>
+            <!-- capture/learning-view.ts paints the correction-memory row. -->
+            <div class="set-sub" data-capture-learning></div>
+            <div class="set-row"><p class="set-row-hint" data-i18n="shell_whenSuggestionsRunLede">Suggesting as the form opens, and what happens to tags, are under Saving.</p></div>
+          </div>
+        </section>
+      </section>
+
+      <!-- General -->
+      <section id="general-card" class="main-inner" hidden aria-labelledby="general-heading">
+        <header class="page-head">
+          <div class="page-head-copy">
+            <h1 id="general-heading" data-i18n="shell_general">General</h1>
+            <p data-i18n="shell_generalLede">Language, browser access and the data Know-N keeps on this browser.</p>
+          </div>
+        </header>
+        <section id="pref-language" class="set-group" aria-labelledby="pref-language-heading">
+          <div class="set-group-head"><h2 id="pref-language-heading" data-i18n="common_language">Language</h2></div>
+          <div class="set-card">
+            <div class="set-row">
+              <div class="set-row-text"><label class="set-row-title" for="ui-language" data-i18n="prefs_extensionLanguage">Extension language</label>
+                <p class="set-row-hint" data-i18n="shell_languageHint">The page reloads when you change it. The Know-N website keeps its own language.</p></div>
+              <div class="set-row-control"><select id="ui-language" class="select-quiet"><option value="auto" data-i18n="prefs_sameAsBrowser">Same as browser</option><option value="en" data-i18n="common_english">English</option><option value="zh-CN" data-i18n="common_chineseSimplified">Chinese (Simplified)</option></select></div>
+            </div>
+          </div>
+        </section>
+        <section id="pref-permissions" class="set-group" aria-labelledby="pref-permissions-heading">
+          <div class="set-group-head"><h2 id="pref-permissions-heading" data-i18n="common_permissions">Permissions</h2>
+            <p data-i18n="shell_permissionsLede">Know-N asks only for what a feature needs. You can remove access at any time.</p></div>
+          <div class="set-card">
+            <div class="set-row">
+              <div class="set-row-text"><p class="set-row-title" data-i18n="permissions_bookmarks">Bookmark access</p><p class="set-row-hint" data-i18n="permissions_bookmarksHint">Needed to save, import and organize this browser's bookmarks.</p></div>
+              <div class="set-row-control"><span class="set-row-value"><span class="set-dot" id="permissions-dot-bookmarks" data-tone="off"></span><span id="permissions-status-bookmarks" role="status"></span></span>
+                <button id="permissions-grant-bookmarks" class="btn btn-secondary btn-sm" type="button" data-i18n="shell_allow">Allow</button><button id="permissions-revoke-bookmarks" class="btn btn-ghost btn-sm" type="button" hidden data-i18n="common_remove">Remove</button></div>
+            </div>
+            <div class="set-row">
+              <div class="set-row-text"><p class="set-row-title" data-i18n="permissions_tabs">Read all tabs</p><p class="set-row-hint" data-i18n="permissions_tabsHint">Needed for window tab previews. Saving the current page uses active-tab access instead.</p></div>
+              <div class="set-row-control"><span class="set-row-value"><span class="set-dot" id="permissions-dot-tabs" data-tone="off"></span><span id="permissions-status-tabs" role="status"></span></span>
+                <button id="permissions-grant-tabs" class="btn btn-secondary btn-sm" type="button" data-i18n="shell_allow">Allow</button><button id="permissions-revoke-tabs" class="btn btn-ghost btn-sm" type="button" hidden data-i18n="common_remove">Remove</button></div>
+            </div>
+            <div class="set-row"><p class="set-row-hint" data-i18n="permissions_scopeHint">Sync with Know-N is set up under Sync. Your browser’s own account sync is separate.</p></div>
+          </div>
+          <p id="permissions-feedback" class="feedback" role="status"></p>
+        </section>
+        <!-- Nothing below the browser's bookmarks survives an uninstall unless it syncs or is exported. -->
+        <section id="pref-data" class="set-group" aria-labelledby="pref-data-heading">
+          <div class="set-group-head"><h2 id="pref-data-heading" data-i18n="prefs_dataHeading">Your data</h2></div>
+          <div class="set-card">
+            <div class="set-row">
+              <div class="set-row-text"><p class="set-row-title" data-i18n="prefs_dataTitle">Kept on this browser</p><p class="set-row-hint" data-i18n="prefs_dataHint">Tags, notes, folder descriptions, save history and settings live in this extension. Removing Know-N deletes them, except what syncs with a collection. Export a Know-N backup to keep a copy.</p></div>
+              <div class="set-row-control"><button id="general-export" class="btn btn-secondary btn-sm" type="button" data-i18n="prefs_exportBackup">Export backup</button></div>
+            </div>
+          </div>
+        </section>
+      </section>
+
+      <!-- Account -->
+      <section id="account-card" class="main-inner account-card" aria-labelledby="account-heading" data-view-pane="account">
+        <div data-view-panel="session" id="account-session">
+          <header class="page-head">
+            <div class="page-head-copy">
+              <h1 id="account-heading" data-i18n="common_account">Account</h1>
+              <p id="account-copy" hidden data-i18n="shell_accountSignedOutLede">Saving, organizing and backups work without an account. Sign in to sync with Know-N on every device.</p>
+            </div>
+          </header>
+
+          <div class="set-group account-login" id="login-panel" hidden>
+            <div class="set-card">
+              <div class="auth-tabs view-switch" role="tablist" aria-label="Sign-in method" data-i18n-aria-label="common_signInMethod">
+                <button type="button" role="tab" id="login-tab-password" class="auth-tab" aria-selected="true" data-i18n="common_password">Password</button>
+                <button type="button" role="tab" id="login-tab-otp" class="auth-tab" aria-selected="false" data-i18n="common_emailCode">Email code</button>
+              </div>
+              <form class="auth-form" id="login-form" novalidate>
+                <div class="field">
+                  <label for="server-origin" data-i18n="common_server">Server</label>
+                  <!-- D2 requests the host permission for this origin. -->
+                  <input id="server-origin" type="url" autocomplete="url" spellcheck="false" placeholder="https://colp.example.net">
+                </div>
+                <div class="field">
+                  <label for="login-email" data-i18n="auth_usernameOrEmail">Username or email</label>
+                  <input id="login-email" type="text" autocomplete="username" required>
+                </div>
+                <div class="auth-secret-slot">
+                  <div class="field" id="login-password-field" data-mode="password">
+                    <label for="login-password" data-i18n="common_password">Password</label>
+                    <input id="login-password" type="password" autocomplete="current-password" required>
+                  </div>
+                  <div class="field" id="login-otp-field" data-mode="otp" data-inactive aria-hidden="true">
+                    <label for="login-otp-code" data-i18n="common_signInCode">Sign-in code</label>
+                    <div class="auth-otp-row">
+                      <input id="login-otp-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6">
+                      <button type="button" id="login-send-otp" class="btn btn-secondary auth-otp-send" data-i18n="common_sendCode">Send code</button>
+                    </div>
+                  </div>
+                </div>
+                <button type="submit" id="login-submit" class="btn btn-primary" data-i18n="common_signIn">Sign in</button>
+                <p class="auth-inline-link">
+                  <a id="login-forgot" href="https://know-n.com/reset-password" rel="noreferrer" target="_blank" data-i18n="common_forgotPassword">Forgot password?</a>
+                </p>
+              </form>
+              <p id="login-password-help" class="auth-inline-link" hidden data-i18n="auth_selfHostedPasswordHelp">Reset your password from the server terminal.</p>
+              <div class="auth-divider" id="login-social-divider" aria-hidden="true"><span data-i18n="shell_or">or</span></div>
+              <div class="auth-oauth-row" id="login-social">
+                <button type="button" class="btn btn-secondary auth-oauth-btn" id="login-google" aria-label="Continue with Google" data-i18n-aria-label="popup_continueWithGoogle">
+                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" data-illustration><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23z"/><path fill="#FBBC05" d="M5.84 14.1a6.6 6.6 0 0 1 0-4.2V7.06H2.18a11 11 0 0 0 0 9.88l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1A11 11 0 0 0 2.18 7.06l3.66 2.84C6.71 7.31 9.14 5.38 12 5.38z"/></svg><span data-i18n="shell_google">Google</span>
+                </button>
+                <button type="button" class="btn btn-secondary auth-oauth-btn" id="login-github" aria-label="Continue with GitHub" data-i18n-aria-label="popup_continueWithGithub">
+                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" data-icon="github"></svg><span data-i18n="shell_github">GitHub</span>
+                </button>
+              </div>
+              <p class="auth-alt" id="login-registration"><span data-i18n="common_newHere">New here?</span> <a id="login-register" href="https://know-n.com/register" rel="noreferrer" target="_blank" data-i18n="popup_createAnAccount">Create an account</a></p>
+            </div>
+          </div>
+
+          <div class="session-stage" id="session-stage" hidden>
+            <div id="account-alert" class="inline-alert" data-tone="warning" hidden>
+              <svg width="16" height="16" aria-hidden="true" focusable="false" data-icon="alert"></svg>
+              <p><strong id="status" data-i18n="common_loadingConnection">Loading connection</strong> <span id="detail" aria-live="polite" data-i18n="options_checkingSecureState">Checking secure state.</span></p>
+              <button id="primary-action" class="btn btn-ghost btn-sm" type="button" hidden disabled data-i18n="common_signOut">Sign out</button>
+            </div>
+            <section class="set-group identity-group" id="identity-card" aria-label="Signed-in account" data-i18n-aria-label="shell_signedInAccount">
+              <div class="set-card">
+                <div class="set-row identity-row">
+                  <span class="avatar avatar--lg" id="identity-avatar" aria-hidden="true">K</span>
+                  <div class="set-row-text"><p class="set-row-title identity-name"><span id="identity-name"></span></p>
+                    <p class="set-row-hint" id="identity-email" hidden></p></div>
+                  <div class="set-row-control"><a id="manage-account" class="btn btn-ghost btn-sm" href="https://know-n.com/settings" target="_blank" rel="noopener noreferrer"><span data-i18n="shell_manageWeb">Manage on the web</span><svg width="13" height="13" aria-hidden="true" focusable="false" data-icon="arrow-up-right"></svg></a></div>
+                </div>
+              </div>
+            </section>
+            <section class="set-group" aria-labelledby="account-credits-heading">
+              <div class="set-group-head"><h2 id="account-credits-heading" data-i18n="common_credits">Credits</h2><p data-i18n="shell_creditsLede">Credits pay for Know-N folder suggestions.</p></div>
+              <div class="set-card">
+                <div class="set-row">
+                  <div class="set-row-text"><p class="set-row-title" id="credits-summary-title">—</p><p class="set-row-hint" id="credits-summary-hint" hidden></p></div>
+                  <div class="set-row-control"><a class="btn btn-secondary btn-sm" href="#account/credits" data-i18n="shell_viewActivity">View activity</a></div>
+                </div>
+              </div>
+            </section>
+            <section class="set-group" aria-labelledby="account-browser-heading">
+              <div class="set-group-head"><h2 id="account-browser-heading" data-i18n="shell_thisBrowser">This browser</h2></div>
+              <div class="set-card">
+                <div class="set-row">
+                  <div class="set-row-text"><p class="set-row-title" data-i18n="common_sync">Sync</p><p class="set-row-hint" id="account-sync-hint"></p></div>
+                  <div class="set-row-control"><a class="btn btn-secondary btn-sm" href="#sync" data-i18n="shell_syncSettings">Sync settings</a></div>
+                </div>
+                <div class="set-row">
+                  <div class="set-row-text"><p class="set-row-title" data-i18n="common_signOut">Sign out</p><p class="set-row-hint" data-i18n="options_bookmarksStayBrowserSync">Bookmarks, tags and notes stay in this browser. Personal sync stops when you sign out.</p></div>
+                  <div class="set-row-control"><button id="sign-out" class="btn btn-secondary btn-sm" type="button" data-i18n="common_signOut">Sign out</button></div>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <section class="set-group" id="server-edition-group" aria-labelledby="server-edition-heading">
+            <div class="set-group-head"><h2 id="server-edition-heading" data-i18n="options_serverVersion">Server version</h2></div>
+            <div class="set-card">
+              <div class="set-row">
+                <div class="set-row-text">
+                  <p class="set-row-title" id="server-edition-version">—</p>
+                  <p class="set-row-hint" id="server-edition-notice" role="status" hidden></p>
+                </div>
+              </div>
+              <div class="set-row">
+                <div class="set-row-text"><p class="set-row-title" data-i18n="options_disconnectServer">Disconnect server</p><p class="set-row-hint" data-i18n="options_disconnectKeepsBookmarks">Bookmarks on this browser are kept.</p></div>
+                <div class="set-row-control"><button id="disconnect-server" class="btn btn-secondary btn-sm" type="button" data-i18n="options_disconnectServer">Disconnect server</button></div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Legal lives with the account, signed in or out, not under the nav. -->
+          <p class="page-foot-links"><a href="https://know-n.com/privacy" target="_blank" rel="noopener noreferrer"><span data-i18n="options_privacyPolicy">Privacy policy</span><svg width="13" height="13" aria-hidden="true" focusable="false" data-icon="arrow-up-right"></svg></a></p>
+        </div>
+
+        <div data-view-panel="credits" id="credits-card" class="credits-card" data-credit-state="loading" aria-labelledby="credits-heading" hidden>
+          <header class="page-head">
+            <div class="page-head-copy">
+              <h1 id="credits-heading" data-i18n="common_creditActivity">Credit activity</h1>
+            </div>
+            <div class="page-head-actions"><a id="credits-back" class="back-link" href="#account"><svg width="14" height="14" aria-hidden="true" focusable="false" data-icon="arrow-left"></svg><span data-i18n="common_account">Account</span></a></div>
+          </header>
+          <div class="set-group" aria-label="Credit balance" data-i18n-aria-label="common_creditBalance">
+            <div class="set-card">
+              <div class="set-row">
+                <div class="set-row-text"><p class="set-row-title" data-credit-summary="title">—</p><p class="set-row-hint" data-credit-summary="hint" hidden></p></div>
+                <div class="set-row-control"><button type="button" class="btn btn-ghost btn-sm" data-credit-action="refresh"><svg width="14" height="14" aria-hidden="true" focusable="false" data-icon="refresh"></svg><span data-i18n="common_refresh">Refresh</span></button></div>
+              </div>
+            </div>
+          </div>
+          <form class="credit-filter" data-credit-filter>
+            <div class="toolbar">
+              <label class="select-pill"><span><span data-i18n="common_type">Type</span>: </span><strong data-pill-value></strong><svg width="12" height="12" aria-hidden="true" focusable="false" data-icon="chevron-down"></svg><select id="credit-filter-kind" name="kind" aria-label="Type" data-i18n-aria-label="common_type"><option value="" data-i18n="common_allActivity">All activity</option><option value="grant" data-i18n="common_grants">Grants</option><option value="reserve" data-i18n="common_holds">Holds</option><option value="spend" data-i18n="common_spent">Spent</option><option value="release" data-i18n="common_released">Released</option><option value="expire" data-i18n="common_expired">Expired</option><option value="refund" data-i18n="common_refunds">Refunds</option><option value="topup" data-i18n="common_topUps">Top ups</option><option value="payment_refund" data-i18n="common_paymentRefunds">Payment refunds</option></select></label>
+              <label class="select-pill"><span><span data-i18n="common_rows">Rows</span>: </span><strong data-pill-value></strong><svg width="12" height="12" aria-hidden="true" focusable="false" data-icon="chevron-down"></svg><select id="credit-filter-limit" name="limit" aria-label="Rows" data-i18n-aria-label="common_rows"><option value="20">20</option><option value="50">50</option><option value="100">100</option></select></label>
+              <details class="disclosure credit-more-filters">
+                <summary><span data-i18n="shell_dateRange">Date range</span> <span class="credit-filter-count" data-credit-filter-count hidden></span></summary>
+                <div class="credit-filter-fields">
+                  <div class="field"><label for="credit-filter-from" data-i18n="common_from">From</label><input id="credit-filter-from" class="field-quiet" name="from" type="datetime-local"></div>
+                  <div class="field"><label for="credit-filter-to" data-i18n="common_to">To</label><input id="credit-filter-to" class="field-quiet" name="to" type="datetime-local"></div>
+                  <button type="submit" class="btn btn-secondary btn-sm" data-i18n="common_apply">Apply</button>
+                </div>
+              </details>
+              <input id="credit-filter-charge" name="chargeId" type="hidden">
+              <input id="credit-filter-run" name="runId" type="hidden">
+            </div>
+          </form>
+          <div class="credit-states">
+            <div class="list-card" data-credit-state-view="loading" aria-live="polite"><div class="empty"><span class="empty-icon"><svg width="18" height="18" aria-hidden="true" focusable="false" data-icon="refresh"></svg></span><p class="empty-title" data-i18n="common_loadingActivity">Loading activity…</p></div></div>
+            <div class="list-card" data-credit-state-view="signed_out" hidden><div class="empty"><span class="empty-icon"><svg width="18" height="18" aria-hidden="true" focusable="false" data-icon="person"></svg></span><p class="empty-title" data-i18n="options_signViewCredits">Sign in to view your credits.</p></div></div>
+            <div class="inline-alert" data-tone="warning" data-credit-state-view="offline" hidden><svg width="16" height="16" aria-hidden="true" focusable="false" data-icon="alert"></svg><p data-i18n="options_connectionUnavailableReconnectRefresh">Connection is unavailable. Reconnect and refresh.</p><button type="button" class="btn btn-ghost btn-sm" data-credit-action="refresh" data-i18n="common_refresh">Refresh</button></div>
+            <div class="inline-alert" data-tone="warning" data-credit-state-view="reconnecting" hidden><svg width="16" height="16" aria-hidden="true" focusable="false" data-icon="alert"></svg><p data-i18n="options_reconnectingAccountSession">Reconnecting to the account session…</p></div>
+            <div class="inline-alert" data-tone="danger" data-credit-state-view="error" hidden><svg width="16" height="16" aria-hidden="true" focusable="false" data-icon="alert"></svg><p data-i18n="options_creditsCouldNotLoaded">Credits could not be loaded. Refresh to try again.</p><button type="button" class="btn btn-ghost btn-sm" data-credit-action="refresh" data-i18n="common_refresh">Refresh</button></div>
+            <div class="inline-alert" data-tone="warning" data-credit-state-view="cursor_expired" hidden><svg width="16" height="16" aria-hidden="true" focusable="false" data-icon="alert"></svg><p data-i18n="options_listOutDateRefresh">This list is out of date. Refresh to see your newest activity.</p><button type="button" class="btn btn-ghost btn-sm" data-credit-action="refresh" data-i18n="common_refresh">Refresh</button></div>
+            <div class="list-card" data-credit-state-view="empty" hidden><div class="empty"><span class="empty-icon"><svg width="18" height="18" aria-hidden="true" focusable="false" data-icon="lines"></svg></span><p class="empty-title" data-i18n="options_noActivityYet">No activity yet.</p></div></div>
+            <div class="list-card" data-credit-state-view="filtered_empty" hidden><div class="empty"><span class="empty-icon"><svg width="18" height="18" aria-hidden="true" focusable="false" data-icon="search"></svg></span><p class="empty-title" data-i18n="options_noActivityMatchesThese">No activity matches these filters.</p></div></div>
+          </div>
+          <div class="list-card credit-list" data-credit-list aria-label="Credit activity" data-i18n-aria-label="common_creditActivity"></div>
+          <div class="credit-actions"><button type="button" class="btn btn-secondary btn-sm" data-credit-action="next" disabled data-i18n="common_loadMore">Load more</button></div>
+          <aside class="credit-detail set-card" data-credit-detail hidden aria-live="polite"></aside>
+        </div>
+      </section>
+
+      <!-- Help & diagnostics -->
+      <section id="help-card" class="main-inner" hidden aria-labelledby="help-heading">
+        <header class="page-head">
+          <div class="page-head-copy">
+            <h1 id="help-heading" data-i18n="shell_helpDiagnostics">Help &amp; diagnostics</h1>
+            <p data-i18n="options_redactedRecordsWhatBrowser">Redacted records of what this browser did and why. Share them when reporting a problem — no page content is included.</p>
+          </div>
+        </header>
+        <nav class="view-switch view-switch--compact sub-nav diagnostics-categories" aria-label="Diagnostic categories" data-i18n-aria-label="common_diagnosticCategories">
+          <a href="#help?category=all" data-diagnostics-category="all" data-i18n="common_all">All</a>
+          <a href="#help?category=capture" data-diagnostics-category="capture" data-i18n="common_saving2">Saving</a>
+          <a href="#help?category=sync" data-diagnostics-category="sync" data-i18n="common_sync">Sync</a>
+          <a href="#help?category=subscriptions" data-diagnostics-category="subscriptions" data-i18n="common_subscriptions">Subscriptions</a>
+        </nav>
+        <section data-capture-view="diagnostics" id="capture-diagnostics" class="set-group" aria-labelledby="capture-diagnostics-heading">
+          <div class="set-group-head"><h2 id="capture-diagnostics-heading" data-i18n="common_saving2">Saving</h2>
+            <p data-i18n="options_redactedSummaryBrowsersCapture">A redacted summary of this browser’s saving state: permission, session, sync and suggestions.</p></div>
+          <div class="set-card"><div data-capture-content class="help-body"></div></div>
+        </section>
+        <section id="ingress-diagnostics-settings" class="set-group ingress-diagnostics-settings"
+          aria-labelledby="ingress-diagnostics-settings-heading">
+          <div class="set-group-head"><h2 id="ingress-diagnostics-settings-heading" data-i18n="options_bookmarksNotIncludedSync">Bookmarks not included in sync</h2>
+            <p id="ingress-diagnostics-settings-intro" data-i18n="sync_theseLocalBookmarksNot">These local bookmarks are not included in sync, for the reasons below.</p></div>
+          <div class="set-card help-body">
+            <p id="ingress-diagnostics-settings-count" class="detail" hidden></p>
+            <!-- `hidden` until the first read answers: this card never claims "nothing
+                 filtered" before the ledger has actually been read. -->
+            <div id="ingress-diagnostics-settings-empty" class="empty" hidden>
+              <span class="empty-icon" aria-hidden="true"><svg width="18" height="18" aria-hidden="true" focusable="false" data-icon="check-circle"></svg></span>
+              <p class="empty-title" data-i18n="sync_noLocalBookmarksCurrently">No local bookmarks are currently excluded from sync.</p>
+            </div>
+            <ul id="ingress-diagnostics-settings-list" class="ingress-diagnostics-list"></ul>
+            <template id="ingress-diagnostics-settings-item">
+              <li class="ingress-diagnostics-item">
+                <p class="ingress-diagnostics-reason"></p>
+                <p class="ingress-diagnostics-meta detail"></p>
+              </li>
+            </template>
+            <p id="ingress-diagnostics-settings-feedback" class="feedback" hidden role="status" aria-live="polite"></p>
+          </div>
+        </section>
+        <section data-subscription-diagnostics class="set-group" aria-label="Subscription diagnostics" data-i18n-aria-label="subscription_subscriptionDiagnostics"></section>
+        <section class="set-group" aria-labelledby="connection-details-heading">
+          <div class="set-group-head"><h2 id="connection-details-heading" data-i18n="shell_connectionDetails">Connection details</h2></div>
+          <div class="set-card">
+            <div class="set-row"><div class="set-row-text"><p class="set-row-title" data-i18n="common_account">Account</p></div><div class="set-row-control"><span class="set-row-value"><span id="account" data-i18n="icons_checking">Checking</span></span></div></div>
+            <div class="set-row"><div class="set-row-text"><p class="set-row-title" data-i18n="common_server">Server</p></div><div class="set-row-control"><span class="set-row-value"><span id="server" data-i18n="icons_checking">Checking</span></span></div></div>
+            <div class="set-row"><div class="set-row-text"><p class="set-row-title" data-i18n="common_icons">Icons</p></div><div class="set-row-control"><span class="set-row-value"><span id="icon-policy" data-i18n="icons_checking">Checking</span></span></div></div>
+            <div class="set-row"><div class="set-row-text"><p class="set-row-title" data-i18n="common_configuration">Configuration</p></div><div class="set-row-control"><span class="set-row-value"><span id="manifest-state" data-i18n="icons_checking">Checking</span></span></div></div>
+            <div class="set-row"><div class="set-row-text"><p class="set-row-title" data-i18n="common_session">Session</p></div><div class="set-row-control"><span class="set-row-value"><span id="session-state" data-i18n="icons_checking">Checking</span></span></div></div>
+          </div>
+        </section>
+        <section class="set-group" aria-labelledby="saving-statistics-heading">
+          <div class="set-group-head"><h2 id="saving-statistics-heading" class="visually-hidden" data-i18n="shell_savingStatistics">Saving statistics</h2></div>
+          <div class="set-card">
+            <details class="disclosure stats-disclosure" id="saving-statistics">
+              <summary data-i18n="shell_savingStatistics2">Saving statistics</summary>
+              <section data-capture-view="overview" id="capture-overview" class="help-body" aria-labelledby="saving-statistics-heading">
+                <div data-capture-content></div>
+              </section>
+            </details>
+          </div>
+        </section>
+      </section>
+    </main>
+  </div>
+  <script type="module" src="options.js"></script>
+</body>
+</html>

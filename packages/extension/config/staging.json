@@ -1,0 +1,28 @@
+{
+  "environment": "staging",
+  "extensionId": "pplpnpegpnghcddhmpgkbfkdfadjiaen",
+  "serverOrigin": "https://staging.known.example",
+  "manifestUrl": "https://staging.known.example/.well-known/collection-protocol",
+  "issuer": "https://staging.known.example/",
+  "authorizationEndpoint": "https://staging.known.example/api/v1/auth/sign-in/email",
+  "tokenEndpoint": "https://staging.known.example/api/v1/auth/get-session",
+  "jwksUri": "https://staging.known.example/.well-known/jwks.json",
+  "revocationEndpoint": "https://staging.known.example/api/v1/auth/sign-out",
+  "clientId": "known-chromium-extension",
+  "audience": "known-sync-api",
+  "scopes": [
+    "openid",
+    "offline_access",
+    "known.sync"
+  ],
+  "allowedAlgorithms": [
+    "RS256"
+  ],
+  "refreshBeforeExpirySeconds": 60,
+  "subscriptionBridgeOrigins": [
+    {
+      "webOrigin": "https://staging.known.example",
+      "serverOrigin": "https://staging.known.example"
+    }
+  ]
+}

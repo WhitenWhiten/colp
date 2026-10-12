@@ -1,0 +1,28 @@
+{
+  "environment": "development",
+  "extensionId": "pplpnpegpnghcddhmpgkbfkdfadjiaen",
+  "serverOrigin": "http://127.0.0.1:4173",
+  "manifestUrl": "http://127.0.0.1:4173/.well-known/collection-protocol",
+  "issuer": "http://127.0.0.1:4173/",
+  "authorizationEndpoint": "http://127.0.0.1:4173/api/v1/auth/sign-in/email",
+  "tokenEndpoint": "http://127.0.0.1:4173/api/v1/auth/get-session",
+  "jwksUri": "http://127.0.0.1:4173/.well-known/jwks.json",
+  "revocationEndpoint": "http://127.0.0.1:4173/api/v1/auth/sign-out",
+  "clientId": "known-chromium-extension",
+  "audience": "known-sync-api",
+  "scopes": [
+    "openid",
+    "offline_access",
+    "known.sync"
+  ],
+  "allowedAlgorithms": [
+    "RS256"
+  ],
+  "refreshBeforeExpirySeconds": 60,
+  "subscriptionBridgeOrigins": [
+    {
+      "webOrigin": "http://127.0.0.1:4173",
+      "serverOrigin": "http://127.0.0.1:4173"
+    }
+  ]
+}

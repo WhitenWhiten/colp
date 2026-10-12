@@ -1,0 +1,66 @@
+import { localized, t, tn } from '../i18n.js';
+import type { Mapping } from '../bookmark-subscriptions/contracts.js';
+import type { Diagnostic } from '../bookmark-subscriptions/local-types.js';
+import type { ListResult, MappingRow } from './list.js';
+import type { Send } from './client.js';
+import { button, el, errorCopy, link, pill, select, status, when, type Tone } from './dom.js';
+import { emptyBlock, selectPill, setPill } from '../library-dom.js';
+let summaries: Record<string, string>;
+localized(() => {
+  summaries = { readonly_write_blocked: t('subscription_diagnosticReason_readonly_write_blocked', 'A change inside a read-only subscription folder was blocked.'), readonly_native_created: t('subscription_diagnosticReason_readonly_native_created', 'A personal bookmark was added inside a read-only subscription folder.'), readonly_native_moved_in: t('subscription_diagnosticReason_readonly_native_moved_in', 'A personal bookmark was moved into a read-only subscription folder.'), readonly_content_changed: t('subscription_diagnosticReason_readonly_content_changed', 'Bookmarks in a subscription folder were changed in this browser. Updates are paused until you decide.'), mount_target_missing: t('subscription_diagnosticReason_mount_target_missing', 'The subscription folder is missing. Choose where to restore it.'), mount_nested_invalid: t('subscription_diagnosticReason_mount_nested_invalid', 'A subscription folder is inside a protected location.'), recovery_target_invalid: t('subscription_diagnosticReason_recovery_target_invalid', "The backup folder can't be used anymore. Choose another one."), recovery_permission_required: t('subscription_diagnosticReason_recovery_permission_required', 'Recovery needs bookmark permission.'), recovery_identity_uncertain: t('subscription_diagnosticReason_recovery_identity_uncertain', "Know-N can't safely tell which bookmarks are original yet. Nothing was removed."), recovery_failed: t('subscription_diagnosticReason_recovery_failed', "Recovery didn't finish. Recheck to continue where it stopped.") };
+});
+let results: Record<string, string>;
+localized(() => {
+  results = { blocked: t('subscription_diagnosticResult_blocked', 'Change blocked'), restored: t('subscription_diagnosticResult_restored', 'Moved back'), preserved: t('subscription_diagnosticResult_preserved', 'Your bookmark was moved out and kept'), pending: t('subscription_diagnosticResult_pending', 'Needs recovery'), resolved: t('subscription_diagnosticResult_resolved', 'Resolved') };
+});
+const tones: Record<string, Tone> = { pending: 'warning', blocked: 'danger', restored: 'success', preserved: 'accent', resolved: 'muted' };
+export function createSubscriptionDiagnostics(host: HTMLElement, send: Send, params: URLSearchParams, navigate?: (hash: string) => void) {
+  let generation = 0, records: Diagnostic[] = []; const feedback = status(), rows = el('div', undefined, 'subscription-rows');
+  const resolution = select([['pending', t('common_needsAttention', 'Needs attention')], ['', t('subscription_allRecords', 'All records')], ['resolved', t('subscription_resolved', 'Resolved')], ['preserved', t('subscription_preserved', 'Kept')], ['restored', t('subscription_restored', 'Moved back')], ['blocked', t('subscription_blocked', 'Blocked')]], params.get('status') ?? 'pending');
+  const days = select([['30', t('subscription_lastMonth', 'Last 30 days')], ['7', t('subscription_lastWeek', 'Last 7 days')], ['1', t('subscription_lastDay', 'Last 24 hours')]], params.get('days') ?? '30');
+  const selected = new Set<string>(); const mappings = new Map<string, MappingRow>(); const mapping = select([['', t('subscription_allMappings', 'All subscriptions')]], ''); const initialMapping = params.get('mapping') ?? ''; if (initialMapping) { const option = el('option', t('subscription_selectedMapping', 'Selected subscription')); option.value = initialMapping; mapping.append(option); mapping.value = initialMapping; }
+  const clear = button(t('subscription_clearCompleted', 'Clear selected records'), () => { void send({ kind: 'diagnosticsClear', eventIds: [...selected] }).then(load).catch(error => { feedback.textContent = errorCopy(error); }); }); clear.disabled = true; clear.classList.add('btn-sm');
+  const exportButton = button(t('subscription_export', 'Export redacted JSON'), () => { const version = generation; void send<unknown>({ kind: 'diagnosticsExport' }).then(data => { if (version !== generation) return; const url = URL.createObjectURL(new Blob([typeof data === 'string' ? data : JSON.stringify(data, null, 2)], { type: 'application/json' })); const anchor = el('a'); anchor.href = url; anchor.download = 'known-subscription-diagnostics.json'; anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); }).catch(error => { feedback.textContent = errorCopy(error); }); });
+  const reload = button(t('subscription_reload', 'Reload'), () => { void load(); });
+  for (const node of [exportButton, reload]) node.className = 'btn btn-ghost btn-sm';
+  // The page's group-head grammar (an h2 like its neighbours), with the section's own commands beside it.
+  const head = el('div', undefined, 'diagnostics-section-head'), intro = el('div', undefined, 'set-group-head'), tools = el('div', undefined, 'section-commands');
+  intro.append(el('h2', t('subscription_subscriptionDiagnostics', 'Subscription diagnostics')), el('p', t('subscription_diagnosticRetention', 'Kept for 30 days (up to 1,000 records). Unfinished recoveries are always kept.'))); tools.append(exportButton, reload); head.append(intro, tools);
+  // The same toolbar grammar as History's filters: "Label: value" pills on the page, not fields in a card.
+  const filters = el('div', undefined, 'toolbar'); filters.append(selectPill(t('subscription_mappingFilter', 'Subscription'), mapping), selectPill(t('subscription_result', 'Result'), resolution), selectPill(t('subscription_timeRange', 'Time range'), days));
+  host.replaceChildren(head, filters, feedback, rows);
+  const filter = () => { if (navigate) { const next = new URLSearchParams(params); next.set('category', 'subscriptions'); if (mapping.value) next.set('mapping', mapping.value); else next.delete('mapping'); next.set('status', resolution.value); next.set('days', days.value); navigate('#help?' + next.toString()); } else void load(); };
+  mapping.addEventListener('change', filter); resolution.addEventListener('change', filter); days.addEventListener('change', filter);
+  function paint() { rows.replaceChildren(); selected.clear(); clear.disabled = true;
+    for (const record of records.filter(item => item.resolution === 'pending' || item.time >= Date.now() - Number(days.value) * 86400000)) {
+      const mapped = mappings.get(record.mappingId);
+      const row = el('article', undefined, 'subscription-card diagnostic-record'), completed = record.resolution !== 'pending' && !record.repairTaskId;
+      const head = el('div', undefined, 'subscription-card-head'); head.append(el('h4', mapped?.local?.localAlias ?? mapped?.source?.title ?? (summaries[record.reasonCode] ?? t('subscription_diagnosticReason_unknown', 'A bookmark operation needs review.'))), pill((results[record.resolution] ?? record.resolution), tones[record.resolution] ?? 'muted'));
+      row.append(head);
+      if (mapped) row.append(el('p', (summaries[record.reasonCode] ?? t('subscription_diagnosticReason_unknown', 'A bookmark operation needs review.')), 'subscription-card-lede'));
+      const meta = el('p', undefined, 'subscription-card-meta'); meta.append(when(record.time), ' · ' + tn('subscription_occurrenceCount', record.count, '$1 occurrence', '$1 occurrences')); row.append(meta);
+      if (record.nativePath?.length) row.append(el('p', t('subscription_currentLocation', 'Current location') + ': ' + record.nativePath.join(' › '), 'subscription-card-meta'));
+      if (record.origin === 'recovery_scan') row.append(el('p', t('subscription_recoveryScan', 'Found during a recovery check; the original action is unknown.'), 'subscription-card-meta'));
+      const actions = el('div', undefined, 'section-commands subscription-card-actions');
+      if (!completed) actions.append(button(t('subscription_repair', 'Recheck recovery'), () => { void send<{ mapping: Mapping }>({ kind: 'mapping', mappingId: record.mappingId }).then(({ mapping }) => send({ kind: 'repair', mappingId: record.mappingId, expectedGeneration: mapping.generation })).then(load).catch(error => { feedback.textContent = errorCopy(error); }); }));
+      if (record.reasonCode === 'recovery_permission_required') actions.append(button(t('common_allowBookmarkAccess', 'Allow bookmark access'), () => {
+        const version = generation; const request = chrome.permissions.request({ permissions: ['bookmarks'] });
+        void request.then(async allowed => { if (version !== generation) return; if (!allowed) { feedback.textContent = t('subscription_permissionDenied', 'Bookmark access is still off. No folder was created.'); return; } const detail = await send<{ mapping: Mapping }>({ kind: 'mapping', mappingId: record.mappingId }); if (version !== generation) return; await send({ kind: 'repair', mappingId: record.mappingId, expectedGeneration: detail.mapping.generation }); if (version === generation) await load(); }).catch(error => { if (version === generation) feedback.textContent = errorCopy(error); });
+      }));
+      if (['preserved', 'restored'].includes(record.resolution) && (record.preservedNativeId || record.nativeId)) actions.append(button(t('subscription_locatePreserved', 'Show kept bookmark'), () => { const version = generation; void send({ kind: 'diagnosticLocate', eventId: record.id }).catch(error => { if (version === generation) feedback.textContent = errorCopy(error); }); }));
+      if (record.reasonCode === 'recovery_target_invalid' || record.resolution === 'preserved') actions.append(link(t('subscription_choosePreservation', 'Choose backup folder'), '#subscriptions/list'));
+      actions.append(link(t('subscription_mappingDetails', 'Open subscription'), '#subscriptions/detail?mapping=' + record.mappingId));
+      for (const node of Array.from(actions.children)) node.classList.add('btn-sm');
+      if (completed) { const checkbox = el('input'); checkbox.type = 'checkbox'; const label = el('label', t('subscription_selectCompleted', 'Select'), 'subscription-select'); label.prepend(checkbox); checkbox.addEventListener('change', () => { if (checkbox.checked) selected.add(record.id); else selected.delete(record.id); clear.disabled = !selected.size; }); actions.append(label); }
+      row.append(actions);
+      const details = el('details', undefined, 'diagnostics-technical'); if (params.get('event') === record.id) details.open = true; details.append(el('summary', t('subscription_technical', 'Technical details')), el('pre', JSON.stringify({ reasonCode: record.reasonCode, resolution: record.resolution, eventId: record.id, origin: record.origin, repairTaskId: record.repairTaskId }, null, 2))); row.append(details); rows.append(row);
+    }
+    if (!rows.children.length) { const card = el('div', undefined, 'set-card'); card.append(emptyBlock({ icon: 'check-circle', title: t('subscription_noDiagnostics', 'No matching records. Unfinished recoveries are never cleared.') })); rows.append(card); }
+    else if (records.some(record => record.resolution !== 'pending' && !record.repairTaskId)) { const bulk = el('div', undefined, 'subscription-bulk'); bulk.append(clear); rows.append(bulk); }
+  }
+  async function load() { const version = ++generation; feedback.textContent = t('common_loading', 'Loading…'); try { const result = await send<Diagnostic[] | { items: Diagnostic[] }>({ kind: 'diagnostics', ...(mapping.value ? { mappingId: mapping.value } : {}), ...(resolution.value ? { resolution: resolution.value as Diagnostic['resolution'] } : {}) }); if (version !== generation) return; records = Array.isArray(result) ? result : result.items;
+      if (!mappings.size) { let page = await send<ListResult>({ kind: 'list', scope: 'this_browser', status: 'live' }).catch(() => null); const cursors = new Set<string>(); while (page && version === generation) { for (const item of page.mappings.items) mappings.set(item.mappingId, item); const cursor: string | null = page.mappings.nextCursor; if (!cursor || cursors.has(cursor) || mappings.size >= 50) break; cursors.add(cursor); page = await send<ListResult>({ kind: 'list', cursor }).catch(() => null); } }
+      if (version !== generation) return; const chosen = mapping.value; mapping.replaceChildren(); const all = el('option', t('subscription_allMappings', 'All subscriptions')); all.value = ''; mapping.append(all);
+      for (const id of new Set([...mappings.keys(), ...records.map(record => record.mappingId), ...(chosen ? [chosen] : [])])) { const item = mappings.get(id), option = el('option', item?.local?.localAlias ?? item?.source?.title ?? t('subscription_historyMapping', 'Removed subscription') + ' · ' + id.slice(0, 8)); option.value = id; mapping.append(option); } setPill(mapping, chosen); paint(); feedback.textContent = ''; } catch (error) { if (version === generation) feedback.textContent = errorCopy(error); } }
+  void load(); return { dispose() { generation++; host.replaceChildren(); } };
+}

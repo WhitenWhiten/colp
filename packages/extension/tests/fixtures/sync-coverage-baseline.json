@@ -1,0 +1,340 @@
+{
+  "metrics": [
+    "lines",
+    "branches",
+    "functions",
+    "statements"
+  ],
+  "files": {
+    "src/authority-fence.ts": {
+      "lines": 100,
+      "branches": 90.4,
+      "functions": 93.3,
+      "statements": 100
+    },
+    "src/bookmark-event-queue.ts": {
+      "lines": 97.3,
+      "branches": 88.4,
+      "functions": 100,
+      "statements": 97.3
+    },
+    "src/colp-transport-budget-browser.ts": {
+      "lines": 91.1,
+      "branches": 83.7,
+      "functions": 100,
+      "statements": 91.1
+    },
+    "src/durable-sync-engine.ts": {
+      "lines": 95,
+      "branches": 91.8,
+      "functions": 100,
+      "statements": 95
+    },
+    "src/effect-page-download.ts": {
+      "lines": 100,
+      "branches": 82.7,
+      "functions": 100,
+      "statements": 100
+    },
+    "src/outbound-push-worker.ts": {
+      "lines": 94.4,
+      "branches": 82.6,
+      "functions": 100,
+      "statements": 94.4
+    },
+    "src/pull-applier.ts": {
+      "lines": 100,
+      "branches": 100,
+      "functions": 100,
+      "statements": 100
+    },
+    "src/pull-apply-runtime.ts": {
+      "lines": 88.7,
+      "branches": 83.6,
+      "functions": 100,
+      "statements": 88.7
+    },
+    "src/pull-mapping-view.ts": {
+      "lines": 100,
+      "branches": 100,
+      "functions": 100,
+      "statements": 100
+    },
+    "src/pull-local-projection-evidence.ts": {
+      "lines": 94.8,
+      "branches": 82.2,
+      "functions": 100,
+      "statements": 94.8
+    },
+    "src/pull-bookmark-api.ts": {
+      "lines": 100,
+      "branches": 100,
+      "functions": 100,
+      "statements": 100
+    },
+    "src/pull-codec.ts": {
+      "lines": 93.3,
+      "branches": 89.8,
+      "functions": 100,
+      "statements": 93.3
+    },
+    "src/pull-page-stager.ts": {
+      "lines": 82.7,
+      "branches": 83.8,
+      "functions": 100,
+      "statements": 82.7
+    },
+    "src/pull-projection.ts": {
+      "lines": 100,
+      "branches": 96,
+      "functions": 100,
+      "statements": 100
+    },
+    "src/recovery-overlay.ts": {
+      "lines": 100,
+      "branches": 94.7,
+      "functions": 100,
+      "statements": 100
+    },
+    "src/recovery-projection-executor.ts": {
+      "lines": 95.3,
+      "branches": 82.3,
+      "functions": 100,
+      "statements": 95.3
+    },
+    "src/recovery-guard.ts": {
+      "lines": 100,
+      "branches": 98.7,
+      "functions": 100,
+      "statements": 100
+    },
+    "src/local-projection-recovery.ts": {
+      "lines": 100,
+      "branches": 98,
+      "functions": 100,
+      "statements": 100
+    },
+    "src/pull-mount-apply.ts": {
+      "lines": 95.6,
+      "branches": 91.6,
+      "functions": 100,
+      "statements": 95.6
+    },
+    "src/scope-commands.ts": {
+      "lines": 98.1,
+      "branches": 83.4,
+      "functions": 100,
+      "statements": 98.1
+    },
+    "src/bootstrap/coordinator.ts": {
+      "lines": 90.4,
+      "branches": 84.8,
+      "functions": 95,
+      "statements": 90.4
+    },
+    "src/bootstrap/matcher.ts": {
+      "lines": 99.6,
+      "branches": 90.9,
+      "functions": 100,
+      "statements": 99.6
+    },
+    "src/bookmark-node-identity.ts": {
+      "lines": 95.4,
+      "branches": 90.1,
+      "functions": 100,
+      "statements": 95.4
+    },
+    "src/bookmark-event-reconcile.ts": {
+      "lines": 98.5,
+      "branches": 88,
+      "functions": 100,
+      "statements": 98.5
+    },
+    "src/bookmark-deletion-scope.ts": {
+      "lines": 86.2,
+      "branches": 87.7,
+      "functions": 100,
+      "statements": 86.2
+    },
+    "src/bookmark-create-receipt-identity.ts": {
+      "lines": 100,
+      "branches": 95.4,
+      "functions": 100,
+      "statements": 100
+    },
+    "src/bookmark-event-pages.ts": {
+      "lines": 100,
+      "branches": 100,
+      "functions": 100,
+      "statements": 100
+    },
+    "src/projection-native-occupancy.ts": {
+      "lines": 100,
+      "branches": 97.4,
+      "functions": 100,
+      "statements": 100
+    },
+    "src/session-client.ts": {
+      "lines": 100,
+      "branches": 81.6,
+      "functions": 100,
+      "statements": 100
+    },
+    "src/sync-state-store.ts": {
+      "lines": 100,
+      "branches": 100,
+      "functions": 100,
+      "statements": 100
+    },
+    "src/sync-state/engine-repository.ts": {
+      "lines": 95.5,
+      "branches": 69.5,
+      "functions": 95.6,
+      "statements": 95.5
+    },
+    "src/sync-state/mapping-repository.ts": {
+      "lines": 95.6,
+      "branches": 77.9,
+      "functions": 93.5,
+      "statements": 95.6
+    },
+    "src/sync-state/pull-repository.ts": {
+      "lines": 97.8,
+      "branches": 87.1,
+      "functions": 96.9,
+      "statements": 97.8
+    },
+    "src/sync-state/queue-repository.ts": {
+      "lines": 94.6,
+      "branches": 79.6,
+      "functions": 92.5,
+      "statements": 94.6
+    },
+    "src/sync-state/scope-repository.ts": {
+      "lines": 96.2,
+      "branches": 79.8,
+      "functions": 96.1,
+      "statements": 96.2
+    },
+    "src/sw/engine.ts": {
+      "lines": 46.9,
+      "branches": 59.4,
+      "functions": 34.7,
+      "statements": 46.9
+    },
+    "src/native-create-executor.ts": {
+      "lines": 93,
+      "branches": 80.8,
+      "functions": 94.1,
+      "statements": 93
+    },
+    "src/bookmark-api-error.ts": {
+      "lines": 100,
+      "branches": 90.2,
+      "functions": 100,
+      "statements": 100
+    },
+    "src/bookmark-reorder-uplink.ts": {
+      "lines": 94.5,
+      "branches": 86.5,
+      "functions": 100,
+      "statements": 94.5
+    },
+    "src/native-wait.ts": {
+      "lines": 98.5,
+      "branches": 77.6,
+      "functions": 100,
+      "statements": 98.5
+    },
+    "src/native-wait-target.ts": {
+      "lines": 100,
+      "branches": 76.6,
+      "functions": 100,
+      "statements": 100
+    },
+    "src/replica-rebuild.ts": {
+      "lines": 96.4,
+      "branches": 82.8,
+      "functions": 100,
+      "statements": 96.4
+    },
+    "src/sync-state/intent-facts-repository.ts": {
+      "lines": 94.9,
+      "branches": 92.3,
+      "functions": 100,
+      "statements": 94.9
+    },
+    "src/sync-state/reorder-repository.ts": {
+      "lines": 100,
+      "branches": 94.4,
+      "functions": 100,
+      "statements": 100
+    },
+    "src/native-delete-executor.ts": {
+      "lines": 89.1,
+      "branches": 70.9,
+      "functions": 93.3,
+      "statements": 89.1
+    },
+    "src/bookmark-event-heal.ts": {
+      "lines": 94.5,
+      "branches": 87.1,
+      "functions": 92.8,
+      "statements": 94.5
+    },
+    "src/bookmark-observed-base.ts": {
+      "lines": 100.0,
+      "branches": 73.3,
+      "functions": 100.0,
+      "statements": 100.0
+    },
+    "src/bookmark-event-resolve.ts": {
+      "lines": 100.0,
+      "branches": 100.0,
+      "functions": 100.0,
+      "statements": 100.0
+    },
+    "src/bookmark-projection-metadata.ts": {
+      "lines": 85.7,
+      "branches": 95.0,
+      "functions": 100.0,
+      "statements": 85.7
+    },
+    "src/subtree-observation.ts": {
+      "lines": 92.3,
+      "branches": 78.9,
+      "functions": 100.0,
+      "statements": 92.3
+    },
+    "src/compacted-native-facts.ts": {
+      "lines": 100.0,
+      "branches": 88.8,
+      "functions": 100.0,
+      "statements": 100.0
+    },
+    "src/pull-queue-facts.ts": {
+      "lines": 88.6,
+      "branches": 76.1,
+      "functions": 100.0,
+      "statements": 88.6
+    },
+    "src/unmounted-range-repair.ts": {
+      "lines": 94.5,
+      "branches": 71.2,
+      "functions": 100.0,
+      "statements": 94.5
+    },
+    "src/bootstrap/advanced-remote-executor.ts": {
+      "lines": 93.2,
+      "branches": 79.5,
+      "functions": 100.0,
+      "statements": 93.2
+    },
+    "src/sync-compaction.ts": {
+      "lines": 92.4,
+      "branches": 88.2,
+      "functions": 85.7,
+      "statements": 92.4
+    }
+  }
+}

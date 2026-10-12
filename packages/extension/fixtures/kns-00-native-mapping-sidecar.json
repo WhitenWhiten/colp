@@ -1,0 +1,13 @@
+{
+  "kind": "native-mapping-sidecar",
+  "note": "nativeId is extension-private mapping only; never public Node identity",
+  "mappings": [
+    {
+      "mountId": "mount-bar",
+      "rootRole": "bookmarks-bar",
+      "nativeId": "1",
+      "nativeRootId": "1",
+      "colpId": "mount-bar"
+    }
+  ]
+}

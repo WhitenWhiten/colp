@@ -1,0 +1,65 @@
+name: colp-extension-release
+
+# Tag pushes only (extension-vX.Y.Z). The extension has its own version: the tag
+# must match packages/extension/package.json, manifest.base.json and a section of
+# packages/extension/CHANGELOG.md. The job builds and scans the production
+# extension and attaches the store zip to a GitHub release. Uploading that zip to
+# the Chrome Web Store is a manual step.
+on:
+  push:
+    tags:
+      - 'extension-v*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: colp-extension-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    permissions:
+      contents: write
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: packages/extension/package-lock.json
+
+      - id: release
+        name: Require matching versions and a CHANGELOG section
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          node packages/extension/scripts/check-release-tag.mjs "$RELEASE_TAG" > "$RUNNER_TEMP/changelog-section.md"
+          test -s "$RUNNER_TEMP/changelog-section.md"
+          echo "version=${RELEASE_TAG#extension-v}" >> "$GITHUB_OUTPUT"
+
+      - name: Frozen extension install
+        run: npm ci
+        working-directory: packages/extension
+      - name: Rebuild allowlisted esbuild
+        run: test ! -d node_modules/esbuild || npm rebuild esbuild --ignore-scripts=false
+        working-directory: packages/extension
+
+      - name: Build, scan and zip the production extension
+        run: npm run package
+        working-directory: packages/extension
+
+      - name: Scan the release build for secrets
+        run: node scripts/scan-tracked-secrets.mjs --artifact packages/extension/dist/production
+
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          EXTENSION_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          gh release create "$RELEASE_TAG" "packages/extension/dist/known-extension-${EXTENSION_VERSION}.zip" \
+            --title "Know-N for Chrome ${EXTENSION_VERSION}" \
+            --notes-file "$RUNNER_TEMP/changelog-section.md"

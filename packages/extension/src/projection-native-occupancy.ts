@@ -1,0 +1,58 @@
+import type { MappingInput } from './sync-state-store.js';
+import type { ProjectionIntentRecord } from './recovery-overlay.js';
+
+export function virtualNativeId(nativeId: string): boolean {
+  return nativeId.startsWith('recovery:') || nativeId.startsWith('sidecar:')
+    || nativeId.startsWith('unmounted:') || nativeId.startsWith('pending-');
+}
+
+export function occupancyByNative(input: {
+  readonly liveMappings?: readonly MappingInput[];
+  readonly seedMappings?: readonly MappingInput[];
+  readonly intents?: readonly Pick<ProjectionIntentRecord, 'colpId' | 'observedNativeId'>[];
+}): ReadonlyMap<string, string> {
+  const occupied = new Map<string, string>();
+  const claim = (nativeId: string | undefined, colpId: string) => {
+    if (!nativeId || virtualNativeId(nativeId)) return;
+    if (!occupied.has(nativeId)) occupied.set(nativeId, colpId);
+  };
+  for (const mapping of input.liveMappings ?? []) claim(mapping.nativeId, mapping.colpId);
+  for (const mapping of input.seedMappings ?? []) claim(mapping.nativeId, mapping.colpId);
+  for (const intent of input.intents ?? []) claim(intent.observedNativeId, intent.colpId);
+  return occupied;
+}
+
+export type CreateIdentityResolution =
+  | { readonly action: 'reuse'; readonly nativeId: string }
+  | { readonly action: 'create' }
+  | { readonly action: 'ambiguous' };
+
+/** Replay this intent only. Another Node with equal title/URL is not a match. */
+export function resolveCreateIdentity(input: {
+  readonly intent: Pick<ProjectionIntentRecord, 'colpId' | 'observedNativeId' | 'title' | 'url'> & { readonly state?: ProjectionIntentRecord['state'] };
+  readonly children: readonly { readonly id: string; readonly title?: string; readonly url?: string }[];
+  readonly occupancy: ReadonlyMap<string, string>;
+}): CreateIdentityResolution {
+  if (input.intent.observedNativeId && !virtualNativeId(input.intent.observedNativeId)) {
+    return input.children.some((child) => child.id === input.intent.observedNativeId)
+      && unoccupiedOrSelf(input.occupancy, input.intent.observedNativeId, input.intent.colpId)
+      ? { action: 'reuse', nativeId: input.intent.observedNativeId } : { action: 'ambiguous' };
+  }
+  const matches = input.children.filter((candidate) => contentMatches(candidate, input.intent)
+    && unoccupiedOrSelf(input.occupancy, candidate.id, input.intent.colpId));
+  if (matches.length > 0 && input.intent.state && input.intent.state !== 'pending') return { action: 'ambiguous' };
+  return { action: 'create' };
+}
+
+function contentMatches(
+  candidate: { readonly title?: string; readonly url?: string },
+  intent: Pick<ProjectionIntentRecord, 'title' | 'url'>,
+): boolean {
+  return candidate.title === (intent.title ?? '')
+    && (intent.url ? candidate.url === intent.url : candidate.url === undefined);
+}
+
+function unoccupiedOrSelf(occupancy: ReadonlyMap<string, string>, nativeId: string, colpId: string): boolean {
+  const owner = occupancy.get(nativeId);
+  return owner === undefined || owner === colpId;
+}

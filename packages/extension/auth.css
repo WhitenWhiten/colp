@@ -1,0 +1,131 @@
+/* Sign-in form styles shared by the extension's popup and options page.
+   The .auth-card shell lives on the site; these pages style .auth-form. */
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hair-90);
+}
+
+.auth-form > .btn {
+  width: 100%;
+}
+
+.auth-alt {
+  margin: var(--space-3) 0 0;
+  text-align: center;
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+
+.auth-alt a {
+  color: var(--ink);
+  font-weight: var(--weight-semibold);
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+/* The rail chrome is chrome.css's .view-switch, the same segmented control
+   the site uses everywhere else; these are the auth-only deltas — it fills
+   the card and its two tabs split the width evenly. */
+.auth-tabs {
+  flex-wrap: wrap;
+  width: 100%;
+  min-width: 0;
+  margin: var(--space-3) 0;
+}
+
+.auth-tab {
+  flex: 1 1 5rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.auth-tab:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.auth-inline-link {
+  margin: 0;
+  min-height: 1.25rem;
+  font-size: var(--text-sm);
+  text-align: right;
+}
+
+.auth-inline-link a {
+  color: var(--accent-ink);
+  font-weight: var(--weight-semibold);
+}
+
+.auth-secret-slot {
+  display: grid;
+}
+
+.auth-secret-slot > .field {
+  grid-area: 1 / 1;
+}
+
+.auth-secret-slot > .field[data-inactive] {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.auth-otp-row {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.auth-otp-row input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.auth-otp-send {
+  flex: 0 0 auto;
+  min-width: 6.75rem;
+  min-height: 2.75rem;
+}
+
+.auth-oauth-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+/* Chrome comes from .btn.btn-secondary (chrome.css owner), exactly like the
+   main site's auth pages; this class only rounds the pill and fixes the
+   square icon geometry. Double the .btn specificity so padding:0 wins. */
+.btn.auth-oauth-btn {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  min-width: 2.75rem;
+  padding: 0;
+  border-radius: var(--radius-pill);
+}
+
+.auth-oauth-letter {
+  display: grid;
+  place-items: center;
+  inline-size: 1.15rem;
+  block-size: 1.15rem;
+  font-size: var(--text-md);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-display);
+  line-height: var(--leading-none);
+}
+
+.btn.auth-oauth-btn svg {
+  display: block;
+  width: 1.15rem;
+  height: 1.15rem;
+  max-width: none;
+}

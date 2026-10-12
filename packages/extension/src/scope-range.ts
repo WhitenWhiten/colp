@@ -1,0 +1,222 @@
+import { detachScopeMount } from './scope-detach.js';
+import { digestJson } from './bookmark-event-codec.js';
+import { scanBoundary, type BoundaryScan } from './bookmark-boundary.js';
+import type { NormalizedBookmarkRoot } from './chrome-bookmark-tree.js';
+import { PREVIEW_TTL_MS } from './sync-state/mount-repository.js';
+import { scopeSubtreeDeleteSource } from './subtree-observation.js';
+import type {
+  MappingInput, MountBindingRecord, RemoteDeleteFreezeEntry, ScopePreviewRecord, SyncScope,
+  createSyncStateStore,
+} from './sync-state-store.js';
+import { detectRangeShifts, keepShiftedMount, preserveShiftMappings, type RangeShiftCandidate } from './scope-range-shift.js';
+import { countRemoteMountDescendants } from './scope-remote-count.js';
+
+type Store = ReturnType<typeof createSyncStateStore>;
+
+export interface RangeDiff {
+  readonly addedNativeIds: readonly string[];
+  readonly removedNativeIds: readonly string[];
+  readonly shiftNativeIds: readonly string[];
+  readonly shifts: readonly RangeShiftCandidate[];
+}
+
+export function liveAuthorityFromExport(exported: Awaited<ReturnType<Store['exportScope']>>) {
+  return {
+    scope: exported.scope, mappings: exported.mappings, queue: exported.queue,
+    mountBindings: exported.mountBindings, bootstrapRuns: exported.bootstrapRuns,
+  };
+}
+
+export function boundaryDigestFromScan(scan: Pick<BoundaryScan, 'selectedNativeIds' | 'excludedNativeIds' | 'mounts'>): string {
+  return digestJson({
+    selected: [...scan.selectedNativeIds], excluded: [...scan.excludedNativeIds],
+    mounts: scan.mounts.map((mount) => mount.nativeRootId),
+  });
+}
+
+export function diffLiveRange(input: {
+  readonly liveMounts: readonly MountBindingRecord[];
+  readonly mappings: readonly MappingInput[];
+  readonly selectedNativeIds: readonly string[];
+  readonly discovered: ReadonlyMap<string, readonly string[]>;
+}): RangeDiff {
+  const liveSelected = input.liveMounts.filter((mount) => mount.status !== 'detached' && !mount.pendingShift)
+    .map((mount) => mount.nativeRootId);
+  const next = new Set(input.selectedNativeIds);
+  const live = new Set(liveSelected);
+  const shifts = detectRangeShifts(input);
+  const shiftNative = new Set(shifts.map((row) => row.nativeRootId));
+  const addedNativeIds = input.selectedNativeIds.filter((id) => !live.has(id));
+  const removedNativeIds = liveSelected.filter((id) => !next.has(id) && !shiftNative.has(id));
+  return { addedNativeIds, removedNativeIds, shiftNativeIds: [...shiftNative], shifts };
+}
+
+export async function previewRangeChange(store: Store, scope: SyncScope, input: {
+  readonly roots: readonly NormalizedBookmarkRoot[];
+  readonly selectedNativeIds: readonly string[];
+  readonly excludedNativeIds?: readonly string[];
+  readonly privateNativeIds?: readonly string[];
+  readonly discovered?: ReadonlyMap<string, readonly string[]>;
+  readonly now?: () => number;
+}): Promise<{
+  readonly preview: ScopePreviewRecord; readonly scan: BoundaryScan; readonly diff: RangeDiff;
+}> {
+  const scan = scanBoundary({
+    roots: input.roots, selectedNativeIds: input.selectedNativeIds,
+    excludedNativeIds: input.excludedNativeIds ?? [], privateNativeIds: input.privateNativeIds ?? [],
+  });
+  const recorded = await store.getScope(scope);
+  const liveMounts = await store.listMountBindings(scope);
+  const mappings = await store.listMappings(scope);
+  const discovered = input.discovered ?? discoveredFromRoots(input.roots);
+  const diff = diffLiveRange({
+    liveMounts, mappings, selectedNativeIds: scan.selectedNativeIds, discovered,
+  });
+  const now = input.now ?? Date.now;
+  const previewId = crypto.randomUUID();
+  const remoteDeleteEvidence = await remoteDeleteEvidenceFor(store, scope,
+    [...new Set([...diff.removedNativeIds, ...diff.shiftNativeIds])]);
+  const preview = await store.putScopePreview(scope, {
+    previewId, boundaryVersion: recorded?.boundaryVersion ?? '0', treeDigest: scan.treeDigest,
+    bookmarkCount: scan.bookmarkCount, folderCount: scan.folderCount, skippedCount: scan.skippedCount,
+    expiresAt: now() + PREVIEW_TTL_MS, warnings: scan.warnings,
+    boundary: { selectedNativeIds: scan.selectedNativeIds, excludedNativeIds: scan.excludedNativeIds,
+      mounts: scan.mounts },
+    kind: 'range', boundaryDigest: boundaryDigestFromScan(scan),
+    addedNativeIds: diff.addedNativeIds, removedNativeIds: diff.removedNativeIds,
+    privateNativeIds: input.privateNativeIds ?? [], shiftNativeIds: diff.shiftNativeIds,
+    ...(remoteDeleteEvidence.length ? { remoteDeleteEvidence } : {}),
+  });
+  return { preview, scan, diff };
+}
+
+export function previewRejection(preview: ScopePreviewRecord | null, input: {
+  readonly now: number; readonly liveBoundaryVersion: string; readonly treeDigest?: string;
+}): 'request_invalid' | 'duplicate_confirm' | 'preview_stale' | null {
+  if (!preview || preview.expiresAt <= input.now) return 'request_invalid';
+  if (preview.consumedAt !== undefined) return 'duplicate_confirm';
+  if ((preview.boundaryVersion ?? '0') !== input.liveBoundaryVersion) return 'preview_stale';
+  if (input.treeDigest !== undefined && preview.treeDigest !== input.treeDigest) return 'preview_stale';
+  return null;
+}
+
+export async function consumeRangePreview(store: Store, scope: SyncScope, preview: ScopePreviewRecord,
+  now = Date.now()): Promise<void> {
+  const { scopeKey: _scopeKey, ...row } = preview;
+  await store.putScopePreview(scope, { ...row, consumedAt: now });
+}
+
+export async function applyConfirmedRange(store: Store, scope: SyncScope, input: {
+  readonly preview: ScopePreviewRecord;
+  readonly keepNativeIds: readonly string[];
+  readonly unmountNativeIds: readonly string[];
+  readonly remoteDeleteNativeIds?: readonly string[];
+}): Promise<{ readonly kept: readonly string[]; readonly unmounted: readonly string[] }> {
+  const mounts = await store.listMountBindings(scope);
+  const byNative = new Map(mounts.map((mount) => [mount.nativeRootId, mount]));
+  const keep = new Set(input.keepNativeIds);
+  const unmount = new Set(input.unmountNativeIds);
+  const remoteDelete = new Set(input.remoteDeleteNativeIds ?? []);
+  const kept: string[] = [];
+  const unmounted: string[] = [];
+  for (const nativeId of input.preview.shiftNativeIds ?? []) {
+    const mount = byNative.get(nativeId);
+    if (!mount) continue;
+    if (keep.has(nativeId)) {
+      const updated = await keepShiftedMount(store, scope, { mount, nativeRootId: nativeId });
+      const colpId = updated.remoteMountNodeId ?? mount.pendingShift?.colpId;
+      if (colpId) {
+        await preserveShiftMappings(store, scope, {
+          nativeRootId: nativeId, colpId, mountId: updated.mountId,
+        });
+      }
+      kept.push(nativeId);
+      continue;
+    }
+    if (unmount.has(nativeId) || !keep.has(nativeId)) {
+      if (!remoteDelete.has(nativeId)) await detachScopeMount(store, scope, mount.mountId);
+      unmounted.push(nativeId);
+    }
+  }
+  for (const nativeId of input.preview.removedNativeIds ?? []) {
+    if (keep.has(nativeId) || remoteDelete.has(nativeId)) continue;
+    const mount = byNative.get(nativeId);
+    if (!mount || mount.status === 'detached') continue;
+    await detachScopeMount(store, scope, mount.mountId);
+    unmounted.push(nativeId);
+  }
+  const existing = await store.listMountBindings(scope);
+  await mergePreviewMounts(store, scope, existing, input.preview);
+  return { kept, unmounted };
+}
+
+export async function mountIdForNative(store: Store, scope: SyncScope, nativeId: string): Promise<string | undefined> {
+  const mount = (await store.listMountBindings(scope)).find((row) => row.nativeRootId === nativeId);
+  return mount?.mountId;
+}
+
+export async function removalCounts(store: Store, scope: SyncScope, nativeIds: readonly string[]): Promise<Map<string, number>> {
+  const counts = new Map<string, number>();
+  const evidence = await remoteDeleteEvidenceFor(store, scope, nativeIds);
+  const byNative = new Map(evidence.map((row) => [row.nativeRootId, row.affectedCount]));
+  for (const nativeId of nativeIds) counts.set(nativeId, byNative.get(nativeId) ?? 0);
+  return counts;
+}
+
+async function remoteDeleteEvidenceFor(store: Store, scope: SyncScope, nativeIds: readonly string[]):
+  Promise<readonly RemoteDeleteFreezeEntry[]> {
+  const mounts = await store.listMountBindings(scope);
+  const evidence: RemoteDeleteFreezeEntry[] = [];
+  for (const nativeId of nativeIds) {
+    const mount = mounts.find((row) => row.nativeRootId === nativeId);
+    if (!mount) continue;
+    if (!mount.remoteMountNodeId) throw new Error('mount_not_bound');
+    evidence.push({
+      nativeRootId: nativeId, mountId: mount.mountId, remoteMountNodeId: mount.remoteMountNodeId,
+      affectedCount: await countRemoteMountDescendants(store, scope, mount),
+      boundaryVersion: mount.boundaryVersion,
+      subtreeSource: await scopeSubtreeDeleteSource(store, scope, mount.remoteMountNodeId),
+    });
+  }
+  return evidence;
+}
+
+export function discoveredFromRoots(roots: readonly NormalizedBookmarkRoot[]): Map<string, readonly string[]> {
+  const discovered = new Map<string, readonly string[]>();
+  const visit = (node: { readonly nativeId: string; readonly children: readonly { readonly nativeId: string;
+    readonly children: readonly unknown[] }[] }, ancestors: readonly string[]) => {
+    discovered.set(node.nativeId, ancestors);
+    for (const child of node.children) {
+      visit(child as { readonly nativeId: string; readonly children: readonly { readonly nativeId: string;
+        readonly children: readonly unknown[] }[] }, [...ancestors, node.nativeId]);
+    }
+  };
+  for (const root of roots) visit(root, []);
+  return discovered;
+}
+
+async function mergePreviewMounts(store: Store, scope: SyncScope, existing: readonly MountBindingRecord[],
+  preview: ScopePreviewRecord): Promise<void> {
+  const byRoot = new Map(existing.map((mount) => [mount.nativeRootId, mount]));
+  for (const planned of preview.boundary.mounts.filter((mount) => mount.writable)) {
+    const prior = byRoot.get(planned.nativeRootId);
+    if (prior?.status === 'detached') continue;
+    const { scopeKey: _scopeKey, pendingShift: _shift, pendingRemoteDelete: _pending, ...rest } = prior ?? {
+      mountId: `mount:${planned.nativeRootId}`, nativeRootId: planned.nativeRootId, remoteMountNodeId: null,
+      boundaryVersion: preview.boundaryVersion, materialized: planned.materialized, status: 'pending' as const,
+    };
+    byRoot.set(planned.nativeRootId, {
+      scopeKey: preview.scopeKey, ...rest, nativeRootId: planned.nativeRootId,
+      remoteMountNodeId: prior?.remoteMountNodeId ?? null,
+      boundaryVersion: preview.boundaryVersion, materialized: planned.materialized,
+      status: prior?.status === 'active' || prior?.status === 'pending' ? prior.status : 'pending',
+      ...(planned.rootRole ? { rootRole: planned.rootRole } : prior?.rootRole ? { rootRole: prior.rootRole } : {}),
+      ...(planned.customSourceKey ? { customSourceKey: planned.customSourceKey }
+        : prior?.customSourceKey ? { customSourceKey: prior.customSourceKey } : {}),
+    });
+  }
+  for (const mount of byRoot.values()) {
+    const { scopeKey: _scopeKey, ...row } = mount;
+    await store.putMountBinding(scope, row);
+  }
+}

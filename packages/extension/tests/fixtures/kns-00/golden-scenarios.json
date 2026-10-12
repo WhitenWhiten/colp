@@ -1,0 +1,544 @@
+[
+  {
+    "fixtureId": "kns-00-empty-collection",
+    "scenario": "empty-collection",
+    "bootstrapMode": "merge",
+    "operations": [],
+    "receipts": [],
+    "effects": [],
+    "terminal": {
+      "liveNodes": [
+        { "id": "folder-root", "parentId": null, "revision": "rev-root-1", "kind": "folder", "folderRole": "root" }
+      ],
+      "tombstones": []
+    },
+    "expectedOperationKinds": [],
+    "expectedIdentities": ["folder-root"],
+    "invariants": ["empty-collection-has-root-only"]
+  },
+  {
+    "fixtureId": "kns-00-existing-remote-tree",
+    "scenario": "existing-remote-tree",
+    "bootstrapMode": "merge",
+    "operations": [],
+    "receipts": [],
+    "effects": [],
+    "terminal": {
+      "liveNodes": [
+        { "id": "folder-root", "parentId": null, "revision": "rev-root-1", "kind": "folder", "folderRole": "root" },
+        { "id": "mount-bar", "parentId": "folder-root", "revision": "rev-bar-1", "kind": "folder", "folderRole": "bookmarks-bar" },
+        { "id": "bookmark-remote-1", "parentId": "mount-bar", "revision": "rev-bm-1", "kind": "bookmark", "url": "https://remote.example/one" }
+      ],
+      "tombstones": []
+    },
+    "expectedOperationKinds": [],
+    "expectedIdentities": ["folder-root", "mount-bar", "bookmark-remote-1"]
+  },
+  {
+    "fixtureId": "kns-00-both-sides-fork",
+    "scenario": "both-sides-fork",
+    "bootstrapMode": "merge",
+    "operations": [
+      {
+        "opId": "op-local-title", "replicaId": "replica-local", "sequence": 1, "collectionId": "collection-1",
+        "type": "update_node_content", "targetId": "bookmark-shared", "baseRevision": "rev-bm-1",
+        "occurredAt": "2026-07-27T00:00:00Z",
+        "payload": { "base": { "title": "Shared" }, "value": { "title": "Laptop title" } }
+      },
+      {
+        "opId": "op-remote-title", "replicaId": "replica-remote", "sequence": 4, "collectionId": "collection-1",
+        "type": "update_node_content", "targetId": "bookmark-shared", "baseRevision": "rev-bm-1",
+        "occurredAt": "2026-07-27T00:00:01Z",
+        "payload": { "base": { "title": "Shared" }, "value": { "title": "Server title" } }
+      }
+    ],
+    "receipts": [
+      { "opId": "op-remote-title", "status": "applied" },
+      { "opId": "op-local-title", "status": "conflicted", "code": "revision_conflict", "conflictId": "conflict-title-1" }
+    ],
+    "terminal": {
+      "liveNodes": [
+        { "id": "bookmark-shared", "parentId": "mount-bar", "revision": "rev-bm-2", "kind": "bookmark", "url": "https://example.com/shared" }
+      ],
+      "tombstones": [],
+      "conflicts": [{ "id": "conflict-title-1", "type": "concurrent_field_update", "targetId": "bookmark-shared", "field": "/title" }]
+    },
+    "expectedOperationKinds": ["update_node_content", "update_node_content"],
+    "expectedIdentities": ["bookmark-shared"],
+    "invariants": ["field-level-merge-title-conflicts"]
+  },
+  {
+    "fixtureId": "kns-00-same-url-different-parent",
+    "scenario": "same-url-different-parent",
+    "bootstrapMode": "merge",
+    "operations": [
+      {
+        "opId": "op-create-a", "replicaId": "replica-local", "sequence": 1, "collectionId": "collection-1",
+        "type": "create_node", "baseRevision": null, "occurredAt": "2026-07-27T00:00:00Z",
+        "payload": { "parentId": "folder-a", "afterId": null, "beforeId": null, "node": { "kind": "bookmark", "title": "Same", "url": "https://example.com/dup" } }
+      },
+      {
+        "opId": "op-create-b", "replicaId": "replica-local", "sequence": 2, "collectionId": "collection-1",
+        "type": "create_node", "baseRevision": null, "occurredAt": "2026-07-27T00:00:01Z",
+        "payload": { "parentId": "folder-b", "afterId": null, "beforeId": null, "node": { "kind": "bookmark", "title": "Same", "url": "https://example.com/dup" } }
+      }
+    ],
+    "receipts": [
+      { "opId": "op-create-a", "status": "applied", "nodeId": "bookmark-a" },
+      { "opId": "op-create-b", "status": "applied", "nodeId": "bookmark-b" }
+    ],
+    "terminal": {
+      "liveNodes": [
+        { "id": "bookmark-a", "parentId": "folder-a", "revision": "rev-a-1", "kind": "bookmark", "url": "https://example.com/dup" },
+        { "id": "bookmark-b", "parentId": "folder-b", "revision": "rev-b-1", "kind": "bookmark", "url": "https://example.com/dup" }
+      ],
+      "tombstones": [],
+      "localMatchReport": {
+        "candidates": [
+          { "kind": "duplicate_candidate", "url": "https://example.com/dup", "nodeIds": ["bookmark-a", "bookmark-b"] }
+        ]
+      }
+    },
+    "expectedOperationKinds": ["create_node", "create_node"],
+    "expectedIdentities": ["bookmark-a", "bookmark-b"],
+    "invariants": ["same-url-different-parent-never-auto-merge"]
+  },
+  {
+    "fixtureId": "kns-00-delete-plus-update",
+    "scenario": "delete-plus-update",
+    "operations": [
+      {
+        "opId": "op-delete", "replicaId": "replica-remote", "sequence": 5, "collectionId": "collection-1",
+        "type": "delete_node", "targetId": "bookmark-gone", "baseRevision": "rev-bm-1",
+        "occurredAt": "2026-07-27T00:00:00Z", "payload": { "reason": "removed" }
+      },
+      {
+        "opId": "op-update", "replicaId": "replica-local", "sequence": 2, "collectionId": "collection-1",
+        "type": "update_node_content", "targetId": "bookmark-gone", "baseRevision": "rev-bm-1",
+        "occurredAt": "2026-07-27T00:00:01Z",
+        "payload": { "base": { "title": "Old" }, "value": { "title": "Laptop" } }
+      }
+    ],
+    "receipts": [
+      { "opId": "op-delete", "status": "applied" },
+      { "opId": "op-update", "status": "conflicted", "code": "revision_conflict", "conflictId": "conflict-delete-dominates" }
+    ],
+    "terminal": {
+      "liveNodes": [],
+      "tombstones": [{ "targetId": "bookmark-gone", "deleteCursor": "tombstone-cursor-gone", "deleteRevision": "delete-rev-1" }],
+      "conflicts": [{ "id": "conflict-delete-dominates", "type": "delete_dominates", "targetId": "bookmark-gone" }]
+    },
+    "expectedOperationKinds": ["delete_node", "update_node_content"],
+    "expectedIdentities": ["bookmark-gone"],
+    "invariants": ["delete-dominates"]
+  },
+  {
+    "fixtureId": "kns-00-parent-deleted",
+    "scenario": "parent-deleted",
+    "operations": [
+      {
+        "opId": "op-delete-parent", "replicaId": "replica-remote", "sequence": 6, "collectionId": "collection-1",
+        "type": "delete_node", "targetId": "folder-parent", "baseRevision": "rev-folder-1",
+        "occurredAt": "2026-07-27T00:00:00Z", "payload": { "reason": "removed" }
+      },
+      {
+        "opId": "op-move-child", "replicaId": "replica-local", "sequence": 3, "collectionId": "collection-1",
+        "type": "move_node", "targetId": "bookmark-orphan", "baseRevision": "rev-bm-1",
+        "occurredAt": "2026-07-27T00:00:01Z",
+        "payload": { "newParentId": "folder-other", "afterId": null, "beforeId": null, "baseSourceParentRevision": "cr-1", "baseTargetParentRevision": "cr-2" }
+      }
+    ],
+    "receipts": [
+      { "opId": "op-delete-parent", "status": "applied" },
+      { "opId": "op-move-child", "status": "rebased", "nodeId": "bookmark-orphan" }
+    ],
+    "effects": [
+      { "kind": "node_moved", "nodeId": "bookmark-orphan", "parentId": "folder-recovered" }
+    ],
+    "terminal": {
+      "liveNodes": [
+        { "id": "folder-recovered", "parentId": "folder-root", "revision": "rev-recovered-1", "kind": "folder", "folderRole": "recovered" },
+        { "id": "bookmark-orphan", "parentId": "folder-recovered", "revision": "rev-bm-2", "kind": "bookmark", "url": "https://example.com/orphan" }
+      ],
+      "tombstones": [{ "targetId": "folder-parent", "deleteCursor": "tombstone-cursor-parent", "deleteRevision": "delete-folder-1" }]
+    },
+    "expectedOperationKinds": ["delete_node", "move_node"],
+    "expectedIdentities": ["folder-recovered", "bookmark-orphan", "folder-parent"],
+    "invariants": ["missing-parent-lands-in-recovered"]
+  },
+  {
+    "fixtureId": "kns-00-two-root-mounts",
+    "scenario": "two-root-mounts",
+    "operations": [
+      {
+        "opId": "op-mount-bar", "replicaId": "replica-local", "sequence": 1, "collectionId": "collection-1",
+        "type": "create_node", "baseRevision": null, "occurredAt": "2026-07-27T00:00:00Z",
+        "payload": { "parentId": "folder-root", "afterId": null, "beforeId": null, "node": { "kind": "folder", "title": "Bar", "folderRole": "bookmarks-bar" } }
+      },
+      {
+        "opId": "op-mount-other", "replicaId": "replica-local", "sequence": 2, "collectionId": "collection-1",
+        "type": "create_node", "baseRevision": null, "occurredAt": "2026-07-27T00:00:01Z",
+        "payload": { "parentId": "folder-root", "afterId": null, "beforeId": null, "node": { "kind": "folder", "title": "Other", "folderRole": "other-bookmarks" } }
+      }
+    ],
+    "receipts": [
+      { "opId": "op-mount-bar", "status": "applied", "nodeId": "mount-bar" },
+      { "opId": "op-mount-other", "status": "applied", "nodeId": "mount-other" }
+    ],
+    "terminal": {
+      "liveNodes": [
+        { "id": "mount-bar", "parentId": "folder-root", "revision": "rev-bar-1", "kind": "folder", "folderRole": "bookmarks-bar" },
+        { "id": "mount-other", "parentId": "folder-root", "revision": "rev-other-1", "kind": "folder", "folderRole": "other-bookmarks" }
+      ],
+      "tombstones": []
+    },
+    "expectedOperationKinds": ["create_node", "create_node"],
+    "expectedIdentities": ["mount-bar", "mount-other"]
+  },
+  {
+    "fixtureId": "kns-00-unselected-range",
+    "scenario": "unselected-range",
+    "operations": [],
+    "receipts": [],
+    "effects": [],
+    "terminal": {
+      "liveNodes": [],
+      "tombstones": [],
+      "localDiagnostics": [{ "code": "unselected_range" }]
+    },
+    "expectedOperationKinds": [],
+    "expectedIdentities": [],
+    "invariants": ["unselected-range-no-operations"]
+  },
+  {
+    "fixtureId": "kns-00-local-reorder-no-upload",
+    "scenario": "local-reorder-no-upload",
+    "operations": [],
+    "receipts": [],
+    "effects": [],
+    "terminal": {
+      "liveNodes": [
+        { "id": "bookmark-1", "parentId": "mount-bar", "revision": "rev-bm-1", "kind": "bookmark", "url": "https://example.com/one" },
+        { "id": "bookmark-2", "parentId": "mount-bar", "revision": "rev-bm-2", "kind": "bookmark", "url": "https://example.com/two" }
+      ],
+      "tombstones": [],
+      "localDiagnostics": [{ "code": "reorder_children_local_only" }]
+    },
+    "expectedOperationKinds": [],
+    "expectedIdentities": ["bookmark-1", "bookmark-2"],
+    "invariants": ["reorder-is-not-move-node"]
+  },
+  {
+    "fixtureId": "kns-00-server-receipt-loss",
+    "scenario": "server-receipt-loss",
+    "operations": [
+      {
+        "opId": "op-create-retry", "replicaId": "replica-local", "sequence": 7, "collectionId": "collection-1",
+        "type": "create_node", "baseRevision": null, "occurredAt": "2026-07-27T00:00:00Z",
+        "payload": { "parentId": "mount-bar", "afterId": null, "beforeId": null, "node": { "kind": "bookmark", "title": "Retry", "url": "https://example.com/retry" } }
+      }
+    ],
+    "receipts": [
+      { "opId": "op-create-retry", "status": "applied", "nodeId": "bookmark-retry", "idempotentReplay": true }
+    ],
+    "terminal": {
+      "liveNodes": [
+        { "id": "bookmark-retry", "parentId": "mount-bar", "revision": "rev-retry-1", "kind": "bookmark", "url": "https://example.com/retry" }
+      ],
+      "tombstones": []
+    },
+    "expectedOperationKinds": ["create_node"],
+    "expectedIdentities": ["bookmark-retry"],
+    "invariants": ["receipt-loss-replays-same-sequence"]
+  },
+  {
+    "fixtureId": "kns-00-node-restored",
+    "scenario": "node-restored",
+    "operations": [
+      {
+        "opId": "op-restore", "replicaId": "replica-local", "sequence": 9, "collectionId": "collection-1",
+        "type": "restore_node", "targetId": "bookmark-restored", "baseRevision": "delete-rev-1",
+        "occurredAt": "2026-07-27T02:00:00Z", "payload": { "reason": "restore" }
+      }
+    ],
+    "receipts": [{ "opId": "op-restore", "status": "applied", "nodeId": "bookmark-restored" }],
+    "effects": [
+      {
+        "kind": "node_restored",
+        "nodeId": "bookmark-restored",
+        "revision": "rev-restored-2",
+        "parentId": "mount-bar",
+        "consumedDeleteCursor": "tombstone-cursor-restored"
+      }
+    ],
+    "terminal": {
+      "liveNodes": [
+        { "id": "bookmark-restored", "parentId": "mount-bar", "revision": "rev-restored-2", "kind": "bookmark", "url": "https://example.com/restored" }
+      ],
+      "tombstones": []
+    },
+    "expectedOperationKinds": ["restore_node"],
+    "expectedIdentities": ["bookmark-restored"],
+    "invariants": ["live-tombstone-exclusive", "original-id-kept", "new-revision"]
+  },
+  {
+    "fixtureId": "kns-00-node-restored-recovered",
+    "scenario": "node-restored-recovered",
+    "operations": [
+      {
+        "opId": "op-restore-orphan", "replicaId": "replica-local", "sequence": 10, "collectionId": "collection-1",
+        "type": "restore_node", "targetId": "bookmark-was-orphan", "baseRevision": "delete-rev-2",
+        "occurredAt": "2026-07-27T03:00:00Z", "payload": { "reason": "restore" }
+      }
+    ],
+    "receipts": [{ "opId": "op-restore-orphan", "status": "applied", "nodeId": "bookmark-was-orphan" }],
+    "effects": [
+      {
+        "kind": "node_restored",
+        "nodeId": "bookmark-was-orphan",
+        "revision": "rev-orphan-3",
+        "parentId": "folder-recovered",
+        "consumedDeleteCursor": "tombstone-cursor-orphan"
+      }
+    ],
+    "terminal": {
+      "liveNodes": [
+        { "id": "folder-recovered", "parentId": "folder-root", "revision": "rev-recovered-1", "kind": "folder", "folderRole": "recovered" },
+        { "id": "bookmark-was-orphan", "parentId": "folder-recovered", "revision": "rev-orphan-3", "kind": "bookmark", "url": "https://example.com/orphan" }
+      ],
+      "tombstones": []
+    },
+    "expectedOperationKinds": ["restore_node"],
+    "expectedIdentities": ["folder-recovered", "bookmark-was-orphan"],
+    "invariants": ["live-tombstone-exclusive", "missing-parent-lands-in-recovered"]
+  },
+  {
+    "fixtureId": "kns-00-node-restored-purged",
+    "scenario": "node-restored-purged",
+    "operations": [
+      {
+        "opId": "op-restore-purged", "replicaId": "replica-local", "sequence": 11, "collectionId": "collection-1",
+        "type": "restore_node", "targetId": "bookmark-purged", "baseRevision": "delete-rev-9",
+        "occurredAt": "2026-07-27T04:00:00Z", "payload": { "reason": "restore" }
+      }
+    ],
+    "receipts": [{ "opId": "op-restore-purged", "status": "rejected", "code": "resource_purged" }],
+    "effects": [],
+    "terminal": {
+      "liveNodes": [],
+      "tombstones": [],
+      "problemCode": "resource_purged"
+    },
+    "expectedOperationKinds": ["restore_node"],
+    "expectedIdentities": ["bookmark-purged"],
+    "invariants": ["purge-is-resource-purged"]
+  },
+  {
+    "fixtureId": "kns-00-concurrent-same-role-mount",
+    "scenario": "concurrent-same-role-mount",
+    "operations": [
+      {
+        "opId": "op-mount-bar-a", "replicaId": "replica-a", "sequence": 1, "collectionId": "collection-1",
+        "type": "create_node", "baseRevision": null, "occurredAt": "2026-07-27T00:00:00Z",
+        "payload": { "parentId": "folder-root", "afterId": null, "beforeId": null, "node": { "kind": "folder", "title": "Bar A", "folderRole": "bookmarks-bar" } }
+      },
+      {
+        "opId": "op-mount-bar-b", "replicaId": "replica-b", "sequence": 1, "collectionId": "collection-1",
+        "type": "create_node", "baseRevision": null, "occurredAt": "2026-07-27T00:00:01Z",
+        "payload": { "parentId": "folder-root", "afterId": null, "beforeId": null, "node": { "kind": "folder", "title": "Bar B", "folderRole": "bookmarks-bar" } }
+      }
+    ],
+    "receipts": [
+      { "opId": "op-mount-bar-a", "status": "applied", "nodeId": "mount-bar-1" },
+      { "opId": "op-mount-bar-b", "status": "rebased", "nodeId": "mount-bar-1", "code": "invalid_node_constraints" }
+    ],
+    "terminal": {
+      "liveNodes": [
+        { "id": "mount-bar-1", "parentId": "folder-root", "revision": "rev-bar-1", "kind": "folder", "folderRole": "bookmarks-bar" }
+      ],
+      "tombstones": []
+    },
+    "expectedOperationKinds": ["create_node", "create_node"],
+    "expectedIdentities": ["mount-bar-1"],
+    "invariants": ["one-live-folder-per-special-role"]
+  },
+  {
+    "fixtureId": "kns-00-native-create-after-scan",
+    "scenario": "native-create-after-scan",
+    "operations": [
+      {
+        "opId": "op-native-create", "replicaId": "replica-local", "sequence": 12, "collectionId": "collection-1",
+        "type": "create_node", "baseRevision": null, "occurredAt": "2026-07-27T05:00:00Z",
+        "payload": { "parentId": "mount-bar", "afterId": null, "beforeId": null, "node": { "kind": "bookmark", "title": "After scan", "url": "https://example.com/after-scan" } }
+      }
+    ],
+    "receipts": [{ "opId": "op-native-create", "status": "applied", "nodeId": "bookmark-after-scan" }],
+    "terminal": {
+      "liveNodes": [
+        { "id": "bookmark-after-scan", "parentId": "mount-bar", "revision": "rev-scan-1", "kind": "bookmark", "url": "https://example.com/after-scan" }
+      ],
+      "tombstones": []
+    },
+    "expectedOperationKinds": ["create_node"],
+    "expectedIdentities": ["bookmark-after-scan"]
+  },
+  {
+    "fixtureId": "kns-00-native-rename-after-scan",
+    "scenario": "native-rename-after-scan",
+    "operations": [
+      {
+        "opId": "op-native-rename", "replicaId": "replica-local", "sequence": 13, "collectionId": "collection-1",
+        "type": "update_node_content", "targetId": "bookmark-after-scan", "baseRevision": "rev-scan-1",
+        "occurredAt": "2026-07-27T05:01:00Z",
+        "payload": { "base": { "title": "After scan" }, "value": { "title": "Renamed after scan" } }
+      }
+    ],
+    "receipts": [{ "opId": "op-native-rename", "status": "applied", "nodeId": "bookmark-after-scan" }],
+    "terminal": {
+      "liveNodes": [
+        { "id": "bookmark-after-scan", "parentId": "mount-bar", "revision": "rev-scan-2", "kind": "bookmark", "url": "https://example.com/after-scan" }
+      ],
+      "tombstones": []
+    },
+    "expectedOperationKinds": ["update_node_content"],
+    "expectedIdentities": ["bookmark-after-scan"]
+  },
+  {
+    "fixtureId": "kns-00-native-delete-after-scan",
+    "scenario": "native-delete-after-scan",
+    "operations": [
+      {
+        "opId": "op-native-delete", "replicaId": "replica-local", "sequence": 14, "collectionId": "collection-1",
+        "type": "delete_node", "targetId": "bookmark-after-scan", "baseRevision": "rev-scan-2",
+        "occurredAt": "2026-07-27T05:02:00Z", "payload": { "reason": "removed" }
+      }
+    ],
+    "receipts": [{ "opId": "op-native-delete", "status": "applied" }],
+    "terminal": {
+      "liveNodes": [],
+      "tombstones": [{ "targetId": "bookmark-after-scan", "deleteCursor": "tombstone-cursor-scan", "deleteRevision": "delete-scan-1" }]
+    },
+    "expectedOperationKinds": ["delete_node"],
+    "expectedIdentities": ["bookmark-after-scan"],
+    "invariants": ["live-tombstone-exclusive"]
+  },
+  {
+    "fixtureId": "kns-00-remote-create-after-snapshot",
+    "scenario": "remote-create-after-snapshot",
+    "operations": [
+      {
+        "opId": "op-remote-create", "replicaId": "replica-remote", "sequence": 20, "collectionId": "collection-1",
+        "type": "create_node", "baseRevision": null, "occurredAt": "2026-07-27T06:00:00Z",
+        "payload": { "parentId": "mount-bar", "afterId": null, "beforeId": null, "node": { "kind": "bookmark", "title": "From snapshot", "url": "https://example.com/from-snapshot" } }
+      }
+    ],
+    "receipts": [{ "opId": "op-remote-create", "status": "applied", "nodeId": "bookmark-from-snapshot" }],
+    "effects": [{ "kind": "node_created", "nodeId": "bookmark-from-snapshot", "parentId": "mount-bar" }],
+    "terminal": {
+      "liveNodes": [
+        { "id": "bookmark-from-snapshot", "parentId": "mount-bar", "revision": "rev-snap-1", "kind": "bookmark", "url": "https://example.com/from-snapshot" }
+      ],
+      "tombstones": []
+    },
+    "expectedOperationKinds": ["create_node"],
+    "expectedIdentities": ["bookmark-from-snapshot"]
+  },
+  {
+    "fixtureId": "kns-00-bootstrap-merge-client-driven",
+    "scenario": "bootstrap-merge-client-driven",
+    "bootstrapMode": "merge",
+    "operations": [
+      {
+        "opId": "op-merge-create", "replicaId": "replica-local", "sequence": 1, "collectionId": "collection-1",
+        "type": "create_node", "baseRevision": null, "occurredAt": "2026-07-27T00:00:00Z",
+        "payload": { "parentId": "mount-bar", "afterId": null, "beforeId": null, "node": { "kind": "bookmark", "title": "Local only", "url": "https://example.com/local-only" } }
+      }
+    ],
+    "receipts": [{ "opId": "op-merge-create", "status": "applied", "nodeId": "bookmark-local-only" }],
+    "terminal": {
+      "liveNodes": [
+        { "id": "bookmark-local-only", "parentId": "mount-bar", "revision": "rev-local-1", "kind": "bookmark", "url": "https://example.com/local-only" }
+      ],
+      "tombstones": []
+    },
+    "expectedOperationKinds": ["create_node"],
+    "expectedIdentities": ["bookmark-local-only"],
+    "invariants": ["bootstrap-merge-is-client-driven"]
+  },
+  {
+    "fixtureId": "kns-00-cursor-recovery",
+    "scenario": "cursor-recovery",
+    "operations": [],
+    "receipts": [],
+    "effects": [],
+    "input": { "cursor": "expired-cursor-1" },
+    "output": { "snapshotRequired": true, "recoveryCursor": "snapshot-cursor-1" },
+    "terminal": {
+      "liveNodes": [],
+      "tombstones": [],
+      "problemCode": "sync_cursor_expired"
+    },
+    "expectedOperationKinds": [],
+    "expectedIdentities": [],
+    "invariants": ["cursor-recovery-io"]
+  },
+  {
+    "fixtureId": "kns-00-two-mount-recovered",
+    "scenario": "two-mount-recovered",
+    "operations": [
+      {
+        "opId": "op-recovered-bar", "replicaId": "replica-local", "sequence": 30, "collectionId": "collection-1",
+        "type": "create_node", "baseRevision": null, "occurredAt": "2026-07-27T07:00:00Z",
+        "payload": { "parentId": "mount-bar", "afterId": null, "beforeId": null, "node": { "kind": "folder", "title": "Recovered", "folderRole": "recovered" } }
+      },
+      {
+        "opId": "op-recovered-other", "replicaId": "replica-local", "sequence": 31, "collectionId": "collection-1",
+        "type": "create_node", "baseRevision": null, "occurredAt": "2026-07-27T07:00:01Z",
+        "payload": { "parentId": "mount-other", "afterId": null, "beforeId": null, "node": { "kind": "folder", "title": "Recovered", "folderRole": "recovered" } }
+      }
+    ],
+    "receipts": [
+      { "opId": "op-recovered-bar", "status": "applied", "nodeId": "folder-recovered-bar" },
+      { "opId": "op-recovered-other", "status": "applied", "nodeId": "folder-recovered-other" }
+    ],
+    "terminal": {
+      "liveNodes": [
+        { "id": "folder-recovered-bar", "parentId": "mount-bar", "revision": "rev-rec-bar-1", "kind": "folder", "folderRole": "recovered" },
+        { "id": "folder-recovered-other", "parentId": "mount-other", "revision": "rev-rec-other-1", "kind": "folder", "folderRole": "recovered" }
+      ],
+      "tombstones": []
+    },
+    "expectedOperationKinds": ["create_node", "create_node"],
+    "expectedIdentities": ["folder-recovered-bar", "folder-recovered-other"],
+    "invariants": ["recovered-unique-per-parent"]
+  },
+  {
+    "fixtureId": "kns-00-concurrent-recovered-same-parent",
+    "scenario": "concurrent-recovered-same-parent",
+    "operations": [
+      {
+        "opId": "op-recovered-a", "replicaId": "replica-a", "sequence": 1, "collectionId": "collection-1",
+        "type": "create_node", "baseRevision": null, "occurredAt": "2026-07-27T00:00:00Z",
+        "payload": { "parentId": "mount-bar", "afterId": null, "beforeId": null, "node": { "kind": "folder", "title": "Recovered A", "folderRole": "recovered" } }
+      },
+      {
+        "opId": "op-recovered-b", "replicaId": "replica-b", "sequence": 1, "collectionId": "collection-1",
+        "type": "create_node", "baseRevision": null, "occurredAt": "2026-07-27T00:00:01Z",
+        "payload": { "parentId": "mount-bar", "afterId": null, "beforeId": null, "node": { "kind": "folder", "title": "Recovered B", "folderRole": "recovered" } }
+      }
+    ],
+    "receipts": [
+      { "opId": "op-recovered-a", "status": "applied", "nodeId": "folder-recovered-bar" },
+      { "opId": "op-recovered-b", "status": "rebased", "nodeId": "folder-recovered-bar", "code": "invalid_node_constraints" }
+    ],
+    "terminal": {
+      "liveNodes": [
+        { "id": "folder-recovered-bar", "parentId": "mount-bar", "revision": "rev-rec-bar-1", "kind": "folder", "folderRole": "recovered" }
+      ],
+      "tombstones": []
+    },
+    "expectedOperationKinds": ["create_node", "create_node"],
+    "expectedIdentities": ["folder-recovered-bar"],
+    "invariants": ["recovered-unique-per-parent"]
+  }
+]

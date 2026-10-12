@@ -1,0 +1,113 @@
+import { createIcon } from './icons.js';
+
+export interface NativeNode {
+  readonly id: string;
+  readonly title: string;
+  readonly url?: string;
+  readonly parentId?: string;
+  readonly index?: number;
+  readonly unmodifiable?: string;
+  readonly folderType?: string;
+  readonly dateAdded?: number;
+  readonly children?: readonly NativeNode[];
+}
+
+export type IconName = 'folder' | 'chevron' | 'globe' | 'pencil' | 'move' | 'trash' | 'more-horizontal' | 'sync' | 'pin';
+
+export function icon(name: IconName): SVGSVGElement {
+  return createIcon(name === 'chevron' ? 'chevron-down' : name);
+}
+
+/** True when this folder, or the nearest folder above it with a rule, is part of Know-N sync. */
+export function isNodeSynced(
+  id: string,
+  nodesById: ReadonlyMap<string, NativeNode>,
+  boundaries: { readonly selected: readonly string[]; readonly privateLocal: readonly string[] },
+): boolean {
+  let current: NativeNode | undefined = nodesById.get(id);
+  const seen = new Set<string>();
+  while (current && !seen.has(current.id)) {
+    seen.add(current.id);
+    if (boundaries.privateLocal.includes(current.id)) return false;
+    if (boundaries.selected.includes(current.id)) return true;
+    current = current.parentId ? nodesById.get(current.parentId) : undefined;
+  }
+  return false;
+}
+
+/** The site icon slot: the browser's own favicon cache, a globe when there is none. */
+export function faviconTile(pageUrl: string): HTMLElement {
+  const tile = document.createElement('span');
+  tile.className = 'favicon-tile';
+  const img = document.createElement('img');
+  img.width = 32; img.height = 32; img.alt = ''; img.loading = 'lazy';
+  const resource = new URL(chrome.runtime.getURL('/_favicon/'));
+  resource.searchParams.set('pageUrl', pageUrl);
+  resource.searchParams.set('size', '32');
+  img.src = resource.toString();
+  img.addEventListener('error', () => { img.replaceWith(icon('globe')); });
+  tile.append(img);
+  return tile;
+}
+
+export function iconTile(name: IconName): HTMLElement {
+  const tile = document.createElement('span');
+  tile.className = 'favicon-tile';
+  tile.append(icon(name));
+  return tile;
+}
+
+export function domainOf(url: string): string {
+  try { return new URL(url).hostname.replace(/^www\./u, '') || url; } catch { return url; }
+}
+
+export function normalizedUrl(value: string): string | undefined {
+  const raw = value.trim(); if (!raw) return undefined;
+  const candidate = /^[a-z][a-z0-9+.-]*:/iu.test(raw) ? raw : `https://${raw}`;
+  try { const parsed = new URL(candidate); return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? parsed.toString() : undefined; }
+  catch { return undefined; }
+}
+
+export function collectSubtreeIds(node: NativeNode, output: Set<string>): void {
+  output.add(node.id);
+  for (const child of node.children ?? []) collectSubtreeIds(child, output);
+}
+
+/** Bookmarks (not folders) under each folder, for the tree's counts. */
+export function bookmarkTotals(root: NativeNode): Map<string, number> {
+  const totals = new Map<string, number>();
+  const visit = (node: NativeNode): number => {
+    if (node.url !== undefined) return 1;
+    let sum = 0;
+    for (const child of node.children ?? []) sum += visit(child);
+    totals.set(node.id, sum);
+    return sum;
+  };
+  visit(root);
+  return totals;
+}
+
+export interface ManagerElements {
+  readonly pane: HTMLElement;
+  /** Shown instead of the manager while bookmark access is off. */
+  readonly gate: HTMLElement;
+  readonly gateButton: HTMLButtonElement;
+  readonly reloadHint: HTMLElement;
+  readonly body: HTMLElement;
+  readonly card: HTMLElement;
+  readonly tree: HTMLElement;
+  readonly list: HTMLElement;
+  readonly path: HTMLElement;
+  readonly search: HTMLInputElement;
+  readonly newFolder: HTMLButtonElement;
+  readonly newBookmark: HTMLButtonElement;
+  readonly feedback: HTMLElement;
+  readonly selectToggle: HTMLButtonElement;
+  /** The folder's Synced / Not synced mark at the right of the path bar. */
+  readonly syncState: HTMLElement;
+}
+
+export function isInViewport(element: HTMLElement): boolean {
+  const rect = element.getBoundingClientRect();
+  return rect.bottom > 0 && rect.top < window.innerHeight;
+}

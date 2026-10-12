@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 2,
+  "databaseName": "known-phase3-indexeddb-entry",
+  "state": {
+    "serverId": "server-legacy",
+    "collectionId": "collection-legacy",
+    "replicaId": "replica-legacy",
+    "generation": 7,
+    "nextSequence": 42,
+    "queuedOperation": {
+      "sequence": 41,
+      "opId": "op-legacy-41",
+      "eventId": "event-legacy-41",
+      "digest": "sha256:legacy-operation-41",
+      "acknowledged": false
+    },
+    "receipt": {
+      "sequence": 41,
+      "opId": "op-legacy-41",
+      "digest": "sha256:legacy-operation-41",
+      "receiptId": "receipt-legacy-41",
+      "publishedCursor": "cursor-published-41"
+    },
+    "cursor": "cursor-durable-40",
+    "nativeMapping": { "nativeId": "native-legacy", "colpId": "colp-legacy" },
+    "applyIntent": {
+      "intentId": "intent-legacy",
+      "correlationId": "correlation-legacy",
+      "status": "pending",
+      "expectedMutation": "update"
+    }
+  }
+}

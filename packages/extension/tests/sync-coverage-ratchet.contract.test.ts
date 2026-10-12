@@ -1,0 +1,101 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+import { describe, expect, it } from 'vitest';
+
+import {
+  evaluateSyncCoverageRatchet,
+  SYNC_CORE_COVERAGE_FILES,
+  SYNC_NEW_BRANCH_MINIMUM,
+  SYNC_NEW_COVERAGE_FILES,
+  SYNC_PULL_BRANCH_MINIMUM,
+  SYNC_PULL_COVERAGE_FILES,
+} from '../scripts/check-sync-coverage-ratchet.mjs';
+
+/**
+ * CI gate contract (allowlisted in tests/static-anchor-allowlist.ts): coverage floors,
+ * the include list and the V8/CI wiring only exist as configuration consumed by the
+ * coverage runner; the evaluator itself is executed for real by the other cases here.
+ */
+const packageRoot = resolve(import.meta.dirname, '..');
+const repositoryRoot = resolve(packageRoot, '../..');
+const packageJson = JSON.parse(readFileSync(resolve(packageRoot, 'package.json'), 'utf8')) as {
+  readonly scripts?: Readonly<Record<string, string>>;
+  readonly devDependencies?: Readonly<Record<string, string>>;
+};
+const workflow = readFileSync(
+  resolve(repositoryRoot, '.github', 'workflows', 'colp-ci.yml'),
+  'utf8',
+);
+const coverageConfig = readFileSync(resolve(packageRoot, 'vitest.sync-coverage.config.ts'), 'utf8');
+const baseline = JSON.parse(
+  readFileSync(resolve(packageRoot, 'tests/fixtures/sync-coverage-baseline.json'), 'utf8'),
+) as {
+  readonly files: Readonly<Record<string, {
+    readonly lines: number;
+    readonly branches: number;
+    readonly functions: number;
+    readonly statements: number;
+  }>>;
+};
+
+describe('Extension Sync coverage ratchet [SYNC-Q-021]', () => {
+  it('holds every Pull owner above 80% branches instead of relying on the global average', () => {
+    for (const file of SYNC_PULL_COVERAGE_FILES) {
+      expect(baseline.files[file]?.branches).toBeGreaterThanOrEqual(80);
+    }
+    for (const file of SYNC_NEW_COVERAGE_FILES) {
+      expect(baseline.files[file]?.branches).toBeGreaterThanOrEqual(SYNC_NEW_BRANCH_MINIMUM);
+    }
+    const summary = Object.fromEntries(SYNC_CORE_COVERAGE_FILES.map((file) => {
+      const current = baseline.files[file]!;
+      return [file, { lines: { pct: current.lines }, statements: { pct: current.statements },
+        functions: { pct: current.functions }, branches: { pct: file === 'src/pull-apply-runtime.ts'
+          ? SYNC_PULL_BRANCH_MINIMUM - 0.01 : current.branches } }];
+    }));
+    expect(evaluateSyncCoverageRatchet(summary, baseline)).toContain(
+      'src/pull-apply-runtime.ts: branches 79.99% below hard Pull minimum 80%',
+    );
+  });
+
+  it('rejects a listed Sync core file that drops below the per-file baseline', () => {
+    const path = SYNC_CORE_COVERAGE_FILES[0];
+    expect(path).toBeDefined();
+    const floors = baseline.files[path!];
+    expect(floors).toBeDefined();
+    const summary = Object.fromEntries(
+      SYNC_CORE_COVERAGE_FILES.map((file) => {
+        const current = baseline.files[file]!;
+        return [file, {
+          lines: { pct: file === path ? current.lines - 1 : current.lines },
+          branches: { pct: current.branches },
+          functions: { pct: current.functions },
+          statements: { pct: current.statements },
+        }];
+      }),
+    );
+    expect(evaluateSyncCoverageRatchet(summary, baseline)).toEqual([
+      `${path}: lines ${floors!.lines - 1}% dropped below ${floors!.lines}%`,
+    ]);
+  });
+
+  it('does not pass on a global average when a listed file is missing', () => {
+    expect(
+      evaluateSyncCoverageRatchet({ total: { lines: { pct: 99 } } }, baseline),
+    ).toEqual(SYNC_CORE_COVERAGE_FILES.map((file) => `${file}: missing from coverage report`));
+  });
+
+  it('wires V8 coverage, the Sync include list, and the named CI job', () => {
+    expect(packageJson.devDependencies?.['@vitest/coverage-v8']).toBe('3.2.7');
+    expect(packageJson.scripts?.['test:coverage:sync']).toBe(
+      'vitest run --config vitest.sync-coverage.config.ts --coverage && node scripts/check-sync-coverage-ratchet.mjs',
+    );
+    expect(coverageConfig).toContain("reportsDirectory: 'coverage/sync'");
+    expect(coverageConfig).toContain('include: [...SYNC_CORE_COVERAGE_FILES]');
+    expect(coverageConfig).toContain('thresholds: { branches: 80 }');
+    expect(Object.keys(baseline.files)).toEqual([...SYNC_CORE_COVERAGE_FILES]);
+    expect(workflow).toContain('extension-coverage:');
+    expect(workflow).toContain('run: npm run test:coverage:sync');
+    expect(workflow).toContain('- extension-coverage');
+  });
+});

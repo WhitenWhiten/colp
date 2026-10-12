@@ -1,0 +1,46 @@
+import { freezeScopeRecovery } from './pull-recovery-freeze.js';
+import type { BookmarkCreatePlacementRecord, CreatePlacementConsumeResult } from './bookmark-create-placement.js';
+import type { BookmarkEventNode } from './bookmark-event-codec.js';
+import type { JsonObject, SyncScope, createSyncStateStore } from './sync-state-store.js';
+
+export async function resolveCreatePlacement(input: {
+  readonly resolve?: (nativeId: string, node: BookmarkEventNode) => Promise<CreatePlacementConsumeResult | undefined>;
+  readonly complete?: (intentId: string, nativeId?: string) => Promise<void>;
+  readonly markAttention?: (intentId: string) => Promise<void>;
+  readonly store: ReturnType<typeof createSyncStateStore>; readonly scope: SyncScope;
+  readonly nativeId: string; readonly node: BookmarkEventNode; readonly parentNativeId: string;
+}): Promise<{ readonly intent?: BookmarkCreatePlacementRecord; readonly context?: JsonObject; readonly invalid: boolean }> {
+  if (!input.resolve) return { invalid: false };
+  const result = await input.resolve(input.nativeId, input.node);
+  if (!result) return { invalid: false };
+  if (result.state === 'unproven') {
+    await placementAttention(input.store, input.scope, input.nativeId, result.candidates);
+    return { invalid: true };
+  }
+  const intent = result.intent;
+  if (intent.collectionId !== input.scope.collectionId || intent.targetParentNativeId !== input.parentNativeId
+      || (intent.mode !== 'top' && intent.mode !== 'bottom') || intent.expectedIndex !== (input.node.index ?? 0)
+      || intent.batchSize < 1 || intent.batchOrder < 0 || intent.batchOrder >= intent.batchSize
+      || intent.title !== input.node.title || intent.url !== input.node.url) {
+    await input.markAttention?.(intent.intentId);
+    await placementAttention(input.store, input.scope, input.nativeId, [intent]);
+    return { invalid: true };
+  }
+  return { intent, context: { version: 1, mode: intent.mode, targetParentNativeId: intent.targetParentNativeId,
+    collectionId: intent.collectionId, batchId: intent.batchId, batchOrder: intent.batchOrder,
+    batchSize: intent.batchSize, expectedIndex: intent.expectedIndex, intentId: intent.intentId }, invalid: false };
+}
+
+export async function completeCreatePlacement(input: {
+  readonly complete?: (intentId: string, nativeId?: string) => Promise<void>;
+  readonly intent?: BookmarkCreatePlacementRecord; readonly outcome: string;
+}): Promise<void> {
+  if (input.intent && (input.outcome === 'staged' || input.outcome === 'duplicate')) await input.complete?.(input.intent.intentId, input.intent.nativeId);
+}
+
+async function placementAttention(store: ReturnType<typeof createSyncStateStore>, scope: SyncScope,
+  nativeId: string, candidates: readonly BookmarkCreatePlacementRecord[]): Promise<void> {
+  await store.putScopeDiagnostic(scope, { kind: 'bookmark_create_placement', code: 'identity_unproven',
+    details: { nativeId, candidateCount: candidates.length } }).catch(() => undefined);
+  await freezeScopeRecovery(store, scope, 'recovery_identity_unproven').catch(() => undefined);
+}

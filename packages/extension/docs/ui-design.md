@@ -1,0 +1,145 @@
+# Extension UI design
+
+The popup and the options pages follow one design system. It shares tokens, icons and button
+recipes with the Know-N web app and stays quieter than the web: one surface, small ranked actions,
+and status only when it means something.
+
+Shared primitives live in `chrome.css` under "Design kit". Page shells live in `popup.css` and
+`options.css`. Compose what exists. If a screen needs something the kit doesn't have, add it to
+the kit (with a note here) rather than writing a one-off rule next to the feature.
+
+## Principles
+
+1. **One grammar per kind of thing.** A setting is a row (text left, control right). A list is
+   rows inside one white card. A choice between whole modes is a pair of choice cards. A
+   collapsible part uses `.disclosure`. Don't invent a fifth variant.
+2. **Surfaces.** The page background is `--paper`. Content sits in white cards (`--surface-raised`,
+   `--line-strong` border, `--radius-lg`, `--shadow-xs`). Never put a card inside a card. No blue
+   or accent fills on surfaces. Use neutral greys; blue appears only as small marks.
+3. **Controls size to their content.** Selects use `.select-quiet` (8–18rem). Buttons stay at their
+   label width. The only full-width button is the sign-in form's submit.
+4. **One primary action per view.** Primary is ink (`.btn-primary`), secondary is outlined,
+   everything else is ghost. Destructive confirmations use `.btn-danger` only inside the dialog
+   that confirms them.
+5. **Status is quiet.** At most one `.badge` per row, neutral unless something is wrong. Success
+   needs no badge. Don't repeat a state that the sidebar or page head already shows.
+6. **User language.** No percentages, sample sizes, sequence numbers, IDs, time zones, server URLs
+   or raw error codes outside Help & diagnostics. Never interpolate an error code into a sentence.
+   Map known codes to copy and give unknown ones a generic sentence plus "Copy details". Use
+   sentence case, and no italics or all-caps labels.
+7. **Transient UI is styled too.** Build dialogs with `createDialog()` (`src/dialog.ts`). Every
+   empty, loading and error state uses the kit (`.empty`, `.inline-alert`), never bare text.
+
+## Type and spacing
+
+| Role | Size | Weight | Colour |
+|---|---|---|---|
+| Page title (h1) | `--text-2xl` | semibold, `--tracking-display` | `--ink` |
+| Page lede | `--text-sm` | regular | `--muted` |
+| Group title (h2) | `--text-md` | semibold | `--ink` |
+| Row title / list title | `--text-sm` | medium | `--ink` |
+| Row hint / meta | `--text-xs` | regular | `--muted` |
+| Popup page title | `--text-md` | semibold | `--ink` |
+
+Spacing uses `--space-*` and `--hair-*` tokens only. Groups are `--space-6` apart, and rows have
+`--hair-85` / `--space-4` padding.
+
+## Kit reference (`chrome.css`)
+
+| Class | Use |
+|---|---|
+| `.field-quiet` | Filled text input or textarea (popup fields, settings forms). Textareas grow with content. |
+| `.tag-input` + `.chip` + `.chip-remove` | Tag entry: chips inline with a text input, inside `.field-quiet`. |
+| `.chip--suggest` | Dashed suggestion chip (AI folder or tag). Click accepts it. |
+| `.badge[data-tone]` | Row status. Tones: `danger`, `warning`, `success`; neutral by default. |
+| `.inline-alert[data-tone]` | Notice with a coloured 2px rule and icon on a neutral fill, plus an optional ghost action. Goes at the top of its page or group. |
+| `.toggle[role=switch]` | Boolean setting (the web's `.toggle`). Use `aria-checked`. Replaces checkboxes in settings. |
+| `.select-quiet` | Auto-width select on a settings row. |
+| `.view-switch` / `--compact` | Segmented control (tabs inside a page, Top/Bottom). |
+| `.disclosure` | The only expander: a chevron that turns down. |
+| `.set-group` > `.set-group-head` + `.set-card` > `.set-row` | Settings: group title on paper, rows in one card. `.set-row-text` holds `.set-row-title` and `.set-row-hint`; `.set-row-control` sits at the right. |
+| `.set-row--stack` | Control below the text (choice cards, text areas). |
+| `.set-sub` | Dependent option indented under its parent row. |
+| `.set-row-value`, `.set-dot` | Read-only value with an optional state dot (Allowed / Off). |
+| `.choice-pair` > `.choice` | Mutually exclusive modes with an optional `.choice-art` illustration. Selection is an ink ring. |
+| `.list-card` > `.list-row` | Lists (history, bookmarks, credits, tabs): favicon tile, `.list-row-main` (title + meta), `.list-row-tail`. |
+| `.favicon-tile`, `.mini-tags` / `.mini-tag` | Site icon slot and inline `#tag` text in list meta. |
+| `.empty` | Empty state inside a card: icon circle, title, hint, optional button. |
+| `.avatar`, `.avatar--lg`, `.avatar-wrap[data-attention]` | Account monogram or photo; the attention dot marks sync that needs action. |
+| `.sync-bar` (`--thin`), `data-state` | Sync progress: ink fill on a hairline track, set by `paintSyncBar` (`src/sync-progress-ui.ts`). `indeterminate` slides while there is no count yet, `done` turns green, `stalled` turns it amber and `paused` grey; only a running sync moves (the bar slides and the card's arrows turn). Used by the Sync progress card, the sidebar identity and the popup strip. |
+
+## Popup
+
+One shell for every mode (`popup.css`):
+
+```
+header   wordmark · (avatar menu) · settings
+sync     count + thin bar while a sync runs (opens Sync status)
+progress 2px auto-close line (automatic result only; pauses on hover/focus)
+body     status line (result / already saved) → page block → field rows → inline note
+footer   quiet ghost actions left · one primary right
+```
+
+- **Page block:** a 2.75rem favicon tile, then the title as an auto-growing two-line textarea (no
+  pre-selection, no ink ring), then the domain. Clicking the domain edits the URL.
+- **Field rows:** a 3.25rem right-aligned muted label column. Rows are Folder (`.folder-pill`, which
+  opens the inline `.folder-panel` and grows the popup instead of overlaying), Tags (`.tag-input`
+  with suggestion chips below) and Note (`textarea.field-quiet`). The AI folder suggestion is a
+  `.chip--suggest` beside the folder pill. A folder the AI chose shows a muted "AI pick" mark.
+- **Footer by state:**
+
+  | State | Left | Right |
+  |---|---|---|
+  | Manual | Bookmarks, Save tabs | Save |
+  | Automatic result | Undo, History | Done |
+  | Already saved | Remove | Done |
+
+- **Header:** no sync pill. An attention dot on the avatar appears only when sync needs action.
+  Signed-out users see no avatar. Tags and notes work without an account.
+- Width is 380px and maximum height 600px. Only the body scrolls; the header and footer stay pinned.
+
+## Options
+
+Sidebar (`15rem`, on paper, divided from the main column by a hairline):
+
+```
+wordmark
+identity: avatar · name · sync line ("Synced · 2 min ago" / "Not signed in · Sign in")
+Library   Bookmarks · History · Subscriptions · Sync
+Settings  Saving · AI suggestions · General · Account
+bottom    Help & diagnostics · version
+```
+
+The main column is centered, with `46rem` maximum width for settings pages and `72rem` for
+lists (Bookmarks, History, Subscriptions). The page head holds the h1 and lede, with actions on the right. Toolbars (search plus
+"Label: value" pills) sit in a row under the head. Below `56rem` the sidebar becomes a sticky top
+bar whose items wrap onto a second line, so every destination stays visible.
+
+| Route | Content |
+|---|---|
+| `#bookmarks` | Bookmark manager (tree and list in one card); tags and notes shown and searchable. The selection bar sits under the rows and sticks to the window's bottom edge; a selection belongs to the folder, search or tags on screen |
+| `#history` | Saved-page history grouped by day; one badge per row, problems only |
+| `#subscriptions` | Subscriptions; defaults as the last group |
+| `#sync/...` | Collection, folders, status, import (connect card when signed out) |
+| `#saving` | Toolbar mode, result panel, default folder, placement, shortcuts |
+| `#ai` | Provider choice, Know-N authorization, own AI service, correction memory |
+| `#general` | Language, permissions, export / backup / restore |
+| `#account`, `#account/credits` | Identity, credits summary, sign out; credit activity table |
+| `#help` | Diagnostics (the only place for internals) |
+
+Old hashes redirect: `#saving/overview` and `#saving/history` go to `#history`;
+`#preferences?section=capture|bookmarks` goes to `#saving`;
+`…=classification|local-classification` goes to `#ai`; `…=language|permissions` goes to
+`#general`; `…=subscriptions` goes to `#subscriptions`; `#diagnostics…` goes to `#help…`;
+`#account/session` goes to `#account`.
+
+## Verification
+
+Before a UI change lands, screenshot every state it touches with the options/popup harness:
+
+- signed in, signed out and first run
+- empty, loading and error states, and dialogs
+- 1280px and 820px options; 380px popup
+- `en` and `zh_CN`
+
+Look at the screenshots. Passing tests don't show that a screen looks right.

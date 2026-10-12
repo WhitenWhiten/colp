@@ -1,0 +1,77 @@
+{
+  "contract": "s-01-range-transition",
+  "rows": [
+    {
+      "id": "active-to-active",
+      "source": "active",
+      "destination": "active",
+      "action": "native_move",
+      "chromeMutation": true
+    },
+    {
+      "id": "active-to-detached",
+      "source": "active",
+      "destination": "detached",
+      "action": "retain_local_copy",
+      "chromeMutation": false
+    },
+    {
+      "id": "active-to-unmounted",
+      "source": "active",
+      "destination": "unmounted",
+      "action": "retain_local_copy",
+      "chromeMutation": false
+    },
+    {
+      "id": "active-to-private-local",
+      "source": "active",
+      "destination": "private_local",
+      "action": "retain_local_copy",
+      "chromeMutation": false
+    },
+    {
+      "id": "detached-to-active",
+      "source": "detached",
+      "destination": "active",
+      "action": "materialize_independent",
+      "chromeMutation": true
+    },
+    {
+      "id": "unmounted-to-active",
+      "source": "unmounted",
+      "destination": "active",
+      "action": "materialize_independent",
+      "chromeMutation": true
+    },
+    {
+      "id": "detached-to-detached",
+      "source": "detached",
+      "destination": "detached",
+      "action": "observe_only",
+      "chromeMutation": false
+    },
+    {
+      "id": "identity-unconfirmed",
+      "source": "active",
+      "destination": "active",
+      "identityConfirmed": false,
+      "action": "await_dependency",
+      "chromeMutation": false
+    },
+    {
+      "id": "pending-source-to-active",
+      "source": "pending",
+      "destination": "active",
+      "action": "await_dependency",
+      "chromeMutation": false
+    },
+    {
+      "id": "pending-local-operations-retain",
+      "source": "active",
+      "destination": "detached",
+      "pendingLocalOperations": true,
+      "action": "retain_local_copy",
+      "chromeMutation": false
+    }
+  ]
+}

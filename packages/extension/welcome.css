@@ -1,0 +1,16 @@
+/* First run: the welcome card at the top of Bookmarks. */
+.welcome { margin-bottom: var(--space-5); }
+.welcome-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-4); align-items: start; padding: var(--space-5); }
+.welcome-card h2 { margin: 0 0 var(--hair-30); font-size: var(--text-lg); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-tight); }
+.welcome-card p { margin: 0; color: var(--muted); font-size: var(--text-sm); line-height: var(--leading-copy); }
+.welcome-actions { display: flex; gap: var(--space-2); }
+.steps { display: grid; gap: var(--space-2); margin: var(--space-4) 0 0; padding: 0; list-style: none; counter-reset: step; }
+/* Each li holds exactly one <span> so inline content stays one grid cell. */
+.steps li { display: grid; grid-template-columns: auto 1fr; gap: var(--space-3); align-items: center; color: var(--ink-2); font-size: var(--text-sm); }
+.steps li::before { counter-increment: step; content: counter(step); display: grid; place-items: center; width: 1.5rem; height: 1.5rem; border-radius: 50%; background: var(--paper-2); color: var(--ink-3); font-size: var(--text-xs); font-weight: var(--weight-semibold); }
+.steps li[data-done]::before { content: '✓'; background: var(--ink); color: var(--paper); }
+.steps a { color: var(--ink-2); text-decoration: underline; text-decoration-color: var(--line-heavy); text-underline-offset: 2px; }
+.steps a:hover { color: var(--ink); }
+.pin-hint { display: inline-flex; align-items: center; gap: var(--hair-30); height: 1.5rem; padding: 0 var(--hair-40); border-radius: var(--radius-xs); background: var(--paper); color: var(--ink-3); font-size: var(--text-xs); vertical-align: middle; }
+.pin-hint svg { width: 0.85rem; height: 0.85rem; }
+@media (max-width: 40rem) { .welcome-card { grid-template-columns: minmax(0, 1fr); } }

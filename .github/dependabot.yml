@@ -52,6 +52,22 @@ updates:
       web-patch:
         update-types: [patch]
 
+  # The browser extension moved here from Know-N; see packages/extension/UPSTREAM.md.
+  - package-ecosystem: npm
+    directory: /packages/extension
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    ignore:
+      # Node types must match the oldest supported runtime (engines: >=22).
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+    groups:
+      extension-patch:
+        update-types: [patch]
+
   - package-ecosystem: docker
     directory: /packages/server
     schedule:

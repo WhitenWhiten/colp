@@ -1,0 +1,7 @@
+{
+  "type": "object",
+  "properties": {
+    "identityDisabled": { "type": "boolean" },
+    "serverOrigin": { "type": "string" }
+  }
+}

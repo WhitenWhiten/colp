@@ -1,0 +1,53 @@
+// @vitest-environment happy-dom
+import { readFile } from 'node:fs/promises';
+import { afterEach, expect, test, vi } from 'vitest';
+import { bindFirstRunOnboarding } from '../src/first-run-ui.js';
+import type { FirstRunPreviewOk, FirstRunRequest, PublicRootView } from '../src/types.js';
+afterEach(() => { window.dispatchEvent(new Event('pagehide')); vi.unstubAllGlobals(); document.body.replaceChildren(); });
+const preview = (id: string): FirstRunPreviewOk => ({ ok: true, previewId: id, treeDigest: id, boundaryVersion: '1',
+  bookmarkCount: 2, folderCount: 1, skippedCount: 0, warnings: [] });
+const view = (id: string): PublicRootView => ({ viewId: id, status: 'ready', roots: [
+  { ref: 'bar', kind: 'bookmarks_bar', title: 'Bookmarks bar', depth: 0, selected: true, privateLocal: false,
+    managed: false, bookmarkCount: 2, folderCount: 1 },
+] });
+async function mount(sendMessage: (message: FirstRunRequest) => Promise<unknown>) {
+  const markup = await readFile('options.html', 'utf8');
+  // Mount only the real page body; this controller test does not load its entry script or stylesheets.
+  document.body.innerHTML = markup.match(/<body[^>]*>([\s\S]*)<\/body>/u)![1]!.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gu, '');
+  const values: Record<string, unknown> = { 'known.sync.collection.v1': 'library' };
+  vi.stubGlobal('chrome', { storage: { local: { get: async (key: string) => ({ [key]: values[key] }),
+    set: async (patch: Record<string, unknown>) => { Object.assign(values, patch); } } }, runtime: { sendMessage } });
+  const rootTree = document.getElementById('root-tree')!;
+  rootTree.innerHTML = '<label class="root-select"><input type="checkbox" data-ref="bar" checked></label>';
+  const ui = bindFirstRunOnboarding({ rootTree, saveRoots: document.getElementById('save-roots') as HTMLButtonElement,
+    requestPermission: document.getElementById('request-bookmark-permission') as HTMLButtonElement,
+    folderHeading: document.getElementById('folder-heading')!, folderIntro: document.getElementById('folder-intro')!, showPane: () => {} });
+  await vi.waitFor(() => expect(ui.isRangeActive()).toBe(true));
+  return { ui, start: document.getElementById('first-run-start') as HTMLButtonElement };
+}
+test('a later root render owns the displayed preview even when an earlier read returns last', async () => {
+  const reads: Array<(value: unknown) => void> = [];
+  const f = await mount(async message => message.kind === 'known.firstRun.status' ? { ok: true, firstRun: 'none', phase: 'draft' }
+    : new Promise(resolve => { reads.push(resolve); }));
+  f.ui.onRootsRendered(view('first'), true, true); await vi.waitFor(() => expect(reads).toHaveLength(1));
+  f.ui.onRootsRendered(view('second'), true, true); await vi.waitFor(() => expect(reads).toHaveLength(2));
+  reads[1]!(preview('latest')); await vi.waitFor(() => expect(f.start.disabled).toBe(false));
+  reads[0]!(preview('stale')); await Promise.resolve();
+  expect(document.getElementById('first-run-confirm')!.dataset.treeDigest).toBe('latest');
+});
+test('the merge button prevents duplicate submissions and retries the same reviewed command', async () => {
+  const confirmations: Extract<FirstRunRequest, { kind: 'known.firstRun.confirm' }>[] = [];
+  let finish!: (value: unknown) => void;
+  const f = await mount(async message => {
+    if (message.kind === 'known.firstRun.status') return { ok: true, firstRun: 'none', phase: 'draft' };
+    if (message.kind === 'known.firstRun.preview') return preview('reviewed');
+    if (message.kind === 'known.firstRun.confirm') { confirmations.push(message); return new Promise(resolve => { finish = resolve; }); }
+    return { ok: false, error: 'unexpected' };
+  });
+  f.ui.onRootsRendered(view('ready'), true, true); await vi.waitFor(() => expect(f.start.disabled).toBe(false));
+  f.start.click(); f.start.click(); expect(confirmations).toHaveLength(1);
+  finish({ ok: false, error: 'offline' }); await vi.waitFor(() => expect(f.start.disabled).toBe(false));
+  f.start.click(); expect(confirmations).toHaveLength(2);
+  expect(confirmations[1]?.confirmationId).toBe(confirmations[0]?.confirmationId);
+  finish({ ok: false, error: 'offline' }); await vi.waitFor(() => expect(f.start.disabled).toBe(false));
+});

@@ -1,0 +1,5624 @@
+{
+  "extensionName": {
+    "message": "Know-N",
+    "description": "Extension name shown in the browser."
+  },
+  "extensionShortName": {
+    "message": "Know-N",
+    "description": "Short extension name."
+  },
+  "extensionDescription": {
+    "message": "Save, tag and organize your browser bookmarks. No account needed. Sync with Know-N across browsers when you want.",
+    "description": "Chrome Web Store and extension management description."
+  },
+  "actionTitle": {
+    "message": "Know-N — save this page",
+    "description": "Toolbar button tooltip."
+  },
+  "commandSavePage": {
+    "message": "Save the current page as a bookmark",
+    "description": "Keyboard shortcut description for opening the save popup."
+  },
+  "commandSaveWindowTabs": {
+    "message": "Save all tabs in the current window to Know-N",
+    "description": "Keyboard shortcut description for saving the window's tabs."
+  },
+  "auth_accessRevokedSignAgain": {
+    "message": "Your access was revoked. Sign in again."
+  },
+  "auth_anotherSignSignOut": {
+    "message": "Another sign-in or sign-out interrupted this one. Try again."
+  },
+  "auth_browserPolicyDoesNot": {
+    "message": "Your browser policy does not allow this sign-in."
+  },
+  "auth_browserSignedOutBecause": {
+    "message": "This browser was signed out because the sign-in configuration changed. Sign in again."
+  },
+  "auth_checkConnectionTryAgain": {
+    "message": "Check your connection and try again."
+  },
+  "auth_cooldownSeconds": {
+    "message": "$1s"
+  },
+  "auth_couldNotRestoreSession": {
+    "message": "Could not restore the session. Please try again."
+  },
+  "auth_couldNotSendSign": {
+    "message": "Could not send a sign-in code. Try password sign-in or try again later."
+  },
+  "auth_couldNotSignPlease": {
+    "message": "Could not sign in. Please try again."
+  },
+  "auth_couldNotStartProvider": {
+    "message": "Could not start provider sign-in. Try email sign-in."
+  },
+  "auth_emailPasswordIncorrect": {
+    "message": "Username, email or password is incorrect."
+  },
+  "auth_ifAccountExistsSign": {
+    "message": "If an account exists for $1, a sign-in code was sent."
+  },
+  "auth_knowNCouldNot": {
+    "message": "Know-N could not reach its background service. Reload the extension, or restart the browser, then try again."
+  },
+  "auth_knowNDidNot": {
+    "message": "Know-N did not accept sign-in from this copy of the extension. Reinstall it, or sign in on the Know-N website."
+  },
+  "auth_managedSettingsConflictBuild": {
+    "message": "Managed settings conflict with this build."
+  },
+  "auth_selfHostedPasswordHelp": {
+    "message": "Reset your password from the server terminal."
+  },
+  "auth_serverConfigurationCouldNot": {
+    "message": "The server configuration could not be verified."
+  },
+  "auth_serverConfigurationFailed": {
+    "message": "Check the server address and allow access before signing in."
+  },
+  "auth_signFailedTryAgain": {
+    "message": "Sign-in failed. Try again, or sign in on the Know-N website."
+  },
+  "auth_signProblemTryAgain": {
+    "message": "Sign-in problem. Try again, or sign in on the Know-N website."
+  },
+  "auth_signSucceededButSession": {
+    "message": "Sign-in succeeded but the session cookie was missing. Try again."
+  },
+  "auth_signWindowDidNot": {
+    "message": "The sign-in window did not complete. Try again."
+  },
+  "auth_signingOut": {
+    "message": "Signing out…"
+  },
+  "auth_tooManyRequestsTry": {
+    "message": "Too many requests. Try again shortly."
+  },
+  "auth_useButtonSignOut": {
+    "message": "Use the button to sign out."
+  },
+  "auth_useButtonStartSign": {
+    "message": "Use the button to start sign-in."
+  },
+  "auth_usernameOrEmail": {
+    "message": "Username or email"
+  },
+  "auth_verifyEmailFirstCheck": {
+    "message": "Verify your email first — check your inbox, then sign in again."
+  },
+  "auth_youreSignedNowChoose": {
+    "message": "You're signed in — now choose where this browser syncs."
+  },
+  "backup_completed": {
+    "message": "Restored $1 items and $2 history records to this browser."
+  },
+  "backup_confirmMetadata": {
+    "message": "Restore matching metadata"
+  },
+  "backup_downloadReady": {
+    "message": "Download started. Keep this file to restore your data later."
+  },
+  "backup_existingMetadata": {
+    "message": "Restore metadata to existing bookmarks"
+  },
+  "backup_existingMetadataHint": {
+    "message": "Match unique bookmark paths and exact URLs. Existing bookmarks are kept and no copies are created. Current conflicting values are kept; retain the backup to review skipped values."
+  },
+  "backup_exportTitle": {
+    "message": "Export bookmarks"
+  },
+  "backup_failed": {
+    "message": "The backup operation could not finish. Your existing bookmarks are kept. Try again."
+  },
+  "backup_formatHtml": {
+    "message": "HTML file"
+  },
+  "backup_formatJson": {
+    "message": "Know-N backup"
+  },
+  "backup_historyPreview": {
+    "message": "$1 history records will be restored for viewing. Old operations and credentials are excluded."
+  },
+  "backup_htmlHint2": {
+    "message": "Works in any browser. Includes folders, descriptions, tags and notes."
+  },
+  "backup_importHint": {
+    "message": "Existing bookmarks are kept. History is restored for viewing and stays on this browser."
+  },
+  "backup_invalid": {
+    "message": "This is not a valid Know-N browser backup. No data has been imported."
+  },
+  "backup_jsonHint2": {
+    "message": "Also keeps history and settings. API keys are excluded. AI connections with URL queries or fragments, or invalid settings, are skipped; set them up again after restoring."
+  },
+  "backup_metadataChanged": {
+    "message": "The restore could not finish. Bookmarks or metadata may have changed. Choose the backup again to review current matches."
+  },
+  "backup_metadataMatches": {
+    "message": "$1 matching items; $2 ambiguous items skipped; $3 unmatched items skipped; $4 items with conflicts."
+  },
+  "backup_metadataRestored": {
+    "message": "Metadata restored to $1 existing items. $2 items have conflicting values kept for review."
+  },
+  "backup_permissionRequired": {
+    "message": "Allow bookmark access in General settings before exporting or restoring."
+  },
+  "backup_preparing": {
+    "message": "Preparing your download…"
+  },
+  "backup_reloadSettings": {
+    "message": "Reload to use restored settings"
+  },
+  "backup_restoreCount_one": {
+    "message": "Restore $1 item"
+  },
+  "backup_restoreCount_other": {
+    "message": "Restore $1 items"
+  },
+  "backup_restoreSettings": {
+    "message": "Also restore browser preferences and AI configuration. Saving starts in manual mode; reconnect AI separately."
+  },
+  "backup_restoredHistory": {
+    "message": "Restored history"
+  },
+  "backup_restoredHistoryHint": {
+    "message": "Restored from a backup. This is a local historical record; its old operations will not run again. Use Locate bookmark to edit the restored bookmark."
+  },
+  "backup_tooLarge": {
+    "message": "This backup exceeds the supported size (32 MB or 100,000 records)."
+  },
+  "backup_unsupportedUrl": {
+    "message": "A bookmark URL is unsupported. HTML export can preserve it; JSON backups cannot restore executable or invalid URLs."
+  },
+  "backup_versionUnsupported": {
+    "message": "This backup format is not supported by this version of Know-N."
+  },
+  "capture_accountPreferencesChangedElsewhere": {
+    "message": "Account preferences changed elsewhere. Review both values."
+  },
+  "capture_activeAccountCollectionChanged": {
+    "message": "The active account or collection changed. Refresh settings."
+  },
+  "capture_allCloudDevices": {
+    "message": "All cloud devices"
+  },
+  "capture_allowBookmarkAccessSave": {
+    "message": "Allow bookmark access to save these tabs."
+  },
+  "capture_alreadySavedAt": {
+    "message": "Already saved: $1"
+  },
+  "capture_alreadySavedCheckUnavailable": {
+    "message": "Already-saved check unavailable"
+  },
+  "capture_applicationNotConfirmedClose": {
+    "message": "Application is not confirmed. Close this dialog and check the saved result."
+  },
+  "capture_applyBrowsersRating": {
+    "message": "Apply this browser’s rating"
+  },
+  "capture_applyClassificationSuggestion": {
+    "message": "Apply classification suggestion"
+  },
+  "capture_applySuggestion": {
+    "message": "Apply this suggestion"
+  },
+  "capture_applySuggestionNoNew": {
+    "message": "Apply this suggestion to $1? No new classification call will be made."
+  },
+  "capture_automaticCaptureNeedsClassification": {
+    "message": "Automatic capture needs a classification spending authorization. Saved bookmarks are preserved."
+  },
+  "capture_automaticClassificationAwaitsQuality": {
+    "message": "Folder suggestions are unavailable right now"
+  },
+  "capture_automaticClassificationCoverage": {
+    "message": "Automatic classification coverage"
+  },
+  "capture_automaticClassificationPausedBrowser": {
+    "message": "Automatic classification is paused on this browser. Saving and sync continue."
+  },
+  "capture_automaticClassificationPausedSaving": {
+    "message": "Folder suggestions paused. Saving and sync continue."
+  },
+  "capture_automaticClassificationReadyUnder": {
+    "message": "Automatic classification is ready under the current authorization."
+  },
+  "capture_automaticFolderPlacementAwaiting": {
+    "message": "Automatic folder placement is awaiting quality approval. Choose folders manually for saved bookmarks."
+  },
+  "capture_automaticSavingReady": {
+    "message": "Automatic saving is ready"
+  },
+  "capture_beforeSignIn": {
+    "message": "Saved before sign-in"
+  },
+  "capture_beforeSignInDetails": {
+    "message": "Saved before sign-in on this browser. This record stays local. Use Locate bookmark to edit the bookmark itself."
+  },
+  "capture_bookmarkAccessDeclinedPreview": {
+    "message": "Bookmark access was declined. The preview remains available."
+  },
+  "capture_bookmarkAccessOffExisting": {
+    "message": "Bookmark access is off. Existing bookmarks remain in your browser."
+  },
+  "capture_bookmarkAccessRequiredOpen": {
+    "message": "Bookmark access is required. Open mode settings to enable it."
+  },
+  "capture_bookmarkChangedCloseReopen": {
+    "message": "This bookmark changed. Close and reopen the editor to choose again."
+  },
+  "capture_bookmarkChangedReopen": {
+    "message": "This bookmark changed. Close and reopen to choose again."
+  },
+  "capture_bookmarkDeletedLocally": {
+    "message": "Bookmark deleted locally"
+  },
+  "capture_bookmarkEditedAfterClassification": {
+    "message": "Bookmark edited after classification"
+  },
+  "capture_bookmarkEditedBrowser": {
+    "message": "Bookmark edited in browser"
+  },
+  "capture_bookmarkPermissionNeeded": {
+    "message": "Bookmark permission needed"
+  },
+  "capture_bookmarkPermissionRequired": {
+    "message": "Bookmark permission required"
+  },
+  "capture_bookmarkPermissionRequiredRead": {
+    "message": "Bookmark permission is required to read the default target."
+  },
+  "capture_bookmarksCaptureHistoryRetained": {
+    "message": "Bookmarks and capture history are retained. Previous evidence will no longer affect future choices."
+  },
+  "capture_browserOfflineConfirmedLocal": {
+    "message": "This browser is offline. Confirmed local bookmarks are saved."
+  },
+  "capture_browserPageCannotBookmarked": {
+    "message": "This browser page cannot be bookmarked here."
+  },
+  "capture_browserPlacementConfirmed": {
+    "message": "Browser placement confirmed"
+  },
+  "capture_browserSaveUnavailable": {
+    "message": "Browser save unavailable"
+  },
+  "capture_browsersStatusCouldNot": {
+    "message": "This browser’s status could not be read. Reopen this view to retry."
+  },
+  "capture_captureCouldNotStart": {
+    "message": "Capture could not start. Open mode settings or retry from the toolbar."
+  },
+  "capture_captureId": {
+    "message": "Capture ID: $1"
+  },
+  "capture_changeNotConfirmedDraft": {
+    "message": "Change is not confirmed. Your draft is retained; refresh the status before retrying."
+  },
+  "capture_checkBookmarksSync": {
+    "message": "Check this bookmark’s sync"
+  },
+  "capture_checkClassificationResult": {
+    "message": "Check classification result"
+  },
+  "capture_checkPreviousControlChange": {
+    "message": "Check previous control change"
+  },
+  "capture_checkSaveResult": {
+    "message": "Check save result"
+  },
+  "capture_checkSaveResults": {
+    "message": "Check save results"
+  },
+  "capture_checkSelectedSaveResults": {
+    "message": "Check selected save results"
+  },
+  "capture_checked": {
+    "message": "$1 Checked $2."
+  },
+  "capture_checkingCurrentPrice": {
+    "message": "Checking current price…"
+  },
+  "capture_checkingSaveResult": {
+    "message": "Checking save result"
+  },
+  "capture_chooseBrowserFolder": {
+    "message": "Choose a browser folder"
+  },
+  "capture_chooseLocalFolderSettings": {
+    "message": "Choose a local folder in settings"
+  },
+  "capture_choosingFolder": {
+    "message": "Choosing a folder…"
+  },
+  "capture_classificationAuthorizationRequired": {
+    "message": "Set a spending limit under AI suggestions"
+  },
+  "capture_classificationAvailabilityCouldNot": {
+    "message": "Classification availability could not be verified. Existing bookmarks are preserved."
+  },
+  "capture_classificationAvailabilityCouldNot2": {
+    "message": "Could not check whether suggestions are available"
+  },
+  "capture_classificationInterrupted": {
+    "message": "Classification interrupted"
+  },
+  "capture_classificationWaitingCreditsSpending": {
+    "message": "Classification is waiting for credits or a spending limit review. Saved bookmarks are preserved."
+  },
+  "capture_clearPersonalClassificationMemory": {
+    "message": "Clear personal classification memory"
+  },
+  "capture_clearingNotConfirmedRetry": {
+    "message": "Clearing is not confirmed. Retry this request; your bookmarks are preserved."
+  },
+  "capture_cloudClassificationConfirmed": {
+    "message": "Cloud classification confirmed"
+  },
+  "capture_cloudStatusUnverified": {
+    "message": "Cloud status could not be verified."
+  },
+  "capture_configuredFolderUnavailableChoose": {
+    "message": "The configured folder is unavailable. Choose a folder to continue."
+  },
+  "capture_confirmSaveSelectedTabs": {
+    "message": "Confirm and save selected tabs"
+  },
+  "capture_confirmationItemBelongsCapture": {
+    "message": "This confirmation item belongs to the capture you opened."
+  },
+  "capture_couldNotSave": {
+    "message": "Could not save"
+  },
+  "capture_couldNotSaveFeedback": {
+    "message": "Could not save feedback. Close when ready."
+  },
+  "capture_creditPriceChanged": {
+    "message": "Credit price changed"
+  },
+  "capture_creditsCouldNotChecked": {
+    "message": "Credits could not be checked"
+  },
+  "capture_creditsCouldNotVerified": {
+    "message": "Credits could not be verified. Existing bookmarks are preserved."
+  },
+  "capture_currentPriceUpCredits": {
+    "message": "Up to $1 credits per suggestion. $2 available. The limit lasts 24 hours."
+  },
+  "capture_dataTable": {
+    "message": "Data table · $1"
+  },
+  "capture_defaultFolderBrowser": {
+    "message": "Default folder on this browser"
+  },
+  "capture_defaultFolderOutsideBrowsers": {
+    "message": "The default folder is outside this browser’s sync scope. Local saves remain available."
+  },
+  "capture_defaultFolderSetting": {
+    "message": "Default folder"
+  },
+  "capture_defaultTargetOnlyActive": {
+    "message": "Saves go to $1. Only your clicks save pages; existing bookmarks stay as they are."
+  },
+  "capture_definitionsTimings": {
+    "message": "Definitions and timings"
+  },
+  "capture_diagnosticsCouldNotRefreshed": {
+    "message": "Diagnostics could not be refreshed. The last available details are retained."
+  },
+  "capture_discardUnconfirmedCorrection": {
+    "message": "Discard unconfirmed correction"
+  },
+  "capture_downloadRedactedJson": {
+    "message": "Download redacted JSON"
+  },
+  "capture_duplicateTabsMerged": {
+    "message": "$1 duplicate tabs merged"
+  },
+  "capture_enableAutomaticCapture": {
+    "message": "Enable automatic capture"
+  },
+  "capture_excludedCapture": {
+    "message": "Excluded from capture"
+  },
+  "capture_explicitFeedbackCoverageSave": {
+    "message": "Explicit feedback coverage: $1. $2 save results unknown; $3 in progress."
+  },
+  "capture_explicitFolderChoicesBroke": {
+    "message": "Your explicit folder choices broke a tie between equally scored candidates."
+  },
+  "capture_explicitSatisfactionDescribesPeople": {
+    "message": "Explicit satisfaction describes people who rated their folder result. It is not classification accuracy. Implicit acceptance is counted separately and is never a learning label."
+  },
+  "capture_feedbackCouldNotSaved": {
+    "message": "Your feedback could not be saved. Keep this panel open and retry."
+  },
+  "capture_folderUnavailable": {
+    "message": "folder unavailable"
+  },
+  "capture_foldersCouldNotRead": {
+    "message": "Folders could not be read. Reload after granting bookmark access."
+  },
+  "capture_implicitAcceptanceTerminalSave": {
+    "message": "Implicit acceptance: $1. Terminal save success: $2; terminal coverage: $3."
+  },
+  "capture_itemCouldNotStart": {
+    "message": "This item could not start. Check its destination and resume unfinished items."
+  },
+  "capture_knowNCanOnly": {
+    "message": "Know-N can only read some tab addresses. Allow tab access to include all of them."
+  },
+  "capture_lastRecordedCloudLocation": {
+    "message": "Last recorded cloud location: $1"
+  },
+  "capture_learningOffNoPersonal": {
+    "message": "Learning is off. No personal evidence is read or collected."
+  },
+  "capture_loadingPersonalMemory": {
+    "message": "Loading personal memory…"
+  },
+  "capture_localClassificationFailed": {
+    "message": "Your AI service could not classify this page"
+  },
+  "capture_localLocationHasNot": {
+    "message": "Local location has not been confirmed."
+  },
+  "capture_locationAwaitingConfirmation": {
+    "message": "Location awaiting confirmation"
+  },
+  "capture_manualCaptureSelectedAutomatic": {
+    "message": "Manual capture is selected. Automatic classification is not dispatched."
+  },
+  "capture_manualSaving": {
+    "message": "Manual saving"
+  },
+  "capture_maximumCredits24Hours": {
+    "message": "Maximum credits in 24 hours"
+  },
+  "capture_maximumCreditsPerCapture": {
+    "message": "Maximum credits per save"
+  },
+  "capture_memoryLastCleared": {
+    "message": "Memory last cleared: $1"
+  },
+  "capture_modeAutomatic": {
+    "message": "Automatic"
+  },
+  "capture_noBookmarkFolders": {
+    "message": "No bookmark folders"
+  },
+  "capture_noCurrentExplicitChoices": {
+    "message": "No current explicit choices to show."
+  },
+  "capture_noFolderFit": {
+    "message": "No folder fit"
+  },
+  "capture_noFolderRuleMatched": {
+    "message": "No folder rule matched"
+  },
+  "capture_noIssueFoundChecked": {
+    "message": "No issue found in the checked local state."
+  },
+  "capture_noMatchingConfirmationCurrently": {
+    "message": "No matching confirmation is currently listed. It may already be resolved or unavailable in this collection."
+  },
+  "capture_noMatchingTasksPage": {
+    "message": "No matching tasks on this page. Load more to continue."
+  },
+  "capture_noRatingsYet": {
+    "message": "No ratings yet"
+  },
+  "capture_noTasksPeriod": {
+    "message": "No tasks in this period."
+  },
+  "capture_nonePeriod": {
+    "message": "None in this period."
+  },
+  "capture_notEnoughCredits": {
+    "message": "Not enough credits"
+  },
+  "capture_offlineLocalSavingRemains": {
+    "message": "Offline; local saving remains available"
+  },
+  "capture_offlineShowingLastAvailable": {
+    "message": "Offline · showing the last available records."
+  },
+  "capture_onThisBrowser": {
+    "message": "On this browser"
+  },
+  "capture_openBookmarkPermissions": {
+    "message": "Open bookmark permissions"
+  },
+  "capture_openClassificationControls": {
+    "message": "Open classification controls"
+  },
+  "capture_openSyncStatus": {
+    "message": "Open Sync › Status"
+  },
+  "capture_operationCouldNotFinish": {
+    "message": "This operation could not finish. Your bookmark and draft are preserved."
+  },
+  "capture_originalBookmarkDeletedHistory": {
+    "message": "The original bookmark was deleted. This history record is retained."
+  },
+  "capture_pagesSaveBrowserFirst": {
+    "message": "Pages save straight into this browser’s bookmarks. No account or AI service is needed."
+  },
+  "capture_partRuntimeStatusCould": {
+    "message": "Part of the runtime status could not be read."
+  },
+  "capture_pauseBrowsersClassification": {
+    "message": "Pause this browser’s classification"
+  },
+  "capture_pausedResumed": {
+    "message": "Paused or resumed"
+  },
+  "capture_permissionNotGrantedNo": {
+    "message": "Permission was not granted. No bookmark was created."
+  },
+  "capture_personalMemoryCouldNot": {
+    "message": "Personal memory could not be loaded. Sign in and reopen settings to retry."
+  },
+  "capture_policyVersion": {
+    "message": "Policy version: $1"
+  },
+  "capture_previewSaved": {
+    "message": "Preview · Saved"
+  },
+  "capture_previewTagPerformance": {
+    "message": "Performance"
+  },
+  "capture_previewTagWeb": {
+    "message": "Web"
+  },
+  "capture_previousChangeConfirmed": {
+    "message": "The previous change is confirmed."
+  },
+  "capture_previousClearRequestHas": {
+    "message": "The previous clear request has no confirmed result. Retry to check the same request."
+  },
+  "capture_previousControlChangeHas": {
+    "message": "A previous control change has no confirmed result."
+  },
+  "capture_previousCorrectionCouldNot": {
+    "message": "The previous correction could not be discarded. Retry or reopen the editor."
+  },
+  "capture_previousCorrectionDiscardedSave": {
+    "message": "Previous correction discarded. Save again to send the new correction."
+  },
+  "capture_previousSaveNeedsVerification": {
+    "message": "A previous save needs verification before another create."
+  },
+  "capture_priceCouldNotConfirmed": {
+    "message": "Price could not be confirmed. No authorization was saved."
+  },
+  "capture_proposedFolder": {
+    "message": "Proposed folder: $1"
+  },
+  "capture_proposedFolder2": {
+    "message": "the proposed folder"
+  },
+  "capture_providerKeyNeeded": {
+    "message": "Provider key needed"
+  },
+  "capture_providerKeyRejected": {
+    "message": "Provider key rejected"
+  },
+  "capture_providerUnavailable": {
+    "message": "Provider unavailable"
+  },
+  "capture_ratingConflictBrowserAccount": {
+    "message": "Rating conflict. This browser: $1; account: $2."
+  },
+  "capture_ratingNeedsAttention": {
+    "message": "Rating needs attention"
+  },
+  "capture_reason": {
+    "message": "Reason: $1"
+  },
+  "capture_recheckClassificationControls": {
+    "message": "Recheck classification controls"
+  },
+  "capture_recheckRuntimeStatus": {
+    "message": "Recheck runtime status"
+  },
+  "capture_recordsCouldNotRefreshed": {
+    "message": "Records could not be refreshed. Previous data is retained."
+  },
+  "capture_recoveredBrowserStartup": {
+    "message": "Recovered at browser startup"
+  },
+  "capture_redactedDiagnosticDetails": {
+    "message": "Redacted diagnostic details"
+  },
+  "capture_removed": {
+    "message": "Removed"
+  },
+  "capture_resolveAccountPreferenceConflict": {
+    "message": "Resolve the account preference conflict"
+  },
+  "capture_resolvePreferenceConflict": {
+    "message": "Resolve preference conflict"
+  },
+  "capture_resultReadyClosePanel": {
+    "message": "Result ready. Close this panel when you are done."
+  },
+  "capture_resumeBrowsersClassification": {
+    "message": "Resume this browser’s classification"
+  },
+  "capture_resumeCapture": {
+    "message": "Resume this capture"
+  },
+  "capture_retryClearingMemory": {
+    "message": "Retry clearing memory"
+  },
+  "capture_retryHistoryReport": {
+    "message": "Retry history report"
+  },
+  "capture_returnCapture": {
+    "message": "Return to capture"
+  },
+  "capture_reviewCaptureMode": {
+    "message": "Review capture mode"
+  },
+  "capture_reviewClassificationCredits": {
+    "message": "Not enough credits for suggestions"
+  },
+  "capture_reviewDefaultTarget": {
+    "message": "Review the default target"
+  },
+  "capture_reviewSavedTasks": {
+    "message": "Review saved tasks"
+  },
+  "capture_reviewSyncConfirmation": {
+    "message": "Review this sync confirmation"
+  },
+  "capture_saveAllTabsWindow": {
+    "message": "Save all tabs in this window"
+  },
+  "capture_saveAnotherCopy": {
+    "message": "Save another copy"
+  },
+  "capture_saveAutomaticMode": {
+    "message": "Save automatic mode"
+  },
+  "capture_saveBrowsersSettings": {
+    "message": "Save this browser’s settings"
+  },
+  "capture_saveResultNeedsVerification": {
+    "message": "Save result needs verification"
+  },
+  "capture_saveStateTrend": {
+    "message": "Save state trend"
+  },
+  "capture_saveTabs_one": {
+    "message": "Save $1 tab"
+  },
+  "capture_saveTabs_other": {
+    "message": "Save $1 tabs"
+  },
+  "capture_savedAutomaticClassificationAwaiting": {
+    "message": "Saved. Folder suggestions are unavailable right now."
+  },
+  "capture_savedAutomaticClassificationOff": {
+    "message": "Saved. Folder suggestions are off."
+  },
+  "capture_savedAutomaticClassificationPaused": {
+    "message": "Saved. Folder suggestions are paused on this browser."
+  },
+  "capture_savedBrowser": {
+    "message": "Saved for this browser."
+  },
+  "capture_savedBrowser2": {
+    "message": "Saved in browser"
+  },
+  "capture_savedBrowser3": {
+    "message": "Saved on this browser"
+  },
+  "capture_savedBrowserClassificationWill": {
+    "message": "Saved on this browser. The folder suggestion will finish when you are back online."
+  },
+  "capture_savedCheckingSubmittedClassification": {
+    "message": "Saved. Checking the suggestion result."
+  },
+  "capture_savedChooseFolderAvailable": {
+    "message": "Saved. Choose a folder available in this browser."
+  },
+  "capture_savedClassificationNeedsMore": {
+    "message": "Saved. Not enough credits for a folder suggestion."
+  },
+  "capture_savedClassificationSpendingLimit": {
+    "message": "Saved. Your daily spending limit was reached."
+  },
+  "capture_savedEnableClassificationAuthorization": {
+    "message": "Saved. Set a spending limit under AI suggestions to get folder suggestions."
+  },
+  "capture_savedInLocations": {
+    "message": "Saved in $1 locations"
+  },
+  "capture_savedKeptYourChange": {
+    "message": "Saved. Your change was kept."
+  },
+  "capture_savedLocalCallInProgress": {
+    "message": "Saved. A suggestion is already running. Try again when it finishes."
+  },
+  "capture_savedLocalFailed": {
+    "message": "Saved. The suggestion couldn't run. Choose a folder instead."
+  },
+  "capture_savedLocalInterrupted": {
+    "message": "Saved. The suggestion was interrupted."
+  },
+  "capture_savedLocalKeyRejected": {
+    "message": "Saved. Your AI service rejected the key."
+  },
+  "capture_savedLocalKeyRequired": {
+    "message": "Saved. Add your AI service key under AI suggestions in settings."
+  },
+  "capture_savedLocalNoFolder": {
+    "message": "Saved. No folder fit this page."
+  },
+  "capture_savedLocalNoFolders": {
+    "message": "Saved. Create a bookmark folder for suggestions to choose from."
+  },
+  "capture_savedLocalProviderUnavailable": {
+    "message": "Saved. The suggestion could not be completed. Try again."
+  },
+  "capture_savedLocalRateLimited": {
+    "message": "Saved. Your AI service is busy or rate limited. Try again shortly."
+  },
+  "capture_savedLocalRequestFailed": {
+    "message": "Saved. Your AI service rejected the request or replied in an unexpected format."
+  },
+  "capture_savedLocalRequestTooLarge": {
+    "message": "Saved. The page and folder list are too large to send."
+  },
+  "capture_savedLocalSessionLimit": {
+    "message": "Saved. This browser session reached its suggestion limit."
+  },
+  "capture_savedLocalSettingsChanged": {
+    "message": "Saved. Your AI service settings changed. Try again."
+  },
+  "capture_savedLocalTaxonomyTooLarge": {
+    "message": "Saved. There are too many folders for a suggestion."
+  },
+  "capture_savedLocalTimeout": {
+    "message": "Saved. The suggestion timed out. Try again."
+  },
+  "capture_savedSomethingNeedsAttention": {
+    "message": "Saved. Something needs your attention: open Details."
+  },
+  "capture_savesGo": {
+    "message": "Saves go to"
+  },
+  "capture_savingBackgroundCanClose": {
+    "message": "Saving in the background. You can close this page; your tabs stay open."
+  },
+  "capture_savingBrowsersControl": {
+    "message": "Saving this browser’s control…"
+  },
+  "capture_searchTitlesDomains": {
+    "message": "Search titles and domains"
+  },
+  "capture_select": {
+    "message": "Select $1"
+  },
+  "capture_selectCollectionDefaultFolder": {
+    "message": "Choose a collection under Sync and a default folder inside it first."
+  },
+  "capture_selectPage": {
+    "message": "Select this page"
+  },
+  "capture_showUpdatedRecords": {
+    "message": "Show updated records"
+  },
+  "capture_signBeforeAuthorizingClassification": {
+    "message": "Sign in to use Know-N suggestions."
+  },
+  "capture_signClassify": {
+    "message": "Sign in for Know-N suggestions"
+  },
+  "capture_signInForCloud": {
+    "message": "Saving works on this browser without an account. Sign in to use sync and Know-N suggestions."
+  },
+  "capture_smallSample": {
+    "message": "Small sample: $1 applied automatic results. Interpret feedback counts with this coverage."
+  },
+  "capture_someChangesNeedSync": {
+    "message": "Some changes need your sync confirmation."
+  },
+  "capture_somethingWentWrongTabs": {
+    "message": "Something went wrong. Tabs that were already saved stay saved; resume to finish the rest."
+  },
+  "capture_suggestionApplied": {
+    "message": "Suggestion applied by you"
+  },
+  "capture_suggestionFailed": {
+    "message": "Suggestion failed"
+  },
+  "capture_syncNeedsAttention": {
+    "message": "Sync needs attention"
+  },
+  "capture_syncedToKnowN": {
+    "message": "Synced to Know-N"
+  },
+  "capture_syncingToKnowN": {
+    "message": "Syncing to Know-N"
+  },
+  "capture_tabAccessDeclinedCan": {
+    "message": "Tab access was declined. You can still save the readable tabs shown here."
+  },
+  "capture_tabsPageTitle": {
+    "message": "Save tabs · Know-N"
+  },
+  "capture_tabsSelected": {
+    "message": "$1 of $2 tabs selected"
+  },
+  "capture_targetOutsideBrowsersSync": {
+    "message": "The default folder is not synced"
+  },
+  "capture_taskRecordedAnotherBrowser": {
+    "message": "This task was recorded on another browser."
+  },
+  "capture_taskStoredLocallyIts": {
+    "message": "This task is stored locally; its cloud history report needs review."
+  },
+  "capture_taskUnavailableCurrentAccount": {
+    "message": "This task is unavailable in the current account."
+  },
+  "capture_timedSamplesP50P95": {
+    "message": "$1: $2 timed samples; p50 $3, p95 $4."
+  },
+  "capture_titleDomain": {
+    "message": "Title or domain"
+  },
+  "capture_understandingBrowserRendering": {
+    "message": "Understanding browser rendering"
+  },
+  "capture_undoAutomaticClassification": {
+    "message": "Undo automatic classification"
+  },
+  "capture_unreportedRecords_one": {
+    "message": "$1 local record not yet reported"
+  },
+  "capture_unreportedRecords_other": {
+    "message": "$1 local records not yet reported"
+  },
+  "capture_updateNotConfirmedPickAgain": {
+    "message": "The update isn't confirmed. Pick the folder again to retry."
+  },
+  "capture_updateNotConfirmedRetry": {
+    "message": "The update is not confirmed. Retry this same correction; your draft is preserved."
+  },
+  "capture_updateRecordedRefreshDetails": {
+    "message": "Update recorded. Refresh details to see the latest receipt."
+  },
+  "capture_updatedRecordsAvailableShow": {
+    "message": "Updated records are available. Show them when you are ready."
+  },
+  "capture_urlUnavailableAllowTab": {
+    "message": "URL unavailable. Allow tab access to include this tab."
+  },
+  "capture_useAccountRating": {
+    "message": "Use account rating"
+  },
+  "capture_viewClassificationsCredits": {
+    "message": "View this classification’s credits"
+  },
+  "capture_viewHistory": {
+    "message": "View history"
+  },
+  "capture_viewPendingTasks": {
+    "message": "View pending tasks"
+  },
+  "capture_waitingClassification": {
+    "message": "Waiting for a suggestion"
+  },
+  "capture_waitingConfirmation": {
+    "message": "Waiting for confirmation"
+  },
+  "capture_waitingReceipt": {
+    "message": "Waiting for receipt"
+  },
+  "classification_aiGatewayApiKey": {
+    "message": "AI Gateway API key"
+  },
+  "classification_apiKeyOptional": {
+    "message": "API key (optional)"
+  },
+  "classification_cloudflareApiToken": {
+    "message": "Cloudflare API token"
+  },
+  "classification_confirmDataDisclosureBefore": {
+    "message": "Confirm the data disclosure before enabling."
+  },
+  "classification_connectionTestFailed": {
+    "message": "Connection test failed. Check the address, model and key, then try again."
+  },
+  "classification_connectionTestSucceededReported": {
+    "message": "Connection test succeeded! Reported model: $1"
+  },
+  "classification_customApiContract": {
+    "message": "A custom endpoint must speak the System One classification API. Test connection checks this."
+  },
+  "classification_customEndpoint": {
+    "message": "Custom endpoint"
+  },
+  "classification_endpointUrlMustUse": {
+    "message": "Endpoint URL must use HTTPS, or HTTP on a local address"
+  },
+  "classification_enterBeforeTesting": {
+    "message": "Enter the $1 before testing."
+  },
+  "classification_enterCloudflareAccountId": {
+    "message": "Enter the Cloudflare account ID for this endpoint."
+  },
+  "classification_enterCloudflareGateway": {
+    "message": "Enter the Cloudflare gateway."
+  },
+  "classification_enterCloudflareGatewayId": {
+    "message": "Enter the Cloudflare gateway ID."
+  },
+  "classification_enterModelIdentifier": {
+    "message": "Enter a model identifier."
+  },
+  "classification_enterThe": {
+    "message": "Enter the $1."
+  },
+  "classification_enterValidHttpsEndpoint": {
+    "message": "Enter a valid HTTPS endpoint, or HTTP on a local address."
+  },
+  "classification_invalidEndpointUrl": {
+    "message": "Invalid endpoint URL"
+  },
+  "classification_invalidSecretToken": {
+    "message": "Invalid secret token."
+  },
+  "classification_keySavedPlaceholder": {
+    "message": "Saved on this browser. Leave blank to keep it."
+  },
+  "classification_localEnableFailed": {
+    "message": "Couldn't enable your AI service. Try again."
+  },
+  "classification_localEnabled": {
+    "message": "Your AI service is enabled. The key stays saved on this browser."
+  },
+  "classification_localNotActive": {
+    "message": "Suggestions still come from Know-N until you use this service."
+  },
+  "classification_localNotActiveSignedOut": {
+    "message": "No suggestions until you use this service."
+  },
+  "classification_originPermissionNotGranted": {
+    "message": "Origin permission not granted for $1."
+  },
+  "classification_saveLocalChanges": {
+    "message": "Save changes"
+  },
+  "classification_serverClassificationSelectedKeyKept": {
+    "message": "Know-N suggestions selected. Your key stays saved for when you switch back."
+  },
+  "classification_testFailedFormat": {
+    "message": "Connection test failed. The service replied in an unexpected format. Check that it supports the classification API."
+  },
+  "classification_testFailedKey": {
+    "message": "Connection test failed. The service did not accept the key."
+  },
+  "classification_testFailedModel": {
+    "message": "Connection test failed. The service did not accept the model. Check the model name."
+  },
+  "classification_testFailedNotFound": {
+    "message": "Connection test failed. The endpoint was not found. Check the address."
+  },
+  "classification_typesafeApiKey": {
+    "message": "TypeSafe API key"
+  },
+  "classification_usingLocal": {
+    "message": "Using your own AI service. The key is saved on this browser."
+  },
+  "common_account": {
+    "message": "Account"
+  },
+  "common_addBookmark": {
+    "message": "Add bookmark"
+  },
+  "common_all": {
+    "message": "All"
+  },
+  "common_allActivity": {
+    "message": "All activity"
+  },
+  "common_allCollections": {
+    "message": "All collections"
+  },
+  "common_allSources": {
+    "message": "All sources"
+  },
+  "common_allowBookmarkAccess": {
+    "message": "Allow bookmark access"
+  },
+  "common_allowed": {
+    "message": "Allowed"
+  },
+  "common_alreadySaved": {
+    "message": "Already saved"
+  },
+  "common_anotherBrowser": {
+    "message": "Another browser"
+  },
+  "common_appliedManually": {
+    "message": "Applied manually"
+  },
+  "common_apply": {
+    "message": "Apply"
+  },
+  "common_applyDelete": {
+    "message": "Apply delete"
+  },
+  "common_applySuggestion": {
+    "message": "Apply suggestion"
+  },
+  "common_authorizationExpired": {
+    "message": "Authorization expired"
+  },
+  "common_authorizationRequired": {
+    "message": "Authorization required"
+  },
+  "common_autoResumeDisabled": {
+    "message": "Auto-resume disabled"
+  },
+  "common_automaticallyClassified": {
+    "message": "Folder suggested"
+  },
+  "common_availableChange": {
+    "message": "Available change"
+  },
+  "common_back": {
+    "message": "Back"
+  },
+  "common_balanceAfter": {
+    "message": "Balance after"
+  },
+  "common_batchClassification": {
+    "message": "Batch classification"
+  },
+  "common_bookmark": {
+    "message": "Bookmark"
+  },
+  "common_bookmarkAdded": {
+    "message": "Bookmark added."
+  },
+  "common_bookmarkFolders": {
+    "message": "Bookmark folders"
+  },
+  "common_bookmarkName": {
+    "message": "Bookmark name"
+  },
+  "common_bookmarkPages": {
+    "message": "Bookmark pages"
+  },
+  "common_bookmarks_one": {
+    "message": "$1 bookmark"
+  },
+  "common_bookmarks_other": {
+    "message": "$1 bookmarks"
+  },
+  "common_browserExtension": {
+    "message": "Browser extension"
+  },
+  "common_cancel": {
+    "message": "Cancel"
+  },
+  "common_captureDetails": {
+    "message": "Capture details"
+  },
+  "common_captureMode": {
+    "message": "Capture mode"
+  },
+  "common_captureStarted": {
+    "message": "Capture started"
+  },
+  "common_changeShortcuts": {
+    "message": "Change shortcuts"
+  },
+  "common_charge": {
+    "message": "Charge"
+  },
+  "common_checkAgain": {
+    "message": "Check again"
+  },
+  "common_chineseSimplified": {
+    "message": "Chinese (Simplified)"
+  },
+  "common_chooseDestination": {
+    "message": "Choose destination"
+  },
+  "common_classification": {
+    "message": "Classification"
+  },
+  "common_classificationAction": {
+    "message": "Classification action"
+  },
+  "common_classificationCancelled": {
+    "message": "Classification cancelled"
+  },
+  "common_classificationCompleted": {
+    "message": "Classification completed"
+  },
+  "common_classificationCorrected": {
+    "message": "Classification corrected"
+  },
+  "common_classificationDeferrals": {
+    "message": "Classification deferrals"
+  },
+  "common_classificationFailed": {
+    "message": "Classification failed"
+  },
+  "common_classificationPreview": {
+    "message": "Classification preview"
+  },
+  "common_classificationRequested": {
+    "message": "Classification requested"
+  },
+  "common_classificationUnavailable": {
+    "message": "Classification unavailable"
+  },
+  "common_classificationUndone": {
+    "message": "Classification undone"
+  },
+  "common_classifying": {
+    "message": "Suggesting"
+  },
+  "common_clear": {
+    "message": "Clear"
+  },
+  "common_clearFilters": {
+    "message": "Clear filters"
+  },
+  "common_clearMemory": {
+    "message": "Clear memory"
+  },
+  "common_close": {
+    "message": "Close"
+  },
+  "common_closeManually": {
+    "message": "Close manually"
+  },
+  "common_collapse": {
+    "message": "Collapse"
+  },
+  "common_collection": {
+    "message": "Collection"
+  },
+  "common_collectionChanged": {
+    "message": "Collection changed"
+  },
+  "common_collectionSelected": {
+    "message": "Collection selected."
+  },
+  "common_collectionUnavailable": {
+    "message": "Collection unavailable"
+  },
+  "common_completed": {
+    "message": "Completed"
+  },
+  "common_configuration": {
+    "message": "Configuration"
+  },
+  "common_connecting": {
+    "message": "Connecting"
+  },
+  "common_connecting2": {
+    "message": "Connecting…"
+  },
+  "common_controlConflict": {
+    "message": "Control conflict"
+  },
+  "common_copyDiagnostics": {
+    "message": "Copy diagnostics"
+  },
+  "common_create": {
+    "message": "Create"
+  },
+  "common_createFolder": {
+    "message": "Create folder"
+  },
+  "common_creditActivity": {
+    "message": "Credit activity"
+  },
+  "common_creditBalance": {
+    "message": "Credit balance"
+  },
+  "common_creditEntry": {
+    "message": "Credit entry"
+  },
+  "common_creditExpiry": {
+    "message": "Credit expiry"
+  },
+  "common_creditGrant": {
+    "message": "Credit grant"
+  },
+  "common_credits": {
+    "message": "Credits"
+  },
+  "common_creditsExpired": {
+    "message": "Credits expired"
+  },
+  "common_creditsGranted": {
+    "message": "Credits granted"
+  },
+  "common_creditsRefunded": {
+    "message": "Credits refunded"
+  },
+  "common_creditsRequired": {
+    "message": "Credits required"
+  },
+  "common_creditsReserved": {
+    "message": "Credits reserved"
+  },
+  "common_currentFolder": {
+    "message": "Current folder"
+  },
+  "common_currentLocation": {
+    "message": "Current location"
+  },
+  "common_date": {
+    "message": "Date"
+  },
+  "common_delete": {
+    "message": "Delete"
+  },
+  "common_deleted": {
+    "message": "Deleted."
+  },
+  "common_development": {
+    "message": "Development"
+  },
+  "common_devices": {
+    "message": "Devices"
+  },
+  "common_diagnosticCategories": {
+    "message": "Diagnostic categories"
+  },
+  "common_dismiss": {
+    "message": "Dismiss"
+  },
+  "common_dismissNotification": {
+    "message": "Dismiss notification"
+  },
+  "common_dismissed": {
+    "message": "Dismissed"
+  },
+  "common_done": {
+    "message": "Done"
+  },
+  "common_dontPlace": {
+    "message": "Don't place"
+  },
+  "common_edit": {
+    "message": "Edit"
+  },
+  "common_effective": {
+    "message": "Effective"
+  },
+  "common_emailCode": {
+    "message": "Email code"
+  },
+  "common_endpointUrl": {
+    "message": "Endpoint URL"
+  },
+  "common_english": {
+    "message": "English"
+  },
+  "common_entryId": {
+    "message": "Entry ID"
+  },
+  "common_expand": {
+    "message": "Expand"
+  },
+  "common_expired": {
+    "message": "Expired"
+  },
+  "common_expiredCredits": {
+    "message": "Expired credits"
+  },
+  "common_expires": {
+    "message": "Expires"
+  },
+  "common_explicitNegative": {
+    "message": "Explicit negative"
+  },
+  "common_explicitPositive": {
+    "message": "Explicit positive"
+  },
+  "common_explicitSatisfaction": {
+    "message": "Explicit satisfaction"
+  },
+  "common_export": {
+    "message": "Export"
+  },
+  "common_failed": {
+    "message": "Failed"
+  },
+  "common_feedbackDistribution": {
+    "message": "Feedback distribution"
+  },
+  "common_findFolder": {
+    "message": "Find folder"
+  },
+  "common_firstPage": {
+    "message": "First page"
+  },
+  "common_folderContents": {
+    "message": "Folder contents"
+  },
+  "common_folderCorrected": {
+    "message": "Folder corrected"
+  },
+  "common_folderCreated": {
+    "message": "Folder created."
+  },
+  "common_folderMappings": {
+    "message": "Folder mappings"
+  },
+  "common_folderName": {
+    "message": "Folder name"
+  },
+  "common_folders": {
+    "message": "Folders"
+  },
+  "common_foldersFirst": {
+    "message": "Folders first"
+  },
+  "common_folders_one": {
+    "message": "$1 folder"
+  },
+  "common_folders_other": {
+    "message": "$1 folders"
+  },
+  "common_forgotPassword": {
+    "message": "Forgot password?"
+  },
+  "common_from": {
+    "message": "From"
+  },
+  "common_frontend": {
+    "message": "Frontend"
+  },
+  "common_gatewayId": {
+    "message": "Gateway ID"
+  },
+  "common_grants": {
+    "message": "Grants"
+  },
+  "common_history": {
+    "message": "History"
+  },
+  "common_holdExpired": {
+    "message": "Hold expired"
+  },
+  "common_holdReleased": {
+    "message": "Hold released"
+  },
+  "common_holds": {
+    "message": "Holds"
+  },
+  "common_icons": {
+    "message": "Icons"
+  },
+  "common_implicit": {
+    "message": "Implicit"
+  },
+  "common_implicitAcceptance": {
+    "message": "Implicit acceptance"
+  },
+  "common_import": {
+    "message": "Import"
+  },
+  "common_importBookmarks": {
+    "message": "Import bookmarks"
+  },
+  "common_importPreview": {
+    "message": "Import preview"
+  },
+  "common_importSource": {
+    "message": "Import source"
+  },
+  "common_inProgress": {
+    "message": "In progress"
+  },
+  "common_itemActions": {
+    "message": "Item actions"
+  },
+  "common_items_one": {
+    "message": "$1 item"
+  },
+  "common_items_other": {
+    "message": "$1 items"
+  },
+  "common_keep": {
+    "message": "Keep"
+  },
+  "common_keepAccess": {
+    "message": "Keep access"
+  },
+  "common_keepItem": {
+    "message": "Keep item"
+  },
+  "common_kept": {
+    "message": "Kept"
+  },
+  "common_keyboardShortcuts": {
+    "message": "Keyboard shortcuts"
+  },
+  "common_knowN": {
+    "message": "Know-N"
+  },
+  "common_knowNHome": {
+    "message": "Know-N home"
+  },
+  "common_knowNSupport": {
+    "message": "Know-N support"
+  },
+  "common_language": {
+    "message": "Language"
+  },
+  "common_later": {
+    "message": "Later"
+  },
+  "common_linkMenu": {
+    "message": "Link menu"
+  },
+  "common_loadMore": {
+    "message": "Load more"
+  },
+  "common_loading": {
+    "message": "Loading…"
+  },
+  "common_loadingActivity": {
+    "message": "Loading activity…"
+  },
+  "common_loadingConnection": {
+    "message": "Loading connection"
+  },
+  "common_loadingPreview": {
+    "message": "Loading preview…"
+  },
+  "common_localFolder": {
+    "message": "Local folder"
+  },
+  "common_locateBookmark": {
+    "message": "Locate bookmark"
+  },
+  "common_manage": {
+    "message": "Manage"
+  },
+  "common_managed": {
+    "message": "Managed"
+  },
+  "common_manual": {
+    "message": "Manual"
+  },
+  "common_manualCapture": {
+    "message": "No suggestion"
+  },
+  "common_manualGrant": {
+    "message": "Manual grant"
+  },
+  "common_manualPopup": {
+    "message": "Manual popup"
+  },
+  "common_manualRefund": {
+    "message": "Manual refund"
+  },
+  "common_manualReview": {
+    "message": "Manual review"
+  },
+  "common_markedManually": {
+    "message": "Marked manually"
+  },
+  "common_model": {
+    "message": "Model"
+  },
+  "common_moreActions": {
+    "message": "More actions"
+  },
+  "common_moreFilters": {
+    "message": "More filters"
+  },
+  "common_move": {
+    "message": "Move"
+  },
+  "common_moveTo": {
+    "message": "Move to…"
+  },
+  "common_moveTo2": {
+    "message": "Move to"
+  },
+  "common_moved": {
+    "message": "Moved."
+  },
+  "common_myCollection": {
+    "message": "My collection"
+  },
+  "common_n10Seconds": {
+    "message": "10 seconds"
+  },
+  "common_n30Days": {
+    "message": "30 days"
+  },
+  "common_n30Seconds": {
+    "message": "30 seconds"
+  },
+  "common_n3Seconds": {
+    "message": "3 seconds"
+  },
+  "common_n5Seconds": {
+    "message": "5 seconds"
+  },
+  "common_n7Days": {
+    "message": "7 days"
+  },
+  "common_n90Days": {
+    "message": "90 days"
+  },
+  "common_name": {
+    "message": "Name"
+  },
+  "common_needsAttention": {
+    "message": "Needs attention"
+  },
+  "common_networkError": {
+    "message": "Network error"
+  },
+  "common_newBookmark": {
+    "message": "New bookmark"
+  },
+  "common_newHere": {
+    "message": "New here?"
+  },
+  "common_nextBookmarks": {
+    "message": "Next bookmarks"
+  },
+  "common_nextPage": {
+    "message": "Next page"
+  },
+  "common_noData": {
+    "message": "No data"
+  },
+  "common_noFolderMatches": {
+    "message": "No folders match."
+  },
+  "common_noRating": {
+    "message": "No rating"
+  },
+  "common_none": {
+    "message": "None"
+  },
+  "common_notSet": {
+    "message": "Not set"
+  },
+  "common_notShown": {
+    "message": "Not shown"
+  },
+  "common_notSubmitted": {
+    "message": "Not submitted"
+  },
+  "common_notSynced": {
+    "message": "Not synced"
+  },
+  "common_note": {
+    "message": "Note"
+  },
+  "common_nothingSelected": {
+    "message": "nothing selected"
+  },
+  "common_offline": {
+    "message": "Offline"
+  },
+  "common_openCredits": {
+    "message": "Open credits"
+  },
+  "common_openDiagnostics": {
+    "message": "Open diagnostics"
+  },
+  "common_openFolder": {
+    "message": "Open folder"
+  },
+  "common_openKnowN": {
+    "message": "Open Know-N"
+  },
+  "common_openWebpage": {
+    "message": "Open webpage"
+  },
+  "common_operationDetails": {
+    "message": "Operation details"
+  },
+  "common_other": {
+    "message": "Other"
+  },
+  "common_pageMenu": {
+    "message": "Page menu"
+  },
+  "common_password": {
+    "message": "Password"
+  },
+  "common_pause": {
+    "message": "Pause"
+  },
+  "common_paused": {
+    "message": "Paused"
+  },
+  "common_payment": {
+    "message": "Payment"
+  },
+  "common_paymentReceived": {
+    "message": "Payment received"
+  },
+  "common_paymentRefunded": {
+    "message": "Payment refunded"
+  },
+  "common_paymentRefunds": {
+    "message": "Payment refunds"
+  },
+  "common_pending": {
+    "message": "Pending"
+  },
+  "common_pendingSync": {
+    "message": "Pending sync"
+  },
+  "common_period": {
+    "message": "Period"
+  },
+  "common_permissions": {
+    "message": "Permissions"
+  },
+  "common_pleaseWait": {
+    "message": "Please wait."
+  },
+  "common_policyUnavailable": {
+    "message": "Policy unavailable"
+  },
+  "common_posted": {
+    "message": "Posted"
+  },
+  "common_preset": {
+    "message": "Preset"
+  },
+  "common_previousBookmarks": {
+    "message": "Previous bookmarks"
+  },
+  "common_ratingConflict": {
+    "message": "Rating conflict"
+  },
+  "common_ratingPending": {
+    "message": "Rating pending"
+  },
+  "common_reason": {
+    "message": "Reason"
+  },
+  "common_recheck": {
+    "message": "Recheck"
+  },
+  "common_refresh": {
+    "message": "Refresh"
+  },
+  "common_refreshDetails": {
+    "message": "Refresh details"
+  },
+  "common_refreshFolders": {
+    "message": "Refresh folders"
+  },
+  "common_refreshList": {
+    "message": "Refresh list"
+  },
+  "common_refreshing": {
+    "message": "Refreshing…"
+  },
+  "common_refreshingConnection": {
+    "message": "Refreshing connection"
+  },
+  "common_refunds": {
+    "message": "Refunds"
+  },
+  "common_relatedEntry": {
+    "message": "Related entry"
+  },
+  "common_released": {
+    "message": "Released"
+  },
+  "common_reloadPage": {
+    "message": "Reload page"
+  },
+  "common_remove": {
+    "message": "Remove"
+  },
+  "common_removeAccess": {
+    "message": "Remove access"
+  },
+  "common_rename": {
+    "message": "Rename"
+  },
+  "common_renamed": {
+    "message": "Renamed."
+  },
+  "common_renewingSession": {
+    "message": "Renewing session"
+  },
+  "common_reservedChange": {
+    "message": "Reserved change"
+  },
+  "common_resetSync": {
+    "message": "Reset sync"
+  },
+  "common_restore": {
+    "message": "Restore"
+  },
+  "common_resultUnknown": {
+    "message": "Result unknown"
+  },
+  "common_resumeImport": {
+    "message": "Resume import"
+  },
+  "common_retry": {
+    "message": "Retry"
+  },
+  "common_retrying": {
+    "message": "Retrying…"
+  },
+  "common_reviewAuthorization": {
+    "message": "Review authorization"
+  },
+  "common_reviewCredits": {
+    "message": "Review credits"
+  },
+  "common_rightFolder": {
+    "message": "Right folder"
+  },
+  "common_rows": {
+    "message": "Rows"
+  },
+  "common_save": {
+    "message": "Save"
+  },
+  "common_saveCtrlCmdEnter": {
+    "message": "Save (Ctrl/Cmd+Enter)"
+  },
+  "common_saveFailed": {
+    "message": "Save failed"
+  },
+  "common_saveFailures": {
+    "message": "Save failures"
+  },
+  "common_savePosition": {
+    "message": "Save position"
+  },
+  "common_saveTabs": {
+    "message": "Save tabs"
+  },
+  "common_saved": {
+    "message": "Saved"
+  },
+  "common_savedLocation": {
+    "message": "Saved location"
+  },
+  "common_saving": {
+    "message": "Saving…"
+  },
+  "common_saving2": {
+    "message": "Saving"
+  },
+  "common_scheduledGrant": {
+    "message": "Scheduled grant"
+  },
+  "common_selectAll": {
+    "message": "Select all"
+  },
+  "common_sendCode": {
+    "message": "Send code"
+  },
+  "common_sending": {
+    "message": "Sending…"
+  },
+  "common_separator": {
+    "message": "Separator"
+  },
+  "common_sequence": {
+    "message": "Sequence"
+  },
+  "common_server": {
+    "message": "Server"
+  },
+  "common_session": {
+    "message": "Session"
+  },
+  "common_sessionChanged": {
+    "message": "Session changed"
+  },
+  "common_settings": {
+    "message": "Settings"
+  },
+  "common_settingsConflict": {
+    "message": "Settings conflict"
+  },
+  "common_signIn": {
+    "message": "Sign in"
+  },
+  "common_signInBlocked": {
+    "message": "Sign-in blocked"
+  },
+  "common_signInCode": {
+    "message": "Sign-in code"
+  },
+  "common_signInMethod": {
+    "message": "Sign-in method"
+  },
+  "common_signInNeeded": {
+    "message": "Sign-in needed"
+  },
+  "common_signInProblem": {
+    "message": "Sign-in problem"
+  },
+  "common_signOut": {
+    "message": "Sign out"
+  },
+  "common_signedIn": {
+    "message": "Signed in"
+  },
+  "common_signingIn": {
+    "message": "Signing in…"
+  },
+  "common_signingIn2": {
+    "message": "Signing in"
+  },
+  "common_skip": {
+    "message": "Skip"
+  },
+  "common_source": {
+    "message": "Source"
+  },
+  "common_spent": {
+    "message": "Spent"
+  },
+  "common_status": {
+    "message": "Status"
+  },
+  "common_subscriptionDefaults": {
+    "message": "Subscription defaults"
+  },
+  "common_subscriptions": {
+    "message": "Subscriptions"
+  },
+  "common_sync": {
+    "message": "Sync"
+  },
+  "common_syncSections": {
+    "message": "Sync sections"
+  },
+  "common_syncStatus": {
+    "message": "Sync status"
+  },
+  "common_synced": {
+    "message": "Synced"
+  },
+  "common_syncing": {
+    "message": "Syncing"
+  },
+  "common_tabBatch": {
+    "message": "Tab batch"
+  },
+  "common_tags": {
+    "message": "Tags"
+  },
+  "common_targetCollection": {
+    "message": "Target collection"
+  },
+  "common_task": {
+    "message": "Task"
+  },
+  "common_taskUnavailable": {
+    "message": "Task unavailable"
+  },
+  "common_testConnection": {
+    "message": "Test connection"
+  },
+  "common_testingConnection": {
+    "message": "Testing connection..."
+  },
+  "common_thisBrowser": {
+    "message": "This browser"
+  },
+  "common_thisBrowserLower": {
+    "message": "this browser"
+  },
+  "common_timezone": {
+    "message": "Timezone"
+  },
+  "common_to": {
+    "message": "To"
+  },
+  "common_toolbar": {
+    "message": "Toolbar"
+  },
+  "common_topUps": {
+    "message": "Top ups"
+  },
+  "common_trialCredits": {
+    "message": "Trial credits"
+  },
+  "common_tryAgain": {
+    "message": "Try again"
+  },
+  "common_type": {
+    "message": "Type"
+  },
+  "common_unavailable": {
+    "message": "Unavailable"
+  },
+  "common_undo": {
+    "message": "Undo"
+  },
+  "common_undone": {
+    "message": "Undone."
+  },
+  "common_unknown": {
+    "message": "Unknown"
+  },
+  "common_unknownTime": {
+    "message": "unknown time"
+  },
+  "common_unrated": {
+    "message": "Unrated"
+  },
+  "common_unreadableTab": {
+    "message": "Unreadable tab"
+  },
+  "common_untitled": {
+    "message": "Untitled"
+  },
+  "common_untitledBookmark": {
+    "message": "Untitled bookmark"
+  },
+  "common_untitledFolder": {
+    "message": "Untitled folder"
+  },
+  "common_untitledPage": {
+    "message": "Untitled page"
+  },
+  "common_untitledTab": {
+    "message": "Untitled tab"
+  },
+  "common_uploadScheduled": {
+    "message": "Upload scheduled"
+  },
+  "common_url": {
+    "message": "URL"
+  },
+  "common_verified": {
+    "message": "Verified"
+  },
+  "common_viewDetails": {
+    "message": "View details"
+  },
+  "common_waiting": {
+    "message": "Waiting"
+  },
+  "common_web": {
+    "message": "Web"
+  },
+  "common_whichTabs": {
+    "message": "Which tabs"
+  },
+  "common_withdrawRating": {
+    "message": "Withdraw rating"
+  },
+  "common_wrongFolder": {
+    "message": "Wrong folder"
+  },
+  "common_yourCollection": {
+    "message": "Your collection"
+  },
+  "common_yourCollections": {
+    "message": "Your collections"
+  },
+  "credits_availableCount": {
+    "message": "$1 available"
+  },
+  "credits_availableReserved": {
+    "message": "$1 available / $2 reserved"
+  },
+  "credits_balanceUnavailable": {
+    "message": "Balance unavailable"
+  },
+  "credits_classificationNotNeeded": {
+    "message": "Classification not needed"
+  },
+  "credits_collectionNodeRunAction": {
+    "message": "$1; collection $2; node $3; run $4; action $5"
+  },
+  "credits_creditsAreOffline": {
+    "message": "Credits are offline."
+  },
+  "credits_creditsToppedUp": {
+    "message": "Credits topped up"
+  },
+  "credits_creditsUnavailableOpenCredits": {
+    "message": "Credits are unavailable. Open Credits in settings to retry."
+  },
+  "credits_expireOn": {
+    "message": "$1 expire on $2"
+  },
+  "credits_holdReleasedCreditsExpired": {
+    "message": "Hold released; credits expired"
+  },
+  "credits_nextExpiry": {
+    "message": "Next expiry $1."
+  },
+  "credits_onHoldCount": {
+    "message": "$1 on hold"
+  },
+  "credits_openRelatedEntry": {
+    "message": "Open related entry"
+  },
+  "credits_openThisEntry": {
+    "message": "Open this entry"
+  },
+  "credits_upToPoints_one": {
+    "message": "Up to $1 point"
+  },
+  "credits_upToPoints_other": {
+    "message": "Up to $1 points"
+  },
+  "firstRun_advancedSummary": {
+    "message": "$1."
+  },
+  "firstRun_attentionStatus": {
+    "message": "$1: $2."
+  },
+  "firstRun_attentionStatusDetail": {
+    "message": "$1: $2 ($3)."
+  },
+  "firstRun_autoMergeKeepBoth": {
+    "message": "Auto-merge, keep both sides (recommended)"
+  },
+  "firstRun_bookmarkFoldersChangedReview": {
+    "message": "Bookmark folders changed. Review the change list again before confirming."
+  },
+  "firstRun_bookmarkReview": {
+    "message": "Bookmark to review"
+  },
+  "firstRun_bothKept": {
+    "message": "both kept"
+  },
+  "firstRun_buildsMatchDeletionLists": {
+    "message": "Builds the match and deletion lists only. No run is created and nothing is applied."
+  },
+  "firstRun_changeListOutDate": {
+    "message": "The change list is out of date. Review it again before confirming."
+  },
+  "firstRun_checkStatus": {
+    "message": "Check status"
+  },
+  "firstRun_chooseCollectionFirstThen": {
+    "message": "Choose a collection first, then start sync."
+  },
+  "firstRun_collectionName": {
+    "message": "Collection name"
+  },
+  "firstRun_confirmListRun": {
+    "message": "Confirm the list and run"
+  },
+  "firstRun_confirmRun": {
+    "message": "Confirm and run"
+  },
+  "firstRun_confirmWhichBookmarkFolders": {
+    "message": "Confirm which bookmark folders to sync first."
+  },
+  "firstRun_conflicts_one": {
+    "message": "$1 conflict"
+  },
+  "firstRun_conflicts_other": {
+    "message": "$1 conflicts"
+  },
+  "firstRun_contentConflict": {
+    "message": "Content conflict"
+  },
+  "firstRun_couldNotCreateCollection": {
+    "message": "Could not create the collection. Try again in a moment."
+  },
+  "firstRun_couldNotReadFolder": {
+    "message": "Could not read folder counts. Refresh and try again."
+  },
+  "firstRun_couldNotStartSync": {
+    "message": "Could not start sync. Try again in a moment."
+  },
+  "firstRun_createChooseCollectionFirst": {
+    "message": "Create or choose a collection first."
+  },
+  "firstRun_createCollection": {
+    "message": "Create collection"
+  },
+  "firstRun_createCollectionKnowN": {
+    "message": "Create a collection on the Know-N website first, then return and refresh the list."
+  },
+  "firstRun_createdCollection": {
+    "message": "Created collection \"$1\"."
+  },
+  "firstRun_deviceWins": {
+    "message": "This device wins"
+  },
+  "firstRun_duplicateCandidate": {
+    "message": "Duplicate candidate"
+  },
+  "firstRun_duplicateCandidates_one": {
+    "message": "$1 duplicate candidate"
+  },
+  "firstRun_duplicateCandidates_other": {
+    "message": "$1 duplicate candidates"
+  },
+  "firstRun_duplicates_one": {
+    "message": "$1 duplicate"
+  },
+  "firstRun_duplicates_other": {
+    "message": "$1 duplicates"
+  },
+  "firstRun_existingBrowserBookmarksNot": {
+    "message": "Existing browser bookmarks are not deleted. Items that cannot be identified are kept as two copies."
+  },
+  "firstRun_firstSyncKeepsBookmarks": {
+    "message": "First sync keeps bookmarks on this browser and in Know-N. Items that cannot be matched as the same bookmark are kept as two copies and are not deleted automatically."
+  },
+  "firstRun_initializationFailed": {
+    "message": "Sync setup could not load. Reload this page to try again. Your bookmarks and draft are kept."
+  },
+  "firstRun_itemsBothSidesKept": {
+    "message": "Items on both sides are kept. Unmatched items are kept as two copies."
+  },
+  "firstRun_itemsWaiting_one": {
+    "message": "$1 item waiting"
+  },
+  "firstRun_itemsWaiting_other": {
+    "message": "$1 items waiting"
+  },
+  "firstRun_keepBoth": {
+    "message": "Keep both"
+  },
+  "firstRun_keepUsingBrowsersBookmarks": {
+    "message": "Keep using this browser's bookmarks. Search, organize, and open them in Know-N on every device."
+  },
+  "firstRun_kindBookmark": {
+    "message": "bookmark"
+  },
+  "firstRun_kindItem": {
+    "message": "item"
+  },
+  "firstRun_knowNVersionNot": {
+    "message": "The Know-N version is not available yet. Refresh the change list and try again."
+  },
+  "firstRun_knowNWins": {
+    "message": "Know-N wins"
+  },
+  "firstRun_localOnlyItems_one": {
+    "message": "$1 item only on this device"
+  },
+  "firstRun_localOnlyItems_other": {
+    "message": "$1 items only on this device"
+  },
+  "firstRun_managedBrowserPolicyDevice": {
+    "message": "Managed by browser policy. This device cannot change it, so it does not sync"
+  },
+  "firstRun_matchedItems_one": {
+    "message": "$1 matched item"
+  },
+  "firstRun_matchedItems_other": {
+    "message": "$1 matched items"
+  },
+  "firstRun_modeNeedsReviewConfirm": {
+    "message": "This mode needs you to review and confirm the change list first."
+  },
+  "firstRun_nameCollectionDeviceWill": {
+    "message": "Name the collection this device will sync."
+  },
+  "firstRun_noBookmarkFoldersAvailable": {
+    "message": "No bookmark folders are available to sync."
+  },
+  "firstRun_offlineCheckConnectionTry": {
+    "message": "You are offline. Check your connection and try again."
+  },
+  "firstRun_permissionNotGrantedCan": {
+    "message": "Permission was not granted. You can try again later."
+  },
+  "firstRun_permissionNotGrantedCan2": {
+    "message": "Permission was not granted. You can try again later. Your draft is saved."
+  },
+  "firstRun_places_one": {
+    "message": "$1 place"
+  },
+  "firstRun_places_other": {
+    "message": "$1 places"
+  },
+  "firstRun_previewFinishedSwitchAuto": {
+    "message": "Preview finished. Switch to auto-merge to start sync."
+  },
+  "firstRun_previewOnlyDoNot": {
+    "message": "Preview only, do not run"
+  },
+  "firstRun_readSyncBookmarkFolders": {
+    "message": "Read and sync the bookmark folders you choose"
+  },
+  "firstRun_remoteOnlyItems_one": {
+    "message": "$1 item only in Know-N"
+  },
+  "firstRun_remoteOnlyItems_other": {
+    "message": "$1 items only in Know-N"
+  },
+  "firstRun_reviewConfirmChangeList": {
+    "message": "Review and confirm the change list first."
+  },
+  "firstRun_reviewConflictsSyncCenter": {
+    "message": "Review conflicts in Sync center on the web"
+  },
+  "firstRun_selectBookmarkFoldersSync": {
+    "message": "Select the bookmark folders to sync."
+  },
+  "firstRun_sideBrowser": {
+    "message": "Browser"
+  },
+  "firstRun_signSeeCollectionsOwn": {
+    "message": "Sign in to see collections you own."
+  },
+  "firstRun_startFirstSync": {
+    "message": "Start first sync"
+  },
+  "firstRun_switchAutoMergeSync": {
+    "message": "Switch to auto-merge and sync"
+  },
+  "firstRun_syncDevicesBrowserBookmarks": {
+    "message": "Sync this device's browser bookmarks"
+  },
+  "firstRun_syncNotReadyYet": {
+    "message": "Sync is not ready yet"
+  },
+  "firstRun_syncPausedChangesAlready": {
+    "message": "Sync is paused. Changes already sent will still finish uploading."
+  },
+  "firstRun_syncStillRunningBackground": {
+    "message": "Sync is still running in the background. Please refresh or check again."
+  },
+  "firstRun_syncedFoldersItemsExist": {
+    "message": "In the synced folders, items that exist only in Know-N are listed. After you confirm, they move to Know-N's trash."
+  },
+  "firstRun_syncedFoldersItemsExist2": {
+    "message": "In the synced folders, items that exist only in this browser are listed. After you confirm, they are removed from this browser."
+  },
+  "firstRun_theseFoldersCannotEdited": {
+    "message": "These folders cannot be edited and are excluded by default."
+  },
+  "firstRun_unsupportedSkipped": {
+    "message": "Some items will stay in this browser: $1. Other bookmarks will sync."
+  },
+  "firstRun_untitledItem": {
+    "message": "Untitled item"
+  },
+  "firstRun_viewItemsNeedAttention": {
+    "message": "View items that need attention"
+  },
+  "firstRun_willSyncTotals": {
+    "message": "Will sync: $1, $2"
+  },
+  "history_backToHistory": {
+    "message": "Back to History"
+  },
+  "history_clearDeviceDiary": {
+    "message": "Clear device save history"
+  },
+  "history_clearDeviceDiaryHint": {
+    "message": "Remove the device diary shared across sign-ins. Bookmarks, backups and other history records are kept. Previously cleared saves will not be migrated back into the device diary."
+  },
+  "history_clearDeviceFailed": {
+    "message": "Device history could not be cleared. Try again."
+  },
+  "history_correctionUnconfirmed": {
+    "message": "The last folder change was not confirmed. Discard it before choosing a different folder."
+  },
+  "history_couldNotLoad": {
+    "message": "Your history could not be loaded."
+  },
+  "history_folderStep": {
+    "message": "Folder"
+  },
+  "history_folderSuggestions": {
+    "message": "Folder suggestions"
+  },
+  "history_nToCheck": {
+    "message": "$1 to check"
+  },
+  "history_nToReview": {
+    "message": "$1 to review"
+  },
+  "history_nWaiting": {
+    "message": "$1 waiting"
+  },
+  "history_needsChecking": {
+    "message": "Needs checking"
+  },
+  "history_needsReview": {
+    "message": "Needs your review"
+  },
+  "history_notReported": {
+    "message": "Not sent to your account"
+  },
+  "history_notSaved": {
+    "message": "Not saved"
+  },
+  "history_nothingMatches": {
+    "message": "Nothing matches these filters"
+  },
+  "history_nothingYet": {
+    "message": "Nothing saved yet"
+  },
+  "history_nothingYetHint": {
+    "message": "Pages you save with Know-N will show up here."
+  },
+  "history_otherBrowsers": {
+    "message": "On other browsers"
+  },
+  "history_resumeSuggestions": {
+    "message": "Resume"
+  },
+  "history_retryFailed": {
+    "message": "That did not work. Try again in a moment."
+  },
+  "history_saveBeforeRefresh": {
+    "message": "Save or cancel your changes before refreshing. Your edits are kept."
+  },
+  "history_saved": {
+    "message": "Saved."
+  },
+  "history_savedStep": {
+    "message": "Saved"
+  },
+  "history_suggestionFailed": {
+    "message": "Suggestion failed"
+  },
+  "history_suggestionsPaused": {
+    "message": "Paused"
+  },
+  "history_suggestionsReady": {
+    "message": "Ready"
+  },
+  "history_syncStep": {
+    "message": "Sync"
+  },
+  "history_tagsNotSaved": {
+    "message": "Tags and note could not be saved. Try again."
+  },
+  "history_today": {
+    "message": "Today"
+  },
+  "history_tryWider": {
+    "message": "Try a longer period or clear the filters."
+  },
+  "history_whatHappened": {
+    "message": "What happened"
+  },
+  "history_yesterday": {
+    "message": "Yesterday"
+  },
+  "icons_autoCaptureSave": {
+    "message": "Auto-capture on save"
+  },
+  "icons_automaticIconsOffNew": {
+    "message": "Automatic icons are off for new bookmarks."
+  },
+  "icons_checking": {
+    "message": "Checking"
+  },
+  "icons_disabledServerPolicy": {
+    "message": "Disabled by server policy"
+  },
+  "icons_iconWillAddedWhen": {
+    "message": "The icon will be added when you are back online."
+  },
+  "icons_notConnected": {
+    "message": "Not connected"
+  },
+  "icons_providerIconsOnly": {
+    "message": "Provider icons only"
+  },
+  "icons_unavailableOffline": {
+    "message": "Unavailable (offline)"
+  },
+  "import_allowBookmarkAccessBefore": {
+    "message": "Allow bookmark access before reading this browser's bookmarks."
+  },
+  "import_bookmarkFileTooLarge": {
+    "message": "The bookmark file is too large."
+  },
+  "import_bookmarkTreeTooLarge": {
+    "message": "The bookmark tree is too large to import in one pass."
+  },
+  "import_bookmarkWithoutHrefOmitted": {
+    "message": "Bookmark without HREF was omitted."
+  },
+  "import_browsersBookmarkTreeCould": {
+    "message": "This browser's bookmark tree could not be read. Try again, or import an HTML bookmark file."
+  },
+  "import_chooseBookmarkFileIsnt": {
+    "message": "Choose a bookmark file that isn't empty."
+  },
+  "import_chooseCollectionTab": {
+    "message": "Choose a collection on the Collection tab, then import again."
+  },
+  "import_destinationOutsideSelectedSync": {
+    "message": "That destination is outside the selected sync folders."
+  },
+  "import_duplicateTitleUrlPreserved": {
+    "message": "Duplicate title and URL preserved as a distinct occurrence; first occurrence is $1."
+  },
+  "import_elementIgnoredInertData": {
+    "message": "$1 element was ignored as inert data."
+  },
+  "import_extensionCouldNotFinish": {
+    "message": "The extension could not finish this import. Close this page and try again."
+  },
+  "import_faviconDataPreviewedSidecar": {
+    "message": "Favicon data is previewed as sidecar-only and is never fetched."
+  },
+  "import_finishResolveCurrentImport": {
+    "message": "Finish or resolve the current import before starting another."
+  },
+  "import_importCouldNotContinue": {
+    "message": "The import could not continue. Review the source and try again."
+  },
+  "import_invalidBookmarkTimestampOmitted": {
+    "message": "Invalid bookmark timestamp was omitted."
+  },
+  "import_invalidBrowserTimestampOmitted": {
+    "message": "Invalid browser timestamp was omitted."
+  },
+  "import_knowNServerCould": {
+    "message": "The Know-N server could not be reached. Check your connection, then try again."
+  },
+  "import_mapSkipEveryImported": {
+    "message": "Map or skip every imported folder before importing."
+  },
+  "import_previewSourceAgainBefore": {
+    "message": "Preview the source again before importing."
+  },
+  "import_reconnectThenResumeImport": {
+    "message": "Reconnect, then resume the import."
+  },
+  "import_selectedSyncFolder": {
+    "message": "Selected sync folder"
+  },
+  "import_signBeforeImporting": {
+    "message": "Sign in before importing."
+  },
+  "import_signSessionNoLonger": {
+    "message": "Your sign-in session is no longer valid. Sign in again, then retry the import."
+  },
+  "import_sourceHasNoBookmarks": {
+    "message": "The source has no bookmarks to import."
+  },
+  "import_unknownNetscapeAttributesPreserved": {
+    "message": "Unknown Netscape attributes are preserved in the source extension namespace."
+  },
+  "import_urlNotPermittedCollection": {
+    "message": "URL is not permitted by the Collection Protocol bookmark URL contract and was omitted."
+  },
+  "import_urlSchemePreservedAuthority": {
+    "message": "URL scheme is preserved for authority but may require an explicit target mount policy."
+  },
+  "import_useHtmlBookmarkFile": {
+    "message": "Use an HTML bookmark file, or This browser's bookmarks."
+  },
+  "localImport_change": {
+    "message": "Change"
+  },
+  "localImport_checkLast": {
+    "message": "Check the last created item before continuing."
+  },
+  "localImport_chooseFile": {
+    "message": "Choose file…"
+  },
+  "localImport_completed": {
+    "message": "Imported $1 items to this browser."
+  },
+  "localImport_confirmItem": {
+    "message": "Confirm this item and continue"
+  },
+  "localImport_defaultTitle": {
+    "message": "Imported bookmarks"
+  },
+  "localImport_dropFile": {
+    "message": "Drop a bookmarks file here"
+  },
+  "localImport_dropHint": {
+    "message": "HTML from any browser, or a Know-N backup (.json)"
+  },
+  "localImport_existing": {
+    "message": "Verified created item"
+  },
+  "localImport_folderName": {
+    "message": "New folder name"
+  },
+  "localImport_hint": {
+    "message": "Existing bookmarks are kept. Tags and notes in the file are imported too."
+  },
+  "localImport_importCount_one": {
+    "message": "Import $1 item"
+  },
+  "localImport_importCount_other": {
+    "message": "Import $1 items"
+  },
+  "localImport_needsAccess": {
+    "message": "Allow bookmark access to choose where the import goes."
+  },
+  "localImport_progress": {
+    "message": "Importing to this browser: $1 of $2 items."
+  },
+  "localImport_putIn": {
+    "message": "Put them in"
+  },
+  "localImport_review": {
+    "message": "Review"
+  },
+  "localImport_stop": {
+    "message": "Stop import and keep created bookmarks"
+  },
+  "localImport_stopped": {
+    "message": "Import stopped. Created bookmarks are kept."
+  },
+  "localImport_unknown": {
+    "message": "The last created item has no confirmed result. Select the item you verified in the destination folder to continue, or stop this import."
+  },
+  "locale": {
+    "message": "en"
+  },
+  "manager_actionAlreadySubmittedDifferent": {
+    "message": "This action was already submitted with different details. Preview again, then retry."
+  },
+  "manager_addTags": {
+    "message": "Add tags"
+  },
+  "manager_allBookmarks": {
+    "message": "All bookmarks"
+  },
+  "manager_allTags": {
+    "message": "All tags ($1)…"
+  },
+  "manager_allTagsMatch": {
+    "message": "All tags"
+  },
+  "manager_annotationNotSaved": {
+    "message": "The bookmark was saved, but its tags and note could not be. Try again."
+  },
+  "manager_anyTag": {
+    "message": "Any tag"
+  },
+  "manager_batchCouldNotApplied": {
+    "message": "The batch could not be applied."
+  },
+  "manager_batchCouldNotCompleted": {
+    "message": "The batch could not be completed."
+  },
+  "manager_bookmarkSaved": {
+    "message": "Bookmark saved."
+  },
+  "manager_bookmarkTreeCouldNot": {
+    "message": "The bookmark tree could not be read. Try again."
+  },
+  "manager_bulkTagDone_one": {
+    "message": "Updated tags on $1 bookmark."
+  },
+  "manager_bulkTagDone_other": {
+    "message": "Updated tags on $1 bookmarks."
+  },
+  "manager_bulkTagFailed": {
+    "message": "Updated tags on $1, $2 failed. Try again."
+  },
+  "manager_cantMoveIntoItself": {
+    "message": "can't move into itself"
+  },
+  "manager_changedSincePreview": {
+    "message": "changed since the preview"
+  },
+  "manager_chooseWhereMove": {
+    "message": "choose where to move it"
+  },
+  "manager_clearSelection": {
+    "message": "Clear selection"
+  },
+  "manager_clearTags": {
+    "message": "Clear tags"
+  },
+  "manager_cloudBookmarkNotMapped": {
+    "message": "This cloud bookmark is not mapped to the current browser and collection."
+  },
+  "manager_confirmDeleteMove": {
+    "message": "Confirm this delete or move."
+  },
+  "manager_deleteItem": {
+    "message": "Delete item"
+  },
+  "manager_deleteItems": {
+    "message": "Delete $1 items"
+  },
+  "manager_deleteItemsConfirm_one": {
+    "message": "Delete $1 item from this browser? You can restore it with Undo."
+  },
+  "manager_deleteItemsConfirm_other": {
+    "message": "Delete $1 items from this browser? You can restore them with Undo."
+  },
+  "manager_deleteSelectedItem": {
+    "message": "Delete selected item"
+  },
+  "manager_deleteSelectedItems": {
+    "message": "Delete selected items"
+  },
+  "manager_descriptionTooLong": {
+    "message": "The folder description is too long."
+  },
+  "manager_descriptionUnavailable": {
+    "message": "The folder description could not be read. Try again."
+  },
+  "manager_destinationManagedBrowser": {
+    "message": "the destination is managed by the browser"
+  },
+  "manager_destinationNoLongerExists": {
+    "message": "the destination no longer exists"
+  },
+  "manager_editBookmark": {
+    "message": "Edit bookmark"
+  },
+  "manager_editFolder": {
+    "message": "Edit folder"
+  },
+  "manager_enterValidHttpS": {
+    "message": "Enter a valid http(s) address."
+  },
+  "manager_filterByTag": {
+    "message": "Filter by tag $1"
+  },
+  "manager_findTag": {
+    "message": "Find a tag"
+  },
+  "manager_findTagPlaceholder": {
+    "message": "Find a tag…"
+  },
+  "manager_finishCurrentEditLocate": {
+    "message": "Finish the current edit to locate the requested bookmark. Your draft is preserved."
+  },
+  "manager_folderCannotMoveInto": {
+    "message": "A folder cannot move into itself."
+  },
+  "manager_folderDescription": {
+    "message": "Description (optional)"
+  },
+  "manager_folderDescriptionHint": {
+    "message": "What belongs in this folder? Helps folder suggestions."
+  },
+  "manager_folderEmptyHint": {
+    "message": "Add a bookmark or folder here, or drag items in from another folder."
+  },
+  "manager_folderEmptyTitle": {
+    "message": "This folder is empty"
+  },
+  "manager_folderSaved": {
+    "message": "Folder saved."
+  },
+  "manager_itemCouldNotCreated": {
+    "message": "The item could not be created."
+  },
+  "manager_itemCouldNotMoved": {
+    "message": "The item could not be moved."
+  },
+  "manager_itemCouldNotSaved": {
+    "message": "The changes could not be saved. Try again."
+  },
+  "manager_itemWaitingDecideAbout": {
+    "message": "An item is waiting for you to decide about a deletion."
+  },
+  "manager_leavesSyncedFolders": {
+    "message": "leaves your synced folders"
+  },
+  "manager_locatedItsCurrentBrowser": {
+    "message": "Located at its current browser position. Ordinary edits here do not rate the original classification."
+  },
+  "manager_managedBrowser": {
+    "message": "managed by the browser"
+  },
+  "manager_managedReadOnly": {
+    "message": "Managed, read only"
+  },
+  "manager_match": {
+    "message": "Match"
+  },
+  "manager_moveItem": {
+    "message": "Move item"
+  },
+  "manager_moveItems": {
+    "message": "Move $1 items"
+  },
+  "manager_moveOutSyncedFolders": {
+    "message": "Move out of synced folders"
+  },
+  "manager_moveSelectedItems": {
+    "message": "Move selected items"
+  },
+  "manager_moveTakesItemsInto": {
+    "message": "This move takes items into or out of your synced folders."
+  },
+  "manager_needsAName": {
+    "message": "needs a name"
+  },
+  "manager_newBookmarkName": {
+    "message": "New bookmark name"
+  },
+  "manager_newBookmarkUrl": {
+    "message": "New bookmark URL"
+  },
+  "manager_newFolderName": {
+    "message": "New folder name"
+  },
+  "manager_newTitleFor": {
+    "message": "New title for $1"
+  },
+  "manager_noBookmarkHasAllTags": {
+    "message": "No bookmark has all of them. Remove one, or match any tag."
+  },
+  "manager_noBookmarksMatchSearch": {
+    "message": "No bookmarks match this search."
+  },
+  "manager_noBookmarksMatchTags": {
+    "message": "No bookmarks match these tags."
+  },
+  "manager_noLongerExists": {
+    "message": "no longer exists"
+  },
+  "manager_noTagsMatch": {
+    "message": "No tags match."
+  },
+  "manager_notSynced": {
+    "message": "Not synced"
+  },
+  "manager_openNewTab": {
+    "message": "Open in new tab"
+  },
+  "manager_originalBookmarkUnavailableDeleted": {
+    "message": "The original bookmark is unavailable or was deleted. Its capture history is retained."
+  },
+  "manager_removeTagFilter": {
+    "message": "Remove tag filter $1"
+  },
+  "manager_rename": {
+    "message": "Rename $1"
+  },
+  "manager_renameSelectedItems": {
+    "message": "Rename selected items"
+  },
+  "manager_searchHint": {
+    "message": "Search looks at titles, addresses, tags and notes."
+  },
+  "manager_searchPlaceholder": {
+    "message": "Search bookmarks, tags and notes"
+  },
+  "manager_searchResults": {
+    "message": "Search results ($1)"
+  },
+  "manager_select": {
+    "message": "Select"
+  },
+  "manager_selectAll": {
+    "message": "Select all"
+  },
+  "manager_selectBookmarksToTag": {
+    "message": "Select bookmarks to tag. Folders have no tags."
+  },
+  "manager_selectHint": {
+    "message": "Check items to move, rename, tag or delete them."
+  },
+  "manager_selectItemsFirst": {
+    "message": "Select items first."
+  },
+  "manager_selectedCount": {
+    "message": "$1 selected"
+  },
+  "manager_selectionActions": {
+    "message": "Selected items"
+  },
+  "manager_selectionAppliesVisibleRows": {
+    "message": "$1–$2 of $3 · selection applies to visible rows"
+  },
+  "manager_showInFolder": {
+    "message": "Show in folder"
+  },
+  "manager_stayLocalNotSynced": {
+    "message": "No Know-N sync"
+  },
+  "manager_synced": {
+    "message": "Synced"
+  },
+  "manager_syncedFolderSyncedKnow": {
+    "message": "In a synced folder · synced with Know-N"
+  },
+  "manager_tagAction": {
+    "message": "Tag…"
+  },
+  "manager_tagBookmarks_one": {
+    "message": "Tag $1 bookmark"
+  },
+  "manager_tagBookmarks_other": {
+    "message": "Tag $1 bookmarks"
+  },
+  "manager_tagCount_one": {
+    "message": "$1 bookmark tagged $2"
+  },
+  "manager_tagCount_other": {
+    "message": "$1 bookmarks tagged $2"
+  },
+  "manager_tagOnAll": {
+    "message": "All"
+  },
+  "manager_tagOnSome": {
+    "message": "$1 of $2"
+  },
+  "manager_tagsOnSelection": {
+    "message": "Tags on the selected bookmarks"
+  },
+  "manager_title": {
+    "message": "Title"
+  },
+  "manager_topLevelFolder": {
+    "message": "a top-level folder"
+  },
+  "manager_topLevelFoldersCant": {
+    "message": "Top-level folders can't be changed in a batch."
+  },
+  "manager_treeChangedPreviewAgain": {
+    "message": "The tree changed. Preview again."
+  },
+  "manager_undoNotRestored_one": {
+    "message": "The undo did not restore $1 item."
+  },
+  "manager_undoNotRestored_other": {
+    "message": "The undo did not restore $1 items."
+  },
+  "manager_undoRemaining": {
+    "message": "Undo available for $1:$2"
+  },
+  "manager_undoRestoredCouldNot": {
+    "message": "Undo restored $1, could not restore $2."
+  },
+  "manager_undoRestoredMatchingItems": {
+    "message": "Undo restored matching items. Some had changed."
+  },
+  "manager_undoWindowHasEnded": {
+    "message": "The undo window has ended."
+  },
+  "manager_undoWindowHint": {
+    "message": "Undo is available for $1 minutes after deletion. Download a backup first if you may need these items later."
+  },
+  "manager_updatedChangedConcurrently": {
+    "message": "Updated $1. $2 changed concurrently."
+  },
+  "manager_updatedFailed": {
+    "message": "Updated $1, failed $2."
+  },
+  "manager_waitingDeletionDecision": {
+    "message": "waiting on a deletion decision"
+  },
+  "metadata_consentRequired": {
+    "message": "Browser metadata stays local until you explicitly choose to connect it. Existing connections need this choice after upgrading."
+  },
+  "metadata_copyToCollection": {
+    "message": "Copy metadata to collection"
+  },
+  "metadata_descriptionConflict": {
+    "message": "This browser and Know-N have different descriptions. Your draft is kept. Review it before saving."
+  },
+  "metadata_keepLocal": {
+    "message": "Keep metadata local"
+  },
+  "metadata_noteConflict": {
+    "message": "Your draft is saved in this browser. Save to review both versions and choose which note to keep."
+  },
+  "metadata_noteUnsupported": {
+    "message": "Your note is saved in this browser. Review the cloud note in Know-N; its format or size cannot be synced here."
+  },
+  "metadata_reviewTitle": {
+    "message": "Review both versions"
+  },
+  "metadata_savedVersion": {
+    "message": "Saved version"
+  },
+  "metadata_statusLocal": {
+    "message": "Browser metadata stays local. Use Connect browser metadata to change this choice."
+  },
+  "metadata_statusSync": {
+    "message": "Browser metadata sync is enabled. Use Connect browser metadata to change this choice."
+  },
+  "metadata_statusUnavailable": {
+    "message": "Browser metadata sync status could not be read. Refresh to try again."
+  },
+  "metadata_syncWithCollection": {
+    "message": "Sync with collection"
+  },
+  "metadata_tagsIncompatible": {
+    "message": "All tags are saved in this browser. Tag sync supports up to 64 tags of 64 characters each; review the tags to resume syncing."
+  },
+  "metadata_transferCounts": {
+    "message": "This browser: $1 tag assignments, $2 notes, $3 folder descriptions."
+  },
+  "metadata_transferEmptyHint": {
+    "message": "Tags, notes and folder descriptions you add in this browser can sync with the selected collection, or stay on this browser only. You can change this later in Sync."
+  },
+  "metadata_transferHint": {
+    "message": "Copy these values into the selected collection when their folders are synced. Tags will merge; differing notes and descriptions will need review. Keeping them local preserves their current account and collection bindings."
+  },
+  "metadata_transferTitle": {
+    "message": "Connect browser metadata"
+  },
+  "metadata_useDraft": {
+    "message": "Use my draft"
+  },
+  "metadata_useSaved": {
+    "message": "Use saved version"
+  },
+  "metadata_yourDraft": {
+    "message": "Your draft"
+  },
+  "nativeWait_bookmarkDevice": {
+    "message": "Bookmark on this device"
+  },
+  "nativeWait_bookmarkPermissionRequiredConfirm": {
+    "message": "Bookmark permission is required to confirm this item."
+  },
+  "nativeWait_bookmarkWaiting": {
+    "message": "Bookmark waiting for confirmation"
+  },
+  "nativeWait_bookmarkWaitingConfirmation": {
+    "message": "Bookmark waiting for confirmation · $1"
+  },
+  "nativeWait_boundExistingBookmark": {
+    "message": "Bound to an existing bookmark."
+  },
+  "nativeWait_browserCreatedBookmarkBut": {
+    "message": "This browser created the bookmark, but the result was not recorded"
+  },
+  "nativeWait_cancelledCloudItemWill": {
+    "message": "Cancelled: this cloud item will not be placed on this device."
+  },
+  "nativeWait_chooseBookmarkUse": {
+    "message": "Choose the bookmark to use."
+  },
+  "nativeWait_couldNotCompleteAction": {
+    "message": "Could not complete this action. Try again."
+  },
+  "nativeWait_couldNotConfirmItem": {
+    "message": "Could not confirm this item: matching details are missing."
+  },
+  "nativeWait_deviceLeftSync": {
+    "message": "This device left sync."
+  },
+  "nativeWait_dontPlaceCloudItem": {
+    "message": "Don't place this cloud item on this device"
+  },
+  "nativeWait_dontPlaceCloudItem2": {
+    "message": "Don't place this cloud item on this device? The cloud bookmark will stay in your collection, but won't be added to this browser. To sync it later, edit the bookmark in Know-N."
+  },
+  "nativeWait_extensionBackgroundTemporarilyUnavailable": {
+    "message": "The extension background is temporarily unavailable. Try again."
+  },
+  "nativeWait_intro": {
+    "message": "Incoming sync pauses until you decide; uploads continue. “Don’t place” keeps the item in your collection but not on this browser."
+  },
+  "nativeWait_itemAlreadyHandledNo": {
+    "message": "This item was already handled. No further confirmation is needed."
+  },
+  "nativeWait_itemAlreadyHandledRefresh": {
+    "message": "This item was already handled. Refresh the list."
+  },
+  "nativeWait_itemChangedRefreshTry": {
+    "message": "This item changed. Refresh and try again."
+  },
+  "nativeWait_keepDeviceCreateNew": {
+    "message": "Keep on this device and create a new one"
+  },
+  "nativeWait_keptLocalBookmarkCreated": {
+    "message": "Kept the local bookmark and created a new one."
+  },
+  "nativeWait_noMatchingLocalBookmarks": {
+    "message": "No matching local bookmarks"
+  },
+  "nativeWait_noMatchingLocalBookmarks2": {
+    "message": "No matching local bookmarks found."
+  },
+  "nativeWait_notSignedSyncAccount": {
+    "message": "Not signed in to a sync account."
+  },
+  "nativeWait_syncAccountChangedReopen": {
+    "message": "The sync account changed. Reopen settings."
+  },
+  "nativeWait_syncIdentityUpdatedReopen": {
+    "message": "Sync identity was updated. Reopen settings."
+  },
+  "nativeWait_syncItemCouldNot": {
+    "message": "That sync item could not be found."
+  },
+  "nativeWait_useBookmarkAlreadyDevice": {
+    "message": "Use a bookmark already on this device"
+  },
+  "nativeWait_viewItemsWaitingConfirmation": {
+    "message": "View items waiting for confirmation"
+  },
+  "nativeWait_waitingParentFolder": {
+    "message": "Waiting for the parent folder"
+  },
+  "options_accessJustGrantedReload": {
+    "message": "Access was just granted. Reload this page to finish turning it on."
+  },
+  "options_activeUntil": {
+    "message": "Active until $1"
+  },
+  "options_advancedSyncPolicy": {
+    "message": "Advanced sync policy"
+  },
+  "options_allowOptionalBookmarksPermission": {
+    "message": "Allow bookmark access to browse and organize bookmarks here. You can remove it any time under General › Permissions."
+  },
+  "options_alsoMoveKnowN": {
+    "message": "Also move Know-N copies to trash"
+  },
+  "options_bookmarkAccessOff": {
+    "message": "Bookmark access is off"
+  },
+  "options_bookmarkFoldersTemporarilyUnavailable": {
+    "message": "Bookmark folders are temporarily unavailable. Try again."
+  },
+  "options_bookmarkPermissionRequiredAllow": {
+    "message": "Bookmark permission is required. Allow access to load bookmark folders."
+  },
+  "options_bookmarksNotIncludedSync": {
+    "message": "Bookmarks not included in sync"
+  },
+  "options_bookmarksPane": {
+    "message": "Bookmarks"
+  },
+  "options_bookmarksStayBrowserSync": {
+    "message": "Bookmarks, tags and notes stay in this browser. Personal sync stops when you sign out."
+  },
+  "options_checkFolderAccess": {
+    "message": "Check folder access"
+  },
+  "options_checkingSecureState": {
+    "message": "Checking secure state."
+  },
+  "options_cloudflareAccountId": {
+    "message": "Cloudflare account ID"
+  },
+  "options_collapse": {
+    "message": "Collapse $1"
+  },
+  "options_collectionsCouldNotLoaded": {
+    "message": "Collections could not be loaded. Refresh the list to try again."
+  },
+  "options_collectionsDigestsFollowKept": {
+    "message": "Collections and digests you follow, kept up to date as read-only folders in this browser."
+  },
+  "options_collectionsSyncedFoldersConfirmations2": {
+    "message": "Sign in to sync with Know-N and import into your collection. Saving, organizing and HTML import work without an account."
+  },
+  "options_completingSecureSign": {
+    "message": "Completing secure sign-in."
+  },
+  "options_confirmFolderChanges": {
+    "message": "Confirm folder changes"
+  },
+  "options_connectThisBrowser": {
+    "message": "Connect this browser"
+  },
+  "options_connectionUnavailableReconnectRefresh": {
+    "message": "Connection is unavailable. Reconnect and refresh."
+  },
+  "options_couldntSelectCollectionRefresh": {
+    "message": "Couldn't select this collection. Refresh the list and try again."
+  },
+  "options_createOpenCollectionOwn": {
+    "message": "Create or open a collection you own on the web, then refresh this list."
+  },
+  "options_creditsCouldNotLoaded": {
+    "message": "Credits could not be loaded. Refresh to try again."
+  },
+  "options_defaultsNewSubscriptionsSubscription": {
+    "message": "Subscription folders are read-only and never get folder suggestions."
+  },
+  "options_disconnectKeepsBookmarks": {
+    "message": "Bookmarks on this browser are kept."
+  },
+  "options_disconnectServer": {
+    "message": "Disconnect server"
+  },
+  "options_disconnectingServer": {
+    "message": "Disconnecting server…"
+  },
+  "options_doesNotChangeDefault": {
+    "message": "This does not change the default save folder. Changes are previewed before anything syncs. Your browser’s own bookmark sync is separate."
+  },
+  "options_enableLocalClassification": {
+    "message": "Use this AI service"
+  },
+  "options_expand": {
+    "message": "Expand $1"
+  },
+  "options_firstSyncMethod": {
+    "message": "First sync method"
+  },
+  "options_folderMappingNeedsAttention": {
+    "message": "Folder mapping needs attention. Review and save the folder settings again."
+  },
+  "options_folderSettingsCouldNot": {
+    "message": "Folder settings could not be loaded. Try again."
+  },
+  "options_foldersBrowser": {
+    "message": "Folders in this browser"
+  },
+  "options_foldersThatSync": {
+    "message": "Folders that sync"
+  },
+  "options_forOptionalSync": {
+    "message": "for optional sync"
+  },
+  "options_goAccountSign": {
+    "message": "Go to Account to sign in"
+  },
+  "options_httpOriginRefused": {
+    "message": "Plain HTTP works only for a server on this computer (localhost, 127.0.0.1, [::1]). On a home network, use https:// with the server's tls-internal profile."
+  },
+  "options_httpOriginUnencrypted": {
+    "message": "This server uses plain HTTP. Credentials and bookmarks travel unencrypted."
+  },
+  "options_iUnderstandCurrentBookmark": {
+    "message": "The page's URL and title, your folder names and descriptions, and a few bookmark titles and domains from each folder. Tag names are included when a collection is synced. Know-N never sees the request or the reply. The key stays on this browser and is never synced."
+  },
+  "options_ifBrowserAlsoSyncs": {
+    "message": "If your browser also syncs bookmarks, private subscription content can appear in your other browser profiles. Add subscriptions in each profile separately."
+  },
+  "options_importToKnowN": {
+    "message": "Import to Know-N"
+  },
+  "options_keepBrowsersValues": {
+    "message": "Keep this browser's values"
+  },
+  "options_keepDevice": {
+    "message": "Exclude $1 from Know-N sync"
+  },
+  "options_keepTypesafeKeyOwn": {
+    "message": "Keep your TypeSafe key in your own Cloudflare AI Gateway (alias \"default\"). The extension only stores the Cloudflare token."
+  },
+  "options_listOutDateRefresh": {
+    "message": "This list is out of date. Refresh to see your newest activity."
+  },
+  "options_loadingBookmarkFolders": {
+    "message": "Loading bookmark folders…"
+  },
+  "options_loadingYourCollections": {
+    "message": "Loading your collections…"
+  },
+  "options_logoutLifecycle": {
+    "message": "Queued personal sync changes will be archived. Reconnecting after sign-in requires your review. Managed subscription copies will be removed; personal copies you made are kept. Device save history stays on this browser."
+  },
+  "options_logoutSharedSession": {
+    "message": "This browser shares one Know-N session with the website: signing out here also signs you out of Know-N on the web, and signing in there signs this extension in again."
+  },
+  "options_map": {
+    "message": "Map $1"
+  },
+  "options_moreAboutSyncedFolders": {
+    "message": "More about synced folders"
+  },
+  "options_newBookmarksGo": {
+    "message": "New bookmarks go"
+  },
+  "options_newSubscriptionsStartThese": {
+    "message": "New subscriptions start with these settings. Existing folders keep theirs."
+  },
+  "options_noActiveSession": {
+    "message": "No active session"
+  },
+  "options_noActivityMatchesThese": {
+    "message": "No activity matches these filters."
+  },
+  "options_noActivityYet": {
+    "message": "No activity yet."
+  },
+  "options_noBookmarkFoldersAvailable": {
+    "message": "No bookmark folders are available."
+  },
+  "options_pageTitle": {
+    "message": "Know-N · Bookmarks & Settings"
+  },
+  "options_plainHttpLocalAddress": {
+    "message": "Plain HTTP on a local address sends the token and bookmark text unencrypted. Use it only for a classifier you run yourself."
+  },
+  "options_privacyPolicy": {
+    "message": "Privacy policy"
+  },
+  "options_readingBookmarkExport": {
+    "message": "Reading bookmark export."
+  },
+  "options_readingBrowsersBookmarks": {
+    "message": "Reading this browser's bookmarks…"
+  },
+  "options_reconnectingAccountSession": {
+    "message": "Reconnecting to the account session…"
+  },
+  "options_redactedRecordsWhatBrowser": {
+    "message": "Redacted records of what this browser did and why. Share them when reporting a problem — no page content is included."
+  },
+  "options_redactedSummaryBrowsersCapture": {
+    "message": "A redacted summary of this browser’s saving state: permission, session, sync and suggestions."
+  },
+  "options_removeBookmarkAccess": {
+    "message": "Remove bookmark access"
+  },
+  "options_renewingSecureSession": {
+    "message": "Renewing your secure session."
+  },
+  "options_reviewSyncStatus": {
+    "message": "Review Sync › Status"
+  },
+  "options_selectedFolderMissingReview": {
+    "message": "A selected folder is missing. Review the list and choose a replacement."
+  },
+  "options_serverMinorOlder": {
+    "message": "This server is older than the versions this extension supports. Upgrade the server."
+  },
+  "options_serverOriginInvalid": {
+    "message": "Enter a server origin, such as https://colp.example.net."
+  },
+  "options_serverPermissionDenied": {
+    "message": "Allow access to this server before connecting."
+  },
+  "options_serverSaveFailed": {
+    "message": "Could not connect to this COLP server. Check its address and availability, then try again."
+  },
+  "options_serverVersion": {
+    "message": "Server version"
+  },
+  "options_serverVersionUnavailable": {
+    "message": "Server version unavailable"
+  },
+  "options_showFoldersBeforeBookmarks": {
+    "message": "Show folders before bookmarks"
+  },
+  "options_signChooseCollectionPick": {
+    "message": "Sign in and choose a collection to pick folders."
+  },
+  "options_signChooseCollectionThen": {
+    "message": "Sign in and choose a collection, then pick which folders sync."
+  },
+  "options_signInAgain": {
+    "message": "Sign in again"
+  },
+  "options_signLoadAccountSubscription": {
+    "message": "Sign in to load account subscription preferences."
+  },
+  "options_signOutFailed": {
+    "message": "Sign out failed"
+  },
+  "options_signOutKnowN": {
+    "message": "Sign out of Know-N?"
+  },
+  "options_signThenChooseWhere": {
+    "message": "Sign in, then choose where this browser syncs."
+  },
+  "options_signViewCredits": {
+    "message": "Sign in to view your credits."
+  },
+  "options_staySignedIn": {
+    "message": "Stay signed in"
+  },
+  "options_useBrowsersBookmarksStart": {
+    "message": "Use This browser's bookmarks to start an import."
+  },
+  "options_useServerClassification": {
+    "message": "Use Know-N suggestions"
+  },
+  "options_useServerValues": {
+    "message": "Use server values"
+  },
+  "options_viewChangeList": {
+    "message": "View change list"
+  },
+  "options_whenClickKnowN": {
+    "message": "When you click the Know-N button"
+  },
+  "options_whenUnfollowSource": {
+    "message": "When you unfollow a source"
+  },
+  "options_youreSignedBrowser": {
+    "message": "You're signed in on this browser."
+  },
+  "organize_action": {
+    "message": "Organize"
+  },
+  "organize_applying": {
+    "message": "Organizing selected paths…"
+  },
+  "organize_busy": {
+    "message": "Another bookmark operation is running. Try again shortly."
+  },
+  "organize_done": {
+    "message": "Bookmarks organized with $1 folder moves."
+  },
+  "organize_existingHint": {
+    "message": "Choose folders to organize this browser's existing bookmarks with folders first."
+  },
+  "organize_existingTitle": {
+    "message": "Organize existing bookmarks"
+  },
+  "organize_failed": {
+    "message": "Could not finish organizing bookmarks. Try again."
+  },
+  "organize_loading": {
+    "message": "Reading bookmark folders…"
+  },
+  "organize_noFolders": {
+    "message": "No writable bookmark folders are available."
+  },
+  "organize_orderHint": {
+    "message": "Only folders move, using the fewest moves. The relative order of bookmarks and of folders stays the same."
+  },
+  "organize_partial": {
+    "message": "$1 folder moves completed. Completed moves will not be repeated on retry."
+  },
+  "organize_readonlyHint": {
+    "message": "Read-only folders and subscription content are skipped. This selection does not change your automatic sorting setting."
+  },
+  "organize_recursive": {
+    "message": "Includes subfolders"
+  },
+  "organize_rootOnly": {
+    "message": "Root contents only"
+  },
+  "organize_rootPath": {
+    "message": "$1 · Root path"
+  },
+  "organize_scopeHint": {
+    "message": "Choose root paths to put their bookmarks after folders. Choose first-level folders to organize their contents and all deeper folders."
+  },
+  "organize_selected": {
+    "message": "$1 paths selected"
+  },
+  "organize_title": {
+    "message": "Organize bookmarks"
+  },
+  "organize_treeChanged": {
+    "message": "The folders changed during organization. Reopen this panel and try again."
+  },
+  "permissions_bookmarks": {
+    "message": "Bookmark access"
+  },
+  "permissions_bookmarksHint": {
+    "message": "Needed to save, import and organize this browser's bookmarks."
+  },
+  "permissions_changeFailed": {
+    "message": "Permission could not be changed. Try again."
+  },
+  "permissions_readFailed": {
+    "message": "Permission status could not be read. Reload this page to try again."
+  },
+  "permissions_removeBookmarksCopy": {
+    "message": "Saving and bookmark management stop until you allow access again. Existing bookmarks and Know-N copies are kept."
+  },
+  "permissions_removeTabAccess": {
+    "message": "Remove tab access"
+  },
+  "permissions_removeTabsCopy": {
+    "message": "Saving all tabs will ask for tab access again. Saving the current page and existing bookmarks are unchanged."
+  },
+  "permissions_scopeHint": {
+    "message": "Sync with Know-N is set up under Sync. Your browser’s own account sync is separate."
+  },
+  "permissions_tabs": {
+    "message": "Read all tabs"
+  },
+  "permissions_tabsHint": {
+    "message": "Needed for window tab previews. Saving the current page uses active-tab access instead."
+  },
+  "permissions_unchanged": {
+    "message": "Permission was not changed."
+  },
+  "pin_conditionFoldersFirst": {
+    "message": "Show folders before bookmarks is on"
+  },
+  "pin_conditionMet": {
+    "message": "Done"
+  },
+  "pin_conditionNeeded": {
+    "message": "Needed"
+  },
+  "pin_conditionOrganized": {
+    "message": "This folder is organized, with its folders above its bookmarks"
+  },
+  "pin_conditionTop": {
+    "message": "New bookmarks go to the top of the folder"
+  },
+  "pin_conditionsIntro": {
+    "message": "Pinned bookmarks sit right below the folders. Pinning works when:"
+  },
+  "pin_openSettings": {
+    "message": "Open Saving settings"
+  },
+  "pin_pausedHere": {
+    "message": "Pinned. Pins are off in this folder; click to unpin."
+  },
+  "pin_pin": {
+    "message": "Pin"
+  },
+  "pin_pinFailed": {
+    "message": "The bookmark could not be pinned."
+  },
+  "pin_pinned": {
+    "message": "Pinned."
+  },
+  "pin_popupNeeds": {
+    "message": "Pinning is off in this folder. It needs: $1."
+  },
+  "pin_readOnly": {
+    "message": "This folder is read only, so its bookmarks cannot be pinned."
+  },
+  "pin_unavailableTitle": {
+    "message": "Pinning is off in this folder"
+  },
+  "pin_unpin": {
+    "message": "Unpin"
+  },
+  "pin_unpinFailed": {
+    "message": "The bookmark could not be unpinned."
+  },
+  "pin_unpinned": {
+    "message": "Unpinned."
+  },
+  "popup_addNote": {
+    "message": "Add a note…"
+  },
+  "popup_addTag": {
+    "message": "Add tag $1"
+  },
+  "popup_addTags": {
+    "message": "Add tags…"
+  },
+  "popup_aiPick": {
+    "message": "AI pick"
+  },
+  "popup_allFolders": {
+    "message": "All folders"
+  },
+  "popup_autoCapturedIconCleared": {
+    "message": "Auto-captured icon cleared."
+  },
+  "popup_bookmarkAccessOffAllow": {
+    "message": "Bookmark access is off — allow it to save bookmarks to this browser."
+  },
+  "popup_bookmarkNotSyncedCollection": {
+    "message": "This bookmark is not in the synced collection."
+  },
+  "popup_bookmarkUsesManuallySet": {
+    "message": "This bookmark uses a manually set icon."
+  },
+  "popup_browserPageCannotBookmarked": {
+    "message": "This browser page cannot be bookmarked."
+  },
+  "popup_chooseAFolder": {
+    "message": "Choose a folder"
+  },
+  "popup_chooseSyncedFolderBefore": {
+    "message": "Choose a synced folder before requesting suggestions."
+  },
+  "popup_chooseWhatSyncs": {
+    "message": "Choose what syncs"
+  },
+  "popup_classificationNeedsPriceConfirmation": {
+    "message": "The suggestion needs a price confirmation. Update the extension and try again."
+  },
+  "popup_classificationPriceChangedStart": {
+    "message": "The suggestion price changed. Start a new request."
+  },
+  "popup_classificationPricingIsntAvailable": {
+    "message": "Suggestion pricing isn't available right now. You can still save."
+  },
+  "popup_classifyAgain": {
+    "message": "Suggest again"
+  },
+  "popup_clearAutoCapturedIcon": {
+    "message": "Clear auto-captured icon"
+  },
+  "popup_clickSaveSavePage": {
+    "message": "Click Save to save this page."
+  },
+  "popup_connectionDroppedCheckAgain": {
+    "message": "The connection dropped. Check again, or save without suggestions."
+  },
+  "popup_continueWithGithub": {
+    "message": "Continue with GitHub"
+  },
+  "popup_continueWithGoogle": {
+    "message": "Continue with Google"
+  },
+  "popup_couldNotClearIcon": {
+    "message": "Could not clear the icon right now."
+  },
+  "popup_couldntCreateFolderTry": {
+    "message": "Couldn't create the folder. Try again."
+  },
+  "popup_couldntOpenTabs": {
+    "message": "Couldn't open the tab list. Try again."
+  },
+  "popup_couldntRemoveBookmark": {
+    "message": "Couldn't remove the bookmark. Try again."
+  },
+  "popup_couldntRestoreBookmark": {
+    "message": "Couldn't restore the bookmark. Try again."
+  },
+  "popup_couldntSaveChanges": {
+    "message": "Couldn't save the changes. Try again."
+  },
+  "popup_couldntSavePageCheck": {
+    "message": "Couldn't save this page. Check that the browser allows bookmarks, then try again."
+  },
+  "popup_createAnAccount": {
+    "message": "Create an account"
+  },
+  "popup_folderNoLongerAvailable": {
+    "message": "This folder is no longer available. Choose a folder manually."
+  },
+  "popup_folderNotSynced": {
+    "message": "This folder isn't synced to Know-N"
+  },
+  "popup_localCallInProgress": {
+    "message": "A suggestion is already running. Try again when it finishes."
+  },
+  "popup_localClassificationFailed": {
+    "message": "The suggestion couldn't run. Try again, or choose a folder manually."
+  },
+  "popup_localKeyRejected": {
+    "message": "Your AI service rejected the key. Check it under AI suggestions in settings."
+  },
+  "popup_localKeyRequired": {
+    "message": "Add your API key under AI suggestions in settings to get suggestions."
+  },
+  "popup_localModeSuggestionsCome": {
+    "message": "Suggestions are sent directly to your own AI service."
+  },
+  "popup_localNoFolders": {
+    "message": "Create a bookmark folder first, then ask for a suggestion."
+  },
+  "popup_localProviderUnavailable": {
+    "message": "The suggestion could not be completed. Try again, or choose a folder manually."
+  },
+  "popup_localRateLimited": {
+    "message": "Your AI service is busy or rate limited. Try again shortly."
+  },
+  "popup_localRequestFailed": {
+    "message": "Your AI service rejected the request or replied in an unexpected format. Try again."
+  },
+  "popup_localRequestTooLarge": {
+    "message": "The page and folder list are too large to send. Choose a folder manually."
+  },
+  "popup_localResultUnknown": {
+    "message": "The suggestion result wasn't received. Try again."
+  },
+  "popup_localSessionLimit": {
+    "message": "This browser session reached its suggestion limit. Restart the browser to try again."
+  },
+  "popup_localSettingsChanged": {
+    "message": "Your AI service settings changed. Try again."
+  },
+  "popup_localTaxonomyTooLarge": {
+    "message": "There are too many folders for a suggestion. Choose a folder manually."
+  },
+  "popup_localTimeout": {
+    "message": "The suggestion timed out. Try again."
+  },
+  "popup_newFolder": {
+    "message": "New folder"
+  },
+  "popup_newFolderIn": {
+    "message": "New folder in $1"
+  },
+  "popup_newFolderNameCreated": {
+    "message": "New folder name (created inside the selected folder)"
+  },
+  "popup_noAutoCapturedIcon": {
+    "message": "No auto-captured icon to clear."
+  },
+  "popup_noFinalResultYet": {
+    "message": "No final result yet. Check this same request, or save without suggestions."
+  },
+  "popup_noFolderSuggestedKeep": {
+    "message": "No folder suggested. Keep your chosen folder or pick another."
+  },
+  "popup_noFoldersMatch": {
+    "message": "No folders match."
+  },
+  "popup_noOtherFolderFits": {
+    "message": "No other folder fits. Keep this one or pick another."
+  },
+  "popup_noSuggestionsPageCheck": {
+    "message": "No suggestions for this page. Check the URL and title."
+  },
+  "popup_notEnoughCreditsClassification": {
+    "message": "Not enough credits for a suggestion. You can still save."
+  },
+  "popup_onlyOnDevice": {
+    "message": "No Know-N sync"
+  },
+  "popup_openAiServiceSettings": {
+    "message": "Open AI service settings"
+  },
+  "popup_preparingBookmarkCapture": {
+    "message": "Preparing bookmark capture…"
+  },
+  "popup_priceChangedUsesCredits_one": {
+    "message": "The price changed. Uses $1 credit"
+  },
+  "popup_priceChangedUsesCredits_other": {
+    "message": "The price changed. Uses $1 credits"
+  },
+  "popup_recentFolders": {
+    "message": "Recent"
+  },
+  "popup_removeTag": {
+    "message": "Remove tag $1"
+  },
+  "popup_removedUndo": {
+    "message": "Bookmark removed. Undo is available here or in the library for five minutes."
+  },
+  "popup_savedTo": {
+    "message": "Saved to $1"
+  },
+  "popup_searchFolders": {
+    "message": "Search folders"
+  },
+  "popup_setUpSync": {
+    "message": "Set up sync"
+  },
+  "popup_signAgainExtensionSettings": {
+    "message": "Sign in again in the extension settings to get suggestions. You can still save."
+  },
+  "popup_signSave": {
+    "message": "Sign in to save"
+  },
+  "popup_signSavePage": {
+    "message": "Sign in to save this page."
+  },
+  "popup_spendingLimitTooLow": {
+    "message": "Your spending limit is too low for this request. Start a new request."
+  },
+  "popup_suggest": {
+    "message": "Suggest"
+  },
+  "popup_suggestAnotherFolder": {
+    "message": "Suggest another folder"
+  },
+  "popup_suggestedFolder": {
+    "message": "Suggested folder"
+  },
+  "popup_suggestedFolderHasNot": {
+    "message": "The suggested folder has not synced to this browser. Choose a folder manually."
+  },
+  "popup_suggestedTags": {
+    "message": "Suggested tags"
+  },
+  "popup_suggesting": {
+    "message": "Suggesting…"
+  },
+  "popup_suggestionsUnavailableCanStill": {
+    "message": "Suggestions are unavailable. You can still choose a folder and save."
+  },
+  "popup_syncThisFolder": {
+    "message": "Sync this folder…"
+  },
+  "popup_tickSaveAnotherCopy": {
+    "message": "Tick \"Save another copy\" to save this page again."
+  },
+  "popup_usesCredits_one": {
+    "message": "Uses $1 credit"
+  },
+  "popup_usesCredits_other": {
+    "message": "Uses $1 credits"
+  },
+  "prefs_accountDefaultsLoadedChanges": {
+    "message": "Account defaults loaded. Changes save automatically."
+  },
+  "prefs_advancedProviderSettings": {
+    "message": "Advanced service settings"
+  },
+  "prefs_aiSuggestions": {
+    "message": "AI suggestions"
+  },
+  "prefs_anotherDeviceChangedThese": {
+    "message": "Another device changed these preferences. Choose which values to keep before editing again."
+  },
+  "prefs_automaticModeHint": {
+    "message": "Open a webpage and click the extension to save to this browser. AI suggestions and sync are optional."
+  },
+  "prefs_dataHeading": {
+    "message": "Your data"
+  },
+  "prefs_dataHint": {
+    "message": "Tags, notes, folder descriptions, save history and settings live in this extension. Removing Know-N deletes them, except what syncs with a collection. Export a Know-N backup to keep a copy."
+  },
+  "prefs_dataTitle": {
+    "message": "Kept on this browser"
+  },
+  "prefs_defaultCheckInterval": {
+    "message": "Default check interval"
+  },
+  "prefs_defaultDigestContent": {
+    "message": "Default Digest content"
+  },
+  "prefs_defaultRecentIssueCount": {
+    "message": "Default recent issue count"
+  },
+  "prefs_exitPolicyChangesNot": {
+    "message": "Exit policy changes are not confirmed. Resolve or sync before an exit."
+  },
+  "prefs_exportBackup": {
+    "message": "Export backup"
+  },
+  "prefs_extensionLanguage": {
+    "message": "Extension language"
+  },
+  "prefs_finishPendingClassificationWhen": {
+    "message": "Finish pending classification when back online"
+  },
+  "prefs_manualSuggestionsNotSaved": {
+    "message": "Could not save automatic suggestions. Try again."
+  },
+  "prefs_most20ReadableIssues": {
+    "message": "At most 20 readable issues."
+  },
+  "prefs_notSavedChoiceRemains": {
+    "message": "Not saved. Your choice remains in the form; the effective preference has not changed."
+  },
+  "prefs_resultPanelDuration": {
+    "message": "Result panel duration"
+  },
+  "prefs_sameAsBrowser": {
+    "message": "Same as browser"
+  },
+  "prefs_savedBrowserWillSync": {
+    "message": "Saved on this browser. Account sync is pending."
+  },
+  "prefs_signChangeAccountSubscription": {
+    "message": "Sign in to change account subscription preferences."
+  },
+  "prefs_subscriptionPreferencesNotFully": {
+    "message": "Subscription preferences are not fully supported by this server. Missing settings cannot be changed."
+  },
+  "prefs_thisBrowserAccount": {
+    "message": "This browser: $1 / Account: $2"
+  },
+  "prefs_useAccountDefaults": {
+    "message": "Use account defaults on this browser"
+  },
+  "prefs_useMyClassificationCorrections": {
+    "message": "Use my classification corrections"
+  },
+  "remoteDelete_bookmarkPermissionRequiredHandle": {
+    "message": "Bookmark permission is required to handle this deletion."
+  },
+  "remoteDelete_bookmarksDeletedOtherDevices": {
+    "message": "Bookmarks deleted on other devices are removed from this browser."
+  },
+  "remoteDelete_cloudDeletionsDoNot": {
+    "message": "Cloud deletions do not remove the item from this browser. It leaves sync and will not upload as the same item again."
+  },
+  "remoteDelete_cloudDeletionsPauseInbox": {
+    "message": "Cloud deletions pause in the inbox so you can apply, restore, or keep the item on this device."
+  },
+  "remoteDelete_cloudDeletionsWaitingConfirmation": {
+    "message": "Cloud deletions waiting for confirmation: $1"
+  },
+  "remoteDelete_couldntCompleteTryAgain": {
+    "message": "Couldn't complete this. Try again."
+  },
+  "remoteDelete_deleteBookmarkConfirm": {
+    "message": "Delete this bookmark from this browser?"
+  },
+  "remoteDelete_deleteFolderConfirm": {
+    "message": "Delete this folder from this browser?"
+  },
+  "remoteDelete_deleteSeparatorConfirm": {
+    "message": "Delete this separator from this browser?"
+  },
+  "remoteDelete_deletedFromBrowser": {
+    "message": "Deleted $1 from this browser."
+  },
+  "remoteDelete_extensionBackgroundTemporarilyUnavailable": {
+    "message": "The extension background is temporarily unavailable. Try again in a moment."
+  },
+  "remoteDelete_itemChangedReviewConfirmation": {
+    "message": "This item changed. Review the confirmation list again."
+  },
+  "remoteDelete_startSyncChangeHowCloud": {
+    "message": "Start syncing a collection to change how cloud deletions are applied here."
+  },
+  "save_allowBookmarkAccessSave": {
+    "message": "Allow bookmark access to save this page."
+  },
+  "save_alreadySavedOpenCapture": {
+    "message": "Already saved. Open capture history to choose its location."
+  },
+  "save_checkingPreviousSaveResult": {
+    "message": "Checking the previous save result. Open capture history for details."
+  },
+  "save_couldNotSaveOpen": {
+    "message": "Could not save. Open capture history to review the task."
+  },
+  "save_couldntSaveBookmarkTry": {
+    "message": "Couldn't save the bookmark. Try again."
+  },
+  "save_pageCannotSaved": {
+    "message": "This page cannot be saved."
+  },
+  "save_previewSelectedTabs": {
+    "message": "Preview selected tabs"
+  },
+  "save_previouslySavedBookmarksWere": {
+    "message": "Previously saved bookmarks were moved or reordered. Review their location before resuming this save."
+  },
+  "save_saveLink": {
+    "message": "Save this link"
+  },
+  "save_savePage": {
+    "message": "Save this page"
+  },
+  "save_saveTabsWindow": {
+    "message": "Save tabs in this window"
+  },
+  "save_savedBrowser": {
+    "message": "Saved to this browser"
+  },
+  "save_savedBrowserPeriod": {
+    "message": "Saved to this browser."
+  },
+  "save_savedBrowserSyncFolders": {
+    "message": "Saved to this browser. Sync folders are not ready, so this save stays on this device only."
+  },
+  "settings_startFailed": {
+    "message": "This section could not load. Reload this page to try again."
+  },
+  "shell_accountDefaultsDiffer": {
+    "message": "Your account has different saving defaults from this browser."
+  },
+  "shell_accountSignedOutLede": {
+    "message": "Saving, organizing and backups work without an account. Sign in to sync with Know-N on every device."
+  },
+  "shell_aiLede": {
+    "message": "Optional. Know-N can suggest a folder and tags when you save."
+  },
+  "shell_allow": {
+    "message": "Allow"
+  },
+  "shell_automaticHint": {
+    "message": "One click saves the page. A short panel lets you change the folder."
+  },
+  "shell_automaticOnly": {
+    "message": "Automatic mode only."
+  },
+  "shell_bookmarkAccessOff": {
+    "message": "Bookmark access is off"
+  },
+  "shell_bookmarksLede": {
+    "message": "This browser's bookmarks. Changes apply to your browser right away."
+  },
+  "shell_bottomOfFolder": {
+    "message": "Bottom of folder"
+  },
+  "shell_change": {
+    "message": "Change"
+  },
+  "shell_clear": {
+    "message": "Clear"
+  },
+  "shell_closePanel": {
+    "message": "Close the result panel"
+  },
+  "shell_connectionDetails": {
+    "message": "Connection details"
+  },
+  "shell_consent": {
+    "message": "Send page titles, URLs and folder names to this service."
+  },
+  "shell_correctionMemory": {
+    "message": "Correction memory"
+  },
+  "shell_correctionsRemembered_one": {
+    "message": "$1 correction remembered."
+  },
+  "shell_correctionsRemembered_other": {
+    "message": "$1 corrections remembered."
+  },
+  "shell_creditsLede": {
+    "message": "Credits pay for Know-N folder suggestions."
+  },
+  "shell_dateRange": {
+    "message": "Date range"
+  },
+  "shell_defaultFolderHint": {
+    "message": "Used when you don’t pick a folder."
+  },
+  "shell_finishAfterReconnect": {
+    "message": "Finish suggestions after reconnecting"
+  },
+  "shell_finishAfterReconnectHint": {
+    "message": "Runs suggestions that were waiting while you were offline."
+  },
+  "shell_foldersFirstHint": {
+    "message": "Also reorders your browser bookmarks, keeping the order within each group. Read-only folders are excluded. Turning this off stops sorting without restoring the previous order."
+  },
+  "shell_general": {
+    "message": "General"
+  },
+  "shell_generalLede": {
+    "message": "Language, browser access and the data Know-N keeps on this browser."
+  },
+  "shell_github": {
+    "message": "GitHub"
+  },
+  "shell_google": {
+    "message": "Google"
+  },
+  "shell_helpDiagnostics": {
+    "message": "Help & diagnostics"
+  },
+  "shell_historyLede": {
+    "message": "Everything you saved with Know-N on this browser."
+  },
+  "shell_knowNSuggestions": {
+    "message": "Know-N suggestions"
+  },
+  "shell_languageHint": {
+    "message": "The page reloads when you change it. The Know-N website keeps its own language."
+  },
+  "shell_learnFromCorrections": {
+    "message": "Learn from my corrections"
+  },
+  "shell_learnFromCorrectionsHint": {
+    "message": "Folders you pick after a suggestion improve future ones."
+  },
+  "shell_library": {
+    "message": "Library"
+  },
+  "shell_localNoCredits": {
+    "message": "Your own AI service is in use. No credits are spent."
+  },
+  "shell_manageWeb": {
+    "message": "Manage on the web"
+  },
+  "shell_manualHint": {
+    "message": "A small form opens so you can check the title, folder, tags and note, then save."
+  },
+  "shell_noSpendingLimit": {
+    "message": "Not set. Know-N won’t spend credits on suggestions until you set a limit."
+  },
+  "shell_off": {
+    "message": "Off"
+  },
+  "shell_on": {
+    "message": "On"
+  },
+  "shell_openBrowserShortcuts": {
+    "message": "Open browser shortcuts"
+  },
+  "shell_or": {
+    "message": "or"
+  },
+  "shell_ownService": {
+    "message": "Your AI service"
+  },
+  "shell_permissionsLede": {
+    "message": "Know-N asks only for what a feature needs. You can remove access at any time."
+  },
+  "shell_preferencesNotLoaded": {
+    "message": "Your saving preferences could not be loaded. Reload this page to try again."
+  },
+  "shell_preview": {
+    "message": "Preview"
+  },
+  "shell_previewPanel": {
+    "message": "Preview the result panel"
+  },
+  "shell_previewPanelHint": {
+    "message": "Shows a sample. Nothing is saved or charged."
+  },
+  "shell_review": {
+    "message": "Review"
+  },
+  "shell_savePageShortcut": {
+    "message": "Save this page"
+  },
+  "shell_savedPages": {
+    "message": "Saved pages"
+  },
+  "shell_savingInto": {
+    "message": "Saving into $1"
+  },
+  "shell_savingLede": {
+    "message": "What happens when you save a page with Know-N."
+  },
+  "shell_savingStatistics": {
+    "message": "Saving statistics"
+  },
+  "shell_savingStatistics2": {
+    "message": "Saving statistics"
+  },
+  "shell_setLimit": {
+    "message": "Set limit"
+  },
+  "shell_shortcutsManaged": {
+    "message": "Shortcuts are managed by your browser."
+  },
+  "shell_showCorrections": {
+    "message": "Show corrections"
+  },
+  "shell_signedInAccount": {
+    "message": "Signed-in account"
+  },
+  "shell_sourceKnowNHint": {
+    "message": "Needs an account. Uses credits and learns from your synced collection."
+  },
+  "shell_sourceOwn": {
+    "message": "Your own AI service"
+  },
+  "shell_sourceOwnHint": {
+    "message": "Requests go straight from this browser to your provider. No account needed."
+  },
+  "shell_spendingLimit": {
+    "message": "Spending limit"
+  },
+  "shell_spendingLimitEnded": {
+    "message": "Your spending limit has ended. Suggestions pause until you set a new one."
+  },
+  "shell_spendingLimitHint": {
+    "message": "Up to $1 credits per save and $2 per day, until $3."
+  },
+  "shell_subscriptionDefaults": {
+    "message": "Defaults for new subscriptions"
+  },
+  "shell_suggestWhenFormOpens": {
+    "message": "Suggest when the form opens"
+  },
+  "shell_suggestWhenFormOpensHint": {
+    "message": "Picks a folder as the form opens. You still confirm with Save."
+  },
+  "shell_suggestionsComeFrom": {
+    "message": "Suggestions come from"
+  },
+  "shell_syncNotSetUp": {
+    "message": "Not set up yet"
+  },
+  "shell_syncSettings": {
+    "message": "Sync settings"
+  },
+  "shell_tagModeAdd": {
+    "message": "Add"
+  },
+  "shell_tagModeAddAutomaticHint": {
+    "message": "Adds up to 3 of your existing tags to the saved bookmark. Remove any in the result panel."
+  },
+  "shell_tagModeAddManualHint": {
+    "message": "Adds up to 3 of your existing tags to the form. Remove any before you save."
+  },
+  "shell_tagModeOffHint": {
+    "message": "Suggestions pick a folder only."
+  },
+  "shell_tagModeSuggest": {
+    "message": "Suggest"
+  },
+  "shell_tagModeSuggestAutomaticHint": {
+    "message": "Shows up to 3 of your existing tags in the result panel. Click one to add it."
+  },
+  "shell_tagModeSuggestManualHint": {
+    "message": "Shows up to 3 of your existing tags under Tags. Click one to add it."
+  },
+  "shell_tagsFromAi": {
+    "message": "Tags from AI"
+  },
+  "shell_thisBrowser": {
+    "message": "This browser"
+  },
+  "shell_toolbarButton": {
+    "message": "Toolbar button"
+  },
+  "shell_topOfFolder": {
+    "message": "Top of folder"
+  },
+  "shell_version": {
+    "message": "Know-N $1"
+  },
+  "shell_viewActivity": {
+    "message": "View activity"
+  },
+  "shell_whatIsSent": {
+    "message": "What is sent"
+  },
+  "shell_whenSuggestionsRun": {
+    "message": "When suggestions run"
+  },
+  "shell_whenSuggestionsRunLede": {
+    "message": "Suggesting as the form opens, and what happens to tags, are under Saving."
+  },
+  "shell_whereBookmarksGo": {
+    "message": "Where bookmarks go"
+  },
+  "subscription_acceptedShare": {
+    "message": "Don't see a shared collection? Accept the invitation on the Know-N website first."
+  },
+  "subscription_accountSources": {
+    "message": "Not in this browser yet"
+  },
+  "subscription_accountSourcesHint": {
+    "message": "Subscribed on your account. Add one here to get it as a read-only folder."
+  },
+  "subscription_ackPending": {
+    "message": "Removed here. Waiting for Know-N to confirm."
+  },
+  "subscription_add": {
+    "message": "Add subscription"
+  },
+  "subscription_afterUnfollow": {
+    "message": "When you unfollow"
+  },
+  "subscription_afterUnsubscribe": {
+    "message": "When you unsubscribe"
+  },
+  "subscription_allBrowsers": {
+    "message": "All browsers"
+  },
+  "subscription_allMappings": {
+    "message": "All subscriptions"
+  },
+  "subscription_allRecords": {
+    "message": "All records"
+  },
+  "subscription_allRelations": {
+    "message": "Followed and shared"
+  },
+  "subscription_allStates": {
+    "message": "All states"
+  },
+  "subscription_allTypes": {
+    "message": "All source types"
+  },
+  "subscription_authorUnknown": {
+    "message": "Author unavailable"
+  },
+  "subscription_back": {
+    "message": "Back"
+  },
+  "subscription_backList": {
+    "message": "Back to subscriptions"
+  },
+  "subscription_backupFolderName": {
+    "message": "Know-N backup"
+  },
+  "subscription_blocked": {
+    "message": "Blocked"
+  },
+  "subscription_bookmarkCount": {
+    "message": "Bookmarks"
+  },
+  "subscription_bookmarkTotal_one": {
+    "message": "$1 bookmark"
+  },
+  "subscription_bookmarkTotal_other": {
+    "message": "$1 bookmarks"
+  },
+  "subscription_bottom": {
+    "message": "At the bottom"
+  },
+  "subscription_browsers": {
+    "message": "Browsers"
+  },
+  "subscription_cantReach": {
+    "message": "Can’t reach source"
+  },
+  "subscription_checkInterval": {
+    "message": "Check interval"
+  },
+  "subscription_checked": {
+    "message": "Checked"
+  },
+  "subscription_choose": {
+    "message": "Choose"
+  },
+  "subscription_chooseLocation": {
+    "message": "Choose location"
+  },
+  "subscription_choosePreservation": {
+    "message": "Choose backup folder"
+  },
+  "subscription_clearCompleted": {
+    "message": "Clear selected records"
+  },
+  "subscription_collections": {
+    "message": "Collections"
+  },
+  "subscription_confirmDirectoryHint": {
+    "message": "Confirm to use this folder from now on. Nothing is moved now."
+  },
+  "subscription_confirmExit": {
+    "message": "Remove"
+  },
+  "subscription_confirmLocation": {
+    "message": "Confirm location"
+  },
+  "subscription_confirmMove": {
+    "message": "Move folder"
+  },
+  "subscription_contentDisabled": {
+    "message": "Know-N has paused content updates. You can still review and remove existing folders."
+  },
+  "subscription_contentPreview": {
+    "message": "What will be added"
+  },
+  "subscription_contentSettings": {
+    "message": "Content and updates"
+  },
+  "subscription_continueDraft": {
+    "message": "Continue website setup"
+  },
+  "subscription_copyBeforeChange": {
+    "message": "Your changes are copied to your backup folder and checked first. If the copy fails, nothing is removed."
+  },
+  "subscription_copyDetach": {
+    "message": "Keep a copy and remove"
+  },
+  "subscription_currentLocation": {
+    "message": "Current location"
+  },
+  "subscription_defaultMount": {
+    "message": "Where new subscription folders go"
+  },
+  "subscription_defaultPreservation": {
+    "message": "Backup folder for your changes"
+  },
+  "subscription_detach": {
+    "message": "Remove from this browser"
+  },
+  "subscription_diagnosticReason_mount_nested_invalid": {
+    "message": "A subscription folder is inside a protected location."
+  },
+  "subscription_diagnosticReason_mount_target_missing": {
+    "message": "The subscription folder is missing. Choose where to restore it."
+  },
+  "subscription_diagnosticReason_readonly_content_changed": {
+    "message": "Bookmarks in a subscription folder were changed in this browser. Updates are paused until you decide."
+  },
+  "subscription_diagnosticReason_readonly_native_created": {
+    "message": "A personal bookmark was added inside a read-only subscription folder."
+  },
+  "subscription_diagnosticReason_readonly_native_moved_in": {
+    "message": "A personal bookmark was moved into a read-only subscription folder."
+  },
+  "subscription_diagnosticReason_readonly_write_blocked": {
+    "message": "A change inside a read-only subscription folder was blocked."
+  },
+  "subscription_diagnosticReason_recovery_failed": {
+    "message": "Recovery didn't finish. Recheck to continue where it stopped."
+  },
+  "subscription_diagnosticReason_recovery_identity_uncertain": {
+    "message": "Know-N can't safely tell which bookmarks are original yet. Nothing was removed."
+  },
+  "subscription_diagnosticReason_recovery_permission_required": {
+    "message": "Recovery needs bookmark permission."
+  },
+  "subscription_diagnosticReason_recovery_target_invalid": {
+    "message": "The backup folder can't be used anymore. Choose another one."
+  },
+  "subscription_diagnosticReason_unknown": {
+    "message": "A bookmark operation needs review."
+  },
+  "subscription_diagnosticResult_blocked": {
+    "message": "Change blocked"
+  },
+  "subscription_diagnosticResult_pending": {
+    "message": "Needs recovery"
+  },
+  "subscription_diagnosticResult_preserved": {
+    "message": "Your bookmark was moved out and kept"
+  },
+  "subscription_diagnosticResult_resolved": {
+    "message": "Resolved"
+  },
+  "subscription_diagnosticResult_restored": {
+    "message": "Moved back"
+  },
+  "subscription_diagnosticRetention": {
+    "message": "Kept for 30 days (up to 1,000 records). Unfinished recoveries are always kept."
+  },
+  "subscription_diagnostics": {
+    "message": "Diagnostics"
+  },
+  "subscription_digest": {
+    "message": "Digest"
+  },
+  "subscription_digestContent": {
+    "message": "Digest content"
+  },
+  "subscription_directoryConfigured": {
+    "message": "Set for this browser. Checked again before each use."
+  },
+  "subscription_directoryNotSet": {
+    "message": "Not set"
+  },
+  "subscription_directorySaved": {
+    "message": "Saved."
+  },
+  "subscription_directoryScope": {
+    "message": "This choice applies to this browser only. Existing folders are not moved."
+  },
+  "subscription_directorySet": {
+    "message": "Set"
+  },
+  "subscription_directoryUnconfigured": {
+    "message": "Not set. Pick a folder you own, for example Bookmarks bar › Know-N Subscriptions."
+  },
+  "subscription_effectivePolicy": {
+    "message": "What will happen"
+  },
+  "subscription_enable": {
+    "message": "Add folder"
+  },
+  "subscription_error_apply_epoch_changed": {
+    "message": "This subscription changed while the action was running. Check its current state."
+  },
+  "subscription_error_cleanup_pending": {
+    "message": "Cleanup is still running. Recheck recovery before changing this subscription."
+  },
+  "subscription_error_content_disabled": {
+    "message": "Know-N has paused new content. What you already have stays, and you can still remove subscriptions."
+  },
+  "subscription_error_generation_mismatch": {
+    "message": "This subscription folder was replaced. Go back to the list and open the current one."
+  },
+  "subscription_error_local_copy_changed": {
+    "message": "The copy changed while it was being checked. Review recovery again."
+  },
+  "subscription_error_local_copy_incomplete": {
+    "message": "The copy isn't complete yet. Nothing was removed; recheck recovery to continue."
+  },
+  "subscription_error_local_copy_missing": {
+    "message": "The backup copy is missing. Review recovery again."
+  },
+  "subscription_error_permission_required": {
+    "message": "Allow bookmark access, then retry."
+  },
+  "subscription_error_precondition_failed": {
+    "message": "The preview changed. Refresh and review it before confirming."
+  },
+  "subscription_error_preview_changed": {
+    "message": "Local content changed after the preview. Review again before confirming."
+  },
+  "subscription_error_preview_expired": {
+    "message": "The preview expired. Review again; your choices are retained."
+  },
+  "subscription_error_preview_invalid": {
+    "message": "This preview no longer belongs to the current session. Review again."
+  },
+  "subscription_error_recovery_target_invalid": {
+    "message": "Choose a backup folder you can edit, outside every subscription folder."
+  },
+  "subscription_error_recovery_target_required": {
+    "message": "Choose a folder you can edit for the restored subscription."
+  },
+  "subscription_error_resolve_exit_policy": {
+    "message": "Your defaults for leaving a subscription are still syncing. Try again in a moment."
+  },
+  "subscription_error_revision_conflict": {
+    "message": "Settings changed somewhere else. Reload and check them before confirming."
+  },
+  "subscription_error_sign_in_required": {
+    "message": "Sign in to your Know-N account to continue."
+  },
+  "subscription_error_snapshot_expired": {
+    "message": "The preview expired. Refresh it; your choices are retained."
+  },
+  "subscription_error_storage_unavailable": {
+    "message": "Browser storage is unavailable. Nothing is removed until it's back."
+  },
+  "subscription_error_subscription_runtime_unavailable": {
+    "message": "Subscriptions are unavailable. Check the extension and server, then retry."
+  },
+  "subscription_error_subscription_scope_changed": {
+    "message": "Your account or this page changed. Open the subscription again."
+  },
+  "subscription_error_target_missing": {
+    "message": "The selected folder no longer exists. Choose a location again."
+  },
+  "subscription_error_unconfirmed": {
+    "message": "The action is not confirmed. Refresh to check its current state."
+  },
+  "subscription_exitPending": {
+    "message": "Removal is scheduled or done. Each browser reports its own result."
+  },
+  "subscription_exitResult_kept": {
+    "message": "Kept as your own bookmarks"
+  },
+  "subscription_exitResult_no_local_mount": {
+    "message": "Wasn't added in this browser"
+  },
+  "subscription_exitResult_removed": {
+    "message": "Folder deleted"
+  },
+  "subscription_exitResult_removed_access_lost": {
+    "message": "Deleted (no longer available)"
+  },
+  "subscription_exitScheduled": {
+    "message": "Removal started. Each browser finishes on its own."
+  },
+  "subscription_exitScopeWarning": {
+    "message": "Only the folders listed are affected. Browsers that are offline finish when they reconnect."
+  },
+  "subscription_expand": {
+    "message": "Expand folder"
+  },
+  "subscription_export": {
+    "message": "Export redacted JSON"
+  },
+  "subscription_fifteenMinutes": {
+    "message": "15 minutes"
+  },
+  "subscription_fiveMinutes": {
+    "message": "5 minutes"
+  },
+  "subscription_folderName": {
+    "message": "Folder name"
+  },
+  "subscription_folderTree": {
+    "message": "Browser bookmark folders"
+  },
+  "subscription_followed": {
+    "message": "Followed"
+  },
+  "subscription_gatePermission": {
+    "message": "Subscriptions appear as read-only folders in your browser bookmarks, so Know-N needs bookmark access."
+  },
+  "subscription_gateSignInHint": {
+    "message": "Subscriptions come from the collections and digests you follow on your Know-N account."
+  },
+  "subscription_gateSignInTitle": {
+    "message": "Sign in to use subscriptions"
+  },
+  "subscription_globalPreferences": {
+    "message": "Default settings"
+  },
+  "subscription_history": {
+    "message": "Removed"
+  },
+  "subscription_historyMapping": {
+    "message": "Removed subscription"
+  },
+  "subscription_index": {
+    "message": "Position (0 = first)"
+  },
+  "subscription_inherit": {
+    "message": "Use my default"
+  },
+  "subscription_insertPosition": {
+    "message": "Position in folder"
+  },
+  "subscription_interval": {
+    "message": "Check interval"
+  },
+  "subscription_issueCount": {
+    "message": "Number of recent issues"
+  },
+  "subscription_issueTotal_one": {
+    "message": "$1 issue"
+  },
+  "subscription_issueTotal_other": {
+    "message": "$1 issues"
+  },
+  "subscription_keep": {
+    "message": "Keep the bookmarks as your own"
+  },
+  "subscription_lastChecked": {
+    "message": "Last checked"
+  },
+  "subscription_lastDay": {
+    "message": "Last 24 hours"
+  },
+  "subscription_lastMonth": {
+    "message": "Last 30 days"
+  },
+  "subscription_lastUpdated": {
+    "message": "Content updated"
+  },
+  "subscription_lastWeek": {
+    "message": "Last 7 days"
+  },
+  "subscription_latest": {
+    "message": "Latest readable issue"
+  },
+  "subscription_leave": {
+    "message": "Leave this subscription"
+  },
+  "subscription_leaveHint": {
+    "message": "Remove from this browser affects only this browser. Unsubscribe everywhere does the same on all your browsers. You choose what happens to the bookmarks before anything changes."
+  },
+  "subscription_limitHint": {
+    "message": "Choose a whole number from 1 to 20."
+  },
+  "subscription_live": {
+    "message": "In this browser"
+  },
+  "subscription_localCopyCount": {
+    "message": "Bookmarks to copy"
+  },
+  "subscription_locate": {
+    "message": "Locate folder"
+  },
+  "subscription_locatePreserved": {
+    "message": "Show kept bookmark"
+  },
+  "subscription_location": {
+    "message": "Folder location"
+  },
+  "subscription_locationRequired": {
+    "message": "Pick a folder and enter a name."
+  },
+  "subscription_managedFolder": {
+    "message": "Managed by your organization"
+  },
+  "subscription_mappingDetails": {
+    "message": "Open subscription"
+  },
+  "subscription_mappingFilter": {
+    "message": "Subscription"
+  },
+  "subscription_minutesShort": {
+    "message": "$1 min"
+  },
+  "subscription_moreSources": {
+    "message": "More account subscriptions"
+  },
+  "subscription_mountHere": {
+    "message": "Add to this browser"
+  },
+  "subscription_mountHint": {
+    "message": "Know-N creates a new read-only folder when you confirm. Your existing folders are never taken over."
+  },
+  "subscription_mountPath": {
+    "message": "Location"
+  },
+  "subscription_move": {
+    "message": "Change location"
+  },
+  "subscription_moveExisting": {
+    "message": "Moves the folder and everything in it."
+  },
+  "subscription_moveTo": {
+    "message": "Move folder to"
+  },
+  "subscription_nativeSyncWarning": {
+    "message": "If your browser also syncs bookmarks, private content can appear in your other profiles. Don't add the same subscription in two synced profiles."
+  },
+  "subscription_newFolder": {
+    "message": "New folder"
+  },
+  "subscription_newParent": {
+    "message": "New folder inside it (optional)"
+  },
+  "subscription_newParentDraft": {
+    "message": "Leave empty to use the folder you picked. The new folder is only created when you confirm."
+  },
+  "subscription_next": {
+    "message": "Next"
+  },
+  "subscription_nextCheck": {
+    "message": "Next expected check"
+  },
+  "subscription_noDiagnostics": {
+    "message": "No matching records. Unfinished recoveries are never cleared."
+  },
+  "subscription_noMappings": {
+    "message": "No subscription folders match these filters."
+  },
+  "subscription_noSources": {
+    "message": "Nothing matches. Try a different search or filter."
+  },
+  "subscription_noneYet": {
+    "message": "No subscriptions yet"
+  },
+  "subscription_noneYetHint": {
+    "message": "Follow a collection or digest on Know-N, then add it here as a read-only folder."
+  },
+  "subscription_notChecked": {
+    "message": "Not yet"
+  },
+  "subscription_occurrenceCount_one": {
+    "message": "$1 occurrence"
+  },
+  "subscription_occurrenceCount_other": {
+    "message": "$1 occurrences"
+  },
+  "subscription_oneHour": {
+    "message": "1 hour"
+  },
+  "subscription_openSource": {
+    "message": "Open source"
+  },
+  "subscription_originAuthority": {
+    "message": "set by Know-N"
+  },
+  "subscription_originGlobal": {
+    "message": "your default"
+  },
+  "subscription_originMapping": {
+    "message": "set for this subscription"
+  },
+  "subscription_overrides": {
+    "message": "When you leave this subscription"
+  },
+  "subscription_pause": {
+    "message": "Pause this browser"
+  },
+  "subscription_pendingExit": {
+    "message": "Removed subscription"
+  },
+  "subscription_pendingExits": {
+    "message": "Waiting for confirmation"
+  },
+  "subscription_permissionDenied": {
+    "message": "Bookmark access is still off. No folder was created."
+  },
+  "subscription_policyUnconfirmed": {
+    "message": "your default hasn't finished syncing"
+  },
+  "subscription_position": {
+    "message": "Specific position"
+  },
+  "subscription_preservationLocation": {
+    "message": "Backup folder"
+  },
+  "subscription_preserved": {
+    "message": "Kept"
+  },
+  "subscription_previewContentChanges": {
+    "message": "Preview content changes"
+  },
+  "subscription_previewDelta": {
+    "message": "Compared with now: $1 issues added, $2 issues removed. Nothing changes until you save."
+  },
+  "subscription_previewExpired": {
+    "message": "The preview expired. Review the location again."
+  },
+  "subscription_previewMove": {
+    "message": "Preview move"
+  },
+  "subscription_profile": {
+    "message": "Browser profile"
+  },
+  "subscription_readOnly": {
+    "message": "Read-only"
+  },
+  "subscription_readOnlyHint": {
+    "message": "Read-only. Save your own bookmarks in your own folders."
+  },
+  "subscription_readonlyFolder": {
+    "message": "Subscription folder (read-only)"
+  },
+  "subscription_recent": {
+    "message": "Recent issues (maximum 20)"
+  },
+  "subscription_recoveryChooseLocation": {
+    "message": "Choose where to put the restored folder, then review. Nothing is created until you confirm."
+  },
+  "subscription_recoveryHint": {
+    "message": "Updates to this folder are paused because its bookmarks were changed here. Undo your changes, or keep a copy and remove the subscription. Nothing happens until you confirm."
+  },
+  "subscription_recoveryPending": {
+    "message": "Recovery details are kept. Check this subscription or its diagnostics before making more changes."
+  },
+  "subscription_recoveryReviewHint": {
+    "message": "Check the copy and what will happen to the folder. If anything changes before you confirm, you'll be asked to review again."
+  },
+  "subscription_recoveryScan": {
+    "message": "Found during a recovery check; the original action is unknown."
+  },
+  "subscription_recoveryStarted": {
+    "message": "Recovery is running. Closing this window won't stop it."
+  },
+  "subscription_recoveryTitle": {
+    "message": "Updates are paused"
+  },
+  "subscription_refreshNow": {
+    "message": "Update now"
+  },
+  "subscription_refreshPreview": {
+    "message": "Refresh preview"
+  },
+  "subscription_refreshPreviewHint": {
+    "message": "Refresh the preview to see the new content."
+  },
+  "subscription_relationship": {
+    "message": "Relationship"
+  },
+  "subscription_reload": {
+    "message": "Reload"
+  },
+  "subscription_remoteConfigured": {
+    "message": "Added on another browser. That browser reports its own status."
+  },
+  "subscription_remove": {
+    "message": "Delete the folder"
+  },
+  "subscription_rename": {
+    "message": "Rename folder"
+  },
+  "subscription_repair": {
+    "message": "Recheck recovery"
+  },
+  "subscription_resolve": {
+    "message": "Fix"
+  },
+  "subscription_resolveExitPolicy": {
+    "message": "Your defaults for leaving a subscription are still syncing. Try again in a moment."
+  },
+  "subscription_resolved": {
+    "message": "Resolved"
+  },
+  "subscription_restoreLocation": {
+    "message": "Restored folder location"
+  },
+  "subscription_restoreSource": {
+    "message": "Undo my changes"
+  },
+  "subscription_restored": {
+    "message": "Moved back"
+  },
+  "subscription_result": {
+    "message": "Result"
+  },
+  "subscription_resume": {
+    "message": "Resume this browser"
+  },
+  "subscription_reuseVerifiedCopy": {
+    "message": "A checked copy already exists and will be reused. Review what happens next before confirming."
+  },
+  "subscription_reviewChanges": {
+    "message": "Review changes"
+  },
+  "subscription_reviewContentFirst": {
+    "message": "Preview the change before saving."
+  },
+  "subscription_reviewExitPolicies": {
+    "message": "Check again"
+  },
+  "subscription_reviewLocation": {
+    "message": "Review location"
+  },
+  "subscription_reviewRecovery": {
+    "message": "Review recovery"
+  },
+  "subscription_running": {
+    "message": "Running"
+  },
+  "subscription_saveChanges": {
+    "message": "Save changes"
+  },
+  "subscription_savedLocation": {
+    "message": "Your saved default (checked before adding)"
+  },
+  "subscription_selectCompleted": {
+    "message": "Select"
+  },
+  "subscription_selectLocation": {
+    "message": "Pick a folder to put it in. Read-only and managed folders can't be picked."
+  },
+  "subscription_selectedMapping": {
+    "message": "Selected subscription"
+  },
+  "subscription_settingsSaved": {
+    "message": "Saved. The folder updates on its next check."
+  },
+  "subscription_shared": {
+    "message": "Shared with me"
+  },
+  "subscription_showMore": {
+    "message": "Show more"
+  },
+  "subscription_signInAccount": {
+    "message": "Review account and sign in"
+  },
+  "subscription_skippedReason": {
+    "message": "$1 skipped: $2"
+  },
+  "subscription_sourceSearch": {
+    "message": "Search title or author"
+  },
+  "subscription_sourceType": {
+    "message": "Source type"
+  },
+  "subscription_state": {
+    "message": "State"
+  },
+  "subscription_state_access_lost": {
+    "message": "No longer available to you"
+  },
+  "subscription_state_active": {
+    "message": "Not added in this browser yet"
+  },
+  "subscription_state_applying": {
+    "message": "Updating"
+  },
+  "subscription_state_capacity_exceeded": {
+    "message": "Too many bookmarks"
+  },
+  "subscription_state_current": {
+    "message": "Updated"
+  },
+  "subscription_state_detached": {
+    "message": "Removed"
+  },
+  "subscription_state_empty": {
+    "message": "Waiting for content"
+  },
+  "subscription_state_initializing": {
+    "message": "Setting up"
+  },
+  "subscription_state_local_change": {
+    "message": "Changed in this browser"
+  },
+  "subscription_state_offline": {
+    "message": "Offline; showing saved content"
+  },
+  "subscription_state_permission_required": {
+    "message": "Needs bookmark access"
+  },
+  "subscription_state_repair_pending": {
+    "message": "Needs recovery"
+  },
+  "subscription_state_retrying": {
+    "message": "Update failed; retrying soon"
+  },
+  "subscription_state_sign_in_required": {
+    "message": "Sign in required"
+  },
+  "subscription_state_storage_unavailable": {
+    "message": "Browser storage unavailable"
+  },
+  "subscription_state_target_missing": {
+    "message": "Folder was deleted"
+  },
+  "subscription_state_terminating": {
+    "message": "Removing"
+  },
+  "subscription_status": {
+    "message": "Status"
+  },
+  "subscription_stepContent": {
+    "message": "Choose content"
+  },
+  "subscription_stepLocation": {
+    "message": "Choose location"
+  },
+  "subscription_stepReview": {
+    "message": "Review and add"
+  },
+  "subscription_stepSource": {
+    "message": "Choose source"
+  },
+  "subscription_subscriptionDiagnostics": {
+    "message": "Subscription diagnostics"
+  },
+  "subscription_subscriptionViews": {
+    "message": "Subscription views"
+  },
+  "subscription_technical": {
+    "message": "Technical details"
+  },
+  "subscription_timeRange": {
+    "message": "Time range"
+  },
+  "subscription_top": {
+    "message": "At the top"
+  },
+  "subscription_treePreview": {
+    "message": "Show what will be added"
+  },
+  "subscription_unavailableFolder": {
+    "message": "Subscription (unavailable)"
+  },
+  "subscription_unavailableSource": {
+    "message": "Source unavailable"
+  },
+  "subscription_unsubscribe": {
+    "message": "Unsubscribe everywhere"
+  },
+  "subscription_visibility_private": {
+    "message": "Private"
+  },
+  "subscription_visibility_protected": {
+    "message": "Members only"
+  },
+  "subscription_visibility_public": {
+    "message": "Public"
+  },
+  "subscription_visibility_unlisted": {
+    "message": "Unlisted"
+  },
+  "syncProgress_attention": {
+    "message": "Sync needs your attention. Open Status to see what is waiting."
+  },
+  "syncProgress_bookmarksSynced_one": {
+    "message": "$2 of $3 bookmark synced"
+  },
+  "syncProgress_bookmarksSynced_other": {
+    "message": "$2 of $3 bookmarks synced"
+  },
+  "syncProgress_canClose": {
+    "message": "You can close this page. Sync carries on in the background while the browser is open, and picks up where it left off after a restart."
+  },
+  "syncProgress_details": {
+    "message": "Details"
+  },
+  "syncProgress_doneDetail_one": {
+    "message": "Your $2 bookmark is synced."
+  },
+  "syncProgress_doneDetail_other": {
+    "message": "All $2 bookmarks are synced."
+  },
+  "syncProgress_doneShort": {
+    "message": "Sync complete"
+  },
+  "syncProgress_doneTitle": {
+    "message": "Sync complete"
+  },
+  "syncProgress_dontStop": {
+    "message": "To let it finish, don’t sign out, disconnect, or change which folders sync."
+  },
+  "syncProgress_firstPausedTitle": {
+    "message": "First sync paused"
+  },
+  "syncProgress_firstTitle": {
+    "message": "First sync in progress"
+  },
+  "syncProgress_foldersSynced_one": {
+    "message": "$2 of $3 folder"
+  },
+  "syncProgress_foldersSynced_other": {
+    "message": "$2 of $3 folders"
+  },
+  "syncProgress_keepUsing": {
+    "message": "Keep using your browser and bookmarks as usual. Changes you make now sync right after."
+  },
+  "syncProgress_notQueued": {
+    "message": "Some bookmarks haven’t been uploaded yet. Sync checks again on its own."
+  },
+  "syncProgress_paused": {
+    "message": "Nothing syncs until you resume. Changes you make meanwhile sync after that."
+  },
+  "syncProgress_pausedShort": {
+    "message": "Paused at $1 of $2"
+  },
+  "syncProgress_pausedTitle": {
+    "message": "Sync paused"
+  },
+  "syncProgress_preparingDetail": {
+    "message": "Comparing this browser’s bookmarks with your collection. Large libraries take a minute."
+  },
+  "syncProgress_preparingPausedDetail": {
+    "message": "Nothing has synced yet. After you resume, this browser’s bookmarks are compared with your collection."
+  },
+  "syncProgress_preparingShort": {
+    "message": "Preparing first sync…"
+  },
+  "syncProgress_preparingTitle": {
+    "message": "Preparing your first sync"
+  },
+  "syncProgress_resume": {
+    "message": "Resume sync…"
+  },
+  "syncProgress_retrying": {
+    "message": "The server didn’t answer. Sync retries on its own."
+  },
+  "syncProgress_short": {
+    "message": "Syncing $1 of $2"
+  },
+  "syncProgress_title": {
+    "message": "Syncing bookmarks"
+  },
+  "syncProgress_waitingNetwork": {
+    "message": "Waiting for the network. Sync continues when you’re back online."
+  },
+  "syncProgress_whileItRuns": {
+    "message": "While it runs"
+  },
+  "sync_actionRequired": {
+    "message": "Action required"
+  },
+  "sync_askFirst": {
+    "message": "Ask me first"
+  },
+  "sync_bookmarkAccessRequiredChange": {
+    "message": "Bookmark access is required to change folders."
+  },
+  "sync_bookmarksBar": {
+    "message": "Bookmarks bar"
+  },
+  "sync_changesPreviewed": {
+    "message": "Changes are previewed before anything syncs."
+  },
+  "sync_chooseCollectionFirst": {
+    "message": "Choose a collection first. The Collection tab lists the collections you own. Then pick folders here."
+  },
+  "sync_chooseFolders": {
+    "message": "Choose folders to sync"
+  },
+  "sync_collectionHeading": {
+    "message": "Collection"
+  },
+  "sync_collectionLede": {
+    "message": "This browser syncs into one collection you own. Collections shared with you cannot be chosen."
+  },
+  "sync_copyDetails": {
+    "message": "Copy details"
+  },
+  "sync_couldNotCopyDetails": {
+    "message": "Could not copy the details. Try again."
+  },
+  "sync_couldNotReadExclusion": {
+    "message": "Could not read the exclusion list. Reopen this page in a moment."
+  },
+  "sync_couldntReadListExcluded": {
+    "message": "Couldn't read the list of excluded items. Try again."
+  },
+  "sync_count": {
+    "message": "Count: $1"
+  },
+  "sync_createCollection": {
+    "message": "Create"
+  },
+  "sync_deleteHere": {
+    "message": "Delete here"
+  },
+  "sync_deleteHereToo": {
+    "message": "Delete it here too"
+  },
+  "sync_deletedElsewhereKind": {
+    "message": "$1 deleted on another device"
+  },
+  "sync_deletions": {
+    "message": "Deletions"
+  },
+  "sync_detailsCopied": {
+    "message": "Details copied."
+  },
+  "sync_deviceOrderOnly": {
+    "message": "This device order only"
+  },
+  "sync_diagnostics": {
+    "message": "Sync diagnostics"
+  },
+  "sync_dontPlace": {
+    "message": "Don't place"
+  },
+  "sync_errorRetrying": {
+    "message": "Sync error, retrying"
+  },
+  "sync_exclusionsAfterFirstSync": {
+    "message": "No collection syncs here yet. Excluded items are listed once one does."
+  },
+  "sync_existingBookmark": {
+    "message": "Existing bookmark"
+  },
+  "sync_extensionBackgroundTemporarilyUnavailable": {
+    "message": "The extension background is temporarily unavailable. Reopen this page in a moment."
+  },
+  "sync_firstLatest": {
+    "message": "$1 · First: $2 · Latest: $3"
+  },
+  "sync_folder": {
+    "message": "Folder"
+  },
+  "sync_folderCheckedReview": {
+    "message": "$1 is checked — choose Review changes to start syncing it."
+  },
+  "sync_folderIsntLinkedKnow": {
+    "message": "This folder isn't linked to Know-N yet, so the new order stays on this device"
+  },
+  "sync_folderIsntSynced": {
+    "message": "In a folder that isn't synced"
+  },
+  "sync_folderKeptOut": {
+    "message": "Kept out of sync with No Know-N sync."
+  },
+  "sync_folderLower": {
+    "message": "folder"
+  },
+  "sync_folderSettingsCouldNot": {
+    "message": "Folder settings could not be confirmed. Try again."
+  },
+  "sync_folderSettingsSaved": {
+    "message": "Folder settings saved"
+  },
+  "sync_folderSyncsWithParent": {
+    "message": "Syncs with $1. To leave it out, choose No Know-N sync."
+  },
+  "sync_folderTreeChangedRefresh": {
+    "message": "Folder tree changed. Refresh and preview again."
+  },
+  "sync_foldersChecked_one": {
+    "message": "$2 of $1 folder"
+  },
+  "sync_foldersChecked_other": {
+    "message": "$2 of $1 folders"
+  },
+  "sync_foldersLede": {
+    "message": "Bookmarks in checked folders sync to your collection, along with the folders inside them. Others stay on this browser only."
+  },
+  "sync_htmlFile": {
+    "message": "HTML bookmarks file"
+  },
+  "sync_htmlFileHint": {
+    "message": "Exported from any browser or service"
+  },
+  "sync_importAttentionHint": {
+    "message": "Some items did not import. Check folder access or review Status, then retry."
+  },
+  "sync_importDone": {
+    "message": "Import complete"
+  },
+  "sync_importFolderItems": {
+    "message": "$1 ($2 items)"
+  },
+  "sync_importInto": {
+    "message": "Import into $1"
+  },
+  "sync_importIssues": {
+    "message": "Import issues"
+  },
+  "sync_importItems_one": {
+    "message": "$1 item will be added to your collection."
+  },
+  "sync_importItems_other": {
+    "message": "$1 items will be added to your collection."
+  },
+  "sync_importLede": {
+    "message": "Copies bookmarks into your Know-N collection. Nothing changes on this browser."
+  },
+  "sync_importMinutesLeft_one": {
+    "message": "About $1 minute left"
+  },
+  "sync_importMinutesLeft_other": {
+    "message": "About $1 minutes left"
+  },
+  "sync_importMoreNotes_one": {
+    "message": "$1 more note."
+  },
+  "sync_importMoreNotes_other": {
+    "message": "$1 more notes."
+  },
+  "sync_importNeedAttention_one": {
+    "message": "$1 item needs attention"
+  },
+  "sync_importNeedAttention_other": {
+    "message": "$1 items need attention"
+  },
+  "sync_importNeedsAttention": {
+    "message": "Import needs attention"
+  },
+  "sync_importNotes_one": {
+    "message": "$1 note about this file"
+  },
+  "sync_importNotes_other": {
+    "message": "$1 notes about this file"
+  },
+  "sync_importOf": {
+    "message": "$1 of $2"
+  },
+  "sync_importSkipped": {
+    "message": "$1 skipped"
+  },
+  "sync_importUnderMinute": {
+    "message": "Less than a minute left"
+  },
+  "sync_importingBookmarks": {
+    "message": "Importing bookmarks"
+  },
+  "sync_inboundDeletionsPlain_one": {
+    "message": "$1 cloud deletion is waiting for your decision."
+  },
+  "sync_inboundDeletionsPlain_other": {
+    "message": "$1 cloud deletions are waiting for your decision."
+  },
+  "sync_inboundPausedPlain": {
+    "message": "Incoming sync from Know-N is paused. Uploads from this device are not affected."
+  },
+  "sync_inboundRecheckPlain": {
+    "message": "Sync checks again on its own, $1."
+  },
+  "sync_inboundWaitsPlain_one": {
+    "message": "$1 cloud item is waiting for your decision."
+  },
+  "sync_inboundWaitsPlain_other": {
+    "message": "$1 cloud items are waiting for your decision."
+  },
+  "sync_insideNoKnowNSyncFolder": {
+    "message": "Inside a folder excluded from Know-N sync"
+  },
+  "sync_invert": {
+    "message": "Invert"
+  },
+  "sync_issueKinds_one": {
+    "message": "$1 kind of issue"
+  },
+  "sync_issueKinds_other": {
+    "message": "$1 kinds of issues"
+  },
+  "sync_keepBoth": {
+    "message": "Keep both"
+  },
+  "sync_keepHere": {
+    "message": "Keep it here"
+  },
+  "sync_keepSyncingNamed": {
+    "message": "Keep syncing $1 at the new location"
+  },
+  "sync_keepSyncingNewLocation": {
+    "message": "Keep syncing at the new location"
+  },
+  "sync_latest": {
+    "message": "$1 · Latest: $2"
+  },
+  "sync_metadataConsentStopped": {
+    "message": "A queued change contains browser metadata that you have not allowed to sync. Reset sync on this device to set aside queued changes and review the merge again. Your bookmarks and local metadata are preserved."
+  },
+  "sync_mobileBookmarks": {
+    "message": "Mobile bookmarks"
+  },
+  "sync_newCollection": {
+    "message": "New collection"
+  },
+  "sync_newCollectionHint": {
+    "message": "Start an empty collection for this browser."
+  },
+  "sync_noLocalBookmarksCurrently": {
+    "message": "No local bookmarks are currently excluded from sync."
+  },
+  "sync_noMoreOftenThan30": {
+    "message": "no more often than every 30 seconds"
+  },
+  "sync_notSignedIn": {
+    "message": "Not signed in"
+  },
+  "sync_notSynced": {
+    "message": "Sync is off"
+  },
+  "sync_onlyWebAddressesHttp": {
+    "message": "Only web addresses (http or https) can sync"
+  },
+  "sync_openCollectionsWeb": {
+    "message": "Open collections on the web"
+  },
+  "sync_openSyncCenterWeb": {
+    "message": "Open Sync center on the web"
+  },
+  "sync_orderChangeScheduledUpload": {
+    "message": "Order change is scheduled to upload (it will sync to Know-N)"
+  },
+  "sync_orderChangedOnlyDevice": {
+    "message": "Order changed only on this device; Know-N keeps its order"
+  },
+  "sync_otherBookmarks": {
+    "message": "Other bookmarks"
+  },
+  "sync_pageLede": {
+    "message": "Keep this browser’s bookmarks in sync with your Know-N collection."
+  },
+  "sync_pausedHere": {
+    "message": "Paused here"
+  },
+  "sync_personalBoundary": {
+    "message": "Personal sync is separate from sign-in, subscriptions, browser sync and your AI provider. Local bookmarks remain available."
+  },
+  "sync_personalChangeFailed": {
+    "message": "The change could not be completed. Refresh the collection list and review again. Sync remains stopped if reconnect could not be verified."
+  },
+  "sync_personalChoose": {
+    "message": "Choose a collection to connect personal sync"
+  },
+  "sync_personalDisconnect": {
+    "message": "Disconnect personal sync"
+  },
+  "sync_personalDisconnectHint": {
+    "message": "Your local bookmarks and metadata are kept. $1 queued changes will be archived and will not retry. Subscriptions and sign-in are kept."
+  },
+  "sync_personalDisconnected": {
+    "message": "Personal sync is disconnected"
+  },
+  "sync_personalDisconnectedHint": {
+    "message": "Reconnect to continue with the same collection, or choose a collection below. Your local bookmarks are kept."
+  },
+  "sync_personalEnabled": {
+    "message": "Personal sync is enabled"
+  },
+  "sync_personalPause": {
+    "message": "Pause personal sync"
+  },
+  "sync_personalPaused": {
+    "message": "Personal sync is paused"
+  },
+  "sync_personalReady": {
+    "message": "Ready to sync. Choose folders to start the first sync."
+  },
+  "sync_personalReconnect": {
+    "message": "Reconnect personal sync"
+  },
+  "sync_personalResume": {
+    "message": "Resume personal sync"
+  },
+  "sync_personalResumeHint": {
+    "message": "Changes made while paused on this device and in Know-N will be reconciled. A disconnected connection starts with a fresh folder selection and merge review."
+  },
+  "sync_personalResumeReview": {
+    "message": "Review personal sync"
+  },
+  "sync_personalUnavailable": {
+    "message": "The selected collection is unavailable. Disconnect, then choose another collection. Your local bookmarks are kept."
+  },
+  "sync_previewAlreadyConfirmed": {
+    "message": "This preview was already confirmed."
+  },
+  "sync_rangeAdded": {
+    "message": "$1 added"
+  },
+  "sync_rangeMoved": {
+    "message": "$1 moved"
+  },
+  "sync_rangeRemoved": {
+    "message": "$1 no longer synced"
+  },
+  "sync_rangeShifted": {
+    "message": "$1 moved out of your synced folders ($2)."
+  },
+  "sync_rangeStops": {
+    "message": "$1 will stop syncing ($2). Bookmarks stay in this browser and in Know-N."
+  },
+  "sync_rangeTotalsChanges": {
+    "message": "$1 $2."
+  },
+  "sync_rebuildConfirm": {
+    "message": "Your bookmarks stay on this device and in Know-N. Afterwards you'll choose which folders sync and review the merge again. Reset sync now?"
+  },
+  "sync_rebuildConfirmSetAside": {
+    "message": "Your bookmarks stay on this device and in Know-N. $1 Afterwards you'll choose which folders sync and review the merge again. Reset sync now?"
+  },
+  "sync_rebuildSetAside_one": {
+    "message": "$1 change that has not synced yet will be set aside and not retried."
+  },
+  "sync_rebuildSetAside_other": {
+    "message": "$1 changes that have not synced yet will be set aside and not retried."
+  },
+  "sync_recordedIssues": {
+    "message": "Recorded $1 · $2"
+  },
+  "sync_recoveryNextAttempt": {
+    "message": "Next attempt: $1."
+  },
+  "sync_recoveryRetryFailed": {
+    "message": "Could not retry sync. Copy details to investigate."
+  },
+  "sync_recoveryRetryRequested": {
+    "message": "Sync retry requested."
+  },
+  "sync_recoveryRetrying": {
+    "message": "Sync is recovering on this device. It will retry automatically."
+  },
+  "sync_recoveryStopped": {
+    "message": "Sync could not finish on this device. Retry sync or copy details to investigate."
+  },
+  "sync_resetIsntFinishedYet": {
+    "message": "Reset isn't finished yet. Try again."
+  },
+  "sync_resetSyncDevice": {
+    "message": "Reset sync on this device"
+  },
+  "sync_retryFailed": {
+    "message": "Retry failed items"
+  },
+  "sync_retrySync": {
+    "message": "Retry sync"
+  },
+  "sync_review": {
+    "message": "Review"
+  },
+  "sync_reviewChanges": {
+    "message": "Review changes"
+  },
+  "sync_reviewConflicts": {
+    "message": "Review conflicts"
+  },
+  "sync_savingFolderSettings": {
+    "message": "Saving folder settings."
+  },
+  "sync_selectAll": {
+    "message": "Select all"
+  },
+  "sync_selectedHere": {
+    "message": "Selected"
+  },
+  "sync_someSelectedFoldersWere": {
+    "message": "Some folders you picked are inside other picked folders. Only the outer folders are listed."
+  },
+  "sync_someSiblingBookmarksExcluded": {
+    "message": "Some sibling bookmarks are excluded, so the order change was not fully uploaded"
+  },
+  "sync_stayLocal": {
+    "message": "No Know-N sync"
+  },
+  "sync_stopSyncing": {
+    "message": "Stop syncing"
+  },
+  "sync_syncDeviceHasStopped": {
+    "message": "Sync on this device has stopped: the saved bookmark’s original folder or position cannot be confirmed. Its save location needs review."
+  },
+  "sync_syncDeviceHasStopped2": {
+    "message": "Sync on this device has stopped: the transfer size exceeds supported limits. Retrying will not change the result."
+  },
+  "sync_syncDeviceHasStopped3": {
+    "message": "Sync on this device has stopped because some bookmarks on this device are missing. Your bookmarks in Know-N are safe. Reset sync on this device to continue."
+  },
+  "sync_syncDeviceHasStopped4": {
+    "message": "Sync on this device has stopped: this device cannot verify the bookmark to delete matches the cloud item."
+  },
+  "sync_syncDeviceHasStopped5": {
+    "message": "Sync on this device has stopped: this device cannot verify local bookmarks match cloud items."
+  },
+  "sync_syncDeviceResetBookmarks": {
+    "message": "Sync on this device was reset and your bookmarks were kept. Choose which folders sync, then review the merge again."
+  },
+  "sync_syncDeviceStoppedBecause": {
+    "message": "Sync on this device stopped because of an internal mismatch. Your bookmarks are safe. Reset sync on this device to continue."
+  },
+  "sync_syncOperationRejectedServer": {
+    "message": "A change could not be synced and will not retry automatically. Other items will keep syncing. Open Not included in sync for details."
+  },
+  "sync_syncPaused": {
+    "message": "Sync is paused."
+  },
+  "sync_syncResetIsntFinished": {
+    "message": "The sync reset isn't finished. Your bookmarks are safe. Try again to finish it."
+  },
+  "sync_syncingHere": {
+    "message": "Syncing here"
+  },
+  "sync_tabCollection": {
+    "message": "Collection"
+  },
+  "sync_tabImport": {
+    "message": "Import"
+  },
+  "sync_theseLocalBookmarksNot": {
+    "message": "These local bookmarks are not included in sync, for the reasons below."
+  },
+  "sync_thisBrowserBookmarks": {
+    "message": "This browser’s bookmarks"
+  },
+  "sync_thisBrowserHint": {
+    "message": "Pick folders to copy"
+  },
+  "sync_timeUnknownRecordedBefore": {
+    "message": "Time unknown (recorded before this list existed)"
+  },
+  "sync_titleCannotRepresentedEmpty": {
+    "message": "Title cannot be represented (empty or too long)"
+  },
+  "sync_urlCannotRepresentedMissing": {
+    "message": "URL cannot be synced (invalid format, disallowed scheme, or too long)"
+  },
+  "sync_useCollection": {
+    "message": "Use this collection"
+  },
+  "sync_useExisting": {
+    "message": "Use existing"
+  },
+  "sync_useNamed": {
+    "message": "Use $1 as the collection"
+  },
+  "sync_waitSummary_one": {
+    "message": "$1 bookmark from Know-N needs your decision before it’s added here."
+  },
+  "sync_waitSummary_other": {
+    "message": "$1 bookmarks from Know-N need your decision before they’re added here."
+  },
+  "sync_waitingForYou": {
+    "message": "Waiting for you"
+  },
+  "sync_waitingNetwork": {
+    "message": "Waiting for network"
+  },
+  "sync_whenDeletedElsewhere": {
+    "message": "When a bookmark is deleted on another device"
+  },
+  "sync_willSyncIn": {
+    "message": "Will sync $1 in $2."
+  },
+  "tabs_allTabsWindow": {
+    "message": "All tabs in this window"
+  },
+  "tabs_allowTabAccess": {
+    "message": "Allow tab access"
+  },
+  "tabs_backToBookmarks": {
+    "message": "Bookmarks"
+  },
+  "tabs_filterTitlesDomains": {
+    "message": "Filter titles and domains"
+  },
+  "tabs_resumeUnfinishedItems": {
+    "message": "Resume unfinished items"
+  },
+  "tabs_saveOpenTabsWindow": {
+    "message": "Save the open tabs in this window as bookmarks in one folder. Nothing is saved until you confirm, and your tabs stay open."
+  },
+  "tabs_saveToFolder": {
+    "message": "Save to folder"
+  },
+  "tabs_selectedTabsWindow": {
+    "message": "Selected tabs in this window"
+  },
+  "tabs_tabsList": {
+    "message": "Tabs"
+  },
+  "welcome_extensionsMenu": {
+    "message": "Extensions"
+  },
+  "welcome_installed": {
+    "message": "Know-N is installed"
+  },
+  "welcome_lede": {
+    "message": "Save, tag and organize bookmarks on this browser. No account needed."
+  },
+  "welcome_manualOrAutomatic": {
+    "message": "Manual or Automatic"
+  },
+  "welcome_pinStep": {
+    "message": "Pin Know-N to your toolbar from the $1 menu"
+  },
+  "welcome_savingStep": {
+    "message": "Choose how saving works: $1"
+  },
+  "welcome_title": {
+    "message": "Welcome to Know-N"
+  }
+}

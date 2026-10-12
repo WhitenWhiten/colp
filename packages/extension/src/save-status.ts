@@ -1,0 +1,92 @@
+import {
+  FIRST_RUN_ACTION_REQUIRED, FIRST_RUN_LOCAL_ONLY, FIRST_RUN_NEEDS_ATTENTION,
+  FIRST_RUN_REVIEW_CONFLICTS, FIRST_RUN_SYNCED, FIRST_RUN_SYNCING,
+  FIRST_RUN_UNSYNCED, FIRST_RUN_WAIT_NETWORK,
+} from './first-run-draft.js';
+import { localized, t } from './i18n.js';
+import type { SyncStatusKind } from './sync-status.js';
+
+export let SAVE_SAVED_TO_BROWSER: string;
+localized(() => {
+  SAVE_SAVED_TO_BROWSER = t('save_savedBrowser', 'Saved to this browser');
+});
+export const SAVE_LAST_CACHE = 'known.save.last.v1';
+
+export type SaveStatusPaint = 'local' | 'projected';
+
+/** Read-only facts from run/queue/receipt/apply stores. Not a queue state machine. */
+export interface SaveStatusFacts {
+  readonly paint: SaveStatusPaint;
+  readonly localCreateSucceeded: boolean;
+  readonly inSyncRange: boolean;
+  readonly firstRunIncomplete: boolean;
+  readonly online: boolean;
+  readonly pendingWork: boolean;
+  readonly needsAttention: boolean;
+  readonly hasConflict?: boolean;
+  readonly hasAuthoritativeReceipt: boolean;
+  readonly hasApplyEvidence: boolean;
+  readonly enhancementFailed?: boolean;
+}
+
+export interface LastSaveRecord {
+  readonly nativeId: string;
+  readonly parentNativeId?: string;
+  readonly localOnly: boolean;
+  readonly collectionId?: string;
+  readonly updatedAt: number;
+}
+
+export function projectSaveStatus(facts: SaveStatusFacts): SyncStatusKind {
+  void facts.enhancementFailed;
+  if (facts.paint === 'local' && facts.localCreateSucceeded) return 'saved-locally';
+  if (!facts.inSyncRange || facts.firstRunIncomplete) {
+    return facts.firstRunIncomplete ? 'setup-required' : 'local-only';
+  }
+  if (facts.hasConflict) return 'review-conflicts';
+  if (facts.needsAttention) return 'action-required';
+  if (!facts.online && facts.pendingWork) return 'waiting-network';
+  if (facts.pendingWork) return 'syncing';
+  const authoritative = facts.hasAuthoritativeReceipt || facts.hasApplyEvidence;
+  if (authoritative) return 'synced';
+  return 'syncing';
+}
+
+export function mappingLooksAuthoritative(mapping: {
+  readonly colpId: string; readonly projection: { readonly revision: string };
+} | null | undefined): boolean {
+  if (!mapping) return false;
+  return !mapping.colpId.startsWith('pending-') && !mapping.projection.revision.startsWith('local-');
+}
+
+export function parseLastSave(value: unknown): LastSaveRecord | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const record = value as Record<string, unknown>;
+  if (typeof record.nativeId !== 'string' || record.nativeId.length === 0) return undefined;
+  if (typeof record.localOnly !== 'boolean') return undefined;
+  if (typeof record.updatedAt !== 'number' || !Number.isFinite(record.updatedAt)) return undefined;
+  if (record.parentNativeId !== undefined && typeof record.parentNativeId !== 'string') return undefined;
+  if (record.collectionId !== undefined && typeof record.collectionId !== 'string') return undefined;
+  return {
+    nativeId: record.nativeId, localOnly: record.localOnly, updatedAt: record.updatedAt,
+    ...(typeof record.parentNativeId === 'string' && record.parentNativeId ? { parentNativeId: record.parentNativeId } : {}),
+    ...(typeof record.collectionId === 'string' && record.collectionId ? { collectionId: record.collectionId } : {}),
+  };
+}
+
+export async function readLastSave(): Promise<LastSaveRecord | undefined> {
+  try { return parseLastSave((await chrome.storage.local.get(SAVE_LAST_CACHE))[SAVE_LAST_CACHE]); }
+  catch { return undefined; }
+}
+
+export async function writeLastSave(input: Omit<LastSaveRecord, 'updatedAt'>): Promise<void> {
+  try {
+    await chrome.storage.local.set({ [SAVE_LAST_CACHE]: { ...input, updatedAt: Date.now() } });
+  } catch { /* Last-save memory is best-effort; status can still be recovered from IndexedDB. */ }
+}
+
+export {
+  FIRST_RUN_ACTION_REQUIRED, FIRST_RUN_LOCAL_ONLY, FIRST_RUN_NEEDS_ATTENTION,
+  FIRST_RUN_REVIEW_CONFLICTS, FIRST_RUN_SYNCED, FIRST_RUN_SYNCING,
+  FIRST_RUN_UNSYNCED, FIRST_RUN_WAIT_NETWORK,
+};

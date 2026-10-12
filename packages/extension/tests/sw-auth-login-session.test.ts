@@ -1,0 +1,120 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import 'fake-indexeddb/auto';
+import { IDBFactory } from 'fake-indexeddb';
+import { afterEach, test, vi } from 'vitest';
+import { parseBuildConfig } from '../src/config.js';
+import { MemoryStorageArea } from '../src/credential-store.js';
+import type { StoredSession } from '../src/types.js';
+
+/**
+ * `known.auth.login` must not delete the Session it just minted.
+ *
+ * The handler runs under the authority generation the MESSAGE arrived with, and
+ * logging in activates a new one (`auth-controller` persistSession ->
+ * `activateAuthority`). Passing the handler's own context generation to
+ * `ensureSyncScope` therefore threw `AuthorityFencedError`, and the catch around
+ * it cleared the Session the lane had just saved: every login minted a Session,
+ * discarded it, and left the engine to mint again on its next wake — double the
+ * `lifecycle_revision` churn the lane exists to avoid — and the scope import
+ * never ran. No behavioural test covered `src/sw/auth.ts` at all.
+ */
+const cleanups: Array<() => void> = [];
+const mocks = vi.hoisted(() => ({ login: vi.fn(), session: vi.fn(), wake: vi.fn(),
+  credential: { current: undefined as unknown } }));
+
+vi.mock('../src/auth-controller.js', () => ({
+  createAuthController: () => ({
+    login: mocks.login,
+    // The lane refreshes the credential before deciding whether to mint; hand it
+    // the one this fixture persisted.
+    ensureFreshCredential: async () => mocks.credential.current as never,
+    status: async () => ({ status: 'connected' as const }),
+    logout: async () => ({ status: 'signed_out' as const }),
+    sendOtp: async () => undefined,
+  }),
+}));
+vi.mock('../src/session-client.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/session-client.js')>(),
+  createSyncSession: mocks.session,
+}));
+vi.mock('../src/manifest-client.js', () => ({
+  fetchSyncEndpoints: async () => ({
+    syncSessions: 'https://known.example/v1/session',
+    syncSnapshot: 'https://known.example/v1/snapshot',
+    syncPush: 'https://known.example/v1/push',
+    syncPull: 'https://known.example/v1/pull',
+    syncAck: 'https://known.example/v1/ack',
+    syncConflict: 'https://known.example/v1/conflicts/{conflictId}',
+    syncEffectPages: 'https://known.example/v1/effects/{effectId}/pages/{pageNumber}',
+    effectPageAuthority: 'https://known.example',
+    syncRetire: 'https://known.example/v1/retire',
+  }),
+}));
+vi.mock('../src/sw/engine.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/sw/engine.js')>(),
+  scheduleSyncEngineWake: mocks.wake,
+}));
+
+afterEach(() => {
+  for (const close of cleanups.splice(0)) close();
+  vi.unstubAllGlobals();
+  vi.resetModules();
+  vi.clearAllMocks();
+});
+
+async function loginFixture() {
+  vi.resetModules();
+  const local = new MemoryStorageArea();
+  const session = new MemoryStorageArea();
+  const setAccessLevel = vi.fn(async () => undefined);
+  vi.stubGlobal('chrome', {
+    storage: { local, session: Object.assign(session, { setAccessLevel }) },
+    runtime: { id: 'pplpnpegpnghcddhmpgkbfkdfadjiaen',
+      getURL: (path: string) => `chrome-extension://pplpnpegpnghcddhmpgkbfkdfadjiaen/${path}` },
+  });
+  vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('Failed to fetch'); }));
+  const runtime = await import('../src/sw/runtime.js');
+  const api = await import('../src/sw/auth.js');
+  cleanups.push(() => runtime.syncState.close());
+  const config = parseBuildConfig(JSON.parse(await readFile('config/e2e-fixture.json', 'utf8')));
+  runtime.sw.configPromise = Promise.resolve(config);
+  const binding = await runtime.store.getOrCreateBinding(0);
+  const credential = { accessToken: 'login-test-credential', tokenType: 'Bearer' as const,
+    subject: 'login-account', accountLabel: 'Login test', expiresAt: Date.now() + 3_600_000,
+    scope: config.scopes, serverOrigin: config.serverOrigin, issuer: config.issuer,
+    audience: config.audience, clientId: config.clientId };
+  await runtime.store.saveCredential(credential);
+  mocks.credential.current = credential;
+  await local.set({ [runtime.COLLECTION_BINDING]: 'login-collection' });
+  const minted: StoredSession = { sessionId: 'minted-1', expiresAt: '2099-01-01T00:00:00Z',
+    scope: 'collection', credentialAuthorityDigest: 'digest-1', acceptedProtocolVersion: '0.2',
+    snapshotRequired: false,
+    collection: { collectionId: 'login-collection', serverCursor: 'cursor0', serverRevision: 'r0' },
+    replicaLease: { leaseId: 'lease-1', generation: '1', state: 'active', expiresAt: '2099-01-01T00:00:00Z' } };
+  mocks.session.mockResolvedValue(minted);
+  mocks.wake.mockReturnValue(undefined);
+  // A real login persists the session and ACTIVATES a new authority generation.
+  mocks.login.mockImplementation(async () => {
+    const activated = await runtime.store.activateAuthority();
+    await runtime.store.saveCredential(credential, activated.generation);
+    mocks.credential.current = credential;
+    return { status: 'connected' as const };
+  });
+  return { ...runtime, api, local, binding, credential, minted, config };
+}
+
+test('a login keeps the Session the lane minted for it', async () => {
+  const f = await loginFixture();
+  const before = await f.store.fence.capture();
+  await f.api.handle({ kind: 'known.auth.login', method: 'password', userGesture: true,
+    email: 'login@example.test', password: 'secret' }, { generation: before.generation, signal: new AbortController().signal });
+
+  const stored = await f.store.loadSession();
+  assert.equal(stored?.sessionId, 'minted-1',
+    'the Session minted during login must survive the handler');
+  assert.equal(mocks.session.mock.calls.length, 1, 'login must mint exactly one Session');
+  const after = await f.store.fence.capture();
+  assert.ok(after.generation > before.generation, 'the login activated a new authority generation');
+  assert.equal(await f.store.loadCredential().then((value) => value?.subject), 'login-account');
+});

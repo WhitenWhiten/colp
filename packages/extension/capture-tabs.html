@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title data-i18n="capture_tabsPageTitle">Save tabs · Know-N</title><link rel="stylesheet" href="options.css"></head>
+<body class="tabs-body">
+<main class="tabs-main">
+  <a id="tabs-back" class="btn btn-ghost btn-sm tabs-back" href="options.html#bookmarks"><svg width="14" height="14" aria-hidden="true" focusable="false" data-icon="arrow-left"></svg><span data-i18n="tabs_backToBookmarks">Bookmarks</span></a>
+  <header class="page-head">
+    <div class="page-head-copy">
+      <h1 data-i18n="common_saveTabs">Save tabs</h1>
+      <p data-i18n="tabs_saveOpenTabsWindow">Save the open tabs in this window as bookmarks in one folder. Nothing is saved until you confirm, and your tabs stay open.</p>
+    </div>
+  </header>
+  <div id="tabs-tab-alert" class="inline-alert" data-tone="warning" hidden>
+    <svg width="16" height="16" aria-hidden="true" focusable="false" data-icon="info"></svg>
+    <p data-i18n="capture_knowNCanOnly">Know-N can only read some tab addresses. Allow tab access to include all of them.</p>
+    <button id="tabs-grant" class="btn btn-secondary btn-sm" type="button" data-i18n="tabs_allowTabAccess">Allow tab access</button>
+  </div>
+  <div id="tabs-bookmark-alert" class="inline-alert" data-tone="warning" hidden>
+    <svg width="16" height="16" aria-hidden="true" focusable="false" data-icon="info"></svg>
+    <p data-i18n="capture_allowBookmarkAccessSave">Allow bookmark access to save these tabs.</p>
+    <button id="tabs-bookmark-grant" class="btn btn-secondary btn-sm" type="button" data-i18n="common_allowBookmarkAccess">Allow bookmark access</button>
+  </div>
+  <p id="tabs-status" class="tabs-status" role="status" aria-live="polite" data-i18n="common_loadingPreview">Loading preview…</p>
+  <div class="set-card tabs-setup">
+    <div class="set-row">
+      <div class="set-row-text"><label class="set-row-title" for="tabs-selection" data-i18n="common_whichTabs">Which tabs</label></div>
+      <div class="set-row-control"><select id="tabs-selection" class="select-quiet"><option value="all" data-i18n="tabs_allTabsWindow">All tabs in this window</option><option value="selected" data-i18n="tabs_selectedTabsWindow">Selected tabs in this window</option></select></div>
+    </div>
+    <div class="set-row">
+      <div class="set-row-text"><label class="set-row-title" for="tabs-target" data-i18n="tabs_saveToFolder">Save to folder</label></div>
+      <div class="set-row-control"><select id="tabs-target" class="select-quiet"></select></div>
+    </div>
+  </div>
+  <section class="list-card tabs-list-card" aria-label="Tabs" data-i18n-aria-label="tabs_tabsList">
+    <div class="card-bar">
+      <label class="search-compact"><svg width="14" height="14" aria-hidden="true" focusable="false" data-icon="search"></svg>
+        <input id="tabs-search" type="search" autocomplete="off" placeholder="Filter titles and domains" aria-label="Filter titles and domains" data-i18n-placeholder="tabs_filterTitlesDomains" data-i18n-aria-label="tabs_filterTitlesDomains"></label>
+      <button id="tabs-all" class="btn btn-ghost btn-sm" type="button" data-i18n="common_selectAll">Select all</button>
+      <button id="tabs-invert" class="btn btn-ghost btn-sm" type="button" data-i18n="sync_invert">Invert</button>
+      <button id="tabs-refresh" class="btn btn-ghost btn-sm btn-icon" type="button" aria-label="Refresh" title="Refresh" data-i18n-aria-label="common_refresh" data-i18n-title="common_refresh"><svg width="14" height="14" aria-hidden="true" focusable="false" data-icon="refresh"></svg></button>
+    </div>
+    <ul id="tabs-list" class="tabs-list"></ul>
+  </section>
+  <div class="card-foot tabs-foot">
+    <p id="tabs-count" class="grow tabs-count"></p>
+    <button id="tabs-resume" class="btn btn-ghost" type="button" hidden data-i18n="tabs_resumeUnfinishedItems">Resume unfinished items</button>
+    <button id="tabs-confirm" class="btn btn-primary" type="button" disabled data-i18n="capture_confirmSaveSelectedTabs">Confirm and save selected tabs</button>
+  </div>
+</main><script type="module" src="capture-tabs.js"></script></body></html>

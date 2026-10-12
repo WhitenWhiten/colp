@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 0,
+  "source": "p3-27-chrome-storage-binding",
+  "environment": "production",
+  "serverId": "server-production",
+  "serverOrigin": "https://known.example",
+  "accountId": "account-preformal",
+  "browserProfileId": "profile-preformal",
+  "collectionId": "owned-default",
+  "replicaId": "replica-preformal",
+  "generation": 1,
+  "leaseId": "lease-preformal",
+  "leaseExpiresAt": 1785200000000,
+  "checkpoint": { "serverRevision": "revision-preformal", "serverCursor": "cursor-preformal" }
+}
