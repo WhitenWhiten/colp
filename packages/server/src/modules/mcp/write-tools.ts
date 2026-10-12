@@ -1,5 +1,6 @@
 import { createPhase4bMcpResult } from './results.js';
 import { withWriteReceipt, withWriteReceiptSchema } from './write-result-receipt.js';
+import { assertHostPlanOperations, narrowHostPlanSchema } from './plan-tool-schema.js';
 import type { Phase4bMcpChangePlanService } from './change-plan-service.js';
 import { PHASE4B_MCP_MOVE_BATCH_LIMIT } from './change-plan-planner.js';
 import { MCP_OWN_DATA_DEFAULT_BUDGET, snapshotMcpOwnData as snapshotPhase4bData } from './own-data.js';
@@ -102,7 +103,7 @@ import {
 export const PHASE4B_MCP_WRITE_COLLECTION_ID_HEADER = 'X-Collection-Id' as const;
 
 export const PHASE4B_MCP_CHANGES_PLAN_DESCRIPTION =
-  'Create a pending high-risk Change Plan. dryRun must be true and stores a real plan that needs out-of-band approval; apply with changes.commit. Collection public/unlisted uses the collection resource fence; node protected/private uses the node revision.';
+  'Plan visibility changes only; use nodes.move or nodes.delete_subtree for moves and deletions. dryRun must be true: this stores a pending plan requiring owner approval before changes.commit. Collection public/unlisted uses the collection resource revision; node protected/private uses the node revision.';
 
 /**
  * The COLP SDK lists low-risk write tools as "Write tool <name>". Agents pick
@@ -565,6 +566,9 @@ function withMcpAccountSubject(
     callTool: (context, input) =>
       bindMcpAccountSubject(context, async () => {
         const call = snapshotPhase4bData(input, MCP_OWN_DATA_DEFAULT_BUDGET) as Record<string, unknown>;
+        if (call.name === 'changes.plan' && canCallPhase4bMcpWriteTool(context, 'changes.plan')) {
+          assertHostPlanOperations(call.arguments);
+        }
         if (call.name === 'changes.plan' && planRevisions && canCallPhase4bMcpWriteTool(context, 'changes.plan')) {
           await adapter.listTools(context, {});
           const args = call.arguments as { operations?: readonly unknown[] };
@@ -615,7 +619,7 @@ function withHostWriteToolDescriptions(listed: Mcp20260728Result): Mcp20260728Re
         ? PHASE4B_MCP_CHANGES_PLAN_DESCRIPTION
         : typeof name === 'string' ? PHASE4B_MCP_WRITE_TOOL_DESCRIPTIONS[name] : undefined;
       if (description === undefined) return tool;
-      return Object.freeze({ ...withWriteReceiptSchema(tool as Record<string, unknown>), description });
+      return Object.freeze({ ...narrowHostPlanSchema(withWriteReceiptSchema(tool as Record<string, unknown>)), description });
     })),
   });
 }
