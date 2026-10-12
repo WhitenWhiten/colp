@@ -16,6 +16,7 @@ import { isChunkLoadError, reloadOnce } from './lib/lazyWithRetry'
  * first layered stylesheet); see ARCHITECTURE.md for the rationale.
  * Latin @font-face CSS from @fontsource-variable loads first, unlayered, so
  * unicode-range files ship with the app instead of blocking on Google Fonts.
+ * The monospace face downloads only on pages that show code or commands.
  * Each stylesheet below is wrapped in exactly one `@layer` block; file → layer
  * owners are recorded in ARCHITECTURE.md. Import order within main.tsx must
  * stay stable — it defines source order inside each layer.
@@ -86,6 +87,7 @@ import '@fontsource-variable/instrument-sans/index.css'
 import '@fontsource-variable/instrument-sans/wght-italic.css'
 import '@fontsource-variable/newsreader/opsz.css'
 import '@fontsource-variable/newsreader/opsz-italic.css'
+import '@fontsource-variable/jetbrains-mono/wght.css'
 import './styles/tokens.css'
 import './styles/global.css'
 import './styles/nav.css'

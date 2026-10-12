@@ -64,7 +64,9 @@ describe('Agents page', () => {
     expect(panel()).toContain('codex mcp add colp --url "https://colp.example.net/collections/-/mcp-compat"')
 
     act(() => findButtonByName('Other clients').click())
-    expect(panel()).toContain('https://colp.example.net/collections/-/mcp')
+    expect(panel()).toContain('https://colp.example.net/collections/-/mcp-compat')
+    expect(panel()).toContain('Start the client’s OAuth sign-in for this server')
+    expect(panel()).toContain('curl -X POST "https://colp.example.net/api/v1/auth/oauth2/register"')
 
     act(() => findButtonByName('API key').click())
     expect(panel()).toContain('Authorization: Bearer $ACCESS_TOKEN')

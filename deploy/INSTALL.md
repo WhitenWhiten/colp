@@ -118,6 +118,16 @@ Both work on HTTPS and on the plain HTTP profile at `http://127.0.0.1`
 (tested with Claude Code 2.1.296 and Codex 0.162.1). Clients that speak MCP
 2026-07-28 can use `/collections/-/mcp` instead of `/collections/-/mcp-compat`.
 
+**Other MCP clients** (OAuth): add `$COLP_SERVER_ORIGIN/collections/-/mcp-compat`
+as a remote (streamable HTTP) server, then start the client's OAuth sign-in
+for it (an Authenticate or Connect button, or `/mcp auth` in Gemini CLI). The
+browser opens your server: sign in, then approve on the consent page. Clients
+register themselves through a client metadata document or dynamic client
+registration. If yours asks for a client ID, register one with the callback
+address it shows (Agents → Other clients has the command) and leave the secret
+empty. Cloud clients such as claude.ai or ChatGPT connectors need a public
+HTTPS address.
+
 **A script with an API key** (HTTPS, or explicitly acknowledged HTTP):
 Agents → **Issue key**, copy the credential once into `KEY`. Exchange it for
 an access token, then send that token to MCP. This example uses `jq`:

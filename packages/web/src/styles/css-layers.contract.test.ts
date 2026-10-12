@@ -252,11 +252,13 @@ describe('CSS cascade layer contract (F00)', () => {
       '@fontsource-variable/instrument-sans/wght-italic.css',
       '@fontsource-variable/newsreader/opsz.css',
       '@fontsource-variable/newsreader/opsz-italic.css',
+      '@fontsource-variable/jetbrains-mono/wght.css',
     ])
     expect(entry.indexOf(fontImports[0]!)).toBeLessThan(entry.indexOf("./styles/tokens.css"))
     const tokens = readFileSync(resolve(stylesDir, 'tokens.css'), 'utf8')
     expect(tokens).toMatch(/--font-sans:\s*"Instrument Sans Variable".*"PingFang SC".*"Noto Sans SC"/)
     expect(tokens).toMatch(/--font-serif:\s*"Newsreader Variable".*"Songti SC".*"Noto Serif SC"/)
+    expect(tokens).toMatch(/--font-mono:\s*"JetBrains Mono Variable",/)
     expect(tokens).not.toMatch(/--font-sans:\s*"Instrument Sans",\s*"Noto Sans SC"/)
     // R15-31: a metric-matched fallback sits second in each stack.
     expect(tokens).toMatch(/--font-sans:\s*"Instrument Sans Variable",\s*"Instrument Sans Fallback"/)

@@ -129,6 +129,16 @@ pre {
   white-space: pre-wrap;
 }
 
+/* The UA sheet gives these the system monospace (DejaVu Sans Mono, Consolas),
+   which also beat a class on the <pre> around a command's <code>. Ligatures
+   off: a command must show `://` and `--` as typed. */
+code,
+samp,
+pre {
+  font-family: var(--font-mono);
+  font-variant-ligatures: none;
+}
+
 #root {
   min-height: 100dvh;
 }

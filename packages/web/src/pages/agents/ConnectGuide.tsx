@@ -1,7 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import type { AgentConnectCopy } from '../../api/agentsClient'
 import { CommandBlock } from '../../components/CommandBlock'
-import { CopyField } from '../../components/CopyField'
 import { TabList } from '../../components/TabList'
 
 export type ConnectClient = 'claude' | 'codex' | 'other' | 'key'
@@ -90,14 +89,41 @@ export function ConnectGuide({
           </ol>
         )}
         {client === 'other' && (
-          <div className="agents-endpoints">
-            <p className="agents-note">
-              Any MCP client that speaks streamable HTTP and OAuth can connect. Most clients today want the
-              compatibility endpoint; clients on MCP 2026-07-28 can use the strict one.
-            </p>
-            <CopyField label="Compatibility endpoint" value={connect.compatUrl} />
-            <CopyField label="Strict endpoint (MCP 2026-07-28)" value={connect.strictUrl} />
-          </div>
+          <ol className="agents-steps">
+            <Step title="Add this server">
+              <p className="agents-note">
+                Add it as a remote MCP server (streamable HTTP). Most clients today want the compatibility endpoint:
+              </p>
+              <CommandBlock label="compatibility endpoint" command={connect.compatUrl} />
+              <p className="agents-note">Clients on MCP 2026-07-28 can use the strict endpoint instead:</p>
+              <CommandBlock label="strict endpoint" command={connect.strictUrl} />
+            </Step>
+            <Step title="Sign in">
+              <p className="agents-note">
+                Start the client’s OAuth sign-in for this server: an Authenticate, Connect or Sign in button, or a
+                command such as <code>/mcp auth</code> in Gemini CLI. It opens this server in your browser. Sign in,
+                then allow access on the consent page.
+              </p>
+              <p className="agents-note">
+                Most clients register themselves, so there is no client ID or secret to paste. Clients that run in
+                the cloud, such as claude.ai or ChatGPT connectors, reach this server over the internet and need its
+                public HTTPS address.
+              </p>
+              <details className="agents-example">
+                <summary>Client asks for a client ID?</summary>
+                <p className="agents-note">
+                  Register one. Put the callback address the client shows in place of <code>REDIRECT_URI</code>,
+                  then paste the <code>client_id</code> it returns and leave the secret empty.
+                </p>
+                <CommandBlock label="client registration command" command={connect.register} />
+              </details>
+            </Step>
+            <Step title="Ask for a change">
+              <p className="agents-note">
+                Try “Move my design links into a Design folder.” The plan shows up on Approvals for you to review.
+              </p>
+            </Step>
+          </ol>
         )}
         {client === 'key' && (
           <div className="agents-key">

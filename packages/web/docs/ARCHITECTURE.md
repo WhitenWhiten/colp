@@ -143,6 +143,8 @@ All design decisions flow through tokens. Never hardcode values.
 - `--font-sans` — UI text, tools, and forms (Instrument Sans)
 - `--font-serif` — Newsreader upstream; the self-hosted edition resolves it
   to the sans stack, so every head is sans at a tool scale
+- `--font-mono` — commands, endpoints, and versions (JetBrains Mono,
+  bundled so a command looks the same on every OS)
 - `--text-3xs` / `--text-2xs` — decorative only (avatar initials, badge dots)
 - `--text-xs` through `--text-3xl` — readable type scale; 12px is the
   readable floor

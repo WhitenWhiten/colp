@@ -95,6 +95,8 @@ export type AgentConnectCopy = {
   codexLogin: string
   /** Both Codex steps, one per line. */
   codex: string
+  /** Registers an OAuth client by hand, for clients that ask for a client ID. */
+  register: string
   curl: string
 }
 
@@ -134,6 +136,12 @@ export function agentConnectCopy(origin: string): AgentConnectCopy {
     codexAdd,
     codexLogin,
     codex: `${codexAdd}\n${codexLogin}`,
+    // The server takes only public clients; native also allows loopback callbacks.
+    register: [
+      `curl -X POST "${base}/api/v1/auth/oauth2/register" \\`,
+      '  -H "Content-Type: application/json" \\',
+      `  -d '{"client_name":"My MCP client","application_type":"native","redirect_uris":["REDIRECT_URI"],"token_endpoint_auth_method":"none","grant_types":["authorization_code","refresh_token"],"response_types":["code"]}'`,
+    ].join('\n'),
     curl: [
       "# Requires jq. Set KEY to the credential copied at issuance.",
       "ACCESS_TOKEN=$(curl -fsS -H \"Content-Type: application/json\" \\",

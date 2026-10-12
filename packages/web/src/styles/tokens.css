@@ -110,7 +110,9 @@
      ────────────────────────────────────────────── */
   --font-sans: "Instrument Sans Variable", "Instrument Sans Fallback", "Instrument Sans", "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
   --font-serif: "Newsreader Variable", "Newsreader Fallback", "Newsreader", "Georgia", "Songti SC", "Noto Serif SC", serif;
-  --font-mono: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, monospace;
+  /* Bundled, so a command reads the same on every OS instead of whatever
+     monospace the system has (DejaVu Sans Mono on Linux). */
+  --font-mono: "JetBrains Mono Variable", ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, monospace;
 
   /* Type scale — clear steps, not near-neighbors.
      --text-3xs / --text-2xs are decorative only (avatar initials, badge

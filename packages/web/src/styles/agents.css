@@ -325,7 +325,6 @@
   letter-spacing: var(--tracking-tight);
 }
 
-.agents-endpoints,
 .agents-key,
 .agents-key-issue {
   display: grid;

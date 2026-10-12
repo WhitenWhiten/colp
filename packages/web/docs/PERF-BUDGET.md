@@ -6,7 +6,7 @@
 |---------|--------|-------|
 | Entry JS (gzip) | ≤ 148 KB | `npm run check:bundle-budget` after `npm run build`. 2026-10-11, after the self-hosted prune: **113,771 bytes**. |
 | Entry linked CSS (sum, gzip) | ≤ 50 KB | All unique linked build stylesheets; split files cannot bypass the aggregate gate. 2026-10-11: **26,924 bytes**. |
-| Fonts | Self-hosted Latin variable + system CJK | Instrument Sans + Newsreader are distributed through `@fontsource-variable`; Vite emits content-hashed `/assets/*.woff2`. No font is preloaded. Noto SC is not on the first-paint path. |
+| Fonts | Self-hosted Latin variable + system CJK | Instrument Sans + Newsreader (and JetBrains Mono, fetched only where code is shown) are distributed through `@fontsource-variable`; Vite emits content-hashed `/assets/*.woff2`. No font is preloaded. Noto SC is not on the first-paint path. |
 
 ## Loading strategy
 
