@@ -3,7 +3,8 @@ import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ProductApiError } from '../api/errors'
 import type { OwnedCollectionPage } from '../api/types'
-import { applyMeView, applySessionView, clearSession } from '../api/sessionStore'
+import { applyMeView, applySessionView, clearSession, privateSessionIdentity } from '../api/sessionStore'
+import { publishLibraryMutation } from './libraryInvalidation'
 import { useOwnedCollections } from './useOwnedCollections'
 import { cleanup, domFinishedLoading, mountTree, settled, waitForDom } from '../test/render'
 
@@ -36,6 +37,7 @@ function Harness() {
   return (
     <div data-state={collections.state} data-more={String(collections.hasMore)}>
       <span data-testid="ids">{collections.items.map((item) => item.collection.id).join(',')}</span>
+      <span data-testid="visibility">{collections.items.map((item) => item.collection.visibility).join(',')}</span>
       <span data-testid="message">{collections.message}</span>
       <button type="button" onClick={() => void collections.loadMore()}>More</button>
       <button type="button" onClick={() => void collections.reload()}>Reload</button>
@@ -115,6 +117,30 @@ describe('useOwnedCollections', () => {
     expect(document.querySelector('[data-testid="ids"]')?.textContent).toBe('account-b')
     await act(async () => { resolveOld?.(page(['account-a'])); await Promise.resolve(); await Promise.resolve() })
     expect(document.querySelector('[data-testid="ids"]')?.textContent).toBe('account-b')
+  })
+
+  it('re-reads every loaded row after a collection changes', async () => {
+    /* Two pages are on screen when the owner publishes a collection from the
+       settings sheet; the refresh must not fall back to the first page. */
+    const first = Array.from({ length: 30 }, (_, index) => `c${index}`)
+    mocks.page.mockImplementation((request: { cursor?: string; limit?: number }) => {
+      if (request.cursor === 'cursor-two') return Promise.resolve(page(['tail']))
+      if (request.limit === 31) {
+        const fresh = page([...first, 'tail'])
+        fresh.items[0]!.collection.visibility = 'public'
+        return Promise.resolve(fresh)
+      }
+      return Promise.resolve(page(first, true, 'cursor-two'))
+    })
+    render(); await waitForDom(domFinishedLoading)
+    act(() => [...document.querySelectorAll('button')].find((button) => button.textContent === 'More')?.click())
+    await waitForDom(() => document.querySelector('[data-testid="ids"]')?.textContent?.endsWith('tail') === true)
+    const reads = mocks.page.mock.calls.length
+
+    act(() => publishLibraryMutation('/api/v1/collections/c0', privateSessionIdentity()))
+    await waitForDom(() => document.querySelector('[data-testid="visibility"]')?.textContent?.startsWith('public') === true)
+    expect(mocks.page.mock.calls.slice(reads).map((call) => call[0])).toEqual([{ limit: 31 }])
+    expect(document.querySelector('[data-testid="ids"]')?.textContent?.split(',')).toHaveLength(31)
   })
 
   it('does not fetch private collections while signed out', async () => {

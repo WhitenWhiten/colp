@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { isProductApiError, productClient, type OwnedCollectionListItem } from '../api'
 import { getSessionSnapshot, privateSessionIdentity, subscribeSession } from '../api/sessionStore'
+import { subscribeLibraryInvalidation } from './libraryInvalidation'
 import { readRouteCache, writeRouteCache } from './routeCache'
 import { plural } from './plural'
 
@@ -13,6 +14,10 @@ type CachedPage = {
 }
 
 const FIRST_PAGE_LIMIT = 30
+/** The server's page cap; a revalidation re-reads up to this many loaded rows. */
+const MAX_PAGE_LIMIT = 100
+/** An import or bulk move publishes one invalidation per write. */
+const INVALIDATION_SETTLE_MS = 300
 const CACHE_KEY = 'owned-collections'
 
 function identity() {
@@ -92,8 +97,13 @@ export function useOwnedCollections() {
       setMessage('Loading collections')
     }
     try {
+      // A revalidation re-reads every row already shown, so pages added with
+      // Load more do not drop off after an edit.
+      const limit = revalidating
+        ? Math.min(Math.max(itemsRef.current.length, FIRST_PAGE_LIMIT), MAX_PAGE_LIMIT)
+        : FIRST_PAGE_LIMIT
       const page = await productClient.getOwnedCollectionsPage(
-        { limit: FIRST_PAGE_LIMIT },
+        { limit },
         { signal: controller.signal, maxRetries: 0 },
       )
       if (controller.signal.aborted || requestGeneration !== generation.current || requestedIdentity !== identity()) return
@@ -186,6 +196,20 @@ export function useOwnedCollections() {
       generation.current += 1
     }
   }, [loadFirstPage, privateIdentity])
+
+  // Titles, visibility and counts change under the list: the settings sheet
+  // publishes a collection, a rename, an import. Re-read once writes settle.
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const unsubscribe = subscribeLibraryInvalidation(() => {
+      clearTimeout(timer)
+      timer = setTimeout(() => void loadFirstPage(), INVALIDATION_SETTLE_MS)
+    })
+    return () => {
+      clearTimeout(timer)
+      unsubscribe()
+    }
+  }, [loadFirstPage])
 
   const identityReady = renderedIdentityRef.current === privateIdentity
   return {

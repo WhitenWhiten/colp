@@ -71,10 +71,14 @@ export function LibraryDeskView({
   // Read once: dismissing or finishing the checklist hides it for good.
   const [checklistHidden] = useState(getStartedHidden)
   const showChecklist = !checklistHidden && !folderId && collections.state === 'ready'
-  const firstOwned = collections.items[0]?.collection.id ?? null
 
   const { selectedId, snap, selectedFolder, caps } = data
-  const { reorderSection } = order
+  const { reorderSection, orderedOwnedItems } = order
+  // Share opens the collection on screen when it is the owner's, otherwise
+  // the first one in the rail's order (not the API's newest-first order).
+  const shareId = (selectedId && orderedOwnedItems.some((item) => item.collection.id === selectedId)
+    ? selectedId
+    : orderedOwnedItems[0]?.collection.id) ?? null
   const { active: layerReorderActive } = layerReorder
   const {
     selectMode,
@@ -248,7 +252,7 @@ export function LibraryDeskView({
             {showChecklist && (
               <GetStarted
                 collections={collections.items}
-                shareTo={firstOwned ? `/library/${encodeURIComponent(firstOwned)}?collection=edit` : null}
+                shareTo={shareId ? `/library/${encodeURIComponent(shareId)}?collection=edit` : null}
               />
             )}
             <BookmarkArea

@@ -76,7 +76,7 @@ export function GetStarted({
   probes = defaultProbes,
 }: {
   collections: readonly OwnedCollectionListItem[]
-  /** Where "Share" goes: the first collection's settings sheet. */
+  /** Where "Share" goes: the settings sheet of the collection on screen. */
   shareTo: string | null
   probes?: GetStartedProbes
 }) {

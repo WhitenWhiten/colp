@@ -97,6 +97,15 @@ describe('LibraryDesk', () => {
     expect(document.querySelector('[data-testid="collection-settings"]')).not.toBeNull()
   })
 
+  it('points the checklist Share step at the collection on screen', async () => {
+    // col-1 is first in the API order; the owner is looking at col-2.
+    mount('/library/col-2')
+    await waitForDom(domFinishedLoading)
+    const share = () => [...document.querySelectorAll('[data-testid="get-started"] a')].find((a) => a.textContent === 'Share')
+    await waitForDom(() => share() !== undefined)
+    expect(share()?.getAttribute('href')).toBe('/library/col-2?collection=edit')
+  })
+
   it('keeps a kind chip when the collection is not the bookmarks default', async () => {
     const snap = snapshot('col-1', 'Reading queue')
     snap.collection = { ...snap.collection, kind: 'reading_path' }
