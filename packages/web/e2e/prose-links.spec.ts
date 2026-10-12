@@ -16,8 +16,9 @@ test('prose links are underlined; classed links are not', async ({ page }) => {
   const changelog = page.getByTestId('self-hosted-about').locator('a[href="/CHANGELOG.md"]:not([class])')
   await expect(changelog).toBeVisible()
   await expect(changelog).toHaveCSS('text-decoration-line', 'underline')
-  const setup = page.getByRole('link', { name: 'Connect an agent' })
-  await expect(setup).toHaveCSS('text-decoration-line', 'underline')
+  // The next steps are cards: classed links, so no underline.
+  const setup = page.getByRole('link', { name: /Connect an agent/u })
+  await expect(setup).toHaveCSS('text-decoration-line', 'none')
   const brand = page.getByRole('link', { name: 'COLP Server home' })
   await expect(brand).toHaveCSS('text-decoration-line', 'none')
 })

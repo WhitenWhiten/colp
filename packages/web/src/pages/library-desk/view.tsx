@@ -16,6 +16,7 @@ import type { useOwnedCollections } from '../../lib/useOwnedCollections'
 import type { useSharedCollections } from '../../lib/useSharedCollections'
 import { BookmarkArea } from './BookmarkArea'
 import { BulkActionBar } from './BulkActionBar'
+import { GetStarted, getStartedHidden } from './GetStarted'
 import type { LibraryDeskData } from './data'
 import type { LibraryLayerReorder } from './layerReorder'
 import { LibraryHeader } from './LibraryHeader'
@@ -67,6 +68,10 @@ export function LibraryDeskView({
   const compact = density === 'compact'
   const [query, setQuery] = useState('')
   const split = useLibraryDeskSplit()
+  // Read once: dismissing or finishing the checklist hides it for good.
+  const [checklistHidden] = useState(getStartedHidden)
+  const showChecklist = !checklistHidden && !folderId && collections.state === 'ready'
+  const firstOwned = collections.items[0]?.collection.id ?? null
 
   const { selectedId, snap, selectedFolder, caps } = data
   const { reorderSection } = order
@@ -240,7 +245,14 @@ export function LibraryDeskView({
               onAcceptInvite={onAcceptInvite}
               onDeclineInvite={onDeclineInvite}
             />
+            {showChecklist && (
+              <GetStarted
+                collections={collections.items}
+                shareTo={firstOwned ? `/library/${encodeURIComponent(firstOwned)}?collection=edit` : null}
+              />
+            )}
             <BookmarkArea
+              checklistShown={showChecklist}
               query={query}
               setQuery={setQuery}
               filtering={filtering}

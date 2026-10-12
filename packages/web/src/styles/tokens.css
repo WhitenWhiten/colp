@@ -422,9 +422,10 @@
 /* ──────────────────────────────────────────────
    Self-hosted edition (COLP Server). index.html and main.tsx set
    data-edition on <html>. Colours, lines, and shadows are Know-N's, unchanged.
-   The edition only changes type and texture: headings are sans at a tool
-   scale (the serif token resolves to the sans stack), and the paper grain
-   is off. Component rules that need more than a token live in edition.css.
+   The edition only changes type: headings are sans at a tool scale (the
+   serif token resolves to the sans stack). Know-N's paper grain and hero
+   wash stay. Component rules that need more than a token live in
+   edition.css.
    ────────────────────────────────────────────── */
 :root[data-edition='self-hosted'] {
   --font-serif: var(--font-sans);
@@ -436,9 +437,14 @@
 
   --page-pad-y: var(--hair-200);
 
-  /* Texture is upstream decoration; a tool stays flat. */
-  --grain: none;
-  --wash-hero: none;
+  /* COLP pegboard: a fine dot grid in Know-N ink, the self-hosted
+     identity texture. Paint it from edition.css only (the style-drift
+     texture rule allows it there) and fade it with a mask, so it frames a
+     moment (sign-in, an empty state, a masthead) and never sits under
+     body text. */
+  --colp-grid-dot: color-mix(in srgb, var(--ink) 11%, transparent);
+  --colp-grid: radial-gradient(circle, var(--colp-grid-dot) 1px, transparent 1.5px);
+  --colp-grid-size: 18px 18px;
 }
 
 /* R15-43: under prefers-contrast: more, control boundaries step up with the

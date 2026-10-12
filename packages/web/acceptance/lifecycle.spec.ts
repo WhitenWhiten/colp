@@ -55,9 +55,11 @@ test('owner lifecycle on the production self-hosted image', async ({ page, brows
     await page.getByLabel('Bookmarks HTML file').setInputFiles({ name: 'bookmarks.html', mimeType: 'text/html', buffer: Buffer.from(html) })
     await expect(page.getByText('Preview: 2 folders, 2 bookmarks.')).toBeVisible()
     await page.getByRole('button', { name: 'Confirm import' }).click()
-    await expect(page.getByText('Import complete: 4 items added; 0 duplicates skipped.')).toBeVisible()
+    await expect(page.getByTestId('import-done')).toContainText('4 items added; 0 duplicates skipped.')
+    // A finished import clears the file, so the repeat picks it again.
+    await page.getByLabel('Bookmarks HTML file').setInputFiles({ name: 'bookmarks.html', mimeType: 'text/html', buffer: Buffer.from(html) })
     await page.getByRole('button', { name: 'Confirm import' }).click()
-    await expect(page.getByText('Import complete: 0 items added; 4 duplicates skipped.')).toBeVisible()
+    await expect(page.getByTestId('import-done')).toContainText('0 items added; 4 duplicates skipped.')
     await page.screenshot({ path: testInfo.outputPath('import.png') })
   })
 

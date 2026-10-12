@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { CopyButton } from './CommandBlock'
+import { Icon, type IconName } from './Icon'
+import { StatusBadge, type StatusTone } from './StatusBadge'
 import { manifestTransport, type ManifestTransport } from './TransportBanner'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
 
@@ -59,6 +62,21 @@ export function describeServerStatus(view: ServerAboutSnapshot | null): string {
   return transport === null ? head : `${head} · ${transport}`
 }
 
+/** Healthy over HTTPS is green; plain HTTP is a warning, like the banner. */
+export function serverStatusTone(view: ServerAboutSnapshot | null): StatusTone {
+  if (view === null) return 'muted'
+  const healthy = view.status === undefined || view.status === 'ok' || view.status === 'healthy'
+  if (!healthy) return 'danger'
+  return view.transport === 'insecure-http' ? 'warning' : 'success'
+}
+
+const NEXT_STEPS: readonly { to: string; icon: IconName; title: string; body: string }[] = [
+  { to: '/extension', icon: 'browser', title: 'Connect a browser', body: 'Keep browser folders and a collection in sync, both ways.' },
+  { to: '/agents', icon: 'terminal', title: 'Connect an agent', body: 'Let Claude Code or Codex read and tidy, with your approval.' },
+  { to: '/import', icon: 'download', title: 'Import bookmarks', body: 'Bring in the bookmarks file any browser exports.' },
+  { to: '/sync', icon: 'sync', title: 'Sync center', body: 'See every synced browser, conflicts, and recently deleted items.' },
+]
+
 export function SelfHostedAbout({
   snapshot,
   origin,
@@ -82,42 +100,67 @@ export function SelfHostedAbout({
   const view = snapshot !== undefined ? snapshot : loaded
   const pageOrigin = origin ?? (typeof window === 'undefined' ? '' : window.location.origin)
   const versions = [
-    { id: 'status', label: 'Status', value: describeServerStatus(view) },
-    { id: 'origin', label: 'Server address', value: pageOrigin || undefined },
     { id: 'server', label: 'colp-server', value: view?.server },
     { id: 'colp', label: '@know-n/colp', value: view?.colp },
     { id: 'protocols', label: 'COLP protocol versions', value: view?.protocols || undefined },
   ]
   return (
     <article className="self-hosted-about" data-testid="self-hosted-about">
-      <h1>About this server</h1>
-      <p className="self-hosted-about-lede">
-        COLP Server keeps your bookmarks on a machine you run. It speaks the Collection
-        Protocol, so the browser extension and your agents read and sync the same collections.
-      </p>
-      <dl className="self-hosted-about-versions">
-        {versions.map((row) => (
-          <div key={row.id}>
-            <dt>{row.label}</dt>
-            <dd className={row.id === 'status' ? 'self-hosted-about-status' : undefined} data-testid={`about-${row.id}`}>{row.value ?? 'unavailable'}</dd>
+      <header className="self-hosted-about-hero">
+        <p className="section-label">About</p>
+        <h1>About this server</h1>
+        <p className="self-hosted-about-lede">
+          COLP Server keeps your bookmarks on a machine you run. It speaks the Collection
+          Protocol, so the browser extension and your agents read and sync the same collections.
+        </p>
+        <StatusBadge tone={serverStatusTone(view)} className="self-hosted-about-status">
+          <span data-testid="about-status">{describeServerStatus(view)}</span>
+        </StatusBadge>
+      </header>
+
+      <section className="self-hosted-about-card" aria-labelledby="about-server-title">
+        <h2 id="about-server-title">This server</h2>
+        <dl className="self-hosted-about-versions">
+          <div className="self-hosted-about-address">
+            <dt>Server address</dt>
+            <dd>
+              <span data-testid="about-origin">{pageOrigin || 'unavailable'}</span>
+              {pageOrigin && <CopyButton label="server address" text={pageOrigin} />}
+            </dd>
           </div>
-        ))}
-      </dl>
+          {versions.map((row) => (
+            <div key={row.id}>
+              <dt>{row.label}</dt>
+              <dd data-testid={`about-${row.id}`}>{row.value ?? 'unavailable'}</dd>
+            </div>
+          ))}
+        </dl>
+        <p className="self-hosted-about-hint">The extension and agents connect to this address.</p>
+      </section>
+
       <nav className="self-hosted-about-next" aria-label="Set up">
         <h2>Next steps</h2>
-        <ul className="self-hosted-about-links">
-          <li><Link to="/extension">Connect a browser</Link></li>
-          <li><Link to="/agents">Connect an agent</Link></li>
-          <li><Link to="/import">Import bookmarks</Link></li>
-          <li><Link to="/sync">Sync center</Link></li>
+        <ul className="self-hosted-about-steps">
+          {NEXT_STEPS.map((step) => (
+            <li key={step.to}>
+              <Link to={step.to} className="self-hosted-about-step">
+                <span className="self-hosted-about-step-icon" aria-hidden><Icon name={step.icon} /></span>
+                <strong>{step.title}</strong>
+                <span>{step.body}</span>
+              </Link>
+            </li>
+          ))}
         </ul>
       </nav>
-      <ul className="self-hosted-about-links">
-        <li><a href="/CHANGELOG.md">Changelog</a></li>
-        <li><a href="/INSTALL.md">Install and upgrade guide</a></li>
-        <li><a href="https://github.com/WhitenWhiten/colp" target="_blank" rel="noopener noreferrer">Source and issues</a></li>
-      </ul>
-      <p className="self-hosted-about-powered">powered by Know-N</p>
+
+      <footer className="self-hosted-about-foot">
+        <ul className="self-hosted-about-links">
+          <li><a href="/CHANGELOG.md">Changelog</a></li>
+          <li><a href="/INSTALL.md">Install and upgrade guide</a></li>
+          <li><a href="https://github.com/WhitenWhiten/colp" target="_blank" rel="noopener noreferrer">Source and issues</a></li>
+        </ul>
+        <p className="self-hosted-about-powered">powered by Know-N</p>
+      </footer>
     </article>
   )
 }

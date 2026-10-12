@@ -2,8 +2,9 @@
 import { act } from 'react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { SelfHostedLogin } from './SelfHostedLogin'
+import { resetPasswordCommand, SelfHostedLogin } from './SelfHostedLogin'
 import { cleanup, mountTree } from '../test/render'
+import { ProductApiError } from '../api/errors'
 
 const mocks = vi.hoisted(() => ({
   refreshSession: vi.fn<() => Promise<void>>(),
@@ -116,10 +117,65 @@ describe('SelfHostedLogin', () => {
     expect(mocks.signInWithUsername).not.toHaveBeenCalled()
   })
 
-  it('points a server without an owner at first-run setup', async () => {
+  it('replaces the form with first-run setup when the server has no owner', async () => {
     mocks.getRegistrationState.mockResolvedValue({ open: true, reason: 'first-run' })
     await render()
-    const notice = document.querySelector('[data-testid="login-owner-missing"]')
-    expect(notice?.querySelector('a')?.getAttribute('href')).toBe('/register')
+    const card = document.querySelector('[data-testid="login-owner-missing"]')
+    expect(card?.querySelector('h1')?.textContent).toBe('Set up COLP Server')
+    expect(card?.querySelector('a')?.getAttribute('href')).toBe('/register')
+    expect(document.querySelector('#login-identifier')).toBeNull()
+  })
+
+  it('validates empty fields inline, on the field, without calling the server', async () => {
+    await render()
+    await submit()
+    const identifier = document.querySelector('#login-identifier') as HTMLInputElement
+    const password = document.querySelector('#login-password') as HTMLInputElement
+    expect(document.querySelector('#login-identifier-error')?.textContent).toBe('Enter your username or email.')
+    expect(document.querySelector('#login-password-error')?.textContent).toBe('Enter your password.')
+    expect(identifier.getAttribute('aria-invalid')).toBe('true')
+    expect(identifier.getAttribute('aria-describedby')).toBe('login-identifier-error')
+    expect(password.getAttribute('aria-invalid')).toBe('true')
+    expect(mocks.signInWithUsername).not.toHaveBeenCalled()
+    expect(mocks.toast).not.toHaveBeenCalled()
+
+    change(identifier, 'alice')
+    expect(document.querySelector('#login-identifier-error')).toBeNull()
+    expect(identifier.hasAttribute('aria-invalid')).toBe(false)
+  })
+
+  it('sends a rejected sign-in to the error toast and marks both fields', async () => {
+    mocks.signInWithUsername.mockRejectedValue(new ProductApiError({
+      status: 401,
+      code: 'invalid_credentials',
+      message: 'The username or password is incorrect.',
+      recovery: 'user_action',
+    }))
+    await render()
+    change(document.querySelector('#login-identifier') as HTMLInputElement, 'alice')
+    change(document.querySelector('#login-password') as HTMLInputElement, 'wrong-password')
+    await submit()
+    expect(mocks.toast).toHaveBeenCalledWith('Incorrect username or password.')
+    expect(document.querySelector('[role="alert"]')).toBeNull()
+    expect(document.querySelector('#login-identifier')?.getAttribute('aria-invalid')).toBe('true')
+    expect(document.querySelector('#login-password')?.getAttribute('aria-invalid')).toBe('true')
+    expect(document.activeElement?.id).toBe('login-password')
+  })
+
+  it('points an invited person at sign-up only while invites are open', async () => {
+    await render()
+    expect(document.querySelector('[data-testid="login-invite"]')).toBeNull()
+    cleanup()
+    document.body.innerHTML = '<div id="root"></div>'
+    mocks.getRegistrationState.mockResolvedValue({ open: true, reason: 'invite' })
+    await render()
+    expect(document.querySelector('[data-testid="login-invite"] a')?.getAttribute('href')).toBe('/register')
+  })
+
+  it('fills the reset command with the username typed so far', () => {
+    expect(resetPasswordCommand('')).toBe('docker compose exec server colp-server reset-password --username <username>')
+    expect(resetPasswordCommand(' ada ')).toBe('docker compose exec server colp-server reset-password --username ada')
+    expect(resetPasswordCommand('ada@example.net')).toContain('--username <username>')
+    expect(resetPasswordCommand('a; rm -rf /')).toContain('--username <username>')
   })
 })

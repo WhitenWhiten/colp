@@ -1,4 +1,5 @@
-import { BrowserRouter, Navigate, Routes, Route, useLocation } from 'react-router-dom'
+import { BrowserRouter, Navigate, Routes, Route, useLocation, useParams } from 'react-router-dom'
+import { isLive } from './api/featureFlags'
 import { Layout } from './components/Layout'
 import { lazyWithRetry } from './lib/lazyWithRetry'
 import { settingsRedirectTo } from './lib/useSettingsDialog'
@@ -32,6 +33,13 @@ export function SettingsRedirect() {
   return <Navigate to={settingsRedirectTo(hash)} replace />
 }
 
+/** Collaborators waits for multi-user; an old link opens the collection. */
+function CollaboratorsRoute() {
+  const { id = '' } = useParams()
+  if (!isLive('collaborators')) return <Navigate to={`/library/${encodeURIComponent(id)}`} replace />
+  return <Collaborators />
+}
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -45,7 +53,7 @@ export default function App() {
           <Route path="library/health" element={<LibraryHealth />} />
           <Route path="library/:id/edit" element={<CollectionEditor />} />
           <Route path="library/:id/history" element={<CollectionHistory />} />
-          <Route path="library/:id/collaborators" element={<Collaborators />} />
+          <Route path="library/:id/collaborators" element={<CollaboratorsRoute />} />
           <Route path="library/:id?" element={<Library />} />
           <Route path="dashboard" element={<Navigate to="/library" replace />} />
           <Route path="login" element={<Login />} />

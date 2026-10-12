@@ -553,9 +553,10 @@ describe('Collaborators page behaviour', () => {
 })
 
 describe('architecture invariants that cannot be behaviour tested', () => {
-  it('keeps production exposure live, seed data out, and the Product client on the shared barrel', () => {
-    /* Runtime half: the compiled exposure switch really is on. */
-    expect(FEATURE_FLAGS.collaborators).toBe(true)
+  it('keeps production exposure off until multi-user, seed data out, and the Product client on the shared barrel', () => {
+    /* Runtime half: the compiled exposure switch is off until the members
+       API can work on a server without mail; the page stays behind it. */
+    expect(FEATURE_FLAGS.collaborators).toBe(false)
     /* Unreachable half: `collaboratorsSeed` / `collaboratorActivity` and the
        invented people were removed with the seed UI. Their return is
        invisible while the branch that reads them is not taken, and the

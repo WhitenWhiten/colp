@@ -61,6 +61,12 @@ async function installVisualSearchRoutes(
     status: 200, contentType: 'application/json',
     body: JSON.stringify({ authenticated: true, csrfToken: 'e2e-csrf', idleExpiresAt: '2099-01-01T00:00:00.000Z', absoluteExpiresAt: '2099-01-02T00:00:00.000Z' }),
   }))
+  /* Node hits ask for their collection's tree to show where they live; an
+     unknown collection just goes without a trail. */
+  await page.route('**/api/v1/collections/collection-1/editor*', (route) => route.fulfill({
+    status: 404, contentType: 'application/json',
+    body: JSON.stringify({ error: { ...productError(503).error, code: 'resource_not_found', message: 'Not found.', recovery: 'none', sameRequestRetrySafe: false } }),
+  }))
   await page.route('**/api/v1/search**', async (route) => {
     const url = new URL(route.request().url())
     const query = url.searchParams.get('q')

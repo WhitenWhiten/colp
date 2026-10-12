@@ -243,6 +243,7 @@ describe('LibraryDesk sidebar reorder mode', () => {
     vi.useRealTimers()
     cleanup()
     document.body.innerHTML = ''
+    delete window.__KNOWN_FLAGS__
   })
 
   it('applies the saved mine order after the desk finishes loading', async () => {
@@ -373,6 +374,7 @@ describe('LibraryDesk sidebar reorder mode', () => {
   })
 
   it('applies GET sections that were not edited while a reorder is in flight', async () => {
+    window.__KNOWN_FLAGS__ = { collaborators: true }
     mocks.shared.items = [collectionItem('col-s1', 'Shared one'), collectionItem('col-s2', 'Shared two')]
     let resolveOrder: (value: typeof EMPTY_ORDER) => void = () => undefined
     mocks.getMyLibraryOrder.mockImplementation(() => new Promise((resolve) => {
@@ -432,6 +434,8 @@ describe('LibraryDesk sidebar reorder mode', () => {
   })
 
   it('scopes reorder mode to the long-pressed section', async () => {
+    // The shared section exists only with sharing on (multi-user).
+    window.__KNOWN_FLAGS__ = { collaborators: true }
     mocks.shared.items = [collectionItem('col-s1', 'Shared one'), collectionItem('col-s2', 'Shared two')]
     mount()
     await waitForDom(domFinishedLoading)

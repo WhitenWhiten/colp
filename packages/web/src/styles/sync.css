@@ -27,21 +27,45 @@
   font-weight: var(--weight-semibold);
 }
 .sync-empty { padding: var(--space-8) 0; }
+.sync-empty.empty-state--compact { padding: var(--space-4) 0 var(--space-2); }
 /* R10-18: replica and trash lists ride the shared .data-table primitive —
    the host class only supplies the column template; head/row chrome and the
    ≤899px collapse live in data-table.css. */
-.replica-list { --data-table-cols: minmax(11rem, 1fr) 8rem minmax(20rem, 2fr) 9rem; margin-top: var(--space-3); border-bottom: 1px solid var(--line); }
-.replica-row { gap: var(--space-4); }
+.replica-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr));
+  gap: var(--space-3);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+/* One card per browser, after floccus's sync profiles: who it is, which
+   collection it syncs, and an unmistakable state line. */
+.replica-card {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-xs);
+}
+.replica-card[data-status='retired'] { background: transparent; box-shadow: none; border-style: dashed; }
+.replica-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--space-3); }
+.replica-icon { display: grid; place-items: center; width: 2.25rem; height: 2.25rem; border-radius: var(--radius); background: var(--accent-soft); color: var(--accent-ink); }
+.replica-icon svg { width: 1.15rem; height: 1.15rem; }
+.replica-card[data-status='retired'] .replica-icon { background: var(--surface-sunken); color: var(--muted); }
 .replica-identity { display: grid; gap: var(--hair-20); min-width: 0; }
 .replica-identity strong,
 .replica-identity span { overflow-wrap: anywhere; }
 .replica-identity span { color: var(--muted); font-size: var(--text-sm); }
-/* Replica status uses the shared <StatusBadge> tones (R10-09). */
-.replica-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); margin: 0; }
+.replica-state { justify-self: end; }
+.replica-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); margin: 0; padding-top: var(--space-3); border-top: 1px solid var(--line); }
 .replica-facts div { min-width: 0; }
 .replica-facts dt { color: var(--muted); font-size: var(--text-xs); }
-.replica-facts dd { margin: var(--hair-20) 0 0; overflow-wrap: anywhere; font-size: var(--text-sm); }
-.replica-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--space-2); min-width: 0; }
+.replica-facts dd { margin: var(--hair-20) 0 0; overflow-wrap: anywhere; font-size: var(--text-sm); font-weight: var(--weight-medium); }
+.replica-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: var(--space-2); min-width: 0; }
 .replica-message { margin: 0; padding: var(--space-3); border-left: 3px solid var(--line-strong); background: var(--paper-2); overflow-wrap: anywhere; }
 .replica-message.is-unknown,
 .replica-message.is-stale { border-left-color: var(--warning); }
@@ -111,12 +135,14 @@
    viewport because .btn is white-space:nowrap — stack them here, not just
    on phones. 719px keeps only the phone chrome rules below. */
 @media (max-width: 899px) {
-  .replica-row { grid-template-columns: minmax(0, 1fr) auto; }
-  .replica-facts { grid-column: 1 / -1; grid-template-columns: 1fr; }
-  .replica-actions { grid-column: 1 / -1; justify-content: flex-start; }
   .trash-row { grid-template-columns: minmax(0, 1fr); }
   .trash-facts { grid-template-columns: 1fr; }
   .trash-actions { justify-content: flex-start; }
+}
+
+@media (max-width: 639px) {
+  .replica-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .replica-facts div:first-child { grid-column: 1 / -1; }
 }
 
 @media (max-width: 719px) {

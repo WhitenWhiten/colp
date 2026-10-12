@@ -71,7 +71,7 @@ export function TrashSection({
     <section className="sync-section" aria-labelledby="trash-heading">
       <div className="section-head section-head--split">
         <div>
-          <p className="section-label">Private trash</p>
+          <p className="section-label">Trash</p>
           <div className="sync-heading-row">
             <h2 id="trash-heading">Deleted items</h2>
             {items.length > 0 && <span className="sync-count" data-testid="sync-count">{items.length}</span>}
@@ -96,8 +96,8 @@ export function TrashSection({
       )}
       {!error && items.length === 0 && receiptList.length === 0 && noticeList.length === 0
         && !batchView && !emptyView && (
-        <EmptyState className="sync-empty" icon="folder" title="No deleted items"
-          description={`Deleted bookmarks from collections you own appear here. Restoring puts them back in ${productName()}; your browsers get them on their next sync.`} />
+        <EmptyState className="sync-empty empty-state--compact" icon="trash" title="No deleted items"
+          description={`Deleted bookmarks from collections you own wait here. Restoring puts them back in ${productName()}, and your browsers get them on their next sync.`} />
       )}
       {(receiptList.length > 0 || noticeList.length > 0 || batchView || emptyView) && (
         <div className="trash-receipt-list">

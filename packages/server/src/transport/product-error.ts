@@ -139,6 +139,35 @@ const BETTER_AUTH_ERROR_TRANSLATIONS: Readonly<Record<string, BetterAuthErrorTra
     message: 'The email or password is incorrect.',
     recovery: 'user_action',
   }),
+  // G2 username plugin. Sign-in collapses unknown user and wrong password
+  // like the email route. The sign-up codes are reachable only past the
+  // setup-token / invite gate (a before hook on /sign-up/*), so naming the
+  // username problem reveals nothing to an anonymous caller.
+  INVALID_USERNAME_OR_PASSWORD: Object.freeze({
+    code: 'invalid_credentials',
+    message: 'The username or password is incorrect.',
+    recovery: 'user_action',
+  }),
+  USERNAME_IS_ALREADY_TAKEN: Object.freeze({
+    code: 'invalid_request',
+    message: 'That username is taken. Choose another.',
+    recovery: 'user_action',
+  }),
+  USERNAME_TOO_SHORT: Object.freeze({
+    code: 'invalid_request',
+    message: 'The username is too short.',
+    recovery: 'user_action',
+  }),
+  USERNAME_TOO_LONG: Object.freeze({
+    code: 'invalid_request',
+    message: 'The username is too long.',
+    recovery: 'user_action',
+  }),
+  INVALID_USERNAME: Object.freeze({
+    code: 'invalid_request',
+    message: 'Use only letters, numbers, dots, and underscores in the username.',
+    recovery: 'user_action',
+  }),
   // Verification prerequisite.
   EMAIL_NOT_VERIFIED: Object.freeze({
     code: 'verification_required',

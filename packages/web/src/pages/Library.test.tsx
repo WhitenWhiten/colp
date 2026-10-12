@@ -147,6 +147,7 @@ describe('Library', () => {
   }
 
   it('groups the sidebar into collapsible My collections and Shared with you sections', async () => {
+    window.__KNOWN_FLAGS__ = { collaborators: true }
     mocks.collections.items = [entry('one', 'One')]
     mocks.shared.items = [entry('shared-a', 'Shared shelf', false)]
     mount()
@@ -168,6 +169,7 @@ describe('Library', () => {
   })
 
   it('shows Shared with you as a section with an honest empty hint', async () => {
+    window.__KNOWN_FLAGS__ = { collaborators: true }
     mount()
     await waitForDom(domFinishedLoading)
     const shared = document.querySelector('[data-testid="library-nav-shared"]')

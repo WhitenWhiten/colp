@@ -57,11 +57,14 @@ export function Extension({ origin }: { origin?: string } = {}) {
           documentTitle="Extension"
           lede="The Know-N browser extension syncs browser folders into collections you own on this server. You choose the folders; conflicts are kept for you to resolve."
         />
-        <div className="cta-row">
+        <div className="cta-row extension-cta">
           {storeUrl && <a className="btn btn-primary btn-lg" href={storeUrl} target="_blank" rel="noopener noreferrer">Install extension</a>}
-          {returnPath && <Link className="btn btn-secondary btn-lg" to={returnPath}>Return to source and continue setup</Link>}
-          <Link to="/sync" className="btn btn-secondary btn-lg">
+          {returnPath && <Link className="btn btn-secondary" to={returnPath}>Return to source and continue setup</Link>}
+          <Link to="/sync" className="btn btn-secondary">
             Open sync center
+          </Link>
+          <Link to="/import" className="btn btn-ghost">
+            Import bookmarks
           </Link>
         </div>
       </PageSection>
@@ -81,11 +84,6 @@ export function Extension({ origin }: { origin?: string } = {}) {
           <li><Icon name="check" /> Never uploads folders you did not select</li>
           <li><Icon name="check" /> Sync uses collections you own on this server</li>
         </ul>
-        <div className="row extension-actions">
-          <Link to="/import" className="btn btn-ghost btn-sm">
-            Import bookmarks
-          </Link>
-        </div>
       </PageSection>
     </PageShell>
   )

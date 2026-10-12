@@ -94,7 +94,6 @@ describe('Library owned collection publication', () => {
         'Add folder',
         'Edit collection',
         'Version history',
-        'Collaborators',
         'Open public page',
         'Copy public link',
         'Check links',

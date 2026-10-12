@@ -130,6 +130,11 @@ function parseRetryAfter(
 /**
  * Parse a Product error envelope (or non-envelope body) into ProductClientError.
  */
+const SIGN_UP_GATE_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
+  setup_token_required: 'That setup token does not match this server. Copy it again.',
+  registration_closed: 'Registration is closed on this server.',
+})
+
 export function parseProductError(
   status: number,
   body: unknown,
@@ -181,6 +186,23 @@ export function parseProductError(
         fieldErrors,
       })
     }
+  }
+
+  // The server's sign-up gates (G2 owner gate, D27 first-run token) answer
+  // 403 with a bare `{ code }` body, not the product envelope. Keep their
+  // codes so the register form can point at the right field; the copy is
+  // fixed here, never the server's message.
+  const gateCode = body && typeof body === 'object' && 'code' in body
+    ? (body as { code?: unknown }).code
+    : undefined
+  if (status === 403 && typeof gateCode === 'string' && Object.hasOwn(SIGN_UP_GATE_MESSAGES, gateCode)) {
+    return new ProductClientError({
+      status,
+      code: gateCode,
+      recovery: 'user_action',
+      message: SIGN_UP_GATE_MESSAGES[gateCode]!,
+      sameRequestRetrySafe: false,
+    })
   }
 
   // A bare 403 is not CSRF evidence: proxy/policy refusals must never trigger

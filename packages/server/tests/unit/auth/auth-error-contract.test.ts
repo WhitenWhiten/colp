@@ -77,6 +77,36 @@ const FROZEN_TRANSLATIONS: Readonly<Record<string, { readonly code: string; read
     message: 'The email or password is incorrect.',
     recovery: 'user_action',
   },
+  INVALID_USERNAME_OR_PASSWORD: {
+    code: 'invalid_credentials',
+    status: productErrorStatus('invalid_credentials'),
+    message: 'The username or password is incorrect.',
+    recovery: 'user_action',
+  },
+  USERNAME_IS_ALREADY_TAKEN: {
+    code: 'invalid_request',
+    status: productErrorStatus('invalid_request'),
+    message: 'That username is taken. Choose another.',
+    recovery: 'user_action',
+  },
+  USERNAME_TOO_SHORT: {
+    code: 'invalid_request',
+    status: productErrorStatus('invalid_request'),
+    message: 'The username is too short.',
+    recovery: 'user_action',
+  },
+  USERNAME_TOO_LONG: {
+    code: 'invalid_request',
+    status: productErrorStatus('invalid_request'),
+    message: 'The username is too long.',
+    recovery: 'user_action',
+  },
+  INVALID_USERNAME: {
+    code: 'invalid_request',
+    status: productErrorStatus('invalid_request'),
+    message: 'Use only letters, numbers, dots, and underscores in the username.',
+    recovery: 'user_action',
+  },
   EMAIL_NOT_VERIFIED: {
     code: 'verification_required',
     status: productErrorStatus('verification_required'),

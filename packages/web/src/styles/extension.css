@@ -27,9 +27,17 @@
     flex-shrink: 0;
   }
 
-  .extension-actions {
-    margin-top: var(--space-4);
-    flex-wrap: wrap;
+  /* Secondary actions stay button-sized on phones too; only a return
+     link (long label) may take a line of its own. */
+  @media (max-width: 639px) {
+    .extension-cta {
+      flex-direction: row;
+    }
+
+    .extension-cta .btn {
+      width: auto;
+      min-height: 2.75rem;
+    }
   }
 
   /* Linear setup list so four steps stay in reading order. R10-18: the

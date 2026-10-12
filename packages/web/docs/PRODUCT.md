@@ -10,7 +10,7 @@ A self-hosted COLP bookmark server. Visible copy names it **COLP Server** (`prod
 Precise, calm, quiet: a tool the owner opens to get something done, not a product that sells itself.
 
 ### Aesthetic direction
-Know-N's palette, lines, and shadows, unchanged (cool gray-white paper, ink type, a restrained slate accent). The product is light-only; do not add a global dark theme. The self-hosted edition changes layout and type only: sans headings at a tool scale (`--font-serif` resolves to the sans stack), sentence-case labels instead of tracked capitals, no paper texture, a plain 404. Premium through typography, spacing rhythm, hairline borders, and deliberate density; no neon glow, gradients, or glassmorphism.
+Know-N's palette, lines, and shadows, unchanged (cool gray-white paper, ink type, a restrained slate accent). The product is light-only; do not add a global dark theme. The self-hosted edition changes layout and type only: sans headings at a tool scale (`--font-serif` resolves to the sans stack), sentence-case labels instead of tracked capitals. Know-N's paper grain and the soft hero wash behind the sign-in card stay. COLP's own identity is texture and shape, never colour: the pegboard (`--colp-grid`, a fine dot grid in Know-N ink, faded with a mask) behind the moments where the product introduces itself — sign-in, empty states, mastheads — and ink ribbon step markers that echo the bookmark mark. Both are painted from `edition.css` only. Premium through typography, spacing rhythm, hairline borders, and deliberate density; no neon glow, gradients, or glassmorphism.
 
 ### Design principles
 1. **Scan first** — metadata, counts, and filters stay visible; primary content is one glance away.

@@ -88,11 +88,27 @@ vi.mock('../../api', async (importOriginal) => {
 })
 
 describe('LibraryDesk sharing and sidebar counts', () => {
-  beforeEach(setUpLibraryDesk)
+  beforeEach(() => {
+    setUpLibraryDesk()
+    // Sharing waits for multi-user; these tests exercise it behind the flag.
+    window.__KNOWN_FLAGS__ = { collaborators: true }
+  })
   afterEach(tearDownLibraryDesk)
 
-  it('shows the Collaborators menu link when production exposure is live', async () => {
-    expect(FEATURE_FLAGS.collaborators).toBe(true)
+  it('offers neither Collaborators nor Shared with you by default', async () => {
+    delete window.__KNOWN_FLAGS__
+    expect(FEATURE_FLAGS.collaborators).toBe(false)
+    mocks.shared.items = [collectionItem('col-shared', 'Team research')]
+    mount()
+    await waitForDom(domFinishedLoading)
+    act(() => {
+      document.querySelector<HTMLButtonElement>('button[aria-label="More collection actions"]')?.click()
+    })
+    expect(document.querySelector('a[href="/library/col-1/collaborators"]')).toBeNull()
+    expect(document.body.textContent).not.toContain('Shared with you')
+  })
+
+  it('shows the Collaborators menu link when the flag is on', async () => {
     mount()
     await waitForDom(domFinishedLoading)
     act(() => {

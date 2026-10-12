@@ -122,7 +122,7 @@ export function LibraryHeader({
         className="library-desk-head"
         layout="split"
         variant="workbench"
-        eyebrow="Library"
+        eyebrow={heading === 'Library' ? undefined : 'Library'}
         breadcrumb={folderTrail}
         title={heading}
         afterTitle={visibilityBadge ? (

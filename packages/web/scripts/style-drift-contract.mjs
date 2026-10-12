@@ -708,10 +708,16 @@ test('forbidden: six kinds hit, six exemption classes stay quiet', () => {
     'base.css': FORBIDDEN_EXEMPT,
     'landing.css': '.ink { border-bottom: 3px solid var(--ink); }\n.tex { background-image: var(--grain); }\n',
     'print.css': '.em { font-style: italic; }\n',
+    'edition.css': '.peg { background-image: var(--colp-grid); }\n.grainy { background-image: var(--grain); }\n',
+    'page.css': '.peg-elsewhere { background-image: var(--colp-grid); }\n',
   })
   try {
     const forbidden = collectForbiddenPatterns(dir)
     const kinds = new Set(forbidden.items.map((item) => item.split(' :: ')[0]))
+    // The COLP grid is sanctioned in edition.css only; Know-N grain is not.
+    assert.equal(forbidden.items.some((i) => i.endsWith('edition.css :: .peg')), false)
+    assert.equal(forbidden.items.some((i) => i.includes('edition.css :: .grainy')), true)
+    assert.equal(forbidden.items.some((i) => i.includes('page.css :: .peg-elsewhere')), true)
     assert.deepEqual([...kinds].sort(), ['caps', 'hoverTransform', 'inkRule', 'italic', 'keyframes', 'texture'])
     assert.equal(forbidden.items.some((i) => i.includes(' :: .caps')), true)
     assert.equal(forbidden.items.some((i) => i.includes(' :: .em')), true)

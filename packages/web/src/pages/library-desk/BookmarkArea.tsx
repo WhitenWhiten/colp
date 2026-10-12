@@ -34,6 +34,7 @@ import { toggleTag } from '../../lib/libraryTags'
 const FOLDER_COVER_LIMIT = 4
 
 export function BookmarkArea({
+  checklistShown = false,
   query,
   setQuery,
   filtering,
@@ -56,6 +57,8 @@ export function BookmarkArea({
   onEditNode,
   onEditCollection,
 }: {
+  /** The Get started checklist above already offers New collection. */
+  checklistShown?: boolean
   query: string
   setQuery: Dispatch<SetStateAction<string>>
   /** A text query or a tag filter is on: rows come flat from `bookmarks`. */
@@ -318,12 +321,10 @@ export function BookmarkArea({
       <EmptyState
         illustration="books"
         title="No collections yet"
-        description="Create a collection, then add bookmarks right from your library."
-        action={
-          <>
-            <Link to="/library/new" className="btn btn-primary btn-sm">New collection</Link>
-          </>
-        }
+        description={checklistShown
+          ? 'Your collections show up here, in the sidebar, and in every browser you connect.'
+          : 'Create a collection, then add bookmarks right from your library.'}
+        action={checklistShown ? undefined : <Link to="/library/new" className="btn btn-primary btn-sm">New collection</Link>}
       />
     )
   }

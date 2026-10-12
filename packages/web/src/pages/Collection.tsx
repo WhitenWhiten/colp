@@ -245,7 +245,7 @@ export function Collection() {
           {isLoggedIn ? (
             <CollectionExportMenu collectionId={collection.id} slug={collection.slug} />
           ) : null}
-          <Link to={`/graph/${slug}`} className="btn btn-ghost btn-sm">Graph</Link>
+          <Link to={`/graph/${slug}`} className="btn btn-secondary btn-sm">Graph</Link>
         </>
       }
     />

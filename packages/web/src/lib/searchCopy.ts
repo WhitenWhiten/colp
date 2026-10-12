@@ -1,3 +1,5 @@
+import type { SearchResult } from '../api/types'
+
 /** Site-wide search (topnav, ⌘K, /search). */
 export const SITE_SEARCH_PLACEHOLDER = 'Search your library…'
 
@@ -26,4 +28,16 @@ const ANNOTATION_KIND_TITLE: Record<string, string> = {
     ("Highlight"), not the generic "Annotation". */
 export function annotationKindTitle(annotationType: string): string {
   return ANNOTATION_KIND_TITLE[annotationType] ?? 'Annotation'
+}
+
+/** Kind chip for a hit. The API does not say whether a node is a folder; a
+    node with no web host almost always is (bookmarks to non-web URLs are
+    rare), and the Search page passes the real kind once it has the tree. */
+export function searchResultKindTitle(result: SearchResult, nodeKind?: 'folder' | 'bookmark' | null): string {
+  if (result.resourceType === 'annotation') return annotationKindTitle(result.annotationType)
+  if (result.resourceType === 'node') {
+    const kind = nodeKind ?? (result.urlHost ? 'bookmark' : 'folder')
+    return kind === 'folder' ? 'Folder' : 'Bookmark'
+  }
+  return searchKindTitle(result.resourceType)
 }

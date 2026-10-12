@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { describeServerStatus, readServerAbout, SelfHostedAbout } from './SelfHostedAbout'
+import { describeServerStatus, readServerAbout, SelfHostedAbout, serverStatusTone } from './SelfHostedAbout'
 import { cleanup, mountTree } from '../test/render'
 
 describe('self-hosted about', () => {
@@ -31,6 +31,7 @@ describe('self-hosted about', () => {
     expect(document.querySelector('[data-testid="about-origin"]')?.textContent).toBe('https://colp.example')
     expect(document.querySelector('[data-testid="about-status"]')?.textContent).toBe('Healthy')
     expect(document.title).toBe('About — COLP Server')
+    expect(document.querySelector('button[aria-label="Copy server address"]')).not.toBeNull()
     const next = document.querySelector('[aria-label="Set up"]')
     expect([...next!.querySelectorAll('a')].map((a) => a.getAttribute('href'))).toEqual(['/extension', '/agents', '/import', '/sync'])
   })
@@ -44,6 +45,11 @@ describe('self-hosted about', () => {
     expect(describeServerStatus(snapshot)).toBe('Healthy · plain HTTP')
     expect(describeServerStatus({ server: '0.1.0', colp: '0.1.2', protocols: '', status: 'degraded', transport: 'https' })).toBe('Reported "degraded" · HTTPS')
     expect(describeServerStatus(null)).toBe('Could not read /health')
+    // Plain HTTP reads as a warning, like the banner; HTTPS as healthy.
+    expect(serverStatusTone(snapshot)).toBe('warning')
+    expect(serverStatusTone({ server: '0.1.0', colp: '0.1.2', protocols: '', status: 'ok', transport: 'https' })).toBe('success')
+    expect(serverStatusTone({ server: '0.1.0', colp: '0.1.2', protocols: '', status: 'degraded' })).toBe('danger')
+    expect(serverStatusTone(null)).toBe('muted')
   })
 
   it('does not throw when health has no version', () => {

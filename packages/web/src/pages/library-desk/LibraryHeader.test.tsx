@@ -104,6 +104,8 @@ describe('LibraryHeader mobile switcher', () => {
   })
 
   it('lists a pending invitation and New collection in the switcher', async () => {
+    // Invitations wait for multi-user; this exercises them behind the flag.
+    window.__KNOWN_FLAGS__ = { collaborators: true }
     mocks.invites.items = [{
       inviteId: 'inv-1',
       collectionId: 'col-shared',

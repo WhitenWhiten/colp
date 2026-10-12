@@ -16,8 +16,119 @@
   display: grid;
   place-items: center;
   padding: var(--hair-200) var(--gutter);
-  /* Soft accent light from the top (flat in the self-hosted edition). */
+  /* Soft accent light from the top, same recipe as Know-N's auth pages. */
   background: var(--wash-hero);
+}
+
+/* Login has no lede or method tabs: give the form its own start. */
+.auth-card h1 + .auth-form {
+  margin-top: var(--hair-125);
+}
+
+/* The quiet line under a card: the other way in ("Have an invite?"). */
+.auth-alt {
+  margin: var(--hair-125) 0 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  text-align: center;
+}
+
+.auth-alt a {
+  color: var(--ink);
+  font-weight: var(--weight-semibold);
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.auth-alt code,
+.auth-steps code {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
+/* What happens next, as a short numbered path (first run, setup token). */
+.auth-steps {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0 0 var(--hair-150);
+  padding: 0;
+  list-style: none;
+  counter-reset: auth-step;
+}
+
+.auth-steps > li {
+  display: grid;
+  grid-template-columns: 1.5rem minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-2);
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading-copy);
+  counter-increment: auth-step;
+}
+
+/* The ribbon marker itself is the edition's (edition.css). */
+.auth-steps > li::before {
+  content: counter(auth-step);
+}
+
+/* Hints and errors sit directly under their control (.field's own gap),
+   not a paragraph margin away from it. */
+.auth-form .field > p,
+.auth-token-help > p {
+  margin: 0;
+}
+
+/* Where the setup token comes from, right under its field. */
+.auth-token-help {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+
+/* Forgot password: the server sends no mail, so the answer is a command for
+   whoever runs it. A disclosure keeps it one click away and off the form. */
+.auth-reset {
+  margin-top: var(--hair-90);
+  font-size: var(--text-sm);
+}
+
+.auth-reset > summary {
+  width: fit-content;
+  margin-inline-start: auto;
+  color: var(--accent-ink);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+  list-style: none;
+}
+
+.auth-reset > summary::-webkit-details-marker {
+  display: none;
+}
+
+.auth-reset > summary:hover {
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.auth-reset[open] {
+  display: grid;
+  gap: var(--space-3);
+  padding-top: var(--hair-90);
+  border-top: 1px solid var(--line);
+}
+
+.auth-reset[open] > summary {
+  margin-inline-start: 0;
+  color: var(--ink);
+}
+
+.auth-reset > p {
+  margin: 0;
+  color: var(--muted);
+  line-height: var(--leading-copy);
 }
 
 .auth-form {
@@ -41,29 +152,6 @@
 
 .auth-card .auth-alert {
   margin-bottom: var(--hair-85);
-}
-
-/* Self-hosted first run: a neutral note with one action, not an error. */
-.auth-first-run {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--hair-85);
-}
-
-/* Self-hosted sign-in: the operator resets passwords from the CLI. */
-.auth-hint {
-  margin-top: var(--hair-125);
-  font-size: var(--text-sm);
-  line-height: var(--leading-copy);
-  color: var(--muted);
-  overflow-wrap: anywhere;
-}
-
-.auth-hint code {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  color: var(--ink-2);
 }
 
 .steps {

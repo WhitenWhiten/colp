@@ -35,9 +35,10 @@ export function WriteApprovalsView({ data }: { data: WriteApprovalsData }) {
           className="write-approvals-head"
           layout="split"
           variant="workbench"
-          title={detailMode ? 'Write approval' : 'Write approvals'}
-          documentTitle={detailMode ? 'Write approval' : 'Write approvals'}
-          lede="Review requested MCP changes before approving or denying them."
+          eyebrow="Agents"
+          title={detailMode ? 'Approval' : 'Approvals'}
+          documentTitle={detailMode ? 'Approval' : 'Approvals'}
+          lede="Changes your agents proposed. Nothing in your library changes until you approve; moves from trusted agents land here already applied, with Undo."
           actions={!invalidPlanId && !authPending && loadErrorKind !== 'unavailable' ? (
             <button
               type="button"
@@ -141,9 +142,10 @@ export function WriteApprovalsView({ data }: { data: WriteApprovalsData }) {
 
         {!detailMode && !authPending && !loading && !loadError && approvals.length === 0 && (
           <EmptyState
-            icon="collection"
-            title="No write approvals"
-            description="Plans that need your decision will appear here."
+            icon="check"
+            title="Nothing waiting for you"
+            description="When an agent proposes a change to your library, it waits here for your decision. Connect an agent to get started."
+            action={<Link to="/agents" className="btn btn-secondary btn-sm">Connect an agent</Link>}
           />
         )}
 
