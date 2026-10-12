@@ -16,9 +16,11 @@ import { createMcpApplicationContext } from '../../../src/modules/mcp/applicatio
 import {
   callNodesSearchTool,
   executeNodesSearch,
+  nodesSearchOutputSchema,
   type NodesSearchPorts,
   type NodesSearchResult,
 } from '../../../src/modules/mcp/nodes-search.js';
+import { createMcpToolInputValidator } from '../../support/mcp-tool-schema-validator.js';
 import { createSearchCursorSigner } from '../../../src/modules/search/index.js';
 import {
   createIsolatedPostgresRuntime,
@@ -126,10 +128,76 @@ describeWithPostgres('nodes.search matches bookmark fields and hides unreadable 
     assert.deepEqual(denied.nodes, []);
   }, 60_000);
 
+  test('an annotation hit on a synchronized separator satisfies the published output schema', async () => {
+    const result = await searchAs('account-owner', 'subject-owner', ['nodes:read', 'annotations:read'], 'divider-hit');
+    assert.equal(result.nodes.length, 1);
+    assert.equal(result.nodes[0]?.id, 'n-separator');
+    assert.equal(result.nodes[0]?.kind, 'separator');
+    assert.equal(result.nodes[0]?.title, null);
+    const validate = createMcpToolInputValidator(nodesSearchOutputSchema);
+    assert.doesNotThrow(() => validate(result));
+  });
+
+  test('summary hydration cannot reveal a URL written after the reader lost access', async () => {
+    const db = isolated.runtime.db;
+    const original = await db.selectFrom('nodes').select(['url', 'visibility']).where('id', '=', 'n-title').executeTakeFirstOrThrow();
+    await db.insertInto('collection_members').values({ collection_id: 'e3-col', subject_id: 'subject-outsider', role: 'viewer' }).execute();
+    const withConcurrentChange = (readPorts: NodesSearchPorts): NodesSearchPorts => ({ ...readPorts, cards: {
+      async load(nodes) {
+        await db.deleteFrom('collection_members').where('collection_id', '=', 'e3-col').where('subject_id', '=', 'subject-outsider').execute();
+        await db.updateTable('nodes').set({ url: 'https://private.example/secret-after-revocation', visibility: 'private' }).where('id', '=', 'n-title').execute();
+        return readPorts.cards.load(nodes);
+      },
+    } });
+    try {
+      const testedPorts = ports.withReadSnapshot === undefined ? withConcurrentChange(ports) : {
+        ...ports,
+        withReadSnapshot: <Result>(read: (readPorts: NodesSearchPorts) => Promise<Result>) =>
+          ports.withReadSnapshot!((snapshot) => read(withConcurrentChange(snapshot))),
+      };
+      const result = await executeNodesSearch(testedPorts, {
+        principal: { kind: 'account', accountId: 'account-outsider', principalId: 'account-outsider', subjectId: 'subject-outsider', securityEpoch: '1' },
+        scopes: ['nodes:read'], query: 'Zephyr Protocol',
+      });
+      assert.equal(result.nodes[0]?.url, original.url);
+      const afterRevocation = await executeNodesSearch(ports, {
+        principal: { kind: 'account', accountId: 'account-outsider', principalId: 'account-outsider', subjectId: 'subject-outsider', securityEpoch: '1' },
+        scopes: ['nodes:read'], query: 'Zephyr Protocol',
+      });
+      assert.deepEqual(afterRevocation.nodes, []);
+    } finally {
+      await db.updateTable('nodes').set(original).where('id', '=', 'n-title').execute();
+      await db.deleteFrom('collection_members').where('collection_id', '=', 'e3-col').where('subject_id', '=', 'subject-outsider').execute();
+    }
+  });
+
+  test('page metadata follows non-empty cursors and collection-scoped continuation', async () => {
+    const principal = { kind: 'account' as const, accountId: 'account-owner', principalId: 'account-owner', subjectId: 'subject-owner', securityEpoch: '1' };
+    const first = await executeNodesSearch(ports, { principal, scopes: ['nodes:read', 'annotations:read'], query: QUERY, collectionId: 'e3-col', limit: 2 });
+    assert.equal(first.page.hasMore, true);
+    assert.equal(first.page.nextCursor, first.cursor);
+    assert.ok(first.cursor);
+    await assert.rejects(executeNodesSearch(ports, { principal, scopes: ['nodes:read', 'annotations:read'], query: QUERY,
+      collectionId: 'another-collection', cursor: first.cursor }), { code: 'invalid_cursor' });
+    const found = first.nodes.map((node) => node.id);
+    let page = first;
+    let rounds = 0;
+    while (page.cursor !== null) {
+      assert.ok(++rounds <= 5, 'pagination must terminate');
+      page = await executeNodesSearch(ports, { principal, scopes: ['nodes:read', 'annotations:read'], query: QUERY,
+        collectionId: 'e3-col', cursor: page.cursor });
+      assert.equal(page.page.nextCursor, page.cursor);
+      assert.equal(page.page.hasMore, page.cursor !== null);
+      found.push(...page.nodes.map((node) => node.id));
+    }
+    assert.deepEqual(found.sort(), ['n-desc', 'n-note', 'n-tag', 'n-title', 'n-url']);
+  });
+
   async function searchAs(
     accountId: string,
     subjectId: string,
     scopes: readonly string[],
+    query = QUERY,
   ): Promise<NodesSearchResult> {
     const result = await callNodesSearchTool(ports, createMcpApplicationContext({
       principal: {
@@ -145,7 +213,7 @@ describeWithPostgres('nodes.search matches bookmark fields and hides unreadable 
       budgets: DEFAULT_MCP_RESOURCE_READ_BUDGET,
       correlationId: 'nodes-search',
       authorization: { accountSubjectId: subjectId },
-    }), { query: QUERY, limit: 100 });
+    }), { query, limit: 100 });
     assert.equal(result.kind, 'complete', result.kind === 'rejected' ? result.safeMessage : result.kind);
     if (result.kind !== 'complete') throw new Error('unreachable');
     return result.structuredContent as NodesSearchResult;
@@ -163,7 +231,7 @@ async function seedCorpus(isolated: IsolatedPostgresRuntime): Promise<void> {
     await client.query(`insert into resource_id_ledger(resource_id, resource_type) values
       ('e3-col','collection'),('e3-root','node'),('e3-folder','node'),
       ('n-title','node'),('n-url','node'),('n-desc','node'),('n-tag','node'),('n-note','node'),
-      ('a-note','annotation')`);
+      ('a-note','annotation'),('n-separator','node'),('a-separator','annotation')`);
     await client.query(`insert into collections(id, owner_subject_id, title, summary, kind, visibility,
       allow_search_indexing, root_node_id, resource_revision, content_revision, policy_revision)
       values ('e3-col','subject-owner','Library','Library','bookmarks','private',true,
@@ -186,6 +254,8 @@ async function seedCorpus(isolated: IsolatedPostgresRuntime): Promise<void> {
         'plain','["zephyr"]'::jsonb,'inherit','p-tag','r1','ch1'),
       ('n-note','e3-col','e3-folder','bookmark','Annotated','https://example.com/note',
         'plain','[]'::jsonb,'inherit','p-note','r1','ch1')`);
+    await client.query(`insert into nodes(id, collection_id, parent_id, kind, visibility,
+      position_token, resource_revision, children_revision) values ('n-separator','e3-col','e3-folder','separator','inherit','p-separator','r1','ch1')`);
     const note = 'remember the zephyr cutoff';
     const timestamp = '2026-10-07T00:00:00.000Z';
     const payload = {
@@ -209,6 +279,12 @@ async function seedCorpus(isolated: IsolatedPostgresRuntime): Promise<void> {
     [JSON.stringify(note), timestamp, JSON.stringify(payload)]);
     await client.query(`insert into collection_link_health(node_id, collection_id, status)
       values ('n-title','e3-col','broken')`);
+    await client.query(`insert into annotations(id, collection_id, subject_type, subject_id,
+      creator_principal_id, type, format, value_json, visibility, resource_revision,
+      created_at, updated_at, payload_json)
+      values ('a-separator','e3-col','node','n-separator','account-owner','note','plain',
+        '"divider-hit"'::jsonb,'protected','r1',$1,$1,$2::jsonb)`,
+    [timestamp, JSON.stringify({ ...payload, id: 'a-separator', subject: { type: 'node', id: 'n-separator' }, value: 'divider-hit' })]);
     await client.query('commit');
   } catch (error) {
     await client.query('rollback');

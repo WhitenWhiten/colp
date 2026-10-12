@@ -51,17 +51,28 @@ interface CardRow {
   readonly node_id: string;
   readonly collection_id: string;
   readonly status: string | null;
-  readonly kind: 'folder' | 'bookmark';
-  readonly title: string;
+  readonly kind: 'folder' | 'bookmark' | 'separator';
+  readonly title: string | null;
   readonly url: string | null;
 }
 
-export function createPostgresNodesSearchPorts(input: {
+interface PostgresNodesSearchOptions {
   readonly db: Kysely<DatabaseSchema>;
   readonly sharedExposure: SharedExposureFactsPort;
   readonly cursors: SearchCursorSignerPort;
   readonly clock?: { now(): Date };
-}): NodesSearchPorts {
+}
+
+export function createPostgresNodesSearchPorts(input: PostgresNodesSearchOptions): NodesSearchPorts {
+  return Object.freeze({
+    ...createReadPorts(input),
+    withReadSnapshot: <Result>(read: (ports: NodesSearchPorts) => Promise<Result>) =>
+      input.db.transaction().setIsolationLevel('repeatable read').execute((transaction) =>
+        read(createReadPorts({ ...input, db: transaction }))),
+  });
+}
+
+function createReadPorts(input: PostgresNodesSearchOptions): NodesSearchPorts {
   return Object.freeze({
     search: Object.freeze({
       authority: createPostgresSearchAuthorityPort(input.db),

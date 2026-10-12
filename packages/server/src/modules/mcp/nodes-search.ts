@@ -67,7 +67,7 @@ export const nodesSearchOutputSchema = Object.freeze({
         properties: Object.freeze({
           id: Object.freeze({ type: 'string' }),
           collectionId: Object.freeze({ type: 'string' }),
-          kind: { enum: ['folder', 'bookmark', null] },
+          kind: { enum: ['folder', 'bookmark', 'separator', null] },
           title: { type: ['string', 'null'] },
           url: { type: ['string', 'null'] },
           folderPath: Object.freeze({ type: 'string' }),
@@ -104,7 +104,7 @@ export const nodesSearchDefinition = Object.freeze({
 export interface NodesSearchCard {
   readonly id: string;
   readonly collectionId: string;
-  readonly kind: 'folder' | 'bookmark' | null;
+  readonly kind: 'folder' | 'bookmark' | 'separator' | null;
   readonly title: string | null;
   readonly url: string | null;
   readonly folderPath: string;
@@ -119,12 +119,14 @@ export interface NodesSearchPorts {
   readonly search: Omit<SearchQueryPorts, 'candidates'>;
   readonly candidatesFor: (collectionId: string | undefined) => SearchQueryPorts['candidates'];
   readonly cards: NodesSearchCardPort;
+  /** Candidate authorization and summary values must come from the same database snapshot. */
+  readonly withReadSnapshot?: <Result>(read: (ports: NodesSearchPorts) => Promise<Result>) => Promise<Result>;
 }
 
 export interface NodesSearchNode {
   readonly id: string;
   readonly collectionId: string;
-  readonly kind: 'folder' | 'bookmark' | null;
+  readonly kind: 'folder' | 'bookmark' | 'separator' | null;
   readonly title: string | null;
   readonly url: string | null;
   readonly folderPath: string;
@@ -158,6 +160,16 @@ export async function executeNodesSearch(
   const collectionId = readOptionalToken(input.collectionId, 'collectionId');
   const cursor = readOptionalToken(input.cursor, 'cursor');
   const limit = readLimit(input.limit);
+  const read = (readPorts: NodesSearchPorts) => readNodesSearchPage(readPorts, input, { query, collectionId, cursor, limit });
+  return ports.withReadSnapshot === undefined ? read(ports) : ports.withReadSnapshot(read);
+}
+
+async function readNodesSearchPage(
+  ports: NodesSearchPorts,
+  input: NodesSearchInput,
+  args: { readonly query: string; readonly collectionId?: string; readonly cursor?: string; readonly limit: number },
+): Promise<NodesSearchResult> {
+  const { query, collectionId, cursor, limit } = args;
   const types: readonly SearchResourceType[] = input.scopes.includes(NODES_SEARCH_PROFILE_CLAIM.annotationScope)
     ? Object.freeze(['node', 'annotation'])
     : Object.freeze(['node']);
