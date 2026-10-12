@@ -27,6 +27,7 @@ import {
   canCallPhase4bMcpWriteTool,
   PHASE4B_MCP_READ_TOOL_CATALOG,
   PHASE4B_MCP_READ_TOOL_NAMES,
+  PHASE4B_MCP_TOOL_CATALOG_CACHE_TTL_MS,
   PHASE4B_MCP_WRITE_MOUNTED_TOOL_NAMES,
   PHASE4B_MCP_RESOURCE_TEMPLATES_CACHE_METADATA,
   PHASE4B_MCP_WRITE_TOOL_REQUIRED_SCOPES,
@@ -47,7 +48,6 @@ import {
   type Phase4bMcpApplicationFacadeOptions,
   type Phase4bMcpWriteToolName,
 } from '../../modules/mcp/index.js';
-import { PHASE4B_MCP_TOOL_CATALOG_CACHE_TTL_MS } from '../../modules/mcp/read-cache.js';
 
 const PROTOCOL_VERSION_META_KEY = 'io.modelcontextprotocol/protocolVersion';
 const CLIENT_CAPABILITIES_META_KEY = 'io.modelcontextprotocol/clientCapabilities';
