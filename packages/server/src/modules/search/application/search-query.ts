@@ -16,6 +16,9 @@ import {
 import type { SearchTelemetryOutcome, SearchTelemetryPort } from './search-telemetry.js';
 
 export type SearchResourceType = SearchCandidateResourceType;
+/** Product 1.93.0: a node hit says whether it is a bookmark or a folder. */
+export type SearchNodeKind = 'bookmark' | 'folder' | 'separator';
+const SEARCH_NODE_KINDS: readonly string[] = Object.freeze(['bookmark', 'folder', 'separator']);
 export const SEARCH_DEFAULT_PAGE_SIZE = 20;
 export const SEARCH_MAX_PAGE_SIZE = 100;
 export const SEARCH_CANDIDATE_BATCH_LIMIT = 100;
@@ -70,7 +73,7 @@ export interface NodeSearchAuthorityFact extends SearchCollectionAuthorityBase {
   readonly resourceType: 'node'; readonly resourceId: string;
   readonly visibility: 'inherit' | 'protected' | 'private'; readonly ancestorRestricted: boolean;
   readonly deleted: boolean; readonly title: string; readonly urlHost: string | null;
-  readonly snippetSource: string;
+  readonly nodeKind: SearchNodeKind; readonly snippetSource: string;
 }
 
 export interface ProfileSearchAuthorityFact {
@@ -172,7 +175,7 @@ export interface SearchQueryPorts {
 export type SearchResult =
   | Readonly<{ resourceType: 'collection'; resourceId: string; title: string; snippet: string; rank: number }>
   | Readonly<{ resourceType: 'node'; resourceId: string; collectionId: string; title: string;
-    urlHost: string | null; snippet: string; rank: number }>
+    urlHost: string | null; nodeKind: SearchNodeKind; snippet: string; rank: number }>
   | Readonly<{ resourceType: 'profile'; resourceId: string; handle: string; displayName: string;
     avatarUrl: string | null; snippet: string; rank: number }>
   | Readonly<{ resourceType: 'annotation'; resourceId: string; collectionId: string;
@@ -500,7 +503,7 @@ function authorizeAndMap(principal: SearchPrincipal, candidate: SearchCandidate,
         || !discoverable(principal, fact) || !canReadCollection(principal, fact)
         || (!isMember(principal, fact) && (fact.visibility !== 'inherit' || fact.ancestorRestricted))) return null;
       return Object.freeze({ resourceType: 'node', resourceId: fact.resourceId, collectionId: fact.collectionId,
-        title: safeRequiredText(fact.title), urlHost: safeHost(fact.urlHost),
+        title: safeRequiredText(fact.title), urlHost: safeHost(fact.urlHost), nodeKind: fact.nodeKind,
         snippet: safeSnippet(fact.snippetSource), rank: candidate.rank });
     }
     case 'profile': {
@@ -551,7 +554,7 @@ function isClosedAuthorityFact(fact: SearchAuthorityFact): boolean {
   if (fact.resourceType === 'node') {
     return ['inherit', 'protected', 'private'].includes(fact.visibility)
       && typeof fact.ancestorRestricted === 'boolean' && typeof fact.title === 'string'
-      && typeof fact.snippetSource === 'string';
+      && SEARCH_NODE_KINDS.includes(fact.nodeKind) && typeof fact.snippetSource === 'string';
   }
   return ['public', 'unlisted', 'protected', 'private'].includes(fact.visibility)
     && ['collection', 'node'].includes(fact.subjectType) && fact.subjectId.length > 0

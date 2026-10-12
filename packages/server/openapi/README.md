@@ -66,6 +66,7 @@ generated artifacts.
 | `baselines/product-v1.1.70.0.yaml` | Intentional operator-only bot credential correction: remove browser parent management; require parent keys for child/grant management and conceal invalid credentials with 404. ADR-0015 records acceptance. |
 | `baselines/product-v1.1.69.0.yaml` | #21 continued on the follower Feed: FeedItemDto gains optional hiddenPublic — a hide_public collection_change row stays as a placeholder-titled tombstone with null publicationSlug instead of being omitted. |
 | `baselines/product-v1.1.92.0.yaml` | Security correction: anonymous favicon success responses require a current public binding and use short revalidation caching. |
+| `baselines/product-v1.1.93.0.yaml` | Additive optional SearchNodeResult `nodeKind` (bookmark, folder, separator) and AccountView `username` (the sign-in name). |
 
 P4A-P01 advances the contract additively to **1.15.0** with the owner-private
 `/api/v1/attachments` resource family (issue, complete, status/private

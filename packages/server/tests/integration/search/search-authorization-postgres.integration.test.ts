@@ -68,7 +68,10 @@ describeWithPostgres('P2B-23 Search authorization and paging', () => {
         const anonymous = await run({ kind: 'anonymous' });
         assert.deepEqual(anonymous.items.map(item => item.resourceId), []);
         for (const principal of [owner, member]) {
-          assert.deepEqual(new Set((await run(principal)).items.map(item => item.resourceId)), new Set([collectionId, nodeId, noteId]));
+          const result = await run(principal);
+          assert.deepEqual(new Set(result.items.map(item => item.resourceId)), new Set([collectionId, nodeId, noteId]));
+          const node = result.items.find(item => item.resourceId === nodeId);
+          assert.equal(node?.resourceType === 'node' ? node.nodeKind : null, 'bookmark');
         }
       } finally {
         await isolated.runtime.pool.query("update collections set visibility='public' where id=$1", [collectionId]);

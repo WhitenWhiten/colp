@@ -1,4 +1,5 @@
-import { afterAll, beforeAll } from 'vitest';
+import assert from 'node:assert/strict';
+import { afterAll, beforeAll, test } from 'vitest';
 import { createPostgresAccountRepository } from '../../../src/infrastructure/identity/index.js';
 import {
   createUnitOfWork,
@@ -49,5 +50,28 @@ describeWithPostgres('PostgreSQL account repository adapter', () => {
     reset: async () => {
       await isolated.runtime.db.deleteFrom('accounts').execute();
     },
+  });
+
+  test('findUsername reads the mapped Better Auth username', async () => {
+    const pool = isolated.runtime.pool;
+    const read = (accountId: string) => createUnitOfWork(isolated.runtime.db)
+      .execute(({ transaction }) => createPostgresAccountRepository(transaction).findUsername?.(accountId));
+    await pool.query(`insert into accounts(id, subject_id, status, email, security_epoch, created_at)
+      values ('acct-named','subject-named','active',null,0,current_timestamp),
+             ('acct-unnamed','subject-unnamed','active',null,0,current_timestamp)`);
+    await pool.query(`insert into "auth_users" ("id","name","email","emailVerified","username")
+      values ('auth-named','Whiten','whiten@users.invalid',false,'whiten'),
+             ('auth-unnamed','Email only','email@example.test',true,null)`);
+    await pool.query(`insert into auth_user_account_map(auth_user_id, account_id)
+      values ('auth-named','acct-named'),('auth-unnamed','acct-unnamed')`);
+    try {
+      assert.equal(await read('acct-named'), 'whiten');
+      assert.equal(await read('acct-unnamed'), null);
+      assert.equal(await read('acct-missing'), null);
+    } finally {
+      await pool.query(`delete from auth_user_account_map where account_id in ('acct-named','acct-unnamed')`);
+      await pool.query(`delete from "auth_users" where id in ('auth-named','auth-unnamed')`);
+      await pool.query(`delete from accounts where id in ('acct-named','acct-unnamed')`);
+    }
   });
 });

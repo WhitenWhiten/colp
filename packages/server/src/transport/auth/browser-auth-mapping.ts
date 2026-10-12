@@ -33,7 +33,11 @@ export function toUtc(date: Date): string {
 export function toMeView(me: Awaited<ReturnType<typeof getAccountWithProfile>>) {
   if (!me?.handle) throw missingAccountHandle();
   return {
-    account: { id: me.account.id, email: me.account.email },
+    account: {
+      id: me.account.id,
+      email: me.account.email,
+      ...(me.username === undefined ? {} : { username: me.username }),
+    },
     profile: {
       id: me.account.id,
       handle: me.handle.handle,

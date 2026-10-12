@@ -72,7 +72,7 @@ function nodeFact(id: string, collectionId = 'public', overrides: Partial<Extrac
   return { resourceType: 'node', resourceId: id, collectionId, ownerSubjectId: 'subject-owner',
     membershipRole: null, collectionVisibility: 'public', allowSearchIndexing: true, policyRevision: 'p1',
     collectionDeleted: false, visibility: 'inherit', ancestorRestricted: false, deleted: false,
-    title: `Current ${id}`, urlHost: 'current.example', snippetSource: `current safe ${id}`, ...overrides };
+    title: `Current ${id}`, urlHost: 'current.example', nodeKind: 'bookmark', snippetSource: `current safe ${id}`, ...overrides };
 }
 
 function profileFact(handle: string, overrides: Partial<Extract<SearchAuthorityFact, { resourceType: 'profile' }>> = {}): SearchAuthorityFact {
@@ -220,6 +220,21 @@ test('fails closed for stale candidates and maps snippets and DTO fields only fr
   assert.deepEqual(result.items, [{ resourceType: 'collection', resourceId: 'safe', title: 'Current safe',
     snippet: 'current safe safe', rank: 0.93 }]);
   assert.doesNotMatch(JSON.stringify(result), /stale secret|private-now|deleted-profile/u);
+});
+
+test('names the node kind from the current fact and drops a fact with an unknown kind', async () => {
+  const candidates = [nodeCandidate('folder', 'public', 0.9), nodeCandidate('bookmark', 'public', 0.8),
+    nodeCandidate('odd', 'public', 0.7)];
+  const facts = new Map<string, SearchAuthorityFact>([
+    ['node:folder', nodeFact('folder', 'public', { nodeKind: 'folder', urlHost: null })],
+    ['node:bookmark', nodeFact('bookmark')],
+    ['node:odd', nodeFact('odd', 'public', { nodeKind: 'tag' as 'folder' })],
+  ]);
+  const result = await executeSearchQuery(harness(candidates, facts).ports,
+    { principal: ANONYMOUS, query: 'kind', pageSize: 10 });
+  assert.deepEqual(result.items.map((item) => item.resourceType === 'node' ? [item.resourceId, item.nodeKind] : null), [
+    ['folder', 'folder'], ['bookmark', 'bookmark'],
+  ]);
 });
 
 test('batches authority facts, backfills filtered candidates, and keeps amplification bounded', async () => {

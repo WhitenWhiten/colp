@@ -16,7 +16,16 @@ export async function getAccountWithProfile(
   }
   const handle = await ports.handles.findByAccountId(accountId);
   const identity = await ports.accountIdentities.findByAccountId(accountId);
-  return { account, profile, handle, identity };
+  return { account, profile, handle, identity, ...await readSignInUsername(ports, accountId) };
+}
+
+/** Spreadable `{ username }` for a MeView, or nothing when the store cannot read it. */
+export async function readSignInUsername(
+  ports: IdentityPorts,
+  accountId: string,
+): Promise<{ readonly username?: string | null }> {
+  const username = await ports.accounts.findUsername?.(accountId);
+  return username === undefined ? {} : { username };
 }
 
 export async function getAccountWithProfileBySubjectId(

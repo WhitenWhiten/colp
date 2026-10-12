@@ -73,6 +73,14 @@ export function createPostgresAccountRepository(
         .where('email', '=', email).executeTakeFirst();
       return row ? mapAccount(row) : null;
     },
+    async findUsername(accountId) {
+      const row = await transaction.selectFrom('auth_user_account_map')
+        .innerJoin('auth_users', 'auth_users.id', 'auth_user_account_map.auth_user_id')
+        .select('auth_users.username')
+        .where('auth_user_account_map.account_id', '=', accountId)
+        .executeTakeFirst();
+      return row?.username ?? null;
+    },
     async insert(account) {
       await transaction.insertInto('accounts').values({
         id: account.id,

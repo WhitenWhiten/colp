@@ -123,7 +123,7 @@ export function createPostgresSearchAuthorityPort(db: Kysely<DatabaseSchema>): S
               OR ${sql.raw(bookmarkDiscoveryExistsSql('n.id', 'c.id'))}
             ),
             'deleted',n.deleted_at IS NOT NULL OR n.is_root OR n.parent_id IS NULL,
-            'title',n.title,'urlHost',n.search_url_host,
+            'title',n.title,'urlHost',n.search_url_host,'nodeKind',n.kind,
             'snippetSource',search_strip_unsafe_text(coalesce(n.title,'') || ' ' || coalesce(n.description,''))
           ) AS fact
           FROM requested r CROSS JOIN config

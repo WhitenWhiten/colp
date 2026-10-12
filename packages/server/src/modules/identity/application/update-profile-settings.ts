@@ -1,5 +1,6 @@
 import { IdentityError, assertSameOriginAvatarUrl, assertValidAbout, assertValidDisplayName } from '../domain/index.js';
 import type { AccountWithProfile } from '../domain/types.js';
+import { readSignInUsername } from './get-account-with-profile.js';
 import { claimHandle } from './handle.js';
 import type { IdentityPorts } from './ports.js';
 
@@ -54,5 +55,5 @@ export async function updateProfileSettings(
     : { ...profile, displayName, avatarUrl, about, updatedAt: await ports.clock.now() };
   if (nextProfile !== profile) await ports.profiles.update(nextProfile);
   const identity = await ports.accountIdentities.findByAccountId(input.accountId);
-  return { account, profile: nextProfile, handle, identity };
+  return { account, profile: nextProfile, handle, identity, ...await readSignInUsername(ports, input.accountId) };
 }

@@ -23,6 +23,11 @@ export interface AccountRepository {
    * OIDC email claim. Implementations should match the stored value exactly.
    */
   findByEmail(email: string): Promise<Account | null>;
+  /**
+   * Sign-in username of the Better Auth user mapped to this account; null when
+   * that user has none. Optional so stores without Better Auth users omit it.
+   */
+  findUsername?(accountId: string): Promise<string | null>;
   insert(account: Account): Promise<void>;
   /** Atomically increments security_epoch and returns the new value. */
   bumpSecurityEpoch(accountId: string): Promise<bigint>;

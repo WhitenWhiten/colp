@@ -2,7 +2,7 @@ openapi: 3.1.0
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 info:
   title: Known Product API
-  version: 1.92.0
+  version: 1.93.0
   description: >-
     Version 1.70.0 intentionally removes browser credential management: parent
     keys are provisioned only through the database for official bots. Credential
@@ -217,6 +217,10 @@ info:
     semantics: successful responses use a short public max-age with
     must-revalidate and require a current live public bookmark binding, so
     publication revocation is not pinned in shared caches.
+    info.version 1.93.0 additively adds optional nodeKind on SearchNodeResult,
+    so a client can tell a folder hit from a bookmark, and optional username
+    on AccountView, the sign-in name of a username account, preserving every
+    accepted 1.92.0 Product client contract.
 servers:
   - url: /
 tags:
@@ -19668,6 +19672,13 @@ components:
           type: [ string, 'null' ]
           format: email
           maxLength: 320
+        username:
+          type: [ string, 'null' ]
+          minLength: 1
+          maxLength: 64
+          description: >-
+            Sign-in username. Null for an account that signs in another way.
+            Omitted from required for additive N-1 compatibility.
       required: [ id, email ]
     ProfileView:
       type: object
@@ -21838,6 +21849,12 @@ components:
         collectionId: { $ref: '#/components/schemas/OpaqueId' }
         title: { type: string, minLength: 1, maxLength: 512 }
         urlHost: { type: [ string, 'null' ], maxLength: 253 }
+        nodeKind:
+          type: string
+          enum: [ bookmark, folder, separator ]
+          description: >-
+            Kind of the matched node. Always returned; omitted from required
+            for additive N-1 compatibility.
         snippet: { $ref: '#/components/schemas/SearchSnippet' }
         rank: { $ref: '#/components/schemas/SearchRank' }
       required: [ resourceType, resourceId, collectionId, title, urlHost, snippet, rank ]

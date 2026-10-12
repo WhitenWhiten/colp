@@ -95,6 +95,7 @@ export async function updateProfileSettingsWithReceipt(
     profile: updated.profile,
     handle: updated.handle,
     identity: updated.identity,
+    ...(updated.username === undefined ? {} : { username: updated.username }),
   });
   await ports.receipts.complete(binding, fingerprint, result);
   return {
@@ -134,9 +135,14 @@ function meViewJson(input: {
   readonly profile: AccountWithProfile['profile'];
   readonly handle: ProfileHandle;
   readonly identity: AccountWithProfile['identity'];
+  readonly username?: string | null;
 }): Record<string, unknown> {
   return {
-    account: { id: input.account.id, email: input.account.email },
+    account: {
+      id: input.account.id,
+      email: input.account.email,
+      ...(input.username === undefined ? {} : { username: input.username }),
+    },
     profile: {
       id: input.account.id,
       handle: input.handle.handle,
@@ -152,6 +158,7 @@ function productResult(input: {
   readonly profile: AccountWithProfile['profile'];
   readonly handle: ProfileHandle;
   readonly identity: AccountWithProfile['identity'];
+  readonly username?: string | null;
 }): ProductCommandResult {
   return {
     status: 200,

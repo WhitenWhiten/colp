@@ -88,6 +88,8 @@ export interface AccountWithProfile {
   readonly profile: Profile;
   readonly handle: ProfileHandle | null;
   readonly identity: AccountIdentity | null;
+  /** Product 1.93.0 AccountView.username; absent when the store cannot read it. */
+  readonly username?: string | null;
 }
 
 /**

@@ -140,6 +140,7 @@
           "collectionId": "collection-1",
           "title": "Specification",
           "urlHost": "spec.example.test",
+          "nodeKind": "bookmark",
           "snippet": "Node result",
           "rank": 0.75
         },

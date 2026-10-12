@@ -4,6 +4,7 @@ import {
   IDENTITY_APPLICATION_NOW as NOW,
   createIdentityApplicationHarness as createHarness,
 } from '../../support/identity-application-memory.js';
+import { toMeView } from '../../../src/transport/auth/browser-auth-mapping.js';
 import {
   ABOUT_MAX,
   IdentityError,
@@ -14,6 +15,7 @@ import {
   bootstrapBrowserSession,
   createIdentityApplication,
   deriveCsrfTokenRaw,
+  getAccountWithProfile,
   hashSecret,
   rotateSession,
   secretsMatch,
@@ -1087,6 +1089,26 @@ describe('identity application: handle claim and me query', () => {
     assert.equal(me.profile.displayName, 'Me');
     assert.equal(me.profile.about, '');
     assert.equal(me.handle?.handle, 'me_user');
+  });
+
+  test('MeView carries the sign-in username only when the store can read it', async () => {
+    const { app, ports } = createHarness();
+    const ensured = await app.ensureAccountFromOidcIdentity({
+      issuer: 'https://issuer.example',
+      subject: 'username-sub',
+      email: 'whiten@example.test',
+      emailVerified: true,
+      displayName: 'Whiten',
+      handle: 'witty-hawk',
+    });
+    const withUsername: IdentityPorts = {
+      ...ports,
+      accounts: { ...ports.accounts, findUsername: async () => 'whiten' },
+    };
+    const named = toMeView(await getAccountWithProfile(withUsername, ensured.account.id));
+    assert.deepEqual(named.account, { id: ensured.account.id, email: 'whiten@example.test', username: 'whiten' });
+    const unnamed = toMeView(await getAccountWithProfile(ports, ensured.account.id));
+    assert.equal('username' in unnamed.account, false);
   });
 });
 

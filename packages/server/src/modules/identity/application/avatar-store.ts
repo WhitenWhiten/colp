@@ -9,6 +9,7 @@ import {
 } from '../../commands/index.js';
 import { IdentityError, assertValidAvatarUrl } from '../domain/index.js';
 import type { AccountWithProfile, ProfileHandle } from '../domain/types.js';
+import { readSignInUsername } from './get-account-with-profile.js';
 import type { IdentityPorts } from './ports.js';
 
 export const AVATAR_READ_TIMEOUT_MS = 5_000;
@@ -69,7 +70,7 @@ export interface UploadAvatarInput {
 }
 
 export type UploadAvatarResult =
-  | { readonly kind: 'created'; readonly account: AccountWithProfile['account']; readonly profile: AccountWithProfile['profile']; readonly handle: AccountWithProfile['handle']; readonly identity: AccountWithProfile['identity'] }
+  | { readonly kind: 'created'; readonly account: AccountWithProfile['account']; readonly profile: AccountWithProfile['profile']; readonly handle: AccountWithProfile['handle']; readonly identity: AccountWithProfile['identity']; readonly username?: string | null }
   | { readonly kind: 'replay'; readonly result: ProductCommandResult }
   | { readonly kind: 'in_progress'; readonly retryAfterSeconds: number }
   | { readonly kind: 'reused' }
@@ -293,9 +294,10 @@ export async function uploadAvatar(
   // The profile trigger schedules old-object cleanup in this transaction.
   // Prepared orphans remain recoverable if profile, receipt or COMMIT fails.
 
-  const result = productResult({ account, profile: nextProfile, handle, identity, avatarId });
+  const username = await readSignInUsername(ports, input.accountId);
+  const result = productResult({ account, profile: nextProfile, handle, identity, avatarId, ...username });
   await ports.receipts.complete(binding, fingerprint, result);
-  return { kind: 'created', account, profile: nextProfile, handle, identity };
+  return { kind: 'created', account, profile: nextProfile, handle, identity, ...username };
 }
 
 function mapUploadAvatarClaim(
@@ -316,9 +318,14 @@ function meViewJson(input: {
   readonly profile: AccountWithProfile['profile'];
   readonly handle: ProfileHandle;
   readonly identity: AccountWithProfile['identity'];
+  readonly username?: string | null;
 }): Record<string, unknown> {
   return {
-    account: { id: input.account.id, email: input.account.email },
+    account: {
+      id: input.account.id,
+      email: input.account.email,
+      ...(input.username === undefined ? {} : { username: input.username }),
+    },
     profile: {
       id: input.account.id,
       handle: input.handle.handle,
@@ -334,6 +341,7 @@ function productResult(input: {
   readonly profile: AccountWithProfile['profile'];
   readonly handle: ProfileHandle;
   readonly identity: AccountWithProfile['identity'];
+  readonly username?: string | null;
   readonly avatarId: string;
 }): ProductCommandResult {
   return {

@@ -19,8 +19,12 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 - Web: About reports the server status and transport from `/health` and the Manifest, the server address, and links to the Extension, Agents, Import and Sync pages; it sets the document title.
 - Web: Import shows which file is previewed, lists nested destination folders as a tree, and shows an "Import complete" card with "View collection" / "Import another file"; the chosen file is cleared after a completed import so Confirm cannot re-import it by accident.
 - Web: the library search palette has one owner gate for every entry (toolbar buttons, ⌘/Ctrl+K and the open-palette event); a visitor on a shared link no longer reaches the sign-in wall through the shortcut, and signing out closes an open palette.
+- Product API 1.93.0: search node results carry `nodeKind` (`bookmark`, `folder` or `separator`), and `GET /api/v1/me` (with `PATCH /api/v1/me` and the avatar upload) returns `account.username`, the sign-in name. Both fields are optional in the schema, so 1.92.0 clients are unaffected.
+- Web: Search and the ⌘K palette label folder hits "Folder" from `nodeKind` and open them on the library desk; the account menu and the agent consent page name the account by its sign-in username.
 
 ### Changed
+
+- Web: sign-in, registration, Agents, Approvals, Get started, Sync, Import, the shared collection page, Search, About and the 404 page are redesigned on Know-N's palette with the pegboard and ribbon motif. Collaborators is hidden until multi-user, and the account menu no longer shows the generated profile handle.
 
 - The in-memory MCP rate-limit stores reclaim expired buckets in a bounded step (at most 64 entries) when at capacity, instead of scanning every bucket; restarted buckets are re-inserted at the tail so the map stays ordered by window start.
 - `COLP_SERVER_SECRET` errors now say how the value was interpreted (base64 or UTF-8) and how many bytes it produced.
