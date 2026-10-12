@@ -41,7 +41,10 @@ export function useWriteApprovals() {
   const sessionIdentity = useSyncExternalStore(subscribeSession, privateSessionIdentity, privateSessionIdentity)
   const location = useLocation()
   const navigate = useNavigate()
-  const returnTo = `${location.pathname}${location.search}${location.hash}`
+  // Settings changes the query string without changing the approval page.
+  // Keep the latest login destination without invalidating load callbacks.
+  const returnToRef = useRef('')
+  returnToRef.current = `${location.pathname}${location.search}${location.hash}`
   const restoredApprovals = readRouteCache<WriteApprovalView[]>(APPROVALS_CACHE_KEY)
   const [approvals, setApprovals] = useState<WriteApprovalView[]>(() => {
     if (restoredApprovals === undefined) return []
@@ -70,11 +73,11 @@ export function useWriteApprovals() {
     if (authRedirected.current) return
     authRedirected.current = true
     const params = new URLSearchParams({
-      returnTo,
+      returnTo: returnToRef.current,
       reason: LOGIN_REASON_APPROVAL_REQUIRED,
     })
     navigate(`/login?${params.toString()}`, { replace: true })
-  }, [navigate, returnTo])
+  }, [navigate])
 
   const updateDraft = useCallback((id: string, draft: DecisionDraft) => {
     setDrafts((current) => ({ ...current, [id]: draft }))

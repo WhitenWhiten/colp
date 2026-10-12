@@ -1,6 +1,8 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { useLocation } from 'react-router-dom'
+import { act } from 'react'
+import { Route, Routes, useLocation } from 'react-router-dom'
+import { useSettingsDialog } from '../../lib/useSettingsDialog'
 import { ProductApiError } from '../../api'
 import { cleanup, mountTree, waitForDom } from '../../test/render'
 import { useWriteApprovals } from './data'
@@ -35,14 +37,22 @@ vi.mock('../../components/AppToast', () => ({
   useToast: () => ({ success: mocks.success, error: mocks.error, toast: mocks.toast }),
 }))
 
-describe('useWriteApprovals superseded mount pass', () => {
+describe('useWriteApprovals navigation and superseded requests', () => {
   let current: ReturnType<typeof useWriteApprovals> | undefined
 
   /** `redirectToLogin` navigates, so the location is the observable. */
   function Probe() {
     current = useWriteApprovals()
     const location = useLocation()
-    return <p data-testid="pathname">{location.pathname}</p>
+    const { open, close } = useSettingsDialog()
+    return (
+      <>
+        <p data-testid="pathname">{location.pathname}{location.search}{location.hash}</p>
+        <button onClick={() => open('profile')}>Profile</button>
+        <button onClick={() => open('security')}>Security</button>
+        <button onClick={close}>Close settings</button>
+      </>
+    )
   }
   const pathname = () => document.querySelector('[data-testid="pathname"]')?.textContent ?? null
 
@@ -53,6 +63,36 @@ describe('useWriteApprovals superseded mount pass', () => {
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   })
   afterEach(() => { cleanup(); document.body.innerHTML = '' })
+
+  it.each(['/approvals', '/approvals/plan-1'])('does not reload %s when settings opens, switches, or closes', async (path) => {
+    const approval = { planId: 'plan-1' }
+    mocks.page.mockResolvedValue(path === '/approvals' ? { items: [approval] } : approval)
+    mocks.owned.mockResolvedValue([])
+    mountTree(<Routes><Route path="/approvals/:planId?" element={<Probe />} /></Routes>, { initialEntries: [path] })
+    await waitForDom(() => current?.approvals.length === 1 && !current.loading)
+    const requests = mocks.page.mock.calls.length
+    const approvals = current!.approvals
+    const click = (label: string) => [...document.querySelectorAll('button')].find(button => button.textContent === label)!.click()
+    for (const section of ['Profile', 'Security', 'Profile', 'Close settings']) {
+      await act(async () => { click(section) })
+      expect(mocks.page).toHaveBeenCalledTimes(requests)
+      expect(current?.approvals).toBe(approvals)
+      expect(current?.refreshing).toBe(false)
+    }
+  })
+
+  it('returns to the latest settings URL after an authentication failure', async () => {
+    mocks.page.mockResolvedValue({ items: [] })
+    mocks.owned.mockResolvedValue([])
+    mountTree(<Probe />, { initialEntries: ['/approvals?filter=pending'] })
+    await waitForDom(() => current?.loading === false)
+    await act(async () => { [...document.querySelectorAll('button')].find(button => button.textContent === 'Security')!.click() })
+    mocks.page.mockRejectedValue(new ProductApiError({ status: 401, code: 'authentication_required', message: 'expired' }))
+    await act(async () => { await current!.load('refresh') })
+    const target = new URL(pathname()!, 'https://colp.test')
+    expect(target.pathname).toBe('/login')
+    expect(target.searchParams.get('returnTo')).toBe('/approvals?filter=pending&settings=security')
+  })
 
   it('does not sign the user out when the abandoned mount pass rejects with 401', async () => {
     let release!: (reason: unknown) => void
