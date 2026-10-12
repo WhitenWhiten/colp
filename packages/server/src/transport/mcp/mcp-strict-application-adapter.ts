@@ -12,6 +12,10 @@ import {
   McpToolOutputUnavailableError,
   materializeClosedMcpToolSchema,
   resolveMcpResourceReadBudget,
+  parseMcp20260728RequestHeaders,
+  scanMcp20260728XMcpHeaderDeclarations,
+  validateMcp20260728ParamHeaders,
+  type Mcp20260728HeaderField,
   type Mcp20260728ReadToolAdapter,
   type Mcp20260728RequestContext,
   type Mcp20260728Result,
@@ -46,6 +50,23 @@ import {
 
 const PROTOCOL_VERSION_META_KEY = 'io.modelcontextprotocol/protocolVersion';
 const CLIENT_CAPABILITIES_META_KEY = 'io.modelcontextprotocol/clientCapabilities';
+
+/** Validate exactly the schema advertised for this caller and tool. */
+export async function validateStrictToolParamHeaders(
+  context: Mcp20260728RequestContext,
+  params: Readonly<Record<string, unknown>> | undefined,
+  headers: readonly Mcp20260728HeaderField[],
+  facade: McpApplicationFacade,
+): Promise<void> {
+  const listed = await facade.listTools(toMcpApplicationContextFromStrict(context));
+  const tool = listed.tools.find((candidate) => candidate.name === params?.name
+    && candidate.compatOnly !== true && !candidate.name.startsWith('known.moderation.'));
+  // Dispatch owns unknown-tool rejection; there is no schema to validate.
+  if (tool === undefined) return;
+  const scan = scanMcp20260728XMcpHeaderDeclarations(materializeClosedMcpToolSchema(tool.inputSchema));
+  if (!scan.valid) throw new TypeError('Invalid MCP tool header schema.');
+  validateMcp20260728ParamHeaders(scan.declarations, params?.arguments ?? {}, parseMcp20260728RequestHeaders(headers).params);
+}
 
 export function toMcpApplicationContextFromStrict(
   context: Mcp20260728RequestContext,

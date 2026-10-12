@@ -47,7 +47,7 @@ export const nodesSearchInputSchema = Object.freeze({
   additionalProperties: false,
   properties: Object.freeze({
     query: Object.freeze({ type: 'string', minLength: 1, maxLength: 1_024 }),
-    collectionId: Object.freeze({ type: 'string', minLength: 1, maxLength: 1_024 }),
+    collectionId: Object.freeze({ type: 'string', minLength: 1, maxLength: 1_024, 'x-mcp-header': 'X-Collection-Id' }),
     cursor: Object.freeze({ type: 'string', minLength: 1, maxLength: 2_048 }),
     limit: Object.freeze({ type: 'integer', minimum: 1, maximum: SEARCH_MAX_PAGE_SIZE }),
   }),

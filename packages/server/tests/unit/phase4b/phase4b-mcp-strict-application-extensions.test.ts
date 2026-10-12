@@ -160,7 +160,7 @@ test('strict Modern routes Reports extensions through the facade using Reports s
     'mcp-name': 'reports.get',
   }, modernBody('tools/call', 2, {
     name: 'reports.get',
-    arguments: { slug: 'report-one' },
+    arguments: { slug: 'report-one', collectionId: 'not-a-routing-parameter' },
   }));
   assert.equal(called.statusCode, 200);
   const callPayload = JSON.parse(called.payload) as { result?: Record<string, unknown> };

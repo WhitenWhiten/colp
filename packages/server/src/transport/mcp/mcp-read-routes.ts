@@ -61,7 +61,6 @@ import {
   McpOauthVerificationError,
   requiredScopesForMcpReadOperation,
   createPhase4bMcpReadOperations,
-  mergePhase4bMcpParamDeclarations,
   isPhase4bMcpLegacyBodyMethod,
   MCP_ACCOUNT_SUBJECT_ID_AUTHORIZATION_KEY,
   runWithMcpAccountSubjectId,
@@ -97,6 +96,7 @@ import {
   listStrictApplicationResourceTemplates,
   listStrictApplicationTools,
   readCatalogCursor,
+  validateStrictToolParamHeaders,
 } from './mcp-strict-application-adapter.js';
 import {
   admitMcpHost,
@@ -253,10 +253,6 @@ export function registerMcpReadRoutes(
       throw new TypeError('MCP write transport requirements must enforce a positive raw body byte cap');
     }
   }
-  const toolParamDeclarations = mergePhase4bMcpParamDeclarations(
-    readToolParamDeclarations,
-    writeToolParamDeclarations ?? NO_PARAM_DECLARATIONS,
-  );
   const resourceIdentity = createPhase4bMcpResourceIdentity(config, options);
   const applicationFacade = dependencies.applicationFacade ?? createPhase4bMcpApplicationFacadeFromColpAdapters({
     resourceIdentity,
@@ -613,10 +609,16 @@ export function registerMcpReadRoutes(
               [MCP_ACCOUNT_SUBJECT_ID_AUTHORIZATION_KEY]: trusted.accountSubjectId,
             },
           origin,
-          paramDeclarations: body.method === 'tools/call'
-            ? toolParamDeclarations
-            : NO_PARAM_DECLARATIONS,
+          ...(body.method === 'tools/call' ? {} : { paramDeclarations: NO_PARAM_DECLARATIONS }),
         });
+        if (body.method === 'tools/call') {
+          await withAbort(validateStrictToolParamHeaders(
+            context,
+            resourceMethodParams(body),
+            pairs.map(([name, value]) => ({ name, value })),
+            applicationFacade,
+          ), controller.signal);
+        }
         if (body.method === 'subscriptions/listen' && !sse) {
           throw new Mcp20260728RequestError(
             'invalid_request',
