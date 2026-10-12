@@ -11,6 +11,7 @@ import {
   Phase4bMcpChangePlanPlannerError,
   computePhase4bMcpCanonicalDigest,
   createPhase4bMcpChangePlanPlanner,
+  phase4bMcpDeleteSubtreeImpactText,
   phase4bMcpPlanSummary,
   type Phase4bMcpChangePlanPlannerOptions,
   type Phase4bMcpPlannedChange,
@@ -597,3 +598,7 @@ test('MCP-W03 conceals missing and unauthorized authoritative state without revi
   assert.doesNotMatch(unauthorized.message, /disappeared|children-r1|content-r1|resource-r1/u);
 });
 
+test('delete-subtree impact text counts items in plain English', () => {
+  assert.equal(phase4bMcpDeleteSubtreeImpactText({ title: 'Hacker News', subtreeCount: 1 }), 'delete Hacker News (1 item)');
+  assert.equal(phase4bMcpDeleteSubtreeImpactText({ title: 'Reading', subtreeCount: 4 }), 'delete Reading (4 items)');
+});
