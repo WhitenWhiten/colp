@@ -517,7 +517,7 @@ export interface PublicationConfig {
   readonly syncRetire?: { readonly href: string };
   readonly sync?: {
     readonly multiCollectionSessions: false;
-    readonly maxBatchOperations: 1;
+    readonly maxBatchOperations: number;
     readonly cursorRetentionSeconds: number;
   };
   readonly cursorKeys: {
@@ -1021,7 +1021,7 @@ export interface SyncSessionConfig {
   };
   readonly push: {
     readonly path: string;
-    readonly maxBatchOperations: 1;
+    readonly maxBatchOperations: number;
     readonly managedBookmarkWrites: boolean;
     readonly rateLimit: { readonly maxRequests: number; readonly windowMs: number };
   };

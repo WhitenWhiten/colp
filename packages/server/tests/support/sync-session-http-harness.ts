@@ -172,6 +172,7 @@ export function syncEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
     // succeed (never fetched).
     OIDC_JWKS_URI: 'https://issuer.example/realms/known/certs',
     PRODUCT_ORIGIN: 'https://known.example', PUBLICATION_ORIGIN: 'https://known.example',
+    SYNC_MAX_BATCH_OPERATIONS: '1',
     SYNC_SESSION_ENABLED: 'true', SYNC_EXTENSION_IDS: 'abcdefghijklmnopabcdefghijklmnop',
     SYNC_OAUTH_ISSUER: 'https://issuer.example.test', SYNC_OAUTH_CLIENT_ID: 'known-extension',
     SYNC_OAUTH_AUDIENCE: 'known-sync-api',

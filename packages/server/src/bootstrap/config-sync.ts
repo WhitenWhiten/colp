@@ -94,8 +94,8 @@ export function loadSyncSessionConfig(env: NodeJS.ProcessEnv): SyncSessionConfig
       || conflictPath.replace('{conflictId}', 'value') === pushPath) {
     throw new Error('SYNC_CONFLICT_PATH must be a distinct path with exactly {conflictId}');
   }
-  const maxBatchOperations = parsePositiveInt(env.SYNC_MAX_BATCH_OPERATIONS, 1,
-    'SYNC_MAX_BATCH_OPERATIONS', { max: 1 });
+  const maxBatchOperations = parsePositiveInt(env.SYNC_MAX_BATCH_OPERATIONS, 50,
+    'SYNC_MAX_BATCH_OPERATIONS', { max: 50 });
   const managedBookmarkWritesValue = (env.SYNC_MANAGED_BOOKMARK_WRITES ?? 'false').toLowerCase();
   if (managedBookmarkWritesValue !== 'true' && managedBookmarkWritesValue !== 'false') {
     throw new Error('SYNC_MANAGED_BOOKMARK_WRITES must be true or false');
@@ -235,7 +235,7 @@ export function loadSyncSessionConfig(env: NodeJS.ProcessEnv): SyncSessionConfig
     }),
     push: Object.freeze({
       path: pushPath,
-      maxBatchOperations: maxBatchOperations as 1,
+      maxBatchOperations,
       managedBookmarkWrites: managedBookmarkWritesValue === 'true',
       rateLimit: Object.freeze({
         maxRequests: parsePositiveInt(env.SYNC_PUSH_RATE_LIMIT_MAX, 120,

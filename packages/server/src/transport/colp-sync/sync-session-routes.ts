@@ -268,7 +268,8 @@ function validResponseSemantics(
   return Number.isFinite(clientTime) && Number.isFinite(serverTime) && Number.isFinite(expiresAt)
     && Number.isFinite(leaseLastSeen) && Number.isFinite(leaseExpires)
     && response.acceptedProtocolVersion === request.protocolVersion
-    && response.maxBatchOperations === 1
+    && Number.isSafeInteger(response.maxBatchOperations) && response.maxBatchOperations >= 1
+    && response.maxBatchOperations <= request.replica.capabilities.maxBatchOperations
     && response.collection.collectionId === request.collection.collectionId
     && response.clockSkewMilliseconds === serverTime - clientTime
     && expiresAt > serverTime

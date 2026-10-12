@@ -193,9 +193,9 @@ export function createSyncSessionBlackBoxClient(options: SyncSessionBlackBoxClie
         const validation = createValidatorRegistry().validate('syncPushResult', document);
         if (!validation.valid) throw new Error('syncPush returned an invalid COLP result');
         const result = document as SyncPushResult;
-        if (result.results.length !== 1
-            || result.results[0]?.opId !== input.request.operations[0]?.opId
-            || result.results[0]?.sequence !== input.request.operations[0]?.sequence) {
+        if (result.results.length !== input.request.operations.length
+            || result.results.some((item, index) => item.opId !== input.request.operations[index]?.opId
+              || item.sequence !== input.request.operations[index]?.sequence)) {
           throw new Error('syncPush result identity does not match the request');
         }
         return Object.freeze({ status: response.status, body: result });
@@ -421,7 +421,8 @@ function validSessionSemantics(response: SyncSessionResult | SyncSessionResultV0
   const clientTime = Date.parse(request.clientTime);
   return response.acceptedProtocolVersion === request.protocolVersion
     && response.collection.collectionId === request.collection.collectionId
-    && response.maxBatchOperations === 1
+    && Number.isSafeInteger(response.maxBatchOperations) && response.maxBatchOperations >= 1
+    && response.maxBatchOperations <= request.replica.capabilities.maxBatchOperations
     && response.clockSkewMilliseconds === serverTime - clientTime
     && Date.parse(response.expiresAt) > serverTime
     && Date.parse(response.replicaLease.expiresAt) > Date.parse(response.replicaLease.lastSeenAt);

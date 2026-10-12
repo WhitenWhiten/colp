@@ -114,6 +114,27 @@ describeWithPostgres('P3-08 Sync Session real HTTP/PostgreSQL black box', () => 
     await isolated?.close();
   });
 
+  test('negotiates batching for an existing installation and keeps older client declarations valid', async () => {
+    const server = await start({ maxBatchOperations: 50, registerUnknownGenerationOneReplica: true });
+    const base = wireRequest();
+    const original: SyncSessionRequest = { ...base, replica: { ...base.replica,
+      replicaId: 'http-replica-batch-upgrade', binding: { ...base.replica.binding,
+        browserProfileId: 'http-profile-batch-upgrade', generation: '1' } } };
+    const installed = await client(server.origin).create({ idempotencyKey: 'batch-install', request: original });
+    assert.equal(installed.body.maxBatchOperations, 1);
+    const request = { ...original, replica: { ...original.replica,
+      capabilities: { ...original.replica.capabilities, maxBatchOperations: 50 } } };
+    const upgraded = await client(server.origin).create({ idempotencyKey: 'batch-upgrade', request });
+    assert.equal(upgraded.status, 201);
+    assert.equal(upgraded.body.maxBatchOperations, 50);
+    const persisted = await isolated.runtime.pool.query(`select capabilities_json,wire_json from sync_replicas where replica_id=$1`,
+      [request.replica.replicaId]);
+    assert.equal(persisted.rows[0].capabilities_json.maxBatchOperations, 50);
+    assert.equal(persisted.rows[0].wire_json.capabilities.maxBatchOperations, 50);
+    const older = await client(server.origin).create({ idempotencyKey: 'batch-old-client', request: original });
+    assert.equal(older.status, 201); assert.equal(older.body.maxBatchOperations, 1);
+  });
+
   test('creates, exact-replays after server restart, and leaves Manifest sync Profile unclaimed', async () => {
     const firstServer = await start();
     const first = await client(firstServer.origin).create({ idempotencyKey: 'restart-key', request: wireRequest() });

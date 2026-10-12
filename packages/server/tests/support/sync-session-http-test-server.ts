@@ -24,6 +24,7 @@ export function createSyncSessionHttpTestServer(
   apps: FastifyInstance[],
 ) {
   const start = async (options: {
+    readonly maxBatchOperations?: number;
     readonly responseGate?: Promise<void>;
     readonly acceptedToken?: string;
     readonly evidence?: typeof credential;
@@ -42,7 +43,7 @@ export function createSyncSessionHttpTestServer(
       issuer: ISSUER, audience: 'known-api', clientId: 'known-extension',
       replayEncryptionKey: Buffer.alloc(32, 23), replayEncryptionKeyVersion: 1,
       sessionDurationSeconds: 900, replicaLeaseExtensionSeconds: 3_600,
-      tombstoneRetentionSeconds: 86_400, maxBatchOperations: 1,
+      tombstoneRetentionSeconds: 86_400, maxBatchOperations: options.maxBatchOperations ?? 1,
       endpointCapabilities: ['syncSnapshot', 'syncPush', 'syncPull', 'syncAck', 'syncConflict'],
       retentionWindow: { async load(_transaction, collectionId) { return { collectionId,
         earliestPull: { cursor: null, commitOrdinal: '0' }, purgedThrough: { cursor: null, commitOrdinal: '0' },

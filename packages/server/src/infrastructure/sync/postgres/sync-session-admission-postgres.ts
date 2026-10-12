@@ -65,7 +65,7 @@ export function validateOptions(input: PostgresSyncSessionIssuerOptions): Valida
   if (input.recoveryProofRetentionMs !== undefined) {
     positiveInteger(input.recoveryProofRetentionMs, 'Recovery proof retention', 31_536_000_000);
   }
-  if (input.maxBatchOperations !== 1) throw new TypeError('Phase 3 maxBatchOperations must equal one');
+  positiveInteger(input.maxBatchOperations, 'Sync maxBatchOperations', 50);
   if (!Array.isArray(input.endpointCapabilities) || input.endpointCapabilities.length < 1
       || input.endpointCapabilities.some((item) => typeof item !== 'string' || item.length < 1)
       || input.endpointCapabilities.some((item) => !(item in endpointScope))

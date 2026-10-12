@@ -40,7 +40,7 @@ export interface PostgresSyncSessionIssuerOptions {
   readonly sessionDurationSeconds: number;
   readonly replicaLeaseExtensionSeconds: number;
   readonly tombstoneRetentionSeconds: number;
-  readonly maxBatchOperations: 1;
+  readonly maxBatchOperations: number;
   readonly endpointCapabilities: readonly string[];
   readonly retentionWindow?: ReplicaRetentionWindowPort;
   readonly pullCursorKeyring?: SyncPullCursorKeyring;

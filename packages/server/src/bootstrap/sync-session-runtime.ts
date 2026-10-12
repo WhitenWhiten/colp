@@ -163,7 +163,7 @@ export function createSyncSessionRuntime(
     sessionDurationSeconds: config.sessionDurationSeconds,
     replicaLeaseExtensionSeconds: config.replicaLeaseExtensionSeconds,
     tombstoneRetentionSeconds: config.tombstoneRetentionSeconds,
-    maxBatchOperations: 1,
+    maxBatchOperations: config.push.maxBatchOperations,
     endpointCapabilities: ['syncSnapshot', 'syncPush', 'syncPull', 'syncAck', 'syncConflict'],
     retentionWindow: createPostgresReplicaRetentionWindowPort(snapshotUrl ?? config.snapshot.path),
     pullCursorKeyring: pullCursorKeys,

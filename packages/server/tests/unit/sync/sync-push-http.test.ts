@@ -138,7 +138,7 @@ describe('P3-11 single-operation Sync Push HTTP admission', () => {
   test('loads a distinct config-backed syncPush path and fails closed on invalid configuration', () => {
     const loaded = loadConfig(syncEnv());
     assert.equal(loaded.syncSession?.push.path, '/colp/v0.1/sync/push');
-    assert.equal(loaded.syncSession?.push.maxBatchOperations, 1);
+    assert.equal(loaded.syncSession?.push.maxBatchOperations, 50);
     assert.equal(loaded.syncSession?.push.managedBookmarkWrites, false);
     assert.equal(loadConfig(syncEnv({ SYNC_MANAGED_BOOKMARK_WRITES: 'true' }))
       .syncSession?.push.managedBookmarkWrites, true);
@@ -153,7 +153,8 @@ describe('P3-11 single-operation Sync Push HTTP admission', () => {
       /SYNC_CONFLICT_RATE_LIMIT_MAX/u);
     assert.throws(() => loadConfig(syncEnv({ SYNC_PUSH_PATH: loaded.syncSession?.path })), /SYNC_PUSH_PATH/u);
     assert.throws(() => loadConfig(syncEnv({ SYNC_PUSH_RATE_LIMIT_MAX: '0' })), /SYNC_PUSH_RATE_LIMIT_MAX/u);
-    assert.throws(() => loadConfig(syncEnv({ SYNC_MAX_BATCH_OPERATIONS: '2' })), /SYNC_MAX_BATCH_OPERATIONS/u);
+    assert.equal(loadConfig(syncEnv({ SYNC_MAX_BATCH_OPERATIONS: '2' })).syncSession?.push.maxBatchOperations, 2);
+    assert.throws(() => loadConfig(syncEnv({ SYNC_MAX_BATCH_OPERATIONS: '51' })), /SYNC_MAX_BATCH_OPERATIONS/u);
     assert.throws(() => loadConfig(syncEnv({ SYNC_MANAGED_BOOKMARK_WRITES: 'yes' })),
       /SYNC_MANAGED_BOOKMARK_WRITES/u);
     const app = Fastify({ logger: false });

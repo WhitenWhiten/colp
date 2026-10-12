@@ -15,7 +15,7 @@ import { registerSyncPushRoutes } from '../../../src/transport/colp-sync/sync-pu
 import type { SyncPushHttpApplication } from '../../../src/modules/sync/index.js';
 import { createSyncSessionBlackBoxClient } from '../../support/sync-session-black-box-client.js';
 import { mintVerifiedExtensionCredentialFixture } from '../../support/extension-credential.js';
-import { syncPushAdmissionRequest } from '../../fixtures/phase3/sync-push-admission.js';
+import { syncPushAdmissionRequest, syncNodeCreatePushRequest } from '../../fixtures/phase3/sync-push-admission.js';
 import { syncNodeDeletePushRequest } from '../../fixtures/phase3/sync-node-delete.js';
 import {
   RESOURCE_PAYLOAD_SCHEMA_VERSION,
@@ -120,7 +120,7 @@ describeWithPostgres('P3-11 real HTTP/PostgreSQL single-operation Push admission
   })));
   afterAll(async () => isolated?.close());
 
-  async function context(sessionDurationSeconds = 900) {
+  async function context(sessionDurationSeconds = 900, maxBatchOperations = 1) {
     const suffix = randomUUID();
     const contextCredential = await mintVerifiedExtensionCredentialFixture({
       issuer: ISSUER, audience: 'known-api', clientId: 'known-extension',
@@ -135,7 +135,7 @@ describeWithPostgres('P3-11 real HTTP/PostgreSQL single-operation Push admission
       replicaName: 'Push replica', kind: 'browser_extension',
       adapter: { profile: 'chromium-bookmarks-v1', version: '1.0.0' },
       capabilities: { read: true, write: true, events: true, separator: true,
-        alias: false, annotations: 'sidecar', maxBatchOperations: 1 },
+        alias: false, annotations: 'sidecar', maxBatchOperations },
       binding: { browserProfileId: `push-http-profile-${suffix}`, mountMode: 'whole-profile',
         browserGeneration: `push-http-generation-${suffix}` },
       leaseDurationSeconds: 3_600,
@@ -144,7 +144,7 @@ describeWithPostgres('P3-11 real HTTP/PostgreSQL single-operation Push admission
       issuer: ISSUER, audience: 'known-api', clientId: 'known-extension',
       replayEncryptionKey: Buffer.alloc(32, 41), replayEncryptionKeyVersion: 1,
       sessionDurationSeconds, replicaLeaseExtensionSeconds: 3_600,
-      tombstoneRetentionSeconds: 86_400, maxBatchOperations: 1,
+      tombstoneRetentionSeconds: 86_400, maxBatchOperations,
       endpointCapabilities: ['syncSnapshot', 'syncPush', 'syncPull', 'syncAck', 'syncConflict'],
     });
     const issued = await issuer.issue({
@@ -158,6 +158,7 @@ describeWithPostgres('P3-11 real HTTP/PostgreSQL single-operation Push admission
   }
 
   async function start(value: Awaited<ReturnType<typeof context>>, options: {
+    readonly maxBatchOperations?: number;
     readonly responseGate?: Promise<void>;
     readonly onResponseGate?: () => void;
     readonly database?: DatabaseRuntime['db'];
@@ -184,7 +185,7 @@ describeWithPostgres('P3-11 real HTTP/PostgreSQL single-operation Push admission
       application: options.application
         ?? createPostgresSyncPushApplication(options.database ?? isolated.runtime.db, value.issuer),
       rateLimit: { maxRequests: 100, windowMs: 60_000 }, allowInsecureLoopback: true,
-      maxBatchOperations: 1,
+      maxBatchOperations: options.maxBatchOperations ?? 1,
     });
     app.get('/.well-known/collection-protocol', async () => {
       const address = app.server.address();
@@ -260,6 +261,82 @@ describeWithPostgres('P3-11 real HTTP/PostgreSQL single-operation Push admission
     return { rootId: rows[0]!.id, rootRevision: rows[0]!.revision,
       memberIds: rows.map((row) => row.id) };
   }
+
+
+  function createBatch(value: Awaited<ReturnType<typeof context>>, count: number) {
+    const requests = Array.from({ length: count }, (_, index) => syncNodeCreatePushRequest({
+      sessionId: value.session.sessionId, replicaId: value.replica.replicaId, collectionId: COLLECTION,
+      opId: `batch-create-${randomUUID()}`, sequence: index + 1, parentId: 'push-http-node',
+      node: { kind: 'bookmark', title: `Batched bookmark ${index}`, url: `https://example.test/batch/${index}` },
+    }));
+    return { ...requests[0]!, operations: requests.flatMap(request => request.operations) };
+  }
+
+  test('batch Push commits in order, replays concurrently and recovers singleton receipts without duplicate nodes', async () => {
+    const value = await context(900, 50); const server = await start(value, { maxBatchOperations: 50 });
+    const request = createBatch(value, 50);
+    const results = await Promise.all([1, 2].map(() => client(server.origin).push({
+      idempotencyKey: 'batch-http-retry', request,
+    })));
+    assert.ok(results.every(result => result.status === 200), JSON.stringify(results.map(result => result.body)));
+    const original = results[0]!.body as SyncPushResult;
+    assert.equal(original.results.length, 50);
+    assert.deepEqual(results[1]!.body, original);
+    await server.app.close();
+    const restarted = await start(value, { maxBatchOperations: 50 });
+    for (const operation of request.operations) {
+      const recovered = await client(restarted.origin).push({ idempotencyKey: operation.opId,
+        request: { ...request, operations: [operation] } });
+      assert.equal(recovered.status, 200);
+      assert.deepEqual((recovered.body as SyncPushResult).results[0],
+        original.results.find(result => result.opId === operation.opId));
+    }
+    const receipts = await isolated.runtime.pool.query(`select sequence_number from sync_sequence_receipts
+      where replica_id=$1 order by sequence_number`, [value.replica.replicaId]);
+    assert.deepEqual(receipts.rows.map(row => Number(row.sequence_number)), Array.from({ length: 50 }, (_, index) => index + 1));
+    const nodes = await isolated.runtime.pool.query(`select count(*)::int count from nodes where id=any($1::text[])`,
+      [original.results.map(result => result.targetId)]);
+    assert.equal(nodes.rows[0].count, 50);
+    const changed = await client(restarted.origin).push({ idempotencyKey: 'batch-http-retry',
+      request: { ...request, operations: request.operations.slice(0, 49) } });
+    assert.equal(changed.status, 409); assert.equal(problem(changed.body).code, 'idempotency_key_reused');
+  });
+
+  test('a batch failure preserves its committed prefix and singleton retries discover it', async () => {
+    const value = await context(900, 50); const server = await start(value, { maxBatchOperations: 50 });
+    const request = createBatch(value, 3);
+    request.operations[1]!.payload = { ...request.operations[1]!.payload, parentId: 'missing-batch-parent' };
+    const response = await client(server.origin).push({ idempotencyKey: 'batch-prefix', request });
+    assert.equal(response.status, 404);
+    const receipts = await isolated.runtime.pool.query(`select operation_id from sync_sequence_receipts where replica_id=$1`,
+      [value.replica.replicaId]);
+    assert.deepEqual(receipts.rows.map(row => row.operation_id), [request.operations[0]!.opId]);
+    const recovered = await client(server.origin).push({ idempotencyKey: request.operations[0]!.opId,
+      request: { ...request, operations: [request.operations[0]!] } });
+    assert.equal(recovered.status, 200);
+    const count = await isolated.runtime.pool.query(`select count(*)::int count from operations where operation_id=$1`,
+      [request.operations[0]!.opId]);
+    assert.equal(count.rows[0].count, 1);
+  });
+
+  test('batch preflight rejects atomic, mixed-scope, duplicate and non-contiguous arrays before mutations', async () => {
+    const value = await context(900, 50); const server = await start(value, { maxBatchOperations: 50 });
+    const original = createBatch(value, 2);
+    const mutations = [
+      { ...original, atomic: true },
+      { ...original, operations: [original.operations[0]!, { ...original.operations[1]!, collectionId: OTHER_COLLECTION }] },
+      { ...original, operations: [original.operations[0]!, { ...original.operations[1]!, replicaId: 'other-batch-replica' }] },
+      { ...original, operations: [original.operations[0]!, { ...original.operations[1]!, opId: original.operations[0]!.opId }] },
+      { ...original, operations: [original.operations[0]!, { ...original.operations[1]!, sequence: 3 }] },
+    ];
+    for (const request of mutations) {
+      const response = await client(server.origin).push({ idempotencyKey: 'batch-preflight', request });
+      assert.equal(response.status, 422); assert.equal(problem(response.body).code, 'invalid_document');
+    }
+    const count = await isolated.runtime.pool.query(`select count(*)::int count from sync_sequence_receipts where replica_id=$1`,
+      [value.replica.replicaId]);
+    assert.equal(count.rows[0].count, 0);
+  });
 
   test('routes a schema-valid operation through Sequence then rolls back unsupported evaluator side effects', async () => {
     const value = await context();

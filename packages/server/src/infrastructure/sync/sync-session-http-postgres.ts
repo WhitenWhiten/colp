@@ -16,6 +16,7 @@ import {
 } from '../../modules/sync/index.js';
 import type { PostgresSyncSessionIssuer } from './sync-session-postgres.js';
 import { createPostgresReplicaStore, ReplicaIdAlreadyReservedError } from './replica-postgres.js';
+import { lockCollectionReplicaGate } from '../database/lock-order.js';
 import { createUnitOfWork, type DatabaseTransaction } from '../database/unit-of-work.js';
 import {
   bindSessionTransportBudget,
@@ -108,6 +109,7 @@ async function issueInUnitOfWork(
       ];
       if (requestedScopes.length < 1) throw new SyncSessionHttpError('insufficient_scope');
 
+      await lockCollectionReplicaGate(db, collection.id);
       if (options.registerUnknownGenerationOneReplica === true) {
         const registrationLock = JSON.stringify([
           identity.account_id, collection.id, request.replica.replicaId,
@@ -141,6 +143,15 @@ async function issueInUnitOfWork(
           || replica.browser_profile_id !== binding.browserProfileId
           || replica.browser_generation !== binding.generation) {
         throw new SyncSessionHttpError('stale_replica');
+      }
+      // Updating this transport declaration does not grant new read/write
+      // authority. Keep existing installations eligible after an extension update.
+      const batchLimit = Math.min(50, request.replica.capabilities.maxBatchOperations);
+      if (batchLimit > Number(replica.capabilities_json.maxBatchOperations)) {
+        await db.updateTable('sync_replicas').set({
+          capabilities_json: sql`jsonb_set(capabilities_json, '{maxBatchOperations}', ${String(batchLimit)}::jsonb)`,
+          wire_json: sql`jsonb_set(wire_json, '{capabilities,maxBatchOperations}', ${String(batchLimit)}::jsonb)`,
+        }).where('replica_id', '=', replica.replica_id).execute();
       }
       const baseIssueInput: SyncSessionIssueInput = {
           credential: input.credential,
@@ -261,7 +272,7 @@ function toColpResponse(
     clockSkewMilliseconds: skew,
     acceptedProtocolVersion: envelope.acceptedProtocolVersion,
     scope: 'collection' as const,
-    maxBatchOperations: envelope.maxBatchOperations,
+    maxBatchOperations: Math.min(envelope.maxBatchOperations, request.replica.capabilities.maxBatchOperations),
     tombstoneRetentionSeconds: envelope.tombstoneRetentionSeconds,
     replicaLease: Object.freeze({ ...envelope.replicaLease }),
     collection: Object.freeze({

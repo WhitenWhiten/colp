@@ -99,7 +99,8 @@ export async function lockAuthority(
     && input.session.authorizationScopes.includes('sync:push')
     && replica.status === 'active'
     && replica.capabilities_json.write === true
-    && replica.capabilities_json.maxBatchOperations === 1
+    && Number.isSafeInteger(replica.capabilities_json.maxBatchOperations)
+    && Number(replica.capabilities_json.maxBatchOperations) >= 1
     && replica.account_id === session.account_id
     && replica.collection_id === session.collection_id
     && BigInt(replica.lease_generation) === BigInt(session.lease_generation)

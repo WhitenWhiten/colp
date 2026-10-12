@@ -32,7 +32,7 @@ export interface SyncPushRouteDependencies {
   readonly application: SyncPushHttpApplication;
   readonly allowedOrigins: readonly string[];
   readonly rateLimit: { readonly maxRequests: number; readonly windowMs: number };
-  readonly maxBatchOperations: 1;
+  readonly maxBatchOperations: number;
   readonly bodyLimitBytes?: number;
   readonly maxJsonDepth?: number;
   readonly maxJsonMembers?: number;
@@ -132,7 +132,7 @@ export function registerSyncPushRoutes(app: FastifyInstance, dependencies: SyncP
         const structural = createValidatorRegistry().validate('syncPush', document);
         if (!structural.valid) throw new SyncPushHttpError('invalid_document');
         const push = document as SyncPush;
-        if (dependencies.maxBatchOperations !== 1 || push.operations.length !== 1) {
+        if (push.operations.length < 1 || push.operations.length > dependencies.maxBatchOperations) {
           throw new SyncPushHttpError('invalid_document');
         }
         // Session-bound batchId contract (F021): `batchId === sessionId` or
@@ -297,8 +297,9 @@ function sendProblem(reply: FastifyReply, error: SyncPushHttpError) {
 }
 
 function validResponseSemantics(result: SyncPushResult, request: SyncPush): boolean {
-  return result.results.length === 1 && result.results[0]?.opId === request.operations[0]?.opId
-    && result.results[0]?.sequence === request.operations[0]?.sequence;
+  return result.results.length === request.operations.length
+    && result.results.every((item, index) => item.opId === request.operations[index]?.opId
+      && item.sequence === request.operations[index]?.sequence);
 }
 
 function canonicalJson(value: unknown): string {

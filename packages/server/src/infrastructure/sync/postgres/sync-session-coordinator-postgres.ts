@@ -268,7 +268,7 @@ export async function issueInTransaction(
     serverTime: formatInstant(authority.now),
     acceptedProtocolVersion: input.protocolVersion ?? '0.1',
     scope: 'collection',
-    maxBatchOperations: options.maxBatchOperations,
+    maxBatchOperations: Math.min(options.maxBatchOperations, Number(renewed.capabilities_json.maxBatchOperations)),
     tombstoneRetentionSeconds: options.tombstoneRetentionSeconds,
     batchBindingSecret,
     endpointCapability,

@@ -177,9 +177,6 @@ export async function loadAuthority(
   }
   assertReplicaWire(replica);
   if (!sameBinding(replica, input)) throw new SyncSessionIssueError('stale_replica');
-  if (replica.capabilities_json.maxBatchOperations !== 1 || options.maxBatchOperations !== 1) {
-    throw new SyncSessionIssueError('stale_replica');
-  }
   return Object.freeze({
     accountId: identity.account_id,
     subjectId: identity.subject_id,

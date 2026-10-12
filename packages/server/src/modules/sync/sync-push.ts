@@ -16,7 +16,7 @@ export interface SyncPushHttpApplication {
   readonly runtimeOwnership: {
     readonly operationIdReservationOwner: 'sequence';
     readonly usesPushCoordinator: false;
-    readonly maxBatchOperations: 1;
+    readonly maxBatchOperations: number;
     readonly evaluator: 'canonical_node_create' | 'canonical_node_create_update'
       | 'canonical_node_create_update_move' | 'canonical_node_create_update_move_delete';
     readonly trustedBaseOwner?: 'sync_node_revision_history';
@@ -30,8 +30,10 @@ export function probeSyncPushRuntimeOwnership(
   maxBatchOperations: number,
 ): SyncPushHttpApplication['runtimeOwnership'] {
   const ownership = application.runtimeOwnership;
-  if (maxBatchOperations !== 1 || ownership.operationIdReservationOwner !== 'sequence'
-      || ownership.usesPushCoordinator !== false || ownership.maxBatchOperations !== 1
+  if (!Number.isSafeInteger(maxBatchOperations) || maxBatchOperations < 1 || maxBatchOperations > 50
+      || ownership.operationIdReservationOwner !== 'sequence'
+      || ownership.usesPushCoordinator !== false || !Number.isSafeInteger(ownership.maxBatchOperations)
+      || ownership.maxBatchOperations < maxBatchOperations || ownership.maxBatchOperations > 50
       || (ownership.evaluator !== 'canonical_node_create'
         && ownership.evaluator !== 'canonical_node_create_update'
         && ownership.evaluator !== 'canonical_node_create_update_move'

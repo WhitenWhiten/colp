@@ -1,7 +1,9 @@
+import { admitPushBatch } from './postgres/sync-push-batch-postgres.js';
 import { assertOperationIdClaimed } from './postgres/sync-push-repository-postgres.js';
 import { SnapshotTreeCapacityError } from '../../modules/collections/index.js';
 import { createHmac } from 'node:crypto';
 import type { Kysely } from 'kysely';
+import type { VerifiedSyncSession } from '@know-n/colp/sync';
 import { collectionSequenceScopeKey } from '@know-n/colp/sync';
 import type { SyncPushResult } from '@know-n/colp/types';
 import type { DatabaseSchema } from '../database/runtime.js';
@@ -23,9 +25,7 @@ import {
   SyncSequencePersistenceError,
 } from './sync-sequence-postgres.js';
 import {
-  coarseConcealment,
   mapSequenceError,
-  mapSessionError,
   sessionLeaseGeneration,
   singleOperation,
   unwrapCoordinatedResult,
@@ -79,100 +79,90 @@ export function createPostgresSyncPushApplication(
     runtimeOwnership: Object.freeze({
       operationIdReservationOwner: 'sequence' as const,
       usesPushCoordinator: false as const,
-      maxBatchOperations: 1 as const,
+      maxBatchOperations: 50,
       evaluator: 'canonical_node_create_update_move_delete' as const,
       trustedBaseOwner: 'sync_node_revision_history' as const,
       conflictBoundary: 'persisted_open' as const,
     }),
-    async admit(input: SyncPushHttpApplicationInput): Promise<SyncPushResult> {
-      const operation = singleOperation(input);
-      await coarseConcealment(db, input);
-      let session;
-      try {
-        session = await sessionIssuer.verify({
-          credential: input.credential,
-          sessionId: input.request.sessionId,
-          collectionId: operation.collectionId!,
-          replicaId: operation.replicaId,
-        });
-      } catch (error) {
-        throw mapSessionError(error);
-      }
-      const persisted = await db.selectFrom('sync_sessions').select('secret_digest')
-        .where('session_id', '=', session.sessionId).executeTakeFirst();
-      if (!persisted) throw new SyncPushHttpError('resource_not_found');
-      const serverBatchId = `${session.sessionId}.${createHmac('sha256', persisted.secret_digest)
-        .update('known.sync-push.batch.v1\0', 'utf8')
-        .update(input.idempotencyKey, 'utf8').digest('base64url')}`;
-      // SYNC-R02: managed-bookmarks ancestry writes need the deployment
-      // capability AND the transaction-local Replica write capability. The
-      // Sequence coordinator re-verifies `capabilities_json.write` inside the
-      // same transaction before any evaluator runs; the session scope below is
-      // the same fact minted from that capability.
-      const managedAncestry: ManagedAncestryCapabilities = Object.freeze({
-        managedBookmarkWrites: options.managedBookmarkWrites === true,
-        replicaWrite: session.authorizationScopes.includes('sync:push'),
-      });
-      try {
-        const coordinated = await sequence.coordinateAuthorized<SyncPushResult>({
-          session,
-          replicaId: operation.replicaId,
-          leaseGeneration: await sessionLeaseGeneration(db, session.sessionId),
-          sequenceScope: collectionSequenceScopeKey(operation.collectionId!),
-          sequence: operation.sequence,
-          operationId: operation.opId,
-          serverBatchId,
-          mediaType: input.mediaType,
-          endpointIdentity: input.endpointIdentity,
-          // Client batchId is intentionally excluded from Sequence receipt authority.
-          payload: Object.freeze({ atomic: input.request.atomic, operation }),
-          // A same-binding retry may re-evaluate a durable deferred receipt. The
-          // Sequence coordinator still returns the stored result unless the
-          // evaluator can atomically transition it to a terminal outcome.
-          reevaluateDeferred: true,
-          transactionalAuthority: Object.freeze({
-            credential: input.credential,
-            origin: input.origin,
-          }),
-        }, async (_context, transaction) => {
-          if (operation.type === 'create_node') {
-            return evaluateCanonicalNodeCreate(operation, serverBatchId, transaction, options, managedAncestry);
-          }
-          if (operation.type === 'update_node_content') {
-            return evaluateCanonicalNodeUpdate(
-              operation, serverBatchId, session.sessionId, transaction, options, managedAncestry,
-            );
-          }
-          if (operation.type === 'move_node') {
-            return evaluateCanonicalNodeMove(operation, serverBatchId, transaction, options, managedAncestry);
-          }
-          if (operation.type === 'delete_node' || operation.type === 'delete_subtree') {
-            return evaluateCanonicalNodeDelete(operation, serverBatchId, transaction, options, managedAncestry);
-          }
-          if (operation.type === 'restore_node') {
-            return evaluateCanonicalNodeRestore(operation, serverBatchId, transaction, options, managedAncestry);
-          }
-          return evaluateUnsupportedSyncOperation();
-        });
-        return wrapPushAttemptResult(unwrapCoordinatedResult(coordinated.result), serverBatchId);
-      } catch (error) {
-        if (error instanceof SnapshotTreeCapacityError) throw new SyncPushHttpError('payload_too_large');
-        if (error instanceof SyncPushHttpError) throw error;
-        if (error instanceof ManagedAncestryPolicyError) throw new SyncPushHttpError(error.code);
-        if (error instanceof SyncSequencePersistenceError) throw mapSequenceError(error);
-        // A batchId that violates the Session binding contract is a recognized
-        // document problem (4xx), never an unclassified internal fault (F021).
-        if (error instanceof SyncSequenceBatchBindingError) {
-          throw new SyncPushHttpError('invalid_document');
-        }
-        if (error instanceof DatabaseOperationError) throw error;
-        // Keep the original failure as the cause so the route can record the
-        // unrecognized error (e.g. a COLP fail-closed assertion) that the
-        // stable internal_error Problem deliberately hides from the client.
-        throw new SyncPushHttpError('internal_error', undefined, undefined, { cause: error });
-      }
-    },
+    admit: (input: SyncPushHttpApplicationInput) => admitPushBatch(db, sessionIssuer, input, admitSingle),
   });
+
+  async function admitSingle(input: SyncPushHttpApplicationInput, session: VerifiedSyncSession): Promise<SyncPushResult> {
+    const operation = singleOperation(input);
+    const persisted = await db.selectFrom('sync_sessions').select('secret_digest')
+      .where('session_id', '=', session.sessionId).executeTakeFirst();
+    if (!persisted) throw new SyncPushHttpError('resource_not_found');
+    const serverBatchId = `${session.sessionId}.${createHmac('sha256', persisted.secret_digest)
+      .update('known.sync-push.batch.v1\0', 'utf8')
+      .update(input.idempotencyKey, 'utf8').digest('base64url')}`;
+    // SYNC-R02: managed-bookmarks ancestry writes need the deployment
+    // capability AND the transaction-local Replica write capability. The
+    // Sequence coordinator re-verifies `capabilities_json.write` inside the
+    // same transaction before any evaluator runs; the session scope below is
+    // the same fact minted from that capability.
+    const managedAncestry: ManagedAncestryCapabilities = Object.freeze({
+      managedBookmarkWrites: options.managedBookmarkWrites === true,
+      replicaWrite: session.authorizationScopes.includes('sync:push'),
+    });
+    try {
+      const coordinated = await sequence.coordinateAuthorized<SyncPushResult>({
+        session,
+        replicaId: operation.replicaId,
+        leaseGeneration: await sessionLeaseGeneration(db, session.sessionId),
+        sequenceScope: collectionSequenceScopeKey(operation.collectionId!),
+        sequence: operation.sequence,
+        operationId: operation.opId,
+        serverBatchId,
+        mediaType: input.mediaType,
+        endpointIdentity: input.endpointIdentity,
+        // Client batchId is intentionally excluded from Sequence receipt authority.
+        payload: Object.freeze({ atomic: input.request.atomic, operation }),
+        // A same-binding retry may re-evaluate a durable deferred receipt. The
+        // Sequence coordinator still returns the stored result unless the
+        // evaluator can atomically transition it to a terminal outcome.
+        reevaluateDeferred: true,
+        transactionalAuthority: Object.freeze({
+          credential: input.credential,
+          origin: input.origin,
+        }),
+      }, async (_context, transaction) => {
+        if (operation.type === 'create_node') {
+          return evaluateCanonicalNodeCreate(operation, serverBatchId, transaction, options, managedAncestry);
+        }
+        if (operation.type === 'update_node_content') {
+          return evaluateCanonicalNodeUpdate(
+            operation, serverBatchId, session.sessionId, transaction, options, managedAncestry,
+          );
+        }
+        if (operation.type === 'move_node') {
+          return evaluateCanonicalNodeMove(operation, serverBatchId, transaction, options, managedAncestry);
+        }
+        if (operation.type === 'delete_node' || operation.type === 'delete_subtree') {
+          return evaluateCanonicalNodeDelete(operation, serverBatchId, transaction, options, managedAncestry);
+        }
+        if (operation.type === 'restore_node') {
+          return evaluateCanonicalNodeRestore(operation, serverBatchId, transaction, options, managedAncestry);
+        }
+        return evaluateUnsupportedSyncOperation();
+      });
+      return wrapPushAttemptResult(unwrapCoordinatedResult(coordinated.result), serverBatchId);
+    } catch (error) {
+      if (error instanceof SnapshotTreeCapacityError) throw new SyncPushHttpError('payload_too_large');
+      if (error instanceof SyncPushHttpError) throw error;
+      if (error instanceof ManagedAncestryPolicyError) throw new SyncPushHttpError(error.code);
+      if (error instanceof SyncSequencePersistenceError) throw mapSequenceError(error);
+      // A batchId that violates the Session binding contract is a recognized
+      // document problem (4xx), never an unclassified internal fault (F021).
+      if (error instanceof SyncSequenceBatchBindingError) {
+        throw new SyncPushHttpError('invalid_document');
+      }
+      if (error instanceof DatabaseOperationError) throw error;
+      // Keep the original failure as the cause so the route can record the
+      // unrecognized error (e.g. a COLP fail-closed assertion) that the
+      // stable internal_error Problem deliberately hides from the client.
+      throw new SyncPushHttpError('internal_error', undefined, undefined, { cause: error });
+    }
+  }
 }
 
 async function evaluateCanonicalNodeRestore(

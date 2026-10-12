@@ -82,7 +82,7 @@ export interface PublicationManifestConfig {
   readonly syncRetire?: { readonly href: string };
   readonly sync?: {
     readonly multiCollectionSessions: false;
-    readonly maxBatchOperations: 1;
+    readonly maxBatchOperations: number;
     readonly cursorRetentionSeconds: number;
   };
 }
@@ -187,8 +187,8 @@ export function createPublicationManifestCandidate(
         maxSnapshotNodes: config.maxSnapshotNodes,
         minPollIntervalSeconds: 60,
         recommendedPollIntervalSeconds: 300,
+        ...(config.sync && implemented.has('syncPush') ? { maxSyncBatchOperations: config.sync.maxBatchOperations } : {}),
         ...(syncProfileClaims ? {
-          maxSyncBatchOperations: config.sync!.maxBatchOperations,
           syncCursorRetentionSeconds: config.sync!.cursorRetentionSeconds,
         } : {}),
       },
@@ -257,7 +257,8 @@ function assertConfig(config: PublicationManifestConfig): void {
     throw new Error('Publication max snapshot nodes must cover at least one page');
   }
   if (config.sync !== undefined && (config.sync.multiCollectionSessions !== false
-      || config.sync.maxBatchOperations !== 1
+      || !Number.isSafeInteger(config.sync.maxBatchOperations)
+      || config.sync.maxBatchOperations < 1 || config.sync.maxBatchOperations > 50
       || !Number.isSafeInteger(config.sync.cursorRetentionSeconds)
       || config.sync.cursorRetentionSeconds < TOMBSTONE_RETENTION_BOUNDS.minSeconds)) {
     throw new Error('Publication Sync Manifest capability configuration is invalid');
