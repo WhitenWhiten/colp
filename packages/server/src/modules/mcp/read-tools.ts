@@ -50,6 +50,7 @@ import {
   MCP_OAUTH_SCOPE_READ_PUBLIC,
 } from './scope-requirements.js';
 import type { Phase4bMcpSnapshotResourceProjection } from './snapshot-resources.js';
+import { createStaticMcpToolLookup, type StaticMcpToolLookup } from './static-tool-lookup.js';
 
 export const PHASE4B_MCP_READ_TOOL_COLLECTION_ID_HEADER = 'X-Collection-Id' as const;
 export const PHASE4B_MCP_READ_TOOL_SCHEMA_BUDGET = DEFAULT_MCP_SCHEMA_BUDGET;
@@ -192,7 +193,7 @@ export const PHASE4B_MCP_READ_TOOL_PARAM_DECLARATIONS: readonly Mcp20260728XMcpH
   })));
 
 export interface Phase4bMcpReadToolAdapterBundle {
-  readonly adapter: Mcp20260728ReadToolAdapter;
+  readonly adapter: Mcp20260728ReadToolAdapter & Partial<StaticMcpToolLookup>;
   readonly paramDeclarations: readonly Mcp20260728XMcpHeaderDeclaration[];
 }
 
@@ -302,18 +303,20 @@ export function createPhase4bMcpReadToolAdapter(
     serverInfo: resolvePhase4bMcpServerInfo(options.writeEnabled === true),
     schemaBudget: PHASE4B_MCP_READ_TOOL_SCHEMA_BUDGET,
   });
-  const gatedAdapter: Mcp20260728ReadToolAdapter = Object.freeze({
-    listTools: async (context: Mcp20260728RequestContext, input?: unknown) => {
-      if (!canAccessPhase4bMcpReadTools(context)) {
-        return createMcp20260728Result({
-          method: 'tools/list',
-          serverInfo: resolvePhase4bMcpServerInfo(options.writeEnabled === true),
-          fields: { tools: Object.freeze([]) },
-          cache: { ttlMs: 0, cacheScope: 'private' },
-        });
-      }
-      return adapter.listTools(context, input);
-    },
+  const lookup = createStaticMcpToolLookup(async (context, input) => {
+    if (!canAccessPhase4bMcpReadTools(context)) {
+      return createMcp20260728Result({
+        method: 'tools/list',
+        serverInfo: resolvePhase4bMcpServerInfo(options.writeEnabled === true),
+        fields: { tools: Object.freeze([]) },
+        cache: { ttlMs: 0, cacheScope: 'private' },
+      });
+    }
+    return adapter.listTools(context, input);
+  }, (context, name) => canAccessPhase4bMcpReadTools(context)
+    && (PHASE4B_MCP_READ_TOOL_NAMES as readonly string[]).includes(name));
+  const gatedAdapter = Object.freeze({
+    ...lookup,
     callTool: async (context: Mcp20260728RequestContext, input?: unknown) => {
       requireReadToolScope(context);
       return adapter.callTool(context, input);

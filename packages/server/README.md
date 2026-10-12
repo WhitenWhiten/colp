@@ -32,6 +32,11 @@ still checks current permissions. Private data reads stay at zero TTL. Use
 notifications do not contain a complete data delta. Clients can load tool
 definitions into the model on demand without broadening OAuth permissions.
 
+On the server, host tool definitions are indexed lazily per adapter instance
+and reused by name during calls. Visibility is checked against the current
+request each time; caller catalogs and authorization decisions are not cached.
+Custom adapters without direct lookup continue to use their live tool lists.
+
 For bulk reads, process pages in a script and return only the requested
 summary to the conversation. A publication's HTTP snapshot link still needs
 authorization where applicable, pagination and completeness checks. Reuse

@@ -10,13 +10,21 @@ import { AUDIENCE, staticJwksProvider, verifierOptions } from '../../support/pha
 
 test('the official client caches its HTTP catalog but revocation still prevents writes', async () => {
   const fixture = createWriteFixture();
+  let serverCatalogBuilds = 0;
+  const writeFixture = { ...fixture, bundle: { ...fixture.bundle, adapter: {
+    ...fixture.bundle.adapter,
+    async listTools(...args: Parameters<typeof fixture.bundle.adapter.listTools>) {
+      serverCatalogBuilds += 1;
+      return fixture.bundle.adapter.listTools(...args);
+    },
+  } } };
   const auth = await signedCompatWriteClient();
   let revoked = false;
   const verifier = createMcpOauthVerifier(verifierOptions({
     allowedScopes: [...COMPAT_WRITE_SCOPES], audience: [AUDIENCE, `${AUDIENCE}-compat`],
     jwks: staticJwksProvider([auth.key.jwk]), isRevoked: async () => revoked,
   }));
-  const server = startCompatWriteApp({ writeFixture: fixture, verifier });
+  const server = startCompatWriteApp({ writeFixture, verifier });
   const statuses: number[] = [];
   server.app.addHook('onResponse', async (_request, reply) => { statuses.push(reply.statusCode); });
   let catalogRequests = 0;
@@ -37,10 +45,13 @@ test('the official client caches its HTTP catalog but revocation still prevents 
     assert.equal((created.structuredContent as { applied: boolean }).applied, true);
     assert.equal(collectionHeader, 'collection-1', 'the SDK must mirror the advertised routing parameter');
     assert.equal(fixture.nodeCreateCalls.length, 1);
+    await client.callTool({ name: 'nodes.create', arguments: nodeCreateArguments('Second') });
+    assert.equal(serverCatalogBuilds, 1, 'tool calls must look up definitions without rebuilding the facade catalog');
+    assert.equal(fixture.nodeCreateCalls.length, 2);
     revoked = true;
     await assert.rejects(client.callTool({ name: 'nodes.create', arguments: nodeCreateArguments('Blocked') }));
     assert.equal(statuses.at(-1), 401);
-    assert.equal(fixture.nodeCreateCalls.length, 1, 'cached discovery must not authorize execution');
+    assert.equal(fixture.nodeCreateCalls.length, 2, 'cached discovery must not authorize execution');
   } finally {
     await client.close();
     await server.app.close();

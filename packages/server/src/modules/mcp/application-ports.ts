@@ -10,6 +10,11 @@ import type { McpApplicationToolDescriptor } from './application-catalog.js';
 import type { McpApplicationToolResult } from './application-results.js';
 
 export interface McpApplicationToolPort {
+  /** Optional direct lookup; visibility is evaluated for the current request. */
+  readonly getTool?: (
+    context: McpApplicationContext,
+    name: string,
+  ) => Promise<McpApplicationToolDescriptor | undefined>;
   readonly listTools: (
     context: McpApplicationContext,
     cursor?: string,
@@ -23,3 +28,18 @@ export interface McpApplicationToolPort {
 
 export type McpApplicationReadPort = McpApplicationToolPort;
 export type McpApplicationWritePort = McpApplicationToolPort;
+
+export async function findMcpApplicationTool(
+  catalog: Pick<McpApplicationToolPort, 'getTool'> & {
+    readonly listTools: (context: McpApplicationContext) => Promise<
+      readonly McpApplicationToolDescriptor[] | { readonly tools: readonly McpApplicationToolDescriptor[] }
+    >;
+  },
+  context: McpApplicationContext,
+  name: string,
+): Promise<McpApplicationToolDescriptor | undefined> {
+  if (catalog.getTool !== undefined) return catalog.getTool(context, name);
+  const listed = await catalog.listTools(context);
+  const tools = 'tools' in listed ? listed.tools : listed;
+  return tools.find((tool) => tool.name === name);
+}

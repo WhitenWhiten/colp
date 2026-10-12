@@ -27,6 +27,7 @@ import type {
   McpApplicationReadPort,
   McpApplicationWritePort,
 } from './application-ports.js';
+import { findMcpApplicationTool } from './application-ports.js';
 import type {
   McpApplicationResourceContents,
   McpApplicationResourceList,
@@ -50,6 +51,7 @@ import {
 } from './scope-requirements.js';
 
 export interface McpApplicationFacade {
+  readonly getTool?: McpApplicationReadPort['getTool'];
   readonly listTools: (
     context: McpApplicationContext,
     cursor?: string,
@@ -96,6 +98,24 @@ export function createPhase4bMcpApplicationFacade(
   const writePort = options.writePort;
   const ownedCollectionsQuery = options.ownedCollectionsQuery;
   const nodesSearch = options.nodesSearch;
+
+  const getTool = async (context: McpApplicationContext, name: string) => {
+    context.abortSignal.throwIfAborted();
+    if (name === PHASE4B_MCP_COLLECTIONS_LIST_TOOL_NAME) {
+      return canListOwnedCollectionsTool(context, ownedCollectionsQuery)
+        ? PHASE4B_MCP_COLLECTIONS_LIST_TOOL : undefined;
+    }
+    if (isApplicationWriteToolName(name)) {
+      return writePort !== undefined && canCallApplicationWriteTool(context, name)
+        ? findMcpApplicationTool(writePort, context, name) : undefined;
+    }
+    if (!canListApplicationReadTools(context)) return undefined;
+    if (name === NODES_SEARCH_TOOL_NAME) {
+      return nodesSearch !== undefined && context.scopes.includes(NODES_SEARCH_PROFILE_CLAIM.scope)
+        ? NODES_SEARCH_TOOL_DESCRIPTOR : undefined;
+    }
+    return findMcpApplicationTool(readPort, context, name);
+  };
 
   const listTools = async (
     context: McpApplicationContext,
@@ -203,6 +223,7 @@ export function createPhase4bMcpApplicationFacade(
   };
 
   return Object.freeze({
+    getTool,
     listTools,
     callTool,
     listResources,

@@ -2,6 +2,7 @@ import { createPhase4bMcpResult } from './results.js';
 import { withWriteReceipt, withWriteReceiptSchema } from './write-result-receipt.js';
 import { assertHostPlanOperations, narrowHostPlanSchema } from './plan-tool-schema.js';
 import { withApprovalInteraction, withApprovalSchema } from './approval-interaction.js';
+import { createStaticMcpToolLookup, type StaticMcpToolLookup } from './static-tool-lookup.js';
 import type { Phase4bMcpChangePlanService } from './change-plan-service.js';
 import { PHASE4B_MCP_MOVE_BATCH_LIMIT } from './change-plan-planner.js';
 import { MCP_OWN_DATA_DEFAULT_BUDGET, snapshotMcpOwnData as snapshotPhase4bData } from './own-data.js';
@@ -468,7 +469,7 @@ export const PHASE4B_MCP_WRITE_TOOL_PARAM_DECLARATIONS: readonly Mcp20260728XMcp
   );
 
 export interface Phase4bMcpWriteToolAdapterBundle {
-  readonly adapter: Mcp20260728WriteToolAdapter;
+  readonly adapter: Mcp20260728WriteToolAdapter & Partial<StaticMcpToolLookup>;
   readonly paramDeclarations: readonly Mcp20260728XMcpHeaderDeclaration[];
   readonly toolNames: typeof PHASE4B_MCP_WRITE_MOUNTED_TOOL_NAMES;
 }
@@ -564,13 +565,14 @@ function withMcpAccountSubject(
   adapter: Mcp20260728WriteToolAdapter,
   planCatalog?: Pick<Phase4bMcpChangePlanService, 'plan'>,
   planRevisions?: McpChangePlanRevisionPort,
-): Mcp20260728WriteToolAdapter {
-  const wrapped: Mcp20260728WriteToolAdapter = {
-    listTools: (context, input) =>
-      bindMcpAccountSubject(context, async () => {
-        const listed = await adapter.listTools(context, input);
-        return withHostWriteToolDescriptions(listed);
-      }),
+): Mcp20260728WriteToolAdapter & StaticMcpToolLookup {
+  const lookup = createStaticMcpToolLookup(
+    (context, input) => bindMcpAccountSubject(context, () => adapter.listTools(context, input)),
+    canCallPhase4bMcpWriteTool,
+    withHostWriteToolDescription,
+  );
+  const wrapped: Mcp20260728WriteToolAdapter & StaticMcpToolLookup = {
+    ...lookup,
     callTool: (context, input) =>
       bindMcpAccountSubject(context, async () => {
         const call = snapshotPhase4bData(input, MCP_OWN_DATA_DEFAULT_BUDGET) as Record<string, unknown>;
@@ -578,7 +580,7 @@ function withMcpAccountSubject(
           assertHostPlanOperations(call.arguments);
         }
         if (call.name === 'changes.plan' && planRevisions && canCallPhase4bMcpWriteTool(context, 'changes.plan')) {
-          await adapter.listTools(context, {});
+          await lookup.getTool(context, 'changes.plan');
           const args = call.arguments as { operations?: readonly unknown[] };
           for (const operation of Array.isArray(args?.operations) ? args.operations : []) {
             if (operation && typeof operation === 'object' && (operation as { type?: string }).type === 'set_visibility') {
@@ -590,7 +592,7 @@ function withMcpAccountSubject(
           }
         }
         if (planCatalog && (call.name === 'nodes.move' || call.name === 'nodes.delete_subtree')) {
-          await adapter.listTools(context, {});
+          await lookup.getTool(context, String(call.name));
           if (!canCallPhase4bMcpWriteTool(context, call.name)) {
             throw new TypeError('Missing nodes:write scope.');
           }
@@ -615,22 +617,14 @@ function withMcpAccountSubject(
   return Object.freeze(wrapped);
 }
 
-function withHostWriteToolDescriptions(listed: Mcp20260728Result): Mcp20260728Result {
-  const tools = listed.tools;
-  if (!Array.isArray(tools)) return listed;
-  return snapshotPhase4bData({
-    ...listed,
-    tools: Object.freeze(tools.map((tool) => {
-      if (typeof tool !== 'object' || tool === null) return tool;
-      const name = (tool as { name?: unknown }).name;
-      const description = name === 'changes.plan'
-        ? PHASE4B_MCP_CHANGES_PLAN_DESCRIPTION
-        : typeof name === 'string' ? PHASE4B_MCP_WRITE_TOOL_DESCRIPTIONS[name] : undefined;
-      const surfaced = withApprovalSchema(tool as Record<string, unknown>);
-      if (description === undefined) return surfaced;
-      return Object.freeze({ ...narrowHostPlanSchema(withWriteReceiptSchema(surfaced)), description });
-    })),
-  }, MCP_OWN_DATA_DEFAULT_BUDGET) as Mcp20260728Result;
+function withHostWriteToolDescription(tool: Readonly<Record<string, unknown>>): Readonly<Record<string, unknown>> {
+  const name = tool.name;
+  const description = name === 'changes.plan'
+    ? PHASE4B_MCP_CHANGES_PLAN_DESCRIPTION
+    : typeof name === 'string' ? PHASE4B_MCP_WRITE_TOOL_DESCRIPTIONS[name] : undefined;
+  const surfaced = withApprovalSchema(tool as Record<string, unknown>);
+  return snapshotPhase4bData(description === undefined ? surfaced
+    : { ...narrowHostPlanSchema(withWriteReceiptSchema(surfaced)), description }, MCP_OWN_DATA_DEFAULT_BUDGET) as Readonly<Record<string, unknown>>;
 }
 
 /**

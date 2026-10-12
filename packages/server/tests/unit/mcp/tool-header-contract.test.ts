@@ -28,4 +28,14 @@ test('search validates headers derived from its advertised schema, including opt
   await validateStrictToolParamHeaders(context, { name: 'nodes.search', arguments: { query: 'test' } }, [], facade);
   await assert.rejects(validateStrictToolParamHeaders(context, params, [], facade), { wireCode: -32020 });
   await assert.rejects(validateStrictToolParamHeaders(context, params, [{ ...headers[0]!, value: 'other' }], facade), { wireCode: -32020 });
+  const changed = { ...NODES_SEARCH_TOOL_DESCRIPTOR, inputSchema: {
+    type: 'object', properties: { collectionId: { type: 'string', 'x-mcp-header': 'X-New-Collection-Id' } },
+  } };
+  const dynamic = { listTools: async () => ({ tools: [changed] }) } as unknown as McpApplicationFacade;
+  await validateStrictToolParamHeaders(context, params, [{ ...headers[0]!, name: 'Mcp-Param-X-New-Collection-Id' }], dynamic);
+  await assert.rejects(validateStrictToolParamHeaders(context, params, headers, dynamic), { wireCode: -32020 });
+  const indexed = { getTool: async () => changed, listTools: async () => {
+    assert.fail('direct lookup must not list the full catalog');
+  } } as unknown as McpApplicationFacade;
+  await validateStrictToolParamHeaders(context, params, [{ ...headers[0]!, name: 'Mcp-Param-X-New-Collection-Id' }], indexed);
 });

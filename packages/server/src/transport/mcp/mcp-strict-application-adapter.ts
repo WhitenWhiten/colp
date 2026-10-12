@@ -36,6 +36,7 @@ import {
   createPhase4bMcpApplicationFacade,
   createPhase4bMcpRequestContext,
   createPhase4bMcpResult,
+  findMcpApplicationTool,
   isPhase4bMcpWriteErrorClass,
   toPhase4bMcpWriteRejectedResult,
   wireToolFromDescriptor,
@@ -47,6 +48,7 @@ import {
   type McpApplicationWritePort,
   type Phase4bMcpApplicationFacadeOptions,
   type Phase4bMcpWriteToolName,
+  type StaticMcpToolLookup,
 } from '../../modules/mcp/index.js';
 
 const PROTOCOL_VERSION_META_KEY = 'io.modelcontextprotocol/protocolVersion';
@@ -59,11 +61,10 @@ export async function validateStrictToolParamHeaders(
   headers: readonly Mcp20260728HeaderField[],
   facade: McpApplicationFacade,
 ): Promise<void> {
-  const listed = await facade.listTools(toMcpApplicationContextFromStrict(context));
-  const tool = listed.tools.find((candidate) => candidate.name === params?.name
-    && candidate.compatOnly !== true && !candidate.name.startsWith('known.moderation.'));
+  if (typeof params?.name !== 'string') return;
+  const tool = await findMcpApplicationTool(facade, toMcpApplicationContextFromStrict(context), params.name);
   // Dispatch owns unknown-tool rejection; there is no schema to validate.
-  if (tool === undefined) return;
+  if (tool === undefined || tool.compatOnly === true || tool.name.startsWith('known.moderation.')) return;
   const scan = scanMcp20260728XMcpHeaderDeclarations(materializeClosedMcpToolSchema(tool.inputSchema));
   if (!scan.valid) throw new TypeError('Invalid MCP tool header schema.');
   validateMcp20260728ParamHeaders(scan.declarations, params?.arguments ?? {}, parseMcp20260728RequestHeaders(headers).params);
@@ -100,9 +101,10 @@ export function toMcpApplicationContextFromStrict(
 }
 
 export function toNeutralReadPort(
-  adapter: Mcp20260728ReadToolAdapter,
+  adapter: Mcp20260728ReadToolAdapter & Partial<StaticMcpToolLookup>,
 ): McpApplicationReadPort {
   return Object.freeze({
+    ...neutralToolLookup(adapter, readListedToolDescriptor),
     listTools: async (context: McpApplicationContext, cursor?: string) => {
       const listed = await adapter.listTools(
         toStrictListContext(context, 'tools/list'),
@@ -119,9 +121,10 @@ export function toNeutralReadPort(
 }
 
 export function toNeutralWritePort(
-  adapter: Mcp20260728WriteToolAdapter,
+  adapter: Mcp20260728WriteToolAdapter & Partial<StaticMcpToolLookup>,
 ): McpApplicationWritePort {
   return Object.freeze({
+    ...neutralToolLookup(adapter, writeListedToolDescriptor),
     listTools: async (context: McpApplicationContext, cursor?: string) => {
       const listed = await adapter.listTools(
         toStrictListContext(context, 'tools/list'),
@@ -135,6 +138,26 @@ export function toNeutralWritePort(
       args: Readonly<Record<string, unknown>>,
     ) => callColpTool(adapter, context, name, args, true),
   });
+}
+
+function neutralToolLookup(
+  adapter: Partial<StaticMcpToolLookup>,
+  describe: (tool: Readonly<Record<string, unknown>>) => McpApplicationToolDescriptor,
+): Pick<McpApplicationReadPort, 'getTool'> {
+  if (adapter.getTool === undefined) return {};
+  const definitions = new WeakMap<object, McpApplicationToolDescriptor>();
+  return {
+    async getTool(context, name) {
+      const tool = await adapter.getTool!(toStrictListContext(context, 'tools/list'), name);
+      if (tool === undefined) return undefined;
+      let descriptor = definitions.get(tool);
+      if (descriptor === undefined) {
+        descriptor = describe(tool);
+        definitions.set(tool, descriptor);
+      }
+      return descriptor;
+    },
+  };
 }
 
 export function createPhase4bMcpApplicationFacadeFromColpAdapters(
@@ -424,9 +447,8 @@ export async function callStrictApplicationExtensionTool(
     throw new Mcp20260728RequestError('invalid_params', 'Unknown tool.');
   }
   const applicationContext = toMcpApplicationContextFromStrict(context);
-  const listed = await facade.listTools(applicationContext);
+  const descriptor = await findMcpApplicationTool(facade, applicationContext, name);
   context.abortSignal.throwIfAborted();
-  const descriptor = listed.tools.find((tool) => tool.name === name);
   if (descriptor === undefined || descriptor.compatOnly === true
     || name.startsWith('known.moderation.')) {
     throw new Mcp20260728RequestError('invalid_params', 'Unknown tool.', { name });

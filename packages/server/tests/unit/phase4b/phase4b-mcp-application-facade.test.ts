@@ -212,6 +212,25 @@ function nodeCreateArgs(): Readonly<Record<string, unknown>> {
   });
 }
 
+test('direct definition lookup matches current catalog visibility after scopes change', async () => {
+  const fixture = createInMemoryWriteToolFixture();
+  const facade = createFacade(fixture.bundle.adapter);
+  const contexts = [
+    writeAppContext(),
+    appContext(AUTHENTICATED_PRINCIPAL, ['nodes:write']),
+    appContext(AUTHENTICATED_PRINCIPAL, ['mcp:read:public']),
+    appContext(AUTHENTICATED_PRINCIPAL, []),
+    appContext(ANONYMOUS_PRINCIPAL, []),
+  ];
+  const names = (await facade.listTools(contexts[0]!)).tools.map((tool) => tool.name);
+  for (const context of contexts) {
+    const visible = (await facade.listTools(context)).tools;
+    for (const name of [...names, 'unknown.tool']) {
+      assert.deepEqual(await facade.getTool!(context, name), visible.find((tool) => tool.name === name), name);
+    }
+  }
+});
+
 function assertNoEraWireFields(value: object): void {
   assert.equal('_meta' in value, false);
   assert.equal('resultType' in value, false);
