@@ -184,7 +184,7 @@ describeWithPostgres('E5 agent directory over PostgreSQL', () => {
   });
 
   test('returns recent plans and direct writes with versionId', async () => {
-    const response = await send(owner, 'GET', `/api/v1/me/agents/${encodeURIComponent(oauthId)}/audit`);
+    const response = await send(owner, 'GET', `/api/v1/me/agents/${encodeURIComponent(oauthId)}/audit?limit=50`);
     assert.equal(response.status, 200);
     const records = (response.json as { records: Array<Record<string, unknown>> }).records;
     const versioned = records.find((record) => record.id === versionedPlanId);

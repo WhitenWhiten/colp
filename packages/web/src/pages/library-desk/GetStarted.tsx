@@ -85,17 +85,32 @@ export function GetStarted({
   const [agent, setAgent] = useState(false)
 
   useEffect(() => {
-    const controller = new AbortController()
-    const settle = (probe: Promise<boolean>, set: (value: boolean) => void) => {
-      probe.then((value) => {
-        if (!controller.signal.aborted) set(value)
-      }).catch(() => {
-        // An unknown step just stays open.
-      })
+    let controller: AbortController | undefined
+    const refresh = () => {
+      controller?.abort()
+      const current = new AbortController()
+      controller = current
+      const settle = (probe: Promise<boolean>, set: (value: boolean) => void) => {
+        probe.then((value) => {
+          if (!current.signal.aborted) set(value)
+        }).catch(() => {
+          // An unknown step keeps its last known state.
+        })
+      }
+      settle(probes.hasBrowser(current.signal), setBrowser)
+      settle(probes.hasAgent(current.signal), setAgent)
     }
-    settle(probes.hasBrowser(controller.signal), setBrowser)
-    settle(probes.hasAgent(controller.signal), setAgent)
-    return () => controller.abort()
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') refresh()
+    }
+    refresh()
+    window.addEventListener('focus', refresh)
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      controller?.abort()
+      window.removeEventListener('focus', refresh)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
   }, [probes])
 
   const done: Record<StepId, boolean> = {
