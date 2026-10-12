@@ -93,7 +93,7 @@ describeWithPostgres('C-04 canonical Snapshot capacity', () => {
         }
       })), SnapshotTreeCapacityError);
     assert.equal(writes, 2, 'the whole atomic batch reaches its one final capacity decision');
-    assert.equal(scans, 2, 'one before and one after serialization for the entire batch');
+    assert.equal(scans, 0, 'warm admission never serializes the whole collection');
     assert.deepEqual((await snapshot()).rows, beforeBatch.rows, 'all batch effects roll back together');
   });
 });

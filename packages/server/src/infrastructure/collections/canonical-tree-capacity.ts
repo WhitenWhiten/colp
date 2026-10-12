@@ -1,4 +1,5 @@
 import { sql } from 'kysely';
+import { readCanonicalTreeCapacity } from './canonical-tree-capacity-ledger.js';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
 import { SNAPSHOT_TREE_CAPACITY, SnapshotTreeCapacityError } from '../../modules/collections/index.js';
 import { mapSnapshotCollection, mapSnapshotNode, snapshotParentRevisions, withSnapshotBinding, type SnapshotCollectionRow, type SnapshotNodeRow } from './snapshot-document.js';
@@ -33,9 +34,9 @@ export function admitCanonicalTreeChange(before: CanonicalTreeSize, after: Canon
 
 /** The collection lock is held by canonical orchestration throughout this check. */
 export async function withCanonicalTreeCapacity<Result>(tx: DatabaseTransaction, collectionId: string, write: () => Promise<Result>): Promise<Result> {
-  const before = await measureCanonicalTree(tx, collectionId);
+  const before = await readCanonicalTreeCapacity(tx, collectionId);
   const result = await write();
-  admitCanonicalTreeChange(before, await measureCanonicalTree(tx, collectionId));
+  admitCanonicalTreeChange(before, await readCanonicalTreeCapacity(tx, collectionId));
   return result;
 }
 
@@ -60,14 +61,14 @@ export async function withCanonicalTreeCapacityBatch<Result>(
       }
       // Called only after canonical orchestration owns the collection lock.
       boundCollectionId = actualCollectionId;
-      before ??= await measureCanonicalTree(tx, actualCollectionId);
+      before ??= await readCanonicalTreeCapacity(tx, actualCollectionId);
       return write();
     },
   };
   try {
     const result = await work(admission);
     if (before && boundCollectionId !== undefined) {
-      admitCanonicalTreeChange(before, await measureCanonicalTree(tx, boundCollectionId));
+      admitCanonicalTreeChange(before, await readCanonicalTreeCapacity(tx, boundCollectionId));
     }
     return result;
   } finally {
