@@ -107,8 +107,9 @@ describe('Consent page', () => {
     expect(document.body.textContent).toContain(CLIENT_NAME)
     expect(document.body.textContent).toContain('mcp:read:public')
     expect(document.body.textContent).toContain('mcp:read:own')
-    expect(document.body.textContent).toContain('Read published public libraries')
-    expect(document.body.textContent).toContain('Read libraries you own')
+    expect(document.body.textContent).toContain('Read collections published on this server')
+    expect(document.body.textContent).toContain('Read collections you own')
+    expect(document.body.textContent).toContain('Read your library')
     expect(document.body.textContent).toContain(VERIFIED_HOST)
     expect(document.body.textContent).toContain(VERIFIED_REDIRECT)
     expect(document.body.textContent).toContain('authorization code will be sent')
@@ -250,9 +251,11 @@ describe('Consent page', () => {
     await waitForDom(() => (document.body.textContent ?? '').includes(CLIENT_NAME))
     expect(document.body.textContent).toContain('nodes:write')
     expect(document.body.textContent).toContain('offline_access')
-    expect(document.body.textContent).toContain('Create and edit items in libraries you can write')
+    expect(document.body.textContent).toContain('Create and edit bookmarks and folders in collections you can write')
+    expect(document.body.textContent).toContain('Organize your library')
+    expect(document.body.textContent).toContain('Stay connected')
     expect(document.body.textContent).toContain('Stay signed in until you revoke access')
-    expect(consentScopeLabel('nodes:write')).toBe('Create and edit items in libraries you can write')
+    expect(consentScopeLabel('nodes:write')).toBe('Create and edit bookmarks and folders in collections you can write')
     expect(consentScopeLabel('offline_access')).toBe('Stay signed in until you revoke access')
   })
 
@@ -261,13 +264,13 @@ describe('Consent page', () => {
     await waitForDom(() => (document.body.textContent ?? '').includes(CLIENT_NAME))
     expect(document.body.textContent).toContain('product:read')
     expect(document.body.textContent).toContain('product:write')
-    expect(document.body.textContent).toContain('Read your libraries, bookmarks, annotations, and relations')
-    expect(document.body.textContent).toContain('Create and edit your libraries, bookmarks, annotations, and relations')
+    expect(document.body.textContent).toContain('Read your collections, bookmarks, notes, and relations')
+    expect(document.body.textContent).toContain('Create and edit your collections, bookmarks, notes, and relations')
     expect(consentScopeLabel('product:read')).toBe(
-      'Read your libraries, bookmarks, annotations, and relations',
+      'Read your collections, bookmarks, notes, and relations',
     )
     expect(consentScopeLabel('product:write')).toBe(
-      'Create and edit your libraries, bookmarks, annotations, and relations',
+      'Create and edit your collections, bookmarks, notes, and relations',
     )
   })
 
@@ -277,6 +280,8 @@ describe('Consent page', () => {
     expect(document.body.textContent).toContain('not-a-real-scope')
     const codes = [...document.querySelectorAll('ul.auth-consent-scopes code')].map((el) => el.textContent)
     expect(codes).toEqual(['not-a-real-scope'])
+    expect(document.body.textContent).toContain('Other permissions')
+    expect(document.body.textContent).toContain('Unrecognized permission')
     expect(consentScopeLabel('not-a-real-scope')).toBeNull()
     expect(document.body.textContent).toContain(`Allow ${CLIENT_NAME}?`)
     expect(document.body.textContent).toContain('Approve')

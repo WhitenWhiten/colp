@@ -160,41 +160,165 @@
   margin: var(--hair-150) 0 var(--hair-200);
 }
 
-/* OAuth consent scopes: one row card per grant — icon, bold permission
-   name, quiet description, raw scope chip. The name carries the visual
-   weight so the grant is scannable; the raw scope stays for verification. */
+/* OAuth consent: the client's monogram beside the question, then one row
+   per permission group in a single hairline list (neutral icons, no
+   per-scope cards). Every raw scope and the redirect address stay one click
+   away in "Show all permissions" for anyone who wants to verify them. */
+.auth-card--consent {
+  width: min(100%, 30rem);
+}
+
+.consent-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.consent-head h1 {
+  margin: 0;
+}
+
+.consent-head + .sub {
+  margin-top: var(--space-4);
+  font-size: var(--text-sm);
+}
+
+.consent-head-copy {
+  display: grid;
+  gap: var(--hair-20);
+  min-width: 0;
+}
+
+.consent-head .section-label {
+  margin: 0;
+}
+
+.consent-client-mark {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface-sunken);
+  color: var(--ink);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+}
+
+.consent-groups {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  list-style: none;
+}
+
+.consent-group {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+}
+
+.consent-group + .consent-group {
+  border-top: 1px solid var(--line);
+}
+
+.consent-group-icon {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--radius);
+  background: var(--surface-sunken);
+  color: var(--ink-2);
+}
+
+.consent-group-icon svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+/* Publishing and plan commits are the grants with consequences. */
+.consent-group[data-group='approval'] .consent-group-icon {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.consent-group-body {
+  display: grid;
+  gap: var(--hair-20);
+  min-width: 0;
+}
+
+.consent-group-name {
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-snug);
+}
+
+.consent-group-desc {
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+}
+
+.consent-details {
+  margin-top: var(--space-3);
+}
+
+.consent-details > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+  list-style: none;
+}
+
+.consent-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.consent-details > summary:hover {
+  color: var(--ink);
+}
+
+.consent-details > summary svg {
+  width: 0.9rem;
+  height: 0.9rem;
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+.consent-details[open] > summary svg {
+  transform: rotate(90deg);
+}
+
 .auth-consent-scopes {
-  margin: 0 0 var(--hair-150);
+  display: grid;
+  margin: var(--space-3) 0 0;
   padding: 0;
   list-style: none;
-  display: grid;
-  gap: var(--space-2);
 }
 
 .auth-consent-scope {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-3);
-  padding: var(--hair-85) var(--hair-90);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--surface-raised);
-}
-
-.auth-consent-scope-icon {
   display: grid;
-  place-items: center;
-  flex-shrink: 0;
-  width: 1.75rem;
-  height: 1.75rem;
-  border-radius: var(--radius-xs);
-  background: var(--accent-soft);
-  color: var(--accent-ink);
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+  padding: var(--space-2) 0;
 }
 
-.auth-consent-scope-icon svg {
-  width: 1rem;
-  height: 1rem;
+.auth-consent-scope + .auth-consent-scope {
+  border-top: 1px dashed var(--line);
 }
 
 .auth-consent-scope-body {
@@ -204,44 +328,56 @@
 }
 
 .auth-consent-scope-name {
-  color: var(--ink);
-  font-size: var(--text-md);
-  font-weight: var(--weight-semibold);
-  letter-spacing: var(--tracking-tight);
-  line-height: var(--leading-snug);
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
 }
 
 .auth-consent-scope-desc {
   color: var(--muted);
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   line-height: var(--leading-snug);
 }
 
 .auth-consent-scope-raw {
-  width: fit-content;
-  max-width: 100%;
-  padding: 0 var(--hair-40);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-2xs);
-  background: var(--paper-2);
   color: var(--faint);
+  font-family: var(--font-mono);
   font-size: var(--text-xs);
   overflow-wrap: anywhere;
 }
 
-/* An unrecognized scope has no name/description — the raw token is the row. */
-.auth-consent-scope-raw--solo {
-  padding: var(--hair-20) var(--hair-45);
+.consent-redirect-uri {
+  margin: var(--space-3) 0 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.consent-redirect-uri code {
+  display: block;
+  margin-top: var(--hair-20);
   color: var(--ink-2);
+  font-family: var(--font-mono);
+  word-break: break-all;
+}
+
+.consent-redirect {
+  margin: var(--space-4) 0 0;
+  color: var(--muted);
   font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+}
+
+.consent-redirect strong {
+  color: var(--ink-2);
+  font-weight: var(--weight-semibold);
+  overflow-wrap: anywhere;
 }
 
 .auth-consent-account {
-  margin: 0 0 var(--hair-125);
-  padding-top: var(--hair-125);
-  border-top: 1px solid var(--line);
+  margin: var(--space-4) 0 0;
   color: var(--muted);
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
+  text-align: center;
 }
 
 .auth-consent-account strong {
@@ -250,15 +386,17 @@
   overflow-wrap: anywhere;
 }
 
-.auth-consent-redirect code {
-  font-size: var(--text-sm);
-  word-break: break-all;
+.auth-consent-account a {
+  color: var(--ink-2);
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
 }
 
 .auth-consent-actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--hair-65);
+  margin-top: var(--space-5);
 }
 
 .auth-consent-actions .btn {

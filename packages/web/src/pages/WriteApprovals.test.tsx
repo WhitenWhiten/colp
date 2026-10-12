@@ -244,17 +244,16 @@ describe('MCP-W08 Write approvals page', () => {
     expect(document.querySelector('header .eyebrow')?.textContent).toBe('Agents')
     expect(document.body.textContent).toContain(attack)
     expect(document.body.textContent).toContain(nodeTitle)
-    const facts = document.querySelector('[role="table"][aria-label="Approval facts"]')
-    expect(facts?.getAttribute('role')).toBe('table')
-    expect([...facts!.querySelectorAll('[role="columnheader"]')].map((el) => el.textContent)).toEqual([
-      'Created', 'Expires', 'Risk',
-    ])
+    const facts = document.querySelector('dl[aria-label="Approval facts"]')
+    expect([...facts!.querySelectorAll('dt')].map((el) => el.textContent)).toEqual(['Created', 'Expires'])
+    expect(document.body.textContent).toContain('High risk')
+    expect(document.body.textContent).toContain('Touches 1 bookmark, 2 notes and 3 relations in 1 collection.')
     expect([...document.querySelectorAll('[aria-label="Planned operations"] strong')].map((el) => el.textContent)).toEqual([
       'Create bookmark',
       'Create folder',
       'Create bookmark or folder',
     ])
-    expect(document.body.textContent).toContain('Change library visibility')
+    expect(document.body.textContent).toContain('Change collection visibility')
     expect(document.body.textContent).toContain('sourceRef')
     expect(document.querySelector('img[src="x"]')).toBeNull()
     expect(document.querySelector('script')).toBeNull()
@@ -282,8 +281,8 @@ describe('MCP-W08 Write approvals page', () => {
     })
     render()
     await waitForDom(domFinishedLoading)
-    // Scope chips lead with the permission name; the raw OAuth token stays off the card.
-    expect(document.body.textContent).toContain('Change library visibility')
+    // Scopes are listed by permission name; the raw OAuth token stays off the card.
+    expect(document.body.textContent).toContain('Change collection visibility')
     expect(document.body.textContent).not.toContain('access:write')
     // Resolved ids show titles, not opaque tokens.
     expect(document.body.textContent).toContain('Reading queue')
@@ -471,9 +470,10 @@ describe('MCP-W08 Write approvals page', () => {
     await waitForDom(domFinishedLoading)
     const descriptions = [...document.querySelectorAll('[data-testid="approval-operation-description"]')]
       .map((node) => node.textContent)
+    // The verb is the row label, so the server's sentence drops its own.
     expect(descriptions).toEqual([
-      'move Rust by Example from / to /Rust',
-      'move Tokio tutorial from / to /Rust',
+      'Rust by Example from / to /Rust',
+      'Tokio tutorial from / to /Rust',
     ])
     expect(document.body.textContent).toContain('Move')
     expect(document.body.textContent).not.toContain('Not available')
@@ -511,7 +511,7 @@ describe('MCP-W08 Write approvals page', () => {
     expect(mocks.getWriteApprovalPage).not.toHaveBeenCalled()
     expect(document.querySelector('[data-plan-id="plan-1"]')).not.toBeNull()
     expect(document.body.textContent).not.toContain(other.summary)
-    expect(document.body.textContent).toContain('Change library visibility')
+    expect(document.body.textContent).toContain('Change collection visibility')
     expect(document.body.textContent).toContain('sourceRef')
     expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth)
   })
@@ -664,9 +664,9 @@ describe('MCP-W08 Write approvals page', () => {
     })
     render()
     await waitForDom(domFinishedLoading)
-    expect(document.body.textContent).toContain('Publish library')
+    expect(document.body.textContent).toContain('Publish collection')
     expect(document.body.textContent).toContain('col-1')
-    expect(document.body.textContent).toContain('Items')
+    expect(document.body.textContent).toContain('Touches 1 collection.')
     expect(document.body.textContent).not.toContain('Bookmark')
     expect(document.body.textContent).not.toContain('Not available')
     expect(document.body.textContent).not.toContain('Change visibility')

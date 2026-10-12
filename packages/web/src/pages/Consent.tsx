@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { BrandName } from '../components/Brand'
 import { useToast } from '../components/AppToast'
 import { Icon } from '../components/Icon'
 import { useAuth } from '../auth/AuthContext'
 import { authClient } from '../api/authClient'
 import { isProductApiError } from '../api/errors'
-import { consentScopeMeta } from '../lib/oauthScopes'
+import { consentScopeMeta, groupScopes } from '../lib/oauthScopes'
+import { plural } from '../lib/plural'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
 import { safeReturnTo } from './safeReturnTo'
 import { productName } from '../lib/edition'
@@ -154,7 +155,7 @@ export function Consent() {
   if (bootstrapping || (isLoggedIn && !nameReady)) {
     return (
       <div className="auth-page">
-        <div className="auth-card rise">
+        <div className="auth-card auth-card--consent rise">
           <p className="auth-brand"><BrandName /></p>
           <p className="section-label">Authorization</p>
           <h1>{bootstrapping ? 'Checking your session…' : 'Looking up this application…'}</h1>
@@ -165,80 +166,76 @@ export function Consent() {
 
   if (!isLoggedIn) return null
 
+  const groups = groupScopes(scopes)
+  const initial = Array.from(displayName.trim())[0]?.toUpperCase() ?? '?'
+
   return (
     <div className="auth-page">
-      <div className="auth-card rise">
+      <div className="auth-card auth-card--consent rise">
         <p className="auth-brand"><BrandName /></p>
-        <p className="section-label">Authorization</p>
-        <h1>Allow {displayName}?</h1>
+        <div className="consent-head">
+          <span className="consent-client-mark" aria-hidden>{initial}</span>
+          <div className="consent-head-copy">
+            <p className="section-label">Authorization</p>
+            <h1>Allow {displayName}?</h1>
+          </div>
+        </div>
         <p className="sub">
-          {displayName} is requesting access to your {productName()} account with these permissions:
+          {displayName} is requesting access to your {productName()} account. It will be able to:
         </p>
-        {scopes.length > 0 ? (
-          <ul className="auth-consent-scopes">
-            {scopes.map((scope) => {
-              const meta = consentScopeMeta(scope)
-              return (
-                <li key={scope} className="auth-consent-scope">
-                  <span className="auth-consent-scope-icon">
-                    <Icon name={meta?.icon ?? 'info'} />
-                  </span>
-                  <span className="auth-consent-scope-body">
-                    {meta ? (
-                      <>
-                        <span className="auth-consent-scope-name">{meta.name}</span>
-                        <span className="auth-consent-scope-desc">{meta.label}</span>
-                        <code className="auth-consent-scope-raw">{scope}</code>
-                      </>
-                    ) : (
-                      <code className="auth-consent-scope-raw auth-consent-scope-raw--solo">{scope}</code>
-                    )}
-                  </span>
-                </li>
-              )
-            })}
+        {groups.length > 0 ? (
+          <ul className="consent-groups">
+            {groups.map((group) => (
+              <li key={group.id} className="consent-group" data-group={group.id}>
+                <span className="consent-group-icon" aria-hidden><Icon name={group.icon} /></span>
+                <span className="consent-group-body">
+                  <span className="consent-group-name">{group.name}</span>
+                  <span className="consent-group-desc">{group.label}</span>
+                </span>
+              </li>
+            ))}
           </ul>
         ) : (
           <p className="sub">No specific scopes were listed in this request.</p>
         )}
-        {redirectUri ? (
-          <p className="sub auth-consent-redirect">
-            {redirectHost
-              ? (
-                <>
-                  After you approve, an authorization code will be sent to <strong>{redirectHost}</strong>
-                  {' '}
-                  (
-                  <code>{redirectUri}</code>
-                  ).
-                </>
-              )
-              : (
-                <>
-                  After you approve, an authorization code will be sent to
-                  {' '}
-                  <code>{redirectUri}</code>
-                  .
-                </>
-              )}
-          </p>
+        {scopes.length > 0 || redirectUri ? (
+          <details className="consent-details">
+            <summary>
+              <Icon name="chevron-right" />
+              {scopes.length > 0 ? `Show all ${plural(scopes.length, 'permission')}` : 'Show details'}
+            </summary>
+            {scopes.length > 0 ? (
+              <ul className="auth-consent-scopes">
+                {scopes.map((scope) => {
+                  const meta = consentScopeMeta(scope)
+                  return (
+                    <li key={scope} className="auth-consent-scope">
+                      <span className="auth-consent-scope-body">
+                        <span className="auth-consent-scope-name">{meta?.name ?? 'Unrecognized permission'}</span>
+                        {meta ? <span className="auth-consent-scope-desc">{meta.label}</span> : null}
+                      </span>
+                      <code className="auth-consent-scope-raw">{scope}</code>
+                    </li>
+                  )
+                })}
+              </ul>
+            ) : null}
+            {redirectUri ? (
+              <p className="consent-redirect-uri">
+                Redirect address <code>{redirectUri}</code>
+              </p>
+            ) : null}
+          </details>
         ) : null}
-        {accountLabel ? (
-          <p className="auth-consent-account">
-            Authorizing as <strong>{accountLabel}</strong>
+        {redirectUri ? (
+          <p className="consent-redirect">
+            After you approve, an authorization code will be sent to
+            {' '}
+            <strong>{redirectHost ?? redirectUri}</strong>
+            .
           </p>
         ) : null}
         <div className="auth-consent-actions">
-          <button
-            type="button"
-            className="btn btn-primary"
-            disabled={busy !== null}
-            onClick={() => {
-              void decide(true)
-            }}
-          >
-            {busy === 'approve' ? 'Approving…' : 'Approve'}
-          </button>
           <button
             type="button"
             className="btn btn-secondary"
@@ -249,7 +246,21 @@ export function Consent() {
           >
             {busy === 'deny' ? 'Denying…' : 'Deny'}
           </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={busy !== null}
+            onClick={() => {
+              void decide(true)
+            }}
+          >
+            {busy === 'approve' ? 'Approving…' : 'Approve'}
+          </button>
         </div>
+        <p className="auth-consent-account">
+          {accountLabel ? <>Authorizing as <strong>{accountLabel}</strong>. </> : null}
+          Revoke access any time on <Link to="/agents">Agents</Link>.
+        </p>
       </div>
     </div>
   )
