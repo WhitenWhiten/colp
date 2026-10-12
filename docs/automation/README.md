@@ -65,3 +65,23 @@ The deployment secret and existing Product session/CSRF configuration are reused
   unknown intake intent preserves placement. No history or consent is fabricated.
 * Pageable database timestamps preserve PostgreSQL microseconds in opaque cursors;
   wire display timestamps do not become pagination authority.
+
+## BE-1 final boundary
+
+M1 stores `tasks: []` as required by the reviewed schema; omission of the tasks
+property is a shape error, while no agent task, policy, target or credential is required.
+Semantic rebinding pauses every enabled referencing rule and invalidates its preview;
+canonical label refresh leaves binding and rule revisions intact. Global resume captures
+a new pinned-source ordinal even while current folder authority is blocked. This private
+fence is never an authorization grant. Health recovery cannot repair acknowledged incidents
+without passing current revalidation. No runtime execution profile is advertised.
+
+Product 1.95.0 adds dependency/incident read and revalidation operations, preserving the
+immutable 1.94.0 and 1.93.0 baselines. `/ready/features/automation` reports runtimeUnsupported
+independently of the usable configuration API and the server's general readiness.
+
+The vendored local package is refreshed with
+`node packages/server/scripts/refresh-automation-package.mjs`; this builds/packs the actual
+shared source, updates both locks and keeps Docker's dependency stages reproducible.
+Public npm publication, real Chrome/MV3 CSP/store acceptance, real deployed restore and
+BE-2 effect/admission/Undo evidence are separate future gates.

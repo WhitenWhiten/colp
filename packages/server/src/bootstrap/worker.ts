@@ -1,3 +1,4 @@
+import { createAutomationHealthMonitor } from '../infrastructure/automation/index.js';
 import { createDatabaseFaviconStore } from '../infrastructure/collections/index.js';
 import { loadSharedFaviconConfig } from './config-favicon-shared.js';
 import { SharedFaviconCache } from '../infrastructure/collections/favicon-shared-cache.js';
@@ -375,10 +376,13 @@ export function buildWorker(
   }
   // Task 12: production default is the durable PostgreSQL collection mutation projection.
   // Task 11 invariants still hold: never default to memory; refuse transient sinks.
-  const baseProjectionSink = resolveProductionProjectionSink({
+  const originalProjectionSink = resolveProductionProjectionSink({
     database,
     projectionSink: options.projectionSink,
   });
+  const automationHealth = config.automationConfigurationEnabled && database
+    ? createAutomationHealthMonitor(database.db, config.publication.serverUuid, metrics) : undefined;
+  const baseProjectionSink = originalProjectionSink && automationHealth ? automationHealth.wrap(originalProjectionSink) : originalProjectionSink;
   if (config.mcp && options.mcpReadChangeSignalSource === undefined) {
     throw new Error(
       'worker composition refused: MCP Read enabled requires an MCP change signal source for subscriptions/listen hints',
@@ -718,6 +722,7 @@ export function buildWorker(
     capacity,
     async start() {
       await database?.verifyReady();
+      await automationHealth?.revalidateAll();
       // Re-assert durability at start so miscomposed runtimes fail closed before polling.
       if (outbox) {
         const readiness = outbox.projectionReadiness();

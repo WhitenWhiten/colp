@@ -151,6 +151,29 @@ describeWithPostgres('BE-1 authenticated configuration and preview loop', () => 
     expect((await get('/rules?limit=101')).statusCode).toBe(400);
     const removed = await app.inject({ method: 'DELETE', url: `${BASE}/binding-sets/${page.items[0].id}`, headers: headers(randomUUID(), '"1"') }); expect(removed.statusCode, removed.body).toBe(204);
   });
+  test('semantic rebinding pauses enabled configuration and requires a fresh preview', async () => {
+    const d = await draft(), p = await preview(d.input);
+    expect((await lifecycle(d.rule.id, d.etag, 'enabled', p.previewId)).statusCode).toBe(200);
+    const replacement = await app.inject({ method: 'PUT', url: `${BASE}/binding-sets/${d.binding.id}`, headers: headers(randomUUID(), '"1"'),
+      payload: { name: 'Rebound', values: { academicRoot: { ...f.values.academicRoot, folder: { ...f.folder, nodeId: 'parent' } } } } });
+    expect(replacement.statusCode).toBe(200);
+    const current = await get(`/rules/${d.rule.id}`); expect(current.json()).toMatchObject({ desiredState: 'paused', effectiveState: 'paused' });
+    expect((await lifecycle(d.rule.id, String(current.headers.etag), 'enabled', p.previewId)).statusCode).toBe(409);
+    const fresh = await preview(d.input);
+    expect((await lifecycle(d.rule.id, String(current.headers.etag), 'enabled', fresh.previewId)).statusCode).toBe(200);
+  });
+  test('a new competing enabled rule invalidates a prior preview; explicit choice remains preserved', async () => {
+    const a = await draft();
+    const binding = await post('/binding-sets', { name: 'Competition', values: { academicRoot: { ...f.values.academicRoot, folder: { ...f.folder, nodeId: 'parent' } } } });
+    const bInput = { definition: f.rule, bindingSetId: binding.json().id };
+    const b = await post('/rules', bInput), bPreview = await preview(bInput), aPreview = await preview(a.input);
+    expect((await lifecycle(a.rule.id, a.etag, 'enabled', aPreview.previewId)).statusCode).toBe(200);
+    const stale = await lifecycle(b.json().id, String(b.headers.etag), 'enabled', bPreview.previewId);
+    expect(stale.statusCode).toBe(409); expect(stale.json().error.code).toBe('automation_stale_input');
+    const manual = await post('/rules/preview', { rule: bInput, mode: 'supplied', events: [{ ...facts(), intakeDisposition: 'userSelected' }] });
+    expect(manual.statusCode).toBe(200); expect(manual.json().decisions[0].explanation).toContain('explicitChoice');
+    expect(manual.json().decisions[0].satisfiedTasks).toEqual([]);
+  });
   test('current-state reads at most 200 bookmarks and explicitly reports truncation', async () => {
     const d = await draft();
     for (let i = 0; i < 200; i++) await f.createNode(`sample_${i}`, 'root', `Paper ${i}`, `https://arxiv.org/abs/sample_${i}`);

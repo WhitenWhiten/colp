@@ -605,6 +605,7 @@ const transportTargets = new Set([
   'modules/automation/index.ts',
   'transport/product/automation-rule-routes.ts',
   'transport/product/automation-pagination.ts',
+  'transport/product/automation-health-routes.ts',
   'modules/bookmark-subscriptions/index.ts',
   'transport/product/bookmark-subscription-routes.ts',
   'transport/product/subscription-exit-header.ts',

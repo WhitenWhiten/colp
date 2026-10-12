@@ -1,0 +1,147 @@
+import Fastify from 'fastify';
+import { beforeAll, afterAll, test, expect } from 'vitest';
+import { randomUUID } from 'node:crypto';
+import { validateAutomation } from '@know-n/colp/automation';
+import { automationFixture } from '../../support/automation-fixture.js';
+import { describeWithPostgres } from '../../support/postgres-test-runtime.js';
+import { createAutomationUnitOfWork, createAutomationHealthMonitor } from '../../../src/infrastructure/automation/index.js';
+import { PostgresCollectionMutationProjectionSink, type CollectionMutationDelivery } from '../../../src/infrastructure/outbox/index.js';
+import { InMemoryMetrics } from '../../../src/infrastructure/telemetry/index.js';
+import { moveCollectionNode, deleteCollectionNode } from '../../../src/modules/collections/index.js';
+import { registerAutomationRoutes } from '../../../src/transport/product/automation-rule-routes.js';
+import { automationHealthRoutes } from '../../../src/transport/product/automation-health-routes.js';
+import { installProductAdmission, parseStrictQuery } from '../../../src/transport/product-admission.js';
+import { ProductHttpError, sendProductError } from '../../../src/transport/product-error.js';
+const BASE = '/api/v1/me/automations', ORIGIN = 'https://automation.example.test';
+
+describeWithPostgres('BE-1 dependency monitoring and incident lifecycle', () => {
+  let f: Awaited<ReturnType<typeof automationFixture>>, app: ReturnType<typeof Fastify>, rule: { id: string; revision: string }, bindingId: string;
+  const metrics = new InMemoryMetrics();
+  const headers = () => ({ cookie: f.owner.cookie, origin: ORIGIN, 'x-csrf-token': f.owner.csrfToken, 'known-command-id': randomUUID() });
+  const get = (path: string, cookie?: string) => app.inject({ method: 'GET', url: BASE + path, headers: { cookie: cookie ?? f.owner.cookie } });
+  const post = (path: string, payload: unknown, etag?: string) => app.inject({ method: 'POST', url: BASE + path, payload, headers: { ...headers(), ...(etag ? { 'if-match': etag } : {}) } });
+  beforeAll(async () => {
+    f = await automationFixture('automation_health');
+    app = Fastify({ exposeHeadRoutes: false, routerOptions: { querystringParser: parseStrictQuery } }); installProductAdmission(app);
+    app.setErrorHandler((error, request, reply) => {
+      if (!(error instanceof ProductHttpError)) console.error(error);
+      return sendProductError(request, reply, error instanceof ProductHttpError ? error : new ProductHttpError({ statusCode: 500, code: 'internal_error', message: 'Internal error' }));
+    });
+    registerAutomationRoutes(app, { identityUnitOfWork: f.identity, unitOfWork: createAutomationUnitOfWork(f.db, 'server'), allowedOrigins: [ORIGIN], cursorKey: 'automation-health-cursor-secret' }, automationHealthRoutes('automation-health-cursor-secret'));
+    const bound = await post('/binding-sets', { name: 'Folders', values: { academicRoot: { ...f.values.academicRoot, allowedAncestor: { ...f.folder, nodeId: 'parent' } } } });
+    expect(bound.statusCode, bound.body).toBe(201); bindingId = bound.json().id;
+    const input = { definition: f.rule, bindingSetId: bindingId };
+    const created = await post('/rules', input); expect(created.statusCode, created.body).toBe(201); rule = created.json();
+    const preview = await post('/rules/preview', { rule: input, mode: 'currentState' }); expect(preview.statusCode).toBe(200);
+    const enabled = await post(`/rules/${rule.id}/lifecycle`, { state: 'enabled', pendingRuns: 'hold', reason: 'Enable config', activationPreviewId: preview.json().previewId }, `"${rule.revision}"`);
+    expect(enabled.statusCode, enabled.body).toBe(200); rule = enabled.json();
+  }, 180_000);
+  afterAll(async () => { await app?.close(); await f?.isolated.close(); });
+  async function delivery(eventType: string): Promise<CollectionMutationDelivery> {
+    const row = await f.db.selectFrom('outbox_events').selectAll().where('event_type', '=', eventType).orderBy('commit_ordinal', 'desc').executeTakeFirstOrThrow();
+    return { eventId: row.domain_event_id, eventType: row.event_type, eventVersion: row.event_version, handlerName: row.handler_name,
+      idempotencyKey: row.domain_event_id, aggregateId: row.aggregate_id, aggregateScope: row.aggregate_scope, commitOrdinal: row.commit_ordinal?.toString() ?? null,
+      payload: row.payload_json, aggregateRevision: row.aggregate_revision, occurredAt: row.occurred_at.toISOString() };
+  }
+  async function move(parentId: string) {
+    const node = await f.db.selectFrom('nodes').select(['resource_revision', 'parent_id']).where('id', '=', 'academic').executeTakeFirstOrThrow();
+    const source = await f.db.selectFrom('nodes').select('children_revision').where('id', '=', node.parent_id!).executeTakeFirstOrThrow();
+    const target = await f.db.selectFrom('nodes').select('children_revision').where('id', '=', parentId).executeTakeFirstOrThrow();
+    const moved = await f.canonical.execute((ports) => moveCollectionNode(ports, { actor: f.actor, command: f.command(), collectionId: 'collection', nodeId: 'academic',
+      ifMatch: `"${node.resource_revision}"`, newParentId: parentId, afterId: null, beforeId: null,
+      baseSourceParentRevision: source.children_revision, baseTargetParentRevision: target.children_revision }));
+    expect(moved.kind).toBe('moved');
+    await createAutomationHealthMonitor(f.db, 'server', metrics).onCollectionMutation(await delivery('node.moved'));
+  }
+  test('startup is real revalidation; enabled config reports runtime unavailable, no zero-match failure', async () => {
+    await createAutomationHealthMonitor(f.db, 'server', metrics).revalidateAll();
+    const result = await get(`/rules/${rule.id}/health`); expect(result.statusCode, result.body).toBe(200);
+    expect(validateAutomation('HealthReport', result.json()).valid).toBe(true);
+    expect(result.json()).toMatchObject({ effectiveState: 'blocked' });
+    expect(result.json().incidents.map((incident: { code: string }) => incident.code)).toEqual(['runtimeUnsupported']);
+    expect(metrics.get('automation.runtime.ready')).toBe(0); expect(metrics.get('automation.health.revalidated')).toBeGreaterThan(0);
+    const dependencies = (await get(`/rules/${rule.id}/dependencies`)).json();
+    expect(validateAutomation('DependencyReport', dependencies).valid).toBe(true);
+    expect(dependencies.dependencies.some((dependency: { resourceId: string; kind: string }) => dependency.resourceId === 'parent' && dependency.kind === 'ancestor')).toBe(true);
+  });
+  test('canonical rename delivery refreshes label without rebinding or changing semantic revision', async () => {
+    await f.rename('academic', 'Renamed Academic');
+    const monitor = createAutomationHealthMonitor(f.db, 'server', metrics);
+    await monitor.wrap(new PostgresCollectionMutationProjectionSink(f.isolated.runtime.pool)).apply(await delivery('node.updated'));
+    const incidents = await f.db.selectFrom('automation_incidents').selectAll().where('rule_id', '=', rule.id).where('code', '=', 'bindingRenamed').execute();
+    expect(incidents).toHaveLength(1); expect(incidents[0]?.severity).toBe('info'); expect(incidents[0]?.incident_json.blockingStages).toEqual([]);
+    expect((await get(`/binding-sets/${bindingId}`)).json()).toMatchObject({ revision: '1', values: { academicRoot: { folder: f.folder } } });
+    expect((await get(`/rules/${rule.id}`)).json()).toMatchObject({ desiredState: 'enabled', revision: rule.revision });
+  });
+  test('moving outside ancestor blocks once; acknowledgment hides without repairing; moving back resolves', async () => {
+    await move('root');
+    const first = (await get(`/rules/${rule.id}/health`)).json();
+    const incident = first.incidents.find((value: { code: string }) => value.code === 'scopeChanged'); expect(incident).toBeTruthy();
+    await get(`/rules/${rule.id}/health`);
+    const active = await f.db.selectFrom('automation_incidents').select('id').where('rule_id', '=', rule.id).where('code', '=', 'scopeChanged').where('state', '!=', 'resolved').execute();
+    expect(active).toHaveLength(1);
+    const acknowledged = await post(`/incidents/${incident.id}/acknowledge`, { reason: 'Seen' }); expect(acknowledged.statusCode, acknowledged.body).toBe(200);
+    expect(acknowledged.json().state).toBe('acknowledged');
+    expect((await get('/incidents')).json().items.some((value: { id: string }) => value.id === incident.id)).toBe(false);
+    expect((await get(`/rules/${rule.id}/health`)).json().incidents.find((value: { id: string }) => value.id === incident.id).state).toBe('acknowledged');
+    const foreign = await f.issue('foreign');
+    expect((await get(`/rules/${rule.id}/health`, foreign.cookie)).statusCode).toBe(404);
+    await move('parent');
+    expect((await f.db.selectFrom('automation_incidents').select('state').where('id', '=', incident.id).executeTakeFirstOrThrow()).state).toBe('resolved');
+    expect((await get(`/rules/${rule.id}/health`)).json().incidents.some((value: { code: string }) => value.code === 'scopeChanged')).toBe(false);
+  });
+  test('revoking and restoring an editor grant changes health without changing desired state', async () => {
+    const editor = await f.issue('editor');
+    const grant = () => f.db.insertInto('collection_members').values({ collection_id: 'collection', subject_id: editor.subjectId, role: 'editor', granted_at: new Date() }).execute();
+    await grant();
+    const send = (path: string, payload: unknown) => app.inject({ method: 'POST', url: BASE + path, payload, headers: { cookie: editor.cookie, origin: ORIGIN,
+      'x-csrf-token': editor.csrfToken, 'known-command-id': randomUUID() } });
+    const binding = await send('/binding-sets', { name: 'Editor binding', values: { academicRoot: { ...f.values.academicRoot, folder: { ...f.folder, nodeId: 'parent' } } } });
+    expect(binding.statusCode, binding.body).toBe(201);
+    const created = await send('/rules', { definition: f.rule, bindingSetId: binding.json().id }); expect(created.statusCode).toBe(201);
+    const id = created.json().id;
+    const preview = await send('/rules/preview', { rule: { definition: f.rule, bindingSetId: binding.json().id }, mode: 'currentState' });
+    const enabled = await app.inject({ method: 'POST', url: `${BASE}/rules/${id}/lifecycle`, payload: { state: 'enabled', pendingRuns: 'hold', reason: 'Enable editor config', activationPreviewId: preview.json().previewId },
+      headers: { cookie: editor.cookie, origin: ORIGIN, 'x-csrf-token': editor.csrfToken, 'known-command-id': randomUUID(), 'if-match': String(created.headers.etag) } });
+    expect(enabled.statusCode, enabled.body).toBe(200);
+    await f.db.deleteFrom('collection_members').where('collection_id', '=', 'collection').where('subject_id', '=', editor.subjectId).execute();
+    const unavailable = (await get(`/rules/${id}/health`, editor.cookie)).json();
+    expect(unavailable.incidents.some((value: { code: string }) => value.code === 'permissionRevoked')).toBe(true);
+    expect((await get(`/rules/${id}`, editor.cookie)).json().desiredState).toBe('enabled');
+    const pause = async (paused: boolean, etag: string) => app.inject({ method: 'POST', url: BASE + '/pause', payload: { paused },
+      headers: { cookie: editor.cookie, origin: ORIGIN, 'x-csrf-token': editor.csrfToken, 'known-command-id': randomUUID(), 'if-match': etag } });
+    const paused = await pause(true, '"0"'); expect(paused.statusCode, paused.body).toBe(200);
+    await f.rename('paper', 'While editor permission is revoked and automation is paused');
+    const resumed = await pause(false, String(paused.headers.etag)); expect(resumed.statusCode, resumed.body).toBe(200);
+    const pin = await f.db.selectFrom('automation_activations as a').innerJoin('automation_rule_revisions as r', 'r.id', 'a.rule_revision_id')
+      .select('a.after_ordinal').where('r.rule_id', '=', id).where('a.disabled_after_ordinal', 'is', null).executeTakeFirstOrThrow();
+    const canonical = await f.db.selectFrom('collections').select('commit_ordinal').where('id', '=', 'collection').executeTakeFirstOrThrow();
+    expect(String(pin.after_ordinal)).toBe(String(canonical.commit_ordinal));
+    await grant();
+    const restored = (await get(`/rules/${id}/health`, editor.cookie)).json();
+    expect(restored.incidents.some((value: { code: string }) => value.code === 'permissionRevoked')).toBe(false);
+    expect((await get(`/binding-sets/${binding.json().id}`, editor.cookie)).json().revision).toBe('1');
+  });
+  test('eligible activity with zero predicate matches never becomes a broken-rule incident', async () => {
+    const input = { definition: { ...f.rule, match: { kind: 'field', field: 'bookmark.title', op: 'contains', value: 'never-matches-fixture' } }, bindingSetId: bindingId };
+    const created = await post('/rules', input); expect(created.statusCode).toBe(201);
+    const preview = await post('/rules/preview', { rule: input, mode: 'currentState' }); expect(preview.statusCode).toBe(200);
+    expect(preview.json().decisions.length).toBeGreaterThan(0); expect(preview.json().decisions.every((value: { outcome: string }) => value.outcome === 'notMatched')).toBe(true);
+    const id = created.json().id;
+    const enabled = await post(`/rules/${id}/lifecycle`, { state: 'enabled', pendingRuns: 'hold', reason: 'Zero match is valid', activationPreviewId: preview.json().previewId }, String(created.headers.etag));
+    expect(enabled.statusCode, enabled.body).toBe(200);
+    expect((await get(`/rules/${id}/health`)).json().incidents.map((value: { code: string }) => value.code)).toEqual(['runtimeUnsupported']);
+  });
+  test('deleted canonical folder blocks despite a same-name replacement; revalidation/pause remain available', async () => {
+    const node = await f.db.selectFrom('nodes').select('resource_revision').where('id', '=', 'academic').executeTakeFirstOrThrow();
+    const removed = await f.canonical.execute((ports) => deleteCollectionNode(ports, { actor: f.actor, command: f.command(), collectionId: 'collection', nodeId: 'academic',
+      ifMatch: `"${node.resource_revision}"`, recursive: false })); expect(removed.kind).toBe('deleted');
+    await f.createNode('same_name', 'parent', 'Renamed Academic');
+    await createAutomationHealthMonitor(f.db, 'server', metrics).onCollectionMutation(await delivery('node.deleted'));
+    const health = await post(`/rules/${rule.id}/revalidate`, { reason: 'Check dependency' }, `"${rule.revision}"`);
+    expect(health.statusCode, health.body).toBe(200); expect(health.json().incidents.some((value: { code: string }) => value.code === 'bindingDeleted')).toBe(true);
+    const paused = await post(`/rules/${rule.id}/lifecycle`, { state: 'paused', pendingRuns: 'hold', reason: 'Dependency lost' }, `"${rule.revision}"`);
+    expect(paused.statusCode, paused.body).toBe(200); expect(paused.json().desiredState).toBe('paused');
+    expect((await get(`/binding-sets/${bindingId}`)).json().values.academicRoot.folder.nodeId).toBe('academic');
+  });
+});

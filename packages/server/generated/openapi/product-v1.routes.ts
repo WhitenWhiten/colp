@@ -562,6 +562,16 @@ export const PRODUCT_ROUTE_MANIFEST = [
   },
   {
     "method": "GET",
+    "path": "/api/v1/me/automations/incidents",
+    "operationId": "listAutomationIncidents"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/automations/incidents/{incidentId}/acknowledge",
+    "operationId": "acknowledgeAutomationIncident"
+  },
+  {
+    "method": "GET",
     "path": "/api/v1/me/automations/pause",
     "operationId": "getAutomationPause"
   },
@@ -606,9 +616,24 @@ export const PRODUCT_ROUTE_MANIFEST = [
     "operationId": "replaceAutomationRule"
   },
   {
+    "method": "GET",
+    "path": "/api/v1/me/automations/rules/{ruleId}/dependencies",
+    "operationId": "getAutomationRuleDependencies"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/automations/rules/{ruleId}/health",
+    "operationId": "getAutomationRuleHealth"
+  },
+  {
     "method": "POST",
     "path": "/api/v1/me/automations/rules/{ruleId}/lifecycle",
     "operationId": "setAutomationRuleLifecycle"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/automations/rules/{ruleId}/revalidate",
+    "operationId": "revalidateAutomationRule"
   },
   {
     "method": "POST",

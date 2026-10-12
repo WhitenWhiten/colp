@@ -2,7 +2,7 @@ import { automationDigest, type LifecycleInput, type PauseInput } from '@know-n/
 import { AutomationError } from '../domain/errors.js';
 import type { AutomationActor } from '../domain/bindings.js';
 import { nextRevision, ruleInput, type AutomationPorts } from './ports.js';
-import { requireRule, requireEtag, parseContract, inspectInput } from './rule-service.js';
+import { requireRule, requireEtag, parseContract } from './rule-service.js';
 import { previewSnapshot } from './preview-service.js';
 
 export async function setLifecycle(ports: AutomationPorts, actor: AutomationActor, id: string, body: unknown, ifMatch: string) {
@@ -19,14 +19,11 @@ export async function setLifecycle(ports: AutomationPorts, actor: AutomationActo
     if (Object.values(current.resolutions).some((result) => result.status !== 'valid')) throw new AutomationError('automation_binding_unavailable', 'Repair the required folder binding.');
     if (preview.result.decisions.some((decision) => decision.outcome === 'conflict' || decision.outcome === 'blocked'))
       throw new AutomationError('automation_rule_conflict', 'Resolve blocked or conflicting preview decisions before enable.');
-    await ports.activation(stored, current.collection.id, current.collection.commitOrdinal, false);
-    await ports.activation(stored, current.collection.id, current.collection.commitOrdinal, true);
+    await ports.activation(stored, { kind: 'disable' });
+    await ports.activation(stored, { kind: 'enable', collectionId: current.collection.id, afterOrdinal: current.collection.commitOrdinal });
   } else {
-    // Pause/archive remains possible even when canonical authority or a folder is lost.
-    try {
-      const current = await inspectInput(ports, actor, ruleInput(stored.view));
-      await ports.activation(stored, current.collection.id, current.collection.commitOrdinal, false);
-    } catch (error) { if (!(error instanceof AutomationError)) throw error; }
+    // Fence private activation metadata even after resource permission loss.
+    await ports.activation(stored, { kind: 'disable' });
   }
   const paused = (await ports.settings.get(actor.accountId)).paused;
   stored.view = { ...stored.view, desiredState: input.state, effectiveState: input.state === 'enabled' ? (paused ? 'paused' : 'blocked') : input.state,
@@ -41,11 +38,9 @@ export async function setPause(ports: AutomationPorts, actor: AutomationActor, b
     pausedBy: input.paused ? 'owner' as const : null };
   for (const rule of await ports.rules.list(actor.accountId, null, 500)) {
     if (rule.view.desiredState !== 'enabled') continue;
-    try {
-      const current = await inspectInput(ports, actor, ruleInput(rule.view));
-      await ports.activation(rule, current.collection.id, current.collection.commitOrdinal, false);
-      if (!input.paused) await ports.activation(rule, current.collection.id, current.collection.commitOrdinal, true);
-    } catch (error) { if (!(error instanceof AutomationError)) throw error; }
+    await ports.activation(rule, { kind: 'disable' });
+    // This captures only the pinned source's ordinal, never grants read/effect authority.
+    if (!input.paused) await ports.activation(rule, { kind: 'resume' });
   }
   await ports.settings.save(actor.accountId, settings); return settings;
 }

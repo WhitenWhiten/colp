@@ -16,7 +16,7 @@ export function normalizeUrl(raw: string): NormalizedUrl {
 
 export function normalizeHost(raw: string): string | undefined {
   // Reject URL delimiters instead of interpreting a user-supplied host as a URL.
-  if (!raw || /[\s/@?#\\:%]/u.test(raw)) return undefined;
+  if (!raw || (/[\s/@?#\\:%]/u.test(raw) && !/^\[[0-9a-fA-F:.]+\]$/u.test(raw))) return undefined;
   const result = normalizeUrl(`https://${raw}/`);
   return result.status === 'available' ? result.host : undefined;
 }
@@ -29,9 +29,11 @@ export function normalizeEventFacts(value: unknown, version: number = FACTS_VERS
   const host = normalizeHost(facts.bookmark.url.host);
   if (!host) return { status: 'missingInput', reason: 'invalidUrl' };
   const path = facts.bookmark.url.path;
-  if (path !== undefined && (!path.startsWith('/') || /[\r\n]/u.test(path))) return { status: 'missingInput', reason: 'invalidPath' };
+  if (path !== undefined && (!path.startsWith('/') || /[\r\n?#]/u.test(path))) return { status: 'missingInput', reason: 'invalidPath' };
   // Normalize only supplied data. Missing path remains missing; do not invent it.
-  facts.bookmark.url = { host, ...(path === undefined ? {} : { path }) };
+  const normalizedPath = path === undefined ? undefined : normalizeUrl(`https://${host}${path}`);
+  if (normalizedPath?.status === 'missingInput') return { status: 'missingInput', reason: 'invalidPath' };
+  facts.bookmark.url = { host, ...(normalizedPath?.status === 'available' ? { path: normalizedPath.path } : {}) };
   facts.bookmark.tags = [...new Set(facts.bookmark.tags.map((tag) => tag.normalize('NFC')))];
   facts.bookmark.title = facts.bookmark.title.normalize('NFC');
   return { status: 'available', facts };

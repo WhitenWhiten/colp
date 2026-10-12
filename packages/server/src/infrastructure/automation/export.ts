@@ -8,7 +8,8 @@ import { buildAutomationExport } from '../../modules/automation/index.js';
 export async function exportAutomations(db: Kysely<DatabaseSchema>, ownerId: string): Promise<AutomationExport> {
   if (!db.isTransaction) return db.transaction().setIsolationLevel('repeatable read').execute((tx) => exportAutomations(tx, ownerId));
   const owner = await db.selectFrom('accounts').select(['subject_id', 'status']).where('id', '=', ownerId).executeTakeFirst();
-  if (!owner || owner.status !== 'active') throw new Error('Active export owner required.');
+  if (!owner) return buildAutomationExport([], new Date());
+  if (owner.status !== 'active') throw new Error('Active export owner required.');
   const rules = await db.selectFrom('automation_rules as r').innerJoin('automation_rule_revisions as v', 'v.id', 'r.current_revision_id')
     .innerJoin('automation_binding_sets as b', 'b.id', 'v.binding_set_id')
     .innerJoin('automation_binding_revisions as br', (join) => join.onRef('br.binding_set_id', '=', 'b.id').onRef('br.revision', '=', 'b.current_revision'))

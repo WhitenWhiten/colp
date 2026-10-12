@@ -1,3 +1,4 @@
+import { createHealthStore } from './health-store.js';
 import { randomUUID } from 'node:crypto';
 import { sql, type Kysely } from 'kysely';
 import type { PauseState, PreviewInput } from '@know-n/colp/automation';
@@ -20,7 +21,7 @@ export function createAutomationUnitOfWork(db: Kysely<DatabaseSchema>, serverUui
     if (!account || account.status !== 'active' || account.deleted_at || account.subject_id !== actor.subjectId)
       throw new AutomationError('resource_not_found', 'Active owner is unavailable.');
     const reads = createBindingReadPort(tx, serverUuid);
-    return work({ receipts: createPostgresProductCommandReceiptPort(tx), rules: createRuleStore(tx), bindings: createBindingStore(tx),
+    return work({ health: createHealthStore(tx), receipts: createPostgresProductCommandReceiptPort(tx), rules: createRuleStore(tx), bindings: createBindingStore(tx),
       reads, dependencies: createDependencyIndex(tx), id: randomUUID, now: () => databaseNow(tx),
       sample: (owner, rule, values) => readCurrentSample(tx, reads, serverUuid, owner, rule, values), export: (ownerId) => exportAutomations(tx, ownerId),
       settings: {
@@ -44,15 +45,34 @@ export function createAutomationUnitOfWork(db: Kysely<DatabaseSchema>, serverUui
           return row ? { id: row.id, configDigest: row.config_digest, input: row.snapshot_json.input as unknown as PreviewInput, result: row.result_json, expiresAt: row.expires_at } : null;
         },
         async save(ownerId, preview) {
+          await sql`delete from automation_preview_records where id in (
+            select id from automation_preview_records where owner_id=${ownerId} and expires_at <= current_timestamp
+              order by expires_at limit 100
+          )`.execute(tx);
           await tx.insertInto('automation_preview_records').values({ id: preview.id, owner_id: ownerId, config_digest: preview.configDigest,
             snapshot_json: { input: preview.input }, result_json: preview.result, expires_at: preview.expiresAt }).execute();
         },
       },
-      async activation(rule, collectionId, afterOrdinal, enabled) {
-        if (!enabled) {
-          await tx.updateTable('automation_activations').set({ disabled_after_ordinal: afterOrdinal }).where('rule_revision_id', '=', rule.definitionRevisionId)
-            .where('disabled_after_ordinal', 'is', null).execute(); return;
+      async activation(rule, transition) {
+        if (transition.kind === 'disable') {
+          const active = await tx.selectFrom('automation_activations').selectAll().where('rule_revision_id', '=', rule.definitionRevisionId)
+            .where('disabled_after_ordinal', 'is', null).orderBy('collection_id').execute();
+          for (const pin of active) {
+            const canonical = await tx.selectFrom('collections').select('commit_ordinal').where('id', '=', pin.collection_id).forShare().executeTakeFirst();
+            await tx.updateTable('automation_activations').set({ disabled_after_ordinal: String(canonical?.commit_ordinal ?? pin.after_ordinal) })
+              .where('rule_revision_id', '=', rule.definitionRevisionId).where('collection_id', '=', pin.collection_id).where('generation', '=', pin.generation).execute();
+          }
+          return;
         }
+        let collectionId: string, afterOrdinal: string;
+        if (transition.kind === 'resume') {
+          const previous = await tx.selectFrom('automation_activations').select('collection_id').where('rule_revision_id', '=', rule.definitionRevisionId)
+            .orderBy('generation', 'desc').executeTakeFirst();
+          if (!previous) return;
+          const canonical = await tx.selectFrom('collections').select(['commit_ordinal', 'deleted_at']).where('id', '=', previous.collection_id).forShare().executeTakeFirst();
+          if (!canonical || canonical.deleted_at) return;
+          collectionId = previous.collection_id; afterOrdinal = String(canonical.commit_ordinal);
+        } else { collectionId = transition.collectionId; afterOrdinal = transition.afterOrdinal; }
         const generations = await tx.selectFrom('automation_activations').select(sql<string>`coalesce(max(generation),0)::text`.as('generation'))
           .where('rule_revision_id', '=', rule.definitionRevisionId).executeTakeFirstOrThrow();
         const generation = (BigInt(generations.generation) + 1n).toString();

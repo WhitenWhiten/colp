@@ -1,4 +1,5 @@
 import type { Rule, RuleInput, BindingSet, PreviewResult, PreviewInput, PauseState, AutomationExport, EventFacts, RoleBindings, RuleDefinition } from '@know-n/colp/automation';
+import type { HealthStore } from './health-service.js';
 import type { ProductCommandReceiptPort } from '../../commands/index.js';
 import type { BindingReadPort, BindingStore, AutomationActor, FolderResolution } from '../domain/bindings.js';
 export interface StoredRule { view: Rule; sortCreatedAt: string; definitionRevisionId: string; definitionRevision: string }
@@ -11,16 +12,18 @@ export interface RuleStore {
 }
 export interface StoredPreview { id: string; configDigest: string; input: PreviewInput; result: PreviewResult; expiresAt: Date }
 export interface CurrentSample { events: EventFacts[]; truncated: boolean; revisions: Record<string, string> }
+export type ActivationTransition = { kind: 'disable' } | { kind: 'resume' } | { kind: 'enable'; collectionId: string; afterOrdinal: string };
 export interface AutomationPorts {
+  health: HealthStore;
   receipts: ProductCommandReceiptPort;
   rules: RuleStore;
   bindings: BindingStore;
   reads: BindingReadPort;
-  dependencies: { replace(revisionId: string, resolutions: Record<string, FolderResolution>): Promise<void> };
+  dependencies: { replace(revisionId: string, resolutions: Record<string, FolderResolution>, values?: RoleBindings): Promise<void> };
   settings: { get(ownerId: string): Promise<PauseState>; save(ownerId: string, state: PauseState): Promise<void> };
   previews: { load(ownerId: string, id: string): Promise<StoredPreview | null>; save(ownerId: string, preview: StoredPreview): Promise<void> };
   sample(actor: AutomationActor, rule: RuleDefinition, values: RoleBindings): Promise<CurrentSample>;
-  activation(rule: StoredRule, collectionId: string, afterOrdinal: string, enabled: boolean): Promise<void>;
+  activation(rule: StoredRule, transition: ActivationTransition): Promise<void>;
   export(ownerId: string): Promise<AutomationExport>;
   now(): Promise<Date>;
   id(): string;

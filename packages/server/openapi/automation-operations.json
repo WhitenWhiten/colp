@@ -1,6 +1,21 @@
 [
-  "getAutomationCapabilities", "validateAutomationRule", "previewAutomationRule",
-  "listAutomationRules", "createAutomationRule", "getAutomationRule", "replaceAutomationRule",
-  "setAutomationRuleLifecycle", "listAutomationBindingSets", "createAutomationBindingSet",
-  "getAutomationBindingSet", "replaceAutomationBindingSet", "setAutomationPause", "exportAutomations"
+  "getAutomationCapabilities",
+  "validateAutomationRule",
+  "previewAutomationRule",
+  "listAutomationRules",
+  "createAutomationRule",
+  "getAutomationRule",
+  "replaceAutomationRule",
+  "setAutomationRuleLifecycle",
+  "listAutomationBindingSets",
+  "createAutomationBindingSet",
+  "getAutomationBindingSet",
+  "replaceAutomationBindingSet",
+  "setAutomationPause",
+  "exportAutomations",
+  "getAutomationRuleHealth",
+  "getAutomationRuleDependencies",
+  "revalidateAutomationRule",
+  "listAutomationIncidents",
+  "acknowledgeAutomationIncident"
 ]

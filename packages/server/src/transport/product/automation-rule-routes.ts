@@ -1,3 +1,4 @@
+import { CollectionExportCapacityError } from '../../modules/collections/index.js';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { canonicalCommandFingerprint, type ProductCommandClaim } from '../../modules/commands/index.js';
 import type { IdentityUnitOfWork } from '../../modules/identity/index.js';
@@ -103,7 +104,7 @@ function registerAutomationRoute(app: FastifyInstance, deps: AutomationRoutesDep
           const response = await route.action({ ports, actor, request, ifMatch });
           if (mutation) await ports.receipts.complete(binding, fingerprint, { status: response.status ?? 200,
             body: new TextEncoder().encode(response.body === undefined ? '' : JSON.stringify(response.body)), mediaType: 'application/json',
-            contractVersion: '1.94.0', stableHeaders: { 'cache-control': 'private, no-store', ...(response.etag ? { etag: response.etag } : {}) } });
+            contractVersion: '1.95.0', stableHeaders: { 'cache-control': 'private, no-store', ...(response.etag ? { etag: response.etag } : {}) } });
           return { response };
         });
         if ('claim' in result) return replay(reply, result.claim!);
@@ -113,6 +114,7 @@ function registerAutomationRoute(app: FastifyInstance, deps: AutomationRoutesDep
       } catch (error) {
         if (error instanceof AutomationError) throw new ProductHttpError({ statusCode: productErrorStatus(error.code), code: error.code, message: error.message,
           fieldErrors: error.fieldErrors, currentEtag: error.currentEtag, ...(error.code === 'precondition_failed' ? { recovery: 'refresh_and_retry', precondition: 'resource' } : {}) });
+        if (error instanceof CollectionExportCapacityError) throw new ProductHttpError({ statusCode: 413, code: 'payload_too_large', message: error.message });
         if (error instanceof DatabaseOperationError) throw mapProductDatabaseError(error); throw error;
       }
     },

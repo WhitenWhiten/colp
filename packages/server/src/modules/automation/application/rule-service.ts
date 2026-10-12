@@ -1,4 +1,4 @@
-import { validateAutomation, validateM1Rule, ruleSemanticDigest, type RuleInput, type ChangeInput, type BindingSetInput,
+import { validateAutomation, validateM1Rule, ruleSemanticDigest, bindingSemanticDigest, type RuleInput, type ChangeInput, type BindingSetInput,
   type ValidationResult, type Diagnostic, type AutomationSchemaName } from '@know-n/colp/automation';
 import { AutomationError } from '../domain/errors.js';
 import { scopeCollectionId, type AutomationActor } from '../domain/bindings.js';
@@ -52,7 +52,7 @@ export async function createRule(ports: AutomationPorts, actor: AutomationActor,
   const inspected = await inspectInput(ports, actor, input), now = (await ports.now()).toISOString();
   const rule: StoredRule = { definitionRevisionId: ports.id(), definitionRevision: '1', sortCreatedAt: now, view: { ...input, id: ports.id(), revision: '1',
     desiredState: 'draft', effectiveState: 'draft', createdAt: now, updatedAt: now } };
-  await ports.rules.save(actor.accountId, rule); await ports.dependencies.replace(rule.definitionRevisionId, inspected.resolutions); return rule.view;
+  await ports.rules.save(actor.accountId, rule); await ports.dependencies.replace(rule.definitionRevisionId, inspected.resolutions, inspected.binding.values); return rule.view;
 }
 export async function replaceRule(ports: AutomationPorts, actor: AutomationActor, id: string, body: unknown, ifMatch: string) {
   const previous = await requireRule(ports, actor, id); requireEtag(previous.view.revision, ifMatch);
@@ -63,11 +63,11 @@ export async function replaceRule(ports: AutomationPorts, actor: AutomationActor
   assertM1Input(ruleInput); const inspected = await inspectInput(ports, actor, ruleInput);
   // Editing an enabled revision requires fresh preview/activation. It never silently activates new logic.
   const desiredState = previous.view.desiredState === 'enabled' ? 'paused' : previous.view.desiredState;
-  await ports.activation(previous, inspected.collection.id, inspected.collection.commitOrdinal, false);
+  await ports.activation(previous, { kind: 'disable' });
   const rule: StoredRule = { sortCreatedAt: previous.sortCreatedAt, definitionRevisionId: ports.id(), definitionRevision: nextRevision(previous.definitionRevision),
     view: { ...previous.view, ...ruleInput, revision: nextRevision(previous.view.revision), desiredState, effectiveState: desiredState,
       updatedAt: (await ports.now()).toISOString() } };
-  await ports.rules.save(actor.accountId, rule); await ports.dependencies.replace(rule.definitionRevisionId, inspected.resolutions); return rule.view;
+  await ports.rules.save(actor.accountId, rule); await ports.dependencies.replace(rule.definitionRevisionId, inspected.resolutions, inspected.binding.values); return rule.view;
 }
 export async function saveBinding(ports: AutomationPorts, actor: AutomationActor, body: unknown, id?: string, ifMatch?: string) {
   const input = parseContract<BindingSetInput>('BindingSetInput', body);
@@ -85,5 +85,15 @@ export async function saveBinding(ports: AutomationPorts, actor: AutomationActor
     }
   }
   const view = { ...input, id: id ?? ports.id(), revision: previous ? nextRevision(previous.revision) : '1', updatedAt: (await ports.now()).toISOString() };
-  await ports.bindings.save(actor.accountId, view); return view;
+  await ports.bindings.save(actor.accountId, view);
+  for (const rule of await ports.rules.list(actor.accountId, null, 500)) if (rule.view.bindingSetId === view.id) {
+    if (rule.view.desiredState === 'enabled' && previous && bindingSemanticDigest(previous.values) !== bindingSemanticDigest(view.values)) {
+      await ports.activation(rule, { kind: 'disable' });
+      rule.view = { ...rule.view, desiredState: 'paused', effectiveState: 'paused', revision: nextRevision(rule.view.revision), updatedAt: view.updatedAt };
+      await ports.rules.setState(actor.accountId, rule);
+    }
+    const resolutions = await resolveBindings(ports.reads, actor, rule.view.definition, view.values);
+    await ports.dependencies.replace(rule.definitionRevisionId, resolutions, view.values);
+  }
+  return view;
 }

@@ -124,3 +124,7 @@ Product 1.94.0 adds private configuration and preview only; execution stays unav
 See ../../../docs/automation/ADR-BE1.md. `npm run openapi:automation` checks the
 reviewed schema/fragment/source mirror before the ordinary pipeline. The immutable
 baseline is baselines/product-v1.1.94.0.yaml; compare the prior 1.93.0 baseline as well.
+
+Product 1.95.0 adds the BE-1 dependency/incident health operations. Its immutable
+baseline is baselines/product-v1.1.95.0.yaml; both prior Automation and pre-Automation
+baselines remain compatible. Runtime readiness is separate from configuration readiness.

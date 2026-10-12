@@ -1,3 +1,4 @@
+import { automationHealthRoutes } from './product/automation-health-routes.js';
 import { registerAutomationRoutes } from './product/automation-rule-routes.js';
 import { registerBookmarkSubscriptionRoutes } from './product/bookmark-subscription-routes.js';
 import type { FastifyInstance } from 'fastify';
@@ -9,7 +10,8 @@ import { registerBookmarkPreferencesRoutes } from './product/bookmark-preference
 export function registerAccountProductSurfaces(app: FastifyInstance, deps: AppDependencies): void {
   const { config, identityUnitOfWork, bookmarkPreferencesUnitOfWork, bookmarkPreferencesQuery } = deps;
   if (identityUnitOfWork && deps.automationUnitOfWork) registerAutomationRoutes(app, { identityUnitOfWork, unitOfWork: deps.automationUnitOfWork,
-    allowedOrigins: config.allowedOrigins, cursorKey: config.productEditorCursor.current.key });
+    allowedOrigins: config.allowedOrigins, cursorKey: config.productEditorCursor.current.key }, automationHealthRoutes(config.productEditorCursor.current.key));
+  if (deps.automationHealthStartup) app.addHook('onReady', deps.automationHealthStartup);
   const subscriptions = { identityUnitOfWork, unitOfWork: deps.bookmarkSubscriptionUnitOfWork, allowedOrigins: extensionProductAllowedOrigins(config), enabled: () => config.bookmarkSubscriptions?.enabled === true, protocolReady: () => config.bookmarkSubscriptions?.protocolReady === true, cursorKey: config.community.cursorHmacKey, rateLimiter: deps.reportsRateLimiter };
   registerBookmarkSubscriptionRoutes(app, subscriptions);
   if (identityUnitOfWork && bookmarkPreferencesUnitOfWork && bookmarkPreferencesQuery) {

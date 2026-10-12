@@ -10,7 +10,7 @@ but rejected as unsupported capability. JavaScript is not a language branch.
 M1 accepts tasks=[], route.targetIds=[], no executionPolicyId, no credentials.
 No worker, target, model, count/scheduled trigger or historical preview is available in BE-1.
 
-Finite predicates: all/any/not/field. Maximum depth 16, 128 nodes, eight tasks.
+Finite predicates: all/any/not/field. Maximum depth 16, 128 nodes, 4096 encoded expression bytes, eight tasks.
 Field/operator types follow the reviewed schema. Host normalization uses WHATWG URL,
 IDNA, lower case and removes terminal dots; http/https only. Invalid URL is missingInput.
 startsWith is literal case-sensitive path prefix: /docs/ accepts /docs/a and
@@ -31,3 +31,6 @@ cycle; missing/wrong-kind role; CEL; count batch. These are executable core test
 
 Browser storage/runtime integration and extension installation belong to AW-49.
 Store review and actual browser lifecycle remain release gates, not preapproved claims.
+
+BE-1 validates browser-target bundle execution with trusted fixtures. Actual MV3 CSP/store
+installation remains AW-49; no Chrome lifecycle or store approval is claimed.

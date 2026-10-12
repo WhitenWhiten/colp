@@ -8,6 +8,7 @@ export type CompiledPredicate = { valid: true; dependencies: string[]; evaluate:
 export function compilePredicate(value: unknown): CompiledPredicate {
   const shape = validateAutomation('Predicate', value);
   if (!shape.valid) return shape;
+  if (new TextEncoder().encode(JSON.stringify(value)).byteLength > 4096) return { valid: false, issues: [{ path: '/match', code: 'predicateLimit', message: 'Expression exceeds the 4096-byte finite profile limit.' }] };
   const predicate = structuredClone(value) as Predicate;
   const issues: ContractIssue[] = [];
   const dependencies = new Set<string>();
@@ -34,6 +35,7 @@ export function compilePredicate(value: unknown): CompiledPredicate {
       if (hosts.some((host) => host === undefined)) issue(path, 'invalidHost', 'Expected a domain, without URL delimiters.');
       else node.value = Array.isArray(node.value) ? hosts as string[] : hosts[0]!;
     } else if (typeof node.value === 'string') node.value = node.value.normalize('NFC');
+    else node.value = node.value.map((value) => value.normalize('NFC'));
   };
   walk(predicate, 1, '/match');
   if (issues.length) return { valid: false, issues: issues.slice(0, 100) };

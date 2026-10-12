@@ -32,6 +32,9 @@ test('typed operators and boolean profile are bounded', () => {
   const branch = { kind: 'all', items: Array.from({ length: 32 }, () => field('bookmark.kind', 'eq', 'bookmark')) };
   expect(compilePredicate({ kind: 'all', items: Array.from({ length: 4 }, () => branch) }).valid).toBe(false);
 });
+test('encoded expression size is enforced as advertised', () => {
+  expect(compilePredicate(field('bookmark.title', 'in', Array(30).fill('x'.repeat(200)))).valid).toBe(false);
+});
 test('boolean decisions and CPU exhaustion isolate one invocation', () => {
   const compiled = compilePredicate({ kind: 'all', items: [field('bookmark.kind', 'eq', 'bookmark'), field('event.origin', 'in', ['user'])] });
   expect(compiled.valid).toBe(true); if (!compiled.valid) return;

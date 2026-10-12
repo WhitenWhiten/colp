@@ -16,16 +16,18 @@ const validators = new Map<AutomationSchemaName, ValidateFunction>();
 
 /** Bound traversal before recursive schema evaluation, including adversarial non-JSON inputs. */
 export function boundedJson(value: unknown): boolean {
-  const queue: Array<{ value: unknown; depth: number }> = [{ value, depth: 0 }];
+  const queue: Array<{ value: unknown; depth: number; exiting?: boolean }> = [{ value, depth: 0 }];
   const seen = new Set<object>();
   let count = 0;
   while (queue.length) {
     const item = queue.pop()!;
+    if (item.exiting && typeof item.value === 'object' && item.value !== null) { seen.delete(item.value); continue; }
     if (++count > 100_000 || item.depth > 64) return false;
     if (item.value === null || typeof item.value === 'string' || typeof item.value === 'boolean') continue;
     if (typeof item.value === 'number' && Number.isFinite(item.value)) continue;
     if (typeof item.value !== 'object' || seen.has(item.value)) return false;
     seen.add(item.value);
+    queue.push({ ...item, exiting: true });
     for (const child of Object.values(item.value)) queue.push({ value: child, depth: item.depth + 1 });
   }
   return true;

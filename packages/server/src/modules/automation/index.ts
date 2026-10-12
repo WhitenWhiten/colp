@@ -6,3 +6,4 @@ export * from './application/resolve-bindings.js';
 export * from './application/rule-service.js';
 export * from './application/preview-service.js';
 export * from './application/lifecycle-service.js';
+export * from './application/health-service.js';
