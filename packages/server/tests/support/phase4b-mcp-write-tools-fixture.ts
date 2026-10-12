@@ -15,6 +15,7 @@ import {
   projectPhase4bMcpPlan,
   Phase4bMcpLowRiskNodeCreateError,
   type Phase4bMcpWriteToolAdapterBundle,
+  type Phase4bMcpChangePlanService,
 } from '../../src/modules/mcp/index.js';
 import { createMcpChangePlanRateLimitPort } from '../../src/bootstrap/mcp-write-composition.js';
 import { waitForRealTime } from './async-test-helpers.js';
@@ -55,6 +56,7 @@ export function createInMemoryWriteToolFixture(
     readonly annotationUpdateThrow?: () => unknown;
     readonly collectionCreateService?: Phase4bMcpOwnedCollectionCreateService;
     readonly collectionUpdateService?: Phase4bMcpLowRiskCollectionUpdateService;
+    readonly planCatalog?: Pick<Phase4bMcpChangePlanService, 'plan'>;
   } = {},
 ): InMemoryWriteToolFixture {
   const planStore = createInMemoryPlanStore();
@@ -349,6 +351,7 @@ export function createInMemoryWriteToolFixture(
   );
   const bundle = createPhase4bMcpWriteToolAdapter({
     changePlan,
+    ...(options.planCatalog ? { planCatalog: options.planCatalog } : {}),
     nodeCreateService,
     collectionCreateService,
     nodeUpdateService,

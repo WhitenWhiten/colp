@@ -183,6 +183,12 @@ const opaqueIdProperty = Object.freeze({
   pattern: '^[A-Za-z0-9._~-]+$',
 } as const);
 
+const planReasonProperty = Object.freeze({
+  type: 'string', minLength: 1, maxLength: 1_000,
+  pattern: '^[^\\u0000-\\u001F\\u007F]+$',
+  description: 'Why this change is requested; shown separately to the owner during approval.',
+} as const);
+
 const nodeCreateProperties = Object.freeze({
   collectionId: writeCollectionIdProperty,
   parentId: opaqueIdProperty,
@@ -227,6 +233,7 @@ const nodeMoveInputSchema = Object.freeze({
       description: 'Several nodes to move in one plan, in order. Use instead of nodeId.',
     }),
     collectionId: opaqueIdProperty,
+    reason: planReasonProperty,
     parentId: opaqueIdProperty,
     position: Object.freeze({
       type: 'integer',
@@ -589,7 +596,7 @@ function withMcpAccountSubject(
           }
           const args = snapshotPhase4bData(call.arguments, MCP_OWN_DATA_DEFAULT_BUDGET) as Record<string, unknown>;
           const plan = await planCatalog.plan({
-            ...args, tool: call.name, dryRun: true, reason: call.name,
+            ...args, tool: call.name, dryRun: true, reason: Object.hasOwn(args, 'reason') ? args.reason : call.name,
           }, requireAuthenticatedWriteBinding(snapshotMcpAuthorizationBinding(context.binding)));
           return createPhase4bMcpResult({ method: 'tools/call', fields: { structuredContent: {
             planId: plan.planId, risk: plan.risk, requiresApproval: plan.requiresApproval,
@@ -907,7 +914,7 @@ function createChangeGetDefinition(
 function createNodeDeleteSubtreeDefinition(): McpLowRiskToolDefinition {
   const definition: McpLowRiskToolDefinition = {
     inputSchema: Object.freeze({ type: 'object', additionalProperties: false,
-      properties: { nodeId: opaqueIdProperty, collectionId: opaqueIdProperty }, required: ['nodeId'] }),
+      properties: { nodeId: opaqueIdProperty, collectionId: opaqueIdProperty, reason: planReasonProperty }, required: ['nodeId'] }),
     outputSchema: nodeMoveOutputSchema,
     toCanonicalOperations: () => Object.freeze([Object.freeze({
       type: 'delete_subtree',
