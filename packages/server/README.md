@@ -40,6 +40,11 @@ credentials into scripts. Measure actual model request tokens separately
 from serialized schema bytes and HTTP payload sizes.
 
 
+Public collection and bookmark pages use stored site icons or a local
+fallback. They do not contact a third-party favicon service, even if a cached
+response carries an older CDN opt-in flag. The legacy `faviconCdnAllowed`
+response fields remain available and are always false on public pages.
+
 Initial browser synchronization supports non-atomic Push batches of up to 50 operations.
 `SYNC_MAX_BATCH_OPERATIONS` defaults to `50` (range `1..50`); set it to `1` to disable batching.
 The Manifest advertises the configured limit and Sessions negotiate it with the client.
