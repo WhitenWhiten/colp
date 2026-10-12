@@ -485,3 +485,23 @@ test('approval names are loaded once for visible plans, with a stable fallback f
   assert.equal(await api.get(ACCOUNT, 'hidden'), undefined);
   assert.equal(calls.length, 1);
 });
+
+test('renaming an agent changes the view ETag and rejects a decision based on its old attribution', async () => {
+  let name = 'Original agent';
+  let readInsideTransaction = false;
+  const { api, state } = createHarness([plan()], async (_account, _ids, transaction) => {
+    if (transaction !== undefined) readInsideTransaction = true;
+    return new Map([['client-1', name]]);
+  });
+  const original = (await api.get(ACCOUNT, 'plan-1'))!;
+  name = 'Renamed agent';
+  const current = (await api.get(ACCOUNT, 'plan-1'))!;
+  assert.notEqual(current.etag, original.etag);
+  await assert.rejects(api.decide(decisionInput({ ifMatch: original.etag })), (error: unknown) =>
+    error instanceof WriteApprovalApiError && error.code === 'precondition_failed' && error.currentEtag === current.etag);
+  assert.equal(state.plans.get('plan-1')?.status, 'pending');
+  assert.equal(readInsideTransaction, true);
+  const decided = await api.decide(decisionInput({ commandId: randomUUID(), ifMatch: current.etag }));
+  assert.equal(decided.kind, 'succeeded');
+  if (decided.kind === 'succeeded') assert.equal(decided.result.etag, (await api.get(ACCOUNT, 'plan-1'))?.etag);
+});

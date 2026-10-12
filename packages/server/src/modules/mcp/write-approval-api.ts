@@ -170,7 +170,7 @@ export interface Phase4bMcpWriteApprovalPlanStorePorts<Transaction extends objec
     planId: string,
   ) => McpStoredPlan | undefined | PromiseLike<McpStoredPlan | undefined>;
   /** Resolve display names for visible plans in one bounded batch. */
-  readonly getAgentNames?: (accountId: string, clientIds: readonly string[]) => Promise<ReadonlyMap<string, string>>;
+  readonly getAgentNames?: (accountId: string, clientIds: readonly string[], transaction?: Transaction) => Promise<ReadonlyMap<string, string>>;
 }
 
 export interface Phase4bMcpWriteApprovalApi {
@@ -208,9 +208,10 @@ export class WriteApprovalApiError extends Error {
 const PLAN_ID_PATTERN = /^[A-Za-z0-9._~-]{1,128}$/u;
 const DEFAULT_LIST_LIMIT = 100;
 
-export function approvalEtag(plan: McpStoredPlan): string {
+export function approvalEtag(plan: McpStoredPlan, agentName?: string): string {
+  const name = projectAgentName(agentName);
   const digest = createHash('sha256')
-    .update(`${plan.planId}\0${plan.status}\0${plan.createdAt}`, 'utf8')
+    .update(`${plan.planId}\0${plan.status}\0${plan.createdAt}${name === null ? '' : `\0${name}`}`, 'utf8')
     .digest('base64url');
   return `"approval:${digest}"`;
 }
@@ -290,14 +291,17 @@ export function createPhase4bMcpWriteApprovalApi<Transaction extends object>(
               'The requested approval was not found.',
             );
           }
-          assertCurrentEtag(plan, input.ifMatch);
+          const names = ports.getAgentNames === undefined ? undefined
+            : await ports.getAgentNames(input.account.id, [plan.binding.clientId], transaction);
+          const agentName = names?.get(plan.binding.clientId);
+          assertCurrentEtag(plan, input.ifMatch, agentName);
           assertDecisionAllowed(plan, now);
 
           const updated = input.decision === 'approve'
             ? await approvePlan(ports, transaction, plan)
             : Object.freeze({ ...plan, status: 'cancelled' as const });
           await settle(ports.updatePlan(transaction, updated));
-          const result = buildDecisionResult(updated, input.decision);
+          const result = buildDecisionResult(updated, input.decision, agentName);
           await settle(ports.appendAuditDecision(transaction, Object.freeze({
             planId: updated.planId,
             principalId: input.account.id,
@@ -339,8 +343,8 @@ function isVisible(plan: McpStoredPlan, account: WriteApprovalAccount): boolean 
   return plan.binding.principalId === account.id;
 }
 
-function assertCurrentEtag(plan: McpStoredPlan, expected: string): void {
-  const current = approvalEtag(plan);
+function assertCurrentEtag(plan: McpStoredPlan, expected: string, agentName?: string): void {
+  const current = approvalEtag(plan, agentName);
   if (expected !== current) {
     throw new WriteApprovalApiError(
       'precondition_failed',
@@ -391,6 +395,7 @@ async function approvePlan<Transaction extends object>(
 function buildDecisionResult(
   plan: McpStoredPlan,
   decision: WriteApprovalDecision,
+  agentName?: string,
 ): WriteApprovalDecisionResult {
   if (decision === 'approve' && plan.status === 'approved') {
     return Object.freeze({
@@ -398,7 +403,7 @@ function buildDecisionResult(
       planId: plan.planId,
       decision: 'approved' as const,
       status: 'approved' as const,
-      etag: approvalEtag(plan),
+      etag: approvalEtag(plan, agentName),
     });
   }
   if (decision === 'deny' && plan.status === 'cancelled') {
@@ -407,7 +412,7 @@ function buildDecisionResult(
       planId: plan.planId,
       decision: 'denied' as const,
       status: 'cancelled' as const,
-      etag: approvalEtag(plan),
+      etag: approvalEtag(plan, agentName),
     });
   }
   throw new WriteApprovalApiError(
@@ -431,10 +436,14 @@ function toProductCommandResult(result: WriteApprovalDecisionResult): ProductCom
   };
 }
 
+function projectAgentName(name?: string): string | null {
+  return name?.trim().slice(0, 200) || null;
+}
+
 function toView(plan: McpStoredPlan, agentName?: string): WriteApprovalView {
   return Object.freeze({
     planId: plan.planId,
-    agent: Object.freeze({ clientId: plan.binding.clientId, name: agentName?.trim().slice(0, 200) || null }),
+    agent: Object.freeze({ clientId: plan.binding.clientId, name: projectAgentName(agentName) }),
     reason: plan.untrustedNote.trim().slice(0, 1_000) || null,
     status: plan.status,
     risk: plan.risk,
@@ -447,7 +456,7 @@ function toView(plan: McpStoredPlan, agentName?: string): WriteApprovalView {
     createdAt: plan.createdAt,
     expiresAt: plan.expiresAt,
     decision: decisionState(plan.status),
-    etag: approvalEtag(plan),
+    etag: approvalEtag(plan, agentName),
   });
 }
 

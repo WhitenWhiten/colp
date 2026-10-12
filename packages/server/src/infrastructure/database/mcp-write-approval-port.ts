@@ -71,7 +71,7 @@ export function createPostgresMcpWriteApprovalPorts(
     },
     listPlans: (filter: WriteApprovalListFilter) => store.listByPrincipalIds(filter),
     getPlan: (planId: string) => store.planStore.get(planId),
-    async getAgentNames(accountId: string, clientIds: readonly string[]) {
+    async getAgentNames(accountId: string, clientIds: readonly string[], transaction?: DatabaseTransaction) {
       const result = await sql<{ client_id: string; name: string | null }>`
         SELECT requested.client_id,
           COALESCE(NULLIF(btrim(cred.label), ''), NULLIF(btrim(client.name), '')) AS name
@@ -81,7 +81,7 @@ export function createPostgresMcpWriteApprovalPorts(
         LEFT JOIN auth_oauth_client client ON client."clientId" = requested.client_id
         WHERE EXISTS (SELECT 1 FROM mcp_change_plans plan
           WHERE plan.principal_id = ${accountId} AND plan.client_id = requested.client_id)
-      `.execute(db);
+      `.execute(transaction ?? db);
       return new Map(result.rows.flatMap((row) => row.name === null ? [] : [[row.client_id, row.name] as const]));
     },
   });
