@@ -87,6 +87,32 @@ Migration `202610290100_link_preview_object_bytes` adds the preview byte table. 
 
 Migration `202610260000_mcp_plan_receipt_owner_approval` widens a check constraint and runs at start. Rolling back past it deletes owner-approved Undo receipts (their saved versions stay in History). Scripts that treated a 404 from `/api/v1/auth/key-token` as "bad key" should also accept 401.
 
+## [0.1.0-rc.4]
+
+### Added
+
+- Restored favicon uploads, removal, source settings and durable missing-icon filling, with PostgreSQL storage by default, authenticated private reads and recoverable jobs.
+- Gallery fetches bookmark preview images and serves validated copies from PostgreSQL on this server. Private collections request previews only when their owner or an editor opens Gallery.
+- Approvals identify the requesting agent and preserve its stated reason. MCP write tools support URL elicitation for approval, resumable fallback and explicit write outcomes, with updated nodes available on request.
+
+### Changed
+
+- Sync supports ordered push batches with singleton recovery and incremental snapshot-capacity accounting. MCP reuses scoped tool catalogs and static tool definitions, and search results include node summaries and consistent page metadata.
+- Refined Library sharing, visitor navigation, setup flows, Agents, consent and approval cards, profile names, and action feedback.
+
+### Fixed
+
+- Rotated browser sessions recover the current cookie and reject revoked credentials. Sync recovery uses fresh request authorization, renews retained checkpoints through Session negotiation, and accepts current-checkpoint Acks after idle renewal.
+- MCP accepts calls without nonstandard client capabilities, validates parameter headers against advertised schemas, supports HTTPS CIMD agents, and keeps compatibility annotations and write receipt schemas valid for strict clients.
+- Public pages no longer request third-party favicons. Favicon uploads use the command transaction, and failed external uploads and interrupted jobs recover without leaking orphan objects.
+- Upgrades retain lazy-loaded web assets and prevent cached HTML from being served as stylesheets. The setup checklist shares the collection currently on screen.
+
+### Upgrade notes
+
+From 0.1.0-rc.3, update the checkout and `deploy/` files from the same revision, set `COLP_IMAGE_TAG=0.1.0-rc.4`, and recreate the server and active ingress. Database migrations run at startup, including the ordered-sync-batch migration and `202610290100_link_preview_object_bytes` for preview storage.
+
+The self-hosted database pool now defaults to 12 connections. If `DATABASE_POOL_MAX` is explicitly below 10, raise it or set `KNOWN_FEATURE_LINK_PREVIEW=false`. `LINK_PREVIEW_CONCURRENCY` defaults to 2. The final 0.1.0 release has not been accepted.
+
 ## [0.1.0-rc.3]
 
 ### Changed
