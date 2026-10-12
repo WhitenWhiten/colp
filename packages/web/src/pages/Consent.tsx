@@ -11,6 +11,7 @@ import { plural } from '../lib/plural'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
 import { safeReturnTo } from './safeReturnTo'
 import { productName } from '../lib/edition'
+import { SETTINGS_PARAM } from '../lib/useSettingsDialog'
 import '../styles/auth-pages.css'
 
 export { consentScopeLabel } from '../lib/oauthScopes'
@@ -66,7 +67,11 @@ export function Consent() {
   const [searchParams] = useSearchParams()
   const { user, isLoggedIn, bootstrapping } = useAuth()
   const { error: toastError } = useToast()
-  const queryString = searchParams.toString()
+  // Settings belongs to the page chrome, not the signed OAuth transaction.
+  // Exclude it from both metadata loading and consent submission.
+  const oauthParams = new URLSearchParams(searchParams)
+  oauthParams.delete(SETTINGS_PARAM)
+  const queryString = oauthParams.toString()
   const clientId = searchParams.get('client_id') ?? ''
   const scopeParam = searchParams.get('scope') ?? ''
   // Never seed the display name from the query string: an attacker-crafted

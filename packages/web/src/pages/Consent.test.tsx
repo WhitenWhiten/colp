@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Consent, consentScopeLabel } from './Consent'
 import { safeReturnTo } from './safeReturnTo'
 import { cleanup, findButtonByName, mountTree, waitForDom } from '../test/render'
+import { useSettingsDialog } from '../lib/useSettingsDialog'
 
 const CIMD_CLIENT_ID = 'https://cimd.example/client.json'
 const CLIENT_NAME = 'Cursor'
@@ -54,6 +55,23 @@ function LoginProbe() {
   return <div data-testid="page-login" data-return-to={params.get('returnTo') ?? ''} />
 }
 
+function SettingsControls() {
+  const { open, close } = useSettingsDialog()
+  const [, setParams] = useSearchParams()
+  return (
+    <>
+      <button onClick={() => open('profile')}>Profile settings</button>
+      <button onClick={() => open('security')}>Security settings</button>
+      <button onClick={close}>Close settings</button>
+      <button onClick={() => setParams(prev => {
+        const next = new URLSearchParams(prev)
+        next.set('state', 'next-transaction')
+        return next
+      })}>Change OAuth transaction</button>
+    </>
+  )
+}
+
 describe('Consent page', () => {
   let restoreLocation: () => void
 
@@ -100,6 +118,50 @@ describe('Consent page', () => {
       </MemoryRouter>,
     )
   }
+
+  it.each([
+    { settings: undefined, accept: true },
+    { settings: 'profile', accept: false },
+  ])('preserves consent while settings changes (initial settings: $settings)', async ({ settings, accept }) => {
+    const path = consentPath({ state: 'original-state', sig: 'signed-query', ...(settings ? { settings } : {}) })
+    const expectedQuery = new URLSearchParams(path.split('?')[1])
+    expectedQuery.delete('settings')
+    mocks.authClient.submitOAuthConsent.mockResolvedValue({ redirect: false })
+    mountTree(
+      <MemoryRouter initialEntries={[path]}>
+        <Routes><Route path="/consent" element={<><SettingsControls /><Consent /></>} /></Routes>
+      </MemoryRouter>,
+    )
+    await waitForDom(() => (document.body.textContent ?? '').includes(CLIENT_NAME))
+    const requests = mocks.authClient.getOAuthConsentTransaction.mock.calls.length
+    expect(mocks.authClient.getOAuthConsentTransaction).toHaveBeenLastCalledWith({ oauthQuery: expectedQuery.toString() })
+    const approveButton = findButtonByName('Approve')
+    for (const label of ['Profile settings', 'Security settings', 'Profile settings', 'Close settings']) {
+      await act(async () => { findButtonByName(label).click() })
+      expect(mocks.authClient.getOAuthConsentTransaction).toHaveBeenCalledTimes(requests)
+      expect(findButtonByName('Approve')).toBe(approveButton)
+      expect(document.body.textContent).toContain(VERIFIED_REDIRECT)
+    }
+    await act(async () => { findButtonByName('Security settings').click() })
+    expect(mocks.authClient.getOAuthConsentTransaction).toHaveBeenCalledTimes(requests)
+    await act(async () => { findButtonByName(accept ? 'Approve' : 'Deny').click() })
+    expect(mocks.authClient.submitOAuthConsent).toHaveBeenCalledWith({ accept, scope: SCOPE, oauth_query: expectedQuery.toString() })
+  })
+
+  it('reloads verified metadata when the OAuth transaction changes', async () => {
+    mountTree(
+      <MemoryRouter initialEntries={[consentPath({ state: 'original-state' })]}>
+        <Routes><Route path="/consent" element={<><SettingsControls /><Consent /></>} /></Routes>
+      </MemoryRouter>,
+    )
+    await waitForDom(() => (document.body.textContent ?? '').includes(CLIENT_NAME))
+    const requests = mocks.authClient.getOAuthConsentTransaction.mock.calls.length
+    mocks.authClient.getOAuthConsentTransaction.mockResolvedValue({ client_id: CIMD_CLIENT_ID, client_name: 'Next client', redirect_uri: VERIFIED_REDIRECT })
+    await act(async () => { findButtonByName('Change OAuth transaction').click() })
+    expect(mocks.authClient.getOAuthConsentTransaction).toHaveBeenCalledTimes(requests + 1)
+    expect(document.body.textContent).toContain('Next client')
+    expect(new URLSearchParams(mocks.authClient.getOAuthConsentTransaction.mock.lastCall?.[0].oauthQuery).get('state')).toBe('next-transaction')
+  })
 
   it('renders the CIMD client_name, requested scopes, and verified redirect hostname and URI', async () => {
     render()
