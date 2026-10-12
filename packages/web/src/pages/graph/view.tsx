@@ -39,9 +39,10 @@ export function GraphView({
       )}
 
       <p className="meta" role="status">
-        {state.matching.length} of {plural(state.resources.length, 'bookmark')} · {plural(state.filteredEdges.length, 'relation')}
+        {/* Folders are nodes too, so the counts say items, not bookmarks. */}
+        {state.matching.length} of {plural(state.resources.length, 'item')} · {plural(state.filteredEdges.length, 'relation')}
         {(state.matching.length > state.visible.length || state.filteredEdges.length > state.edges.length) && (
-          <> · Canvas shows {plural(state.visible.length, 'bookmark')} and {plural(state.edges.length, 'relation')}. Search, focus a neighborhood, or browse the bookmark list to explore the rest.</>
+          <> · Canvas shows {plural(state.visible.length, 'item')} and {plural(state.edges.length, 'relation')}. Search, focus a neighborhood, or browse the list to explore the rest.</>
         )}
       </p>
       <div className="graph-layout">

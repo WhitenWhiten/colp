@@ -64,7 +64,9 @@ export function GraphToolbar({ state }: { state: GraphState }) {
           </details>
         )}
       </FilterRail>
-      <div className="field"><label htmlFor="graph-relation-type">Relation type</label>
+      {/* "All relations" names the control; a visible label above it pushed the
+          select below the rest of the row. */}
+      <div className="field graph-relation-field"><label htmlFor="graph-relation-type" className="visually-hidden">Relation type</label>
         <select id="graph-relation-type" aria-label="Relation type filter" value={state.relationType} onChange={(event) => state.setRelationType(event.target.value)}>
           <option value="all">All relations</option>
           {state.relationTypes.map((type) => <option key={type} value={type}>{relationLabel(type)}</option>)}

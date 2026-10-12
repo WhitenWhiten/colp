@@ -11,8 +11,9 @@ import '../styles/write-approvals.css'
 export type { DecisionDraft, DraftPhase, FrozenDecision } from './write-approvals/types'
 
 export function WriteApprovals() {
-  useDocumentTitle('Write approvals')
   const data = useWriteApprovals()
+  // Same names as the nav and the page head (this effect runs after the head's).
+  useDocumentTitle(data.detailMode ? 'Approval' : 'Approvals')
 
   if (!data.enabled) {
     return (

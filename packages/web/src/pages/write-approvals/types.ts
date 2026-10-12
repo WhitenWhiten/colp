@@ -152,6 +152,11 @@ export function operationTypeLabel(
   if (operation.type === 'create_node') {
     return createNodeOperationLabel(operation.nodeSummary?.kind)
   }
+  // The server counts what a delete removes ("… (1 item)"); one item has
+  // nothing inside it, so "with everything inside" would overstate it.
+  if (operation.type === 'delete_subtree' && /\(1 item\)$/u.test(operation.description ?? '')) {
+    return 'Delete'
+  }
   if (operation.type === 'set_visibility' && target.kind === 'collection') {
     if (operation.visibility === 'public') return 'Publish collection'
     if (operation.visibility === 'unlisted') return 'Make collection unlisted'

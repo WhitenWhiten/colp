@@ -73,6 +73,11 @@
   width: min(100%, 16rem);
 }
 
+/* The relation select rides the toolbar row beside the search and chips. */
+.graph-relation-field {
+  flex-shrink: 0;
+}
+
 @media (max-width: 639px) {
   .graph-toolbar {
     flex-direction: column;

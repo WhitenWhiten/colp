@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { productClient } from '../../api'
+import { Breadcrumb } from '../../components/Breadcrumb'
 import { EmptyState } from '../../components/EmptyState'
 import { PageHead } from '../../components/PageHead'
 import { PageShell } from '../../components/PageShell'
@@ -35,7 +36,10 @@ export function WriteApprovalsView({ data }: { data: WriteApprovalsData }) {
           className="write-approvals-head"
           layout="split"
           variant="workbench"
-          eyebrow="Agents"
+          breadcrumb={detailMode
+            ? <Breadcrumb items={[{ label: 'Approvals', to: '/approvals' }, { label: 'Plan' }]} />
+            : undefined}
+          eyebrow={detailMode ? undefined : 'Agents'}
           title={detailMode ? 'Approval' : 'Approvals'}
           documentTitle={detailMode ? 'Approval' : 'Approvals'}
           lede="Changes your agents proposed. Nothing in your library changes until you approve; moves from trusted agents land here already applied, with Undo."

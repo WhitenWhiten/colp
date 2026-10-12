@@ -9,7 +9,7 @@ export function GraphNodeList({ resources, selectedId, select }: {
   const current = Math.min(page, lastPage)
   return (
     <details className="graph-resource-list">
-      <summary>Browse bookmarks ({resources.length})</summary>
+      <summary>Browse all items ({resources.length})</summary>
       <ul className="graph-neighbor-list" aria-label="Graph bookmarks">
         {resources.slice(current * 50, (current + 1) * 50).map((resource) => (
           <li key={resource.node.id}>

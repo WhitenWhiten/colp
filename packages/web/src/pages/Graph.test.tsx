@@ -354,7 +354,7 @@ describe('Graph product browsing', () => {
     mocks.loadPublicCollectionSnapshot.mockResolvedValue({ ...snapshot(), nodes: [rootNode(), ...stubResources(205).map((resource) => resource.node)], relations: [] })
     renderGraph(); await ready()
     expect(document.querySelectorAll('[data-node-id]')).toHaveLength(200)
-    expect(document.body.textContent).toContain('Canvas shows 200 bookmarks')
+    expect(document.body.textContent).toContain('Canvas shows 200 items')
     for (let i = 0; i < 4; i += 1) act(() => [...document.querySelectorAll('button')].find((button) => button.textContent === 'Next')!.click())
     act(() => [...document.querySelectorAll('[aria-label="Graph bookmarks"] button')].find((button) => button.textContent === 'Title 204')!.dispatchEvent(new MouseEvent('click', { bubbles: true })))
     expect(document.querySelector('[data-node-id="nd-204"]')?.getAttribute('aria-pressed')).toBe('true')

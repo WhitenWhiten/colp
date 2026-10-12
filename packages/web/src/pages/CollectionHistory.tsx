@@ -47,6 +47,22 @@ const VERSION_KIND_LABEL: Record<string, string> = {
 
 const NO_VERSIONS: CollectionVersion[] = []
 
+/** An unlabelled save comes back named "Snapshot <UTC timestamp>". */
+const SERVER_DEFAULT_LABEL = /^Snapshot \d{4}-\d{2}-\d{2}T[\d:.]+Z$/u
+
+/** The list already shows when a version was saved, in local time, so an
+    unlabelled save reads as "Snapshot" instead of repeating a UTC stamp. */
+function versionLabel(version: Pick<CollectionVersion, 'label'>): string {
+  return SERVER_DEFAULT_LABEL.test(version.label) ? 'Snapshot' : version.label
+}
+
+/** A version named in a sentence: its label, or its time when it has none. */
+function versionReference(version: Pick<CollectionVersion, 'label' | 'createdAt'>): string {
+  return SERVER_DEFAULT_LABEL.test(version.label)
+    ? `the snapshot from ${formatMediumInstant(version.createdAt)}`
+    : `“${version.label}”`
+}
+
 type HistoryCollection = {
   collection: {
     title: string
@@ -200,7 +216,7 @@ export function CollectionHistory() {
     if (!collectionId || !contentEtag || !selected) return
     if (selected.changeCounts.removed > 0) return
     const ok = await confirm({
-      title: `Restore “${selected.label}”?`,
+      title: `Restore ${versionReference(selected)}?`,
       body: selected.changeCounts.added > 0 ? `The collection will match this version. ${plural(selected.changeCounts.added, 'item')} added since then will be deleted, and moved or renamed items go back.` : 'The collection will match this version. Moved or renamed items go back.',
       confirmLabel: 'Restore version',
     })
@@ -217,7 +233,7 @@ export function CollectionHistory() {
           maxRetries: 0,
         },
       )
-      success(`Restored “${selected.label}” on this collection.`, {
+      success(`Restored ${versionReference(selected)} on this collection.`, {
         action: { label: 'Edit collection', to: `/library/${collectionId}?collection=edit` },
       })
       await reload()
@@ -354,7 +370,7 @@ export function CollectionHistory() {
                   aria-pressed={item.versionId === selectedId}
                   onClick={() => void selectVersion(item.versionId, true)}
                 >
-                  <span><strong>{item.label}</strong></span>
+                  <span><strong>{versionLabel(item)}</strong></span>
                   <small>
                     <time dateTime={item.createdAt}>{formatMediumInstant(item.createdAt)}</time>
                   </small>
@@ -376,7 +392,7 @@ export function CollectionHistory() {
                 <div className="history-detail-head">
                   <div>
                     <p className="section-label">Selected version</p>
-                    <h2>{selected.label}</h2>
+                    <h2>{versionLabel(selected)}</h2>
                   </div>
                   <button
                     type="button"
