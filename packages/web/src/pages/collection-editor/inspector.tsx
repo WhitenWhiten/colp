@@ -1,6 +1,14 @@
 import type { EditorSnapshot } from '../../api'
 import { FilterRail } from '../../components/FilterRail'
+import { suggestPublicationSlug } from '../../lib/publicationSlug'
 import type { CollectionEditorMutations } from './mutations'
+
+const VISIBILITY_STATUS: Record<string, string> = {
+  private: 'Only you can open it.',
+  protected: 'Visible to authorized members',
+  unlisted: 'Anyone with the link can open it. It is not listed.',
+  public: 'Anyone can open it, and it is listed on this server.',
+}
 
 export function CollectionMetaForm({
   snap,
@@ -29,8 +37,11 @@ export function CollectionMetaForm({
     publicationSlugRef,
     onSaveMeta,
   } = mutations
+  const origin = typeof window === 'undefined' ? '' : window.location.origin
   return (
-    <form className="edit-form panel panel-pad" onSubmit={(e) => void onSaveMeta(e)}>
+    /* The sheet's own frame holds the form; a panel inside it drew a second box.
+       noValidate: the address error is the field's, not the browser's bubble. */
+    <form className="edit-form" noValidate onSubmit={(e) => void onSaveMeta(e)}>
       <div className="field">
         <label htmlFor="ce-title">Title</label>
         <input
@@ -72,8 +83,15 @@ export function CollectionMetaForm({
               setVisibility(value)
               setPublicationDirty(true)
               setPublicationSlugError(null)
+              // A first share starts from the title's address; the owner can change it before saving.
+              if (value !== 'private' && !collection.publicationSlug && !publicationSlug.trim()) {
+                setPublicationSlug(suggestPublicationSlug(title))
+              }
             }}
           />
+          <p className="publication-status" role="status">
+            {VISIBILITY_STATUS[visibility] ?? VISIBILITY_STATUS.private}
+          </p>
           {visibility !== 'private' && (
             <div className="field publication-slug-field">
               <label htmlFor="ce-publication-slug">Public address</label>
@@ -87,13 +105,12 @@ export function CollectionMetaForm({
                 }}
                 disabled={busy || Boolean(collection.publicationSlug)}
                 required={visibility === 'public' || visibility === 'unlisted'}
-                minLength={3}
                 maxLength={63}
-                pattern="[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])"
                 autoComplete="off"
-                placeholder="research-notes"
+                spellCheck={false}
+                placeholder="reading-list"
                 aria-invalid={publicationSlugError ? true : undefined}
-                aria-describedby={publicationSlugError ? 'ce-publication-slug-error' : undefined}
+                aria-describedby={publicationSlugError ? 'ce-publication-slug-error' : 'ce-publication-slug-hint'}
               />
               {publicationSlugError && (
                 <p id="ce-publication-slug-error" role="alert" className="field-error">
@@ -101,9 +118,11 @@ export function CollectionMetaForm({
                 </p>
               )}
               {collection.publicationSlug ? (
-                <span className="field-hint">The address can't be changed once it is reserved.</span>
+                <span className="field-hint" id="ce-publication-slug-hint">The address can't be changed once it is reserved.</span>
               ) : (visibility === 'public' || visibility === 'unlisted') ? (
-                <span className="field-hint">Will be live at /c/{publicationSlug || 'your-address'} after you save.</span>
+                <span className="field-hint" id="ce-publication-slug-hint">
+                  Lowercase letters, digits, and hyphens. Will be live at {origin}/c/{publicationSlug || 'your-address'} after you save.
+                </span>
               ) : null}
             </div>
           )}
@@ -129,18 +148,9 @@ export function CollectionMetaForm({
               <code>{`${window.location.origin}/c/${collection.publicationSlug}`}</code>
             </p>
           )}
-          <p className="publication-status" role="status">
-            {visibility === 'private'
-              ? 'Not publicly accessible'
-              : visibility === 'protected'
-                ? 'Visible to authorized members'
-                : visibility === 'unlisted'
-                  ? 'Available by direct link'
-                  : 'Listed and publicly accessible'}
-          </p>
         </fieldset>
       )}
-      <div className="row-end">
+      <div className="row-end edit-form-actions">
         <button
           type="submit"
           className="btn btn-primary"

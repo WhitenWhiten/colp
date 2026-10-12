@@ -132,6 +132,40 @@
   border-radius: var(--radius);
 }
 
+/* ——— Collection sheet ——— */
+
+/* The collection form lives only in the 36rem sheet here: the address
+   lines up with the title and summary instead of stopping short at 32rem. */
+:root[data-edition='self-hosted'] .publication-slug-field {
+  max-width: none;
+}
+
+/* A shared collection's address and link outgrow the 40rem window, so the
+   sheet scrolls; Save stays pinned to its foot instead of half under the
+   edge. The margins take back .modal-body's padding (overlays.css). */
+@media (min-width: 640px) {
+  :root[data-edition='self-hosted'] .modal-body .edit-form-actions {
+    position: sticky;
+    bottom: calc(-1 * var(--space-5));
+    margin: 0 calc(-1 * var(--hair-125)) calc(-1 * var(--space-5));
+    padding: var(--space-3) var(--hair-125) var(--space-5);
+    border-top: 1px solid var(--line);
+    background: var(--surface-raised);
+  }
+}
+
+/* A short window docks the dialog as a bottom sheet with other padding;
+   Save ends the form there, as it does on phones. */
+@media (max-height: 26rem) {
+  :root[data-edition='self-hosted'] .modal-body .edit-form-actions {
+    position: static;
+    margin: 0;
+    padding: 0;
+    border-top: 0;
+    background: none;
+  }
+}
+
 /* ——— 404 and unavailable pages ———
    The upstream poster (giant parallax digits, corner words) becomes a
    centred notice on the pegboard: a ribbon, the title, the sentence, and

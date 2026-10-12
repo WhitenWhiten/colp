@@ -19,6 +19,7 @@ import {
   type EditorSnapshot,
 } from '../../api'
 import { useCancelConfirm, useConfirm } from '../../components/ConfirmModal'
+import { PUBLICATION_SLUG } from '../../lib/publicationSlug'
 import { useAnnotationWorkflow } from '../../lib/useAnnotationWorkflow'
 import { useNodeAnnotationDraft } from '../../lib/useNodeAnnotationDraft'
 import { childrenOf, etagForDelete, parentRevision, resolveEditableNode } from './treeModel'
@@ -270,12 +271,12 @@ export function useCollectionEditorMutations(options: {
       return false
     }
     const slug = publicationSlug.trim()
-    if ((visibility === 'public' || visibility === 'unlisted')
-      && !/^[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])$/.test(slug)) {
-      const message = 'Public and unlisted collections need a lowercase slug (3–63 characters)'
-      setPublicationSlugError(message)
+    if ((visibility === 'public' || visibility === 'unlisted') && !PUBLICATION_SLUG.test(slug)) {
+      // A field error, not a toast (PRODUCT.md "Toast vs inline status").
+      setPublicationSlugError(slug
+        ? 'Use 3–63 lowercase letters, digits, or hyphens, starting and ending with a letter or digit.'
+        : 'Choose an address for the link.')
       publicationSlugRef.current?.focus()
-      error(message)
       return false
     }
     setPublicationSlugError(null)

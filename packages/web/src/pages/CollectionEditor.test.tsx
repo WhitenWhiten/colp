@@ -492,18 +492,23 @@ describe('CollectionEditor component', () => {
     expect(findButtonByName('Save collection').textContent?.trim()).toBe('Save collection')
 
     act(() => findButtonByName('Public').click())
-    expect(document.body.textContent).toContain('Will be live at /c/your-address after you save.')
+    // A first share starts from the title's address, previewed as the full link.
+    expect((document.getElementById('ce-publication-slug') as HTMLInputElement).value).toBe('reading-queue')
+    expect(document.body.textContent).toContain(`Will be live at ${window.location.origin}/c/reading-queue after you save.`)
     setControlValue(document.getElementById('ce-publication-slug') as HTMLInputElement, 'research-notes')
-    expect(document.body.textContent).toContain('Will be live at /c/research-notes after you save.')
-    expect(document.body.textContent).not.toContain('Will be live at /c/your-address after you save.')
+    expect(document.body.textContent).toContain('/c/research-notes after you save.')
+    expect(document.body.textContent).not.toContain('/c/reading-queue after you save.')
     expect((document.getElementById('ce-publication-slug') as HTMLInputElement).disabled).toBe(false)
 
     act(() => findButtonByName('Private').click())
     expect(document.getElementById('ce-publication-slug')).toBeNull()
-    expect(document.body.textContent).not.toContain('Will be live at /c/research-notes after you save.')
+    expect(document.body.textContent).not.toContain('/c/research-notes after you save.')
     act(() => findButtonByName('Unlisted').click())
     expect((document.getElementById('ce-publication-slug') as HTMLInputElement).value).toBe('research-notes')
-    expect(document.body.textContent).toContain('Will be live at /c/research-notes after you save.')
+    expect(document.body.textContent).toContain('/c/research-notes after you save.')
+
+    setControlValue(document.getElementById('ce-publication-slug') as HTMLInputElement, '')
+    expect(document.body.textContent).toContain('/c/your-address after you save.')
   })
 
   it('ignores an aborted route load that rejects after the next collection is ready', async () => {
@@ -708,10 +713,20 @@ describe('CollectionEditor component', () => {
     renderEditor()
     await waitForDom(domFinishedLoading)
     act(() => findButtonByName('Unlisted').click())
-    setControlValue(document.getElementById('ce-publication-slug') as HTMLInputElement, 'bad slug')
+    const slug = document.getElementById('ce-publication-slug') as HTMLInputElement
+    setControlValue(slug, 'bad slug')
     submit('ce-title')
     expect(mocks.updateCollection).not.toHaveBeenCalled()
-    expect(mocks.error).toHaveBeenCalledWith(expect.stringContaining('lowercase slug'))
+    // The field carries the error; the toast slot stays free (PRODUCT.md).
+    expect(document.getElementById('ce-publication-slug-error')?.textContent).toContain('lowercase letters, digits, or hyphens')
+    expect(slug.getAttribute('aria-invalid')).toBe('true')
+    expect(document.activeElement).toBe(slug)
+    expect(mocks.error).not.toHaveBeenCalled()
+
+    setControlValue(slug, '')
+    submit('ce-title')
+    expect(document.getElementById('ce-publication-slug-error')?.textContent).toBe('Choose an address for the link.')
+    expect(mocks.updateCollection).not.toHaveBeenCalled()
 
     cleanup()
         document.body.innerHTML = '<div id="test-root"></div>'

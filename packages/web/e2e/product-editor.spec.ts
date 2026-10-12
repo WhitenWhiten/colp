@@ -375,7 +375,7 @@ test.describe('Product editor with strict mocked API', () => {
     const canonical = page.getByRole('link', { name: /\/c\/e2e-research$/u })
     await expect(canonical).toHaveAttribute('href', '/c/e2e-research')
     await expect(page.getByLabel('Public address')).toBeDisabled()
-    await expect(page.getByText('Listed and publicly accessible')).toBeVisible()
+    await expect(page.getByText('Anyone can open it, and it is listed on this server.')).toBeVisible()
     expect(mock.state.collectionVisibility).toBe('public')
     expect(mock.state.publicationSlug).toBe('e2e-research')
 
@@ -390,7 +390,7 @@ test.describe('Product editor with strict mocked API', () => {
     await page.getByRole('radio', { name: 'Private', exact: true }).check()
     await page.getByRole('button', { name: 'Save collection' }).click()
 
-    await expect(page.getByText('Not publicly accessible')).toBeVisible()
+    await expect(page.getByText('Only you can open it.')).toBeVisible()
     await expect(page.getByLabel('Public address')).toHaveCount(0)
     expect(mock.state.collectionVisibility).toBe('private')
     expect(mock.state.publicationSlug).toBe('e2e-research')
@@ -416,7 +416,7 @@ test.describe('Product editor with strict mocked API', () => {
     await expect(page.getByRole('link', { name: /\/c\/direct-notes$/u })).toHaveCount(0)
     await page.getByRole('button', { name: 'Save collection' }).click()
     await expect(page.getByRole('link', { name: /\/c\/direct-notes$/u })).toBeVisible()
-    await expect(page.getByText('Available by direct link')).toBeVisible()
+    await expect(page.getByText('Anyone with the link can open it. It is not listed.')).toBeVisible()
   })
 
   test('hides publication controls from an editor who can still save metadata', async ({ page }) => {
