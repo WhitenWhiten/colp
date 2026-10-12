@@ -63,6 +63,7 @@ export function ReorderableNavList({
   const suppressClickRef = useRef(false)
   const keyboardFocusRef = useRef<string | null>(null)
   const prevTopsRef = useRef(new Map<string, number>())
+  const prevIdsRef = useRef(ids)
   const idsRef = useRef(ids)
   idsRef.current = ids
   const [draggingId, setDraggingId] = useState<string | null>(null)
@@ -93,14 +94,21 @@ export function ReorderableNavList({
   }, [active])
 
   // FLIP: rows that changed slots glide to their new position; the dragged
-  // row is excluded because it already follows the pointer transform.
+  // row is excluded because it already follows the pointer transform. Only a
+  // new order glides: a row pushed down by a branch opening above it already
+  // moves with that Collapse, and its stored top may predate the motion, so
+  // replaying from it flung rows across the rail.
   useLayoutEffect(() => {
+    const previousIds = prevIdsRef.current
+    prevIdsRef.current = ids
+    const reordered = previousIds.length !== ids.length
+      || previousIds.some((id, index) => ids[index] !== id)
     for (const id of ids) {
       const el = itemRefs.current.get(id)
       if (!el) continue
       const top = el.offsetTop
       const prev = prevTopsRef.current.get(id)
-      if (prev !== undefined && prev !== top && id !== draggingId) {
+      if (reordered && prev !== undefined && prev !== top && id !== draggingId) {
         const reduceMotion = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches
         if (!reduceMotion) {
           el.animate?.(

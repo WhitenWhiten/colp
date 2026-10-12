@@ -1,4 +1,4 @@
-import { useRef, type ReactNode } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { useExitAnimation } from '../lib/useExitAnimation'
 
 /**
@@ -6,7 +6,8 @@ import { useExitAnimation } from '../lib/useExitAnimation'
  * snap). The body stays conditionally mounted: opening plays a grid
  * 0fr→1fr keyframe, closing holds the subtree one beat (useExitAnimation)
  * while the reverse plays, then unmounts — collapsed content never lingers
- * in the accessibility tree or tab order.
+ * in the accessibility tree or tab order. `.is-moving` marks an opening body
+ * until its keyframe ends, so CSS can clip it (and its ancestors) tightly.
  */
 export function Collapse({
   open,
@@ -32,11 +33,23 @@ export function Collapse({
   if (open !== initialOpenRef.current) hasToggledRef.current = true
   const settled = open && !hasToggledRef.current
 
+  // Render-phase like useExitAnimation, so the first opening frame already
+  // carries the class. Closing is covered by `closing`.
+  const [moving, setMoving] = useState(false)
+  const [prevOpen, setPrevOpen] = useState(open)
+  if (open !== prevOpen) {
+    setPrevOpen(open)
+    setMoving(open)
+  }
+
   if (!mounted) return null
   return (
     <div
-      className={`collapse-vert${closing ? ' is-closing' : ''}${settled ? ' is-settled' : ''}`}
+      className={`collapse-vert${closing ? ' is-closing' : ''}${settled ? ' is-settled' : ''}${moving ? ' is-moving' : ''}`}
       inert={closing || undefined}
+      onAnimationEnd={(event) => {
+        if (event.target === event.currentTarget) setMoving(false)
+      }}
     >
       <div
         id={id}

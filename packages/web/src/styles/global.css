@@ -1342,6 +1342,15 @@ kbd,
   min-width: 0;
 }
 
+/* Mid-keyframe a fractional row lays the content out taller than its box,
+   up through every body around it. The clip margin handed that overshoot to
+   the scrolling ancestor, so the library rail flashed a scrollbar on each
+   expand. While a body, or one nested in it, moves, clip at the box. */
+.collapse-vert:is(.is-moving, .is-closing) > .collapse-vert-inner,
+.collapse-vert-inner:has(.collapse-vert.is-moving, .collapse-vert.is-closing) {
+  overflow-clip-margin: 0px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   /* Only .rise surfaces have an entrance animation to suppress here. */
   .rise {
