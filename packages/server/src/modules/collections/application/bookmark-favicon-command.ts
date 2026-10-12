@@ -75,11 +75,9 @@ export interface BookmarkFaviconCommandPorts {
   readonly faviconSources?: Pick<BookmarkIconSourceWritePort, 'setMode'>;
   readonly onOrphanCleanupFailure?: () => void;
   /**
-   * FO-C-02: retire an object that never became a binding, in an INDEPENDENT
-   * transaction. The command transaction is aborted/rolled back by the time
-   * this runs (a SQL failure already occurred inside it), so reusing the
-   * command-bound ports would be a no-op at best — the runner must open its
-   * own transaction (F-A1 pattern, cf. the batch executor's verify runner).
+   * Schedule durable retirement of a failed external PUT. The production
+   * command adapter queues this until its transaction releases the connection,
+   * then checks for a live binding in an independent cleanup transaction.
    * Best-effort contract: the caller swallows failures.
    */
   readonly orphanLedger: (input: {
@@ -187,6 +185,7 @@ export async function uploadBookmarkFavicon(
       updatedAt: now,
     });
   } catch (error) {
+    if (ports.faviconStore.writeTransaction === 'bound') throw error;
     try {
       await ports.faviconStore.delete(objectId);
     } catch {
@@ -359,10 +358,10 @@ async function recordUnboundUploadObjectIfWritten(
   objectId: string,
   now: Date,
 ): Promise<void> {
+  if (ports.faviconStore.writeTransaction === 'bound') return;
   try {
-    // The runner opens its own transaction: the command transaction is
-    // already aborted on every path that reaches this helper, so the GC
-    // ledger write cannot ride the command-bound ports.
+    // Production queues this request. Its independent GC ledger transaction
+    // starts only after the command unit of work releases its connection.
     await ports.orphanLedger({
       objectId,
       nodeId: node.nodeId,

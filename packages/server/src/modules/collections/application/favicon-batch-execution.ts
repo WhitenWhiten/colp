@@ -175,6 +175,7 @@ export async function verifyFaviconBatchItemIdentity(
   // A concurrent explicit none / uploaded / mode change supersedes the job.
   if (currentSourceRevision !== item.sourceRevision) return { kind: 'skipped' };
   if (claim.operation !== 'restore_sources') {
+    if (node.resourceRevision !== item.nodeResourceRevision) return { kind: 'terminal', reason: 'source_changed' };
     const hostname = faviconHostnameFromBookmarkUrl(node.url ?? '');
     const resolvedUrl = hostname === null
       ? null
@@ -378,6 +379,15 @@ export async function applyBatchCaptureCas(
       createdAt: now,
       updatedAt: now,
     });
+    // Reapplying force preserves the original snapshot, but the temporary
+    // icon it displaces still needs retirement.
+    const original = await tx.restores.findByNodeId(item.nodeId);
+    if (current !== null && original !== null && current.objectId !== original.originalObjectId) {
+      await tx.gc.recordRetired({
+        objectId: current.objectId, nodeId: current.nodeId, collectionId: current.collectionId,
+        retiredAt: now, deletableAt: new Date(now.getTime() + retentionSeconds * 1_000),
+      });
+    }
   } else if (current !== null) {
     await tx.gc.recordRetired({
       objectId: current.objectId,

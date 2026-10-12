@@ -186,7 +186,6 @@ export function buildApiApp(input: AppDependencies) {
   productCollectionMutationUnitOfWork,
   collectionMetadataMutationRoutes = 'enabled',
   collectionsEditorReadUnitOfWork,
-  collectionChildrenReadUnitOfWork,
   ownedCollectionsQuery,
   sharedCollectionsQuery,
   bookmarkCounts,
@@ -381,7 +380,6 @@ export function buildApiApp(input: AppDependencies) {
       && productCollectionMutationUnitOfWork
       && collectionMetadataMutationRoutes === 'enabled'
       && collectionsEditorReadUnitOfWork
-      && collectionChildrenReadUnitOfWork
       && ownedCollectionsQuery
       && sharedCollectionsQuery
       && annotationMutationUnitOfWork

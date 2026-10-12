@@ -7224,13 +7224,14 @@ paths:
       description: >-
         Public favicon bytes are readable anonymously. Private bytes require a
         current owner/member browser session and use private, no-store caching.
-        faviconId is a 36-character UUID leaf matching
-        /^[a-f0-9-]{36}$/i. Illegal ids and missing objects share the same 404
-        resource_not_found shape (no existence oracle). Transport may use
-        public-revalidate so admission does not fill no-store; 200 and 404 pin
-        Cache-Control themselves. 200 is public, max-age=30, must-revalidate.
-        Anonymous 404 is public, max-age=60; session misses use private, no-store. The route confirms the current live bookmark
-        binding and publication state before serving bytes. No Set-Cookie.
+        faviconId is a 36-character UUID leaf matching /^[a-f0-9-]{36}$/i.
+        Illegal ids and missing objects share the same 404 resource_not_found
+        shape (no existence oracle). Transport may use public-revalidate so
+        admission does not fill no-store; 200 and 404 pin Cache-Control
+        themselves. 200 is public, max-age=30, must-revalidate. Anonymous 404 is
+        public, max-age=60; session misses use private, no-store. The route
+        confirms the current live bookmark binding and publication state before
+        serving bytes. No Set-Cookie.
       security: []
       parameters:
         - $ref: '#/components/parameters/FaviconId'
@@ -7240,7 +7241,8 @@ paths:
           headers:
             Cache-Control:
               schema: { type: string }
-              description: Public bindings use public, max-age=30, must-revalidate; private reads use private, no-store.
+              description: Public bindings use public, max-age=30, must-revalidate; private
+                reads use private, no-store.
             X-Content-Type-Options:
               $ref: '#/components/headers/XContentTypeOptions'
             X-Request-Id:
@@ -7462,79 +7464,6 @@ paths:
         '410': { $ref: '#/components/responses/FaviconOrderingError410' }
         '413': { $ref: '#/components/responses/FaviconOrderingError413' }
         '415': { $ref: '#/components/responses/FaviconOrderingError415' }
-        '429': { $ref: '#/components/responses/FaviconOrderingError429' }
-        '500': { $ref: '#/components/responses/FaviconOrderingError500' }
-        '503': { $ref: '#/components/responses/FaviconOrderingError503' }
-  /api/v1/collections/{collectionId}/children:
-    get:
-      tags: [ Collections, Favicon ]
-      operationId: listCollectionChildren
-      summary: List exactly one layer of children of a Collection folder
-      description: >-
-        FO-05. Reads live children (folders and bookmarks) directly under
-        `parentId`, or under the collection root when `parentId` is omitted; one
-        layer only, never a flattened tree, and the folder scope, root and
-        parent/child relations are preserved. `sort=curated` (default) uses the
-        canonical position tokens; created_asc / created_desc order by creation
-        time with the same-millisecond ties resolved by ascending node id and
-        change ONLY the read view — no position token, revision, sync log or
-        reading path is written. `collectionId` is the real opaque collection
-        id, never a publication slug. Anonymous reads are allowed only for
-        public collections; owner/member reads use ordinary authority. Pages are
-        bounded by both `limit` and a 65536 UTF-8 byte budget; a byte-limited
-        short page still returns nextCursor for the first unconsumed eligible
-        item. Continuations use the opaque HMAC-authenticated cursor (blind 900s
-        expiry or a content revision change => 409 snapshot_expired;
-        tampered/mismatched cursor => 400 invalid_cursor). reading_path
-        collections reject created sorts with 400 invalid_query. Feature flag
-        KNOWN_FEATURE_FAVICON_POLICY=false returns 404.
-      security:
-        - cookieAuth: []
-        - productBearer: []
-        - {}
-      parameters:
-        - $ref: '#/components/parameters/CollectionId'
-        - name: parentId
-          in: query
-          required: false
-          schema: { $ref: '#/components/schemas/OpaqueId' }
-          description: Live folder in this collection; omitted means the collection root.
-        - name: sort
-          in: query
-          required: false
-          schema:
-            type: string
-            enum: [ curated, created_asc, created_desc ]
-            default: curated
-        - name: limit
-          in: query
-          required: false
-          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
-          description: >-
-            First-page page size (default 50, max 100). A continuation page may
-            echo the same limit together with cursor — the cursor already binds
-            the first-page limit, so a matching echo is accepted and any other
-            limit with a cursor is 400 invalid_cursor (restart from the first
-            page).
-        - name: cursor
-          in: query
-          required: false
-          schema: { $ref: '#/components/schemas/FaviconOrderingCursor' }
-      responses:
-        '200':
-          description: One layer of children with a page cursor.
-          headers:
-            Cache-Control: { $ref: '#/components/headers/PrivateNoStore' }
-            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/FaviconOrderingChildrenPage' }
-        '400': { $ref: '#/components/responses/FaviconOrderingError400' }
-        '401': { $ref: '#/components/responses/FaviconOrderingError401' }
-        '403': { $ref: '#/components/responses/FaviconOrderingError403' }
-        '404': { $ref: '#/components/responses/FaviconOrderingError404' }
-        '405': { $ref: '#/components/responses/FaviconOrderingError405' }
-        '409': { $ref: '#/components/responses/FaviconOrderingError409' }
         '429': { $ref: '#/components/responses/FaviconOrderingError429' }
         '500': { $ref: '#/components/responses/FaviconOrderingError500' }
         '503': { $ref: '#/components/responses/FaviconOrderingError503' }
@@ -12922,8 +12851,9 @@ components:
       format: uri
       maxLength: 2048
       pattern: ^https?://.+/api/v1/favicon/[a-fA-F0-9-]{36}$
-      description: Absolute PRODUCT_ORIGIN URL (HTTPS, or HTTP on loopback) whose path is exactly
-        /api/v1/favicon/{uuid}. Servers never persist or return a CDN URL here.
+      description: Absolute PRODUCT_ORIGIN URL (HTTPS, or HTTP on loopback) whose path
+        is exactly /api/v1/favicon/{uuid}. Servers never persist or return a CDN
+        URL here.
     CollectionKind:
       type: string
       enum:
@@ -15643,132 +15573,6 @@ components:
         the durable refresh chain (FO-02). uploaded cannot be written through
         this endpoint. Selecting online does not change the account newDefault;
         the providerTemplate existing alone never enables online.
-    FaviconOrderingChildrenPage:
-      type: object
-      additionalProperties: false
-      properties:
-        collectionId: { $ref: '#/components/schemas/OpaqueId' }
-        parentId: { $ref: '#/components/schemas/OpaqueId' }
-        rootId: { $ref: '#/components/schemas/OpaqueId' }
-        contentRevision: { $ref: '#/components/schemas/Revision' }
-        sort: { type: string, enum: [ curated, created_asc, created_desc ] }
-        items:
-          type: array
-          items: { $ref: '#/components/schemas/FaviconOrderingBrowseNode' }
-          minItems: 0
-          maxItems: 100
-        nextCursor:
-          oneOf:
-            - { $ref: '#/components/schemas/FaviconOrderingCursor' }
-            - { type: 'null' }
-      required:
-        [
-          collectionId,
-          parentId,
-          rootId,
-          contentRevision,
-          sort,
-          items,
-          nextCursor
-        ]
-      description: >-
-        FO-05. One page of one folder layer. Serialized page is bounded by both
-        the requested item limit and 65536 UTF-8 bytes; nextCursor is null at
-        the end, never missing.
-    FaviconOrderingCursor:
-      type: string
-      minLength: 1
-      maxLength: 2048
-      pattern: '^[A-Za-z0-9_-]+$'
-      description: >-
-        FO-05. Opaque base64url continuation token; HMAC authenticated, binds
-        endpoint, viewer, collection, parent, sort, limit and content revision.
-        900s absolute expiry or content change => 409 snapshot_expired; any
-        tamper/scope mismatch => 400 invalid_cursor.
-    FaviconOrderingBrowseNode:
-      type: object
-      additionalProperties: false
-      properties:
-        id: { $ref: '#/components/schemas/OpaqueId' }
-        parentId: { $ref: '#/components/schemas/OpaqueId' }
-        kind: { type: string, enum: [ folder, bookmark ] }
-        title: { type: string, minLength: 1, maxLength: 512 }
-        url:
-          oneOf:
-            - { type: string, minLength: 1, maxLength: 8192, format: uri }
-            - { type: 'null' }
-        description:
-          oneOf:
-            - { type: string, minLength: 0, maxLength: 20000 }
-            - { type: 'null' }
-        position: { type: string, minLength: 1, maxLength: 512 }
-        createdAt: { $ref: '#/components/schemas/FaviconOrderingTimestamp' }
-        updatedAt: { $ref: '#/components/schemas/FaviconOrderingTimestamp' }
-        iconUrl:
-          oneOf:
-            - { type: string, minLength: 1, maxLength: 8192, format: uri-reference }
-            - { type: 'null' }
-        previewImage:
-          oneOf:
-            - { $ref: '#/components/schemas/BookmarkPreviewImage' }
-            - { type: 'null' }
-          description: >-
-            Same-origin preview image for a bookmark node, or null when none is
-            known, the owner hid it, the node is a moderation tombstone, or link
-            previews are disabled. Present on bookmark nodes only; absent on
-            folders and on responses from older servers.
-        state:
-          type: string
-          enum: [ visible, hidden ]
-          description: >-
-            Moderation tombstone marker. `hidden` means an active official
-            hide_public covers this bookmark: title carries an inert
-            placeholder, url/description/iconUrl are null, and the node keeps
-            its position so keyset pagination stays continuous. Absent on
-            responses from older servers and on every visible node.
-        faviconCdnAllowed:
-          type: boolean
-          description: >-
-            FO-08. Bookmark node CDN opt-out mirroring the public snapshot:
-            `false` when the node's icon source is explicitly `none` (never
-            hotlink the third-party CDN) and for bookmark nodes of non-public
-            collections; otherwise `true` only for public collections. Omitted
-            for folder/root nodes, which carry no icon. Absent on responses from
-            older servers: the collection-level faviconCdnAllowed fact governs,
-            and clients AND the node fact with that collection-level fact either
-            way. The node fact is viewer-independent (it reflects the
-            collection's public standing); clients MUST combine it with the
-            viewer-appropriate collection-level faviconCdnAllowed (false on
-            owner/member projections), so a signed-in owner or member never
-            hotlinks the third-party CDN from an authenticated view.
-        pinned:
-          type: boolean
-          const: true
-          description: >-
-            Bookmarks only. The owner pinned this bookmark in a browser
-            extension, which keeps it between the folder's subfolders and its
-            other bookmarks; in curated order Position already reflects that.
-            Absent when unpinned, on moderation tombstones, and on responses
-            from servers before 1.91.0.
-      required:
-        [
-          id,
-          parentId,
-          kind,
-          title,
-          url,
-          description,
-          position,
-          createdAt,
-          updatedAt,
-          iconUrl
-        ]
-      description: >-
-        FO-05. One live child in the requested sort order. `position` is the
-        canonical position token (never rewritten by time sorts). A bookmark
-        under an active official hide_public returns as a tombstone (`state`
-        hidden) rather than being omitted, so public readers see that the item
-        was removed instead of losing it silently.
     FaviconOrderingIconJob:
       type: object
       additionalProperties: false

@@ -141,6 +141,7 @@ function refreshEnqueuePorts(ports: SourcePorts): FaviconRefreshEnqueuePorts {
     sources: ports.faviconSources,
     policies: ports.faviconPolicies,
     jobs: ports.faviconJobs,
+    forceJobs: ports.faviconBatchJobs,
   };
 }
 

@@ -1,3 +1,4 @@
+import { overlaySharedFaviconObjectIds } from './favicon-shared-projection.js';
 import type { Kysely } from 'kysely';
 import type {
   BookmarkIconReadPort,
@@ -60,7 +61,7 @@ export async function findBookmarkIconObjectIdsByNodeIds(
     .select(['node_id', 'object_id'])
     .where('node_id', 'in', [...nodeIds])
     .execute();
-  return new Map(rows.map((row) => [row.node_id, row.object_id]));
+  return overlaySharedFaviconObjectIds(db, nodeIds, new Map(rows.map((row) => [row.node_id, row.object_id])));
 }
 
 export function createPostgresBookmarkIconReadPort(

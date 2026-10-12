@@ -561,7 +561,6 @@ export function loadFaviconPolicyAdmissionConfig(env: NodeJS.ProcessEnv): Favico
   const retryBackoff = parseFaviconRetryBackoff(env.FAVICON_RETRY_BACKOFF_SECONDS);
   return Object.freeze({
     enabled: flag === 'true',
-    cursorHmacKey: loadFaviconCursorHmacKey(env, flag === 'true'),
     timeoutMs: parsePositiveInt(env.FAVICON_POLICY_TIMEOUT_MS, 2_000,
       'FAVICON_POLICY_TIMEOUT_MS', { max: 30_000 }),
     fetchTimeoutMs: parsePositiveInt(env.FAVICON_FETCH_TIMEOUT_MS, 10_000,
@@ -597,35 +596,6 @@ function parseFaviconRetryBackoff(raw: string | undefined): readonly number[] {
     return value;
   });
   return Object.freeze(parsed);
-}
-
-/**
- * FAVICON_CURSOR_HMAC_KEY: base64url-32-byte-secret, required when the flag
- * is enabled (contract `x-config` requiredWhen). Decodes to exactly 32 bytes
- * and round-trips through base64url. When the feature is disabled the cursor
- * routes are 404 and the value is optional; a deterministic derived default is
- * used only so the production route manifest can still register the (never
- * exposed) operation while the feature is off. The key never leaves this
- * process as plaintext logs.
- */
-function loadFaviconCursorHmacKey(env: NodeJS.ProcessEnv, required: boolean): string {
-  const raw = (env.FAVICON_CURSOR_HMAC_KEY ?? '').trim();
-  if (raw === '') {
-    if (required) {
-      throw new Error('FAVICON_CURSOR_HMAC_KEY is required when KNOWN_FEATURE_FAVICON_POLICY=true');
-    }
-    return Buffer.alloc(32, 9).toString('base64url');
-  }
-  if (!/^[A-Za-z0-9_-]{43}$/u.test(raw)) {
-    throw new Error('FAVICON_CURSOR_HMAC_KEY must be a base64url 32-byte secret');
-  }
-  const decoded = Buffer.from(raw, 'base64url');
-  if (decoded.length !== 32 || decoded.toString('base64url') !== raw) {
-    decoded.fill(0);
-    throw new Error('FAVICON_CURSOR_HMAC_KEY must decode to exactly 32 bytes');
-  }
-  decoded.fill(0);
-  return raw;
 }
 
 /** Contract `const` integer: absent uses the default; present must equal it exactly. */

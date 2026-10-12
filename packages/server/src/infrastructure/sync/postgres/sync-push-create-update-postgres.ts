@@ -1,3 +1,4 @@
+import { createPostgresFaviconBatchJobWritePort } from '../../collections/favicon-job-items-postgres.js';
 import { enqueueFaviconRefreshForNewBookmark } from '../../../modules/collections/index.js';
 import { createPostgresFaviconPolicyPort } from '../../collections/favicon-policy-postgres.js';
 import { createPostgresFaviconSourcePort } from '../../collections/favicon-source-postgres.js';
@@ -165,12 +166,13 @@ export async function evaluateCanonicalNodeCreate(
   const revision = mutation.allocation.resourceRevision;
   if (!revision) throw new SyncPushHttpError('internal_error');
   // Capture and online fill remain sidecars, committed atomically with sync creation.
-  if (mapped.fields.kindFields.kind === 'bookmark' && typeof mapped.fields.kindFields.url === 'string') {
+  if (options.faviconPolicyEnabled !== false
+      && mapped.fields.kindFields.kind === 'bookmark' && typeof mapped.fields.kindFields.url === 'string') {
     const owner = await tx.selectFrom('accounts').select(['id', 'subject_id'])
       .where('subject_id', '=', collection.owner_subject_id).executeTakeFirst();
     if (owner) await enqueueFaviconRefreshForNewBookmark({
       sources: createPostgresFaviconSourcePort(tx), policies: createPostgresFaviconPolicyPort(tx),
-      jobs: createPostgresFaviconJobWritePort(tx),
+      jobs: createPostgresFaviconJobWritePort(tx), forceJobs: createPostgresFaviconBatchJobWritePort(tx),
     }, {
       accountId: owner.id, ownerSubjectId: owner.subject_id,
       collectionId: collection.id, nodeId, url: mapped.fields.kindFields.url,

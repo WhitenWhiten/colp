@@ -821,14 +821,6 @@ export interface FaviconPolicyAdmissionConfig {
   readonly shared?: import('./config-favicon-shared.js').SharedFaviconConfig;
   readonly enabled: boolean;
   readonly timeoutMs: number;
-  /**
-   * FAVICON_CURSOR_HMAC_KEY (base64url-32-byte-secret). Required (startup
-   * fails) when KNOWN_FEATURE_FAVICON_POLICY=true; stable across API
-   * instances so cursors issued by one instance verify on another. When the
-   * feature is disabled the value is optional and never used (every route
-   * returns 404).
-   */
-  readonly cursorHmacKey: string;
   /** FAVICON_FETCH_TIMEOUT_MS (10000; 1000..30000). */
   readonly fetchTimeoutMs: number;
   /** FAVICON_FETCH_MAX_BYTES (const 65536). */

@@ -37,7 +37,6 @@ export const SECRET_NAMES = [
   'EMAIL_DM_CALLBACK_HMAC_SECRET',
   'EMAIL_OPS_TOKEN',
   'EXPLORE_DIRECTORY_RATE_LIMIT_KEY_SECRET',
-  'FAVICON_CURSOR_HMAC_KEY',
   'FEED_CURSOR_ACTIVE_SECRET',
   'FEED_RATE_LIMIT_KEY_SECRET',
   'FOLLOWED_COLLECTIONS_CURSOR_ACTIVE_SECRET',
@@ -255,7 +254,6 @@ export function applySelfHostedPreset(env: NodeJS.ProcessEnv): void {
   const base64urlSecrets = new Set([
     'GOVERNANCE_CURSOR_HMAC_KEY',
     'AUTOMATION_CURSOR_HMAC_KEY',
-    'FAVICON_CURSOR_HMAC_KEY',
   ]);
   for (const name of SECRET_NAMES) {
     set(env, name, base64urlSecrets.has(name) ? deriveUrl(secret.bytes, name) : derive(secret.bytes, name));

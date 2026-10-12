@@ -1913,26 +1913,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/collections/{collectionId}/children": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List exactly one layer of children of a Collection folder
-         * @description FO-05. Reads live children (folders and bookmarks) directly under `parentId`, or under the collection root when `parentId` is omitted; one layer only, never a flattened tree, and the folder scope, root and parent/child relations are preserved. `sort=curated` (default) uses the canonical position tokens; created_asc / created_desc order by creation time with the same-millisecond ties resolved by ascending node id and change ONLY the read view — no position token, revision, sync log or reading path is written. `collectionId` is the real opaque collection id, never a publication slug. Anonymous reads are allowed only for public collections; owner/member reads use ordinary authority. Pages are bounded by both `limit` and a 65536 UTF-8 byte budget; a byte-limited short page still returns nextCursor for the first unconsumed eligible item. Continuations use the opaque HMAC-authenticated cursor (blind 900s expiry or a content revision change => 409 snapshot_expired; tampered/mismatched cursor => 400 invalid_cursor). reading_path collections reject created sorts with 400 invalid_query. Feature flag KNOWN_FEATURE_FAVICON_POLICY=false returns 404.
-         */
-        get: operations["listCollectionChildren"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/collections/{collectionId}/nodes/{nodeId}/favicon": {
         parameters: {
             query?: never;
@@ -4271,47 +4251,6 @@ export interface components {
         FaviconOrderingSetIconSource: {
             /** @enum {string} */
             sourceMode: "inherit" | "online" | "none";
-        };
-        /** @description FO-05. One page of one folder layer. Serialized page is bounded by both the requested item limit and 65536 UTF-8 bytes; nextCursor is null at the end, never missing. */
-        FaviconOrderingChildrenPage: {
-            collectionId: components["schemas"]["OpaqueId"];
-            parentId: components["schemas"]["OpaqueId"];
-            rootId: components["schemas"]["OpaqueId"];
-            contentRevision: components["schemas"]["Revision"];
-            /** @enum {string} */
-            sort: "curated" | "created_asc" | "created_desc";
-            items: components["schemas"]["FaviconOrderingBrowseNode"][];
-            nextCursor: components["schemas"]["FaviconOrderingCursor"] | null;
-        };
-        /** @description FO-05. Opaque base64url continuation token; HMAC authenticated, binds endpoint, viewer, collection, parent, sort, limit and content revision. 900s absolute expiry or content change => 409 snapshot_expired; any tamper/scope mismatch => 400 invalid_cursor. */
-        FaviconOrderingCursor: string;
-        /** @description FO-05. One live child in the requested sort order. `position` is the canonical position token (never rewritten by time sorts). A bookmark under an active official hide_public returns as a tombstone (`state` hidden) rather than being omitted, so public readers see that the item was removed instead of losing it silently. */
-        FaviconOrderingBrowseNode: {
-            id: components["schemas"]["OpaqueId"];
-            parentId: components["schemas"]["OpaqueId"];
-            /** @enum {string} */
-            kind: "folder" | "bookmark";
-            title: string;
-            url: string | null;
-            description: string | null;
-            position: string;
-            createdAt: components["schemas"]["FaviconOrderingTimestamp"];
-            updatedAt: components["schemas"]["FaviconOrderingTimestamp"];
-            iconUrl: string | null;
-            /** @description Same-origin preview image for a bookmark node, or null when none is known, the owner hid it, the node is a moderation tombstone, or link previews are disabled. Present on bookmark nodes only; absent on folders and on responses from older servers. */
-            previewImage?: components["schemas"]["BookmarkPreviewImage"] | null;
-            /**
-             * @description Moderation tombstone marker. `hidden` means an active official hide_public covers this bookmark: title carries an inert placeholder, url/description/iconUrl are null, and the node keeps its position so keyset pagination stays continuous. Absent on responses from older servers and on every visible node.
-             * @enum {string}
-             */
-            state?: "visible" | "hidden";
-            /** @description FO-08. Bookmark node CDN opt-out mirroring the public snapshot: `false` when the node's icon source is explicitly `none` (never hotlink the third-party CDN) and for bookmark nodes of non-public collections; otherwise `true` only for public collections. Omitted for folder/root nodes, which carry no icon. Absent on responses from older servers: the collection-level faviconCdnAllowed fact governs, and clients AND the node fact with that collection-level fact either way. The node fact is viewer-independent (it reflects the collection's public standing); clients MUST combine it with the viewer-appropriate collection-level faviconCdnAllowed (false on owner/member projections), so a signed-in owner or member never hotlinks the third-party CDN from an authenticated view. */
-            faviconCdnAllowed?: boolean;
-            /**
-             * @description Bookmarks only. The owner pinned this bookmark in a browser extension, which keeps it between the folder's subfolders and its other bookmarks; in curated order Position already reflects that. Absent when unpinned, on moderation tombstones, and on responses from servers before 1.91.0.
-             * @constant
-             */
-            pinned?: true;
         };
         /** @description FO-03. One durable favicon job. errors lists the first 100 failed items in stable node-ID order; the counters reflect all items. */
         FaviconOrderingIconJob: {
@@ -10306,47 +10245,6 @@ export interface operations {
             410: components["responses"]["FaviconOrderingError410"];
             413: components["responses"]["FaviconOrderingError413"];
             415: components["responses"]["FaviconOrderingError415"];
-            429: components["responses"]["FaviconOrderingError429"];
-            500: components["responses"]["FaviconOrderingError500"];
-            503: components["responses"]["FaviconOrderingError503"];
-        };
-    };
-    listCollectionChildren: {
-        parameters: {
-            query?: {
-                /** @description Live folder in this collection; omitted means the collection root. */
-                parentId?: components["schemas"]["OpaqueId"];
-                sort?: "curated" | "created_asc" | "created_desc";
-                /** @description First-page page size (default 50, max 100). A continuation page may echo the same limit together with cursor — the cursor already binds the first-page limit, so a matching echo is accepted and any other limit with a cursor is 400 invalid_cursor (restart from the first page). */
-                limit?: number;
-                cursor?: components["schemas"]["FaviconOrderingCursor"];
-            };
-            header?: never;
-            path: {
-                /** @description Case-sensitive opaque Collection ID. */
-                collectionId: components["parameters"]["CollectionId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description One layer of children with a page cursor. */
-            200: {
-                headers: {
-                    "Cache-Control": components["headers"]["PrivateNoStore"];
-                    "X-Request-Id": components["headers"]["XRequestId"];
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FaviconOrderingChildrenPage"];
-                };
-            };
-            400: components["responses"]["FaviconOrderingError400"];
-            401: components["responses"]["FaviconOrderingError401"];
-            403: components["responses"]["FaviconOrderingError403"];
-            404: components["responses"]["FaviconOrderingError404"];
-            405: components["responses"]["FaviconOrderingError405"];
-            409: components["responses"]["FaviconOrderingError409"];
             429: components["responses"]["FaviconOrderingError429"];
             500: components["responses"]["FaviconOrderingError500"];
             503: components["responses"]["FaviconOrderingError503"];

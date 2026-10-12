@@ -221,23 +221,9 @@ describe('loadFaviconPolicyAdmissionConfig (KNOWN_FEATURE_FAVICON_POLICY)', () =
     assert.equal(defaults.historyRetentionSeconds, 31_536_000);
     assert.equal(defaults.jobConcurrency, 2);
     assert.deepEqual([...defaults.retryBackoffSeconds], [1, 2, 4, 8, 16]);
-    // FO-05: flag-off boots without a cursor key (routes are 404); flag-on
-    // REQUIRES FAVICON_CURSOR_HMAC_KEY (base64url 32-byte).
-    assert.equal(
-      loadFaviconPolicyAdmissionConfig({ KNOWN_FEATURE_FAVICON_POLICY: 'true',
-        FAVICON_CURSOR_HMAC_KEY: Buffer.alloc(32, 7).toString('base64url') }).enabled,
-      true,
-    );
+    assert.equal(loadFaviconPolicyAdmissionConfig({ KNOWN_FEATURE_FAVICON_POLICY: 'true' }).enabled, true);
     assert.equal(loadFaviconPolicyAdmissionConfig({ KNOWN_FEATURE_FAVICON_POLICY: 'false' }).enabled, false);
-    assert.equal(
-      loadFaviconPolicyAdmissionConfig({ KNOWN_FEATURE_FAVICON_POLICY: ' TRUE ',
-        FAVICON_CURSOR_HMAC_KEY: Buffer.alloc(32, 7).toString('base64url') }).enabled,
-      true,
-    );
-    assert.throws(
-      () => loadFaviconPolicyAdmissionConfig({ KNOWN_FEATURE_FAVICON_POLICY: 'true' }),
-      /FAVICON_CURSOR_HMAC_KEY is required when KNOWN_FEATURE_FAVICON_POLICY=true/,
-    );
+    assert.equal(loadFaviconPolicyAdmissionConfig({ KNOWN_FEATURE_FAVICON_POLICY: ' TRUE ' }).enabled, true);
     for (const bad of ['1', 'yes', '', 'Truee']) {
       assert.throws(() => loadFaviconPolicyAdmissionConfig({ KNOWN_FEATURE_FAVICON_POLICY: bad }),
         /KNOWN_FEATURE_FAVICON_POLICY must be true or false/);
@@ -245,34 +231,6 @@ describe('loadFaviconPolicyAdmissionConfig (KNOWN_FEATURE_FAVICON_POLICY)', () =
     assert.equal(loadFaviconPolicyAdmissionConfig({ FAVICON_POLICY_TIMEOUT_MS: '5000' }).timeoutMs, 5_000);
     assert.throws(() => loadFaviconPolicyAdmissionConfig({ FAVICON_POLICY_TIMEOUT_MS: '0' }),
       /FAVICON_POLICY_TIMEOUT_MS/);
-  });
-
-  test('FO-05 FAVICON_CURSOR_HMAC_KEY is a strict base64url 32-byte secret', () => {
-    const valid = Buffer.alloc(32, 13).toString('base64url');
-    assert.equal(valid.length, 43);
-    assert.equal(
-      loadFaviconPolicyAdmissionConfig({ KNOWN_FEATURE_FAVICON_POLICY: 'true',
-        FAVICON_CURSOR_HMAC_KEY: valid }).cursorHmacKey,
-      valid,
-    );
-    assert.equal(
-      loadFaviconPolicyAdmissionConfig({ FAVICON_CURSOR_HMAC_KEY: valid }).cursorHmacKey,
-      valid,
-    );
-    // Flag-off still validates a provided key.
-    for (const bad of [
-      'not-base64url-at-all',
-      Buffer.alloc(31, 1).toString('base64url'),
-      Buffer.alloc(33, 1).toString('base64url'),
-      `${Buffer.alloc(32, 1).toString('base64url')}=`, // padding is not base64url
-    ]) {
-      assert.throws(
-        () => loadFaviconPolicyAdmissionConfig({ KNOWN_FEATURE_FAVICON_POLICY: 'true',
-          FAVICON_CURSOR_HMAC_KEY: bad }),
-        /FAVICON_CURSOR_HMAC_KEY/,
-        `key ${bad.length} chars must be rejected`,
-      );
-    }
   });
 
   test('FAVICON_* contract values are enforced: ranges and consts fail closed', () => {

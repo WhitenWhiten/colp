@@ -1,8 +1,9 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './fixtures'
 import { mockOwnerLibrary } from './helpers/library-mocks'
 
 test('favicon settings use the shared form layout and persist missing-icon filling', async ({ page }) => {
   await mockOwnerLibrary(page)
+  await page.route('**/.well-known/collection-protocol', route => route.fulfill({ status: 404, json: {} }))
   let fillMissing = false
   await page.route('**/api/v1/me/favicon-policy', async (route) => {
     if (route.request().method() === 'PATCH') {
@@ -24,4 +25,11 @@ test('favicon settings use the shared form layout and persist missing-icon filli
   await expect.poll(() => fillMissing).toBe(true)
   await expect(section.getByTestId('favicon-fill-missing')).toBeChecked()
   await page.screenshot({ path: test.info().outputPath('favicon-settings.png'), fullPage: true })
+  await expect(page.getByText('No collections yet', { exact: true })).toBeVisible()
+  await section.getByTestId('favicon-provider-template').fill('https://draft.example/{hostname}')
+  await page.getByRole('button', { name: 'Close settings' }).click()
+  const guard = page.getByRole('dialog', { name: 'Discard changes?' })
+  await expect(guard).toBeVisible()
+  await guard.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await expect(section.getByTestId('favicon-provider-template')).toHaveValue('https://draft.example/{hostname}')
 })

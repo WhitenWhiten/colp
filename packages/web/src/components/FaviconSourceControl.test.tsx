@@ -174,7 +174,7 @@ describe('FaviconSourceControl (bookmark inspector)', () => {
     expect(none.checked).toBe(false)
   })
 
-  it('feature flag off (404) renders the managed-automatically note', async () => {
+  it('feature flag off (404) renders the disabled-settings note', async () => {
     mocks.getBookmarkFaviconSource.mockRejectedValue({
       status: 404, code: 'resource_not_found', recoveryHint: 'Not found',
     })

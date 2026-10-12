@@ -188,6 +188,7 @@ export interface FaviconRefreshEnqueuePorts {
   readonly sources: BookmarkIconSourceReadPort;
   readonly policies: FaviconPolicyReadPort;
   readonly jobs: FaviconJobWritePort;
+  readonly forceJobs?: FaviconAutoEnqueuePorts['forceJobs'];
 }
 
 export interface FaviconRefreshEnqueueInput {
@@ -229,6 +230,7 @@ export interface FaviconAutoEnqueuePorts {
   readonly sources: Pick<BookmarkIconSourceReadPort, 'findByNodeId'>;
   readonly policies: FaviconPolicyReadPort;
   readonly jobs: Pick<FaviconJobWritePort, 'insert'>;
+  readonly forceJobs?: Pick<import('./favicon-batch-policy.js').FaviconBatchJobWritePort, 'insertJob' | 'insertItems'>;
 }
 
 /**
@@ -262,14 +264,14 @@ export async function enqueueFaviconRefreshForNewBookmark(
     newDefault: policy.newDefault,
   });
   const fillMissing = policy.fillMissing && sourceRow?.sourceMode !== 'none' && sourceRow?.sourceMode !== 'uploaded';
-  if (!actsOnline && !fillMissing) return null;
+  if (!actsOnline && !fillMissing && !policy.forceAllOnline) return null;
   const hostname = faviconHostnameFromBookmarkUrl(input.url);
   const sourceUrl = hostname === null
     ? null
     : resolveFaviconProviderUrl(policy.providerTemplate, hostname);
   if (sourceUrl === null) return null;
   const jobId = randomUUID();
-  await ports.jobs.insert({
+  await insertFaviconCaptureJob(ports, policy.forceAllOnline, {
     jobId,
     accountId: input.accountId,
     ownerSubjectId: input.ownerSubjectId,
@@ -332,7 +334,7 @@ export async function enqueueBookmarkFaviconRefresh(
   }
   const sourceMode = sourceRow?.sourceMode ?? 'inherit';
   // Same predicate the worker re-verifies with: inherit follows newDefault.
-  const effectiveMode = iconSourceActsOnline({ sourceMode, newDefault: policy.newDefault })
+  const effectiveMode = policy.forceAllOnline || iconSourceActsOnline({ sourceMode, newDefault: policy.newDefault })
     ? 'online'
     : sourceMode === 'inherit' ? policy.newDefault : sourceMode;
   if (effectiveMode !== 'online') {
@@ -353,7 +355,7 @@ export async function enqueueBookmarkFaviconRefresh(
   }
   const now = await ports.clock.now();
   const jobId = randomUUID();
-  await ports.jobs.insert({
+  await insertFaviconCaptureJob(ports, policy.forceAllOnline, {
     jobId,
     accountId: input.actor.principalId,
     ownerSubjectId: input.actor.subjectId,
@@ -440,4 +442,24 @@ async function loadRefreshOwnerNode(
     throw new FaviconRefreshCommandError('invalid_request', 'favicon refresh is only available on bookmark nodes');
   }
   return node;
+}
+
+/** Force refreshes preserve the pre-force binding; ordinary refreshes use the single-node ledger. */
+async function insertFaviconCaptureJob(
+  ports: Pick<FaviconAutoEnqueuePorts, 'jobs' | 'forceJobs'>,
+  forceAllOnline: boolean,
+  job: FaviconJobInsert,
+): Promise<void> {
+  if (!forceAllOnline) { await ports.jobs.insert(job); return; }
+  if (!ports.forceJobs) throw new Error('Force-online capture requires transactional batch ports');
+  await ports.forceJobs.insertJob({
+    jobId: job.jobId, accountId: job.accountId, ownerSubjectId: job.ownerSubjectId,
+    operation: 'apply_force_online', policyRevision: job.policyRevision, total: 1,
+    createdAt: job.createdAt, updatedAt: job.updatedAt,
+  });
+  await ports.forceJobs.insertItems([{
+    jobId: job.jobId, nodeId: job.nodeId, collectionId: job.collectionId, sourceUrl: job.sourceUrl,
+    sourceRevision: job.sourceRevision, nodeResourceRevision: job.nodeResourceRevision,
+    createdAt: job.createdAt, updatedAt: job.updatedAt,
+  }]);
 }

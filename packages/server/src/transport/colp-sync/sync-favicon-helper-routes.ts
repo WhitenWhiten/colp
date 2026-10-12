@@ -1,3 +1,4 @@
+import { executeFaviconCommand, type FaviconCommandWriteContext } from '../../modules/collections/index.js';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { AppConfig } from '../../bootstrap/config.js';
 import type { IdentityUnitOfWork } from '../../modules/identity/index.js';
@@ -201,9 +202,9 @@ export function registerSyncFaviconHelperRoutes(
     }
     try {
       const result = await withCancellation(request, deps.timeoutMs, (signal) =>
-        deps.collectionsUnitOfWork!.execute(async (ports) => {
+        executeFaviconCommand(deps.collectionsUnitOfWork!, deps.faviconStore!, { collectionId, nodeId }, async (ports, context) => {
           requireHelperPorts(ports);
-          const outcome = await captureBookmarkFavicon(capturePorts(ports, deps), {
+          const outcome = await captureBookmarkFavicon(capturePorts(ports, deps, context), {
             actor,
             commandId,
             collectionId,
@@ -215,7 +216,7 @@ export function registerSyncFaviconHelperRoutes(
             expectedPolicyRevision: policyRevision,
           });
           return { outcome, etag: await helperResponseEtag(ports, outcome, collectionId, nodeId) };
-        }, { signal }));
+        }, { signal, onCleanupFailure: () => deps.metrics?.increment('favicon_helper.orphan_cleanup.failed') }));
       return sendHelperCommandResult(reply, result.outcome, result.etag);
     } catch (error) {
       throw mapFaviconHelperRouteError(error);
@@ -278,6 +279,7 @@ function sourceQueryPorts(ports: HelperPorts): GetBookmarkFaviconSourcePorts {
 function capturePorts(
   ports: HelperPorts,
   deps: SyncFaviconHelperRouteDependencies,
+  context?: FaviconCommandWriteContext,
 ): FaviconHelperCapturePorts {
   return {
     receipts: ports.receipts,
@@ -288,23 +290,10 @@ function capturePorts(
     sources: ports.faviconSources,
     policies: ports.faviconPolicies,
     bookmarkIcons: ports.bookmarkIcons,
-    faviconStore: deps.faviconStore!,
+    faviconStore: context?.store ?? deps.faviconStore!,
     gc: ports.faviconGc,
     onOrphanCleanupFailure: () => deps.metrics?.increment('favicon_helper.r2_delete.failed'),
-    // FO-C-02: fresh-transaction ledger; the helper tx is already aborted.
-    orphanLedger: async (input) => {
-      await deps.collectionsUnitOfWork!.execute(async (tx) => {
-        const current = await tx.bookmarkIcons?.findByNodeId(input.nodeId);
-        if (current !== null && current !== undefined && current.objectId === input.objectId) return;
-        await tx.faviconGc?.recordRetired({
-          objectId: input.objectId,
-          nodeId: input.nodeId,
-          collectionId: input.collectionId,
-          retiredAt: input.at,
-          deletableAt: input.at,
-        });
-      });
-    },
+    orphanLedger: context?.orphanLedger ?? (async () => {}),
   };
 }
 

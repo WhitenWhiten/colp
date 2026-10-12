@@ -238,7 +238,7 @@ export function FaviconSourceControl({ collectionId, nodeId, disabled, refreshKe
       {state.kind === 'loading' && <LoadingState label="Loading icon source…" />}
       {state.kind === 'unavailable' && (
         <p className="meta" data-testid="favicon-source-unavailable">
-          Icon sources are managed automatically. There is nothing to set up.
+          Icon-source settings are disabled on this server.
         </p>
       )}
       {state.kind === 'error' && <p className="field-error" role="alert">{state.message}</p>}

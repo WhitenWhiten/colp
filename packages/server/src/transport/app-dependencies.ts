@@ -2,7 +2,6 @@ import type { FastifyInstance } from 'fastify';
 import type { AppConfig } from '../bootstrap/config.js';
 import type {
   CollectionsEditorReadUnitOfWork,
-  CollectionChildrenReadUnitOfWork,
   AnnotationMutationUnitOfWork,
   AnnotationReadUnitOfWork,
   RelationMutationUnitOfWork,
@@ -97,7 +96,6 @@ export interface AppDependencies {
   readonly collectionMetadataMutationRoutes?: 'enabled' | 'disabled';
   readonly collectionsEditorReadUnitOfWork?: CollectionsEditorReadUnitOfWork;
   /** FO-05 one-layer children reader (REPEATABLE READ + HMAC cursor). */
-  readonly collectionChildrenReadUnitOfWork?: CollectionChildrenReadUnitOfWork;
   readonly ownedCollectionsQuery?: GetOwnedCollectionsPagePorts;
   readonly sharedCollectionsQuery?: GetSharedCollectionsPagePorts;
   readonly linkHealthQuery?: GetMyLinkHealthPagePorts;

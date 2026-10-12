@@ -47,9 +47,9 @@ vi.mock('../../api', async (importOriginal) => {
     ...actual,
     productClient: {
       ...actual.productClient,
-      getBookmarkFaviconSource: vi.fn().mockResolvedValue({ sourceMode: 'inherit', effectiveMode: 'capture', revision: '1', etag: '"favicon-source:1:1"', iconUrl: null, directUrl: null, status: 'missing' }),
       loadEditorSnapshot: mocks.loadEditorSnapshot,
       loadAnnotations: mocks.loadAnnotations,
+      getBookmarkFaviconSource: mocks.getBookmarkFaviconSource,
       loadPublicCollectionSnapshot: mocks.loadPublicCollectionSnapshot,
       createCollectionNode: mocks.createCollectionNode,
       updateCollectionNode: mocks.updateCollectionNode,

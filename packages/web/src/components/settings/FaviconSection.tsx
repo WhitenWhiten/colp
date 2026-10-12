@@ -125,23 +125,32 @@ function JobProgress({ jobId, onRetried }: {
  * (progress + explicit retry of failed items); the online providerTemplate
  * alone never enables online, and no-op patches keep the same revision.
  */
-export function FaviconSection() {
+export function FaviconSection({ onDirtyChange }: { onDirtyChange?: (dirty: boolean) => void } = {}) {
   const [state, setState] = useState<FaviconPolicyState>({ kind: 'loading' })
   const [busy, setBusy] = useState(false)
+  const lifecycle = useRef<AbortController | null>(null)
   const [providerDraft, setProviderDraft] = useState<string>('')
   const [dirtyProvider, setDirtyProvider] = useState(false)
+  const dirtyProviderRef = useRef(false)
+  dirtyProviderRef.current = dirtyProvider
+  useEffect(() => {
+    onDirtyChange?.(dirtyProvider)
+    return () => onDirtyChange?.(false)
+  }, [dirtyProvider, onDirtyChange])
   const [jobId, setJobId] = useState<string | null>(null)
   const [notice, setNotice] = useState<{ kind: 'info' | 'error'; text: string } | null>(null)
 
-  const load = useCallback(async (signal?: AbortSignal) => {
+  const load = useCallback(async (signal?: AbortSignal, resetProvider = false) => {
     try {
       const policy = await productClient.getMyFaviconPolicy({ signal, maxRetries: 0 })
       // The controller is what normally prevents a stale apply; checking the
       // signal keeps it true for callers that pass none.
       if (signal?.aborted) return
       setState({ kind: 'ready', policy })
-      setProviderDraft(policy.providerTemplate)
-      setDirtyProvider(false)
+      if (!dirtyProviderRef.current || resetProvider) {
+        setProviderDraft(policy.providerTemplate)
+        setDirtyProvider(false)
+      }
     } catch (error) {
       if (isAbort(error)) return
       if (isProductApiError(error) && error.status === 404) {
@@ -157,26 +166,30 @@ export function FaviconSection() {
 
   useEffect(() => {
     const controller = new AbortController()
+    lifecycle.current = controller
     void load(controller.signal)
     return () => controller.abort()
   }, [load])
 
   const save = async (patch: Record<string, unknown>) => {
-    if (state.kind !== 'ready' || busy) return
+    const signal = lifecycle.current?.signal
+    if (state.kind !== 'ready' || busy || !signal || signal.aborted) return
     setBusy(true)
     setNotice(null)
     try {
       const result = await productClient.updateMyFaviconPolicy(patch, state.policy.etag, {
         intentId: productClient.mutationIntentKey('favicon-policy:me', productClient.newCommandId()),
+        signal,
         maxRetries: 0,
       })
-      await load()
+      if (signal.aborted) return
+      await load(signal, 'providerTemplate' in patch)
       setJobId(result.jobId)
       if (result.jobId !== null) setNotice({ kind: 'info', text: 'A batch icon job was started for this change.' })
     } catch (error) {
-      if (isAbort(error)) return
+      if (isAbort(error) || signal.aborted) return
       if (isProductApiError(error) && error.isPreconditionFailed) {
-        await load()
+        await load(signal)
         setNotice({ kind: 'info', text: 'Favicon settings changed elsewhere — view refreshed, choose again.' })
       } else {
         setNotice({
@@ -185,7 +198,7 @@ export function FaviconSection() {
         })
       }
     } finally {
-      if (state.kind === 'ready') setBusy(false)
+      if (!signal.aborted) setBusy(false)
     }
   }
 
@@ -340,7 +353,7 @@ export function FaviconSection() {
               {notice.text}
             </p>
           )}
-          {jobId !== null && current !== null && <JobProgress jobId={jobId} onRetried={setJobId} />}
+          {jobId !== null && current !== null && <JobProgress key={jobId} jobId={jobId} onRetried={setJobId} />}
         </>
       )}
     </section>

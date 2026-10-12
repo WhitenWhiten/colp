@@ -77,8 +77,6 @@ export {
   type PostgresCollectionsUnitOfWorkOptions,
 } from './unit-of-work.js';
 export {
-  createPostgresCollectionChildrenReadUnitOfWork,
-  type PostgresCollectionChildrenReadUnitOfWorkOptions,
 } from './unit-of-work.js';
 export { createPostgresAnnotationMutationUnitOfWork } from './annotation-canonical-postgres.js';
 export {

@@ -13,7 +13,6 @@ import {
 } from '../infrastructure/sync/index.js';
 import {
   createPostgresCollectionsEditorReadUnitOfWork,
-  createPostgresCollectionChildrenReadUnitOfWork,
   createPostgresCollectionsUnitOfWork,
   createPostgresCanonicalMutationUnitOfWork,
   createPostgresAnnotationMutationUnitOfWork,
@@ -42,7 +41,6 @@ import {
 import {
   createProductAnnotationCursorSigner,
   createProductRelationCursorSigner,
-  createCollectionChildrenCursorSigner,
   createProductEditorCursorSigner,
   createProductOwnedCollectionsCursorSigner,
   createProductSharedCollectionsCursorSigner,
@@ -86,8 +84,6 @@ export interface ApiPostgresPorts {
   readonly collectionsUnitOfWork: ReturnType<typeof createPostgresCollectionsUnitOfWork>;
   readonly productCollectionMutationUnitOfWork: ReturnType<typeof createPostgresCanonicalMutationUnitOfWork>;
   readonly collectionsEditorReadUnitOfWork: ReturnType<typeof createPostgresCollectionsEditorReadUnitOfWork>;
-  /** FO-05 one-layer children reader (always composed; cursor routes gate on the flag). */
-  readonly collectionChildrenReadUnitOfWork: ReturnType<typeof createPostgresCollectionChildrenReadUnitOfWork>;
   readonly ownedCollectionsCursorSigner: ReturnType<typeof createProductOwnedCollectionsCursorSigner>;
   readonly sharedCollectionsCursorSigner: ReturnType<typeof createProductSharedCollectionsCursorSigner>;
   readonly collaborationMembersCursorSigner: ReturnType<typeof createProductCollaborationMembersCursorSigner>;
@@ -159,7 +155,7 @@ export function createApiPostgresPorts(input: {
   });
   const productCollectionMutationUnitOfWork = createPostgresCanonicalMutationUnitOfWork(
     database.db,
-    { metrics, productOrigin: config.productOrigin, ...(reportSourceInvalidation === undefined ? {} : { reportSourceInvalidation }) },
+    { metrics, productOrigin: config.productOrigin, faviconPolicyEnabled: config.faviconPolicy.enabled, ...(reportSourceInvalidation === undefined ? {} : { reportSourceInvalidation }) },
   );
   const cursorSigner = createProductEditorCursorSigner({
     current: config.productEditorCursor.current,
@@ -180,15 +176,6 @@ export function createApiPostgresPorts(input: {
       cursorTtlMs: config.productEditorCursor.ttlMs,
       metrics,
       productOrigin: config.productOrigin,
-    },
-  );
-  const collectionChildrenReadUnitOfWork = createPostgresCollectionChildrenReadUnitOfWork(
-    database.db,
-    {
-      cursorSigner: createCollectionChildrenCursorSigner(config.faviconPolicy.cursorHmacKey),
-      metrics,
-      productOrigin: config.productOrigin,
-      cancelBackend: database.cancelBackend,
     },
   );
   const { ownedCollectionsCursorSigner, sharedCollectionsCursorSigner, collaborationMembersCursorSigner,
@@ -261,7 +248,6 @@ export function createApiPostgresPorts(input: {
     collectionsUnitOfWork,
     productCollectionMutationUnitOfWork,
     collectionsEditorReadUnitOfWork,
-    collectionChildrenReadUnitOfWork,
     ownedCollectionsCursorSigner,
     sharedCollectionsCursorSigner,
     collaborationMembersCursorSigner,

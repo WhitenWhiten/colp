@@ -254,6 +254,9 @@ export async function verifyFaviconRefreshIdentity(
   if (!node || node.deletedAt !== null || node.kind !== 'bookmark' || node.collectionId !== claim.collectionId) {
     return { kind: 'terminal', reason: 'permission_changed' };
   }
+  if (node.resourceRevision !== claim.nodeResourceRevision) {
+    return { kind: 'terminal', reason: 'source_changed' };
+  }
   const sourceRow = await tx.sources.findByNodeId(node.id);
   const currentSourceRevision = sourceRow?.revision ?? INITIAL_FAVICON_SOURCE_REVISION;
   const policy = await tx.policies.findByAccountId(claim.accountId);
@@ -265,10 +268,13 @@ export async function verifyFaviconRefreshIdentity(
     sourceMode: sourceRow?.sourceMode ?? null,
     newDefault: policy?.newDefault ?? 'capture',
   });
+  const currentIcon = await tx.bookmarkIcons.findByNodeId(node.id);
   const fillMissing = policy?.fillMissing === true
     && sourceRow?.sourceMode !== 'none' && sourceRow?.sourceMode !== 'uploaded'
-    && await tx.bookmarkIcons.findByNodeId(node.id) === null;
-  if ((!actsOnline && !fillMissing) || currentSourceRevision !== toJobRevision(claim.sourceRevision)) {
+    && (currentIcon === null || (job.objectId !== null && currentIcon.objectId === job.objectId));
+  const alreadyBound = job.objectId !== null && currentIcon?.objectId === job.objectId;
+  if ((!actsOnline && !fillMissing)
+      || (!alreadyBound && currentSourceRevision !== toJobRevision(claim.sourceRevision))) {
     return { kind: 'terminal', reason: 'source_changed' };
   }
   if (policyRevision !== toJobRevision(claim.policyRevision)) {

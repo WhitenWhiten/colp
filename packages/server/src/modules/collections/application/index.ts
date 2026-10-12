@@ -700,9 +700,10 @@ export type {
   LibraryOrderView,
 } from './library-order.js';
 export * from './favicon-exports.js';
-export * from './collection-children-cursor.js';
-export * from './list-collection-children.js';
 // H3 direct export (D21): the CLI, the export route, and the read port use
 // these through the collections facade.
 export * from './export-collection.js';
 export * from './netscape-serializer.js';
+
+export { executeFaviconCommand } from './favicon-command-unit-of-work.js';
+export type { FaviconCommandWriteContext } from './favicon-command-unit-of-work.js';

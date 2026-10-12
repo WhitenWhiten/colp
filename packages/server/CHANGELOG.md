@@ -34,7 +34,7 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 - Removed the public collections sitemap (`/sitemap-collections.xml`), which was registered unconditionally and listed collections under the hosted service's origin instead of this server's, and the Open Graph card renderer (`/c/{slug}/og-image.png`), which only served the public shell that the self-hosted preset keeps off; `satori` and `@resvg/resvg-js` leave the runtime image with it. Caddy already answered the sitemap paths with 404.
 - The OAuth `invalid_client` message for an opaque `client_id` points at this server's Agents page and `deploy/INSTALL.md`, not at the hosted service.
 - A malformed `/reports/...` URL answers the same JSON problem as any other bad path; the branded HTML page for the removed reports feature is gone.
-- Removed features that are off in the self-hosted edition and have no user story: IndexNow, the Explore shell, publishing insights, readable replicas, AI organize plans, export jobs, link previews, favicon policy, jobs and uploads (with the children time sort behind the same flag), email without `COLP_SMTP_URL`, and classification with credits. Their routes, workers, settings and OpenAPI entries are gone; migrations are untouched. Library export (`colp-server export`, `/api/v1/collections/{id}/export`) is unaffected.
+- Removed features that are off in the self-hosted edition and have no user story: IndexNow, the Explore shell, publishing insights, readable replicas, AI organize plans, export jobs, link previews, email without `COLP_SMTP_URL`, and classification with credits. Their routes, workers, settings and OpenAPI entries are gone; migrations are untouched. Library export (`colp-server export`, `/api/v1/collections/{id}/export`) is unaffected.
 - A rejected agent commit says why (the collection changed after the plan, not yet approved, expired, denied) instead of "MCP write operation rejected."
 - `changes.get` reports `requiresApproval: false` and `approvedBy: "policy"` for a plan a trusted policy approved, matching what `nodes.move` returned.
 - Product route timeouts answer "This operation is temporarily unavailable."
@@ -42,6 +42,10 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 - The Docker image installs the runtime stage from `runtime/` with `npm ci --omit=dev --omit=peer` and refuses to build when `vitest`, `tinypool`, `tsx` or `@vitest/mocker` are present; `npm prune --omit=dev` could not drop them because the dev lockfile marks them as optional peers of `better-auth`.
 
 ### Fixed
+
+- Favicon uploads share the command transaction when bytes are stored in PostgreSQL, avoiding nested pool acquisition. External upload failures retire orphan objects after rollback, including failures during receipt/commit; lost commit acknowledgements preserve live objects.
+- Favicon jobs recover an already-bound missing icon after a crash, fence node revisions during fetch, honor the deployment flag, and apply force-online to future bookmarks with a recoverable original state. Shared site-logo caches are projected again.
+- Favicon settings preserve unsaved provider drafts across other setting changes and use the existing discard guard. Removed the unrelated children time-sort surface from the favicon restoration.
 
 - Browser session reads recover the current cookie across multiple rotations and reject revoked sessions instead of reporting stale Better Auth predecessors as usable. This lets extensions refresh credentials after missing a rotation.
 - Agents supports HTTPS CIMD client IDs (including Codex's metadata URL) in the web list, policy, audit and revoke routes.

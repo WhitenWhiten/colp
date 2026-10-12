@@ -199,7 +199,7 @@ export async function startApi(options: StartApiOptions = {}): Promise<StartedAp
   });
   const composedObjects = await composeApiPublicObjectStores(config);
   const faviconStore = composedObjects.faviconStore
-    ?? (config.faviconPolicy.enabled ? createDatabaseFaviconStore(database.db) : undefined);
+    ?? createDatabaseFaviconStore(database.db);
   const publicObjects = { ...composedObjects, faviconStore, publicObjectStores: { faviconStore } };
   const {
     authRateLimiter,
@@ -257,6 +257,7 @@ export async function startApi(options: StartApiOptions = {}): Promise<StartedAp
     ? createSyncSessionRuntime(database, config.syncSession, metrics,
       config.publication.endpoints.syncSnapshot, {
         telemetryLogger: metricsLogger,
+        faviconPolicyEnabled: config.faviconPolicy.enabled,
         effectPageOrigin: config.publication.origin,
         attachmentExposure: createAttachmentExposurePolicyAdapter(createPostgresSharedExposureFactsPort(database)),
         ...(archiveColdReaders === undefined
@@ -422,9 +423,6 @@ export async function startApi(options: StartApiOptions = {}): Promise<StartedAp
     collectionsUnitOfWork: ports.collectionsUnitOfWork,
     productCollectionMutationUnitOfWork: ports.productCollectionMutationUnitOfWork,
     collectionsEditorReadUnitOfWork: ports.collectionsEditorReadUnitOfWork,
-    // FO-05: without this port the /children route is never registered, so
-    // every created/created sort silently fell back to curated.
-    collectionChildrenReadUnitOfWork: ports.collectionChildrenReadUnitOfWork,
     ownedCollectionsQuery: ports.ownedCollectionsQueryPorts,
     sharedCollectionsQuery: ports.sharedCollectionsQueryPorts,
     linkHealthQuery: ports.linkHealthQueryPorts,

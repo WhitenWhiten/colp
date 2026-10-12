@@ -85,9 +85,8 @@ export interface FaviconHelperCapturePorts {
   /** Durable retirement of the displaced object (retention window). */
   readonly gc: Pick<FaviconGcWritePort, 'recordRetired'>;
   /**
-   * FO-C-02: retire an object that never became a binding in an INDEPENDENT
-   * transaction (the command transaction is already aborted/rolled back when
-   * this runs). Same contract as bookmark-favicon-command.orphanLedger.
+   * Schedule retirement after the command transaction releases its connection,
+   * using the same contract as bookmark-favicon-command.orphanLedger.
    */
   readonly orphanLedger: (input: {
     readonly objectId: string;
@@ -245,6 +244,7 @@ export async function captureBookmarkFavicon(
     }
     sourceRevision = written.row.revision;
   } catch (error) {
+    if (ports.faviconStore.writeTransaction === 'bound') throw error;
     try {
       await ports.faviconStore.delete(objectId);
     } catch {
@@ -409,6 +409,7 @@ async function recordUnboundHelperObjectIfWritten(
   objectId: string,
   now: Date,
 ): Promise<void> {
+  if (ports.faviconStore.writeTransaction === 'bound') return;
   try {
     await ports.orphanLedger({
       objectId,

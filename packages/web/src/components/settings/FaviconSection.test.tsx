@@ -268,4 +268,48 @@ describe('Settings FaviconSection', () => {
     expect(notice.classList.contains('field-error')).toBe(true)
     expect(notice.textContent).toBe('If-Match must be a single strong entity-tag.')
   })
+  it('preserves a provider draft across another setting save and reports unsaved changes', async () => {
+    let current = policy()
+    mocks.getMyFaviconPolicy.mockImplementation(async () => current)
+    mocks.updateMyFaviconPolicy.mockImplementation(async (patch: Record<string, unknown>) => {
+      current = policy({ ...current, ...patch, revision: '2', etag: '"favicon-policy:2"' })
+      return { policy: current, jobId: null }
+    })
+    const onDirtyChange = vi.fn()
+    mountTree(<FaviconSection onDirtyChange={onDirtyChange} />)
+    await flushAsync()
+    const input = document.querySelector<HTMLInputElement>('[data-testid="favicon-provider-template"]')!
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!
+    act(() => {
+      setter.call(input, 'https://draft.example/{hostname}')
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    expect(onDirtyChange).toHaveBeenLastCalledWith(true)
+    await act(async () => { document.querySelector<HTMLInputElement>('[data-testid="favicon-fill-missing"]')!.click() })
+    await flushAsync()
+    expect(input.value).toBe('https://draft.example/{hostname}')
+    expect(onDirtyChange).toHaveBeenLastCalledWith(true)
+    await act(async () => { document.querySelector<HTMLButtonElement>('[data-testid="favicon-provider-save"]')!.click() })
+    await flushAsync()
+    expect(mocks.updateMyFaviconPolicy).toHaveBeenLastCalledWith(
+      { providerTemplate: 'https://draft.example/{hostname}' }, '"favicon-policy:2"', expect.anything())
+    expect(onDirtyChange).toHaveBeenLastCalledWith(false)
+  })
+
+  it('aborts a pending account setting save when the section unmounts', async () => {
+    mocks.getMyFaviconPolicy.mockResolvedValue(policy())
+    let finish!: (value: unknown) => void
+    mocks.updateMyFaviconPolicy.mockReturnValue(new Promise(resolve => { finish = resolve }))
+    mountTree(<FaviconSection />)
+    await flushAsync()
+    const reads = mocks.getMyFaviconPolicy.mock.calls.length
+    await act(async () => { document.querySelector<HTMLInputElement>('input[value="online"]')!.click() })
+    const options = mocks.updateMyFaviconPolicy.mock.calls[0]![2] as { signal: AbortSignal }
+    expect(options.signal.aborted).toBe(false)
+    cleanup()
+    expect(options.signal.aborted).toBe(true)
+    await act(async () => { finish({ policy: policy(), jobId: null }) })
+    expect(mocks.getMyFaviconPolicy).toHaveBeenCalledTimes(reads)
+  })
+
 })

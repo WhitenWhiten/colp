@@ -1,3 +1,4 @@
+import { createPostgresFaviconBatchJobWritePort } from './favicon-job-items-postgres.js';
 import type { Kysely } from 'kysely';
 import {
   CanonicalMutationInvariantError,
@@ -45,6 +46,7 @@ import { createPostgresFaviconJobWritePort } from './favicon-job-postgres.js';
 export type PostgresCanonicalMutationProductPorts = ProductCollectionCanonicalPorts;
 
 export interface PostgresCanonicalMutationUnitOfWorkOptions {
+  readonly faviconPolicyEnabled?: boolean;
   readonly isolationLevel?: TransactionIsolationLevel;
   readonly faultInjector?: TransactionFaultInjector;
   readonly outboxIdGenerator?: () => string;
@@ -187,11 +189,12 @@ export function createPostgresCanonicalMutationUnitOfWork(
         },
         accessPolicy,
         bookmarkIcons: createPostgresBookmarkIconWritePort(transaction),
-        faviconAutoRefresh: {
+        ...(options.faviconPolicyEnabled === false ? {} : { faviconAutoRefresh: {
           sources: createPostgresFaviconSourcePort(transaction),
           policies: createPostgresFaviconPolicyPort(transaction),
           jobs: createPostgresFaviconJobWritePort(transaction),
-        },
+          forceJobs: createPostgresFaviconBatchJobWritePort(transaction),
+        } }),
         ...(options.productOrigin === undefined ? {} : { productOrigin: options.productOrigin }),
       });
       if (!claimCalled) invariant('successful canonical mutation unit of work must claim one product command');

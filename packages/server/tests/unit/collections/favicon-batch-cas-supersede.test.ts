@@ -118,6 +118,7 @@ function casPorts(options: {
   findStatus?: FaviconJobRecord['status'];
   lockStatus?: FaviconJobRecord['status'];
   existingBinding?: boolean;
+  nodeResourceRevision?: string;
 } = {}): { tx: FaviconBatchCasPorts; trace: CasTrace } {
   const trace: CasTrace = {
     lockedJobs: [], bookmarkedNulls: 0, upserts: 0, metadataWrites: 0,
@@ -151,7 +152,7 @@ function casPorts(options: {
     nodes: {
       getNode: async () => ({
         id: 'node-1', collectionId: 'collection-1', kind: 'bookmark',
-        deletedAt: null, url: 'https://example.com/bookmark',
+        deletedAt: null, url: 'https://example.com/bookmark', resourceRevision: options.nodeResourceRevision ?? 'r1',
       }),
     },
     sources: {
@@ -233,4 +234,10 @@ test('FO-C-01: job superseded between the verify read and the CAS commit must no
   const verdict = await applyRestoreCas(tx, claim(), item(), restore(), NOW, 86_400);
   assert.equal(verdict.kind, 'gone');
   assert.equal(trace.upserts, 0, 'superseded restore must not re-bind the original');
+});
+test('a same-host node edit after enqueue never binds the old batch result', async () => {
+  const { tx, trace } = casPorts({ jobStatus: 'running', nodeResourceRevision: 'r2' });
+  const verdict = await applyBatchCaptureCas(tx, claim(), item(), 'object-new', fetched, NOW, 31_536_000);
+  assert.deepEqual(verdict, { kind: 'terminal', reason: 'source_changed' });
+  assert.equal(trace.upserts, 0);
 });

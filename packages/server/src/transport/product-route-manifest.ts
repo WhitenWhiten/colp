@@ -64,6 +64,9 @@ export const CLASSIFICATION_PRUNED_OPERATION_IDS: readonly string[] = Object.fre
   'getMyCreditLedgerEntry',
 ]);
 
+// The frozen upstream manifest includes this edition-unsupported browse/sort API.
+const UNSUPPORTED_COLLECTION_OPERATION_IDS = ['listCollectionChildren'];
+
 function openApiPath(path: string): string {
   return path.replace(/:([A-Za-z0-9_]+)/g, '{$1}');
 }
@@ -76,7 +79,7 @@ export function assertProductRouteCoverage(
   registered: ReadonlySet<string>,
   excludeOperationIds: readonly string[] = [],
 ): void {
-  const allExcluded = new Set([...excludeOperationIds, ...CLASSIFICATION_PRUNED_OPERATION_IDS]);
+  const allExcluded = new Set([...excludeOperationIds, ...CLASSIFICATION_PRUNED_OPERATION_IDS, ...UNSUPPORTED_COLLECTION_OPERATION_IDS]);
   const expected = PRODUCT_ROUTE_MANIFEST
     .filter((item) => !allExcluded.has(item.operationId))
     .map((item) => `${item.method} ${item.path}`);

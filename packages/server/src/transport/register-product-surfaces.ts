@@ -11,7 +11,6 @@ import type { ProductSurfaceRateLimitPurpose } from '../infrastructure/rate-limi
 import { registerBrowserAuthRoutes } from './auth/browser-auth-routes.js';
 import { registerBookmarkFaviconRoutes } from './product/bookmark-favicon-routes.js';
 import { registerClientEventRoutes } from './product/client-event-routes.js';
-import { registerCollectionChildrenRoutes } from './product/collection-children-routes.js';
 import { registerBetterAuthRoutes } from './auth/better-auth-routes.js';
 import { registerOauthAuthorizationServerMetadataRoute } from './auth/oauth-authorization-server-routes.js';
 import { registerCollectionRoutes } from './product/collection-routes.js';
@@ -53,7 +52,6 @@ export function registerProductSurfaces(
     productCollectionMutationUnitOfWork,
     collectionMetadataMutationRoutes = 'enabled',
     collectionsEditorReadUnitOfWork,
-    collectionChildrenReadUnitOfWork,
     ownedCollectionsQuery,
     sharedCollectionsQuery,
     bookmarkCounts,
@@ -303,15 +301,6 @@ export function registerProductSurfaces(
       rateLimiter: resolveProductRouteRateLimiter('favicon-policy', faviconPolicyRateLimiter, defaultProductRouteBudget),
       timeoutMs: config.faviconPolicy.timeoutMs,
     });
-    if (collectionChildrenReadUnitOfWork) {
-      registerCollectionChildrenRoutes(app, {
-        enabled: config.faviconPolicy.enabled,
-        identityUnitOfWork,
-        childrenReadUnitOfWork: collectionChildrenReadUnitOfWork,
-        rateLimiter: resolveProductRouteRateLimiter('favicon-policy', faviconPolicyRateLimiter, defaultProductRouteBudget),
-        timeoutMs: config.faviconPolicy.timeoutMs,
-      });
-    }
   }
   registerAccountProductSurfaces(app, deps);
   if ((linkHealthQuery === undefined) !== (linkHealthEnqueue === undefined)) {

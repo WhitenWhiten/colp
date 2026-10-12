@@ -48,6 +48,7 @@ export type PostgresSyncPushFaultPhase = 'sequence_before_commit' | 'sequence_af
 export type { PostgresSyncConflictFaultPhase };
 
 export interface PostgresSyncNodeCreateOptions {
+  readonly faviconPolicyEnabled?: boolean;
   readonly nodeId?: () => string;
   readonly managedBookmarkWrites?: boolean;
   /** Sync tombstones retain their payload for the configured protocol window. */

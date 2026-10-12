@@ -1,3 +1,4 @@
+import { executeFaviconCommand } from '../../modules/collections/index.js';
 import { requestCancellation, productReadDeadlineMs, abortPublicationRead } from './publication-request-cancel.js';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { AppConfig } from '../../bootstrap/config.js';
@@ -325,7 +326,7 @@ async function handleProductUpload(
     });
   }
   try {
-    const result = await writes.collectionsUnitOfWork.execute(async (ports) => {
+    const result = await executeFaviconCommand(writes.collectionsUnitOfWork, writes.faviconStore, { collectionId, nodeId }, async (ports, context) => {
       if (!ports.bookmarkIcons || !ports.faviconGc) {
         throw featureUnavailable('Bookmark favicon bindings are not available on this deployment.');
       }
@@ -338,24 +339,9 @@ async function handleProductUpload(
         bookmarkIcons: ports.bookmarkIcons,
         faviconSources: ports.faviconSources,
         faviconGc: ports.faviconGc,
-        faviconStore: writes.faviconStore,
+        faviconStore: context.store,
         onOrphanCleanupFailure: () => increment(deps.metrics, 'bookmark_favicon.r2_delete.failed'),
-        // FO-C-02: an object that never became a binding must be retired in a
-        // FRESH transaction — the command transaction is aborted/rolled back
-        // on every path that reaches this runner (F-A1 semantics).
-        orphanLedger: async (input) => {
-          await writes.collectionsUnitOfWork.execute(async (tx) => {
-            const current = await tx.bookmarkIcons?.findByNodeId(input.nodeId);
-            if (current !== null && current !== undefined && current.objectId === input.objectId) return;
-            await tx.faviconGc?.recordRetired({
-              objectId: input.objectId,
-              nodeId: input.nodeId,
-              collectionId: input.collectionId,
-              retiredAt: input.at,
-              deletableAt: input.at,
-            });
-          });
-        },
+        orphanLedger: context.orphanLedger,
       }, {
         actor: { principalId: account.id, subjectId: account.subjectId },
         commandId,
@@ -365,7 +351,7 @@ async function handleProductUpload(
         contentType: declaredContentType(request),
         productOrigin: deps.config.productOrigin,
       });
-    });
+    }, { onCleanupFailure: () => increment(deps.metrics, 'bookmark_favicon.orphan_cleanup.failed') });
     if (result.kind === 'created' || result.kind === 'replay') {
       increment(deps.metrics, 'bookmark_favicon.result.ok');
     }

@@ -1,3 +1,4 @@
+import { createDatabaseFaviconStore } from './favicon-database-store.js';
 import { sql } from 'kysely';
 import type {
   BootstrapAuditPort,
@@ -784,6 +785,7 @@ export function createPostgresCollectionsWritePorts(
     accessPolicy: createPostgresAccessPolicyWritePort(transaction),
     accessPolicyFacts: createPostgresAccessPolicyFactsPort(transaction),
     bookmarkIcons: createPostgresBookmarkIconWritePort(transaction),
+    faviconStore: createDatabaseFaviconStore(transaction),
     faviconPolicies: createPostgresFaviconPolicyPort(transaction),
     faviconSources: createPostgresFaviconSourcePort(transaction),
     faviconJobs: createPostgresFaviconJobWritePort(transaction),

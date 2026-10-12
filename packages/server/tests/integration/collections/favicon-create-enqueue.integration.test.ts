@@ -1,3 +1,6 @@
+import { createDatabaseFaviconStore } from '../../../src/infrastructure/collections/favicon-database-store.js';
+import { createDatabaseRuntime, type TransactionFaultInjector } from '../../../src/infrastructure/database/index.js';
+import type { BookmarkFaviconObjectStore } from '../../../src/modules/collections/index.js';
 /**
  * FO-07 review: `newDefault: online` must actually fetch for a bookmark created
  * in the Web app, not only project as online. Real PostgreSQL + real bootstrap
@@ -131,13 +134,13 @@ describeWithPostgres('FO-07 newDefault=online enqueues for Web-created bookmarks
 
   afterAll(async () => isolated?.close());
 
-  function buildApp(store: ReturnType<typeof createStore>) {
+  function buildApp(store: BookmarkFaviconObjectStore, database = isolated.runtime, faultInjector?: TransactionFaultInjector, faviconPolicyEnabled = config.faviconPolicy.enabled) {
     return buildApiApp({
-      config,
+      config: { ...config, faviconPolicy: { ...config.faviconPolicy, enabled: faviconPolicyEnabled } },
       identityUnitOfWork: createPostgresIdentityUnitOfWork(isolated.runtime.db),
-      collectionsUnitOfWork: createPostgresCollectionsUnitOfWork(isolated.runtime.db),
+      collectionsUnitOfWork: createPostgresCollectionsUnitOfWork(database.db, { faultInjector }),
       productCollectionMutationUnitOfWork: createPostgresCanonicalMutationUnitOfWork(
-        isolated.runtime.db, { productOrigin: ORIGIN }),
+        isolated.runtime.db, { productOrigin: ORIGIN, faviconPolicyEnabled }),
       browserSessionAuthority: factory.authority,
       faviconStore: store,
     });
@@ -365,6 +368,213 @@ describeWithPostgres('FO-07 newDefault=online enqueues for Web-created bookmarks
       const row = (await isolated.runtime.pool.query('SELECT object_id FROM bookmark_icons WHERE node_id=$1', [nodeId])).rows[0];
       assert.ok(row, 'a future capture bookmark receives the missing icon');
       assert.ok(store.objects.has(row.object_id));
+    } finally { await app.close(); }
+  });
+
+  test('database upload uses one connection and rolls bytes back with a failed command', async () => {
+    const limited = createDatabaseRuntime(isolated.databaseUrl, {
+      maxConnections: 1, connectionTimeoutMs: 500, idleTimeoutMs: 1000,
+    });
+    const store = createDatabaseFaviconStore(limited.db);
+    let failNext = false;
+    const app = buildApp(store, limited, {
+      afterCallbackBeforeCommit() { if (failNext) { failNext = false; throw new Error('upload rollback'); } },
+    });
+    try {
+      const address = await app.listen({ host: '127.0.0.1', port: 0 });
+      await patchPolicy('capture', address);
+      const { collectionId, rootId } = await seedCollection(151);
+      const created = await createBookmark(address, collectionId, rootId, 'Upload', 'https://upload.example.org');
+      assert.equal(created.status, 201);
+      const url = `/api/v1/collections/${collectionId}/nodes/${created.nodeId}/favicon`;
+      const request = () => app.inject({ method: 'POST', url, payload: PNG, headers: {
+        cookie: owner.cookie, origin: ORIGIN, 'x-csrf-token': owner.csrfToken,
+        'known-command-id': randomUUID(), 'content-type': 'image/png',
+      } });
+      const saved = await request();
+      assert.equal(saved.statusCode, 200, saved.body);
+      const iconId = saved.json().iconUrl.split('/').at(-1)!;
+      assert.deepEqual((await store.get(iconId))?.body, PNG);
+      const before = Number((await limited.pool.query('SELECT count(*) AS n FROM favicon_object_bytes')).rows[0].n);
+      failNext = true;
+      const failed = await request();
+      assert.equal(failed.statusCode, 500);
+      assert.equal(Number((await limited.pool.query('SELECT count(*) AS n FROM favicon_object_bytes')).rows[0].n), before);
+      const binding = (await limited.pool.query('SELECT object_id FROM bookmark_icons WHERE node_id=$1', [created.nodeId])).rows[0];
+      assert.equal(binding.object_id, iconId, 'previous bytes and binding survive rollback');
+    } finally { await app.close(); await limited.close(); }
+  });
+
+  test('external upload retires bytes after rollback without nesting database transactions', async () => {
+    const limited = createDatabaseRuntime(isolated.databaseUrl, { maxConnections: 1, connectionTimeoutMs: 500 });
+    const store = createStore();
+    let failNext = false;
+    const app = buildApp(store, limited, {
+      afterCallbackBeforeCommit() { if (failNext) { failNext = false; throw new Error('external rollback'); } },
+    });
+    try {
+      const address = await app.listen({ host: '127.0.0.1', port: 0 });
+      const { collectionId, rootId } = await seedCollection(89);
+      const created = await createBookmark(address, collectionId, rootId, 'External', 'https://external.example.org');
+      failNext = true;
+      const failed = await app.inject({ method: 'POST', url: `/api/v1/collections/${collectionId}/nodes/${created.nodeId}/favicon`, payload: PNG, headers: {
+        cookie: owner.cookie, origin: ORIGIN, 'x-csrf-token': owner.csrfToken,
+        'known-command-id': randomUUID(), 'content-type': 'image/png',
+      } });
+      assert.equal(failed.statusCode, 500);
+      const [objectId] = store.objects.keys();
+      assert.ok(objectId);
+      const pending = (await limited.pool.query('SELECT object_id FROM favicon_pending_deletions WHERE object_id=$1', [objectId])).rows;
+      assert.equal(pending.length, 1, 'commit-stage failure leaves a durable cleanup record');
+      assert.equal((await limited.pool.query('SELECT object_id FROM bookmark_icons WHERE node_id=$1', [created.nodeId])).rows.length, 0);
+    } finally { await app.close(); await limited.close(); }
+  });
+
+  test('missing-icon retry reconciles a binding committed before job completion', async () => {
+    const store = createStore(); const provider = createProvider();
+    const app = buildApp(store);
+    try {
+      const address = await app.listen({ host: '127.0.0.1', port: 0 });
+      await patchPolicy('capture', address);
+      const current = await api('GET', `${address}/api/v1/me/favicon-policy`, { cookie: owner.cookie });
+      await api('PATCH', `${address}/api/v1/me/favicon-policy`, {
+        cookie: owner.cookie, csrf: owner.csrfToken, commandId: randomUUID(),
+        ifMatch: `${current.headers.etag ?? ''}`, body: { fillMissing: true },
+      });
+      const { collectionId, rootId } = await seedCollection(93);
+      const created = await createBookmark(address, collectionId, rootId, 'Recovery', 'https://recovery.example.org');
+      const worker = makeWorker(store, provider, 'recovery-before-crash');
+      for (let i = 0; i < 3; i += 1) await worker.jobs.runOnce();
+      const before = (await isolated.runtime.pool.query('SELECT id, object_id, status FROM favicon_jobs WHERE node_id=$1', [created.nodeId])).rows[0];
+      assert.equal(before.status, 'succeeded');
+      // Persist the state left by a crash between the binding CAS and completion.
+      await isolated.runtime.pool.query("UPDATE favicon_jobs SET status='running', succeeded=0, lease_owner='crashed', lease_until=now()-interval '1 second' WHERE id=$1", [before.id]);
+      const hits = provider.hits.length;
+      await worker.jobs.runOnce();
+      const after = (await isolated.runtime.pool.query('SELECT object_id, status FROM favicon_jobs WHERE id=$1', [before.id])).rows[0];
+      assert.equal(after.status, 'succeeded');
+      assert.equal(after.object_id, before.object_id);
+      assert.equal(provider.hits.length, hits, 'recovery reuses stored bytes');
+    } finally { await app.close(); }
+  });
+
+  test('disabled policy stops create-time jobs while database uploads remain available', async () => {
+    const store = createDatabaseFaviconStore(isolated.runtime.db);
+    const enabled = buildApp(store);
+    const disabled = buildApp(store, isolated.runtime, undefined, false);
+    try {
+      const setup = await enabled.listen({ host: '127.0.0.1', port: 0 });
+      await patchPolicy('online', setup);
+      const address = await disabled.listen({ host: '127.0.0.1', port: 0 });
+      const { collectionId, rootId } = await seedCollection(163);
+      const created = await createBookmark(address, collectionId, rootId, 'Disabled', 'https://disabled.example.org');
+      assert.equal(created.status, 201);
+      assert.equal((await isolated.runtime.pool.query('SELECT id FROM favicon_jobs WHERE node_id=$1', [created.nodeId])).rows.length, 0);
+      const upload = await disabled.inject({ method: 'POST', url: `/api/v1/collections/${collectionId}/nodes/${created.nodeId}/favicon`, payload: PNG, headers: {
+        cookie: owner.cookie, origin: ORIGIN, 'x-csrf-token': owner.csrfToken,
+        'known-command-id': randomUUID(), 'content-type': 'image/png',
+      } });
+      assert.equal(upload.statusCode, 200, upload.body);
+    } finally { await enabled.close(); await disabled.close(); }
+  });
+
+  test('a same-host URL edit during fetch fences the stale result before binding', async () => {
+    const store = createStore(); const provider = createProvider(); const app = buildApp(store);
+    try {
+      const address = await app.listen({ host: '127.0.0.1', port: 0 });
+      await patchPolicy('online', address);
+      const { collectionId, rootId } = await seedCollection(167);
+      const created = await createBookmark(address, collectionId, rootId, 'Old URL', 'https://stalehost.example.org/old');
+      const etag = (created.json as { node: { etag: string } }).node.etag;
+      const connect = provider.connect;
+      let edited = false;
+      provider.connect = async (target, init) => {
+        if (!edited && target.url.pathname.includes('stalehost.example.org')) {
+          edited = true;
+          const response = await app.inject({ method: 'PATCH', url: `/api/v1/collections/${collectionId}/nodes/${created.nodeId}`, payload: { url: 'https://stalehost.example.org/new' }, headers: {
+            cookie: owner.cookie, origin: ORIGIN, 'x-csrf-token': owner.csrfToken,
+            'known-command-id': randomUUID(), 'if-match': etag, 'content-type': 'application/merge-patch+json',
+          } });
+          assert.equal(response.statusCode, 200, response.body);
+        }
+        return connect(target, init);
+      };
+      const worker = makeWorker(store, provider, 'stale-url');
+      for (let i = 0; i < 6; i += 1) await worker.jobs.runOnce();
+      assert.ok(edited);
+      const job = (await isolated.runtime.pool.query('SELECT status,error_reason FROM favicon_jobs WHERE node_id=$1', [created.nodeId])).rows[0];
+      assert.equal(job.status, 'failed');
+      assert.equal(job.error_reason, 'source_changed');
+      assert.equal((await isolated.runtime.pool.query('SELECT node_id FROM bookmark_icons WHERE node_id=$1', [created.nodeId])).rows.length, 0);
+    } finally { await app.close(); }
+  });
+
+  test('lost commit acknowledgement protects committed external bytes and the retry replays', async () => {
+    const store = createStore(); let loseAcknowledgement = false;
+    const app = buildApp(store, isolated.runtime, { afterCommitAcknowledged() {
+      if (loseAcknowledgement) { loseAcknowledgement = false; throw new Error('acknowledgement lost'); }
+    } });
+    try {
+      const address = await app.listen({ host: '127.0.0.1', port: 0 });
+      const { collectionId, rootId } = await seedCollection(171);
+      const created = await createBookmark(address, collectionId, rootId, 'Acknowledgement', 'https://ack.example.org');
+      const commandId = randomUUID();
+      const request = () => app.inject({ method: 'POST', url: `/api/v1/collections/${collectionId}/nodes/${created.nodeId}/favicon`, payload: PNG, headers: {
+        cookie: owner.cookie, origin: ORIGIN, 'x-csrf-token': owner.csrfToken,
+        'known-command-id': commandId, 'content-type': 'image/png',
+      } });
+      loseAcknowledgement = true;
+      assert.equal((await request()).statusCode, 500);
+      const [objectId] = store.objects.keys();
+      assert.ok(objectId);
+      assert.equal((await isolated.runtime.pool.query('SELECT object_id FROM favicon_pending_deletions WHERE object_id=$1', [objectId])).rows.length, 0);
+      const replay = await request();
+      assert.equal(replay.statusCode, 200, replay.body);
+      assert.ok(replay.json().iconUrl.endsWith(objectId));
+      assert.equal(store.objects.size, 1);
+    } finally { await app.close(); }
+  });
+
+  test('force-online covers future bookmarks and force-off restores their original missing icon', async () => {
+    const store = createStore(); const provider = createProvider(); const app = buildApp(store);
+    try {
+      const address = await app.listen({ host: '127.0.0.1', port: 0 });
+      await patchPolicy('capture', address);
+      async function force(forceAllOnline: boolean) {
+        const current = await api('GET', `${address}/api/v1/me/favicon-policy`, { cookie: owner.cookie });
+        const updated = await api('PATCH', `${address}/api/v1/me/favicon-policy`, {
+          cookie: owner.cookie, csrf: owner.csrfToken, commandId: randomUUID(),
+          ifMatch: `${current.headers.etag ?? ''}`, body: { forceAllOnline, fillMissing: false },
+        });
+        assert.equal(updated.status, 200);
+      }
+      await force(true);
+      const { collectionId, rootId } = await seedCollection(177);
+      const created = await createBookmark(address, collectionId, rootId, 'New forced icon', 'https://forced-new.example.org');
+      assert.equal(created.status, 201);
+      const job = (await isolated.runtime.pool.query('SELECT j.id,j.operation FROM favicon_jobs j JOIN favicon_job_items i ON i.job_id=j.id WHERE i.node_id=$1', [created.nodeId])).rows[0];
+      assert.equal(job.operation, 'apply_force_online');
+      const worker = makeWorker(store, provider, 'forced-future');
+      for (let i = 0; i < 12; i += 1) await worker.jobs.runOnce();
+      const binding = (await isolated.runtime.pool.query('SELECT object_id FROM bookmark_icons WHERE node_id=$1', [created.nodeId])).rows[0];
+      assert.ok(binding);
+      const restore = (await isolated.runtime.pool.query('SELECT original_object_id,original_source_mode FROM favicon_source_restores WHERE node_id=$1', [created.nodeId])).rows[0];
+      assert.equal(restore.original_object_id, null);
+      assert.equal(restore.original_source_mode, 'inherit');
+      const source = await api('GET', `${address}/api/v1/collections/${collectionId}/nodes/${created.nodeId}/favicon-source`, { cookie: owner.cookie });
+      const refreshed = await api('POST', `${address}/api/v1/collections/${collectionId}/nodes/${created.nodeId}/favicon-refresh`, {
+        cookie: owner.cookie, csrf: owner.csrfToken, commandId: randomUUID(), ifMatch: `${source.headers.etag ?? ''}`,
+      });
+      assert.equal(refreshed.status, 202, JSON.stringify(refreshed.json));
+      for (let i = 0; i < 12; i += 1) await worker.jobs.runOnce();
+      const temporaryRetired = (await isolated.runtime.pool.query('SELECT object_id FROM favicon_pending_deletions WHERE object_id=$1', [binding.object_id])).rows;
+      assert.equal(temporaryRetired.length, 1, 'refresh retires the replaced temporary force icon');
+      const preserved = (await isolated.runtime.pool.query('SELECT original_object_id FROM favicon_source_restores WHERE node_id=$1', [created.nodeId])).rows[0];
+      assert.equal(preserved.original_object_id, null, 'refresh must not replace the original snapshot');
+      await force(false);
+      for (let i = 0; i < 12; i += 1) await worker.jobs.runOnce();
+      assert.equal((await isolated.runtime.pool.query('SELECT node_id FROM bookmark_icons WHERE node_id=$1', [created.nodeId])).rows.length, 0);
+      assert.equal((await isolated.runtime.pool.query('SELECT node_id FROM favicon_source_restores WHERE node_id=$1', [created.nodeId])).rows.length, 0);
     } finally { await app.close(); }
   });
 

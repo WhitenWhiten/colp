@@ -10,6 +10,7 @@ export function createDatabaseFaviconStore(db: Kysely<DatabaseSchema>): Bookmark
     }
   }
   return {
+    writeTransaction: db.isTransaction ? 'bound' : 'required',
     async put(objectId, body) {
       validateId(objectId);
       const contentType = assertBookmarkFaviconImage(body);

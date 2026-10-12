@@ -1,3 +1,4 @@
+import { useAuth } from '../../auth/AuthContext'
 import { FaviconSection } from './FaviconSection'
 import { useEffect, useRef, useState } from 'react'
 import { BookmarkPreferencesSection } from './BookmarkPreferencesSection'
@@ -24,6 +25,7 @@ const GO_TO_LINKS = [
 ] as const
 
 export function SettingsDialog() {
+  const { user } = useAuth()
   const { isOpen, section, close, open, sections } = useSettingsDialog()
   const navRef = useRef<HTMLElement | null>(null)
   // R14-45: profile edits survive a section switch or dialog close until
@@ -129,7 +131,7 @@ export function SettingsDialog() {
           <AuthStatusRegion />
           {section === 'profile' && <ProfileSection onDirtyChange={(value) => { dirtyRef.current = value }} />}
           {section === 'bookmarks' && <BookmarkPreferencesSection />}
-          {section === 'favicon' && <FaviconSection />}
+          {section === 'favicon' && user && <FaviconSection key={user.accountId} onDirtyChange={(value) => { dirtyRef.current = value }} />}
           {section === 'security' && (
             <div className="stack gap-1" data-testid="settings-security">
               <div className="settings-section-head">

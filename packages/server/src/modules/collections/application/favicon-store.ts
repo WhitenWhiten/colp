@@ -30,6 +30,8 @@ export interface StoredBookmarkFavicon {
 }
 
 export interface BookmarkFaviconObjectStore {
+  /** Database objects require the command's transaction; bound stores roll back with its writes. */
+  readonly writeTransaction?: 'required' | 'bound';
   put(objectId: string, body: Buffer, contentType: string): Promise<void>;
   get(objectId: string, options?: { readonly signal?: AbortSignal }): Promise<StoredBookmarkFavicon | null>;
   /** Best-effort removal of a stored favicon object. */

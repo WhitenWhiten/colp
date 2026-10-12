@@ -63,11 +63,12 @@ The self-hosted preset enables favicon upload and background filling. In Setting
 choose the default for new bookmarks and enable **Fill missing icons** to enqueue existing
 bookmarks without icons. The same policy applies to subsequently created and browser-synced
 bookmarks. Explicit **No icon** choices and manual uploads are preserved by missing-icon filling.
+Force-online also applies to future bookmarks and records their original icon state for restoration.
 Each bookmark's edit drawer offers immediate upload/removal and icon-source selection.
 PNG, JPEG, WebP and ICO uploads are limited to 64 KiB; SVG and GIF are rejected.
 
 No object-storage service is required: favicon bytes persist in PostgreSQL and are included in
-normal database backups. Existing `AVATAR_R2_*` storage configuration stores favicon objects
+normal database backups. Upload bytes, bindings and receipts commit in one transaction. Existing `AVATAR_R2_*` storage configuration stores favicon objects
 in the same bucket under `FAVICON_R2_PREFIX` (default `favicon/`), isolated from avatars.
 Apply migrations before running the updated API/worker. The standard `colp-server` process
 runs the worker; deployments running API and worker separately must run both.
