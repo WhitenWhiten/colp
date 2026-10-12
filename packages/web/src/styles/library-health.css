@@ -111,8 +111,13 @@
   white-space: nowrap;
 }
 
-.health-action {
+.health-action,
+.health-action-head {
   text-align: right;
+}
+
+.health-checked {
+  white-space: nowrap;
 }
 
 .health-action:empty {

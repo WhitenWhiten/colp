@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import {
   ProductApiError,
   isLinkHealthExposureEnabled,
+  isLive,
   productClient,
   type LinkHealthItem,
   type LinkHealthPage,
@@ -394,14 +395,18 @@ export function LibraryHealth() {
                 }))}
                 onChange={setFilter}
               />
-              <FilterRail
-                variant="segments"
-                className="view-switch"
-                label="Link health scope"
-                value={scope}
-                options={scopeButtons.map((item) => ({ value: item.value, label: item.label }))}
-                onChange={setScope}
-              />
+              {/* Shared collections come with multi-user; until then every
+                  link here is the owner's and the scope has one value. */}
+              {isLive('collaborators') && (
+                <FilterRail
+                  variant="segments"
+                  className="view-switch"
+                  label="Link health scope"
+                  value={scope}
+                  options={scopeButtons.map((item) => ({ value: item.value, label: item.label }))}
+                  onChange={setScope}
+                />
+              )}
             </div>
 
             <DataTable
@@ -411,7 +416,7 @@ export function LibraryHealth() {
                 { key: 'resource', label: 'Bookmark' },
                 { key: 'issue', label: 'Issue' },
                 { key: 'checked', label: 'Last checked' },
-                { key: 'action', label: 'Action' },
+                { key: 'action', label: 'Action', className: 'health-action-head' },
               ]}
             >
               {items.map((item) => (

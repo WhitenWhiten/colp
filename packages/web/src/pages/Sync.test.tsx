@@ -81,7 +81,8 @@ describe('Sync Center authoritative workflow', () => {
     // read must return it too — the guarantee is about escaping, not call order.
     mocks.loadSyncConflicts.mockResolvedValue([conflict({ summary: { current: attack, incoming: 'https://user:secret@example.test/<svg onload=alert(3)>' } })])
     render(); await waitForDom(domFinishedLoading)
-    expect(document.body.textContent).toContain('The extension only syncs collections you own, not ones shared with you.') // copy-only (C-11)
+    // C-11's sharing clause waits for multi-user: with one owner nothing is shared.
+    expect(document.body.textContent).not.toContain('not ones shared with you')
     expect(document.body.textContent).toContain('Work browser'); expect(document.body.textContent).toContain('Last synced')
     expect(document.body.textContent).toContain(attack); expect(document.querySelector('img[src="x"]')).toBeNull(); expect(document.querySelector('script')).toBeNull()
     expect([...document.querySelectorAll('[data-testid="sync-count"]')].map((node) => node.textContent)).toEqual(['1', '1'])

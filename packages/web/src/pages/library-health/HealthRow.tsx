@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import type { LinkHealthItem } from '../../api'
 import { DataTableCell, DataTableRow } from '../../components/DataTable'
 import { StatusBadge } from '../../components/StatusBadge'
-import { formatMediumInstant } from '../../lib/formatDate'
+import { formatMediumInstant, formatRelative } from '../../lib/formatDate'
 import {
   HEALTH_STATUS_TONE,
   canReviewDuplicates,
@@ -92,7 +92,10 @@ export function HealthRow({
       </DataTableCell>
       <DataTableCell className="health-checked">
         <span className="health-checked-label">Last checked </span>
-        <time dateTime={item.checkedAt}>{formatMediumInstant(item.checkedAt ?? null)}</time>
+        {/* A live list says how long ago (lib/formatDate); the exact time is the title. */}
+        {item.checkedAt
+          ? <time dateTime={item.checkedAt} title={formatMediumInstant(item.checkedAt)}>{formatRelative(item.checkedAt)}</time>
+          : <span>Not yet</span>}
       </DataTableCell>
       <DataTableCell className="health-action">
         {action}

@@ -104,6 +104,8 @@ describe('LibraryHealth Product wiring', () => {
     mocks.enabled = true
     mocks.getMyLinkHealth.mockResolvedValue({ items: [item()], nextCursor: null })
     mocks.enqueueMyLinkHealthChecks.mockResolvedValue({ queued: 1 })
+    // The scope rail (Owned / Shared with me / All) needs collaborators.
+    window.__KNOWN_FLAGS__ = { collaborators: true }
     ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   })
 
@@ -111,7 +113,17 @@ describe('LibraryHealth Product wiring', () => {
     cleanup()
     clearRouteCache()
     document.body.innerHTML = ''
+    delete window.__KNOWN_FLAGS__
     vi.restoreAllMocks()
+  })
+
+  it('shows no scope rail while nothing can be shared with the owner', async () => {
+    window.__KNOWN_FLAGS__ = { collaborators: false }
+    render()
+    await waitForDom(domFinishedLoading)
+    expect(document.querySelector('[aria-label="Link health scope"]')).toBeNull()
+    expect(document.body.textContent).not.toContain('Shared with me')
+    expect(mocks.getMyLinkHealth.mock.calls[0]?.[0]).toEqual({ limit: 50 })
   })
 
   it('keeps flag-off inert and does not call GET or POST', async () => {

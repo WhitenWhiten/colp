@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
+import { isLive } from '../../api'
 import { EmptyState, LoadingState } from '../../components/EmptyState'
 import { Icon } from '../../components/Icon'
 import { PageHead } from '../../components/PageHead'
@@ -44,7 +45,9 @@ export function SyncView({ data, mutations, trashBatch }: {
           eyebrow="Tools"
           title="Sync center"
           documentTitle="Sync"
-          lede="Every browser that syncs with this server, the changes that need your decision, and what was deleted. The extension only syncs collections you own, not ones shared with you."
+          lede={isLive('collaborators')
+            ? 'Every browser that syncs with this server, the changes that need your decision, and what was deleted. The extension only syncs collections you own, not ones shared with you.'
+            : 'Every browser that syncs with this server, the changes that need your decision, and what was deleted.'}
           actions={
             <button type="button" className="btn btn-secondary btn-sm" disabled={loading || refreshing || retireBusy || restoreBusy}
               onClick={() => void load('refresh')}>{refreshing ? 'Refreshing…' : 'Refresh'}</button>

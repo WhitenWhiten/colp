@@ -69,7 +69,9 @@ export function LibraryHeader({
     ? `${plural(bookmarkCount, 'bookmark')} in ${collection?.title ?? 'this collection'}.`
     : collection
       ? collection.summary || 'Bookmarks in this collection.'
-      : 'Collections you own and collections shared with you.'
+      : collaboratorsLive
+        ? 'Collections you own and collections shared with you.'
+        : 'Your collections and the bookmarks in them.'
 
   const onMobileChange = (value: string) => {
     const [nextCollection, nextFolder] = value.split('::')
