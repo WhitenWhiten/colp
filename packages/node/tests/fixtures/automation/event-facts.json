@@ -1,0 +1,36 @@
+{
+  "eventId": "evt_demo_001",
+  "operationId": "op_demo_001",
+  "type": "node.created",
+  "collectionId": "c_personal",
+  "nodeId": "n_paper_001",
+  "commitOrdinal": "101",
+  "occurredAt": "2026-10-13T09:00:00Z",
+  "origin": "user",
+  "changedFields": [
+    "create"
+  ],
+  "bookmark": {
+    "kind": "bookmark",
+    "url": {
+      "host": "arxiv.org",
+      "path": "/abs/example-placeholder"
+    },
+    "title": "Synthetic paper fixture; not a real paper",
+    "tags": [],
+    "nodeId": "n_paper_001",
+    "parent": {
+      "serverUuid": "server_demo",
+      "collectionId": "c_personal",
+      "nodeId": "n_academic"
+    },
+    "ancestors": [
+      {
+        "serverUuid": "server_demo",
+        "collectionId": "c_personal",
+        "nodeId": "n_academic"
+      }
+    ]
+  },
+  "hopCount": 0
+}
