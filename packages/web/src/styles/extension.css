@@ -6,7 +6,7 @@
 /* Benefit list: checkmarked selling points on the Extension page. */
   .benefit-list {
     list-style: none;
-    margin: var(--hair-150) 0 0;
+    margin: 0;
     padding: 0;
     display: flex;
     flex-direction: column;
@@ -17,7 +17,8 @@
     display: flex;
     gap: var(--hair-55);
     align-items: flex-start;
-    font-size: var(--text-md);
+    font-size: var(--text-sm);
+    line-height: var(--leading-copy);
     color: var(--ink-2);
   }
 
@@ -40,16 +41,45 @@
     }
   }
 
-  /* Linear setup list so four steps stay in reading order. R10-18: the
-     steps ride the shared .stepper primitive (stepper.css) — this host keeps
-     the panel padding, the section rhythm .stepper's margin reset eats, and
-     a wider inline inset so the serif index does not hug the panel edge. */
-  .extension-steps {
-    --stepper-step-pad: var(--space-5) var(--space-6);
+  /* Steps, then the permissions; from 1100px the permissions sit beside the
+     steps as a quiet aside, the same track as Agents and Import. */
+  .extension-layout {
+    display: grid;
+    gap: var(--space-5);
+    align-items: start;
     margin-top: var(--space-6);
   }
 
-  /* Step 02 carries the address to type into the extension. */
+  @media (min-width: 1100px) {
+    .extension-layout {
+      grid-template-columns: minmax(0, var(--measure-wide)) minmax(0, 20rem);
+    }
+  }
+
+  /* Linear setup list so four steps stay in reading order. R10-18: the
+     steps ride the shared .stepper primitive (stepper.css) — this host keeps
+     the panel padding and a wider inline inset so the index does not hug
+     the panel edge. */
+  .extension-steps {
+    --stepper-step-pad: var(--space-5) var(--space-6);
+  }
+
+  .extension-aside {
+    display: grid;
+    gap: var(--space-3);
+    padding: var(--space-5);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+  }
+
+  .extension-aside h2 {
+    margin: 0;
+    font-size: var(--text-md);
+    font-weight: var(--weight-semibold);
+    letter-spacing: var(--tracking-tight);
+  }
+
+  /* Step 2 carries the address to type into the extension. */
   .extension-origin {
     margin-top: var(--space-3);
     max-width: var(--measure);

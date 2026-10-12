@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 
-/** One numbered step. `index` overrides the rendered numeral (the extension
-    page shows zero-padded '01'); the list position is the default. */
+/** One numbered step. `index` overrides the rendered numeral; the list
+    position is the default. */
 export type StepperItem = {
   key?: string
   index?: ReactNode

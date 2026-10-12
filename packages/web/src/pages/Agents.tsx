@@ -69,6 +69,10 @@ export function Agents({
   const [issuing, setIssuing] = useState(false)
   const [issued, setIssued] = useState<IssuedAgentKey | null>(null)
   const issueIntent = useRef<string | null>(null)
+  const secretRef = useRef<HTMLDivElement>(null)
+  /* Set once a key is issued and the list has refreshed: the new agent card
+     lands above the guide and pushes the one-time secret down the page. */
+  const revealSecret = useRef(false)
   const mounted = useRef(true)
   const identityRef = useRef<string | null>(accountId)
   // Keep async completions from an earlier account from repopulating this
@@ -81,6 +85,17 @@ export function Agents({
       mounted.current = false
     }
   }, [])
+
+  useEffect(() => {
+    if (!revealSecret.current || issuing) return
+    const block = secretRef.current
+    if (!block) return
+    revealSecret.current = false
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? true
+    block.scrollIntoView?.({ block: 'center', behavior: reduce ? 'auto' : 'smooth' })
+    // Copy is the next thing to do; focus it instead of leaving focus on the page.
+    block.querySelector<HTMLButtonElement>('button')?.focus({ preventScroll: true })
+  }, [agents, issued, issuing])
 
   useEffect(() => {
     setAgents([])
@@ -232,7 +247,9 @@ export function Agents({
       issueIntent.current = null
       setIssued(next)
       setKeyName('')
-      await reload()
+      // The key is issued either way; a failed refresh shows the card on the next load.
+      await reload().catch(() => undefined)
+      revealSecret.current = true
     } catch (error) {
       if (!mounted.current || identityRef.current !== identityAtStart) return
       toastError(messageOf(error, 'Could not issue a key.'))
@@ -274,7 +291,7 @@ export function Agents({
       </form>
       {keyError && <p id="agents-key-name-error" className="field-error" role="alert">{keyError}</p>}
       {issued && (
-        <div className="agents-secret" role="status">
+        <div className="agents-secret" role="status" ref={secretRef}>
           <p className="agents-secret-head">
             <Icon name="alert" />
             <span><strong>Copy “{issued.name}” now.</strong> It will not be shown again.</span>

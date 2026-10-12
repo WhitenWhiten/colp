@@ -121,6 +121,8 @@ describe('Agents page', () => {
     await waitForDom(() => document.body.textContent?.includes('colp_secret_once') === true)
     expect(api.issueAgentKey).toHaveBeenCalledWith('script', expect.objectContaining({ intentId: expect.any(String) }))
     expect(document.body.textContent).toContain('It will not be shown again.')
+    // The refreshed list pushes the secret down; focus lands on its Copy button.
+    await waitForDom(() => document.activeElement?.getAttribute('aria-label') === 'Copy API key')
 
     act(() => findButtonByName('Revoke').click())
     await waitForDom(() => findButtonByName('Revoke agent') instanceof HTMLButtonElement)

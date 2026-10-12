@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   auth: { isLoggedIn: true, bootstrapping: false, user: { accountId: 'account-1' } },
   loadOwnedCollections: vi.fn(),
   loadEditorSnapshot: vi.fn(),
+  createCollection: vi.fn(),
   importBookmarks: vi.fn(),
 }))
 
@@ -23,6 +24,7 @@ vi.mock('../api', async (importOriginal) => {
       ...actual.productClient,
       loadOwnedCollections: mocks.loadOwnedCollections,
       loadEditorSnapshot: mocks.loadEditorSnapshot,
+      createCollection: mocks.createCollection,
     },
   }
 })
@@ -104,6 +106,63 @@ describe('SelfHostedImport', () => {
     expect(document.querySelector('[data-testid="import-progress"]')).toBeNull()
     expect(document.querySelector('[data-testid="import-preview"]')).toBeNull()
     expect(document.querySelector<HTMLButtonElement>('button[type="submit"]')!.disabled).toBe(true)
+  })
+
+  it('lets an owner with no collection name one and creates it before importing', async () => {
+    // Endpoint state, not call order: StrictMode mounts read the list twice.
+    const created = { id: 'col-new', title: 'Bookmarks' }
+    let owned: { collection: typeof created }[] = []
+    mocks.loadOwnedCollections.mockImplementation(() => Promise.resolve(owned))
+    mocks.createCollection.mockImplementation(() => {
+      owned = [{ collection: created }]
+      return Promise.resolve({ collection: created })
+    })
+    mocks.loadEditorSnapshot.mockResolvedValue({ ...snapshot, collection: { id: 'col-new' }, root: { id: 'root-new' }, nodes: [] })
+    mountTree(<MemoryRouter><ToastProvider><SelfHostedImport /></ToastProvider></MemoryRouter>)
+    await flush()
+
+    const title = document.querySelector<HTMLInputElement>('#import-new-collection')!
+    expect(title.value).toBe('Bookmarks')
+    expect(document.querySelector('#import-collection')).toBeNull()
+    expect(document.querySelector('a[href="/library/new"]')).toBeNull()
+
+    await chooseFile()
+    expect(document.querySelector<HTMLButtonElement>('button[type="submit"]')!.disabled).toBe(false)
+    await act(async () => {
+      document.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+      await Promise.resolve()
+    })
+    await flush()
+    await flush()
+
+    expect(mocks.createCollection).toHaveBeenCalledWith(
+      { kind: 'bookmarks', title: 'Bookmarks', summary: null },
+      expect.objectContaining({ intentId: expect.any(String) }),
+    )
+    expect(mocks.importBookmarks.mock.calls[0]![0]).toMatchObject({ parentId: 'root-new' })
+    const done = [...document.querySelectorAll('[role="status"]')].find((node) => node.textContent?.includes('Imported'))
+    expect(done?.querySelector('a')?.getAttribute('href')).toBe('/library/col-new')
+    // The page now imports into that collection; a second file does not create another.
+    expect((document.querySelector<HTMLSelectElement>('#import-collection'))?.value).toBe('col-new')
+  })
+
+  it('asks for a name before creating a collection', async () => {
+    mocks.loadOwnedCollections.mockResolvedValue([])
+    mountTree(<MemoryRouter><ToastProvider><SelfHostedImport /></ToastProvider></MemoryRouter>)
+    await flush()
+    const title = document.querySelector<HTMLInputElement>('#import-new-collection')!
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(title, '  ')
+      title.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    await chooseFile()
+    await act(async () => {
+      document.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+      await Promise.resolve()
+    })
+    expect(document.querySelector('#import-new-collection-error')?.textContent).toBe('Name the collection to import into.')
+    expect(title.getAttribute('aria-invalid')).toBe('true')
+    expect(mocks.createCollection).not.toHaveBeenCalled()
   })
 
   it('shows a failed file read as an inline error', async () => {

@@ -11,12 +11,10 @@ import '../styles/extension.css'
 function setupSteps(origin: string) {
   return [
   {
-    n: '01',
     title: 'Install',
     body: 'Install the Know-N browser extension from the Chrome Web Store.',
   },
   {
-    n: '02',
     title: 'Connect this server',
     body: (
       <>
@@ -26,12 +24,10 @@ function setupSteps(origin: string) {
     ),
   },
   {
-    n: '03',
     title: 'Sign in',
     body: 'Sign in with the username and password you use here.',
   },
   {
-    n: '04',
     title: 'Choose folders',
     body: 'Pick a collection and the browser folders to sync. Repeat in each browser; they converge within a minute.',
   },
@@ -69,21 +65,24 @@ export function Extension({ origin }: { origin?: string } = {}) {
         </div>
       </PageSection>
 
-      <Stepper
-        className="page-shell-inner panel extension-steps"
-        label="Setup steps"
-        items={steps.map((s) => ({ key: s.n, index: s.n, title: s.title, body: s.body }))}
-      />
+      {/* Steps and permissions side by side from 1100px, like Agents and Import. */}
+      <PageSection className="extension-layout">
+        <Stepper
+          className="panel extension-steps"
+          label="Setup steps"
+          items={steps.map((s) => ({ key: s.title, title: s.title, body: s.body }))}
+        />
 
-      <PageSection className="panel panel-pad" role="region" aria-label="Permissions">
-        <h3 className="section-label">Permissions</h3>
-        <ul className="benefit-list">
-          <li><Icon name="check" /> Read bookmark folders after you grant bookmark access</li>
-          <li><Icon name="check" /> Optional: save the page you have open into a collection you own</li>
-          <li><Icon name="check" /> Optional: allow bookmark access so saves can land in a browser folder</li>
-          <li><Icon name="check" /> Never uploads folders you did not select</li>
-          <li><Icon name="check" /> Sync uses collections you own on this server</li>
-        </ul>
+        <aside className="extension-aside" aria-label="Permissions">
+          <h2>Permissions</h2>
+          <ul className="benefit-list">
+            <li><Icon name="check" /> Read bookmark folders after you grant bookmark access</li>
+            <li><Icon name="check" /> Never uploads folders you did not select</li>
+            <li><Icon name="check" /> Sync uses collections you own on this server</li>
+            <li><Icon name="check" /> Optional: save the page you have open into a collection you own</li>
+            <li><Icon name="check" /> Optional: allow bookmark access so saves can land in a browser folder</li>
+          </ul>
+        </aside>
       </PageSection>
     </PageShell>
   )

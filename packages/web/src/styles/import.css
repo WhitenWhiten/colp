@@ -82,7 +82,8 @@
   background: var(--surface);
 }
 
-.import-drop:focus-within {
+/* Keyboard focus on the hidden input rings the zone; a mouse pick does not. */
+.import-drop:has(:focus-visible) {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
@@ -140,6 +141,11 @@
   white-space: nowrap;
 }
 
+/* No collection yet: one title field, as wide as one destination select. */
+.import-new-collection {
+  max-width: 22rem;
+}
+
 .import-destination {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
@@ -159,13 +165,13 @@
 
 /* ——— Export from your browser ——— */
 
+/* Same quiet aside as Agents' "How approvals work": a hairline, no fill. */
 .import-aside {
   display: grid;
   gap: var(--space-3);
   padding: var(--space-5);
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
-  background: var(--paper-2);
 }
 
 .import-aside h2 {
