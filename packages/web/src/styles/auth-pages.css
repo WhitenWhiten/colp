@@ -48,6 +48,12 @@
   overflow-wrap: anywhere;
 }
 
+/* A short command moves to the next line whole instead of splitting at its
+   hyphen ("create-" / "user"). */
+.auth-alt code {
+  white-space: nowrap;
+}
+
 /* What happens next, as a short numbered path (first run, setup token). */
 .auth-steps {
   display: grid;

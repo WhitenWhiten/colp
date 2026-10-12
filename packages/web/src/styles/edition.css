@@ -54,8 +54,30 @@
   text-transform: none;
 }
 
+/* The same for the small labels elsewhere: table heads (link health, sync,
+   approvals), menu and drawer sections, version facts, relation types, and
+   an approval's key changes keep their size and colour, not the capitals. */
+:root[data-edition='self-hosted'] .data-table-head .data-table-cell,
+:root[data-edition='self-hosted'] .mobile-drawer-label,
+:root[data-edition='self-hosted'] .ctx-menu-label,
+:root[data-edition='self-hosted'] .history-facts dt,
+:root[data-edition='self-hosted'] .graph-neighbor-type,
+:root[data-edition='self-hosted'] .write-approval-keychanges h3 {
+  letter-spacing: var(--tracking-ui);
+  text-transform: none;
+}
+
 :root[data-edition='self-hosted'] .page-head {
   margin-bottom: var(--space-5);
+}
+
+/* Phones: a page's lede explains the page (Approvals, Sync), so it wraps in
+   full instead of stopping mid-sentence at two lines. */
+@media (max-width: 639px) {
+  :root[data-edition='self-hosted'] .page-head--split .lede {
+    display: block;
+    overflow: visible;
+  }
 }
 
 /* ——— Library rail ——— */
@@ -73,6 +95,14 @@
 :root[data-edition='self-hosted'] .library-nav-link,
 :root[data-edition='self-hosted'] .library-nav-row--child {
   border-radius: var(--radius);
+}
+
+/* The current row's ink bar sits on a square edge, as in the public
+   Contents rail; on the rounded corner it bent into a bracket. */
+:root[data-edition='self-hosted'] .library-nav-row.is-current > .library-nav-link,
+:root[data-edition='self-hosted'] .library-nav-row--child.is-current {
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
 }
 
 /* ——— Bookmark lists ——— */
