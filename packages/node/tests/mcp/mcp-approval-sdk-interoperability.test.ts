@@ -55,6 +55,14 @@ it.each(['approved', 'pending', 'unsupported'] as const)('official SDK handles %
     expect(calls).toBeLessThanOrEqual(2);
     expect(planStore.stats().plans).toBe(1);
     if (mode !== 'approved') expect(result.structuredContent).toMatchObject({ status: 'awaiting_approval' });
+    const commit = await client.callTool({ name: 'changes.commit', arguments: {
+      planId: (result.structuredContent as { planId: string }).planId, idempotencyKey: 'sdk-commit-retry',
+    } });
+    if (mode === 'approved') expect(commit.structuredContent).toHaveProperty('committedAt');
+    else expect(commit.structuredContent).toMatchObject({ status: 'awaiting_approval' });
+    expect(calls).toBeLessThanOrEqual(4);
+    expect(planStore.stats().plans).toBe(1);
+
   } finally {
     await client.close();
   }
