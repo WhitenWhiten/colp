@@ -75,6 +75,11 @@
   text-underline-offset: 0.15em;
 }
 
+.write-approval-reason {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
 .write-approval-facts {
   display: flex;
   flex-wrap: wrap;

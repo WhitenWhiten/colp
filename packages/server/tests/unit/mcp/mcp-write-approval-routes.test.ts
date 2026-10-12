@@ -48,6 +48,7 @@ const identityUnitOfWork: IdentityUnitOfWork = {
 };
 
 const view: WriteApprovalView = Object.freeze({
+  agent: { clientId: 'review-agent', name: 'Review agent' }, reason: 'Requested library cleanup',
   planId: PLAN_ID,
   status: 'pending',
   risk: 'high',

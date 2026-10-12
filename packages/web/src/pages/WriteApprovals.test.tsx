@@ -205,6 +205,8 @@ describe('MCP-W08 Write approvals page', () => {
     mocks.getWriteApprovalPage.mockResolvedValue({
       items: [approvalView({
         summary: `${attack} Review required`,
+        agent: { clientId: 'agent-1', name: `${attack} Research agent` },
+        reason: `${attack} Sort the bookmarks`,
         operations: [{
           type: 'create_node',
           collectionId: 'col-1',
@@ -239,13 +241,16 @@ describe('MCP-W08 Write approvals page', () => {
     })
     render()
     await waitForDom(domFinishedLoading)
+    expect(document.body.textContent).toContain(`${attack} Research agent`)
+    expect(document.body.textContent).toContain(`${attack} Sort the bookmarks`)
+    expect(document.body.textContent).toContain('Agent-provided reason:')
     expect(document.querySelector('h1')?.textContent).toBe('Approvals')
     // The eyebrow names the area (Agents), not the page again.
     expect(document.querySelector('header .eyebrow')?.textContent).toBe('Agents')
     expect(document.body.textContent).toContain(attack)
     expect(document.body.textContent).toContain(nodeTitle)
     const facts = document.querySelector('dl[aria-label="Approval facts"]')
-    expect([...facts!.querySelectorAll('dt')].map((el) => el.textContent)).toEqual(['Created', 'Expires'])
+    expect([...facts!.querySelectorAll('dt')].map((el) => el.textContent)).toEqual(['Requested by', 'Created', 'Expires'])
     expect(document.body.textContent).toContain('High risk')
     expect(document.body.textContent).toContain('Touches 1 bookmark, 2 notes and 3 relations in 1 collection.')
     expect([...document.querySelectorAll('[aria-label="Planned operations"] strong')].map((el) => el.textContent)).toEqual([

@@ -133,6 +133,8 @@ describeWithPostgres('MCP-W07 approval API over PostgreSQL and real Fastify', ()
   }
 
   test('account epoch 0n can list and GET its non-numeric OAuth-epoch Plan while another account cannot', async () => {
+    await isolated.runtime.pool.query(`INSERT INTO auth_oauth_client(id, "clientId", name, "redirectUris")
+      VALUES ('approval-client-registration', 'mcp-client', 'Research assistant', '[]'::jsonb)`);
     const planId = await savePlan();
     const otherPlanId = await savePlan({
       planId: `plan-w07-other-${randomUUID().replaceAll('-', '')}`,
@@ -223,10 +225,12 @@ describeWithPostgres('MCP-W07 approval API over PostgreSQL and real Fastify', ()
       });
       assert.ok(page.items.some((item) => item.planId === planId));
       assert.equal(page.items.some((item) => item.planId === otherPlanId), false);
-      assert.equal(JSON.stringify(page).includes('do not show this prompt injection marker'), false);
+      assert.ok(page.items.every((item) => !item.summary.includes('do not show this prompt injection marker')));
       assert.equal(JSON.stringify(page).includes('credential-1'), false);
       const item = await client.approval(planId);
       assert.equal(item.planId, planId);
+      assert.deepEqual(item.agent, { clientId: 'mcp-client', name: 'Research assistant' });
+      assert.equal(item.reason, 'do not show this prompt injection marker in the approval summary');
       assert.match(item.etag, /^"approval:[^"]+"$/u);
 
       const otherClient = createProductWriteApprovalClient({

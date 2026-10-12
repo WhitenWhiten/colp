@@ -148,7 +148,7 @@ function createMemoryPorts(state: MemoryState): Phase4bMcpWriteApprovalPlanStore
   });
 }
 
-function createHarness(plans: readonly McpStoredPlan[] = []) {
+function createHarness(plans: readonly McpStoredPlan[] = [], getAgentNames?: Phase4bMcpWriteApprovalPlanStorePorts['getAgentNames']) {
   const state: MemoryState = {
     plans: new Map(plans.map((value) => [value.planId, value])),
     receipts: new Map(),
@@ -158,7 +158,7 @@ function createHarness(plans: readonly McpStoredPlan[] = []) {
     holdExecute: undefined,
     lastListFilter: undefined,
   };
-  const api = createPhase4bMcpWriteApprovalApi(createMemoryPorts(state));
+  const api = createPhase4bMcpWriteApprovalApi({ ...createMemoryPorts(state), ...(getAgentNames ? { getAgentNames } : {}) });
   return { api, state };
 }
 
@@ -238,14 +238,14 @@ describe('MCP-W07 write approval application service', () => {
     });
   });
 
-  test('safe view never interpolates untrusted note or credential facts', async () => {
+  test('keeps agent text separate from authoritative summaries and omits credential facts', async () => {
     const harness = createHarness([plan()]);
     const view = await harness.api.get(ACCOUNT, 'plan-1');
     assert.ok(view);
     assert.match(view.summary, /canonical operation\(s\)/u);
     assert.equal(view.summary.includes(plan().untrustedNote), false);
-    assert.equal(JSON.stringify(view).includes('ignore previous instructions'), false);
-    assert.equal(JSON.stringify(view).includes('client-1'), false);
+    assert.equal(view.reason, plan().untrustedNote);
+    assert.deepEqual(view.agent, { clientId: 'client-1', name: null });
     assert.equal(JSON.stringify(view).includes('credential-1'), false);
     assert.deepEqual(view.requiredScopes, ['access:write']);
     assert.deepEqual(view.impact, {
@@ -467,4 +467,21 @@ describe('MCP-W07 write approval application service', () => {
     assert.equal(harness.state.plans.get('plan-1')?.status, 'pending');
     assert.equal(harness.state.audits.length, 0);
   });
+});
+
+
+test('approval names are loaded once for visible plans, with a stable fallback for missing registrations', async () => {
+  const calls: unknown[] = [];
+  const second = plan({ planId: 'plan-2' });
+  const hidden = plan({ planId: 'hidden', binding: { ...BINDING, principalId: 'other-owner', clientId: 'hidden-client' } });
+  const { api } = createHarness([plan(), second, hidden], async (accountId, ids) => {
+    calls.push({ accountId, ids });
+    return new Map([['client-1', 'Research agent']]);
+  });
+  const page = await api.list(ACCOUNT);
+  assert.equal(page.items.length, 2);
+  assert.ok(page.items.every((item) => item.agent.name === 'Research agent'));
+  assert.deepEqual(calls, [{ accountId: ACCOUNT.id, ids: ['client-1'] }]);
+  assert.equal(await api.get(ACCOUNT, 'hidden'), undefined);
+  assert.equal(calls.length, 1);
 });

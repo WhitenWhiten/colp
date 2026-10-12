@@ -3,9 +3,8 @@
  *
  * This module exposes current-account Plan/Approval views and exact-once
  * approve/deny decisions for the Product HTTP surface. It never receives raw
- * credentials, Session cookies, MCP wire objects, or untrusted note text.
- * Untrusted Plan note content stays out of every view/summary; operation
- * previews are structurally typed data for a renderer to escape.
+ * credentials, Session cookies, or MCP wire objects. Agent-provided reasons
+ * are separate, bounded plain text; they never become authoritative summaries.
  */
 import { createHash } from 'node:crypto';
 import { types as nodeTypes } from 'node:util';
@@ -69,6 +68,9 @@ export interface WriteApprovalTarget {
 
 export interface WriteApprovalView {
   readonly planId: string;
+  readonly agent: Readonly<{ clientId: string; name: string | null }>;
+  /** Untrusted agent-provided text, distinct from the authoritative impact summary. */
+  readonly reason: string | null;
   readonly status: WriteApprovalPlanStatus;
   readonly risk: McpStoredPlan['risk'];
   readonly requiresApproval: boolean;
@@ -167,6 +169,8 @@ export interface Phase4bMcpWriteApprovalPlanStorePorts<Transaction extends objec
   readonly getPlan: (
     planId: string,
   ) => McpStoredPlan | undefined | PromiseLike<McpStoredPlan | undefined>;
+  /** Resolve display names for visible plans in one bounded batch. */
+  readonly getAgentNames?: (accountId: string, clientIds: readonly string[]) => Promise<ReadonlyMap<string, string>>;
 }
 
 export interface Phase4bMcpWriteApprovalApi {
@@ -248,10 +252,12 @@ export function createPhase4bMcpWriteApprovalApi<Transaction extends object>(
         .sort((left, right) =>
           right.createdAt.localeCompare(left.createdAt, 'en-US')
           || left.planId.localeCompare(right.planId, 'en-US'))
-        .slice(0, limit)
-        .map((plan) => toView(plan));
+        .slice(0, limit);
+      const names = visible.length === 0 || ports.getAgentNames === undefined
+        ? new Map<string, string>()
+        : await ports.getAgentNames(account.id, [...new Set(visible.map((plan) => plan.binding.clientId))]);
       return Object.freeze({
-        items: Object.freeze(visible) as readonly WriteApprovalView[],
+        items: Object.freeze(visible.map((plan) => toView(plan, names.get(plan.binding.clientId)))),
         nextCursor: null,
       });
     },
@@ -259,7 +265,9 @@ export function createPhase4bMcpWriteApprovalApi<Transaction extends object>(
     async get(account: WriteApprovalAccount, planId: string) {
       const plan = await settle(ports.getPlan(planId));
       if (plan === undefined || !isVisible(plan, account)) return undefined;
-      return toView(plan);
+      const names = ports.getAgentNames === undefined ? undefined
+        : await ports.getAgentNames(account.id, [plan.binding.clientId]);
+      return toView(plan, names?.get(plan.binding.clientId));
     },
 
     async decide(input: WriteApprovalDecisionInput) {
@@ -423,9 +431,11 @@ function toProductCommandResult(result: WriteApprovalDecisionResult): ProductCom
   };
 }
 
-function toView(plan: McpStoredPlan): WriteApprovalView {
+function toView(plan: McpStoredPlan, agentName?: string): WriteApprovalView {
   return Object.freeze({
     planId: plan.planId,
+    agent: Object.freeze({ clientId: plan.binding.clientId, name: agentName?.trim().slice(0, 200) || null }),
+    reason: plan.untrustedNote.trim().slice(0, 1_000) || null,
     status: plan.status,
     risk: plan.risk,
     requiresApproval: plan.requiresApproval,

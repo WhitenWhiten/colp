@@ -1879,6 +1879,13 @@ export interface components {
         };
         WriteApprovalView: {
             planId: components["schemas"]["OpaqueId"];
+            /** @description Registered agent display name, or null when unavailable; clientId is the stable fallback. */
+            agent?: {
+                clientId: string;
+                name: string | null;
+            };
+            /** @description Untrusted agent-provided reason. Render as plain text separately from the authoritative summary. */
+            reason?: string | null;
             status: components["schemas"]["WriteApprovalStatus"];
             /** @enum {string} */
             risk: "low" | "medium" | "high";

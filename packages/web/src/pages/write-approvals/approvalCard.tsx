@@ -118,9 +118,11 @@ export function ApprovalCard({
           </Link>
         </h2>
         <dl className="write-approval-facts" aria-label="Approval facts">
+          <div><dt>Requested by</dt><dd>{approval.agent?.name ?? approval.agent?.clientId ?? 'Unknown agent'}</dd></div>
           <div><dt>Created</dt><dd>{formatInstant(approval.createdAt)}</dd></div>
           <div><dt>Expires</dt><dd>{formatInstant(approval.expiresAt)}</dd></div>
         </dl>
+        {approval.reason && <p className="write-approval-reason"><strong>Agent-provided reason:</strong> {approval.reason}</p>}
       </header>
 
       {keyChanges.length > 0 && (

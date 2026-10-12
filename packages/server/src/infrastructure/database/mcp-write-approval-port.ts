@@ -1,4 +1,4 @@
-import type { Kysely } from 'kysely';
+import { sql, type Kysely } from 'kysely';
 import type { McpAuthenticatedAuthorizationBinding } from '@know-n/colp/mcp';
 import type {
   Phase4bMcpWriteApprovalPlanStorePorts,
@@ -71,6 +71,19 @@ export function createPostgresMcpWriteApprovalPorts(
     },
     listPlans: (filter: WriteApprovalListFilter) => store.listByPrincipalIds(filter),
     getPlan: (planId: string) => store.planStore.get(planId),
+    async getAgentNames(accountId: string, clientIds: readonly string[]) {
+      const result = await sql<{ client_id: string; name: string | null }>`
+        SELECT requested.client_id,
+          COALESCE(NULLIF(btrim(cred.label), ''), NULLIF(btrim(client.name), '')) AS name
+        FROM unnest(${clientIds}::text[]) AS requested(client_id)
+        LEFT JOIN account_credentials cred ON cred.mcp_client_id = requested.client_id
+          AND cred.manager_account_id = ${accountId} AND cred.kind = 'child'
+        LEFT JOIN auth_oauth_client client ON client."clientId" = requested.client_id
+        WHERE EXISTS (SELECT 1 FROM mcp_change_plans plan
+          WHERE plan.principal_id = ${accountId} AND plan.client_id = requested.client_id)
+      `.execute(db);
+      return new Map(result.rows.flatMap((row) => row.name === null ? [] : [[row.client_id, row.name] as const]));
+    },
   });
   return ports;
 }

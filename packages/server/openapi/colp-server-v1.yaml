@@ -8076,6 +8076,22 @@ components:
       properties:
         planId:
           $ref: "#/components/schemas/OpaqueId"
+        agent:
+          type: object
+          additionalProperties: false
+          required: [ clientId, name ]
+          properties:
+            clientId: { type: string, minLength: 1, maxLength: 1024 }
+            name:
+              anyOf:
+                - { type: string, maxLength: 200 }
+                - { type: 'null' }
+          description: Registered agent display name, or null when unavailable; clientId is the stable fallback.
+        reason:
+          anyOf:
+            - { type: string, maxLength: 1000 }
+            - { type: 'null' }
+          description: Untrusted agent-provided reason. Render as plain text separately from the authoritative summary.
         status:
           $ref: "#/components/schemas/WriteApprovalStatus"
         risk:
