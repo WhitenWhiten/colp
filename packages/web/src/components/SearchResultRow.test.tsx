@@ -42,6 +42,15 @@ describe('SearchResultRow product copy', () => {
     expect(kind?.textContent).not.toBe('node')
   })
 
+  it('trusts the server node kind over the missing host', () => {
+    const node = { resourceType: 'node', resourceId: 'n3', collectionId: 'c1', title: 'Bookmarklet', urlHost: null, snippet: '', rank: 0.7 } as const
+    render({ ...node, nodeKind: 'bookmark' })
+    expect(document.querySelector('[data-testid="search-result-kind"]')?.textContent).toBe('Bookmark')
+    cleanup()
+    render({ ...node, title: 'Design', nodeKind: 'folder' })
+    expect(document.querySelector('[data-testid="search-result-kind"]')?.textContent).toBe('Folder')
+  })
+
   it('titles an annotation hit by its text and maps subject node to bookmark in meta', () => {
     render({
       resourceType: 'annotation',

@@ -11,7 +11,7 @@ import { RouteState } from '../components/RouteState'
 import { SearchResultRow } from '../components/SearchResultRow'
 import { SEARCH_PAGE_TITLE, SITE_SEARCH_PLACEHOLDER, searchKindLabel } from '../lib/searchCopy'
 import { useSearchKeyboard } from '../lib/useSearchKeyboard'
-import { searchResultHref, useProductSearch } from '../lib/useProductSearch'
+import { searchFolderHref, searchResultHref, useProductSearch } from '../lib/useProductSearch'
 import { productName } from '../lib/edition'
 import { plural } from '../lib/plural'
 import { compactTrail, useSearchPlaces, type SearchPlace } from './search/places'
@@ -22,10 +22,10 @@ const filters: { label: string; value?: SearchResourceType }[] = [
 ]
 
 /* A folder hit opens the folder on the desk; the resource page is for
-   bookmarks. */
+   bookmarks. The tree's kind covers servers that predate `nodeKind`. */
 function placeHref(result: SearchResult, place: SearchPlace | null): string {
-  if (result.resourceType === 'node' && place?.kind === 'folder') {
-    return `/library/${encodeURIComponent(result.collectionId)}?folder=${encodeURIComponent(result.resourceId)}`
+  if (result.resourceType === 'node' && result.nodeKind === undefined && place?.kind === 'folder') {
+    return searchFolderHref(result.collectionId, result.resourceId)
   }
   return searchResultHref(result)
 }

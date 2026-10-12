@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
       name: string
       handle: string
       email: string
+      username?: string
       initials: string
       accountId: string
       profileId: string
@@ -145,6 +146,16 @@ describe('TopNav session chrome', () => {
     // No public profiles here: the generated @handle is not shown, the email is.
     expect(document.body.textContent).not.toContain('@lin-yichen')
     expect(accountMenu?.textContent).toContain('lin.yichen@example.com')
+  })
+
+  it('names the account by its sign-in username when the server sends one', () => {
+    signIn()
+    mocks.auth.user = { ...mocks.auth.user!, username: 'linyc' }
+    render('/library')
+    act(() => document.querySelector<HTMLButtonElement>('[data-testid="account-trigger"]')!.click())
+    const accountMenu = document.getElementById('account-dropdown')
+    expect(accountMenu?.textContent).toContain('@linyc')
+    expect(accountMenu?.textContent).not.toContain('lin.yichen@example.com')
   })
 
   it('says "Signed out" only after the server confirmed it (R15-21)', async () => {

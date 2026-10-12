@@ -3214,6 +3214,8 @@ export interface components {
             id: components["schemas"]["OpaqueId"];
             /** Format: email */
             email: string | null;
+            /** @description Sign-in username. Null for an account that signs in another way. Omitted from required for additive N-1 compatibility. */
+            username?: string | null;
         };
         ProfileView: {
             id: components["schemas"]["OpaqueId"];
@@ -3919,6 +3921,11 @@ export interface components {
             collectionId: components["schemas"]["OpaqueId"];
             title: string;
             urlHost: string | null;
+            /**
+             * @description Kind of the matched node. Always returned; omitted from required for additive N-1 compatibility.
+             * @enum {string}
+             */
+            nodeKind?: "bookmark" | "folder" | "separator";
             snippet: components["schemas"]["SearchSnippet"];
             rank: components["schemas"]["SearchRank"];
         };

@@ -19,6 +19,8 @@ export type AuthUser = {
   name: string
   handle: string
   email: string
+  /** Sign-in username; absent for accounts without one and servers before API 1.93.0. */
+  username?: string
   initials: string
   accountId: string
   profileId: string
@@ -93,6 +95,7 @@ function meToUser(me: MeView): AuthUser {
     name,
     handle: me.profile.handle,
     email: me.account.email ?? '',
+    ...(me.account.username ? { username: me.account.username } : {}),
     initials,
     accountId: me.account.id,
     profileId: me.profile.id,

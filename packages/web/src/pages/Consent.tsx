@@ -82,7 +82,7 @@ export function Consent() {
   const resumePath = useMemo(() => consentResumePath(queryString), [queryString])
   const displayName = clientName || clientId || 'this application'
   const redirectHost = useMemo(() => (redirectUri ? consentRedirectHost(redirectUri) : null), [redirectUri])
-  const accountLabel = user?.email ?? user?.name ?? ''
+  const accountLabel = user?.username || user?.email || user?.name || ''
 
   useEffect(() => {
     if (bootstrapping) return

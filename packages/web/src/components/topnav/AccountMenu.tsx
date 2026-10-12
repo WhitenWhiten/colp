@@ -6,6 +6,7 @@ import { useExitAnimation } from '../../lib/useExitAnimation'
 type AccountUser = {
   name: string
   email?: string
+  username?: string
   avatarUrl?: string | null
   initials: string
 }
@@ -84,8 +85,10 @@ export function AccountMenu({
             <div>
               <strong>{user.name}</strong>
               {/* This server has no public profiles, so the generated
-                  @handle means nothing here; the account email does. */}
-              <div className="meta handle-text">{user.email || 'Signed in'}</div>
+                  @handle means nothing here; the sign-in name does. */}
+              <div className="meta handle-text">
+                {user.username ? `@${user.username}` : user.email || 'Signed in'}
+              </div>
             </div>
           </div>
           <button

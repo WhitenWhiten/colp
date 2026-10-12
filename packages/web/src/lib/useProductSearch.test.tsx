@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { applyMeView, applySessionView, clearSession, getSessionSnapshot } from '../api/sessionStore'
 import type { SearchPage } from '../api/types'
 import { clearRouteCache, readRouteCache } from './routeCache'
-import { useProductSearch } from './useProductSearch'
+import { searchResultHref, useProductSearch } from './useProductSearch'
 import { cleanup, mountTree, waitForDom } from '../test/render'
 
 const mocks = vi.hoisted(() => ({ search: vi.fn() }))
@@ -128,5 +128,13 @@ describe('useProductSearch session identity', () => {
     cleanup()
     expect(signals.length).toBeGreaterThan(0)
     expect(signals.every((signal) => signal.aborted)).toBe(true)
+  })
+})
+
+describe('searchResultHref', () => {
+  it('opens a folder hit on the library desk', () => {
+    const node = { resourceType: 'node', resourceId: 'f 1', collectionId: 'c1', title: 'Design', urlHost: null, snippet: '', rank: 0.5 } as const
+    expect(searchResultHref({ ...node, nodeKind: 'folder' })).toBe('/library/c1?folder=f%201')
+    expect(searchResultHref({ ...node, nodeKind: 'bookmark' })).not.toContain('/library/')
   })
 })

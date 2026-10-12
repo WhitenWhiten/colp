@@ -27,7 +27,7 @@ function consentPath(extra?: Record<string, string>): string {
 
 const mocks = vi.hoisted(() => ({
   auth: {
-    user: null as { name: string } | null,
+    user: null as { name: string; email?: string; username?: string } | null,
     isLoggedIn: false,
     bootstrapping: false,
     csrfToken: null as string | null,
@@ -115,6 +115,13 @@ describe('Consent page', () => {
     expect(mocks.authClient.getOAuthConsentTransaction).toHaveBeenCalledWith({
       oauthQuery: new URLSearchParams({ client_id: CIMD_CLIENT_ID, scope: SCOPE }).toString(),
     })
+  })
+
+  it('names the account by its username, even when the email is empty', async () => {
+    mocks.auth.user = { name: 'Ada', email: '', username: 'ada' }
+    render()
+    await waitForDom(() => (document.body.textContent ?? '').includes('Authorizing as'))
+    expect(document.body.textContent).toContain('Authorizing as ada')
   })
 
   it('does not flash the raw client_id before issuer-verified client_name loads', async () => {

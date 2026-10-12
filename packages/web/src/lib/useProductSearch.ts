@@ -185,10 +185,16 @@ export function useProductSearch(input: {
   return { ...snapshot, retry, loadMore }
 }
 
+/** A folder has no resource page; it opens on the library desk. */
+export function searchFolderHref(collectionId: string, folderId: string): string {
+  return `/library/${encodeURIComponent(collectionId)}?folder=${encodeURIComponent(folderId)}`
+}
+
 export function searchResultHref(result: SearchResult): string {
   switch (result.resourceType) {
     case 'collection': return `/c/${encodeURIComponent(result.resourceId)}`
     case 'node': {
+      if (result.nodeKind === 'folder') return searchFolderHref(result.collectionId, result.resourceId)
       const target = resourcePrimaryTarget(result.resourceId, null, { collectionId: result.collectionId, subjectType: 'node' })
       return target.kind === 'internal' ? target.to : target.href
     }
