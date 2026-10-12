@@ -44,6 +44,7 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 
 ### Fixed
 
+- Idle sync replicas accept Acks for the current Session-issued checkpoint cursor, extending the lease without entering a repeated Session-renewal recovery loop.
 - Favicon uploads share the command transaction when bytes are stored in PostgreSQL, avoiding nested pool acquisition. External upload failures retire orphan objects after rollback, including failures during receipt/commit; lost commit acknowledgements preserve live objects.
 - Favicon jobs recover an already-bound missing icon after a crash, fence node revisions during fetch, honor the deployment flag, and apply force-online to future bookmarks with a recoverable original state. Shared site-logo caches are projected again.
 - Favicon settings preserve unsaved provider drafts across other setting changes and use the existing discard guard. Removed the unrelated children time-sort surface from the favicon restoration.

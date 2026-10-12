@@ -417,9 +417,7 @@ describeWithPostgres('P3-22 PostgreSQL monotonic Sync Ack', () => {
     // exit — see 'a denied Ack on a baseline-less Replica hands it recovery
     // authority'). This case is about the CAS-protected shape, where a denial
     // must leave checkpoint, lease and receipts untouched.
-    // The baselines use an EARLIER page than the cursors this case acks later:
-    // re-acking an already acknowledged tuple is itself `stale_replica` without
-    // a rebind proof, which is a different case.
+    // The left baseline uses an earlier page so its later Ack advances the tuple.
     const leftBaseline = await left.reader.read({ origin: ORIGIN, credential: left.credential,
       sessionId: left.session.sessionId, cursor: null, limit: 1 });
     const rightPage = await right.reader.read({ origin: ORIGIN, credential: right.credential,
@@ -437,7 +435,7 @@ describeWithPostgres('P3-22 PostgreSQL monotonic Sync Ack', () => {
       tuple: { commitOrdinal: '999999', streamKind: 'operation', stableId: 'future-unpublished' } });
     await assert.rejects(application.acknowledge(input(left, unpublished, 'ack-unpublished')),
       (error: unknown) => error instanceof SyncAckError && error.code === 'invalid_cursor_scope');
-    for (const cursor of [`${rightPage.nextCursor}x`, rightPage.nextCursor]) {
+    for (const cursor of [`${rightPage.nextCursor}x`, page.nextCursor]) {
       await assert.rejects(application.acknowledge(input(right, cursor, `ack-denied-${cursor.length}`)));
     }
     const after = await isolated.runtime.db.selectFrom('sync_replicas').selectAll()

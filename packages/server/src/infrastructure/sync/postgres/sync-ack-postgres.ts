@@ -149,10 +149,13 @@ async function acknowledgeInTransaction(
   const checkpoint = replicaTuple(replica);
   const candidate = evidenceTuple(evidence);
   const tupleComparison = checkpoint ? compareTuple(candidate, checkpoint) : 1;
+  // Session negotiation can renew the checkpoint token before the client Acks it.
+  // assertEvidence above still requires this exact cursor's current Session authority.
+  const currentCheckpoint = tupleComparison === 0 && replica.checkpoint_cursor === evidence.cursor;
   const cursorRebindProofId = tupleComparison === 0
     ? await cursorCheckpointRebindProof(transaction, authority, replica, evidence) : null;
   const cursorRebind = cursorRebindProofId !== null;
-  if (checkpoint && (tupleComparison < 0 || tupleComparison === 0 && !cursorRebind)) deny('stale_replica');
+  if (checkpoint && (tupleComparison < 0 || tupleComparison === 0 && !currentCheckpoint && !cursorRebind)) deny('stale_replica');
 
   const generation = await transaction.selectFrom('sync_replica_generations').select('issued_at')
     .where('replica_id', '=', authority.replicaId).where('lease_generation', '=', authority.leaseGeneration)
@@ -185,8 +188,8 @@ async function acknowledgeInTransaction(
       sql<boolean>`(checkpoint_commit_ordinal, checkpoint_stream_kind, checkpoint_stable_id COLLATE "C")
         < (${evidence.tuple_commit_ordinal}, ${evidence.tuple_stream_kind},
           ${evidence.tuple_stable_id}::text COLLATE "C")`,
-      ...(cursorRebind ? [builder.and([
-        // The rebind branch runs only when cursorCheckpointRebindProof returned a proof, which requires a non-null checkpoint cursor.
+      ...(currentCheckpoint || cursorRebind ? [builder.and([
+        // Both equal-tuple paths require the checkpoint observed under the Replica lock.
         builder('checkpoint_cursor', '=', replica.checkpoint_cursor!),
         sql<boolean>`(checkpoint_commit_ordinal, checkpoint_stream_kind, checkpoint_stable_id COLLATE "C")
           = (${evidence.tuple_commit_ordinal}, ${evidence.tuple_stream_kind},
