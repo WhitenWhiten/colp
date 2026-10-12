@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { useExitAnimation } from '../lib/useExitAnimation'
 import { Icon, type IconName } from './Icon'
 
-type ToastVariant = 'info' | 'success' | 'error'
+type ToastVariant = 'info' | 'success' | 'warning' | 'error'
 
 /**
  * Optional small button/link inside the toast, rendered with the same visual
@@ -27,10 +27,11 @@ type PendingToast = {
 type ToastCtx = {
   toast: (msg: string, variant?: ToastVariant, options?: ToastOptions) => void
   success: (msg: string, options?: ToastOptions) => void
+  warning: (msg: string, options?: ToastOptions) => void
   error: (msg: string, options?: ToastOptions) => void
 }
 
-const Ctx = createContext<ToastCtx>({ toast: () => {}, success: () => {}, error: () => {} })
+const Ctx = createContext<ToastCtx>({ toast: () => {}, success: () => {}, warning: () => {}, error: () => {} })
 
 /**
  * Route-boundary reset only (see ToastRouteReset) — kept out of the public
@@ -58,6 +59,8 @@ export function useToast() {
 const variantConfig: Record<ToastVariant, { icon: IconName; duration: number; className: string }> = {
   info:    { icon: 'info',    duration: 5000, className: '' },
   success: { icon: 'check',   duration: 6000, className: 'toast--success' },
+  /* A condition the user should know about (plain HTTP, offline) rather than a failed action. */
+  warning: { icon: 'alert',   duration: 8000, className: 'toast--warning' },
   /* `cross` is the dismiss control. A second one in the status slot reads as a dead close button. */
   error:   { icon: 'alert',   duration: 8000, className: 'toast--error' },
 }
@@ -213,6 +216,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const value = useMemo(() => ({
     toast: fire,
     success: (m: string, options?: ToastOptions) => fire(m, 'success', options),
+    warning: (m: string, options?: ToastOptions) => fire(m, 'warning', options),
     error: (m: string, options?: ToastOptions) => fire(m, 'error', options),
   }), [fire])
 

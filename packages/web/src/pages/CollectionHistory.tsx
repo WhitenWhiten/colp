@@ -121,11 +121,9 @@ export function CollectionHistory() {
   const [detailLoading, setDetailLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [restoring, setRestoring] = useState(false)
-  const [actionError, setActionError] = useState<string | null>(null)
-  const [restoredLabel, setRestoredLabel] = useState<string | null>(null)
   const detailAbortRef = useRef<AbortController | null>(null)
   const confirm = useConfirm()
-  const { success } = useToast()
+  const { success, error: toastError } = useToast()
 
   useEffect(() => () => {
     detailAbortRef.current?.abort()
@@ -135,11 +133,11 @@ export function CollectionHistory() {
   // loader: reloading the route surfaces the same Sign in / unavailable state.
   const failAction = useCallback((err: unknown, message: string) => {
     if (classifyRouteError(err) === 'error') {
-      setActionError(message)
+      toastError(message)
     } else {
       void reload()
     }
-  }, [reload])
+  }, [reload, toastError])
 
   const selectVersion = useCallback(async (versionId: string, fromClick = false) => {
     if (!collectionId) return
@@ -147,7 +145,6 @@ export function CollectionHistory() {
     if (fromClick && window.matchMedia('(max-width: 899px)').matches) {
       document.querySelector('.history-detail')?.scrollIntoView({ block: 'start', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
     }
-    setActionError(null)
     detailAbortRef.current?.abort()
     const controller = new AbortController()
     detailAbortRef.current = controller
@@ -177,7 +174,6 @@ export function CollectionHistory() {
     const contentEtag = owned?.collection.contentEtag
     if (!collectionId || !contentEtag) return
     setSaving(true)
-    setActionError(null)
     try {
       await productClient.createCollectionVersion(
         collectionId,
@@ -210,7 +206,6 @@ export function CollectionHistory() {
     })
     if (!ok) return
     setRestoring(true)
-    setActionError(null)
     try {
       await productClient.restoreCollectionVersion(
         collectionId,
@@ -222,7 +217,9 @@ export function CollectionHistory() {
           maxRetries: 0,
         },
       )
-      setRestoredLabel(selected.label)
+      success(`Restored “${selected.label}” on this collection.`, {
+        action: { label: 'Edit collection', to: `/library/${collectionId}?collection=edit` },
+      })
       await reload()
       if (selectedId) {
         const next = await productClient.getCollectionVersion(collectionId, selectedId, { maxRetries: 0 })
@@ -234,7 +231,7 @@ export function CollectionHistory() {
     } finally {
       setRestoring(false)
     }
-  }, [collectionId, confirm, detail, failAction, owned, reload, selectedId, versions])
+  }, [collectionId, confirm, detail, failAction, owned, reload, selectedId, success, versions])
 
   if (!enabled) {
     return (
@@ -295,15 +292,6 @@ export function CollectionHistory() {
         }
       />
 
-      {actionError && <p className="field-error" role="alert" data-testid="history-action-error">{actionError}</p>}
-
-      {restoredLabel && (
-        <div className="history-restore-banner" role="status">
-          <span>Restored {restoredLabel} on this collection.</span>
-          <Link to={`/library/${collectionId}?collection=edit`}>Edit collection</Link>
-        </div>
-      )}
-
       {route.status === 'auth' ? (
         <RouteState
           kind="auth"
@@ -325,7 +313,6 @@ export function CollectionHistory() {
           title="Couldn't load collection history"
           description={error}
           onRetry={() => {
-            setActionError(null)
             void reload()
           }}
         />

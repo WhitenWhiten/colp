@@ -6,10 +6,10 @@ import {
   type WriteApprovalOperationPreview,
   type WriteApprovalView,
 } from '../../api'
-import { DataTable, DataTableCell, DataTableRow } from '../../components/DataTable'
 import { Icon } from '../../components/Icon'
 import { StatusBadge } from '../../components/StatusBadge'
-import { consentScopeLabel, consentScopeMeta } from '../../lib/oauthScopes'
+import { consentScopeMeta } from '../../lib/oauthScopes'
+import { plural } from '../../lib/plural'
 import { loginPath } from '../../lib/chrome'
 import {
   formatInstant,
@@ -70,7 +70,10 @@ export function ApprovalCard({
   const [undoing, setUndoing] = useState(false)
   const [undoNeedsForce, setUndoNeedsForce] = useState(false)
   const [undoError, setUndoError] = useState<string | null>(null)
+  const [showAllOperations, setShowAllOperations] = useState(false)
   const allowed = isDecisionAllowed(approval)
+  const hiddenOperations = showAllOperations ? 0 : Math.max(0, approval.operations.length - OPERATION_PREVIEW_LIMIT)
+  const scopeNames = approval.requiredScopes.map((scope) => consentScopeMeta(scope)?.name ?? scope)
 
   async function undo(force: boolean) {
     setUndoing(true)
@@ -102,34 +105,22 @@ export function ApprovalCard({
       data-status={approval.status}
     >
       <header className="write-approval-card-head">
-        <div className="write-approval-title">
+        <div className="write-approval-badges">
           <StatusBadge tone={tone}>
             <Icon name={statusIcon(approval)} />
             {statusLabel(approval)}
           </StatusBadge>
-          <h2 id={`write-approval-${approval.planId}`}>
-            <Link to={`/approvals/${encodeURIComponent(approval.planId)}`}>
-              {approval.summary}
-            </Link>
-          </h2>
+          <StatusBadge tone={RISK_TONE[approval.risk]}>{RISK_LABEL[approval.risk]} risk</StatusBadge>
         </div>
-        <DataTable
-          className="write-approval-facts"
-          label="Approval facts"
-          columns={[
-            { key: 'created', label: 'Created' },
-            { key: 'expires', label: 'Expires' },
-            { key: 'risk', label: 'Risk' },
-          ]}
-        >
-          <DataTableRow>
-            <DataTableCell>{formatInstant(approval.createdAt)}</DataTableCell>
-            <DataTableCell>{formatInstant(approval.expiresAt)}</DataTableCell>
-            <DataTableCell>
-              <StatusBadge tone={RISK_TONE[approval.risk]}>{RISK_LABEL[approval.risk]}</StatusBadge>
-            </DataTableCell>
-          </DataTableRow>
-        </DataTable>
+        <h2 id={`write-approval-${approval.planId}`}>
+          <Link to={`/approvals/${encodeURIComponent(approval.planId)}`}>
+            {approval.summary}
+          </Link>
+        </h2>
+        <dl className="write-approval-facts" aria-label="Approval facts">
+          <div><dt>Created</dt><dd>{formatInstant(approval.createdAt)}</dd></div>
+          <div><dt>Expires</dt><dd>{formatInstant(approval.expiresAt)}</dd></div>
+        </dl>
       </header>
 
       {keyChanges.length > 0 && (
@@ -157,51 +148,33 @@ export function ApprovalCard({
         </section>
       )}
 
-      <div className="write-approval-scopes">
-        <span>Required scopes</span>
-        {approval.requiredScopes.map((scope) => {
-          const meta = consentScopeMeta(scope)
-          const label = consentScopeLabel(scope)
-          return (
-            <span className="write-approval-scope" key={scope}>
-              <span className="write-approval-scope-name">{meta?.name ?? scope}</span>
-              {label ? <span className="write-approval-scope-label">{label}</span> : null}
-            </span>
-          )
-        })}
-      </div>
-
-      <section className="write-approval-impact" aria-label="Impact">
-        <span>Impact</span>
-        <dl>
-          <div><dt>Collections</dt><dd>{approval.impact.collections}</dd></div>
-          <div>
-            <dt>{approval.target.kind === 'collection' ? 'Items' : 'Bookmarks'}</dt>
-            <dd>{approval.impact.nodes}</dd>
-          </div>
-          <div><dt>Annotations</dt><dd>{approval.impact.annotations}</dd></div>
-          <div><dt>Attachments</dt><dd>{approval.impact.attachments}</dd></div>
-          <div><dt>Relations</dt><dd>{approval.impact.relations}</dd></div>
-        </dl>
-        {approval.impact.privateFieldsExcluded.length > 0 && (
-          <p>Private fields excluded: {approval.impact.privateFieldsExcluded.join(', ')}</p>
-        )}
-      </section>
-
       <section className="write-approval-operations" aria-label="Planned operations">
         <h3>Planned changes</h3>
         {approval.operations.length === 0 ? (
-          <p>No operation preview available.</p>
+          <p className="write-approval-empty">No operation preview available.</p>
         ) : (
-          approval.operations.map((operation, index) => (
-            <OperationPreview
-              key={`${approval.planId}-${index}`}
-              operation={operation}
-              target={approval.target}
-              collectionTitles={collectionTitles}
-            />
-          ))
+          <ul className="write-approval-operation-list">
+            {(showAllOperations ? approval.operations : approval.operations.slice(0, OPERATION_PREVIEW_LIMIT)).map((operation, index) => (
+              <OperationPreview
+                key={`${approval.planId}-${index}`}
+                operation={operation}
+                target={approval.target}
+                collectionTitles={collectionTitles}
+              />
+            ))}
+          </ul>
         )}
+        {hiddenOperations > 0 && (
+          <button type="button" className="write-approval-more" onClick={() => setShowAllOperations(true)}>
+            Show {plural(hiddenOperations, 'more change')}
+          </button>
+        )}
+        <p className="write-approval-impact">
+          {impactSentence(approval)}
+          {approval.impact.privateFieldsExcluded.length > 0 && (
+            <> Private fields stay out of it: {approval.impact.privateFieldsExcluded.join(', ')}.</>
+          )}
+        </p>
       </section>
 
       {draft.message && (
@@ -214,6 +187,11 @@ export function ApprovalCard({
         <p className="write-approval-approved-by">{APPROVED_BY_TEXT[approvedBy]}</p>
       )}
       <footer className="write-approval-actions">
+        {scopeNames.length > 0 && (
+          <p className="write-approval-scopes">
+            Needs <span>{scopeNames.join(' · ')}</span>
+          </p>
+        )}
         {approvedBy && (
           <button
             type="button"
@@ -241,17 +219,17 @@ export function ApprovalCard({
           <>
             <button
               type="button"
-              className="btn btn-primary btn-sm"
-              onClick={() => onDecision('approve')}
-            >
-              Approve
-            </button>
-            <button
-              type="button"
               className="btn btn-secondary btn-sm"
               onClick={() => onDecision('deny')}
             >
               Deny
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              onClick={() => onDecision('approve')}
+            >
+              Approve
             </button>
           </>
         )}
@@ -311,34 +289,60 @@ function OperationPreview({
 }) {
   const summary = operation.nodeSummary
   const collectionVisibility = operation.type === 'set_visibility' && target.kind === 'collection'
-  const description = operation.description ?? null
+  const label = operationTypeLabel(operation, target)
+  const description = operation.description ? withoutLeadingVerb(operation.description, label) : null
+  const collectionTitle = collectionTitles.get(operation.collectionId ?? '') ?? null
   return (
-    <div className="write-approval-operation">
-      <div className="write-approval-operation-head">
-        <span className="write-approval-operation-icon">
-          <Icon name={operationIcon(operation)} />
-        </span>
-        <strong>{operationTypeLabel(operation, target)}</strong>
-        {operation.visibility != null && (
-          <StatusBadge tone={visibilityTone(operation.visibility)} className="write-approval-visibility">
-            {operation.visibility}
-          </StatusBadge>
-        )}
+    <li className="write-approval-operation">
+      <span className="write-approval-operation-icon" aria-hidden>
+        <Icon name={operationIcon(operation)} />
+      </span>
+      <div className="write-approval-operation-body">
+        <p className="write-approval-operation-head">
+          <strong>{label}</strong>
+          {description && <span className="write-approval-operation-description" data-testid="approval-operation-description">{description}</span>}
+          {!description && !collectionVisibility && (summary?.title || operation.nodeId) ? (
+            <span className="write-approval-operation-description">
+              <RefValue id={operation.nodeId} title={summary?.title ?? null} />
+            </span>
+          ) : null}
+          {operation.visibility != null && (
+            <StatusBadge tone={visibilityTone(operation.visibility)} className="write-approval-visibility">
+              {operation.visibility}
+            </StatusBadge>
+          )}
+        </p>
+        <p className="write-approval-operation-meta">
+          {summary?.url && <span className="write-approval-operation-url">{summary.url}</span>}
+          <span>
+            in <RefValue id={operation.collectionId} title={collectionTitle} />
+          </span>
+        </p>
       </div>
-      {description && <p className="write-approval-operation-description" data-testid="approval-operation-description">{description}</p>}
-      <dl>
-        <div><dt>Collection</dt><dd><RefValue id={operation.collectionId} title={collectionTitles.get(operation.collectionId ?? '') ?? null} /></dd></div>
-        {collectionVisibility || description ? null : (
-          <div><dt>Bookmark</dt><dd><RefValue id={operation.nodeId} title={summary?.title ?? null} /></dd></div>
-        )}
-        {summary && (
-          <>
-            <div><dt>Title</dt><dd>{summary.title ?? 'Not available'}</dd></div>
-            <div><dt>URL</dt><dd>{summary.url ?? 'Not available'}</dd></div>
-            <div><dt>Type</dt><dd>{summary.kind ?? 'Not available'}</dd></div>
-          </>
-        )}
-      </dl>
-    </div>
+    </li>
   )
+}
+
+/** "move Docs from /A to /B" under the label "Move" reads "Docs from /A to /B". */
+function withoutLeadingVerb(description: string, label: string): string {
+  const verb = label.split(' ')[0]?.toLowerCase() ?? ''
+  const lower = description.toLowerCase()
+  return verb && lower.startsWith(`${verb} `) ? description.slice(verb.length + 1) : description
+}
+
+const OPERATION_PREVIEW_LIMIT = 6
+
+/** Only the counts that are not zero, as one sentence. */
+export function impactSentence(approval: WriteApprovalView): string {
+  const { impact } = approval
+  const parts = [
+    impact.nodes > 0 ? plural(impact.nodes, approval.target.kind === 'collection' ? 'item' : 'bookmark') : null,
+    impact.annotations > 0 ? plural(impact.annotations, 'note') : null,
+    impact.attachments > 0 ? plural(impact.attachments, 'attachment') : null,
+    impact.relations > 0 ? plural(impact.relations, 'relation') : null,
+  ].filter((part): part is string => part !== null)
+  const where = plural(impact.collections, 'collection')
+  if (parts.length === 0) return `Touches ${where}.`
+  const what = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}`
+  return `Touches ${what} in ${where}.`
 }

@@ -823,8 +823,8 @@ button.collection-outline-toggle:hover {
   width: 2.25rem;
   height: 2.25rem;
   border-radius: var(--radius);
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--surface-sunken);
+  color: var(--ink-2);
 }
 
 .collection-content .collection-folder-card .collection-folder-name,

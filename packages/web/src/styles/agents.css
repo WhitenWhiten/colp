@@ -63,6 +63,7 @@
 
 .agents-empty,
 .agents-signed-out {
+  width: 100%;
   padding-block: var(--space-6);
   border: 1px dashed var(--line-strong);
   border-radius: var(--radius-lg);
@@ -111,19 +112,17 @@
   gap: var(--space-3);
 }
 
-.agent-card-icon,
-.agents-rule-icon {
+.agent-card-icon {
   display: grid;
   place-items: center;
   width: 2.25rem;
   height: 2.25rem;
   border-radius: var(--radius);
-  background: var(--accent-soft);
-  color: var(--accent-ink);
+  background: var(--surface-sunken);
+  color: var(--ink-2);
 }
 
-.agent-card-icon svg,
-.agents-rule-icon svg {
+.agent-card-icon svg {
   width: 1.15rem;
   height: 1.15rem;
 }
@@ -166,6 +165,9 @@
 }
 
 .agent-scope {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
   padding: var(--hair-20) var(--space-2);
   border: 1px solid var(--line);
   border-radius: var(--radius-pill);
@@ -175,8 +177,10 @@
   font-weight: var(--weight-medium);
 }
 
-.agent-scope code {
-  font-family: var(--font-mono);
+.agent-scope svg {
+  width: 0.8rem;
+  height: 0.8rem;
+  color: var(--muted);
 }
 
 .agent-card-foot {
@@ -388,7 +392,9 @@
   gap: var(--space-3);
 }
 
-/* ——— How approvals work ——— */
+/* ——— How approvals work ———
+   A quiet reference column: hairline card on the page colour, glyphs
+   without tiles, and the way on to Approvals at the end. */
 
 .agents-aside {
   display: grid;
@@ -396,7 +402,6 @@
   padding: var(--space-5);
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
-  background: var(--paper-2);
 }
 
 .agents-aside h2 {
@@ -416,15 +421,28 @@
 
 .agents-rules li {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: 1.1rem minmax(0, 1fr);
   align-items: start;
   gap: var(--space-3);
+}
+
+.agents-rule-icon {
+  display: grid;
+  place-items: center;
+  height: 1.2rem;
+  color: var(--ink-2);
+}
+
+.agents-rule-icon svg {
+  width: 1.05rem;
+  height: 1.05rem;
 }
 
 .agents-rules h3 {
   margin: 0 0 var(--hair-20);
   font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
+  line-height: var(--leading-snug);
 }
 
 .agents-rules p {
@@ -432,6 +450,28 @@
   color: var(--muted);
   font-size: var(--text-sm);
   line-height: var(--leading-copy);
+}
+
+.agents-aside-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  width: fit-content;
+  padding-top: var(--space-3);
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  text-decoration: none;
+}
+
+.agents-aside-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.agents-aside-link svg {
+  width: 0.95rem;
+  height: 0.95rem;
 }
 
 @media (max-width: 639px) {

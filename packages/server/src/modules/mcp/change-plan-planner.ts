@@ -749,7 +749,7 @@ async function planNodeCreate(
 export function phase4bMcpDeleteSubtreeImpactText(
   facts: Readonly<Pick<Phase4bMcpDeleteSubtreeFacts, 'title' | 'subtreeCount'>>,
 ): string {
-  return `delete ${facts.title} (${facts.subtreeCount} nodes)`;
+  return `delete ${facts.title} (${facts.subtreeCount} ${facts.subtreeCount === 1 ? 'item' : 'items'})`;
 }
 
 function deleteSubtreeThreshold(): number {

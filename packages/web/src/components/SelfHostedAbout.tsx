@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { CopyButton } from './CommandBlock'
 import { Icon, type IconName } from './Icon'
 import { StatusBadge, type StatusTone } from './StatusBadge'
-import { manifestTransport, type ManifestTransport } from './TransportBanner'
+import { manifestTransport, type ManifestTransport } from './TransportWarning'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
 
 export type ServerAboutSnapshot = {

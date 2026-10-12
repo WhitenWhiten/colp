@@ -2,10 +2,13 @@ import { useEffect, useRef, useState, type DragEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { productClient, type EditorSnapshot, type OwnedCollectionListItem } from '../api'
 import { useAuth } from '../auth/AuthContext'
+import { useToast } from '../components/AppToast'
 import { Breadcrumb } from '../components/Breadcrumb'
 import { Icon } from '../components/Icon'
 import { PageHead } from '../components/PageHead'
 import { PageShell } from '../components/PageShell'
+import { ProgressBar } from '../components/ProgressBar'
+import { plural } from '../lib/plural'
 import '../styles/import.css'
 import { BOOKMARK_IMPORT_MAX_BYTES, bookmarkImportAttempt, importBookmarks, importFolderOptions, previewBookmarkImport } from '../lib/bookmarkImport'
 
@@ -18,7 +21,7 @@ const BROWSER_EXPORTS: ReadonlyArray<{ name: string; path: string }> = [
   { name: 'Firefox', path: 'Manage bookmarks (Ctrl+Shift+O) → Import and Backup → Export Bookmarks to HTML' },
   { name: 'Safari', path: 'File → Export → Bookmarks' },
 ]
-type Done = { created: number; skipped: number; collectionId: string }
+type Progress = { done: number; total: number }
 
 /** Nested folders are indented so the flat <select> reads as a tree. */
 export function folderOptionText(depth: number, title: string): string {
@@ -27,6 +30,7 @@ export function folderOptionText(depth: number, title: string): string {
 
 export function SelfHostedImport() {
   const { isLoggedIn, bootstrapping, user } = useAuth()
+  const { success, error: toastError } = useToast()
   const [collections, setCollections] = useState<OwnedCollectionListItem[]>([])
   const [collectionId, setCollectionId] = useState('')
   const [snapshot, setSnapshot] = useState<EditorSnapshot | null>(null)
@@ -34,9 +38,10 @@ export function SelfHostedImport() {
   const [preview, setPreview] = useState<Preview | null>(null)
   const [fileName, setFileName] = useState('')
   const [skipDuplicates, setSkipDuplicates] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [status, setStatus] = useState('')
-  const [done, setDone] = useState<Done | null>(null)
+  /* Inline only for the file itself (too large, unreadable); failures after
+     Confirm and failed loads go to the error toast. */
+  const [fileError, setFileError] = useState<string | null>(null)
+  const [progress, setProgress] = useState<Progress | null>(null)
   const [busy, setBusy] = useState(false)
   const attempt = useRef(bookmarkImportAttempt())
   const active = useRef<AbortController | null>(null)
@@ -51,58 +56,61 @@ export function SelfHostedImport() {
 
   useEffect(() => {
     const controller = new AbortController()
-    setCollections([]); setCollectionId(''); setSnapshot(null); setPreview(null); setFileName(''); setStatus(''); setDone(null); setBusy(false)
+    setCollections([]); setCollectionId(''); setSnapshot(null); setPreview(null); setFileName(''); setFileError(null); setProgress(null); setBusy(false)
     active.current?.abort()
     fileGeneration.current += 1
     if (isLoggedIn) void productClient.loadOwnedCollections({}, { signal: controller.signal })
       .then(rows => { if (!controller.signal.aborted) { setCollections(rows); setCollectionId(rows[0]?.collection.id ?? '') } })
-      .catch(cause => { if (!controller.signal.aborted) setError(message(cause)) })
+      .catch(cause => { if (!controller.signal.aborted) toastError(message(cause)) })
     return () => { controller.abort(); active.current?.abort(); fileGeneration.current += 1 }
-  }, [isLoggedIn, user?.accountId])
+  }, [isLoggedIn, user?.accountId, toastError])
   useEffect(() => {
     const controller = new AbortController()
-    setSnapshot(null); setParentId(''); setStatus('')
+    setSnapshot(null); setParentId('')
     attempt.current = bookmarkImportAttempt()
     if (collectionId) void productClient.loadEditorSnapshot(collectionId, { signal: controller.signal })
       .then(value => { if (!controller.signal.aborted) { setSnapshot(value); setParentId(value.root.id) } })
-      .catch(cause => { if (!controller.signal.aborted) setError(message(cause)) })
+      .catch(cause => { if (!controller.signal.aborted) toastError(message(cause)) })
     return () => controller.abort()
-  }, [collectionId])
+  }, [collectionId, toastError])
   const [dragging, setDragging] = useState(false)
   const readFile = async (file: File | undefined) => {
     const generation = ++fileGeneration.current
-    setPreview(null); setFileName(''); setError(null); setStatus(''); setDone(null); attempt.current = bookmarkImportAttempt()
+    setPreview(null); setFileName(''); setFileError(null); attempt.current = bookmarkImportAttempt()
     if (!file) return
     try {
       if (file.size > BOOKMARK_IMPORT_MAX_BYTES) throw new Error('Choose a bookmark HTML file smaller than 8 MiB.')
       const html = await file.text()
       if (generation === fileGeneration.current) { setPreview(previewBookmarkImport(html)); setFileName(file.name) }
-    } catch (cause) { if (generation === fileGeneration.current) setError(message(cause)) }
+    } catch (cause) { if (generation === fileGeneration.current) setFileError(message(cause)) }
   }
   const run = async () => {
     if (!snapshot || !preview || !parentId || busy) return
     const controller = new AbortController()
     active.current = controller
-    setBusy(true); setError(null); setDone(null); setStatus('Preparing import…')
+    const total = preview.folders + preview.bookmarks
+    setBusy(true); setProgress({ done: 0, total })
     try {
       const fresh = await productClient.loadEditorSnapshot(collectionId, { signal: controller.signal })
       const result = await importBookmarks({ snapshot: fresh, parentId, items: preview.items, skipDuplicates,
         intentFor: attempt.current, signal: controller.signal,
-        onProgress: (created, skipped) => setStatus(`Imported ${created} items; skipped ${skipped}.`),
+        onProgress: (created, skipped) => setProgress({ done: created + skipped, total }),
       })
       if (!controller.signal.aborted) {
         // The file is consumed: a second Confirm would re-import the same
         // bookmarks into the same folder, so the picker is cleared.
-        setStatus('')
-        setDone({ created: result.created, skipped: result.skipped, collectionId })
+        success(
+          `Imported ${plural(result.created, 'item')}${result.skipped > 0 ? `; skipped ${plural(result.skipped, 'duplicate')}` : ''}. Your browsers pick them up on their next sync.`,
+          { action: { label: 'View collection', to: `/library/${collectionId}` } },
+        )
         clearFile()
         attempt.current = bookmarkImportAttempt()
       }
     } catch (cause) {
-      if (!controller.signal.aborted) setError(`${message(cause)} Completed items are saved. Retry to continue.`)
-    } finally { if (!controller.signal.aborted) setBusy(false) }
+      if (!controller.signal.aborted) toastError(`${message(cause)} Completed items are saved. Retry to continue.`)
+    } finally { if (!controller.signal.aborted) { setBusy(false); setProgress(null) } }
   }
-  const changeDestination = () => { attempt.current = bookmarkImportAttempt(); setStatus(''); setError(null) }
+  const changeDestination = () => { attempt.current = bookmarkImportAttempt() }
   const onDrop = (event: DragEvent<HTMLLabelElement>) => {
     event.preventDefault()
     setDragging(false)
@@ -146,6 +154,7 @@ export function SelfHostedImport() {
                   <input id="import-file" ref={fileInput} className="visually-hidden" type="file" accept=".html,.htm,text/html"
                     aria-label="Bookmarks HTML file" disabled={busy} onChange={event => { void readFile(event.target.files?.[0]) }} />
                 </label>
+                {fileError && <p className="field-error import-error" role="alert" data-testid="import-error">{fileError}</p>}
               </li>
               <li className="import-step">
                 <h2>Pick where it goes</h2>
@@ -169,8 +178,12 @@ export function SelfHostedImport() {
                 <h2>Import</h2>
                 <label className="option-row"><input type="checkbox" checked={skipDuplicates} disabled={busy} onChange={event => { changeDestination(); setSkipDuplicates(event.target.checked) }} />
                   Skip duplicates (same URL in the same folder)</label>
-                {error && <p className="field-error import-error" role="alert" data-testid="import-error">{error}</p>}
-                {status && <p className="field-hint" role="status">{status}</p>}
+                {progress && (
+                  <div className="import-progress" role="status" data-testid="import-progress">
+                    <ProgressBar value={progress.total ? (progress.done / progress.total) * 100 : 0} label="Import progress" />
+                    <span>{progress.done} of {plural(progress.total, 'item')} imported…</span>
+                  </div>
+                )}
                 <button type="submit" className="btn btn-primary import-submit" disabled={busy || !snapshot || !parentId || !preview}>{busy ? 'Importing…' : 'Confirm import'}</button>
               </li>
             </ol>
@@ -184,20 +197,6 @@ export function SelfHostedImport() {
             </dl>
             <p className="field-hint">Raindrop, Pocket, Pinboard, linkding, and most bookmark tools export the same HTML format.</p>
           </aside>
-        </div>
-      )}
-      {!isLoggedIn && !bootstrapping && error && <p className="field-error import-error" role="alert" data-testid="import-error">{error}</p>}
-      {done && (
-        <div className="panel panel-pad import-done" role="status" data-testid="import-done">
-          <span className="import-done-icon" aria-hidden><Icon name="check" /></span>
-          <div className="import-done-body">
-            <p className="import-done-title">Import complete</p>
-            <p className="import-done-text">{done.created} {done.created === 1 ? 'item' : 'items'} added; {done.skipped} {done.skipped === 1 ? 'duplicate' : 'duplicates'} skipped. Your browsers pick them up on their next sync.</p>
-            <div className="import-done-actions">
-              <Link className="btn btn-primary btn-sm" to={`/library/${done.collectionId}`}>View collection</Link>
-              <button type="button" className="btn btn-secondary btn-sm" onClick={() => { setDone(null); fileInput.current?.click() }}>Import another file</button>
-            </div>
-          </div>
         </div>
       )}
     </PageShell>

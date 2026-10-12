@@ -2296,8 +2296,8 @@ body[data-bookmark-drag] {
   width: 2rem;
   height: 2rem;
   border-radius: var(--radius);
-  background: var(--accent-soft);
-  color: var(--accent-ink);
+  background: var(--surface-sunken);
+  color: var(--ink-2);
 }
 
 .get-started-mark svg {

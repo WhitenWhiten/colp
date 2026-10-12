@@ -153,10 +153,10 @@ export function operationTypeLabel(
     return createNodeOperationLabel(operation.nodeSummary?.kind)
   }
   if (operation.type === 'set_visibility' && target.kind === 'collection') {
-    if (operation.visibility === 'public') return 'Publish library'
-    if (operation.visibility === 'unlisted') return 'Make library unlisted'
-    if (operation.visibility === 'private') return 'Unpublish library'
-    return 'Change library visibility'
+    if (operation.visibility === 'public') return 'Publish collection'
+    if (operation.visibility === 'unlisted') return 'Make collection unlisted'
+    if (operation.visibility === 'private') return 'Unpublish collection'
+    return 'Change collection visibility'
   }
   return OPERATION_LABELS[operation.type] ?? operation.type.replaceAll('_', ' ')
 }
@@ -204,8 +204,8 @@ export function keyChangeForOperation(
   if (operation.type !== 'set_visibility') return null
   if (operation.visibility !== 'public' && operation.visibility !== 'unlisted') return null
   const targetId = operation.collectionId ?? operation.nodeId
-  const subject = target.kind === 'collection' ? 'Library' : 'Item'
-  const object = target.kind === 'collection' ? 'this library' : 'this item'
+  const subject = target.kind === 'collection' ? 'Collection' : 'Item'
+  const object = target.kind === 'collection' ? 'this collection' : 'this item'
   if (operation.visibility === 'public') {
     return {
       icon: 'lock-open',

@@ -365,7 +365,7 @@ describe('Collection history Product wiring', () => {
       expectEditorMetaRead(2)
     })
 
-    it('keeps the version list and shows an inline error when saving a version fails', async () => {
+    it('keeps the version list and toasts the error when saving a version fails', async () => {
       mocks.enabled = true
       mocks.listCollectionVersions.mockResolvedValue({ items: [version()], nextCursor: null })
       mocks.createCollectionVersion.mockRejectedValueOnce(new ProductApiError({ status: 500, code: 'internal', message: 'boom' }))
@@ -374,7 +374,7 @@ describe('Collection history Product wiring', () => {
       act(() => namedButton(/save version/i)!.click())
       await waitForDom(domFinishedLoading)
       expect(document.body.textContent).toContain('Live snapshot A')
-      expect(document.querySelector('[data-testid="history-action-error"]')?.textContent).toContain("Couldn't save the version. Try again.")
+      expect(mocks.error).toHaveBeenCalledWith("Couldn't save the version. Try again.")
       expect(document.body.textContent).not.toContain("Couldn't load collection history")
     })
 
@@ -404,6 +404,10 @@ describe('Collection history Product wiring', () => {
       const options = mocks.restoreCollectionVersion.mock.calls[0]?.[3] as { ifMatch: string }
       expect(options.ifMatch).not.toBe('"version-etag-1"')
       expect(options.ifMatch).not.toBe('"collection-etag-1"')
+      expect(mocks.success).toHaveBeenCalledWith(
+        expect.stringContaining('on this collection.'),
+        { action: { label: 'Edit collection', to: '/library/col-1?collection=edit' } },
+      )
       expectEditorMetaRead(2)
     })
 

@@ -223,14 +223,6 @@ button {
   flex-direction: column;
 }
 
-.offline-banner {
-  padding: var(--space-2) var(--gutter);
-  background: color-mix(in srgb, var(--warning) 12%, var(--paper));
-  color: var(--ink-2);
-  font-size: var(--text-sm);
-  text-align: center;
-}
-
 .page {
   flex: 1;
   width: 100%;

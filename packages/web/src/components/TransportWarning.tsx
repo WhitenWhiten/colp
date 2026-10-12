@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { subscribeInBrowserEnabled } from '../lib/edition'
+import { useToast } from './AppToast'
 
 export type ManifestTransport = 'https' | 'insecure-http'
 
@@ -29,15 +31,6 @@ function readTransport(value: unknown): ManifestTransport | undefined {
   return undefined
 }
 
-export function TransportBanner({ transport }: { readonly transport: ManifestTransport | undefined }) {
-  if (transport !== 'insecure-http') return null
-  return (
-    <p className="transport-banner" role="status" data-testid="transport-banner">
-      This server is using insecure HTTP. Credentials and bookmarks travel unencrypted.
-    </p>
-  )
-}
-
 /** Hidden until D8 sets `subscribeInBrowserEnabled`. */
 export function SubscribeInBrowserButton() {
   if (!subscribeInBrowserEnabled) return null
@@ -48,30 +41,58 @@ export function SubscribeInBrowserButton() {
   )
 }
 
+const PLAIN_HTTP_WARNING = 'This server uses plain HTTP, so passwords and bookmarks travel unencrypted.'
+const WARNED_KEY = 'colp.plain-http-warned'
+/** Pages where a password is typed: the warning shows on every visit to them. */
+const PASSWORD_PATHS = new Set(['/login', '/register'])
+
+function warnedThisSession(): boolean {
+  try {
+    return sessionStorage.getItem(WARNED_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+function rememberWarned(): void {
+  try {
+    sessionStorage.setItem(WARNED_KEY, '1')
+  } catch {
+    // Without storage the warning shows again on the next page load.
+  }
+}
+
 /**
- * Persistent banner for every page of the self-hosted web UI, including sign-in
- * where the password is typed (02-plan §7, D9). A failed or unrecognised
- * manifest leaves the page unchanged. Unit tests pass `loadManifest` so the
- * page does not call fetch under the suite's undeclared-request guard.
+ * Plain-HTTP warning (02-plan §7, D9) as a warning toast instead of a band
+ * above every page: once per tab session, and again on each visit to a page
+ * where the password is typed. About keeps the transport visible for good.
+ * A failed or unrecognised manifest shows nothing. Unit tests pass
+ * `loadManifest` so the page does not call fetch under the suite's
+ * undeclared-request guard.
  */
-export function SiteTransportBanner({
+export function SiteTransportWarning({
   loadManifest = loadCollectionProtocolManifest,
 }: {
   readonly loadManifest?: () => Promise<unknown>
 } = {}) {
-  return <LoadedTransportBanner loadManifest={loadManifest} />
-}
-
-function LoadedTransportBanner({ loadManifest }: { readonly loadManifest: () => Promise<unknown> }) {
   const transport = useManifestTransport(loadManifest)
-  return <TransportBanner transport={transport} />
+  const { pathname } = useLocation()
+  const { warning } = useToast()
+  const passwordPage = PASSWORD_PATHS.has(pathname)
+  useEffect(() => {
+    if (transport !== 'insecure-http') return
+    if (!passwordPage && warnedThisSession()) return
+    rememberWarned()
+    warning(PLAIN_HTTP_WARNING)
+  }, [transport, passwordPage, pathname, warning])
+  return null
 }
 
 let manifestRequest: Promise<unknown> | undefined
 
-/** One Manifest request per page load; the banner stays mounted across routes. */
+/** One Manifest request per page load; the warning stays mounted across routes. */
 function loadCollectionProtocolManifest(): Promise<unknown> {
-  // Vitest replaces fetch with a guard that fails the test. The banner is
+  // Vitest replaces fetch with a guard that fails the test. The warning is
   // covered by its own test, which injects the manifest.
   if (import.meta.env.MODE === 'test') return Promise.resolve(undefined)
   manifestRequest ??= fetch('/.well-known/collection-protocol')

@@ -16,19 +16,6 @@
 @layer edition {
 /* ——— Chrome ——— */
 
-/* Plain-HTTP warning (C4): a slim warning band above the top bar. */
-:root[data-edition='self-hosted'] .transport-banner {
-  margin: 0;
-  padding: var(--space-2) var(--gutter);
-  border-bottom: 1px solid color-mix(in srgb, var(--warning) 24%, transparent);
-  background: var(--warning-soft);
-  color: var(--warning);
-  font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
-  line-height: var(--leading-ui);
-  text-align: center;
-}
-
 :root[data-edition='self-hosted'] .brand {
   font-size: var(--text-md);
   font-weight: var(--weight-semibold);

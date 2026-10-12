@@ -53,7 +53,7 @@
 }
 .replica-card[data-status='retired'] { background: transparent; box-shadow: none; border-style: dashed; }
 .replica-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--space-3); }
-.replica-icon { display: grid; place-items: center; width: 2.25rem; height: 2.25rem; border-radius: var(--radius); background: var(--accent-soft); color: var(--accent-ink); }
+.replica-icon { display: grid; place-items: center; width: 2.25rem; height: 2.25rem; border-radius: var(--radius); background: var(--surface-sunken); color: var(--ink-2); }
 .replica-icon svg { width: 1.15rem; height: 1.15rem; }
 .replica-card[data-status='retired'] .replica-icon { background: var(--surface-sunken); color: var(--muted); }
 .replica-identity { display: grid; gap: var(--hair-20); min-width: 0; }
