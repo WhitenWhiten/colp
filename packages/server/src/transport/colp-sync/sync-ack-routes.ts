@@ -139,7 +139,7 @@ export function registerSyncAckRoutes(app: FastifyInstance, dependencies: SyncAc
         return reply.code(200).header('Cache-Control', 'private, no-store').type('application/json').send(result);
       } catch (error) {
         const normalized = normalizeError(error);
-        request.log.debug({ event: 'sync_ack_denied', problem: normalized.code,
+        request.log.info({ event: 'sync_ack_denied', problem: normalized.code,
           authorityGuard: normalized.authorityGuard ?? 'unspecified' }, 'sync Ack request denied');
         return sendProblem(reply, normalized);
       }

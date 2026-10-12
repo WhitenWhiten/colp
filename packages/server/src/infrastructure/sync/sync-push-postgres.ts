@@ -84,7 +84,10 @@ export function createPostgresSyncPushApplication(
       trustedBaseOwner: 'sync_node_revision_history' as const,
       conflictBoundary: 'persisted_open' as const,
     }),
-    admit: (input: SyncPushHttpApplicationInput) => admitPushBatch(db, sessionIssuer, input, admitSingle),
+    admit: (input: SyncPushHttpApplicationInput) => {
+      options.metrics?.observe('sync.push.batch_operations', input.request.operations.length);
+      return admitPushBatch(db, sessionIssuer, input, admitSingle);
+    },
   });
 
   async function admitSingle(input: SyncPushHttpApplicationInput, session: VerifiedSyncSession): Promise<SyncPushResult> {

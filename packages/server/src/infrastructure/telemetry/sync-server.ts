@@ -10,6 +10,8 @@ export const SYNC_TELEMETRY_PROBLEMS = Object.freeze([
   'none', 'authentication_required', 'authorization_denied', 'invalid_document', 'invalid_json',
   'sequence_gap', 'sequence_blocked', 'conflict', 'precondition_failed', 'rate_limited',
   'replica_retired', 'recovery_required', 'service_unavailable', 'internal_error',
+  'resource_not_found', 'invalid_cursor_scope', 'sync_cursor_expired', 'stale_replica',
+  'idempotency_key_reused', 'idempotency_in_progress', 'insufficient_scope', 'unsupported_version',
 ] as const);
 export const SYNC_TELEMETRY_BUCKETS = Object.freeze([
   'under_10ms', 'under_100ms', 'under_1s', 'under_10s', 'over_10s',
@@ -62,7 +64,7 @@ export function createSyncServerTelemetry(input: {
       input.metrics.observe('sync.server.duration_ms', record.durationMs);
       input.logger.info({
         event: 'sync_request', endpoint: record.endpoint, outcome: record.outcome,
-        problem: record.problem, bucket: record.bucket,
+        problem: record.problem, bucket: record.bucket, durationMs: record.durationMs,
         ...(record.traceId === undefined ? {} : { traceId: record.traceId }),
       }, 'sync request completed');
     },

@@ -1,4 +1,5 @@
 import type { JSONWebKeySet } from 'jose';
+import { SyncAckError } from '../modules/sync/index.js';
 import { loadConfig } from './config.js';
 import { createDatabaseRuntime } from '../infrastructure/database/index.js';
 import {
@@ -302,7 +303,8 @@ export function createSyncSessionRuntime(
         } catch (error) {
           const durationMs = Math.max(0, performance.now() - started);
           recoveryTelemetry?.record({ endpoint: 'recovery', outcome: 'problem',
-            problem: 'recovery_required', bucket: syncDurationBucket(durationMs), durationMs });
+            problem: error instanceof SyncAckError ? error.code : 'internal_error',
+            bucket: syncDurationBucket(durationMs), durationMs });
           throw error;
         }
       } }),
