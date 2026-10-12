@@ -58,11 +58,16 @@ test('Write approval schemas are closed and expose only safe structural previews
     const schema = source.components.schemas[name];
     assert.ok(schema, `missing schema ${name}`);
     assert.equal(schema.additionalProperties, false);
+    const optional = name === 'WriteApprovalView' ? ['reason', 'agent'] : [];
     assert.deepEqual(
       new Set(schema.required ?? []),
-      new Set(Object.keys(schema.properties ?? {})),
+      new Set(Object.keys(schema.properties ?? {}).filter(property => !optional.includes(property))),
       `${name} required/property drift`,
     );
+    for (const property of optional) {
+      assert.ok(schema.properties?.[property], `${name}.${property}`);
+      assert.ok(!schema.required?.includes(property), `${name}.${property} stays optional for older plans`);
+    }
   }
   assert.deepEqual(
     source.components.schemas.WriteApprovalStatus?.enum,

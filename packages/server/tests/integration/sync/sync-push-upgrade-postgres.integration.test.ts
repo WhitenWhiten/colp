@@ -18,7 +18,8 @@ describeWithPostgres('Sync Push request binding upgrade from the deployed releas
     assert.equal((await pool.query('select to_regclass($1) as name', [tableName])).rows[0].name, null);
 
     const upgraded = await runMigrations(db, 'latest');
-    assert.deepEqual(upgraded.results.map(result => result.migrationName), ['202610270100_sync_push_request_bindings']);
+    assert.equal(upgraded.results[0]?.migrationName, '202610270100_sync_push_request_bindings');
+    assert.ok(upgraded.results.every(result => result.status === 'Success' && result.direction === 'Up'));
     assert.equal((await pool.query('select to_regclass($1) as name', [tableName])).rows[0].name,
       'sync_push_request_bindings');
     assert.deepEqual((await runMigrations(db, 'latest')).results, []);

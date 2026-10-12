@@ -48,7 +48,17 @@ test('pending Plan and Commit use MRTR input_required, and a new request retry c
   });
   const planPayload = parseJsonRpc(await planResponse.text());
   assert.equal(planPayload.result?.resultType, 'input_required');
-  assert.deepEqual(planPayload.result?.inputRequests, {});
+  assert.deepEqual(planPayload.result?.inputRequests, {
+    approval: {
+      method: 'elicitation/create',
+      params: {
+        mode: 'url',
+        message: 'Review this change at the approval link. Only the owner can approve it.',
+        url: (planPayload.result?.plan as { approvalUri: string }).approvalUri,
+        elicitationId: (planPayload.result?.plan as { planId: string }).planId,
+      },
+    },
+  });
   assert.equal(typeof planPayload.result?.requestState, 'string');
   const planId = (planPayload.result?.plan as { planId?: string }).planId;
   assert.ok(planId);

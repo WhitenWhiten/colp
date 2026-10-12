@@ -268,7 +268,7 @@ describe('MCP 2026-07-28 Write adapter — plan resolution statuses', () => {
   }
 
   it('rejects a commit retry on expired/cancelled/unknown plans with stable codes', async () => {
-    const { adapter, context } = statusHarness('approved');
+    const { adapter, context } = harness();
     const planResult = await firstPlanResult(adapter, context);
     const planId = (planResult as unknown as { plan: { planId: string } }).plan.planId as string;
     const state = await commitState(adapter, context, planId);
@@ -288,11 +288,12 @@ describe('MCP 2026-07-28 Write adapter — plan resolution statuses', () => {
   });
 
   it('rejects a pending commit retry without a plan projection', async () => {
-    const { adapter, context } = statusHarness('pending');
+    const { adapter, context } = harness();
     const planResult = await firstPlanResult(adapter, context);
     const planId = (planResult as unknown as { plan: { planId: string } }).plan.planId as string;
     const state = await commitState(adapter, context, planId);
-    const error = await captureError(adapter.callTool(context, {
+    const pending = statusHarness('pending');
+    const error = await captureError(pending.adapter.callTool(pending.context, {
       name: 'changes.commit',
       arguments: commitInput(planId, 'idem-x'),
       requestState: state,
@@ -301,11 +302,12 @@ describe('MCP 2026-07-28 Write adapter — plan resolution statuses', () => {
   });
 
   it('maps a gateway commit failure after an approved resolution to invalid_params', async () => {
-    const { adapter, context } = statusHarness('approved');
+    const { adapter, context } = harness();
     const planResult = await firstPlanResult(adapter, context);
     const planId = (planResult as unknown as { plan: { planId: string } }).plan.planId as string;
     const state = await commitState(adapter, context, planId);
-    const error = await captureError(adapter.callTool(context, {
+    const approved = statusHarness('approved');
+    const error = await captureError(approved.adapter.callTool(approved.context, {
       name: 'changes.commit',
       arguments: commitInput(planId, 'idem-x'),
       requestState: state,

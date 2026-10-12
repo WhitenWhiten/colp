@@ -471,6 +471,11 @@ const via = (name: RegExp): [string, RegExp] => [CRED_FACADE, name];
 /** Every discovered ETag-replay route, pinned to the command whose stored result must snapshot `etag`. */
 const REQUIRED_ETAG_RECEIPTS: readonly PinnedRoute[] = [
   // Extension helper capture/clear (replay keeps a live recompute fallback for pre-snapshot receipts).
+  pin('POST /colp/v0.1/sync/collections/:collectionId/nodes/:nodeId/favicon', 'colp-sync/sync-favicon-helper-routes.ts', 'captureBookmarkFavicon', `${COLL}/favicon-helper-capture.ts`),
+  pin('DELETE /colp/v0.1/sync/collections/:collectionId/nodes/:nodeId/favicon', 'colp-sync/sync-favicon-helper-routes.ts', 'clearCapturedBookmarkFavicon', `${COLL}/favicon-helper-capture.ts`),
+  pin('PATCH /api/v1/me/favicon-policy', 'product/favicon-policy-routes.ts', 'updateMyFaviconPolicy', `${COLL}/favicon-policy.ts`),
+  pin('PUT /api/v1/collections/:collectionId/nodes/:nodeId/favicon-source', 'product/favicon-policy-routes.ts', 'setBookmarkFaviconSource', `${COLL}/favicon-icon-source.ts`),
+  pin('POST /api/v1/collections/:collectionId/nodes/:nodeId/favicon-refresh', 'product/favicon-policy-routes.ts', 'enqueueBookmarkFaviconRefresh', `${COLL}/favicon-job.ts`),
   // Account credentials (reached through the `api.*` facade).
   pin('POST /api/v1/me/credential-grants', 'product/account-credential-grant-routes.ts', 'createCredentialGrant', GRANTS),
   pin('POST /api/v1/me/credential-grants/:grantId/revoke', 'product/account-credential-grant-routes.ts', 'revokeCredentialGrant', GRANTS),
@@ -510,10 +515,12 @@ const REQUIRED_ETAG_RECEIPTS: readonly PinnedRoute[] = [
 const KNOWN_GAPS: readonly PinnedRoute[] = [];
 
 /**
- * Routes whose replay branch re-derives ETag outside stored headers. The two
- * extension favicon helper routes were the only members; they left with A8.
+ * Extension helper routes retain a live ETag fallback for older receipts.
  */
-const REPLAY_ETAG_FALLBACK_ROUTES: readonly string[] = [];
+const REPLAY_ETAG_FALLBACK_ROUTES: readonly string[] = [
+  'POST /colp/v0.1/sync/collections/:collectionId/nodes/:nodeId/favicon',
+  'DELETE /colp/v0.1/sync/collections/:collectionId/nodes/:nodeId/favicon',
+];
 
 // ---- tests ----
 

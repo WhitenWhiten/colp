@@ -12,6 +12,7 @@ export interface Phase4bMcpOfficialClientOptions {
   readonly authorization?: string;
   readonly fetch?: FetchImplementation;
   readonly clientInfo?: Implementation;
+  readonly approvalElicitation?: boolean;
 }
 
 export interface Phase4bMcpOfficialClient {
@@ -36,7 +37,10 @@ export function createPhase4bMcpOfficialClient(
   };
   const client = new Client(clientInfo, {
     versionNegotiation: { mode: { pin: PHASE4B_MCP_PROTOCOL_VERSION } },
-    capabilities: { tools: { call: true } } as never,
+    capabilities: {
+      tools: { call: true },
+      ...(options.approvalElicitation ? { elicitation: { url: {} } } : {}),
+    } as never,
   });
   const token = options.authorization?.match(/^Bearer\s+(\S+)$/iu)?.[1];
   const rawResultsByMethod = new Map<string, unknown>();

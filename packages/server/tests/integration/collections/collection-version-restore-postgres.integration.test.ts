@@ -3,6 +3,8 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, test } from 'vitest';
 import { createPostgresCollectionVersionUnitOfWork } from '../../../src/infrastructure/collections/index.js';
 import { runMigrations } from '../../../src/infrastructure/database/index.js';
+import { measureCanonicalTree } from '../../../src/infrastructure/collections/canonical-tree-capacity.js';
+import { readCanonicalTreeCapacity } from '../../../src/infrastructure/collections/canonical-tree-capacity-ledger.js';
 import {
   CollectionVersionRestoreReceiptConflictError,
   createCollectionVersion,
@@ -161,7 +163,7 @@ describeWithPostgres('HV-02 PostgreSQL collection version restore', () => {
     }
   }
 
-  test.each([10, 100])('BECORE-02 restores %i titles with two full-tree measurements', async (count) => {
+  test.each([10, 100])('BECORE-02 restores %i titles without full-tree capacity measurements', async (count) => {
     await resetLibrary();
     const client = await isolated.runtime.pool.connect();
     try {
@@ -199,7 +201,10 @@ describeWithPostgres('HV-02 PostgreSQL collection version restore', () => {
     }));
     assert.equal(restored.kind, 'succeeded');
     if (restored.kind === 'succeeded') assert.equal(restored.receipt.updatedNodeIds.length, count);
-    assert.equal(scans, 2);
+    assert.equal(scans, 0);
+    await isolated.runtime.db.transaction().execute(async tx => {
+      assert.deepEqual(await readCanonicalTreeCapacity(tx, COL), await measureCanonicalTree(tx, COL));
+    });
   });
 
   test('BECORE-03 identical concurrent restore replays before stale If-Match', async () => {

@@ -195,6 +195,7 @@ describeWithPostgres('MCP-W10 real Fastify Write lifecycle with Read regression'
       url: `${server}${PHASE4B_MCP_CONFIG_ENDPOINT_PATH}`,
       authorization: `Bearer ${auth.token}`,
       fetch: createMcpTestFetch(),
+      approvalElicitation: true,
     });
     await official.connect();
     let planId: string | undefined;
@@ -574,7 +575,7 @@ function modernBody(method: string, id: number, params: Record<string, unknown> 
     params: {
       _meta: {
         'io.modelcontextprotocol/protocolVersion': '2026-07-28',
-        'io.modelcontextprotocol/clientCapabilities': { tools: { call: true } },
+        'io.modelcontextprotocol/clientCapabilities': { tools: { call: true }, elicitation: { url: {} } },
         'io.modelcontextprotocol/clientInfo': { name: 'known-w10-test', version: '1.0.0' },
       },
       ...params,
