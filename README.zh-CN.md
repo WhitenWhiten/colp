@@ -224,6 +224,7 @@ curl -i http://127.0.0.1:8080/.well-known/collection-protocol
 | [`packages/node/`](packages/node/README.md) | `@know-n/colp`：TypeScript 参考实现，以及测试与 [使用指南](packages/node/docs/README.md) |
 | [`packages/node/examples/`](packages/node/examples/publication-server.mjs) | 可在本地运行的最小只读服务器 |
 | [`packages/conformance/`](packages/conformance/README.md) | `colp-conformance`：适用于任何 COLP 服务器的黑盒测试工具 |
+| [`packages/extension/`](packages/extension/README.md) | Know-N for Chrome：Manifest V3 书签管理扩展，可与 COLP Server 或 Know-N 同步 |
 | [`docs/assets/`](docs/assets) | README 使用的横幅与示意图 |
 | [`.github/workflows/colp-ci.yml`](.github/workflows/colp-ci.yml) | CI：协议检查、示例校验、类型检查、测试与证据检查 |
 
@@ -241,7 +242,7 @@ cd protocol && python scripts/validate_examples.py   # 校验协议示例（需�
 - **规范**：`0.1-draft`。0.1 的 Wire Contract 已收口，每个 DTO 都有稳定的 `$defs` 名称；0.2 为 Sync 增加了权威 Pull Effect。
 - **Node.js 包**：实现了全部七个 Profile，每条 MUST 与 MUST NOT 需求都对应到测试，见 [TRACEABILITY.md](packages/node/docs/TRACEABILITY.md)。npm 包为 `@know-n/colp`，初始版本为 `0.1.0`。
 - **一致性测试工具**：目前覆盖匿名的 `core + publication` 读取；带认证的读取与其他 Profile 将在后续加入。
-- **不包含**：生产级服务器、数据库适配器或浏览器扩展。这些属于基于本包构建的应用；上面的示例服务器展示了这类应用的基本结构。
+- **本包不包含**：生产级服务器、数据库适配器或浏览器扩展。这些属于基于本包构建的应用；上面的示例服务器展示了这类应用的基本结构，本仓库的[浏览器扩展](packages/extension/README.md)也是其中之一。
 
 ## 参与贡献
 
@@ -249,4 +250,4 @@ cd protocol && python scripts/validate_examples.py   # 校验协议示例（需�
 
 ## 许可证
 
-[Apache License 2.0](LICENSE)。
+[Apache License 2.0](LICENSE)。该许可证不涵盖浏览器扩展使用的 Know-N 名称、标志和字标，详见其 [README](packages/extension/README.md#license)。

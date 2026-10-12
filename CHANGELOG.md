@@ -14,6 +14,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Probes `406 unsupported_version` with an unsupported `Collection-Protocol-Version` on the Directory URL (PUB-0041).
 
+### Repository
+
+- The Know-N browser extension moved into `packages/extension`, with its own CI jobs and release workflow. It keeps its own version; see its [CHANGELOG](packages/extension/CHANGELOG.md).
+
 ## [0.1.3] - 2026-10-12
 
 ### Node.js package

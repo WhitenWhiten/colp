@@ -222,6 +222,7 @@ The package is protocol logic without a server: it validates wire documents, dec
 | [`packages/node/`](packages/node/README.md) | `@know-n/colp`, the reference implementation in TypeScript, with its tests and [guides](packages/node/docs/README.md) |
 | [`packages/node/examples/`](packages/node/examples/publication-server.mjs) | A minimal read-only server you can run locally |
 | [`packages/conformance/`](packages/conformance/README.md) | `colp-conformance`, a black-box test runner for any COLP server |
+| [`packages/extension/`](packages/extension/README.md) | Know-N for Chrome, a Manifest V3 bookmark manager that syncs with COLP Server or Know-N |
 | [`docs/assets/`](docs/assets) | Banner and diagrams used by the READMEs |
 | [`.github/workflows/colp-ci.yml`](.github/workflows/colp-ci.yml) | CI: protocol checks, example validation, type checks, tests, and the evidence check |
 
@@ -239,7 +240,7 @@ cd protocol && python scripts/validate_examples.py   # validate the protocol exa
 - **Specification:** `0.1-draft`. The 0.1 wire contract is closed: every DTO has a stable `$defs` name. Version 0.2 adds authoritative pull effects to Sync.
 - **Node.js package:** implements all seven profiles. Every MUST and MUST NOT requirement maps to tests, as listed in [TRACEABILITY.md](packages/node/docs/TRACEABILITY.md). The npm package is `@know-n/colp`, starting at version `0.1.0`.
 - **Conformance runner:** covers anonymous `core + publication` reads. Authenticated reads and the other profiles are next.
-- **Not included:** a production server, a database adapter, or browser extensions. These belong to applications built on the package; the example server above shows the shape of one.
+- **Not included in the package:** a production server, a database adapter, or a browser extension. These belong to applications built on the package; the example server above shows the shape of one, and this repository's [browser extension](packages/extension/README.md) is another.
 
 ## Contributing
 
@@ -247,4 +248,4 @@ Issues and pull requests are welcome, and questions and early ideas go to [Discu
 
 ## License
 
-[Apache License 2.0](LICENSE).
+[Apache License 2.0](LICENSE). The license does not cover the Know-N name, logo or wordmark used by the browser extension; see its [README](packages/extension/README.md#license).

@@ -46,6 +46,14 @@ npm --prefix packages/conformance test
 
 When you add a requirement that a client can observe over HTTP, consider adding a check for it to `packages/conformance/src/runner.mjs`.
 
+The browser extension in `packages/extension` has its own [README](packages/extension/README.md) with build, test and release commands. Its unit and browser tests import COLP Server, so install both packages first. Browser tests run a real Chromium under xvfb on Linux.
+
+```bash
+npm --prefix packages/server ci
+npm --prefix packages/extension ci
+npm --prefix packages/extension test
+```
+
 Validate the protocol examples from `protocol/`:
 
 ```bash

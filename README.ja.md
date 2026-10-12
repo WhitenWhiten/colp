@@ -224,6 +224,7 @@ curl -i http://127.0.0.1:8080/.well-known/collection-protocol
 | [`packages/node/`](packages/node/README.md) | `@know-n/colp`：TypeScript によるリファレンス実装と、そのテストと [ガイド](packages/node/docs/README.md) |
 | [`packages/node/examples/`](packages/node/examples/publication-server.mjs) | ローカルで動かせる最小限の読み取り専用サーバー |
 | [`packages/conformance/`](packages/conformance/README.md) | `colp-conformance`：任意の COLP サーバーに使えるブラックボックステストランナー |
+| [`packages/extension/`](packages/extension/README.md) | Know-N for Chrome：COLP Server または Know-N と同期する Manifest V3 のブックマーク管理拡張機能 |
 | [`docs/assets/`](docs/assets) | README で使うバナーと図 |
 | [`.github/workflows/colp-ci.yml`](.github/workflows/colp-ci.yml) | CI：プロトコルのチェック、例の検証、型チェック、テスト、エビデンスのチェック |
 
@@ -241,7 +242,7 @@ cd protocol && python scripts/validate_examples.py   # プロトコルの例を�
 - **仕様**：`0.1-draft`。0.1 のワイヤー契約は確定しており、すべての DTO に安定した `$defs` 名があります。0.2 では、サーバーを正とするプルの効果（authoritative pull effects）を Sync に追加しています。
 - **Node.js パッケージ**：7 つのプロファイルをすべて実装しています。MUST と MUST NOT の要件はすべてテストに対応付けられ、[TRACEABILITY.md](packages/node/docs/TRACEABILITY.md) に一覧があります。npm パッケージは `@know-n/colp` で、初期バージョンは `0.1.0` です。
 - **適合性テストランナー**：匿名での `core + publication` の読み取りに対応しています。認証付きの読み取りとほかのプロファイルは今後対応します。
-- **含まれないもの**：本番用のサーバー、データベースアダプター、ブラウザー拡張機能。これらはパッケージの上に作るアプリケーションの役割で、上のサンプルサーバーがその形を示しています。
+- **パッケージに含まれないもの**：本番用のサーバー、データベースアダプター、ブラウザー拡張機能。これらはパッケージの上に作るアプリケーションの役割で、上のサンプルサーバーがその形を示しています。このリポジトリの[ブラウザー拡張機能](packages/extension/README.md)もその一つです。
 
 ## コントリビューション
 
@@ -249,4 +250,4 @@ Issue と Pull Request を歓迎します。質問や初期段階のアイデア
 
 ## ライセンス
 
-[Apache License 2.0](LICENSE)。
+[Apache License 2.0](LICENSE)。ブラウザー拡張機能が使う Know-N の名称、ロゴ、ワードマークはこのライセンスの対象外です。詳しくは拡張機能の [README](packages/extension/README.md#license) を参照してください。
