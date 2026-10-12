@@ -40,6 +40,8 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { authManifestEntryFor, requireAuthManifestEntry } from './auth-route-manifest.js';
 import { requireAllowedOrigin } from './origin-csrf.js';
 import { productErrorEnvelope, translateBetterAuthError } from '../product-error.js';
+import type { BrowserSessionAuthority } from '../../modules/auth/index.js';
+import { buildSessionSetCookie } from '../session-cookie.js';
 
 export interface BetterAuthRoutesDependencies {
   /**
@@ -53,6 +55,7 @@ export interface BetterAuthRoutesDependencies {
    * chrome-extension:// IDs from Better Auth trustedOrigins.
    */
   readonly allowedOrigins: readonly string[];
+  readonly browserSessionAuthority?: BrowserSessionAuthority;
 }
 
 export function registerBetterAuthRoutes(
@@ -76,6 +79,29 @@ export function registerBetterAuthRoutes(
     if (!isRegisteredBetterAuthEntry(request.method, request.url)) return;
     if (request.method === 'GET' || request.method === 'HEAD' || request.method === 'OPTIONS') return;
     requireAllowedOrigin(request, deps.allowedOrigins);
+  });
+
+  // Better Auth retains rotated predecessor rows as FK anchors. Do not let
+  // get-session report one as a usable product credential.
+  app.addHook('onRequest', async (request, reply) => {
+    if (request.method !== 'GET' || request.url.split('?')[0] !== '/api/v1/auth/get-session'
+      || !deps.browserSessionAuthority) return;
+    if (request.headers.origin !== undefined) requireAllowedOrigin(request, deps.allowedOrigins);
+    const result = await deps.browserSessionAuthority.bootstrap(
+      { cookie: request.headers.cookie }, { allowRotation: false },
+    );
+    if (!result.authenticated) {
+      if (result.verificationRequired) return; // Preserve unverified login occupancy.
+      return reply.code(200).send(null);
+    }
+    if (result.rotatedCookieValue) {
+      const cookie = buildSessionSetCookie(result.rotatedCookieValue, {
+        maxAgeSeconds: (result.absoluteExpiresAt.getTime() - Date.now()) / 1000,
+      });
+      request.headers.cookie = cookie.split(';')[0]!;
+      request.raw.headers.cookie = request.headers.cookie;
+      reply.header('Set-Cookie', cookie);
+    }
   });
 
   // Product response contract: R9 token stripping + unified error envelopes.

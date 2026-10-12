@@ -172,6 +172,7 @@ export function registerProductSurfaces(
     registerBetterAuthRoutes(app, {
       betterAuthRuntime,
       allowedOrigins: config.betterAuth.trustedOrigins,
+      ...(browserSessionAuthority ? { browserSessionAuthority } : {}),
     });
   }
   // T-05 / ADR D6: issuer-inserted AS metadata is independent of MCP Read.

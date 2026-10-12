@@ -41,6 +41,8 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 
 ### Fixed
 
+- Browser session reads recover the current cookie across multiple rotations and reject revoked sessions instead of reporting stale Better Auth predecessors as usable. This lets extensions refresh credentials after missing a rotation.
+- Agents supports HTTPS CIMD client IDs (including Codex's metadata URL) in the web list, policy, audit and revoke routes.
 - MCP compatibility tool results omit fractional annotation priorities, fixing `collections.get_snapshot` failing with `Unexpected response type` in Codex 0.162.1. Snapshot data, resource links and other annotations are preserved.
 - Collection pages retry database-aborted reads during concurrent bookmark sync, instead of immediately returning 503. Each attempt keeps the shared collection lock, repeatable-read snapshot, authorization and cursor revision checks; persistent conflicts still fail after three attempts.
 - IP-based HTTPS works through Docker's TLS ingress when the client omits SNI. Both TLS Compose services derive Caddy's default certificate selection name from `COLP_SERVER_ORIGIN` (IPv4, IPv6 and DNS, with optional ports), without an extra operator setting. CI verifies real certificate-chain and identity checks against the production Compose configuration.

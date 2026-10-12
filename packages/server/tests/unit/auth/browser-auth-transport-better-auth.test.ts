@@ -295,6 +295,43 @@ describe('browser auth transport with the real Better Auth composition', () => {
     return { accountId };
   }
 
+  test('get-session recovers a stale cookie across rotations and rejects a revoked chain', async () => {
+    const { cookie, token } = await signUp(uniqueEmail('rotation-recovery'));
+    await establishMetadata(token);
+    let currentCookie = cookie;
+    for (let i = 0; i < 3; i++) {
+      const encoded = currentCookie.slice(currentCookie.indexOf('=') + 1);
+      const value = decodeURIComponent(encoded);
+      const currentToken = value.slice(0, value.lastIndexOf('.'));
+      await fixture.pool.query(
+        `update known_auth_session_metadata set created_at = current_timestamp - interval '16 minutes' where session_token_hash = $1`,
+        [browserSessionTokenHash(currentToken)],
+      );
+      const rotated = await app.inject({ method: 'GET', url: '/api/v1/session', headers: {
+        cookie: currentCookie, origin: TRUSTED_ORIGIN,
+      } });
+      const cookies = rotated.headers['set-cookie'];
+      const header = Array.isArray(cookies) ? cookies[0] : cookies;
+      assert.ok(header);
+      currentCookie = header.split(';')[0]!;
+    }
+    const recovered = await app.inject({ method: 'GET', url: '/api/v1/auth/get-session', headers: { cookie } });
+    assert.equal(recovered.statusCode, 200);
+    assert.ok(recovered.json().session?.id);
+    const cookies = recovered.headers['set-cookie'];
+    const header = Array.isArray(cookies) ? cookies[0] : cookies;
+    assert.equal(header?.split(';')[0], currentCookie);
+    assert.equal(recovered.json().session.token, undefined);
+    const me = await app.inject({ method: 'GET', url: '/api/v1/me', headers: { cookie: currentCookie } });
+    assert.equal(me.statusCode, 200);
+    await fixture.pool.query(`update known_auth_session_metadata set revoked_at = current_timestamp where auth_session_id = $1`,
+      [recovered.json().session.id]);
+    const denied = await app.inject({ method: 'GET', url: '/api/v1/auth/get-session', headers: { cookie } });
+    assert.equal(denied.statusCode, 200);
+    assert.equal(denied.json(), null);
+    assert.equal(denied.headers['set-cookie'], undefined);
+  });
+
   test('sign-up → business account → /api/v1/session CSRF bootstrap → /api/v1/me product shape', async () => {
     const email = uniqueEmail('full');
     const { cookie, token } = await signUp(email);

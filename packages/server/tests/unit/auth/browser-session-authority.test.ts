@@ -839,6 +839,24 @@ describe('BrowserSessionAuthority bootstrap and rotation', () => {
     assert.equal(world.mintCounter, 1, 'the loser must not mint a second successor');
   });
 
+  test('a sleeping extension follows multiple rotations and cannot revive a revoked leaf', async () => {
+    const { world, authority } = createMemoryHarness();
+    const { cookie } = seedUsableSession(world, { createdAtAgoMs: 16 * 60_000 });
+    let current = cookie;
+    for (let i = 0; i < 3; i++) {
+      const rotated = await authority.bootstrap({ cookie: cookieHeader(current) });
+      assert.ok(rotated.authenticated && rotated.rotatedCookieValue);
+      current = rotated.rotatedCookieValue;
+      world.now = new Date(world.now.getTime() + 16 * 60_000);
+    }
+    const recovered = await authority.bootstrap({ cookie: cookieHeader(cookie) }, { allowRotation: false });
+    assert.ok(recovered.authenticated);
+    assert.equal(recovered.rotatedCookieValue, current);
+    assert.equal(world.mintCounter, 3);
+    await authority.signOut({ cookie: cookieHeader(current) });
+    assert.equal((await authority.bootstrap({ cookie: cookieHeader(cookie) })).authenticated, false);
+  });
+
   test('a CAS-conflict during the rotation write converges without minting twice', async () => {
     const { world, authority, unitOfWork } = createMemoryHarness();
     const { cookie } = seedUsableSession(world, { createdAtAgoMs: 16 * 60_000 });

@@ -4,10 +4,9 @@
  * credentials. A missing agent_policies row is manual.
  */
 import { sql, type Kysely } from 'kysely';
-import { digestMcpOauthRevocationField } from '../../modules/mcp/index.js';
+import { digestMcpOauthRevocationField, isAgentClientId } from '../../modules/mcp/index.js';
 import type { DatabaseSchema } from '../database/index.js';
 
-const AGENT_ID = /^[A-Za-z0-9._~-]{1,256}$/u;
 const MAX_LIMIT = 100;
 
 const GRANT_SCOPES: Readonly<Record<string, readonly string[]>> = Object.freeze({
@@ -464,7 +463,7 @@ function policyName(value: string): AgentPolicyName {
 }
 
 function assertAgentId(agentId: string): void {
-  if (!AGENT_ID.test(agentId)) throw new TypeError('Agent id is invalid.');
+  if (!isAgentClientId(agentId)) throw new TypeError('Agent id is invalid.');
 }
 
 function boundLimit(limit: number): number {

@@ -65,7 +65,7 @@ describeWithPostgres('E5 agent directory over PostgreSQL', () => {
     });
     const ownerUser = await authUserId(owner.accountId);
     const otherUser = await authUserId(other.accountId);
-    oauthId = `agent-oauth-${randomUUID().slice(0, 8)}`;
+    oauthId = 'https://chatgpt.com/oauth/codex/client.json';
     sharedOauthId = `agent-shared-${randomUUID().slice(0, 8)}`;
     foreignId = `agent-foreign-${randomUUID().slice(0, 8)}`;
     keyId = randomUUID();
@@ -178,13 +178,13 @@ describeWithPostgres('E5 agent directory over PostgreSQL', () => {
     assert.deepEqual(key?.scopes, ['nodes:write']);
     assert.equal(key?.policy, 'manual');
     assert.equal(key?.lastSeenAt, '2026-08-07T01:02:03.000Z');
-    const policy = await send(owner, 'GET', `/api/v1/me/agents/${oauthId}/policy`);
+    const policy = await send(owner, 'GET', `/api/v1/me/agents/${encodeURIComponent(oauthId)}/policy`);
     assert.equal(policy.status, 200);
     assert.deepEqual(policy.json, { clientId: oauthId, policy: 'trusted' });
   });
 
   test('returns recent plans and direct writes with versionId', async () => {
-    const response = await send(owner, 'GET', `/api/v1/me/agents/${oauthId}/audit`);
+    const response = await send(owner, 'GET', `/api/v1/me/agents/${encodeURIComponent(oauthId)}/audit`);
     assert.equal(response.status, 200);
     const records = (response.json as { records: Array<Record<string, unknown>> }).records;
     const versioned = records.find((record) => record.id === versionedPlanId);
@@ -196,10 +196,29 @@ describeWithPostgres('E5 agent directory over PostgreSQL', () => {
     assert.equal(direct?.summary, 'Created a bookmark');
     assert.equal(direct?.outcome, 'succeeded');
     assert.equal(direct?.versionId, 'version-direct-1');
-    const hidden = await send(other, 'GET', `/api/v1/me/agents/${oauthId}/audit`);
+    const hidden = await send(other, 'GET', `/api/v1/me/agents/${encodeURIComponent(oauthId)}/audit`);
     assert.equal(hidden.status, 404);
     const anon = await app.inject({ method: 'GET', url: '/api/v1/me/agents' });
     assert.equal(anon.statusCode, 401);
+  });
+
+  test('updates policy for an encoded CIMD client ID and rejects invalid URL IDs', async () => {
+    const clientId = 'https://client.example/policy.json';
+    await insertOauthClient({ id: 'row-cimd-policy', clientId, userId: await authUserId(owner.accountId),
+      name: 'Policy client', scopes: ['nodes:read'], createdAt: '2026-08-03T00:00:00.000Z', seenAt: null });
+    const url = `/api/v1/me/agents/${encodeURIComponent(clientId)}/policy`;
+    const updated = await app.inject({ method: 'PUT', url, headers: {
+      cookie: owner.cookie, origin: ORIGIN, 'x-csrf-token': owner.csrfToken,
+    }, payload: { policy: 'trusted' } });
+    assert.equal(updated.statusCode, 200);
+    assert.deepEqual(updated.json(), { clientId, policy: 'trusted' });
+    const read = await send(owner, 'GET', url);
+    assert.deepEqual(read.json, { clientId, policy: 'trusted' });
+    for (const id of ['http://example.com/client.json', 'https:client.json', 'https://user:pass@example.com/client.json',
+      'https://example.com/client.json#fragment', 'https://example.com/a b']) {
+      const invalid = await send(owner, 'GET', `/api/v1/me/agents/${encodeURIComponent(id)}/policy`);
+      assert.equal(invalid.status, 400, id);
+    }
   });
 
   test('a consenting account can revoke only its own OAuth consent and tokens', async () => {
@@ -270,15 +289,15 @@ describeWithPostgres('E5 agent directory over PostgreSQL', () => {
   });
 
   test('revokes one oauth client and one API key without touching the other', async () => {
-    const denied = await send(other, 'POST', `/api/v1/me/agents/${oauthId}/revoke`);
+    const denied = await send(other, 'POST', `/api/v1/me/agents/${encodeURIComponent(oauthId)}/revoke`);
     assert.equal(denied.status, 404);
     const missingCsrf = await app.inject({
       method: 'POST',
-      url: `/api/v1/me/agents/${oauthId}/revoke`,
+      url: `/api/v1/me/agents/${encodeURIComponent(oauthId)}/revoke`,
       headers: { cookie: owner.cookie, origin: ORIGIN },
     });
     assert.equal(missingCsrf.statusCode, 403);
-    const oauth = await send(owner, 'POST', `/api/v1/me/agents/${oauthId}/revoke`);
+    const oauth = await send(owner, 'POST', `/api/v1/me/agents/${encodeURIComponent(oauthId)}/revoke`);
     assert.equal(oauth.status, 200);
     const oauthBody = oauth.json as { id: string; revoked: boolean; cancelledPlanCount: number };
     assert.equal(oauthBody.id, oauthId);
@@ -287,7 +306,7 @@ describeWithPostgres('E5 agent directory over PostgreSQL', () => {
     const key = await send(owner, 'POST', `/api/v1/me/agents/${keyId}/revoke`);
     assert.equal(key.status, 200);
     assert.equal((key.json as { cancelledPlanCount: number }).cancelledPlanCount, 1);
-    const again = await send(owner, 'POST', `/api/v1/me/agents/${oauthId}/revoke`);
+    const again = await send(owner, 'POST', `/api/v1/me/agents/${encodeURIComponent(oauthId)}/revoke`);
     assert.equal(again.status, 200);
     assert.equal((again.json as { cancelledPlanCount: number }).cancelledPlanCount, 0);
     const listed = await send(owner, 'GET', '/api/v1/me/agents');

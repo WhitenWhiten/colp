@@ -544,6 +544,18 @@ async function resolveSuccessor(
   options: { readonly idleTtlMs: number; readonly touchMinIntervalMs: number },
 ): Promise<BrowserSessionBootstrapResult> {
   return unitOfWork.execute(async (ports) => {
+    // A sleeping extension can miss several rotations. Follow metadata links
+    // to the live successor before resolving its cookie; revoked leaves still
+    // fail closed. 4096 exceeds the 30-day lifetime at 15-minute rotations.
+    const seen = new Set<string>();
+    for (;;) {
+      if (seen.has(predecessorAuthSessionId) || seen.size >= 4096) return unauthenticatedBootstrap(false);
+      seen.add(predecessorAuthSessionId);
+      const next = await ports.store.findByPredecessor(predecessorAuthSessionId);
+      if (!next) return unauthenticatedBootstrap(false);
+      if (next.revokedAt === null) break;
+      predecessorAuthSessionId = next.authSessionId;
+    }
     const minted = await ports.store.findSuccessorCookie(predecessorAuthSessionId);
     if (!minted) return unauthenticatedBootstrap(false);
     const winnerBa = await betterAuth.getSession({ cookie: browserSessionCookieHeader(minted.rawCookieValue) });

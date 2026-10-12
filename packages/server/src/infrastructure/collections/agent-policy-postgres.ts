@@ -13,6 +13,7 @@ import {
 import type { RestoreCollectionVersionPorts } from '../../modules/collections/index.js';
 import {
   AgentPlanUndoError,
+  isAgentClientId,
   captureAgentPlanCollectionVersion,
   createAutoApproveTrustedPlan,
   createPhase4bMcpWriteApprovalApi,
@@ -395,7 +396,7 @@ async function savePolicyReceipt(
 }
 
 function assertClientId(clientId: string): void {
-  if (!CLIENT_ID.test(clientId)) throw new TypeError('Agent client id is invalid.');
+  if (!isAgentClientId(clientId)) throw new TypeError('Agent client id is invalid.');
 }
 
 function assertPrincipalId(principalId: string): void {

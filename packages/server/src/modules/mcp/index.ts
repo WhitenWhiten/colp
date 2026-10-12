@@ -7,6 +7,7 @@
  * registration lives in transport; no claim controller is exposed here.
  */
 export * from './config.js';
+export * from './agent-client-id.js';
 export * from './change-signal-source.js';
 export * from './collection-resources.js';
 export * from './discovery.js';

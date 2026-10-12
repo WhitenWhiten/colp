@@ -1,4 +1,5 @@
 import { AccountCredentialCommandError } from '../../modules/auth/index.js';
+import { isAgentClientId } from '../../modules/mcp/index.js';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { observeBestEffort } from '../../infrastructure/async/best-effort.js';
 import { secretsMatch } from '../../modules/identity/index.js';
@@ -13,7 +14,6 @@ import type { McpWriteApprovalRoutesDependencies } from './mcp-write-approval-ro
 const LIST = '/api/v1/me/agents';
 const AUDIT = '/api/v1/me/agents/:id/audit';
 const REVOKE = '/api/v1/me/agents/:id/revoke';
-const AGENT_ID = /^[A-Za-z0-9._~-]{1,256}$/u;
 const MAX_LIMIT = 100;
 const DEFAULT_LIMIT = 50;
 
@@ -169,7 +169,7 @@ async function consume(deps: McpWriteApprovalRoutesDependencies, facts: string):
 
 function readAgentId(request: FastifyRequest): string {
   const value = (request.params as { id?: string }).id;
-  if (typeof value !== 'string' || !AGENT_ID.test(value)) throw invalidRequest();
+  if (!isAgentClientId(value)) throw invalidRequest();
   return value;
 }
 

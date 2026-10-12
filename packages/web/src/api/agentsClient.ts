@@ -16,7 +16,18 @@ import { getCsrfToken } from './sessionStore'
  * page mount does not trip the suite's undeclared-fetch guard.
  */
 
-const AGENT_ID = /^[A-Za-z0-9._~-]{1,256}$/u
+function isAgentId(value: unknown): value is string {
+  if (typeof value !== 'string') return false
+  if (/^[A-Za-z0-9._~-]{1,256}$/u.test(value)) return true
+  if (!/^https:\/\//iu.test(value) || value.length > 2048 || /[\s\u0000-\u001f\u007f]/u.test(value)) return false
+  try {
+    const url = new URL(value)
+    return url.protocol === 'https:' && url.hostname !== ''
+      && url.username === '' && url.password === '' && url.hash === ''
+  } catch {
+    return false
+  }
+}
 const PLAN_ID = /^[A-Za-z0-9._~-]{1,128}$/u
 
 export type AgentKind = 'oauth_client' | 'api_key'
@@ -166,7 +177,7 @@ function invalidRequest(message: string): ProductApiError {
 }
 
 function assertAgentId(id: string): string {
-  if (!AGENT_ID.test(id)) throw invalidRequest('That agent id is not valid.')
+  if (!isAgentId(id)) throw invalidRequest('That agent id is not valid.')
   return id
 }
 
@@ -263,7 +274,7 @@ function policyName(value: unknown): AgentPolicy {
 
 function parseAgent(value: unknown): AgentSummary {
   if (!isRecord(value)) throw badResponse('The agent list was not understood.')
-  if (typeof value.id !== 'string' || !AGENT_ID.test(value.id)) throw badResponse('The agent list was not understood.')
+  if (!isAgentId(value.id)) throw badResponse('The agent list was not understood.')
   if (typeof value.name !== 'string') throw badResponse('The agent list was not understood.')
   if (value.kind !== 'oauth_client' && value.kind !== 'api_key') throw badResponse('The agent list was not understood.')
   if (!Array.isArray(value.scopes) || value.scopes.some((scope) => typeof scope !== 'string')) {

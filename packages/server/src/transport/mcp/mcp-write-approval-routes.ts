@@ -8,7 +8,7 @@ import type {
   WriteApprovalDecision,
   WriteApprovalDecisionInput,
 } from '../../modules/mcp/index.js';
-import { AgentPlanUndoError, WriteApprovalApiError } from '../../modules/mcp/index.js';
+import { AgentPlanUndoError, WriteApprovalApiError, isAgentClientId } from '../../modules/mcp/index.js';
 import type { McpRateLimiter } from '../../infrastructure/rate-limit/index.js';
 import {
   readKnownCommandId,
@@ -29,7 +29,6 @@ const DECISION = '/api/v1/mcp/approvals/:planId/decision';
 const UNDO = '/api/v1/mcp/approvals/:planId/undo';
 const POLICY = '/api/v1/me/agents/:clientId/policy';
 const PLAN_ID_PATTERN = /^[A-Za-z0-9._~-]{1,128}$/u;
-const CLIENT_ID_PATTERN = /^[A-Za-z0-9._~-]{1,256}$/u;
 const MAX_LIST_LIMIT = 100;
 
 export interface McpWriteApprovalRoutesDependencies {
@@ -446,7 +445,7 @@ function policyApi(deps: McpWriteApprovalRoutesDependencies): AgentPolicyApprova
 
 function readClientId(request: FastifyRequest): string {
   const value = (request.params as { clientId?: string }).clientId;
-  if (typeof value !== 'string' || !CLIENT_ID_PATTERN.test(value)) throw invalidRequest();
+  if (!isAgentClientId(value)) throw invalidRequest();
   return value;
 }
 

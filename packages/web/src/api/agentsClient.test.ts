@@ -84,6 +84,32 @@ describe('agent directory client', () => {
     expect(String(fetchImpl.mock.calls[2]?.[0])).toContain('/api/v1/me/agents/claude-code/audit?limit=50')
   })
 
+  it('lists and manages a CIMD agent using its encoded HTTPS client ID', async () => {
+    const id = 'https://chatgpt.com/oauth/codex/client.json'
+    const cimd = { ...agent, id, name: 'Codex' }
+    applySessionView({ authenticated: true, csrfToken: 'csrf-cimd', idleExpiresAt: '2099-01-01T00:00:00Z', absoluteExpiresAt: '2099-01-01T00:00:00Z' })
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.endsWith('/agents')) return json(200, { agents: [cimd] })
+      expect(url).toContain(`/agents/${encodeURIComponent(id)}/`)
+      if (url.endsWith('/policy')) return json(200, { clientId: id, policy: 'manual' })
+      if (url.endsWith('/revoke')) return json(200, { id, revoked: true, cancelledPlanCount: 0 })
+      return json(200, { records: [] })
+    })
+    await expect(listAgents({ fetch: fetchImpl })).resolves.toEqual({ agents: [cimd] })
+    await expect(getAgentPolicy(id, { fetch: fetchImpl })).resolves.toEqual({ clientId: id, policy: 'manual' })
+    await expect(putAgentPolicy(id, 'manual', { fetch: fetchImpl })).resolves.toEqual({ clientId: id, policy: 'manual' })
+    await expect(listAgentAudit(id, { fetch: fetchImpl })).resolves.toEqual({ records: [] })
+    await expect(revokeAgent(id, { fetch: fetchImpl })).resolves.toEqual({ id, revoked: true, cancelledPlanCount: 0 })
+  })
+
+  it.each(['http://example.com/client.json', 'https:client.json', 'https://user:pass@example.com/client.json',
+    'https://example.com/client.json#fragment', 'https://example.com/a b', `https://example.com/${'a'.repeat(2048)}`])('rejects invalid client URL %s before fetching', async id => {
+    const fetchImpl = vi.fn<typeof fetch>()
+    await expect(getAgentPolicy(id, { fetch: fetchImpl })).rejects.toThrow('That agent id is not valid.')
+    expect(fetchImpl).not.toHaveBeenCalled()
+  })
+
   it('puts policy, revokes, and issues a key once', async () => {
     applySessionView({
       authenticated: true,
