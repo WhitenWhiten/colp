@@ -53,7 +53,7 @@ test('pending Plan and Commit use MRTR input_required, and a new request retry c
       method: 'elicitation/create',
       params: {
         mode: 'url',
-        message: 'Review this change at the approval link. Only the owner can approve it.',
+        message: 'Open the approval link to review this change. Approval must be recorded by the owner before it can be committed.',
         url: (planPayload.result?.plan as { approvalUri: string }).approvalUri,
         elicitationId: (planPayload.result?.plan as { planId: string }).planId,
       },

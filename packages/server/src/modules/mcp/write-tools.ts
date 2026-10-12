@@ -1,7 +1,6 @@
 import { createPhase4bMcpResult } from './results.js';
 import { withWriteReceipt, withWriteReceiptSchema } from './write-result-receipt.js';
 import { assertHostPlanOperations, narrowHostPlanSchema } from './plan-tool-schema.js';
-import { withApprovalInteraction, withApprovalSchema } from './approval-interaction.js';
 import { createStaticMcpToolLookup, type StaticMcpToolLookup } from './static-tool-lookup.js';
 import type { Phase4bMcpChangePlanService } from './change-plan-service.js';
 import { PHASE4B_MCP_MOVE_BATCH_LIMIT } from './change-plan-planner.js';
@@ -608,7 +607,7 @@ function withMcpAccountSubject(
             ...(plan.versionId ? { versionId: plan.versionId } : {}),
           } }, cache: { ttlMs: 0, cacheScope: 'private' } }, true);
         }
-        return withWriteReceipt(withApprovalInteraction(await adapter.callTool(context, input), context, call.inputResponses), String(call.name));
+        return withWriteReceipt(await adapter.callTool(context, input), String(call.name));
       }).catch(rethrowPhase4bMcpWriteAdapterError),
     recordOutOfBandApproval: (planId, context) =>
       bindMcpAccountSubject(context, () => adapter.recordOutOfBandApproval(planId, context)),
@@ -622,9 +621,8 @@ function withHostWriteToolDescription(tool: Readonly<Record<string, unknown>>): 
   const description = name === 'changes.plan'
     ? PHASE4B_MCP_CHANGES_PLAN_DESCRIPTION
     : typeof name === 'string' ? PHASE4B_MCP_WRITE_TOOL_DESCRIPTIONS[name] : undefined;
-  const surfaced = withApprovalSchema(tool as Record<string, unknown>);
-  return snapshotPhase4bData(description === undefined ? surfaced
-    : { ...narrowHostPlanSchema(withWriteReceiptSchema(surfaced)), description }, MCP_OWN_DATA_DEFAULT_BUDGET) as Readonly<Record<string, unknown>>;
+  return snapshotPhase4bData(description === undefined ? tool
+    : { ...narrowHostPlanSchema(withWriteReceiptSchema(tool)), description }, MCP_OWN_DATA_DEFAULT_BUDGET) as Readonly<Record<string, unknown>>;
 }
 
 /**

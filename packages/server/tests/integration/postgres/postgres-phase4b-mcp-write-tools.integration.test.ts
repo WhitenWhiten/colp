@@ -263,7 +263,7 @@ describeWithPostgres('MCP-W06 Modern Write Tools over PostgreSQL', () => {
         method: 'elicitation/create',
         params: {
           mode: 'url',
-          message: 'Review this change at the approval link. Only the owner can approve it.',
+          message: 'Open the approval link to review this change. Approval must be recorded by the owner before it can be committed.',
           url: (planned.plan as { approvalUri: string }).approvalUri,
           elicitationId: (planned.plan as { planId: string }).planId,
         },
