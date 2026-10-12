@@ -40,7 +40,7 @@
     "openapi:generate": "node scripts/generate-openapi.mjs",
     "openapi:drift": "node scripts/generate-openapi.mjs --check",
     "openapi:breaking": "node scripts/check-openapi-breaking.mjs",
-    "openapi:ci": "npm run openapi:lint && npm run openapi:catalog && npm run openapi:examples && npm run openapi:drift && npm run openapi:breaking",
+    "openapi:ci": "npm run openapi:automation && npm run openapi:lint && npm run openapi:catalog && npm run openapi:examples && npm run openapi:drift && npm run openapi:breaking",
     "verify:phase5:contracts": "vitest run tests/unit/phase5/phase5-free-social-contract.test.ts",
     "verify:phase5:social-events": "vitest run tests/unit/phase5/phase5-social-event-contract.test.ts",
     "ci:focused-coverage": "npm run test:focused-coverage",
@@ -62,7 +62,8 @@
     "test:mcp:write-operations:postgres": "node scripts/with-postgres.mjs -- npm run test:mcp:write-operations:postgres:inner",
     "test:redis-rate-limit": "vitest run --project redis tests/integration/redis/effect-page-admission-security.integration.test.ts",
     "test:acceptance:profiles": "node scripts/with-postgres.mjs --isolated-owner -- node node_modules/vitest/vitest.mjs run --project postgres --fileParallelism=false tests/integration/phase2/phase2-profile-conformance.integration.test.ts",
-    "check:migrations": "node scripts/check-migration-order.mjs"
+    "check:migrations": "node scripts/check-migration-order.mjs",
+    "openapi:automation": "node scripts/sync-automation-openapi.mjs --check"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1095.0",

@@ -2,6 +2,10 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { compile } from 'json-schema-to-typescript';
 const root = new URL('../', import.meta.url);
 const schema = JSON.parse(await readFile(new URL('../../docs/automation/design/schemas/rule-input.schema.json', root), 'utf8'));
+const adjustments = JSON.parse(await readFile(new URL('../../docs/automation/contract-adjustments.json', root), 'utf8'));
+for (const [name, patch] of Object.entries(adjustments)) {
+  schema.$defs[name].required = schema.$defs[name].required.filter((key) => !patch.removeRequired.includes(key));
+}
 const names = Object.keys(schema.$defs);
 const index = { $schema: schema.$schema, title: 'AutomationContracts', type: 'object', additionalProperties: false,
   properties: Object.fromEntries(names.map((name) => [name, { $ref: `#/$defs/${name}` }])), required: names, $defs: schema.$defs };

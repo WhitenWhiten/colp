@@ -74,6 +74,7 @@ import type { McpReadTransportDependencies } from './mcp/mcp-read-routes.js';
 import type { McpWriteApprovalRoutesDependencies } from './mcp/mcp-write-approval-routes.js';
 
 export interface AppDependencies {
+  readonly automationUnitOfWork?: import('../modules/automation/index.js').AutomationUnitOfWork;
   readonly config: AppConfig;
   readonly readiness?: ReadinessProbe;
   /** T10 optional cache state for the main /ready fail-closed branch. */

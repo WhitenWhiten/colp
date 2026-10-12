@@ -1,3 +1,4 @@
+import { createAutomationUnitOfWork } from '../infrastructure/automation/index.js';
 import { createPostgresBookmarkSubscriptionUnitOfWork } from '../infrastructure/bookmark-subscriptions/unit-of-work.js';
 import { loadConfig } from './config.js';
 import {
@@ -300,6 +301,7 @@ export function createApiPostgresAppDependencies(input: {
         database.db, config.syncSession.conflictPayloadKeyring,
       ),
     } : {}),
+    ...(config.automationConfigurationEnabled ? { automationUnitOfWork: createAutomationUnitOfWork(database.db, config.publication.serverUuid) } : {}),
     linkHealthEnqueue: createPostgresLinkHealthEnqueueUnitOfWork(database.db),
     collectionExportReads: createPostgresCollectionExportReadPort(database.db),
     collectionVersions: createPostgresCollectionVersionUnitOfWork(database.db, { ...(reportSourceInvalidation === undefined ? {} : { reportSourceInvalidation }) }),

@@ -1,4 +1,4 @@
-import { exportAutomations } from '../infrastructure/automation/export.js';
+import { exportAutomations } from '../infrastructure/automation/index.js';
 import { chmod, mkdir, stat, writeFile } from 'node:fs/promises';
 import { join, resolve, sep } from 'node:path';
 import type { Kysely } from 'kysely';

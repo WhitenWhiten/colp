@@ -526,6 +526,91 @@ export const PRODUCT_ROUTE_MANIFEST = [
     "operationId": "revokeAgent"
   },
   {
+    "method": "GET",
+    "path": "/api/v1/me/automations/binding-sets",
+    "operationId": "listAutomationBindingSets"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/automations/binding-sets",
+    "operationId": "createAutomationBindingSet"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/me/automations/binding-sets/{bindingSetId}",
+    "operationId": "deleteAutomationBindingSet"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/automations/binding-sets/{bindingSetId}",
+    "operationId": "getAutomationBindingSet"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/me/automations/binding-sets/{bindingSetId}",
+    "operationId": "replaceAutomationBindingSet"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/automations/capabilities",
+    "operationId": "getAutomationCapabilities"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/automations/export",
+    "operationId": "exportAutomations"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/automations/pause",
+    "operationId": "getAutomationPause"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/automations/pause",
+    "operationId": "setAutomationPause"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/automations/rules",
+    "operationId": "listAutomationRules"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/automations/rules",
+    "operationId": "createAutomationRule"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/automations/rules/preview",
+    "operationId": "previewAutomationRule"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/automations/rules/validate",
+    "operationId": "validateAutomationRule"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/me/automations/rules/{ruleId}",
+    "operationId": "deleteAutomationRule"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/automations/rules/{ruleId}",
+    "operationId": "getAutomationRule"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/me/automations/rules/{ruleId}",
+    "operationId": "replaceAutomationRule"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/automations/rules/{ruleId}/lifecycle",
+    "operationId": "setAutomationRuleLifecycle"
+  },
+  {
     "method": "POST",
     "path": "/api/v1/me/avatar",
     "operationId": "uploadMyAvatar"

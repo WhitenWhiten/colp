@@ -37,3 +37,31 @@ The original checkout's CI edits and untracked extension are untouched.
 
 No UI, native browser runtime, worker, Events, models or canonical bookmark effects.
 Each [evidence record](evidence/) lists executed checks and limitations.
+
+## Running the configuration slice
+
+Set `KNOWN_FEATURE_AUTOMATION_CONFIGURATION=true` to mount the authenticated
+`/api/v1/me/automations` routes. Default false conceals the entire feature. This
+flag enables configuration/validation/preview only. Capabilities return no mounted
+execution profiles/tasks. Desired enabled remains blocked until BE-2 is installed.
+The deployment secret and existing Product session/CSRF configuration are reused.
+
+## Resolved contract conflicts
+
+* Reviewed ChangeInput requires executionPolicyId while M1 explicitly forbids a
+  dummy policy. contract-adjustments.json makes it optional in generated core and
+  backend mirrors; nonempty policies are rejected on the M1 host.
+* The reviewed ScopeSpec schema permits an empty object. Semantic authorization
+  requires an explicit collection or resolvable folder role; no all-owner scope is inferred.
+* The design's fragment pipeline differs from this checkout. A deterministic sync
+  script maintains producer mirror fragments/automations.yaml and owned inline
+  blocks in product-v1.yaml; normal OpenAPI generation remains authoritative.
+* Added GET /pause to discover the revision required by the existing If-Match
+  contract, DELETE /rules/{id} as archival (immutable history retained), and DELETE
+  /binding-sets/{id} only for never-referenced sets to fulfill the requested CRUD.
+* Updating an enabled definition pauses that configuration; fresh preview/enable
+  is required. Paused/archived operations remain available after dependency loss.
+* Current-state previews use clearly identified hypothetical current snapshots;
+  unknown intake intent preserves placement. No history or consent is fabricated.
+* Pageable database timestamps preserve PostgreSQL microseconds in opaque cursors;
+  wire display timestamps do not become pagination authority.

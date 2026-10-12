@@ -627,6 +627,7 @@ export interface CacheConfig {
 
 /** Default commit distinct-plan budget for development/test only; production must set env explicitly. */
 export interface AppConfig {
+  readonly automationConfigurationEnabled?: boolean;
   readonly bookmarkSubscriptions?: { readonly enabled: boolean; readonly protocolReady: boolean };
   readonly nodeEnv: string;
   readonly host: string;

@@ -117,3 +117,10 @@ with reasons in `redocly.yaml`: OIDC callback maps both success and failure to
 browser `303`, this private API has no distribution license, and the complete
 `NodeView` union is kept as an explicit authority while Phase 1 operations
 reference its editable subset.
+
+## Automation BE-1
+
+Product 1.94.0 adds private configuration and preview only; execution stays unavailable.
+See ../../../docs/automation/ADR-BE1.md. `npm run openapi:automation` checks the
+reviewed schema/fragment/source mirror before the ordinary pipeline. The immutable
+baseline is baselines/product-v1.1.94.0.yaml; compare the prior 1.93.0 baseline as well.

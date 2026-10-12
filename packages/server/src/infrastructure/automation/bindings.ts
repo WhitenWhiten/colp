@@ -5,14 +5,17 @@ import type { DatabaseSchema } from '../database/runtime.js';
 import { authorizeCapability } from '../../modules/access-policy/index.js';
 import { createPostgresAccessPolicyFactsPort } from '../access-policy/index.js';
 import { createPostgresMcpOwnedCollectionReadPort } from '../collections/index.js';
-import type { BindingStore, BindingReadPort, AutomationActor } from '../../modules/automation/domain/bindings.js';
+import type { BindingStore, BindingReadPort, AutomationActor } from '../../modules/automation/index.js';
 
 export function createBindingReadPort(db: Kysely<DatabaseSchema>, serverUuid: string): BindingReadPort {
   const accessPolicy = createPostgresAccessPolicyFactsPort(db);
   const canonical = createPostgresMcpOwnedCollectionReadPort({ db, accessPolicy });
-  const authorized = async (actor: AutomationActor, collectionId: string) => (await authorizeCapability(accessPolicy, {
+  const authorized = async (actor: AutomationActor, collectionId: string) => {
+    if (db.isTransaction) await db.selectFrom('collections').select('id').where('id', '=', collectionId).forShare().execute();
+    return (await authorizeCapability(accessPolicy, {
     collectionId, actor: { principalId: actor.accountId, subjectId: actor.subjectId, kind: 'account' }, capability: 'move_node',
   })).outcome === 'allow';
+  };
   return {
     async readCollection(actor, collectionId) {
       if (!await authorized(actor, collectionId)) return null;
@@ -45,7 +48,7 @@ export function createBindingReadPort(db: Kysely<DatabaseSchema>, serverUuid: st
 export function createBindingStore(db: Kysely<DatabaseSchema>): BindingStore {
   const select = () => db.selectFrom('automation_binding_sets as b').innerJoin('automation_binding_revisions as r', (join) =>
     join.onRef('b.id', '=', 'r.binding_set_id').onRef('b.current_revision', '=', 'r.revision'))
-    .select(['b.id', 'b.name', 'b.current_revision', 'b.updated_at', 'b.created_at', 'r.values_json']);
+    .select(['b.id', 'b.name', 'b.current_revision', 'b.updated_at', 'b.created_at', sql<string>`to_char(b.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"')`.as('sort_created_at'), 'r.values_json']);
   const view = (row: Awaited<ReturnType<ReturnType<typeof select>['executeTakeFirstOrThrow']>>): BindingSet => ({
     id: row.id, revision: String(row.current_revision), name: row.name, values: row.values_json, updatedAt: row.updated_at.toISOString(),
   });
@@ -58,8 +61,8 @@ export function createBindingStore(db: Kysely<DatabaseSchema>): BindingStore {
     },
     async list(ownerId, after, limit) {
       let query = select().where('b.owner_id', '=', ownerId);
-      if (after) query = query.where(sql<boolean>`(b.created_at, b.id) > (${new Date(after.createdAt)}, ${after.id})`);
-      return (await query.orderBy('b.created_at').orderBy('b.id').limit(limit).execute()).map((row) => ({ view: view(row), createdAt: row.created_at.toISOString() }));
+      if (after) query = query.where(sql<boolean>`(b.created_at, b.id) > (${after.createdAt}::timestamptz, ${after.id})`);
+      return (await query.orderBy('b.created_at').orderBy('b.id').limit(limit).execute()).map((row) => ({ view: view(row), createdAt: row.sort_created_at }));
     },
     async delete(ownerId, id) {
       const referenced = await db.selectFrom('automation_rule_revisions').select('id').where('binding_set_id', '=', id).executeTakeFirst();

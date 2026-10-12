@@ -11,6 +11,7 @@ import {
   requireNonEmpty,
   parsePositiveInt,
   parseOrigins,
+  parseCacheBooleanEnv,
 } from './config-parse-helpers.js';
 import { loadContentGovernanceConfig } from './config-governance.js';
 import { loadLinkPreviewFeatureConfig } from './config-link-preview.js';
@@ -550,6 +551,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   }
 
   return {
+    automationConfigurationEnabled: parseCacheBooleanEnv(env, 'KNOWN_FEATURE_AUTOMATION_CONFIGURATION', false),
     nodeEnv,
     host: env.HOST ?? '127.0.0.1',
     port,

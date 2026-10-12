@@ -4034,10 +4034,696 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/automations/capabilities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read mounted automation capabilities
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+         */
+        get: operations["getAutomationCapabilities"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/automations/rules/validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Validate without persisting a rule
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+         */
+        post: operations["validateAutomationRule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/automations/rules/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Simulate rule with no deliveries or model calls
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+         */
+        post: operations["previewAutomationRule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/automations/rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List current-account rules
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+         */
+        get: operations["listAutomationRules"];
+        put?: never;
+        /**
+         * Create a draft rule
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+         */
+        post: operations["createAutomationRule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/automations/rules/{ruleId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a rule and current revisions
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+         */
+        get: operations["getAutomationRule"];
+        /**
+         * Publish a replacement immutable revision
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+         */
+        put: operations["replaceAutomationRule"];
+        post?: never;
+        /**
+         * Archive a rule without deleting immutable history
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+         */
+        delete: operations["deleteAutomationRule"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/automations/rules/{ruleId}/lifecycle": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Enable, pause or archive a rule
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+         */
+        post: operations["setAutomationRuleLifecycle"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/automations/binding-sets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List binding-sets
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+         */
+        get: operations["listAutomationBindingSets"];
+        put?: never;
+        /**
+         * Create BindingSet
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+         */
+        post: operations["createAutomationBindingSet"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/automations/binding-sets/{bindingSetId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read BindingSet
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+         */
+        get: operations["getAutomationBindingSet"];
+        /**
+         * Replace BindingSet configuration
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+         */
+        put: operations["replaceAutomationBindingSet"];
+        post?: never;
+        /**
+         * Delete an unreferenced binding set
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+         */
+        delete: operations["deleteAutomationBindingSet"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/automations/pause": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read global pause state and revision
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Pausing stops admission for every rule, holds pending jobs and sets the bundle flag; resuming does not backfill. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+         */
+        get: operations["getAutomationPause"];
+        put?: never;
+        /**
+         * Pause or resume every automation for this owner
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Pausing stops admission for every rule, holds pending jobs and sets the bundle flag; resuming does not backfill. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+         */
+        post: operations["setAutomationPause"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/automations/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export rules and folder bindings by path, without secrets
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Used by the web Export menu and colp-server export. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+         */
+        get: operations["exportAutomations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AutomationCapabilities: {
+            /** @constant */
+            contractVersion: "0.2.1-design";
+            ruleApiVersions: string[];
+            runtimeProfiles: ("browser-bounded-v1" | "server-cel-v1")[];
+            triggerModes: ("each" | "countBatch" | "scheduledBatch")[];
+            taskTypes: ("classify.root" | "classify.refine" | "tags.generate" | "summary.generate" | "metadata.resolve" | "review.generate" | "digest.generate")[];
+            eventsEnabled: boolean;
+            limits: {
+                maxRules: number;
+                maxExpressionBytes: number;
+                maxTasksPerRule: number;
+            };
+        };
+        AutomationProductErrorEnvelope: {
+            error: {
+                code: string;
+                message: string;
+                requestId: string;
+                /** @enum {string} */
+                recovery: "same_request" | "refresh_and_retry" | "restart_from_first_page" | "user_action" | "none";
+                sameRequestRetrySafe: boolean;
+                precondition: ("resource" | "content") | null;
+                currentEtag: string | null;
+                retryAfterSeconds: number | null;
+                fieldErrors: components["schemas"]["AutomationProductFieldError"][];
+            };
+        };
+        AutomationProductFieldError: {
+            path: string;
+            code: string;
+            message: string;
+        };
+        AutomationValidationResult: {
+            valid: boolean;
+            normalizedDefinition?: components["schemas"]["AutomationRuleDefinition"];
+            semanticDigest?: string;
+            diagnostics: components["schemas"]["AutomationDiagnostic"][];
+            supportedHosts: ("browser" | "server")[];
+        };
+        AutomationRuleDefinition: {
+            /** @constant */
+            apiVersion: "colp.automation/v1";
+            name: string;
+            description?: string;
+            roles: components["schemas"]["AutomationRoleDeclaration"][];
+            /** @enum {string} */
+            on: "bookmark.intake" | "node.created" | "node.updated" | "intake.completed" | "bookmark.link_health.changed";
+            scope: components["schemas"]["AutomationScopeSpec"];
+            match: components["schemas"]["AutomationPredicate"];
+            intake?: components["schemas"]["AutomationIntakeSpec"];
+            trigger: components["schemas"]["AutomationTriggerSpec"];
+            tasks: components["schemas"]["AutomationTaskSpec"][];
+            route: components["schemas"]["AutomationRouteSpec"];
+            policy: components["schemas"]["AutomationRulePolicy"];
+            priority: number;
+        };
+        AutomationRoleDeclaration: {
+            key: string;
+            /** @enum {string} */
+            kind: "folder" | "executor" | "entityMap" | "vocabulary";
+            required: boolean;
+            description: string;
+            mustBeWithinRole?: string;
+        };
+        AutomationScopeSpec: {
+            collectionId?: string;
+            folderRole?: string;
+            includeDescendants?: boolean;
+        };
+        AutomationPredicate: components["schemas"]["AutomationFieldPredicate"] | components["schemas"]["AutomationAllPredicate"] | components["schemas"]["AutomationAnyPredicate"] | components["schemas"]["AutomationNotPredicate"] | components["schemas"]["AutomationCelPredicate"];
+        /** @description Operator/field compatibility is checked semantically. startsWith is literal case-sensitive prefix comparison on normalized URL path; never substring search or an artificial UI anchor. */
+        AutomationFieldPredicate: {
+            /** @constant */
+            kind: "field";
+            /** @enum {string} */
+            field: "bookmark.url.host" | "bookmark.url.path" | "bookmark.title" | "bookmark.tags" | "bookmark.kind" | "event.type" | "event.origin" | "event.changedFields";
+            /** @enum {string} */
+            op: "eq" | "in" | "contains" | "hostSuffix" | "hasTag" | "startsWith";
+            value: string | string[];
+        };
+        AutomationAllPredicate: {
+            /** @constant */
+            kind: "all";
+            items: components["schemas"]["AutomationPredicate"][];
+        };
+        AutomationAnyPredicate: {
+            /** @constant */
+            kind: "any";
+            items: components["schemas"]["AutomationPredicate"][];
+        };
+        AutomationNotPredicate: {
+            /** @constant */
+            kind: "not";
+            item: components["schemas"]["AutomationPredicate"];
+        };
+        AutomationCelPredicate: {
+            /** @constant */
+            kind: "cel";
+            expression: string;
+            /** @constant */
+            profile: "colp-cel-v1";
+            dependencies: string[];
+        };
+        AutomationIntakeSpec: {
+            folderRole: string;
+            /** @enum {string} */
+            constraint: "exact" | "withinSubtree";
+            satisfies: "classify.root"[];
+            /** @constant */
+            onUnusableBinding: "keepOriginalAndBlock";
+            /** @constant */
+            respectExplicitSelection: true;
+        };
+        AutomationTriggerSpec: components["schemas"]["AutomationEachTrigger"] | components["schemas"]["AutomationCountTrigger"] | components["schemas"]["AutomationScheduleTrigger"];
+        AutomationEachTrigger: {
+            /** @constant */
+            mode: "each";
+        };
+        AutomationCountTrigger: {
+            /** @constant */
+            mode: "countBatch";
+            count: number;
+            /** @enum {string} */
+            distinctBy: "node" | "normalizedUrl";
+            /** @enum {string} */
+            partition: "rule" | "collection" | "folder";
+        };
+        /** @description Later-milestone capability (AU-32); reject with unsupported_capability until mounted. Five-field cron. */
+        AutomationScheduleTrigger: {
+            /** @constant */
+            mode: "scheduledBatch";
+            cron: string;
+            timezone: string;
+            /** @constant */
+            nonEmptyOnly: true;
+            /** @enum {string} */
+            misfire: "coalesce" | "skip";
+            /** @constant */
+            dst: "skipMissingOnceRepeated";
+        };
+        AutomationTaskSpec: {
+            id: string;
+            /** @enum {string} */
+            type: "classify.root" | "classify.refine" | "tags.generate" | "summary.generate" | "metadata.resolve" | "review.generate" | "digest.generate";
+            after: string[];
+            executorRole: string;
+            folderRole?: string;
+            entityMapRole?: string;
+            vocabularyRole?: string;
+            required: boolean;
+            outputContract: string;
+            inputFields: ("url" | "title" | "description" | "note" | "tags" | "metadata" | "readableText" | "folderDefinitions")[];
+            instruction: string;
+            allowCreateFolder?: boolean;
+        };
+        AutomationRouteSpec: {
+            /** @enum {string} */
+            mode: "targets" | "broadcast";
+            targetIds?: string[];
+            /** @enum {string} */
+            audience?: "optedInAuthorizedTargets";
+            /** @enum {string} */
+            execution: "single" | "firstClaim" | "perTarget";
+        };
+        AutomationRulePolicy: {
+            /** @constant */
+            history: "fromActivation";
+            /** @enum {string} */
+            imports: "exclude" | "include";
+            /** @constant */
+            restores: "exclude";
+            /** @constant */
+            userEdits: "preserve";
+            /** @constant */
+            sameStageReentry: "deny";
+            maxHops: number;
+            /** @constant */
+            conflictingPlacement: "review";
+            /** @enum {string} */
+            privacy: "standard" | "restricted";
+            broadcastAllowed: boolean;
+            maxRunsPerDay: number;
+            /** @constant */
+            pauseMode: "stopAdmissionHoldPending";
+            /** @enum {string} */
+            missingInput: "defer" | "review";
+        };
+        AutomationDiagnostic: {
+            code: string;
+            /** @enum {string} */
+            severity: "info" | "warning" | "error";
+            location: string;
+            message: string;
+            role?: string;
+        };
+        AutomationRuleInput: {
+            definition: components["schemas"]["AutomationRuleDefinition"];
+            bindingSetId: string;
+            /** @description Required by semantic validation only when admitted tasks need an M2+ executor. Absent for deterministic M1 placement; no dummy policy record. */
+            executionPolicyId?: string;
+            templateRef?: string;
+        };
+        AutomationPreviewResult: {
+            previewId: string;
+            /** @constant */
+            sideEffects: false;
+            decisions: components["schemas"]["AutomationPreviewDecision"][];
+            diagnostics: components["schemas"]["AutomationDiagnostic"][];
+            plannedRunCount: number;
+            remainderCount: number;
+            completeHistory: boolean;
+            truncated: boolean;
+        };
+        AutomationPreviewDecision: {
+            eventId: string;
+            /** @enum {string} */
+            outcome: "matched" | "notMatched" | "missingInput" | "blocked" | "conflict";
+            satisfiedTasks: string[];
+            pendingTasks: string[];
+            explanation: string;
+            batchIndex?: number;
+        };
+        /** @description Pure rule preview. Persist an exact configuration-bound preview token but do not mutate bookmarks, create jobs or contact an executor. Current-state sampling is not historical replay. */
+        AutomationPreviewInput: {
+            rule: components["schemas"]["AutomationRuleInput"];
+            events?: components["schemas"]["AutomationEventFacts"][];
+            /**
+             * @description supplied validates bounded provided facts; currentState reads up to 200 authorized current bookmarks without requiring historical ingestion; retainedHistory requires the retained-facts capability and never falls back silently.
+             * @enum {string}
+             */
+            mode: "supplied" | "currentState" | "retainedHistory";
+            /** Format: date-time */
+            from?: string;
+            /** Format: date-time */
+            to?: string;
+        } & unknown;
+        AutomationEventFacts: {
+            eventId: string;
+            operationId: string;
+            type: string;
+            collectionId: string;
+            nodeId: string;
+            commitOrdinal: string;
+            /** Format: date-time */
+            occurredAt: string;
+            /** @enum {string} */
+            origin: "user" | "sync" | "import" | "restore" | "automation" | "system";
+            changedFields: string[];
+            bookmark: components["schemas"]["AutomationBookmarkFacts"];
+            before?: components["schemas"]["AutomationBookmarkFacts"];
+            rootRunId?: string;
+            stageId?: string;
+            hopCount: number;
+            /**
+             * @description Server-derived from canonical intake command context/verified receipt. Missing means unknown. Unknown, imports, restores and already-foldered input must not be automatically reparented.
+             * @enum {string}
+             */
+            intakeDisposition?: "userDefault" | "userSelected" | "rulePlacement" | "observedRoot" | "notIntake" | "unknown";
+        };
+        AutomationBookmarkFacts: {
+            /** @constant */
+            kind: "bookmark";
+            url: {
+                host: string;
+                path?: string;
+            };
+            title: string;
+            tags: string[];
+            nodeId?: string;
+            parent?: components["schemas"]["AutomationFolderRef"];
+            ancestors?: components["schemas"]["AutomationFolderRef"][];
+        };
+        AutomationFolderRef: {
+            serverUuid: string;
+            collectionId: string;
+            nodeId: string;
+        };
+        AutomationRulePage: {
+            items: components["schemas"]["AutomationRule"][];
+            nextCursor: string | null;
+        };
+        AutomationRule: {
+            id: string;
+            revision: string;
+            /** @enum {string} */
+            desiredState: "draft" | "enabled" | "paused" | "archived";
+            /** @enum {string} */
+            effectiveState: "draft" | "active" | "degraded" | "blocked" | "paused" | "archived";
+            definition: components["schemas"]["AutomationRuleDefinition"];
+            bindingSetId: string;
+            /** @description Required by semantic validation only when admitted tasks need an M2+ executor. Absent for deterministic M1 placement; no dummy policy record. */
+            executionPolicyId?: string;
+            templateRef?: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            /** @description M2 read-only backend projection; absent in M1. Not editable configuration. */
+            usage?: components["schemas"]["AutomationRuleUsageView"];
+        };
+        AutomationRuleUsageView: {
+            /** Format: date-time */
+            periodStart: string;
+            /** Format: date-time */
+            periodEnd: string;
+            admittedRuns: number;
+            readyJobs: number;
+            succeededJobs: number;
+            heldJobs: number;
+            /** @enum {string} */
+            externalCosts: "notApplicable" | "unknownDisclosed" | "known";
+            costDisplay: string;
+        };
+        AutomationChangeInput: {
+            definition: components["schemas"]["AutomationRuleDefinition"];
+            bindingSetId: string;
+            executionPolicyId?: string;
+            /** @enum {string} */
+            pendingRuns: "hold" | "cancel" | "continuePinned";
+            /** @constant */
+            counterPolicy: "resetOnSemanticChange";
+        };
+        AutomationLifecycleInput: {
+            /** @enum {string} */
+            state: "enabled" | "paused" | "archived";
+            /** @enum {string} */
+            pendingRuns: "hold" | "cancel" | "continuePinned";
+            activationPreviewId?: string;
+            reason: string;
+        };
+        AutomationBindingSetPage: {
+            items: components["schemas"]["AutomationBindingSet"][];
+            nextCursor: string | null;
+        };
+        AutomationBindingSet: {
+            id: string;
+            revision: string;
+            name: string;
+            values: components["schemas"]["AutomationRoleBindings"];
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        AutomationRoleBindings: {
+            [key: string]: components["schemas"]["AutomationRoleBinding"];
+        };
+        AutomationRoleBinding: components["schemas"]["AutomationFolderBinding"] | components["schemas"]["AutomationExecutorBinding"] | components["schemas"]["AutomationEntityMapBinding"] | components["schemas"]["AutomationVocabularyBinding"];
+        AutomationFolderBinding: {
+            /** @constant */
+            kind: "folder";
+            folder: components["schemas"]["AutomationFolderRef"];
+            /** @constant */
+            followIdentity: true;
+            allowedAncestor?: components["schemas"]["AutomationFolderRef"];
+            /** @enum {string} */
+            onUnavailable: "block" | "keepOriginal";
+            notifyOn: ("rename" | "move" | "delete" | "permission" | "syncScope")[];
+        };
+        AutomationExecutorBinding: {
+            /** @constant */
+            kind: "executor";
+            executorId?: string;
+            /** @enum {string} */
+            targetSelector?: "selectedAuthorizedTargets" | "optedInAuthorizedTargets";
+        } & (unknown | unknown);
+        AutomationEntityMapBinding: {
+            /** @constant */
+            kind: "entityMap";
+            entries: components["schemas"]["AutomationEntityDestination"][];
+            /** @enum {string} */
+            onUnmapped: "keepParent" | "review";
+            /** @enum {string} */
+            onMultiple: "review" | "primaryMapping";
+        };
+        AutomationEntityDestination: {
+            entityKey: string;
+            label: string;
+            aliases?: string[];
+            folder: components["schemas"]["AutomationFolderRef"];
+        };
+        AutomationVocabularyBinding: {
+            /** @constant */
+            kind: "vocabulary";
+            entries: components["schemas"]["AutomationVocabularyEntry"][];
+        };
+        AutomationVocabularyEntry: {
+            key: string;
+            label: string;
+        };
+        AutomationBindingSetInput: {
+            name: string;
+            values: components["schemas"]["AutomationRoleBindings"];
+        };
+        AutomationPauseState: {
+            paused: boolean;
+            /** Format: date-time */
+            pausedAt: string | null;
+            /** @enum {string|null} */
+            pausedBy: "owner" | "restore" | "capacity" | null;
+            revision: components["schemas"]["AutomationRevision"];
+            heldJobs: number;
+        };
+        AutomationRevision: string;
+        AutomationPauseInput: {
+            paused: boolean;
+            reason?: string;
+        };
+        AutomationAutomationExport: {
+            /** @constant */
+            contractVersion: "0.2.1-design";
+            /** Format: date-time */
+            exportedAt: string;
+            rules: components["schemas"]["AutomationAutomationExportRule"][];
+        };
+        AutomationAutomationExportRule: {
+            rule: components["schemas"]["AutomationPortableRuleDefinition"];
+            /**
+             * @description Historical source state only. An importer MUST create draft, never activate from this value.
+             * @enum {string}
+             */
+            desiredState: "draft" | "enabled" | "paused" | "archived";
+            /** @description Role key to folder path at export time; targets and secrets are never exported. */
+            bindingsByPath: {
+                [key: string]: string;
+            };
+        };
+        /** @description Template/export logic before installation. collectionSlot and targetSlots are symbolic; no live collection or target IDs. Resolve with Owner review into a draft RuleDefinition before validation/activation. */
+        AutomationPortableRuleDefinition: {
+            /** @constant */
+            apiVersion: "colp.automation/v1";
+            name: string;
+            description?: string;
+            roles: components["schemas"]["AutomationRoleDeclaration"][];
+            /** @enum {string} */
+            on: "bookmark.intake" | "node.created" | "node.updated" | "intake.completed" | "bookmark.link_health.changed";
+            scope: components["schemas"]["AutomationPortableScopeSpec"];
+            match: components["schemas"]["AutomationPredicate"];
+            intake?: components["schemas"]["AutomationIntakeSpec"];
+            trigger: components["schemas"]["AutomationTriggerSpec"];
+            tasks: components["schemas"]["AutomationTaskSpec"][];
+            route: components["schemas"]["AutomationPortableRouteSpec"];
+            policy: components["schemas"]["AutomationRulePolicy"];
+            priority: number;
+        };
+        AutomationPortableScopeSpec: {
+            folderRole?: string;
+            includeDescendants?: boolean;
+            collectionSlot: string;
+        };
+        AutomationPortableRouteSpec: {
+            /** @enum {string} */
+            mode: "targets" | "broadcast";
+            /** @enum {string} */
+            audience?: "optedInAuthorizedTargets";
+            /** @enum {string} */
+            execution: "single" | "firstClaim" | "perTarget";
+            targetSlots?: string[];
+        };
         ClassificationProfileId: string;
         CreateClassificationProviderProfileRequest: {
             /** @enum {string} */
@@ -8497,6 +9183,138 @@ export interface components {
         };
     };
     responses: {
+        /** @description Malformed input or invalid rule. */
+        Automation400: {
+            headers: {
+                "Cache-Control"?: "private, no-store";
+                "X-Request-Id"?: string;
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["AutomationProductErrorEnvelope"];
+            };
+        };
+        /** @description Authentication required. */
+        Automation401: {
+            headers: {
+                "Cache-Control"?: "private, no-store";
+                "X-Request-Id"?: string;
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["AutomationProductErrorEnvelope"];
+            };
+        };
+        /** @description Current authority or host-mode policy denies operation. */
+        Automation403: {
+            headers: {
+                "Cache-Control"?: "private, no-store";
+                "X-Request-Id"?: string;
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["AutomationProductErrorEnvelope"];
+            };
+        };
+        /** @description Unknown, disabled or concealed resource. */
+        Automation404: {
+            headers: {
+                "Cache-Control"?: "private, no-store";
+                "X-Request-Id"?: string;
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["AutomationProductErrorEnvelope"];
+            };
+        };
+        /** @description Conflict, stale inputs, unavailable binding or command-body mismatch. */
+        Automation409: {
+            headers: {
+                "Cache-Control"?: "private, no-store";
+                "X-Request-Id"?: string;
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["AutomationProductErrorEnvelope"];
+            };
+        };
+        /** @description ETag does not match. */
+        Automation412: {
+            headers: {
+                "Cache-Control"?: "private, no-store";
+                "X-Request-Id"?: string;
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["AutomationProductErrorEnvelope"];
+            };
+        };
+        /** @description Payload too large. */
+        Automation413: {
+            headers: {
+                "Cache-Control"?: "private, no-store";
+                "X-Request-Id"?: string;
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["AutomationProductErrorEnvelope"];
+            };
+        };
+        /** @description Well-formed input violates a declared semantic constraint. */
+        Automation422: {
+            headers: {
+                "Cache-Control"?: "private, no-store";
+                "X-Request-Id"?: string;
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["AutomationProductErrorEnvelope"];
+            };
+        };
+        /** @description Required revision precondition missing. */
+        Automation428: {
+            headers: {
+                "Cache-Control"?: "private, no-store";
+                "X-Request-Id"?: string;
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["AutomationProductErrorEnvelope"];
+            };
+        };
+        /** @description Rate or work budget exhausted. */
+        Automation429: {
+            headers: {
+                "Cache-Control"?: "private, no-store";
+                "X-Request-Id"?: string;
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["AutomationProductErrorEnvelope"];
+            };
+        };
+        /** @description Internal failure with a non-sensitive request identifier. */
+        Automation500: {
+            headers: {
+                "Cache-Control"?: "private, no-store";
+                "X-Request-Id"?: string;
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["AutomationProductErrorEnvelope"];
+            };
+        };
+        /** @description Required service unavailable. */
+        Automation503: {
+            headers: {
+                "Cache-Control"?: "private, no-store";
+                "X-Request-Id"?: string;
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["AutomationProductErrorEnvelope"];
+            };
+        };
         /** @description invalid_request / invalid_json / invalid_query / invalid_cursor (=> restart_from_first_page). Stable envelope; no stack, SQL, secrets or concealed resource metadata. */
         FaviconOrderingError400: {
             headers: {
@@ -9266,6 +10084,16 @@ export interface components {
         };
     };
     parameters: {
+        /** @description Stable command identity. Scope: authenticated principal + operation + addressed resource. Same identity/different canonical body returns 409. */
+        AutomationCommandId: string;
+        /** @description Verified host CSRF header (evidence R23): the server reads `x-csrf-token` together with the Origin allowlist on cookie-authenticated writes. Re-checked at AW-01. Never introduce a second CSRF scheme. */
+        AutomationCsrf: string;
+        /** @description Validate against existing host trusted-origin policy for cookie-authenticated mutations. */
+        AutomationOrigin: string;
+        AutomationCursor: string;
+        AutomationLimit: number;
+        /** @description Strong ETag from the addressed automation resource, never a node publication revision. */
+        AutomationIfMatch: string;
         AccountCredentialId: components["schemas"]["OpaqueId"];
         /** @description Stable identity-owned Profile ID, never a mutable handle. */
         ProfileIdPath: components["schemas"]["ProfileStableId"];
@@ -20863,6 +21691,738 @@ export interface operations {
                 };
                 content?: never;
             };
+        };
+    };
+    getAutomationCapabilities: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationCapabilities"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    validateAutomationRule: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Stable command identity. Scope: authenticated principal + operation + addressed resource. Same identity/different canonical body returns 409. */
+                "Known-Command-Id": components["parameters"]["AutomationCommandId"];
+                /** @description Verified host CSRF header (evidence R23): the server reads `x-csrf-token` together with the Origin allowlist on cookie-authenticated writes. Re-checked at AW-01. Never introduce a second CSRF scheme. */
+                "X-CSRF-Token": components["parameters"]["AutomationCsrf"];
+                /** @description Validate against existing host trusted-origin policy for cookie-authenticated mutations. */
+                Origin: components["parameters"]["AutomationOrigin"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AutomationRuleInput"];
+            };
+        };
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationValidationResult"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    previewAutomationRule: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Stable command identity. Scope: authenticated principal + operation + addressed resource. Same identity/different canonical body returns 409. */
+                "Known-Command-Id": components["parameters"]["AutomationCommandId"];
+                /** @description Verified host CSRF header (evidence R23): the server reads `x-csrf-token` together with the Origin allowlist on cookie-authenticated writes. Re-checked at AW-01. Never introduce a second CSRF scheme. */
+                "X-CSRF-Token": components["parameters"]["AutomationCsrf"];
+                /** @description Validate against existing host trusted-origin policy for cookie-authenticated mutations. */
+                Origin: components["parameters"]["AutomationOrigin"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AutomationPreviewInput"];
+            };
+        };
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationPreviewResult"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    listAutomationRules: {
+        parameters: {
+            query?: {
+                cursor?: components["parameters"]["AutomationCursor"];
+                limit?: components["parameters"]["AutomationLimit"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationRulePage"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    createAutomationRule: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Stable command identity. Scope: authenticated principal + operation + addressed resource. Same identity/different canonical body returns 409. */
+                "Known-Command-Id": components["parameters"]["AutomationCommandId"];
+                /** @description Verified host CSRF header (evidence R23): the server reads `x-csrf-token` together with the Origin allowlist on cookie-authenticated writes. Re-checked at AW-01. Never introduce a second CSRF scheme. */
+                "X-CSRF-Token": components["parameters"]["AutomationCsrf"];
+                /** @description Validate against existing host trusted-origin policy for cookie-authenticated mutations. */
+                Origin: components["parameters"]["AutomationOrigin"];
+                /** @description Strong ETag from the addressed automation resource, never a node publication revision. */
+                "If-Match": components["parameters"]["AutomationIfMatch"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AutomationRuleInput"];
+            };
+        };
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            201: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    /** @description Strong ETag for this automation resource. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationRule"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    getAutomationRule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ruleId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    /** @description Strong ETag for this automation resource. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationRule"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    replaceAutomationRule: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Stable command identity. Scope: authenticated principal + operation + addressed resource. Same identity/different canonical body returns 409. */
+                "Known-Command-Id": components["parameters"]["AutomationCommandId"];
+                /** @description Verified host CSRF header (evidence R23): the server reads `x-csrf-token` together with the Origin allowlist on cookie-authenticated writes. Re-checked at AW-01. Never introduce a second CSRF scheme. */
+                "X-CSRF-Token": components["parameters"]["AutomationCsrf"];
+                /** @description Validate against existing host trusted-origin policy for cookie-authenticated mutations. */
+                Origin: components["parameters"]["AutomationOrigin"];
+                /** @description Strong ETag from the addressed automation resource, never a node publication revision. */
+                "If-Match": components["parameters"]["AutomationIfMatch"];
+            };
+            path: {
+                ruleId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AutomationChangeInput"];
+            };
+        };
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    /** @description Strong ETag for this automation resource. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationRule"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    deleteAutomationRule: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Stable command identity. Scope: authenticated principal + operation + addressed resource. Same identity/different canonical body returns 409. */
+                "Known-Command-Id": components["parameters"]["AutomationCommandId"];
+                /** @description Strong ETag from the addressed automation resource, never a node publication revision. */
+                "If-Match": components["parameters"]["AutomationIfMatch"];
+                /** @description Verified host CSRF header (evidence R23): the server reads `x-csrf-token` together with the Origin allowlist on cookie-authenticated writes. Re-checked at AW-01. Never introduce a second CSRF scheme. */
+                "X-CSRF-Token": components["parameters"]["AutomationCsrf"];
+                /** @description Validate against existing host trusted-origin policy for cookie-authenticated mutations. */
+                Origin: components["parameters"]["AutomationOrigin"];
+            };
+            path: {
+                ruleId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    /** @description Strong ETag for this automation resource. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationRule"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    setAutomationRuleLifecycle: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Stable command identity. Scope: authenticated principal + operation + addressed resource. Same identity/different canonical body returns 409. */
+                "Known-Command-Id": components["parameters"]["AutomationCommandId"];
+                /** @description Verified host CSRF header (evidence R23): the server reads `x-csrf-token` together with the Origin allowlist on cookie-authenticated writes. Re-checked at AW-01. Never introduce a second CSRF scheme. */
+                "X-CSRF-Token": components["parameters"]["AutomationCsrf"];
+                /** @description Validate against existing host trusted-origin policy for cookie-authenticated mutations. */
+                Origin: components["parameters"]["AutomationOrigin"];
+                /** @description Strong ETag from the addressed automation resource, never a node publication revision. */
+                "If-Match": components["parameters"]["AutomationIfMatch"];
+            };
+            path: {
+                ruleId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AutomationLifecycleInput"];
+            };
+        };
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    /** @description Strong ETag for this automation resource. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationRule"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    listAutomationBindingSets: {
+        parameters: {
+            query?: {
+                cursor?: components["parameters"]["AutomationCursor"];
+                limit?: components["parameters"]["AutomationLimit"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationBindingSetPage"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    createAutomationBindingSet: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Stable command identity. Scope: authenticated principal + operation + addressed resource. Same identity/different canonical body returns 409. */
+                "Known-Command-Id": components["parameters"]["AutomationCommandId"];
+                /** @description Verified host CSRF header (evidence R23): the server reads `x-csrf-token` together with the Origin allowlist on cookie-authenticated writes. Re-checked at AW-01. Never introduce a second CSRF scheme. */
+                "X-CSRF-Token": components["parameters"]["AutomationCsrf"];
+                /** @description Validate against existing host trusted-origin policy for cookie-authenticated mutations. */
+                Origin: components["parameters"]["AutomationOrigin"];
+                /** @description Strong ETag from the addressed automation resource, never a node publication revision. */
+                "If-Match": components["parameters"]["AutomationIfMatch"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AutomationBindingSetInput"];
+            };
+        };
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            201: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    /** @description Strong ETag for this automation resource. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationBindingSet"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    getAutomationBindingSet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bindingSetId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    /** @description Strong ETag for this automation resource. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationBindingSet"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    replaceAutomationBindingSet: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Stable command identity. Scope: authenticated principal + operation + addressed resource. Same identity/different canonical body returns 409. */
+                "Known-Command-Id": components["parameters"]["AutomationCommandId"];
+                /** @description Verified host CSRF header (evidence R23): the server reads `x-csrf-token` together with the Origin allowlist on cookie-authenticated writes. Re-checked at AW-01. Never introduce a second CSRF scheme. */
+                "X-CSRF-Token": components["parameters"]["AutomationCsrf"];
+                /** @description Validate against existing host trusted-origin policy for cookie-authenticated mutations. */
+                Origin: components["parameters"]["AutomationOrigin"];
+                /** @description Strong ETag from the addressed automation resource, never a node publication revision. */
+                "If-Match": components["parameters"]["AutomationIfMatch"];
+            };
+            path: {
+                bindingSetId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AutomationBindingSetInput"];
+            };
+        };
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    /** @description Strong ETag for this automation resource. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationBindingSet"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    deleteAutomationBindingSet: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Stable command identity. Scope: authenticated principal + operation + addressed resource. Same identity/different canonical body returns 409. */
+                "Known-Command-Id": components["parameters"]["AutomationCommandId"];
+                /** @description Strong ETag from the addressed automation resource, never a node publication revision. */
+                "If-Match": components["parameters"]["AutomationIfMatch"];
+                /** @description Verified host CSRF header (evidence R23): the server reads `x-csrf-token` together with the Origin allowlist on cookie-authenticated writes. Re-checked at AW-01. Never introduce a second CSRF scheme. */
+                "X-CSRF-Token": components["parameters"]["AutomationCsrf"];
+                /** @description Validate against existing host trusted-origin policy for cookie-authenticated mutations. */
+                Origin: components["parameters"]["AutomationOrigin"];
+            };
+            path: {
+                bindingSetId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Unreferenced binding set removed. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    getAutomationPause: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    /** @description Strong ETag for this automation resource. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationPauseState"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    setAutomationPause: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Stable command identity. Scope: authenticated principal + operation + addressed resource. Same identity/different canonical body returns 409. */
+                "Known-Command-Id": components["parameters"]["AutomationCommandId"];
+                /** @description Verified host CSRF header (evidence R23): the server reads `x-csrf-token` together with the Origin allowlist on cookie-authenticated writes. Re-checked at AW-01. Never introduce a second CSRF scheme. */
+                "X-CSRF-Token": components["parameters"]["AutomationCsrf"];
+                /** @description Validate against existing host trusted-origin policy for cookie-authenticated mutations. */
+                Origin: components["parameters"]["AutomationOrigin"];
+                /** @description Strong ETag from the addressed automation resource, never a node publication revision. */
+                "If-Match": components["parameters"]["AutomationIfMatch"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AutomationPauseInput"];
+            };
+        };
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    /** @description Strong ETag for this automation resource. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationPauseState"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    exportAutomations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationAutomationExport"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
         };
     };
 }

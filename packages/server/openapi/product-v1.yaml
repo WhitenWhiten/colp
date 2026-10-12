@@ -2,7 +2,7 @@ openapi: 3.1.0
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 info:
   title: Known Product API
-  version: 1.93.0
+  version: 1.94.0
   description: >-
     Version 1.70.0 intentionally removes browser credential management: parent
     keys are provisioned only through the database for official bots. Credential
@@ -224,6 +224,8 @@ info:
 servers:
   - url: /
 tags:
+  - name: Automation
+    description: Owner-private deterministic configuration and preview; execution runtime unavailable in BE-1.
   - name: BookmarkSubscriptions
     description: Read-only browser bookmark subscriptions, configuration, authorization, snapshots, and durable exits.
   - name: BrowserAuth
@@ -12149,6 +12151,1120 @@ paths:
           description: Browser sign-in required
         "412":
           description: This command already issued a key; its secret cannot be recovered
+# BEGIN AUTOMATION PATHS
+  /api/v1/me/automations/capabilities:
+    get:
+      operationId: getAutomationCapabilities
+      tags:
+        - Automation
+      summary: Read mounted automation capabilities
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1
+        config/preview only; runtime is unavailable. Historical preview has no fallback.
+      x-delivery-phase: M0
+      parameters: []
+      responses:
+        "200":
+          description: Successful response; inspect the returned state, not merely the HTTP status.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+            X-Request-Id:
+              schema:
+                type: string
+                maxLength: 128
+                minLength: 1
+                pattern: ^[A-Za-z0-9._~-]+$
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutomationCapabilities"
+        "400":
+          $ref: "#/components/responses/Automation400"
+        "401":
+          $ref: "#/components/responses/Automation401"
+        "403":
+          $ref: "#/components/responses/Automation403"
+        "404":
+          $ref: "#/components/responses/Automation404"
+        "409":
+          $ref: "#/components/responses/Automation409"
+        "412":
+          $ref: "#/components/responses/Automation412"
+        "413":
+          $ref: "#/components/responses/Automation413"
+        "422":
+          $ref: "#/components/responses/Automation422"
+        "428":
+          $ref: "#/components/responses/Automation428"
+        "429":
+          $ref: "#/components/responses/Automation429"
+        "500":
+          $ref: "#/components/responses/Automation500"
+        "503":
+          $ref: "#/components/responses/Automation503"
+      x-known-feature-gate: automation_configuration
+      security:
+        - cookieAuth: []
+  /api/v1/me/automations/rules/validate:
+    post:
+      operationId: validateAutomationRule
+      tags:
+        - Automation
+      summary: Validate without persisting a rule
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1
+        config/preview only; runtime is unavailable. Historical preview has no fallback.
+      x-delivery-phase: M1
+      parameters:
+        - $ref: "#/components/parameters/AutomationCommandId"
+        - $ref: "#/components/parameters/AutomationCsrf"
+        - $ref: "#/components/parameters/AutomationOrigin"
+      responses:
+        "200":
+          description: Successful response; inspect the returned state, not merely the HTTP status.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+            X-Request-Id:
+              schema:
+                type: string
+                maxLength: 128
+                minLength: 1
+                pattern: ^[A-Za-z0-9._~-]+$
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutomationValidationResult"
+        "400":
+          $ref: "#/components/responses/Automation400"
+        "401":
+          $ref: "#/components/responses/Automation401"
+        "403":
+          $ref: "#/components/responses/Automation403"
+        "404":
+          $ref: "#/components/responses/Automation404"
+        "409":
+          $ref: "#/components/responses/Automation409"
+        "412":
+          $ref: "#/components/responses/Automation412"
+        "413":
+          $ref: "#/components/responses/Automation413"
+        "422":
+          $ref: "#/components/responses/Automation422"
+        "428":
+          $ref: "#/components/responses/Automation428"
+        "429":
+          $ref: "#/components/responses/Automation429"
+        "500":
+          $ref: "#/components/responses/Automation500"
+        "503":
+          $ref: "#/components/responses/Automation503"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AutomationRuleInput"
+      x-known-feature-gate: automation_configuration
+      security:
+        - cookieAuth: []
+  /api/v1/me/automations/rules/preview:
+    post:
+      operationId: previewAutomationRule
+      tags:
+        - Automation
+      summary: Simulate rule with no deliveries or model calls
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1
+        config/preview only; runtime is unavailable. Historical preview has no fallback.
+      x-delivery-phase: M1
+      parameters:
+        - $ref: "#/components/parameters/AutomationCommandId"
+        - $ref: "#/components/parameters/AutomationCsrf"
+        - $ref: "#/components/parameters/AutomationOrigin"
+      responses:
+        "200":
+          description: Successful response; inspect the returned state, not merely the HTTP status.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+            X-Request-Id:
+              schema:
+                type: string
+                maxLength: 128
+                minLength: 1
+                pattern: ^[A-Za-z0-9._~-]+$
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutomationPreviewResult"
+        "400":
+          $ref: "#/components/responses/Automation400"
+        "401":
+          $ref: "#/components/responses/Automation401"
+        "403":
+          $ref: "#/components/responses/Automation403"
+        "404":
+          $ref: "#/components/responses/Automation404"
+        "409":
+          $ref: "#/components/responses/Automation409"
+        "412":
+          $ref: "#/components/responses/Automation412"
+        "413":
+          $ref: "#/components/responses/Automation413"
+        "422":
+          $ref: "#/components/responses/Automation422"
+        "428":
+          $ref: "#/components/responses/Automation428"
+        "429":
+          $ref: "#/components/responses/Automation429"
+        "500":
+          $ref: "#/components/responses/Automation500"
+        "503":
+          $ref: "#/components/responses/Automation503"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AutomationPreviewInput"
+      x-known-feature-gate: automation_configuration
+      security:
+        - cookieAuth: []
+  /api/v1/me/automations/rules:
+    get:
+      operationId: listAutomationRules
+      tags:
+        - Automation
+      summary: List current-account rules
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1
+        config/preview only; runtime is unavailable. Historical preview has no fallback.
+      x-delivery-phase: M1
+      parameters:
+        - $ref: "#/components/parameters/AutomationCursor"
+        - $ref: "#/components/parameters/AutomationLimit"
+      responses:
+        "200":
+          description: Successful response; inspect the returned state, not merely the HTTP status.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+            X-Request-Id:
+              schema:
+                type: string
+                maxLength: 128
+                minLength: 1
+                pattern: ^[A-Za-z0-9._~-]+$
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutomationRulePage"
+        "400":
+          $ref: "#/components/responses/Automation400"
+        "401":
+          $ref: "#/components/responses/Automation401"
+        "403":
+          $ref: "#/components/responses/Automation403"
+        "404":
+          $ref: "#/components/responses/Automation404"
+        "409":
+          $ref: "#/components/responses/Automation409"
+        "412":
+          $ref: "#/components/responses/Automation412"
+        "413":
+          $ref: "#/components/responses/Automation413"
+        "422":
+          $ref: "#/components/responses/Automation422"
+        "428":
+          $ref: "#/components/responses/Automation428"
+        "429":
+          $ref: "#/components/responses/Automation429"
+        "500":
+          $ref: "#/components/responses/Automation500"
+        "503":
+          $ref: "#/components/responses/Automation503"
+      x-known-feature-gate: automation_configuration
+      security:
+        - cookieAuth: []
+    post:
+      operationId: createAutomationRule
+      tags:
+        - Automation
+      summary: Create a draft rule
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1
+        config/preview only; runtime is unavailable. Historical preview has no fallback.
+      x-delivery-phase: M1
+      parameters:
+        - $ref: "#/components/parameters/AutomationCommandId"
+        - $ref: "#/components/parameters/AutomationCsrf"
+        - $ref: "#/components/parameters/AutomationOrigin"
+        - $ref: "#/components/parameters/AutomationIfMatch"
+      responses:
+        "201":
+          description: Successful response; inspect the returned state, not merely the HTTP status.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+            X-Request-Id:
+              schema:
+                type: string
+                maxLength: 128
+                minLength: 1
+                pattern: ^[A-Za-z0-9._~-]+$
+            ETag:
+              schema:
+                type: string
+                maxLength: 160
+              description: Strong ETag for this automation resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutomationRule"
+        "400":
+          $ref: "#/components/responses/Automation400"
+        "401":
+          $ref: "#/components/responses/Automation401"
+        "403":
+          $ref: "#/components/responses/Automation403"
+        "404":
+          $ref: "#/components/responses/Automation404"
+        "409":
+          $ref: "#/components/responses/Automation409"
+        "412":
+          $ref: "#/components/responses/Automation412"
+        "413":
+          $ref: "#/components/responses/Automation413"
+        "422":
+          $ref: "#/components/responses/Automation422"
+        "428":
+          $ref: "#/components/responses/Automation428"
+        "429":
+          $ref: "#/components/responses/Automation429"
+        "500":
+          $ref: "#/components/responses/Automation500"
+        "503":
+          $ref: "#/components/responses/Automation503"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AutomationRuleInput"
+      x-known-feature-gate: automation_configuration
+      security:
+        - cookieAuth: []
+  /api/v1/me/automations/rules/{ruleId}:
+    get:
+      operationId: getAutomationRule
+      tags:
+        - Automation
+      summary: Get a rule and current revisions
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1
+        config/preview only; runtime is unavailable. Historical preview has no fallback.
+      x-delivery-phase: M1
+      parameters:
+        - in: path
+          name: ruleId
+          required: true
+          schema:
+            type: string
+            maxLength: 128
+            minLength: 1
+            pattern: ^[A-Za-z0-9._~-]+$
+      responses:
+        "200":
+          description: Successful response; inspect the returned state, not merely the HTTP status.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+            X-Request-Id:
+              schema:
+                type: string
+                maxLength: 128
+                minLength: 1
+                pattern: ^[A-Za-z0-9._~-]+$
+            ETag:
+              schema:
+                type: string
+                maxLength: 160
+              description: Strong ETag for this automation resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutomationRule"
+        "400":
+          $ref: "#/components/responses/Automation400"
+        "401":
+          $ref: "#/components/responses/Automation401"
+        "403":
+          $ref: "#/components/responses/Automation403"
+        "404":
+          $ref: "#/components/responses/Automation404"
+        "409":
+          $ref: "#/components/responses/Automation409"
+        "412":
+          $ref: "#/components/responses/Automation412"
+        "413":
+          $ref: "#/components/responses/Automation413"
+        "422":
+          $ref: "#/components/responses/Automation422"
+        "428":
+          $ref: "#/components/responses/Automation428"
+        "429":
+          $ref: "#/components/responses/Automation429"
+        "500":
+          $ref: "#/components/responses/Automation500"
+        "503":
+          $ref: "#/components/responses/Automation503"
+      x-known-feature-gate: automation_configuration
+      security:
+        - cookieAuth: []
+    put:
+      operationId: replaceAutomationRule
+      tags:
+        - Automation
+      summary: Publish a replacement immutable revision
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1
+        config/preview only; runtime is unavailable. Historical preview has no fallback.
+      x-delivery-phase: M1
+      parameters:
+        - in: path
+          name: ruleId
+          required: true
+          schema:
+            type: string
+            maxLength: 128
+            minLength: 1
+            pattern: ^[A-Za-z0-9._~-]+$
+        - $ref: "#/components/parameters/AutomationCommandId"
+        - $ref: "#/components/parameters/AutomationCsrf"
+        - $ref: "#/components/parameters/AutomationOrigin"
+        - $ref: "#/components/parameters/AutomationIfMatch"
+      responses:
+        "200":
+          description: Successful response; inspect the returned state, not merely the HTTP status.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+            X-Request-Id:
+              schema:
+                type: string
+                maxLength: 128
+                minLength: 1
+                pattern: ^[A-Za-z0-9._~-]+$
+            ETag:
+              schema:
+                type: string
+                maxLength: 160
+              description: Strong ETag for this automation resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutomationRule"
+        "400":
+          $ref: "#/components/responses/Automation400"
+        "401":
+          $ref: "#/components/responses/Automation401"
+        "403":
+          $ref: "#/components/responses/Automation403"
+        "404":
+          $ref: "#/components/responses/Automation404"
+        "409":
+          $ref: "#/components/responses/Automation409"
+        "412":
+          $ref: "#/components/responses/Automation412"
+        "413":
+          $ref: "#/components/responses/Automation413"
+        "422":
+          $ref: "#/components/responses/Automation422"
+        "428":
+          $ref: "#/components/responses/Automation428"
+        "429":
+          $ref: "#/components/responses/Automation429"
+        "500":
+          $ref: "#/components/responses/Automation500"
+        "503":
+          $ref: "#/components/responses/Automation503"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AutomationChangeInput"
+      x-known-feature-gate: automation_configuration
+      security:
+        - cookieAuth: []
+    delete:
+      operationId: deleteAutomationRule
+      tags:
+        - Automation
+      summary: Archive a rule without deleting immutable history
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1
+        config/preview only; runtime is unavailable. Historical preview has no fallback.
+      x-delivery-phase: M1
+      parameters:
+        - in: path
+          name: ruleId
+          required: true
+          schema:
+            type: string
+            maxLength: 128
+            minLength: 1
+            pattern: ^[A-Za-z0-9._~-]+$
+        - $ref: "#/components/parameters/AutomationCommandId"
+        - $ref: "#/components/parameters/AutomationIfMatch"
+        - $ref: "#/components/parameters/AutomationCsrf"
+        - $ref: "#/components/parameters/AutomationOrigin"
+      responses:
+        "200":
+          description: Successful response; inspect the returned state, not merely the HTTP status.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+            X-Request-Id:
+              schema:
+                type: string
+                maxLength: 128
+                minLength: 1
+                pattern: ^[A-Za-z0-9._~-]+$
+            ETag:
+              schema:
+                type: string
+                maxLength: 160
+              description: Strong ETag for this automation resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutomationRule"
+        "400":
+          $ref: "#/components/responses/Automation400"
+        "401":
+          $ref: "#/components/responses/Automation401"
+        "403":
+          $ref: "#/components/responses/Automation403"
+        "404":
+          $ref: "#/components/responses/Automation404"
+        "409":
+          $ref: "#/components/responses/Automation409"
+        "412":
+          $ref: "#/components/responses/Automation412"
+        "413":
+          $ref: "#/components/responses/Automation413"
+        "422":
+          $ref: "#/components/responses/Automation422"
+        "428":
+          $ref: "#/components/responses/Automation428"
+        "429":
+          $ref: "#/components/responses/Automation429"
+        "500":
+          $ref: "#/components/responses/Automation500"
+        "503":
+          $ref: "#/components/responses/Automation503"
+      x-known-feature-gate: automation_configuration
+      security:
+        - cookieAuth: []
+  /api/v1/me/automations/rules/{ruleId}/lifecycle:
+    post:
+      operationId: setAutomationRuleLifecycle
+      tags:
+        - Automation
+      summary: Enable, pause or archive a rule
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1
+        config/preview only; runtime is unavailable. Historical preview has no fallback.
+      x-delivery-phase: M1
+      parameters:
+        - in: path
+          name: ruleId
+          required: true
+          schema:
+            type: string
+            maxLength: 128
+            minLength: 1
+            pattern: ^[A-Za-z0-9._~-]+$
+        - $ref: "#/components/parameters/AutomationCommandId"
+        - $ref: "#/components/parameters/AutomationCsrf"
+        - $ref: "#/components/parameters/AutomationOrigin"
+        - $ref: "#/components/parameters/AutomationIfMatch"
+      responses:
+        "200":
+          description: Successful response; inspect the returned state, not merely the HTTP status.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+            X-Request-Id:
+              schema:
+                type: string
+                maxLength: 128
+                minLength: 1
+                pattern: ^[A-Za-z0-9._~-]+$
+            ETag:
+              schema:
+                type: string
+                maxLength: 160
+              description: Strong ETag for this automation resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutomationRule"
+        "400":
+          $ref: "#/components/responses/Automation400"
+        "401":
+          $ref: "#/components/responses/Automation401"
+        "403":
+          $ref: "#/components/responses/Automation403"
+        "404":
+          $ref: "#/components/responses/Automation404"
+        "409":
+          $ref: "#/components/responses/Automation409"
+        "412":
+          $ref: "#/components/responses/Automation412"
+        "413":
+          $ref: "#/components/responses/Automation413"
+        "422":
+          $ref: "#/components/responses/Automation422"
+        "428":
+          $ref: "#/components/responses/Automation428"
+        "429":
+          $ref: "#/components/responses/Automation429"
+        "500":
+          $ref: "#/components/responses/Automation500"
+        "503":
+          $ref: "#/components/responses/Automation503"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AutomationLifecycleInput"
+      x-known-feature-gate: automation_configuration
+      security:
+        - cookieAuth: []
+  /api/v1/me/automations/binding-sets:
+    get:
+      operationId: listAutomationBindingSets
+      tags:
+        - Automation
+      summary: List binding-sets
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1
+        config/preview only; runtime is unavailable. Historical preview has no fallback.
+      x-delivery-phase: M1
+      parameters:
+        - $ref: "#/components/parameters/AutomationCursor"
+        - $ref: "#/components/parameters/AutomationLimit"
+      responses:
+        "200":
+          description: Successful response; inspect the returned state, not merely the HTTP status.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+            X-Request-Id:
+              schema:
+                type: string
+                maxLength: 128
+                minLength: 1
+                pattern: ^[A-Za-z0-9._~-]+$
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutomationBindingSetPage"
+        "400":
+          $ref: "#/components/responses/Automation400"
+        "401":
+          $ref: "#/components/responses/Automation401"
+        "403":
+          $ref: "#/components/responses/Automation403"
+        "404":
+          $ref: "#/components/responses/Automation404"
+        "409":
+          $ref: "#/components/responses/Automation409"
+        "412":
+          $ref: "#/components/responses/Automation412"
+        "413":
+          $ref: "#/components/responses/Automation413"
+        "422":
+          $ref: "#/components/responses/Automation422"
+        "428":
+          $ref: "#/components/responses/Automation428"
+        "429":
+          $ref: "#/components/responses/Automation429"
+        "500":
+          $ref: "#/components/responses/Automation500"
+        "503":
+          $ref: "#/components/responses/Automation503"
+      x-known-feature-gate: automation_configuration
+      security:
+        - cookieAuth: []
+    post:
+      operationId: createAutomationBindingSet
+      tags:
+        - Automation
+      summary: Create BindingSet
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1
+        config/preview only; runtime is unavailable. Historical preview has no fallback.
+      x-delivery-phase: M1
+      parameters:
+        - $ref: "#/components/parameters/AutomationCommandId"
+        - $ref: "#/components/parameters/AutomationCsrf"
+        - $ref: "#/components/parameters/AutomationOrigin"
+        - $ref: "#/components/parameters/AutomationIfMatch"
+      responses:
+        "201":
+          description: Successful response; inspect the returned state, not merely the HTTP status.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+            X-Request-Id:
+              schema:
+                type: string
+                maxLength: 128
+                minLength: 1
+                pattern: ^[A-Za-z0-9._~-]+$
+            ETag:
+              schema:
+                type: string
+                maxLength: 160
+              description: Strong ETag for this automation resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutomationBindingSet"
+        "400":
+          $ref: "#/components/responses/Automation400"
+        "401":
+          $ref: "#/components/responses/Automation401"
+        "403":
+          $ref: "#/components/responses/Automation403"
+        "404":
+          $ref: "#/components/responses/Automation404"
+        "409":
+          $ref: "#/components/responses/Automation409"
+        "412":
+          $ref: "#/components/responses/Automation412"
+        "413":
+          $ref: "#/components/responses/Automation413"
+        "422":
+          $ref: "#/components/responses/Automation422"
+        "428":
+          $ref: "#/components/responses/Automation428"
+        "429":
+          $ref: "#/components/responses/Automation429"
+        "500":
+          $ref: "#/components/responses/Automation500"
+        "503":
+          $ref: "#/components/responses/Automation503"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AutomationBindingSetInput"
+      x-known-feature-gate: automation_configuration
+      security:
+        - cookieAuth: []
+  /api/v1/me/automations/binding-sets/{bindingSetId}:
+    get:
+      operationId: getAutomationBindingSet
+      tags:
+        - Automation
+      summary: Read BindingSet
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1
+        config/preview only; runtime is unavailable. Historical preview has no fallback.
+      x-delivery-phase: M1
+      parameters:
+        - in: path
+          name: bindingSetId
+          required: true
+          schema:
+            type: string
+            maxLength: 128
+            minLength: 1
+            pattern: ^[A-Za-z0-9._~-]+$
+      responses:
+        "200":
+          description: Successful response; inspect the returned state, not merely the HTTP status.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+            X-Request-Id:
+              schema:
+                type: string
+                maxLength: 128
+                minLength: 1
+                pattern: ^[A-Za-z0-9._~-]+$
+            ETag:
+              schema:
+                type: string
+                maxLength: 160
+              description: Strong ETag for this automation resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutomationBindingSet"
+        "400":
+          $ref: "#/components/responses/Automation400"
+        "401":
+          $ref: "#/components/responses/Automation401"
+        "403":
+          $ref: "#/components/responses/Automation403"
+        "404":
+          $ref: "#/components/responses/Automation404"
+        "409":
+          $ref: "#/components/responses/Automation409"
+        "412":
+          $ref: "#/components/responses/Automation412"
+        "413":
+          $ref: "#/components/responses/Automation413"
+        "422":
+          $ref: "#/components/responses/Automation422"
+        "428":
+          $ref: "#/components/responses/Automation428"
+        "429":
+          $ref: "#/components/responses/Automation429"
+        "500":
+          $ref: "#/components/responses/Automation500"
+        "503":
+          $ref: "#/components/responses/Automation503"
+      x-known-feature-gate: automation_configuration
+      security:
+        - cookieAuth: []
+    put:
+      operationId: replaceAutomationBindingSet
+      tags:
+        - Automation
+      summary: Replace BindingSet configuration
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1
+        config/preview only; runtime is unavailable. Historical preview has no fallback.
+      x-delivery-phase: M1
+      parameters:
+        - in: path
+          name: bindingSetId
+          required: true
+          schema:
+            type: string
+            maxLength: 128
+            minLength: 1
+            pattern: ^[A-Za-z0-9._~-]+$
+        - $ref: "#/components/parameters/AutomationCommandId"
+        - $ref: "#/components/parameters/AutomationCsrf"
+        - $ref: "#/components/parameters/AutomationOrigin"
+        - $ref: "#/components/parameters/AutomationIfMatch"
+      responses:
+        "200":
+          description: Successful response; inspect the returned state, not merely the HTTP status.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+            X-Request-Id:
+              schema:
+                type: string
+                maxLength: 128
+                minLength: 1
+                pattern: ^[A-Za-z0-9._~-]+$
+            ETag:
+              schema:
+                type: string
+                maxLength: 160
+              description: Strong ETag for this automation resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutomationBindingSet"
+        "400":
+          $ref: "#/components/responses/Automation400"
+        "401":
+          $ref: "#/components/responses/Automation401"
+        "403":
+          $ref: "#/components/responses/Automation403"
+        "404":
+          $ref: "#/components/responses/Automation404"
+        "409":
+          $ref: "#/components/responses/Automation409"
+        "412":
+          $ref: "#/components/responses/Automation412"
+        "413":
+          $ref: "#/components/responses/Automation413"
+        "422":
+          $ref: "#/components/responses/Automation422"
+        "428":
+          $ref: "#/components/responses/Automation428"
+        "429":
+          $ref: "#/components/responses/Automation429"
+        "500":
+          $ref: "#/components/responses/Automation500"
+        "503":
+          $ref: "#/components/responses/Automation503"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AutomationBindingSetInput"
+      x-known-feature-gate: automation_configuration
+      security:
+        - cookieAuth: []
+    delete:
+      operationId: deleteAutomationBindingSet
+      tags:
+        - Automation
+      summary: Delete an unreferenced binding set
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1
+        config/preview only; runtime is unavailable. Historical preview has no fallback.
+      x-delivery-phase: M1
+      parameters:
+        - in: path
+          name: bindingSetId
+          required: true
+          schema:
+            type: string
+            maxLength: 128
+            minLength: 1
+            pattern: ^[A-Za-z0-9._~-]+$
+        - $ref: "#/components/parameters/AutomationCommandId"
+        - $ref: "#/components/parameters/AutomationIfMatch"
+        - $ref: "#/components/parameters/AutomationCsrf"
+        - $ref: "#/components/parameters/AutomationOrigin"
+      responses:
+        "204":
+          description: Unreferenced binding set removed.
+        "400":
+          $ref: "#/components/responses/Automation400"
+        "401":
+          $ref: "#/components/responses/Automation401"
+        "403":
+          $ref: "#/components/responses/Automation403"
+        "404":
+          $ref: "#/components/responses/Automation404"
+        "409":
+          $ref: "#/components/responses/Automation409"
+        "412":
+          $ref: "#/components/responses/Automation412"
+        "413":
+          $ref: "#/components/responses/Automation413"
+        "422":
+          $ref: "#/components/responses/Automation422"
+        "428":
+          $ref: "#/components/responses/Automation428"
+        "429":
+          $ref: "#/components/responses/Automation429"
+        "500":
+          $ref: "#/components/responses/Automation500"
+        "503":
+          $ref: "#/components/responses/Automation503"
+      x-known-feature-gate: automation_configuration
+      security:
+        - cookieAuth: []
+  /api/v1/me/automations/pause:
+    post:
+      operationId: setAutomationPause
+      tags:
+        - Automation
+      summary: Pause or resume every automation for this owner
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded.
+        Pausing stops admission for every rule, holds pending jobs and sets the bundle flag; resuming does not backfill.
+        BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+      x-delivery-phase: M1
+      parameters:
+        - $ref: "#/components/parameters/AutomationCommandId"
+        - $ref: "#/components/parameters/AutomationCsrf"
+        - $ref: "#/components/parameters/AutomationOrigin"
+        - $ref: "#/components/parameters/AutomationIfMatch"
+      responses:
+        "200":
+          description: Successful response; inspect the returned state, not merely the HTTP status.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+            X-Request-Id:
+              schema:
+                type: string
+                maxLength: 128
+                minLength: 1
+                pattern: ^[A-Za-z0-9._~-]+$
+            ETag:
+              schema:
+                type: string
+                maxLength: 160
+              description: Strong ETag for this automation resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutomationPauseState"
+        "400":
+          $ref: "#/components/responses/Automation400"
+        "401":
+          $ref: "#/components/responses/Automation401"
+        "403":
+          $ref: "#/components/responses/Automation403"
+        "404":
+          $ref: "#/components/responses/Automation404"
+        "409":
+          $ref: "#/components/responses/Automation409"
+        "412":
+          $ref: "#/components/responses/Automation412"
+        "413":
+          $ref: "#/components/responses/Automation413"
+        "422":
+          $ref: "#/components/responses/Automation422"
+        "428":
+          $ref: "#/components/responses/Automation428"
+        "429":
+          $ref: "#/components/responses/Automation429"
+        "500":
+          $ref: "#/components/responses/Automation500"
+        "503":
+          $ref: "#/components/responses/Automation503"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AutomationPauseInput"
+      x-known-feature-gate: automation_configuration
+      security:
+        - cookieAuth: []
+    get:
+      operationId: getAutomationPause
+      tags:
+        - Automation
+      summary: Read global pause state and revision
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded.
+        Pausing stops admission for every rule, holds pending jobs and sets the bundle flag; resuming does not backfill.
+        BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+      x-delivery-phase: M1
+      parameters: []
+      responses:
+        "200":
+          description: Successful response; inspect the returned state, not merely the HTTP status.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+            X-Request-Id:
+              schema:
+                type: string
+                maxLength: 128
+                minLength: 1
+                pattern: ^[A-Za-z0-9._~-]+$
+            ETag:
+              schema:
+                type: string
+                maxLength: 160
+              description: Strong ETag for this automation resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutomationPauseState"
+        "400":
+          $ref: "#/components/responses/Automation400"
+        "401":
+          $ref: "#/components/responses/Automation401"
+        "403":
+          $ref: "#/components/responses/Automation403"
+        "404":
+          $ref: "#/components/responses/Automation404"
+        "409":
+          $ref: "#/components/responses/Automation409"
+        "412":
+          $ref: "#/components/responses/Automation412"
+        "413":
+          $ref: "#/components/responses/Automation413"
+        "422":
+          $ref: "#/components/responses/Automation422"
+        "428":
+          $ref: "#/components/responses/Automation428"
+        "429":
+          $ref: "#/components/responses/Automation429"
+        "500":
+          $ref: "#/components/responses/Automation500"
+        "503":
+          $ref: "#/components/responses/Automation503"
+      x-known-feature-gate: automation_configuration
+      security:
+        - cookieAuth: []
+  /api/v1/me/automations/export:
+    get:
+      operationId: exportAutomations
+      tags:
+        - Automation
+      summary: Export rules and folder bindings by path, without secrets
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Used
+        by the web Export menu and colp-server export. BE-1 config/preview only; runtime is unavailable. Historical
+        preview has no fallback.
+      x-delivery-phase: M1
+      parameters: []
+      responses:
+        "200":
+          description: Successful response; inspect the returned state, not merely the HTTP status.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+            X-Request-Id:
+              schema:
+                type: string
+                maxLength: 128
+                minLength: 1
+                pattern: ^[A-Za-z0-9._~-]+$
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutomationAutomationExport"
+        "400":
+          $ref: "#/components/responses/Automation400"
+        "401":
+          $ref: "#/components/responses/Automation401"
+        "403":
+          $ref: "#/components/responses/Automation403"
+        "404":
+          $ref: "#/components/responses/Automation404"
+        "409":
+          $ref: "#/components/responses/Automation409"
+        "412":
+          $ref: "#/components/responses/Automation412"
+        "413":
+          $ref: "#/components/responses/Automation413"
+        "422":
+          $ref: "#/components/responses/Automation422"
+        "428":
+          $ref: "#/components/responses/Automation428"
+        "429":
+          $ref: "#/components/responses/Automation429"
+        "500":
+          $ref: "#/components/responses/Automation500"
+        "503":
+          $ref: "#/components/responses/Automation503"
+      x-known-feature-gate: automation_configuration
+      security:
+        - cookieAuth: []
+# END AUTOMATION PATHS
 
 components:
   securitySchemes:
@@ -12173,6 +13289,58 @@ components:
         PRODUCT_ORIGIN.
 
   parameters:
+# BEGIN AUTOMATION parameters
+    AutomationCommandId:
+      in: header
+      name: Known-Command-Id
+      required: true
+      schema:
+        type: string
+        maxLength: 128
+        minLength: 1
+      description: "Stable command identity. Scope: authenticated principal + operation + addressed resource. Same
+        identity/different canonical body returns 409."
+    AutomationCsrf:
+      in: header
+      name: X-CSRF-Token
+      required: true
+      schema:
+        type: string
+        maxLength: 1024
+      description: "Verified host CSRF header (evidence R23): the server reads `x-csrf-token` together with the Origin
+        allowlist on cookie-authenticated writes. Re-checked at AW-01. Never introduce a second CSRF scheme."
+    AutomationOrigin:
+      in: header
+      name: Origin
+      required: true
+      schema:
+        type: string
+        maxLength: 2048
+        format: uri
+      description: Validate against existing host trusted-origin policy for cookie-authenticated mutations.
+    AutomationCursor:
+      in: query
+      name: cursor
+      schema:
+        type: string
+        maxLength: 2048
+    AutomationLimit:
+      in: query
+      name: limit
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+    AutomationIfMatch:
+      in: header
+      name: If-Match
+      required: true
+      schema:
+        type: string
+        maxLength: 160
+      description: Strong ETag from the addressed automation resource, never a node publication revision.
+# END AUTOMATION parameters
     AccountCredentialId:
       name: credentialId
       in: path
@@ -13258,6 +14426,1570 @@ components:
         minLength: 1
 
   schemas:
+# BEGIN AUTOMATION schemas
+    AutomationCapabilities:
+      type: object
+      properties:
+        contractVersion:
+          const: 0.2.1-design
+        ruleApiVersions:
+          type: array
+          items:
+            type: string
+            maxLength: 80
+          maxItems: 10
+        runtimeProfiles:
+          type: array
+          items:
+            type: string
+            enum:
+              - browser-bounded-v1
+              - server-cel-v1
+          maxItems: 2
+        triggerModes:
+          type: array
+          items:
+            type: string
+            enum:
+              - each
+              - countBatch
+              - scheduledBatch
+          maxItems: 3
+        taskTypes:
+          type: array
+          items:
+            type: string
+            enum:
+              - classify.root
+              - classify.refine
+              - tags.generate
+              - summary.generate
+              - metadata.resolve
+              - review.generate
+              - digest.generate
+          maxItems: 16
+        eventsEnabled:
+          type: boolean
+        limits:
+          type: object
+          properties:
+            maxRules:
+              type: integer
+              minimum: 0
+            maxExpressionBytes:
+              type: integer
+              minimum: 0
+            maxTasksPerRule:
+              type: integer
+              minimum: 0
+          required:
+            - maxRules
+            - maxExpressionBytes
+            - maxTasksPerRule
+          additionalProperties: false
+      required:
+        - contractVersion
+        - ruleApiVersions
+        - runtimeProfiles
+        - triggerModes
+        - taskTypes
+        - eventsEnabled
+        - limits
+      additionalProperties: false
+    AutomationProductErrorEnvelope:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              maxLength: 100
+            message:
+              type: string
+              maxLength: 2000
+            requestId:
+              type: string
+              maxLength: 128
+              minLength: 1
+              pattern: ^[A-Za-z0-9._~-]+$
+            recovery:
+              type: string
+              enum:
+                - same_request
+                - refresh_and_retry
+                - restart_from_first_page
+                - user_action
+                - none
+            sameRequestRetrySafe:
+              type: boolean
+            precondition:
+              anyOf:
+                - type: string
+                  enum:
+                    - resource
+                    - content
+                - type: "null"
+            currentEtag:
+              anyOf:
+                - type: string
+                  maxLength: 160
+                - type: "null"
+            retryAfterSeconds:
+              anyOf:
+                - type: integer
+                  minimum: 0
+                - type: "null"
+            fieldErrors:
+              type: array
+              items:
+                $ref: "#/components/schemas/AutomationProductFieldError"
+              maxItems: 100
+          required:
+            - code
+            - message
+            - requestId
+            - recovery
+            - sameRequestRetrySafe
+            - precondition
+            - currentEtag
+            - retryAfterSeconds
+            - fieldErrors
+          additionalProperties: false
+      required:
+        - error
+      additionalProperties: false
+    AutomationProductFieldError:
+      type: object
+      properties:
+        path:
+          type: string
+          maxLength: 500
+        code:
+          type: string
+          maxLength: 100
+        message:
+          type: string
+          maxLength: 2000
+      required:
+        - path
+        - code
+        - message
+      additionalProperties: false
+    AutomationValidationResult:
+      type: object
+      properties:
+        valid:
+          type: boolean
+        normalizedDefinition:
+          $ref: "#/components/schemas/AutomationRuleDefinition"
+        semanticDigest:
+          type: string
+          maxLength: 64
+          pattern: ^[a-f0-9]{64}$
+        diagnostics:
+          type: array
+          items:
+            $ref: "#/components/schemas/AutomationDiagnostic"
+          maxItems: 100
+        supportedHosts:
+          type: array
+          items:
+            type: string
+            enum:
+              - browser
+              - server
+          maxItems: 2
+      required:
+        - valid
+        - diagnostics
+        - supportedHosts
+      additionalProperties: false
+    AutomationRuleDefinition:
+      type: object
+      properties:
+        apiVersion:
+          const: colp.automation/v1
+        name:
+          type: string
+          maxLength: 200
+          minLength: 1
+        description:
+          type: string
+          maxLength: 2000
+        roles:
+          type: array
+          items:
+            $ref: "#/components/schemas/AutomationRoleDeclaration"
+          maxItems: 32
+        on:
+          type: string
+          enum:
+            - bookmark.intake
+            - node.created
+            - node.updated
+            - intake.completed
+            - bookmark.link_health.changed
+        scope:
+          $ref: "#/components/schemas/AutomationScopeSpec"
+        match:
+          $ref: "#/components/schemas/AutomationPredicate"
+        intake:
+          $ref: "#/components/schemas/AutomationIntakeSpec"
+        trigger:
+          $ref: "#/components/schemas/AutomationTriggerSpec"
+        tasks:
+          type: array
+          items:
+            $ref: "#/components/schemas/AutomationTaskSpec"
+          maxItems: 8
+        route:
+          $ref: "#/components/schemas/AutomationRouteSpec"
+        policy:
+          $ref: "#/components/schemas/AutomationRulePolicy"
+        priority:
+          type: integer
+          minimum: -1000
+          maximum: 1000
+      required:
+        - apiVersion
+        - name
+        - roles
+        - on
+        - scope
+        - match
+        - trigger
+        - tasks
+        - route
+        - policy
+        - priority
+      additionalProperties: false
+    AutomationRoleDeclaration:
+      type: object
+      properties:
+        key:
+          type: string
+          maxLength: 80
+          pattern: ^[a-z][A-Za-z0-9]*$
+        kind:
+          type: string
+          enum:
+            - folder
+            - executor
+            - entityMap
+            - vocabulary
+        required:
+          type: boolean
+        description:
+          type: string
+          maxLength: 1000
+        mustBeWithinRole:
+          type: string
+          maxLength: 80
+      required:
+        - key
+        - kind
+        - required
+        - description
+      additionalProperties: false
+    AutomationScopeSpec:
+      type: object
+      properties:
+        collectionId:
+          type: string
+          maxLength: 128
+          minLength: 1
+          pattern: ^[A-Za-z0-9._~-]+$
+        folderRole:
+          type: string
+          maxLength: 80
+        includeDescendants:
+          type: boolean
+      required: []
+      additionalProperties: false
+    AutomationPredicate:
+      oneOf:
+        - $ref: "#/components/schemas/AutomationFieldPredicate"
+        - $ref: "#/components/schemas/AutomationAllPredicate"
+        - $ref: "#/components/schemas/AutomationAnyPredicate"
+        - $ref: "#/components/schemas/AutomationNotPredicate"
+        - $ref: "#/components/schemas/AutomationCelPredicate"
+    AutomationFieldPredicate:
+      type: object
+      properties:
+        kind:
+          const: field
+        field:
+          type: string
+          enum:
+            - bookmark.url.host
+            - bookmark.url.path
+            - bookmark.title
+            - bookmark.tags
+            - bookmark.kind
+            - event.type
+            - event.origin
+            - event.changedFields
+        op:
+          type: string
+          enum:
+            - eq
+            - in
+            - contains
+            - hostSuffix
+            - hasTag
+            - startsWith
+        value:
+          oneOf:
+            - type: string
+              maxLength: 1024
+            - type: array
+              items:
+                type: string
+                maxLength: 200
+              maxItems: 100
+      required:
+        - kind
+        - field
+        - op
+        - value
+      additionalProperties: false
+      description: Operator/field compatibility is checked semantically. startsWith is literal case-sensitive prefix
+        comparison on normalized URL path; never substring search or an artificial UI anchor.
+    AutomationAllPredicate:
+      type: object
+      properties:
+        kind:
+          const: all
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AutomationPredicate"
+          maxItems: 32
+      required:
+        - kind
+        - items
+      additionalProperties: false
+    AutomationAnyPredicate:
+      type: object
+      properties:
+        kind:
+          const: any
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AutomationPredicate"
+          maxItems: 32
+      required:
+        - kind
+        - items
+      additionalProperties: false
+    AutomationNotPredicate:
+      type: object
+      properties:
+        kind:
+          const: not
+        item:
+          $ref: "#/components/schemas/AutomationPredicate"
+      required:
+        - kind
+        - item
+      additionalProperties: false
+    AutomationCelPredicate:
+      type: object
+      properties:
+        kind:
+          const: cel
+        expression:
+          type: string
+          maxLength: 4096
+          minLength: 1
+        profile:
+          const: colp-cel-v1
+        dependencies:
+          type: array
+          items:
+            type: string
+            maxLength: 128
+          maxItems: 64
+      required:
+        - kind
+        - expression
+        - profile
+        - dependencies
+      additionalProperties: false
+    AutomationIntakeSpec:
+      type: object
+      properties:
+        folderRole:
+          type: string
+          maxLength: 80
+        constraint:
+          type: string
+          enum:
+            - exact
+            - withinSubtree
+        satisfies:
+          type: array
+          items:
+            type: string
+            enum:
+              - classify.root
+          maxItems: 1
+        onUnusableBinding:
+          const: keepOriginalAndBlock
+        respectExplicitSelection:
+          const: true
+      required:
+        - folderRole
+        - constraint
+        - satisfies
+        - onUnusableBinding
+        - respectExplicitSelection
+      additionalProperties: false
+    AutomationTriggerSpec:
+      oneOf:
+        - $ref: "#/components/schemas/AutomationEachTrigger"
+        - $ref: "#/components/schemas/AutomationCountTrigger"
+        - $ref: "#/components/schemas/AutomationScheduleTrigger"
+    AutomationEachTrigger:
+      type: object
+      properties:
+        mode:
+          const: each
+      required:
+        - mode
+      additionalProperties: false
+    AutomationCountTrigger:
+      type: object
+      properties:
+        mode:
+          const: countBatch
+        count:
+          type: integer
+          minimum: 2
+          maximum: 1000
+        distinctBy:
+          type: string
+          enum:
+            - node
+            - normalizedUrl
+        partition:
+          type: string
+          enum:
+            - rule
+            - collection
+            - folder
+      required:
+        - mode
+        - count
+        - distinctBy
+        - partition
+      additionalProperties: false
+    AutomationScheduleTrigger:
+      type: object
+      properties:
+        mode:
+          const: scheduledBatch
+        cron:
+          type: string
+          maxLength: 100
+        timezone:
+          type: string
+          maxLength: 100
+        nonEmptyOnly:
+          const: true
+        misfire:
+          type: string
+          enum:
+            - coalesce
+            - skip
+        dst:
+          const: skipMissingOnceRepeated
+      required:
+        - mode
+        - cron
+        - timezone
+        - nonEmptyOnly
+        - misfire
+        - dst
+      additionalProperties: false
+      description: Later-milestone capability (AU-32); reject with unsupported_capability until mounted. Five-field cron.
+    AutomationTaskSpec:
+      type: object
+      properties:
+        id:
+          type: string
+          maxLength: 128
+          minLength: 1
+          pattern: ^[A-Za-z0-9._~-]+$
+        type:
+          type: string
+          enum:
+            - classify.root
+            - classify.refine
+            - tags.generate
+            - summary.generate
+            - metadata.resolve
+            - review.generate
+            - digest.generate
+        after:
+          type: array
+          items:
+            type: string
+            maxLength: 128
+            minLength: 1
+            pattern: ^[A-Za-z0-9._~-]+$
+          maxItems: 8
+          uniqueItems: true
+        executorRole:
+          type: string
+          maxLength: 80
+        folderRole:
+          type: string
+          maxLength: 80
+        entityMapRole:
+          type: string
+          maxLength: 80
+        vocabularyRole:
+          type: string
+          maxLength: 80
+        required:
+          type: boolean
+        outputContract:
+          type: string
+          maxLength: 100
+        inputFields:
+          type: array
+          items:
+            type: string
+            enum:
+              - url
+              - title
+              - description
+              - note
+              - tags
+              - metadata
+              - readableText
+              - folderDefinitions
+          maxItems: 8
+          uniqueItems: true
+        instruction:
+          type: string
+          maxLength: 3000
+        allowCreateFolder:
+          type: boolean
+      required:
+        - id
+        - type
+        - after
+        - executorRole
+        - required
+        - outputContract
+        - inputFields
+        - instruction
+      additionalProperties: false
+    AutomationRouteSpec:
+      type: object
+      properties:
+        mode:
+          type: string
+          enum:
+            - targets
+            - broadcast
+        targetIds:
+          type: array
+          items:
+            type: string
+            maxLength: 128
+            minLength: 1
+            pattern: ^[A-Za-z0-9._~-]+$
+          maxItems: 20
+        audience:
+          type: string
+          enum:
+            - optedInAuthorizedTargets
+        execution:
+          type: string
+          enum:
+            - single
+            - firstClaim
+            - perTarget
+      required:
+        - mode
+        - execution
+      additionalProperties: false
+    AutomationRulePolicy:
+      type: object
+      properties:
+        history:
+          const: fromActivation
+        imports:
+          type: string
+          enum:
+            - exclude
+            - include
+        restores:
+          const: exclude
+        userEdits:
+          const: preserve
+        sameStageReentry:
+          const: deny
+        maxHops:
+          type: integer
+          minimum: 1
+          maximum: 16
+        conflictingPlacement:
+          const: review
+        privacy:
+          type: string
+          enum:
+            - standard
+            - restricted
+        broadcastAllowed:
+          type: boolean
+        maxRunsPerDay:
+          type: integer
+          minimum: 1
+          maximum: 10000
+        pauseMode:
+          const: stopAdmissionHoldPending
+        missingInput:
+          type: string
+          enum:
+            - defer
+            - review
+      required:
+        - history
+        - imports
+        - restores
+        - userEdits
+        - sameStageReentry
+        - maxHops
+        - conflictingPlacement
+        - privacy
+        - broadcastAllowed
+        - maxRunsPerDay
+        - pauseMode
+        - missingInput
+      additionalProperties: false
+    AutomationDiagnostic:
+      type: object
+      properties:
+        code:
+          type: string
+          maxLength: 100
+        severity:
+          type: string
+          enum:
+            - info
+            - warning
+            - error
+        location:
+          type: string
+          maxLength: 500
+        message:
+          type: string
+          maxLength: 2000
+        role:
+          type: string
+          maxLength: 80
+      required:
+        - code
+        - severity
+        - location
+        - message
+      additionalProperties: false
+    AutomationRuleInput:
+      type: object
+      properties:
+        definition:
+          $ref: "#/components/schemas/AutomationRuleDefinition"
+        bindingSetId:
+          type: string
+          maxLength: 128
+          minLength: 1
+          pattern: ^[A-Za-z0-9._~-]+$
+        executionPolicyId:
+          type: string
+          maxLength: 128
+          minLength: 1
+          pattern: ^[A-Za-z0-9._~-]+$
+          description: Required by semantic validation only when admitted tasks need an M2+ executor. Absent for deterministic M1
+            placement; no dummy policy record.
+        templateRef:
+          type: string
+          maxLength: 256
+      required:
+        - definition
+        - bindingSetId
+      additionalProperties: false
+    AutomationPreviewResult:
+      type: object
+      properties:
+        previewId:
+          type: string
+          maxLength: 128
+          minLength: 1
+          pattern: ^[A-Za-z0-9._~-]+$
+        sideEffects:
+          const: false
+        decisions:
+          type: array
+          items:
+            $ref: "#/components/schemas/AutomationPreviewDecision"
+          maxItems: 1000
+        diagnostics:
+          type: array
+          items:
+            $ref: "#/components/schemas/AutomationDiagnostic"
+          maxItems: 100
+        plannedRunCount:
+          type: integer
+          minimum: 0
+        remainderCount:
+          type: integer
+          minimum: 0
+        completeHistory:
+          type: boolean
+        truncated:
+          type: boolean
+      required:
+        - previewId
+        - sideEffects
+        - decisions
+        - diagnostics
+        - plannedRunCount
+        - remainderCount
+        - completeHistory
+        - truncated
+      additionalProperties: false
+    AutomationPreviewDecision:
+      type: object
+      properties:
+        eventId:
+          type: string
+          maxLength: 128
+          minLength: 1
+          pattern: ^[A-Za-z0-9._~-]+$
+        outcome:
+          type: string
+          enum:
+            - matched
+            - notMatched
+            - missingInput
+            - blocked
+            - conflict
+        satisfiedTasks:
+          type: array
+          items:
+            type: string
+            maxLength: 100
+          maxItems: 16
+        pendingTasks:
+          type: array
+          items:
+            type: string
+            maxLength: 100
+          maxItems: 16
+        explanation:
+          type: string
+          maxLength: 2000
+        batchIndex:
+          type: integer
+          minimum: 0
+      required:
+        - eventId
+        - outcome
+        - satisfiedTasks
+        - pendingTasks
+        - explanation
+      additionalProperties: false
+    AutomationPreviewInput:
+      type: object
+      properties:
+        rule:
+          $ref: "#/components/schemas/AutomationRuleInput"
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/AutomationEventFacts"
+          maxItems: 1000
+        mode:
+          type: string
+          enum:
+            - supplied
+            - currentState
+            - retainedHistory
+          description: supplied validates bounded provided facts; currentState reads up to 200 authorized current bookmarks
+            without requiring historical ingestion; retainedHistory requires the retained-facts capability and never falls
+            back silently.
+        from:
+          type: string
+          format: date-time
+        to:
+          type: string
+          format: date-time
+      required:
+        - rule
+        - mode
+      additionalProperties: false
+      allOf:
+        - if:
+            properties:
+              mode:
+                const: supplied
+            required:
+              - mode
+          then:
+            required:
+              - events
+            properties:
+              events:
+                minItems: 1
+          else:
+            not:
+              required:
+                - events
+      description: Pure rule preview. Persist an exact configuration-bound preview token but do not mutate bookmarks, create
+        jobs or contact an executor. Current-state sampling is not historical replay.
+    AutomationEventFacts:
+      type: object
+      properties:
+        eventId:
+          type: string
+          maxLength: 128
+          minLength: 1
+          pattern: ^[A-Za-z0-9._~-]+$
+        operationId:
+          type: string
+          maxLength: 128
+          minLength: 1
+          pattern: ^[A-Za-z0-9._~-]+$
+        type:
+          type: string
+          maxLength: 100
+        collectionId:
+          type: string
+          maxLength: 128
+          minLength: 1
+          pattern: ^[A-Za-z0-9._~-]+$
+        nodeId:
+          type: string
+          maxLength: 128
+          minLength: 1
+          pattern: ^[A-Za-z0-9._~-]+$
+        commitOrdinal:
+          type: string
+          maxLength: 32
+          pattern: ^[0-9]+$
+        occurredAt:
+          type: string
+          format: date-time
+        origin:
+          type: string
+          enum:
+            - user
+            - sync
+            - import
+            - restore
+            - automation
+            - system
+        changedFields:
+          type: array
+          items:
+            type: string
+            maxLength: 80
+          maxItems: 50
+        bookmark:
+          $ref: "#/components/schemas/AutomationBookmarkFacts"
+        before:
+          $ref: "#/components/schemas/AutomationBookmarkFacts"
+        rootRunId:
+          type: string
+          maxLength: 128
+          minLength: 1
+          pattern: ^[A-Za-z0-9._~-]+$
+        stageId:
+          type: string
+          maxLength: 128
+          minLength: 1
+          pattern: ^[A-Za-z0-9._~-]+$
+        hopCount:
+          type: integer
+          minimum: 0
+          maximum: 16
+        intakeDisposition:
+          type: string
+          enum:
+            - userDefault
+            - userSelected
+            - rulePlacement
+            - observedRoot
+            - notIntake
+            - unknown
+          description: Server-derived from canonical intake command context/verified receipt. Missing means unknown. Unknown,
+            imports, restores and already-foldered input must not be automatically reparented.
+      required:
+        - eventId
+        - operationId
+        - type
+        - collectionId
+        - nodeId
+        - commitOrdinal
+        - occurredAt
+        - origin
+        - changedFields
+        - bookmark
+        - hopCount
+      additionalProperties: false
+    AutomationBookmarkFacts:
+      type: object
+      properties:
+        kind:
+          const: bookmark
+        url:
+          type: object
+          properties:
+            host:
+              type: string
+              maxLength: 253
+            path:
+              type: string
+              maxLength: 2048
+          required:
+            - host
+          additionalProperties: false
+        title:
+          type: string
+          maxLength: 2000
+        tags:
+          type: array
+          items:
+            type: string
+            maxLength: 100
+          maxItems: 100
+        nodeId:
+          type: string
+          maxLength: 128
+          minLength: 1
+          pattern: ^[A-Za-z0-9._~-]+$
+        parent:
+          $ref: "#/components/schemas/AutomationFolderRef"
+        ancestors:
+          type: array
+          items:
+            $ref: "#/components/schemas/AutomationFolderRef"
+          maxItems: 128
+      required:
+        - kind
+        - url
+        - title
+        - tags
+      additionalProperties: false
+    AutomationFolderRef:
+      type: object
+      properties:
+        serverUuid:
+          type: string
+          maxLength: 128
+          minLength: 1
+          pattern: ^[A-Za-z0-9._~-]+$
+        collectionId:
+          type: string
+          maxLength: 128
+          minLength: 1
+          pattern: ^[A-Za-z0-9._~-]+$
+        nodeId:
+          type: string
+          maxLength: 128
+          minLength: 1
+          pattern: ^[A-Za-z0-9._~-]+$
+      required:
+        - serverUuid
+        - collectionId
+        - nodeId
+      additionalProperties: false
+    AutomationRulePage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AutomationRule"
+          maxItems: 100
+        nextCursor:
+          anyOf:
+            - type: string
+              maxLength: 2048
+            - type: "null"
+      required:
+        - items
+        - nextCursor
+      additionalProperties: false
+    AutomationRule:
+      type: object
+      properties:
+        id:
+          type: string
+          maxLength: 128
+          minLength: 1
+          pattern: ^[A-Za-z0-9._~-]+$
+        revision:
+          type: string
+          maxLength: 128
+          minLength: 1
+        desiredState:
+          type: string
+          enum:
+            - draft
+            - enabled
+            - paused
+            - archived
+        effectiveState:
+          type: string
+          enum:
+            - draft
+            - active
+            - degraded
+            - blocked
+            - paused
+            - archived
+        definition:
+          $ref: "#/components/schemas/AutomationRuleDefinition"
+        bindingSetId:
+          type: string
+          maxLength: 128
+          minLength: 1
+          pattern: ^[A-Za-z0-9._~-]+$
+        executionPolicyId:
+          type: string
+          maxLength: 128
+          minLength: 1
+          pattern: ^[A-Za-z0-9._~-]+$
+          description: Required by semantic validation only when admitted tasks need an M2+ executor. Absent for deterministic M1
+            placement; no dummy policy record.
+        templateRef:
+          type: string
+          maxLength: 256
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        usage:
+          $ref: "#/components/schemas/AutomationRuleUsageView"
+          description: M2 read-only backend projection; absent in M1. Not editable configuration.
+      required:
+        - id
+        - revision
+        - desiredState
+        - effectiveState
+        - definition
+        - bindingSetId
+        - createdAt
+        - updatedAt
+      additionalProperties: false
+    AutomationRuleUsageView:
+      type: object
+      properties:
+        periodStart:
+          type: string
+          format: date-time
+        periodEnd:
+          type: string
+          format: date-time
+        admittedRuns:
+          type: integer
+          minimum: 0
+        readyJobs:
+          type: integer
+          minimum: 0
+        succeededJobs:
+          type: integer
+          minimum: 0
+        heldJobs:
+          type: integer
+          minimum: 0
+        externalCosts:
+          type: string
+          enum:
+            - notApplicable
+            - unknownDisclosed
+            - known
+        costDisplay:
+          type: string
+          maxLength: 500
+      required:
+        - periodStart
+        - periodEnd
+        - admittedRuns
+        - readyJobs
+        - succeededJobs
+        - heldJobs
+        - externalCosts
+        - costDisplay
+      additionalProperties: false
+    AutomationChangeInput:
+      type: object
+      properties:
+        definition:
+          $ref: "#/components/schemas/AutomationRuleDefinition"
+        bindingSetId:
+          type: string
+          maxLength: 128
+          minLength: 1
+          pattern: ^[A-Za-z0-9._~-]+$
+        executionPolicyId:
+          type: string
+          maxLength: 128
+          minLength: 1
+          pattern: ^[A-Za-z0-9._~-]+$
+        pendingRuns:
+          type: string
+          enum:
+            - hold
+            - cancel
+            - continuePinned
+        counterPolicy:
+          const: resetOnSemanticChange
+      required:
+        - definition
+        - bindingSetId
+        - pendingRuns
+        - counterPolicy
+      additionalProperties: false
+    AutomationLifecycleInput:
+      type: object
+      properties:
+        state:
+          type: string
+          enum:
+            - enabled
+            - paused
+            - archived
+        pendingRuns:
+          type: string
+          enum:
+            - hold
+            - cancel
+            - continuePinned
+        activationPreviewId:
+          type: string
+          maxLength: 128
+          minLength: 1
+          pattern: ^[A-Za-z0-9._~-]+$
+        reason:
+          type: string
+          maxLength: 1000
+      required:
+        - state
+        - pendingRuns
+        - reason
+      additionalProperties: false
+    AutomationBindingSetPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AutomationBindingSet"
+          maxItems: 100
+        nextCursor:
+          anyOf:
+            - type: string
+              maxLength: 2048
+            - type: "null"
+      required:
+        - items
+        - nextCursor
+      additionalProperties: false
+    AutomationBindingSet:
+      type: object
+      properties:
+        id:
+          type: string
+          maxLength: 128
+          minLength: 1
+          pattern: ^[A-Za-z0-9._~-]+$
+        revision:
+          type: string
+          maxLength: 128
+          minLength: 1
+        name:
+          type: string
+          maxLength: 200
+        values:
+          $ref: "#/components/schemas/AutomationRoleBindings"
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - revision
+        - name
+        - values
+        - updatedAt
+      additionalProperties: false
+    AutomationRoleBindings:
+      type: object
+      maxProperties: 32
+      propertyNames:
+        pattern: ^[a-z][A-Za-z0-9]*$
+      additionalProperties:
+        $ref: "#/components/schemas/AutomationRoleBinding"
+    AutomationRoleBinding:
+      oneOf:
+        - $ref: "#/components/schemas/AutomationFolderBinding"
+        - $ref: "#/components/schemas/AutomationExecutorBinding"
+        - $ref: "#/components/schemas/AutomationEntityMapBinding"
+        - $ref: "#/components/schemas/AutomationVocabularyBinding"
+    AutomationFolderBinding:
+      type: object
+      properties:
+        kind:
+          const: folder
+        folder:
+          $ref: "#/components/schemas/AutomationFolderRef"
+        followIdentity:
+          const: true
+        allowedAncestor:
+          $ref: "#/components/schemas/AutomationFolderRef"
+        onUnavailable:
+          type: string
+          enum:
+            - block
+            - keepOriginal
+        notifyOn:
+          type: array
+          items:
+            type: string
+            enum:
+              - rename
+              - move
+              - delete
+              - permission
+              - syncScope
+          maxItems: 5
+      required:
+        - kind
+        - folder
+        - followIdentity
+        - onUnavailable
+        - notifyOn
+      additionalProperties: false
+    AutomationExecutorBinding:
+      type: object
+      properties:
+        kind:
+          const: executor
+        executorId:
+          type: string
+          maxLength: 128
+          minLength: 1
+          pattern: ^[A-Za-z0-9._~-]+$
+        targetSelector:
+          type: string
+          enum:
+            - selectedAuthorizedTargets
+            - optedInAuthorizedTargets
+      required:
+        - kind
+      additionalProperties: false
+      oneOf:
+        - required:
+            - executorId
+          not:
+            required:
+              - targetSelector
+        - required:
+            - targetSelector
+          not:
+            required:
+              - executorId
+    AutomationEntityMapBinding:
+      type: object
+      properties:
+        kind:
+          const: entityMap
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/AutomationEntityDestination"
+          maxItems: 1000
+        onUnmapped:
+          type: string
+          enum:
+            - keepParent
+            - review
+        onMultiple:
+          type: string
+          enum:
+            - review
+            - primaryMapping
+      required:
+        - kind
+        - entries
+        - onUnmapped
+        - onMultiple
+      additionalProperties: false
+    AutomationEntityDestination:
+      type: object
+      properties:
+        entityKey:
+          type: string
+          maxLength: 128
+        label:
+          type: string
+          maxLength: 200
+        aliases:
+          type: array
+          items:
+            type: string
+            maxLength: 200
+          maxItems: 20
+        folder:
+          $ref: "#/components/schemas/AutomationFolderRef"
+      required:
+        - entityKey
+        - label
+        - folder
+      additionalProperties: false
+    AutomationVocabularyBinding:
+      type: object
+      properties:
+        kind:
+          const: vocabulary
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/AutomationVocabularyEntry"
+          maxItems: 500
+      required:
+        - kind
+        - entries
+      additionalProperties: false
+    AutomationVocabularyEntry:
+      type: object
+      properties:
+        key:
+          type: string
+          maxLength: 80
+        label:
+          type: string
+          maxLength: 100
+      required:
+        - key
+        - label
+      additionalProperties: false
+    AutomationBindingSetInput:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 200
+          minLength: 1
+        values:
+          $ref: "#/components/schemas/AutomationRoleBindings"
+      required:
+        - name
+        - values
+      additionalProperties: false
+    AutomationPauseState:
+      type: object
+      properties:
+        paused:
+          type: boolean
+        pausedAt:
+          type:
+            - string
+            - "null"
+          format: date-time
+        pausedBy:
+          type:
+            - string
+            - "null"
+          enum:
+            - owner
+            - restore
+            - capacity
+            - null
+        revision:
+          $ref: "#/components/schemas/AutomationRevision"
+        heldJobs:
+          type: integer
+          minimum: 0
+      required:
+        - paused
+        - pausedAt
+        - pausedBy
+        - revision
+        - heldJobs
+      additionalProperties: false
+    AutomationRevision:
+      type: string
+      maxLength: 128
+      minLength: 1
+    AutomationPauseInput:
+      type: object
+      properties:
+        paused:
+          type: boolean
+        reason:
+          type: string
+          maxLength: 1000
+      required:
+        - paused
+      additionalProperties: false
+    AutomationAutomationExport:
+      type: object
+      properties:
+        contractVersion:
+          const: 0.2.1-design
+        exportedAt:
+          type: string
+          format: date-time
+        rules:
+          type: array
+          items:
+            $ref: "#/components/schemas/AutomationAutomationExportRule"
+          maxItems: 500
+      required:
+        - contractVersion
+        - exportedAt
+        - rules
+      additionalProperties: false
+    AutomationAutomationExportRule:
+      type: object
+      properties:
+        rule:
+          $ref: "#/components/schemas/AutomationPortableRuleDefinition"
+        desiredState:
+          type: string
+          enum:
+            - draft
+            - enabled
+            - paused
+            - archived
+          description: Historical source state only. An importer MUST create draft, never activate from this value.
+        bindingsByPath:
+          type: object
+          additionalProperties:
+            type: string
+            maxLength: 2000
+          description: Role key to folder path at export time; targets and secrets are never exported.
+      required:
+        - rule
+        - desiredState
+        - bindingsByPath
+      additionalProperties: false
+    AutomationPortableRuleDefinition:
+      type: object
+      properties:
+        apiVersion:
+          const: colp.automation/v1
+        name:
+          type: string
+          maxLength: 200
+          minLength: 1
+        description:
+          type: string
+          maxLength: 2000
+        roles:
+          type: array
+          items:
+            $ref: "#/components/schemas/AutomationRoleDeclaration"
+          maxItems: 32
+        on:
+          type: string
+          enum:
+            - bookmark.intake
+            - node.created
+            - node.updated
+            - intake.completed
+            - bookmark.link_health.changed
+        scope:
+          $ref: "#/components/schemas/AutomationPortableScopeSpec"
+        match:
+          $ref: "#/components/schemas/AutomationPredicate"
+        intake:
+          $ref: "#/components/schemas/AutomationIntakeSpec"
+        trigger:
+          $ref: "#/components/schemas/AutomationTriggerSpec"
+        tasks:
+          type: array
+          items:
+            $ref: "#/components/schemas/AutomationTaskSpec"
+          maxItems: 8
+        route:
+          $ref: "#/components/schemas/AutomationPortableRouteSpec"
+        policy:
+          $ref: "#/components/schemas/AutomationRulePolicy"
+        priority:
+          type: integer
+          minimum: -1000
+          maximum: 1000
+      required:
+        - apiVersion
+        - name
+        - roles
+        - on
+        - scope
+        - match
+        - trigger
+        - tasks
+        - route
+        - policy
+        - priority
+      additionalProperties: false
+      description: Template/export logic before installation. collectionSlot and targetSlots are symbolic; no live collection
+        or target IDs. Resolve with Owner review into a draft RuleDefinition before validation/activation.
+    AutomationPortableScopeSpec:
+      type: object
+      properties:
+        folderRole:
+          type: string
+          maxLength: 80
+        includeDescendants:
+          type: boolean
+        collectionSlot:
+          type: string
+          minLength: 1
+          maxLength: 80
+      required:
+        - collectionSlot
+      additionalProperties: false
+    AutomationPortableRouteSpec:
+      type: object
+      properties:
+        mode:
+          type: string
+          enum:
+            - targets
+            - broadcast
+        audience:
+          type: string
+          enum:
+            - optedInAuthorizedTargets
+        execution:
+          type: string
+          enum:
+            - single
+            - firstClaim
+            - perTarget
+        targetSlots:
+          type: array
+          items:
+            type: string
+            minLength: 1
+            maxLength: 80
+          maxItems: 20
+      required:
+        - mode
+        - execution
+      additionalProperties: false
+# END AUTOMATION schemas
     ClassificationProfileId:
       type: string
       minLength: 1
@@ -23578,6 +26310,212 @@ components:
           $ref: "#/components/schemas/CreditLedgerEntry"
 
   responses:
+# BEGIN AUTOMATION responses
+    Automation400:
+      description: Malformed input or invalid rule.
+      headers:
+        Cache-Control:
+          schema:
+            type: string
+            const: private, no-store
+        X-Request-Id:
+          schema:
+            type: string
+            maxLength: 128
+            minLength: 1
+            pattern: ^[A-Za-z0-9._~-]+$
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/AutomationProductErrorEnvelope"
+    Automation401:
+      description: Authentication required.
+      headers:
+        Cache-Control:
+          schema:
+            type: string
+            const: private, no-store
+        X-Request-Id:
+          schema:
+            type: string
+            maxLength: 128
+            minLength: 1
+            pattern: ^[A-Za-z0-9._~-]+$
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/AutomationProductErrorEnvelope"
+    Automation403:
+      description: Current authority or host-mode policy denies operation.
+      headers:
+        Cache-Control:
+          schema:
+            type: string
+            const: private, no-store
+        X-Request-Id:
+          schema:
+            type: string
+            maxLength: 128
+            minLength: 1
+            pattern: ^[A-Za-z0-9._~-]+$
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/AutomationProductErrorEnvelope"
+    Automation404:
+      description: Unknown, disabled or concealed resource.
+      headers:
+        Cache-Control:
+          schema:
+            type: string
+            const: private, no-store
+        X-Request-Id:
+          schema:
+            type: string
+            maxLength: 128
+            minLength: 1
+            pattern: ^[A-Za-z0-9._~-]+$
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/AutomationProductErrorEnvelope"
+    Automation409:
+      description: Conflict, stale inputs, unavailable binding or command-body mismatch.
+      headers:
+        Cache-Control:
+          schema:
+            type: string
+            const: private, no-store
+        X-Request-Id:
+          schema:
+            type: string
+            maxLength: 128
+            minLength: 1
+            pattern: ^[A-Za-z0-9._~-]+$
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/AutomationProductErrorEnvelope"
+    Automation412:
+      description: ETag does not match.
+      headers:
+        Cache-Control:
+          schema:
+            type: string
+            const: private, no-store
+        X-Request-Id:
+          schema:
+            type: string
+            maxLength: 128
+            minLength: 1
+            pattern: ^[A-Za-z0-9._~-]+$
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/AutomationProductErrorEnvelope"
+    Automation413:
+      description: Payload too large.
+      headers:
+        Cache-Control:
+          schema:
+            type: string
+            const: private, no-store
+        X-Request-Id:
+          schema:
+            type: string
+            maxLength: 128
+            minLength: 1
+            pattern: ^[A-Za-z0-9._~-]+$
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/AutomationProductErrorEnvelope"
+    Automation422:
+      description: Well-formed input violates a declared semantic constraint.
+      headers:
+        Cache-Control:
+          schema:
+            type: string
+            const: private, no-store
+        X-Request-Id:
+          schema:
+            type: string
+            maxLength: 128
+            minLength: 1
+            pattern: ^[A-Za-z0-9._~-]+$
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/AutomationProductErrorEnvelope"
+    Automation428:
+      description: Required revision precondition missing.
+      headers:
+        Cache-Control:
+          schema:
+            type: string
+            const: private, no-store
+        X-Request-Id:
+          schema:
+            type: string
+            maxLength: 128
+            minLength: 1
+            pattern: ^[A-Za-z0-9._~-]+$
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/AutomationProductErrorEnvelope"
+    Automation429:
+      description: Rate or work budget exhausted.
+      headers:
+        Cache-Control:
+          schema:
+            type: string
+            const: private, no-store
+        X-Request-Id:
+          schema:
+            type: string
+            maxLength: 128
+            minLength: 1
+            pattern: ^[A-Za-z0-9._~-]+$
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/AutomationProductErrorEnvelope"
+    Automation500:
+      description: Internal failure with a non-sensitive request identifier.
+      headers:
+        Cache-Control:
+          schema:
+            type: string
+            const: private, no-store
+        X-Request-Id:
+          schema:
+            type: string
+            maxLength: 128
+            minLength: 1
+            pattern: ^[A-Za-z0-9._~-]+$
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/AutomationProductErrorEnvelope"
+    Automation503:
+      description: Required service unavailable.
+      headers:
+        Cache-Control:
+          schema:
+            type: string
+            const: private, no-store
+        X-Request-Id:
+          schema:
+            type: string
+            maxLength: 128
+            minLength: 1
+            pattern: ^[A-Za-z0-9._~-]+$
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/AutomationProductErrorEnvelope"
+# END AUTOMATION responses
     FaviconOrderingError400:
       description: invalid_request / invalid_json / invalid_query / invalid_cursor (=>
         restart_from_first_page). Stable envelope; no stack, SQL, secrets or

@@ -1,6 +1,6 @@
 import type { Kysely } from 'kysely';
 import type { DatabaseSchema } from '../database/runtime.js';
-import type { FolderResolution } from '../../modules/automation/domain/bindings.js';
+import type { FolderResolution } from '../../modules/automation/index.js';
 export function createDependencyIndex(db: Kysely<DatabaseSchema>) {
   return {
     async replace(ruleRevisionId: string, resolutions: Record<string, FolderResolution>) {

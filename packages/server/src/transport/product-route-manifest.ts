@@ -65,6 +65,8 @@ export const CLASSIFICATION_PRUNED_OPERATION_IDS: readonly string[] = Object.fre
 ]);
 
 // The frozen upstream manifest includes this edition-unsupported browse/sort API.
+export const AUTOMATION_CONFIGURATION_OPERATION_IDS = PRODUCT_ROUTE_MANIFEST.filter((entry) => entry.path.startsWith('/api/v1/me/automations/')).map((entry) => entry.operationId);
+
 const UNSUPPORTED_COLLECTION_OPERATION_IDS = ['listCollectionChildren'];
 
 function openApiPath(path: string): string {

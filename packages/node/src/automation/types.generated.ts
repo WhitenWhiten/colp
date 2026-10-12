@@ -513,7 +513,7 @@ export interface LifecycleInput {
 export interface ChangeInput {
   definition: RuleDefinition;
   bindingSetId: string;
-  executionPolicyId: string;
+  executionPolicyId?: string;
   pendingRuns: "hold" | "cancel" | "continuePinned";
   counterPolicy: "resetOnSemanticChange";
 }

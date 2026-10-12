@@ -2,7 +2,7 @@ import type { AutomationExport } from '@know-n/colp/automation';
 import type { Kysely } from 'kysely';
 import type { DatabaseSchema } from '../database/runtime.js';
 import { createPostgresCollectionExportReadPort } from '../collections/collection-export-postgres.js';
-import { buildAutomationExport } from '../../modules/automation/domain/export.js';
+import { buildAutomationExport } from '../../modules/automation/index.js';
 
 /** Owner-private export; folder paths are non-authoritative installation hints only. */
 export async function exportAutomations(db: Kysely<DatabaseSchema>, ownerId: string): Promise<AutomationExport> {

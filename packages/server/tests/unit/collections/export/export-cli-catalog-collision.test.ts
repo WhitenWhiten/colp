@@ -49,6 +49,10 @@ vi.mock('../../../../src/infrastructure/collections/index.js', () => ({
   }),
 }));
 
+vi.mock('../../../../src/infrastructure/automation/index.js', () => ({
+  exportAutomations: async () => ({ contractVersion: '0.2.1-design', exportedAt: '2026-10-10T00:00:00.000Z', rules: [] }),
+}));
+
 const { exportOwnedCollections, uniqueSlug } = await import('../../../../src/cli/export.js');
 
 /**
@@ -139,7 +143,10 @@ async function assertEveryCatalogEntryHasItsOwnSnapshot(
   const stems = entries.map((entry) => entry.slug.toLowerCase());
   assert.equal(new Set(stems).size, stems.length, 'slugs must be unique even case-insensitively');
   assert.equal(stems.includes('index'), false, 'no collection may claim the catalog filename');
-  const expectedFiles = ['index.json', ...entries.flatMap((entry) => [`${entry.slug}.json`, `${entry.slug}.html`])];
+  const exportedAutomation = JSON.parse(await readFile(join(directory, 'automations.json'), 'utf8'));
+  assert.deepEqual(exportedAutomation.rules, []);
+  assert.equal(stems.includes('automations'), false, 'no collection may claim the Automation export filename');
+  const expectedFiles = ['index.json', 'automations.json', ...entries.flatMap((entry) => [`${entry.slug}.json`, `${entry.slug}.html`])];
   assert.deepEqual((await readdir(directory)).sort(), expectedFiles.sort());
 }
 
@@ -148,6 +155,7 @@ test('export keeps index.json as the catalog when a collection title or publicat
   directories.push(directory);
   state.sources = [
     collection('col-title-index', 'Index'),
+    collection('col-automations', 'Automations'),
     collection('col-published-index', 'Published', { slug: 'index', visibility: 'public' }),
     collection('col-work-a', 'Work'),
     collection('col-work-b', 'Work'),
@@ -224,7 +232,8 @@ test('export writes maximum-length duplicate and case-variant publication slugs 
 test('re-exporting into the same directory still replaces the previous export in place', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'colp-export-catalog-'));
   directories.push(directory);
-  state.sources = [collection('col-title-index', 'Index'), collection('col-work-a', 'Work')];
+  state.sources = [collection('col-title-index', 'Index'),
+    collection('col-automations', 'Automations'), collection('col-work-a', 'Work')];
   await exportInto(directory);
   const entries = await exportInto(directory);
   await assertEveryCatalogEntryHasItsOwnSnapshot(directory, entries);

@@ -1,0 +1,51 @@
+import { automationDigest, type LifecycleInput, type PauseInput } from '@know-n/colp/automation';
+import { AutomationError } from '../domain/errors.js';
+import type { AutomationActor } from '../domain/bindings.js';
+import { nextRevision, ruleInput, type AutomationPorts } from './ports.js';
+import { requireRule, requireEtag, parseContract, inspectInput } from './rule-service.js';
+import { previewSnapshot } from './preview-service.js';
+
+export async function setLifecycle(ports: AutomationPorts, actor: AutomationActor, id: string, body: unknown, ifMatch: string) {
+  const input = parseContract<LifecycleInput>('LifecycleInput', body), stored = await requireRule(ports, actor, id);
+  requireEtag(stored.view.revision, ifMatch);
+  if (stored.view.desiredState === 'archived') throw new AutomationError('automation_rule_conflict', 'Archived rules cannot be reactivated.');
+  if (input.state === 'enabled') {
+    const preview = input.activationPreviewId ? await ports.previews.load(actor.accountId, input.activationPreviewId) : null;
+    if (!preview || preview.expiresAt.getTime() <= (await ports.now()).getTime()
+      || automationDigest(preview.input.rule) !== automationDigest(ruleInput(stored.view)))
+      throw new AutomationError('automation_stale_input', 'Enable requires the exact unexpired preview of this configuration.');
+    const current = await previewSnapshot(ports, actor, preview.input);
+    if (preview.configDigest !== current.configDigest) throw new AutomationError('automation_stale_input', 'Bindings, settings, permissions or sampled inputs changed. Preview again.');
+    if (Object.values(current.resolutions).some((result) => result.status !== 'valid')) throw new AutomationError('automation_binding_unavailable', 'Repair the required folder binding.');
+    if (preview.result.decisions.some((decision) => decision.outcome === 'conflict' || decision.outcome === 'blocked'))
+      throw new AutomationError('automation_rule_conflict', 'Resolve blocked or conflicting preview decisions before enable.');
+    await ports.activation(stored, current.collection.id, current.collection.commitOrdinal, false);
+    await ports.activation(stored, current.collection.id, current.collection.commitOrdinal, true);
+  } else {
+    // Pause/archive remains possible even when canonical authority or a folder is lost.
+    try {
+      const current = await inspectInput(ports, actor, ruleInput(stored.view));
+      await ports.activation(stored, current.collection.id, current.collection.commitOrdinal, false);
+    } catch (error) { if (!(error instanceof AutomationError)) throw error; }
+  }
+  const paused = (await ports.settings.get(actor.accountId)).paused;
+  stored.view = { ...stored.view, desiredState: input.state, effectiveState: input.state === 'enabled' ? (paused ? 'paused' : 'blocked') : input.state,
+    revision: nextRevision(stored.view.revision), updatedAt: (await ports.now()).toISOString() };
+  await ports.rules.setState(actor.accountId, stored); return stored.view;
+}
+export async function setPause(ports: AutomationPorts, actor: AutomationActor, body: unknown, ifMatch: string) {
+  const input = parseContract<PauseInput>('PauseInput', body), previous = await ports.settings.get(actor.accountId);
+  requireEtag(previous.revision, ifMatch);
+  const now = (await ports.now()).toISOString();
+  const settings = { ...previous, revision: nextRevision(previous.revision), paused: input.paused, pausedAt: input.paused ? now : null,
+    pausedBy: input.paused ? 'owner' as const : null };
+  for (const rule of await ports.rules.list(actor.accountId, null, 500)) {
+    if (rule.view.desiredState !== 'enabled') continue;
+    try {
+      const current = await inspectInput(ports, actor, ruleInput(rule.view));
+      await ports.activation(rule, current.collection.id, current.collection.commitOrdinal, false);
+      if (!input.paused) await ports.activation(rule, current.collection.id, current.collection.commitOrdinal, true);
+    } catch (error) { if (!(error instanceof AutomationError)) throw error; }
+  }
+  await ports.settings.save(actor.accountId, settings); return settings;
+}
