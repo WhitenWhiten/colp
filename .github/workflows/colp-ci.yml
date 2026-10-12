@@ -310,7 +310,7 @@ jobs:
         run: npm run lint
         working-directory: packages/server
       - name: Import boundaries
-        run: npm run check:imports
+        run: npm run check:imports && npm run check:migrations
         working-directory: packages/server
       - name: Runtime manifest drift
         run: npm run runtime:manifest:check

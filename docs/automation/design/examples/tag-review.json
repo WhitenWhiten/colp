@@ -1,0 +1,76 @@
+{
+  "apiVersion": "colp.automation/v1",
+  "name": "Explicit review tag request",
+  "description": "A written review when the Owner adds the 'review' tag to a bookmark under the watched folder (CEL condition, M4).",
+  "roles": [
+    {
+      "key": "watchedRoot",
+      "kind": "folder",
+      "required": true,
+      "description": "Folder whose bookmarks get a review"
+    },
+    {
+      "key": "reviewer",
+      "kind": "executor",
+      "required": true,
+      "description": "Worker that writes reviews"
+    }
+  ],
+  "on": "node.updated",
+  "scope": {
+    "collectionId": "c_personal",
+    "folderRole": "watchedRoot",
+    "includeDescendants": true
+  },
+  "match": {
+    "kind": "cel",
+    "profile": "colp-cel-v1",
+    "expression": "bookmark.tags.exists(t, t == \"review\") && !event.before.tags.exists(t, t == \"review\")",
+    "dependencies": [
+      "bookmark.tags",
+      "event.before.tags"
+    ]
+  },
+  "trigger": {
+    "mode": "each"
+  },
+  "tasks": [
+    {
+      "id": "review",
+      "type": "review.generate",
+      "after": [],
+      "executorRole": "reviewer",
+      "required": true,
+      "outputContract": "review.sourced.v1",
+      "inputFields": [
+        "url",
+        "title",
+        "tags",
+        "description"
+      ],
+      "instruction": "Read authorized repository metadata; compare candidate libraries. Do not execute repository code."
+    }
+  ],
+  "route": {
+    "mode": "targets",
+    "execution": "single",
+    "targetIds": [
+      "dot_research"
+    ]
+  },
+  "policy": {
+    "history": "fromActivation",
+    "imports": "exclude",
+    "restores": "exclude",
+    "userEdits": "preserve",
+    "sameStageReentry": "deny",
+    "maxHops": 8,
+    "conflictingPlacement": "review",
+    "privacy": "standard",
+    "broadcastAllowed": false,
+    "maxRunsPerDay": 100,
+    "pauseMode": "stopAdmissionHoldPending",
+    "missingInput": "defer"
+  },
+  "priority": 100
+}

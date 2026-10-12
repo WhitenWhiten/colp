@@ -1,0 +1,15 @@
+{
+  "eventId": "delivery_demo",
+  "name": "colp.automation.triggered",
+  "timestamp": "2026-10-13T09:01:00Z",
+  "data": {
+    "runId": "run_demo",
+    "jobId": "job_demo",
+    "ruleId": "rule_academic",
+    "ruleRevision": "r4",
+    "targetId": "dot_research",
+    "matchedCount": 1,
+    "deliveryHandle": "handle_demo"
+  },
+  "cursor": null
+}

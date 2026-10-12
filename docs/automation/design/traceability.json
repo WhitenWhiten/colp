@@ -1,0 +1,516 @@
+[
+  {
+    "storyId": "AU-01",
+    "tests": [
+      "AC-26",
+      "AC-41",
+      "AC-54",
+      "AC-57"
+    ],
+    "tasks": [
+      "AW-01",
+      "AW-04",
+      "AW-06",
+      "AW-10",
+      "AW-12",
+      "AW-49",
+      "AW-63",
+      "AW-66"
+    ],
+    "example": "m1-placement.json"
+  },
+  {
+    "storyId": "AU-02",
+    "tests": [
+      "AC-26"
+    ],
+    "tasks": [
+      "AW-10",
+      "AW-12"
+    ],
+    "example": "preview-request.json"
+  },
+  {
+    "storyId": "AU-03",
+    "tests": [
+      "AC-13",
+      "AC-14"
+    ],
+    "tasks": [
+      "AW-08",
+      "AW-09",
+      "AW-11",
+      "AW-12"
+    ],
+    "example": "academic-bindings.json"
+  },
+  {
+    "storyId": "AU-04",
+    "tests": [
+      "AC-15"
+    ],
+    "tasks": [
+      "AW-08",
+      "AW-11",
+      "AW-12",
+      "AW-41"
+    ],
+    "example": "academic-bindings.json"
+  },
+  {
+    "storyId": "AU-05",
+    "tests": [
+      "AC-08"
+    ],
+    "tasks": [
+      "AW-06",
+      "AW-07",
+      "AW-12"
+    ],
+    "example": "m1-placement.json"
+  },
+  {
+    "storyId": "AU-06",
+    "tests": [
+      "AC-01",
+      "AC-02"
+    ],
+    "tasks": [
+      "AW-03",
+      "AW-04",
+      "AW-05",
+      "AW-06",
+      "AW-13",
+      "AW-17",
+      "AW-18",
+      "AW-19",
+      "AW-35",
+      "AW-49",
+      "AW-56",
+      "AW-63"
+    ],
+    "example": "m1-placement.json"
+  },
+  {
+    "storyId": "AU-07",
+    "tests": [
+      "AC-07",
+      "AC-49"
+    ],
+    "tasks": [
+      "AW-07",
+      "AW-19",
+      "AW-20",
+      "AW-56",
+      "AW-63"
+    ],
+    "example": "m1-placement.json"
+  },
+  {
+    "storyId": "AU-08",
+    "tests": [
+      "AC-09",
+      "AC-49",
+      "AC-55"
+    ],
+    "tasks": [
+      "AW-17",
+      "AW-20",
+      "AW-50",
+      "AW-56",
+      "AW-63"
+    ],
+    "example": "local-receipt.json"
+  },
+  {
+    "storyId": "AU-09",
+    "tests": [
+      "AC-42",
+      "AC-58"
+    ],
+    "tasks": [
+      "AW-13",
+      "AW-14",
+      "AW-16",
+      "AW-33",
+      "AW-63",
+      "AW-64",
+      "AW-66"
+    ],
+    "example": "event-facts.json"
+  },
+  {
+    "storyId": "AU-10",
+    "tests": [
+      "AC-10",
+      "AC-11"
+    ],
+    "tasks": [
+      "AW-03",
+      "AW-05",
+      "AW-17",
+      "AW-18",
+      "AW-21",
+      "AW-44",
+      "AW-49",
+      "AW-50",
+      "AW-56",
+      "AW-63"
+    ],
+    "example": "local-receipt.json"
+  },
+  {
+    "storyId": "AU-11",
+    "tests": [
+      "AC-12"
+    ],
+    "tasks": [
+      "AW-14",
+      "AW-16",
+      "AW-20",
+      "AW-33",
+      "AW-50",
+      "AW-56",
+      "AW-63"
+    ],
+    "example": "event-facts.json"
+  },
+  {
+    "storyId": "AU-12",
+    "tests": [
+      "AC-04"
+    ],
+    "tasks": [
+      "AW-07",
+      "AW-19",
+      "AW-22",
+      "AW-62"
+    ],
+    "example": "execution-policy.json"
+  },
+  {
+    "storyId": "AU-13",
+    "tests": [
+      "AC-43",
+      "AC-59"
+    ],
+    "tasks": [
+      "AW-12",
+      "AW-16",
+      "AW-25",
+      "AW-34",
+      "AW-51",
+      "AW-52",
+      "AW-63",
+      "AW-66"
+    ],
+    "example": "m1-placement.json"
+  },
+  {
+    "storyId": "AU-14",
+    "tests": [
+      "AC-44",
+      "AC-56"
+    ],
+    "tasks": [
+      "AW-10",
+      "AW-12",
+      "AW-15",
+      "AW-18",
+      "AW-41",
+      "AW-49",
+      "AW-63",
+      "AW-66"
+    ],
+    "example": "ten-bookmark-digest.json"
+  },
+  {
+    "storyId": "AU-15",
+    "tests": [
+      "AC-05",
+      "AC-45",
+      "AC-53"
+    ],
+    "tasks": [
+      "AW-02",
+      "AW-22",
+      "AW-23",
+      "AW-24",
+      "AW-26",
+      "AW-27",
+      "AW-29",
+      "AW-31",
+      "AW-32",
+      "AW-35",
+      "AW-64"
+    ],
+    "example": "academic-intake.json"
+  },
+  {
+    "storyId": "AU-16",
+    "tests": [
+      "AC-03"
+    ],
+    "tasks": [
+      "AW-07",
+      "AW-16",
+      "AW-24"
+    ],
+    "example": "academic-intake.json"
+  },
+  {
+    "storyId": "AU-17",
+    "tests": [
+      "AC-06"
+    ],
+    "tasks": [
+      "AW-07",
+      "AW-22",
+      "AW-24",
+      "AW-39"
+    ],
+    "example": "academic-intake.json"
+  },
+  {
+    "storyId": "AU-18",
+    "tests": [
+      "AC-24",
+      "AC-25"
+    ],
+    "tasks": [
+      "AW-23",
+      "AW-24",
+      "AW-25",
+      "AW-35",
+      "AW-64"
+    ],
+    "example": "academic-intake.json"
+  },
+  {
+    "storyId": "AU-19",
+    "tests": [
+      "AC-46",
+      "AC-63"
+    ],
+    "tasks": [
+      "AW-24",
+      "AW-25",
+      "AW-35",
+      "AW-52",
+      "AW-56",
+      "AW-64"
+    ],
+    "example": "academic-intake.json"
+  },
+  {
+    "storyId": "AU-20",
+    "tests": [
+      "AC-23"
+    ],
+    "tasks": [
+      "AW-22",
+      "AW-23",
+      "AW-48",
+      "AW-62"
+    ],
+    "example": "execution-policy.json"
+  },
+  {
+    "storyId": "AU-21",
+    "tests": [
+      "AC-17",
+      "AC-18",
+      "AC-19",
+      "AC-60"
+    ],
+    "tasks": [
+      "AW-02",
+      "AW-26",
+      "AW-30",
+      "AW-31",
+      "AW-35",
+      "AW-53",
+      "AW-64"
+    ],
+    "example": "mcp-subscribe.json"
+  },
+  {
+    "storyId": "AU-22",
+    "tests": [
+      "AC-16",
+      "AC-31"
+    ],
+    "tasks": [
+      "AW-11",
+      "AW-34",
+      "AW-54",
+      "AW-55"
+    ],
+    "example": "academic-bindings.json"
+  },
+  {
+    "storyId": "AU-23",
+    "tests": [
+      "AC-47"
+    ],
+    "tasks": [
+      "AW-22",
+      "AW-34",
+      "AW-54",
+      "AW-55"
+    ],
+    "example": "execution-policy.json"
+  },
+  {
+    "storyId": "AU-24",
+    "tests": [
+      "AC-20",
+      "AC-21",
+      "AC-48",
+      "AC-65",
+      "AC-66"
+    ],
+    "tasks": [
+      "AW-05",
+      "AW-15",
+      "AW-16",
+      "AW-29",
+      "AW-34",
+      "AW-44",
+      "AW-45",
+      "AW-57",
+      "AW-58",
+      "AW-60"
+    ],
+    "example": "ten-bookmark-digest.json"
+  },
+  {
+    "storyId": "AU-25",
+    "tests": [
+      "AC-50",
+      "AC-64"
+    ],
+    "tasks": [
+      "AW-12",
+      "AW-16",
+      "AW-41",
+      "AW-59"
+    ],
+    "example": "academic-intake.json"
+  },
+  {
+    "storyId": "AU-26",
+    "tests": [
+      "AC-34",
+      "AC-35",
+      "AC-36",
+      "AC-51",
+      "AC-61",
+      "AC-62"
+    ],
+    "tasks": [
+      "AW-02",
+      "AW-26",
+      "AW-27",
+      "AW-28",
+      "AW-29",
+      "AW-32",
+      "AW-35",
+      "AW-46",
+      "AW-53"
+    ],
+    "example": "mcp-occurrence.json"
+  },
+  {
+    "storyId": "AU-27",
+    "tests": [
+      "AC-32",
+      "AC-33",
+      "AC-65"
+    ],
+    "tasks": [
+      "AW-15",
+      "AW-25",
+      "AW-34",
+      "AW-44",
+      "AW-47",
+      "AW-57"
+    ],
+    "example": "ten-bookmark-digest.json"
+  },
+  {
+    "storyId": "AU-28",
+    "tests": [
+      "AC-27",
+      "AC-67"
+    ],
+    "tasks": [
+      "AW-36",
+      "AW-37",
+      "AW-61"
+    ],
+    "example": "paper-template.json"
+  },
+  {
+    "storyId": "AU-29",
+    "tests": [
+      "AC-28"
+    ],
+    "tasks": [
+      "AW-36",
+      "AW-38",
+      "AW-61",
+      "AW-65"
+    ],
+    "example": "paper-template.json"
+  },
+  {
+    "storyId": "AU-30",
+    "tests": [
+      "AC-22"
+    ],
+    "tasks": [
+      "AW-29",
+      "AW-42"
+    ],
+    "example": "broadcast-digest.json"
+  },
+  {
+    "storyId": "AU-31",
+    "tests": [
+      "AC-30",
+      "AC-68"
+    ],
+    "tasks": [
+      "AW-37",
+      "AW-39",
+      "AW-61"
+    ],
+    "example": "research-catalog.json"
+  },
+  {
+    "storyId": "AU-32",
+    "tests": [
+      "AC-29"
+    ],
+    "tasks": [
+      "AW-40"
+    ],
+    "example": "weekly-digest.json"
+  },
+  {
+    "storyId": "AU-33",
+    "tests": [
+      "AC-52",
+      "AC-67"
+    ],
+    "tasks": [
+      "AW-01",
+      "AW-09",
+      "AW-44",
+      "AW-63",
+      "AW-66"
+    ],
+    "example": "academic-bindings.json"
+  }
+]

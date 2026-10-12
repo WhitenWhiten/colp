@@ -1,0 +1,80 @@
+{
+  "apiVersion": "colp.automation/v1",
+  "name": "Research intake with one summary task",
+  "description": "The fixed one-job M2 release fixture. The broader academic-intake fixture has three tasks and may create three jobs.",
+  "roles": [
+    {
+      "key": "academicRoot",
+      "kind": "folder",
+      "required": true,
+      "description": "Primary home for academic papers"
+    },
+    {
+      "key": "researchEnricher",
+      "kind": "executor",
+      "required": true,
+      "description": "Approved paper enrichment executor"
+    }
+  ],
+  "on": "bookmark.intake",
+  "scope": {
+    "collectionId": "c_personal"
+  },
+  "match": {
+    "kind": "field",
+    "field": "bookmark.url.host",
+    "op": "eq",
+    "value": "arxiv.org"
+  },
+  "intake": {
+    "folderRole": "academicRoot",
+    "constraint": "withinSubtree",
+    "satisfies": [
+      "classify.root"
+    ],
+    "onUnusableBinding": "keepOriginalAndBlock",
+    "respectExplicitSelection": true
+  },
+  "trigger": {
+    "mode": "each"
+  },
+  "tasks": [
+    {
+      "id": "summary",
+      "type": "summary.generate",
+      "after": [],
+      "executorRole": "researchEnricher",
+      "required": true,
+      "outputContract": "summary.sourced.v1",
+      "inputFields": [
+        "url",
+        "title",
+        "tags",
+        "description"
+      ],
+      "instruction": "Write an English paper summary, stating whether only an abstract was available."
+    }
+  ],
+  "route": {
+    "mode": "targets",
+    "execution": "single",
+    "targetIds": [
+      "dot_research"
+    ]
+  },
+  "policy": {
+    "history": "fromActivation",
+    "imports": "exclude",
+    "restores": "exclude",
+    "userEdits": "preserve",
+    "sameStageReentry": "deny",
+    "maxHops": 8,
+    "conflictingPlacement": "review",
+    "privacy": "standard",
+    "broadcastAllowed": false,
+    "maxRunsPerDay": 100,
+    "pauseMode": "stopAdmissionHoldPending",
+    "missingInput": "defer"
+  },
+  "priority": 100
+}

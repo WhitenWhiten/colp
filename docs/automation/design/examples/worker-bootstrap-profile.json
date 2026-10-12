@@ -1,0 +1,9 @@
+{
+  "name": "Research worker",
+  "automationEnabled": true,
+  "catalogs": [
+    "automationWorker"
+  ],
+  "authorizedClientId": "client_research",
+  "credentialBindingId": "credential_research"
+}

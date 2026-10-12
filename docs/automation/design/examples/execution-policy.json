@@ -1,0 +1,74 @@
+{
+  "name": "Approved research automation",
+  "assignments": [
+    {
+      "taskType": "classify.refine",
+      "primaryRole": "researchEnricher",
+      "fallbackRoles": [],
+      "fallbackOn": [],
+      "allowedData": [
+        "url",
+        "title",
+        "tags",
+        "description",
+        "folderDefinitions"
+      ],
+      "allowedDestinations": [
+        "exec_research_dot"
+      ],
+      "maxCalls": 1,
+      "maxCostMicros": 0,
+      "currency": "USD",
+      "onUnknownOutcome": "holdForReconciliation",
+      "onInsufficientResult": "explicitUpgradeOnly",
+      "destinationScope": "explicit"
+    },
+    {
+      "taskType": "tags.generate",
+      "primaryRole": "researchEnricher",
+      "fallbackRoles": [],
+      "fallbackOn": [],
+      "allowedData": [
+        "url",
+        "title",
+        "tags",
+        "description",
+        "folderDefinitions"
+      ],
+      "allowedDestinations": [
+        "exec_research_dot"
+      ],
+      "maxCalls": 1,
+      "maxCostMicros": 0,
+      "currency": "USD",
+      "onUnknownOutcome": "holdForReconciliation",
+      "onInsufficientResult": "explicitUpgradeOnly",
+      "destinationScope": "explicit"
+    },
+    {
+      "taskType": "summary.generate",
+      "primaryRole": "researchEnricher",
+      "fallbackRoles": [],
+      "fallbackOn": [],
+      "allowedData": [
+        "url",
+        "title",
+        "tags",
+        "description",
+        "folderDefinitions"
+      ],
+      "allowedDestinations": [
+        "exec_research_dot"
+      ],
+      "maxCalls": 1,
+      "maxCostMicros": 0,
+      "currency": "USD",
+      "onUnknownOutcome": "holdForReconciliation",
+      "onInsufficientResult": "explicitUpgradeOnly",
+      "destinationScope": "explicit"
+    }
+  ],
+  "maxDailyCostMicros": 0,
+  "externalCosts": "unknownDisclosed",
+  "allowAutomaticWrites": false
+}

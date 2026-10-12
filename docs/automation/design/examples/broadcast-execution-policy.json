@@ -1,0 +1,28 @@
+{
+  "name": "Explicitly approved broadcast pool",
+  "assignments": [
+    {
+      "taskType": "digest.generate",
+      "primaryRole": "researchEnricher",
+      "fallbackRoles": [],
+      "fallbackOn": [],
+      "allowedData": [
+        "url",
+        "title",
+        "tags",
+        "description",
+        "folderDefinitions"
+      ],
+      "allowedDestinations": [],
+      "maxCalls": 1,
+      "maxCostMicros": 0,
+      "currency": "USD",
+      "onUnknownOutcome": "holdForReconciliation",
+      "onInsufficientResult": "explicitUpgradeOnly",
+      "destinationScope": "authorizedBoundPool"
+    }
+  ],
+  "maxDailyCostMicros": 0,
+  "externalCosts": "unknownDisclosed",
+  "allowAutomaticWrites": false
+}

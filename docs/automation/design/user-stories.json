@@ -1,0 +1,367 @@
+[
+  {
+    "id": "AU-01",
+    "title": "Create my first rule from a folder in two minutes",
+    "actor": "Owner",
+    "milestone": "M1",
+    "tests": [
+      "AC-26",
+      "AC-41",
+      "AC-54",
+      "AC-57"
+    ],
+    "example": "m1-placement.json"
+  },
+  {
+    "id": "AU-02",
+    "title": "See what a rule would have done before I enable it",
+    "actor": "Owner",
+    "milestone": "M1",
+    "tests": [
+      "AC-26"
+    ],
+    "example": "preview-request.json"
+  },
+  {
+    "id": "AU-03",
+    "title": "Rename or move a folder without breaking its rules",
+    "actor": "Owner",
+    "milestone": "M1",
+    "tests": [
+      "AC-13",
+      "AC-14"
+    ],
+    "example": "academic-bindings.json"
+  },
+  {
+    "id": "AU-04",
+    "title": "A deleted folder is never silently replaced",
+    "actor": "Owner",
+    "milestone": "M1",
+    "tests": [
+      "AC-15"
+    ],
+    "example": "academic-bindings.json"
+  },
+  {
+    "id": "AU-05",
+    "title": "Two rules that disagree are shown to me, not resolved by luck",
+    "actor": "Owner",
+    "milestone": "M1",
+    "tests": [
+      "AC-08"
+    ],
+    "example": "m1-placement.json"
+  },
+  {
+    "id": "AU-06",
+    "title": "An arXiv page lands in Academic with no model call",
+    "actor": "Owner",
+    "milestone": "M1",
+    "tests": [
+      "AC-01",
+      "AC-02"
+    ],
+    "example": "m1-placement.json"
+  },
+  {
+    "id": "AU-07",
+    "title": "The folder I chose myself always wins",
+    "actor": "Owner",
+    "milestone": "M1",
+    "tests": [
+      "AC-07",
+      "AC-49"
+    ],
+    "example": "m1-placement.json"
+  },
+  {
+    "id": "AU-08",
+    "title": "Bookmarks I star in the browser follow the same rules",
+    "actor": "Browser",
+    "milestone": "M1",
+    "tests": [
+      "AC-09",
+      "AC-49",
+      "AC-55"
+    ],
+    "example": "local-receipt.json"
+  },
+  {
+    "id": "AU-09",
+    "title": "Bookmarks added on the web, from my phone, or by an agent follow the same rules",
+    "actor": "Owner",
+    "milestone": "M1",
+    "tests": [
+      "AC-42",
+      "AC-58"
+    ],
+    "example": "event-facts.json"
+  },
+  {
+    "id": "AU-10",
+    "title": "Save offline, continue later",
+    "actor": "Browser",
+    "milestone": "M1",
+    "tests": [
+      "AC-10",
+      "AC-11"
+    ],
+    "example": "local-receipt.json"
+  },
+  {
+    "id": "AU-11",
+    "title": "Sync between my browsers does not run the rule twice",
+    "actor": "Owner",
+    "milestone": "M1",
+    "tests": [
+      "AC-12"
+    ],
+    "example": "event-facts.json"
+  },
+  {
+    "id": "AU-12",
+    "title": "The rule picks the folder; my local AI may still suggest tags",
+    "actor": "Owner",
+    "milestone": "M1",
+    "tests": [
+      "AC-04"
+    ],
+    "example": "execution-policy.json"
+  },
+  {
+    "id": "AU-13",
+    "title": "See why a bookmark is where it is, and undo one thing",
+    "actor": "Owner",
+    "milestone": "M1",
+    "tests": [
+      "AC-43",
+      "AC-59"
+    ],
+    "example": "m1-placement.json"
+  },
+  {
+    "id": "AU-14",
+    "title": "Pause everything with one switch",
+    "actor": "Owner",
+    "milestone": "M1",
+    "tests": [
+      "AC-44",
+      "AC-56"
+    ],
+    "example": "ten-bookmark-digest.json"
+  },
+  {
+    "id": "AU-15",
+    "title": "My research agent writes a summary and tags after I save",
+    "actor": "Owner",
+    "milestone": "M2",
+    "tests": [
+      "AC-05",
+      "AC-45",
+      "AC-53"
+    ],
+    "example": "academic-intake.json"
+  },
+  {
+    "id": "AU-16",
+    "title": "The agent may refine inside Academic, never outside it",
+    "actor": "Owner",
+    "milestone": "M2",
+    "tests": [
+      "AC-03"
+    ],
+    "example": "academic-intake.json"
+  },
+  {
+    "id": "AU-17",
+    "title": "When the taxonomy is ambiguous, keep the parent",
+    "actor": "Owner",
+    "milestone": "M2",
+    "tests": [
+      "AC-06"
+    ],
+    "example": "academic-intake.json"
+  },
+  {
+    "id": "AU-18",
+    "title": "Edits I make while the agent is thinking are kept",
+    "actor": "Owner",
+    "milestone": "M2",
+    "tests": [
+      "AC-24",
+      "AC-25"
+    ],
+    "example": "academic-intake.json"
+  },
+  {
+    "id": "AU-19",
+    "title": "Agent proposals use the approvals I already have",
+    "actor": "Owner",
+    "milestone": "M2",
+    "tests": [
+      "AC-46",
+      "AC-63"
+    ],
+    "example": "academic-intake.json"
+  },
+  {
+    "id": "AU-20",
+    "title": "No silent fallback to another model or provider",
+    "actor": "Owner",
+    "milestone": "M2",
+    "tests": [
+      "AC-23"
+    ],
+    "example": "execution-policy.json"
+  },
+  {
+    "id": "AU-21",
+    "title": "Each agent sees only its own jobs; ordinary agents see nothing new",
+    "actor": "Owner",
+    "milestone": "M2",
+    "tests": [
+      "AC-17",
+      "AC-18",
+      "AC-19",
+      "AC-60"
+    ],
+    "example": "mcp-subscribe.json"
+  },
+  {
+    "id": "AU-22",
+    "title": "When the agent is down, saving still works and I can see what is waiting",
+    "actor": "Owner",
+    "milestone": "M2",
+    "tests": [
+      "AC-16",
+      "AC-31"
+    ],
+    "example": "academic-bindings.json"
+  },
+  {
+    "id": "AU-23",
+    "title": "See what automation cost this week, and cap it",
+    "actor": "Owner",
+    "milestone": "M2",
+    "tests": [
+      "AC-47"
+    ],
+    "example": "execution-policy.json"
+  },
+  {
+    "id": "AU-24",
+    "title": "Every ten new papers, one digest I can actually read",
+    "actor": "Owner",
+    "milestone": "M3",
+    "tests": [
+      "AC-20",
+      "AC-21",
+      "AC-48",
+      "AC-65",
+      "AC-66"
+    ],
+    "example": "ten-bookmark-digest.json"
+  },
+  {
+    "id": "AU-25",
+    "title": "Run a rule once over bookmarks I already have",
+    "actor": "Owner",
+    "milestone": "M3",
+    "tests": [
+      "AC-50",
+      "AC-64"
+    ],
+    "example": "academic-intake.json"
+  },
+  {
+    "id": "AU-26",
+    "title": "Choose how an agent learns about work: woken by events or polling",
+    "actor": "Owner",
+    "milestone": "M2",
+    "tests": [
+      "AC-34",
+      "AC-35",
+      "AC-36",
+      "AC-51",
+      "AC-61",
+      "AC-62"
+    ],
+    "example": "mcp-occurrence.json"
+  },
+  {
+    "id": "AU-27",
+    "title": "Pause, resume, replay and undo mean different things",
+    "actor": "Owner",
+    "milestone": "M3",
+    "tests": [
+      "AC-32",
+      "AC-33",
+      "AC-65"
+    ],
+    "example": "ten-bookmark-digest.json"
+  },
+  {
+    "id": "AU-28",
+    "title": "Install someone's workflow using my own folders",
+    "actor": "Owner",
+    "milestone": "M4",
+    "tests": [
+      "AC-27",
+      "AC-67"
+    ],
+    "example": "paper-template.json"
+  },
+  {
+    "id": "AU-29",
+    "title": "An upgrade that wants more must ask me",
+    "actor": "Owner",
+    "milestone": "M4",
+    "tests": [
+      "AC-28"
+    ],
+    "example": "paper-template.json"
+  },
+  {
+    "id": "AU-30",
+    "title": "Several agents give independent takes on one batch",
+    "actor": "Owner",
+    "milestone": "M4",
+    "tests": [
+      "AC-22"
+    ],
+    "example": "broadcast-digest.json"
+  },
+  {
+    "id": "AU-31",
+    "title": "Catalog enrichment with my own entity map and vocabulary",
+    "actor": "Owner",
+    "milestone": "M4",
+    "tests": [
+      "AC-30",
+      "AC-68"
+    ],
+    "example": "research-catalog.json"
+  },
+  {
+    "id": "AU-32",
+    "title": "A weekly digest at a time I choose",
+    "actor": "Owner",
+    "milestone": "Later",
+    "tests": [
+      "AC-29"
+    ],
+    "example": "weekly-digest.json"
+  },
+  {
+    "id": "AU-33",
+    "title": "Rules are in my backup and my export, and leave with me",
+    "actor": "Owner",
+    "milestone": "M1",
+    "tests": [
+      "AC-52",
+      "AC-67"
+    ],
+    "example": "academic-bindings.json"
+  }
+]

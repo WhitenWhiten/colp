@@ -1,0 +1,390 @@
+{
+  "status": "passed",
+  "scope": "Offline artifact structure, JSON Schema, example, selected semantic and planning checks only. No production execution or external OpenAPI linter.",
+  "checks": [
+    {
+      "name": "OpenAPI structure/refs: mcp-events.openapi.yaml",
+      "status": "passed",
+      "detail": {
+        "operations_including_webhooks": 3,
+        "schemas": 19,
+        "resolved_local_refs": 20
+      }
+    },
+    {
+      "name": "OpenAPI structure/refs: automation.openapi.yaml",
+      "status": "passed",
+      "detail": {
+        "operations_including_webhooks": 67,
+        "schemas": 122,
+        "resolved_local_refs": 1203
+      }
+    },
+    {
+      "name": "Standalone JSON Schema validity/references",
+      "status": "passed",
+      "detail": {
+        "standalone_schemas": 6
+      }
+    },
+    {
+      "name": "Example: academic-intake.json",
+      "status": "passed",
+      "detail": null
+    },
+    {
+      "name": "Example: academic-bindings.json",
+      "status": "passed",
+      "detail": null
+    },
+    {
+      "name": "Example: execution-policy.json",
+      "status": "passed",
+      "detail": null
+    },
+    {
+      "name": "Example: rule-create.json",
+      "status": "passed",
+      "detail": null
+    },
+    {
+      "name": "Example: ten-bookmark-digest.json",
+      "status": "passed",
+      "detail": null
+    },
+    {
+      "name": "Example: github-review.json",
+      "status": "passed",
+      "detail": null
+    },
+    {
+      "name": "Example: tag-review.json",
+      "status": "passed",
+      "detail": null
+    },
+    {
+      "name": "Example: research-catalog.json",
+      "status": "passed",
+      "detail": null
+    },
+    {
+      "name": "Example: research-catalog-bindings.json",
+      "status": "passed",
+      "detail": null
+    },
+    {
+      "name": "Example: weekly-digest.json",
+      "status": "passed",
+      "detail": null
+    },
+    {
+      "name": "Example: event-facts.json",
+      "status": "passed",
+      "detail": null
+    },
+    {
+      "name": "Example: local-receipt.json",
+      "status": "passed",
+      "detail": null
+    },
+    {
+      "name": "Example: preview-request.json",
+      "status": "passed",
+      "detail": null
+    },
+    {
+      "name": "Example: paper-template.json",
+      "status": "passed",
+      "detail": null
+    },
+    {
+      "name": "Example: broadcast-digest.json",
+      "status": "passed",
+      "detail": null
+    },
+    {
+      "name": "Example: broadcast-bindings.json",
+      "status": "passed",
+      "detail": null
+    },
+    {
+      "name": "Example: broadcast-execution-policy.json",
+      "status": "passed",
+      "detail": null
+    },
+    {
+      "name": "Example: m1-placement.json",
+      "status": "passed",
+      "detail": null
+    },
+    {
+      "name": "Example: m1-bindings.json",
+      "status": "passed",
+      "detail": null
+    },
+    {
+      "name": "Example: m1-rule-create.json",
+      "status": "passed",
+      "detail": null
+    },
+    {
+      "name": "Example: m1-bundle-paused.json",
+      "status": "passed",
+      "detail": null
+    },
+    {
+      "name": "Example: academic-summary-only.json",
+      "status": "passed",
+      "detail": null
+    },
+    {
+      "name": "Example: worker-bootstrap-profile.json",
+      "status": "passed",
+      "detail": null
+    },
+    {
+      "name": "Example: run-once-start.json",
+      "status": "passed",
+      "detail": null
+    },
+    {
+      "name": "Example: m1-preview-current-state.json",
+      "status": "passed",
+      "detail": null
+    },
+    {
+      "name": "MCP subscription fixture",
+      "status": "passed",
+      "detail": null
+    },
+    {
+      "name": "MCP occurrence fixture",
+      "status": "passed",
+      "detail": null
+    },
+    {
+      "name": "Contract F01: academic definition",
+      "status": "passed",
+      "detail": {
+        "expected_valid": true
+      }
+    },
+    {
+      "name": "Contract F02: unknown root property",
+      "status": "passed",
+      "detail": {
+        "expected_valid": false
+      }
+    },
+    {
+      "name": "Contract F03: JS unsupported",
+      "status": "passed",
+      "detail": {
+        "expected_valid": false
+      }
+    },
+    {
+      "name": "Contract F04: non-positive batch",
+      "status": "passed",
+      "detail": {
+        "expected_valid": false
+      }
+    },
+    {
+      "name": "Contract F05: invalid count type",
+      "status": "passed",
+      "detail": {
+        "expected_valid": false
+      }
+    },
+    {
+      "name": "Contract F06: private rule valid",
+      "status": "passed",
+      "detail": {
+        "expected_valid": true
+      }
+    },
+    {
+      "name": "Contract F07: create request",
+      "status": "passed",
+      "detail": {
+        "expected_valid": true
+      }
+    },
+    {
+      "name": "Contract F08: local receipt",
+      "status": "passed",
+      "detail": {
+        "expected_valid": true
+      }
+    },
+    {
+      "name": "Contract F09: preview request",
+      "status": "passed",
+      "detail": {
+        "expected_valid": true
+      }
+    },
+    {
+      "name": "Contract F10: template",
+      "status": "passed",
+      "detail": {
+        "expected_valid": true
+      }
+    },
+    {
+      "name": "Contract F11: finite host predicate",
+      "status": "passed",
+      "detail": {
+        "expected_valid": true
+      }
+    },
+    {
+      "name": "Contract F12: schedule shape only",
+      "status": "passed",
+      "detail": {
+        "expected_valid": true
+      }
+    },
+    {
+      "name": "Offline graph/role/policy checks: academic-intake.json",
+      "status": "passed",
+      "detail": null
+    },
+    {
+      "name": "Offline graph/role/policy checks: ten-bookmark-digest.json",
+      "status": "passed",
+      "detail": null
+    },
+    {
+      "name": "Offline graph/role/policy checks: github-review.json",
+      "status": "passed",
+      "detail": null
+    },
+    {
+      "name": "Offline graph/role/policy checks: tag-review.json",
+      "status": "passed",
+      "detail": null
+    },
+    {
+      "name": "Offline graph/role/policy checks: research-catalog.json",
+      "status": "passed",
+      "detail": null
+    },
+    {
+      "name": "Offline graph/role/policy checks: weekly-digest.json",
+      "status": "passed",
+      "detail": null
+    },
+    {
+      "name": "Offline graph/role/policy checks: broadcast-digest.json",
+      "status": "passed",
+      "detail": null
+    },
+    {
+      "name": "Offline graph/role/policy checks: m1-placement.json",
+      "status": "passed",
+      "detail": null
+    },
+    {
+      "name": "Offline graph/role/policy checks: academic-summary-only.json",
+      "status": "passed",
+      "detail": null
+    },
+    {
+      "name": "Negative graph/role/privacy fixtures",
+      "status": "passed",
+      "detail": {
+        "negative_semantic_cases": 4
+      }
+    },
+    {
+      "name": "OpenAPI / standalone schema drift",
+      "status": "passed",
+      "detail": {
+        "shared_component_definitions": 122
+      }
+    },
+    {
+      "name": "Plan IDs / DAG / traceability / operation inventory",
+      "status": "passed",
+      "detail": {
+        "stories": 33,
+        "tasks": 66,
+        "acceptance_tests_planned": 68,
+        "http_operations": 67
+      }
+    },
+    {
+      "name": "Markdown local links / code fences",
+      "status": "passed",
+      "detail": {
+        "local_markdown_links": 178
+      }
+    },
+    {
+      "name": "MCP design tool catalog references/profiles",
+      "status": "passed",
+      "detail": {
+        "typed_tool_descriptors": 15
+      }
+    },
+    {
+      "name": "Reviewed M1 / receipt / pause / preview / run-once boundaries",
+      "status": "passed",
+      "detail": {
+        "positive_and_negative_shape_assertions": 16,
+        "scope": "design schemas, not backend runtime validation"
+      }
+    },
+    {
+      "name": "Worker bootstrap and queue contract",
+      "status": "passed",
+      "detail": {
+        "manager_tools": 7,
+        "worker_tools": 8,
+        "scope": "catalog metadata, not credential isolation proof"
+      }
+    },
+    {
+      "name": "Single-lane files and no backend-to-frontend dependency",
+      "status": "passed",
+      "detail": {
+        "tasks": 66,
+        "single_lane_files": 154,
+        "backend_transitive_frontend_dependencies": 0
+      }
+    },
+    {
+      "name": "Local backend batch order is dependency-closed",
+      "status": "passed",
+      "detail": {
+        "dependency_closed_batches": 5,
+        "scheduled_tasks": 38,
+        "first_batch_tasks": 10
+      }
+    },
+    {
+      "name": "Formal research example and predecessor contract",
+      "status": "passed",
+      "detail": {
+        "formal_research_example": true,
+        "no_informal_example_residue": true
+      }
+    }
+  ],
+  "failures": [],
+  "dependencies": {
+    "PyYAML": "6.0.3",
+    "jsonschema": "4.26.0"
+  },
+  "not_executed": [
+    "Full external OpenAPI linter/metaschema validation",
+    "Production CEL evaluator tests",
+    "PostgreSQL transaction/fault tests",
+    "Actual browser extension lifecycle",
+    "Actual hosted-bot (ChatGPT dot) Events subscription/delivery/execution",
+    "Chrome Web Store review",
+    "Repository code changes or CI execution"
+  ]
+}

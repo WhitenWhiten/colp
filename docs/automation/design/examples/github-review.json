@@ -1,0 +1,73 @@
+{
+  "apiVersion": "colp.automation/v1",
+  "name": "Repository evaluation",
+  "description": "A written review for every repository bookmark saved under the watched folder.",
+  "roles": [
+    {
+      "key": "watchedRoot",
+      "kind": "folder",
+      "required": true,
+      "description": "Folder whose bookmarks get a review"
+    },
+    {
+      "key": "reviewer",
+      "kind": "executor",
+      "required": true,
+      "description": "Worker that writes reviews"
+    }
+  ],
+  "on": "node.created",
+  "scope": {
+    "collectionId": "c_personal",
+    "folderRole": "watchedRoot",
+    "includeDescendants": true
+  },
+  "match": {
+    "kind": "field",
+    "field": "bookmark.url.host",
+    "op": "eq",
+    "value": "github.com"
+  },
+  "trigger": {
+    "mode": "each"
+  },
+  "tasks": [
+    {
+      "id": "review",
+      "type": "review.generate",
+      "after": [],
+      "executorRole": "reviewer",
+      "required": true,
+      "outputContract": "review.sourced.v1",
+      "inputFields": [
+        "url",
+        "title",
+        "tags",
+        "description"
+      ],
+      "instruction": "Read authorized repository metadata; compare candidate libraries. Do not execute repository code."
+    }
+  ],
+  "route": {
+    "mode": "targets",
+    "execution": "single",
+    "targetIds": [
+      "dot_research"
+    ]
+  },
+  "policy": {
+    "history": "fromActivation",
+    "imports": "exclude",
+    "restores": "exclude",
+    "userEdits": "preserve",
+    "sameStageReentry": "deny",
+    "maxHops": 8,
+    "conflictingPlacement": "review",
+    "privacy": "standard",
+    "broadcastAllowed": false,
+    "maxRunsPerDay": 100,
+    "pauseMode": "stopAdmissionHoldPending",
+    "missingInput": "defer"
+  },
+  "priority": 100
+}

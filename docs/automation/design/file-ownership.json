@@ -1,0 +1,1242 @@
+[
+  {
+    "path": "docs/automation/README.md",
+    "lane": "contracts",
+    "tasks": [
+      "AW-01"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/node/tests/mcp/automation-events-contract.test.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-02"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "docs/automation/evidence/events-spike.md",
+    "lane": "backend",
+    "tasks": [
+      "AW-02"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/node/docs/AUTOMATION_BROWSER_PROFILE.md",
+    "lane": "shared-core",
+    "tasks": [
+      "AW-03"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/node/package.json",
+    "lane": "shared-core",
+    "tasks": [
+      "AW-04"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/node/src/automation/index.ts",
+    "lane": "shared-core",
+    "tasks": [
+      "AW-04"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/node/src/automation/schema.ts",
+    "lane": "shared-core",
+    "tasks": [
+      "AW-04"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/node/src/automation/types.ts",
+    "lane": "shared-core",
+    "tasks": [
+      "AW-04"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/node/docs/API.md",
+    "lane": "shared-core",
+    "tasks": [
+      "AW-04"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/node/src/automation/normalize.ts",
+    "lane": "shared-core",
+    "tasks": [
+      "AW-05"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/node/src/automation/fingerprint.ts",
+    "lane": "shared-core",
+    "tasks": [
+      "AW-05"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/node/tests/automation/normalization.test.ts",
+    "lane": "shared-core",
+    "tasks": [
+      "AW-05"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/node/src/automation/predicate.ts",
+    "lane": "shared-core",
+    "tasks": [
+      "AW-06"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/node/src/automation/compile.ts",
+    "lane": "shared-core",
+    "tasks": [
+      "AW-06"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/node/tests/automation/predicate.test.ts",
+    "lane": "shared-core",
+    "tasks": [
+      "AW-06"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/node/src/automation/arbitrate.ts",
+    "lane": "shared-core",
+    "tasks": [
+      "AW-07"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/node/src/automation/task-contracts.ts",
+    "lane": "shared-core",
+    "tasks": [
+      "AW-07"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/node/src/automation/validate-graph.ts",
+    "lane": "shared-core",
+    "tasks": [
+      "AW-07"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/modules/automation/domain/bindings.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-08"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/modules/automation/application/resolve-bindings.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-08"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/modules/automation/application/dependency-index.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-08"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/migrations/<monotonic-prefix-after-current-head>_automation_configuration.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-09"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/migrations/<monotonic-prefix-after-current-head>_automation_runtime.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-09"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/infrastructure/automation/database-types.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-09"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "deploy/backup.sh",
+    "lane": "backend",
+    "tasks": [
+      "AW-09"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "deploy/restore.sh",
+    "lane": "backend",
+    "tasks": [
+      "AW-09"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/openapi/fragments/automations.yaml",
+    "lane": "backend",
+    "tasks": [
+      "AW-10"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/modules/automation/application/rule-service.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-10"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/modules/automation/application/preview-service.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-10"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/transport/product/automation-rule-routes.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-10",
+      "AW-41"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/transport/product/automation-binding-routes.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-10"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/modules/automation/application/health-service.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-11"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/infrastructure/automation/health-worker.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-11"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/web/src/pages/Automations.tsx",
+    "lane": "web",
+    "tasks": [
+      "AW-12"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/web/src/pages/automations/RuleEditor.tsx",
+    "lane": "web",
+    "tasks": [
+      "AW-12"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/web/src/pages/automations/PreviewPanel.tsx",
+    "lane": "web",
+    "tasks": [
+      "AW-12"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/web/src/pages/automations/NeedsAttention.tsx",
+    "lane": "web",
+    "tasks": [
+      "AW-12"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/web/src/pages/automations/RuleSentence.tsx",
+    "lane": "web",
+    "tasks": [
+      "AW-12"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/web/src/pages/ResourceDetail.tsx",
+    "lane": "web",
+    "tasks": [
+      "AW-12",
+      "AW-52"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/web/src/api/automationClient.ts",
+    "lane": "web",
+    "tasks": [
+      "AW-12"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/web/src/App.tsx",
+    "lane": "web",
+    "tasks": [
+      "AW-12"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/web/src/components/Layout.tsx",
+    "lane": "web",
+    "tasks": [
+      "AW-12"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/modules/collections/application/canonical-mutation.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-13"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/infrastructure/automation/fact-capture.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-13"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/infrastructure/outbox/automation-ingest.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-14"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/infrastructure/outbox/router.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-14"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/infrastructure/automation/source-position-store.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-14"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/modules/automation/application/admit-event.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-15"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/infrastructure/automation/aggregate-store.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-15",
+      "AW-57"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/modules/automation/application/run-service.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-16"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/modules/automation/application/job-planner.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-16"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/infrastructure/automation/job-store.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-16"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/transport/product/automation-run-routes.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-16"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/modules/automation/application/accept-intake-receipt.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-17"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/transport/automation-device-routes.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-17",
+      "AW-18"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/modules/automation/application/compile-bundle.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-18"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "Known-Extension/src/automation/pre-save.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-19"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "Known-Extension/src/sw/capture.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-19"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "Known-Extension/src/capture/contracts.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-19"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "Known-Extension/src/classification-intent.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-19"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "Known-Extension/src/popup-classification.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-19"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "Known-Extension/src/save-status.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-19"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "Known-Extension/src/automation/observed-create.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-20"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "Known-Extension/src/automation/causation.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-20"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "Known-Extension/src/bookmark-event-ingress.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-20"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "Known-Extension/src/automation/recovery.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-21"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "Known-Extension/src/automation/indexeddb-store.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-21"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "Known-Extension/src/service-worker.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-21"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/modules/automation/application/server-intake.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-33"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/modules/automation/application/executor-policy.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-22"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/modules/automation/application/result-reuse.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-22"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/transport/product/automation-policy-routes.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-22"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/migrations/<monotonic-prefix-after-current-head>_automation_m2_policy_and_attempts.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-22"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/modules/automation/application/claim-job.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-23"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/infrastructure/automation/lease-store.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-23"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/transport/automation-work-routes.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-23",
+      "AW-31"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/modules/automation/application/submit-result.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-24"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/modules/automation/application/effect-gateway.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-24"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/modules/automation/application/approval-service.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-25"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/modules/automation/application/undo-service.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-25"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/modules/automation/application/target-service.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-26"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/transport/product/automation-target-routes.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-26"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/migrations/<monotonic-prefix-after-current-head>_automation_m2_targets_and_profiles.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-26"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/modules/mcp/automation-catalog.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-30"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/modules/mcp/application-catalog.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-30"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/modules/mcp/application-context.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-30"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/modules/mcp/automation-tools.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-31"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/modules/mcp/application-facade.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-31"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "docs/automation/agents.md",
+    "lane": "worker-reference",
+    "tasks": [
+      "AW-32"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "examples/worker-script/claim-and-summarize.mjs",
+    "lane": "worker-reference",
+    "tasks": [
+      "AW-32"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/web/src/pages/automations/RunDetail.tsx",
+    "lane": "web",
+    "tasks": [
+      "AW-34",
+      "AW-45"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/web/src/pages/automations/RuleDetail.tsx",
+    "lane": "web",
+    "tasks": [
+      "AW-34"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "docs/automation/release-evidence.md",
+    "lane": "integration",
+    "tasks": [
+      "AW-35"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/infrastructure/automation/retention-worker.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-44"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/infrastructure/automation/restore-revalidation.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-44"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/tests/integration/automation/load-and-recovery.test.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-44"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/node/src/mcp/2026-07-28/events.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-27"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/node/src/mcp/2026-07-28/events-schema.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-27"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/modules/mcp/events-adapter.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-27"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/node/src/shared/mcp-sdk-boundary.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-27"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/node/docs/MCP_SDK_POLICY.md",
+    "lane": "backend",
+    "tasks": [
+      "AW-27"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/migrations/<monotonic-prefix-after-current-head>_automation_m2_subscriptions.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-27"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/infrastructure/automation/webhook-verifier.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-28"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/infrastructure/automation/webhook-signer.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-28"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/modules/automation/application/route-run.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-29",
+      "AW-42"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/infrastructure/automation/delivery-worker.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-29"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/transport/product/automation-delivery-routes.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-29"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/migrations/<monotonic-prefix-after-current-head>_automation_m2_deliveries.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-29"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/modules/automation/application/run-once-service.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-41"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/web/src/pages/automations/Digests.tsx",
+    "lane": "web",
+    "tasks": [
+      "AW-45"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/tests/integration/automation/events-lifecycle.test.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-46"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "docs/automation/evidence/events-lifecycle.md",
+    "lane": "backend",
+    "tasks": [
+      "AW-46"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/modules/automation/application/template-service.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-36"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/transport/product/automation-template-routes.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-36"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/migrations/<monotonic-prefix-after-current-head>_automation_m4_templates.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-36"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/web/src/pages/automations/TemplateInstall.tsx",
+    "lane": "web",
+    "tasks": [
+      "AW-37"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/modules/automation/application/template-upgrade.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-38"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/modules/automation/application/metadata-proposal.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-39"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/migrations/<monotonic-prefix-after-current-head>_automation_m4_entity_maps.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-39"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/infrastructure/automation/cel-evaluator.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-43"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/modules/automation/application/scheduler.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-40"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/infrastructure/automation/schedule-store.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-40"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/modules/automation/application/replay-service.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-47"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/infrastructure/automation/executors/server-model.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-48"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "Known-Extension/src/automation/runtime-profile.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-49"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "Known-Extension/src/automation/bundle-store.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-49"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "Known-Extension/src/automation/binding-projector.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-49"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "Known-Extension/package-lock.json",
+    "lane": "extension",
+    "tasks": [
+      "AW-49"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "Known-Extension/src/automation/receipt-sync.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-50"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/modules/automation/application/placement-history.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-51"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/modules/automation/application/placement-undo.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-51"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/web/src/pages/WriteApprovals.tsx",
+    "lane": "web",
+    "tasks": [
+      "AW-52"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/web/src/pages/agents/AgentCard.tsx",
+    "lane": "web",
+    "tasks": [
+      "AW-53"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/web/src/pages/Agents.tsx",
+    "lane": "web",
+    "tasks": [
+      "AW-53"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/web/src/pages/agents/ConnectGuide.tsx",
+    "lane": "web",
+    "tasks": [
+      "AW-53"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "Known-Extension/src/automation/status-ui.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-54",
+      "AW-60"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/infrastructure/telemetry/automation-metrics.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-55"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "Known-Extension/e2e/automation.spec.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-56"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/modules/automation/application/count-batch.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-57"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/tests/integration/automation/count-batch.test.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-57"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/migrations/<monotonic-prefix-after-current-head>_automation_m3_batches.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-57"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/modules/automation/application/run-output-service.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-58"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/src/transport/product/automation-output-routes.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-58"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/migrations/<monotonic-prefix-after-current-head>_automation_m3_outputs.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-58"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/web/src/pages/automations/RunOnce.tsx",
+    "lane": "web",
+    "tasks": [
+      "AW-59"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/node/src/automation/template.ts",
+    "lane": "shared-core",
+    "tasks": [
+      "AW-61"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/node/src/automation/semantic-diff.ts",
+    "lane": "shared-core",
+    "tasks": [
+      "AW-61"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/node/src/automation/entity-map.ts",
+    "lane": "shared-core",
+    "tasks": [
+      "AW-61"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "Known-Extension/src/automation/executors/browser-classifier.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-62"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "Known-Extension/src/automation/model-consent.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-62"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "docs/automation/m1-release-evidence.md",
+    "lane": "integration",
+    "tasks": [
+      "AW-63"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/tests/integration/automation/end-to-end.test.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-64"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/web/src/pages/automations/TemplateUpgrade.tsx",
+    "lane": "web",
+    "tasks": [
+      "AW-65"
+    ],
+    "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/server/tests/integration/automation/m1-backend.test.ts",
+    "lane": "backend",
+    "tasks": [
+      "AW-66"
+    ],
+    "repositoryState": "verifyAtAW01"
+  }
+]

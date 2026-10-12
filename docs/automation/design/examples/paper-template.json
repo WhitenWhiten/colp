@@ -1,0 +1,119 @@
+{
+  "templateId": "community.paper-intake",
+  "version": "1.0.0",
+  "definition": {
+    "apiVersion": "colp.automation/v1",
+    "name": "Academic intake and enrichment",
+    "description": "Deterministic root routing before any model; then enrich within the approved academic subtree.",
+    "roles": [
+      {
+        "key": "academicRoot",
+        "kind": "folder",
+        "required": true,
+        "description": "Primary home for academic papers"
+      },
+      {
+        "key": "researchEnricher",
+        "kind": "executor",
+        "required": true,
+        "description": "Approved paper enrichment executor"
+      }
+    ],
+    "on": "bookmark.intake",
+    "scope": {
+      "collectionSlot": "primaryCollection"
+    },
+    "match": {
+      "kind": "field",
+      "field": "bookmark.url.host",
+      "op": "eq",
+      "value": "arxiv.org"
+    },
+    "intake": {
+      "folderRole": "academicRoot",
+      "constraint": "withinSubtree",
+      "satisfies": [
+        "classify.root"
+      ],
+      "onUnusableBinding": "keepOriginalAndBlock",
+      "respectExplicitSelection": true
+    },
+    "trigger": {
+      "mode": "each"
+    },
+    "tasks": [
+      {
+        "id": "refine",
+        "type": "classify.refine",
+        "after": [],
+        "executorRole": "researchEnricher",
+        "required": true,
+        "outputContract": "placement.subtree.v1",
+        "inputFields": [
+          "url",
+          "title",
+          "tags",
+          "description"
+        ],
+        "instruction": "Choose a live descendant only inside Academic. Keep the parent if taxonomy is ambiguous.",
+        "folderRole": "academicRoot"
+      },
+      {
+        "id": "tags",
+        "type": "tags.generate",
+        "after": [],
+        "executorRole": "researchEnricher",
+        "required": true,
+        "outputContract": "tags.sourced.v1",
+        "inputFields": [
+          "url",
+          "title",
+          "tags",
+          "description"
+        ],
+        "instruction": "Merge sourced subject labels; never replace existing user tags."
+      },
+      {
+        "id": "summary",
+        "type": "summary.generate",
+        "after": [],
+        "executorRole": "researchEnricher",
+        "required": true,
+        "outputContract": "summary.sourced.v1",
+        "inputFields": [
+          "url",
+          "title",
+          "tags",
+          "description"
+        ],
+        "instruction": "Write an English paper summary, stating whether only an abstract was available."
+      }
+    ],
+    "route": {
+      "mode": "targets",
+      "execution": "single"
+    },
+    "policy": {
+      "history": "fromActivation",
+      "imports": "exclude",
+      "restores": "exclude",
+      "userEdits": "preserve",
+      "sameStageReentry": "deny",
+      "maxHops": 8,
+      "conflictingPlacement": "review",
+      "privacy": "standard",
+      "broadcastAllowed": false,
+      "maxRunsPerDay": 100,
+      "pauseMode": "stopAdmissionHoldPending",
+      "missingInput": "defer"
+    },
+    "priority": 100
+  },
+  "license": "Apache-2.0",
+  "publisher": "Example community publisher",
+  "runtimeProfiles": [
+    "browser-bounded-v1",
+    "server-cel-v1"
+  ],
+  "examples": []
+}
