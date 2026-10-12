@@ -13,8 +13,8 @@ import { AuthProvider } from '../auth/AuthContext'
 import { RouteLoading } from './RouteLoading'
 import { ChromeErrorBoundary } from './ChromeErrorBoundary'
 import { RouteErrorBoundary } from './RouteErrorBoundary'
-import { ServiceStatusBanner } from './ServiceStatusBanner'
-import { SiteTransportBanner } from './TransportBanner'
+import { ConnectionToasts } from './ConnectionToasts'
+import { SiteTransportWarning } from './TransportWarning'
 import { isAuthPath } from '../lib/chrome'
 import { productName } from '../lib/edition'
 import { isLibraryDeskPath, isLibraryDeskToDesk, libraryDeskKey } from '../lib/libraryDesk'
@@ -167,13 +167,8 @@ export function Layout() {
             </div>
             <NavigationScrollManager />
             <ToastRouteReset />
-            {!online && (
-              <div className="offline-banner" role="status">
-                You&apos;re offline. Saving is paused — reconnect to continue.
-              </div>
-            )}
-            {online && <ServiceStatusBanner />}
-            <SiteTransportBanner />
+            <ConnectionToasts online={online} />
+            <SiteTransportWarning />
             <ChromeErrorBoundary name="TopNav">
               <TopNav />
             </ChromeErrorBoundary>

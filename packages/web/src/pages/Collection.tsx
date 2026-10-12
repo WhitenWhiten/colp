@@ -1,6 +1,6 @@
 import { SubscribeButton } from '../components/bookmark-subscriptions/SubscribeButton'
 import { CollectionExportMenu } from '../components/CollectionExportMenu'
-import { SubscribeInBrowserButton } from '../components/TransportBanner'
+import { SubscribeInBrowserButton } from '../components/TransportWarning'
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'

@@ -78,8 +78,8 @@
 
 .import-drop:hover,
 .import-drop[data-dragging] {
-  border-color: var(--accent);
-  background: var(--accent-soft);
+  border-color: var(--muted);
+  background: var(--surface);
 }
 
 .import-drop:focus-within {
@@ -100,7 +100,7 @@
   height: 2.5rem;
   border-radius: var(--radius);
   background: var(--surface);
-  color: var(--accent-ink);
+  color: var(--ink-2);
   box-shadow: var(--shadow-xs);
 }
 
@@ -199,56 +199,16 @@
   border-top: 1px solid var(--line);
 }
 
-/* ——— Done ——— */
+/* ——— Progress ———
+   While Confirm runs: the bar and the running count, under the button's row. */
 
-.import-done {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: start;
-  gap: var(--space-4);
-  max-width: var(--measure-wide);
-}
-
-.import-done-icon {
-  display: grid;
-  place-items: center;
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: 50%;
-  background: var(--success-soft);
-  color: var(--success);
-}
-
-.import-done-icon svg {
-  width: 1.25rem;
-  height: 1.25rem;
-}
-
-.import-done-body {
+.import-progress {
   display: grid;
   gap: var(--space-2);
-  min-width: 0;
-}
-
-.import-done-title {
-  margin: 0;
-  font-size: var(--text-md);
-  font-weight: var(--weight-semibold);
-  letter-spacing: var(--tracking-tight);
-}
-
-.import-done-text {
-  margin: 0;
+  max-width: 24rem;
   color: var(--muted);
   font-size: var(--text-sm);
-  line-height: var(--leading-normal);
-}
-
-.import-done-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  margin-top: var(--space-2);
+  font-variant-numeric: tabular-nums;
 }
 
 @media (max-width: 639px) {

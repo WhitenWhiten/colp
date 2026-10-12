@@ -1,27 +1,7 @@
-/* Collection history — restore banner, version timeline, change rows and
+/* Collection history — version timeline, change rows and
    facts rail. Route-owned: imported by pages/CollectionHistory.tsx only. */
 
 @layer pages {
-.history-restore-banner {
-  margin-top: var(--space-4);
-  padding: var(--space-3) var(--hair-90);
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  border: 1px solid color-mix(in srgb, var(--success) 26%, var(--line));
-  border-radius: var(--radius);
-  background: color-mix(in srgb, var(--success) 5%, var(--surface));
-  color: var(--ink-2);
-  font-size: var(--text-sm);
-}
-
-.history-restore-banner a {
-  color: var(--ink);
-  font-weight: var(--weight-semibold);
-}
-
 .history-layout {
   margin-top: var(--hair-200);
   display: grid;

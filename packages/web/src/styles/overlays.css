@@ -277,6 +277,10 @@
   color: var(--success);
 }
 
+.toast--warning .toast-icon {
+  color: var(--warning);
+}
+
 .toast--error .toast-icon {
   color: var(--danger);
 }

@@ -3,6 +3,7 @@ import { act } from 'react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { EditableNodeView, EditorSnapshot } from '../api'
+import { ToastProvider } from '../components/AppToast'
 import { SelfHostedImport, folderOptionText } from './SelfHostedImport'
 import { cleanup, mountTree } from '../test/render'
 
@@ -78,7 +79,7 @@ describe('SelfHostedImport', () => {
   })
 
   it('previews the chosen file, then clears it after a completed import so Confirm cannot run twice', async () => {
-    mountTree(<MemoryRouter><SelfHostedImport /></MemoryRouter>)
+    mountTree(<MemoryRouter><ToastProvider><SelfHostedImport /></ToastProvider></MemoryRouter>)
     await flush()
     const confirm = document.querySelector<HTMLButtonElement>('button[type="submit"]')!
     expect(confirm.disabled).toBe(true)
@@ -97,9 +98,10 @@ describe('SelfHostedImport', () => {
 
     expect(mocks.importBookmarks).toHaveBeenCalledTimes(1)
     expect(mocks.importBookmarks.mock.calls[0]![0]).toMatchObject({ parentId: 'root', skipDuplicates: true })
-    const done = document.querySelector('[data-testid="import-done"]')
-    expect(done?.textContent).toContain('2 items added; 1 duplicate skipped')
+    const done = [...document.querySelectorAll('[role="status"]')].find((node) => node.textContent?.includes('Imported'))
+    expect(done?.textContent).toContain('Imported 2 items; skipped 1 duplicate.')
     expect(done?.querySelector('a')?.getAttribute('href')).toBe('/library/col-1')
+    expect(document.querySelector('[data-testid="import-progress"]')).toBeNull()
     expect(document.querySelector('[data-testid="import-preview"]')).toBeNull()
     expect(document.querySelector<HTMLButtonElement>('button[type="submit"]')!.disabled).toBe(true)
   })
