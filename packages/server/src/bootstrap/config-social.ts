@@ -1,7 +1,9 @@
+import { loadSharedFaviconConfig } from './config-favicon-shared.js';
 import { parseCanonicalUtcTimestamp, parsePositiveInt, requireNonEmpty } from './config-parse-helpers.js';
 import type {
   CollectionFollowFeatureConfig,
   CommunityFeatureConfig,
+  FaviconPolicyAdmissionConfig,
   FeedFeatureConfig,
   FeedOperationsConfig,
   FollowFeatureConfig,
@@ -542,6 +544,88 @@ export function loadNotificationFeatureConfig(
     timeoutMs: parsePositiveInt(env.NOTIFICATION_HTTP_TIMEOUT_MS, 2_000, 'NOTIFICATION_HTTP_TIMEOUT_MS', { max: 30_000 }),
     operations,
   });
+}
+
+/**
+ * FO-01/FO-02 favicon policy/source feature gate + durable job worker config.
+ * The flag defaults to false and booleans accept only the exact strings
+ * true/false; malformed enabled configuration fails startup (contract
+ * `x-config`). The FAVICON_* values implement the frozen contract: const
+ * entries must match; ranged values are validated for their runtime consumers.
+ */
+export function loadFaviconPolicyAdmissionConfig(env: NodeJS.ProcessEnv): FaviconPolicyAdmissionConfig {
+  const flag = (env.KNOWN_FEATURE_FAVICON_POLICY ?? 'false').trim().toLowerCase();
+  if (flag !== 'true' && flag !== 'false') {
+    throw new Error('KNOWN_FEATURE_FAVICON_POLICY must be true or false');
+  }
+  const retryBackoff = parseFaviconRetryBackoff(env.FAVICON_RETRY_BACKOFF_SECONDS);
+  return Object.freeze({
+    enabled: flag === 'true',
+    cursorHmacKey: loadFaviconCursorHmacKey(env, flag === 'true'),
+    timeoutMs: parsePositiveInt(env.FAVICON_POLICY_TIMEOUT_MS, 2_000,
+      'FAVICON_POLICY_TIMEOUT_MS', { max: 30_000 }),
+    fetchTimeoutMs: parsePositiveInt(env.FAVICON_FETCH_TIMEOUT_MS, 10_000,
+      'FAVICON_FETCH_TIMEOUT_MS', { min: 1_000, max: 30_000 }),
+    fetchMaxBytes: parseConstInt(env.FAVICON_FETCH_MAX_BYTES, 65_536, 'FAVICON_FETCH_MAX_BYTES'),
+    fetchMaxRedirects: parseConstInt(env.FAVICON_FETCH_MAX_REDIRECTS, 3, 'FAVICON_FETCH_MAX_REDIRECTS'),
+    jobBatchSize: parseConstInt(env.FAVICON_JOB_BATCH_SIZE, 100, 'FAVICON_JOB_BATCH_SIZE'),
+    jobMaxAttempts: parseConstInt(env.FAVICON_JOB_MAX_ATTEMPTS, 5, 'FAVICON_JOB_MAX_ATTEMPTS'),
+    historyRetentionSeconds: parseConstInt(
+      env.FAVICON_HISTORY_RETENTION_SECONDS, 31_536_000, 'FAVICON_HISTORY_RETENTION_SECONDS'),
+    jobConcurrency: parseConstInt(env.FAVICON_JOB_CONCURRENCY, 2, 'FAVICON_JOB_CONCURRENCY'),
+    retryBackoffSeconds: retryBackoff,
+    workerPollIntervalMs: 1_000,
+    workerLeaseDurationMs: 60_000,
+    gcPollIntervalMs: 60_000,
+    shared: loadSharedFaviconConfig(env),
+  });
+}
+
+/** FAVICON_RETRY_BACKOFF_SECONDS: const [1,2,4,8,16]. */
+function parseFaviconRetryBackoff(raw: string | undefined): readonly number[] {
+  const expected = [1, 2, 4, 8, 16];
+  if (raw === undefined || raw.trim() === '') return Object.freeze([...expected]);
+  const parts = raw.trim().split(',').map((part) => part.trim());
+  if (parts.length !== expected.length) {
+    throw new Error('FAVICON_RETRY_BACKOFF_SECONDS must be exactly "1,2,4,8,16"');
+  }
+  const parsed = parts.map((part, index) => {
+    const value = Number(part);
+    if (!Number.isInteger(value) || value !== expected[index]) {
+      throw new Error('FAVICON_RETRY_BACKOFF_SECONDS must be exactly "1,2,4,8,16"');
+    }
+    return value;
+  });
+  return Object.freeze(parsed);
+}
+
+/**
+ * FAVICON_CURSOR_HMAC_KEY: base64url-32-byte-secret, required when the flag
+ * is enabled (contract `x-config` requiredWhen). Decodes to exactly 32 bytes
+ * and round-trips through base64url. When the feature is disabled the cursor
+ * routes are 404 and the value is optional; a deterministic derived default is
+ * used only so the production route manifest can still register the (never
+ * exposed) operation while the feature is off. The key never leaves this
+ * process as plaintext logs.
+ */
+function loadFaviconCursorHmacKey(env: NodeJS.ProcessEnv, required: boolean): string {
+  const raw = (env.FAVICON_CURSOR_HMAC_KEY ?? '').trim();
+  if (raw === '') {
+    if (required) {
+      throw new Error('FAVICON_CURSOR_HMAC_KEY is required when KNOWN_FEATURE_FAVICON_POLICY=true');
+    }
+    return Buffer.alloc(32, 9).toString('base64url');
+  }
+  if (!/^[A-Za-z0-9_-]{43}$/u.test(raw)) {
+    throw new Error('FAVICON_CURSOR_HMAC_KEY must be a base64url 32-byte secret');
+  }
+  const decoded = Buffer.from(raw, 'base64url');
+  if (decoded.length !== 32 || decoded.toString('base64url') !== raw) {
+    decoded.fill(0);
+    throw new Error('FAVICON_CURSOR_HMAC_KEY must decode to exactly 32 bytes');
+  }
+  decoded.fill(0);
+  return raw;
 }
 
 /** Contract `const` integer: absent uses the default; present must equal it exactly. */

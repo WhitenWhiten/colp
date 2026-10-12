@@ -31,6 +31,7 @@ export interface ApiRuntimeResources {
   readonly mcpRateLimiter?: { close(): Promise<void> };
   readonly emailCallbackRateLimiter?: { close(): Promise<void> };
   readonly avatarStore?: { close?: () => Promise<void> };
+  readonly faviconStore?: { close?: () => Promise<void> };
   readonly cacheComposition: { close(): Promise<void> };
   readonly database: { close(): Promise<void> };
 }
@@ -141,6 +142,11 @@ export async function closeApiRuntimeResources(input: ApiRuntimeResources): Prom
   await attemptOptionalClose(failures, 'mcpRateLimiter', input.mcpRateLimiter);
   // FIX-L-061 graceful close: bounded + idempotent (memory adapter = no-op).
   await attemptOptionalClose(failures, 'emailCallbackRateLimiter', input.emailCallbackRateLimiter);
+  const faviconStore = input.faviconStore;
+  if (faviconStore?.close !== undefined) {
+    const close = faviconStore.close;
+    await attemptClose(failures, 'faviconStore', () => close.call(faviconStore));
+  }
   const avatarStore = input.avatarStore;
   if (avatarStore?.close !== undefined) {
     const close = avatarStore.close;

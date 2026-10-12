@@ -24,6 +24,7 @@ import type {
 } from './ports.js';
 import type { EditableNodeView } from './get-editor-page.js';
 import { projectBookmarkIconUrl } from './bookmark-icon-url.js';
+import { enqueueFaviconRefreshForNewBookmark } from './favicon-job.js';
 import {
   authorizeCollectionCapability,
   claimProductMutation,
@@ -214,6 +215,21 @@ export async function createCollectionNode(
   const iconUrl = validated.node.kind === 'bookmark'
     ? await projectBookmarkIconUrl(ports.bookmarkIcons, nodeId, ports.productOrigin)
     : null;
+  // FO-07: `newDefault: online` must actually fetch for a bookmark created in
+  // the Web app. The durable job is inserted in this same transaction (before
+  // the receipt completes), so a crash cannot leave a created node without its
+  // promised fetch and a retry can never double-enqueue.
+  if (validated.node.kind === 'bookmark' && nodeUrl !== null && ports.faviconAutoRefresh !== undefined) {
+    await enqueueFaviconRefreshForNewBookmark(ports.faviconAutoRefresh, {
+      accountId: validated.actor.principalId,
+      ownerSubjectId: validated.actor.subjectId,
+      collectionId: validated.collectionId,
+      nodeId,
+      url: nodeUrl,
+      nodeResourceRevision: resourceRevision,
+      now,
+    });
+  }
   const nodeView = projectEditableNodeView({
     id: nodeId,
     collectionId: validated.collectionId,

@@ -481,6 +481,37 @@ export type {
   LoadCollectionEditorSnapshotInput,
   RootNodeView,
 } from './get-editor-page.js';
+export {
+  BOOKMARK_FAVICON_CANONICAL_CONTENT_TYPES,
+  BOOKMARK_FAVICON_MAX_BYTES,
+  BookmarkFaviconImageError,
+  assertBookmarkFaviconImage,
+  readFaviconBodyCapped,
+  sniffBookmarkFaviconCanonicalMime,
+} from './favicon-store.js';
+export type {
+  BookmarkFaviconCanonicalMime,
+  BookmarkFaviconObjectStore,
+  StoredBookmarkFavicon,
+} from './favicon-store.js';
+export {
+  BOOKMARK_FAVICON_COMMAND_CONTRACT_VERSION,
+  BookmarkFaviconCommandError,
+  bookmarkFaviconBodyFingerprint,
+  bookmarkFaviconDeleteCommandScope,
+  bookmarkFaviconProductRoute,
+  bookmarkFaviconUploadCommandScope,
+  deleteBookmarkFavicon,
+  mapBookmarkFaviconCommandError,
+  uploadBookmarkFavicon,
+} from './bookmark-favicon-command.js';
+export type {
+  BookmarkFaviconCommandActor,
+  BookmarkFaviconCommandPorts,
+  BookmarkFaviconCommandResult,
+  DeleteBookmarkFaviconInput,
+  UploadBookmarkFaviconInput,
+} from './bookmark-favicon-command.js';
 export { hostnameFromBookmarkUrl, normalizeBookmarkUrl } from './link-health-url.js';
 export { mapLinkHealthProbeObservation } from './link-health-probe-status.js';
 export type {
@@ -669,6 +700,8 @@ export type {
   LibraryOrderView,
 } from './library-order.js';
 export * from './favicon-exports.js';
+export * from './collection-children-cursor.js';
+export * from './list-collection-children.js';
 // H3 direct export (D21): the CLI, the export route, and the read port use
 // these through the collections facade.
 export * from './export-collection.js';

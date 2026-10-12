@@ -1,3 +1,4 @@
+import type { BookmarkNodeView } from './types'
 import { clearCommandId } from './commandId'
 import { shouldRestartCursor } from './editor-session'
 import { ProductApiError, wrapProductError, parseProductError } from './errors'
@@ -689,7 +690,46 @@ export function createProductCollectionsClient(
       options,
     )
   }
+  function bookmarkFaviconMutationOptions(options: MutationOptions): MutationOptions {
+    return { ...options, rotateCommandOnConflict: false }
+  }
+
+  async function uploadBookmarkFavicon(
+    collectionId: string,
+    nodeId: string,
+    file: File,
+    options: MutationOptions,
+  ): Promise<BookmarkNodeView> {
+    return mutationCall(
+      (csrf, commandIntentId) =>
+        transport.uploadBookmarkFavicon(collectionId, nodeId, file, {
+          commandIntentId,
+          csrfToken: csrf,
+          signal: options.signal,
+        }),
+      bookmarkFaviconMutationOptions(options),
+    )
+  }
+
+  async function deleteBookmarkFavicon(
+    collectionId: string,
+    nodeId: string,
+    options: MutationOptions,
+  ): Promise<BookmarkNodeView> {
+    return mutationCall(
+      (csrf, commandIntentId) =>
+        transport.deleteBookmarkFavicon(collectionId, nodeId, {
+          commandIntentId,
+          csrfToken: csrf,
+          signal: options.signal,
+        }),
+      bookmarkFaviconMutationOptions(options),
+    )
+  }
+
   return {
+    uploadBookmarkFavicon,
+    deleteBookmarkFavicon,
     getOwnedCollectionsPage,
     loadOwnedCollections,
     createCollection,

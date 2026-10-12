@@ -1,3 +1,5 @@
+import type { BookmarkNodeView } from './types'
+import type { BookmarkFaviconSource, FaviconCreateIconJobRequest, FaviconIconJob, FaviconIconJobAccepted, FaviconIconPolicy, FaviconIconPolicyPatch, FaviconPolicyResult, SetBookmarkFaviconSourceRequest, FaviconJobStatus } from './types'
 /**
  * Shared Product transport types. Domain transport modules and the barrel
  * import from here so they never import `./product-transport`.
@@ -167,6 +169,41 @@ export type SearchParams = {
 }
 
 export type ProductTransport = {
+  getMyFaviconPolicy: (signal?: AbortSignal) => Promise<FaviconIconPolicy & { etag: string }>
+  updateMyFaviconPolicy: (
+    patch: FaviconIconPolicyPatch,
+    opts: MutationCallOptions & { ifMatch: string },
+  ) => Promise<FaviconPolicyResult>
+  getBookmarkFaviconSource: (collectionId: string, nodeId: string, signal?: AbortSignal) =>
+    Promise<BookmarkFaviconSource & { etag: string }>
+  setBookmarkFaviconSource: (
+    collectionId: string,
+    nodeId: string,
+    body: SetBookmarkFaviconSourceRequest,
+    opts: MutationCallOptions & { ifMatch: string },
+  ) => Promise<BookmarkFaviconSource>
+  refreshBookmarkFavicon: (
+    collectionId: string,
+    nodeId: string,
+    opts: MutationCallOptions & { ifMatch: string },
+  ) => Promise<FaviconIconJobAccepted>
+  createMyFaviconJob: (
+    body: FaviconCreateIconJobRequest,
+    opts: MutationCallOptions,
+  ) => Promise<FaviconIconJobAccepted>
+  getMyFaviconJob: (jobId: string, signal?: AbortSignal) => Promise<FaviconIconJob>
+  retryMyFaviconJob: (jobId: string, opts: MutationCallOptions) => Promise<FaviconIconJobAccepted>
+  uploadBookmarkFavicon: (
+    collectionId: string,
+    nodeId: string,
+    file: File,
+    opts: MutationCallOptions,
+  ) => Promise<BookmarkNodeView>
+  deleteBookmarkFavicon: (
+    collectionId: string,
+    nodeId: string,
+    opts: MutationCallOptions,
+  ) => Promise<BookmarkNodeView>
   getSession: (opts?: SessionCallOptions) => Promise<SessionView>
   getMe: (opts?: SessionCallOptions) => Promise<MeView>
   updateMe: (body: UpdateMeRequest, opts: MutationCallOptions) => Promise<MeView>

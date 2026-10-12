@@ -56,3 +56,25 @@ operation's idempotency key. The outer `Idempotency-Key` binds the complete orde
 array. If a non-atomic batch fails midway, earlier commits remain durable and the
 client can recover them by sending singleton requests with the original operation
 bytes and `Idempotency-Key: <opId>`. Multi-operation atomic batches are rejected.
+
+### Bookmark favicons
+
+The self-hosted preset enables favicon upload and background filling. In Settings → Favicon,
+choose the default for new bookmarks and enable **Fill missing icons** to enqueue existing
+bookmarks without icons. The same policy applies to subsequently created and browser-synced
+bookmarks. Explicit **No icon** choices and manual uploads are preserved by missing-icon filling.
+Each bookmark's edit drawer offers immediate upload/removal and icon-source selection.
+PNG, JPEG, WebP and ICO uploads are limited to 64 KiB; SVG and GIF are rejected.
+
+No object-storage service is required: favicon bytes persist in PostgreSQL and are included in
+normal database backups. Existing `AVATAR_R2_*` storage configuration stores favicon objects
+in the same bucket under `FAVICON_R2_PREFIX` (default `favicon/`), isolated from avatars.
+Apply migrations before running the updated API/worker. The standard `colp-server` process
+runs the worker; deployments running API and worker separately must run both.
+`KNOWN_FEATURE_FAVICON_POLICY=false` disables policy and automatic jobs.
+
+The server fetches provider icons with bounded requests and blocks private network targets.
+Browsers display stored objects; public pages never contact a third-party icon provider.
+Private objects require a current owner/member browser session and use `private, no-store` caching.
+The extension's favicon helper uploads bytes separately after syncing a bookmark; images are
+not embedded in COLP Push operations. Existing helper paths and ETag checks are preserved.

@@ -22,6 +22,7 @@ import type {
   GetSharedCollectionsPagePorts,
   GetMyLinkHealthPagePorts,
   EnqueueMyLinkHealthChecksPorts,
+  BookmarkFaviconObjectStore,
   CreateCollectionVersionPorts,
   ProductCollectionVersionCursorSignerPort,
   LibraryOrderCommandPorts,
@@ -69,6 +70,7 @@ import {
   type ReadinessProbe,
 } from '../infrastructure/health.js';
 import { registerBrowserAuthRoutes } from './auth/browser-auth-routes.js';
+import { registerBookmarkFaviconRoutes } from './product/bookmark-favicon-routes.js';
 import { registerBetterAuthRoutes } from './auth/better-auth-routes.js';
 import { registerCollectionRoutes } from './product/collection-routes.js';
 import {
@@ -86,6 +88,7 @@ import { installProductAdmission, parseStrictQuery } from './product-admission.j
 import { ProductHttpError, sendProductError, type ProductErrorEnvelope } from './product-error.js';
 import { DatabaseOperationError } from '../infrastructure/database/errors.js';
 import {
+  BOOKMARK_FAVICON_DEFERRED_OPERATION_IDS,
   installProductRouteManifestChecks,
   LEGACY_OIDC_OPERATION_IDS,
 } from './product-route-manifest.js';
@@ -141,6 +144,7 @@ import {
   isPublicationUrl,
   isProductUrl,
   mapFrameworkError,
+  matchesBookmarkFaviconHelperPath,
   sendBadUrlProductError,
 } from './app-error-mapping.js';
 import {
@@ -177,10 +181,12 @@ export function buildApiApp(input: AppDependencies) {
   cacheCapabilityReadiness,
   identityUnitOfWork,
   avatarStore,
+  faviconStore,
   collectionsUnitOfWork,
   productCollectionMutationUnitOfWork,
   collectionMetadataMutationRoutes = 'enabled',
   collectionsEditorReadUnitOfWork,
+  collectionChildrenReadUnitOfWork,
   ownedCollectionsQuery,
   sharedCollectionsQuery,
   bookmarkCounts,
@@ -375,6 +381,7 @@ export function buildApiApp(input: AppDependencies) {
       && productCollectionMutationUnitOfWork
       && collectionMetadataMutationRoutes === 'enabled'
       && collectionsEditorReadUnitOfWork
+      && collectionChildrenReadUnitOfWork
       && ownedCollectionsQuery
       && sharedCollectionsQuery
       && annotationMutationUnitOfWork
@@ -393,8 +400,13 @@ export function buildApiApp(input: AppDependencies) {
     // OpenAPI keeps the operations marked deprecated (rollback-safe), so the
     // coverage assertion skips them in BA mode. Legacy mode keeps the full
     // requirement.
+    // BF-02: GET is registered when faviconStore is composed. POST/DELETE
+    // are always registered (503 when the store is absent). Skip GET coverage
+    // so complete apps without R2 still start. Do not stub 503 GET handlers.
     excludeOperationIds: [
       ...(config.betterAuth.enabled ? LEGACY_OIDC_OPERATION_IDS : []),
+      ...BOOKMARK_FAVICON_DEFERRED_OPERATION_IDS,
+      ...(faviconStore ? [] : ['getBookmarkFavicon']),
       'getLinkPreviewObject',
       'listPublicProfileActivity',
       'headPublicProfileActivity',
@@ -463,6 +475,23 @@ export function buildApiApp(input: AppDependencies) {
         || syncAckRoutes?.allowedOrigins.includes(origin) === true
         || syncRetireRoutes?.allowedOrigins.includes(origin) === true
         || syncConflictRoutes?.allowedOrigins.includes(origin) === true);
+    const bookmarkFaviconHelperOrigin = matchesBookmarkFaviconHelperPath(requestPath)
+      && typeof origin === 'string'
+      && extensionCollectionRoutes?.allowedOrigins.includes(origin.replace(/\/$/u, '')) === true;
+    if (bookmarkFaviconHelperOrigin) {
+      reply.header('Access-Control-Allow-Origin', origin);
+      reply.header('Access-Control-Allow-Credentials', 'true');
+      reply.header('Vary', 'Origin');
+      reply.header(
+        'Access-Control-Allow-Headers',
+        'Authorization, Content-Type, Origin, Known-Command-Id, If-Match, Known-Favicon-Policy-Revision',
+      );
+      reply.header('Access-Control-Expose-Headers', 'ETag, Cache-Control, X-Request-Id, RateLimit-Policy, Retry-After');
+      reply.header('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+    }
+    if (request.method === 'OPTIONS' && bookmarkFaviconHelperOrigin) {
+      return reply.code(204).send();
+    }
     if (productOrigin || syncOrigin || betterAuthExtensionOrigin || collectionsOrigin) {
       reply.header('Access-Control-Allow-Origin', origin);
       reply.header('Access-Control-Allow-Credentials', 'true');

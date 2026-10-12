@@ -77,6 +77,8 @@ export {
   type PostgresCollectionsUnitOfWorkOptions,
 } from './unit-of-work.js';
 export {
+  createPostgresCollectionChildrenReadUnitOfWork,
+  type PostgresCollectionChildrenReadUnitOfWorkOptions,
 } from './unit-of-work.js';
 export { createPostgresAnnotationMutationUnitOfWork } from './annotation-canonical-postgres.js';
 export {
@@ -114,6 +116,7 @@ export {
   type ResourceAuthorityScanResult,
   type ResourcePayloadBackfillRowResult,
 } from './resource-payload-dual-read.js';
+
 export {
   createPostgresBookmarkIconReadPort,
   createPostgresBookmarkIconWritePort,
@@ -161,3 +164,41 @@ export {
   recordMcpPlanCommitRevisions,
 } from './mcp-plan-commit-revisions-postgres.js';
 export { createMcpNodePlanState } from './mcp-node-plan-state.js';
+
+export { createR2FaviconStore, type R2FaviconStoreOptions } from './favicon-r2-adapter.js';
+export {
+  createPostgresFaviconJobWritePort,
+  createPostgresFaviconJobReadPort,
+  createPostgresFaviconJobWorkerRepository,
+  createPostgresFaviconJobWorkerUnitOfWork,
+  createPostgresFaviconGcWritePort,
+} from './favicon-job-postgres.js';
+export { createPostgresFaviconGcRepository } from './favicon-gc-postgres.js';
+export { createPostgresFaviconSourceModeReadPort } from './favicon-source-postgres.js';
+export {
+  createPostgresFaviconBatchJobWritePort,
+  createPostgresFaviconBatchItemPort,
+  createPostgresFaviconCandidatePort,
+  createPostgresFaviconRestoreWritePort,
+  createPostgresFaviconRestoreReadPort,
+} from './favicon-job-items-postgres.js';
+export {
+  defaultFaviconDecompressedBudget,
+  fetchFaviconImage,
+  inflateFaviconEncoding,
+  type FaviconFetch,
+  type FaviconFetchInput,
+} from './favicon-fetch.js';
+export {
+  FaviconGcWorkerLoop,
+  FaviconJobWorkerLoop,
+  createFaviconWorkerRuntime,
+} from './favicon-worker.js';
+export type {
+  FaviconGcRepository,
+  FaviconJobWorkerRepository,
+  FaviconWorkerLoopLogger,
+  FaviconWorkerLoopOptions,
+  FaviconWorkerRuntime,
+} from './favicon-worker.js';
+export { createDatabaseFaviconStore } from './favicon-database-store.js';

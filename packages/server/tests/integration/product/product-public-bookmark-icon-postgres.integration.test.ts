@@ -1,3 +1,6 @@
+import { createDatabaseFaviconStore } from '../../../src/infrastructure/collections/favicon-database-store.js';
+import { isFaviconPubliclyAccessible, isFaviconReadableBySubject } from '../../../src/infrastructure/database/publication-object-controls.js';
+import { makePng } from '../../support/link-preview-fixtures.js';
 /**
  * BF-04: live bookmark_icons JOIN on Product public Collection pages,
  * faviconCdnAllowed, and a query-count upper bound (one IN-list lookup).
@@ -54,7 +57,7 @@ describeWithPostgres('BF-04 PostgreSQL live bookmark icon JOIN on public Collect
 
   afterAll(async () => isolated?.close());
 
-  test('anonymous directory-public page JOINs icons once, drops private icons, and allows CDN', async () => {
+  test('anonymous directory-public page JOINs icons once, drops private icons, and forbids CDN', async () => {
     iconLookups = 0;
     const app = buildTestApp(isolated, () => iconLookups += 1);
     try {
@@ -136,6 +139,35 @@ describeWithPostgres('BF-04 PostgreSQL live bookmark icon JOIN on public Collect
     assert.equal(result.size, 0);
     assert.equal(queries, before);
   });
+  test('database objects persist across store instances and private bytes require a live authorized session', async () => {
+    const store = createDatabaseFaviconStore(isolated.runtime.db);
+    const png = makePng(2, 2);
+    await store.put(ICON_SECRET, png, 'image/png');
+    const reopened = createDatabaseFaviconStore(isolated.runtime.db);
+    assert.deepEqual((await reopened.get(ICON_SECRET))?.body, png);
+    await assert.rejects(() => store.put('../outside', png, 'image/png'));
+    await assert.rejects(() => store.put(ICON_A, Buffer.alloc(65_537), 'image/png'));
+    const stranger = await issueTestSession({ subject: 'favicon-stranger', handle: 'favicon-stranger', factory });
+    const app = buildTestApp(isolated, () => undefined);
+    try {
+      const url = `/api/v1/favicon/${ICON_SECRET}`;
+      const anonymous = await app.inject({ method: 'GET', url });
+      assert.equal(anonymous.statusCode, 404);
+      const denied = await app.inject({ method: 'GET', url, headers: { cookie: stranger.cookie } });
+      assert.equal(denied.statusCode, 404);
+      assert.equal(denied.headers['cache-control'], 'private, no-store');
+      const allowed = await app.inject({ method: 'GET', url, headers: { cookie: owner.cookie } });
+      assert.equal(allowed.statusCode, 200);
+      assert.equal(allowed.headers['cache-control'], 'private, no-store');
+      assert.deepEqual(allowed.rawPayload, png);
+      await isolated.runtime.pool.query('DELETE FROM bookmark_icons WHERE object_id = $1', [ICON_SECRET]);
+      const retired = await app.inject({ method: 'GET', url, headers: { cookie: owner.cookie } });
+      assert.equal(retired.statusCode, 404);
+      await reopened.delete(ICON_SECRET);
+      assert.equal(await store.get(ICON_SECRET), null);
+    } finally { await app.close(); }
+  });
+
 });
 
 function buildTestApp(isolated: IsolatedPostgresRuntime, onIconLookup: () => void) {
@@ -148,6 +180,11 @@ function buildTestApp(isolated: IsolatedPostgresRuntime, onIconLookup: () => voi
   const origin = createPostgresBookmarkIconReadPort(isolated.runtime.db);
   const app = buildApiApp({
     config,
+    faviconStore: createDatabaseFaviconStore(isolated.runtime.db),
+    faviconPublicAccess: {
+      isPubliclyAccessible: (id) => isFaviconPubliclyAccessible(isolated.runtime.db, id),
+      isReadableBySubject: (id, subject) => isFaviconReadableBySubject(isolated.runtime.db, id, subject),
+    },
     exploreDirectoryRateLimiter: memoryExploreDirectoryLimiter(),
     identityUnitOfWork,
     browserSessionAuthority: factory.authority,

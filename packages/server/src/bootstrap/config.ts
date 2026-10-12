@@ -123,6 +123,7 @@ import {
   loadCollectionFollowFeatureConfig,
   loadCommunityFeatureConfig,
   loadLibraryOrderAdmissionConfig,
+  loadFaviconPolicyAdmissionConfig,
   loadFeedOperationsConfig,
   loadFeedFeatureConfig,
   loadPublicActivityFeatureConfig,
@@ -134,6 +135,7 @@ import {
   DEFAULT_ATTACHMENTS_LIVE_PREFIX,
   DEFAULT_ATTACHMENTS_PROBE_PREFIX,
   DEFAULT_AVATAR_R2_PREFIX,
+  DEFAULT_FAVICON_R2_PREFIX,
   loadProductEditorCursorConfig,
   loadOwnedCollectionsCursorConfig,
   loadLinkHealthFeatureConfig,
@@ -155,6 +157,7 @@ export { DEFAULT_MCP_WRITE_COMMIT_RATE_LIMIT } from './config-mcp.js';
 export { loadReportsFeatureConfig, parseReportsFeatureConfig } from './config-reports.js';
 export {
   DEFAULT_AVATAR_R2_PREFIX,
+  DEFAULT_FAVICON_R2_PREFIX,
 } from './config-product.js';
 
 export { sanitizedRuntimeCapacity } from './config-capacity-summary.js';
@@ -227,8 +230,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const betterAuth = loadBetterAuthConfig(env, nodeEnv, productOrigin, allowedOrigins);
 
   const avatarR2Prefix = env.AVATAR_R2_PREFIX?.trim() || DEFAULT_AVATAR_R2_PREFIX;
+  const faviconR2Prefix = env.FAVICON_R2_PREFIX?.trim() || DEFAULT_FAVICON_R2_PREFIX;
   assertPublicObjectPrefixesDoNotOverlap(
     avatarR2Prefix,
+    faviconR2Prefix,
     DEFAULT_ATTACHMENTS_LIVE_PREFIX,
     DEFAULT_ATTACHMENTS_PROBE_PREFIX,
   );
@@ -579,6 +584,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     collectionFollow,
     community,
     libraryOrder,
+    faviconPolicy: loadFaviconPolicyAdmissionConfig(env),
     feed,
     publicActivity,
     notifications,
@@ -587,6 +593,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     emailSkins,
     publication,
     avatarR2Prefix,
+    faviconR2Prefix,
     mcpRateLimit,
     ...(syncSession ? { syncSession } : {}),
     ...(mcpConfig ? { mcp: mcpConfig } : {}),

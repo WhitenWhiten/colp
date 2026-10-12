@@ -13,6 +13,7 @@ import {
 } from '../infrastructure/sync/index.js';
 import {
   createPostgresCollectionsEditorReadUnitOfWork,
+  createPostgresCollectionChildrenReadUnitOfWork,
   createPostgresCollectionsUnitOfWork,
   createPostgresCanonicalMutationUnitOfWork,
   createPostgresAnnotationMutationUnitOfWork,
@@ -27,6 +28,7 @@ import {
   createPostgresSharedCollectionsReadPort,
   createPostgresCollectionBookmarkCountReadPort,
   createPostgresBookmarkIconReadPort,
+  createPostgresFaviconSourceModeReadPort,
   createPostgresLibraryOrderCommandUnitOfWork,
   createPostgresLibraryOrderQueryUnitOfWork,
 } from '../infrastructure/collections/index.js';
@@ -40,6 +42,7 @@ import {
 import {
   createProductAnnotationCursorSigner,
   createProductRelationCursorSigner,
+  createCollectionChildrenCursorSigner,
   createProductEditorCursorSigner,
   createProductOwnedCollectionsCursorSigner,
   createProductSharedCollectionsCursorSigner,
@@ -83,6 +86,8 @@ export interface ApiPostgresPorts {
   readonly collectionsUnitOfWork: ReturnType<typeof createPostgresCollectionsUnitOfWork>;
   readonly productCollectionMutationUnitOfWork: ReturnType<typeof createPostgresCanonicalMutationUnitOfWork>;
   readonly collectionsEditorReadUnitOfWork: ReturnType<typeof createPostgresCollectionsEditorReadUnitOfWork>;
+  /** FO-05 one-layer children reader (always composed; cursor routes gate on the flag). */
+  readonly collectionChildrenReadUnitOfWork: ReturnType<typeof createPostgresCollectionChildrenReadUnitOfWork>;
   readonly ownedCollectionsCursorSigner: ReturnType<typeof createProductOwnedCollectionsCursorSigner>;
   readonly sharedCollectionsCursorSigner: ReturnType<typeof createProductSharedCollectionsCursorSigner>;
   readonly collaborationMembersCursorSigner: ReturnType<typeof createProductCollaborationMembersCursorSigner>;
@@ -177,6 +182,15 @@ export function createApiPostgresPorts(input: {
       productOrigin: config.productOrigin,
     },
   );
+  const collectionChildrenReadUnitOfWork = createPostgresCollectionChildrenReadUnitOfWork(
+    database.db,
+    {
+      cursorSigner: createCollectionChildrenCursorSigner(config.faviconPolicy.cursorHmacKey),
+      metrics,
+      productOrigin: config.productOrigin,
+      cancelBackend: database.cancelBackend,
+    },
+  );
   const { ownedCollectionsCursorSigner, sharedCollectionsCursorSigner, collaborationMembersCursorSigner,
     myCollaborationInvitesCursorSigner, linkHealthCursorSigner,
     collectionVersionCursorSigner } = createApiPostgresProductCursors(config);
@@ -247,6 +261,7 @@ export function createApiPostgresPorts(input: {
     collectionsUnitOfWork,
     productCollectionMutationUnitOfWork,
     collectionsEditorReadUnitOfWork,
+    collectionChildrenReadUnitOfWork,
     ownedCollectionsCursorSigner,
     sharedCollectionsCursorSigner,
     collaborationMembersCursorSigner,
@@ -321,6 +336,7 @@ export function createApiPostgresAppDependencies(input: {
       owners: publicProfileFacts,
       productOrigin: config.productOrigin,
       bookmarkIcons: createPostgresBookmarkIconReadPort(database.db),
+      faviconSources: createPostgresFaviconSourceModeReadPort(database.db),
       publicMarks: createPostgresPublicMarksReadPort(database),
     },
     productCollaboration: {

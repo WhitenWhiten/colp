@@ -1,3 +1,4 @@
+import type { BookmarkNodeView } from './types'
 import type { ProductTransportHttp } from './product-transport-http'
 import type {
   DeleteNodeOptions,
@@ -137,6 +138,29 @@ export function createEditorTransport(http: ProductTransportHttp) {
         headers,
         signal: opts.signal,
         emptyOk: true,
+      })
+    },
+    async uploadBookmarkFavicon(
+      collectionId: string,
+      nodeId: string,
+      file: File,
+      opts: MutationCallOptions,
+    ) {
+      return request<BookmarkNodeView>({
+        method: 'POST',
+        path: `/api/v1/collections/${encodeURIComponent(collectionId)}/nodes/${encodeURIComponent(nodeId)}/favicon`,
+        headers: mutationHeaders(opts, { 'Content-Type': file.type || 'application/octet-stream' }),
+        rawBody: file,
+        signal: opts.signal,
+      })
+    },
+
+    async deleteBookmarkFavicon(collectionId: string, nodeId: string, opts: MutationCallOptions) {
+      return request<BookmarkNodeView>({
+        method: 'DELETE',
+        path: `/api/v1/collections/${encodeURIComponent(collectionId)}/nodes/${encodeURIComponent(nodeId)}/favicon`,
+        headers: mutationHeaders(opts),
+        signal: opts.signal,
       })
     },
   }

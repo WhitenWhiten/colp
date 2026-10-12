@@ -212,11 +212,11 @@ info:
     info.version 1.92.0 intentionally tightens anonymous favicon publication
     semantics: successful responses use a short public max-age with
     must-revalidate and require a current live public bookmark binding, so
-    publication revocation is not pinned in shared caches.
-    info.version 1.93.0 additively adds optional nodeKind on SearchNodeResult,
-    so a client can tell a folder hit from a bookmark, and optional username
-    on AccountView, the sign-in name of a username account, preserving every
-    accepted 1.92.0 Product client contract."
+    publication revocation is not pinned in shared caches. info.version 1.93.0
+    additively adds optional nodeKind on SearchNodeResult, so a client can tell
+    a folder hit from a bookmark, and optional username on AccountView, the
+    sign-in name of a username account, preserving every accepted 1.92.0 Product
+    client contract."
 servers:
   - url: /
 tags:
@@ -6893,10 +6893,10 @@ paths:
         - WriteApproval
       operationId: undoWriteApproval
       summary: Undo one committed agent plan by restoring the version saved before it
-      description: Works for plans whose approval has `approvedBy` set. Refuses
-        with 409 when the collection changed after the plan; retry with
-        `force=true` to restore the saved version anyway. Session, Origin, CSRF
-        and a canonical Known-Command-Id are required; the body is empty.
+      description: Works for plans whose approval has `approvedBy` set. Refuses with
+        409 when the collection changed after the plan; retry with `force=true`
+        to restore the saved version anyway. Session, Origin, CSRF and a
+        canonical Known-Command-Id are required; the body is empty.
       security:
         - cookieAuth: []
       parameters:
@@ -6998,8 +6998,8 @@ paths:
         - Agents
       operationId: listMyAgents
       summary: List OAuth clients and API keys for the current account
-      description: Returns OAuth clients from the authorization issuer tables and
-        API keys from account credentials. Each item includes name, kind, scopes,
+      description: Returns OAuth clients from the authorization issuer tables and API
+        keys from account credentials. Each item includes name, kind, scopes,
         created time, last seen time, and policy. Policy is manual or trusted
         from agent_policies; a missing policy row means manual.
       security:
@@ -7030,9 +7030,9 @@ paths:
         - Agents
       operationId: listAgentAudit
       summary: List recent plans and direct writes for one agent
-      description: Recent plans and direct writes from the existing MCP audit
-        records for this OAuth client or API key. Each record includes versionId
-        when one exists, and outcome for the plan status or direct-write result.
+      description: Recent plans and direct writes from the existing MCP audit records
+        for this OAuth client or API key. Each record includes versionId when
+        one exists, and outcome for the plan status or direct-write result.
       security:
         - cookieAuth: []
       parameters:
@@ -7123,7 +7123,7 @@ paths:
               schema:
                 type: object
                 additionalProperties: false
-                required: [clientId, policy]
+                required: [ clientId, policy ]
                 properties:
                   clientId:
                     type: string
@@ -7145,7 +7145,7 @@ paths:
             schema:
               type: object
               additionalProperties: false
-              required: [policy]
+              required: [ policy ]
               properties:
                 policy:
                   $ref: "#/components/schemas/AgentPolicy"
@@ -7157,7 +7157,7 @@ paths:
               schema:
                 type: object
                 additionalProperties: false
-                required: [clientId, policy]
+                required: [ clientId, policy ]
                 properties:
                   clientId:
                     type: string
@@ -7188,7 +7188,7 @@ paths:
             schema:
               type: object
               additionalProperties: false
-              required: [name]
+              required: [ name ]
               properties:
                 name:
                   type: string
@@ -7202,7 +7202,7 @@ paths:
               schema:
                 type: object
                 additionalProperties: false
-                required: [id, name, secret]
+                required: [ id, name, secret ]
                 properties:
                   id:
                     type: string
@@ -7216,6 +7216,581 @@ paths:
           description: Browser sign-in required
         "412":
           description: This command already issued a key; its secret cannot be recovered
+  /api/v1/favicon/{faviconId}:
+    get:
+      tags: [ Collections ]
+      operationId: getBookmarkFavicon
+      summary: Get a bookmark favicon image by id
+      description: >-
+        Public favicon bytes are readable anonymously. Private bytes require a
+        current owner/member browser session and use private, no-store caching.
+        faviconId is a 36-character UUID leaf matching
+        /^[a-f0-9-]{36}$/i. Illegal ids and missing objects share the same 404
+        resource_not_found shape (no existence oracle). Transport may use
+        public-revalidate so admission does not fill no-store; 200 and 404 pin
+        Cache-Control themselves. 200 is public, max-age=30, must-revalidate.
+        Anonymous 404 is public, max-age=60; session misses use private, no-store. The route confirms the current live bookmark
+        binding and publication state before serving bytes. No Set-Cookie.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/FaviconId'
+      responses:
+        '200':
+          description: Favicon image bytes.
+          headers:
+            Cache-Control:
+              schema: { type: string }
+              description: Public bindings use public, max-age=30, must-revalidate; private reads use private, no-store.
+            X-Content-Type-Options:
+              $ref: '#/components/headers/XContentTypeOptions'
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            image/png:
+              schema: { type: string, format: binary }
+            image/jpeg:
+              schema: { type: string, format: binary }
+            image/webp:
+              schema: { type: string, format: binary }
+            image/x-icon:
+              schema: { type: string, format: binary }
+        '404':
+          $ref: '#/components/responses/FaviconNotFound'
+  /api/v1/me/favicon-policy:
+    get:
+      tags: [ Favicon ]
+      operationId: getMyFaviconPolicy
+      summary: Read the account favicon icon-source policy
+      description: >-
+        FO-01. Session-required private read of the account singleton favicon
+        policy (newDefault, provider template, fill/force defaults). A missing
+        row exposes virtual defaults with revision 1; the response ETag is the
+        If-Match validator for PATCH. Does not accept a request body. Feature
+        flag KNOWN_FEATURE_FAVICON_POLICY=false returns 404.
+      security:
+        - cookieAuth: []
+        - productBearer: []
+      responses:
+        '200':
+          description: The current favicon policy and its strong ETag.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/PrivateNoStore' }
+            ETag: { $ref: '#/components/headers/ETag' }
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FaviconOrderingIconPolicy' }
+        '400': { $ref: '#/components/responses/FaviconOrderingError400' }
+        '401': { $ref: '#/components/responses/FaviconOrderingError401' }
+        '403': { $ref: '#/components/responses/FaviconOrderingError403' }
+        '404': { $ref: '#/components/responses/FaviconOrderingError404' }
+        '405': { $ref: '#/components/responses/FaviconOrderingError405' }
+        '429': { $ref: '#/components/responses/FaviconOrderingError429' }
+        '500': { $ref: '#/components/responses/FaviconOrderingError500' }
+        '503': { $ref: '#/components/responses/FaviconOrderingError503' }
+    patch:
+      tags: [ Favicon ]
+      operationId: updateMyFaviconPolicy
+      summary: Change the account favicon icon-source policy default
+      description: >-
+        FO-03. Session + Origin + CSRF + Known-Command-Id. Requires If-Match
+        (one strong `"favicon-policy:<revision>"` ETag from GET). Any non-empty
+        subset of newDefault (capture/online/none), providerTemplate,
+        fillMissing and forceAllOnline is writable. A no-op patch returns the
+        same revision with jobId null; a policy change that activates a batch
+        behavior atomically creates a durable reconcile job (fill_missing /
+        refresh_online / apply_force_online / restore_sources) and returns its
+        jobId. Exact retries reuse Known-Command-Id and replay the first
+        receipt; changed requests are 409 command_id_reused.
+      security:
+        - cookieAuth: []
+        - productBearer: []
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CsrfToken'
+        - $ref: '#/components/parameters/CommandId'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FaviconOrderingIconPolicyPatch' }
+      responses:
+        '200':
+          description: The updated policy with the new revision; jobId is always null in
+            FO-01.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/PrivateNoStore' }
+            ETag: { $ref: '#/components/headers/ETag' }
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FaviconOrderingPolicyResult' }
+        '400': { $ref: '#/components/responses/FaviconOrderingError400' }
+        '401': { $ref: '#/components/responses/FaviconOrderingError401' }
+        '403': { $ref: '#/components/responses/FaviconOrderingError403' }
+        '404': { $ref: '#/components/responses/FaviconOrderingError404' }
+        '405': { $ref: '#/components/responses/FaviconOrderingError405' }
+        '409': { $ref: '#/components/responses/FaviconOrderingError409' }
+        '410': { $ref: '#/components/responses/FaviconOrderingError410' }
+        '412': { $ref: '#/components/responses/FaviconOrderingError412' }
+        '413': { $ref: '#/components/responses/FaviconOrderingError413' }
+        '415': { $ref: '#/components/responses/FaviconOrderingError415' }
+        '428': { $ref: '#/components/responses/FaviconOrderingError428' }
+        '429': { $ref: '#/components/responses/FaviconOrderingError429' }
+        '500': { $ref: '#/components/responses/FaviconOrderingError500' }
+        '503': { $ref: '#/components/responses/FaviconOrderingError503' }
+  /api/v1/me/favicon-jobs:
+    post:
+      tags: [ Favicon ]
+      operationId: createMyFaviconJob
+      summary: Create a durable batch favicon job
+      description: >-
+        FO-03. Session + Origin + CSRF + Known-Command-Id. Creates a durable
+        batch job (fill_missing or refresh_online) against the current policy
+        revision; the created job is tracked by the returned jobId and the UI
+        polls it. An active job of the same operation on the same policy
+        revision is returned instead of enqueueing the same jobId twice;
+        creating a new job supersedes older active batch jobs of the account.
+        Stale policyRevision => 409 revision_conflict. Exact retries reuse
+        Known-Command-Id and replay the first 202 receipt; changed requests are
+        409 command_id_reused. Feature flag off returns 404.
+      security:
+        - cookieAuth: []
+        - productBearer: []
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CsrfToken'
+        - $ref: '#/components/parameters/CommandId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FaviconOrderingCreateIconJob' }
+      responses:
+        '202':
+          description: The durable job was created; clients poll GET
+            /api/v1/me/favicon-jobs/{jobId}.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/PrivateNoStore' }
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FaviconOrderingIconJobAccepted' }
+        '400': { $ref: '#/components/responses/FaviconOrderingError400' }
+        '401': { $ref: '#/components/responses/FaviconOrderingError401' }
+        '403': { $ref: '#/components/responses/FaviconOrderingError403' }
+        '404': { $ref: '#/components/responses/FaviconOrderingError404' }
+        '405': { $ref: '#/components/responses/FaviconOrderingError405' }
+        '409': { $ref: '#/components/responses/FaviconOrderingError409' }
+        '410': { $ref: '#/components/responses/FaviconOrderingError410' }
+        '413': { $ref: '#/components/responses/FaviconOrderingError413' }
+        '415': { $ref: '#/components/responses/FaviconOrderingError415' }
+        '429': { $ref: '#/components/responses/FaviconOrderingError429' }
+        '500': { $ref: '#/components/responses/FaviconOrderingError500' }
+        '503': { $ref: '#/components/responses/FaviconOrderingError503' }
+  /api/v1/me/favicon-jobs/{jobId}:
+    get:
+      tags: [ Favicon ]
+      operationId: getMyFaviconJob
+      summary: Read one owned favicon job
+      description: >-
+        FO-03. Session-required owner-only read of one durable favicon job
+        (refresh_one and batch operations). The errors array lists the first 100
+        failed items in stable node-ID order; the counters reflect all items. A
+        missing or foreign job conceals as 404. Does not accept a request body.
+        Feature flag off returns 404.
+      security:
+        - cookieAuth: []
+        - productBearer: []
+      parameters:
+        - $ref: '#/components/parameters/ExportJobId'
+      responses:
+        '200':
+          description: The durable job state.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/PrivateNoStore' }
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FaviconOrderingIconJob' }
+        '400': { $ref: '#/components/responses/FaviconOrderingError400' }
+        '401': { $ref: '#/components/responses/FaviconOrderingError401' }
+        '403': { $ref: '#/components/responses/FaviconOrderingError403' }
+        '404': { $ref: '#/components/responses/FaviconOrderingError404' }
+        '405': { $ref: '#/components/responses/FaviconOrderingError405' }
+        '429': { $ref: '#/components/responses/FaviconOrderingError429' }
+        '500': { $ref: '#/components/responses/FaviconOrderingError500' }
+        '503': { $ref: '#/components/responses/FaviconOrderingError503' }
+  /api/v1/me/favicon-jobs/{jobId}/retry:
+    post:
+      tags: [ Favicon ]
+      operationId: retryMyFaviconJob
+      summary: Retry the failed items of a terminal favicon job
+      description: >-
+        FO-03. Session + Origin + CSRF + Known-Command-Id. Accepts only a
+        terminal failed or partial job; the new job retries ONLY the failed
+        items under the current policy and never re-runs succeeded/skipped
+        items. A policy revision change since the failed job is 409
+        revision_conflict; an active job of the same operation is returned so
+        retries never pile up. Exact retries replay the same new jobId. No
+        request body. Feature flag off returns 404.
+      security:
+        - cookieAuth: []
+        - productBearer: []
+      parameters:
+        - $ref: '#/components/parameters/ExportJobId'
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CsrfToken'
+        - $ref: '#/components/parameters/CommandId'
+      responses:
+        '202':
+          description: The retry job was created (or an active job of the operation
+            returned).
+          headers:
+            Cache-Control: { $ref: '#/components/headers/PrivateNoStore' }
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FaviconOrderingIconJobAccepted' }
+        '400': { $ref: '#/components/responses/FaviconOrderingError400' }
+        '401': { $ref: '#/components/responses/FaviconOrderingError401' }
+        '403': { $ref: '#/components/responses/FaviconOrderingError403' }
+        '404': { $ref: '#/components/responses/FaviconOrderingError404' }
+        '405': { $ref: '#/components/responses/FaviconOrderingError405' }
+        '409': { $ref: '#/components/responses/FaviconOrderingError409' }
+        '410': { $ref: '#/components/responses/FaviconOrderingError410' }
+        '413': { $ref: '#/components/responses/FaviconOrderingError413' }
+        '415': { $ref: '#/components/responses/FaviconOrderingError415' }
+        '429': { $ref: '#/components/responses/FaviconOrderingError429' }
+        '500': { $ref: '#/components/responses/FaviconOrderingError500' }
+        '503': { $ref: '#/components/responses/FaviconOrderingError503' }
+  /api/v1/collections/{collectionId}/children:
+    get:
+      tags: [ Collections, Favicon ]
+      operationId: listCollectionChildren
+      summary: List exactly one layer of children of a Collection folder
+      description: >-
+        FO-05. Reads live children (folders and bookmarks) directly under
+        `parentId`, or under the collection root when `parentId` is omitted; one
+        layer only, never a flattened tree, and the folder scope, root and
+        parent/child relations are preserved. `sort=curated` (default) uses the
+        canonical position tokens; created_asc / created_desc order by creation
+        time with the same-millisecond ties resolved by ascending node id and
+        change ONLY the read view — no position token, revision, sync log or
+        reading path is written. `collectionId` is the real opaque collection
+        id, never a publication slug. Anonymous reads are allowed only for
+        public collections; owner/member reads use ordinary authority. Pages are
+        bounded by both `limit` and a 65536 UTF-8 byte budget; a byte-limited
+        short page still returns nextCursor for the first unconsumed eligible
+        item. Continuations use the opaque HMAC-authenticated cursor (blind 900s
+        expiry or a content revision change => 409 snapshot_expired;
+        tampered/mismatched cursor => 400 invalid_cursor). reading_path
+        collections reject created sorts with 400 invalid_query. Feature flag
+        KNOWN_FEATURE_FAVICON_POLICY=false returns 404.
+      security:
+        - cookieAuth: []
+        - productBearer: []
+        - {}
+      parameters:
+        - $ref: '#/components/parameters/CollectionId'
+        - name: parentId
+          in: query
+          required: false
+          schema: { $ref: '#/components/schemas/OpaqueId' }
+          description: Live folder in this collection; omitted means the collection root.
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [ curated, created_asc, created_desc ]
+            default: curated
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+          description: >-
+            First-page page size (default 50, max 100). A continuation page may
+            echo the same limit together with cursor — the cursor already binds
+            the first-page limit, so a matching echo is accepted and any other
+            limit with a cursor is 400 invalid_cursor (restart from the first
+            page).
+        - name: cursor
+          in: query
+          required: false
+          schema: { $ref: '#/components/schemas/FaviconOrderingCursor' }
+      responses:
+        '200':
+          description: One layer of children with a page cursor.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/PrivateNoStore' }
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FaviconOrderingChildrenPage' }
+        '400': { $ref: '#/components/responses/FaviconOrderingError400' }
+        '401': { $ref: '#/components/responses/FaviconOrderingError401' }
+        '403': { $ref: '#/components/responses/FaviconOrderingError403' }
+        '404': { $ref: '#/components/responses/FaviconOrderingError404' }
+        '405': { $ref: '#/components/responses/FaviconOrderingError405' }
+        '409': { $ref: '#/components/responses/FaviconOrderingError409' }
+        '429': { $ref: '#/components/responses/FaviconOrderingError429' }
+        '500': { $ref: '#/components/responses/FaviconOrderingError500' }
+        '503': { $ref: '#/components/responses/FaviconOrderingError503' }
+  /api/v1/collections/{collectionId}/nodes/{nodeId}/favicon:
+    post:
+      tags: [ Nodes ]
+      operationId: uploadBookmarkFavicon
+      summary: Upload a bookmark favicon image
+      description: >-
+        Product Session + CSRF. Requires capability update_node. Body hard cap
+        65536 bytes (64 KiB). In-progress is 429 rate_limited + Retry-After,
+        never 409 command_in_progress. Does not bump Node revision.
+        Last-upload-wins on the icon row only. Declared SVG/GIF/HTML → 415
+        unsupported_media_type. Exact retries reuse Known-Command-Id.
+        command_id_reused is 409; command_result_expired is 410.
+      security:
+        - cookieAuth: []
+        - productBearer: []
+      parameters:
+        - $ref: '#/components/parameters/CollectionId'
+        - $ref: '#/components/parameters/NodeId'
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CsrfToken'
+        - $ref: '#/components/parameters/CommandId'
+      requestBody:
+        required: true
+        content:
+          image/png:
+            schema: { type: string, format: binary }
+          image/jpeg:
+            schema: { type: string, format: binary }
+          image/webp:
+            schema: { type: string, format: binary }
+          image/x-icon:
+            schema: { type: string, format: binary }
+          image/vnd.microsoft.icon:
+            schema: { type: string, format: binary }
+          application/octet-stream:
+            schema: { type: string, format: binary }
+      responses:
+        '200':
+          description: Updated BookmarkNodeView with the new iconUrl. Node revision is
+            unchanged.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/PrivateNoStore' }
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BookmarkNodeView' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/AuthenticationRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: command_id_reused only. In-progress never uses this status.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/PrivateNoStore' }
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProductErrorEnvelope' }
+        '410': { $ref: '#/components/responses/Gone' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+    delete:
+      tags: [ Nodes ]
+      operationId: deleteBookmarkFavicon
+      summary: Delete a bookmark favicon binding
+      description: >-
+        Product Session + CSRF. Requires capability update_node. Does not accept
+        If-Match and does not bump Node revision. Success returns
+        BookmarkNodeView with iconUrl null. In-progress is 429 rate_limited +
+        Retry-After, never 409 command_in_progress. command_id_reused is 409;
+        command_result_expired is 410. Idempotent when no icon row exists.
+      security:
+        - cookieAuth: []
+        - productBearer: []
+      parameters:
+        - $ref: '#/components/parameters/CollectionId'
+        - $ref: '#/components/parameters/NodeId'
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CsrfToken'
+        - $ref: '#/components/parameters/CommandId'
+      responses:
+        '200':
+          description: BookmarkNodeView with iconUrl null. Node revision is unchanged.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/PrivateNoStore' }
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BookmarkNodeView' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/AuthenticationRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: command_id_reused only. In-progress never uses this status.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/PrivateNoStore' }
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProductErrorEnvelope' }
+        '410': { $ref: '#/components/responses/Gone' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/v1/collections/{collectionId}/nodes/{nodeId}/favicon-source:
+    get:
+      tags: [ Favicon ]
+      operationId: getBookmarkFaviconSource
+      summary: Read the icon source state of one bookmark node
+      description: >-
+        FO-01. Session-required owner-only read of the per-node favicon source
+        (inherit/none; uploaded is only reachable through a real Product upload
+        and reads as uploaded/ready). sourceMode=inherit projects the account
+        policy newDefault as effectiveMode. The strong ETag fences both the node
+        resource revision and the source revision. Does not accept a request
+        body. Missing and foreign targets are concealed as 404; a caller-owned
+        node that is not a bookmark is 400 invalid_request. Feature flag
+        KNOWN_FEATURE_FAVICON_POLICY=false returns 404.
+      security:
+        - cookieAuth: []
+        - productBearer: []
+      parameters:
+        - $ref: '#/components/parameters/CollectionId'
+        - $ref: '#/components/parameters/NodeId'
+      responses:
+        '200':
+          description: The projected icon source state and its strong ETag.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/PrivateNoStore' }
+            ETag: { $ref: '#/components/headers/ETag' }
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FaviconOrderingIconSource' }
+        '400': { $ref: '#/components/responses/FaviconOrderingError400' }
+        '401': { $ref: '#/components/responses/FaviconOrderingError401' }
+        '403': { $ref: '#/components/responses/FaviconOrderingError403' }
+        '404': { $ref: '#/components/responses/FaviconOrderingError404' }
+        '405': { $ref: '#/components/responses/FaviconOrderingError405' }
+        '429': { $ref: '#/components/responses/FaviconOrderingError429' }
+        '500': { $ref: '#/components/responses/FaviconOrderingError500' }
+        '503': { $ref: '#/components/responses/FaviconOrderingError503' }
+    put:
+      tags: [ Favicon ]
+      operationId: setBookmarkFaviconSource
+      summary: Set the icon source mode of one bookmark node
+      description: >-
+        FO-02. Session + Origin + CSRF + Known-Command-Id. Owner-only. Requires
+        If-Match (one strong ETag returned by the favicon-source GET) that
+        fences the current node resource revision and source revision; a URL
+        change or concurrent source write makes the old ETag stale (412 with
+        currentEtag). sourceMode accepts inherit, online and none. uploaded
+        cannot be written here — it only enters through the real image upload
+        and is removed again by the explicit Product delete. Switching away from
+        an uploaded image deletes the binding and its immutable object. Exact
+        retries reuse Known-Command-Id and replay the first receipt.
+      security:
+        - cookieAuth: []
+        - productBearer: []
+      parameters:
+        - $ref: '#/components/parameters/CollectionId'
+        - $ref: '#/components/parameters/NodeId'
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CsrfToken'
+        - $ref: '#/components/parameters/CommandId'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FaviconOrderingSetIconSource' }
+      responses:
+        '200':
+          description: The projected icon source state after the change.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/PrivateNoStore' }
+            ETag: { $ref: '#/components/headers/ETag' }
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FaviconOrderingIconSource' }
+        '400': { $ref: '#/components/responses/FaviconOrderingError400' }
+        '401': { $ref: '#/components/responses/FaviconOrderingError401' }
+        '403': { $ref: '#/components/responses/FaviconOrderingError403' }
+        '404': { $ref: '#/components/responses/FaviconOrderingError404' }
+        '405': { $ref: '#/components/responses/FaviconOrderingError405' }
+        '409': { $ref: '#/components/responses/FaviconOrderingError409' }
+        '410': { $ref: '#/components/responses/FaviconOrderingError410' }
+        '412': { $ref: '#/components/responses/FaviconOrderingError412' }
+        '413': { $ref: '#/components/responses/FaviconOrderingError413' }
+        '415': { $ref: '#/components/responses/FaviconOrderingError415' }
+        '428': { $ref: '#/components/responses/FaviconOrderingError428' }
+        '429': { $ref: '#/components/responses/FaviconOrderingError429' }
+        '500': { $ref: '#/components/responses/FaviconOrderingError500' }
+        '503': { $ref: '#/components/responses/FaviconOrderingError503' }
+  /api/v1/collections/{collectionId}/nodes/{nodeId}/favicon-refresh:
+    post:
+      tags: [ Favicon ]
+      operationId: refreshBookmarkFavicon
+      summary: Enqueue a durable refresh of one online favicon
+      description: >-
+        FO-02. Session + Origin + CSRF + Known-Command-Id. Owner-only. Requires
+        If-Match (one strong favicon-source ETag). No request body. Produces a
+        durable refresh_one job persisted with the account, node, resolved
+        provider URL, source revision and policy revision; the real worker
+        fetches, decodes, fixes the immutable object and CAS-switches the
+        binding out-of-band. 202 returns only { jobId }; the client tracks that
+        jobId while it polls the effective source state. The effective icon
+        source must be online, otherwise 400 invalid_request. Closing the UI
+        never cancels the durable job. Exact retries reuse Known-Command-Id and
+        replay the first 202. Feature flag KNOWN_FEATURE_FAVICON_POLICY=false
+        returns 404.
+      security:
+        - cookieAuth: []
+        - productBearer: []
+      parameters:
+        - $ref: '#/components/parameters/CollectionId'
+        - $ref: '#/components/parameters/NodeId'
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CsrfToken'
+        - $ref: '#/components/parameters/CommandId'
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '202':
+          description: The durable job was accepted; poll the effective source state for
+            the version switch.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/PrivateNoStore' }
+            ETag: { $ref: '#/components/headers/ETag' }
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FaviconOrderingIconJobAccepted' }
+        '400': { $ref: '#/components/responses/FaviconOrderingError400' }
+        '401': { $ref: '#/components/responses/FaviconOrderingError401' }
+        '403': { $ref: '#/components/responses/FaviconOrderingError403' }
+        '404': { $ref: '#/components/responses/FaviconOrderingError404' }
+        '405': { $ref: '#/components/responses/FaviconOrderingError405' }
+        '409': { $ref: '#/components/responses/FaviconOrderingError409' }
+        '410': { $ref: '#/components/responses/FaviconOrderingError410' }
+        '412': { $ref: '#/components/responses/FaviconOrderingError412' }
+        '413': { $ref: '#/components/responses/FaviconOrderingError413' }
+        '415': { $ref: '#/components/responses/FaviconOrderingError415' }
+        '428': { $ref: '#/components/responses/FaviconOrderingError428' }
+        '429': { $ref: '#/components/responses/FaviconOrderingError429' }
+        '500': { $ref: '#/components/responses/FaviconOrderingError500' }
+        '503': { $ref: '#/components/responses/FaviconOrderingError503' }
 
 components:
   securitySchemes:
@@ -7771,6 +8346,25 @@ components:
         type: string
         format: uri
         maxLength: 2048
+    ExportJobId:
+      name: jobId
+      in: path
+      required: true
+      description: Case-sensitive opaque export job ID.
+      schema:
+        $ref: '#/components/schemas/OpaqueId'
+    FaviconId:
+      name: faviconId
+      in: path
+      required: true
+      description: >-
+        Opaque 36-character UUID leaf. Illegal values and missing objects share
+        the same 404 resource_not_found shape (no existence oracle).
+      schema:
+        type: string
+        minLength: 36
+        maxLength: 36
+        pattern: '^[a-fA-F0-9-]{36}$'
   headers:
     XRequestId:
       description: Per-attempt diagnostic request ID.
@@ -7829,6 +8423,16 @@ components:
       schema:
         type: string
         minLength: 1
+    PublicShortCache:
+      description: Short public cache for favicon object misses.
+      schema:
+        type: string
+        const: public, max-age=60
+    PublicRevalidate:
+      description: Anonymous public report projection cache policy.
+      schema:
+        type: string
+        const: public, max-age=30, must-revalidate
   schemas:
     ProfileSummaryDto:
       type: object
@@ -8034,9 +8638,9 @@ components:
           type: string
           minLength: 1
           maxLength: 1024
-          description: For move_node and delete_subtree, what the operation
-            does in the server's words, built from stored titles and paths
-            (for example `move Docs from /A to /B`).
+          description: For move_node and delete_subtree, what the operation does in the
+            server's words, built from stored titles and paths (for example
+            `move Docs from /A to /B`).
     WriteApprovalTarget:
       type: object
       additionalProperties: false
@@ -8086,12 +8690,14 @@ components:
               anyOf:
                 - { type: string, maxLength: 200 }
                 - { type: 'null' }
-          description: Registered agent display name, or null when unavailable; clientId is the stable fallback.
+          description: Registered agent display name, or null when unavailable; clientId
+            is the stable fallback.
         reason:
           anyOf:
             - { type: string, maxLength: 1000 }
             - { type: 'null' }
-          description: Untrusted agent-provided reason. Render as plain text separately from the authoritative summary.
+          description: Untrusted agent-provided reason. Render as plain text separately
+            from the authoritative summary.
         status:
           $ref: "#/components/schemas/WriteApprovalStatus"
         risk:
@@ -8131,9 +8737,9 @@ components:
         etag:
           $ref: "#/components/schemas/EntityTag"
         approvedBy:
-          description: Who approved a committed plan that can be undone - the
-            agent's trusted policy or the owner. Null when the plan has no
-            saved version to undo.
+          description: Who approved a committed plan that can be undone - the agent's
+            trusted policy or the owner. Null when the plan has no saved version
+            to undo.
           oneOf:
             - type: string
               enum:
@@ -8141,8 +8747,8 @@ components:
                 - owner
             - type: "null"
         versionId:
-          description: Collection version saved just before the plan committed;
-            Undo restores it.
+          description: Collection version saved just before the plan committed; Undo
+            restores it.
           oneOf:
             - $ref: "#/components/schemas/OpaqueId"
             - type: "null"
@@ -12315,8 +12921,8 @@ components:
       type: string
       format: uri
       maxLength: 2048
-      pattern: ^https://.+/api/v1/favicon/[a-fA-F0-9-]{36}$
-      description: Absolute https PRODUCT_ORIGIN URL whose path is exactly
+      pattern: ^https?://.+/api/v1/favicon/[a-fA-F0-9-]{36}$
+      description: Absolute PRODUCT_ORIGIN URL (HTTPS, or HTTP on loopback) whose path is exactly
         /api/v1/favicon/{uuid}. Servers never persist or return a CDN URL here.
     CollectionKind:
       type: string
@@ -12391,8 +12997,8 @@ components:
             - "null"
           minLength: 1
           maxLength: 64
-          description: Sign-in username. Null for an account that signs in another
-            way. Omitted from required for additive N-1 compatibility.
+          description: Sign-in username. Null for an account that signs in another way.
+            Omitted from required for additive N-1 compatibility.
       required:
         - id
         - email
@@ -14179,7 +14785,8 @@ components:
           type: boolean
           description: >-
             Legacy compatibility field. Always false: public pages use stored
-            site icons or a local fallback and never contact a third-party favicon CDN.
+            site icons or a local fallback and never contact a third-party
+            favicon CDN.
         viewCount:
           type: integer
           minimum: 0
@@ -14597,8 +15204,8 @@ components:
             - bookmark
             - folder
             - separator
-          description: Kind of the matched node. Always returned; omitted from
-            required for additive N-1 compatibility.
+          description: Kind of the matched node. Always returned; omitted from required
+            for additive N-1 compatibility.
         snippet:
           $ref: "#/components/schemas/SearchSnippet"
         rank:
@@ -14965,6 +15572,333 @@ components:
           $ref: "#/components/schemas/ProfileSettingsError"
       required:
         - error
+    FaviconOrderingIconJobAccepted:
+      type: object
+      additionalProperties: false
+      properties:
+        jobId: { $ref: '#/components/schemas/OpaqueId' }
+      required: [ jobId ]
+      description: >-
+        FO-02. Acceptance of a durable icon job; clients track the returned
+        jobId while they poll the effective source state.
+    FaviconOrderingIconSource:
+      type: object
+      additionalProperties: false
+      properties:
+        collectionId: { $ref: '#/components/schemas/OpaqueId' }
+        nodeId: { $ref: '#/components/schemas/OpaqueId' }
+        revision: { $ref: '#/components/schemas/FaviconOrderingRevision' }
+        policyRevision: { $ref: '#/components/schemas/FaviconOrderingRevision' }
+        sourceMode: { type: string, enum: [ inherit, online, uploaded, none ] }
+        effectiveMode: { type: string, enum: [ capture, online, uploaded, none ] }
+        iconUrl:
+          oneOf:
+            - { type: string, minLength: 1, maxLength: 8192, format: uri-reference }
+            - type: 'null'
+        iconVersion:
+          oneOf:
+            - $ref: '#/components/schemas/OpaqueId'
+            - type: 'null'
+        directUrl:
+          oneOf:
+            - { type: string, minLength: 1, maxLength: 8192, format: uri }
+            - type: 'null'
+        status: { type: string, enum: [ ready, missing, pending, failed ] }
+        restorable: { type: boolean }
+        updatedAt: { $ref: '#/components/schemas/FaviconOrderingTimestamp' }
+      required:
+        - collectionId
+        - nodeId
+        - revision
+        - policyRevision
+        - sourceMode
+        - effectiveMode
+        - iconUrl
+        - iconVersion
+        - directUrl
+        - status
+        - restorable
+        - updatedAt
+    FaviconOrderingTimestamp:
+      type: string
+      minLength: 24
+      maxLength: 24
+      format: date-time
+      pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$'
+      example: '2026-09-14T00:00:00.000Z'
+    FaviconOrderingRevision:
+      type: string
+      minLength: 1
+      maxLength: 19
+      pattern: '^[1-9][0-9]{0,18}$'
+      example: '1'
+    FaviconOrderingSetIconSource:
+      type: object
+      additionalProperties: false
+      properties:
+        sourceMode: { type: string, enum: [ inherit, online, none ] }
+      required: [ sourceMode ]
+      description: >-
+        FO-02 accepts inherit, online and none; online becomes available with
+        the durable refresh chain (FO-02). uploaded cannot be written through
+        this endpoint. Selecting online does not change the account newDefault;
+        the providerTemplate existing alone never enables online.
+    FaviconOrderingChildrenPage:
+      type: object
+      additionalProperties: false
+      properties:
+        collectionId: { $ref: '#/components/schemas/OpaqueId' }
+        parentId: { $ref: '#/components/schemas/OpaqueId' }
+        rootId: { $ref: '#/components/schemas/OpaqueId' }
+        contentRevision: { $ref: '#/components/schemas/Revision' }
+        sort: { type: string, enum: [ curated, created_asc, created_desc ] }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/FaviconOrderingBrowseNode' }
+          minItems: 0
+          maxItems: 100
+        nextCursor:
+          oneOf:
+            - { $ref: '#/components/schemas/FaviconOrderingCursor' }
+            - { type: 'null' }
+      required:
+        [
+          collectionId,
+          parentId,
+          rootId,
+          contentRevision,
+          sort,
+          items,
+          nextCursor
+        ]
+      description: >-
+        FO-05. One page of one folder layer. Serialized page is bounded by both
+        the requested item limit and 65536 UTF-8 bytes; nextCursor is null at
+        the end, never missing.
+    FaviconOrderingCursor:
+      type: string
+      minLength: 1
+      maxLength: 2048
+      pattern: '^[A-Za-z0-9_-]+$'
+      description: >-
+        FO-05. Opaque base64url continuation token; HMAC authenticated, binds
+        endpoint, viewer, collection, parent, sort, limit and content revision.
+        900s absolute expiry or content change => 409 snapshot_expired; any
+        tamper/scope mismatch => 400 invalid_cursor.
+    FaviconOrderingBrowseNode:
+      type: object
+      additionalProperties: false
+      properties:
+        id: { $ref: '#/components/schemas/OpaqueId' }
+        parentId: { $ref: '#/components/schemas/OpaqueId' }
+        kind: { type: string, enum: [ folder, bookmark ] }
+        title: { type: string, minLength: 1, maxLength: 512 }
+        url:
+          oneOf:
+            - { type: string, minLength: 1, maxLength: 8192, format: uri }
+            - { type: 'null' }
+        description:
+          oneOf:
+            - { type: string, minLength: 0, maxLength: 20000 }
+            - { type: 'null' }
+        position: { type: string, minLength: 1, maxLength: 512 }
+        createdAt: { $ref: '#/components/schemas/FaviconOrderingTimestamp' }
+        updatedAt: { $ref: '#/components/schemas/FaviconOrderingTimestamp' }
+        iconUrl:
+          oneOf:
+            - { type: string, minLength: 1, maxLength: 8192, format: uri-reference }
+            - { type: 'null' }
+        previewImage:
+          oneOf:
+            - { $ref: '#/components/schemas/BookmarkPreviewImage' }
+            - { type: 'null' }
+          description: >-
+            Same-origin preview image for a bookmark node, or null when none is
+            known, the owner hid it, the node is a moderation tombstone, or link
+            previews are disabled. Present on bookmark nodes only; absent on
+            folders and on responses from older servers.
+        state:
+          type: string
+          enum: [ visible, hidden ]
+          description: >-
+            Moderation tombstone marker. `hidden` means an active official
+            hide_public covers this bookmark: title carries an inert
+            placeholder, url/description/iconUrl are null, and the node keeps
+            its position so keyset pagination stays continuous. Absent on
+            responses from older servers and on every visible node.
+        faviconCdnAllowed:
+          type: boolean
+          description: >-
+            FO-08. Bookmark node CDN opt-out mirroring the public snapshot:
+            `false` when the node's icon source is explicitly `none` (never
+            hotlink the third-party CDN) and for bookmark nodes of non-public
+            collections; otherwise `true` only for public collections. Omitted
+            for folder/root nodes, which carry no icon. Absent on responses from
+            older servers: the collection-level faviconCdnAllowed fact governs,
+            and clients AND the node fact with that collection-level fact either
+            way. The node fact is viewer-independent (it reflects the
+            collection's public standing); clients MUST combine it with the
+            viewer-appropriate collection-level faviconCdnAllowed (false on
+            owner/member projections), so a signed-in owner or member never
+            hotlinks the third-party CDN from an authenticated view.
+        pinned:
+          type: boolean
+          const: true
+          description: >-
+            Bookmarks only. The owner pinned this bookmark in a browser
+            extension, which keeps it between the folder's subfolders and its
+            other bookmarks; in curated order Position already reflects that.
+            Absent when unpinned, on moderation tombstones, and on responses
+            from servers before 1.91.0.
+      required:
+        [
+          id,
+          parentId,
+          kind,
+          title,
+          url,
+          description,
+          position,
+          createdAt,
+          updatedAt,
+          iconUrl
+        ]
+      description: >-
+        FO-05. One live child in the requested sort order. `position` is the
+        canonical position token (never rewritten by time sorts). A bookmark
+        under an active official hide_public returns as a tombstone (`state`
+        hidden) rather than being omitted, so public readers see that the item
+        was removed instead of losing it silently.
+    FaviconOrderingIconJob:
+      type: object
+      additionalProperties: false
+      properties:
+        id: { $ref: '#/components/schemas/OpaqueId' }
+        operation:
+          {
+            type: string,
+            enum:
+              [
+                refresh_one,
+                fill_missing,
+                refresh_online,
+                apply_force_online,
+                restore_sources
+              ]
+          }
+        policyRevision: { $ref: '#/components/schemas/FaviconOrderingRevision' }
+        status:
+          {
+            type: string,
+            enum: [ pending, running, succeeded, partial, failed, superseded ]
+          }
+        total: { type: integer, minimum: 0, maximum: 2147483647 }
+        succeeded: { type: integer, minimum: 0, maximum: 2147483647 }
+        failed: { type: integer, minimum: 0, maximum: 2147483647 }
+        skipped: { type: integer, minimum: 0, maximum: 2147483647 }
+        errors:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            properties:
+              nodeId: { $ref: '#/components/schemas/OpaqueId' }
+              reason:
+                type: string
+                enum:
+                  [
+                    fetch_failed,
+                    invalid_image,
+                    unsafe_source,
+                    stale_policy,
+                    source_changed,
+                    permission_changed,
+                    storage_unavailable
+                  ]
+            required: [ nodeId, reason ]
+          minItems: 0
+          maxItems: 100
+        createdAt: { $ref: '#/components/schemas/FaviconOrderingTimestamp' }
+        updatedAt: { $ref: '#/components/schemas/FaviconOrderingTimestamp' }
+      required:
+        - id
+        - operation
+        - policyRevision
+        - status
+        - total
+        - succeeded
+        - failed
+        - skipped
+        - errors
+        - createdAt
+        - updatedAt
+      description: >-
+        FO-03. One durable favicon job. errors lists the first 100 failed items
+        in stable node-ID order; the counters reflect all items.
+    FaviconOrderingCreateIconJob:
+      type: object
+      additionalProperties: false
+      properties:
+        operation: { type: string, enum: [ fill_missing, refresh_online ] }
+        policyRevision: { $ref: '#/components/schemas/FaviconOrderingRevision' }
+      required: [ operation, policyRevision ]
+      description: >-
+        FO-03. Create a durable batch job against the current policy revision; a
+        stale policyRevision is 409 revision_conflict.
+    FaviconOrderingPolicyResult:
+      type: object
+      additionalProperties: false
+      properties:
+        policy: { $ref: '#/components/schemas/FaviconOrderingIconPolicy' }
+        jobId:
+          oneOf:
+            - $ref: '#/components/schemas/OpaqueId'
+            - type: 'null'
+      required: [ policy, jobId ]
+    FaviconOrderingIconPolicy:
+      type: object
+      additionalProperties: false
+      properties:
+        revision: { $ref: '#/components/schemas/FaviconOrderingRevision' }
+        newDefault: { type: string, enum: [ capture, online, none ] }
+        providerTemplate:
+          type: string
+          minLength: 1
+          maxLength: 2048
+          pattern: '^https://[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?(?::443)?/[^?#\s{}]*\{hostname\}[^?#\s{}]*(?:\?[^#\s{}]*)?$'
+        fillMissing: { type: boolean }
+        forceAllOnline: { type: boolean }
+        updatedAt: { $ref: '#/components/schemas/FaviconOrderingTimestamp' }
+      required:
+        [
+          revision,
+          newDefault,
+          providerTemplate,
+          fillMissing,
+          forceAllOnline,
+          updatedAt
+        ]
+    FaviconOrderingIconPolicyPatch:
+      type: object
+      additionalProperties: false
+      properties:
+        newDefault: { type: string, enum: [ capture, online, none ] }
+        providerTemplate:
+          type: string
+          minLength: 1
+          maxLength: 2048
+          pattern: '^https://[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?(?::443)?/[^?#\s{}]*\{hostname\}[^?#\s{}]*(?:\?[^#\s{}]*)?$'
+        fillMissing: { type: boolean }
+        forceAllOnline: { type: boolean }
+      required: []
+      minProperties: 1
+      description: >-
+        FO-03. Any non-empty subset of newDefault, providerTemplate, fillMissing
+        and forceAllOnline. A no-op patch returns the same revision with jobId
+        null. Enabling fillMissing / forceAllOnline or making an online provider
+        active atomically creates a bounded durable reconcile job whose jobId is
+        returned in PolicyResult (policy, job row and receipt committed in one
+        transaction).
   responses:
     AccountCredentialError400:
       description: invalid_request, invalid_json, invalid_query, or invalid_cursor.
@@ -15200,3 +16134,230 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/ProductErrorEnvelope"
+    FaviconOrderingError503:
+      description: feature_temporarily_unavailable with Retry-After. Stable envelope.
+      headers:
+        Cache-Control: { $ref: '#/components/headers/PrivateNoStore' }
+        X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+        Retry-After: { schema: { type: string, pattern: '^[0-9]+$' } }
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/ProductErrorEnvelope'
+              - properties:
+                  error:
+                    properties:
+                      code: { type: string, enum: [ feature_temporarily_unavailable ] }
+    FaviconOrderingError500:
+      description: internal_error. Stable envelope.
+      headers:
+        Cache-Control: { $ref: '#/components/headers/PrivateNoStore' }
+        X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/ProductErrorEnvelope'
+              - properties:
+                  error:
+                    properties:
+                      code: { type: string, enum: [ internal_error ] }
+    FaviconOrderingError429:
+      description: rate_limited with Retry-After. Stable envelope.
+      headers:
+        Cache-Control: { $ref: '#/components/headers/PrivateNoStore' }
+        X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+        Retry-After: { schema: { type: string, pattern: '^[0-9]+$' } }
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/ProductErrorEnvelope'
+              - properties:
+                  error:
+                    properties:
+                      code: { type: string, enum: [ rate_limited ] }
+    FaviconOrderingError428:
+      description: precondition_required (If-Match is required). Stable envelope.
+      headers:
+        Cache-Control: { $ref: '#/components/headers/PrivateNoStore' }
+        X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/ProductErrorEnvelope'
+              - properties:
+                  error:
+                    properties:
+                      code: { type: string, enum: [ precondition_required ] }
+    FaviconOrderingError415:
+      description: unsupported_media_type. Stable envelope.
+      headers:
+        Cache-Control: { $ref: '#/components/headers/PrivateNoStore' }
+        X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/ProductErrorEnvelope'
+              - properties:
+                  error:
+                    properties:
+                      code: { type: string, enum: [ unsupported_media_type ] }
+    FaviconOrderingError413:
+      description: payload_too_large. Stable envelope.
+      headers:
+        Cache-Control: { $ref: '#/components/headers/PrivateNoStore' }
+        X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/ProductErrorEnvelope'
+              - properties:
+                  error:
+                    properties:
+                      code: { type: string, enum: [ payload_too_large ] }
+    FaviconOrderingError412:
+      description: precondition_failed with currentEtag for the authorized resource.
+        Stable envelope.
+      headers:
+        Cache-Control: { $ref: '#/components/headers/PrivateNoStore' }
+        X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/ProductErrorEnvelope'
+              - properties:
+                  error:
+                    properties:
+                      code: { type: string, enum: [ precondition_failed ] }
+    FaviconOrderingError410:
+      description: command_result_expired. Stable envelope.
+      headers:
+        Cache-Control: { $ref: '#/components/headers/PrivateNoStore' }
+        X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/ProductErrorEnvelope'
+              - properties:
+                  error:
+                    properties:
+                      code: { type: string, enum: [ command_result_expired ] }
+    FaviconOrderingError409:
+      description: command_id_reused / command_in_progress / snapshot_expired (=>
+        restart_from_first_page) / revision_conflict. Stable envelope.
+      headers:
+        Cache-Control: { $ref: '#/components/headers/PrivateNoStore' }
+        X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/ProductErrorEnvelope'
+              - properties:
+                  error:
+                    properties:
+                      code:
+                        {
+                          type: string,
+                          enum:
+                            [
+                              command_id_reused,
+                              command_in_progress,
+                              snapshot_expired,
+                              revision_conflict
+                            ]
+                        }
+    FaviconOrderingError405:
+      description: method_not_allowed.
+      headers:
+        Cache-Control: { $ref: '#/components/headers/PrivateNoStore' }
+        X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/ProductErrorEnvelope'
+              - properties:
+                  error:
+                    properties:
+                      code: { type: string, enum: [ method_not_allowed ] }
+    FaviconOrderingError404:
+      description: resource_not_found, including concealed resources and the disabled
+        feature flag.
+      headers:
+        Cache-Control: { $ref: '#/components/headers/PrivateNoStore' }
+        X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/ProductErrorEnvelope'
+              - properties:
+                  error:
+                    properties:
+                      code: { type: string, enum: [ resource_not_found ] }
+    FaviconOrderingError403:
+      description: csrf_failed / insufficient_permission. Stable envelope.
+      headers:
+        Cache-Control: { $ref: '#/components/headers/PrivateNoStore' }
+        X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/ProductErrorEnvelope'
+              - properties:
+                  error:
+                    properties:
+                      code: { type: string, enum: [ csrf_failed, insufficient_permission ] }
+    FaviconOrderingError401:
+      description: authentication_required. Stable envelope.
+      headers:
+        Cache-Control: { $ref: '#/components/headers/PrivateNoStore' }
+        X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/ProductErrorEnvelope'
+              - properties:
+                  error:
+                    properties:
+                      code: { type: string, enum: [ authentication_required ] }
+    FaviconOrderingError400:
+      description: invalid_request / invalid_json / invalid_query / invalid_cursor (=>
+        restart_from_first_page). Stable envelope; no stack, SQL, secrets or
+        concealed resource metadata.
+      headers:
+        Cache-Control: { $ref: '#/components/headers/PrivateNoStore' }
+        X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/ProductErrorEnvelope'
+              - properties:
+                  error:
+                    properties:
+                      code:
+                        {
+                          type: string,
+                          enum: [ invalid_request, invalid_json, invalid_query, invalid_cursor ]
+                        }
+    FaviconNotFound:
+      description: >-
+        resource_not_found for a favicon object. Illegal faviconId values and
+        missing objects share this shape (no existence oracle).
+      headers:
+        Cache-Control: { $ref: '#/components/headers/PublicShortCache' }
+        X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ProductErrorEnvelope' }

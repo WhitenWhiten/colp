@@ -9,7 +9,6 @@ import {
   assertProductRouteCoverage,
   CLASSIFICATION_BYOK_OPERATION_IDS,
   CLASSIFICATION_BYOK_PROFILE_PATH_PREFIX,
-  FAVICON_PRUNED_OPERATION_IDS,
   installProductRouteManifestChecks,
   productRouteMetadata,
 } from '../../../src/transport/product-route-manifest.js';
@@ -361,9 +360,6 @@ test('generated Product route manifest contains owned Collections, public Profil
       { method: 'HEAD', path: '/api/v1/profiles/{handle}/activity', operationId: 'headPublicProfileActivity' },
     ],
   );
-  for (const route of PRODUCT_ROUTE_MANIFEST.filter((item) => item.path.includes('/favicon'))) {
-    assert.ok(FAVICON_PRUNED_OPERATION_IDS.includes(route.operationId), `${route.operationId} is pruned (A8)`);
-  }
   for (const route of PRODUCT_ROUTE_MANIFEST) {
     assert.deepEqual(productRouteMetadata(route.method, route.path), {
       productOperationId: route.operationId,
@@ -377,15 +373,11 @@ test('route coverage rejects a missing generated operation', () => {
   assert.throws(() => assertProductRouteCoverage(registered), /missing from registration/);
 });
 
-test('A8 favicon and children operations leave the route coverage requirement', () => {
-  const withoutPruned = new Set(
-    PRODUCT_ROUTE_MANIFEST
-      .filter((route) => !FAVICON_PRUNED_OPERATION_IDS.includes(route.operationId))
-      .map((route) => `${route.method} ${route.path}`),
-  );
-  assert.equal(withoutPruned.has('GET /api/v1/favicon/{faviconId}'), false);
-  assert.equal(withoutPruned.has('GET /api/v1/collections/{collectionId}/children'), false);
-  assert.doesNotThrow(() => assertProductRouteCoverage(withoutPruned));
+test('favicon operations are required in route coverage', () => {
+  const withoutFavicon = new Set(PRODUCT_ROUTE_MANIFEST
+    .filter(route => !route.path.includes('/favicon'))
+    .map(route => `${route.method} ${route.path}`));
+  assert.throws(() => assertProductRouteCoverage(withoutFavicon), /missing from registration/);
 });
 
 test('complete route registration passes the readiness coverage check', async () => {
