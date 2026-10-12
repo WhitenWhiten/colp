@@ -26,6 +26,8 @@
     "src/sync/composition.ts": 620
   },
   "excludeFileNames": [
-    "generated.ts"
+    "generated.ts",
+    "types.generated.ts",
+    "schema.generated.ts"
   ]
 }

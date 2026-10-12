@@ -1,6 +1,7 @@
 import { defineConfig } from 'tsup';
 
 const entry = {
+  'automation/index': 'src/automation/index.ts',
   index: 'src/index.ts',
   'schema/index': 'src/schema/index.ts',
   'types/index': 'src/types/index.ts',

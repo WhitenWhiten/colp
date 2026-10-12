@@ -1,7 +1,7 @@
 # Automation finite profile v1
 
-Profile `colp.automation.finite/v1`; rule apiVersion `colp.automation/v1`;
-facts apiVersion `colp.automation.facts/v1`; contract `0.2.1-design`.
+Profile `browser-bounded-v1`; rule apiVersion `colp.automation/v1`;
+stored factsVersion `1` (the facts JSON has no apiVersion field); contract `0.2.1-design`.
 This is an optional non-conformance subpath of @know-n/colp. Protocol MUST
 traceability is unchanged. The backend and future browser consumer use the same exports.
 
