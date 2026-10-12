@@ -67,6 +67,9 @@ export const nodesSearchOutputSchema = Object.freeze({
         properties: Object.freeze({
           id: Object.freeze({ type: 'string' }),
           collectionId: Object.freeze({ type: 'string' }),
+          kind: { enum: ['folder', 'bookmark', null] },
+          title: { type: ['string', 'null'] },
+          url: { type: ['string', 'null'] },
           folderPath: Object.freeze({ type: 'string' }),
           linkHealth: Object.freeze({
             anyOf: Object.freeze([
@@ -78,6 +81,9 @@ export const nodesSearchOutputSchema = Object.freeze({
         required: Object.freeze(['id', 'collectionId', 'folderPath', 'linkHealth']),
       }),
     }),
+    page: { type: 'object', additionalProperties: false, properties: {
+      hasMore: { type: 'boolean' }, nextCursor: { type: ['string', 'null'] },
+    }, required: ['hasMore', 'nextCursor'] },
     cursor: Object.freeze({
       anyOf: Object.freeze([
         Object.freeze({ type: 'string' }),
@@ -98,6 +104,9 @@ export const nodesSearchDefinition = Object.freeze({
 export interface NodesSearchCard {
   readonly id: string;
   readonly collectionId: string;
+  readonly kind: 'folder' | 'bookmark' | null;
+  readonly title: string | null;
+  readonly url: string | null;
   readonly folderPath: string;
   readonly linkHealth: NodesSearchLinkHealth | null;
 }
@@ -115,6 +124,9 @@ export interface NodesSearchPorts {
 export interface NodesSearchNode {
   readonly id: string;
   readonly collectionId: string;
+  readonly kind: 'folder' | 'bookmark' | null;
+  readonly title: string | null;
+  readonly url: string | null;
   readonly folderPath: string;
   readonly linkHealth: NodesSearchLinkHealth | null;
 }
@@ -122,6 +134,7 @@ export interface NodesSearchNode {
 export interface NodesSearchResult {
   readonly nodes: readonly NodesSearchNode[];
   readonly cursor: string | null;
+  readonly page: { readonly hasMore: boolean; readonly nextCursor: string | null };
 }
 
 export interface NodesSearchInput {
@@ -169,11 +182,15 @@ export async function executeNodesSearch(
       return Object.freeze({
         id: node.id,
         collectionId: node.collectionId,
+        kind: card?.kind ?? null,
+        title: card?.title ?? null,
+        url: card?.url ?? null,
         folderPath: card?.folderPath ?? '/',
         linkHealth: card?.linkHealth ?? null,
       });
     })),
     cursor: searched.page.nextCursor,
+    page: Object.freeze({ hasMore: searched.page.nextCursor !== null, nextCursor: searched.page.nextCursor }),
   });
 }
 

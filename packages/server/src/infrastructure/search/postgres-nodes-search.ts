@@ -47,10 +47,13 @@ interface AncestorRow {
   readonly depth: number;
 }
 
-interface HealthRow {
+interface CardRow {
   readonly node_id: string;
   readonly collection_id: string;
-  readonly status: string;
+  readonly status: string | null;
+  readonly kind: 'folder' | 'bookmark';
+  readonly title: string;
+  readonly url: string | null;
 }
 
 export function createPostgresNodesSearchPorts(input: {
@@ -114,11 +117,12 @@ export function createPostgresNodesSearchCardPort(db: Kysely<DatabaseSchema>): N
         )
         SELECT origin_id, collection_id, title, is_root, depth FROM walk
       `.execute(db);
-      const health = await sql<HealthRow>`
-        SELECT h.node_id, h.collection_id, h.status
-        FROM collection_link_health h
-        JOIN jsonb_to_recordset(${requested}::jsonb) AS requested(id text, collection_id text)
-          ON h.node_id = requested.id AND h.collection_id = requested.collection_id
+      const health = await sql<CardRow>`
+        SELECT n.id AS node_id, n.collection_id, n.kind, n.title, n.url, h.status
+        FROM jsonb_to_recordset(${requested}::jsonb) AS requested(id text, collection_id text)
+        JOIN nodes n ON n.id = requested.id AND n.collection_id = requested.collection_id
+        LEFT JOIN collection_link_health h ON h.node_id = n.id AND h.collection_id = n.collection_id
+        WHERE n.deleted_at IS NULL
       `.execute(db);
       const paths = new Map<string, AncestorRow[]>();
       for (const row of ancestors.rows) {
@@ -127,13 +131,17 @@ export function createPostgresNodesSearchCardPort(db: Kysely<DatabaseSchema>): N
         if (list === undefined) paths.set(key, [row]);
         else list.push(row);
       }
-      const statuses = new Map(health.rows.map((row) => [cardKey(row.collection_id, row.node_id), row.status]));
+      const cards = new Map(health.rows.map((row) => [cardKey(row.collection_id, row.node_id), row]));
       return Object.freeze(nodes.map((node: { readonly id: string; readonly collectionId: string }) => {
         const key = cardKey(node.collectionId, node.id);
-        const status = statuses.get(key);
+        const card = cards.get(key);
+        const status = card?.status;
         return Object.freeze({
           id: node.id,
           collectionId: node.collectionId,
+          kind: card?.kind ?? null,
+          title: card?.title ?? null,
+          url: card?.url ?? null,
           folderPath: folderPath(paths.get(key) ?? []),
           linkHealth: status !== undefined && LINK_HEALTH.has(status as NodesSearchLinkHealth)
             ? status as NodesSearchLinkHealth

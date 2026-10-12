@@ -112,6 +112,10 @@ describeWithPostgres('nodes.search matches bookmark fields and hides unreadable 
     }
     assert.equal(readable.nodes.find((node) => node.id === 'n-title')?.linkHealth, 'broken');
     assert.equal(readable.cursor, null);
+    assert.deepEqual(readable.page, { hasMore: false, nextCursor: null });
+    assert.equal(readable.nodes.find((node) => node.id === 'n-title')?.title, 'Zephyr Protocol');
+    assert.equal(readable.nodes.find((node) => node.id === 'n-url')?.url, 'https://example.com/zephyr-docs');
+    assert.ok(readable.nodes.every((node) => node.kind === 'bookmark'));
 
     const notesHidden = await searchAs('account-owner', 'subject-owner', ['nodes:read']);
     assert.deepEqual(notesHidden.nodes.map((node) => node.id).sort(), [
