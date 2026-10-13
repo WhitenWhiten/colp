@@ -11,7 +11,7 @@ export function assessTypedEffect(output: TaskOutput,allowedFolders: readonly Fo
       throw new AutomationError('automation_binding_unavailable','Placement is outside the pinned allowed subtree.');
     return 'move' as const;
   }
-  if (output.kind === 'tags') return 'tags' as const;
+  if (output.kind === 'tags') return output.add.length ? 'tags' as const : 'none' as const;
   if (output.kind === 'text' && output.textType === 'summary') return 'note' as const;
   return 'none' as const;
 }

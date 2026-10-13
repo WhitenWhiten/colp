@@ -20,13 +20,13 @@ export function createResultSubmissionPort(db: Kysely<DatabaseSchema>,serverUuid
   const proposal = async (tx: Kysely<DatabaseSchema>,jobId: string) => (await sql<PinnedProposal>`SELECT * FROM automation_proposals WHERE job_id=${jobId}`.execute(tx)).rows[0];
   const currentInputs = (tx: DatabaseTransaction,actor: WorkPrincipal,jobId: string) => currentWorkInputs(tx,actor,jobId,serverUuid,authorize);
   return {
-    async task(actor,id) {
-      const row = (await sql<{ task_json: TaskSpec; target_id: string; input_json: TaskInput[] }>`SELECT j.task_json,j.target_id,j.input_json FROM automation_jobs j
-        JOIN automation_runs r ON r.id=j.run_id WHERE j.id=${id} AND r.owner_id=${actor.accountId}`.execute(db)).rows[0];
-      if (!row?.task_json) throw new AutomationError('resource_not_found','Job is unavailable.');
-      await db.transaction().execute(tx => authorize(tx,actor,row.target_id));
+    task: (actor,id) => db.transaction().execute(async tx => {
+      await lockWorkJob(tx,actor,id,authorize);
+      const row = (await sql<{ task_json: TaskSpec | null; input_json: TaskInput[] | null }>`SELECT task_json,input_json
+        FROM automation_jobs WHERE id=${id}`.execute(tx)).rows[0];
+      if (!row?.task_json || !row.input_json) throw new AutomationError('automation_claim_conflict','Job has no ready input pins to submit against.');
       return { task: row.task_json,sourceReferences: row.input_json.map(input => input.sourceEventId) };
-    },
+    }),
     prepare: (actor,id,input,digest) => db.transaction().execute(async tx => {
       const job = await lockWorkJob(tx,actor,id,authorize);
       const existing = (await sql<ResultRow>`SELECT * FROM automation_results WHERE job_id=${id}`.execute(tx)).rows[0];

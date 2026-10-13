@@ -29,14 +29,21 @@ export function createWorkerReadStore(db: Kysely<DatabaseSchema>,serverUuid: str
       if (!targetId) throw new AutomationError('invalid_request','Choose one targetId when a profile has multiple targets.');
       await worker.authorize(tx,actor,targetId);await requireWorkRunning(tx,actor.accountId);await expireOwnerLeases(tx,actor.accountId);
       const pending = (await sql<{ run_id: string }>`SELECT DISTINCT j.run_id FROM automation_jobs j JOIN automation_runs r ON r.id=j.run_id
-        WHERE r.owner_id=${actor.accountId} AND j.target_id=${targetId} AND j.state IN ('pending','committing','awaitingApproval') ORDER BY j.run_id LIMIT 100`.execute(tx)).rows;
+        JOIN collections c ON c.id=r.explanation_json->>'collectionId' AND c.owner_subject_id=${actor.subjectId} AND c.deleted_at IS NULL
+        WHERE r.owner_id=${actor.accountId} AND j.target_partition=${targetId} AND NOT r.held AND r.state<>'cancelled' AND j.state IN ('pending','committing','awaitingApproval')
+          AND (j.state='pending' OR EXISTS (SELECT 1 FROM automation_proposals p JOIN mcp_change_plans m ON m.plan_id=p.plan_id
+            WHERE p.job_id=j.id AND m.status='consumed' AND NOT EXISTS (SELECT 1 FROM automation_effect_receipts e WHERE e.job_id=j.id)))
+          AND NOT EXISTS (SELECT 1 FROM automation_jobs busy WHERE busy.run_id=r.id AND
+            (busy.state IN ('ready','leased','uncertain') OR (busy.state IN ('committing','awaitingApproval') AND NOT EXISTS (
+              SELECT 1 FROM automation_proposals bp JOIN mcp_change_plans bm ON bm.plan_id=bp.plan_id WHERE bp.job_id=busy.id AND bm.status='consumed'))))
+        ORDER BY j.run_id LIMIT 100`.execute(tx)).rows;
       for (const run of pending) { await reconcileRunPlanEffects(tx,actor,run.run_id,serverUuid);await advanceRunTasks(tx,actor,serverUuid,run.run_id); }
       const now = await databaseNow(tx),scope = JSON.stringify(['ready',targetId]),{ limit,after } = pages.read(query,identity(actor),scope,now);
       const cursor = after ? sql`AND (j.created_at,j.id)>(${after.createdAt}::timestamptz,${after.id})` : sql``;
       const rows = (await sql<JobRow>`SELECT j.*,j.revision::text,j.active_generation::text,
         to_char(j.created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS sort_created_at
         FROM automation_jobs j JOIN automation_runs r ON r.id=j.run_id JOIN collections c ON c.id=r.explanation_json->>'collectionId'
-        WHERE j.target_id=${targetId} AND r.owner_id=${actor.accountId} AND c.owner_subject_id=${actor.subjectId} AND c.deleted_at IS NULL
+        WHERE j.target_partition=${targetId} AND r.owner_id=${actor.accountId} AND c.owner_subject_id=${actor.subjectId} AND c.deleted_at IS NULL
           AND r.state<>'cancelled' AND NOT r.held AND j.state='ready' ${cursor} ORDER BY j.created_at,j.id LIMIT ${limit+1}`.execute(tx)).rows;
       // Each job rechecks pinned rule privacy; a shared standard target cannot reveal restricted inputs.
       const visible = [];
@@ -46,6 +53,7 @@ export function createWorkerReadStore(db: Kysely<DatabaseSchema>,serverUuid: str
           if (!(error instanceof AutomationError)) throw error;
           if (error.code === 'automation_stale_input' || error.code === 'automation_binding_unavailable') {
             await sql`UPDATE automation_jobs SET state='stale',revision=revision+1,explanation=${error.message} WHERE id=${job.id}`.execute(tx);
+            await advanceRunTasks(tx,actor,serverUuid,job.run_id);
           } else if (error.code !== 'resource_not_found') throw error;
         }
       }

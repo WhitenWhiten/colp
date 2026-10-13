@@ -3,6 +3,7 @@ import type { TaskSpec,TaskInput,FolderRef,RuleDefinition,RoleBindings } from '@
 import { AutomationError,resolveBindings,type WorkPrincipal } from '../../modules/automation/index.js';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
 import { lockWorkJob,type TargetAuthority } from './work-authority.js';
+import { readWorkerNotes } from './worker-notes.js';
 import { createBindingReadPort } from './bindings.js';
 
 export interface InputPins { task_json: TaskSpec; input_json: TaskInput[]; allowed_folders: FolderRef[]; authority_digest: string;
@@ -15,10 +16,11 @@ export async function currentWorkInputs(tx: DatabaseTransaction,actor: WorkPrinc
     WHERE j.id=${jobId}`.execute(tx)).rows[0]!;
   const node = await tx.selectFrom('nodes').select(['resource_revision','parent_id','payload_json','deleted_at']).where('id','=',job.node_id).where('collection_id','=',job.collection_id).executeTakeFirst();
   if (!node || node.deleted_at || !pin.input_json || node.resource_revision !== job.input_revision) throw new AutomationError('automation_stale_input','A canonical edit invalidated the pinned job input.');
-  for (const [id,revision] of Object.entries(pin.input_revisions_json)) {
-    const note = await tx.selectFrom('annotations').select('resource_revision').where('id','=',id).where('collection_id','=',job.collection_id)
-      .where('creator_principal_id','=',actor.accountId).where('visibility','=','private').where('deleted_at','is',null).executeTakeFirst();
-    if (!note || note.resource_revision !== revision) throw new AutomationError('automation_stale_input','An allowlisted note changed after inputs were pinned.');
+  if (pin.task_json.inputFields.includes('note')) {
+    const notes = await readWorkerNotes(tx,actor.accountId,job.collection_id,job.node_id);
+    const expected = pin.input_revisions_json;
+    if (notes.length !== Object.keys(expected).length || notes.some(note => expected[note.id] !== note.resource_revision))
+      throw new AutomationError('automation_stale_input','The allowlisted note set changed after inputs were pinned.');
   }
   const reads = createBindingReadPort(tx,serverUuid),resolutions = await resolveBindings(reads,actor,pin.definition_json,pin.values_json);
   for (const folder of pin.allowed_folders) {

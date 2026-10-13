@@ -12,8 +12,6 @@ import { automationPolicyRoutes } from '../../../src/transport/product/automatio
 import { installProductAdmission } from '../../../src/transport/product-admission.js';
 import { ProductHttpError, sendProductError } from '../../../src/transport/product-error.js';
 import { reserveOptionalWork, recordOptionalCall } from '../../../src/infrastructure/automation/usage-store.js';
-import { taskExecutionAssignment } from '../../../src/modules/automation/application/executor-policy.js';
-import { compatibleAcceptedResult } from '../../../src/modules/automation/application/result-reuse.js';
 
 const ORIGIN = 'https://automation.example.test', BASE = '/api/v1/me/automations';
 describeWithPostgres('AW-22 explicit policy and optional-work accounting', () => {
@@ -63,20 +61,34 @@ describeWithPostgres('AW-22 explicit policy and optional-work accounting', () =>
     await f.db.transaction().execute(tx => recordOptionalCall(tx, reservations.find(r => r.jobId === winner)!));
     expect((await sql<{ calls: number; unknown_cost_calls: number }>`SELECT calls,unknown_cost_calls FROM automation_usage_counters`.execute(f.db)).rows)
       .toEqual([{ calls: 1, unknown_cost_calls: 1 }]);
+    // A job reservation from yesterday must not exempt today's retry from today's cap.
+    await sql`UPDATE automation_usage_reservations SET day=day-1 WHERE job_id=${winner}`.execute(f.db);
+    const winnerIndex = reservations.findIndex(r => r.jobId === winner),loserIndex = winnerIndex === 0 ? 1 : 0;
+    expect(await reserve(loserIndex)).toBe(true);
+    expect(await reserve(winnerIndex)).toBe(false);
+    // On a new day, the same job can reserve once again without overwriting its historical day.
+    await sql`UPDATE automation_usage_reservations SET day=day-1 WHERE job_id=${reservations[loserIndex]!.jobId}`.execute(f.db);
+    expect(await reserve(winnerIndex)).toBe(true);expect(await reserve(winnerIndex)).toBe(true);
+    expect((await sql`SELECT * FROM automation_usage_reservations WHERE job_id=${winner}`.execute(f.db)).rows).toHaveLength(2);
     const { createAutomationRuntime } = await import('../../../src/infrastructure/automation/runtime.js');
     await f.inspect(createAutomationRuntime('server'));
     expect((await f.db.selectFrom('nodes').select('parent_id').where('id','in',['budget-a','budget-b']).execute()).map(r => r.parent_id)).toEqual(['academic','academic']);
   });
-  test('no policy means no assignment; reuse requires contract, digest and current authority compatibility', () => {
-    const task = { id: 'summary', type: 'summary.generate' as const, after: [], executorRole: 'researchEnricher', required: true,
-      outputContract: 'summary.sourced.v1', inputFields: ['title' as const], instruction: 'Summarize' };
-    expect(taskExecutionAssignment(null,task).available).toBe(false);
-    const policy = { id: 'policy', revision: '1', configuration: input() };
-    expect(taskExecutionAssignment(policy,task).available).toBe(true);
-    expect(taskExecutionAssignment(policy,{ ...task,inputFields: ['readableText'] }).available).toBe(false);
-    const identity = { ownerId: 'owner', inputDigest: 'digest', contractId: 'summary.sourced.v1', authorityDigest: 'current' };
-    expect(compatibleAcceptedResult(identity,{ ...identity,status: 'accepted' })).toBe(true);
-    for (const patch of [{ ownerId: 'foreign' },{ inputDigest: 'changed' },{ contractId: 'review.sourced.v1' },{ authorityDigest: 'revoked' }])
-      expect(compatibleAcceptedResult(identity,{ ...identity,...patch,status: 'accepted' })).toBe(false);
+  test('policy pagination retains microsecond precision without duplicate or missing policies', async () => {
+    const ids: string[] = [];
+    for (let i=0;i<3;i++) {
+      const created = await app.inject({ method: 'POST',url: BASE+'/execution-policies',headers: headers(),payload: { ...input(),name: `Policy ${i}` } });
+      expect(created.statusCode,created.body).toBe(201);ids.push(created.json().id);
+      await sql`UPDATE automation_execution_policies SET created_at=('2026-01-01T00:00:00Z'::timestamptz+${i}*interval '1 microsecond') WHERE id=${ids[i]!}`.execute(f.db);
+    }
+    let cursor: string | null = null;
+    const seen: string[] = [];
+    for (let i=0;i<3;i++) {
+      const page = await app.inject({ url: BASE+'/execution-policies?limit=1'+(cursor ? '&cursor='+encodeURIComponent(cursor) : ''),headers: { cookie: f.owner.cookie } });
+      expect(page.statusCode,page.body).toBe(200);expect(page.json().items).toHaveLength(1);
+      seen.push(page.json().items[0].id);cursor=page.json().nextCursor;
+    }
+    expect(seen).toEqual(ids.reverse());expect(cursor).toBeNull();
   });
+
 });

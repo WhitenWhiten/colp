@@ -73,8 +73,9 @@ export async function replaceRule(ports: AutomationPorts, actor: AutomationActor
   const desiredState = previous.view.desiredState === 'enabled' ? 'paused' : previous.view.desiredState;
   await ports.pendingRuns(previous.definitionRevisionId, input.pendingRuns);
   await ports.activation(previous, { kind: 'disable' });
+  const { executionPolicyId: _previousPolicy,...previousView } = previous.view;
   const rule: StoredRule = { sortCreatedAt: previous.sortCreatedAt, definitionRevisionId: ports.id(), definitionRevision: nextRevision(previous.definitionRevision),
-    view: { ...previous.view, ...ruleInput, revision: nextRevision(previous.view.revision), desiredState, effectiveState: desiredState,
+    view: { ...previousView, ...ruleInput, revision: nextRevision(previous.view.revision), desiredState, effectiveState: desiredState,
       updatedAt: (await ports.now()).toISOString() } };
   await ports.rules.save(actor.accountId, rule); await ports.dependencies.replace(rule.definitionRevisionId, inspected.resolutions, inspected.binding.values); return rule.view;
 }

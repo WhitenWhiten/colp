@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { createAjv } from '@know-n/colp/schema';
-import { validateAutomation,type RuleDefinition } from '@know-n/colp/automation';
+import { validateAutomation,type RuleDefinition,type ExecutionPolicyInput } from '@know-n/colp/automation';
 import { automationWorkerFixture } from '../../support/automation-worker-fixture.js';
 import { describeWithPostgres } from '../../support/postgres-test-runtime.js';
 import { automationWorkPrincipal,createMcpApplicationContext,createAutomationToolPort,withAutomationCatalog,type McpApplicationFacade } from '../../../src/modules/mcp/index.js';
@@ -15,7 +15,7 @@ describeWithPostgres('AW-31 authenticated polling and typed canonical orchestrat
   const read = (path: string,token = f.token) => f.app.inject({ url: '/api/v1/automation-work'+path,headers: { authorization: 'Bearer '+token } });
   const post = (path: string,payload: unknown,command = randomUUID()) => f.app.inject({ method: 'POST',url: '/api/v1/automation-work'+path,
     headers: { authorization: 'Bearer '+f.token,'known-command-id': command },payload });
-  async function setup(prefix: string,three = false,policyEnabled = true,maxCalls = 1) {
+  async function setup(prefix: string,{ three = false,policyEnabled = true,maxCalls = 1,configure,inspect }: { three?: boolean; policyEnabled?: boolean; maxCalls?: number; configure?: (definition: RuleDefinition,policy: ExecutionPolicyInput) => void; inspect?: (fixture: Awaited<ReturnType<typeof automationWorkerFixture>>) => Promise<void> } = {}) {
     f = await automationWorkerFixture(prefix,100,true,true);const setup = await f.setup();expect((await f.pair(setup.grant)).statusCode).toBe(200);
     const executors = await f.app.inject({ url: '/api/v1/me/automations/executors',headers: { cookie: f.owner.cookie } });
     expect(executors.statusCode,executors.body).toBe(200);const executor = executors.json().items[0];
@@ -23,18 +23,19 @@ describeWithPostgres('AW-31 authenticated polling and typed canonical orchestrat
     expect(bindings.statusCode,bindings.body).toBe(201);
     const policy = JSON.parse(readFileSync('../../docs/automation/design/examples/execution-policy.json','utf8'));
     policy.allowAutomaticWrites=true;for (const assignment of policy.assignments) { assignment.allowedDestinations=[executor.id];assignment.maxCalls=maxCalls; }
-    const savedPolicy = policyEnabled ? await f.ownerPost('/execution-policies',policy) : null;
-    if (savedPolicy) expect(savedPolicy.statusCode,savedPolicy.body).toBe(201);
     const definition = JSON.parse(readFileSync(`../../docs/automation/design/examples/${three ? 'academic-intake' : 'academic-summary-only'}.json`,'utf8')) as RuleDefinition;
     definition.scope.collectionId='collection';definition.route.targetIds=[setup.target.id];
     if (three) definition.tasks[2]!.after=['tags'];
+    configure?.(definition,policy);
+    const savedPolicy = policyEnabled ? await f.ownerPost('/execution-policies',policy) : null;
+    if (savedPolicy) expect(savedPolicy.statusCode,savedPolicy.body).toBe(201);
     const ruleInput = { definition,bindingSetId: bindings.json().id,...(savedPolicy ? { executionPolicyId: savedPolicy.json().id } : {}) };
     const rule = await f.ownerPost('/rules',ruleInput);expect(rule.statusCode,rule.body).toBe(201);
     const preview = await f.ownerPost('/rules/preview',{ rule: ruleInput,mode: 'currentState' });expect(preview.statusCode,preview.body).toBe(200);
     const enabled = await f.ownerPost(`/rules/${rule.json().id}/lifecycle`,{ state: 'enabled',pendingRuns: 'hold',reason: 'Enable exact preview',activationPreviewId: preview.json().previewId },String(rule.headers.etag));
     expect(enabled.statusCode,enabled.body).toBe(200);
     await writeAgentPolicy(f.db,f.owner.accountId,f.actor.clientId,'trusted');
-    await f.createNode('fresh-paper','root','New paper','https://arxiv.org/abs/new');await f.inspect();
+    await f.createNode('fresh-paper','root','New paper','https://arxiv.org/abs/new');await (inspect ? inspect(f) : f.inspect());
     return { target: setup.target,rule: rule.json(),ruleInput };
   }
   test('real pairing → queue → allowlisted inputs → claim/heartbeat → typed summary → trusted canonical effect; replay cannot duplicate',async () => {
@@ -61,7 +62,7 @@ describeWithPostgres('AW-31 authenticated polling and typed canonical orchestrat
     expect(receipts.map(r => Buffer.from(r.result_bytes ?? []).toString()).join('\n')).not.toContain(lease.claimToken);
   });
   test('the three-task fixture schedules each job once, allows only live descendants and preserves preceding effects',async () => {
-    await setup('aw31_three',true);await f.createNode('topic','academic','Topic');
+    await setup('aw31_three',{ three: true });await f.createNode('topic','academic','Topic');
     const visited = [];
     for (let i=0;i<3;i++) {
       const queue = await read('/jobs');expect(queue.statusCode,queue.body).toBe(200);expect(queue.json().items).toHaveLength(1);
@@ -83,12 +84,17 @@ describeWithPostgres('AW-31 authenticated polling and typed canonical orchestrat
     expect((await sql`SELECT * FROM automation_jobs`.execute(f.db)).rows).toHaveLength(3);
   });
   test('missing execution policy holds every optional call while M1 still commits deterministic placement',async () => {
-    await setup('aw31_no_policy',false,false);
+    await setup('aw31_no_policy',{ policyEnabled: false });
     const node = await f.db.selectFrom('nodes').select('parent_id').where('id','=','fresh-paper').executeTakeFirstOrThrow();expect(node.parent_id).toBe('academic');
     expect((await read('/jobs')).json().items).toEqual([]);
     expect((await sql<{ state: string }>`SELECT state FROM automation_jobs`.execute(f.db)).rows).toEqual([{ state: 'blocked' }]);
+    expect((await sql<{ state: string }>`SELECT state FROM automation_runs`.execute(f.db)).rows).toEqual([{ state: 'blocked' }]);
     expect((await sql`SELECT * FROM automation_job_attempts`.execute(f.db)).rows).toEqual([]);
     expect(await f.db.selectFrom('mcp_change_plans').select('plan_id').execute()).toEqual([]);
+    const blocked = (await sql<{ id: string; contract_id: string; input_digest: string }>`SELECT id,contract_id,input_digest FROM automation_jobs`.execute(f.db)).rows[0]!;
+    const premature = await post(`/jobs/${blocked.id}/results`,{ claimToken: 'missing',generation: 1,inputDigest: blocked.input_digest,outputContract: blocked.contract_id,
+      output: { kind: 'text',textType: 'summary',text: 'Premature result',language: 'en',evidence: [{ kind: 'source',reference: 'unknown',observedAt: new Date().toISOString() }] } });
+    expect(premature.statusCode,premature.body).toBe(409);
   });
   test('manual approval uses the existing Owner plan ledger before the same durable proposal is reconciled',async () => {
     await setup('aw31_manual');await writeAgentPolicy(f.db,f.owner.accountId,f.actor.clientId,'manual');
@@ -108,7 +114,7 @@ describeWithPostgres('AW-31 authenticated polling and typed canonical orchestrat
     expect(await f.db.selectFrom('mcp_change_plans').select('plan_id').execute()).toHaveLength(1);
   });
   test('expired leases stay uncertain until Owner retry and retain original pins, cost and generation fencing',async () => {
-    await setup('aw31_retry',false,true,2);
+    await setup('aw31_retry',{ maxCalls: 2 });
     const job = (await read('/jobs')).json().items[0];
     const lease = (await post(`/jobs/${job.id}/claim`,{ deliveryHandle: job.deliveryHandle })).json();
     await sql`UPDATE automation_job_attempts SET lease_until=clock_timestamp()-interval '1 second' WHERE job_id=${job.id}`.execute(f.db);
@@ -122,6 +128,7 @@ describeWithPostgres('AW-31 authenticated polling and typed canonical orchestrat
     expect((await post(`/jobs/${job.id}/heartbeat`,{ claimToken: lease.claimToken,generation: lease.generation,extendSeconds: 120 })).statusCode).toBe(409);
     const attempts = (await sql<{ outcome: string }>`SELECT outcome FROM automation_job_attempts WHERE job_id=${job.id} ORDER BY generation`.execute(f.db)).rows;
     expect(attempts.map(a => a.outcome)).toEqual(['unknownOutcome','leased']);
+    expect((await sql<{ calls: number; unknown_cost_calls: number }>`SELECT calls,unknown_cost_calls FROM automation_usage_counters`.execute(f.db)).rows).toEqual([{ calls: 2,unknown_cost_calls: 2 }]);
   });
   test('current source edits and revoked credentials prevent reading or claiming previously listed jobs',async () => {
     await setup('aw31_stale');const job = (await read('/jobs')).json().items[0];
@@ -186,6 +193,104 @@ describeWithPostgres('AW-31 authenticated polling and typed canonical orchestrat
     expect(called.size).toBe(15);
     await f.revokeWorker();expect((await api.listTools(context)).tools).toEqual([]);
     expect(await api.callTool(context,'automation.jobs.list',{})).toMatchObject({ stableCode: 'unknown_tool' });
+  });
+
+  test('permanent failure settles the run and blocks dependent jobs without stranding independent work',async () => {
+    await setup('be3_failure',{ three: true,configure: d => { d.tasks[2]!.after=['refine']; } });
+    const first = (await read('/jobs')).json().items[0];
+    const lease = (await post(`/jobs/${first.id}/claim`,{ deliveryHandle: first.deliveryHandle })).json();
+    const failure = await post(`/jobs/${first.id}/failures`,{ claimToken: lease.claimToken,generation: lease.generation,kind: 'permanent',code: 'unsupported',message: 'Cannot classify' });
+    expect(failure.statusCode,failure.body).toBe(200);
+    const independent = (await read('/jobs')).json().items[0];expect(independent.task.id).toBe('tags');
+    const secondLease = (await post(`/jobs/${independent.id}/claim`,{ deliveryHandle: independent.deliveryHandle })).json();
+    expect((await post(`/jobs/${independent.id}/failures`,{ claimToken: secondLease.claimToken,generation: secondLease.generation,kind: 'permanent',code: 'unsupported',message: 'Cannot tag' })).statusCode).toBe(200);
+    expect((await sql<{ state: string }>`SELECT state FROM automation_runs WHERE id=${first.runId}`.execute(f.db)).rows[0]!.state).toBe('blocked');
+    expect((await sql<{ state: string }>`SELECT state FROM automation_jobs WHERE run_id=${first.runId} AND task_id='summary'`.execute(f.db)).rows[0]!.state).toBe('blocked');
+  });
+  test('a blocked optional input does not starve independent pending jobs',async () => {
+    await setup('be3_missing',{ three: true,configure: (d,p) => {
+      d.tasks[0]!.inputFields=['readableText'];p.assignments[0]!.allowedData.push('readableText');d.tasks[2]!.after=[];
+    } });
+    const ready = (await sql<{ task_id: string }>`SELECT task_id FROM automation_jobs WHERE state='ready'`.execute(f.db)).rows;
+    expect(ready).toEqual([{ task_id: 'tags' }]);
+    const queue = await read('/jobs');expect(queue.statusCode,queue.body).toBe(200);
+    expect(queue.json().items.map((j: { task: { id: string } }) => j.task.id)).toEqual(['tags']);
+  });
+  test('failed deterministic intake cannot satisfy a root classification merely from its admission plan',async () => {
+    const { createAutomationAdmission } = await import('../../../src/infrastructure/automation/aggregate-store.js');
+    const { createAutomationRuntime } = await import('../../../src/infrastructure/automation/runtime.js');
+    const { inspectAutomationOutbox } = await import('../../support/automation-runtime-fixture.js');
+    await setup('be3_intake_evidence',{ configure: d => {
+      d.tasks[0]!.type='classify.root';d.tasks[0]!.outputContract='placement.subtree.v1';d.tasks[0]!.folderRole='academicRoot';
+    },inspect: fixture => inspectAutomationOutbox(fixture.db,async (tx,actor,collection,sources) => {
+      await createAutomationAdmission('server',true)(tx,actor,collection,sources);
+      // Inject loss of the destination after admission, before the canonical intake executor.
+      await tx.updateTable('nodes').set({ deleted_at: new Date() }).where('id','=','academic').execute();
+      await createAutomationRuntime('server',true)(tx,actor,collection,[]);
+    }) });
+    const jobs = (await sql<{ state: string }>`SELECT state FROM automation_jobs`.execute(f.db)).rows;
+    expect(jobs).toEqual([{ state: 'blocked' }]);
+    expect((await sql`SELECT * FROM automation_effect_receipts`.execute(f.db)).rows).toEqual([]);
+  });
+  test('a note created after an absent-note input was pinned invalidates the old claim',async () => {
+    await setup('be3_note',{ configure: (d,p) => { d.tasks[0]!.inputFields.push('note');p.assignments.find(a => a.taskType==='summary.generate')!.allowedData.push('note'); } });
+    const job = (await read('/jobs')).json().items[0];
+    const { createPostgresAnnotationMutationUnitOfWork } = await import('../../../src/infrastructure/collections/index.js');
+    const { createAnnotation } = await import('../../../src/modules/collections/index.js');
+    await createPostgresAnnotationMutationUnitOfWork(f.db).execute(p => createAnnotation(p,{ actor: { principalId: f.owner.accountId,subjectId: f.owner.subjectId,principalType: 'account',creator: { id: 'urn:colp:owner',name: 'Owner' } },
+      command: f.command(),collectionId: 'collection',annotationId: 'new-note',annotation: { type: 'note',subject: { type: 'node',id: 'fresh-paper' },format: 'plain',value: 'New owner context',visibility: 'private' } }));
+    const claim = await post(`/jobs/${job.id}/claim`,{ deliveryHandle: job.deliveryHandle });
+    expect(claim.statusCode,claim.body).toBe(409);
+    expect((await sql`SELECT * FROM automation_job_attempts`.execute(f.db)).rows).toEqual([]);
+  });
+
+  test('held and unavailable-collection backlog cannot starve a later actionable run',async () => {
+    const { createAutomationAdmission } = await import('../../../src/infrastructure/automation/aggregate-store.js');
+    const { executePendingIntake } = await import('../../../src/infrastructure/automation/intake-executor.js');
+    const { inspectAutomationOutbox } = await import('../../support/automation-runtime-fixture.js');
+    await setup('be3_queue',{ inspect: fixture => inspectAutomationOutbox(fixture.db,async (tx,actor,collection,sources) => {
+      await createAutomationAdmission('server',true)(tx,actor,collection,sources);
+      await executePendingIntake(tx,actor,collection,'server');
+    }) });
+    const run = (await sql<{ id: string }>`SELECT id FROM automation_runs`.execute(f.db)).rows[0]!;
+    // Persist held/unavailable backlog using the real admitted rule/binding/task pins. No fake successful effects.
+    await sql`INSERT INTO automation_runs(id,owner_id,kind,rule_revision_id,binding_set_id,binding_revision,policy_revision,member_ids,state,held,explanation_json)
+      SELECT '--held-run-'||n,r.owner_id,r.kind,r.rule_revision_id,r.binding_set_id,r.binding_revision,r.policy_revision,r.member_ids,'running',n<=50,
+        CASE WHEN n<=50 THEN r.explanation_json ELSE r.explanation_json||'{"collectionId":"unavailable-collection"}'::jsonb END
+      FROM automation_runs r CROSS JOIN generate_series(1,101) n WHERE r.id=${run.id}`.execute(f.db);
+    await sql`INSERT INTO automation_jobs(id,run_id,task_id,target_id,target_partition,input_digest,contract_id,state,task_json,execution_context_json)
+      SELECT '--held-job-'||n,'--held-run-'||n,j.task_id,j.target_id,j.target_partition,j.input_digest,j.contract_id,'pending',j.task_json,j.execution_context_json
+      FROM automation_jobs j CROSS JOIN generate_series(1,101) n WHERE j.run_id=${run.id}`.execute(f.db);
+    const queue = await read('/jobs');expect(queue.statusCode,queue.body).toBe(200);
+    expect(queue.json().items).toHaveLength(1);expect(queue.json().items[0].runId).toBe(run.id);
+    expect((await sql<{ count: number }>`SELECT count(*)::int AS count FROM automation_jobs WHERE id LIKE '--held-job-%' AND state='pending'`.execute(f.db)).rows[0]!.count).toBe(101);
+  });
+
+  test('replacing a worker rule without an execution policy clears the previous grant',async () => {
+    const { rule,ruleInput } = await setup('be3_clear_policy');
+    const current = await f.app.inject({ url: `/api/v1/me/automations/rules/${rule.id}`,headers: { cookie: f.owner.cookie } });
+    const updated = await f.app.inject({ method: 'PUT',url: `/api/v1/me/automations/rules/${rule.id}`,headers: f.ownerHeaders(randomUUID(),String(current.headers.etag)),
+      payload: { definition: ruleInput.definition,bindingSetId: ruleInput.bindingSetId,pendingRuns: 'hold',counterPolicy: 'resetOnSemanticChange' } });
+    expect(updated.statusCode,updated.body).toBe(200);expect(updated.json().executionPolicyId).toBeUndefined();
+    const stored = await f.app.inject({ url: `/api/v1/me/automations/rules/${rule.id}`,headers: { cookie: f.owner.cookie } });
+    expect(stored.json().executionPolicyId).toBeUndefined();
+  });
+  test('empty sourced tags is an accepted no-op and can satisfy a declared typed predecessor',async () => {
+    await setup('be3_empty_tags',{ three: true });
+    for (const taskId of ['refine','tags']) {
+      const queue = await read('/jobs');expect(queue.statusCode,queue.body).toBe(200);
+      const job = queue.json().items[0];expect(job.task.id).toBe(taskId);
+      const inputs = (await read(`/jobs/${job.id}/inputs?deliveryHandle=${job.deliveryHandle}`)).json();
+      const lease = (await post(`/jobs/${job.id}/claim`,{ deliveryHandle: job.deliveryHandle })).json();
+      const output = taskId === 'refine' ? { kind: 'placement',decision: 'keepParent',reason: 'No refinement needed',evidence: [{ kind: 'source',reference: inputs.items[0].sourceEventId,observedAt: new Date().toISOString() }] }
+        : { kind: 'tags',mergeMode: 'unionPreserveUser',add: [] };
+      const submitted = await post(`/jobs/${job.id}/results`,{ claimToken: lease.claimToken,generation: lease.generation,inputDigest: lease.inputDigest,outputContract: job.task.outputContract,output });
+      expect(submitted.statusCode,submitted.body).toBe(200);expect(submitted.json()).toMatchObject({ status: 'succeeded',effectReceiptIds: [] });
+    }
+    const summary = (await read('/jobs')).json().items[0];expect(summary.task.id).toBe('summary');
+    const inputs = (await read(`/jobs/${summary.id}/inputs?deliveryHandle=${summary.deliveryHandle}`)).json();
+    expect(inputs.items[0].acceptedPredecessors[0]).toMatchObject({ taskId: 'tags',output: { kind: 'tags',add: [] } });
+    expect(await f.db.selectFrom('mcp_change_plans').select('plan_id').execute()).toEqual([]);
   });
 
 });
