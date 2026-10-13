@@ -42,6 +42,22 @@ describeWithPostgres('AW-26 authenticated worker bootstrap and pairing',() => {
     const updated = await f.app.inject({ method: 'PUT',url: `/api/v1/me/automations/targets/${setup.target.id}`,headers: f.ownerHeaders(randomUUID(),`"${paired.json().revision}"`),payload: { ...setup.target.configuration,privacy: 'standard' } });
     expect(updated.statusCode,updated.body).toBe(200);expect(updated.json()).toMatchObject({ status: 'awaitingSubscription',wakeReadiness: 'waitingForSubscription',subscriptionCount: 0 });
   });
+  test('renames keep the pairing and Events generation; a new credential or data terms do not',async () => {
+    f = await automationWorkerFixture('aw26_edits'); const setup = await f.setup();
+    const paired = await f.pair(setup.grant);expect(paired.statusCode,paired.body).toBe(200);
+    const state = async () => (await sql<{ generation: number; paired: boolean }>`SELECT pairing_generation::int AS generation,paired
+      FROM automation_targets WHERE id=${setup.target.id}`.execute(f.db)).rows[0]!;
+    const put = (path: string,revision: string,payload: unknown) => f.app.inject({ method: 'PUT',url: '/api/v1/me/automations'+path,headers: f.ownerHeaders(randomUUID(),`"${revision}"`),payload });
+    const before = await state();expect(before.paired).toBe(true);
+    const renamed = await put(`/targets/${setup.target.id}`,paired.json().revision,{ ...setup.target.configuration,name: 'Renamed target',providerLabel: 'Renamed provider' });
+    expect(renamed.statusCode,renamed.body).toBe(200);expect(await state()).toEqual(before);
+    const profile = await put(`/connection-profiles/${setup.profile.id}`,setup.profile.revision,{ ...setup.profile.configuration,name: 'Renamed profile' });
+    expect(profile.statusCode,profile.body).toBe(200);expect(await state()).toEqual(before);
+    const restricted = await put(`/targets/${setup.target.id}`,renamed.json().revision,{ ...renamed.json().configuration,privacy: 'restricted' });
+    expect(restricted.statusCode,restricted.body).toBe(200);expect(await state()).toEqual({ generation: before.generation+1,paired: true });
+    const rebound = await put(`/connection-profiles/${setup.profile.id}`,profile.json().revision,{ ...profile.json().configuration,credentialBindingId: 'another-credential' });
+    expect(rebound.statusCode,rebound.body).toBe(200);expect(await state()).toEqual({ generation: before.generation+2,paired: false });
+  });
   test('current OAuth revocation blocks authorization and pairing; invalid code rate limit is shared',async () => {
     f = await automationWorkerFixture('aw26_revocation',2); const setup = await f.setup();
     expect((await f.pair({ ...setup.grant,code: 'wrong' })).statusCode).toBe(404);

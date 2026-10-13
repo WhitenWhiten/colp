@@ -88,19 +88,34 @@ export function createTargetStore(tx: DatabaseTransaction,ownerId: string,verify
             ON CONFLICT(id) DO UPDATE SET configuration_json=EXCLUDED.configuration_json,profile_id=EXCLUDED.profile_id,revision=automation_targets.revision+1,
               paired=CASE WHEN automation_targets.profile_id=EXCLUDED.profile_id THEN automation_targets.paired ELSE false END,
               dedicated_binding=CASE WHEN automation_targets.profile_id=EXCLUDED.profile_id THEN automation_targets.dedicated_binding ELSE false END,
-              pairing_generation=automation_targets.pairing_generation+1 WHERE automation_targets.owner_id=${ownerId}`.execute(tx);
+              -- Only a new identity or data terms end existing subscriptions and queued deliveries; a rename does not.
+              pairing_generation=automation_targets.pairing_generation+CASE WHEN automation_targets.profile_id IS DISTINCT FROM EXCLUDED.profile_id
+                OR automation_targets.configuration_json->>'privacy' IS DISTINCT FROM EXCLUDED.configuration_json->>'privacy' THEN 1 ELSE 0 END
+            WHERE automation_targets.owner_id=${ownerId}`.execute(tx);
           if (!id) await executors.save({ name: configuration.name,kind: 'mcpEventsBot',dataLocation: 'thirdParty',providerLabel: configuration.providerLabel,capabilities: [],targetId: key });
         } else if (table === 'automation_executors') {
           await sql`INSERT INTO automation_executors(id,owner_id,target_id,configuration_json) VALUES(${key},${ownerId},${(input as ExecutorInput).targetId!},${JSON.stringify(input)}::jsonb)
             ON CONFLICT(id) DO UPDATE SET configuration_json=EXCLUDED.configuration_json,target_id=EXCLUDED.target_id,revision=automation_executors.revision+1 WHERE automation_executors.owner_id=${ownerId}`.execute(tx);
         } else {
+          const previous = id ? (await sql<{ configuration_json: ConnectionProfileInput }>`SELECT configuration_json FROM automation_connection_profiles
+            WHERE id=${key} AND owner_id=${ownerId} FOR UPDATE`.execute(tx)).rows[0]?.configuration_json : undefined;
+          // Renames keep pairings; a different credential, client, opt-in or worker catalog does not.
+          const reauthorize = !!previous && profileAuthorityChanged(previous,input as ConnectionProfileInput);
           await sql`INSERT INTO automation_connection_profiles(id,owner_id,configuration_json) VALUES(${key},${ownerId},${JSON.stringify(input)}::jsonb)
-            ON CONFLICT(id) DO UPDATE SET configuration_json=EXCLUDED.configuration_json,revision=automation_connection_profiles.revision+1,observation_json=NULL WHERE automation_connection_profiles.owner_id=${ownerId}`.execute(tx);
-          if (id) await sql`UPDATE automation_targets SET paired=false,pairing_generation=pairing_generation+1,revision=revision+1 WHERE owner_id=${ownerId} AND profile_id=${key}`.execute(tx);
+            ON CONFLICT(id) DO UPDATE SET configuration_json=EXCLUDED.configuration_json,revision=automation_connection_profiles.revision+1,
+              observation_json=CASE WHEN ${reauthorize} THEN NULL ELSE automation_connection_profiles.observation_json END
+            WHERE automation_connection_profiles.owner_id=${ownerId}`.execute(tx);
+          if (reauthorize) await sql`UPDATE automation_targets SET paired=false,pairing_generation=pairing_generation+1,revision=revision+1 WHERE owner_id=${ownerId} AND profile_id=${key}`.execute(tx);
         }
         await touchAutomationConfiguration(tx,ownerId);
         return (await this.load(key))!;
       },
     };
   }
+}
+
+function profileAuthorityChanged(previous: ConnectionProfileInput,next: ConnectionProfileInput): boolean {
+  const worker = (profile: ConnectionProfileInput) => profile.catalogs.includes('automationWorker');
+  return previous.authorizedClientId !== next.authorizedClientId || previous.credentialBindingId !== next.credentialBindingId
+    || previous.automationEnabled !== next.automationEnabled || worker(previous) !== worker(next);
 }
