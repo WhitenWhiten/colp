@@ -37,9 +37,10 @@ export async function prepareTaskInput(tx: DatabaseTransaction,task: TaskSpec,so
   }
   const predecessors: Record<string,{ resultId: string; digest: string }> = {};
   for (const taskId of task.after) {
-    const result = (await sql<{ id: string; proposal_digest: string; output_json: TaskOutput }>`SELECT a.id,a.proposal_digest,a.output_json
-      FROM automation_jobs j JOIN automation_results a ON a.id=coalesce(j.result_id,j.reused_result_id)
-      WHERE j.run_id=${runId} AND j.task_id=${taskId} AND a.status='accepted'`.execute(tx)).rows[0];
+    const result = (await sql<{ id: string; proposal_digest: string; output_json: TaskOutput }>`SELECT coalesce(a.id,c.id) AS id,coalesce(a.proposal_digest,c.digest) AS proposal_digest,coalesce(a.output_json,c.output_json) AS output_json
+      FROM automation_jobs j LEFT JOIN automation_results a ON a.id=coalesce(j.result_id,j.reused_result_id) AND a.status='accepted'
+      LEFT JOIN automation_task_completions c ON c.job_id=j.id
+      WHERE j.run_id=${runId} AND j.task_id=${taskId} AND j.state='succeeded' AND (a.id IS NOT NULL OR c.id IS NOT NULL)`.execute(tx)).rows[0];
     if (!result) return { kind: 'blocked',reason: 'A declared predecessor has no accepted typed result.' };
     predecessors[taskId]={ resultId: result.id,digest: result.proposal_digest };
     (input.acceptedPredecessors ??= []).push({ taskId,resultId: result.id,digest: result.proposal_digest,output: result.output_json });

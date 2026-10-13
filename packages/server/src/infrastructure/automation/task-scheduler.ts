@@ -1,3 +1,4 @@
+import { recordDeterministicCompletion } from './deterministic-completion.js';
 import { persistReusedRunOutput } from './reused-run-output.js';
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
@@ -95,6 +96,8 @@ export async function advanceRunTasks(tx: DatabaseTransaction,actor: AutomationA
       if (root?.status !== 'valid' || node.parent_id !== root.snapshot.folder.nodeId) {
         await hold('blocked','Deterministic intake has no verified current placement; admission alone cannot satisfy this task.');
       } else {
+        await recordDeterministicCompletion(tx, { jobId: chosen.id, runId, nodeId, revision: node.resource_revision,
+          parentId: node.parent_id!, sourceEventId: run.member_ids[0]! });
         await sql`UPDATE automation_jobs SET state='succeeded',explanation='Satisfied by verified deterministic intake; no optional call.',revision=revision+1 WHERE id=${chosen.id}`.execute(tx);
       }
       continue;
