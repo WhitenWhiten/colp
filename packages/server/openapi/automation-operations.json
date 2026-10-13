@@ -43,5 +43,14 @@
   "replaceAutomationExecutor",
   "createAutomationTargetPairing",
   "revokeAutomationTarget",
-  "claimAutomationTargetPairing"
+  "claimAutomationTargetPairing",
+  "listAutomationWork",
+  "getAutomationWork",
+  "getAutomationWorkInputs",
+  "claimAutomationWork",
+  "heartbeatAutomationWork",
+  "submitAutomationWorkResult",
+  "reportAutomationWorkFailure",
+  "getAutomationJobForOwner",
+  "decideAutomationJob"
 ]

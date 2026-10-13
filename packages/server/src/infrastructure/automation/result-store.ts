@@ -1,7 +1,9 @@
+import { advanceRunTasks } from './task-scheduler.js';
+import { currentWorkInputs } from './worker-inputs.js';
 import { reconcileCommittedPlanEffect } from './reconcile-plan-effect.js';
 import { randomUUID } from 'node:crypto';
 import { sql, type Kysely } from 'kysely';
-import { type TaskSpec, type TaskInput, type FolderRef, type SubmissionResult } from '@know-n/colp/automation';
+import { type TaskSpec, type TaskInput, type SubmissionResult } from '@know-n/colp/automation';
 import type { McpAuthenticatedAuthorizationBinding } from '@know-n/colp/mcp';
 import { AutomationError, assessTypedEffect, type ResultSubmissionPort, type WorkPrincipal } from '../../modules/automation/index.js';
 import type { AutomationPlanOperation } from '../../modules/mcp/index.js';
@@ -9,26 +11,14 @@ import type { DatabaseSchema } from '../database/runtime.js';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
 import { lockWorkJob, type TargetAuthority } from './work-authority.js';
 import { claimTokenHash, workBinding, requireJobLease } from './lease-store.js';
-import { createBindingReadPort } from './bindings.js';
+
 import type { PinnedProposal, ProposalPlanGateway } from './proposal-plan-gateway.js';
 
 interface ResultRow { id: string; proposal_digest: string; status: string }
 export function createResultSubmissionPort(db: Kysely<DatabaseSchema>,serverUuid: string,authorize: TargetAuthority,gateway: ProposalPlanGateway,
   options: { afterCanonicalCommit?: () => Promise<void> } = {}): ResultSubmissionPort & { guard(tx: DatabaseTransaction,planId: string): Promise<void> } {
   const proposal = async (tx: Kysely<DatabaseSchema>,jobId: string) => (await sql<PinnedProposal>`SELECT * FROM automation_proposals WHERE job_id=${jobId}`.execute(tx)).rows[0];
-  async function currentInputs(tx: DatabaseTransaction,actor: WorkPrincipal,jobId: string) {
-    const job = await lockWorkJob(tx,actor,jobId,authorize);
-    const pin = (await sql<{ task_json: TaskSpec; input_json: TaskInput[]; allowed_folders: FolderRef[]; authority_digest: string }>`SELECT task_json,input_json,allowed_folders,authority_digest
-      FROM automation_jobs WHERE id=${jobId}`.execute(tx)).rows[0]!;
-    const node = await tx.selectFrom('nodes').select(['resource_revision','parent_id','payload_json','deleted_at']).where('id','=',job.node_id).where('collection_id','=',job.collection_id).executeTakeFirst();
-    if (!node || node.deleted_at || node.resource_revision !== job.input_revision) throw new AutomationError('automation_stale_input','A canonical edit invalidated the pinned job input.');
-    const reads = createBindingReadPort(tx,serverUuid);
-    for (const folder of pin.allowed_folders) {
-      const current = await reads.readFolder(actor,folder);
-      if (current.status !== 'valid') throw new AutomationError('automation_binding_unavailable','Pinned folder authority is no longer available.');
-    }
-    return { job,pin,node };
-  }
+  const currentInputs = (tx: DatabaseTransaction,actor: WorkPrincipal,jobId: string) => currentWorkInputs(tx,actor,jobId,serverUuid,authorize);
   return {
     async task(actor,id) {
       const row = (await sql<{ task_json: TaskSpec; target_id: string; input_json: TaskInput[] }>`SELECT j.task_json,j.target_id,j.input_json FROM automation_jobs j
@@ -51,7 +41,14 @@ export function createResultSubmissionPort(db: Kysely<DatabaseSchema>,serverUuid
       await requireJobLease(tx,actor,job,input);
       const { pin,node } = await currentInputs(tx,actor,id);
       if (input.inputDigest !== job.input_digest) throw new AutomationError('automation_stale_input','Input digest changed.');
-      const kind = assessTypedEffect(input.output,pin.allowed_folders), resultId = randomUUID();
+      let allowed = pin.allowed_folders;
+      if (input.output.kind === 'placement' && input.output.destination) {
+        if (pin.execution_context_json.placementAllowed === false) throw new AutomationError('automation_stale_input','Explicit placement intent is preserved.');
+        const { createBindingReadPort } = await import('./bindings.js');
+        const destination = await createBindingReadPort(tx,serverUuid).readFolder(actor,input.output.destination);
+        if (destination.status === 'valid' && pin.allowed_folders.some(root => [destination.snapshot.folder,...destination.snapshot.ancestors].some(f => f.serverUuid===root.serverUuid && f.collectionId===root.collectionId && f.nodeId===root.nodeId))) allowed=[...allowed,input.output.destination];
+      }
+      const kind = assessTypedEffect(input.output,allowed), resultId = randomUUID();
       const policy = (await sql<{ configuration_json: { allowAutomaticWrites: boolean } }>`SELECT p.configuration_json FROM automation_runs r
         JOIN automation_rule_revisions v ON v.id=r.rule_revision_id
         JOIN automation_execution_policy_revisions p ON p.policy_id=v.execution_policy_id AND p.revision::text=r.policy_revision
@@ -120,6 +117,7 @@ export function createResultSubmissionPort(db: Kysely<DatabaseSchema>,serverUuid
           if (!await reconcileCommittedPlanEffect(tx,actor,id,serverUuid))
             throw new AutomationError('automation_stale_input','Committed plan is not yet reconcilable.');
         } else if (advanced) await sql`UPDATE automation_jobs SET state=${advanced === 'review' ? 'review' : advanced},revision=revision+1 WHERE id=${id} AND state<>${advanced}`.execute(tx);
+        await advanceRunTasks(tx,actor,serverUuid,job.run_id);
         const row = (await sql<{ state: SubmissionResult['status'] }>`SELECT state FROM automation_jobs WHERE id=${id}`.execute(tx)).rows[0]!;
         const effects = (await sql<{ id: string }>`SELECT id FROM automation_effect_receipts WHERE job_id=${id}`.execute(tx)).rows;
         return { jobId: id,resultId: result.id,proposalDigest: result.proposal_digest,status: row.state,effectReceiptIds: effects.map(e => e.id),diagnostics: [] };
@@ -131,7 +129,14 @@ export function createResultSubmissionPort(db: Kysely<DatabaseSchema>,serverUuid
       const account = await tx.selectFrom('accounts').select('subject_id').where('id','=',p.binding_json.principalId).executeTakeFirstOrThrow();
       const actor: WorkPrincipal = { accountId: p.binding_json.principalId,subjectId: account.subject_id,clientId: p.binding_json.clientId,
         credentialBindingId: p.binding_json.credentialBindingId,scopes: ['automation:work'],resourceAudience: p.binding_json.resourceAudience,securityEpoch: p.binding_json.securityEpoch };
-      await currentInputs(tx,actor,p.job_id);
+      const { pin } = await currentInputs(tx,actor,p.job_id);
+      const operation = p.operations_json[0];
+      if (operation?.type === 'move_node' && operation.parentId) {
+        const { createBindingReadPort } = await import('./bindings.js');
+        const destination = await createBindingReadPort(tx,serverUuid).readFolder(actor,{ serverUuid,collectionId: operation.collectionId,nodeId: operation.parentId });
+        if (destination.status !== 'valid' || !pin.allowed_folders.some(root => [destination.snapshot.folder,...destination.snapshot.ancestors].some(f => f.nodeId===root.nodeId && f.collectionId===root.collectionId && f.serverUuid===root.serverUuid)))
+          throw new AutomationError('automation_binding_unavailable','Proposed destination no longer belongs to the pinned subtree.');
+      }
     },
   };
 }

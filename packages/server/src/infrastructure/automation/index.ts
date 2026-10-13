@@ -10,3 +10,7 @@ export { createAutomationDeviceUnitOfWork } from './device-unit-of-work.js';
 export { createAutomationRuntime } from './runtime.js';
 export { createTargetWorkerService } from './target-worker.js';
 export type { CurrentBindingVerifier, TargetWorkerService } from './target-worker.js';
+
+export { createAutomationWorkerService } from './worker-service.js';
+export { createResultSubmissionPort } from './result-store.js';
+export { createProposalPlanGateway } from './proposal-plan-gateway.js';

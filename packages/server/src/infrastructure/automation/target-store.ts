@@ -68,9 +68,9 @@ export function createTargetStore(tx: DatabaseTransaction,ownerId: string,verify
       async load(id) { const row = (await sql<{ id: string; revision: string; configuration_json: Input }>`SELECT * FROM ${sql.table(table)} WHERE id=${id} AND owner_id=${ownerId}`.execute(tx)).rows[0]; return row ? map(row) : null; },
       async list(after,limit) {
         const cursor = after ? sql`AND (created_at,id)<(${after.createdAt}::timestamptz,${after.id})` : sql``;
-        const rows = (await sql<{ id: string; revision: string; configuration_json: Input; created_at: string }>`SELECT *,to_char(created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS created_at
+        const rows = (await sql<{ id: string; revision: string; configuration_json: Input; sort_created_at: string }>`SELECT *,to_char(created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS sort_created_at
           FROM ${sql.table(table)} WHERE owner_id=${ownerId} ${cursor} ORDER BY created_at DESC,id DESC LIMIT ${limit}`.execute(tx)).rows;
-        return Promise.all(rows.map(async row => ({ view: await map(row),createdAt: row.created_at })));
+        return Promise.all(rows.map(async row => ({ view: await map(row),createdAt: row.sort_created_at })));
       },
       async save(input,id) {
         const key = id ?? randomUUID();

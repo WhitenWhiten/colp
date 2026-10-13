@@ -629,6 +629,7 @@ export interface CacheConfig {
 export interface AppConfig {
   readonly automationConfigurationEnabled?: boolean;
   readonly automationRuntimeEnabled?: boolean;
+  readonly automationServerDailyRunCap?: number;
   readonly bookmarkSubscriptions?: { readonly enabled: boolean; readonly protocolReady: boolean };
   readonly nodeEnv: string;
   readonly host: string;

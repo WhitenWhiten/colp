@@ -481,7 +481,7 @@ export function buildWorker(
   const routes = Object.freeze([
     ...projectionRoutes, ...syncConflictRoutes,
     ...(database ? [undefined, AUTOMATION_RESUME_EVENT].map(eventType => createAutomationIngestRoute(createAutomationSourceInspector(database.db,
-      config.automationConfigurationEnabled && config.automationRuntimeEnabled ? createAutomationRuntime(config.publication.serverUuid) : async () => {}), eventType)) : []),
+      config.automationConfigurationEnabled && config.automationRuntimeEnabled ? createAutomationRuntime(config.publication.serverUuid,config.mcpWriteEnabled === true) : async () => {}), eventType)) : []),
     ...publicationCachePurgeRoutes,
     ...collectionInviteEmailRoutes,
   ]);

@@ -91,6 +91,41 @@ export const PRODUCT_ROUTE_MANIFEST = [
     "operationId": "ingestAutomationIntakeReceipt"
   },
   {
+    "method": "GET",
+    "path": "/api/v1/automation-work/jobs",
+    "operationId": "listAutomationWork"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/automation-work/jobs/{jobId}",
+    "operationId": "getAutomationWork"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/automation-work/jobs/{jobId}/claim",
+    "operationId": "claimAutomationWork"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/automation-work/jobs/{jobId}/failures",
+    "operationId": "reportAutomationWorkFailure"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/automation-work/jobs/{jobId}/heartbeat",
+    "operationId": "heartbeatAutomationWork"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/automation-work/jobs/{jobId}/inputs",
+    "operationId": "getAutomationWorkInputs"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/automation-work/jobs/{jobId}/results",
+    "operationId": "submitAutomationWorkResult"
+  },
+  {
     "method": "POST",
     "path": "/api/v1/automation-work/pairings/claim",
     "operationId": "claimAutomationTargetPairing"
@@ -649,6 +684,21 @@ export const PRODUCT_ROUTE_MANIFEST = [
     "method": "POST",
     "path": "/api/v1/me/automations/incidents/{incidentId}/acknowledge",
     "operationId": "acknowledgeAutomationIncident"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/automations/jobs/{jobId}",
+    "operationId": "getAutomationJobForOwner"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/automations/jobs/{jobId}/decision",
+    "operationId": "decideAutomationJob"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/automations/jobs/{jobId}/retry",
+    "operationId": "retryAutomationJob"
   },
   {
     "method": "GET",

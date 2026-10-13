@@ -1,3 +1,4 @@
+import { initializeRunTasks } from './task-scheduler.js';
 import { createReceiptReconciler } from './reconcile-receipts.js';
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
@@ -9,10 +10,10 @@ import type { InspectAutomationSource } from './source-position-store.js';
 
 interface ActiveRule {
   id: string; revision_id: string; definition_json: RuleDefinition; binding_set_id: string;
-  binding_revision: string; values_json: RoleBindings; after_ordinal: string; aggregate_epoch: string;
+  binding_revision: string; execution_policy_id: string | null; policy_revision: string | null; values_json: RoleBindings; after_ordinal: string; aggregate_epoch: string;
 }
 /** Receipts, sequence, pinned run and source cursor share the inspector transaction. */
-export function createAutomationAdmission(serverUuid: string): InspectAutomationSource {
+export function createAutomationAdmission(serverUuid: string,workerEnabled = false): InspectAutomationSource {
   return async (tx, owner, collectionId, sources) => {
     const settings = await tx.selectFrom('automation_settings').select('paused').where('owner_id', '=', owner.accountId).executeTakeFirst();
     if (settings?.paused) return; // Inspector still advances the durable skipped interval.
@@ -20,7 +21,8 @@ export function createAutomationAdmission(serverUuid: string): InspectAutomation
     const reads = createBindingReadPort(tx, serverUuid);
     const collection = await reads.readCollection(owner, collectionId);
     if (!collection) return;
-    const rows = (await sql<ActiveRule>`SELECT r.id, v.id AS revision_id, v.definition_json, v.binding_set_id,
+    const rows = (await sql<ActiveRule>`SELECT r.id, v.id AS revision_id, v.definition_json, v.binding_set_id,v.execution_policy_id,
+      ${workerEnabled ? sql`(SELECT current_revision::text FROM automation_execution_policies p WHERE p.id=v.execution_policy_id AND p.owner_id=r.owner_id)` : sql`NULL`} AS policy_revision,
       b.current_revision::text AS binding_revision, br.values_json, a.after_ordinal::text, a.aggregate_epoch::text
       FROM automation_rules r JOIN automation_rule_revisions v ON v.id=r.current_revision_id
       JOIN automation_binding_sets b ON b.id=v.binding_set_id AND b.owner_id=r.owner_id
@@ -40,7 +42,7 @@ export function createAutomationAdmission(serverUuid: string): InspectAutomation
     for (const source of sources) {
       const event = sourceEvent(source, serverUuid, collectionId, collection.rootNodeId);
       if (!event) continue;
-      for (const decision of admitEvent(prepared, event)) {
+      for (const decision of admitEvent(prepared, event,workerEnabled)) {
         const { candidate, plan } = decision;
         const inserted = await sql`INSERT INTO automation_admission_receipts (rule_revision_id, source_event_id, stage, decision, run_id)
           VALUES (${candidate.revisionId}, ${event.eventId}, 'intake', ${plan.kind}, NULL)
@@ -56,9 +58,10 @@ export function createAutomationAdmission(serverUuid: string): InspectAutomation
         await sql`INSERT INTO automation_runs
           (id, owner_id, kind, rule_revision_id, binding_set_id, binding_revision, policy_revision, member_ids, state, explanation_json)
           VALUES (${runId}, ${owner.accountId}, 'intake', ${candidate.revisionId}, ${pin.binding_set_id}, ${pin.binding_revision}::bigint,
-            NULL, ${JSON.stringify([event.eventId])}::jsonb, ${plan.kind === 'placed' ? 'waiting' : plan.kind === 'matched' ? 'completed' : 'review'},
+            ${pin.definition_json.tasks.length ? pin.policy_revision : null}, ${JSON.stringify([event.eventId])}::jsonb, ${plan.kind === 'placed' ? 'waiting' : plan.kind === 'matched' ? 'completed' : 'review'},
             ${JSON.stringify({ plan, epoch: candidate.epoch, sequence, operationId: event.operationId, nodeId: event.nodeId,
               collectionId, sourceRevision: source.facts_json!.after!.resourceRevision, causationRoot: event.rootRunId ?? runId })}::jsonb)`.execute(tx);
+        if (workerEnabled && pin.definition_json.tasks.length) await initializeRunTasks(tx,owner,runId);
         await sql`UPDATE automation_admission_receipts SET run_id=${runId}
           WHERE rule_revision_id=${candidate.revisionId} AND source_event_id=${event.eventId} AND stage='intake'`.execute(tx);
       }

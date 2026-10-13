@@ -609,6 +609,7 @@ const transportTargets = new Set([
   'transport/product/automation-pagination.ts',
   'transport/product/automation-health-routes.ts',
   'transport/product/automation-policy-routes.ts',
+  'transport/product/automation-job-routes.ts',
   'transport/product/automation-target-routes.ts',
   'transport/product/automation-run-routes.ts',
   'transport/automation-device-routes.ts',

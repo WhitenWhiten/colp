@@ -15,9 +15,10 @@ describeWithPostgres('AW-23 lease generation and uncertainty', () => {
     await f.createNode('lease-paper','root','Lease','https://arxiv.org/abs/lease'); await f.inspect();
     const run = (await sql<{ id: string }>`SELECT id FROM automation_runs`.execute(f.db)).rows[0]!;
     actor = { ...f.owner,clientId: 'client',credentialBindingId: 'credential',scopes: ['automation:work'] };
+    const node = await f.db.selectFrom('nodes').select('resource_revision').where('id','=','lease-paper').executeTakeFirstOrThrow();
     jobId = randomUUID();
-    await sql`INSERT INTO automation_jobs(id,run_id,task_id,target_id,target_partition,input_digest,contract_id,state,delivery_handle,max_calls)
-      VALUES(${jobId},${run.id},'summary','target','target','digest','summary.sourced.v1','ready','handle',3)`.execute(f.db);
+    await sql`INSERT INTO automation_jobs(id,run_id,task_id,target_id,target_partition,input_digest,contract_id,state,delivery_handle,max_calls,input_revision)
+      VALUES(${jobId},${run.id},'summary','target','target','digest','summary.sourced.v1','ready','handle',3,${node.resource_revision})`.execute(f.db);
     // Target/profile service arrives in AW-26. This port asserts the binding expected by that service.
     store = createJobLeaseStore(f.db,async (_tx,principal,target) => {
       if (principal.credentialBindingId !== 'credential' || principal.clientId !== 'client' || target !== 'target') throw new Error('Target binding rejected');

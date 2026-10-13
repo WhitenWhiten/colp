@@ -4,6 +4,7 @@ import { AutomationError } from '../domain/errors.js';
 import { scopeCollectionId, type AutomationActor } from '../domain/bindings.js';
 import { assessIntakeBindings } from './rule-eligibility.js';
 import { resolveBindings } from './resolve-bindings.js';
+import { assertSupportedRule,supportedRuleIssues,inspectWorkerConfiguration } from './worker-configuration.js';
 import { etag, nextRevision, type AutomationPorts, type StoredRule } from './ports.js';
 
 export function parseContract<Name extends AutomationSchemaName>(name: Name, value: unknown): AutomationContracts[Name] {
@@ -37,23 +38,24 @@ export async function inspectInput(ports: AutomationPorts, actor: AutomationActo
   const collection = collectionId ? await ports.reads.readCollection(actor, collectionId) : null;
   if (!collection) throw new AutomationError('resource_not_found', 'Explicit authorized collection scope is required.');
   const resolutions = await resolveBindings(ports.reads, actor, input.definition, binding.values);
-  return { binding, collection, resolutions, bindingAssessment: assessIntakeBindings(input.definition, resolutions) };
+  const worker = await inspectWorkerConfiguration(ports,actor,input,binding.values);
+  return { binding, collection, resolutions, bindingAssessment: assessIntakeBindings(input.definition, resolutions),worker };
 }
 export async function validateRule(ports: AutomationPorts, actor: AutomationActor, body: unknown): Promise<ValidationResult> {
   const input = normalizeRuleInput(parseContract('RuleInput', body));
-  const issues = validateM1Rule(input.definition);
-  if (input.executionPolicyId) issues.push({ path: '/executionPolicyId', code: 'unsupportedCapability', message: 'Execution policies are unavailable in M1.' });
+  const issues = supportedRuleIssues(input,ports.workerEnabled);
   const diagnostics: Diagnostic[] = issues.map((issue) => ({ code: issue.code, severity: 'error', location: issue.path, message: issue.message }));
   const inspected = await inspectInput(ports, actor, input);
+  for (const task of inspected.worker?.tasks ?? []) if (!task.available) diagnostics.push({ code: 'workerUnavailable',severity: 'warning',location: `/tasks/${task.taskId}`,message: task.reason });
   if (!inspected.collection.currentOwner) diagnostics.push({ code: 'ownerRequired', severity: ports.runtimeEnabled ? 'error' : 'warning',
     location: '/definition/scope', message: 'M1 execution requires the current collection Owner; editor configuration and preview do not enable execution.' });
   for (const { role, resolution, severity } of inspected.bindingAssessment.issues)
     diagnostics.push({ code: resolution.code, severity, location: `/bindings/${role}`, role, message: resolution.message });
   return { valid: !diagnostics.some((diagnostic) => diagnostic.severity === 'error'), normalizedDefinition: input.definition, semanticDigest: ruleSemanticDigest(input.definition),
-    diagnostics: diagnostics.slice(0, 100), supportedHosts: issues.length ? [] : ['browser', 'server'] };
+    diagnostics: diagnostics.slice(0, 100), supportedHosts: issues.length ? [] : input.definition.tasks.length ? ['server'] : ['browser', 'server'] };
 }
 export async function createRule(ports: AutomationPorts, actor: AutomationActor, body: unknown) {
-  const input = normalizeRuleInput(parseContract('RuleInput', body)); assertM1Input(input);
+  const input = normalizeRuleInput(parseContract('RuleInput', body)); assertSupportedRule(input,ports.workerEnabled);
   if ((await ports.rules.list(actor.accountId, null, 500)).length >= 500) throw new AutomationError('invalid_request', 'Maximum 500 rules per owner.');
   const inspected = await inspectInput(ports, actor, input), now = (await ports.now()).toISOString();
   const rule: StoredRule = { definitionRevisionId: ports.id(), definitionRevision: '1', sortCreatedAt: now, view: { ...input, id: ports.id(), revision: '1',
@@ -66,7 +68,7 @@ export async function replaceRule(ports: AutomationPorts, actor: AutomationActor
   const input = parseContract('ChangeInput', body);
   const ruleInput: RuleInput = normalizeRuleInput({ definition: input.definition, bindingSetId: input.bindingSetId,
     ...(input.executionPolicyId ? { executionPolicyId: input.executionPolicyId } : {}), ...(previous.view.templateRef ? { templateRef: previous.view.templateRef } : {}) });
-  assertM1Input(ruleInput); const inspected = await inspectInput(ports, actor, ruleInput);
+  assertSupportedRule(ruleInput,ports.workerEnabled); const inspected = await inspectInput(ports, actor, ruleInput);
   // Editing an enabled revision requires fresh preview/activation. It never silently activates new logic.
   const desiredState = previous.view.desiredState === 'enabled' ? 'paused' : previous.view.desiredState;
   await ports.pendingRuns(previous.definitionRevisionId, input.pendingRuns);
@@ -81,6 +83,10 @@ export async function saveBinding(ports: AutomationPorts, actor: AutomationActor
   const previous = id ? await requireBinding(ports, actor, id) : null;
   if (previous) requireEtag(previous.revision, ifMatch ?? '');
   for (const binding of Object.values(input.values).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)))) {
+    if (ports.workerEnabled && binding.kind === 'executor') {
+      if (!binding.executorId || !await ports.targets.executors.load(binding.executorId)) throw new AutomationError('automation_binding_unavailable','Choose an explicit owned executor; target selectors are unavailable.');
+      continue;
+    }
     if (binding.kind !== 'folder') throw new AutomationError('automation_unsupported_capability', 'Only folder bindings are available in M1.');
     const result = await ports.reads.readFolder(actor, binding.folder);
     if (result.status !== 'valid') throw new AutomationError('automation_binding_unavailable', result.message);

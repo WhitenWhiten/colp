@@ -893,6 +893,17 @@ export interface TaskInput {
    * @maxItems 100
    */
   folderDefinitions?: FolderDefinition[];
+  /**
+   * Accepted typed outputs from declared DAG predecessors, pinned once with their identity and digest.
+   *
+   * @maxItems 8
+   */
+  acceptedPredecessors?: {
+    taskId: string;
+    resultId: string;
+    digest: string;
+    output: TaskOutput;
+  }[];
 }
 export interface TaskInputPage {
   /**
@@ -939,6 +950,10 @@ export interface Job {
   deliveryHandle?: string;
   attemptGeneration: number;
   createdAt: string;
+  resultId?: string;
+  proposalDigest?: string;
+  planId?: string;
+  explanation?: string;
 }
 export interface ClaimInput {
   deliveryHandle: string;

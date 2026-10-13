@@ -2,7 +2,7 @@ import { CollectionExportCapacityError } from '../../modules/collections/index.j
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { canonicalCommandFingerprint, type ProductCommandClaim } from '../../modules/commands/index.js';
 import type { IdentityUnitOfWork } from '../../modules/identity/index.js';
-import { createRule, replaceRule, validateRule, saveBinding, requireRule, requireBinding, requireEtag } from '../../modules/automation/index.js';
+import { automationCapabilities,createRule, replaceRule, validateRule, saveBinding, requireRule, requireBinding, requireEtag } from '../../modules/automation/index.js';
 import { previewRule } from '../../modules/automation/index.js';
 import { revalidateRule, setLifecycle, setPause } from '../../modules/automation/index.js';
 import type { AutomationPorts, AutomationUnitOfWork } from '../../modules/automation/index.js';
@@ -42,8 +42,7 @@ export const automationView = (body: unknown, status = 200): AutomationResponse 
 export function registerAutomationRoutes(app: FastifyInstance, deps: AutomationRoutesDeps, additional: readonly AutomationRoute[] = []): void {
   const pagination = createAutomationPagination(deps.cursorKey);
   const routes: AutomationRoute[] = [
-    { method: 'GET', path: '/capabilities', action: async ({ ports }) => automationView({ contractVersion: '0.2.1-design', ruleApiVersions: ['colp.automation/v1'],
-      runtimeProfiles: ports.runtimeEnabled ? ['browser-bounded-v1'] : [], triggerModes: ports.runtimeEnabled ? ['each'] : [], taskTypes: [], eventsEnabled: false, limits: { maxRules: 500, maxExpressionBytes: 4_194_304, maxTasksPerRule: 8 } }) },
+    { method: 'GET', path: '/capabilities', action: async ({ ports }) => automationView(automationCapabilities(ports)) },
     { method: 'POST', path: '/rules/validate', action: async ({ ports, actor, request }) => automationView(await validateRule(ports, actor, request.body)) },
     { method: 'POST', path: '/rules/preview', action: async ({ ports, actor, request }) => automationView(await previewRule(ports, actor, request.body)) },
     { method: 'POST', path: '/rules', action: async ({ ports, actor, request }) => automationView(await createRule(ports, actor, request.body), 201) },

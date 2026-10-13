@@ -68,6 +68,7 @@ export const CLASSIFICATION_PRUNED_OPERATION_IDS: readonly string[] = Object.fre
 export const AUTOMATION_CONFIGURATION_OPERATION_IDS = PRODUCT_ROUTE_MANIFEST.filter((entry) => entry.path.startsWith('/api/v1/me/automations/')).map((entry) => entry.operationId);
 
 export const AUTOMATION_WORK_OPERATION_IDS = PRODUCT_ROUTE_MANIFEST.filter((entry) => entry.path.startsWith('/api/v1/automation-work/')).map((entry) => entry.operationId);
+export const AUTOMATION_WORK_JOB_OPERATION_IDS = PRODUCT_ROUTE_MANIFEST.filter((entry) => entry.path.startsWith('/api/v1/automation-work/jobs')).map((entry) => entry.operationId);
 
 export const AUTOMATION_DEVICE_OPERATION_IDS = PRODUCT_ROUTE_MANIFEST.filter((entry) => entry.path.startsWith('/api/v1/automation-device/')).map((entry) => entry.operationId);
 

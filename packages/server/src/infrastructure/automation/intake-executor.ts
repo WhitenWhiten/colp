@@ -21,7 +21,7 @@ export async function executePendingIntake(tx: DatabaseTransaction, actor: Autom
     JOIN automation_binding_revisions b ON b.binding_set_id=r.binding_set_id AND b.revision=r.binding_revision
     JOIN automation_event_facts f ON f.source_event_id=r.member_ids->>0
     WHERE r.owner_id=${actor.accountId} AND f.collection_id=${collectionId} AND r.state='waiting' AND NOT r.held
-      AND r.kind='intake' AND r.policy_revision IS NULL
+      AND r.kind='intake'
     ORDER BY f.commit_ordinal,r.created_at,r.id LIMIT 11 FOR UPDATE OF r`.execute(tx)).rows;
   if (!pending.length) return false;
   const collection = await lockPlacementCollection(tx, actor, collectionId), reads = createBindingReadPort(tx, serverUuid);

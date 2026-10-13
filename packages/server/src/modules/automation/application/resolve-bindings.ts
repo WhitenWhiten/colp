@@ -9,6 +9,7 @@ export async function resolveBindings(reads: BindingReadPort, actor: AutomationA
   }]));
   const scope = scopeCollectionId(definition, values);
   for (const role of graph.order) {
+    if (role.kind !== 'folder') continue;
     const binding = values[role.key];
     if (!binding) {
       if (role.required || definition.intake?.folderRole === role.key || definition.scope.folderRole === role.key)

@@ -14,6 +14,7 @@ export function assessIntakeBindings(definition: RuleDefinition, resolutions: Re
   const used = intakeRoleKeys(definition);
   const issues: BindingIssue[] = [];
   for (const role of definition.roles) {
+    if (role.kind !== 'folder') continue;
     const resolution = resolutions[role.key];
     if (resolution?.status === 'valid' || (!resolution && !role.required && !used.has(role.key))) continue;
     const blocking = used.has(role.key);

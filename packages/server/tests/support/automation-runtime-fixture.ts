@@ -18,17 +18,21 @@ export async function automationRuntimeFixture(prefix: string, runtimeEnabled = 
     return { rule, binding };
   });
   async function inspect(consumer: InspectAutomationSource = createAutomationAdmission('server')) {
-    const row = await f.db.selectFrom('outbox_events').selectAll().where('handler_name', '=', 'automation_ingest')
+    return inspectAutomationOutbox(f.db,consumer);
+  }
+  return { ...f, ...configuration, uow, inspect };
+}
+
+export async function inspectAutomationOutbox(db: Awaited<ReturnType<typeof automationFixture>>['db'],consumer: InspectAutomationSource) {
+    const row = await db.selectFrom('outbox_events').selectAll().where('handler_name', '=', 'automation_ingest')
       .orderBy('commit_ordinal', 'desc').executeTakeFirstOrThrow();
-    await f.db.updateTable('outbox_events').set({ state: 'leased', lease_generation: 1n,
+    await db.updateTable('outbox_events').set({ state: 'leased', lease_generation: 1n,
       locked_until: sql<Date>`clock_timestamp() + interval '60 seconds'` }).where('outbox_id', '=', row.outbox_id).execute();
     const context: OutboxHandlerContext = { signal: new AbortController().signal, idempotencyKey: row.domain_event_id,
       attempt: { outboxId: row.outbox_id, leaseGeneration: '1' }, envelope: { event_id: row.domain_event_id,
         event_type: row.event_type, event_version: 1, aggregate_identity: { aggregate_type: 'collection', aggregate_id: 'collection', aggregate_scope: 'collection' },
         aggregate_revision: null, commit_ordinal: String(row.commit_ordinal), occurred_at: row.occurred_at.toISOString(),
         payload: row.payload_json as OutboxHandlerContext['envelope']['payload'] } };
-    const consume = createAutomationSourceInspector(f.db, consumer);
+    const consume = createAutomationSourceInspector(db, consumer);
     while (await consume(context)) { /* bounded durable slices */ }
-  }
-  return { ...f, ...configuration, uow, inspect };
 }

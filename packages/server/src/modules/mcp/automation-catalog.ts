@@ -9,6 +9,7 @@ import type { McpApplicationToolResult } from './application-results.js';
 
 export interface AutomationProfileAccess {
   id: string; revision: string; automationEnabled: boolean; catalogs: readonly string[];
+  workAvailable?: boolean;
   pairedTargets: readonly { id: string; generation: string }[];
 }
 export interface AutomationCatalogPort {
@@ -23,7 +24,7 @@ export function canUseAutomationTool(context: McpApplicationContext,access: Auto
   const tool = contracts.find(tool => tool.name === name);
   return context.principal.kind === 'authenticated' && !!access?.automationEnabled && !!tool
     && access.catalogs.includes(tool.profile) && tool.requiredScopes.every(scope => context.scopes.includes(scope))
-    && (tool.profile !== 'automationWorker' || tool.availability === 'bootstrapAndPaired' || access.pairedTargets.length > 0);
+    && (tool.profile !== 'automationWorker' || tool.availability === 'bootstrapAndPaired' || (access.workAvailable !== false && access.pairedTargets.length > 0));
 }
 export function automationCatalogKey(context: McpApplicationContext,access: AutomationProfileAccess): string {
   return automationDigest({ version: 'automation-catalog/v1',principal: context.principal,scopes: [...context.scopes].sort(),access });

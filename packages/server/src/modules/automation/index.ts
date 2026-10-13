@@ -26,3 +26,10 @@ export * from './application/effect-gateway.js';
 export * from './application/approval-service.js';
 export * from './application/undo-service.js';
 export * from './application/target-service.js';
+export * from './application/worker-service.js';
+export * from './application/owner-jobs.js';
+
+export { createAutomationPagination } from './application/pagination.js';
+export { bindingResolutionSignature } from './application/rule-eligibility.js';
+
+export * from './application/capabilities.js';

@@ -4,12 +4,12 @@ import { evaluateRuleEvent, type PreparedRule, type RuleEventPlan } from './rule
 export interface AdmissionCandidate extends PreparedRule { revisionId: string; afterOrdinal: string; epoch: string }
 export interface AdmissionDecision { candidate: AdmissionCandidate; plan: RuleEventPlan; createRun: boolean }
 /** Pure M1 admission. The caller owns the source lock and atomic receipt/run writes. */
-export function admitEvent(candidates: readonly AdmissionCandidate[], event: EventFacts): AdmissionDecision[] {
+export function admitEvent(candidates: readonly AdmissionCandidate[], event: EventFacts,workerEnabled = false): AdmissionDecision[] {
   const eligible = candidates.filter(rule => BigInt(event.commitOrdinal) > BigInt(rule.afterOrdinal)
-    && rule.definition.trigger.mode === 'each' && rule.definition.tasks.length === 0);
+    && rule.definition.trigger.mode === 'each' && (workerEnabled || rule.definition.tasks.length === 0));
   return eligible.map(candidate => {
     const plan = evaluateRuleEvent(candidate, eligible.filter(other => other.ruleId !== candidate.ruleId), event);
-    return { candidate, plan, createRun: ['placed', 'matched', 'conflict', 'blocked', 'overridden'].includes(plan.kind) };
+    return { candidate, plan, createRun: ['placed', 'matched', 'conflict', 'blocked', 'overridden'].includes(plan.kind) || (workerEnabled && candidate.definition.tasks.length > 0 && plan.kind === 'preserved') };
   });
 }
 

@@ -4043,7 +4043,7 @@ export interface paths {
         };
         /**
          * Read mounted automation capabilities
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         get: operations["getAutomationCapabilities"];
         put?: never;
@@ -4065,7 +4065,7 @@ export interface paths {
         put?: never;
         /**
          * Validate without persisting a rule
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         post: operations["validateAutomationRule"];
         delete?: never;
@@ -4085,7 +4085,7 @@ export interface paths {
         put?: never;
         /**
          * Simulate rule with no deliveries or model calls
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         post: operations["previewAutomationRule"];
         delete?: never;
@@ -4103,13 +4103,13 @@ export interface paths {
         };
         /**
          * List current-account rules
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         get: operations["listAutomationRules"];
         put?: never;
         /**
          * Create a draft rule
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         post: operations["createAutomationRule"];
         delete?: never;
@@ -4127,18 +4127,18 @@ export interface paths {
         };
         /**
          * Get a rule and current revisions
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         get: operations["getAutomationRule"];
         /**
          * Publish a replacement immutable revision
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         put: operations["replaceAutomationRule"];
         post?: never;
         /**
          * Archive a rule without deleting immutable history
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         delete: operations["deleteAutomationRule"];
         options?: never;
@@ -4157,7 +4157,7 @@ export interface paths {
         put?: never;
         /**
          * Enable, pause or archive a rule
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         post: operations["setAutomationRuleLifecycle"];
         delete?: never;
@@ -4175,7 +4175,7 @@ export interface paths {
         };
         /**
          * Read stage-level rule health
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         get: operations["getAutomationRuleHealth"];
         put?: never;
@@ -4195,7 +4195,7 @@ export interface paths {
         };
         /**
          * Read tracked dependencies
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         get: operations["getAutomationRuleDependencies"];
         put?: never;
@@ -4217,7 +4217,7 @@ export interface paths {
         put?: never;
         /**
          * Recheck dependencies without replaying events
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         post: operations["revalidateAutomationRule"];
         delete?: never;
@@ -4235,13 +4235,13 @@ export interface paths {
         };
         /**
          * List binding-sets
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         get: operations["listAutomationBindingSets"];
         put?: never;
         /**
          * Create BindingSet
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         post: operations["createAutomationBindingSet"];
         delete?: never;
@@ -4259,18 +4259,18 @@ export interface paths {
         };
         /**
          * Read BindingSet
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         get: operations["getAutomationBindingSet"];
         /**
          * Replace BindingSet configuration
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         put: operations["replaceAutomationBindingSet"];
         post?: never;
         /**
          * Delete an unreferenced binding set
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         delete: operations["deleteAutomationBindingSet"];
         options?: never;
@@ -4287,13 +4287,13 @@ export interface paths {
         };
         /**
          * List execution-policies
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         get: operations["listAutomationExecutionPolicies"];
         put?: never;
         /**
          * Create ExecutionPolicy
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         post: operations["createAutomationExecutionPolicy"];
         delete?: never;
@@ -4311,12 +4311,12 @@ export interface paths {
         };
         /**
          * Read ExecutionPolicy
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         get: operations["getAutomationExecutionPolicy"];
         /**
          * Replace ExecutionPolicy configuration
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         put: operations["replaceAutomationExecutionPolicy"];
         post?: never;
@@ -4335,13 +4335,13 @@ export interface paths {
         };
         /**
          * List executors
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         get: operations["listAutomationExecutors"];
         put?: never;
         /**
          * Create Executor
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         post: operations["createAutomationExecutor"];
         delete?: never;
@@ -4359,12 +4359,12 @@ export interface paths {
         };
         /**
          * Read Executor
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         get: operations["getAutomationExecutor"];
         /**
          * Replace Executor configuration
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         put: operations["replaceAutomationExecutor"];
         post?: never;
@@ -4383,13 +4383,13 @@ export interface paths {
         };
         /**
          * List targets
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         get: operations["listAutomationTargets"];
         put?: never;
         /**
          * Create Target
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         post: operations["createAutomationTarget"];
         delete?: never;
@@ -4407,12 +4407,12 @@ export interface paths {
         };
         /**
          * Read Target
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         get: operations["getAutomationTarget"];
         /**
          * Replace Target configuration
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         put: operations["replaceAutomationTarget"];
         post?: never;
@@ -4431,13 +4431,13 @@ export interface paths {
         };
         /**
          * List connection-profiles
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         get: operations["listAutomationConnectionProfiles"];
         put?: never;
         /**
          * Create ConnectionProfile
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         post: operations["createAutomationConnectionProfile"];
         delete?: never;
@@ -4455,12 +4455,12 @@ export interface paths {
         };
         /**
          * Read ConnectionProfile
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         get: operations["getAutomationConnectionProfile"];
         /**
          * Replace ConnectionProfile configuration
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         put: operations["replaceAutomationConnectionProfile"];
         post?: never;
@@ -4481,7 +4481,7 @@ export interface paths {
         put?: never;
         /**
          * Issue an owner-confirmed target pairing
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         post: operations["createAutomationTargetPairing"];
         delete?: never;
@@ -4501,7 +4501,7 @@ export interface paths {
         put?: never;
         /**
          * Revoke target and block queued target work
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         post: operations["revokeAutomationTarget"];
         delete?: never;
@@ -4519,7 +4519,7 @@ export interface paths {
         };
         /**
          * List actionable health incidents
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         get: operations["listAutomationIncidents"];
         put?: never;
@@ -4541,7 +4541,7 @@ export interface paths {
         put?: never;
         /**
          * Acknowledge without repairing dependency
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         post: operations["acknowledgeAutomationIncident"];
         delete?: never;
@@ -4559,7 +4559,7 @@ export interface paths {
         };
         /**
          * List run history
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         get: operations["listAutomationRuns"];
         put?: never;
@@ -4579,7 +4579,7 @@ export interface paths {
         };
         /**
          * Read immutable run inputs and pinned versions
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         get: operations["getAutomationRun"];
         put?: never;
@@ -4601,7 +4601,7 @@ export interface paths {
         put?: never;
         /**
          * Cancel remaining work; retain completed effects
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         post: operations["cancelAutomationRun"];
         delete?: never;
@@ -4621,9 +4621,49 @@ export interface paths {
         put?: never;
         /**
          * Undo one verified placement (M1) or linked plan effect (M2) without overwriting newer changes
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         post: operations["undoAutomationRun"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/automations/jobs/{jobId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read task state and currently authorized input
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         */
+        get: operations["getAutomationJobForOwner"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/automations/jobs/{jobId}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve or reject an exact proposed result
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         */
+        post: operations["decideAutomationJob"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4639,7 +4679,7 @@ export interface paths {
         };
         /**
          * Read a full browser-bounded rule bundle
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         get: operations["getAutomationDeviceBundle"];
         put?: never;
@@ -4661,7 +4701,7 @@ export interface paths {
         put?: never;
         /**
          * Report device bundle activation
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         post: operations["acknowledgeAutomationDeviceBundle"];
         delete?: never;
@@ -4681,9 +4721,149 @@ export interface paths {
         put?: never;
         /**
          * Join a local receipt to an authoritative sync operation
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         post: operations["ingestAutomationIntakeReceipt"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/automation-work/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List work for the authenticated executor
+         * @description List only ready jobs for the selected authorized paired target, with deliveryHandle in each item. Cursor is bound to target/principal/filter; stable createdAt,id ordering. Authority is rechecked on each page. This is also the reconnect recovery path when non-replayable wake notifications were lost. Uses the existing MCP OAuth verifier and resource audience, including machine account-key tokens; no additional issuer. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         */
+        get: operations["listAutomationWork"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/automation-work/jobs/{jobId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read one executor-scoped task
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Uses the existing MCP OAuth verifier and resource audience, including machine account-key tokens; no additional issuer. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         */
+        get: operations["getAutomationWork"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/automation-work/jobs/{jobId}/inputs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read a bounded pinned page of authorized task inputs
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Uses the existing MCP OAuth verifier and resource audience, including machine account-key tokens; no additional issuer. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         */
+        get: operations["getAutomationWorkInputs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/automation-work/jobs/{jobId}/claim": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Atomically claim a task
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Uses the existing MCP OAuth verifier and resource audience, including machine account-key tokens; no additional issuer. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         */
+        post: operations["claimAutomationWork"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/automation-work/jobs/{jobId}/heartbeat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Extend current claim without restoring revoked authority
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Uses the existing MCP OAuth verifier and resource audience, including machine account-key tokens; no additional issuer. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         */
+        post: operations["heartbeatAutomationWork"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/automation-work/jobs/{jobId}/results": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Validate result and commit permitted effects or create approval
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Uses the existing MCP OAuth verifier and resource audience, including machine account-key tokens; no additional issuer. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         */
+        post: operations["submitAutomationWorkResult"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/automation-work/jobs/{jobId}/failures": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Report known failure or uncertain external outcome
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Uses the existing MCP OAuth verifier and resource audience, including machine account-key tokens; no additional issuer. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         */
+        post: operations["reportAutomationWorkFailure"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4699,13 +4879,13 @@ export interface paths {
         };
         /**
          * Read global pause state and revision
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Pausing stops admission for every rule, holds pending jobs and sets the bundle flag; resuming does not backfill. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Pausing stops admission for every rule, holds pending jobs and sets the bundle flag; resuming does not backfill. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         get: operations["getAutomationPause"];
         put?: never;
         /**
          * Pause or resume every automation for this owner
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Pausing stops admission for every rule, holds pending jobs and sets the bundle flag; resuming does not backfill. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Pausing stops admission for every rule, holds pending jobs and sets the bundle flag; resuming does not backfill. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         post: operations["setAutomationPause"];
         delete?: never;
@@ -4723,7 +4903,7 @@ export interface paths {
         };
         /**
          * Export rules and folder bindings by path, without secrets
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Used by the web Export menu and colp-server export. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Used by the web Export menu and colp-server export. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         get: operations["exportAutomations"];
         put?: never;
@@ -4745,9 +4925,29 @@ export interface paths {
         put?: never;
         /**
          * Redeem the Owner-issued pairing grant as the authenticated opted-in worker
-         * @description Only pre-pair work endpoint. Does not require a bound target or manager scope; DOES require authenticated automationWorker opt-in, automation:work scope and atomic one-use grant bound to the Owner, target and expected credential/client binding. Rate limit invalid codes; successful retries of the same command return the original result. Uses the existing MCP OAuth verifier and resource audience, including machine account-key tokens; no additional issuer. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         * @description Only pre-pair work endpoint. Does not require a bound target or manager scope; DOES require authenticated automationWorker opt-in, automation:work scope and atomic one-use grant bound to the Owner, target and expected credential/client binding. Rate limit invalid codes; successful retries of the same command return the original result. Uses the existing MCP OAuth verifier and resource audience, including machine account-key tokens; no additional issuer. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         post: operations["claimAutomationTargetPairing"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/automations/jobs/{jobId}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Explicitly retry uncertain provider work with original pins
+         * @description Only uncertain work with no durable proposal and remaining pinned maxCalls is eligible. Existing plan/effects must reconcile, never re-execute. Unknown cost remains disclosed.
+         */
+        post: operations["retryAutomationJob"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5386,6 +5586,125 @@ export interface components {
             expectedEffectDigest: string;
             effectReceiptId: components["schemas"]["AutomationOpaqueId"];
         };
+        /** @description Worker representation must include deliveryHandle and only allowlisted inputs; Owner view may omit that handle. Foreign resources remain concealed. */
+        AutomationJob: {
+            id: string;
+            revision: string;
+            runId: string;
+            task: components["schemas"]["AutomationTaskSpec"];
+            /** @enum {string} */
+            status: "pending" | "ready" | "leased" | "awaitingApproval" | "succeeded" | "failed" | "blocked" | "cancelled" | "uncertain" | "review" | "stale" | "committing";
+            inputDigest: string;
+            targetId?: string;
+            allowedFolders: components["schemas"]["AutomationFolderRef"][];
+            input?: components["schemas"]["AutomationTaskInput"][];
+            inputsPaged: boolean;
+            /** @description Job access locator issued by the job ledger for both events and poll workers, not a webhook delivery ID or an authority grant. Present on every worker-visible job. */
+            deliveryHandle?: string;
+            attemptGeneration: number;
+            /** Format: date-time */
+            createdAt: string;
+            resultId?: string;
+            proposalDigest?: string;
+            planId?: string;
+            explanation?: string;
+        };
+        /** @description Materialize only fields allowed by the task and current data policy. Aggregate total payload bytes separately; this DTO is not an Outbox event. */
+        AutomationTaskInput: {
+            sourceEventId: string;
+            /** @enum {string} */
+            availability: "available" | "unavailable";
+            node: components["schemas"]["AutomationFolderRef"];
+            /** Format: uri */
+            url?: string;
+            title?: string;
+            tags?: string[];
+            description?: string;
+            /** @description The Owner's note; an appended attributed summary lives here too. */
+            note?: string;
+            readableText?: string;
+            metadata?: components["schemas"]["AutomationMetadataOutput"];
+            folderDefinitions?: components["schemas"]["AutomationFolderDefinition"][];
+            /** @description Accepted typed outputs from declared DAG predecessors, pinned once with their identity and digest. */
+            acceptedPredecessors?: {
+                taskId: string;
+                resultId: string;
+                digest: string;
+                output: components["schemas"]["AutomationTaskOutput"];
+            }[];
+        };
+        AutomationMetadataOutput: {
+            /** @constant */
+            kind: "metadata";
+            catalogId?: string;
+            entities: {
+                key: string;
+                label: string;
+            }[];
+            tags: components["schemas"]["AutomationTagProposal"][];
+            evidence: components["schemas"]["AutomationEvidence"][];
+        };
+        AutomationTagProposal: {
+            key: string;
+            label: string;
+            evidence: components["schemas"]["AutomationEvidence"][];
+        };
+        AutomationEvidence: {
+            /** @enum {string} */
+            kind: "source" | "model" | "user" | "rule";
+            reference: string;
+            /** Format: date-time */
+            observedAt: string;
+            contentDigest?: string;
+        };
+        AutomationFolderDefinition: {
+            folder: components["schemas"]["AutomationFolderRef"];
+            description: string;
+            include?: string[];
+            exclude?: string[];
+        };
+        AutomationTaskOutput: components["schemas"]["AutomationPlacementOutput"] | components["schemas"]["AutomationTagsOutput"] | components["schemas"]["AutomationTextOutput"] | components["schemas"]["AutomationMetadataOutput"];
+        AutomationPlacementOutput: {
+            /** @constant */
+            kind: "placement";
+            destination?: components["schemas"]["AutomationFolderRef"];
+            /** @enum {string} */
+            decision: "move" | "keepParent" | "review";
+            reason: string;
+            evidence: components["schemas"]["AutomationEvidence"][];
+        };
+        AutomationTagsOutput: {
+            /** @constant */
+            kind: "tags";
+            add: components["schemas"]["AutomationTagProposal"][];
+            /** @constant */
+            mergeMode: "unionPreserveUser";
+        };
+        AutomationTextOutput: {
+            /** @constant */
+            kind: "text";
+            /** @enum {string} */
+            textType: "summary" | "review" | "digest";
+            text: string;
+            language: string;
+            evidence: components["schemas"]["AutomationEvidence"][];
+        };
+        /** @description committing/awaitingApproval/review/stale are nonterminal or unaccepted, never success. A committed plan is reconciled idempotently before succeeded is exposed. */
+        AutomationSubmissionResult: {
+            jobId: string;
+            resultId: string;
+            proposalDigest: string;
+            /** @enum {string} */
+            status: "succeeded" | "awaitingApproval" | "review" | "stale" | "committing";
+            effectReceiptIds: string[];
+            diagnostics: components["schemas"]["AutomationDiagnostic"][];
+        };
+        AutomationDecisionInput: {
+            /** @enum {string} */
+            decision: "approve" | "reject";
+            proposalDigest: string;
+            reason: string;
+        };
         /** @description Full authenticated snapshot. No model credentials or subscription secrets; device mappings remain device-local. */
         AutomationRuleBundle: {
             revision: string;
@@ -5454,6 +5773,50 @@ export interface components {
             placementOperationId?: components["schemas"]["AutomationOpaqueId"];
             /** @description Canonical original/default destination observed before rule placement. Advisory until checked against canonical operations; never invented to offer Undo. */
             beforeFolder?: components["schemas"]["AutomationFolderRef"];
+        };
+        AutomationJobPage: {
+            items: components["schemas"]["AutomationJob"][];
+            nextCursor: string | null;
+        };
+        AutomationTaskInputPage: {
+            items: components["schemas"]["AutomationTaskInput"][];
+            nextCursor: string | null;
+        };
+        /** @description claimToken is opaque, returned to the winning claimant, never logged. It does not replace caller authentication. */
+        AutomationLease: {
+            jobId: string;
+            claimToken: string;
+            generation: number;
+            /** Format: date-time */
+            expiresAt: string;
+            inputDigest: string;
+        };
+        AutomationClaimInput: {
+            deliveryHandle: string;
+            requestedLeaseSeconds?: number;
+        };
+        AutomationHeartbeatInput: {
+            claimToken: string;
+            generation: number;
+            extendSeconds: number;
+        };
+        AutomationSubmitResultInput: {
+            claimToken: string;
+            generation: number;
+            inputDigest: string;
+            outputContract: string;
+            output: components["schemas"]["AutomationTaskOutput"];
+            modelLabel?: string;
+            providerRequestId?: string;
+            usageCostMicros?: number;
+        };
+        AutomationFailureInput: {
+            claimToken: string;
+            generation: number;
+            /** @enum {string} */
+            kind: "knownRetryable" | "permanent" | "unknownOutcome";
+            code: string;
+            message: string;
         };
         AutomationPauseState: {
             paused: boolean;
@@ -24296,6 +24659,95 @@ export interface operations {
             503: components["responses"]["Automation503"];
         };
     };
+    getAutomationJobForOwner: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    /** @description Strong ETag for this automation resource. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationJob"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    decideAutomationJob: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Stable command identity. Scope: authenticated principal + operation + addressed resource. Same identity/different canonical body returns 409. */
+                "Known-Command-Id": components["parameters"]["AutomationCommandId"];
+                /** @description Verified host CSRF header (evidence R23): the server reads `x-csrf-token` together with the Origin allowlist on cookie-authenticated writes. Re-checked at AW-01. Never introduce a second CSRF scheme. */
+                "X-CSRF-Token": components["parameters"]["AutomationCsrf"];
+                /** @description Validate against existing host trusted-origin policy for cookie-authenticated mutations. */
+                Origin: components["parameters"]["AutomationOrigin"];
+                /** @description Strong ETag from the addressed automation resource, never a node publication revision. */
+                "If-Match": components["parameters"]["AutomationIfMatch"];
+            };
+            path: {
+                jobId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AutomationDecisionInput"];
+            };
+        };
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    /** @description Strong ETag for this automation resource. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationSubmissionResult"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
     getAutomationDeviceBundle: {
         parameters: {
             query?: {
@@ -24411,6 +24863,292 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AutomationReceiptIngestResult"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    listAutomationWork: {
+        parameters: {
+            query?: {
+                cursor?: components["parameters"]["AutomationCursor"];
+                limit?: components["parameters"]["AutomationLimit"];
+                /** @description Choose among caller-authorized paired targets. Required semantically if more than one is bound; never expands authority. */
+                targetId?: components["schemas"]["AutomationOpaqueId"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationJobPage"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    getAutomationWork: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationJob"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    getAutomationWorkInputs: {
+        parameters: {
+            query?: {
+                cursor?: components["parameters"]["AutomationCursor"];
+                limit?: components["parameters"]["AutomationLimit"];
+            };
+            header?: never;
+            path: {
+                jobId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationTaskInputPage"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    claimAutomationWork: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Stable command identity. Scope: authenticated principal + operation + addressed resource. Same identity/different canonical body returns 409. */
+                "Known-Command-Id": components["parameters"]["AutomationCommandId"];
+            };
+            path: {
+                jobId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AutomationClaimInput"];
+            };
+        };
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationLease"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    heartbeatAutomationWork: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Stable command identity. Scope: authenticated principal + operation + addressed resource. Same identity/different canonical body returns 409. */
+                "Known-Command-Id": components["parameters"]["AutomationCommandId"];
+            };
+            path: {
+                jobId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AutomationHeartbeatInput"];
+            };
+        };
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationLease"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    submitAutomationWorkResult: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Stable command identity. Scope: authenticated principal + operation + addressed resource. Same identity/different canonical body returns 409. */
+                "Known-Command-Id": components["parameters"]["AutomationCommandId"];
+            };
+            path: {
+                jobId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AutomationSubmitResultInput"];
+            };
+        };
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationSubmissionResult"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    reportAutomationWorkFailure: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Stable command identity. Scope: authenticated principal + operation + addressed resource. Same identity/different canonical body returns 409. */
+                "Known-Command-Id": components["parameters"]["AutomationCommandId"];
+            };
+            path: {
+                jobId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AutomationFailureInput"];
+            };
+        };
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationOperationReceipt"];
                 };
             };
             400: components["responses"]["Automation400"];
@@ -24571,6 +25309,57 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AutomationTarget"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    retryAutomationJob: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Stable command identity. Scope: authenticated principal + operation + addressed resource. Same identity/different canonical body returns 409. */
+                "Known-Command-Id": components["parameters"]["AutomationCommandId"];
+                /** @description Verified host CSRF header (evidence R23): the server reads `x-csrf-token` together with the Origin allowlist on cookie-authenticated writes. Re-checked at AW-01. Never introduce a second CSRF scheme. */
+                "X-CSRF-Token": components["parameters"]["AutomationCsrf"];
+                /** @description Validate against existing host trusted-origin policy for cookie-authenticated mutations. */
+                Origin: components["parameters"]["AutomationOrigin"];
+                /** @description Strong ETag from the addressed automation resource, never a node publication revision. */
+                "If-Match": components["parameters"]["AutomationIfMatch"];
+            };
+            path: {
+                jobId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AutomationCommandReason"];
+            };
+        };
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    /** @description Strong ETag for this automation resource. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationJob"];
                 };
             };
             400: components["responses"]["Automation400"];

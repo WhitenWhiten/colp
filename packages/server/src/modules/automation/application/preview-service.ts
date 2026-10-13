@@ -1,7 +1,8 @@
 import { automationDigest, compilePredicate, type PreviewInput, type PreviewResult } from '@know-n/colp/automation';
 import { AutomationError } from '../domain/errors.js';
 import type { AutomationActor } from '../domain/bindings.js';
-import { assertM1Input, inspectInput, normalizeRuleInput, parseContract } from './rule-service.js';
+import { inspectInput, normalizeRuleInput, parseContract } from './rule-service.js';
+import { assertSupportedRule } from './worker-configuration.js';
 import { bindingResolutionSignature } from './rule-eligibility.js';
 import { evaluateRuleEvent, plansRun, type PreparedRule } from './rule-evaluation.js';
 import { previewDecision } from './preview-decision.js';
@@ -9,7 +10,7 @@ import { ruleInput, type AutomationPorts } from './ports.js';
 
 export async function previewSnapshot(ports: AutomationPorts, actor: AutomationActor, input: PreviewInput) {
   input = { ...input, rule: normalizeRuleInput(input.rule) };
-  assertM1Input(input.rule);
+  assertSupportedRule(input.rule,ports.workerEnabled);
   if (input.mode === 'retainedHistory') throw new AutomationError('automation_unsupported_capability', 'Historical preview is not installed on this host. Current state is never substituted.');
   const inspected = await inspectInput(ports, actor, input.rule);
   const scopeRole = input.rule.definition.scope.folderRole;
@@ -43,7 +44,7 @@ export async function previewSnapshot(ports: AutomationPorts, actor: AutomationA
     }
     competition.push(automationDigest({ id: candidate.view.id, revision: candidate.view.revision, input: candidateInput, binding: binding ?? null, resolutions: signature }));
   }
-  const configDigest = automationDigest({ version: 'preview-snapshot/v2', competition, rule: input.rule, bindingRevision: inspected.binding.revision, bindings, settingsRevision: settings.revision,
+  const configDigest = automationDigest({ version: 'preview-snapshot/v2', competition, rule: input.rule, bindingRevision: inspected.binding.revision, bindings,worker: inspected.worker, settingsRevision: settings.revision,
     mode: input.mode, from: input.from ?? null, to: input.to ?? null, sampleRevisions: sample.revisions,
     facts: sample.events.map(({ commitOrdinal: _ordinal, occurredAt: _time, operationId: _operation, ...facts }) => automationDigest(facts)) });
   return { ...inspected, ...sample, configDigest, proposed, alternatives };

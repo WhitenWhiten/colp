@@ -56,5 +56,67 @@
         "description": "Returned once. Idempotent command replay returns null, matching existing credential issuance; issue a fresh grant if the initial response was lost."
       }
     }
+  },
+  "Job": {
+    "removeRequired": [],
+    "addProperties": {
+      "resultId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "proposalDigest": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "planId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "explanation": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 1000
+      }
+    }
+  },
+  "TaskInput": {
+    "removeRequired": [],
+    "addProperties": {
+      "acceptedPredecessors": {
+        "type": "array",
+        "maxItems": 8,
+        "items": {
+          "type": "object",
+          "properties": {
+            "taskId": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "resultId": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "digest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "output": {
+              "$ref": "#/$defs/TaskOutput"
+            }
+          },
+          "required": [
+            "taskId",
+            "resultId",
+            "digest",
+            "output"
+          ],
+          "additionalProperties": false
+        },
+        "description": "Accepted typed outputs from declared DAG predecessors, pinned once with their identity and digest."
+      }
+    }
   }
 }

@@ -1,3 +1,8 @@
+import { automationJobRoutes } from '../../src/transport/product/automation-job-routes.js';
+import { createAutomationWorkerService,createResultSubmissionPort,createProposalPlanGateway,createAutomationRuntime } from '../../src/infrastructure/automation/index.js';
+import { createPhase4bMcpWriteComposition,createMcpChangePlanRateLimitPort } from '../../src/bootstrap/mcp-write-composition.js';
+import { automationPolicyRoutes } from '../../src/transport/product/automation-policy-routes.js';
+import { inspectAutomationOutbox } from './automation-runtime-fixture.js';
 import { insertTestParentCredential } from './account-credential-db-fixture.js';
 import { createPostgresAccountCredentialUnitOfWork } from '../../src/infrastructure/auth/account-credentials-postgres.js';
 import { createChildCredential,exchangeAccountKey,loadCredentialAuthority,resolveMachineMcpBinding,revokeCredential } from '../../src/modules/auth/index.js';
@@ -20,7 +25,7 @@ import { installProductAdmission,parseStrictQuery } from '../../src/transport/pr
 import { ProductHttpError,sendProductError } from '../../src/transport/product-error.js';
 
 export const AUTOMATION_WORKER_ORIGIN = 'https://automation.example.test';
-export async function automationWorkerFixture(prefix: string,maxPairRequests = 100,machineMode = false) {
+export async function automationWorkerFixture(prefix: string,maxPairRequests = 100,machineMode = false,enableJobs = false) {
   const f = await automationFixture(prefix),origin = AUTOMATION_WORKER_ORIGIN,issuer = origin+'/api/v1/auth',audience = origin+'/collections/-/mcp';
   const keys = await generateKeyPair('ES256',{ extractable: true }),jwk = { ...await exportJWK(keys.publicKey),kid: 'aw-worker',alg: 'ES256',use: 'sig' };
   const privateJwk = { ...await exportJWK(keys.privateKey),kid: 'aw-worker' };
@@ -69,11 +74,16 @@ export async function automationWorkerFixture(prefix: string,maxPairRequests = 1
     const result = await limiter.consume({ policy: 'request',facts: JSON.stringify(['automation-pair',a.accountId,a.clientId,a.credentialBindingId]) });
     if (result.kind !== 'allowed') throw new AutomationError(result.kind === 'denied' ? 'rate_limited' : 'feature_temporarily_unavailable','Pairing admission denied.',[],null,result.kind === 'denied' ? result.decision.retryAfterSeconds : 30);
   });
-  const uow = createAutomationUnitOfWork(f.db,'server',{ runtimeEnabled: true,verifyTargetBinding: createAutomationBindingVerifier(config,async () => MCP_OAUTH_DEFAULT_SECURITY_EPOCH) });
+  const uow = createAutomationUnitOfWork(f.db,'server',{ runtimeEnabled: true,workerEnabled: enableJobs,verifyTargetBinding: createAutomationBindingVerifier(config,async () => MCP_OAUTH_DEFAULT_SECURITY_EPOCH) });
+  let results: ReturnType<typeof createResultSubmissionPort> | undefined;
+  const composition = enableJobs ? createPhase4bMcpWriteComposition({ db: f.db,serverUuid: '11111111-1111-4111-8111-111111111111',approvalBaseUri: origin+'/approvals',requestStateKey: 'aw31-request-state-key-at-least-32-bytes',
+    allowedScopes: ['automation:work'],rateLimit: createMcpChangePlanRateLimitPort({ maxPlans: 100,windowMs: 60000 }),beforeBeginCommit: async ({ transaction,planId }) => { await results!.guard(transaction,planId); } }) : undefined;
+  if (composition) results=createResultSubmissionPort(f.db,'server',worker.authorize,createProposalPlanGateway(f.db,composition.changePlanOptions));
+  const work = results ? createAutomationWorkerService(f.db,'server',worker,results,'worker-test-cursor-at-least-32-bytes',1000) : undefined;
   const app = Fastify({ exposeHeadRoutes: false,routerOptions: { querystringParser: parseStrictQuery } }); installProductAdmission(app);
-  app.setErrorHandler((error,request,reply) => sendProductError(request,reply,error instanceof ProductHttpError ? error : new ProductHttpError({ statusCode: 500,code: 'internal_error',message: String(error) })));
-  registerAutomationRoutes(app,{ identityUnitOfWork: f.identity,unitOfWork: uow,allowedOrigins: [origin],cursorKey: 'worker-test-cursor-at-least-32-bytes' },automationTargetRoutes('worker-test-cursor-at-least-32-bytes'));
-  registerAutomationWorkRoutes(app,{ pairing: worker,oauthVerifier: verifier,allowedOrigins: [origin] }); await app.ready();
+  app.setErrorHandler((error,request,reply) => { if (!(error instanceof ProductHttpError)) console.error(error.stack); return sendProductError(request,reply,error instanceof ProductHttpError ? error : new ProductHttpError({ statusCode: 500,code: 'internal_error',message: String(error) })); });
+  registerAutomationRoutes(app,{ identityUnitOfWork: f.identity,unitOfWork: uow,allowedOrigins: [origin],cursorKey: 'worker-test-cursor-at-least-32-bytes' },[...(enableJobs ? automationJobRoutes() : []),...automationTargetRoutes('worker-test-cursor-at-least-32-bytes'),...automationPolicyRoutes('worker-test-cursor-at-least-32-bytes')]);
+  registerAutomationWorkRoutes(app,{ pairing: worker,worker: work,oauthVerifier: verifier,allowedOrigins: [origin] }); await app.ready();
   const ownerHeaders = (commandId = randomUUID(),etag?: string) => ({ cookie: f.owner.cookie,origin,'x-csrf-token': f.owner.csrfToken,'known-command-id': commandId,...(etag ? { 'if-match': etag } : {}) });
   const ownerPost = (path: string,payload: unknown,etag?: string,commandId?: string) => app.inject({ method: 'POST',url: '/api/v1/me/automations'+path,headers: ownerHeaders(commandId,etag),payload });
   const pair = (grant: { pairingId: string; code: string | null },commandId = randomUUID(),bearer = token) => app.inject({ method: 'POST',url: '/api/v1/automation-work/pairings/claim',headers: { authorization: 'Bearer '+bearer,'known-command-id': commandId },payload: { pairingId: grant.pairingId,code: grant.code } });
@@ -87,7 +97,7 @@ export async function automationWorkerFixture(prefix: string,maxPairRequests = 1
     if (g.statusCode !== 201) throw new Error(g.body);
     return { profile: p.json(),target: t.json(),grant: g.json(),grantEtag: String(g.headers.etag) };
   }
-  return { ...f,config,uow,app,worker,actor,token,mint,verifier,revocations,limiter,ownerHeaders,ownerPost,pair,setup,
+  return { ...f,config,uow,app,worker,work,results,composition,inspect: () => inspectAutomationOutbox(f.db,createAutomationRuntime('server',enableJobs)),actor,token,mint,verifier,revocations,limiter,ownerHeaders,ownerPost,pair,setup,
     revokeWorker: async () => {
       if (!child) throw new Error('No machine credential');
       return credentials.execute(p => revokeCredential(p,{ managerAccountId: f.owner.accountId,credentialId: child!.id,commandId: randomUUID(),ifMatch: `"${child!.id}:1"`,body: { reason: 'Revoke dedicated test worker' } }));

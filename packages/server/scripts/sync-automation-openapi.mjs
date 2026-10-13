@@ -28,7 +28,7 @@ for (const [path, item] of Object.entries(design.paths)) {
         schema: { type: 'string', minLength: 1, maxLength: 256 } });
       paths[path][method].parameters.push({ $ref: '#/components/parameters/Origin' });
     }
-    paths[path][method].description += ' M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.';
+    paths[path][method].description += ' Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.';
   }
 }
 // Additive AW-16 bookmark history filter, with cursor binding to the exact filter.
@@ -53,6 +53,16 @@ delete paths[bindingPath].delete.responses['200'];
 paths['/api/v1/me/automations/pause'].get = { ...structuredClone(paths['/api/v1/me/automations/pause'].post), operationId: 'getAutomationPause',
   summary: 'Read global pause state and revision', parameters: [] };
 delete paths['/api/v1/me/automations/pause'].get.requestBody;
+// AW-31: uncertain provider work has an Owner retry, distinct from deferred Events delivery retry.
+const jobPath = '/api/v1/me/automations/jobs/{jobId}';
+if (paths[jobPath]) {
+  const retry = structuredClone(paths[jobPath+'/decision'].post);
+  retry.operationId='retryAutomationJob';retry.summary='Explicitly retry uncertain provider work with original pins';
+  retry.description='Only uncertain work with no durable proposal and remaining pinned maxCalls is eligible. Existing plan/effects must reconcile, never re-execute. Unknown cost remains disclosed.';
+  retry.requestBody={ required: true,content: { 'application/json': { schema: { $ref: '#/components/schemas/CommandReason' } } } };
+  retry.responses['200'].content['application/json'].schema={ $ref: '#/components/schemas/Job' };
+  paths[jobPath+'/retry']={ post: retry };
+}
 const components = {};
 function prefix(value) {
   if (Array.isArray(value)) return value.map(prefix);
