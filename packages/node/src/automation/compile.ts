@@ -21,10 +21,11 @@ export function compilePredicate(value: unknown): CompiledPredicate {
       if (!node.items.length) issue(path, 'emptyOperands', 'Boolean operands must not be empty.');
       node.items.forEach((item, index) => walk(item, depth + 1, `${path}/items/${index}`)); return;
     }
+    // No finite operator reads changedFields; it belongs to node.updated rules (design 02 §2.1, M4).
+    if (node.field === 'event.changedFields') { issue(path, 'unsupportedCapability', 'event.changedFields needs node.updated rules, which this host does not support.'); return; }
     dependencies.add(node.field);
-    const arrayField = ['bookmark.tags', 'event.changedFields'].includes(node.field);
     if ((node.op === 'in') !== Array.isArray(node.value)) issue(path, 'operatorType', 'Only in accepts an array value.');
-    if (arrayField && !(node.op === 'hasTag' && node.field === 'bookmark.tags')) issue(path, 'operatorType', 'Array fields require a compatible array operator.');
+    if (node.field === 'bookmark.tags' && node.op !== 'hasTag') issue(path, 'operatorType', 'bookmark.tags requires hasTag.');
     if (node.op === 'hasTag' && node.field !== 'bookmark.tags') issue(path, 'operatorType', 'hasTag requires bookmark.tags.');
     if (node.op === 'startsWith' && node.field !== 'bookmark.url.path') issue(path, 'operatorType', 'startsWith requires bookmark.url.path.');
     if (node.op === 'hostSuffix' && node.field !== 'bookmark.url.host') issue(path, 'operatorType', 'hostSuffix requires bookmark.url.host.');

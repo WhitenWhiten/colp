@@ -26,6 +26,10 @@ test('typed operators and boolean profile are bounded', () => {
   for (const match of [field('bookmark.tags', 'eq', 'x'), field('bookmark.title', 'startsWith', 'a'),
     field('bookmark.title', 'in', 'x'), { kind: 'all', items: [] },
     { kind: 'cel', profile: 'colp-cel-v1', expression: 'true', dependencies: [] }]) expect(compilePredicate(match).valid).toBe(false);
+  for (const op of ['eq', 'in', 'contains', 'hasTag']) {
+    const compiled = compilePredicate(field('event.changedFields', op, op === 'in' ? ['title'] : 'title'));
+    expect(compiled.valid ? [] : compiled.issues.map((issue) => issue.code)).toEqual(['unsupportedCapability']);
+  }
   let match: unknown = field('bookmark.kind', 'eq', 'bookmark');
   for (let depth = 0; depth < 16; depth++) match = { kind: 'not', item: match };
   expect(compilePredicate(match).valid).toBe(false);
