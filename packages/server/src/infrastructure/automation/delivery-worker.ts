@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { sql,type Kysely } from 'kysely';
+import { MCP_AUTOMATION_EVENT,MCP_AUTOMATION_EVENT_DESCRIPTOR } from '@know-n/colp/mcp';
 import type { DatabaseSchema } from '../database/runtime.js';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
 import { AutomationError,type WorkPrincipal } from '../../modules/automation/index.js';
@@ -64,6 +65,11 @@ export function createDeliveryWorker(db: Kysely<DatabaseSchema>,authorize: Targe
       let target: Destination | null;
       try { target=await destination(tx,d); } catch (error) { if (error instanceof AutomationError && error.code==='automation_paused') return null;throw error; }
       if (!target) { await cancel(tx,d);return null; }
+      if (!wellFormedOccurrence(d.body)) {
+        await sql`UPDATE automation_event_deliveries SET state='deadLetter',last_error_code='invalid_payload',lease_until=NULL,next_attempt_at=NULL
+          WHERE id=${d.id}`.execute(tx);
+        return null;
+      }
       const updated = (await sql<Delivery>`UPDATE automation_event_deliveries SET state='sending',generation=generation+1,
         attempt_count=attempt_count+1,lease_until=clock_timestamp()+interval '30 seconds' WHERE id=${d.id} RETURNING *`.execute(tx)).rows[0]!;
       return { d: updated,target };
@@ -112,4 +118,18 @@ export function createDeliveryWorker(db: Kysely<DatabaseSchema>,authorize: Targe
     });
     return true;
   } };
+}
+
+/**
+ * The wake trigger builds the occurrence in SQL. Check it against the advertised event payload schema
+ * before it leaves the server, so a drifted trigger dead-letters instead of sending an off-contract body.
+ */
+export function wellFormedOccurrence(body: string): boolean {
+  try {
+    const occurrence = JSON.parse(body) as Record<string,unknown>,data = occurrence.data as Record<string,unknown> | null;
+    const { properties,required } = MCP_AUTOMATION_EVENT_DESCRIPTOR.payloadSchema;
+    return occurrence.name === MCP_AUTOMATION_EVENT && typeof occurrence.eventId === 'string' && typeof occurrence.timestamp === 'string'
+      && !!data && typeof data === 'object' && Object.keys(data).length === required.length
+      && required.every(key => properties[key]?.type === 'integer' ? Number.isInteger(data[key]) : typeof data[key] === 'string');
+  } catch { return false; }
 }

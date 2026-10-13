@@ -1,5 +1,9 @@
 import { sql, type Kysely } from 'kysely';
-import { automationDigest, bindingSemanticDigest, type RuleDefinition, type RoleBindings } from '@know-n/colp/automation';
+import { automationDigestV1 } from './lib/automation-digest-v1.js';
+
+// Only the shapes this migration reads; never the evolving runtime types.
+type RuleDefinition = { trigger: { mode: string; partition?: 'folder' | 'collection' | 'rule' } };
+type RoleBindings = Record<string, unknown>;
 
 export async function up(db: Kysely<unknown>): Promise<void> {
   await sql`CREATE TABLE automation_aggregation_spaces (
@@ -34,11 +38,12 @@ export async function up(db: Kysely<unknown>): Promise<void> {
         const trigger = rule.definition_json.trigger;
         if (trigger.mode !== 'countBatch') continue;
         const key = trigger.partition === 'folder' ? state.parent_id ?? '' : trigger.partition === 'collection' ? state.collection_id : rule.rule_id;
-        const binding = bindings.find(b => [null, ...policies].some(policy => automationDigest({
+        const binding = bindings.find(b => [null, ...policies].some(policy => automationDigestV1({
           kind: trigger.partition, key, binding: b.revision, policy,
         }) === state.partition_key));
+        // Fail loudly: guessing would strand or merge members of an unfinished batch.
         if (!binding) throw new Error('Cannot identify legacy count partition configuration');
-        const identity = automationDigest({ kind: trigger.partition, key, binding: bindingSemanticDigest(binding.values_json) });
+        const identity = automationDigestV1({ kind: trigger.partition, key, binding: automationDigestV1(binding.values_json) });
         await sql`UPDATE automation_aggregate_state SET partition_identity=${identity} WHERE rule_revision_id=${rule.id}
           AND epoch=${state.epoch}::bigint AND partition_key=${state.partition_key}`.execute(db);
       }
