@@ -16,7 +16,7 @@ export function createRuleStore(db: Kysely<DatabaseSchema>, runtimeEnabled = fal
       ...(row.execution_policy_id ? { executionPolicyId: row.execution_policy_id } : {}), ...(row.template_ref ? { templateRef: row.template_ref } : {}),
       createdAt: row.created_at.toISOString(), updatedAt: row.updated_at.toISOString() },
   });
-  return {
+  const store: RuleStore = {
     async load(ownerId, id) { const row = await select().where('r.owner_id', '=', ownerId).where('r.id', '=', id).executeTakeFirst(); return row ? map(row) : null; },
     async list(ownerId, after, limit) {
       let query = select().where('r.owner_id', '=', ownerId);
@@ -30,7 +30,7 @@ export function createRuleStore(db: Kysely<DatabaseSchema>, runtimeEnabled = fal
       const { view } = rule;
       if (view.revision === '1') await db.insertInto('automation_rules').values({ id: view.id, owner_id: ownerId, current_revision_id: null,
         desired_state: view.desiredState, created_at: new Date(view.createdAt), updated_at: new Date(view.updatedAt) }).execute();
-      const previous = await this.load(ownerId, view.id);
+      const previous = await store.load(ownerId, view.id);
       const sameAggregation = previous && previous.view.bindingSetId === view.bindingSetId
         && aggregationSemanticDigest(previous.view.definition) === aggregationSemanticDigest(view.definition);
       const priorSpace = sameAggregation ? (await sql<{space_id:string;epoch_floor:string}>`SELECT space_id,epoch_floor::text FROM automation_aggregation_spaces
@@ -51,4 +51,5 @@ export function createRuleStore(db: Kysely<DatabaseSchema>, runtimeEnabled = fal
       await touchAutomationConfiguration(db, ownerId);
     },
   };
+  return store;
 }

@@ -1,5 +1,6 @@
 import { assertValidNodeTags, CollectionsError, ANNOTATION_MAX_VALUE_BYTES } from '../../modules/collections/index.js';
 import { advanceRunTasks } from './task-scheduler.js';
+import { createBindingReadPort } from './bindings.js';
 import { currentWorkInputs } from './worker-inputs.js';
 import { reconcileCommittedPlanEffect } from './reconcile-plan-effect.js';
 import { randomUUID } from 'node:crypto';
@@ -80,7 +81,6 @@ export function createResultSubmissionPort(db: Kysely<DatabaseSchema>, serverUui
       if (input.output.kind === 'placement' && input.output.destination) {
         if (pin.execution_context_json.placementAllowed === false)
           throw new AutomationError('automation_stale_input', 'Explicit placement intent is preserved.');
-        const { createBindingReadPort } = await import('./bindings.js');
         const destination = await createBindingReadPort(tx, serverUuid).readFolder(actor, input.output.destination);
         if (destination.status === 'valid' && pin.allowed_folders.some(root => [destination.snapshot.folder, ...destination.snapshot.ancestors].some(f => f.serverUuid === root.serverUuid && f.collectionId === root.collectionId && f.nodeId === root.nodeId)))
           allowed = [...allowed, input.output.destination];
@@ -242,7 +242,6 @@ export function createResultSubmissionPort(db: Kysely<DatabaseSchema>, serverUui
           throw new AutomationError('automation_stale_input', 'A newly rejected tag invalidated the pinned proposal; review the original output.');
       }
       if (operation?.type === 'move_node' && operation.parentId) {
-        const { createBindingReadPort } = await import('./bindings.js');
         const destination = await createBindingReadPort(tx, serverUuid).readFolder(actor, { serverUuid, collectionId: operation.collectionId, nodeId: operation.parentId });
         if (destination.status !== 'valid' || !pin.allowed_folders.some(root => [destination.snapshot.folder, ...destination.snapshot.ancestors].some(f => f.nodeId === root.nodeId && f.collectionId === root.collectionId && f.serverUuid === root.serverUuid)))
           throw new AutomationError('automation_binding_unavailable', 'Proposed destination no longer belongs to the pinned subtree.');

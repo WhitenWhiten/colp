@@ -72,7 +72,7 @@ export function createTargetStore(tx: DatabaseTransaction,ownerId: string,verify
     },
   };
   function resource<View,Input>(table: 'automation_connection_profiles' | 'automation_targets' | 'automation_executors',map: (row: { id: string; revision: string; configuration_json: Input }) => View | Promise<View>): ConfigurationStore<View,Input> {
-    return {
+    const store: ConfigurationStore<View,Input> = {
       async load(id) { const row = (await sql<{ id: string; revision: string; configuration_json: Input }>`SELECT * FROM ${sql.table(table)} WHERE id=${id} AND owner_id=${ownerId}`.execute(tx)).rows[0]; return row ? map(row) : null; },
       async list(after,limit) {
         const cursor = after ? sql`AND (created_at,id)<(${after.createdAt}::timestamptz,${after.id})` : sql``;
@@ -108,9 +108,10 @@ export function createTargetStore(tx: DatabaseTransaction,ownerId: string,verify
           if (reauthorize) await sql`UPDATE automation_targets SET paired=false,pairing_generation=pairing_generation+1,revision=revision+1 WHERE owner_id=${ownerId} AND profile_id=${key}`.execute(tx);
         }
         await touchAutomationConfiguration(tx,ownerId);
-        return (await this.load(key))!;
+        return (await store.load(key))!;
       },
     };
+    return store;
   }
 }
 
