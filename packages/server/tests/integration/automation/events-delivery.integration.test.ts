@@ -73,9 +73,13 @@ describeWithPostgres('AW-29 durable ready wake delivery',() => {
     const worker=createDeliveryWorker(f.db,f.worker.authorize,{...cipher,send:async()=>{
       sent++;await sql`UPDATE automation_targets SET revoked=true WHERE id=${f.target.id}`.execute(f.db);return {status:200,retryAfter:null};
     }});
-    await sql`INSERT INTO automation_settings(owner_id,paused) VALUES(${f.owner.accountId},true) ON CONFLICT(owner_id) DO UPDATE SET paused=true`.execute(f.db);
+    const pause=async(paused:boolean)=>{
+      const current=await f.app.inject({url:'/api/v1/me/automations/pause',headers:{cookie:f.owner.cookie}});
+      const changed=await f.ownerPost('/pause',{paused},String(current.headers.etag));expect(changed.statusCode,changed.body).toBe(200);
+    };
+    await pause(true);
     expect(await worker.tick()).toBe(false);expect(sent).toBe(0);
-    await sql`UPDATE automation_settings SET paused=false WHERE owner_id=${f.owner.accountId}`.execute(f.db);
+    await pause(false);
     await worker.tick();expect(sent).toBe(1);expect((await rows())[0]?.state).toBe('cancelled');
   });
   test('renewal preserves queued wakes and verification failure keeps the active path',async()=>{

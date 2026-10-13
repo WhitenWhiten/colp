@@ -106,10 +106,12 @@ describeWithPostgres('BE-1 migrations, immutable persistence and recovery', () =
       collectionId: 'fixture_collection', rootNodeId: 'fixture_root', operationId: 'fixture_operation',
     }));
     expect(created.kind).toBe('created');
-    await sql`insert into automation_event_facts values ('event','fixture_operation','fixture_collection','fixture_root',1,now(),'user','{}',1,null)`.execute(db);
+    await sql`insert into automation_event_facts (source_event_id,operation_id,collection_id,node_id,commit_ordinal,occurred_at,origin,facts_json,facts_version,root_run_id)
+      values ('event','fixture_operation','fixture_collection','fixture_root',1,now(),'user','{}',1,null)`.execute(db);
     await sql`insert into automation_runs (id,owner_id,kind,rule_revision_id,binding_set_id,binding_revision,policy_revision,member_ids,state)
       values ('run','owner','intake','revision','bindings',1,null,'[]','waiting')`.execute(db);
-    const admission = () => sql`insert into automation_admission_receipts values ('revision','event','intake','matched','run')`.execute(db);
+    const admission = () => sql`insert into automation_admission_receipts (rule_revision_id,source_event_id,stage,decision,run_id)
+      values ('revision','event','intake','matched','run')`.execute(db);
     await admission(); await expect(admission()).rejects.toThrow();
     const effect = (id: string) => sql`insert into automation_effect_receipts (id,run_id,step_id,operation_id,after_revision,effect_digest)
       values (${id},'run','intake','fixture_operation','after','digest')`.execute(db);

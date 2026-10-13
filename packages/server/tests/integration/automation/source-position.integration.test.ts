@@ -27,7 +27,7 @@ describeWithPostgres('ordered automation source positions', () => {
   test('concurrent redelivery inspects every operation once, including the bootstrap without node facts', async () => {
     const context = await delivery();
     const inspect = createAutomationSourceInspector(f.db, async (tx, _owner, _collection, rows) => {
-      for (const row of rows) await sql`INSERT INTO inspected_test_operations VALUES (${row.operation_id})`.execute(tx);
+      for (const row of rows) await sql`INSERT INTO inspected_test_operations (operation_id) VALUES (${row.operation_id})`.execute(tx);
     });
     expect(await Promise.all([inspect(context), inspect(context), inspect(context)])).toEqual([false, false, false]);
     const counts = (await sql<{ inspected: string; operations: string; ordinal: string }>`SELECT
@@ -38,7 +38,7 @@ describeWithPostgres('ordered automation source positions', () => {
   });
   test('a stale lease rolls back both consumer writes and the inspection cursor', async () => {
     const inspect = createAutomationSourceInspector(f.db, async (tx, _owner, _collection, rows) => {
-      for (const row of rows) await sql`INSERT INTO inspected_test_operations VALUES (${row.operation_id})`.execute(tx);
+      for (const row of rows) await sql`INSERT INTO inspected_test_operations (operation_id) VALUES (${row.operation_id})`.execute(tx);
     });
     await inspect(await delivery());
     await f.createNode('later', 'root', 'Later', 'https://example.test/later');
@@ -52,7 +52,7 @@ describeWithPostgres('ordered automation source positions', () => {
   test('lease replacement during a consumer transaction rolls back admission and cursor together', async () => {
     const context = await delivery();
     const inspect = createAutomationSourceInspector(f.db, async (tx, _owner, _collection, rows) => {
-      for (const row of rows) await sql`INSERT INTO inspected_test_operations VALUES (${row.operation_id})`.execute(tx);
+      for (const row of rows) await sql`INSERT INTO inspected_test_operations (operation_id) VALUES (${row.operation_id})`.execute(tx);
       // A different connection replaces the lease after consumer writes, before the commit fence.
       await f.db.updateTable('outbox_events').set({ lease_generation: 2n })
         .where('outbox_id', '=', context.attempt!.outboxId).execute();
