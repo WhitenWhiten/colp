@@ -302,7 +302,7 @@ const infrastructureEdges = {
 // facades only; allowing a layer category here would let a new deep import
 // bypass the public contract without a graph review.
 const infrastructureModuleEdges = {
-  automation: new Set(['module:collections:facade', 'module:identity:facade', 'module:automation:facade', 'module:commands:facade', 'module:access-policy:facade']),
+  automation: new Set(['module:mcp:facade', 'module:collections:facade', 'module:identity:facade', 'module:automation:facade', 'module:commands:facade', 'module:access-policy:facade']),
   'bookmark-subscriptions': new Set(['module:bookmark-subscriptions:facade','module:commands:facade','module:collections:facade','module:reports:facade']),
   'access-policy': new Set(['module:access-policy:facade']),
   // F1 (legacy quarantine): the legacy OIDC boundary may re-export only the

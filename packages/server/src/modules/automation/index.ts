@@ -21,3 +21,5 @@ export { explainRun } from './application/run-explanation.js';
 export * from './application/executor-policy.js';
 export * from './application/result-reuse.js';
 export * from './application/claim-job.js';
+export * from './application/submit-result.js';
+export * from './application/effect-gateway.js';

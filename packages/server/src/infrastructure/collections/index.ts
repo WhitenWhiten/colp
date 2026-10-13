@@ -78,7 +78,7 @@ export {
 } from './unit-of-work.js';
 export {
 } from './unit-of-work.js';
-export { createPostgresAnnotationMutationUnitOfWork } from './annotation-canonical-postgres.js';
+export { createPostgresAnnotationMutationUnitOfWork, createPostgresAnnotationMutationPorts } from './annotation-canonical-postgres.js';
 export {
   createPostgresAnnotationReadPort,
   createPostgresAnnotationReadUnitOfWork,

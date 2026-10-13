@@ -43,7 +43,7 @@ import {
   type McpWriteInputBudget,
 } from '@know-n/colp/mcp';
 import type { ScopeName } from '@know-n/colp/types';
-import type { ProductCollectionCanonicalPorts } from '../collections/index.js';
+import type { ProductCollectionCanonicalPorts, AnnotationMutationPorts } from '../collections/index.js';
 import {
   computePhase4bMcpCanonicalDigest,
   type Phase4bMcpChangePlanPlanner,
@@ -149,6 +149,7 @@ export interface Phase4bMcpChangePlanCommitCoordinatorOptions<
   readonly createProductPorts: (
     transaction: Transaction,
   ) => ProductCollectionCanonicalPorts;
+  readonly createAnnotationPorts?: (transaction: Transaction) => AnnotationMutationPorts;
   /**
    * Appends sync trash tombstones after a committed `delete_subtree`.
    * Absent only for harnesses that never execute that operation.
@@ -255,6 +256,7 @@ export function createPhase4bMcpChangePlanCommitCoordinator<
         binding,
         plansByTransaction,
         options.createProductPorts,
+        options.createAnnotationPorts,
         options.recordDeleteSubtreeTombstones,
         options.recordCommittedContentRevisions,
       ),
