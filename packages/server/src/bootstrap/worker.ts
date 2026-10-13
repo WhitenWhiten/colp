@@ -390,17 +390,17 @@ export function buildWorker(
     database,
     projectionSink: options.projectionSink,
   });
-  const automationHealth = config.automationConfigurationEnabled && database
-    ? createAutomationHealthMonitor(database.db, config.publication.serverUuid, metrics, config.automationRuntimeEnabled, {
-      eventsEnabled:config.mcpEventsEnabled === true && config.automationRuntimeEnabled === true && config.mcpWriteEnabled === true,workerEnabled: config.automationRuntimeEnabled && config.mcpWriteEnabled,
+  const automationHealth = config.automationRulesEnabled && database
+    ? createAutomationHealthMonitor(database.db, config.publication.serverUuid, metrics, config.automationAdmissionEnabled, {
+      eventsEnabled:config.mcpEventsEnabled === true,workerEnabled: config.automationWorkEnabled === true,
       verifyTargetBinding: createAutomationBindingVerifier(config,createMcpSecurityEpochReader(config,createPostgresMcpOauthRevocationStore({ db: database.db }))),
     }) : undefined;
-  const deliveryWorker = config.mcpEventsEnabled && config.mcpWriteEnabled && config.automationRuntimeEnabled && database && config.automationWebhookMasterKey
+  const deliveryWorker = config.mcpEventsEnabled && database && config.automationWebhookMasterKey
     ? createDeliveryWorker(database.db,createTargetWorkerService(database.db,
       createAutomationBindingVerifier(config,createMcpSecurityEpochReader(config,createPostgresMcpOauthRevocationStore({ db: database.db }))),async () => {}).authorize,
       createWebhookVerifier(config.automationWebhookMasterKey)) : undefined;
   let retentionAfter = '';
-  const automationMaintenance = config.automationConfigurationEnabled && database
+  const automationMaintenance = config.automationRulesEnabled && database
     ? createAutomationMaintenanceLoop({
       delivery: deliveryWorker,
       async maintain() {
@@ -409,7 +409,7 @@ export function buildWorker(
         // A failed Owner is retried on the next sweep, without starving others.
         retentionAfter=owner.id;
         await retainAutomationHistory(database.db,owner.id,config.mcpWriteEnabled === true);
-        if(config.automationRuntimeEnabled && config.mcpWriteEnabled)await resumeOwnerBudgets(database.db,owner.id);
+        if(config.automationWorkEnabled)await resumeOwnerBudgets(database.db,owner.id);
       },
       onError(kind) {metrics.increment(`automation.${kind}.error`);},
     }) : undefined;
@@ -510,7 +510,7 @@ export function buildWorker(
   const routes = Object.freeze([
     ...projectionRoutes, ...syncConflictRoutes,
     ...(database ? [undefined, AUTOMATION_RESUME_EVENT].map(eventType => createAutomationIngestRoute(createAutomationSourceInspector(database.db,
-      config.automationConfigurationEnabled && config.automationRuntimeEnabled ? createAutomationRuntime(config.publication.serverUuid,config.mcpWriteEnabled === true) : async () => {}), eventType)) : []),
+      config.automationAdmissionEnabled ? createAutomationRuntime(config.publication.serverUuid,config.automationWorkEnabled === true) : async () => {}), eventType)) : []),
     ...publicationCachePurgeRoutes,
     ...collectionInviteEmailRoutes,
   ]);

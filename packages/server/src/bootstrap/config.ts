@@ -553,9 +553,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   return {
     automationServerDailyRunCap: parsePositiveInt(env.AUTOMATION_SERVER_DAILY_RUN_CAP,1000,'AUTOMATION_SERVER_DAILY_RUN_CAP',{ min: 1,max: 100000 }),
     automationWebhookMasterKey: loadAutomationWebhookKey(env),
-    mcpEventsEnabled: parseCacheBooleanEnv(env, 'KNOWN_FEATURE_MCP_EVENTS', false),
-    automationRuntimeEnabled: parseCacheBooleanEnv(env, 'KNOWN_FEATURE_AUTOMATION_RUNTIME', false),
-    automationConfigurationEnabled: parseCacheBooleanEnv(env, 'KNOWN_FEATURE_AUTOMATION_CONFIGURATION', false),
+    ...loadAutomationFeatureFlags(env, mcpWriteEnabled),
     nodeEnv,
     host: env.HOST ?? '127.0.0.1',
     port,
@@ -614,6 +612,28 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     ...(mcpWrite ? { mcpWrite } : {}),
     accountCredentials: loadAccountCredentialsFeatureConfig(env),
   };
+}
+
+/** Design rollout flags (07 §7): RULES → CAPTURE (shadow) → ADMISSION → WORK → MCP_EVENTS. */
+export function loadAutomationFeatureFlags(env: NodeJS.ProcessEnv, mcpWriteEnabled: boolean) {
+  for (const [old, current] of [['KNOWN_FEATURE_AUTOMATION_CONFIGURATION', 'KNOWN_FEATURE_AUTOMATION_RULES'],
+    ['KNOWN_FEATURE_AUTOMATION_RUNTIME', 'KNOWN_FEATURE_AUTOMATION_ADMISSION']] as const) {
+    if (env[old] !== undefined) throw new Error(`${old} was renamed to ${current}`);
+  }
+  const rules = parseCacheBooleanEnv(env, 'KNOWN_FEATURE_AUTOMATION_RULES', false);
+  const capture = parseCacheBooleanEnv(env, 'KNOWN_FEATURE_AUTOMATION_CAPTURE', false);
+  const admission = parseCacheBooleanEnv(env, 'KNOWN_FEATURE_AUTOMATION_ADMISSION', false);
+  const work = parseCacheBooleanEnv(env, 'KNOWN_FEATURE_AUTOMATION_WORK', false);
+  const events = parseCacheBooleanEnv(env, 'KNOWN_FEATURE_MCP_EVENTS', false);
+  if (admission && !(rules && capture)) {
+    throw new Error('KNOWN_FEATURE_AUTOMATION_ADMISSION requires KNOWN_FEATURE_AUTOMATION_RULES and KNOWN_FEATURE_AUTOMATION_CAPTURE');
+  }
+  if (work && !(admission && mcpWriteEnabled)) {
+    throw new Error('KNOWN_FEATURE_AUTOMATION_WORK requires KNOWN_FEATURE_AUTOMATION_ADMISSION and KNOWN_FEATURE_MCP_WRITE');
+  }
+  if (events && !work) throw new Error('KNOWN_FEATURE_MCP_EVENTS requires KNOWN_FEATURE_AUTOMATION_WORK');
+  return { automationRulesEnabled: rules, automationCaptureEnabled: capture, automationAdmissionEnabled: admission,
+    automationWorkEnabled: work, mcpEventsEnabled: events };
 }
 
 function loadAutomationWebhookKey(env: NodeJS.ProcessEnv): Buffer | undefined {

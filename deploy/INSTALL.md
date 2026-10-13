@@ -310,8 +310,8 @@ and durable digest/review outputs. Owner APIs require the existing session, CSRF
 Origin and command-ID contract. No frontend or browser runtime is installed by these
 backend packets.
 
-To opt into Events, enable Automation configuration/runtime and the existing MCP
-worker/write composition, then set `KNOWN_FEATURE_MCP_EVENTS=true` and
+To opt into Events, enable the Automation flags in order (`KNOWN_FEATURE_AUTOMATION_RULES`,
+`_CAPTURE`, `_ADMISSION`, `_WORK`) together with `KNOWN_FEATURE_MCP_WRITE`, then set `KNOWN_FEATURE_MCP_EVENTS=true` and
 `AUTOMATION_WEBHOOK_MASTER_KEY` to canonical base64 for **32 random bytes** in your
 private deployment environment. Keep this encryption key with private backup secrets.
 Do not commit it or send it to a callback. Missing/invalid key configuration fails

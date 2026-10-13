@@ -277,7 +277,7 @@ export async function composeApiMcpSurface(input: {
     }
   }
   let mcpWriteComposition: ReturnType<typeof createPhase4bMcpWriteComposition> | undefined;
-  const automationTargetWorker = config.automationConfigurationEnabled && config.automationRuntimeEnabled && mcpReadOAuthDependencies.oauthVerifier && mcpRateLimiter
+  const automationTargetWorker = config.automationWorkEnabled && mcpReadOAuthDependencies.oauthVerifier && mcpRateLimiter
     ? createTargetWorkerService(database.db,createAutomationBindingVerifier(config,createMcpSecurityEpochReader(config,mcpOauthRevocationStore)),async actor => {
       const verdict = await mcpRateLimiter!.consume({ policy: 'request',facts: JSON.stringify(['automation-pair',actor.accountId,actor.clientId,actor.credentialBindingId]) });
       if (verdict.kind !== 'allowed') throw new AutomationError(verdict.kind === 'denied' ? 'rate_limited' : 'feature_temporarily_unavailable','Pairing admission is unavailable.',[],null,verdict.kind === 'denied' ? verdict.decision.retryAfterSeconds : 30);

@@ -40,11 +40,16 @@ Each [evidence record](evidence/) lists executed checks and limitations.
 
 ## Running the configuration slice
 
-Set `KNOWN_FEATURE_AUTOMATION_CONFIGURATION=true` to mount the authenticated
-`/api/v1/me/automations` routes. Default false conceals the entire feature. This
-flag alone enables configuration/validation/preview only. To enable deterministic intake, also set
-`KNOWN_FEATURE_AUTOMATION_RUNTIME=true` in both API and worker after applying migrations.
-Without the runtime flag, desired enabled remains blocked. M1 creates no model jobs.
+The flags follow the design rollout order (07 §7); each requires the ones before it, and
+API and worker must use the same values. `KNOWN_FEATURE_AUTOMATION_RULES=true` mounts the
+authenticated `/api/v1/me/automations` routes (configuration/validation/preview only); default
+false conceals the entire feature. `KNOWN_FEATURE_AUTOMATION_CAPTURE=true` records canonical facts
+in shadow mode; with it off no bookmark mutation writes facts or automation Outbox rows.
+`KNOWN_FEATURE_AUTOMATION_ADMISSION=true` (requires RULES and CAPTURE) enables runs and
+deterministic intake after migrations; without it desired enabled remains blocked.
+`KNOWN_FEATURE_AUTOMATION_WORK=true` (requires ADMISSION and `KNOWN_FEATURE_MCP_WRITE`) mounts the
+worker surface, and `KNOWN_FEATURE_MCP_EVENTS=true` (requires WORK) adds Events wake-up. The
+pre-design names `KNOWN_FEATURE_AUTOMATION_CONFIGURATION` and `_RUNTIME` are rejected at start-up. M1 creates no model jobs.
 The deployment secret and existing Product session/CSRF configuration are reused.
 
 ## Resolved contract conflicts

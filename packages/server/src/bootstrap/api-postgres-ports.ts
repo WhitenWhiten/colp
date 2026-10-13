@@ -304,10 +304,10 @@ export function createApiPostgresAppDependencies(input: {
         database.db, config.syncSession.conflictPayloadKeyring,
       ),
     } : {}),
-    ...(config.automationConfigurationEnabled ? { automationUnitOfWork: createAutomationUnitOfWork(database.db, config.publication.serverUuid, { eventsEnabled:config.mcpEventsEnabled === true && config.automationRuntimeEnabled === true && config.mcpWriteEnabled === true,runtimeEnabled: config.automationRuntimeEnabled,workerEnabled: config.automationRuntimeEnabled && config.mcpWriteEnabled,verifyTargetBinding: createAutomationBindingVerifier(config,createMcpSecurityEpochReader(config,createPostgresMcpOauthRevocationStore({ db: database.db }))) }),
+    ...(config.automationRulesEnabled ? { automationUnitOfWork: createAutomationUnitOfWork(database.db, config.publication.serverUuid, { eventsEnabled:config.mcpEventsEnabled === true,runtimeEnabled: config.automationAdmissionEnabled === true,workerEnabled: config.automationWorkEnabled === true,verifyTargetBinding: createAutomationBindingVerifier(config,createMcpSecurityEpochReader(config,createPostgresMcpOauthRevocationStore({ db: database.db }))) }),
       automationDeviceUnitOfWork: createAutomationDeviceUnitOfWork(database.db, config.publication.serverUuid),
-      automationHealthStartup: () => createAutomationHealthMonitor(database.db, config.publication.serverUuid, metrics, config.automationRuntimeEnabled, {
-        eventsEnabled:config.mcpEventsEnabled === true && config.automationRuntimeEnabled === true && config.mcpWriteEnabled === true,workerEnabled: config.automationRuntimeEnabled && config.mcpWriteEnabled,
+      automationHealthStartup: () => createAutomationHealthMonitor(database.db, config.publication.serverUuid, metrics, config.automationAdmissionEnabled, {
+        eventsEnabled:config.mcpEventsEnabled === true,workerEnabled: config.automationWorkEnabled === true,
         verifyTargetBinding: createAutomationBindingVerifier(config,createMcpSecurityEpochReader(config,createPostgresMcpOauthRevocationStore({ db: database.db }))),
       }).revalidateAll() } : {}),
     linkHealthEnqueue: createPostgresLinkHealthEnqueueUnitOfWork(database.db),

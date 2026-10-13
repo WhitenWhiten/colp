@@ -8,12 +8,24 @@ const env = { DATABASE_URL: 'postgres://unused/known', PRODUCT_ORIGIN: 'https://
   LOG_LEVEL: 'silent', OIDC_JWKS_URI: 'https://issuer.example/certs' };
 const apps: ReturnType<typeof buildApiApp>[] = [];
 afterEach(async () => { for (const app of apps.splice(0)) await app.close(); });
-test('configuration gate is explicit, disabled by default and rejects invalid values', () => {
-  expect(loadConfig(env).automationRuntimeEnabled).toBe(false);
-  expect(loadConfig({ ...env, KNOWN_FEATURE_AUTOMATION_RUNTIME: 'true' }).automationRuntimeEnabled).toBe(true);
-  expect(loadConfig(env).automationConfigurationEnabled).toBe(false);
-  expect(loadConfig({ ...env, KNOWN_FEATURE_AUTOMATION_CONFIGURATION: 'true' }).automationConfigurationEnabled).toBe(true);
-  expect(() => loadConfig({ ...env, KNOWN_FEATURE_AUTOMATION_CONFIGURATION: 'yes' })).toThrow('KNOWN_FEATURE_AUTOMATION_CONFIGURATION');
+const admission = { KNOWN_FEATURE_AUTOMATION_RULES: 'true', KNOWN_FEATURE_AUTOMATION_CAPTURE: 'true', KNOWN_FEATURE_AUTOMATION_ADMISSION: 'true' };
+const work = { ...admission, KNOWN_FEATURE_MCP_WRITE: 'true', KNOWN_FEATURE_AUTOMATION_WORK: 'true' };
+test('design rollout flags are explicit, disabled by default and reject invalid values', () => {
+  expect(loadConfig(env)).toMatchObject({ automationRulesEnabled: false, automationCaptureEnabled: false,
+    automationAdmissionEnabled: false, automationWorkEnabled: false, mcpEventsEnabled: false });
+  expect(loadConfig({ ...env, KNOWN_FEATURE_AUTOMATION_RULES: 'true' }).automationRulesEnabled).toBe(true);
+  expect(loadConfig({ ...env, KNOWN_FEATURE_AUTOMATION_CAPTURE: 'true' })).toMatchObject({ automationCaptureEnabled: true, automationAdmissionEnabled: false });
+  expect(loadConfig({ ...env, ...admission }).automationAdmissionEnabled).toBe(true);
+  expect(loadConfig({ ...env, ...work }).automationWorkEnabled).toBe(true);
+  expect(() => loadConfig({ ...env, KNOWN_FEATURE_AUTOMATION_RULES: 'yes' })).toThrow('KNOWN_FEATURE_AUTOMATION_RULES');
+});
+test('flags enforce the rollout order and reject the pre-design names', () => {
+  expect(() => loadConfig({ ...env, KNOWN_FEATURE_AUTOMATION_ADMISSION: 'true', KNOWN_FEATURE_AUTOMATION_RULES: 'true' })).toThrow('requires');
+  expect(() => loadConfig({ ...env, ...admission, KNOWN_FEATURE_AUTOMATION_WORK: 'true' })).toThrow('KNOWN_FEATURE_MCP_WRITE');
+  expect(() => loadConfig({ ...env, ...admission, KNOWN_FEATURE_MCP_EVENTS: 'true', AUTOMATION_WEBHOOK_MASTER_KEY: Buffer.alloc(32, 7).toString('base64') }))
+    .toThrow('KNOWN_FEATURE_AUTOMATION_WORK');
+  expect(() => loadConfig({ ...env, KNOWN_FEATURE_AUTOMATION_RUNTIME: 'false' })).toThrow('renamed to KNOWN_FEATURE_AUTOMATION_ADMISSION');
+  expect(() => loadConfig({ ...env, KNOWN_FEATURE_AUTOMATION_CONFIGURATION: 'true' })).toThrow('renamed to KNOWN_FEATURE_AUTOMATION_RULES');
 });
 test('main composition runs health startup, mounts authenticated routes and separates runtime readiness', async () => {
   const startup = vi.fn(async () => {});
@@ -33,7 +45,7 @@ test('without configuration composition the runtime and routes stay disabled', a
 
 test('installed M1 runtime advertises ready without requiring Events, agents or device Sync composition', async () => {
   const unitOfWork: AutomationUnitOfWork = { execute: async () => { throw new Error('No service action expected.'); } };
-  const app = buildApiApp({ config: loadConfig({ ...env, KNOWN_FEATURE_AUTOMATION_RUNTIME: 'true' }),
+  const app = buildApiApp({ config: loadConfig({ ...env, ...admission }),
     identityUnitOfWork: createIdentityMemoryUnitOfWork(createIdentityMemoryState(new Date())), automationUnitOfWork: unitOfWork }); apps.push(app);
   expect((await app.inject({ method: 'GET', url: '/ready/features/automation' })).json()).toMatchObject({ status: 'ready', reason: 'm1RuntimeInstalled' });
 });
@@ -44,7 +56,7 @@ test('configuration-only composition cannot distribute an active device bundle',
   for (const enabled of [false, true]) {
     const app = Fastify({ exposeHeadRoutes: false }); apps.push(app);
     registerAccountProductSurfaces(app, {
-      config: loadConfig({ ...env, KNOWN_FEATURE_AUTOMATION_RUNTIME: String(enabled) }),
+      config: loadConfig({ ...env, KNOWN_FEATURE_AUTOMATION_RULES: 'true', KNOWN_FEATURE_AUTOMATION_CAPTURE: 'true', KNOWN_FEATURE_AUTOMATION_ADMISSION: String(enabled) }),
       automationDeviceUnitOfWork: { execute: async () => { throw new Error('Route composition only'); } },
       syncSessionRoutes: {
         path: '/test-sync', allowedOrigins: ['https://known.example'], rateLimit: { maxRequests: 10, windowMs: 60000 },
@@ -58,9 +70,9 @@ test('configuration-only composition cannot distribute an active device bundle',
 
 test('Events requires explicit flag and a canonical 32-byte encryption key',()=>{
   expect(loadConfig(env).mcpEventsEnabled).toBe(false);
-  expect(()=>loadConfig({...env,KNOWN_FEATURE_MCP_EVENTS:'true'})).toThrow('AUTOMATION_WEBHOOK_MASTER_KEY');
-  expect(()=>loadConfig({...env,KNOWN_FEATURE_MCP_EVENTS:'true',AUTOMATION_WEBHOOK_MASTER_KEY:Buffer.alloc(24).toString('base64')})).toThrow('AUTOMATION_WEBHOOK_MASTER_KEY');
-  const config=loadConfig({...env,KNOWN_FEATURE_MCP_EVENTS:'true',AUTOMATION_WEBHOOK_MASTER_KEY:Buffer.alloc(32,7).toString('base64')});
+  expect(()=>loadConfig({...env,...work,KNOWN_FEATURE_MCP_EVENTS:'true'})).toThrow('AUTOMATION_WEBHOOK_MASTER_KEY');
+  expect(()=>loadConfig({...env,...work,KNOWN_FEATURE_MCP_EVENTS:'true',AUTOMATION_WEBHOOK_MASTER_KEY:Buffer.alloc(24).toString('base64')})).toThrow('AUTOMATION_WEBHOOK_MASTER_KEY');
+  const config=loadConfig({...env,...work,KNOWN_FEATURE_MCP_EVENTS:'true',AUTOMATION_WEBHOOK_MASTER_KEY:Buffer.alloc(32,7).toString('base64')});
   expect(config.mcpEventsEnabled).toBe(true);expect(config.automationWebhookMasterKey).toHaveLength(32);
 });
 
