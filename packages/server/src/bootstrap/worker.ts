@@ -1,5 +1,5 @@
-import { createAutomationIngestRoute, automationIngestRegistration } from '../infrastructure/outbox/index.js';
-import { createAutomationSourceInspector, createAutomationAdmission } from '../infrastructure/automation/index.js';
+import { createAutomationIngestRoute, automationIngestRegistration, automationResumeRegistration, AUTOMATION_RESUME_EVENT } from '../infrastructure/outbox/index.js';
+import { createAutomationSourceInspector, createAutomationRuntime } from '../infrastructure/automation/index.js';
 import { createAutomationHealthMonitor } from '../infrastructure/automation/index.js';
 import { createDatabaseFaviconStore } from '../infrastructure/collections/index.js';
 import { loadSharedFaviconConfig } from './config-favicon-shared.js';
@@ -383,7 +383,7 @@ export function buildWorker(
     projectionSink: options.projectionSink,
   });
   const automationHealth = config.automationConfigurationEnabled && database
-    ? createAutomationHealthMonitor(database.db, config.publication.serverUuid, metrics) : undefined;
+    ? createAutomationHealthMonitor(database.db, config.publication.serverUuid, metrics, config.automationRuntimeEnabled) : undefined;
   const baseProjectionSink = originalProjectionSink && automationHealth ? automationHealth.wrap(originalProjectionSink) : originalProjectionSink;
   if (config.mcp && options.mcpReadChangeSignalSource === undefined) {
     throw new Error(
@@ -480,8 +480,8 @@ export function buildWorker(
     : Object.freeze([]);
   const routes = Object.freeze([
     ...projectionRoutes, ...syncConflictRoutes,
-    ...(database ? [createAutomationIngestRoute(createAutomationSourceInspector(database.db,
-      config.automationConfigurationEnabled ? createAutomationAdmission(config.publication.serverUuid) : async () => {}))] : []),
+    ...(database ? [undefined, AUTOMATION_RESUME_EVENT].map(eventType => createAutomationIngestRoute(createAutomationSourceInspector(database.db,
+      config.automationConfigurationEnabled && config.automationRuntimeEnabled ? createAutomationRuntime(config.publication.serverUuid) : async () => {}), eventType)) : []),
     ...publicationCachePurgeRoutes,
     ...collectionInviteEmailRoutes,
   ]);
@@ -538,6 +538,7 @@ export function buildWorker(
       ...createCollectionMutationEnvelopeRegistrations(),
       syncConflictEnvelopeRegistration,
       automationIngestRegistration,
+      automationResumeRegistration,
       collectionInviteCreatedEnvelopeRegistration,
     ]),
     logger,

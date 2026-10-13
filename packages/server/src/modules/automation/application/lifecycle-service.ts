@@ -28,7 +28,7 @@ export async function setLifecycle(ports: AutomationPorts, actor: AutomationActo
   }
   await ports.pendingRuns(stored.definitionRevisionId, input.pendingRuns);
   const paused = (await ports.settings.get(actor.accountId)).paused;
-  stored.view = { ...stored.view, desiredState: input.state, effectiveState: input.state === 'enabled' ? (paused ? 'paused' : 'blocked') : input.state,
+  stored.view = { ...stored.view, desiredState: input.state, effectiveState: input.state === 'enabled' ? (paused ? 'paused' : ports.runtimeEnabled ? 'active' : 'blocked') : input.state,
     revision: nextRevision(stored.view.revision), updatedAt: (await ports.now()).toISOString() };
   await ports.rules.setState(actor.accountId, stored); return stored.view;
 }

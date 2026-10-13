@@ -1,3 +1,4 @@
+import { appendAutomationResume } from '../outbox/automation-ingest.js';
 import { createPlacementUndoPort } from './placement-undo-store.js';
 import { createRunStore } from './run-store.js';
 import { createHealthStore } from './health-store.js';
@@ -16,14 +17,14 @@ import { exportAutomations } from './export.js';
 import { AutomationError } from '../../modules/automation/index.js';
 import type { AutomationUnitOfWork } from '../../modules/automation/index.js';
 
-export function createAutomationUnitOfWork(db: Kysely<DatabaseSchema>, serverUuid: string): AutomationUnitOfWork {
+export function createAutomationUnitOfWork(db: Kysely<DatabaseSchema>, serverUuid: string, options: { runtimeEnabled?: boolean } = {}): AutomationUnitOfWork {
   return { execute: (actor, work) => createUnitOfWork(db).execute(async ({ transaction: tx }) => {
     // Existing lock order: active Account -> receipts -> private configuration -> canonical reads.
     const account = await tx.selectFrom('accounts').select(['subject_id', 'status', 'deleted_at']).where('id', '=', actor.accountId).forUpdate().executeTakeFirst();
     if (!account || account.status !== 'active' || account.deleted_at || account.subject_id !== actor.subjectId)
       throw new AutomationError('resource_not_found', 'Active owner is unavailable.');
     const reads = createBindingReadPort(tx, serverUuid);
-    return work({ placementUndo: createPlacementUndoPort(tx, actor), runs: createRunStore(tx, actor), health: createHealthStore(tx), receipts: createPostgresProductCommandReceiptPort(tx), rules: createRuleStore(tx), bindings: createBindingStore(tx),
+    return work({ runtimeEnabled: options.runtimeEnabled === true, placementUndo: createPlacementUndoPort(tx, actor), runs: createRunStore(tx, actor), health: createHealthStore(tx), receipts: createPostgresProductCommandReceiptPort(tx), rules: createRuleStore(tx, options.runtimeEnabled), bindings: createBindingStore(tx),
       reads, dependencies: createDependencyIndex(tx), id: randomUUID, now: () => databaseNow(tx),
       sample: (owner, rule, values) => readCurrentSample(tx, reads, serverUuid, owner, rule, values), export: (ownerId) => exportAutomations(tx, ownerId),
       settings: {
@@ -56,10 +57,12 @@ export function createAutomationUnitOfWork(db: Kysely<DatabaseSchema>, serverUui
         },
       },
       async pendingRuns(revisionId, policy) {
-        await sql`UPDATE automation_runs SET held=${policy === 'hold'},
+        const resumed = await sql<{ collection_id: string }>`UPDATE automation_runs SET held=${policy === 'hold'},
           state=CASE WHEN ${policy}='cancel' THEN 'cancelled' ELSE state END,
           revision=revision+1, updated_at=clock_timestamp()
-          WHERE owner_id=${actor.accountId} AND rule_revision_id=${revisionId} AND state IN ('waiting','running')`.execute(tx);
+          WHERE owner_id=${actor.accountId} AND rule_revision_id=${revisionId} AND state IN ('waiting','running') RETURNING explanation_json->>'collectionId' AS collection_id`.execute(tx);
+        if (policy === 'continuePinned') for (const collectionId of [...new Set(resumed.rows.map(row => row.collection_id))].sort())
+          await appendAutomationResume(tx, collectionId);
       },
       async activation(rule, transition) {
         if (transition.kind === 'disable') {

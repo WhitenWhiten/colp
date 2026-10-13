@@ -132,6 +132,8 @@ export async function evaluateCanonicalNodeCreate(
       },
     },
   ));
+  const sourceReplica = await transaction.databaseTransaction.selectFrom('sync_replicas').select('kind')
+    .where('replica_id', '=', operation.replicaId).executeTakeFirstOrThrow();
   let mutation;
   try {
     mutation = await canonical.execute({ transaction: transaction.databaseTransaction }, syncCanonicalMutationInput(
@@ -146,7 +148,7 @@ export async function evaluateCanonicalNodeCreate(
         ...(Object.keys(mapped.relativePosition).length === 0
           ? {} : { relativePosition: mapped.relativePosition }),
         fields: mapped.fields,
-      },
+      }, sourceReplica.kind === 'importer' ? 'import' : 'sync',
     ));
   } catch (error) {
     if (mapped.folderRole

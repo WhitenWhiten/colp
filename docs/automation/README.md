@@ -35,15 +35,16 @@ The original checkout's CI edits and untracked extension are untouched.
 
 ## Scope and evidence
 
-No UI, native browser runtime, worker, Events, models or canonical bookmark effects.
+BE-1 configuration and BE-2 durable M1 backend are implemented. No UI, native browser runtime, Events, models or M2 jobs are included.
 Each [evidence record](evidence/) lists executed checks and limitations.
 
 ## Running the configuration slice
 
 Set `KNOWN_FEATURE_AUTOMATION_CONFIGURATION=true` to mount the authenticated
 `/api/v1/me/automations` routes. Default false conceals the entire feature. This
-flag enables configuration/validation/preview only. Capabilities return no mounted
-execution profiles/tasks. Desired enabled remains blocked until BE-2 is installed.
+flag alone enables configuration/validation/preview only. To enable deterministic intake, also set
+`KNOWN_FEATURE_AUTOMATION_RUNTIME=true` in both API and worker after applying migrations.
+Without the runtime flag, desired enabled remains blocked. M1 creates no model jobs.
 The deployment secret and existing Product session/CSRF configuration are reused.
 
 ## Resolved contract conflicts
@@ -101,3 +102,20 @@ The foundation follow-up to 39e15f4 unifies stage binding assessment, separates 
 evaluation from preview presentation and activation policy, validates role dependency
 graphs, and isolates health test fixtures. See ADR-BE1 and the final evidence section
 for intent/satisfaction semantics, versioned preview fingerprints and executed checks.
+
+
+## BE-2 runtime boundary
+
+Canonical commits capture private event-time facts. The durable automation Outbox route waits
+five seconds for device evidence, inspects committed operations in order and admits pinned M1
+runs. Eligible Web/MCP/Sync root creates are placed through canonical moves; explicit folders,
+imports, restores, projection delivery and newer manual edits do not cause automatic reparenting.
+The existing collection-version capacity (2,000 live members) applies: larger histories block
+placement with an explanation rather than bypassing the history prerequisite. Worker model
+budgets do not throttle deterministic placement.
+
+Owner APIs expose runs, per-bookmark history (collectionId + nodeId), cancellation and conservative
+single-effect Undo. Device routes reuse bearer + Origin + Known-Sync-Session, and mutations need
+Known-Command-Id. Bundles carry complete finite definitions; host/tag hints are not semantic authority.
+Pause skips admission intervals; resume uses fresh fences and durably wakes held pinned work.
+Restored backups start paused. See per-task evidence for actual tests and remaining product gates.

@@ -14,6 +14,7 @@ export interface StoredPreview { id: string; configDigest: string; input: Previe
 export interface CurrentSample { events: EventFacts[]; truncated: boolean; revisions: Record<string, string> }
 export type ActivationTransition = { kind: 'disable' } | { kind: 'resume' } | { kind: 'enable'; collectionId: string; afterOrdinal: string };
 export interface AutomationPorts {
+  runtimeEnabled: boolean;
   placementUndo: import('./placement-undo.js').PlacementUndoPort;
   runs: import('./run-service.js').RunStore;
   health: HealthStore;

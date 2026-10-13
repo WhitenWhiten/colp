@@ -8,6 +8,7 @@ export interface AutomationNodeSnapshot {
   url: string | null;
   tags: readonly string[];
   parentId: string | null;
+  parentIsIntakeRoot?: boolean;
   ancestorIds: readonly string[];
   ancestryComplete: boolean;
   resourceRevision: string | null;
@@ -23,27 +24,28 @@ const MAX_ANCESTORS = 128;
 /** Runs only during locked planning. No post-mutation reads can contaminate before-state. */
 export async function planAutomationFacts(tx: DatabaseTransaction, input: CanonicalMutationInput,
   before: BeforeNode | null, after: NodeFields | null, afterParent: string | null): Promise<PlannedAutomationFacts> {
-  const paths = new Map<string, { ids: string[]; complete: boolean }>();
+  const paths = new Map<string, { ids: string[]; complete: boolean; intakeRoot: boolean }>();
   async function snapshot(fields: NodeFields, parentId: string | null, revision: string | null): Promise<AutomationNodeSnapshot> {
-    let path = parentId === null ? { ids: [], complete: true } : paths.get(parentId);
+    let path = parentId === null ? { ids: [], complete: true, intakeRoot: false } : paths.get(parentId);
     if (!path) {
-      const result = await sql<{ id: string; parent_id: string | null; depth: number; cycle: boolean }>`
+      const result = await sql<{ id: string; parent_id: string | null; depth: number; cycle: boolean; is_root: boolean; folder_role: string | null }>`
         WITH RECURSIVE ancestors AS (
-          SELECT id, parent_id, 1 AS depth, ARRAY[id] AS seen, false AS cycle FROM nodes
+          SELECT id, parent_id, is_root, payload_json->>'folderRole' AS folder_role, 1 AS depth, ARRAY[id] AS seen, false AS cycle FROM nodes
           WHERE collection_id = ${input.collectionId} AND id = ${parentId} AND deleted_at IS NULL
           UNION ALL
-          SELECT n.id, n.parent_id, a.depth + 1, a.seen || n.id, n.id = ANY(a.seen)
+          SELECT n.id, n.parent_id, n.is_root, n.payload_json->>'folderRole', a.depth + 1, a.seen || n.id, n.id = ANY(a.seen)
           FROM nodes n JOIN ancestors a ON n.id = a.parent_id
           WHERE n.collection_id = ${input.collectionId} AND n.deleted_at IS NULL
             AND a.depth < ${MAX_ANCESTORS} AND NOT a.cycle
-        ) SELECT id, parent_id, depth, cycle FROM ancestors ORDER BY depth`.execute(tx);
-      path = { ids: result.rows.map(row => row.id), complete: result.rows.length > 0
+        ) SELECT id, parent_id, depth, cycle, is_root, folder_role FROM ancestors ORDER BY depth`.execute(tx);
+      path = { ids: result.rows.map(row => row.id), intakeRoot: result.rows[0]?.is_root === true
+        || ['bookmarks-bar','other-bookmarks','mobile-bookmarks'].includes(result.rows[0]?.folder_role ?? ''), complete: result.rows.length > 0
         && result.rows.at(-1)!.parent_id === null && !result.rows.some(row => row.cycle) };
       paths.set(parentId!, path);
     }
     return { kind: fields.kind, title: fields.title, url: fields.url,
       tags: Array.isArray(fields.tags) ? fields.tags.filter((tag): tag is string => typeof tag === 'string') : [],
-      parentId, ancestorIds: path.ids, ancestryComplete: path.complete, resourceRevision: revision };
+      parentId, parentIsIntakeRoot: path.intakeRoot, ancestorIds: path.ids, ancestryComplete: path.complete, resourceRevision: revision };
   }
   return { before: before ? await snapshot(before, before.parent_id, before.resource_revision) : null,
     after: after ? await snapshot(after, afterParent, null) : null };

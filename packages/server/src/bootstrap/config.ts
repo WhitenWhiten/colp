@@ -551,6 +551,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   }
 
   return {
+    automationRuntimeEnabled: parseCacheBooleanEnv(env, 'KNOWN_FEATURE_AUTOMATION_RUNTIME', false),
     automationConfigurationEnabled: parseCacheBooleanEnv(env, 'KNOWN_FEATURE_AUTOMATION_CONFIGURATION', false),
     nodeEnv,
     host: env.HOST ?? '127.0.0.1',

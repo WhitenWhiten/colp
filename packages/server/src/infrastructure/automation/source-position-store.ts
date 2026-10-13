@@ -1,3 +1,4 @@
+import { lockActiveSyncReplicasForCollection } from '../database/lock-order.js';
 import { sql, type Kysely } from 'kysely';
 import type { DatabaseSchema } from '../database/runtime.js';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
@@ -10,7 +11,7 @@ export interface AutomationSource {
   facts_json: (PlannedAutomationFacts & { action: string; actorPrincipalId: string; rootRunId: string | null; stageId: string | null; hopCount: number }) | null;
 }
 export type InspectAutomationSource = (tx: DatabaseTransaction, owner: { accountId: string; subjectId: string },
-  collectionId: string, sources: readonly AutomationSource[]) => Promise<void>;
+  collectionId: string, sources: readonly AutomationSource[]) => Promise<void | boolean>;
 
 /** Account -> position -> admission partitions -> lease. All effects and the cursor commit together. */
 export function createAutomationSourceInspector(db: Kysely<DatabaseSchema>, inspect: InspectAutomationSource) {
@@ -29,11 +30,15 @@ export function createAutomationSourceInspector(db: Kysely<DatabaseSchema>, insp
       f.occurred_at, f.origin, f.facts_version, f.facts_json FROM operations o
       LEFT JOIN automation_event_facts f ON f.operation_id=o.operation_id
       WHERE o.collection_id=${collectionId} AND o.commit_ordinal > ${position.last_inspected_ordinal}::bigint
-        AND o.commit_ordinal <= ${high} ORDER BY o.commit_ordinal LIMIT 200`.execute(tx)).rows;
-    if (owner.status === 'active' && !owner.deleted_at)
-      await inspect(tx, { accountId: owner.id, subjectId: owner.subject_id }, collectionId, rows);
+        AND o.commit_ordinal <= ${high} ORDER BY o.commit_ordinal LIMIT 10`.execute(tx)).rows;
+    let moreWork = false;
+    if (owner.status === 'active' && !owner.deleted_at) {
+      // Canonical moves invalidate replicas. Acquire their gate before any consumer collection read.
+      await lockActiveSyncReplicasForCollection(tx, collectionId);
+      moreWork = await inspect(tx, { accountId: owner.id, subjectId: owner.subject_id }, collectionId, rows) === true;
+    }
     // Ordinals are positions, not a claim that every ordinal has a matching automation fact.
-    const through = rows.length === 200 ? BigInt(rows.at(-1)!.commit_ordinal) : high;
+    const through = rows.length === 10 ? BigInt(rows.at(-1)!.commit_ordinal) : high;
     await sql`UPDATE automation_source_positions SET last_inspected_ordinal=greatest(last_inspected_ordinal, ${through})
       WHERE owner_id=${owner.id} AND collection_id=${collectionId}`.execute(tx);
     const lease = await tx.selectFrom('outbox_events').select('outbox_id')
@@ -42,6 +47,6 @@ export function createAutomationSourceInspector(db: Kysely<DatabaseSchema>, insp
       .where('lease_generation', '=', BigInt(context.attempt.leaseGeneration)).where('locked_until', '>', sql<Date>`clock_timestamp()`)
       .forUpdate().executeTakeFirst();
     if (!lease || context.signal.aborted) throw new Error('Automation source lease lost');
-    return through < high;
+    return moreWork || through < high;
   });
 }

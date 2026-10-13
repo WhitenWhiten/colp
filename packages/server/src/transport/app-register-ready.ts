@@ -280,9 +280,9 @@ export function registerReadyRoutes(
   // never report IDs, slugs, SQL errors, or secrets.
   app.get('/ready/features/automation', {
     config: { productTransport: { allowedQuery: [], cacheControl: 'no-store' } },
-  }, async (_request, reply) => reply.code((input.automationUnitOfWork && input.identityUnitOfWork) ? 503 : 200).send({
-    capability: 'automation', status: (input.automationUnitOfWork && input.identityUnitOfWork) ? 'not-ready' : 'disabled',
-    configuration: (input.automationUnitOfWork && input.identityUnitOfWork) ? 'ready' : 'disabled', reason: (input.automationUnitOfWork && input.identityUnitOfWork) ? 'runtimeUnsupported' : 'disabled',
+  }, async (_request, reply) => reply.code((input.automationUnitOfWork && input.identityUnitOfWork && !config.automationRuntimeEnabled) ? 503 : 200).send({
+    capability: 'automation', status: (input.automationUnitOfWork && input.identityUnitOfWork) ? (config.automationRuntimeEnabled ? 'ready' : 'not-ready') : 'disabled',
+    configuration: (input.automationUnitOfWork && input.identityUnitOfWork) ? 'ready' : 'disabled', reason: (input.automationUnitOfWork && input.identityUnitOfWork) ? (config.automationRuntimeEnabled ? 'm1RuntimeInstalled' : 'runtimeUnsupported') : 'disabled',
   }));
   app.get('/ready/features/reports', {
     config: { productTransport: { allowedQuery: [], cacheControl: 'no-store' } },

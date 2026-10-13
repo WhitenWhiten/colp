@@ -5,6 +5,7 @@ import { defineClosedPayloadValidator, type EventPayloadRegistration } from './e
 import { OutboxContinuationRequested, type OutboxHandlerContext, type OutboxRoute } from './router.js';
 
 export const AUTOMATION_INGEST_EVENT = 'automation.source.committed';
+export const AUTOMATION_RESUME_EVENT = 'automation.intake.resume';
 export const AUTOMATION_INGEST_HANDLER = 'automation_ingest';
 const validate = defineClosedPayloadValidator({ collectionId: value => typeof value === 'string' && value.length > 0,
   operationId: value => typeof value === 'string' && value.length > 0 });
@@ -12,14 +13,16 @@ export const automationIngestRegistration: EventPayloadRegistration = {
   eventType: AUTOMATION_INGEST_EVENT, eventVersion: 1, validatePayload: validate,
 };
 
+export const automationResumeRegistration: EventPayloadRegistration = { ...automationIngestRegistration, eventType: AUTOMATION_RESUME_EVENT };
+
 /** A redacted wake for every canonical operation, including irrelevant resource mutations. */
 export async function appendAutomationIngest(tx: DatabaseTransaction, event: {
   domainEventId: string; operationId: string; collectionId: string; commitOrdinal: bigint;
-}): Promise<void> {
+}, eventType = AUTOMATION_INGEST_EVENT): Promise<void> {
   const id = randomUUID();
   await tx.insertInto('resource_id_ledger').values({ resource_id: id, resource_type: 'outbox' }).execute();
   await tx.insertInto('outbox_events').values({ outbox_id: id, domain_event_id: event.domainEventId,
-    event_type: AUTOMATION_INGEST_EVENT, event_version: 1, handler_name: AUTOMATION_INGEST_HANDLER,
+    event_type: eventType, event_version: 1, handler_name: AUTOMATION_INGEST_HANDLER,
     handler_mode: 'delivery_each_event', aggregate_type: 'collection', aggregate_id: event.collectionId,
     aggregate_scope: event.collectionId, aggregate_revision: null, commit_ordinal: event.commitOrdinal,
     payload_json: { collectionId: event.collectionId, operationId: event.operationId }, state: 'pending', attempt_count: 0,
@@ -27,8 +30,8 @@ export async function appendAutomationIngest(tx: DatabaseTransaction, event: {
     available_at: sql<Date>`clock_timestamp() + interval '5 seconds'`, occurred_at: sql<Date>`clock_timestamp()`,
     locked_until: null, lease_generation: 0n, completed_at: null, last_error: null, dead_lettered_at: null }).execute();
 }
-export function createAutomationIngestRoute(inspect: (context: OutboxHandlerContext) => Promise<boolean>): OutboxRoute {
-  return { handlerName: AUTOMATION_INGEST_HANDLER, handlerMode: 'delivery_each_event', eventType: AUTOMATION_INGEST_EVENT,
+export function createAutomationIngestRoute(inspect: (context: OutboxHandlerContext) => Promise<boolean>, eventType = AUTOMATION_INGEST_EVENT): OutboxRoute {
+  return { handlerName: AUTOMATION_INGEST_HANDLER, handlerMode: 'delivery_each_event', eventType,
     eventVersion: 1, sideEffectDurability: 'durable', routeClass: 'automation_ingest',
     async handle(context) {
       if (!context.attempt || context.signal.aborted || !validate(context.envelope.payload)
@@ -38,4 +41,14 @@ export function createAutomationIngestRoute(inspect: (context: OutboxHandlerCont
         throw new Error('Invalid automation source delivery');
       if (await inspect(context)) throw new OutboxContinuationRequested();
     } };
+}
+
+export async function appendAutomationResume(tx: DatabaseTransaction, collectionId: string): Promise<void> {
+  const latest = await tx.selectFrom('operations').select(['operation_id','commit_ordinal']).where('collection_id', '=', collectionId)
+    .orderBy('commit_ordinal', 'desc').executeTakeFirst();
+  if (!latest) return;
+  const domainEventId = randomUUID();
+  await tx.insertInto('resource_id_ledger').values({ resource_id: domainEventId, resource_type: 'domain-event' }).execute();
+  await appendAutomationIngest(tx, { domainEventId, collectionId, operationId: latest.operation_id,
+    commitOrdinal: BigInt(latest.commit_ordinal) }, AUTOMATION_RESUME_EVENT);
 }

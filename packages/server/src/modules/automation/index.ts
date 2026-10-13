@@ -15,3 +15,4 @@ export * from './application/accept-intake-receipt.js';
 export * from './application/compile-bundle.js';
 export * from './application/placement-history.js';
 export * from './application/placement-undo.js';
+export * from './application/server-intake.js';

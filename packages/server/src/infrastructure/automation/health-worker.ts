@@ -7,15 +7,15 @@ import { createAutomationUnitOfWork } from './unit-of-work.js';
 import { createDependencyIndex } from './dependency-index.js';
 
 /** Health-only consumer on the existing durable outbox. No admission, jobs, timer, models or effects. */
-export function createAutomationHealthMonitor(db: Kysely<DatabaseSchema>, serverUuid: string, metrics?: Metrics) {
-  const unitOfWork = createAutomationUnitOfWork(db, serverUuid);
+export function createAutomationHealthMonitor(db: Kysely<DatabaseSchema>, serverUuid: string, metrics?: Metrics, runtimeEnabled = false) {
+  const unitOfWork = createAutomationUnitOfWork(db, serverUuid, { runtimeEnabled });
   const revalidate = async (ownerId: string, ruleId: string) => {
     const owner = await db.selectFrom('accounts').select(['id', 'subject_id', 'status']).where('id', '=', ownerId).executeTakeFirst();
     if (!owner || owner.status !== 'active') return;
     const report = await unitOfWork.execute({ accountId: owner.id, subjectId: owner.subject_id }, (ports) => revalidateRule(ports, { accountId: owner.id, subjectId: owner.subject_id }, ruleId));
     metrics?.increment('automation.health.revalidated');
     for (const reason of new Set(report.incidents.map((incident) => incident.code))) metrics?.increment(`automation.health.reason.${reason}`);
-    metrics?.gauge('automation.runtime.ready', 0);
+    metrics?.gauge('automation.runtime.ready', runtimeEnabled ? 1 : 0);
   };
   const onCollectionMutation = async (delivery: CollectionMutationDelivery) => {
     const payload = delivery.payload && typeof delivery.payload === 'object' ? delivery.payload as Record<string, unknown> : {};

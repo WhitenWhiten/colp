@@ -6,9 +6,9 @@ import { createAutomationSourceInspector, type InspectAutomationSource } from '.
 import { createRule, saveBinding, previewRule, setLifecycle } from '../../src/modules/automation/index.js';
 import type { OutboxHandlerContext } from '../../src/infrastructure/outbox/router.js';
 
-export async function automationRuntimeFixture(prefix: string) {
+export async function automationRuntimeFixture(prefix: string, runtimeEnabled = false) {
   const f = await automationFixture(prefix);
-  const uow = createAutomationUnitOfWork(f.db, 'server');
+  const uow = createAutomationUnitOfWork(f.db, 'server', { runtimeEnabled });
   const configuration = await uow.execute(f.owner, async ports => {
     const binding = await saveBinding(ports, f.owner, { name: 'Runtime folders', values: f.values });
     const input = { definition: f.rule, bindingSetId: binding.id };

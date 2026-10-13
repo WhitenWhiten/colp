@@ -2,14 +2,14 @@ import { sql, type Kysely } from 'kysely';
 import { ruleSemanticDigest, type Rule } from '@know-n/colp/automation';
 import type { DatabaseSchema } from '../database/runtime.js';
 import type { RuleStore, StoredRule } from '../../modules/automation/index.js';
-export function createRuleStore(db: Kysely<DatabaseSchema>): RuleStore {
+export function createRuleStore(db: Kysely<DatabaseSchema>, runtimeEnabled = false): RuleStore {
   const select = () => db.selectFrom('automation_rules as r').innerJoin('automation_rule_revisions as v', 'v.id', 'r.current_revision_id')
     .select(['r.id', 'r.owner_id', 'r.state_revision', 'r.desired_state', 'r.created_at', 'r.updated_at', 'v.id as revision_id',
       sql<string>`to_char(r.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"')`.as('sort_created_at'), 'v.revision', 'v.definition_json', 'v.binding_set_id', 'v.execution_policy_id', 'v.template_ref']);
   const map = (row: Awaited<ReturnType<ReturnType<typeof select>['executeTakeFirstOrThrow']>>): StoredRule => ({
     sortCreatedAt: row.sort_created_at, definitionRevisionId: row.revision_id, definitionRevision: String(row.revision),
     view: { id: row.id, revision: String(row.state_revision), desiredState: row.desired_state,
-      effectiveState: row.desired_state === 'enabled' ? 'blocked' : row.desired_state,
+      effectiveState: row.desired_state === 'enabled' ? (runtimeEnabled ? 'active' : 'blocked') : row.desired_state,
       definition: row.definition_json, bindingSetId: row.binding_set_id,
       ...(row.execution_policy_id ? { executionPolicyId: row.execution_policy_id } : {}), ...(row.template_ref ? { templateRef: row.template_ref } : {}),
       createdAt: row.created_at.toISOString(), updatedAt: row.updated_at.toISOString() },

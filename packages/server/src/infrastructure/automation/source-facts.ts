@@ -23,5 +23,5 @@ export function sourceEvent(source: AutomationSource, serverUuid: string, collec
       return JSON.stringify(facts.before?.[field]) !== JSON.stringify(facts.after?.[field]);
     }), bookmark: bookmark(facts.after), ...(facts.before?.kind === 'bookmark' ? { before: bookmark(facts.before) } : {}),
     intakeDisposition: facts.action !== 'create' || !['user', 'sync'].includes(origin) ? 'notIntake'
-      : facts.after.parentId === rootNodeId ? 'userDefault' : 'userSelected' };
+      : (facts.after.parentId === rootNodeId || facts.after.parentIsIntakeRoot === true) ? 'userDefault' : 'userSelected' };
 }

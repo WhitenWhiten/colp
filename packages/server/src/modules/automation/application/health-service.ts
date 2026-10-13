@@ -36,12 +36,11 @@ async function inspectRuleHealth(ports: AutomationPorts, actor: AutomationActor,
   const collectionId = binding ? scopeCollectionId(rule.definition, binding.values) : undefined;
   if (!collectionId || !await ports.reads.readCollection(actor, collectionId))
     incident('permissionRevoked', undefined, 'error', 'Current scope/write authority is unavailable; choose an authorized scope.', binding?.revision ?? 'missing', ['intake']);
-  // No fake runtime composition or jobs are installed by BE-1.
-  incident('runtimeUnsupported', undefined, 'error', 'Configuration is saved. Durable M1 execution is not installed; no bookmark effects or model tasks can run.', 'be1', ['intake']);
+  if (!ports.runtimeEnabled) incident('runtimeUnsupported', undefined, 'error', 'Configuration is saved. Durable M1 execution is not installed; no bookmark effects or model tasks can run.', 'be1', ['intake']);
   const incidents = await ports.health.synchronize(actor.accountId, ruleId, expected);
   if (binding) await ports.dependencies.replace(stored.definitionRevisionId, resolutions, binding.values);
   const paused = (await ports.settings.get(actor.accountId)).paused;
-  const effectiveState = rule.desiredState === 'enabled' ? (paused ? 'paused' : 'blocked') : rule.desiredState;
+  const effectiveState = rule.desiredState === 'enabled' ? (paused ? 'paused' : expected.some(item => item.blockingStages.length > 0) ? 'blocked' : expected.length ? 'degraded' : 'active') : rule.desiredState;
   const report: HealthReport = { ruleId, checkedAt: now, effectiveState, incidents: incidents.slice(0, 100) };
   return { report, stored, resolutions };
 }
@@ -51,7 +50,7 @@ export async function ruleDependencies(ports: AutomationPorts, actor: Automation
   if (dependencies.length >= 1000) throw new AutomationError('payload_too_large', 'Dependency report exceeds its 1000-entry bound. Reduce role count or ancestry depth.');
   return { ruleId, dependencies: [...dependencies.map((dependency) => ({ kind: dependency.kind, role: dependency.role, resourceId: dependency.resourceId,
     revision: dependency.revision, status: resolutions[dependency.role]?.status === 'valid' ? 'valid' as const : 'blocked' as const })),
-    { kind: 'runtime' as const, role: 'intake', resourceId: 'automation-m1', revision: 'be1', status: 'blocked' as const }] };
+    { kind: 'runtime' as const, role: 'intake', resourceId: 'automation-m1', revision: ports.runtimeEnabled ? 'm1' : 'be1', status: ports.runtimeEnabled ? 'valid' as const : 'blocked' as const }] };
 }
 export async function acknowledgeIncident(ports: AutomationPorts, actor: AutomationActor, id: string) {
   const incident = await ports.health.acknowledge(actor.accountId, id);
