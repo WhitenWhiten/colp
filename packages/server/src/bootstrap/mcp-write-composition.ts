@@ -183,6 +183,7 @@ export function createPhase4bMcpWriteComposition(
     },
   );
   const canonicalUnitOfWork = createPostgresCanonicalMutationUnitOfWork(options.db, {
+    automationOrigin: 'mcp',
     ...(options.metrics ? { metrics: options.metrics } : {}),
     ...(options.productOrigin === undefined ? {} : { productOrigin: options.productOrigin }),
     ...(options.reportSourceInvalidation === undefined ? {} : { reportSourceInvalidation: options.reportSourceInvalidation }),

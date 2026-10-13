@@ -88,6 +88,13 @@ export interface CanonicalMutationInput {
   readonly mutation: CanonicalResourceMutation;
   /** Infrastructure-owned public Sync projection, persisted atomically with the Operation payload. */
   readonly operationSyncWire?: JsonObject;
+  /** Server-owned provenance, never accepted directly from a resource DTO. */
+  readonly automationContext?: {
+    readonly origin: 'web' | 'mcp' | 'sync' | 'import' | 'restore' | 'automation' | 'system';
+    readonly rootRunId?: string;
+    readonly stageId?: string;
+    readonly hopCount?: number;
+  };
 }
 
 export interface AllocatedMutationState {

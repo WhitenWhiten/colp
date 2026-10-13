@@ -1,3 +1,4 @@
+import { planAutomationFacts, captureAutomationFacts } from '../automation/fact-capture.js';
 import { resourceKind, type ResourceKind, postgresPlanFacts, type PostgresCanonicalPlanFacts, type CascadedAnnotationRow, type CascadedRelationRow, type CascadedAnnotationPlan, type CascadedRelationPlan } from './canonical-execution-plan.js';
 import { withCanonicalTreeCapacity, type CanonicalTreeCapacityAdmission } from './canonical-tree-capacity.js';
 import { appendCanonicalSecondaryOutbox } from './canonical-secondary-outbox.js';
@@ -252,6 +253,7 @@ export type CanonicalMutationWritePhase =
   | 'revision'
   | 'operation'
   | 'audit'
+  | 'facts'
   | 'outbox';
 
 export interface PostgresCanonicalMutationFaultContext {
@@ -1489,8 +1491,12 @@ export function createPostgresCanonicalMutationPorts(
           : input.mutation.action === 'delete'
             ? { fields: undefined }
           : {};
+        const afterFields = input.mutation.action === 'delete' ? null
+          : readNodeFields((authoritativeFields.fields ?? input.mutation.fields)!.kindFields, current);
+        const automation = await planAutomationFacts(tx, input, current ?? null, afterFields,
+          input.mutation.action === 'update' || input.mutation.action === 'delete' ? current!.parent_id : targetParent);
         return {
-          facts: Object.freeze({ resourceKind: 'node', action: input.mutation.action, annotations, relations, restoredPositionToken, consumedDeleteOperationId }),
+          facts: Object.freeze({ resourceKind: 'node', action: input.mutation.action, annotations, relations, restoredPositionToken, consumedDeleteOperationId, automation }),
           operationId: input.operationId,
           collectionId: input.collectionId,
           mutation: {
@@ -1675,6 +1681,13 @@ export function createPostgresCanonicalMutationPorts(
           } as Record<string, unknown>,
         });
         await options.faultInjector?.afterPhase?.({ phase: 'audit' });
+      },
+    },
+    facts: {
+      async capture(tx, event, input, allocation) {
+        const facts = postgresPlanFacts(event.plan);
+        if (facts.resourceKind === 'node') await captureAutomationFacts(tx, event, input, allocation, facts.automation);
+        await options.faultInjector?.afterPhase?.({ phase: 'facts', transaction: tx });
       },
     },
     outbox: {

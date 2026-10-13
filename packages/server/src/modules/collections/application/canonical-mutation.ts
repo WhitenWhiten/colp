@@ -24,6 +24,7 @@ export const CANONICAL_MUTATION_WRITE_ORDER = Object.freeze([
   'resource',
   'operation',
   'audit',
+  'facts',
   'outbox',
 ] as const);
 
@@ -401,6 +402,7 @@ export function createCanonicalMutationApplication<Transaction, PlanFacts = unkn
         eventVersion: 1,
         payload: canonicalPayload,
       };
+      await ports.facts.capture(context.transaction, event, input, allocation);
       await ports.outbox.appendDomainEvents(context.transaction, [event]);
 
       return Object.freeze({

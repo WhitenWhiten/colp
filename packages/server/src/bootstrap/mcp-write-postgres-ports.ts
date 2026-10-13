@@ -52,7 +52,7 @@ export function createMcpWriteProductPorts(
   return Object.freeze({
     canonical: Object.freeze({
       execute: (input: Parameters<typeof rawCanonical.execute>[1]) =>
-        rawCanonical.execute({ transaction }, input),
+        rawCanonical.execute({ transaction }, { ...input, automationContext: input.automationContext ?? { origin: 'mcp' } }),
       async bootstrapOwnedCollection() {
         throw new Error('MCP-W10 write composition never bootstraps collections through Commit');
       },

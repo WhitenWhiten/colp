@@ -15,6 +15,7 @@ export function syncCanonicalMutationInput(
     throw new TypeError('Sync Operation collectionId is required for canonical persistence');
   }
   return Object.freeze({
+    automationContext: { origin: 'sync' as const },
     operationId: operation.opId,
     collectionId: operation.collectionId,
     actor: Object.freeze({ principalId: actorPrincipalId, principalType: 'account' }),

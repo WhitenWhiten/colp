@@ -968,6 +968,15 @@ function allowed(source, target) {
       && source.relativePath === 'infrastructure/reports/report-edition-public-read.ts'
       && target.relativePath === 'infrastructure/community/community-target-shared-postgres.ts'
     ) return true;
+    // AW-13: canonical planning/capture consumes this transaction-local leaf only.
+    // The leaf imports canonical types through the public facade, never collection adapters.
+    if (source.kind === 'infrastructure' && (
+      (['infrastructure/collections/canonical-execution-plan.ts',
+        'infrastructure/collections/canonical-mutation-postgres-ports.ts'].includes(source.relativePath)
+        && target.relativePath === 'infrastructure/automation/fact-capture.ts')
+      || (source.relativePath === 'infrastructure/automation/fact-capture.ts'
+        && target.relativePath === 'modules/collections/index.ts')
+    )) return true;
     // CANON-P0-b: facts/header adapters read locator columns through the
     // collections-owned leaf. Do not grant the collections barrel (cycle).
     if (

@@ -1,5 +1,6 @@
 import { CanonicalMutationInvariantError, type CanonicalMutationInput } from '../../modules/collections/index.js';
 import type { CanonicalMutationAction, CanonicalMutationPlan } from '../../modules/collections/index.js';
+import type { PlannedAutomationFacts } from '../automation/fact-capture.js';
 import type { SidecarUpdateFacts } from './canonical-sidecar-mutation-postgres.js';
 
 export interface CascadedAnnotationRow {
@@ -40,7 +41,7 @@ interface CascadeFacts {
 /** The complete, immutable transaction execution plan, selected once by the planner. */
 export type PostgresCanonicalPlanFacts = CascadeFacts & (
   | { readonly resourceKind: 'collection'; readonly action: 'update' }
-  | { readonly resourceKind: 'node'; readonly action: CanonicalMutationAction; readonly restoredPositionToken?: string; readonly consumedDeleteOperationId?: string }
+  | { readonly resourceKind: 'node'; readonly action: CanonicalMutationAction; readonly restoredPositionToken?: string; readonly consumedDeleteOperationId?: string; readonly automation: PlannedAutomationFacts }
   | { readonly resourceKind: 'annotation' | 'relation'; readonly action: 'create' | 'update' | 'delete'; readonly updateFacts?: SidecarUpdateFacts }
 );
 

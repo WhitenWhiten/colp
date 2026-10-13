@@ -46,6 +46,7 @@ import { createPostgresFaviconJobWritePort } from './favicon-job-postgres.js';
 export type PostgresCanonicalMutationProductPorts = ProductCollectionCanonicalPorts;
 
 export interface PostgresCanonicalMutationUnitOfWorkOptions {
+  readonly automationOrigin?: 'web' | 'mcp' | 'import';
   readonly faviconPolicyEnabled?: boolean;
   readonly isolationLevel?: TransactionIsolationLevel;
   readonly faultInjector?: TransactionFaultInjector;
@@ -118,7 +119,7 @@ export function createPostgresCanonicalMutationUnitOfWork(
             invariant('canonical mutation actor does not own the claimed product command');
           }
           canonicalCalled = true;
-          const result = await rawCanonical.execute({ transaction }, input);
+          const result = await rawCanonical.execute({ transaction }, { ...input, automationContext: input.automationContext ?? { origin: options.automationOrigin ?? 'web' } });
           canonicalSucceeded = true;
           canonicalResourceId = result.resourceId;
           if ((result.allocation.rebalancedSiblings?.length ?? 0) > 0) {
