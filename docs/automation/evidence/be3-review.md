@@ -158,3 +158,57 @@ maxCalls，验证输入摘要与历史 attempts 没有丢失。本轮共 64 个�
 server build（含 TypeScript 和迁移编译）、修改文件 ESLint、check:imports、
 check:migrations against `1db76fe`、git diff --check 均通过。复用已发布字段与枚举，
 未变更 wire schema、vendor 包或无关前端。测试临时服务全部回收。
+
+## BE-01/02/03 联合审查（基线 70bf27f）
+
+本轮按 backend-batches.json 核对三个批次的实现，覆盖 shared predicate / 配置与预览、
+canonical facts / admission / receipt / Undo，以及 polling / lease / typed result / Plan 生命周期。
+三个批次的主要路径均已实现；已有通过记录不能替代跨阶段反例。以下问题已直接修复。
+
+| 优先级 | 问题与原行为 | 修复及验证 |
+| --- | --- | --- |
+| P1 | 必需目录移出 allowedAncestor 后，没有 folderRole 的摘要仍能提交并写入 annotation | 调度和 read/claim/submit/commit 共用现有 intake binding assessment；已租赁输出保留为 review，无 Plan/effect。真实 canonical move + HTTP 提交反例修复前产生了 annotation，修复后不再写入 |
+| P1 | placement conflict 的预览显示 0 run / 无 pending tasks，admission 却启动摘要 worker，且绕过 runnable admission quota | 只有 runnable admission 初始化 worker jobs；冲突、覆盖和阻塞保留 review run。两条真实 enabled 规则的反例确认无 worker job、无预留 |
+| P2 | 保留用户选定目录的 enrichment run 绕过每日 intake admission 限额 | 将该 run 纳入统一 admission accounting；溢出保持 waiting/pending，UTC rollover 后恢复原 pins，始终保留原目录 |
+| P2 | imports=include 的 supplied preview 信任 userDefault，声明将移动并满足 classify.root；实际 source adapter 不认可该来源的 intake intent | 共享评估器对 import/automation/system 来源保留目录；include 的解释不再声称 import 被策略排除。三个纯逻辑反例及 authenticated preview 回归覆盖 |
+| P2 | 未配置执行策略仍在 lifecycle 和 Owner rule read 中显示 active | health 复用 worker configuration inspection，按任务报告 executorUnavailable；可执行 intake 保持 degraded，仅有不可用 worker 的规则为 blocked。启动和 outbox health composition 传入当前 worker capability 与 credential verifier |
+| P2 | 100 个 waiting run 可占满 polling 的候选扫描，挡住后面的可执行 run | 候选查询排除尚未完成 intake admission 的 waiting run。已有积压测试扩大到 202 个 held / unavailable / waiting run，验证后续工作仍可获取 |
+| P2 | CLI 的 SIGINT/SIGTERM 没有立即传播至 adapter，只取消 HTTP；provider 可能继续运行 | cycle 接受并传递同一 signal，heartbeat 与 adapter 共用组合信号；取消后不开始新调用、不提交迟到输出，保留 unknownOutcome 恢复路径 |
+| P2 | 固定 journal.tmp 已存在且权限为 0644 时，writeFile 的 mode 不收紧权限，rename 后 claim secret 随 journal 暴露 | 使用唯一临时路径和 wx/0600 独占创建，文件 sync 后原子替换，finally 回收临时文件；回归保留一个旧 0644 临时文件复现原问题 |
+
+代码质量方面，修复复用原有评估、配额、绑定和配置检查，而没有在 HTTP/MCP 各复制一份规则。
+health 的多层状态三元表达式改为显式分支；队列过滤在 SQL 候选阶段完成，避免反复扫描已知
+不可执行记录。没有添加新框架、wire enum、schema 或迁移；不改写历史输出、已发生效果和历史配额。
+
+测试质量方面，先复现三个 PostgreSQL 反例，再追加真实双规则冲突反例；上述四项修复前均失败。
+来源 intent 的三个 unit 反例和 journal/取消的三个 transport 反例也先失败再通过。
+集成测试使用真实 canonical mutation、鉴权 API、PostgreSQL 和 Plan，断言最终状态、pins、
+无效果及跨日恢复；只有日界和积压夹具直接调整私有调度表。取消信号测试是注入传输的单元测试，
+不冒充新的进程 SIGTERM E2E。journal 验证限定于进程恢复与权限，不声称系统断电恢复。
+
+实际执行（Node 24.14.0，PostgreSQL 16.4-alpine，集成测试全部 xvfb）：
+
+```sh
+xvfb-run -a npm --prefix packages/server run test:integration:file -- \
+  tests/integration/automation/worker-preview.integration.test.ts \
+  tests/integration/automation/submission-lifecycle.integration.test.ts \
+  tests/integration/automation/intake-policy.integration.test.ts
+
+xvfb-run -a npm --prefix packages/server run test:integration:file -- \
+  tests/integration/automation/worker-preview.integration.test.ts \
+  tests/integration/automation/worker-pipeline.integration.test.ts \
+  tests/integration/automation/api.integration.test.ts \
+  -t 'conflicting placement previews|backlog cannot starve|real pairing|create binding|preview creates no|exact preview invalidates|competitors must honor'
+
+npm --prefix packages/server run test:unit -- \
+  tests/unit/automation/intake-admission-policy.test.ts \
+  tests/unit/automation/preview-tasks.test.ts \
+  tests/unit/automation/rule-evaluation.test.ts \
+  tests/unit/automation/execution-policy.test.ts
+node --test examples/worker-script/claim-and-summarize.test.mjs
+```
+
+第一组 15 项通过（当时 worker-preview 为 3 项）；第二组 9 项通过、47 项按名称过滤跳过。
+共 24 个不同集成案例通过，不累加修复前反例或重复运行。相关 unit 15 项、transport 9 项通过。
+server typecheck、server build、修改 TypeScript 文件 ESLint、check:imports 和 git diff --check 通过。
+未运行全仓测试、浏览器 E2E、外部 provider 或 hosted Events；三个批次的结论限于本地后端实现。

@@ -58,7 +58,7 @@ export function createAutomationAdmission(serverUuid: string,workerEnabled = fal
           ON CONFLICT (rule_revision_id, epoch, partition_key) DO UPDATE SET sequence=automation_aggregate_state.sequence+1
           RETURNING sequence::text`.execute(tx)).rows[0]!.sequence;
         const runId = randomUUID();
-        const admission = intakeAdmissionState(plan, candidate.definition.policy);
+        const admission = intakeAdmissionState(plan, candidate.definition.policy, workerEnabled && candidate.definition.tasks.length > 0);
         await sql`INSERT INTO automation_runs
           (id, owner_id, kind, rule_revision_id, binding_set_id, binding_revision, policy_revision, member_ids, state, explanation_json)
           VALUES (${runId}, ${owner.accountId}, 'intake', ${candidate.revisionId}, ${pin.binding_set_id}, ${pin.binding_revision}::bigint,
@@ -68,7 +68,7 @@ export function createAutomationAdmission(serverUuid: string,workerEnabled = fal
               ...(admission.explanation ? { explanation: admission.explanation } : {}) })}::jsonb)`.execute(tx);
         if (admission.runnable) await reserveIntakeAdmission(tx, { runId, ownerId: owner.accountId, ruleId: candidate.ruleId,
           collectionId, maxRunsPerDay: candidate.definition.policy.maxRunsPerDay });
-        if (workerEnabled && pin.definition_json.tasks.length && plan.kind !== 'missingInput') await initializeRunTasks(tx,owner,runId);
+        if (workerEnabled && pin.definition_json.tasks.length && admission.runnable) await initializeRunTasks(tx,owner,runId);
         await sql`UPDATE automation_admission_receipts SET run_id=${runId}
           WHERE rule_revision_id=${candidate.revisionId} AND source_event_id=${event.eventId} AND stage='intake'`.execute(tx);
       }

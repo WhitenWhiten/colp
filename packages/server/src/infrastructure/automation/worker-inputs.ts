@@ -1,6 +1,6 @@
 import { sql } from 'kysely';
 import type { TaskSpec,TaskInput,FolderRef,RuleDefinition,RoleBindings } from '@know-n/colp/automation';
-import { AutomationError,resolveBindings,type WorkPrincipal } from '../../modules/automation/index.js';
+import { AutomationError,resolveBindings,assessIntakeBindings,type WorkPrincipal } from '../../modules/automation/index.js';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
 import { lockWorkJob,type TargetAuthority } from './work-authority.js';
 import { readWorkerNotes } from './worker-notes.js';
@@ -23,6 +23,8 @@ export async function currentWorkInputs(tx: DatabaseTransaction,actor: WorkPrinc
       throw new AutomationError('automation_stale_input','The allowlisted note set changed after inputs were pinned.');
   }
   const reads = createBindingReadPort(tx,serverUuid),resolutions = await resolveBindings(reads,actor,pin.definition_json,pin.values_json);
+  if (!assessIntakeBindings(pin.definition_json,resolutions).available)
+    throw new AutomationError('automation_binding_unavailable','Required rule scope or intake constraints are no longer available.');
   for (const folder of pin.allowed_folders) {
     const current = await reads.readFolder(actor,folder);
     if (current.status !== 'valid' || (pin.task_json.folderRole && resolutions[pin.task_json.folderRole]?.status !== 'valid'))

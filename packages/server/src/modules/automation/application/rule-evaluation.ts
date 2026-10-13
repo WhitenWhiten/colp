@@ -55,7 +55,10 @@ export function evaluateRuleEvents(rules: readonly PreparedRule[], event: EventF
   const inputSnapshot = preparePredicateInput(event);
   const assessments = rules.map(rule => assessRule(rule, event, inputSnapshot));
   const candidates = assessments.flatMap(assessment => assessment.kind === 'placement' ? [assessment.candidate] : []);
-  const placement = arbitratePlacement(candidates, event.intakeDisposition ?? 'unknown');
+  // Match the canonical source adapter: imports and generated/system creates
+  // never establish user-default intent, even in caller-supplied preview facts.
+  const intent = ['user', 'sync'].includes(event.origin) ? event.intakeDisposition ?? 'unknown' : 'notIntake';
+  const placement = arbitratePlacement(candidates, intent);
   return assessments.map(assessment => {
     if (assessment.kind === 'terminal') return assessment.plan;
     switch (placement.kind) {

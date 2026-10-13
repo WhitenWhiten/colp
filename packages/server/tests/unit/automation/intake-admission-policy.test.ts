@@ -16,3 +16,8 @@ test('only known matched/placed decisions reserve runnable admission', () => {
   expect(intakeAdmissionState({ kind: 'blocked', reason: 'permissionRevoked' }, policy)).toEqual({ state: 'review', runnable: false });
   expect(intakeAdmissionState({ kind: 'conflict', ruleIds: ['a', 'b'] }, policy)).toEqual({ state: 'review', runnable: false });
 });
+test('preserved placement reserves capacity only when it carries worker tasks', () => {
+  const plan = { kind: 'preserved' as const, reason: 'explicitChoice' };
+  expect(intakeAdmissionState(plan, policy)).toEqual({ state: 'review', runnable: false });
+  expect(intakeAdmissionState(plan, policy, true)).toEqual({ state: 'completed', runnable: true });
+});

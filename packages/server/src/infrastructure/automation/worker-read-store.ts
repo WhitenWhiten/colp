@@ -32,7 +32,7 @@ export function createWorkerReadStore(db: Kysely<DatabaseSchema>,serverUuid: str
       await resumeDailyBudgetJobs(tx,actor,targetId);
       const pending = (await sql<{ run_id: string }>`SELECT DISTINCT j.run_id FROM automation_jobs j JOIN automation_runs r ON r.id=j.run_id
         JOIN collections c ON c.id=r.explanation_json->>'collectionId' AND c.owner_subject_id=${actor.subjectId} AND c.deleted_at IS NULL
-        WHERE r.owner_id=${actor.accountId} AND j.target_partition=${targetId} AND NOT r.held AND r.state<>'cancelled' AND j.state IN ('pending','committing','awaitingApproval')
+        WHERE r.owner_id=${actor.accountId} AND j.target_partition=${targetId} AND NOT r.held AND r.state NOT IN ('cancelled','waiting') AND j.state IN ('pending','committing','awaitingApproval')
           AND (j.state='pending' OR EXISTS (SELECT 1 FROM automation_proposals p JOIN mcp_change_plans m ON m.plan_id=p.plan_id
             WHERE p.job_id=j.id AND m.status='consumed' AND NOT EXISTS (SELECT 1 FROM automation_effect_receipts e WHERE e.job_id=j.id)))
           AND NOT EXISTS (SELECT 1 FROM automation_jobs busy WHERE busy.run_id=r.id AND

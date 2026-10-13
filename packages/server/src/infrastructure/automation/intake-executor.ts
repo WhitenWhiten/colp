@@ -12,7 +12,7 @@ import type { AutomationSource } from './source-position-store.js';
 interface PendingPlacement {
   id: string; definition_json: RuleDefinition; values_json: RoleBindings; rule_id: string;
   source_event_id: string; operation_id: string; node_id: string; origin: string; facts_json: NonNullable<AutomationSource['facts_json']>;
-  plan_kind: 'placed' | 'matched';
+  plan_kind: 'placed' | 'matched' | 'preserved';
 }
 export async function executePendingIntake(tx: DatabaseTransaction, actor: AutomationActor, collectionId: string, serverUuid: string): Promise<boolean> {
   const settings = await tx.selectFrom('automation_settings').select('paused').where('owner_id', '=', actor.accountId).executeTakeFirst();
@@ -26,7 +26,7 @@ export async function executePendingIntake(tx: DatabaseTransaction, actor: Autom
     JOIN automation_binding_revisions b ON b.binding_set_id=r.binding_set_id AND b.revision=r.binding_revision
     JOIN automation_event_facts f ON f.source_event_id=r.member_ids->>0
     WHERE r.owner_id=${actor.accountId} AND f.collection_id=${collectionId} AND r.state='waiting' AND NOT r.held
-      AND r.kind='intake' AND r.explanation_json#>>'{plan,kind}' IN ('placed','matched')
+      AND r.kind='intake' AND r.explanation_json#>>'{plan,kind}' IN ('placed','matched','preserved')
       AND NOT EXISTS (SELECT 1 FROM automation_intake_delays d WHERE d.run_id=r.id AND d.available_at > clock_timestamp())
     ORDER BY f.commit_ordinal,r.created_at,r.id LIMIT 11 FOR UPDATE OF r`.execute(tx)).rows;
   if (!pending.length) return false;
@@ -35,8 +35,10 @@ export async function executePendingIntake(tx: DatabaseTransaction, actor: Autom
     const admitted = await reserveIntakeAdmission(tx, { runId: run.id, ownerId: actor.accountId, ruleId: run.rule_id,
       collectionId, maxRunsPerDay: run.definition_json.policy.maxRunsPerDay });
     if (!admitted) continue;
-    if (run.plan_kind === 'matched') {
-      await finish(run.id, 'completed', 'The pinned rule matched; daily admission was reserved and no placement effect was required.');
+    if (run.plan_kind !== 'placed') {
+      await finish(run.id, 'completed', run.plan_kind === 'preserved'
+        ? 'Original placement is preserved; daily admission was reserved for the pinned enrichment tasks.'
+        : 'The pinned rule matched; daily admission was reserved and no placement effect was required.');
       continue;
     }
     const source = run.facts_json.after;

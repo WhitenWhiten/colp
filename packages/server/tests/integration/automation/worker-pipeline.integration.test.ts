@@ -270,7 +270,7 @@ describeWithPostgres('AW-31 authenticated polling and typed canonical orchestrat
     expect((await sql`SELECT * FROM automation_job_attempts`.execute(f.db)).rows).toEqual([]);
   });
 
-  test('held and unavailable-collection backlog cannot starve a later actionable run',async () => {
+  test('held, waiting and unavailable-collection backlog cannot starve a later actionable run',async () => {
     const { createAutomationAdmission } = await import('../../../src/infrastructure/automation/aggregate-store.js');
     const { executePendingIntake } = await import('../../../src/infrastructure/automation/intake-executor.js');
     const { inspectAutomationOutbox } = await import('../../support/automation-runtime-fixture.js');
@@ -279,17 +279,18 @@ describeWithPostgres('AW-31 authenticated polling and typed canonical orchestrat
       await executePendingIntake(tx,actor,collection,'server');
     }) });
     const run = (await sql<{ id: string }>`SELECT id FROM automation_runs`.execute(f.db)).rows[0]!;
-    // Persist held/unavailable backlog using the real admitted rule/binding/task pins. No fake successful effects.
+    // Persist ineligible backlog using real admitted pins. Waiting runs still need intake admission.
     await sql`INSERT INTO automation_runs(id,owner_id,kind,rule_revision_id,binding_set_id,binding_revision,policy_revision,member_ids,state,held,explanation_json)
-      SELECT '--held-run-'||n,r.owner_id,r.kind,r.rule_revision_id,r.binding_set_id,r.binding_revision,r.policy_revision,r.member_ids,'running',n<=50,
-        CASE WHEN n<=50 THEN r.explanation_json ELSE r.explanation_json||'{"collectionId":"unavailable-collection"}'::jsonb END
-      FROM automation_runs r CROSS JOIN generate_series(1,101) n WHERE r.id=${run.id}`.execute(f.db);
+      SELECT '--held-run-'||n,r.owner_id,r.kind,r.rule_revision_id,r.binding_set_id,r.binding_revision,r.policy_revision,r.member_ids,
+        CASE WHEN n>101 THEN 'waiting' ELSE 'running' END,n<=50,
+        CASE WHEN n BETWEEN 51 AND 101 THEN r.explanation_json||'{"collectionId":"unavailable-collection"}'::jsonb ELSE r.explanation_json END
+      FROM automation_runs r CROSS JOIN generate_series(1,202) n WHERE r.id=${run.id}`.execute(f.db);
     await sql`INSERT INTO automation_jobs(id,run_id,task_id,target_id,target_partition,input_digest,contract_id,state,task_json,execution_context_json)
       SELECT '--held-job-'||n,'--held-run-'||n,j.task_id,j.target_id,j.target_partition,j.input_digest,j.contract_id,'pending',j.task_json,j.execution_context_json
-      FROM automation_jobs j CROSS JOIN generate_series(1,101) n WHERE j.run_id=${run.id}`.execute(f.db);
+      FROM automation_jobs j CROSS JOIN generate_series(1,202) n WHERE j.run_id=${run.id}`.execute(f.db);
     const queue = await read('/jobs');expect(queue.statusCode,queue.body).toBe(200);
     expect(queue.json().items).toHaveLength(1);expect(queue.json().items[0].runId).toBe(run.id);
-    expect((await sql<{ count: number }>`SELECT count(*)::int AS count FROM automation_jobs WHERE id LIKE '--held-job-%' AND state='pending'`.execute(f.db)).rows[0]!.count).toBe(101);
+    expect((await sql<{ count: number }>`SELECT count(*)::int AS count FROM automation_jobs WHERE id LIKE '--held-job-%' AND state='pending'`.execute(f.db)).rows[0]!.count).toBe(202);
   });
 
   test('replacing a worker rule without an execution policy clears the previous grant',async () => {

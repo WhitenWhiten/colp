@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { automationDigest,taskInputDigest,type RuleDefinition,type RoleBindings,type TaskSpec,type Job,type Run } from '@know-n/colp/automation';
-import { compatibleAcceptedResult,resolveBindings,bindingResolutionSignature,taskExecutionAssignment,type AutomationActor } from '../../modules/automation/index.js';
+import { compatibleAcceptedResult,resolveBindings,assessIntakeBindings,bindingResolutionSignature,taskExecutionAssignment,type AutomationActor } from '../../modules/automation/index.js';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
 import { createExecutionPolicyStore } from './execution-policy-store.js';
 import { createTargetStore } from './target-store.js';
@@ -83,6 +83,10 @@ export async function advanceRunTasks(tx: DatabaseTransaction,actor: AutomationA
       continue;
     }
     const resolutions = await resolveBindings(createBindingReadPort(tx,serverUuid),actor,run.definition_json,run.values_json);
+    if (!assessIntakeBindings(run.definition_json,resolutions).available) {
+      await hold('blocked','Required rule scope or intake constraints are no longer available.');
+      continue;
+    }
     if (chosen.execution_context_json.intakeSatisfied) {
       const role = run.definition_json.intake?.folderRole,root = role ? resolutions[role] : undefined;
       // Admission is only intent. Both a real move and the already-in-destination no-op must

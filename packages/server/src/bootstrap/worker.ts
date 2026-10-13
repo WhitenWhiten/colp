@@ -1,6 +1,9 @@
 import { createAutomationIngestRoute, automationIngestRegistration, automationResumeRegistration, AUTOMATION_RESUME_EVENT } from '../infrastructure/outbox/index.js';
 import { createAutomationSourceInspector, createAutomationRuntime } from '../infrastructure/automation/index.js';
 import { createAutomationHealthMonitor } from '../infrastructure/automation/index.js';
+import { createAutomationBindingVerifier } from './automation-binding-verifier.js';
+import { createMcpSecurityEpochReader } from './api-mcp-oauth-composition.js';
+import { createPostgresMcpOauthRevocationStore } from '../infrastructure/database/index.js';
 import { createDatabaseFaviconStore } from '../infrastructure/collections/index.js';
 import { loadSharedFaviconConfig } from './config-favicon-shared.js';
 import { SharedFaviconCache } from '../infrastructure/collections/favicon-shared-cache.js';
@@ -383,7 +386,10 @@ export function buildWorker(
     projectionSink: options.projectionSink,
   });
   const automationHealth = config.automationConfigurationEnabled && database
-    ? createAutomationHealthMonitor(database.db, config.publication.serverUuid, metrics, config.automationRuntimeEnabled) : undefined;
+    ? createAutomationHealthMonitor(database.db, config.publication.serverUuid, metrics, config.automationRuntimeEnabled, {
+      workerEnabled: config.automationRuntimeEnabled && config.mcpWriteEnabled,
+      verifyTargetBinding: createAutomationBindingVerifier(config,createMcpSecurityEpochReader(config,createPostgresMcpOauthRevocationStore({ db: database.db }))),
+    }) : undefined;
   const baseProjectionSink = originalProjectionSink && automationHealth ? automationHealth.wrap(originalProjectionSink) : originalProjectionSink;
   if (config.mcp && options.mcpReadChangeSignalSource === undefined) {
     throw new Error(

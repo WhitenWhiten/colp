@@ -58,7 +58,9 @@ export async function previewRule(ports: AutomationPorts, actor: AutomationActor
   const snapshot = await previewSnapshot(ports, actor, input);
   const plans = snapshot.events.map((event) => evaluateRuleEvent(snapshot.proposed, snapshot.alternatives, event));
   const decisions = plans.map((plan, index) => ({ ...previewDecision(snapshot.events[index]!.eventId, plan, input.rule.definition.tasks),
-    ...(snapshot.events[index]!.origin === 'import' ? { explanation: 'Imports are excluded from automatic intake. Use an explicit run-once preview when that capability is available.' } : {}) }));
+    ...(snapshot.events[index]!.origin === 'import' ? { explanation: input.rule.definition.policy.imports === 'exclude'
+      ? 'Imports are excluded by this rule policy.'
+      : 'Imports may match this policy; imported placement is always preserved.' } : {}) }));
   const result: PreviewResult = { previewId: ports.id(), sideEffects: false, decisions,
     diagnostics: [{ code: input.mode === 'currentState' ? 'currentStateSnapshot' : 'suppliedFacts', severity: 'info', location: '/mode',
       message: input.mode === 'currentState' ? 'Current authorized rows only; these are not historical intake facts. Unknown intent preserves placement.' : 'Hypothetical supplied facts; no canonical business effects.' },

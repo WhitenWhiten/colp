@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { randomUUID } from 'node:crypto';
-import { readFile, writeFile, rename, open, unlink } from 'node:fs/promises';
+import { readFile, rename, open, unlink } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -33,9 +33,13 @@ export function createFileJournal(path) {
     async load() { try { return JSON.parse(await readFile(path, 'utf8')); } catch (error) { if (error.code === 'ENOENT') return null; throw error; } },
     async save(value) {
       // Contains the one-time lease and untrusted output: keep private and replace atomically.
-      const temporary = path + '.tmp';
-      await writeFile(temporary, JSON.stringify(value), { mode: 0o600 });
-      await rename(temporary, path);
+      const temporary = path + '.' + randomUUID() + '.tmp';
+      const file = await open(temporary, 'wx', 0o600);
+      try {
+        try { await file.writeFile(JSON.stringify(value)); await file.sync(); }
+        finally { await file.close(); }
+        await rename(temporary, path);
+      } finally { await unlink(temporary).catch(error => { if (error.code !== 'ENOENT') throw error; }); }
     },
     async clear() { await unlink(path).catch(error => { if (error.code !== 'ENOENT') throw error; }); },
   };
@@ -73,26 +77,30 @@ async function flush(request, journal, pending) {
   return result;
 }
 
-async function withHeartbeat(request, jobId, lease, interval, work) {
+async function withHeartbeat(request, jobId, lease, interval, signal, work) {
   const controller = new AbortController();
+  const combined = signal ? AbortSignal.any([signal, controller.signal]) : controller.signal;
   let failure;
   const heartbeat = (async () => {
     try {
       while (true) {
-        await delay(interval, undefined, { signal: controller.signal });
+        await delay(interval, undefined, { signal: combined });
         await request('POST', `/jobs/${encodeURIComponent(jobId)}/heartbeat`, { ...proof(lease), extendSeconds: 120 }, randomUUID());
       }
-    } catch (error) { if (!controller.signal.aborted) { failure = error; controller.abort(); } }
+    } catch (error) { if (!combined.aborted) { failure = error; controller.abort(); } }
   })();
   try {
-    const value = await work(controller.signal);
+    combined.throwIfAborted();
+    const value = await work(combined);
     if (failure) throw failure;
+    combined.throwIfAborted();
     return value;
   } finally { controller.abort(); await heartbeat; }
 }
 
 /** One serial queue reconciliation. Adapter has no transport, credential or lease access. */
-export async function runPollingCycle({ request, targetId, adapter, journal, pairing, heartbeatMs = 30_000 }) {
+export async function runPollingCycle({ request, targetId, adapter, journal, pairing, heartbeatMs = 30_000, signal }) {
+  signal?.throwIfAborted();
   if (!targetId) throw new Error('Select a targetId.');
   const results = [];
   const pending = await journal.load();
@@ -104,6 +112,7 @@ export async function runPollingCycle({ request, targetId, adapter, journal, pai
   if (pairing) await request('POST', '/pairings/claim', { pairingId: pairing.pairingId, code: pairing.code }, pairing.commandId);
   const jobs = await readPages(request, '/jobs', { targetId });
   for (const job of jobs) {
+    signal?.throwIfAborted();
     // Unsupported tasks stay available for a capable worker; do not consume their budget.
     if (job.status !== 'ready' || !adapter.supports(job.task)) continue;
     let lease;
@@ -113,9 +122,10 @@ export async function runPollingCycle({ request, targetId, adapter, journal, pai
     await journal.save(saved);
     let generated;
     try {
-      generated = await withHeartbeat(request, job.id, lease, heartbeatMs, async signal => {
+      generated = await withHeartbeat(request, job.id, lease, heartbeatMs, signal, async signal => {
         const inputs = await readPages(request, `/jobs/${encodeURIComponent(job.id)}/inputs`, { deliveryHandle: job.deliveryHandle });
         if (!inputs.length || inputs.some(input => input.availability !== 'available')) throw new Error('Required inputs are unavailable.');
+        signal.throwIfAborted();
         return adapter.generate({ task: job.task, allowedFolders: job.allowedFolders, inputs, signal });
       });
     } catch {
@@ -156,7 +166,7 @@ async function main() {
     const request = createWorkerTransport({ baseUrl: COLP_ORIGIN, accessToken: async () => COLP_ACCESS_TOKEN, signal: controller.signal });
     let pairing = COLP_PAIRING_ID ? { pairingId: COLP_PAIRING_ID, code: COLP_PAIRING_CODE, commandId: COLP_PAIRING_COMMAND_ID } : undefined;
     do {
-      const results = await runPollingCycle({ request, targetId: COLP_TARGET_ID, adapter, journal: createFileJournal(journalPath), pairing });
+      const results = await runPollingCycle({ request, targetId: COLP_TARGET_ID, adapter, journal: createFileJournal(journalPath), pairing, signal: controller.signal });
       pairing = undefined;
       for (const result of results) console.log(JSON.stringify({ jobId: result.jobId ?? result.resourceId, status: result.status }));
       if (process.argv.includes('--once')) break;

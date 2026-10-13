@@ -47,3 +47,11 @@ test('one failed rule cannot borrow a sibling authority or prevent a healthy pla
 test.each(['unknown', 'userSelected'] as const)('%s intent is preserved even with competing rules', intakeDisposition => {
   expect(evaluateRuleEvents([rule('a'), rule('b')], { ...event, intakeDisposition }).map(plan => plan.kind)).toEqual(['preserved', 'preserved']);
 });
+
+test.each(['import', 'automation', 'system'] as const)('%s facts cannot manufacture user-default placement intent', origin => {
+  const candidate = rule('source-policy');
+  candidate.definition.policy = { ...candidate.definition.policy, imports: 'include' };
+  expect(evaluateRuleEvents([candidate], { ...event, origin, stageId: 'other-stage' })).toEqual([
+    { kind: 'preserved', reason: 'unknownIntent' },
+  ]);
+});

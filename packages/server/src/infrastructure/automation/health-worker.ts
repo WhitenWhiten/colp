@@ -5,10 +5,12 @@ import type { CollectionMutationProjectionSink, CollectionMutationDelivery } fro
 import { revalidateRule } from '../../modules/automation/index.js';
 import { createAutomationUnitOfWork } from './unit-of-work.js';
 import { createDependencyIndex } from './dependency-index.js';
+import type { CurrentBindingVerifier } from './target-worker.js';
 
 /** Health-only consumer on the existing durable outbox. No admission, jobs, timer, models or effects. */
-export function createAutomationHealthMonitor(db: Kysely<DatabaseSchema>, serverUuid: string, metrics?: Metrics, runtimeEnabled = false) {
-  const unitOfWork = createAutomationUnitOfWork(db, serverUuid, { runtimeEnabled });
+export function createAutomationHealthMonitor(db: Kysely<DatabaseSchema>, serverUuid: string, metrics?: Metrics, runtimeEnabled = false,
+  workerOptions: { workerEnabled?: boolean; verifyTargetBinding?: CurrentBindingVerifier } = {}) {
+  const unitOfWork = createAutomationUnitOfWork(db, serverUuid, { ...workerOptions, runtimeEnabled });
   const revalidate = async (ownerId: string, ruleId: string) => {
     const owner = await db.selectFrom('accounts').select(['id', 'subject_id', 'status']).where('id', '=', ownerId).executeTakeFirst();
     if (!owner || owner.status !== 'active') return;

@@ -5,6 +5,7 @@ import { AutomationError } from '../domain/errors.js';
 import { resolveBindings } from './resolve-bindings.js';
 import { assessIntakeBindings } from './rule-eligibility.js';
 import { requireRule } from './rule-service.js';
+import { inspectWorkerConfiguration } from './worker-configuration.js';
 import type { AutomationPorts } from './ports.js';
 
 export async function revalidateRule(ports: AutomationPorts, actor: AutomationActor, ruleId: string): Promise<HealthReport> {
@@ -40,10 +41,23 @@ async function inspectRuleHealth(ports: AutomationPorts, actor: AutomationActor,
   else if (ports.runtimeEnabled && !collection.currentOwner)
     incident('permissionRevoked', undefined, 'error', 'M1 execution requires the current collection Owner; an editor grant is not runtime authority.', collection.policyRevision, ['intake']);
   if (!ports.runtimeEnabled) incident('runtimeUnsupported', undefined, 'error', 'Configuration is saved. Durable M1 execution is not installed; no bookmark effects or model tasks can run.', 'be1', ['intake']);
+  const worker = await inspectWorkerConfiguration(ports, actor, rule, binding?.values ?? {});
+  for (const task of worker?.tasks ?? []) {
+    if (task.available) continue;
+    const spec = rule.definition.tasks.find(spec => spec.id === task.taskId)!;
+    incident('executorUnavailable', spec.executorRole, 'warning', task.reason,
+      automationDigest({ taskId: task.taskId, policy: worker?.policy, executor: task.executor, target: task.target, reason: task.reason }), [task.taskId]);
+  }
   const incidents = await ports.health.synchronize(actor.accountId, ruleId, expected);
   if (binding) await ports.dependencies.replace(stored.definitionRevisionId, resolutions, binding.values);
   const paused = (await ports.settings.get(actor.accountId)).paused;
-  const effectiveState = rule.desiredState === 'enabled' ? (paused ? 'paused' : expected.some(item => item.blockingStages.length > 0) ? 'blocked' : expected.length ? 'degraded' : 'active') : rule.desiredState;
+  const intakeBlocked = expected.some(item => item.blockingStages.includes('intake'));
+  const workerBlocked = worker?.tasks.some(task => !task.available) === true;
+  let effectiveState: HealthReport['effectiveState'];
+  if (rule.desiredState !== 'enabled') effectiveState = rule.desiredState;
+  else if (paused) effectiveState = 'paused';
+  else if (intakeBlocked || (workerBlocked && !rule.definition.intake)) effectiveState = 'blocked';
+  else effectiveState = expected.length ? 'degraded' : 'active';
   const report: HealthReport = { ruleId, checkedAt: now, effectiveState, incidents: incidents.slice(0, 100) };
   return { report, stored, resolutions };
 }

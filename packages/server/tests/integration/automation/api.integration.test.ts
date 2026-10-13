@@ -198,6 +198,11 @@ describeWithPostgres('BE-1 authenticated configuration and preview loop', () => 
     if (scenario === 'hop bound') event.hopCount = 1;
     const result = await post('/rules/preview', { rule: d.input, mode: 'supplied', events: [event] });
     expect(result.statusCode, result.body).toBe(200); expect(result.json().decisions[0].outcome).toBe('matched');
+    if (scenario === 'import policy') {
+      expect(result.json().plannedRunCount).toBe(0);
+      expect(result.json().decisions[0].satisfiedTasks).toEqual([]);
+      expect(result.json().decisions[0].explanation).toContain('placement is always preserved');
+    }
   });
   test('review: restoring a competing destination invalidates a formerly conflict-free preview', async () => {
     const d = await draft();

@@ -5,6 +5,7 @@ import { nextRevision, ruleInput, type AutomationPorts } from './ports.js';
 import { requireRule, requireEtag, parseContract, normalizeRuleInput } from './rule-service.js';
 import { blocksActivation, evaluateRuleEvent } from './rule-evaluation.js';
 import { previewSnapshot } from './preview-service.js';
+import { revalidateRule } from './health-service.js';
 
 export async function setLifecycle(ports: AutomationPorts, actor: AutomationActor, id: string, body: unknown, ifMatch: string) {
   const input = parseContract('LifecycleInput', body), stored = await requireRule(ports, actor, id);
@@ -34,7 +35,9 @@ export async function setLifecycle(ports: AutomationPorts, actor: AutomationActo
   const paused = (await ports.settings.get(actor.accountId)).paused;
   stored.view = { ...stored.view, desiredState: input.state, effectiveState: input.state === 'enabled' ? (paused ? 'paused' : ports.runtimeEnabled ? 'active' : 'blocked') : input.state,
     revision: nextRevision(stored.view.revision), updatedAt: (await ports.now()).toISOString() };
-  await ports.rules.setState(actor.accountId, stored); return stored.view;
+  await ports.rules.setState(actor.accountId, stored);
+  if (input.state === 'enabled') stored.view.effectiveState = (await revalidateRule(ports, actor, id)).effectiveState;
+  return stored.view;
 }
 export async function setPause(ports: AutomationPorts, actor: AutomationActor, body: unknown, ifMatch: string) {
   const input = parseContract('PauseInput', body), previous = await ports.settings.get(actor.accountId);

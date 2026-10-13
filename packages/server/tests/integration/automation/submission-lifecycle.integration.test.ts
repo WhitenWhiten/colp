@@ -4,6 +4,7 @@ import { sql } from 'kysely';
 import { automationDigest,type SubmitResultInput } from '@know-n/colp/automation';
 import { describeWithPostgres } from '../../support/postgres-test-runtime.js';
 import { automationPollingFixture } from '../../support/automation-polling-fixture.js';
+import { moveCollectionNode } from '../../../src/modules/collections/index.js';
 
 describeWithPostgres('worker submission settlement and pause recovery', () => {
   let f: Awaited<ReturnType<typeof automationPollingFixture>>;
@@ -20,6 +21,35 @@ describeWithPostgres('worker submission settlement and pause recovery', () => {
     return { job, body: { claimToken: lease.claimToken, generation: lease.generation, inputDigest: lease.inputDigest, outputContract: job.task.outputContract,
       output: { kind: 'text', textType: 'summary', text: 'Review probe summary', language: 'en', evidence: [{ kind: 'source', reference: inputs[0].sourceEventId, observedAt: new Date().toISOString() }] } } };
   }
+  test('summary submission rechecks required intake ancestry even without a task folder role', async () => {
+    f = await automationPollingFixture('review_scope_drift');
+    const binding = (await read('/binding-sets/'+f.ruleInput.bindingSetId)).json();
+    const changed = await f.app.inject({ method: 'PUT', url: '/api/v1/me/automations/binding-sets/'+binding.id,
+      headers: f.ownerHeaders(randomUUID(), `"${binding.revision}"`),
+      payload: { name: binding.name, values: { ...binding.values, academicRoot: { ...binding.values.academicRoot, allowedAncestor: { ...f.folder, nodeId: 'parent' } } } } });
+    expect(changed.statusCode, changed.body).toBe(200);
+    const current = await read('/rules/'+f.rule.id);
+    const preview = await f.ownerPost('/rules/preview', { rule: f.ruleInput, mode: 'currentState' });
+    expect(preview.statusCode, preview.body).toBe(200);
+    expect((await f.ownerPost(`/rules/${f.rule.id}/lifecycle`, { state: 'enabled', pendingRuns: 'cancel', reason: 'Pin constrained binding', activationPreviewId: preview.json().previewId }, String(current.headers.etag))).statusCode).toBe(200);
+    await f.createNode('constrained-paper', 'root', 'Constrained paper', 'https://arxiv.org/constrained'); await f.inspect();
+    const { job, body } = await claimed();
+    expect(job.task.folderRole).toBeUndefined();
+    const node = await f.db.selectFrom('nodes').selectAll().where('id', '=', 'academic').executeTakeFirstOrThrow();
+    const parents = await f.db.selectFrom('nodes').select(['id', 'children_revision']).where('id', 'in', ['parent', 'root']).execute();
+    const moved = await f.canonical.execute(ports => moveCollectionNode(ports, {
+      actor: { principalId: f.owner.accountId, subjectId: f.owner.subjectId, principalType: 'account' }, command: f.command(),
+      collectionId: 'collection', nodeId: 'academic', ifMatch: `"${node.resource_revision}"`, newParentId: 'root', afterId: null, beforeId: null,
+      baseSourceParentRevision: parents.find(p => p.id === 'parent')!.children_revision,
+      baseTargetParentRevision: parents.find(p => p.id === 'root')!.children_revision,
+    }));
+    expect(moved.kind).toBe('moved');
+    const response = await work(`/jobs/${job.id}/results`, body);
+    expect(response.statusCode, response.body).toBe(200);
+    expect(response.json()).toMatchObject({ status: 'review', effectReceiptIds: [] });
+    expect((await sql`SELECT job_id FROM automation_proposals WHERE job_id=${job.id}`.execute(f.db)).rows).toEqual([]);
+    expect(await f.db.selectFrom('annotations').select('id').where('subject_id', '=', 'constrained-paper').execute()).toEqual([]);
+  });
   test('stale submitted output settles the job instead of becoming external uncertainty', async () => {
     f = await automationPollingFixture('review_stale'); const { job, body } = await claimed();
     expect((await work(`/jobs/${job.id}/results`, { ...body,inputDigest: '0'.repeat(64) })).statusCode).toBe(409);

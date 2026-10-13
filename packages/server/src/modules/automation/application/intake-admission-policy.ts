@@ -8,9 +8,10 @@ export interface IntakeAdmissionState {
 }
 
 /** Missing inputs are durable decisions, not negative matches or permission to move. */
-export function intakeAdmissionState(plan: RuleEventPlan, policy: RuleDefinition['policy']): IntakeAdmissionState {
+export function intakeAdmissionState(plan: RuleEventPlan, policy: RuleDefinition['policy'], hasWorkerTasks = false): IntakeAdmissionState {
   if (plan.kind === 'placed') return { state: 'waiting', runnable: true };
   if (plan.kind === 'matched') return { state: 'completed', runnable: true };
+  if (plan.kind === 'preserved' && hasWorkerTasks) return { state: 'completed', runnable: true };
   if (plan.kind === 'missingInput') {
     return policy.missingInput === 'defer'
       ? { state: 'waiting', runnable: false,

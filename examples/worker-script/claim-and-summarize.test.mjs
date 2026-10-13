@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, stat } from 'node:fs/promises';
+import { mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -115,10 +115,33 @@ test('file journal survives reopening with private permissions and blocks target
   const directory = await mkdtemp(join(tmpdir(), 'colp-worker-'));
   try {
     const path = join(directory, 'journal'), journal = createFileJournal(path);
+    await writeFile(path + '.tmp', 'left over before restart', { mode: 0o644 });
     await journal.save({ targetId: 'foreign', phase: 'claimed', lease });
     assert.equal((await stat(path)).mode & 0o777, 0o600);
     assert.equal((await createFileJournal(path).load()).lease.claimToken, 'secret');
     await assert.rejects(runPollingCycle({ ...fixture().options, journal }), /another target/u);
     await journal.clear(); assert.equal(await journal.load(), null);
   } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+test('cancellation reaches the adapter immediately and preserves recovery evidence', async () => {
+  const f = fixture(), controller = new AbortController();
+  let observedAbort = false;
+  await runPollingCycle({ ...f.options, signal: controller.signal, adapter: {
+    ...adapter,
+    async generate({ signal }) {
+      controller.abort();
+      observedAbort = signal.aborted;
+      throw new Error('cancelled');
+    },
+  } });
+  assert.equal(observedAbort, true);
+  assert(!f.calls.some(call => call.path.endsWith('/results')));
+  assert(f.calls.some(call => call.body?.kind === 'unknownOutcome'));
+});
+
+test('an already cancelled cycle neither claims work nor invokes the provider', async () => {
+  const f = fixture();
+  await assert.rejects(runPollingCycle({ ...f.options, signal: AbortSignal.abort() }), { name: 'AbortError' });
+  assert.deepEqual(f.calls, []);
 });
