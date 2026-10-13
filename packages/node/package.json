@@ -261,7 +261,7 @@
     "@types/node": "^22.20.4",
     "@vitest/coverage-v8": "^4.1.11",
     "fast-check": "^4.10.2",
-    "json-schema-to-typescript": "^15.0.4",
+    "json-schema-to-typescript": "^16.0.0",
     "publint": "^0.3.24",
     "tsup": "^8.5.1",
     "typescript": "^5.9.3",
