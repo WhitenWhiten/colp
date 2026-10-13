@@ -1,3 +1,5 @@
+import { automationConfigurationEpoch } from './configuration-epoch.js';
+import { verifyReceiptPlacementDecision } from './receipt-placement.js';
 import { recordDevicePlacementRun } from './device-placement-run.js';
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
@@ -27,7 +29,7 @@ export async function verifyIntakeReceipt(tx: DatabaseTransaction, actor: Automa
     if (digest !== bundle.digest || automationDigest(content) !== digest) return result('rejected', 'Bundle integrity check failed.');
   }
   const pinned = bundle?.snapshot_json?.rules.find(rule => rule.ruleId === input.ruleId && rule.ruleRevision === input.ruleRevision && rule.bindingRevision === input.bindingRevision);
-  if (!pinned || bundle!.paused || bundle!.expires_at <= new Date() || String(bundle!.settings_revision) !== String(settings?.revision ?? '0')) return result('review', 'Pinned authenticated bundle is unavailable, paused or expired.');
+  if (!pinned || bundle!.paused || bundle!.expires_at <= new Date() || String(bundle!.settings_revision) !== await automationConfigurationEpoch(tx, actor.accountId)) return result('review', 'Pinned authenticated bundle is unavailable, paused, expired or superseded by configuration changes.');
   const rule = await tx.selectFrom('automation_rule_revisions as v').innerJoin('automation_rules as r', 'r.id', 'v.rule_id')
     .select(['v.id', 'v.definition_json', 'v.binding_set_id', 'r.desired_state', 'r.current_revision_id'])
     .where('v.rule_id', '=', input.ruleId).where('v.revision', '=', input.ruleRevision).where('r.owner_id', '=', actor.accountId).executeTakeFirst();
@@ -64,6 +66,8 @@ export async function verifyIntakeReceipt(tx: DatabaseTransaction, actor: Automa
   const destination = resolutions[rule.definition_json.intake?.folderRole ?? ''];
   if (!event || !evaluator.valid || evaluator.evaluate(event).outcome !== 'matched' || destination?.status !== 'valid')
     return result('review', 'Rule input or current destination cannot be verified.');
+  if (!await verifyReceiptPlacementDecision(tx, actor, serverUuid, bundle!.snapshot_json!, input.ruleId, event))
+    return result('review', 'Current source scope or rule arbitration does not authorize this placement.');
   const after = placed.facts_json!.after;
   if (!after || after.parentId !== destination.snapshot.folder.nodeId || placementInputDigest(input, created.facts_json!.after!) !== input.inputDigest
     || (input.resultDigests.length > 0 && input.resultDigests[0] !== placementResultDigest(destination.snapshot.folder)))

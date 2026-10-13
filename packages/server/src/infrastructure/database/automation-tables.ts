@@ -1,6 +1,7 @@
 import type { Generated } from 'kysely';
 import type { RuleDefinition, RoleBindings, PreviewResult, HealthIncident } from '@know-n/colp/automation';
 export interface AutomationDatabaseSchema {
+  automation_configuration_epochs: { owner_id: string; revision: string };
   automation_settings: { owner_id: string; paused: boolean; paused_at: Date | null; paused_by: 'owner' | 'restore' | 'capacity' | null; revision: Generated<string> };
   automation_rules: { id: string; owner_id: string; current_revision_id: string | null; state_revision: Generated<string>; desired_state: 'draft' | 'enabled' | 'paused' | 'archived'; created_at: Generated<Date>; updated_at: Generated<Date> };
   automation_rule_revisions: { id: string; owner_id: string; rule_id: string; revision: string; definition_json: RuleDefinition; binding_set_id: string; execution_policy_id: string | null; template_ref: string | null; semantic_digest: string; created_at: Generated<Date> };

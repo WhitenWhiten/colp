@@ -1,3 +1,4 @@
+import { touchAutomationConfiguration } from './configuration-epoch.js';
 import { appendAutomationResume } from '../outbox/automation-ingest.js';
 import { createPlacementUndoPort } from './placement-undo-store.js';
 import { createRunStore } from './run-store.js';
@@ -40,6 +41,7 @@ export function createAutomationUnitOfWork(db: Kysely<DatabaseSchema>, serverUui
           await tx.insertInto('automation_settings').values({ owner_id: ownerId, paused: state.paused, paused_at: state.pausedAt ? new Date(state.pausedAt) : null,
             paused_by: state.pausedBy, revision: state.revision }).onConflict((oc) => oc.column('owner_id').doUpdateSet({ paused: state.paused,
               paused_at: state.pausedAt ? new Date(state.pausedAt) : null, paused_by: state.pausedBy, revision: state.revision })).execute();
+          await touchAutomationConfiguration(tx, ownerId);
         },
       },
       previews: {
@@ -56,11 +58,21 @@ export function createAutomationUnitOfWork(db: Kysely<DatabaseSchema>, serverUui
             snapshot_json: { input: preview.input }, result_json: preview.result, expires_at: preview.expiresAt }).execute();
         },
       },
+      async wakePendingRuns() {
+        const rows = (await sql<{ collection_id: string }>`SELECT DISTINCT explanation_json->>'collectionId' AS collection_id
+          FROM automation_runs WHERE owner_id=${actor.accountId} AND state='waiting' AND NOT held
+          ORDER BY collection_id`.execute(tx)).rows;
+        for (const row of rows) await appendAutomationResume(tx, row.collection_id);
+      },
       async pendingRuns(revisionId, policy) {
         const resumed = await sql<{ collection_id: string }>`UPDATE automation_runs SET held=${policy === 'hold'},
           state=CASE WHEN ${policy}='cancel' THEN 'cancelled' ELSE state END,
           revision=revision+1, updated_at=clock_timestamp()
-          WHERE owner_id=${actor.accountId} AND rule_revision_id=${revisionId} AND state IN ('waiting','running') RETURNING explanation_json->>'collectionId' AS collection_id`.execute(tx);
+          WHERE owner_id=${actor.accountId} AND rule_revision_id IN (
+            SELECT id FROM automation_rule_revisions WHERE rule_id=(
+              SELECT rule_id FROM automation_rule_revisions WHERE id=${revisionId} AND owner_id=${actor.accountId}
+            )
+          ) AND state IN ('waiting','running') RETURNING explanation_json->>'collectionId' AS collection_id`.execute(tx);
         if (policy === 'continuePinned') for (const collectionId of [...new Set(resumed.rows.map(row => row.collection_id))].sort())
           await appendAutomationResume(tx, collectionId);
       },

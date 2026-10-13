@@ -117,7 +117,9 @@ budgets do not throttle deterministic placement.
 Owner APIs expose runs, per-bookmark history (collectionId + nodeId), cancellation and conservative
 single-effect Undo. Device routes reuse bearer + Origin + Known-Sync-Session, and mutations need
 Known-Command-Id. Bundles carry complete finite definitions; host/tag hints are not semantic authority.
-Pause skips admission intervals; resume uses fresh fences and durably wakes held pinned work.
+Pause skips admission intervals; resume uses fresh fences and durably wakes eligible pinned work.
+Global pause does not overwrite explicit per-run holds. Explicit `continuePinned` applies to
+pending runs across the rule's immutable revisions, preserving their original rule and binding pins.
 Restored backups start paused. See per-task evidence for actual tests and remaining product gates.
 
 
@@ -128,3 +130,9 @@ intent and are preserved; verified canonical device receipts still establish pla
 This explicitly supersedes the root-only heuristic described in the initial AW-33 evidence.
 Reviewed defaults are 10-second receipt grace and 7-day bundle expiry (clients should refresh every
 5 minutes); offline pause exposure is bounded by that expiry, not instantaneous revocation.
+
+Bundle `settingsRevision` orders all owner configuration changes, independently of the Pause API
+ETag. Rule, binding and pause mutations advance that sequence; migration and restore advance it
+past previously issued snapshots. Device bundles and receipts require the installed runtime flag.
+The [BE-2 independent review](evidence/be2-review.md) records reproduced lifecycle/receipt defects,
+their fixes, test-quality corrections and the final validation limits.

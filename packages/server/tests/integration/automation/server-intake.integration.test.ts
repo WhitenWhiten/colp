@@ -5,7 +5,7 @@ import { describeWithPostgres } from '../../support/postgres-test-runtime.js';
 import { createAutomationRuntime } from '../../../src/infrastructure/automation/index.js';
 import { createPostgresCanonicalMutationUnitOfWork } from '../../../src/infrastructure/collections/index.js';
 import { createCollectionNode, moveCollectionNode } from '../../../src/modules/collections/index.js';
-import { getAutomationRun, setPause } from '../../../src/modules/automation/index.js';
+import { getAutomationRun, setPause, setLifecycle, replaceRule, saveBinding } from '../../../src/modules/automation/index.js';
 describeWithPostgres('server M1 intake', () => {
   let f: Awaited<ReturnType<typeof automationRuntimeFixture>>;
   beforeEach(async () => { f = await automationRuntimeFixture('aw33', true); });
@@ -54,4 +54,51 @@ describeWithPostgres('server M1 intake', () => {
     const run = await f.uow.execute(f.owner, p => getAutomationRun(p.runs, row.id));
     expect(run.effects[0]!.undoAvailable).toBe(true);
   });
+  test('global resume preserves an explicit per-run hold', async () => {
+    await create('explicitly-held', 'web'); await f.inspect();
+    await f.uow.execute(f.owner, async p => {
+      const rule = await p.rules.load(f.owner.accountId, f.rule.id);
+      await p.pendingRuns(rule!.definitionRevisionId, 'hold');
+    });
+    await f.uow.execute(f.owner, p => setPause(p, f.owner, { paused: true, reason: 'Global pause' }, '"0"'));
+    await f.uow.execute(f.owner, p => setPause(p, f.owner, { paused: false, reason: 'Global resume' }, '"1"'));
+    await execute();
+    expect(await parent('explicitly-held')).toBe('root');
+    expect((await sql<{ held: boolean }>`SELECT held FROM automation_runs`.execute(f.db)).rows[0]!.held).toBe(true);
+  });
+  test('global resume durably wakes explicitly continued work of a now-paused rule', async () => {
+    await create('continued-pin', 'web'); await f.inspect();
+    await f.uow.execute(f.owner, async p => {
+      const rule = await p.rules.load(f.owner.accountId, f.rule.id);
+      await setLifecycle(p, f.owner, rule!.view.id, { state: 'paused', pendingRuns: 'continuePinned', reason: 'Continue the old pin' }, `"${rule!.view.revision}"`);
+    });
+    await f.uow.execute(f.owner, p => setPause(p, f.owner, { paused: true, reason: 'Global pause' }, '"0"'));
+    await execute();
+    const before = await f.db.selectFrom('outbox_events').select('outbox_id').where('event_type', '=', 'automation.intake.resume').execute();
+    await f.uow.execute(f.owner, p => setPause(p, f.owner, { paused: false, reason: 'Global resume' }, '"1"'));
+    const after = await f.db.selectFrom('outbox_events').select('outbox_id').where('event_type', '=', 'automation.intake.resume').execute();
+    expect(after.length).toBeGreaterThan(before.length);
+    await execute(); expect(await parent('continued-pin')).toBe('academic');
+  });
+
+  test('explicit continuePinned resumes held older revisions without rebasing their destination', async () => {
+    await create('older-pin', 'web'); await f.inspect();
+    await f.uow.execute(f.owner, async p => {
+      const current = await p.rules.load(f.owner.accountId, f.rule.id);
+      const binding = await saveBinding(p, f.owner, { name: 'New destination', values: {
+        academicRoot: { ...f.values.academicRoot, folder: { ...f.folder, nodeId: 'parent' } },
+      } });
+      await replaceRule(p, f.owner, f.rule.id, { definition: { ...f.rule.definition, priority: 101 }, bindingSetId: binding.id,
+        pendingRuns: 'hold', counterPolicy: 'resetOnSemanticChange' }, `"${current!.view.revision}"`);
+    });
+    await f.uow.execute(f.owner, async p => {
+      const current = await p.rules.load(f.owner.accountId, f.rule.id);
+      await setLifecycle(p, f.owner, f.rule.id, { state: 'paused', pendingRuns: 'continuePinned', reason: 'Continue original pins' }, `"${current!.view.revision}"`);
+    });
+    await execute();
+    expect(await parent('older-pin')).toBe('academic');
+    const id = (await sql<{ id: string }>`SELECT id FROM automation_runs`.execute(f.db)).rows[0]!.id;
+    expect(await f.uow.execute(f.owner, p => getAutomationRun(p.runs, id))).toMatchObject({ ruleRevision: '1', bindingRevision: '1', status: 'completed' });
+  });
+
 });

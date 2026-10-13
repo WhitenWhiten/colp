@@ -404,7 +404,7 @@ export function buildApiApp(input: AppDependencies) {
     // so complete apps without R2 still start. Do not stub 503 GET handlers.
     excludeOperationIds: [
       ...(input.automationUnitOfWork ? [] : AUTOMATION_CONFIGURATION_OPERATION_IDS),
-      ...(input.automationDeviceUnitOfWork && input.syncSessionRoutes ? [] : AUTOMATION_DEVICE_OPERATION_IDS),
+      ...(config.automationRuntimeEnabled && input.automationDeviceUnitOfWork && input.syncSessionRoutes ? [] : AUTOMATION_DEVICE_OPERATION_IDS),
       ...(config.betterAuth.enabled ? LEGACY_OIDC_OPERATION_IDS : []),
       ...BOOKMARK_FAVICON_DEFERRED_OPERATION_IDS,
       ...(faviconStore ? [] : ['getBookmarkFavicon']),

@@ -25,11 +25,13 @@ describeWithPostgres('authenticated full M1 bundles', () => {
       .rejects.toMatchObject({ code: 'automation_stale_input' });
   });
   test('pause emits an atomic disabling snapshot and monotonic settings; resume regenerates the complete rule set', async () => {
+    const previous = await uow().execute(request(), p => p.bundle('browser-bounded-v1'));
     await f.uow.execute(f.owner, p => setPause(p, f.owner, { paused: true, reason: 'Fixture pause' }, '"0"'));
     const paused = await uow().execute(request(), p => p.bundle('browser-bounded-v1'));
-    expect(paused).toMatchObject({ paused: true, settingsRevision: 1, rules: [], removedRuleIds: [f.rule.id] });
+    expect(paused).toMatchObject({ paused: true, rules: [], removedRuleIds: [f.rule.id] });
     await f.uow.execute(f.owner, p => setPause(p, f.owner, { paused: false, reason: 'Fixture resume' }, '"1"'));
     const active = await uow().execute(request(), p => p.bundle('browser-bounded-v1'));
-    expect(active.settingsRevision).toBe(2); expect(active.rules).toHaveLength(1); expect(BigInt(active.revision)).toBeGreaterThan(BigInt(paused.revision));
+    expect(paused.settingsRevision).toBeGreaterThan(previous.settingsRevision);
+    expect(active.settingsRevision).toBeGreaterThan(paused.settingsRevision); expect(active.rules).toHaveLength(1); expect(BigInt(active.revision)).toBeGreaterThan(BigInt(paused.revision));
   });
 });

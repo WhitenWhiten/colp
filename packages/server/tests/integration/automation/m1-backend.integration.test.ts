@@ -120,8 +120,11 @@ describeWithPostgres('AW-66 M1 backend gate through API and durable worker', () 
     expect(counts).toEqual({ effects: '1', jobs: '0', moves: '2' });
     expect((await sql<{ table_name: string }>`SELECT table_name FROM information_schema.tables WHERE table_schema=current_schema()
       AND table_name IN ('automation_execution_policies','automation_targets','automation_subscriptions','automation_usage_counters')`.execute(f.db)).rows).toEqual([]);
+    await unknownIntentScenario();
+    await unavailableDestinationScenario();
+    await restoreScenario();
   });
-  test('unknown or explicitly selected root never becomes default consent at grace expiry', async () => {
+  async function unknownIntentScenario() {
     const ids: string[] = [];
     for (const intent of [undefined, 'userSelected']) {
       const response = await post('/api/v1/collections/collection/nodes', { parentId: 'root', afterId: null, beforeId: null,
@@ -132,8 +135,8 @@ describeWithPostgres('AW-66 M1 backend gate through API and durable worker', () 
     const nodes = await f.db.selectFrom('nodes').select('parent_id').where('id', 'in', ids).execute();
     expect(nodes.map(node => node.parent_id)).toEqual(['root','root']);
     expect((await get(BASE + '/runs')).json().items).toHaveLength(1);
-  });
-  test('a deleted destination and same-name replacement never redirect the pinned rule', async () => {
+  }
+  async function unavailableDestinationScenario() {
     const destination = await f.db.selectFrom('nodes').select('resource_revision').where('id', '=', 'academic').executeTakeFirstOrThrow();
     await f.canonical.execute(p => deleteCollectionNode(p, { actor: f.actor, command: f.command(), collectionId: 'collection',
       nodeId: 'academic', ifMatch: destination.resource_revision, recursive: false }));
@@ -145,8 +148,8 @@ describeWithPostgres('AW-66 M1 backend gate through API and durable worker', () 
     const runs = (await get(`${BASE}/runs?collectionId=collection&nodeId=${response.json().node.id}`)).json().items;
     expect(runs).toHaveLength(1); expect(runs[0]).toMatchObject({ status: 'review', effects: [] });
     expect((await f.db.selectFrom('nodes').select('parent_id').where('id', '=', response.json().node.id).executeTakeFirstOrThrow()).parent_id).toBe('root');
-  });
-  test('a real schema backup/restore restarts with all automation paused before any pending effect', async () => {
+  }
+  async function restoreScenario() {
     const before = (await get(BASE + '/runs')).json().items.length;
     const scratch = mkdtempSync(join(tmpdir(), 'automation-m1-gate-'));
     try {
@@ -163,6 +166,6 @@ describeWithPostgres('AW-66 M1 backend gate through API and durable worker', () 
       expect((await f.db.selectFrom('nodes').select('parent_id').where('id', '=', created.json().node.id).executeTakeFirstOrThrow()).parent_id).toBe('root');
       expect((await get(BASE + '/runs')).json().items).toHaveLength(before);
     } finally { rmSync(scratch, { recursive: true, force: true }); }
-  });
+  }
 
 });

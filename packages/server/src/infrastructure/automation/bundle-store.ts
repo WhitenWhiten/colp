@@ -1,3 +1,4 @@
+import { automationConfigurationEpoch } from './configuration-epoch.js';
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import type { RuleBundle, BundleAckInput, OperationReceipt } from '@know-n/colp/automation';
@@ -30,7 +31,7 @@ export async function issueDeviceBundle(tx: DatabaseTransaction, actor: Automati
       definition: rule.view.definition, values: binding.values });
   }
   const now = (await sql<{ now: Date }>`SELECT clock_timestamp() AS now`.execute(tx)).rows[0]!.now;
-  const bundle = compileBundle({ revision: String(BigInt(previous?.revision ?? '0') + 1n), settingsRevision: Number(settings?.revision ?? '0'),
+  const bundle = compileBundle({ revision: String(BigInt(previous?.revision ?? '0') + 1n), settingsRevision: Number(await automationConfigurationEpoch(tx, actor.accountId)),
     paused: settings?.paused ?? false, now, rules, previousRuleIds: previous?.snapshot_json?.rules.map(rule => rule.ruleId) ?? [], profile });
   await sql`INSERT INTO automation_device_bundles(owner_id,device_id,revision,profile,digest,issued_at,expires_at,paused,settings_revision,status,snapshot_json)
     VALUES (${actor.accountId},${actor.deviceId},${bundle.revision}::bigint,${bundle.profile},${bundle.digest},${now},${new Date(bundle.expiresAt)},

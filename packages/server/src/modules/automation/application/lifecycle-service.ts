@@ -40,10 +40,11 @@ export async function setPause(ports: AutomationPorts, actor: AutomationActor, b
     pausedBy: input.paused ? 'owner' as const : null };
   for (const rule of await ports.rules.list(actor.accountId, null, 500)) {
     if (rule.view.desiredState !== 'enabled') continue;
-    await ports.pendingRuns(rule.definitionRevisionId, input.paused ? 'hold' : 'continuePinned');
     await ports.activation(rule, { kind: 'disable' });
     // This captures only the pinned source's ordinal, never grants read/effect authority.
     if (!input.paused) await ports.activation(rule, { kind: 'resume' });
   }
-  await ports.settings.save(actor.accountId, settings); return settings;
+  await ports.settings.save(actor.accountId, settings);
+  if (!input.paused) await ports.wakePendingRuns();
+  return settings;
 }

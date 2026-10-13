@@ -1,3 +1,4 @@
+import { touchAutomationConfiguration } from './configuration-epoch.js';
 import { sql, type Kysely } from 'kysely';
 import { ruleSemanticDigest, type Rule } from '@know-n/colp/automation';
 import type { DatabaseSchema } from '../database/runtime.js';
@@ -30,11 +31,13 @@ export function createRuleStore(db: Kysely<DatabaseSchema>, runtimeEnabled = fal
         execution_policy_id: view.executionPolicyId ?? null, template_ref: view.templateRef ?? null, semantic_digest: ruleSemanticDigest(view.definition) }).execute();
       await db.updateTable('automation_rules').set({ current_revision_id: rule.definitionRevisionId, state_revision: view.revision,
         desired_state: view.desiredState, updated_at: new Date(view.updatedAt) }).where('id', '=', view.id).where('owner_id', '=', ownerId).execute();
+      await touchAutomationConfiguration(db, ownerId);
     },
     async setState(ownerId, rule) {
       const { view } = rule;
       await db.updateTable('automation_rules').set({ state_revision: view.revision, desired_state: view.desiredState, updated_at: new Date(view.updatedAt) })
         .where('id', '=', view.id).where('owner_id', '=', ownerId).execute();
+      await touchAutomationConfiguration(db, ownerId);
     },
   };
 }

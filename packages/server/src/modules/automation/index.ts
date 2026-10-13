@@ -16,3 +16,4 @@ export * from './application/compile-bundle.js';
 export * from './application/placement-history.js';
 export * from './application/placement-undo.js';
 export * from './application/server-intake.js';
+export { evaluateRuleEvent, type PreparedRule } from './application/rule-evaluation.js';

@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, expect, test } from 'vitest';
+import { afterEach, beforeEach, expect, test } from 'vitest';
 import { sql } from 'kysely';
 import { automationRuntimeFixture } from '../../support/automation-runtime-fixture.js';
 import { describeWithPostgres } from '../../support/postgres-test-runtime.js';
@@ -6,8 +6,8 @@ import { setPause } from '../../../src/modules/automation/index.js';
 
 describeWithPostgres('M1 durable each admission', () => {
   let f: Awaited<ReturnType<typeof automationRuntimeFixture>>;
-  beforeAll(async () => { f = await automationRuntimeFixture('aw15'); });
-  afterAll(async () => { await f?.isolated.close(); });
+  beforeEach(async () => { f = await automationRuntimeFixture('aw15'); });
+  afterEach(async () => { await f?.isolated.close(); });
   const runs = async () => (await sql<{ id: string; held: boolean; policy_revision: string | null; state: string }>`SELECT * FROM automation_runs ORDER BY created_at,id`.execute(f.db)).rows;
   test('pins one run per eligible source despite restart/duplicate delivery, without jobs or M2 policies', async () => {
     await f.createNode('new-paper', 'root', 'New', 'https://arxiv.org/abs/new');
@@ -17,8 +17,9 @@ describeWithPostgres('M1 durable each admission', () => {
     expect(jobs).toBe('0');
   });
   test('pause holds pending runs and skips its interval; resume starts a new epoch at current high water', async () => {
+    await f.createNode('new-paper', 'root', 'New', 'https://arxiv.org/abs/new'); await f.inspect();
     await f.uow.execute(f.owner, p => setPause(p, f.owner, { paused: true, reason: 'Pause fixture' }, '"0"'));
-    expect((await runs())[0]!.held).toBe(true);
+    expect(await f.uow.execute(f.owner, p => p.settings.get(f.owner.accountId))).toMatchObject({ paused: true });
     await f.createNode('paused-paper', 'root', 'Paused', 'https://arxiv.org/abs/paused');
     await f.inspect(); expect(await runs()).toHaveLength(1);
     await f.createNode('paused-uninspected', 'root', 'Paused pending', 'https://arxiv.org/abs/paused-pending');

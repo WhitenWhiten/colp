@@ -63,6 +63,13 @@ DO $$ BEGIN
       ON CONFLICT (owner_id) DO UPDATE SET paused = true, paused_at = now(),
         paused_by = 'restore', revision = automation_settings.revision + 1;
   END IF;
+  IF to_regclass('automation_configuration_epochs') IS NOT NULL THEN
+    INSERT INTO automation_configuration_epochs(owner_id, revision)
+      SELECT a.id, greatest(coalesce(s.revision,0),coalesce(b.revision,0))+1 FROM accounts a
+      LEFT JOIN automation_settings s ON s.owner_id=a.id
+      LEFT JOIN (SELECT owner_id,max(settings_revision) AS revision FROM automation_device_bundles GROUP BY owner_id) b ON b.owner_id=a.id
+      ON CONFLICT (owner_id) DO UPDATE SET revision=greatest(automation_configuration_epochs.revision,excluded.revision)+1;
+  END IF;
 END $$;
 SQL
 

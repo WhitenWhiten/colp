@@ -26,6 +26,7 @@ export interface AutomationPorts {
   settings: { get(ownerId: string): Promise<PauseState>; save(ownerId: string, state: PauseState): Promise<void> };
   previews: { load(ownerId: string, id: string): Promise<StoredPreview | null>; save(ownerId: string, preview: StoredPreview): Promise<void> };
   sample(actor: AutomationActor, rule: RuleDefinition, values: RoleBindings): Promise<CurrentSample>;
+  wakePendingRuns(): Promise<void>;
   pendingRuns(ruleRevisionId: string, policy: 'hold' | 'cancel' | 'continuePinned'): Promise<void>;
   activation(rule: StoredRule, transition: ActivationTransition): Promise<void>;
   export(ownerId: string): Promise<AutomationExport>;

@@ -36,3 +36,21 @@ test('installed M1 runtime advertises ready without requiring Events, agents or 
     identityUnitOfWork: createIdentityMemoryUnitOfWork(createIdentityMemoryState(new Date())), automationUnitOfWork: unitOfWork }); apps.push(app);
   expect((await app.inject({ method: 'GET', url: '/ready/features/automation' })).json()).toMatchObject({ status: 'ready', reason: 'm1RuntimeInstalled' });
 });
+
+test('configuration-only composition cannot distribute an active device bundle', async () => {
+  const { default: Fastify } = await import('fastify');
+  const { registerAccountProductSurfaces } = await import('../../../src/transport/register-account-product-surfaces.js');
+  for (const enabled of [false, true]) {
+    const app = Fastify({ exposeHeadRoutes: false }); apps.push(app);
+    registerAccountProductSurfaces(app, {
+      config: loadConfig({ ...env, KNOWN_FEATURE_AUTOMATION_RUNTIME: String(enabled) }),
+      automationDeviceUnitOfWork: { execute: async () => { throw new Error('Route composition only'); } },
+      syncSessionRoutes: {
+        path: '/test-sync', allowedOrigins: ['https://known.example'], rateLimit: { maxRequests: 10, windowMs: 60000 },
+        credentialVerifier: { verify: async () => { throw new Error('No authentication expected'); } },
+        application: { issue: async () => { throw new Error('No session expected'); } },
+      },
+    });
+    expect(app.hasRoute({ method: 'GET', url: '/api/v1/automation-device/bundle' })).toBe(enabled);
+  }
+});

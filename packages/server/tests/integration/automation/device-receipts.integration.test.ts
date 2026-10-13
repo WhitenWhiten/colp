@@ -36,7 +36,7 @@ describeWithPostgres('canonical device receipt transport', () => {
     expect(validateAutomation('ReceiptIngestResult', accepted.json()).valid).toBe(true);
     const second = receipt('device-second', 'device-create-second'); await f.syncCreate(second.committedNode.nodeId, second.operationId);
     expect((await post(second)).json().state).toBe('accepted'); await f.inspect(); await post(second);
-    expect((await sql<{ count: string }>`SELECT count(*) FROM automation_runs`.execute(f.db)).rows[0]!.count).toBe('2');
+    expect((await sql<{ count: string }>`SELECT count(*) FROM automation_runs WHERE explanation_json->>'nodeId' IN ('device-first','device-second')`.execute(f.db)).rows[0]!.count).toBe('2');
   });
   test('observed create-then-move joins both operations and completes the existing admission once', async () => {
     const input = { ...receipt('observed-paper', 'observed-create'), placementOperationId: 'observed-move',
@@ -50,7 +50,8 @@ describeWithPostgres('canonical device receipt transport', () => {
     expect(runs).toEqual([{ state: 'completed' }]);
   });
   test('rejects enrichment/native IDs, mismatched canonical identity, stale generations and unauthorized bearer', async () => {
-    const input = receipt('device-first', 'device-create-first');
+    await f.syncCreate('negative-reference', 'negative-create');
+    const input = receipt('negative-reference', 'negative-create');
     expect((await post({ ...input, satisfiedTaskTypes: ['summary.generate'] })).statusCode).toBe(400);
     expect((await post({ ...input, nativeBookmarkId: '123' })).statusCode).toBe(400);
     expect((await post({ ...input, committedNode: { ...input.committedNode, nodeId: 'paper' } })).json().state).toBe('rejected');

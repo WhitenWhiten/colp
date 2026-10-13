@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, expect, test } from 'vitest';
+import { afterEach, beforeEach, expect, test } from 'vitest';
 import { sql } from 'kysely';
 import { automationFixture } from '../../support/automation-fixture.js';
 import { describeWithPostgres } from '../../support/postgres-test-runtime.js';
@@ -7,10 +7,10 @@ import type { OutboxHandlerContext } from '../../../src/infrastructure/outbox/ro
 
 describeWithPostgres('ordered automation source positions', () => {
   let f: Awaited<ReturnType<typeof automationFixture>>;
-  beforeAll(async () => { f = await automationFixture('aw14');
+  beforeEach(async () => { f = await automationFixture('aw14');
     await sql`CREATE TABLE inspected_test_operations (operation_id text PRIMARY KEY)`.execute(f.db);
   });
-  afterAll(async () => { await f?.isolated.close(); });
+  afterEach(async () => { await f?.isolated.close(); });
   async function delivery(): Promise<OutboxHandlerContext> {
     const row = await f.db.selectFrom('outbox_events').selectAll().where('handler_name', '=', 'automation_ingest')
       .orderBy('commit_ordinal', 'desc').executeTakeFirstOrThrow();
@@ -37,11 +37,12 @@ describeWithPostgres('ordered automation source positions', () => {
     expect(counts.ordinal).toBe(context.envelope.commit_ordinal);
   });
   test('a stale lease rolls back both consumer writes and the inspection cursor', async () => {
-    await f.createNode('later', 'root', 'Later', 'https://example.test/later');
-    const context = await delivery();
     const inspect = createAutomationSourceInspector(f.db, async (tx, _owner, _collection, rows) => {
       for (const row of rows) await sql`INSERT INTO inspected_test_operations VALUES (${row.operation_id})`.execute(tx);
     });
+    await inspect(await delivery());
+    await f.createNode('later', 'root', 'Later', 'https://example.test/later');
+    const context = await delivery();
     await expect(inspect({ ...context, attempt: { ...context.attempt!, leaseGeneration: '0' } })).rejects.toThrow('lease lost');
     const count = (await sql<{ count: string }>`SELECT count(*) FROM inspected_test_operations`.execute(f.db)).rows[0]!.count;
     expect(count).toBe('4');

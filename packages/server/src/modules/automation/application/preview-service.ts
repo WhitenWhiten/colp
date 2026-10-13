@@ -10,7 +10,7 @@ import { ruleInput, type AutomationPorts } from './ports.js';
 export async function previewSnapshot(ports: AutomationPorts, actor: AutomationActor, input: PreviewInput) {
   input = { ...input, rule: normalizeRuleInput(input.rule) };
   assertM1Input(input.rule);
-  if (input.mode === 'retainedHistory') throw new AutomationError('automation_unsupported_capability', 'Historical event-time facts are unavailable. Current state is never substituted.');
+  if (input.mode === 'retainedHistory') throw new AutomationError('automation_unsupported_capability', 'Historical preview is not installed on this host. Current state is never substituted.');
   const inspected = await inspectInput(ports, actor, input.rule);
   const scopeRole = input.rule.definition.scope.folderRole;
   if (input.mode === 'currentState' && scopeRole && inspected.resolutions[scopeRole]?.status !== 'valid')

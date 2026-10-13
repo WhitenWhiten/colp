@@ -1,3 +1,4 @@
+import { touchAutomationConfiguration } from './configuration-epoch.js';
 import type { Kysely } from 'kysely';
 import { sql } from 'kysely';
 import { bindingSemanticDigest, type BindingSet } from '@know-n/colp/automation';
@@ -58,6 +59,7 @@ export function createBindingStore(db: Kysely<DatabaseSchema>): BindingStore {
       if (value.revision === '1') await db.insertInto('automation_binding_sets').values({ id: value.id, owner_id: ownerId, rule_id: null, current_revision: '1', name: value.name }).execute();
       await db.insertInto('automation_binding_revisions').values({ binding_set_id: value.id, revision: value.revision, values_json: value.values, semantic_digest: bindingSemanticDigest(value.values) }).execute();
       await db.updateTable('automation_binding_sets').set({ current_revision: value.revision, name: value.name, updated_at: new Date(value.updatedAt) }).where('id', '=', value.id).where('owner_id', '=', ownerId).execute();
+      await touchAutomationConfiguration(db, ownerId);
     },
     async list(ownerId, after, limit) {
       let query = select().where('b.owner_id', '=', ownerId);
@@ -67,7 +69,8 @@ export function createBindingStore(db: Kysely<DatabaseSchema>): BindingStore {
     async delete(ownerId, id) {
       const referenced = await db.selectFrom('automation_rule_revisions').select('id').where('binding_set_id', '=', id).executeTakeFirst();
       if (referenced) return false;
-      await db.deleteFrom('automation_binding_sets').where('owner_id', '=', ownerId).where('id', '=', id).execute(); return true;
+      await db.deleteFrom('automation_binding_sets').where('owner_id', '=', ownerId).where('id', '=', id).execute();
+      await touchAutomationConfiguration(db, ownerId); return true;
     },
   };
 }
