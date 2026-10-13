@@ -1,7 +1,7 @@
 import { describe, test, expect } from 'vitest';
 import rule from '../fixtures/automation/m1-placement.json' with { type: 'json' };
 import facts from '../fixtures/automation/event-facts.json' with { type: 'json' };
-import { normalizeUrl, normalizeHost, normalizeEventFacts, normalizePathText, compilePredicate, taskInputDigest, automationDigest, normalizeRuleDefinition, ruleSemanticDigest, type RuleDefinition } from '../../src/automation/index.js';
+import { normalizeUrl, normalizeHost, normalizeUrlIdentity, normalizeEventFacts, normalizePathText, compilePredicate, taskInputDigest, automationDigest, normalizeRuleDefinition, ruleSemanticDigest, type RuleDefinition } from '../../src/automation/index.js';
 
 describe('normalization and canonical digests', () => {
   test('host case, IDNA, terminal dot, query spoof and malformed URLs', () => {
@@ -73,4 +73,11 @@ test('review: a bookmark without an http URL only misses its URL facts', () => {
   expect(evaluate({ kind: 'field', field: 'bookmark.url.host', op: 'hostSuffix', value: 'arxiv.org' })).toBe('missingInput');
   expect(evaluate({ kind: 'field', field: 'bookmark.url.path', op: 'startsWith', value: '/' })).toBe('missingInput');
   expect(normalizeEventFacts({ ...bookmarklet, bookmark: { ...bookmarklet.bookmark, url: { host: '', path: '/x' } } }).status).toBe('missingInput');
+});
+
+test('review: URL identity shares host and path normalization and keeps the query', () => {
+  expect(normalizeUrlIdentity('HTTPS://ArXiv.org./a/../abs/1?v=2#section')).toBe('https://arxiv.org/abs/1?v=2');
+  expect(normalizeUrlIdentity('https://example.org:8443/x?')).toBe('https://example.org:8443/x');
+  expect(normalizeUrlIdentity('https://www.youtube.com/watch?v=a')).not.toBe(normalizeUrlIdentity('https://www.youtube.com/watch?v=b'));
+  for (const url of ['javascript:alert(1)', 'https://u:p@arxiv.org/', 'file:///a']) expect(normalizeUrlIdentity(url)).toBeUndefined();
 });

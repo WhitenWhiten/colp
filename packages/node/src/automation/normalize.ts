@@ -14,6 +14,18 @@ export function normalizeUrl(raw: string): NormalizedUrl {
   } catch { return { status: 'missingInput' }; }
 }
 
+/**
+ * Identity of a bookmark URL for de-duplication (countBatch `distinctBy: normalizedUrl`): the shared
+ * host and path normalization plus scheme, port and query; never the fragment. Undefined when the URL
+ * is not an http(s) URL this normalizer accepts.
+ */
+export function normalizeUrlIdentity(raw: string): string | undefined {
+  const normalized = normalizeUrl(raw);
+  if (normalized.status !== 'available') return undefined;
+  const parsed = new URL(raw);
+  return `${parsed.protocol}//${normalized.host}${parsed.port ? `:${parsed.port}` : ''}${normalized.path}${parsed.search}`;
+}
+
 export function normalizeHost(raw: string): string | undefined {
   // Reject URL delimiters instead of interpreting a user-supplied host as a URL.
   if (!raw || (/[\s/@?#\\:%]/u.test(raw) && !/^\[[0-9a-fA-F:.]+\]$/u.test(raw))) return undefined;

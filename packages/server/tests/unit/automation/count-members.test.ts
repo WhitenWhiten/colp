@@ -18,5 +18,14 @@ test('full normalized URLs preserve queries, remove fragments and reject insuffi
     { event: event('a', 'x'), url: 'https://EXAMPLE.com./p?q=1#one' },
     { event: event('b', 'y'), url: 'https://example.com/p?q=1#two' },
   ])).toEqual({ plannedRunCount: 0, remainderCount: 1 });
+  // The same shared path normalization as rule matching: dot segments resolve, percent-encoding is canonical.
+  expect(estimateCountMembers(trigger, [
+    { event: event('a', 'x'), url: 'https://example.com/a/../p/日本?q=1' },
+    { event: event('b', 'y'), url: 'https://example.com/p/%E6%97%A5%E6%9C%AC?q=1' },
+  ])).toEqual({ plannedRunCount: 0, remainderCount: 1 });
+  expect(estimateCountMembers(trigger, [
+    { event: event('a', 'x'), url: 'javascript:void(1)' },
+    { event: event('b', 'y'), url: 'javascript:void(2)' },
+  ])).toEqual({ plannedRunCount: 1, remainderCount: 0 });
   expect(() => estimateCountMembers(trigger, [{ event: event('a', 'x') }])).toThrow('full canonical URLs');
 });
