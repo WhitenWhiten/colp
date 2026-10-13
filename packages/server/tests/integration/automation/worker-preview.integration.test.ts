@@ -1,10 +1,10 @@
 import { afterEach, expect, test } from 'vitest';
-import { readFileSync } from 'node:fs';
 import { sql } from 'kysely';
 import { describeWithPostgres } from '../../support/postgres-test-runtime.js';
 import { automationPollingFixture } from '../../support/automation-polling-fixture.js';
 import { createCollectionNode } from '../../../src/modules/collections/index.js';
 import { revalidateRule } from '../../../src/modules/automation/index.js';
+import { readRepositoryFile } from '../../support/repository-files.js';
 
 describeWithPostgres('worker preview and intake agreement', () => {
   let f: Awaited<ReturnType<typeof automationPollingFixture>>;
@@ -55,7 +55,7 @@ describeWithPostgres('worker preview and intake agreement', () => {
     expect(activation.statusCode, activation.body).toBe(200);
     const enabled = await f.ownerPost(`/rules/${rule.json().id}/lifecycle`, { state: 'enabled', pendingRuns: 'continuePinned', reason: 'Activate competing rule', activationPreviewId: activation.json().previewId }, String(rule.headers.etag));
     expect(enabled.statusCode, enabled.body).toBe(200);
-    const event = JSON.parse(readFileSync('../../docs/automation/design/examples/event-facts.json', 'utf8'));
+    const event = JSON.parse(readRepositoryFile('docs/automation/design/examples/event-facts.json'));
     event.collectionId = 'collection'; event.intakeDisposition = 'userDefault';
     const preview = await f.ownerPost('/rules/preview', { rule: f.ruleInput, mode: 'supplied', events: [event] });
     expect(preview.statusCode, preview.body).toBe(200);
@@ -72,7 +72,7 @@ describeWithPostgres('worker preview and intake agreement', () => {
   test('preview counts the enrichment run for explicitly selected placement', async () => {
     f = await automationPollingFixture('review_preview');
     expect(f.rule.effectiveState).toBe('active');
-    const event = JSON.parse(readFileSync('../../docs/automation/design/examples/event-facts.json', 'utf8'));
+    const event = JSON.parse(readRepositoryFile('docs/automation/design/examples/event-facts.json'));
     Object.assign(event, { collectionId: 'collection', nodeId: 'selected-paper', intakeDisposition: 'userSelected' });
     Object.assign(event.bookmark, { nodeId: 'selected-paper', parent: { serverUuid: 'server', collectionId: 'collection', nodeId: 'root' }, ancestors: [{ serverUuid: 'server', collectionId: 'collection', nodeId: 'root' }] });
     const preview = await f.ownerPost('/rules/preview', { rule: f.ruleInput, mode: 'supplied', events: [event] });

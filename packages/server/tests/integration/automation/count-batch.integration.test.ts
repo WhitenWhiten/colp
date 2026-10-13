@@ -1,12 +1,12 @@
 import { up as upgradeAggregation, down as removeAggregationMetadata } from '../../../migrations/202610310000_automation_aggregation_spaces.js';
 import { automationDigest } from '@know-n/colp/automation';
 import { afterEach,expect,test } from 'vitest';
-import { readFileSync } from 'node:fs';
 import { sql } from 'kysely';
 import { automationPollingFixture } from '../../support/automation-polling-fixture.js';
 import { describeWithPostgres } from '../../support/postgres-test-runtime.js';
 import { createAutomationRuntime } from '../../../src/infrastructure/automation/runtime.js';
 import type { AutomationSource } from '../../../src/infrastructure/automation/source-position-store.js';
+import { readRepositoryFile } from '../../support/repository-files.js';
 describeWithPostgres('AW-57 exact durable count batches',()=>{
   let f:Awaited<ReturnType<typeof automationPollingFixture>>;
   afterEach(async()=>{await f?.close();});
@@ -52,7 +52,7 @@ describeWithPostgres('AW-57 exact durable count batches',()=>{
       delete d.intake;d.on='intake.completed';d.scope.folderRole='academicRoot';d.scope.includeDescendants=true;
       d.trigger={mode:'countBatch',count:2,distinctBy:'node',partition:'rule'};d.tasks[0]!.type='digest.generate';d.tasks[0]!.outputContract='digest.sourced.v1';p.assignments[2]!.taskType='digest.generate';
     }});
-    const definition=JSON.parse(readFileSync('../node/tests/fixtures/automation/m1-placement.json','utf8'));definition.scope.collectionId='collection';
+    const definition=JSON.parse(readRepositoryFile('packages/node/tests/fixtures/automation/m1-placement.json'));definition.scope.collectionId='collection';
     const input={definition,bindingSetId:f.ruleInput.bindingSetId};const rule=await f.ownerPost('/rules',input);expect(rule.statusCode,rule.body).toBe(201);
     const preview=await f.ownerPost('/rules/preview',{rule:input,mode:'currentState'});
     expect((await f.ownerPost(`/rules/${rule.json().id}/lifecycle`,{state:'enabled',pendingRuns:'hold',reason:'Intake fixture',activationPreviewId:preview.json().previewId},String(rule.headers.etag))).statusCode).toBe(200);

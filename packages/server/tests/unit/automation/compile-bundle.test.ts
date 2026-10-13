@@ -1,8 +1,8 @@
-import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
 import { compileBundle } from '../../../src/modules/automation/application/compile-bundle.js';
 import type { RuleDefinition } from '@know-n/colp/automation';
-const definition = JSON.parse(readFileSync('../node/tests/fixtures/automation/m1-placement.json', 'utf8')) as RuleDefinition;
+import { readRepositoryFile } from '../../support/repository-files.js';
+const definition = JSON.parse(readRepositoryFile('packages/node/tests/fixtures/automation/m1-placement.json')) as RuleDefinition;
 const rule = { ruleId: 'rule', ruleRevision: '1', bindingRevision: '1', definition, values: {} };
 const input = { revision: '1', settingsRevision: 0, paused: false, now: new Date('2026-10-12T00:00:00Z'), previousRuleIds: [], profile: 'browser-bounded-v1' };
 test('generic finite path predicate and priority survive packaging without host-only approximation', () => {

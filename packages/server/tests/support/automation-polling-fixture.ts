@@ -1,7 +1,7 @@
-import { readFileSync } from 'node:fs';
 import type { RuleDefinition, ExecutionPolicyInput, PairingGrant } from '@know-n/colp/automation';
 import { automationWorkerFixture } from './automation-worker-fixture.js';
 import { writeAgentPolicy } from '../../src/infrastructure/collections/index.js';
+import { readRepositoryFile } from './repository-files.js';
 
 /** Real machine credentials, Owner configuration, canonical intake and durable work. */
 export async function automationPollingFixture(prefix: string, options: {
@@ -22,10 +22,10 @@ export async function automationPollingFixture(prefix: string, options: {
     const executors = check(await f.app.inject({ url: '/api/v1/me/automations/executors',headers: { cookie: f.owner.cookie } }),200).json();
     const executor = executors.items[0];
     const bindings = check(await f.ownerPost('/binding-sets',{ name: 'Polling gate bindings',values: { ...f.values,researchEnricher: { kind: 'executor',executorId: executor.id } } }));
-    const policy = JSON.parse(readFileSync('../../docs/automation/design/examples/execution-policy.json','utf8')) as ExecutionPolicyInput;
+    const policy = JSON.parse(readRepositoryFile('docs/automation/design/examples/execution-policy.json')) as ExecutionPolicyInput;
     policy.allowAutomaticWrites=true;
     for (const assignment of policy.assignments) { assignment.allowedDestinations=[executor.id]; assignment.maxCalls=options.maxCalls ?? 1; }
-    const definition = JSON.parse(readFileSync(`../../docs/automation/design/examples/${options.three ? 'academic-intake' : 'academic-summary-only'}.json`,'utf8')) as RuleDefinition;
+    const definition = JSON.parse(readRepositoryFile(`docs/automation/design/examples/${options.three ? 'academic-intake' : 'academic-summary-only'}.json`)) as RuleDefinition;
     definition.scope.collectionId='collection'; definition.route.targetIds=[setup.target.id];
     if (options.three) definition.tasks[2]!.after=['tags'];
     if (options.dailyLimit !== undefined) definition.policy.maxRunsPerDay=options.dailyLimit;

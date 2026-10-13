@@ -1,6 +1,5 @@
 import { seedAutomationTarget } from './automation-target-fixture.js';
 import { randomUUID } from 'node:crypto';
-import { readFileSync } from 'node:fs';
 import { sql } from 'kysely';
 import type { RuleDefinition, TaskInput } from '@know-n/colp/automation';
 import { automationRuntimeFixture } from './automation-runtime-fixture.js';
@@ -9,6 +8,7 @@ import { createJobLeaseStore } from '../../src/infrastructure/automation/lease-s
 import { createResultSubmissionPort } from '../../src/infrastructure/automation/result-store.js';
 import { createProposalPlanGateway } from '../../src/infrastructure/automation/proposal-plan-gateway.js';
 import { createPhase4bMcpWriteComposition, createMcpChangePlanRateLimitPort } from '../../src/bootstrap/mcp-write-composition.js';
+import { readRepositoryFile } from './repository-files.js';
 
 /** AW-24 service fixture: real canonical source/run; explicit M2 pins, before AW-31 admission is mounted. */
 export async function automationJobFixture(prefix: string,kind: 'summary' | 'tags' | 'move' = 'summary',options: { afterCanonicalCommit?: () => Promise<void>; beforeCanonicalCommit?: () => Promise<void> } = {}) {
@@ -16,12 +16,12 @@ export async function automationJobFixture(prefix: string,kind: 'summary' | 'tag
   await seedAutomationTarget(f.uow,f.owner);
   await f.createNode('job-paper','root','Job paper','https://arxiv.org/abs/job'); await f.inspect();
   const run = (await sql<{ id: string; rule_revision_id: string; member_ids: string[] }>`SELECT * FROM automation_runs`.execute(f.db)).rows[0]!;
-  const definition = JSON.parse(readFileSync('../../docs/automation/design/examples/academic-summary-only.json','utf8')) as RuleDefinition;
+  const definition = JSON.parse(readRepositoryFile('docs/automation/design/examples/academic-summary-only.json')) as RuleDefinition;
   const task = definition.tasks[0]!;
   if (kind === 'tags') { task.type='tags.generate';task.outputContract='tags.sourced.v1'; }
   if (kind === 'move') { task.type='classify.refine';task.outputContract='placement.subtree.v1';task.folderRole='academicRoot'; }
   const policy = await f.uow.execute(f.owner,async p => {
-    const policy = JSON.parse(readFileSync('../../docs/automation/design/examples/execution-policy.json','utf8'));
+    const policy = JSON.parse(readRepositoryFile('docs/automation/design/examples/execution-policy.json'));
     policy.allowAutomaticWrites=true;
     const saved = await saveExecutionPolicy(p.policies,policy);
     const previous = (await p.rules.load(f.owner.accountId,f.rule.id))!;

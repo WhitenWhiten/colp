@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import { readFileSync } from 'node:fs';
 import type { RuleDefinition, FolderRef } from '@know-n/colp/automation';
 import { createPostgresIdentityUnitOfWork } from '../../src/infrastructure/identity/index.js';
 import { createSession, ensureAccountFromOidcIdentity } from '../../src/modules/identity/index.js';
@@ -9,6 +8,7 @@ import { runMigrations } from '../../src/infrastructure/database/index.js';
 import { setAutomationCaptureEnabled } from '../../src/infrastructure/automation/index.js';
 import { createIsolatedPostgresRuntime } from './postgres-test-runtime.js';
 import { SESSION_COOKIE_NAME } from '../../src/transport/session-cookie.js';
+import { readRepositoryFile } from './repository-files.js';
 
 export async function automationFixture(prefix: string) {
   // Equivalent of KNOWN_FEATURE_AUTOMATION_CAPTURE=true for this test process.
@@ -44,7 +44,7 @@ export async function automationFixture(prefix: string) {
       ifMatch: `"${node.resource_revision}"`, patch: { title } }));
   };
   const folder: FolderRef = { serverUuid: 'server', collectionId: 'collection', nodeId: 'academic' };
-  const rule = JSON.parse(readFileSync('../node/tests/fixtures/automation/m1-placement.json', 'utf8')) as RuleDefinition;
+  const rule = JSON.parse(readRepositoryFile('packages/node/tests/fixtures/automation/m1-placement.json')) as RuleDefinition;
   rule.scope.collectionId = 'collection';
   const values = { academicRoot: { kind: 'folder' as const, folder, followIdentity: true as const, onUnavailable: 'block' as const, notifyOn: ['rename' as const, 'move' as const, 'delete' as const, 'permission' as const, 'syncScope' as const] } };
   return { isolated, db, identity, issue, owner, actor, canonical, command, createNode, rename, folder, rule, values };

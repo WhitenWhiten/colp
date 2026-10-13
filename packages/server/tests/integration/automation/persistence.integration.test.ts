@@ -1,6 +1,6 @@
 import { beforeAll, afterAll, test, expect } from 'vitest';
 import { randomUUID } from 'node:crypto';
-import { readFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -11,8 +11,9 @@ import { createOwnedCollectionCanonical } from '../../../src/modules/collections
 import { createMigrator, runMigrations } from '../../../src/infrastructure/database/index.js';
 import { exportAutomations } from '../../../src/infrastructure/automation/export.js';
 import { createIsolatedPostgresRuntime, describeWithPostgres, type IsolatedPostgresRuntime } from '../../support/postgres-test-runtime.js';
+import { readRepositoryFile } from '../../support/repository-files.js';
 
-const definition = JSON.parse(readFileSync('../node/tests/fixtures/automation/m1-placement.json', 'utf8'));
+const definition = JSON.parse(readRepositoryFile('packages/node/tests/fixtures/automation/m1-placement.json'));
 describeWithPostgres('BE-1 migrations, immutable persistence and recovery', () => {
   let isolated: IsolatedPostgresRuntime;
   beforeAll(async () => {
@@ -119,7 +120,7 @@ describeWithPostgres('BE-1 migrations, immutable persistence and recovery', () =
       const backupUrl = new URL(isolated.databaseUrl); backupUrl.searchParams.delete('options');
       execFileSync('pg_dump', ['--dbname', backupUrl.toString(), '--schema', isolated.schema, '--format=custom', '--file', dump]);
       execFileSync('pg_restore', ['--dbname', backupUrl.toString(), '--schema', isolated.schema, '--clean', '--if-exists', '--exit-on-error', '--single-transaction', dump]);
-      const restore = readFileSync('../../deploy/restore.sh', 'utf8');
+      const restore = readRepositoryFile('deploy/restore.sh');
       const pauseSql = restore.split("<<'SQL'\n")[1]?.split('\nSQL')[0];
       expect(pauseSql).toBeTruthy();
       await sql.raw(pauseSql!).execute(isolated.runtime.db);

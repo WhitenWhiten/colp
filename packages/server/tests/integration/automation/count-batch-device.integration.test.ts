@@ -1,5 +1,4 @@
 import { afterEach,expect,test } from 'vitest';
-import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { automationDeviceFixture,AUTOMATION_DEVICE_ORIGIN } from '../../support/automation-device-fixture.js';
@@ -7,6 +6,7 @@ import { seedAutomationTarget } from '../../support/automation-target-fixture.js
 import { describeWithPostgres } from '../../support/postgres-test-runtime.js';
 import { createAutomationUnitOfWork,createAutomationRuntime,createAutomationDeviceUnitOfWork } from '../../../src/infrastructure/automation/index.js';
 import { createRule,saveBinding,saveExecutionPolicy,previewRule,setLifecycle,placementInputDigest,placementResultDigest } from '../../../src/modules/automation/index.js';
+import { readRepositoryFile } from '../../support/repository-files.js';
 describeWithPostgres('count batch late canonical device completion',()=>{
   let f:Awaited<ReturnType<typeof automationDeviceFixture>>;
   afterEach(async()=>{await f?.isolated.close();});
@@ -16,9 +16,9 @@ describeWithPostgres('count batch late canonical device completion',()=>{
     const configured=await uow.execute(f.owner,async ports=>{
       const executor=await ports.targets.executors.save({name:'Digest storage fixture',kind:'mcpEventsBot',dataLocation:'thirdParty',providerLabel:'Fixture only',capabilities:[],targetId:'target'});
       const binding=await saveBinding(ports,f.owner,{name:'Digest bindings',values:{...f.values,researchEnricher:{kind:'executor',executorId:executor.id}}});
-      const p=JSON.parse(readFileSync('../../docs/automation/design/examples/execution-policy.json','utf8'));p.assignments=[{...p.assignments[2],taskType:'digest.generate',allowedDestinations:[executor.id]}];
+      const p=JSON.parse(readRepositoryFile('docs/automation/design/examples/execution-policy.json'));p.assignments=[{...p.assignments[2],taskType:'digest.generate',allowedDestinations:[executor.id]}];
       const policy=await saveExecutionPolicy(ports.policies,p);
-      const definition=JSON.parse(readFileSync('../../docs/automation/design/examples/ten-bookmark-digest.json','utf8'));
+      const definition=JSON.parse(readRepositoryFile('docs/automation/design/examples/ten-bookmark-digest.json'));
       definition.scope.collectionId='collection';definition.route.targetIds=['target'];definition.trigger.count=2;
       const input={definition,bindingSetId:binding.id,executionPolicyId:policy.id},rule=await createRule(ports,f.owner,input);
       const preview=await previewRule(ports,f.owner,{rule:input,mode:'currentState'});

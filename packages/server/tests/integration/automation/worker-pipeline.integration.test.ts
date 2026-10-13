@@ -1,5 +1,4 @@
 import { afterEach,expect,test } from 'vitest';
-import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { createAjv } from '@know-n/colp/schema';
@@ -8,6 +7,7 @@ import { automationWorkerFixture } from '../../support/automation-worker-fixture
 import { describeWithPostgres } from '../../support/postgres-test-runtime.js';
 import { automationWorkPrincipal,createMcpApplicationContext,createAutomationToolPort,withAutomationCatalog,type McpApplicationFacade } from '../../../src/modules/mcp/index.js';
 import { writeAgentPolicy } from '../../../src/infrastructure/collections/index.js';
+import { readRepositoryFile } from '../../support/repository-files.js';
 
 describeWithPostgres('AW-31 authenticated polling and typed canonical orchestration',() => {
   let f: Awaited<ReturnType<typeof automationWorkerFixture>>;
@@ -21,9 +21,9 @@ describeWithPostgres('AW-31 authenticated polling and typed canonical orchestrat
     expect(executors.statusCode,executors.body).toBe(200);const executor = executors.json().items[0];
     const bindings = await f.ownerPost('/binding-sets',{ name: 'Pinned enrichment bindings',values: { ...f.values,researchEnricher: { kind: 'executor',executorId: executor.id } } });
     expect(bindings.statusCode,bindings.body).toBe(201);
-    const policy = JSON.parse(readFileSync('../../docs/automation/design/examples/execution-policy.json','utf8'));
+    const policy = JSON.parse(readRepositoryFile('docs/automation/design/examples/execution-policy.json'));
     policy.allowAutomaticWrites=true;for (const assignment of policy.assignments) { assignment.allowedDestinations=[executor.id];assignment.maxCalls=maxCalls; }
-    const definition = JSON.parse(readFileSync(`../../docs/automation/design/examples/${three ? 'academic-intake' : 'academic-summary-only'}.json`,'utf8')) as RuleDefinition;
+    const definition = JSON.parse(readRepositoryFile(`docs/automation/design/examples/${three ? 'academic-intake' : 'academic-summary-only'}.json`)) as RuleDefinition;
     definition.scope.collectionId='collection';definition.route.targetIds=[setup.target.id];
     if (three) definition.tasks[2]!.after=['tags'];
     configure?.(definition,policy);

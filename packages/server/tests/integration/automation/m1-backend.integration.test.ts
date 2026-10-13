@@ -1,7 +1,7 @@
 import Fastify from 'fastify';
 import { beforeAll, afterAll, expect, test } from 'vitest';
 import { randomUUID } from 'node:crypto';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -21,6 +21,7 @@ import { automationHealthRoutes } from '../../../src/transport/product/automatio
 import { registerNodeRoutes } from '../../../src/transport/product/node-routes.js';
 import { installProductAdmission } from '../../../src/transport/product-admission.js';
 import { ProductHttpError, sendProductError } from '../../../src/transport/product-error.js';
+import { readRepositoryFile } from '../../support/repository-files.js';
 const ORIGIN = 'https://automation.example.test', BASE = '/api/v1/me/automations';
 
 describeWithPostgres('AW-66 M1 backend gate through API and durable worker', () => {
@@ -163,7 +164,7 @@ describeWithPostgres('AW-66 M1 backend gate through API and durable worker', () 
       const backup = join(scratch, 'm1.dump'), url = new URL(f.isolated.databaseUrl); url.searchParams.delete('options');
       execFileSync('pg_dump', ['--dbname', url.toString(), '--schema', f.isolated.schema, '--format=custom', '--file', backup]);
       execFileSync('pg_restore', ['--dbname', url.toString(), '--schema', f.isolated.schema, '--clean', '--if-exists', '--exit-on-error', '--single-transaction', backup]);
-      const pause = readFileSync('../../deploy/restore.sh', 'utf8').split("<<'SQL'\n")[1]!.split('\nSQL')[0]!;
+      const pause = readRepositoryFile('deploy/restore.sh').split("<<'SQL'\n")[1]!.split('\nSQL')[0]!;
       await sql.raw(pause).execute(f.db);
       expect((await get(BASE + '/pause')).json()).toMatchObject({ paused: true, pausedBy: 'restore' });
       const created = await post('/api/v1/collections/collection/nodes', { parentId: 'root', afterId: null, beforeId: null,

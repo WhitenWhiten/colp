@@ -1,9 +1,9 @@
 import { expect,test } from 'vitest';
-import { readFileSync } from 'node:fs';
 import type { ExecutionPolicyInput } from '@know-n/colp/automation';
 import { saveExecutionPolicy,taskExecutionAssignment,compatibleAcceptedResult } from '../../../src/modules/automation/index.js';
+import { readRepositoryFile } from '../../support/repository-files.js';
 
-const input = (): ExecutionPolicyInput => JSON.parse(readFileSync('../../docs/automation/design/examples/execution-policy.json','utf8'));
+const input = (): ExecutionPolicyInput => JSON.parse(readRepositoryFile('docs/automation/design/examples/execution-policy.json'));
 test('no policy means no assignment; reuse requires contract, digest and current authority compatibility', () => {
     const task = { id: 'summary', type: 'summary.generate' as const, after: [], executorRole: 'researchEnricher', required: true,
       outputContract: 'summary.sourced.v1', inputFields: ['title' as const], instruction: 'Summarize' };

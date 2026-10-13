@@ -3,7 +3,6 @@ import Fastify from 'fastify';
 import { randomUUID } from 'node:crypto';
 import { afterEach, beforeEach, expect, test } from 'vitest';
 import { sql } from 'kysely';
-import { readFileSync } from 'node:fs';
 import type { ExecutionPolicyInput } from '@know-n/colp/automation';
 import { automationRuntimeFixture } from '../../support/automation-runtime-fixture.js';
 import { describeWithPostgres } from '../../support/postgres-test-runtime.js';
@@ -12,11 +11,12 @@ import { automationPolicyRoutes } from '../../../src/transport/product/automatio
 import { installProductAdmission } from '../../../src/transport/product-admission.js';
 import { ProductHttpError, sendProductError } from '../../../src/transport/product-error.js';
 import { reserveOptionalWork, recordOptionalCall } from '../../../src/infrastructure/automation/usage-store.js';
+import { readRepositoryFile } from '../../support/repository-files.js';
 
 const ORIGIN = 'https://automation.example.test', BASE = '/api/v1/me/automations';
 describeWithPostgres('AW-22 explicit policy and optional-work accounting', () => {
   let f: Awaited<ReturnType<typeof automationRuntimeFixture>>, app: ReturnType<typeof Fastify>;
-  const input = (): ExecutionPolicyInput => JSON.parse(readFileSync('../../docs/automation/design/examples/execution-policy.json', 'utf8'));
+  const input = (): ExecutionPolicyInput => JSON.parse(readRepositoryFile('docs/automation/design/examples/execution-policy.json'));
   beforeEach(async () => {
     f = await automationRuntimeFixture('aw22', true);
     await seedAutomationTarget(f.uow,f.owner);

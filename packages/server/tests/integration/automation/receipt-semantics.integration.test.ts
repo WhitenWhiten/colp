@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, expect, test } from 'vitest';
 import { randomUUID } from 'node:crypto';
-import { readFileSync } from 'node:fs';
 import { sql } from 'kysely';
 import { up as upgradeEpoch, down as removeEpoch } from '../../../migrations/202610300900_automation_configuration_epoch.js';
 import { automationDeviceFixture, AUTOMATION_DEVICE_ORIGIN } from '../../support/automation-device-fixture.js';
@@ -8,6 +7,7 @@ import { describeWithPostgres } from '../../support/postgres-test-runtime.js';
 import { createAutomationDeviceUnitOfWork } from '../../../src/infrastructure/automation/index.js';
 import { createRule, saveBinding, previewRule, setLifecycle, placementInputDigest, placementResultDigest } from '../../../src/modules/automation/index.js';
 import type { RuleDefinition } from '@know-n/colp/automation';
+import { readRepositoryFile } from '../../support/repository-files.js';
 describeWithPostgres('review: device receipt semantic authority', () => {
   let f: Awaited<ReturnType<typeof automationDeviceFixture>>;
   beforeEach(async () => { f = await automationDeviceFixture('receipt_review'); });
@@ -62,7 +62,7 @@ describeWithPostgres('review: device receipt semantic authority', () => {
   });
   test('deployment restore pause advances the authenticated snapshot sequence', async () => {
     const active = await device().execute(auth(), p => p.bundle('browser-bounded-v1'));
-    const pauseSql = readFileSync('../../deploy/restore.sh', 'utf8').split("<<'SQL'\n")[1]!.split('\nSQL')[0]!;
+    const pauseSql = readRepositoryFile('deploy/restore.sh').split("<<'SQL'\n")[1]!.split('\nSQL')[0]!;
     await sql.raw(pauseSql).execute(f.db);
     const paused = await device().execute(auth(), p => p.bundle('browser-bounded-v1'));
     expect(paused.paused).toBe(true); expect(paused.rules).toEqual([]);

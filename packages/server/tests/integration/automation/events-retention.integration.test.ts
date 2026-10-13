@@ -1,5 +1,4 @@
 import { afterEach,expect,test } from 'vitest';
-import { readFileSync } from 'node:fs';
 import { sql, type KyselyPlugin } from 'kysely';
 import { automationPollingFixture } from '../../support/automation-polling-fixture.js';
 import { describeWithPostgres } from '../../support/postgres-test-runtime.js';
@@ -7,6 +6,7 @@ import { retainAutomationHistory } from '../../../src/infrastructure/automation/
 import { createSubscriptionStore } from '../../../src/infrastructure/automation/subscription-store.js';
 import { createWebhookCipher } from '../../../src/infrastructure/automation/webhook-signer.js';
 import { createDeliveryWorker } from '../../../src/infrastructure/automation/delivery-worker.js';
+import { readRepositoryFile } from '../../support/repository-files.js';
 const cipher=createWebhookCipher(Buffer.alloc(32,1));
 describeWithPostgres('AW-44 retention and restore',()=>{
   let f:Awaited<ReturnType<typeof automationPollingFixture>>;
@@ -39,7 +39,7 @@ describeWithPostgres('AW-44 retention and restore',()=>{
   test('deployment restore SQL pauses, fences external leases and cancels wakes before resume',async()=>{
     await setup();const job=(await f.work!.list(f.actor,{targetId:f.target.id})).items[0]!;
     await f.work!.mutate(f.actor,job.id,'claim',{deliveryHandle:job.deliveryHandle},crypto.randomUUID());
-    const script=readFileSync('../../deploy/restore.sh','utf8'),restore=script.split("<<'SQL'\n")[1]!.split('\nSQL')[0]!;
+    const script=readRepositoryFile('deploy/restore.sh'),restore=script.split("<<'SQL'\n")[1]!.split('\nSQL')[0]!;
     await sql.raw(restore).execute(f.db);await sql.raw(restore).execute(f.db);
     expect((await sql<{state:string}>`SELECT state FROM automation_jobs`.execute(f.db)).rows[0]?.state).toBe('uncertain');
     expect((await sql<{outcome:string}>`SELECT outcome FROM automation_job_attempts`.execute(f.db)).rows[0]?.outcome).toBe('unknownOutcome');

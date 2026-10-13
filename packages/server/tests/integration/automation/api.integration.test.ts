@@ -1,7 +1,6 @@
 import Fastify from 'fastify';
 import { beforeEach, afterEach, test, expect } from 'vitest';
 import { randomUUID } from 'node:crypto';
-import { readFileSync } from 'node:fs';
 import { sql } from 'kysely';
 import { validateAutomation, type EventFacts, type PreviewResult, type HealthReport } from '@know-n/colp/automation';
 import { automationFixture } from '../../support/automation-fixture.js';
@@ -13,6 +12,7 @@ import { registerAutomationRoutes } from '../../../src/transport/product/automat
 import { installProductAdmission, parseStrictQuery } from '../../../src/transport/product-admission.js';
 import { installProductRouteManifestChecks } from '../../../src/transport/product-route-manifest.js';
 import { ProductHttpError, sendProductError } from '../../../src/transport/product-error.js';
+import { readRepositoryFile } from '../../support/repository-files.js';
 const BASE = '/api/v1/me/automations', ORIGIN = 'https://automation.example.test';
 
 describeWithPostgres('BE-1 authenticated configuration and preview loop', () => {
@@ -40,7 +40,7 @@ describeWithPostgres('BE-1 authenticated configuration and preview loop', () => 
     return { binding: b.json(), rule: r.json(), input, etag: String(r.headers.etag) };
   }
   function facts(): EventFacts {
-    const event = JSON.parse(readFileSync('../node/tests/fixtures/automation/event-facts.json', 'utf8'));
+    const event = JSON.parse(readRepositoryFile('packages/node/tests/fixtures/automation/event-facts.json'));
     return { ...event, collectionId: 'collection', nodeId: 'paper', intakeDisposition: 'userDefault',
       bookmark: { ...event.bookmark, nodeId: 'paper', parent: { serverUuid: 'server', collectionId: 'collection', nodeId: 'root' }, ancestors: [{ serverUuid: 'server', collectionId: 'collection', nodeId: 'root' }] } };
   }
