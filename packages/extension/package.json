@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "@know-n/colp": "0.1.2",
-    "@noble/hashes": "2.0.1",
+    "@noble/hashes": "2.4.0",
     "ajv": "8.20.0",
     "ajv-formats": "3.0.1",
     "parse5": "7.3.0"
