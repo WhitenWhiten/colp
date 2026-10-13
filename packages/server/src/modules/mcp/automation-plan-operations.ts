@@ -1,14 +1,14 @@
 import type { McpAuthenticatedAuthorizationBinding, McpStoredPlan } from '@know-n/colp/mcp';
 import type { OperationResult } from '@know-n/colp/types';
 import { canonicalCommandFingerprint } from '../commands/index.js';
-import { createAnnotation, updateAnnotation, updateCollectionNode, moveCollectionNode, type AnnotationMutationPorts, type ProductCollectionCanonicalPorts } from '../collections/index.js';
+import { createAnnotation, updateCollectionNode, moveCollectionNode, type AnnotationMutationPorts, type ProductCollectionCanonicalPorts } from '../collections/index.js';
 import { requireMcpAccountSubjectId } from './account-context.js';
 
 /** Host-built operations only. Generic changes.plan never accepts these private shapes. */
 export interface AutomationPlanOperation {
-  type: 'update_node' | 'create_annotation' | 'update_annotation' | 'move_node'; collectionId: string; nodeId: string;
+  type: 'update_node' | 'create_annotation' | 'move_node'; collectionId: string; nodeId: string;
   commandId: string; operationId: string; ruleId: string; jobId: string; runId: string;
-  parentId?: string; sourceParentId?: string; tags?: string[]; text?: string; annotationRevision?: string; format?: 'plain' | 'markdown'; annotationId?: string; creator?: { id: string; name: string };
+  parentId?: string; sourceParentId?: string; tags?: string[]; text?: string; format?: 'plain' | 'markdown'; annotationId?: string; creator?: { id: string; name: string };
 }
 export function isAutomationPlanOperation(value: unknown): value is AutomationPlanOperation {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
@@ -19,10 +19,8 @@ export function isAutomationPlanOperation(value: unknown): value is AutomationPl
   switch(v.type) {
     case 'move_node': return typeof v.parentId==='string' && !!v.parentId && typeof v.sourceParentId==='string' && !!v.sourceParentId;
     case 'update_node': return Array.isArray(v.tags) && v.tags.every(tag=>typeof tag==='string');
-    case 'update_annotation':
     case 'create_annotation': return typeof v.text==='string' && !!v.text && typeof v.annotationId==='string'
-      && typeof v.creator?.id==='string' && typeof v.creator.name==='string'
-      && (v.type==='create_annotation' || typeof v.annotationRevision==='string');
+      && typeof v.creator?.id==='string' && typeof v.creator.name==='string';
     default: return false;
   }
 }
@@ -52,14 +50,6 @@ export async function executeAutomationPlanOperation(operation: AutomationPlanOp
     if (!operation.text || !operation.annotationId || !operation.creator) throw new Error('Automation note operation is incomplete');
     const wrapped = { ...annotations,canonical: { execute: (input: Parameters<typeof annotations.canonical.execute>[0]) =>
       annotations.canonical.execute({ ...input,automationContext: context }) } };
-    if (operation.type === 'update_annotation') {
-      if (!operation.annotationRevision) throw new Error('Missing note revision');
-      const updated = await updateAnnotation(wrapped,{ actor,command,collectionId: operation.collectionId,annotationId: operation.annotationId,
-        precondition: { kind: 'single-strong-if-match',entityTag: `"${operation.annotationRevision}"`,expectedRevision: operation.annotationRevision },
-        patch: { value: operation.text },operationId: operation.operationId });
-      if (updated.kind !== 'updated') throw new Error('Automation note update did not commit');
-      return { opId: operation.operationId,sequence: 1,status: 'applied',revision: updated.annotation.revision,cursor: operation.operationId,warnings: [] };
-    }
     const result = await createAnnotation(wrapped,{ actor: { ...actor,creator: operation.creator },command,
       collectionId: operation.collectionId,annotationId: operation.annotationId,operationId: operation.operationId,
       annotation: { type: 'note',subject: { type: 'node',id: operation.nodeId },format: 'plain',value: operation.text,visibility: 'private' } });

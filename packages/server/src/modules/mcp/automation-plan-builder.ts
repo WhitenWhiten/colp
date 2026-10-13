@@ -16,7 +16,7 @@ export function buildAutomationStoredPlan(input: AutomationPlanInput): McpStored
     || !input.revisions['content.' + op.collectionId] || !input.revisions['node.' + op.nodeId]) {
     throw new TypeError('Incomplete or mismatched pinned automation plan');
   }
-  const annotation = op.type === 'create_annotation' || op.type === 'update_annotation';
+  const annotation = op.type === 'create_annotation';
   // The SDK coordinator's stored-plan type describes public protocol operations.
   // Keep the host extension adaptation at this one validated boundary; all other
   // fields are checked against the actual coordinator type at construction time.

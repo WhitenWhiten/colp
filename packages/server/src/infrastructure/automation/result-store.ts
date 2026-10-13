@@ -13,6 +13,7 @@ import type { DatabaseTransaction } from '../database/unit-of-work.js';
 import { lockWorkJob, type TargetAuthority } from './work-authority.js';
 import { claimTokenHash, workBinding, requireJobLease } from './lease-store.js';
 import { rejectedInput, storeTypedResult } from './result-lifecycle.js';
+import { attributedNoteText, automationNoteCreator, hasLiveAutomationNote } from './automation-notes.js';
 import type { PinnedProposal, ProposalPlanGateway } from './proposal-plan-gateway.js';
 interface ResultRow {
     id: string;
@@ -139,26 +140,13 @@ export function createResultSubmissionPort(db: Kysely<DatabaseSchema>, serverUui
                 }
             }
             if (input.output.kind === 'text') {
+                if (await hasLiveAutomationNote(tx, job.collection_id, job.node_id, job.rule_id))
+                    return retainForReview('An earlier note from this rule is still on the bookmark; review the new output instead of stacking notes.');
                 operation.annotationId = `automation-note-${id}`;
-                operation.text = `${input.output.text}\n\nAutomation ${job.rule_id} / ${id}${input.modelLabel ? ` (${input.modelLabel})` : ''}`;
-                const existingNote = await tx.selectFrom('annotations').select(['id', 'resource_revision', 'payload_json'])
-                    .where('collection_id', '=', job.collection_id).where('subject_id', '=', job.node_id).where('subject_type', '=', 'node')
-                    .where('creator_principal_id', '=', actor.accountId).where('visibility', '=', 'private').where('deleted_at', 'is', null)
-                    .where(sql<string> `payload_json->>'type'`, '=', 'note').orderBy('id').limit(2).execute();
-                if (existingNote.length > 1)
-                    return retainForReview('Multiple notes require explicit review; no arbitrary note is selected.');
-                if (existingNote[0]) {
-                    const note = existingNote[0], payload = note.payload_json;
-                    if (typeof payload.value !== 'string' || !['plain', 'markdown'].includes(String(payload.format)))
-                        return retainForReview('This note format cannot be safely appended.');
-                    operation.type = 'update_annotation';
-                    operation.annotationId = note.id;
-                    operation.annotationRevision = note.resource_revision;
-                    operation.text = payload.value + '\n\n' + operation.text;
-                }
+                operation.text = attributedNoteText(input.output.text, input.modelLabel);
                 if (Buffer.byteLength(operation.text, 'utf8') > ANNOTATION_MAX_VALUE_BYTES)
                     return retainForReview('The attributed note exceeds the canonical byte limit; review the retained output.');
-                operation.creator = { id: `urn:colp:account:${actor.accountId}`, name: 'Automation' };
+                operation.creator = automationNoteCreator(job.rule_id);
             }
             const resultId = await storeTypedResult(tx, job, input, digest, pin.authority_digest, 'committing');
             await sql `INSERT INTO automation_proposals(job_id,result_id,plan_id,command_id,binding_json,operations_json,base_revisions_json,allow_automatic_writes)
