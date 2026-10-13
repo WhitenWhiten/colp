@@ -490,8 +490,10 @@ async function grantBookmarks(page: Page) {
   await expect.poll(() => page.evaluate(() => chrome.permissions.contains({ permissions: ['bookmarks'] }))).toBe(true);
 }
 async function waitForTerminalCount(page: Page, count: number) {
+  // A callback racing Pull's recovery freeze is staged for the recovery alarm.
+  // Its 30-second MV3 minimum must elapse before we allow time for Push/receipt.
   try { await expect.poll(async () => { const state = await evidence<any>(page, 'exportOutboundPushEvidence');
-    return state.queue.filter((item: any) => item.status === 'terminal').length; }, { timeout: 30_000 }).toBe(count); }
+    return state.queue.filter((item: any) => item.status === 'terminal').length; }, { timeout: 60_000 }).toBe(count); }
   catch (error) { const state = await evidence<any>(page, 'exportOutboundPushEvidence');
     const engine = await evidence<any>(page, 'syncEngineState');
     const summary = state.queue.map((item: any) => ({ sequence: item.sequence, status: item.status,

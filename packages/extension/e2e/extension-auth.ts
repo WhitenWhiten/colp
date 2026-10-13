@@ -28,6 +28,9 @@ export async function openExtensionOptions(
   /* The welcome redirect is decided during initialize(), which can finish after the
      flag is already gone. A later load with an explicit #account does not take that path. */
   await gotoOptions(page, '#account', extensionId);
+  // Changing only the hash keeps the original document and its hash-less
+  // startup redirect alive. Reload so initialization sees the explicit route.
+  await page.reload({ waitUntil: 'domcontentloaded' });
   const accountCard = page.locator('#account-card');
   await expect(accountCard).toBeVisible();
   await expect.poll(() => page.evaluate(() => document.body.dataset.pane ?? '')).toBe('account');

@@ -13,6 +13,15 @@ function created(kind: 'Bookmark' | 'Folder' | 'Separator', sequence: number) {
 }
 
 describe('Pull native projection', () => {
+  test('missing bookmark fields use deterministic fallback projections', () => {
+    const node = { ...created('Bookmark', 9), url: undefined, tags: undefined } as never;
+    assert.deepEqual(nodeContent(node), { title: 'Remote', url: '' });
+    assert.deepEqual(chromeCreate(node), { title: 'Remote', url: '' });
+    assert.deepEqual(projectionContent(node), { title: 'Remote', url: '', tags: [] });
+    const folder = { ...created('Folder', 10), tags: ['retained'] };
+    assert.deepEqual(projectionContent(folder), { title: 'Remote', description: null, tags: ['retained'] });
+  });
+
   test('projects bookmark, folder and separator content for Chrome without protocol metadata', () => {
     const bookmark = created('Bookmark', 1); const folder = created('Folder', 2); const separator = created('Separator', 3);
     assert.deepEqual(nodeContent(bookmark), { title: 'Remote', url: 'https://example.test/' });

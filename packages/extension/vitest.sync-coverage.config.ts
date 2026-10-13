@@ -14,6 +14,9 @@ export default defineConfig({
     include: ['tests/**/*.test.ts'],
     exclude: ['tests/sync-compaction-benchmark.test.ts'],
     pool: 'threads',
+    // IndexedDB scaling fixtures run with V8 instrumentation on CI's small runners.
+    maxWorkers: 2,
+    testTimeout: 15_000,
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json-summary', 'html'],

@@ -91,7 +91,7 @@ test('2049-node copy uses linear batch checks and exits within its real server p
   expect(scan).toMatchObject({ complete: true, full: true });
   expect((await state.db.nodesForMapping(s.mapping.id)).some(n => n.copyTaskId)).toBe(false);
   // The bound is on server checks, not time: fake-indexeddb's linear index upkeep alone takes ~15 s here.
-}, 90_000);
+}, 180_000);
 
 test('expired exit requires fresh user review and reuses a durable verified copy after restart', async () => {
   const s = await scenario(); s.expireAfterCopy();

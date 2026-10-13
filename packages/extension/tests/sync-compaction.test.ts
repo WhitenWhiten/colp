@@ -44,6 +44,11 @@ describe('sync compaction predicates', () => {
       details: { type: 'create' },
     };
     assert.equal(evaluateEventCompactEligibility({ event, queued: undefined }).ok, false);
+    const terminal = { status: 'terminal', sequence: 1, opId: 'op-1', digest: 'sha256:op-1', payload: {} };
+    for (const incomplete of [{ ...event, status: 'pending' }, { ...event, opId: null }]) {
+      assert.deepEqual(evaluateEventCompactEligibility({ event: incomplete, queued: terminal }),
+        { ok: false, reason: 'event_not_processed' });
+    }
     assert.equal(evaluateEventCompactEligibility({
       event, queued: { status: 'pending', sequence: 1, opId: 'op-1', digest: 'sha256:op-1', payload: {} },
     }).ok, false);

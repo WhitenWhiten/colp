@@ -17,13 +17,13 @@
 import assert from 'node:assert/strict';
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
-import { beforeEach, describe, test } from 'vitest';
+import { beforeEach, describe, test, vi } from 'vitest';
 import { digestJson } from '../src/bookmark-event-codec.js';
 import { createBookmarkEventQueue, type BookmarkEventApi,
   type BookmarkEventNode } from '../src/bookmark-event-queue.js';
 import { diffChildOrder, longestIncreasingSubsequence, planReorderPlacements } from '../src/bookmark-reorder-diff.js';
 import { projectChildrenReordered, type ReorderUplinkReport } from '../src/bookmark-reorder-projection.js';
-import { REORDER_DEBOUNCE_MS } from '../src/bookmark-reorder-uplink.js';
+import { REORDER_DEBOUNCE_MS, reorderFlushTimer } from '../src/bookmark-reorder-uplink.js';
 import { createPullBookmarkEvidence } from '../src/pull-bookmark-evidence.js';
 import type { PullApplierOptions } from '../src/pull-applier-types.js';
 import { createSyncStateStore, type JsonObject, type SyncScope } from '../src/sync-state-store.js';
@@ -36,6 +36,20 @@ type Store = ReturnType<typeof createSyncStateStore>;
 
 let indexedDB: IDBFactory;
 beforeEach(() => { indexedDB = new IDBFactory(); });
+
+test('the default reorder timer flushes only after its merge window', async () => {
+  vi.useFakeTimers();
+  try {
+    const flush = vi.fn(async () => undefined);
+    reorderFlushTimer(flush);
+    await vi.advanceTimersByTimeAsync(REORDER_DEBOUNCE_MS - 1);
+    assert.equal(flush.mock.calls.length, 0);
+    await vi.advanceTimersByTimeAsync(1);
+    assert.equal(flush.mock.calls.length, 1);
+    await vi.runAllTimersAsync();
+    assert.equal(flush.mock.calls.length, 1);
+  } finally { vi.useRealTimers(); }
+});
 
 interface ChildSpec { readonly nativeId: string; readonly colpId?: string }
 const CHILDREN: readonly ChildSpec[] = [{ nativeId: 'native-a', colpId: 'colp-a' },

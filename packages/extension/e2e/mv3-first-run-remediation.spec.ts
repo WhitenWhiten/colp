@@ -118,10 +118,11 @@ test('FR-F3-DUPLICATE-SIBLINGS / FR-F3-APPLY-CRASH keep one native per remote No
     expect(new Set(live.map((node) => node.colpId)).size).toBe(2);
 
     await evidence(pageB, 'configureProjectionApplyBarrierEvidence', 'after_chrome_create_before_mapping');
-    const confirm = confirmFirstRun(pageB, [rootsB.barTitle]);
+    // Attach the rejection handler before termination closes the in-flight RPC.
+    const confirm = confirmFirstRun(pageB, [rootsB.barTitle]).catch(() => undefined);
     await waitBarrierHits(pageB);
     await terminateWorker(b, pageB);
-    await confirm.catch(() => undefined);
+    await confirm;
     await b.close();
     b = await launchPersistent(dirs.b, stack.browserHostResolverRules);
     const pageB2 = await optionsPage(b);
@@ -209,10 +210,11 @@ test('FR-F3-APPLY-HELD interrupts a write held mid-apply, not one already unwoun
     // still suspended, which is the interruption MV3 actually produces.
     await evidence(pageB, 'configureProjectionApplyBarrierEvidence',
       'after_chrome_create_before_mapping', 'hold');
-    const confirm = confirmFirstRun(pageB, [rootsB.barTitle]);
+    // Termination rejects the held RPC before terminateWorker itself resolves.
+    const confirm = confirmFirstRun(pageB, [rootsB.barTitle]).catch(() => undefined);
     await waitBarrierHeld(pageB);
     await terminateWorker(b, pageB);
-    await confirm.catch(() => undefined);
+    await confirm;
     await b.close();
     b = await launchPersistent(dirs.b, stack.browserHostResolverRules);
     const pageB2 = await optionsPage(b);

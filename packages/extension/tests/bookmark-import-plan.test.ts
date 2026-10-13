@@ -27,6 +27,16 @@ async function setup() {
 }
 
 describe('P3-35 durable bookmark import plans', () => {
+  test('missing import plans and nodes cannot be changed into recoverable work', async () => {
+    const { store } = await setup();
+    try {
+      await assert.rejects(store.setImportPlanState(scope, 'missing-plan', 'active', 100), /import_plan_not_found/);
+      await assert.rejects(store.setImportNodeRecovery(scope, 'missing-plan', 'missing-op', null), /import_node_not_found/);
+      assert.deepEqual(await store.listImportPlans(scope), []);
+      assert.deepEqual(await store.listQueue(scope), []);
+    } finally { store.close(); }
+  });
+
   test('requires an explicit mapping or Skip for every source folder and handles all-skip without queue work', async () => {
     const { store, coordinator } = await setup(); const conversion = nested();
     await assert.rejects(() => coordinator.commit({ conversion, choices: [] }), /folder_choice_required/);
