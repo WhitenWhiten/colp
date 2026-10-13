@@ -636,6 +636,21 @@ export const PRODUCT_ROUTE_MANIFEST = [
     "operationId": "revalidateAutomationRule"
   },
   {
+    "method": "GET",
+    "path": "/api/v1/me/automations/runs",
+    "operationId": "listAutomationRuns"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/automations/runs/{runId}",
+    "operationId": "getAutomationRun"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/automations/runs/{runId}/cancel",
+    "operationId": "cancelAutomationRun"
+  },
+  {
     "method": "POST",
     "path": "/api/v1/me/avatar",
     "operationId": "uploadMyAvatar"

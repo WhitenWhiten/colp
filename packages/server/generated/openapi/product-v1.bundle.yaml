@@ -14128,7 +14128,7 @@ paths:
       tags:
         - Automation
       summary: Read mounted automation capabilities
-      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
       x-delivery-phase: M0
       parameters: []
       responses:
@@ -14182,7 +14182,7 @@ paths:
       tags:
         - Automation
       summary: Validate without persisting a rule
-      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
       x-delivery-phase: M1
       parameters:
         - $ref: '#/components/parameters/AutomationCommandId'
@@ -14245,7 +14245,7 @@ paths:
       tags:
         - Automation
       summary: Simulate rule with no deliveries or model calls
-      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
       x-delivery-phase: M1
       parameters:
         - $ref: '#/components/parameters/AutomationCommandId'
@@ -14308,7 +14308,7 @@ paths:
       tags:
         - Automation
       summary: List current-account rules
-      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
       x-delivery-phase: M1
       parameters:
         - $ref: '#/components/parameters/AutomationCursor'
@@ -14363,7 +14363,7 @@ paths:
       tags:
         - Automation
       summary: Create a draft rule
-      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
       x-delivery-phase: M1
       parameters:
         - $ref: '#/components/parameters/AutomationCommandId'
@@ -14432,7 +14432,7 @@ paths:
       tags:
         - Automation
       summary: Get a rule and current revisions
-      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
       x-delivery-phase: M1
       parameters:
         - in: path
@@ -14498,7 +14498,7 @@ paths:
       tags:
         - Automation
       summary: Publish a replacement immutable revision
-      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
       x-delivery-phase: M1
       parameters:
         - in: path
@@ -14574,7 +14574,7 @@ paths:
       tags:
         - Automation
       summary: Archive a rule without deleting immutable history
-      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
       x-delivery-phase: M1
       parameters:
         - in: path
@@ -14645,7 +14645,7 @@ paths:
       tags:
         - Automation
       summary: Enable, pause or archive a rule
-      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
       x-delivery-phase: M1
       parameters:
         - in: path
@@ -14722,7 +14722,7 @@ paths:
       tags:
         - Automation
       summary: Read stage-level rule health
-      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
       x-delivery-phase: M1
       parameters:
         - in: path
@@ -14784,7 +14784,7 @@ paths:
       tags:
         - Automation
       summary: Read tracked dependencies
-      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
       x-delivery-phase: M1
       parameters:
         - in: path
@@ -14846,7 +14846,7 @@ paths:
       tags:
         - Automation
       summary: Recheck dependencies without replaying events
-      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
       x-delivery-phase: M1
       parameters:
         - in: path
@@ -14917,7 +14917,7 @@ paths:
       tags:
         - Automation
       summary: List binding-sets
-      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
       x-delivery-phase: M1
       parameters:
         - $ref: '#/components/parameters/AutomationCursor'
@@ -14972,7 +14972,7 @@ paths:
       tags:
         - Automation
       summary: Create BindingSet
-      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
       x-delivery-phase: M1
       parameters:
         - $ref: '#/components/parameters/AutomationCommandId'
@@ -15041,7 +15041,7 @@ paths:
       tags:
         - Automation
       summary: Read BindingSet
-      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
       x-delivery-phase: M1
       parameters:
         - in: path
@@ -15107,7 +15107,7 @@ paths:
       tags:
         - Automation
       summary: Replace BindingSet configuration
-      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
       x-delivery-phase: M1
       parameters:
         - in: path
@@ -15183,7 +15183,7 @@ paths:
       tags:
         - Automation
       summary: Delete an unreferenced binding set
-      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
       x-delivery-phase: M1
       parameters:
         - in: path
@@ -15234,7 +15234,7 @@ paths:
       tags:
         - Automation
       summary: List actionable health incidents
-      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
       x-delivery-phase: M1
       parameters:
         - $ref: '#/components/parameters/AutomationCursor'
@@ -15290,7 +15290,7 @@ paths:
       tags:
         - Automation
       summary: Acknowledge without repairing dependency
-      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
       x-delivery-phase: M1
       parameters:
         - in: path
@@ -15355,13 +15355,231 @@ paths:
       x-known-feature-gate: automation_configuration
       security:
         - cookieAuth: []
+  /api/v1/me/automations/runs:
+    get:
+      operationId: listAutomationRuns
+      tags:
+        - Automation
+      summary: List run history
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+      x-delivery-phase: M1
+      parameters:
+        - $ref: '#/components/parameters/AutomationCursor'
+        - $ref: '#/components/parameters/AutomationLimit'
+        - in: query
+          name: collectionId
+          required: false
+          description: Supply both collectionId and nodeId for bookmark history.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 128
+            pattern: ^[A-Za-z0-9._~-]+$
+        - in: query
+          name: nodeId
+          required: false
+          description: Supply both collectionId and nodeId for bookmark history.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 128
+            pattern: ^[A-Za-z0-9._~-]+$
+      responses:
+        '200':
+          description: Successful response; inspect the returned state, not merely the HTTP status.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+            X-Request-Id:
+              schema:
+                type: string
+                maxLength: 128
+                minLength: 1
+                pattern: ^[A-Za-z0-9._~-]+$
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutomationRunPage'
+        '400':
+          $ref: '#/components/responses/Automation400'
+        '401':
+          $ref: '#/components/responses/Automation401'
+        '403':
+          $ref: '#/components/responses/Automation403'
+        '404':
+          $ref: '#/components/responses/Automation404'
+        '409':
+          $ref: '#/components/responses/Automation409'
+        '412':
+          $ref: '#/components/responses/Automation412'
+        '413':
+          $ref: '#/components/responses/Automation413'
+        '422':
+          $ref: '#/components/responses/Automation422'
+        '428':
+          $ref: '#/components/responses/Automation428'
+        '429':
+          $ref: '#/components/responses/Automation429'
+        '500':
+          $ref: '#/components/responses/Automation500'
+        '503':
+          $ref: '#/components/responses/Automation503'
+      x-known-feature-gate: automation_configuration
+      security:
+        - cookieAuth: []
+  /api/v1/me/automations/runs/{runId}:
+    get:
+      operationId: getAutomationRun
+      tags:
+        - Automation
+      summary: Read immutable run inputs and pinned versions
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+      x-delivery-phase: M1
+      parameters:
+        - in: path
+          name: runId
+          required: true
+          schema:
+            type: string
+            maxLength: 128
+            minLength: 1
+            pattern: ^[A-Za-z0-9._~-]+$
+      responses:
+        '200':
+          description: Successful response; inspect the returned state, not merely the HTTP status.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+            X-Request-Id:
+              schema:
+                type: string
+                maxLength: 128
+                minLength: 1
+                pattern: ^[A-Za-z0-9._~-]+$
+            ETag:
+              schema:
+                type: string
+                maxLength: 160
+              description: Strong ETag for this automation resource.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutomationRun'
+        '400':
+          $ref: '#/components/responses/Automation400'
+        '401':
+          $ref: '#/components/responses/Automation401'
+        '403':
+          $ref: '#/components/responses/Automation403'
+        '404':
+          $ref: '#/components/responses/Automation404'
+        '409':
+          $ref: '#/components/responses/Automation409'
+        '412':
+          $ref: '#/components/responses/Automation412'
+        '413':
+          $ref: '#/components/responses/Automation413'
+        '422':
+          $ref: '#/components/responses/Automation422'
+        '428':
+          $ref: '#/components/responses/Automation428'
+        '429':
+          $ref: '#/components/responses/Automation429'
+        '500':
+          $ref: '#/components/responses/Automation500'
+        '503':
+          $ref: '#/components/responses/Automation503'
+      x-known-feature-gate: automation_configuration
+      security:
+        - cookieAuth: []
+  /api/v1/me/automations/runs/{runId}/cancel:
+    post:
+      operationId: cancelAutomationRun
+      tags:
+        - Automation
+      summary: Cancel remaining work; retain completed effects
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+      x-delivery-phase: M1
+      parameters:
+        - in: path
+          name: runId
+          required: true
+          schema:
+            type: string
+            maxLength: 128
+            minLength: 1
+            pattern: ^[A-Za-z0-9._~-]+$
+        - $ref: '#/components/parameters/AutomationCommandId'
+        - $ref: '#/components/parameters/AutomationCsrf'
+        - $ref: '#/components/parameters/AutomationOrigin'
+        - $ref: '#/components/parameters/AutomationIfMatch'
+      responses:
+        '200':
+          description: Successful response; inspect the returned state, not merely the HTTP status.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+            X-Request-Id:
+              schema:
+                type: string
+                maxLength: 128
+                minLength: 1
+                pattern: ^[A-Za-z0-9._~-]+$
+            ETag:
+              schema:
+                type: string
+                maxLength: 160
+              description: Strong ETag for this automation resource.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutomationRun'
+        '400':
+          $ref: '#/components/responses/Automation400'
+        '401':
+          $ref: '#/components/responses/Automation401'
+        '403':
+          $ref: '#/components/responses/Automation403'
+        '404':
+          $ref: '#/components/responses/Automation404'
+        '409':
+          $ref: '#/components/responses/Automation409'
+        '412':
+          $ref: '#/components/responses/Automation412'
+        '413':
+          $ref: '#/components/responses/Automation413'
+        '422':
+          $ref: '#/components/responses/Automation422'
+        '428':
+          $ref: '#/components/responses/Automation428'
+        '429':
+          $ref: '#/components/responses/Automation429'
+        '500':
+          $ref: '#/components/responses/Automation500'
+        '503':
+          $ref: '#/components/responses/Automation503'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AutomationCommandReason'
+      x-known-feature-gate: automation_configuration
+      security:
+        - cookieAuth: []
   /api/v1/me/automations/pause:
     post:
       operationId: setAutomationPause
       tags:
         - Automation
       summary: Pause or resume every automation for this owner
-      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Pausing stops admission for every rule, holds pending jobs and sets the bundle flag; resuming does not backfill. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Pausing stops admission for every rule, holds pending jobs and sets the bundle flag; resuming does not backfill. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
       x-delivery-phase: M1
       parameters:
         - $ref: '#/components/parameters/AutomationCommandId'
@@ -15429,7 +15647,7 @@ paths:
       tags:
         - Automation
       summary: Read global pause state and revision
-      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Pausing stops admission for every rule, holds pending jobs and sets the bundle flag; resuming does not backfill. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Pausing stops admission for every rule, holds pending jobs and sets the bundle flag; resuming does not backfill. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
       x-delivery-phase: M1
       parameters: []
       responses:
@@ -15488,7 +15706,7 @@ paths:
       tags:
         - Automation
       summary: Export rules and folder bindings by path, without secrets
-      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Used by the web Export menu and colp-server export. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Used by the web Export menu and colp-server export. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
       x-delivery-phase: M1
       parameters: []
       responses:
@@ -18335,6 +18553,183 @@ components:
         - items
         - nextCursor
       additionalProperties: false
+    AutomationRunPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AutomationRun'
+          maxItems: 100
+        nextCursor:
+          anyOf:
+            - type: string
+              maxLength: 2048
+            - type: 'null'
+      required:
+        - items
+        - nextCursor
+      additionalProperties: false
+    AutomationRun:
+      type: object
+      properties:
+        id:
+          type: string
+          maxLength: 128
+          minLength: 1
+          pattern: ^[A-Za-z0-9._~-]+$
+        revision:
+          type: string
+          maxLength: 128
+          minLength: 1
+        ruleId:
+          type: string
+          maxLength: 128
+          minLength: 1
+          pattern: ^[A-Za-z0-9._~-]+$
+        ruleRevision:
+          type: string
+          maxLength: 128
+          minLength: 1
+        bindingRevision:
+          type: string
+          maxLength: 128
+          minLength: 1
+        executionPolicyRevision:
+          anyOf:
+            - $ref: '#/components/schemas/AutomationRevision'
+            - type: 'null'
+          description: Explicit null when no execution policy is applicable (M1).
+        status:
+          type: string
+          enum:
+            - waiting
+            - running
+            - review
+            - completed
+            - partial
+            - blocked
+            - cancelled
+            - failed
+        memberEventIds:
+          type: array
+          items:
+            type: string
+            maxLength: 128
+            minLength: 1
+            pattern: ^[A-Za-z0-9._~-]+$
+          maxItems: 1000
+        recipientTargetIds:
+          type: array
+          items:
+            type: string
+            maxLength: 128
+            minLength: 1
+            pattern: ^[A-Za-z0-9._~-]+$
+          maxItems: 100
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        jobIds:
+          type: array
+          items:
+            type: string
+            maxLength: 128
+            minLength: 1
+            pattern: ^[A-Za-z0-9._~-]+$
+          maxItems: 1600
+        causationRoot:
+          type: string
+          maxLength: 128
+          minLength: 1
+          pattern: ^[A-Za-z0-9._~-]+$
+        kind:
+          type: string
+          enum:
+            - intake
+            - batch
+            - manual
+        effects:
+          type: array
+          items:
+            $ref: '#/components/schemas/AutomationEffectReceiptView'
+          maxItems: 100
+        unread:
+          type: boolean
+          description: Owner read state for accepted run-level outputs; false before M3.
+        outputCount:
+          type: integer
+          minimum: 0
+      required:
+        - id
+        - revision
+        - ruleId
+        - ruleRevision
+        - bindingRevision
+        - executionPolicyRevision
+        - status
+        - memberEventIds
+        - recipientTargetIds
+        - createdAt
+        - updatedAt
+        - jobIds
+        - causationRoot
+        - kind
+        - effects
+        - unread
+        - outputCount
+      additionalProperties: false
+    AutomationRevision:
+      type: string
+      maxLength: 128
+      minLength: 1
+    AutomationEffectReceiptView:
+      type: object
+      properties:
+        id:
+          $ref: '#/components/schemas/AutomationOpaqueId'
+        kind:
+          type: string
+          enum:
+            - placement
+            - plan
+        status:
+          type: string
+          enum:
+            - committed
+            - reverted
+            - unavailable
+        effectDigest:
+          type: string
+          minLength: 1
+          maxLength: 64
+        operationId:
+          $ref: '#/components/schemas/AutomationOpaqueId'
+        planId:
+          $ref: '#/components/schemas/AutomationOpaqueId'
+        undoAvailable:
+          type: boolean
+        undoReason:
+          type: string
+          minLength: 1
+          maxLength: 1000
+      required:
+        - id
+        - kind
+        - status
+        - effectDigest
+        - operationId
+        - undoAvailable
+        - undoReason
+      additionalProperties: false
+    AutomationOpaqueId:
+      type: string
+      maxLength: 128
+      minLength: 1
+      pattern: ^[A-Za-z0-9._~-]+$
     AutomationPauseState:
       type: object
       properties:
@@ -18366,10 +18761,6 @@ components:
         - revision
         - heldJobs
       additionalProperties: false
-    AutomationRevision:
-      type: string
-      maxLength: 128
-      minLength: 1
     AutomationPauseInput:
       type: object
       properties:

@@ -10,3 +10,4 @@ export * from './application/health-service.js';
 
 export * from './application/admit-event.js';
 export { assessIntakeBindings } from './application/rule-eligibility.js';
+export * from './application/run-service.js';

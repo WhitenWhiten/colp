@@ -13,8 +13,15 @@ for (const [path, item] of Object.entries(design.paths)) {
     paths[path][method].tags = ['Automation'];
     paths[path][method]['x-known-feature-gate'] = 'automation_configuration';
     paths[path][method].security = [{ cookieAuth: [] }];
-    paths[path][method].description += ' BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.';
+    paths[path][method].description += ' M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.';
   }
+}
+// Additive AW-16 bookmark history filter, with cursor binding to the exact filter.
+if (paths['/api/v1/me/automations/runs']) {
+  for (const name of ['collectionId', 'nodeId']) paths['/api/v1/me/automations/runs'].get.parameters.push({
+    in: 'query', name, required: false, description: 'Supply both collectionId and nodeId for bookmark history.',
+    schema: { type: 'string', minLength: 1, maxLength: 128, pattern: '^[A-Za-z0-9._~-]+$' },
+  });
 }
 // Narrow additions requested by BE-1 CRUD and required revision discovery.
 const rulePath = '/api/v1/me/automations/rules/{ruleId}', bindingPath = '/api/v1/me/automations/binding-sets/{bindingSetId}';

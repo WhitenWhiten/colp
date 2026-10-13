@@ -4043,7 +4043,7 @@ export interface paths {
         };
         /**
          * Read mounted automation capabilities
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         get: operations["getAutomationCapabilities"];
         put?: never;
@@ -4065,7 +4065,7 @@ export interface paths {
         put?: never;
         /**
          * Validate without persisting a rule
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         post: operations["validateAutomationRule"];
         delete?: never;
@@ -4085,7 +4085,7 @@ export interface paths {
         put?: never;
         /**
          * Simulate rule with no deliveries or model calls
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         post: operations["previewAutomationRule"];
         delete?: never;
@@ -4103,13 +4103,13 @@ export interface paths {
         };
         /**
          * List current-account rules
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         get: operations["listAutomationRules"];
         put?: never;
         /**
          * Create a draft rule
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         post: operations["createAutomationRule"];
         delete?: never;
@@ -4127,18 +4127,18 @@ export interface paths {
         };
         /**
          * Get a rule and current revisions
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         get: operations["getAutomationRule"];
         /**
          * Publish a replacement immutable revision
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         put: operations["replaceAutomationRule"];
         post?: never;
         /**
          * Archive a rule without deleting immutable history
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         delete: operations["deleteAutomationRule"];
         options?: never;
@@ -4157,7 +4157,7 @@ export interface paths {
         put?: never;
         /**
          * Enable, pause or archive a rule
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         post: operations["setAutomationRuleLifecycle"];
         delete?: never;
@@ -4175,7 +4175,7 @@ export interface paths {
         };
         /**
          * Read stage-level rule health
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         get: operations["getAutomationRuleHealth"];
         put?: never;
@@ -4195,7 +4195,7 @@ export interface paths {
         };
         /**
          * Read tracked dependencies
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         get: operations["getAutomationRuleDependencies"];
         put?: never;
@@ -4217,7 +4217,7 @@ export interface paths {
         put?: never;
         /**
          * Recheck dependencies without replaying events
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         post: operations["revalidateAutomationRule"];
         delete?: never;
@@ -4235,13 +4235,13 @@ export interface paths {
         };
         /**
          * List binding-sets
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         get: operations["listAutomationBindingSets"];
         put?: never;
         /**
          * Create BindingSet
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         post: operations["createAutomationBindingSet"];
         delete?: never;
@@ -4259,18 +4259,18 @@ export interface paths {
         };
         /**
          * Read BindingSet
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         get: operations["getAutomationBindingSet"];
         /**
          * Replace BindingSet configuration
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         put: operations["replaceAutomationBindingSet"];
         post?: never;
         /**
          * Delete an unreferenced binding set
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         delete: operations["deleteAutomationBindingSet"];
         options?: never;
@@ -4287,7 +4287,7 @@ export interface paths {
         };
         /**
          * List actionable health incidents
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         get: operations["listAutomationIncidents"];
         put?: never;
@@ -4309,9 +4309,69 @@ export interface paths {
         put?: never;
         /**
          * Acknowledge without repairing dependency
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         post: operations["acknowledgeAutomationIncident"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/automations/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List run history
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         */
+        get: operations["listAutomationRuns"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/automations/runs/{runId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read immutable run inputs and pinned versions
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         */
+        get: operations["getAutomationRun"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/automations/runs/{runId}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel remaining work; retain completed effects
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         */
+        post: operations["cancelAutomationRun"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4327,13 +4387,13 @@ export interface paths {
         };
         /**
          * Read global pause state and revision
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Pausing stops admission for every rule, holds pending jobs and sets the bundle flag; resuming does not backfill. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Pausing stops admission for every rule, holds pending jobs and sets the bundle flag; resuming does not backfill. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         get: operations["getAutomationPause"];
         put?: never;
         /**
          * Pause or resume every automation for this owner
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Pausing stops admission for every rule, holds pending jobs and sets the bundle flag; resuming does not backfill. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Pausing stops admission for every rule, holds pending jobs and sets the bundle flag; resuming does not backfill. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         post: operations["setAutomationPause"];
         delete?: never;
@@ -4351,7 +4411,7 @@ export interface paths {
         };
         /**
          * Export rules and folder bindings by path, without secrets
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Used by the web Export menu and colp-server export. BE-1 config/preview only; runtime is unavailable. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Used by the web Export menu and colp-server export. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         get: operations["exportAutomations"];
         put?: never;
@@ -4805,6 +4865,49 @@ export interface components {
             items: components["schemas"]["AutomationHealthIncident"][];
             nextCursor: string | null;
         };
+        AutomationRunPage: {
+            items: components["schemas"]["AutomationRun"][];
+            nextCursor: string | null;
+        };
+        AutomationRun: {
+            id: string;
+            revision: string;
+            ruleId: string;
+            ruleRevision: string;
+            bindingRevision: string;
+            /** @description Explicit null when no execution policy is applicable (M1). */
+            executionPolicyRevision: components["schemas"]["AutomationRevision"] | null;
+            /** @enum {string} */
+            status: "waiting" | "running" | "review" | "completed" | "partial" | "blocked" | "cancelled" | "failed";
+            memberEventIds: string[];
+            recipientTargetIds: string[];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            jobIds: string[];
+            causationRoot: string;
+            /** @enum {string} */
+            kind: "intake" | "batch" | "manual";
+            effects: components["schemas"]["AutomationEffectReceiptView"][];
+            /** @description Owner read state for accepted run-level outputs; false before M3. */
+            unread: boolean;
+            outputCount: number;
+        };
+        AutomationRevision: string;
+        AutomationEffectReceiptView: {
+            id: components["schemas"]["AutomationOpaqueId"];
+            /** @enum {string} */
+            kind: "placement" | "plan";
+            /** @enum {string} */
+            status: "committed" | "reverted" | "unavailable";
+            effectDigest: string;
+            operationId: components["schemas"]["AutomationOpaqueId"];
+            planId?: components["schemas"]["AutomationOpaqueId"];
+            undoAvailable: boolean;
+            undoReason: string;
+        };
+        AutomationOpaqueId: string;
         AutomationPauseState: {
             paused: boolean;
             /** Format: date-time */
@@ -4814,7 +4917,6 @@ export interface components {
             revision: components["schemas"]["AutomationRevision"];
             heldJobs: number;
         };
-        AutomationRevision: string;
         AutomationPauseInput: {
             paused: boolean;
             reason?: string;
@@ -22639,6 +22741,136 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AutomationHealthIncident"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    listAutomationRuns: {
+        parameters: {
+            query?: {
+                cursor?: components["parameters"]["AutomationCursor"];
+                limit?: components["parameters"]["AutomationLimit"];
+                /** @description Supply both collectionId and nodeId for bookmark history. */
+                collectionId?: string;
+                /** @description Supply both collectionId and nodeId for bookmark history. */
+                nodeId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationRunPage"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    getAutomationRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    /** @description Strong ETag for this automation resource. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationRun"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    cancelAutomationRun: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Stable command identity. Scope: authenticated principal + operation + addressed resource. Same identity/different canonical body returns 409. */
+                "Known-Command-Id": components["parameters"]["AutomationCommandId"];
+                /** @description Verified host CSRF header (evidence R23): the server reads `x-csrf-token` together with the Origin allowlist on cookie-authenticated writes. Re-checked at AW-01. Never introduce a second CSRF scheme. */
+                "X-CSRF-Token": components["parameters"]["AutomationCsrf"];
+                /** @description Validate against existing host trusted-origin policy for cookie-authenticated mutations. */
+                Origin: components["parameters"]["AutomationOrigin"];
+                /** @description Strong ETag from the addressed automation resource, never a node publication revision. */
+                "If-Match": components["parameters"]["AutomationIfMatch"];
+            };
+            path: {
+                runId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AutomationCommandReason"];
+            };
+        };
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    /** @description Strong ETag for this automation resource. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationRun"];
                 };
             };
             400: components["responses"]["Automation400"];

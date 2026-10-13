@@ -17,5 +17,8 @@
   "getAutomationRuleDependencies",
   "revalidateAutomationRule",
   "listAutomationIncidents",
-  "acknowledgeAutomationIncident"
+  "acknowledgeAutomationIncident",
+  "listAutomationRuns",
+  "getAutomationRun",
+  "cancelAutomationRun"
 ]

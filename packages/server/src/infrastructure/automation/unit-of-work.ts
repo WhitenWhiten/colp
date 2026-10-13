@@ -1,3 +1,4 @@
+import { createRunStore } from './run-store.js';
 import { createHealthStore } from './health-store.js';
 import { randomUUID } from 'node:crypto';
 import { sql, type Kysely } from 'kysely';
@@ -21,7 +22,7 @@ export function createAutomationUnitOfWork(db: Kysely<DatabaseSchema>, serverUui
     if (!account || account.status !== 'active' || account.deleted_at || account.subject_id !== actor.subjectId)
       throw new AutomationError('resource_not_found', 'Active owner is unavailable.');
     const reads = createBindingReadPort(tx, serverUuid);
-    return work({ health: createHealthStore(tx), receipts: createPostgresProductCommandReceiptPort(tx), rules: createRuleStore(tx), bindings: createBindingStore(tx),
+    return work({ runs: createRunStore(tx, actor), health: createHealthStore(tx), receipts: createPostgresProductCommandReceiptPort(tx), rules: createRuleStore(tx), bindings: createBindingStore(tx),
       reads, dependencies: createDependencyIndex(tx), id: randomUUID, now: () => databaseNow(tx),
       sample: (owner, rule, values) => readCurrentSample(tx, reads, serverUuid, owner, rule, values), export: (ownerId) => exportAutomations(tx, ownerId),
       settings: {
