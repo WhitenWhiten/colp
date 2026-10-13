@@ -10,13 +10,15 @@ but rejected as unsupported capability. JavaScript is not a language branch.
 M1 accepts tasks=[], route.targetIds=[], no executionPolicyId, no credentials.
 No worker, target, model, count/scheduled trigger or historical preview is available in BE-1.
 
-Finite predicates: all/any/not/field. Maximum depth 16, 128 nodes, 4096 encoded expression bytes, eight tasks.
+Finite predicates: all/any/not/field. Maximum depth 16, 128 nodes, reviewed per-field schema bounds, eight tasks. The finite DSL has no additional 4096-byte total-expression limit (the separate CEL schema limit does not apply to it).
 Field/operator types follow the reviewed schema. Host normalization uses WHATWG URL,
 IDNA, lower case and removes terminal dots; http/https only. Invalid URL is missingInput.
 startsWith is literal case-sensitive path prefix: /docs/ accepts /docs/a and
 rejects /other/docs/a and /docs. hostSuffix uses a dot boundary and never query text.
 Missing fields propagate explicitly; unsupported facts versions are missingInput.
 No network, Node builtins, Chrome, React, storage or worker dependencies.
+
+Call compilePredicate on untrusted predicates; its successful result provides evaluate and an isolated normalizedPredicate. The raw evaluator is internal. normalizeRuleDefinition and ruleSemanticDigest use the same normalization.
 
 Evaluate one bounded snapshot. Results: matched/notMatched/missingInput/error.
 Required unusable bindings produce blocked, never notMatched. Placement priority is

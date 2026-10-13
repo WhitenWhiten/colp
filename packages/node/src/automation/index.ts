@@ -3,7 +3,7 @@ export * from './schema.js';
 export type * from './types.generated.js';
 export * from './normalize.js';
 export * from './fingerprint.js';
-export * from './predicate.js';
+export type { PredicateDecision, EvaluationOptions } from './predicate.js';
 export * from './compile.js';
 export * from './task-contracts.js';
 export * from './validate-graph.js';
