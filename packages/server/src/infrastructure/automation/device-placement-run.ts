@@ -1,4 +1,5 @@
 import { recordPlacementHistory } from './placement-history-store.js';
+import { recordObservedIntakeAdmission } from './intake-capacity.js';
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import type { LocalReceiptInput } from '@know-n/colp/automation';
@@ -17,20 +18,24 @@ export async function recordDevicePlacementRun(tx: DatabaseTransaction, actor: A
   if (receipt.run_id) {
     const effect = await recordPlacementHistory(tx, actor, input.committedNode.serverUuid, receipt.run_id, input.placementOperationId ?? input.operationId);
     if (!effect.inserted) return;
+    await recordObservedIntakeAdmission(tx, { runId: receipt.run_id, ownerId: actor.accountId, ruleId: input.ruleId });
     // New historical evidence changes the read resource even when work was already cancelled.
     await sql`UPDATE automation_runs SET state=CASE WHEN state='waiting' THEN 'completed' ELSE state END,
       held=CASE WHEN state='waiting' THEN false ELSE held END, revision=revision+1, updated_at=clock_timestamp(),
-      explanation_json=explanation_json || ${JSON.stringify({ devicePlacementOperationId: input.placementOperationId ?? input.operationId,
-        verifiedDevicePlacement: true, inputDigest: input.inputDigest })}::jsonb
+      explanation_json=(explanation_json-'admissionDeferredUntil') || ${JSON.stringify({ devicePlacementOperationId: input.placementOperationId ?? input.operationId,
+        verifiedDevicePlacement: true, inputDigest: input.inputDigest,
+        explanation: 'An already-committed canonical device placement was verified. No new server effect was requested; this unique run counts toward subsequent server admission limits.' })}::jsonb
       WHERE id=${receipt.run_id}`.execute(tx);
-    return; // Late evidence cannot recreate completed or cancelled work.
+    return;
   }
   const id = randomUUID();
   await sql`INSERT INTO automation_runs(id,owner_id,kind,rule_revision_id,binding_set_id,binding_revision,policy_revision,member_ids,state,explanation_json)
     VALUES (${id},${actor.accountId},'intake',${revision.id},${revision.binding_set_id},${input.bindingRevision}::bigint,NULL,
       ${JSON.stringify([fact.source_event_id])}::jsonb,'completed',${JSON.stringify({ collectionId: actor.collectionId,
         nodeId: input.committedNode.nodeId, causationRoot: id, operationId: input.operationId, devicePlacementOperationId: input.placementOperationId ?? input.operationId,
-        verifiedDevicePlacement: true, inputDigest: input.inputDigest })}::jsonb)`.execute(tx);
+        verifiedDevicePlacement: true, inputDigest: input.inputDigest,
+        explanation: 'An already-committed canonical device placement was verified. No new server effect was requested; this unique run counts toward subsequent server admission limits.' })}::jsonb)`.execute(tx);
+  await recordObservedIntakeAdmission(tx, { runId: id, ownerId: actor.accountId, ruleId: input.ruleId });
   await sql`UPDATE automation_admission_receipts SET run_id=${id},decision='verifiedDevicePlacement'
     WHERE rule_revision_id=${revision.id} AND source_event_id=${fact.source_event_id} AND stage='intake'`.execute(tx);
   await recordPlacementHistory(tx, actor, input.committedNode.serverUuid, id, input.placementOperationId ?? input.operationId);

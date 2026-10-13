@@ -470,6 +470,9 @@ const via = (name: RegExp): [string, RegExp] => [CRED_FACADE, name];
 
 /** Every discovered ETag-replay route, pinned to the command whose stored result must snapshot `etag`. */
 const REQUIRED_ETAG_RECEIPTS: readonly PinnedRoute[] = [
+  // Dynamic automation registrations share one stored-response path per transport.
+  pin('ROUTE { method: route.method, url, exposeHeadRoute: false,\n    con', 'product/automation-rule-routes.ts', 'ports.receipts.complete', 'src/transport/product/automation-rule-routes.ts', 'registerAutomationRoute'),
+  pin('ROUTE {\n    method, url: BASE + path, exposeHeadRoute: false,\n    ', 'automation-device-routes.ts', 'ports.receipts.complete', 'src/transport/automation-device-routes.ts', 'registerAutomationDeviceRoutes'),
   // Extension helper capture/clear (replay keeps a live recompute fallback for pre-snapshot receipts).
   pin('POST /colp/v0.1/sync/collections/:collectionId/nodes/:nodeId/favicon', 'colp-sync/sync-favicon-helper-routes.ts', 'captureBookmarkFavicon', `${COLL}/favicon-helper-capture.ts`),
   pin('DELETE /colp/v0.1/sync/collections/:collectionId/nodes/:nodeId/favicon', 'colp-sync/sync-favicon-helper-routes.ts', 'clearCapturedBookmarkFavicon', `${COLL}/favicon-helper-capture.ts`),

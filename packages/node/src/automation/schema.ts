@@ -9,37 +9,52 @@ export const FACTS_VERSION = 1 as const;
 export interface ContractIssue { path: string; code: string; message: string }
 export type ContractValidation = { valid: true; issues: [] } | { valid: false; issues: ContractIssue[] };
 export type AutomationSchemaName = keyof typeof automationSchema.$defs;
-const ajv = new Ajv2020({ strict: false, allErrors: true, validateFormats: true });
+
+// Dispatch the recursive union by its required, unique kind. Without this,
+// all/any oneOf branches can repeatedly validate the same subtree. This is a
+// validator compilation optimization, not a third stored/wire rule schema.
+// type: object is essential: discriminator must not bypass the object check.
+const definitions = {
+  ...automationSchema.$defs,
+  Predicate: { ...automationSchema.$defs.Predicate, type: 'object', discriminator: { propertyName: 'kind' } },
+};
+const ajv = new Ajv2020({ strict: false, allErrors: false, validateFormats: true, discriminator: true });
 const addFormats = addFormatsImport as unknown as FormatsPlugin;
 addFormats(ajv);
 const validators = new Map<AutomationSchemaName, ValidateFunction>();
+
+/** Compile trusted schema once, before starting a per-input execution deadline. */
+export function prepareAutomationSchema(name: AutomationSchemaName): void {
+  if (!validators.has(name)) {
+    validators.set(name, ajv.compile({ $schema: automationSchema.$schema, $ref: `#/$defs/${name}`, $defs: definitions }));
+  }
+}
 
 /** Bound traversal before recursive schema evaluation, including adversarial non-JSON inputs. */
 export function boundedJson(value: unknown): boolean {
   const queue: Array<{ value: unknown; depth: number; exiting?: boolean }> = [{ value, depth: 0 }];
   const seen = new Set<object>();
   let count = 0;
-  while (queue.length) {
-    const item = queue.pop()!;
-    if (item.exiting && typeof item.value === 'object' && item.value !== null) { seen.delete(item.value); continue; }
-    if (++count > 100_000 || item.depth > 64) return false;
-    if (item.value === null || typeof item.value === 'string' || typeof item.value === 'boolean') continue;
-    if (typeof item.value === 'number' && Number.isFinite(item.value)) continue;
-    if (typeof item.value !== 'object' || seen.has(item.value)) return false;
-    seen.add(item.value);
-    queue.push({ ...item, exiting: true });
-    for (const child of Object.values(item.value)) queue.push({ value: child, depth: item.depth + 1 });
-  }
+  try {
+    while (queue.length) {
+      const item = queue.pop()!;
+      if (item.exiting && typeof item.value === 'object' && item.value !== null) { seen.delete(item.value); continue; }
+      if (++count > 100_000 || item.depth > 64) return false;
+      if (item.value === null || typeof item.value === 'string' || typeof item.value === 'boolean') continue;
+      if (typeof item.value === 'number' && Number.isFinite(item.value)) continue;
+      if (typeof item.value !== 'object' || seen.has(item.value)) return false;
+      seen.add(item.value);
+      queue.push({ ...item, exiting: true });
+      for (const child of Object.values(item.value)) queue.push({ value: child, depth: item.depth + 1 });
+    }
+  } catch { return false; }
   return true;
 }
 
 export function validateAutomation(name: AutomationSchemaName, value: unknown): ContractValidation {
   if (!boundedJson(value)) return { valid: false, issues: [{ path: '', code: 'invalid_json', message: 'Expected bounded acyclic JSON.' }] };
-  let validate = validators.get(name);
-  if (!validate) {
-    validate = ajv.compile({ $schema: automationSchema.$schema, $ref: `#/$defs/${name}`, $defs: automationSchema.$defs });
-    validators.set(name, validate);
-  }
+  prepareAutomationSchema(name);
+  const validate = validators.get(name)!;
   if (validate(value)) return { valid: true, issues: [] };
   return { valid: false, issues: (validate.errors ?? []).slice(0, 100).map((error) => ({
     path: error.instancePath, code: error.keyword, message: error.message ?? 'Invalid value.',

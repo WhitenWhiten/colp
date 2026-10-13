@@ -18,7 +18,7 @@ export const automationResumeRegistration: EventPayloadRegistration = { ...autom
 /** A redacted wake for every canonical operation, including irrelevant resource mutations. */
 export async function appendAutomationIngest(tx: DatabaseTransaction, event: {
   domainEventId: string; operationId: string; collectionId: string; commitOrdinal: bigint;
-}, eventType = AUTOMATION_INGEST_EVENT): Promise<void> {
+}, eventType = AUTOMATION_INGEST_EVENT, availableAt?: Date): Promise<void> {
   const id = randomUUID();
   // Reserve identity and enqueue in one round trip, still in the canonical transaction.
   await sql`WITH reserved AS (
@@ -29,7 +29,7 @@ export async function appendAutomationIngest(tx: DatabaseTransaction, event: {
   SELECT resource_id,${event.domainEventId},${eventType},1,${AUTOMATION_INGEST_HANDLER},'delivery_each_event',
     'collection',${event.collectionId},${event.collectionId},NULL,${event.commitOrdinal},
     ${JSON.stringify({ collectionId: event.collectionId, operationId: event.operationId })}::jsonb,'pending',0,
-    clock_timestamp()+interval '10 seconds',clock_timestamp(),NULL,0,NULL,NULL,NULL FROM reserved`.execute(tx);
+    coalesce(${availableAt ?? null}::timestamptz,clock_timestamp()+interval '10 seconds'),clock_timestamp(),NULL,0,NULL,NULL,NULL FROM reserved`.execute(tx);
 }
 export function createAutomationIngestRoute(inspect: (context: OutboxHandlerContext) => Promise<boolean>, eventType = AUTOMATION_INGEST_EVENT): OutboxRoute {
   return { handlerName: AUTOMATION_INGEST_HANDLER, handlerMode: 'delivery_each_event', eventType,
@@ -44,12 +44,12 @@ export function createAutomationIngestRoute(inspect: (context: OutboxHandlerCont
     } };
 }
 
-export async function appendAutomationResume(tx: DatabaseTransaction, collectionId: string): Promise<void> {
+export async function appendAutomationResume(tx: DatabaseTransaction, collectionId: string, availableAt?: Date): Promise<void> {
   const latest = await tx.selectFrom('operations').select(['operation_id','commit_ordinal']).where('collection_id', '=', collectionId)
     .orderBy('commit_ordinal', 'desc').executeTakeFirst();
   if (!latest) return;
   const domainEventId = randomUUID();
   await tx.insertInto('resource_id_ledger').values({ resource_id: domainEventId, resource_type: 'domain-event' }).execute();
   await appendAutomationIngest(tx, { domainEventId, collectionId, operationId: latest.operation_id,
-    commitOrdinal: BigInt(latest.commit_ordinal) }, AUTOMATION_RESUME_EVENT);
+    commitOrdinal: BigInt(latest.commit_ordinal) }, AUTOMATION_RESUME_EVENT, availableAt);
 }

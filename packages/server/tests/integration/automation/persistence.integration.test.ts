@@ -37,12 +37,20 @@ describeWithPostgres('BE-1 migrations, immutable persistence and recovery', () =
     });
   }, 180_000);
   afterAll(async () => isolated?.close());
-  test('fresh install also reaches the same migration head', async () => {
+  test('fresh install and the actual baseline upgrade apply the same complete migration sequence', async () => {
     const fresh = await createIsolatedPostgresRuntime('automation_fresh');
     try {
       await runMigrations(fresh.runtime.db, 'latest');
-      expect((await sql<{ name: string }>`select name from kysely_migration order by name desc limit 1`.execute(fresh.runtime.db)).rows[0]?.name)
-        .toBe('202610300900_automation_configuration_epoch');
+      const freshNames = (await sql<{ name: string }>`SELECT name FROM kysely_migration ORDER BY name`.execute(fresh.runtime.db)).rows.map(row => row.name);
+      const upgradedNames = (await sql<{ name: string }>`SELECT name FROM kysely_migration ORDER BY name`.execute(isolated.runtime.db)).rows.map(row => row.name);
+      expect(freshNames).toEqual(upgradedNames);
+      expect(freshNames).toEqual(expect.arrayContaining([
+        '202610300900_automation_configuration_epoch', '202610301000_automation_receipt_waiting_index',
+        '202610301100_automation_intake_capacity',
+      ]));
+      const indexes = (await sql<{ indexname: string }>`SELECT indexname FROM pg_indexes WHERE schemaname=current_schema()
+        AND indexname IN ('automation_intake_waiting_owner','automation_intake_daily_rule') ORDER BY indexname`.execute(fresh.runtime.db)).rows;
+      expect(indexes).toEqual([{ indexname: 'automation_intake_daily_rule' }, { indexname: 'automation_intake_waiting_owner' }]);
     } finally { await fresh.close(); }
   }, 180_000);
   test('configuration has immutable revisions, owner FKs and atomic deferred-current links', async () => {
@@ -118,7 +126,6 @@ describeWithPostgres('BE-1 migrations, immutable persistence and recovery', () =
       const state = await isolated.runtime.db.selectFrom('automation_settings').selectAll().where('owner_id', '=', 'owner').executeTakeFirstOrThrow();
       expect(state.paused).toBe(true); expect(state.paused_by).toBe('restore');
       expect((await exportAutomations(isolated.runtime.db, 'owner')).rules).toHaveLength(1);
-      // A pooled SQL read verifies persistence only; this does not restart the server process.
       const restored = await isolated.runtime.pool.query('select desired_state from automation_rules where id=$1', ['rule']);
       expect(restored.rows[0].desired_state).toBe('draft');
     } finally { rmSync(scratch, { recursive: true, force: true }); }

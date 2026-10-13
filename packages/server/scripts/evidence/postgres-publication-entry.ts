@@ -538,19 +538,24 @@ async function seedTargetCollection(runtime: DatabaseRuntime, nodeCount: number)
        from generate_series(1, $1::integer) as n`,
       [bookmarkCount],
     );
-    await client.query(
-      `insert into nodes
-         (id, collection_id, parent_id, kind, title, url, position_token,
-          resource_revision, children_revision)
-       select 'p2-n' || lpad(n::text, 6, '0'), $1,
-              'p2-f' || lpad(((n - 1) / $2::integer)::text, 3, '0'),
-              'bookmark', 'Publication Node ' || n::text,
-              'https://example.test/publication/' || n::text,
-              'B' || lpad((((n - 1) % $2::integer) + 1)::text, 3, '0'),
-              'r1', 'ch1'
-       from generate_series(1, $3::integer) as n`,
-      [TARGET.collectionId, bookmarksPerFolder, bookmarkCount],
-    );
+    // The live-node-count trigger updates the same collection once per row.
+    // Bound each statement so the 10k-node seed stays within the normal SQL timeout.
+    const batchSize = 500;
+    for (let first = 1; first <= bookmarkCount; first += batchSize) {
+      await client.query(
+        `insert into nodes
+           (id, collection_id, parent_id, kind, title, url, position_token,
+            resource_revision, children_revision)
+         select 'p2-n' || lpad(n::text, 6, '0'), $1,
+                'p2-f' || lpad(((n - 1) / $2::integer)::text, 3, '0'),
+                'bookmark', 'Publication Node ' || n::text,
+                'https://example.test/publication/' || n::text,
+                'B' || lpad((((n - 1) % $2::integer) + 1)::text, 3, '0'),
+                'r1', 'ch1'
+         from generate_series($3::integer, $4::integer) as n`,
+        [TARGET.collectionId, bookmarksPerFolder, first, Math.min(first + batchSize - 1, bookmarkCount)],
+      );
+    }
     await client.query('commit');
   } catch (error: unknown) {
     await client.query('rollback');

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import type { NodeCreate } from '@know-n/colp/types';
 import { createAutomationDeviceUnitOfWork } from '../../src/infrastructure/automation/index.js';
 import { createPostgresReplicaStore, createPostgresSyncSessionIssuer, createPostgresSyncPushApplication } from '../../src/infrastructure/sync/index.js';
 import { mintExtensionCredentialHttpFixture } from './extension-credential.js';
@@ -27,15 +28,18 @@ export async function automationDeviceFixture(prefix: string) {
   const sessionId = issued.session.sessionId;
   await createAutomationDeviceUnitOfWork(f.db, 'server').execute({ credential: http.credential, sessionId, origin: AUTOMATION_DEVICE_ORIGIN }, p => p.bundle('browser-bounded-v1'));
   let sequence = 0;
-  async function syncCreate(nodeId: string, operationId: string, parentId = 'academic') {
+  async function syncCreateNode(nodeId: string, operationId: string, parentId: string, node: NodeCreate) {
     const application = createPostgresSyncPushApplication(f.db, issuer, { nodeId: () => nodeId });
     const request = syncNodeCreatePushRequest({ sessionId, replicaId: replica.replicaId, collectionId: 'collection', sequence: ++sequence,
-      opId: operationId, parentId, node: { kind: 'bookmark', title: 'Sync paper', url: 'https://arxiv.org/sync',
-        tags: [], visibility: 'inherit', extensions: {} } });
+      opId: operationId, parentId, node });
     const result = await application.admit({ credential: http.credential, origin: AUTOMATION_DEVICE_ORIGIN,
       idempotencyKey: randomUUID(), requestFingerprint: randomUUID(), mediaType: 'application/json', endpointIdentity: '/colp/v0.1/sync/push', request });
     if (!['applied','rebased'].includes(result.results[0]!.status)) throw new Error(JSON.stringify(result));
     return result;
+  }
+  async function syncCreate(nodeId: string, operationId: string, parentId = 'academic') {
+    return syncCreateNode(nodeId, operationId, parentId, { kind: 'bookmark', title: 'Sync paper', url: 'https://arxiv.org/sync',
+      tags: [], visibility: 'inherit', extensions: {} });
   }
   async function syncMove(nodeId: string, operationId: string, parentId = 'academic') {
     const node = await f.db.selectFrom('nodes').selectAll().where('id', '=', nodeId).executeTakeFirstOrThrow();
@@ -47,5 +51,5 @@ export async function automationDeviceFixture(prefix: string) {
         opId: operationId, targetId: nodeId, baseRevision: node.resource_revision, newParentId: parentId,
         baseSourceParentRevision: source.children_revision, baseTargetParentRevision: target.children_revision }) });
   }
-  return { ...f, http, replica, sessionId, issuer, syncCreate, syncMove };
+  return { ...f, http, replica, sessionId, issuer, syncCreate, syncCreateNode, syncMove };
 }

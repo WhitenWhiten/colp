@@ -1,10 +1,11 @@
 import { automationConfigurationEpoch } from './configuration-epoch.js';
 import { verifyReceiptPlacementDecision } from './receipt-placement.js';
 import { recordDevicePlacementRun } from './device-placement-run.js';
+import { retireUnavailableWaitingReceipts, MAX_WAITING_INTAKE_RECEIPTS } from './receipt-waiting.js';
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { automationDigest, compilePredicate, type LocalReceiptInput, type ReceiptIngestResult, type RuleBundle } from '@know-n/colp/automation';
-import { AutomationError, placementInputDigest, placementResultDigest, resolveBindings, type AutomationDeviceActor } from '../../modules/automation/index.js';
+import { AutomationError, isIntakeRootSnapshot, placementInputDigest, placementResultDigest, resolveBindings, type AutomationDeviceActor } from '../../modules/automation/index.js';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
 import { createBindingReadPort } from './bindings.js';
 import { sourceEvent } from './source-facts.js';
@@ -72,7 +73,7 @@ export async function verifyIntakeReceipt(tx: DatabaseTransaction, actor: Automa
   if (!after || after.parentId !== destination.snapshot.folder.nodeId || placementInputDigest(input, created.facts_json!.after!) !== input.inputDigest
     || (input.resultDigests.length > 0 && input.resultDigests[0] !== placementResultDigest(destination.snapshot.folder)))
     return result('rejected', 'Placement or input/result digest mismatch.');
-  if (input.placementOperationId && (created.facts_json!.after!.parentId !== collection.rootNodeId
+  if (input.placementOperationId && (!isIntakeRootSnapshot(created.facts_json!.after, collection.rootNodeId)
     || placed.facts_json!.before?.resourceRevision !== created.facts_json!.after!.resourceRevision))
     return result('review', 'Observed correction crossed a later edit or a selected folder.');
   const current = await tx.selectFrom('nodes').select(['resource_revision', 'parent_id', 'kind', 'deleted_at'])
@@ -85,25 +86,40 @@ export async function verifyIntakeReceipt(tx: DatabaseTransaction, actor: Automa
   return result('accepted', 'Canonical placement verified; only classify.root is satisfied.');
 }
 
+function requireRevisionPins(input: LocalReceiptInput): void {
+  for (const revision of [input.bundleRevision, input.ruleRevision, input.bindingRevision]) {
+    if (!/^\d+$/.test(revision)) {
+      throw new AutomationError('invalid_request', 'Device revision pins must be decimal sequences.');
+    }
+    if (BigInt(revision) > 9223372036854775807n) {
+      throw new AutomationError('invalid_request', 'Revision exceeds the supported sequence bound.');
+    }
+  }
+}
+
 export async function acceptStoredIntakeReceipt(tx: DatabaseTransaction, actor: AutomationDeviceActor, serverUuid: string,
   input: LocalReceiptInput): Promise<ReceiptIngestResult> {
+  requireRevisionPins(input);
+  await retireUnavailableWaitingReceipts(tx, actor.accountId);
   const existing = (await sql<{ id: string; receipt_json: { input: LocalReceiptInput; result: ReceiptIngestResult }; owner_id: string }>`SELECT id,receipt_json,owner_id
     FROM automation_intake_receipts WHERE device_id=${actor.deviceId} AND replica_generation=${actor.replicaGeneration}::bigint
       AND local_receipt_id=${input.localReceiptId} FOR UPDATE`.execute(tx)).rows[0];
-  if (existing && (existing.owner_id !== actor.accountId || automationDigest(existing.receipt_json.input) !== automationDigest(input)))
+  if (existing && (existing.owner_id !== actor.accountId || automationDigest(existing.receipt_json.input) !== automationDigest(input))) {
     throw new AutomationError('automation_command_conflict', 'Receipt identity already has different immutable evidence.');
-  if (existing?.receipt_json.result.state === 'accepted') return existing.receipt_json.result;
-  if (!existing) {
-    const count = (await sql<{ count: string }>`SELECT count(*) FROM automation_intake_receipts WHERE owner_id=${actor.accountId}
-      AND state='waitingForSync'`.execute(tx)).rows[0]!.count;
-    if (Number(count) >= 1000) throw new AutomationError('payload_too_large', 'Too many receipts waiting for Sync.');
   }
+  if (existing?.receipt_json.result.state === 'accepted') return existing.receipt_json.result;
   const id = existing?.id ?? randomUUID();
-  if (!/^\d+$/.test(input.bundleRevision) || !/^\d+$/.test(input.ruleRevision) || !/^\d+$/.test(input.bindingRevision))
-    throw new AutomationError('invalid_request', 'Device revision pins must be decimal sequences.');
-  for (const revision of [input.bundleRevision, input.ruleRevision, input.bindingRevision])
-    if (BigInt(revision) > 9223372036854775807n) throw new AutomationError('invalid_request', 'Revision exceeds the supported sequence bound.');
   const result = await verifyIntakeReceipt(tx, actor, serverUuid, input, id);
+  // This quota bounds NEW waiting work, never already-proven canonical evidence
+  // or an idempotent retry of an existing waiting receipt. The Owner lock makes
+  // the count/reservation atomic across all its devices and Sync replicas.
+  if (result.state === 'waitingForSync' && existing?.receipt_json.result.state !== 'waitingForSync') {
+    const count = (await sql<{ count: string }>`SELECT count(*) FROM automation_intake_receipts
+      WHERE owner_id=${actor.accountId} AND state='waitingForSync'`.execute(tx)).rows[0]!.count;
+    if (Number(count) >= MAX_WAITING_INTAKE_RECEIPTS) {
+      throw new AutomationError('payload_too_large', 'Too many receipts waiting for Sync.');
+    }
+  }
   await sql`INSERT INTO automation_intake_receipts (id,owner_id,device_id,replica_generation,local_receipt_id,operation_id,state,receipt_json)
     VALUES (${id},${actor.accountId},${actor.deviceId},${actor.replicaGeneration}::bigint,${input.localReceiptId},${input.operationId},${result.state},
       ${JSON.stringify({ input, result, actor })}::jsonb) ON CONFLICT (device_id,replica_generation,local_receipt_id)

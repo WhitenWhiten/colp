@@ -12,6 +12,7 @@ import { createDatabaseRuntime, runMigrations, type DatabaseRuntime } from '../.
 import { createPostgresIdentityUnitOfWork } from '../../../src/infrastructure/identity/index.js';
 import { createPostgresCanonicalMutationUnitOfWork, createPostgresCollectionsUnitOfWork } from '../../../src/infrastructure/collections/index.js';
 import {
+  AUTOMATION_INGEST_HANDLER,
   PostgresCollectionMutationProjectionSink,
   SOCIAL_COLLECTION_CHANGE_HANDLER_NAME,
   SOCIAL_PUBLIC_ACTIVITY_HANDLER_NAME,
@@ -195,6 +196,9 @@ describeWithPostgres('Product HTTP + PostgreSQL black-box lifecycle', () => {
 
   async function drainOutbox(worker: WorkerRuntime): Promise<void> {
     assert.ok(worker.outbox);
+    // This fixture manually drives delivery; make delayed wakes eligible too.
+    await runtime.pool.query(`update outbox_events set available_at=clock_timestamp()
+      where handler_name=$1 and state='pending'`, [AUTOMATION_INGEST_HANDLER]);
     while (await worker.outbox.runOnce()) {
       // Each iteration claims and commits one durable projection delivery.
     }
@@ -456,13 +460,13 @@ describeWithPostgres('Product HTTP + PostgreSQL black-box lifecycle', () => {
         `select
            count(*) filter (where state <> 'completed')::text as pending,
            count(*) filter (where state = 'completed')::text as completed,
-           count(*) filter (where state = 'completed' and handler_name not in ($1, $2))::text
+           count(*) filter (where state = 'completed' and handler_name not in ($1, $2, $3))::text
              as projection_completed,
            count(*) filter (where state = 'completed' and handler_name = $1)::text
              as social_completed,
            (select count(*)::text from collection_mutation_projection_applied) as projection_rows
          from outbox_events`,
-        [SOCIAL_COLLECTION_CHANGE_HANDLER_NAME, SOCIAL_PUBLIC_ACTIVITY_HANDLER_NAME],
+        [SOCIAL_COLLECTION_CHANGE_HANDLER_NAME, SOCIAL_PUBLIC_ACTIVITY_HANDLER_NAME, AUTOMATION_INGEST_HANDLER],
       );
       assert.equal(delivered.rows[0]?.pending, '0');
       assert.ok(BigInt(delivered.rows[0]?.completed ?? '0') >= 7n);

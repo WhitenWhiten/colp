@@ -6,6 +6,7 @@ import { assertSupportedRule } from './worker-configuration.js';
 import { bindingResolutionSignature } from './rule-eligibility.js';
 import { evaluateRuleEvent, plansRun, type PreparedRule } from './rule-evaluation.js';
 import { previewDecision } from './preview-decision.js';
+import { intakePolicyDiagnostics, previewPlanDiagnostics } from './policy-diagnostics.js';
 import { ruleInput, type AutomationPorts } from './ports.js';
 
 export async function previewSnapshot(ports: AutomationPorts, actor: AutomationActor, input: PreviewInput) {
@@ -26,9 +27,11 @@ export async function previewSnapshot(ports: AutomationPorts, actor: AutomationA
   const proposed: PreparedRule = { ruleId: 'preview', definition: input.rule.definition, resolutions: inspected.resolutions,
     bindings: inspected.bindingAssessment, predicate: evaluator };
   const competition: string[] = [], alternatives: PreparedRule[] = [];
+  const proposedDigest = automationDigest(input.rule);
   for (const candidate of await ports.rules.list(actor.accountId, null, 500)) {
+    if (candidate.view.desiredState !== 'enabled') continue;
     const candidateInput = normalizeRuleInput(ruleInput(candidate.view));
-    if (candidate.view.desiredState !== 'enabled' || automationDigest(candidateInput) === automationDigest(input.rule)) continue;
+    if (automationDigest(candidateInput) === proposedDigest) continue;
     const binding = await ports.bindings.load(actor.accountId, candidate.view.bindingSetId);
     let signature: unknown = null;
     try {
@@ -58,10 +61,12 @@ export async function previewRule(ports: AutomationPorts, actor: AutomationActor
     ...(snapshot.events[index]!.origin === 'import' ? { explanation: 'Imports are excluded from automatic intake. Use an explicit run-once preview when that capability is available.' } : {}) }));
   const result: PreviewResult = { previewId: ports.id(), sideEffects: false, decisions,
     diagnostics: [{ code: input.mode === 'currentState' ? 'currentStateSnapshot' : 'suppliedFacts', severity: 'info', location: '/mode',
-      message: input.mode === 'currentState' ? 'Current authorized rows only; these are not historical intake facts. Unknown intent preserves placement.' : 'Hypothetical supplied facts; no canonical business effects.' }],
+      message: input.mode === 'currentState' ? 'Current authorized rows only; these are not historical intake facts. Unknown intent preserves placement.' : 'Hypothetical supplied facts; no canonical business effects.' },
+    previewPlanDiagnostics(plans), ...intakePolicyDiagnostics(input.rule.definition.policy, '/rule/definition/policy')],
     plannedRunCount: plans.filter(plansRun).length, remainderCount: 0, completeHistory: false, truncated: snapshot.truncated };
   if (!snapshot.collection.currentOwner) result.diagnostics.push({ code: 'ownerRequired', severity: 'warning', location: '/rule/definition/scope',
     message: 'M1 execution requires the current collection Owner; this preview does not grant runtime authority.' });
   await ports.previews.save(actor.accountId, { id: result.previewId, input, result, configDigest: snapshot.configDigest,
-    expiresAt: new Date((await ports.now()).getTime() + 10 * 60_000) }); return result;
+    expiresAt: new Date((await ports.now()).getTime() + 10 * 60_000) });
+  return result;
 }

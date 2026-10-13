@@ -7,7 +7,7 @@ import type { InspectAutomationSource } from './source-position-store.js';
 export function createAutomationRuntime(serverUuid: string,workerEnabled = false): InspectAutomationSource {
   const admit = createAutomationAdmission(serverUuid,workerEnabled);
   return async (tx, actor, collectionId, sources) => {
-    await admit(tx, actor, collectionId, sources);
+    const moreReceipts = await admit(tx, actor, collectionId, sources);
     const more = await executePendingIntake(tx, actor, collectionId, serverUuid);
     if (workerEnabled) {
       const runs = (await sql<{ id: string }>`SELECT r.id FROM automation_runs r JOIN automation_rule_revisions v ON v.id=r.rule_revision_id
@@ -16,6 +16,6 @@ export function createAutomationRuntime(serverUuid: string,workerEnabled = false
           AND EXISTS(SELECT 1 FROM automation_jobs j WHERE j.run_id=r.id AND (j.state='pending' OR (r.state='completed' AND j.state<>'succeeded'))) ORDER BY r.created_at,r.id LIMIT 100`.execute(tx)).rows;
       for (const run of runs) await advanceRunTasks(tx,actor,serverUuid,run.id);
     }
-    return more;
+    return moreReceipts === true || more;
   };
 }

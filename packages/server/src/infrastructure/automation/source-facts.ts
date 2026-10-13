@@ -1,4 +1,5 @@
 import { normalizeUrl, type BookmarkFacts, type EventFacts } from '@know-n/colp/automation';
+import { isIntakeRootSnapshot } from '../../modules/automation/index.js';
 import type { AutomationSource } from './source-position-store.js';
 import type { AutomationNodeSnapshot } from './fact-capture.js';
 export function sourceEvent(source: AutomationSource, serverUuid: string, collectionId: string, rootNodeId: string): EventFacts | null {
@@ -23,5 +24,5 @@ export function sourceEvent(source: AutomationSource, serverUuid: string, collec
       return JSON.stringify(facts.before?.[field]) !== JSON.stringify(facts.after?.[field]);
     }), bookmark: bookmark(facts.after), ...(facts.before?.kind === 'bookmark' ? { before: bookmark(facts.before) } : {}),
     intakeDisposition: facts.action !== 'create' || !['user', 'sync'].includes(origin) ? 'notIntake'
-      : !(facts.after.parentId === rootNodeId || facts.after.parentIsIntakeRoot === true) ? 'userSelected' : facts.intakeDisposition ?? 'unknown' };
+      : !isIntakeRootSnapshot(facts.after, rootNodeId) ? 'userSelected' : facts.intakeDisposition ?? 'unknown' };
 }

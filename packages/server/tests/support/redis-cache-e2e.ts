@@ -649,10 +649,13 @@ export async function drainOutbox(worker: WorkerRuntime, maxIterations = 200): P
 export async function waitForOutboxSettled(
   pool: Pool,
   collectionId: string,
+  worker: WorkerRuntime,
   timeoutMs = 30_000,
 ): Promise<void> {
   await waitUntil(
     async () => {
+      // Delayed automation wakes become claimable after the first drain returns.
+      await drainOutbox(worker);
       const result = await pool.query<{ remaining: string }>(
         `select count(*)::text as remaining
            from outbox_events

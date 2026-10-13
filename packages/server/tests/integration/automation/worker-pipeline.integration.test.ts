@@ -38,6 +38,32 @@ describeWithPostgres('AW-31 authenticated polling and typed canonical orchestrat
     await f.createNode('fresh-paper','root','New paper','https://arxiv.org/abs/new');await (inspect ? inspect(f) : f.inspect());
     return { target: setup.target,rule: rule.json(),ruleInput };
   }
+  test.each(['defer', 'review'] as const)('missing predicate input with worker enabled keeps %s work without scheduling tasks',async missingInput => {
+    await setup('merge_missing_'+missingInput,{ configure: d => { d.policy.missingInput=missingInput; },inspect: async fixture => {
+      await fixture.createNode('missing-predicate','root','Missing input',`https://arxiv.org/${'x'.repeat(2050)}`);
+      await fixture.inspect();
+    } });
+    await f.inspect();
+    const run = (await sql<{ id: string; state: string }>`SELECT id,state FROM automation_runs WHERE explanation_json->>'nodeId'='missing-predicate'`.execute(f.db)).rows[0]!;
+    expect(run.state).toBe(missingInput === 'defer' ? 'waiting' : 'review');
+    expect((await sql`SELECT id FROM automation_jobs WHERE run_id=${run.id}`.execute(f.db)).rows).toEqual([]);
+    expect((await sql`SELECT id FROM automation_effect_receipts WHERE run_id=${run.id}`.execute(f.db)).rows).toEqual([]);
+    expect((await f.db.selectFrom('nodes').select('parent_id').where('id','=','missing-predicate').executeTakeFirstOrThrow()).parent_id).toBe('root');
+  });
+  test('worker rules retain daily overflow without starting optional tasks before intake admission',async () => {
+    await setup('merge_worker_daily',{ configure: d => { d.policy.maxRunsPerDay=1; } });
+    await f.createNode('overflow','root','Overflow paper','https://arxiv.org/abs/overflow');await f.inspect();
+    const run = (await sql<{ id: string; state: string }>`SELECT id,state FROM automation_runs WHERE explanation_json->>'nodeId'='overflow'`.execute(f.db)).rows[0]!;
+    expect(run.state).toBe('waiting');
+    expect((await sql<{ state: string }>`SELECT state FROM automation_jobs WHERE run_id=${run.id}`.execute(f.db)).rows).toEqual([{ state: 'pending' }]);
+    expect((await f.db.selectFrom('nodes').select('parent_id').where('id','=','overflow').executeTakeFirstOrThrow()).parent_id).toBe('root');
+    await sql`UPDATE automation_intake_reservations SET admission_day=(clock_timestamp() AT TIME ZONE 'UTC')::date-1`.execute(f.db);
+    await sql`UPDATE automation_intake_delays SET available_at=clock_timestamp()-interval '1 second'`.execute(f.db);
+    const { createAutomationRuntime } = await import('../../../src/infrastructure/automation/runtime.js');
+    await f.db.transaction().execute(tx => createAutomationRuntime('server',true)(tx,f.owner,'collection',[]));
+    expect((await f.db.selectFrom('nodes').select('parent_id').where('id','=','overflow').executeTakeFirstOrThrow()).parent_id).toBe('academic');
+    expect((await sql<{ state: string }>`SELECT state FROM automation_jobs WHERE run_id=${run.id}`.execute(f.db)).rows).toEqual([{ state: 'ready' }]);
+  });
   test('real pairing → queue → allowlisted inputs → claim/heartbeat → typed summary → trusted canonical effect; replay cannot duplicate',async () => {
     await setup('aw31_loop');
     const queue = await read('/jobs');expect(queue.statusCode,queue.body).toBe(200);expect(validateAutomation('JobPage',queue.json()).valid).toBe(true);

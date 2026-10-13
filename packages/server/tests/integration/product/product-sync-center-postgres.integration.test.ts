@@ -640,7 +640,7 @@ describeWithPostgres('P3-36 real Product Sync Center HTTP/PostgreSQL', () => {
 });
 
 function incrementResolution(before: Record<string, number>) {
-  return { operations: before.operations + 1, audits: before.audits + 1, outbox: before.outbox + 1,
+  return { operations: before.operations + 1, audits: before.audits + 1, outbox: before.outbox + 2,
     sync_receipts: before.sync_receipts + 1, product_receipts: before.product_receipts + 1,
     // Server resolution has an independent author; browser lane receipts do not change.
     sequence_receipts: before.sequence_receipts };

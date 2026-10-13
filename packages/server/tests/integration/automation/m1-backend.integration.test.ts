@@ -118,8 +118,15 @@ describeWithPostgres('AW-66 M1 backend gate through API and durable worker', () 
       (SELECT count(*) FROM automation_effect_receipts) AS effects, (SELECT count(*) FROM automation_jobs) AS jobs,
       (SELECT count(*) FROM automation_event_facts WHERE facts_json->>'action'='move') AS moves`.execute(f.db)).rows[0];
     expect(counts).toEqual({ effects: '1', jobs: '0', moves: '2' });
-    expect((await sql<{ table_name: string }>`SELECT table_name FROM information_schema.tables WHERE table_schema=current_schema()
-      AND table_name IN ('automation_execution_policies','automation_targets','automation_subscriptions','automation_usage_counters')`.execute(f.db)).rows).toEqual([]);
+    // Worker migrations may be installed while M1 runs with worker support disabled.
+    // Deterministic intake must not create optional execution configuration or usage.
+    expect((await sql<{ policies: string; targets: string; usage: string }>`SELECT
+      (SELECT count(*) FROM automation_execution_policies) AS policies,
+      (SELECT count(*) FROM automation_targets) AS targets,
+      (SELECT count(*) FROM automation_usage_counters) AS usage`.execute(f.db)).rows[0])
+      .toEqual({ policies: '0', targets: '0', usage: '0' });
+    expect((await sql`SELECT table_name FROM information_schema.tables WHERE table_schema=current_schema()
+      AND table_name='automation_subscriptions'`.execute(f.db)).rows).toEqual([]);
     await unknownIntentScenario();
     await unavailableDestinationScenario();
     await restoreScenario();

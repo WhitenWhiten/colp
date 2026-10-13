@@ -54,7 +54,8 @@ export function registerAutomationDeviceRoutes(app: FastifyInstance, deps: Autom
         const body = path === '/intake-receipts' ? await acceptIntakeReceipt(ports, request.body)
           : await ports.acknowledge(parseContract('BundleAckInput', request.body));
         await ports.receipts.complete(binding, fingerprint, { status: path === '/intake-receipts' ? 202 : 200, body: new TextEncoder().encode(JSON.stringify(body)),
-          mediaType: 'application/json', contractVersion: '0.2.1-design', stableHeaders: { 'cache-control': 'private, no-store' } });
+          mediaType: 'application/json', contractVersion: '0.2.1-design', stableHeaders: { 'cache-control': 'private, no-store',
+            ...('revision' in body ? { etag: `"${body.revision}"` } : {}) } });
         return { body };
       });
       if ('claim' in result) {
