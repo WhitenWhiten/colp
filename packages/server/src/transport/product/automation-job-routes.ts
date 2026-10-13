@@ -1,11 +1,11 @@
 import { AutomationError } from '../../modules/automation/index.js';
 import { readKnownCommandId } from './collection-route-helpers.js';
-import { automationView,type AutomationRoute } from './automation-rule-routes.js';
+import { automationPathId,automationView,type AutomationRoute } from './automation-rule-routes.js';
 export function automationJobRoutes(approvals?: import('../../modules/automation/index.js').ApprovedProposalApplier): AutomationRoute[] {
   const store = (ports: import('../../modules/automation/index.js').AutomationPorts) => {
     if (!ports.ownerJobs) throw new AutomationError('automation_unsupported_capability','Worker jobs are unavailable.');return ports.ownerJobs;
   };
-  const id = (request: import('fastify').FastifyRequest) => (request.params as { jobId: string }).jobId;
+  const id = (request: import('fastify').FastifyRequest) => automationPathId(request.params,'jobId');
   return [
     { method: 'GET',path: '/jobs/:jobId',action: async ({ ports,request }) => automationView(await store(ports).get(id(request))) },
     { method: 'POST',path: '/jobs/:jobId/decision',ifMatch: true,action: async ({ ports,request,ifMatch }) => automationView(await store(ports).decide(id(request),request.body,ifMatch,readKnownCommandId(request))),

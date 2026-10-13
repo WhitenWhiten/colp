@@ -37,10 +37,12 @@ export interface AutomationRoute {
   afterCommit?(context: { actor: AutomationActor; request: FastifyRequest }, response: AutomationResponse): Promise<void>;
 }
 const BASE = '/api/v1/me/automations';
-const id = (request: FastifyRequest, name: string): string => {
-  const value = (request.params as Record<string, string>)[name];
+/** Every Owner route reads opaque path identities through the same bounded check. */
+export const automationPathId = (params: unknown, name: string): string => {
+  const value = (params as Record<string, string | undefined>)[name];
   if (!value || !/^[A-Za-z0-9._~-]{1,128}$/u.test(value)) throw new AutomationError('invalid_request', 'Invalid resource identity.'); return value;
 };
+const id = (request: FastifyRequest, name: string): string => automationPathId(request.params, name);
 export const automationView = (body: unknown, status = 200): AutomationResponse => ({ body, status,
   ...(body && typeof body === 'object' && 'revision' in body ? { etag: `"${String(body.revision)}"` } : {}) });
 

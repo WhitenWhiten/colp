@@ -1,5 +1,5 @@
 import { AutomationError,createAutomationPagination } from '../../modules/automation/index.js';
-import { automationView,type AutomationRoute } from './automation-rule-routes.js';
+import { automationPathId,automationView,type AutomationRoute } from './automation-rule-routes.js';
 export function automationDeliveryRoutes(cursorKey: string): AutomationRoute[] {
   const page=createAutomationPagination(cursorKey);
   return [
@@ -12,7 +12,7 @@ export function automationDeliveryRoutes(cursorKey: string): AutomationRoute[] {
     } },
     { method:'POST',path:'/deliveries/:deliveryId/retry',noBody:true,action:async ({ ports,request }) => {
       if (!ports.deliveries) throw new AutomationError('automation_unsupported_capability','Deliveries unavailable.');
-      return automationView(await ports.deliveries.retry((request.params as { deliveryId:string }).deliveryId));
+      return automationView(await ports.deliveries.retry(automationPathId(request.params,'deliveryId')));
     } },
   ];
 }

@@ -204,6 +204,12 @@ describeWithPostgres('BE-1 dependency monitoring and incident lifecycle', () => 
     const latest = await notices();
     expect(latest.map((incident) => incident.code).sort()).toEqual(['bindingMoved', 'bindingRenamed']);
     for (const incident of latest) expect((await post(`/incidents/${incident.id}/acknowledge`, { reason: 'Seen' })).statusCode).toBe(200);
+    // Path identities are bounded the same way on every Owner route.
+    for (const response of [await get('/rules/bad%20id/health'), await get('/rules/bad%20id/dependencies'),
+      await post('/incidents/bad%20id/acknowledge', { reason: 'Seen' })]) {
+      expect(response.statusCode, response.body).toBe(400);
+      expect(response.json().error.code).toBe('invalid_request');
+    }
     await get(`/rules/${ruleId}/health`);
     await sink.apply(await delivery('node.moved'));
     expect(await notices()).toEqual([]);

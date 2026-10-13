@@ -1,6 +1,6 @@
 import { AutomationError } from '../../modules/automation/index.js';
 import { saveExecutionPolicy } from '../../modules/automation/index.js';
-import { automationView, type AutomationRoute } from './automation-rule-routes.js';
+import { automationPathId, automationView, type AutomationRoute } from './automation-rule-routes.js';
 import { createAutomationPagination } from './automation-pagination.js';
 
 export function automationPolicyRoutes(cursorKey: string): AutomationRoute[] {
@@ -8,9 +8,9 @@ export function automationPolicyRoutes(cursorKey: string): AutomationRoute[] {
   return [
     { method: 'POST', path: '/execution-policies', action: async ({ ports, request }) => automationView(await saveExecutionPolicy(ports.policies, request.body), 201) },
     { method: 'PUT', path: '/execution-policies/:policyId', ifMatch: true, action: async ({ ports, request, ifMatch }) =>
-      automationView(await saveExecutionPolicy(ports.policies, request.body, (request.params as { policyId: string }).policyId, ifMatch)) },
+      automationView(await saveExecutionPolicy(ports.policies, request.body, automationPathId(request.params,'policyId'), ifMatch)) },
     { method: 'GET', path: '/execution-policies/:policyId', action: async ({ ports, request }) => {
-      const policy = await ports.policies.load((request.params as { policyId: string }).policyId);
+      const policy = await ports.policies.load(automationPathId(request.params,'policyId'));
       if (!policy) throw new AutomationError('resource_not_found', 'Execution policy is unavailable.');
       return automationView(policy);
     } },

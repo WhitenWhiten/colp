@@ -1,7 +1,7 @@
 import { AutomationError,createAutomationPagination } from '../../modules/automation/index.js';
-import { automationView,type AutomationRoute } from './automation-rule-routes.js';
+import { automationPathId,automationView,type AutomationRoute } from './automation-rule-routes.js';
 export function automationOutputRoutes(cursorKey:string):AutomationRoute[]{
-  const page=createAutomationPagination(cursorKey),id=(params:unknown)=>(params as {runId:string}).runId;
+  const page=createAutomationPagination(cursorKey),id=(params:unknown)=>automationPathId(params,'runId');
   return [
     {method:'GET',path:'/runs/:runId/outputs',query:['cursor','limit'],action:async({ports,actor,request})=>{
       if(!ports.outputs)throw new AutomationError('automation_unsupported_capability','Run outputs unavailable.');
