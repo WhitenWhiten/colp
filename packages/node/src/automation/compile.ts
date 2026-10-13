@@ -1,5 +1,5 @@
 import { validateAutomation, type ContractIssue } from './schema.js';
-import { normalizeHost } from './normalize.js';
+import { normalizeHost, normalizePathText } from './normalize.js';
 import { evaluatePredicate, type PredicateDecision, type EvaluationOptions } from './predicate.js';
 import type { Predicate, RuleDefinition } from './types.generated.js';
 
@@ -33,8 +33,13 @@ export function compilePredicate(value: unknown): CompiledPredicate {
       const hosts = values.map(normalizeHost);
       if (hosts.some((host) => host === undefined)) issue(path, 'invalidHost', 'Expected a domain, without URL delimiters.');
       else node.value = Array.isArray(node.value) ? hosts as string[] : hosts[0]!;
-    } else if (typeof node.value === 'string') node.value = node.value.normalize('NFC');
-    else node.value = node.value.map((value) => value.normalize('NFC'));
+    } else {
+      // Rule values meet facts on the facts' terms: encoded paths and lower-case ASCII hosts.
+      const normalize = node.field === 'bookmark.url.path' ? (text: string) => normalizePathText(text, node.op !== 'contains')
+        : node.field === 'bookmark.url.host' ? (text: string) => text.normalize('NFC').toLowerCase()
+          : (text: string) => text.normalize('NFC');
+      node.value = typeof node.value === 'string' ? normalize(node.value) : node.value.map(normalize);
+    }
   };
   walk(predicate, 1, '/match');
   if (issues.length) return { valid: false, issues: issues.slice(0, 100) };

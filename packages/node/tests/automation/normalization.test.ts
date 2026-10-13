@@ -1,7 +1,7 @@
 import { describe, test, expect } from 'vitest';
 import rule from '../fixtures/automation/m1-placement.json' with { type: 'json' };
 import facts from '../fixtures/automation/event-facts.json' with { type: 'json' };
-import { normalizeUrl, normalizeHost, normalizeEventFacts, taskInputDigest, automationDigest, normalizeRuleDefinition, ruleSemanticDigest, type RuleDefinition } from '../../src/automation/index.js';
+import { normalizeUrl, normalizeHost, normalizeEventFacts, normalizePathText, compilePredicate, taskInputDigest, automationDigest, normalizeRuleDefinition, ruleSemanticDigest, type RuleDefinition } from '../../src/automation/index.js';
 
 describe('normalization and canonical digests', () => {
   test('host case, IDNA, terminal dot, query spoof and malformed URLs', () => {
@@ -45,4 +45,22 @@ test('review: semantic digests share compiler normalization and ignore display l
   expect(definition.match).toMatchObject({ value: ['BÜCHER.example.', 'ARXIV.ORG.'] });
   expect(ruleSemanticDigest(definition)).toBe(ruleSemanticDigest({ ...normalized, name: 'Another display label' }));
   expect(ruleSemanticDigest({ ...normalized, priority: normalized.priority + 1 })).not.toBe(ruleSemanticDigest(normalized));
+});
+
+test('review: rule path and host values share the bookmark URL normalizer', () => {
+  const at = (url: { host: string; path: string }) => ({ ...facts, bookmark: { ...facts.bookmark, url } });
+  const outcome = (match: unknown, url: { host: string; path: string }) => {
+    const compiled = compilePredicate(match);
+    if (!compiled.valid) throw new Error(JSON.stringify(compiled.issues));
+    return compiled.evaluate(at(url)).outcome;
+  };
+  const path = (op: string, value: string) => ({ kind: 'field', field: 'bookmark.url.path', op, value });
+  expect(outcome(path('startsWith', '/papers/日本'), { host: 'example.org', path: '/papers/日本語/x' })).toBe('matched');
+  expect(outcome(path('startsWith', '/a b'), { host: 'example.org', path: '/a b/c' })).toBe('matched');
+  expect(outcome(path('eq', '/a/../docs'), { host: 'example.org', path: '/docs' })).toBe('matched');
+  expect(outcome(path('contains', '日本'), { host: 'example.org', path: '/papers/日本語' })).toBe('matched');
+  expect(outcome(path('contains', '../x'), { host: 'example.org', path: '/a/../x' })).toBe('notMatched');
+  expect(outcome({ kind: 'field', field: 'bookmark.url.host', op: 'contains', value: 'ArXiv' }, { host: 'ARXIV.org', path: '/' })).toBe('matched');
+  expect(normalizePathText('/a b/日', true)).toBe('/a%20b/%E6%97%A5');
+  expect(normalizePathText('a\\b#c', false)).toBe('a/b%23c');
 });

@@ -21,6 +21,18 @@ export function normalizeHost(raw: string): string | undefined {
   return result.status === 'available' ? result.host : undefined;
 }
 
+/**
+ * Rule-side path text, encoded exactly as bookmark paths are: WHATWG path percent-encoding, and dot
+ * segments resolved for whole paths. Fragments (`contains`) keep their dot segments.
+ */
+export function normalizePathText(raw: string, whole: boolean): string {
+  const url = new URL('https://path.invalid/');
+  const text = raw.normalize('NFC');
+  if (whole && text.startsWith('/')) { url.pathname = text; return url.pathname; }
+  // A leading marker keeps "." and ".." literal; the URL setter then encodes the segment.
+  return text.split(/[/\\]/u).map((segment) => { url.pathname = `/_${segment}`; return url.pathname.slice(2); }).join('/');
+}
+
 export type NormalizedFacts = { status: 'available'; facts: EventFacts } | { status: 'missingInput'; reason: string };
 export function normalizeEventFacts(value: unknown, version: number = FACTS_VERSION): NormalizedFacts {
   if (version !== FACTS_VERSION) return { status: 'missingInput', reason: 'unsupportedFactsVersion' };
