@@ -1,4 +1,5 @@
 import { reconcileRunPlanEffects } from './reconcile-plan-effect.js';
+import { readAutomationUsage } from './usage-read-store.js';
 import { planEffectView } from './plan-effect-view.js';
 import { placementEffectView, type PlacementEffectRow } from './placement-history-store.js';
 import { sql } from 'kysely';
@@ -24,7 +25,18 @@ export function createRunStore(tx: DatabaseTransaction, actor: AutomationActor, 
     jobIds: [], causationRoot: row.explanation_json.causationRoot ?? row.id, kind: row.kind, effects: [], unread: false, outputCount: 0,
   } });
   return {
-    async load(id) { await reconcileRunPlanEffects(tx,actor,id,serverUuid); const row = (await sql<RunRow>`${select} AND r.id=${id}`.execute(tx)).rows[0]; return row ? map(row) : null; },
+    async load(id) {
+      await reconcileRunPlanEffects(tx,actor,id,serverUuid);
+      const row = (await sql<RunRow>`${select} AND r.id=${id}`.execute(tx)).rows[0];
+      if (!row) return null;
+      const stored = map(row);
+      const jobs = (await sql<{ id: string; target_id: string | null }>`SELECT id,target_id FROM automation_jobs
+        WHERE run_id=${id} ORDER BY created_at,id LIMIT 1600`.execute(tx)).rows;
+      stored.view.jobIds = jobs.map(job => job.id);
+      stored.view.recipientTargetIds = [...new Set(jobs.flatMap(job => job.target_id ? [job.target_id] : []))].slice(0,100);
+      stored.view.usage = await readAutomationUsage(tx,actor,row.rule_id,id);
+      return stored;
+    },
     async list(after, limit, bookmark) {
       const cursor = after ? sql`AND (r.created_at,r.id) < (${after.createdAt}::timestamptz,${after.id})` : sql``;
       const filter = bookmark ? sql`AND c.id=${bookmark.collectionId} AND r.explanation_json->>'nodeId'=${bookmark.nodeId}` : sql``;

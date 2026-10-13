@@ -11,6 +11,7 @@ import type { DatabaseSchema } from '../database/runtime.js';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
 import { lockWorkJob, type TargetAuthority } from './work-authority.js';
 import { claimTokenHash, workBinding, requireJobLease } from './lease-store.js';
+import { recordReportedCost } from './usage-store.js';
 
 import type { PinnedProposal, ProposalPlanGateway } from './proposal-plan-gateway.js';
 
@@ -59,6 +60,7 @@ export function createResultSubmissionPort(db: Kysely<DatabaseSchema>,serverUuid
         VALUES(${resultId},${id},${input.generation},${actor.accountId},${input.inputDigest},${input.outputContract},${pin.authority_digest},${JSON.stringify(input.output)}::jsonb,${digest},${state==='succeeded' ? 'accepted' : 'proposed'})`.execute(tx);
       await sql`UPDATE automation_jobs SET state=${state},result_id=${resultId},revision=revision+1 WHERE id=${id}`.execute(tx);
       await sql`UPDATE automation_job_attempts SET outcome='submitted',provider_request_ref=${input.providerRequestId ?? null} WHERE job_id=${id} AND generation=${input.generation}`.execute(tx);
+      if (input.usageCostMicros !== undefined) await recordReportedCost(tx,id,input.generation,input.usageCostMicros);
       if (kind === 'none' || kind === 'review') return;
       if (!actor.resourceAudience || !actor.securityEpoch) throw new AutomationError('insufficient_permission','Verified credential binding is required.');
       const planId = `automation-${id}`, commandId = randomUUID(), operationId = `automation-op-${id}`;

@@ -1,4 +1,5 @@
 import { automationJobRoutes } from '../../src/transport/product/automation-job-routes.js';
+import { automationRunRoutes } from '../../src/transport/product/automation-run-routes.js';
 import { createAutomationWorkerService,createResultSubmissionPort,createProposalPlanGateway,createAutomationRuntime } from '../../src/infrastructure/automation/index.js';
 import { createPhase4bMcpWriteComposition,createMcpChangePlanRateLimitPort } from '../../src/bootstrap/mcp-write-composition.js';
 import { automationPolicyRoutes } from '../../src/transport/product/automation-policy-routes.js';
@@ -82,7 +83,7 @@ export async function automationWorkerFixture(prefix: string,maxPairRequests = 1
   const work = results ? createAutomationWorkerService(f.db,'server',worker,results,'worker-test-cursor-at-least-32-bytes',1000) : undefined;
   const app = Fastify({ exposeHeadRoutes: false,routerOptions: { querystringParser: parseStrictQuery } }); installProductAdmission(app);
   app.setErrorHandler((error,request,reply) => { if (!(error instanceof ProductHttpError)) console.error(error.stack); return sendProductError(request,reply,error instanceof ProductHttpError ? error : new ProductHttpError({ statusCode: 500,code: 'internal_error',message: String(error) })); });
-  registerAutomationRoutes(app,{ identityUnitOfWork: f.identity,unitOfWork: uow,allowedOrigins: [origin],cursorKey: 'worker-test-cursor-at-least-32-bytes' },[...(enableJobs ? automationJobRoutes() : []),...automationTargetRoutes('worker-test-cursor-at-least-32-bytes'),...automationPolicyRoutes('worker-test-cursor-at-least-32-bytes')]);
+  registerAutomationRoutes(app,{ identityUnitOfWork: f.identity,unitOfWork: uow,allowedOrigins: [origin],cursorKey: 'worker-test-cursor-at-least-32-bytes' },[...(enableJobs ? [...automationJobRoutes(),...automationRunRoutes('worker-test-cursor-at-least-32-bytes')] : []),...automationTargetRoutes('worker-test-cursor-at-least-32-bytes'),...automationPolicyRoutes('worker-test-cursor-at-least-32-bytes')]);
   registerAutomationWorkRoutes(app,{ pairing: worker,worker: work,oauthVerifier: verifier,allowedOrigins: [origin] }); await app.ready();
   const ownerHeaders = (commandId = randomUUID(),etag?: string) => ({ cookie: f.owner.cookie,origin,'x-csrf-token': f.owner.csrfToken,'known-command-id': commandId,...(etag ? { 'if-match': etag } : {}) });
   const ownerPost = (path: string,payload: unknown,etag?: string,commandId?: string) => app.inject({ method: 'POST',url: '/api/v1/me/automations'+path,headers: ownerHeaders(commandId,etag),payload });

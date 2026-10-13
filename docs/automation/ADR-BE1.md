@@ -52,3 +52,43 @@ AW-31's prose says 14 tools, but the pinned catalog has 15 (7 manager + 8 worker
 including bootstrap pairing). The catalog and chapter 11 §6 are authoritative; use
 all 15 closed descriptors. AW-02 remains experimental evidence and grants no
 production Events readiness or dedicated-credential isolation.
+
+## AW-55 waiting work and cost observations
+
+Rule GET/list and Run GET/list expose `usage`, through the additive
+`contract-adjustments.json` producer contract. No UI join against private ledgers is
+needed. `periodStart`/`periodEnd` cover retained, currently authorized run history;
+`admittedRuns`, job-state counts and cost observations describe that scope. Run
+usage restricts history to that run. Job counts are a current snapshot, not a daily
+success counter. Cancelled pending jobs do not count as waiting, while their
+historical external attempts/cost uncertainty remain visible.
+
+`pendingJobs`, `readyJobs`, `leasedJobs`, `committingJobs`, `awaitingApprovalJobs`
+and `uncertainJobs` are distinct. `heldJobs` overlays active states under explicit
+run hold/global pause; do not sum it into the other counts. `policyBlockedJobs`
+counts all blocked work under execution/dependency/constraint policies;
+`budgetBlockedJobs` is its explicit optional-budget-exhausted subset. Only actual
+succeeded jobs contribute to `succeededJobs`; deterministic placement receipts do
+not imply optional worker success.
+
+`budgetDay` is the current UTC date. `dailyRunLimit` is the current rule cap (the
+pinned rule cap for a Run); `reservedRuns` counts distinct runs across that rule's
+current-day optional-work reservations, even when viewing a single run.
+`remainingRuns` is the nonnegative rule allowance. This observation is not a claim
+that a call will pass the independent server cap, pinned maxCalls, current
+authority or input checks. Historical consumed reservations remain counted after
+collection access changes because they still consume the Owner's rule budget.
+
+`optionalCalls`/`unknownCostCalls` count persisted attempts. A nullable per-attempt
+cost records the first valid result observation once, on the original call day;
+late/repeated submissions cannot shift billing days or double count. Historical
+attempts default to null, preserving unknown costs. `reportedCostMicros` is a
+decimal string to preserve aggregate precision. Explicit reported zero is known;
+one unreported attempt keeps `externalCosts=unknownDisclosed`. Reports are not
+verified provider bills and do not assert enforceable external spending limits.
+
+Before AW-29, `deliveryCapability=unavailable` and `acceptedDeliveries=null`.
+Never manufacture delivery acceptance, latency or a successful hosted callback.
+The projection emits fixed scalar fields only: no titles, output bodies, tokens,
+claim secrets, provider request references or callback addresses. Current Owner
+and collection authority scope job/cost aggregates as they scope run history.

@@ -20350,6 +20350,55 @@ components:
         costDisplay:
           type: string
           maxLength: 500
+        pendingJobs:
+          type: integer
+          minimum: 0
+        leasedJobs:
+          type: integer
+          minimum: 0
+        committingJobs:
+          type: integer
+          minimum: 0
+        policyBlockedJobs:
+          type: integer
+          minimum: 0
+        budgetBlockedJobs:
+          type: integer
+          minimum: 0
+        awaitingApprovalJobs:
+          type: integer
+          minimum: 0
+        uncertainJobs:
+          type: integer
+          minimum: 0
+        optionalCalls:
+          type: integer
+          minimum: 0
+        unknownCostCalls:
+          type: integer
+          minimum: 0
+        dailyRunLimit:
+          type: integer
+          minimum: 0
+        reservedRuns:
+          type: integer
+          minimum: 0
+        remainingRuns:
+          type: integer
+          minimum: 0
+        reportedCostMicros:
+          type: string
+          pattern: ^[0-9]+$
+          maxLength: 40
+          description: Sum of worker-reported observations in micros; not verified provider billing.
+        budgetDay:
+          type: string
+          format: date
+        deliveryCapability:
+          const: unavailable
+        acceptedDeliveries:
+          type: 'null'
+          description: Unavailable until the Events delivery adapter exists; never a fabricated zero.
       required:
         - periodStart
         - periodEnd
@@ -21425,6 +21474,8 @@ components:
           type: string
           maxLength: 1000
           description: Bounded explanation of the pinned admission decision or latest execution outcome.
+        usage:
+          $ref: '#/components/schemas/AutomationRuleUsageView'
       required:
         - id
         - revision

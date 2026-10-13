@@ -1,4 +1,5 @@
 import { sql } from 'kysely';
+import { AutomationError } from '../../modules/automation/index.js';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
 
 export interface UsageReservation { ownerId: string; ruleId: string; runId: string; jobId: string; targetId: string }
@@ -23,4 +24,19 @@ export async function recordOptionalCall(tx: DatabaseTransaction, item: UsageRes
     VALUES(${item.ownerId},${item.ruleId},${item.targetId},(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date,1,1)
     ON CONFLICT(owner_id,rule_id,target_id,day) DO UPDATE SET calls=automation_usage_counters.calls+1,
       unknown_cost_calls=automation_usage_counters.unknown_cost_calls+1`.execute(tx);
+}
+
+/** Record once against the original call day, even if the result arrives after UTC midnight. */
+export async function recordReportedCost(tx: DatabaseTransaction, jobId: string, generation: number, micros: number): Promise<void> {
+  if (!Number.isSafeInteger(micros) || micros<0) throw new AutomationError('invalid_request','Reported cost must be a nonnegative safe integer in micros.');
+  await sql`WITH observed AS (
+    UPDATE automation_job_attempts SET reported_cost_micros=${micros}
+    WHERE job_id=${jobId} AND generation=${generation} AND reported_cost_micros IS NULL
+    RETURNING job_id,created_at
+  ) UPDATE automation_usage_counters c SET reported_cost_micros=c.reported_cost_micros+${micros},
+    unknown_cost_calls=greatest(0,c.unknown_cost_calls-1)
+    FROM observed a JOIN automation_jobs j ON j.id=a.job_id JOIN automation_runs r ON r.id=j.run_id
+    JOIN automation_rule_revisions v ON v.id=r.rule_revision_id
+    WHERE c.owner_id=r.owner_id AND c.rule_id=v.rule_id AND c.target_id=j.target_id
+      AND c.day=(a.created_at AT TIME ZONE 'UTC')::date`.execute(tx);
 }

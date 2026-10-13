@@ -412,6 +412,28 @@ export interface RuleUsageView {
   heldJobs: number;
   externalCosts: "notApplicable" | "unknownDisclosed" | "known";
   costDisplay: string;
+  pendingJobs?: number;
+  leasedJobs?: number;
+  committingJobs?: number;
+  policyBlockedJobs?: number;
+  budgetBlockedJobs?: number;
+  awaitingApprovalJobs?: number;
+  uncertainJobs?: number;
+  optionalCalls?: number;
+  unknownCostCalls?: number;
+  dailyRunLimit?: number;
+  reservedRuns?: number;
+  remainingRuns?: number;
+  /**
+   * Sum of worker-reported observations in micros; not verified provider billing.
+   */
+  reportedCostMicros?: string;
+  budgetDay?: string;
+  deliveryCapability?: "unavailable";
+  /**
+   * Unavailable until the Events delivery adapter exists; never a fabricated zero.
+   */
+  acceptedDeliveries?: null;
 }
 export interface Diagnostic {
   code: string;
@@ -781,6 +803,7 @@ export interface Run {
    * Bounded explanation of the pinned admission decision or latest execution outcome.
    */
   explanation?: string;
+  usage?: RuleUsageView1;
 }
 export interface EffectReceiptView {
   id: OpaqueId;
@@ -795,6 +818,38 @@ export interface EffectReceiptView {
    * Verified pre-commit collection version linked to the same plan; does not imply every field is undoable.
    */
   versionId?: string;
+}
+export interface RuleUsageView1 {
+  periodStart: string;
+  periodEnd: string;
+  admittedRuns: number;
+  readyJobs: number;
+  succeededJobs: number;
+  heldJobs: number;
+  externalCosts: "notApplicable" | "unknownDisclosed" | "known";
+  costDisplay: string;
+  pendingJobs?: number;
+  leasedJobs?: number;
+  committingJobs?: number;
+  policyBlockedJobs?: number;
+  budgetBlockedJobs?: number;
+  awaitingApprovalJobs?: number;
+  uncertainJobs?: number;
+  optionalCalls?: number;
+  unknownCostCalls?: number;
+  dailyRunLimit?: number;
+  reservedRuns?: number;
+  remainingRuns?: number;
+  /**
+   * Sum of worker-reported observations in micros; not verified provider billing.
+   */
+  reportedCostMicros?: string;
+  budgetDay?: string;
+  deliveryCapability?: "unavailable";
+  /**
+   * Unavailable until the Events delivery adapter exists; never a fabricated zero.
+   */
+  acceptedDeliveries?: null;
 }
 export interface Evidence {
   kind: "source" | "model" | "user" | "rule";
@@ -1478,14 +1533,4 @@ export interface RunOutputPage {
  */
 export interface MarkRunReadInput {
   throughOutputId: OpaqueId;
-}
-export interface RuleUsageView1 {
-  periodStart: string;
-  periodEnd: string;
-  admittedRuns: number;
-  readyJobs: number;
-  succeededJobs: number;
-  heldJobs: number;
-  externalCosts: "notApplicable" | "unknownDisclosed" | "known";
-  costDisplay: string;
 }

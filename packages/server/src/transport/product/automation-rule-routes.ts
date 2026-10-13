@@ -50,6 +50,7 @@ export function registerAutomationRoutes(app: FastifyInstance, deps: AutomationR
       const now = await ports.now(), { limit, after } = pagination.read(request.query as Record<string, string>, actor.accountId, 'rules', now);
       const rows = await ports.rules.list(actor.accountId, after, limit + 1), last = rows[limit - 1], paused = (await ports.settings.get(actor.accountId)).paused;
       if (ports.runtimeEnabled) for (const row of rows.slice(0, limit)) row.view.effectiveState = (await revalidateRule(ports, actor, row.view.id)).effectiveState;
+      if (ports.usage) for (const row of rows.slice(0, limit)) row.view.usage = await ports.usage.rule(row.view.id);
       return automationView({ items: rows.slice(0, limit).map((row) => ({ ...row.view, effectiveState: row.view.desiredState === 'enabled' && paused ? 'paused' : row.view.effectiveState })),
         nextCursor: rows.length > limit && last ? pagination.next(actor.accountId, 'rules', limit, { createdAt: last.sortCreatedAt, id: last.view.id }, now) : null });
     } },
@@ -57,6 +58,7 @@ export function registerAutomationRoutes(app: FastifyInstance, deps: AutomationR
       const stored = await requireRule(ports, actor, id(request, 'ruleId'));
       if (stored.view.desiredState === 'enabled' && (await ports.settings.get(actor.accountId)).paused) stored.view.effectiveState = 'paused';
       if (ports.runtimeEnabled) stored.view.effectiveState = (await revalidateRule(ports, actor, stored.view.id)).effectiveState;
+      if (ports.usage) stored.view.usage = await ports.usage.rule(stored.view.id);
       return automationView(stored.view);
     } },
     { method: 'PUT', path: '/rules/:ruleId', ifMatch: true, action: async ({ ports, actor, request, ifMatch }) => automationView(await replaceRule(ports, actor, id(request, 'ruleId'), request.body, ifMatch)) },

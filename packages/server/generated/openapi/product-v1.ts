@@ -5271,6 +5271,26 @@ export interface components {
             /** @enum {string} */
             externalCosts: "notApplicable" | "unknownDisclosed" | "known";
             costDisplay: string;
+            pendingJobs?: number;
+            leasedJobs?: number;
+            committingJobs?: number;
+            policyBlockedJobs?: number;
+            budgetBlockedJobs?: number;
+            awaitingApprovalJobs?: number;
+            uncertainJobs?: number;
+            optionalCalls?: number;
+            unknownCostCalls?: number;
+            dailyRunLimit?: number;
+            reservedRuns?: number;
+            remainingRuns?: number;
+            /** @description Sum of worker-reported observations in micros; not verified provider billing. */
+            reportedCostMicros?: string;
+            /** Format: date */
+            budgetDay?: string;
+            /** @constant */
+            deliveryCapability?: "unavailable";
+            /** @description Unavailable until the Events delivery adapter exists; never a fabricated zero. */
+            acceptedDeliveries?: null;
         };
         AutomationChangeInput: {
             definition: components["schemas"]["AutomationRuleDefinition"];
@@ -5556,6 +5576,7 @@ export interface components {
             held?: boolean;
             /** @description Bounded explanation of the pinned admission decision or latest execution outcome. */
             explanation?: string;
+            usage?: components["schemas"]["AutomationRuleUsageView"];
         };
         AutomationRevision: string;
         AutomationEffectReceiptView: {

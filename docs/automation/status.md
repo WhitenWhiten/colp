@@ -12,10 +12,10 @@
 | AW-26 | done | `5f9fbd2`，[配对](evidence/aw-26.md) |
 | AW-30 | done | `3bb4fd1`，[条件目录](evidence/aw-30.md) |
 | AW-31 | done | `84e8239`，[HTTP/MCP 编排](evidence/aw-31.md) |
-| AW-32 | done | [轮询参考 worker](evidence/aw-32.md)，独立任务提交 |
-| AW-55 | planned | 尚未交付完整 usage/read model |
+| AW-32 | done | `cae18f6`，[轮询参考 worker](evidence/aw-32.md) |
+| AW-55 | done | [等待任务和预算读模型](evidence/aw-55.md)，独立任务提交 |
 | AW-64 | planned | 尚未交付完整 backend E2E gate |
 
 2026-10-13 对七项已执行任务进行了代码、测试、边界、复杂度和语义审查，并直接修复发现的问题。
 修复清单、真实验证命令、迁移影响及剩余边界见 [BE-03 审查记录](evidence/be3-review.md)。
-BE-03 剩余 AW-55、AW-64 按顺序交付；历史审查记录中的未执行范围保留为当时结论。
+BE-03 剩余 AW-64 按顺序交付；历史审查记录中的未执行范围保留为当时结论。
