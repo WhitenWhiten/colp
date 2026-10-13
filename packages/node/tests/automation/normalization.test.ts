@@ -1,6 +1,7 @@
 import { describe, test, expect } from 'vitest';
+import rule from '../fixtures/automation/m1-placement.json' with { type: 'json' };
 import facts from '../fixtures/automation/event-facts.json' with { type: 'json' };
-import { normalizeUrl, normalizeHost, normalizeEventFacts, taskInputDigest, automationDigest } from '../../src/automation/index.js';
+import { normalizeUrl, normalizeHost, normalizeEventFacts, taskInputDigest, automationDigest, normalizeRuleDefinition, ruleSemanticDigest, type RuleDefinition } from '../../src/automation/index.js';
 
 describe('normalization and canonical digests', () => {
   test('host case, IDNA, terminal dot, query spoof and malformed URLs', () => {
@@ -34,4 +35,14 @@ describe('normalization and canonical digests', () => {
     expect(automationDigest({ b: 1, a: 2 })).toBe(automationDigest({ a: 2, b: 1 }));
     expect(automationDigest({ a: 2, b: 1 })).toMatch(/^[a-f0-9]{64}$/);
   });
+});
+
+test('review: semantic digests share compiler normalization and ignore display labels', () => {
+  const definition = structuredClone(rule) as RuleDefinition;
+  definition.match = { kind: 'field', field: 'bookmark.url.host', op: 'in', value: ['BÜCHER.example.', 'ARXIV.ORG.'] };
+  const normalized = normalizeRuleDefinition(definition);
+  expect(normalized.match).toMatchObject({ value: ['xn--bcher-kva.example', 'arxiv.org'] });
+  expect(definition.match).toMatchObject({ value: ['BÜCHER.example.', 'ARXIV.ORG.'] });
+  expect(ruleSemanticDigest(definition)).toBe(ruleSemanticDigest({ ...normalized, name: 'Another display label' }));
+  expect(ruleSemanticDigest({ ...normalized, priority: normalized.priority + 1 })).not.toBe(ruleSemanticDigest(normalized));
 });

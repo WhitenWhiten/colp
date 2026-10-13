@@ -2,6 +2,7 @@ import canonicalize from 'canonicalize';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { bytesToHex } from '@noble/hashes/utils.js';
 import { boundedJson } from './schema.js';
+import { normalizeRuleDefinition } from './compile.js';
 import { NORMALIZER_VERSION } from './normalize.js';
 import type { RuleDefinition, RoleBindings } from './types.generated.js';
 
@@ -14,7 +15,7 @@ export function automationDigest(value: unknown): string {
 }
 
 export function ruleSemanticDigest(definition: RuleDefinition): string {
-  const { name: _name, description: _description, roles, ...logic } = definition;
+  const { name: _name, description: _description, roles, ...logic } = normalizeRuleDefinition(definition);
   return automationDigest({ ...logic, roles: roles.map(({ description: _label, ...role }) => role) });
 }
 export function bindingSemanticDigest(values: RoleBindings): string {
