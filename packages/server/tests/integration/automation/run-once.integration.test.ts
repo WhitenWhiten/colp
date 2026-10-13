@@ -85,4 +85,17 @@ describeWithPostgres('AW-41 immutable manual selection',()=>{
     const result=await started;expect(result.statusCode,result.body).toBe(201);
   });
 
+  test('1,000 valid members with 64 tags and shared ancestry fit the preview contract',async()=>{
+    f=await automationPollingFixture('aw41_structural_budget');
+    const tags=Array.from({length:64},(_,i)=>'tag-'+i);
+    await sql`UPDATE nodes SET parent_id='academic',tags=${JSON.stringify(tags)}::jsonb,
+      payload_json=jsonb_set(payload_json,'{tags}',${JSON.stringify(tags)}::jsonb) WHERE id='paper'`.execute(f.db);
+    await sql`INSERT INTO resource_id_ledger(resource_id,resource_type) SELECT 'tag-capacity-'||g::text,'node' FROM generate_series(1,998) g`.execute(f.db);
+    const columns=(await sql<{column_name:string}>`SELECT column_name FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='nodes' AND is_generated='NEVER' ORDER BY ordinal_position`.execute(f.db)).rows.map(r=>r.column_name);
+    await sql`INSERT INTO nodes (${sql.join(columns.map(c=>sql.id(c)))}) SELECT ${sql.join(columns.map(c=>c==='id'?sql`'tag-capacity-'||g::text`:c==='position_token'?sql`'z'||lpad(g::text,8,'0')`:sql.ref('n.'+c)))}
+      FROM nodes n CROSS JOIN generate_series(1,998) g WHERE n.id='paper'`.execute(f.db);
+    const p=await preview();expect(p.statusCode,p.body).toBe(200);
+    expect(p.json()).toMatchObject({canStart:true,matchedCount:1000,maxMembers:1000});
+  });
+
 });

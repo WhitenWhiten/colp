@@ -1,3 +1,4 @@
+import { boundManualSnapshot } from './manual-snapshot.js';
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { automationDigest,compilePredicate,type EventFacts,type RunOnceInput,type RunOncePreview,type RuleDefinition } from '@know-n/colp/automation';
@@ -34,15 +35,16 @@ export async function previewManualRun(tx:DatabaseTransaction,ports:AutomationPo
     ruleRevisionId:rule.definitionRevisionId,bindingSetId:rule.view.bindingSetId,bindingRevision:inspected.binding.revision,
     policyRevision:inspected.worker?.policy?.revision ?? null,definition:rule.view.definition,members};
   const matches=members.filter(m=>['matched','placed','preserved'].includes(m.plan.kind)),blocked=members.filter(m=>['blocked','conflict','missingInput','overridden'].includes(m.plan.kind));
-  const now=await ports.now(),id=randomUUID(),previewDigest=automationDigest(snapshot);
+  const bounded=boundManualSnapshot(snapshot);
+  const now=await ports.now(),id=randomUUID(),previewDigest=bounded.digest;
   const result:RunOncePreview={id,matchedCount:matches.length,blockedCount:blocked.length,explicitChoiceCount:members.filter(m=>m.plan.kind==='preserved').length,
     maxMembers:1000,expiresAt:new Date(now.getTime()+15*60_000).toISOString(),previewDigest,sideEffects:false,
-    canStart:!sample.truncated && matches.length>0 && !blocked.length && !(await ports.settings.get(actor.accountId)).paused
+    canStart:bounded.bounded && !sample.truncated && matches.length>0 && !blocked.length && !(await ports.settings.get(actor.accountId)).paused
       && (input.tasks==='none' || !snapshot.definition.tasks.length || (!!ports.workerEnabled && inspected.worker?.tasks.every(t=>t.available)===true)),
     sample:members.slice(0,20).map(m=>({nodeId:m.event.nodeId,title:m.event.bookmark.title?.slice(0,500) ?? '',
       decision:m.plan.kind==='preserved'?'explicitChoice':m.plan.kind==='notMatched'?'notMatched':['matched','placed'].includes(m.plan.kind)?'matched':'blocked'}))};
   await sql`DELETE FROM automation_manual_previews WHERE id IN (SELECT id FROM automation_manual_previews WHERE owner_id=${actor.accountId} AND expires_at<clock_timestamp() AND run_id IS NULL LIMIT 100)`.execute(tx);
   await sql`INSERT INTO automation_manual_previews(id,owner_id,rule_id,digest,snapshot_json,result_json,expires_at)
-    VALUES(${id},${actor.accountId},${ruleId},${previewDigest},${JSON.stringify(snapshot)}::jsonb,${JSON.stringify(result)}::jsonb,${result.expiresAt}::timestamptz)`.execute(tx);
+    VALUES(${id},${actor.accountId},${ruleId},${previewDigest},${JSON.stringify(bounded.snapshot)}::jsonb,${JSON.stringify(result)}::jsonb,${result.expiresAt}::timestamptz)`.execute(tx);
   return result;
 }
