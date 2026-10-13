@@ -30,6 +30,7 @@ const observed = vi.hoisted(() => ({
   queueRecovers: 0,
   resumes: 0,
   firstRunRequests: [] as string[],
+  firstRunState: 'running' as string,
   engineRequests: 0,
   clears: [] as string[],
   /** Repeating-alarm intervals, keyed by alarm name. */
@@ -87,7 +88,8 @@ vi.mock('../src/sw/bookmarks.js', async (importOriginal) => {
 
 vi.mock('../src/bookmark-event-queue.js', () => ({
   createBookmarkEventQueue: () => ({ recover: async () => { observed.queueRecovers += 1; },
-    flush: async () => undefined, correlationFor: async () => 'correlation' }),
+    flush: async () => undefined, correlationFor: async () => 'correlation',
+    captureMissingRemovals: async () => undefined }),
 }));
 
 vi.mock('../src/sw/roots.js', () => ({ handleRootRequest: async () => ({ ok: true }),
@@ -95,7 +97,7 @@ vi.mock('../src/sw/roots.js', () => ({ handleRootRequest: async () => ({ ok: tru
 
 vi.mock('../src/sw/first-run.js', () => ({
   handleFirstRunRequest: async (message: { kind: string }) => { observed.firstRunRequests.push(message.kind);
-    return { ok: true, state: {} }; },
+    return { ok: true, phase: 'syncing', firstRun: observed.firstRunState }; },
   handleScopeCommand: async () => ({ ok: true }), resumeRunningBootstrap: async () => undefined }));
 
 vi.mock('../src/sw/batch.js', () => ({ resumeActiveBatchPlans: async () => undefined }));
@@ -238,7 +240,7 @@ describe('MV3 service worker entry wiring is exercised, not grepped', () => {
   });
 
   afterEach(() => { observed.wakes.length = 0; observed.recoveries.length = 0; observed.lanes.length = 0;
-    observed.firstRunRequests.length = 0; observed.resumes = 0; observed.clears.length = 0; });
+    observed.firstRunRequests.length = 0; observed.firstRunState = 'running'; observed.resumes = 0; observed.clears.length = 0; });
 
   test('collection binding changes keep the local key and drop cached collection context', async () => {
     await chrome.storage.session.set({ [LOCAL_CLASSIFICATION_KEY]: { value: 'local-test' }, [LOCAL_CLASSIFICATION_PROJECTION]: { value: 'projection' } });
@@ -398,6 +400,17 @@ describe('MV3 service worker entry wiring is exercised, not grepped', () => {
     assert.equal(bookmarkListenerLifecycle.status().listenerInstalled, true,
       'the post-first-run path must reinstall bookmark listeners');
     assert.equal(observed.wakes.some((wake) => wake.reason === 'manual'), true);
+  });
+
+  test('a status read wakes the engine only while the first sync is running', async () => {
+    for (const firstRun of ['none', 'deferred', 'completed']) {
+      observed.wakes.length = 0; observed.firstRunState = firstRun;
+      const response = respondWith();
+      chromeListeners.onMessage[0]!({ kind: 'known.firstRun.status' }, sender, response.respond);
+      await response.promise; await settle();
+      // Every sync label render reads status; a settled first sync has nothing for the engine to drive.
+      assert.deepEqual(observed.wakes, [], firstRun);
+    }
   });
 
   test('a granted bookmark permission resumes bookmark events', async () => {

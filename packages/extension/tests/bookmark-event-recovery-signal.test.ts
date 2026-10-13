@@ -28,7 +28,8 @@ async function setup(recover: () => Promise<void>) {
   vi.stubGlobal('__KNOWN_EXTENSION_EVIDENCE__', false);
   vi.stubGlobal('chrome', { bookmarks: events, alarms: { create: vi.fn() } });
   vi.doMock('../src/bookmark-event-queue.js', () => ({
-    createBookmarkEventQueue: () => ({ recover, flush: async () => undefined, correlationFor: async () => 'x' }),
+    createBookmarkEventQueue: () => ({ recover, flush: async () => undefined, correlationFor: async () => 'x',
+      captureMissingRemovals: async () => undefined }),
   }));
   vi.doMock('../src/sw/runtime.js', () => ({
     BOOKMARK_RECOVERY_ALARM: 'known-bookmark-capture-recovery',

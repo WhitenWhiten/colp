@@ -585,7 +585,7 @@ describe('KNS-04 push receipts, mount bind and bootstrap snapshot', () => {
     assert.match(engine, /hasRecoveryStaging/);
     assert.doesNotMatch(engine, /createBootstrapCoordinator/);
     assert.match(engine, /if \(permissionGranted\) bookmarkListenerLifecycle\.install\(\)/);
-    assert.match(engine, /if \(result && !result\.recoveryFrozen\)[\s\S]{0,200}bookmarkListenerLifecycle\.install\(\)/);
+    assert.match(engine, /if \(result && !result\.recoveryFrozen && result\.phase !== 'error'\)[\s\S]{0,200}bookmarkListenerLifecycle\.install\(\)/);
     assert.match(worker,
       /validFirstRunRequest\(message\)[\s\S]{0,560}bookmarkListenerLifecycle\.install\(\)[\s\S]{0,240}scheduleSyncEngineWake\('manual'\)/);
     assert.match(worker, /drainBookmarkEventCaptureEvidence[\s\S]{0,400}\.flush\(\)/);

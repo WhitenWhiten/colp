@@ -178,7 +178,7 @@ describe('P3-38 production bookmark listener lifecycle', () => {
     assert.match(source, /if \(permissionGranted\) bookmarkListenerLifecycle\.install\(\)/);
     assert.match(source,
       /validFirstRunRequest\(message\)[\s\S]{0,560}bookmarkListenerLifecycle\.install\(\)[\s\S]{0,240}scheduleSyncEngineWake\('manual'\)/);
-    assert.match(source, /if \(result && !result\.recoveryFrozen\)[\s\S]{0,240}bookmarkListenerLifecycle\.install\(\)/);
+    assert.match(source, /if \(result && !result\.recoveryFrozen && result\.phase !== 'error'\)[\s\S]{0,240}bookmarkListenerLifecycle\.install\(\)/);
     assert.match(source, /drainBookmarkEventCaptureEvidence[\s\S]{0,400}\.flush\(\)/);
   });
 });

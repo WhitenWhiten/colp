@@ -19,4 +19,8 @@ Moved from Know-N commit `28acb4965e1ec950e8f91998fcc2275429e8aab6` (`Known-Exte
 
 ## Known failures at import
 
-Nine unit tests in seven files already failed on the Know-N commit above and still fail here: `bookmark-event-recovery-signal`, `bookmark-listener-lifecycle`, `durable-sync-engine-bootstrap` (two), `durable-sync-engine.contract`, `kns-04-push-bootstrap`, `service-worker-entry-behavior` and `sync-engine-wake-behavior` (`alarms.get` missing from the test's alarm fake). They come from the sync wake and recovery changes made just before the move.
+Nine unit tests in seven files already failed on the Know-N commit above, and several browser tests (critical MV3, first-run sync, trash restore) failed against both COLP Server and the Know-N backend. All were fixed here after the move:
+
+- The unit tests had not followed deliberate code changes: the alarm scheduler's `alarms.get`, the recovery chain's `captureMissingRemovals`, the error-phase guard on the unfrozen engine wake, and a discarded Pull Ack that now freezes for a Session refresh instead of Pulling in the same wake.
+- Know-N `c9895d6e3` started recording bookmark creates, moves and reorders while the scope was recovery-frozen, which includes the projection of a first-sync Snapshot. A second browser therefore uploaded every bookmark it downloaded. Only removals and content changes are captured while frozen again.
+- Every `known.firstRun.status` read woke the engine. The sync label reads it on each render, so an open Options page queued engine runs back to back. Status now wakes the engine only while the first sync is running.

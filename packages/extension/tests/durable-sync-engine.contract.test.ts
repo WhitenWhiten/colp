@@ -53,8 +53,8 @@ describe('P3-33 durable engine static contract', () => {
     // call, so the frozen-before-wake choice between `.recover()` and `.flush()` in the
     // worker status path has no injectable seam. The recover/flush semantics themselves
     // are behavioural in tests/durable-sync-engine.test.ts.
-    assert.match(worker, /if \(result && !result\.recoveryFrozen\)[\s\S]{0,760}frozenBeforeWake\)[\s\S]{0,80}\.recover\(\)/u);
-    assert.match(worker, /if \(result && !result\.recoveryFrozen\)[\s\S]{0,900}\.flush\(\)/u);
+    assert.match(worker, /if \(result && !result\.recoveryFrozen && result\.phase !== 'error'\)[\s\S]{0,760}frozenBeforeWake\)[\s\S]{0,80}\.recover\(\)/u);
+    assert.match(worker, /if \(result && !result\.recoveryFrozen && result\.phase !== 'error'\)[\s\S]{0,900}\.flush\(\)/u);
     // static-only: `src/sw/auth.ts` request routing. The refresh/logout branches need a
     // live credential, manifest and replica-retirement graph; `tests/auth-shell.test.ts`
     // covers the controller-level behaviour but not the worker's message routing.

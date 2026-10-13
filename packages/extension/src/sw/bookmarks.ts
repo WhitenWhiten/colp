@@ -65,10 +65,10 @@ async function captureBookmarkEvent(event: BookmarkCaptureEvent): Promise<Bookma
     }
     return scheduleBookmarkEvent((queue) => queue.created(event.nativeId, event.node));
   }
-  if (event.kind === 'changed') return scheduleBookmarkEvent((queue) => queue.changed(event.nativeId, event.changes, 'callback'));
+  if (event.kind === 'changed') return scheduleBookmarkEvent((queue) => queue.changed(event.nativeId, event.changes, 'callback'), true);
   if (event.kind === 'moved') return scheduleBookmarkEvent((queue) => queue.moved(event.nativeId, event.move));
   if (event.kind === 'reordered') return scheduleBookmarkEvent((queue) => queue.reordered(event.nativeId, event.childIds));
-  return scheduleBookmarkEvent((queue) => queue.removed(event.nativeId, event.removal));
+  return scheduleBookmarkEvent((queue) => queue.removed(event.nativeId, event.removal), true);
 }
 
 /**
@@ -81,13 +81,19 @@ async function projectReordered(event: Extract<BookmarkCaptureEvent, { kind: 'ch
   return scheduleBookmarkEvent((queue) => queue.reordered(event.nativeId, event.childIds));
 }
 
-function scheduleBookmarkEvent(work: (queue: ReturnType<typeof createBookmarkEventQueue>) => Promise<{ readonly outcome: string }>): Promise<BookmarkCaptureDisposition> {
+function scheduleBookmarkEvent(work: (queue: ReturnType<typeof createBookmarkEventQueue>) => Promise<{ readonly outcome: string }>,
+  captureWhileFrozen = false): Promise<BookmarkCaptureDisposition> {
   const capture = async (): Promise<BookmarkCaptureDisposition> => {
     if (!await hasBookmarkPermission()) return 'permission_required';
     let scope: SyncScope;
     try { scope = (__KNOWN_EXTENSION_EVIDENCE__ ? sw.eventEvidenceScope : undefined) ?? await currentSyncScope({ allowStopped: true }); }
     catch { return 'not_connected'; }
     const frozen = (await syncState.getEngineState(scope))?.recoveryFrozen === true;
+    // A frozen scope may be projecting a Snapshot, so its creates, moves and
+    // reorders can be the projection's own Chrome writes; capturing them would
+    // upload remote nodes again. The tree reconcile after the freeze repairs
+    // real user edits. Removals and content changes stay durable meanwhile.
+    if (frozen && !captureWhileFrozen) return 'recovery_frozen';
     const paused = configuredPersonalSyncPolicy() && !await configuredPersonalSyncPolicy()!.allowed(scope);
     if (!await syncState.hasActiveMounts(scope)) return 'filtered';
     const queue = await currentBookmarkEventQueue(frozen || paused); if (!queue) return 'queue_unavailable';

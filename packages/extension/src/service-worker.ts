@@ -84,7 +84,7 @@ import { createSyncEffectAuthority } from './sync-effect-authority.js';
 import { createChromePullBookmarkApi } from './pull-bookmark-api.js';
 import type { BatchResponse, CollectionCreateResponse, CollectionsResponse, ExtensionResponse, ImportResponse,
   IngressDiagnosticsResponse, NativeSaveResponse, NativeWaitResponse, RemoteDeleteResponse, RootResponse,
-  SaveStatusResponse, SyncAttentionResponse, SyncProgressResponse } from './types.js';
+  SaveStatusResponse, SyncAttentionResponse, SyncProgressResponse, FirstRunOrScopeResponse, FirstRunRequest } from './types.js';
 
 configurePersonalSyncTransport(browserPersonalSyncPolicy());
 void wakeSubscriptions('startup');
@@ -382,9 +382,7 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
     // known.firstRun.later (KNS-02); known.firstRun.confirm / status (KNS-03 coordinator)
     void handleFirstRunRequest(message).then((response) => {
       bookmarkListenerLifecycle.install();
-      if (response.ok && (message.kind === 'known.firstRun.confirm' || message.kind === 'known.firstRun.status')) {
-        scheduleSyncEngineWake('manual');
-      }
+      if (firstRunNeedsEngine(message, response)) scheduleSyncEngineWake('manual');
       respond(response);
     }, () => respond({ ok: false, error: 'request_invalid' }));
     return true;
@@ -461,6 +459,14 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
   });
   return true;
 });
+
+/** Confirm starts the first sync. Every sync label render reads status, so a
+ * status read wakes the engine only while that first sync is still running. */
+function firstRunNeedsEngine(message: FirstRunRequest, response: FirstRunOrScopeResponse): boolean {
+  if (!response.ok) return false;
+  return message.kind === 'known.firstRun.confirm'
+    || (message.kind === 'known.firstRun.status' && 'firstRun' in response && response.firstRun === 'running');
+}
 
 chrome.runtime.onMessageExternal.addListener((message,sender,respond)=>{
   void loadSubscriptionConfig().then(config=>acceptExternalReference(message,sender.url,config)).then(respond,()=>respond({accepted:false}));

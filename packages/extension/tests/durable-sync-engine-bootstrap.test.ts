@@ -414,26 +414,35 @@ describe('P3-33 durable extension bootstrap and empty-queue wake', () => {
     }
   });
 
-  test('abandons a durable pull Ack denied for a dead Session and converges through a re-issued cursor', async () => {
+  test('abandons a durable pull Ack denied for a dead Session and converges through refreshed Session authority', async () => {
     const fixture = await setup(); fixture.pullResponses.push(json(200, emptyPullPage('cursor-1')));
     fixture.ackResponses.push(networkFailure());
     await fixture.engine.wake('alarm'); const durableRetry = fixture.ackRequests[0]!;
     fixture.clock.now = (await fixture.store.getEngineState(scope))!.notBefore;
     fixture.sessionId = 'session-renewed';
-    fixture.ackResponses.push(problem(404, 'resource_not_found', {}), json(200, ack('cursor-1-reissued')));
-    fixture.pullResponses.push(json(200, emptyPullPage('cursor-1-reissued'), { 'Known-Sync-Cursor-Reissued': 'true' }));
-    fixture.store.close(); await fixture.reopen().wake('startup');
-    assert.equal(fixture.ackRequests.length, 3);
+    fixture.ackResponses.push(problem(404, 'resource_not_found', {}));
+    fixture.store.close(); const engine = fixture.reopen(); await engine.wake('startup');
+    // The exact durable request is retried once, then dropped; the wake stops
+    // instead of Pulling under the dead Session and asks for fresh authority.
+    assert.equal(fixture.ackRequests.length, 2);
     assert.deepEqual(fixture.ackRequests[1], durableRetry);
-    assert.equal(fixture.ackRequests[2]!.headerSession, 'session-renewed');
-    assert.equal((JSON.parse(fixture.ackRequests[2]!.body) as { cursor?: unknown }).cursor, 'cursor-1-reissued');
-    assert.deepEqual(fixture.pullCursorAuthorities.at(-1), { reissued: true });
+    assert.equal(fixture.pullRequests.length, 1);
+    const frozen = await fixture.store.exportScope(scope);
+    assert.equal(frozen.ackIntents.length, 0);
+    assert.equal(frozen.engine.phase, 'recovery'); assert.equal(frozen.engine.recoveryFrozen, true);
+    assert.equal(frozen.engine.authorityRefreshRequired, true);
+    assert.equal(frozen.engine.lastError, 'pull_ack_discarded');
+
+    fixture.forcedSessions.push({ sessionId: 'session-fresh', state: 'active',
+      snapshotRequired: false, cursor: 'cursor-1-reissued' });
+    fixture.pullResponses.push(json(200, emptyPullPage('cursor-1-reissued')));
+    fixture.clock.now += 30_000; await engine.wake('alarm');
+    // The refreshed Session's cursor counts as acknowledged: no further Ack.
+    assert.equal(fixture.ackRequests.length, 2);
     const exported = await fixture.store.exportScope(scope);
-    assert.equal(exported.ackIntents.length, 1);
-    assert.equal(exported.ackIntents[0]!.state, 'complete');
-    assert.equal(exported.ackIntents[0]!.cursor, 'cursor-1-reissued');
     assert.equal(exported.cursor.cursor, 'cursor-1-reissued');
-    assert.equal(exported.engine.phase, 'sleeping'); assert.equal(exported.engine.lastAckedCursor, 'cursor-1-reissued');
+    assert.equal(exported.engine.phase, 'sleeping'); assert.equal(exported.engine.sessionId, 'session-fresh');
+    assert.equal(exported.engine.lastAckedCursor, 'cursor-1-reissued');
     assert.equal(exported.engine.recoveryFrozen, false); assert.equal(fixture.snapshotRequests.length, 0);
   });
 
@@ -443,16 +452,16 @@ describe('P3-33 durable extension bootstrap and empty-queue wake', () => {
     await fixture.engine.wake('alarm');
     fixture.clock.now = (await fixture.store.getEngineState(scope))!.notBefore;
     fixture.ackResponses.push(problem(410, 'sync_cursor_expired', {}));
-    fixture.pullResponses.push(problem(410, 'sync_cursor_expired', {
-      snapshotUrl: 'https://known.example/v1/snapshot' }));
     fixture.store.close(); await fixture.reopen().wake('startup');
     const exported = await fixture.store.exportScope(scope);
     assert.equal(exported.ackIntents.length, 0);
     assert.equal(fixture.ackRequests.length, 2);
+    // A discarded Ack stops the wake; the next one renews Session authority before any Pull.
+    assert.equal(fixture.pullRequests.length, 1);
     assert.equal(exported.engine.phase, 'recovery');
     assert.equal(exported.engine.recoveryFrozen, true);
     assert.equal(exported.engine.authorityRefreshRequired, true);
-    assert.equal(exported.engine.lastError, 'sync_cursor_expired');
+    assert.equal(exported.engine.lastError, 'pull_ack_discarded');
   });
 
   test('persists the real Problem code for a non-recovery Pull 410 without freezing recovery authority', async () => {

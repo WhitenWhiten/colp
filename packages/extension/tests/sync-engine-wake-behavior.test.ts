@@ -62,8 +62,13 @@ describe('durable engine wake uses one bounded MV3 alarm and one engine lane', (
     vi.stubGlobal('fetch', async () => { observed.fetches += 1; throw new Error('network_disabled'); });
     (globalThis as Record<string, unknown>).chrome = {
       storage: { local: { get: async () => ({}) } },
-      alarms: { create: (name: string, options: { when?: number } = {}) => {
-        observed.alarmNames.push(name); observed.alarms.push({ name, when: options.when ?? 0 }); } },
+      alarms: {
+        get: async (name: string) => {
+          const alarm = observed.alarms.findLast((entry) => entry.name === name);
+          return alarm ? { scheduledTime: alarm.when } : undefined;
+        },
+        create: (name: string, options: { when?: number } = {}) => {
+          observed.alarmNames.push(name); observed.alarms.push({ name, when: options.when ?? 0 }); } },
     };
   });
 
