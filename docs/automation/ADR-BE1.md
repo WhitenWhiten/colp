@@ -38,3 +38,17 @@ snapshots are hashed before aggregation. This supports the composed 200-bookmark
 records fail the exact-snapshot check and require a new preview; no database migration or
 public wire-schema change is needed. Maximum 500 rules, 32 roles, 200 current bookmarks
 and 128 ancestors continue to bound the constituent work; this is not load-test evidence.
+
+## BE-3 contract reconciliation
+
+BE-3 retains the frozen M1 contract and adds Product 1.96.0 surfaces. Policy revisions
+are immutable; fallback assignments are explicitly unavailable in the polling slice,
+never silently substituted. Optional-work reservations serialize the server daily cap
+across Owners and count distinct runs, independently of deterministic placement.
+Unknown external cost stays unknown until reported; a zero configured cost limit is
+not a claim that an external agent is free.
+
+AW-31's prose says 14 tools, but the pinned catalog has 15 (7 manager + 8 worker,
+including bootstrap pairing). The catalog and chapter 11 §6 are authoritative; use
+all 15 closed descriptors. AW-02 remains experimental evidence and grants no
+production Events readiness or dedicated-credential isolation.

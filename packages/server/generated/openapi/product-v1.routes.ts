@@ -572,6 +572,26 @@ export const PRODUCT_ROUTE_MANIFEST = [
   },
   {
     "method": "GET",
+    "path": "/api/v1/me/automations/execution-policies",
+    "operationId": "listAutomationExecutionPolicies"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/automations/execution-policies",
+    "operationId": "createAutomationExecutionPolicy"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/automations/execution-policies/{policyId}",
+    "operationId": "getAutomationExecutionPolicy"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/me/automations/execution-policies/{policyId}",
+    "operationId": "replaceAutomationExecutionPolicy"
+  },
+  {
+    "method": "GET",
     "path": "/api/v1/me/automations/export",
     "operationId": "exportAutomations"
   },

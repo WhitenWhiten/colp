@@ -18,3 +18,5 @@ export * from './application/placement-undo.js';
 export * from './application/server-intake.js';
 export { evaluateRuleEvent, type PreparedRule } from './application/rule-evaluation.js';
 export { explainRun } from './application/run-explanation.js';
+export * from './application/executor-policy.js';
+export * from './application/result-reuse.js';

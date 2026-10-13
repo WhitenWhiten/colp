@@ -1,3 +1,4 @@
+import { automationPolicyRoutes } from './product/automation-policy-routes.js';
 import { registerAutomationDeviceRoutes } from './automation-device-routes.js';
 import { automationRunRoutes } from './product/automation-run-routes.js';
 import { automationHealthRoutes } from './product/automation-health-routes.js';
@@ -12,7 +13,7 @@ import { registerBookmarkPreferencesRoutes } from './product/bookmark-preference
 export function registerAccountProductSurfaces(app: FastifyInstance, deps: AppDependencies): void {
   const { config, identityUnitOfWork, bookmarkPreferencesUnitOfWork, bookmarkPreferencesQuery } = deps;
   if (identityUnitOfWork && deps.automationUnitOfWork) registerAutomationRoutes(app, { identityUnitOfWork, unitOfWork: deps.automationUnitOfWork,
-    allowedOrigins: config.allowedOrigins, cursorKey: config.productEditorCursor.current.key }, [...automationHealthRoutes(config.productEditorCursor.current.key), ...automationRunRoutes(config.productEditorCursor.current.key)]);
+    allowedOrigins: config.allowedOrigins, cursorKey: config.productEditorCursor.current.key }, [...automationPolicyRoutes(config.productEditorCursor.current.key), ...automationHealthRoutes(config.productEditorCursor.current.key), ...automationRunRoutes(config.productEditorCursor.current.key)]);
   if (config.automationRuntimeEnabled && deps.automationDeviceUnitOfWork && deps.syncSessionRoutes) registerAutomationDeviceRoutes(app, {
     unitOfWork: deps.automationDeviceUnitOfWork, credentialVerifier: deps.syncSessionRoutes.credentialVerifier,
     allowedOrigins: deps.syncSessionRoutes.allowedOrigins, allowInsecureLoopback: deps.syncSessionRoutes.allowInsecureLoopback,
