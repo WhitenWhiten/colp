@@ -1,3 +1,4 @@
+import { admitCountMember } from './count-batch-store.js';
 import { initializeRunTasks } from './task-scheduler.js';
 import { createReceiptReconciler } from './reconcile-receipts.js';
 import { reserveIntakeAdmission } from './intake-capacity.js';
@@ -45,13 +46,21 @@ export function createAutomationAdmission(serverUuid: string,workerEnabled = fal
     for (const source of sources) {
       const event = sourceEvent(source, serverUuid, collectionId, collection.rootNodeId);
       if (!event) continue;
-      for (const decision of admitEvent(prepared, event,workerEnabled)) {
+      const effectiveEvent=event.origin==='automation' && event.stageId==='intake' && event.type==='node.moved' ? {...event,type:'intake.completed'} : event;
+      for (const decision of admitEvent(prepared, effectiveEvent,workerEnabled)) {
         const { candidate, plan } = decision;
         const inserted = await sql`INSERT INTO automation_admission_receipts (rule_revision_id, source_event_id, stage, decision, run_id)
           VALUES (${candidate.revisionId}, ${event.eventId}, 'intake', ${plan.kind}, NULL)
           ON CONFLICT DO NOTHING RETURNING rule_revision_id`.execute(tx);
         if (!inserted.rows.length || !decision.createRun) continue;
         const pin = pins.get(candidate.revisionId)!;
+        if(pin.definition_json.trigger.mode==='countBatch'){
+          if(!source.facts_json?.after?.resourceRevision)continue;
+          if(['matched','placed','preserved'].includes(plan.kind))await admitCountMember(tx,owner,serverUuid,{revisionId:candidate.revisionId,ruleId:candidate.ruleId,epoch:candidate.epoch,
+            bindingSetId:pin.binding_set_id,bindingRevision:pin.binding_revision,policyRevision:pin.policy_revision,definition:pin.definition_json},effectiveEvent,
+            source.facts_json!.after!.resourceRevision,source.facts_json!.after!.url ?? '');
+          continue;
+        }
         const sequence = (await sql<{ sequence: string }>`INSERT INTO automation_aggregate_state
           (rule_revision_id, epoch, partition_key, sequence, remainder_json)
           VALUES (${candidate.revisionId}, ${candidate.epoch}::bigint, ${collectionId}, 1, '[]'::jsonb)

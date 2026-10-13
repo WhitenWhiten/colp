@@ -7,7 +7,7 @@ import { readWorkerNotes } from './worker-notes.js';
 import { createBindingReadPort } from './bindings.js';
 
 export interface InputPins { task_json: TaskSpec; input_json: TaskInput[]; allowed_folders: FolderRef[]; authority_digest: string;
-  input_revisions_json: Record<string,string>; definition_json: RuleDefinition; values_json: RoleBindings; execution_context_json: { placementAllowed?: boolean } }
+  member_revisions_json: Record<string,string>;input_revisions_json: Record<string,string>; definition_json: RuleDefinition; values_json: RoleBindings; execution_context_json: { placementAllowed?: boolean } }
 /** Read, claim, submit and the canonical commit guard share the same current input authority. */
 export async function currentWorkInputs(tx: DatabaseTransaction,actor: WorkPrincipal,jobId: string,serverUuid: string,authorize: TargetAuthority,allowPaused = false) {
   const job = await lockWorkJob(tx,actor,jobId,authorize,allowPaused);
@@ -16,8 +16,12 @@ export async function currentWorkInputs(tx: DatabaseTransaction,actor: WorkPrinc
     WHERE j.id=${jobId}`.execute(tx)).rows[0]!;
   const node = await tx.selectFrom('nodes').select(['resource_revision','parent_id','payload_json','deleted_at']).where('id','=',job.node_id).where('collection_id','=',job.collection_id).executeTakeFirst();
   if (!node || node.deleted_at || !pin.input_json || node.resource_revision !== job.input_revision) throw new AutomationError('automation_stale_input','A canonical edit invalidated the pinned job input.');
+  for(const [nodeId,revision] of Object.entries(pin.member_revisions_json ?? {})){
+    const member=await tx.selectFrom('nodes').select('resource_revision').where('collection_id','=',job.collection_id).where('id','=',nodeId).where('deleted_at','is',null).executeTakeFirst();
+    if(!member || member.resource_revision!==revision)throw new AutomationError('automation_stale_input','An immutable batch member changed or became unavailable; no replacement is permitted.');
+  }
   if (pin.task_json.inputFields.includes('note')) {
-    const notes = await readWorkerNotes(tx,actor.accountId,job.collection_id,job.node_id);
+    const notes=(await Promise.all(pin.input_json.map(input=>readWorkerNotes(tx,actor.accountId,job.collection_id,input.node.nodeId)))).flat();
     const expected = pin.input_revisions_json;
     if (notes.length !== Object.keys(expected).length || notes.some(note => expected[note.id] !== note.resource_revision))
       throw new AutomationError('automation_stale_input','The allowlisted note set changed after inputs were pinned.');

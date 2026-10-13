@@ -12,10 +12,12 @@ export function supportedRuleIssues(input: RuleInput,workerEnabled = false): Con
   }
   const d = input.definition,issues = validateTaskGraph(d),compiled = compilePredicate(d.match);
   if (!compiled.valid) issues.push(...compiled.issues);
-  if (d.trigger.mode !== 'each' || !['bookmark.intake','node.created'].includes(d.on) || d.route.mode !== 'targets'
+  if (!['each','countBatch'].includes(d.trigger.mode) || !['bookmark.intake','node.created','intake.completed'].includes(d.on) || d.route.mode !== 'targets'
     || d.route.execution !== 'single' || (d.route.targetIds?.length ?? 0)>1 || d.policy.broadcastAllowed
     || d.roles.some(r => !['folder','executor'].includes(r.kind)) || d.tasks.some(t => t.allowCreateFolder))
-    issues.push({ path: '/definition',code: 'unsupportedCapability',message: 'This host installs each/single external polling tasks; batches, broadcast, taxonomy creation and mapping roles are unavailable.' });
+    issues.push({ path: '/definition',code: 'unsupportedCapability',message: 'This host installs each/countBatch single-target tasks; scheduled batches, broadcast, taxonomy creation and mapping roles are unavailable.' });
+  if(d.trigger.mode==='countBatch' && (d.intake || d.tasks.some(t=>!['digest.generate','review.generate'].includes(t.type))))
+    issues.push({path:'/definition/trigger',code:'unsupportedCapability',message:'Count batches support run-level digest/review tasks without per-bookmark placement.'});
   return issues;
 }
 export function assertSupportedRule(input: RuleInput,workerEnabled = false): void {

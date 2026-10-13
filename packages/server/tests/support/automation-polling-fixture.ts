@@ -6,6 +6,7 @@ import { writeAgentPolicy } from '../../src/infrastructure/collections/index.js'
 /** Real machine credentials, Owner configuration, canonical intake and durable work. */
 export async function automationPollingFixture(prefix: string, options: {
   wakeMode?: 'events' | 'poll';
+  configure?: (definition:RuleDefinition,policy:ExecutionPolicyInput)=>void;
   three?: boolean; trusted?: boolean; policyEnabled?: boolean; maxCalls?: number; dailyLimit?: number;
   pair?: (fixture: Awaited<ReturnType<typeof automationWorkerFixture>>, grant: PairingGrant) => Promise<void>;
 } = {}) {
@@ -28,6 +29,7 @@ export async function automationPollingFixture(prefix: string, options: {
     definition.scope.collectionId='collection'; definition.route.targetIds=[setup.target.id];
     if (options.three) definition.tasks[2]!.after=['tags'];
     if (options.dailyLimit !== undefined) definition.policy.maxRunsPerDay=options.dailyLimit;
+    options.configure?.(definition,policy);
     const savedPolicy = options.policyEnabled === false ? null : check(await f.ownerPost('/execution-policies',policy));
     const ruleInput = { definition,bindingSetId: bindings.json().id,...(savedPolicy ? { executionPolicyId: savedPolicy.json().id } : {}) };
     const rule = check(await f.ownerPost('/rules',ruleInput));

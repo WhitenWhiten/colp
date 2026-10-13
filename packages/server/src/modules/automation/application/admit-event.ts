@@ -6,7 +6,7 @@ export interface AdmissionDecision { candidate: AdmissionCandidate; plan: RuleEv
 /** Pure M1 admission. The caller owns the source lock and atomic receipt/run writes. */
 export function admitEvent(candidates: readonly AdmissionCandidate[], event: EventFacts,workerEnabled = false): AdmissionDecision[] {
   const eligible = candidates.filter(rule => BigInt(event.commitOrdinal) > BigInt(rule.afterOrdinal)
-    && rule.definition.trigger.mode === 'each' && (workerEnabled || rule.definition.tasks.length === 0));
+    && (rule.definition.trigger.mode === 'each' || (workerEnabled && rule.definition.trigger.mode === 'countBatch')) && (workerEnabled || rule.definition.tasks.length === 0));
   const plans = evaluateRuleEvents(eligible, event);
   return eligible.map((candidate, index) => {
     const plan = plans[index]!;

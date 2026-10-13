@@ -4,7 +4,7 @@ import type { AutomationPorts } from './ports.js';
 /** Worker orchestration adds task capabilities; predicate evaluation keeps its installed bounded profile. */
 export function automationCapabilities(ports: Pick<AutomationPorts,'runtimeEnabled' | 'workerEnabled'>): Capabilities {
   return { contractVersion: '0.2.1-design',ruleApiVersions: ['colp.automation/v1'],
-    runtimeProfiles: ports.runtimeEnabled ? [AUTOMATION_PROFILE] : [],triggerModes: ports.runtimeEnabled ? ['each'] : [],
+    runtimeProfiles: ports.runtimeEnabled ? [AUTOMATION_PROFILE] : [],triggerModes: ports.runtimeEnabled ? (ports.workerEnabled ? ['each','countBatch'] : ['each']) : [],
     taskTypes: ports.workerEnabled ? ['classify.root','classify.refine','tags.generate','summary.generate','metadata.resolve','review.generate','digest.generate'] : [],
     eventsEnabled: false,limits: { maxRules: 500,maxExpressionBytes: 4_194_304,maxTasksPerRule: 8 } };
 }

@@ -48,3 +48,25 @@ export async function prepareTaskInput(tx: DatabaseTransaction,task: TaskSpec,so
     return { kind: 'blocked',reason: 'Allowlisted input exceeds the installed TaskInput contract or 256 KiB bound.' };
   return { kind: 'ready',input,revisions,predecessors };
 }
+
+/** Batch input membership is fixed at admission. Unavailable members cause review, never replacement. */
+export async function prepareRunInputs(tx: DatabaseTransaction,task: TaskSpec,source: InputSource,
+  members?: readonly {eventId:string;nodeId:string;revision:string}[]) {
+  const sources=members ?? [{eventId:source.sourceEventId,nodeId:source.nodeId,revision:''}];
+  const inputs:TaskInput[]=[],revisions:Record<string,string>={},memberRevisions:Record<string,string>={};
+  let predecessors:Record<string,{resultId:string;digest:string}>={};
+  for(const member of sources){
+    let payload=source.payload;
+    if(members){
+      const node=await tx.selectFrom('nodes').select(['resource_revision','payload_json']).where('collection_id','=',source.collectionId)
+        .where('id','=',member.nodeId).where('deleted_at','is',null).executeTakeFirst();
+      if(!node || node.resource_revision!==member.revision)return {kind:'blocked' as const,reason:'An immutable batch member is unavailable or changed; review the original batch. No replacement was selected.'};
+      payload=node.payload_json ?? {};memberRevisions[member.nodeId]=node.resource_revision;
+    }
+    const result=await prepareTaskInput(tx,task,{...source,nodeId:member.nodeId,sourceEventId:member.eventId,payload});
+    if(result.kind==='blocked')return result;
+    inputs.push(result.input);Object.assign(revisions,result.revisions);predecessors=result.predecessors;
+  }
+  if(Buffer.byteLength(JSON.stringify(inputs),'utf8')>4_194_304)return {kind:'blocked' as const,reason:'Pinned batch input exceeds the 4 MiB job budget; no partial batch is sent.'};
+  return {kind:'ready' as const,input:inputs[0]!,inputs,revisions,predecessors,memberRevisions};
+}

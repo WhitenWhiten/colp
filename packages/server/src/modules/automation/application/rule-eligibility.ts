@@ -27,8 +27,9 @@ export function assessIntakeBindings(definition: RuleDefinition, resolutions: Re
 /** Apply the same admission checks to the proposed rule and every competitor. No I/O. */
 export function eventEligible(definition: RuleDefinition, resolutions: Record<string, FolderResolution>, event: EventFacts): boolean {
   // BE-1 previews the intake stage. Other automation stages may continue into it.
-  if (event.origin === 'restore' || (event.origin === 'automation' && event.stageId === 'intake')
+  if (event.origin === 'restore' || (event.origin === 'automation' && event.stageId === 'intake' && definition.on !== 'intake.completed')
     || (event.origin === 'import' && definition.policy.imports === 'exclude') || event.hopCount >= definition.policy.maxHops) return false;
+  if (definition.on === 'intake.completed' && event.type !== 'intake.completed') return false;
   if (definition.on === 'node.created' && event.type !== 'node.created') return false;
   if (definition.on === 'bookmark.intake' && !['node.created', 'bookmark.intake'].includes(event.type)) return false;
   const scope = definition.scope.folderRole ? resolutions[definition.scope.folderRole] : undefined;

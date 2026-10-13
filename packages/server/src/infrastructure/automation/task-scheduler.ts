@@ -6,10 +6,10 @@ import type { DatabaseTransaction } from '../database/unit-of-work.js';
 import { createExecutionPolicyStore } from './execution-policy-store.js';
 import { createTargetStore } from './target-store.js';
 import { createBindingReadPort } from './bindings.js';
-import { prepareTaskInput } from './task-inputs.js';
+import { prepareRunInputs } from './task-inputs.js';
 
 interface RunPin { id: string; rule_id: string; definition_json: RuleDefinition; values_json: RoleBindings; execution_policy_id: string | null;
-  policy_revision: string | null; state: string; member_ids: string[]; explanation_json: { collectionId: string; nodeId: string; sourceRevision: string; plan: { kind: string; satisfiedTasks?: string[] } } }
+  policy_revision: string | null; state: string; member_ids: string[]; explanation_json: { collectionId: string; nodeId: string; sourceRevision: string; memberSources?: {eventId:string;nodeId:string;revision:string}[]; plan: { kind: string; satisfiedTasks?: string[] } } }
 interface TaskContext { executorId: string | null; placementAllowed: boolean; intakeSatisfied: boolean }
 interface PendingJob { id: string; task_json: TaskSpec; state: Job['status']; input_revision: string | null; execution_context_json: TaskContext; target_id: string | null; budget_block_reason: 'daily' | 'calls' | null }
 const selectPins = sql`SELECT r.*,v.rule_id,v.definition_json,v.execution_policy_id,b.values_json FROM automation_runs r
@@ -69,7 +69,7 @@ export async function advanceRunTasks(tx: DatabaseTransaction,actor: AutomationA
       return;
     }
     if (paused?.paused) return;
-    const hold = async (state: 'stale' | 'blocked',reason: string) => {
+    const hold = async (state: 'stale' | 'blocked' | 'review',reason: string) => {
       await sql`UPDATE automation_jobs SET state=${state},explanation=${reason},revision=revision+1 WHERE id=${chosen.id}`.execute(tx);
     };
     const { collectionId,nodeId } = run.explanation_json;
@@ -104,13 +104,13 @@ export async function advanceRunTasks(tx: DatabaseTransaction,actor: AutomationA
       continue;
     }
     const allowedFolders = root?.status === 'valid' ? [root.snapshot.folder] : [];
-    const prepared = await prepareTaskInput(tx,task,{ ownerId: actor.accountId,serverUuid,collectionId,nodeId,runId,
-      sourceEventId: run.member_ids[0]!,payload: node.payload_json ?? {} });
+    const prepared = await prepareRunInputs(tx,task,{ ownerId: actor.accountId,serverUuid,collectionId,nodeId,runId,
+      sourceEventId: run.member_ids[0]!,payload: node.payload_json ?? {} },run.explanation_json.memberSources);
     if (prepared.kind === 'blocked') {
-      await hold('blocked',prepared.reason);
+      await hold(run.explanation_json.memberSources ? 'review' : 'blocked',prepared.reason);
       continue;
     }
-    const { input,revisions,predecessors } = prepared;
+    const { input,inputs,revisions,predecessors,memberRevisions } = prepared;
     const policy = run.execution_policy_id && run.policy_revision
       ? await createExecutionPolicyStore(tx,actor.accountId).load(run.execution_policy_id,run.policy_revision) : null;
     if (!policy || !taskExecutionAssignment(policy,task).available) {
@@ -119,14 +119,15 @@ export async function advanceRunTasks(tx: DatabaseTransaction,actor: AutomationA
     }
     const authority = automationDigest({ ownerId: actor.accountId,executor: chosen.execution_context_json.executorId,target: chosen.target_id,
       binding: run.values_json,policy: policy.configuration,privacy: run.definition_json.policy.privacy,resolutions: bindingResolutionSignature(resolutions) });
-    const digest = taskInputDigest({ serverUuid,collectionId,nodeId,taskId: task.id,outputContract: task.outputContract,inputFields: task.inputFields,
+    const singleDigest = taskInputDigest({ serverUuid,collectionId,nodeId,taskId: task.id,outputContract: task.outputContract,inputFields: task.inputFields,
       revisions: { node: node.resource_revision,policy: run.policy_revision,task: automationDigest(task),...revisions },acceptedPredecessors: predecessors },{ ...input });
+    const digest=run.explanation_json.memberSources ? automationDigest({singleDigest,members:inputs,revisions:memberRevisions}) : singleDigest;
     const reuse = (await sql<{ id: string; owner_id: string; input_digest: string; contract_id: string; authority_digest: string; status: 'accepted' }>`SELECT * FROM automation_results
       WHERE owner_id=${actor.accountId} AND input_digest=${digest} AND contract_id=${task.outputContract} AND authority_digest=${authority} AND status='accepted' ORDER BY created_at LIMIT 1`.execute(tx)).rows[0];
     const accepted = !!reuse && compatibleAcceptedResult({ ownerId: actor.accountId,inputDigest: digest,contractId: task.outputContract,authorityDigest: authority },
       { ownerId: reuse.owner_id,inputDigest: reuse.input_digest,contractId: reuse.contract_id,authorityDigest: reuse.authority_digest,status: reuse.status });
-    await sql`UPDATE automation_jobs SET input_json=${JSON.stringify([input])}::jsonb,input_revision=${node.resource_revision},input_digest=${digest},authority_digest=${authority},
-      input_revisions_json=${JSON.stringify(revisions)}::jsonb,allowed_folders=${JSON.stringify(allowedFolders)}::jsonb,state=${accepted ? 'succeeded' : 'ready'},reused_result_id=${accepted ? reuse!.id : null},revision=revision+1,
+    await sql`UPDATE automation_jobs SET input_json=${JSON.stringify(inputs)}::jsonb,input_revision=${node.resource_revision},input_digest=${digest},authority_digest=${authority},
+      member_revisions_json=${JSON.stringify(memberRevisions)}::jsonb,input_revisions_json=${JSON.stringify(revisions)}::jsonb,allowed_folders=${JSON.stringify(allowedFolders)}::jsonb,state=${accepted ? 'succeeded' : 'ready'},reused_result_id=${accepted ? reuse!.id : null},revision=revision+1,
       explanation=${accepted ? 'Reused a compatible accepted typed result; no new provider call or effect.' : 'Ready with immutable allowlisted input pins.'} WHERE id=${chosen.id}`.execute(tx);
     if (!accepted) {
       await updateRun('running');

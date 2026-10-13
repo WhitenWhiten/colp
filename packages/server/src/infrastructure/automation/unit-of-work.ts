@@ -105,8 +105,10 @@ export function createAutomationUnitOfWork(db: Kysely<DatabaseSchema>, serverUui
         const generations = await tx.selectFrom('automation_activations').select(sql<string>`coalesce(max(generation),0)::text`.as('generation'))
           .where('rule_revision_id', '=', rule.definitionRevisionId).executeTakeFirstOrThrow();
         const generation = (BigInt(generations.generation) + 1n).toString();
+        const priorEpoch=rule.view.definition.trigger.mode==='countBatch' ? await tx.selectFrom('automation_activations').select('aggregate_epoch')
+          .where('rule_revision_id','=',rule.definitionRevisionId).orderBy('generation','desc').executeTakeFirst() : undefined;
         await tx.insertInto('automation_activations').values({ rule_revision_id: rule.definitionRevisionId, collection_id: collectionId, generation,
-          after_ordinal: afterOrdinal, disabled_after_ordinal: null, aggregate_epoch: generation }).execute();
+          after_ordinal: afterOrdinal, disabled_after_ordinal: null, aggregate_epoch: priorEpoch?.aggregate_epoch ?? generation }).execute();
       },
     };
     ports.runOnce=createManualRunStore(tx,ports,actor,serverUuid);

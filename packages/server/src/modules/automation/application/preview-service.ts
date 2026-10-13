@@ -69,6 +69,11 @@ export async function previewRule(ports: AutomationPorts, actor: AutomationActor
       location: `/tasks/${task.taskId}`, message: task.reason })) ?? [])],
     plannedRunCount: plans.filter(plan => plansRun(plan, input.rule.definition.tasks.length > 0)).length,
     remainderCount: 0, completeHistory: false, truncated: snapshot.truncated };
+  if(input.rule.definition.trigger.mode==='countBatch'){
+    const matched=result.plannedRunCount,count=input.rule.definition.trigger.count;
+    result.plannedRunCount=Math.floor(matched/count);result.remainderCount=matched%count;
+    result.diagnostics.push({code:'batchSnapshotOnly',severity:'info',location:'/rule/definition/trigger',message:'Batch estimate over supplied/current members only; persisted live remainder is never recounted or consumed by preview.'});
+  }
   if (!snapshot.collection.currentOwner) result.diagnostics.push({ code: 'ownerRequired', severity: 'warning', location: '/rule/definition/scope',
     message: 'M1 execution requires the current collection Owner; this preview does not grant runtime authority.' });
   await ports.previews.save(actor.accountId, { id: result.previewId, input, result, configDigest: snapshot.configDigest,
