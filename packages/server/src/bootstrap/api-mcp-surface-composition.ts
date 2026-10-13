@@ -58,6 +58,7 @@ import { settleBestEffort } from '../infrastructure/async/best-effort.js';
 export interface ApiMcpSurfaceComposition {
   readonly automationWorker?: import('../modules/automation/index.js').AutomationWorkerService;
   readonly automationApprovals?: import('../modules/automation/index.js').ApprovedProposalApplier;
+  readonly automationWorkAdmit?: (actor: import('../modules/automation/index.js').WorkPrincipal) => Promise<void>;
   readonly automationTargetWorker?: ReturnType<typeof createTargetWorkerService>;
   readonly mcpCollectionResourceCursorKeys: ReturnType<typeof createPhase4bMcpCollectionResourceCursorKeyring> | undefined;
   readonly mcpChangeSignalSource: ReturnType<typeof createPostgresMcpChangeSignalSource> | undefined;
@@ -278,11 +279,14 @@ export async function composeApiMcpSurface(input: {
     }
   }
   let mcpWriteComposition: ReturnType<typeof createPhase4bMcpWriteComposition> | undefined;
+  // Worker HTTP shares the MCP request budget per worker connection, like the MCP surface it mirrors.
+  const automationAdmission = (kind: 'pair' | 'work',message: string) => async (actor: import('../modules/automation/index.js').WorkPrincipal) => {
+    const verdict = await mcpRateLimiter!.consume({ policy: 'request',facts: JSON.stringify([`automation-${kind}`,actor.accountId,actor.clientId,actor.credentialBindingId]) });
+    if (verdict.kind !== 'allowed') throw new AutomationError(verdict.kind === 'denied' ? 'rate_limited' : 'feature_temporarily_unavailable',message,[],null,verdict.kind === 'denied' ? verdict.decision.retryAfterSeconds : 30);
+  };
   const automationTargetWorker = config.automationWorkEnabled && mcpReadOAuthDependencies.oauthVerifier && mcpRateLimiter
-    ? createTargetWorkerService(database.db,createAutomationBindingVerifier(config,createMcpSecurityEpochReader(config,mcpOauthRevocationStore)),async actor => {
-      const verdict = await mcpRateLimiter!.consume({ policy: 'request',facts: JSON.stringify(['automation-pair',actor.accountId,actor.clientId,actor.credentialBindingId]) });
-      if (verdict.kind !== 'allowed') throw new AutomationError(verdict.kind === 'denied' ? 'rate_limited' : 'feature_temporarily_unavailable','Pairing admission is unavailable.',[],null,verdict.kind === 'denied' ? verdict.decision.retryAfterSeconds : 30);
-    }) : undefined;
+    ? createTargetWorkerService(database.db,createAutomationBindingVerifier(config,createMcpSecurityEpochReader(config,mcpOauthRevocationStore)),
+      automationAdmission('pair','Pairing admission is unavailable.')) : undefined;
   let automationResults: ReturnType<typeof createResultSubmissionPort> | undefined;
   let automationWorker: ReturnType<typeof createAutomationWorkerService> | undefined;
   const grantMcp = composeCredentialGrantMcp({
@@ -364,6 +368,7 @@ export async function composeApiMcpSurface(input: {
   return {
     ...(automationWorker ? { automationWorker } : {}),
     ...(automationResults ? { automationApprovals: createApprovedProposalApplier(database.db,config.publication.serverUuid,automationResults) } : {}),
+    ...(automationTargetWorker ? { automationWorkAdmit: automationAdmission('work','Worker admission is unavailable.') } : {}),
     mcpCollectionResourceCursorKeys,
     mcpChangeSignalSource,
     mcpReadResourceProjection,

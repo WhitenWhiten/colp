@@ -24,7 +24,8 @@ export function registerAccountProductSurfaces(app: FastifyInstance, deps: AppDe
     allowedOrigins: deps.syncSessionRoutes.allowedOrigins, allowInsecureLoopback: deps.syncSessionRoutes.allowInsecureLoopback,
     trustedIngress: deps.syncSessionRoutes.trustedIngress, admission: deps.syncAdmissionPolicy,
   });
-  if (config.automationWorkEnabled && deps.automationPairing && deps.mcpReadTransport?.oauthVerifier) registerAutomationWorkRoutes(app,{ pairing: deps.automationPairing,worker: deps.automationWorker,oauthVerifier: deps.mcpReadTransport.oauthVerifier,allowedOrigins: config.allowedOrigins });
+  if (config.automationWorkEnabled && deps.automationPairing && deps.mcpReadTransport?.oauthVerifier) registerAutomationWorkRoutes(app,{ pairing: deps.automationPairing,worker: deps.automationWorker,oauthVerifier: deps.mcpReadTransport.oauthVerifier,allowedOrigins: config.allowedOrigins,
+    ...(deps.automationWorkAdmit ? { admit: deps.automationWorkAdmit } : {}) });
   if (deps.automationHealthStartup) app.addHook('onReady', deps.automationHealthStartup);
   const subscriptions = { identityUnitOfWork, unitOfWork: deps.bookmarkSubscriptionUnitOfWork, allowedOrigins: extensionProductAllowedOrigins(config), enabled: () => config.bookmarkSubscriptions?.enabled === true, protocolReady: () => config.bookmarkSubscriptions?.protocolReady === true, cursorKey: config.community.cursorHmacKey, rateLimiter: deps.reportsRateLimiter };
   registerBookmarkSubscriptionRoutes(app, subscriptions);

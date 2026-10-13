@@ -77,7 +77,11 @@ export async function automationWorkerFixture(prefix: string,maxPairRequests = 1
   const app = Fastify({ exposeHeadRoutes: false,routerOptions: { querystringParser: parseStrictQuery } }); installProductAdmission(app);
   app.setErrorHandler((error,request,reply) => { if (!(error instanceof ProductHttpError)) console.error(error.stack); return sendProductError(request,reply,error instanceof ProductHttpError ? error : new ProductHttpError({ statusCode: 500,code: 'internal_error',message: String(error) })); });
   registerAutomationRoutes(app,{ identityUnitOfWork: f.identity,unitOfWork: uow,allowedOrigins: [origin],cursorKey: 'worker-test-cursor-at-least-32-bytes' },[...(enableJobs ? [...automationOutputRoutes('worker-test-cursor-at-least-32-bytes'),...automationJobRoutes(approvals),...automationRunRoutes('worker-test-cursor-at-least-32-bytes')] : []),...automationTargetRoutes('worker-test-cursor-at-least-32-bytes'),...automationPolicyRoutes('worker-test-cursor-at-least-32-bytes')]);
-  registerAutomationWorkRoutes(app,{ pairing: worker,worker: work,oauthVerifier: verifier,allowedOrigins: [origin] }); await app.ready();
+  // Mirrors production: worker HTTP requests share the per-connection request budget under their own key.
+  registerAutomationWorkRoutes(app,{ pairing: worker,worker: work,oauthVerifier: verifier,allowedOrigins: [origin],admit: async a => {
+    const result = await limiter.consume({ policy: 'request',facts: JSON.stringify(['automation-work',a.accountId,a.clientId,a.credentialBindingId]) });
+    if (result.kind !== 'allowed') throw new AutomationError(result.kind === 'denied' ? 'rate_limited' : 'feature_temporarily_unavailable','Worker admission denied.',[],null,result.kind === 'denied' ? result.decision.retryAfterSeconds : 30);
+  } }); await app.ready();
   const ownerHeaders = (commandId = randomUUID(),etag?: string) => ({ cookie: f.owner.cookie,origin,'x-csrf-token': f.owner.csrfToken,'known-command-id': commandId,...(etag ? { 'if-match': etag } : {}) });
   const ownerPost = (path: string,payload: unknown,etag?: string,commandId?: string) => app.inject({ method: 'POST',url: '/api/v1/me/automations'+path,headers: ownerHeaders(commandId,etag),payload });
   const pair = (grant: { pairingId: string; code: string | null },commandId = randomUUID(),bearer = token) => app.inject({ method: 'POST',url: '/api/v1/automation-work/pairings/claim',headers: { authorization: 'Bearer '+bearer,'known-command-id': commandId },payload: { pairingId: grant.pairingId,code: grant.code } });

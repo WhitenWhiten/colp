@@ -58,6 +58,13 @@ describeWithPostgres('AW-26 authenticated worker bootstrap and pairing',() => {
     const rebound = await put(`/connection-profiles/${setup.profile.id}`,profile.json().revision,{ ...profile.json().configuration,credentialBindingId: 'another-credential' });
     expect(rebound.statusCode,rebound.body).toBe(200);expect(await state()).toEqual({ generation: before.generation+2,paired: false });
   });
+  test('worker HTTP routes share a per-connection request budget and answer 429 with Retry-After',async () => {
+    f = await automationWorkerFixture('aw26_work_budget',2,false,true); const setup = await f.setup();
+    expect((await f.pair(setup.grant)).statusCode).toBe(200);
+    const list = () => f.app.inject({ url: '/api/v1/automation-work/jobs',headers: { authorization: 'Bearer '+f.token } });
+    for (let i = 0; i < 2; i++) { const allowed = await list();expect(allowed.statusCode,allowed.body).toBe(200); }
+    const limited = await list();expect(limited.statusCode,limited.body).toBe(429);expect(limited.headers['retry-after']).toBeTruthy();
+  });
   test('current OAuth revocation blocks authorization and pairing; invalid code rate limit is shared',async () => {
     f = await automationWorkerFixture('aw26_revocation',2); const setup = await f.setup();
     expect((await f.pair({ ...setup.grant,code: 'wrong' })).statusCode).toBe(404);
