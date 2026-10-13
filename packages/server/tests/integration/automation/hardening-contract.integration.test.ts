@@ -42,7 +42,7 @@ describeWithPostgres('M1 hardening contracts and upgrade', () => {
     const migrator = createMigrator(f.db, 'migrations', f.isolated.schema);
     // Test-only downgrade removes only the newly added capacity tables, leaving
     // a genuine pre-capacity installation's immutable completed history.
-    const older = await migrator.migrateTo('202610301000_automation_receipt_waiting_index');
+    const older = await migrator.migrateTo('202610301050_automation_receipt_waiting_index');
     if (older.error) throw older.error;
     await runMigrations(f.db, 'latest');
     const reservations = (await sql<{ valid: boolean }>`SELECT q.run_id=r.id AND q.rule_id=v.rule_id

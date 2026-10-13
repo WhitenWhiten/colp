@@ -99,10 +99,17 @@ Undo unavailable. Hardening does not weaken this into force restore or per-field
 
 ## Upgrade and evidence
 
-Apply forward migrations `202610301000_automation_receipt_waiting_index` and
+Apply forward migrations `202610301050_automation_receipt_waiting_index` and
 `202610301100_automation_intake_capacity`. The latter backfills daily reservations from
 existing completed/effected intake runs without rewriting their pins or effect identity.
 Whole-database backup includes these tables; restore still starts globally paused.
+
+The merge of the parallel BE batches originally left two pairs of files sharing the
+`202610301000` and `202610301100` prefixes (G9 violation). They were renamed to
+`202610301050_automation_receipt_waiting_index` and `202610301150_automation_job_leases`,
+keeping the fresh-install order. No released database ran either name; a development
+database migrated at an intermediate branch commit must be recreated. `check-migration-order.mjs`
+now also rejects an added migration that shares its prefix with any other file.
 
 Regression entry points are the shared Automation tests, server Automation unit tests,
 and `tests/integration/automation`. New cases cover bounded parsing, normalization reuse,

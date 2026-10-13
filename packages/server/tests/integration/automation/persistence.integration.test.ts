@@ -45,7 +45,7 @@ describeWithPostgres('BE-1 migrations, immutable persistence and recovery', () =
       const upgradedNames = (await sql<{ name: string }>`SELECT name FROM kysely_migration ORDER BY name`.execute(isolated.runtime.db)).rows.map(row => row.name);
       expect(freshNames).toEqual(upgradedNames);
       expect(freshNames).toEqual(expect.arrayContaining([
-        '202610300900_automation_configuration_epoch', '202610301000_automation_receipt_waiting_index',
+        '202610300900_automation_configuration_epoch', '202610301050_automation_receipt_waiting_index',
         '202610301100_automation_intake_capacity',
       ]));
       const indexes = (await sql<{ indexname: string }>`SELECT indexname FROM pg_indexes WHERE schemaname=current_schema()
