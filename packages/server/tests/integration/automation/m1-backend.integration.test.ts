@@ -9,11 +9,12 @@ import { sql } from 'kysely';
 import { automationFixture } from '../../support/automation-fixture.js';
 import { describeWithPostgres } from '../../support/postgres-test-runtime.js';
 import { loadConfig } from '../../support/test-config.js';
-import { createAutomationUnitOfWork, createAutomationRuntime, createAutomationSourceInspector } from '../../../src/infrastructure/automation/index.js';
+import { createAutomationUnitOfWork, createAutomationRuntime, createAutomationSourceInspector, createAutomationHealthMonitor } from '../../../src/infrastructure/automation/index.js';
 import { deleteCollectionNode } from '../../../src/modules/collections/index.js';
 import { createPostgresCollectionsUnitOfWork } from '../../../src/infrastructure/collections/index.js';
 import { PostgresOutboxRepository, VersionedOutboxWorker, OutboxRouter, EventEnvelopeRegistry,
   createAutomationIngestRoute, automationIngestRegistration, automationResumeRegistration, AUTOMATION_RESUME_EVENT,
+  PostgresCollectionMutationProjectionSink, createCollectionMutationOutboxRoutes, createCollectionMutationEnvelopeRegistrations,
   type OutboxClaim } from '../../../src/infrastructure/outbox/index.js';
 import { registerAutomationRoutes } from '../../../src/transport/product/automation-rule-routes.js';
 import { automationRunRoutes } from '../../../src/transport/product/automation-run-routes.js';
@@ -50,21 +51,29 @@ describeWithPostgres('AW-66 M1 backend gate through API and durable worker', () 
       return more;
     });
     const value = new VersionedOutboxWorker({ repository,
-      router: new OutboxRouter([createAutomationIngestRoute(inspect), createAutomationIngestRoute(inspect, AUTOMATION_RESUME_EVENT)]),
-      envelopes: new EventEnvelopeRegistry([automationIngestRegistration, automationResumeRegistration]),
+      // The same routes as production, including the health-wrapped collection projection.
+      router: new OutboxRouter([...createCollectionMutationOutboxRoutes({ sink: createAutomationHealthMonitor(f.db, 'server', undefined, true)
+        .wrap(new PostgresCollectionMutationProjectionSink(f.isolated.runtime.pool)) }),
+        createAutomationIngestRoute(inspect), createAutomationIngestRoute(inspect, AUTOMATION_RESUME_EVENT)]),
+      envelopes: new EventEnvelopeRegistry([...createCollectionMutationEnvelopeRegistrations(), automationIngestRegistration, automationResumeRegistration]),
       logger: { info() {}, warn() {}, error() {} }, leaseDurationMs: 30000, heartbeatIntervalMs: 5000, handlerTimeoutMs: 20000,
       retryPolicy: { maxAttempts: 3, retryDelayMs: () => 1 } });
     workers.push(value); return value;
   }
   async function drain(value: VersionedOutboxWorker) {
-    for (let i = 0; i < 30; i++) {
-      // Isolate this feature's worker from unrelated projection routes, and advance the test queue clock.
-      await f.db.updateTable('outbox_events').set({ state: 'completed', completed_at: new Date() }).where('handler_name', '!=', 'automation_ingest').execute();
+    for (let i = 0; i < 60; i++) {
+      // Advance the test queue clock past the receipt grace; every route processes its own rows.
       await f.db.updateTable('outbox_events').set({ available_at: sql<Date>`clock_timestamp()-interval '1 second'` })
         .where('handler_name', '=', 'automation_ingest').where('state', 'in', ['pending','retryable']).execute();
       if (!await value.runOnce()) return;
     }
-    throw new Error('M1 worker did not converge within 30 bounded passes');
+    throw new Error('M1 worker did not converge within 60 bounded passes');
+  }
+  /** Process every non-Automation row for real while Automation rows wait, so a fault step claims only its own row. */
+  async function settleOthers(value: VersionedOutboxWorker) {
+    await f.db.updateTable('outbox_events').set({ available_at: new Date(Date.now()+60000) }).where('handler_name', '=', 'automation_ingest')
+      .where('state', 'in', ['pending','retryable']).execute();
+    for (let i = 0; i < 60 && await value.runOnce(); i++);
   }
   test('authorized configuration → root create → commit-before-ack crash → restart → explanation → one-effect Undo', async () => {
     const binding = await post(BASE + '/binding-sets', { name: 'M1 folders', values: f.values }); expect(binding.statusCode, binding.body).toBe(201);
@@ -83,9 +92,8 @@ describeWithPostgres('AW-66 M1 backend gate through API and durable worker', () 
     expect(pending.available_at.getTime()-pending.occurred_at.getTime()).toBeGreaterThanOrEqual(9990);
     expect((await get(BASE + '/runs')).json().items).toEqual([]);
     const rollbackWorker = worker(new PostgresOutboxRepository(f.isolated.runtime.pool), true);
-    await f.db.updateTable('outbox_events').set({ state: 'completed' }).where('handler_name', '!=', 'automation_ingest').execute();
     // Only the newest source is claimable in this injected rollback window.
-    await f.db.updateTable('outbox_events').set({ available_at: new Date(Date.now()+60000) }).where('handler_name', '=', 'automation_ingest').execute();
+    await settleOthers(rollbackWorker);
     await f.db.updateTable('outbox_events').set({ available_at: new Date(0) }).where('outbox_id', '=', pending.outbox_id).execute();
     await rollbackWorker.runOnce(); await rollbackWorker.stop();
     expect((await get(BASE + '/runs')).json().items).toEqual([]);
@@ -100,8 +108,9 @@ describeWithPostgres('AW-66 M1 backend gate through API and durable worker', () 
     }
     const firstWorker = worker(new CommitThenCrashRepository(f.isolated.runtime.pool));
     for (let i=0; i<10 && !crashed; i++) {
-      await f.db.updateTable('outbox_events').set({ state: 'completed' }).where('handler_name', '!=', 'automation_ingest').execute();
-      await f.db.updateTable('outbox_events').set({ available_at: new Date(0) }).where('handler_name', '=', 'automation_ingest').execute();
+      await settleOthers(firstWorker);
+      await f.db.updateTable('outbox_events').set({ available_at: new Date(0) }).where('handler_name', '=', 'automation_ingest')
+        .where('state', 'in', ['pending','retryable']).execute();
       await firstWorker.runOnce();
     }
     expect(crashed).toBe(true); await firstWorker.stop();
