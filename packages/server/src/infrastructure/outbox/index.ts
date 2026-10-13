@@ -204,4 +204,4 @@ export type {
   AppendCollectionInviteCreatedOutboxInput,
 } from './collection-invite-email.js';
 
-export { createAutomationIngestRoute, automationIngestRegistration, automationResumeRegistration, AUTOMATION_RESUME_EVENT } from './automation-ingest.js';
+export { AUTOMATION_INGEST_HANDLER, createAutomationIngestRoute, automationIngestRegistration, automationResumeRegistration, AUTOMATION_RESUME_EVENT } from './automation-ingest.js';
