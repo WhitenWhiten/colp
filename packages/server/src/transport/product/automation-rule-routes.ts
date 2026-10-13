@@ -1,3 +1,4 @@
+import { authorizeTagPreference, setTagPreference } from '../../modules/automation/index.js';
 import { CollectionExportCapacityError } from '../../modules/collections/index.js';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { canonicalCommandFingerprint, type ProductCommandClaim } from '../../modules/commands/index.js';
@@ -83,6 +84,15 @@ export function registerAutomationRoutes(app: FastifyInstance, deps: AutomationR
     { method: 'GET', path: '/pause', noBody: true, action: async ({ ports, actor }) => automationView(await ports.settings.get(actor.accountId)) },
     { method: 'POST', path: '/pause', ifMatch: true, action: async ({ ports, actor, request, ifMatch }) => automationView(await setPause(ports, actor, request.body, ifMatch)) },
     { method: 'GET', path: '/export', noBody: true, action: async ({ ports, actor }) => automationView(await ports.export(actor.accountId)) },
+    ...(['POST','DELETE'] as const).map(method => ({ method, path:'/rules/:ruleId/rejected-tags/:tagKey', ifMatch:true,
+      authorizeReplay: async ({ports,actor,request}: Parameters<NonNullable<AutomationRoute['authorizeReplay']>>[0]) => {
+        await authorizeTagPreference(ports,actor,id(request,'ruleId'));
+      },
+      action: async ({ports,actor,request,ifMatch}: Parameters<AutomationRoute['action']>[0]) => {
+        const result=await setTagPreference(ports,actor,id(request,'ruleId'),(request.params as {tagKey:string}).tagKey,method==='POST',request.body,ifMatch);
+        return {body:result.receipt,etag:`"${result.revision}"`};
+      },
+    })),
     ...additional,
   ];
   for (const route of routes) registerAutomationRoute(app, deps, route);

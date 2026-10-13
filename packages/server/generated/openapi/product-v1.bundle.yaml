@@ -18426,6 +18426,173 @@ paths:
       x-known-feature-gate: automation_configuration
       security:
         - cookieAuth: []
+  /api/v1/me/automations/rules/{ruleId}/rejected-tags/{tagKey}:
+    post:
+      operationId: rejectAutomationTag
+      tags:
+        - Automation
+      summary: Do not suggest this tag again for this rule
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+      x-delivery-phase: M1
+      parameters:
+        - in: path
+          name: ruleId
+          required: true
+          schema:
+            type: string
+            maxLength: 128
+            minLength: 1
+            pattern: ^[A-Za-z0-9._~-]+$
+        - $ref: '#/components/parameters/AutomationCommandId'
+        - $ref: '#/components/parameters/AutomationCsrf'
+        - $ref: '#/components/parameters/AutomationOrigin'
+        - $ref: '#/components/parameters/AutomationIfMatch'
+        - in: path
+          name: tagKey
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 64
+      responses:
+        '200':
+          description: Successful response; inspect the returned state, not merely the HTTP status.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+            X-Request-Id:
+              schema:
+                type: string
+                maxLength: 128
+                minLength: 1
+                pattern: ^[A-Za-z0-9._~-]+$
+            ETag:
+              schema:
+                type: string
+                maxLength: 160
+              description: Strong ETag for this automation resource.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutomationOperationReceipt'
+        '400':
+          $ref: '#/components/responses/Automation400'
+        '401':
+          $ref: '#/components/responses/Automation401'
+        '403':
+          $ref: '#/components/responses/Automation403'
+        '404':
+          $ref: '#/components/responses/Automation404'
+        '409':
+          $ref: '#/components/responses/Automation409'
+        '412':
+          $ref: '#/components/responses/Automation412'
+        '413':
+          $ref: '#/components/responses/Automation413'
+        '422':
+          $ref: '#/components/responses/Automation422'
+        '428':
+          $ref: '#/components/responses/Automation428'
+        '429':
+          $ref: '#/components/responses/Automation429'
+        '500':
+          $ref: '#/components/responses/Automation500'
+        '503':
+          $ref: '#/components/responses/Automation503'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AutomationCommandReason'
+      x-known-feature-gate: automation_configuration
+      security:
+        - cookieAuth: []
+    delete:
+      operationId: allowAutomationTag
+      tags:
+        - Automation
+      summary: Allow this tag to be suggested again
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+      x-delivery-phase: M1
+      parameters:
+        - in: path
+          name: ruleId
+          required: true
+          schema:
+            type: string
+            maxLength: 128
+            minLength: 1
+            pattern: ^[A-Za-z0-9._~-]+$
+        - $ref: '#/components/parameters/AutomationCommandId'
+        - $ref: '#/components/parameters/AutomationCsrf'
+        - $ref: '#/components/parameters/AutomationOrigin'
+        - $ref: '#/components/parameters/AutomationIfMatch'
+        - in: path
+          name: tagKey
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 64
+      responses:
+        '200':
+          description: Successful response; inspect the returned state, not merely the HTTP status.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+            X-Request-Id:
+              schema:
+                type: string
+                maxLength: 128
+                minLength: 1
+                pattern: ^[A-Za-z0-9._~-]+$
+            ETag:
+              schema:
+                type: string
+                maxLength: 160
+              description: Strong ETag for this automation resource.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutomationOperationReceipt'
+        '400':
+          $ref: '#/components/responses/Automation400'
+        '401':
+          $ref: '#/components/responses/Automation401'
+        '403':
+          $ref: '#/components/responses/Automation403'
+        '404':
+          $ref: '#/components/responses/Automation404'
+        '409':
+          $ref: '#/components/responses/Automation409'
+        '412':
+          $ref: '#/components/responses/Automation412'
+        '413':
+          $ref: '#/components/responses/Automation413'
+        '422':
+          $ref: '#/components/responses/Automation422'
+        '428':
+          $ref: '#/components/responses/Automation428'
+        '429':
+          $ref: '#/components/responses/Automation429'
+        '500':
+          $ref: '#/components/responses/Automation500'
+        '503':
+          $ref: '#/components/responses/Automation503'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AutomationCommandReason'
+      x-known-feature-gate: automation_configuration
+      security:
+        - cookieAuth: []
 components:
   securitySchemes:
     DeviceBearer:

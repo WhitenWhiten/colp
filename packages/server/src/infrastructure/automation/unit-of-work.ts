@@ -1,3 +1,4 @@
+import { createTagPreferences } from './tag-preferences.js';
 import { createRunOutputStore } from './run-output-store.js';
 import { createManualRunStore } from './manual-run-store.js';
 import { createOwnerDeliveryStore } from './delivery-store.js';
@@ -33,6 +34,7 @@ export function createAutomationUnitOfWork(db: Kysely<DatabaseSchema>, serverUui
       throw new AutomationError('resource_not_found', 'Active owner is unavailable.');
     const reads = createBindingReadPort(tx, serverUuid);
     const ports: import('../../modules/automation/index.js').AutomationPorts = {
+      tagPreferences: createTagPreferences(tx, actor.accountId),
       eventsEnabled: options.eventsEnabled === true,
       runtimeEnabled: options.runtimeEnabled === true,
       workerEnabled: options.workerEnabled === true,

@@ -771,6 +771,16 @@ export const PRODUCT_ROUTE_MANIFEST = [
     "operationId": "setAutomationRuleLifecycle"
   },
   {
+    "method": "DELETE",
+    "path": "/api/v1/me/automations/rules/{ruleId}/rejected-tags/{tagKey}",
+    "operationId": "allowAutomationTag"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/automations/rules/{ruleId}/rejected-tags/{tagKey}",
+    "operationId": "rejectAutomationTag"
+  },
+  {
     "method": "POST",
     "path": "/api/v1/me/automations/rules/{ruleId}/revalidate",
     "operationId": "revalidateAutomationRule"

@@ -14,6 +14,7 @@ export interface StoredPreview { id: string; configDigest: string; input: Previe
 export interface CurrentSample { urls?: Record<string, string>; events: EventFacts[]; truncated: boolean; revisions: Record<string, string> }
 export type ActivationTransition = { kind: 'disable'; resetAggregation?: boolean } | { kind: 'resume' } | { kind: 'enable'; collectionId: string; afterOrdinal: string };
 export interface AutomationPorts {
+  tagPreferences?: { set(ruleId: string, tag: string, rejected: boolean): Promise<boolean> };
   outputs?: import('./run-output-service.js').RunOutputStore;
   runOnce?: import('./run-once-service.js').RunOnceService;
   deliveries?: import('./delivery-service.js').OwnerDeliveryStore;

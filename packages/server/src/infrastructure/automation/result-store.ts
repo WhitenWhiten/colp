@@ -84,6 +84,11 @@ export function createResultSubmissionPort(db: Kysely<DatabaseSchema>,serverUuid
       if (input.output.kind === 'tags') {
         const rejected = new Set((await sql<{ tag_key: string }>`SELECT tag_key FROM automation_tag_rejections WHERE owner_id=${actor.accountId} AND rule_id=${job.rule_id}`.execute(tx)).rows.map(r => r.tag_key));
         operation.tags = [...new Set([...(node.payload_json?.tags as string[] ?? []),...input.output.add.map(tag => tag.key.normalize('NFC')).filter(tag => !rejected.has(tag))])];
+        const previousTags=node.payload_json?.tags as string[] ?? [];
+        if (operation.tags.length===previousTags.length && operation.tags.every((tag,i)=>tag===previousTags[i])) {
+          await storeTypedResult(tx,job,input,digest,pin.authority_digest,'succeeded','All proposed tags are already present or explicitly suppressed; no canonical effect.');
+          return;
+        }
         try { assertValidNodeTags(operation.tags); }
         catch (error) {
           if (!(error instanceof CollectionsError)) throw error;
@@ -178,6 +183,14 @@ export function createResultSubmissionPort(db: Kysely<DatabaseSchema>,serverUuid
       if (!['committing','awaitingApproval'].includes(job.state))
         throw new AutomationError('automation_stale_input','The proposal is no longer eligible for canonical effects.');
       const operation = p.operations_json[0];
+      if (operation?.type === 'update_node' && operation.tags) {
+        const current=await tx.selectFrom('nodes').select('payload_json').where('id','=',operation.nodeId).where('collection_id','=',operation.collectionId).executeTakeFirstOrThrow();
+        const existing=new Set(current.payload_json?.tags as string[] ?? []);
+        const additions=operation.tags.filter(tag=>!existing.has(tag));
+        if (additions.length && (await sql`SELECT 1 FROM automation_tag_rejections WHERE owner_id=${actor.accountId}
+          AND rule_id=${operation.ruleId} AND tag_key IN (${sql.join(additions)}) LIMIT 1`.execute(tx)).rows.length)
+          throw new AutomationError('automation_stale_input','A newly rejected tag invalidated the pinned proposal; review the original output.');
+      }
       if (operation?.type === 'move_node' && operation.parentId) {
         const { createBindingReadPort } = await import('./bindings.js');
         const destination = await createBindingReadPort(tx,serverUuid).readFolder(actor,{ serverUuid,collectionId: operation.collectionId,nodeId: operation.parentId });

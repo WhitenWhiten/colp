@@ -63,6 +63,18 @@ if (paths[jobPath]) {
   retry.responses['200'].content['application/json'].schema={ $ref: '#/components/schemas/Job' };
   paths[jobPath+'/retry']={ post: retry };
 }
+// Owner-controlled negative tag preferences use canonical tag keys, never whole-plan rejection.
+const tagPreferencePath = rulePath + '/rejected-tags/{tagKey}';
+paths[tagPreferencePath] = {};
+for (const method of ['post', 'delete']) {
+  const operation = structuredClone(paths[rulePath+'/lifecycle'].post);
+  operation.operationId = method === 'post' ? 'rejectAutomationTag' : 'allowAutomationTag';
+  operation.summary = method === 'post' ? 'Do not suggest this tag again for this rule' : 'Allow this tag to be suggested again';
+  operation.parameters.push({ in:'path',name:'tagKey',required:true,schema:{type:'string',minLength:1,maxLength:64} });
+  operation.requestBody = {required:true,content:{'application/json':{schema:{$ref:'#/components/schemas/CommandReason'}}}};
+  operation.responses['200'].content['application/json'].schema = {$ref:'#/components/schemas/OperationReceipt'};
+  paths[tagPreferencePath][method] = operation;
+}
 const components = {};
 function prefix(value) {
   if (Array.isArray(value)) return value.map(prefix);
