@@ -10,6 +10,8 @@ export interface ExecutionPolicyStore {
 }
 export async function saveExecutionPolicy(store: ExecutionPolicyStore, body: unknown, id?: string, ifMatch?: string) {
   const input = parseContract('ExecutionPolicyInput', body);
+  if (hasUnsupportedCostLimit(input)) throw new AutomationError('automation_unsupported_capability',
+    'Monetary limits are unavailable: use zero for observation-only cost fields. Call and daily-run caps remain enforced.');
   if (new Set(input.assignments.map(a => a.taskType)).size !== input.assignments.length)
     throw new AutomationError('invalid_request', 'A task type must have exactly one primary assignment.');
   // This batch installs polling targets only; explicit fallback would otherwise be silently ignored.
@@ -24,10 +26,16 @@ export async function saveExecutionPolicy(store: ExecutionPolicyStore, body: unk
 }
 /** Absence, data denial and exhaustion always hold optional work, never M1 placement. */
 export function taskExecutionAssignment(policy: ExecutionPolicy | null, task: TaskSpec) {
+  if (policy && hasUnsupportedCostLimit(policy.configuration))
+    return { available: false as const, reason: 'Pinned monetary limits cannot be enforced by this host.' };
   const assignment = policy?.configuration.assignments.find(a => a.taskType === task.type);
   if (!assignment || assignment.primaryRole !== task.executorRole || assignment.maxCalls === 0)
     return { available: false as const, reason: 'No explicit execution assignment permits this task.' };
   if (task.inputFields.some(field => !assignment.allowedData.includes(field)))
     return { available: false as const, reason: 'Task input fields exceed the execution policy allowlist.' };
   return { available: true as const, assignment };
+}
+
+export function hasUnsupportedCostLimit(policy: ExecutionPolicyInput): boolean {
+  return policy.maxDailyCostMicros !== 0 || policy.assignments.some(assignment => assignment.maxCostMicros !== 0);
 }

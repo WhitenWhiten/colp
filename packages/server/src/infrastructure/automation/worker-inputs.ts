@@ -1,6 +1,6 @@
 import { sql } from 'kysely';
-import type { TaskSpec,TaskInput,FolderRef,RuleDefinition,RoleBindings } from '@know-n/colp/automation';
-import { AutomationError,resolveBindings,assessIntakeBindings,type WorkPrincipal } from '../../modules/automation/index.js';
+import type { ExecutionPolicyInput,TaskSpec,TaskInput,FolderRef,RuleDefinition,RoleBindings } from '@know-n/colp/automation';
+import { AutomationError,resolveBindings,assessIntakeBindings,hasUnsupportedCostLimit,type WorkPrincipal } from '../../modules/automation/index.js';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
 import { lockWorkJob,type TargetAuthority } from './work-authority.js';
 import { readWorkerNotes } from './worker-notes.js';
@@ -14,6 +14,11 @@ export async function currentWorkInputs(tx: DatabaseTransaction,actor: WorkPrinc
   const pin = (await sql<InputPins>`SELECT j.*,v.definition_json,b.values_json FROM automation_jobs j JOIN automation_runs r ON r.id=j.run_id
     JOIN automation_rule_revisions v ON v.id=r.rule_revision_id JOIN automation_binding_revisions b ON b.binding_set_id=r.binding_set_id AND b.revision=r.binding_revision
     WHERE j.id=${jobId}`.execute(tx)).rows[0]!;
+  const policy=(await sql<{configuration_json:ExecutionPolicyInput}>`SELECT p.configuration_json FROM automation_runs r
+    JOIN automation_rule_revisions v ON v.id=r.rule_revision_id JOIN automation_execution_policy_revisions p
+    ON p.policy_id=v.execution_policy_id AND p.revision::text=r.policy_revision WHERE r.id=${job.run_id}`.execute(tx)).rows[0];
+  if (policy && hasUnsupportedCostLimit(policy.configuration_json))
+    throw new AutomationError('automation_binding_unavailable','Pinned monetary limits are unsupported; review this work under an explicit supported policy.');
   const node = await tx.selectFrom('nodes').select(['resource_revision','parent_id','payload_json','deleted_at']).where('id','=',job.node_id).where('collection_id','=',job.collection_id).executeTakeFirst();
   if (!node || node.deleted_at || !pin.input_json || node.resource_revision !== job.input_revision) throw new AutomationError('automation_stale_input','A canonical edit invalidated the pinned job input.');
   for(const [nodeId,revision] of Object.entries(pin.member_revisions_json ?? {})){
