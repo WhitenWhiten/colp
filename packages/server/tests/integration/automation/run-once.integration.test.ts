@@ -1,3 +1,4 @@
+import { lockCollectionReplicaGate } from '../../../src/infrastructure/database/lock-order.js';
 import { afterEach,expect,test } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
@@ -65,4 +66,23 @@ describeWithPostgres('AW-41 immutable manual selection',()=>{
     const p=await preview();expect(p.statusCode,p.body).toBe(200);expect(p.json().canStart).toBe(false);expect(p.json().maxMembers).toBe(1000);
     expect((await f.ownerPost(`/rules/${f.rule.id}/run-once`,{previewId:p.json().id,previewDigest:p.json().previewDigest})).statusCode).toBe(409);
   });
+  test('start waits for the replica gate without holding a collection lock',async()=>{
+    f=await automationPollingFixture('aw41_lock_order');
+    const p=await preview();expect(p.statusCode,p.body).toBe(200);
+    let ready!:()=>void,release!:()=>void;
+    const entered=new Promise<void>(r=>{ready=r;}),released=new Promise<void>(r=>{release=r;});
+    const canonical=f.db.transaction().execute(async tx=>{
+      await lockCollectionReplicaGate(tx,'collection');ready();await released;
+      await tx.selectFrom('collections').select('id').where('id','=','collection').forUpdate().execute();
+    });
+    await entered;
+    const started=f.ownerPost(`/rules/${f.rule.id}/run-once`,{previewId:p.json().id,previewDigest:p.json().previewDigest});
+    try {
+      await expect.poll(async()=>Number((await sql<{n:string}>`SELECT count(*) AS n FROM pg_locks
+        WHERE locktype='advisory' AND classid=1263675657 AND NOT granted`.execute(f.db)).rows[0]!.n),{timeout:5000}).toBeGreaterThan(0);
+    } finally {release();}
+    await canonical;
+    const result=await started;expect(result.statusCode,result.body).toBe(201);
+  });
+
 });

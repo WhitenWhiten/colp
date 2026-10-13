@@ -23,11 +23,14 @@ export function createManualRunStore(tx:DatabaseTransaction,ports:AutomationPort
     const input=parseContract('RunOnceStartInput',body);
     const row=(await sql<PreviewRow>`SELECT * FROM automation_manual_previews WHERE id=${input.previewId} AND owner_id=${actor.accountId} AND rule_id=${ruleId} FOR UPDATE`.execute(tx)).rows[0];
     if(!row || row.digest!==input.previewDigest) throw stale();
-    const snapshot=row.snapshot_json,{inspected,digest}=await manualConfiguration(ports,actor,ruleId,snapshot.input);
+    const snapshot=row.snapshot_json;
+    // The replica gate must precede every collection read, including the SHARE
+    // locks hidden inside configuration/binding authorization.
+    const collection=await lockPlacementCollection(tx,actor,snapshot.collectionId);
+    const {digest}=await manualConfiguration(ports,actor,ruleId,snapshot.input);
     if(row.run_id) {const previous=await ports.runs.load(row.run_id);if(!previous)throw stale();return previous.view;}
     if(!row.result_json.canStart || row.expires_at<=await ports.now() || digest!==snapshot.configurationDigest) throw stale();
     if((await ports.settings.get(actor.accountId)).paused) throw new AutomationError('automation_paused','Resume before starting the preview.');
-    const collection=await lockPlacementCollection(tx,actor,snapshot.collectionId);
     if(collection.content_revision!==snapshot.collectionRevision) throw stale();
     for(const member of snapshot.members){
       const node=await tx.selectFrom('nodes').select(['resource_revision','deleted_at']).where('collection_id','=',snapshot.collectionId).where('id','=',member.event.nodeId).executeTakeFirst();
