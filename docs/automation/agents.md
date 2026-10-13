@@ -73,6 +73,20 @@ body so the server can observe approval and resume the same plan; they do not ca
 the provider again. The serial reference waits for this proposal to resolve before
 claiming more work. A lost response still replays the original HTTP command.
 
+Global pause stops new claims and canonical effects. An already leased worker may
+keep heartbeating and submit its typed output under current authority. The server
+stores that proposal and returns `committing`; after resume the same proposal can
+reconcile even if the original lease has since expired. Revocation and cancellation
+still prevent submission/effects.
+
+A valid leased result invalidated by a later edit is durably recorded with a
+`stale` submission status and a diagnostic, without applying it. Expired/cancelled
+plans return `review`. These are HTTP 200 acknowledgments of the stored result,
+not successful effects: the reference clears its journal and continues the queue.
+Malformed output, mismatched input digests and foreign lease proofs remain errors.
+Daily budget holds return to the queue on the next UTC day when polled, preserving
+their input/policy pins; a job's exhausted `maxCalls` never resets automatically.
+
 Run one process per journal. After an actual crash, confirm the old process is gone
 before removing its `.lock` file and restarting. Protect the journal directory; its
 0600 files contain private output and claim secrets. Do not commit or log them.

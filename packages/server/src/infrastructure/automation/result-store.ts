@@ -11,7 +11,7 @@ import type { DatabaseSchema } from '../database/runtime.js';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
 import { lockWorkJob, type TargetAuthority } from './work-authority.js';
 import { claimTokenHash, workBinding, requireJobLease } from './lease-store.js';
-import { recordReportedCost } from './usage-store.js';
+import { rejectedInput, storeTypedResult } from './result-lifecycle.js';
 
 import type { PinnedProposal, ProposalPlanGateway } from './proposal-plan-gateway.js';
 
@@ -19,17 +19,17 @@ interface ResultRow { id: string; proposal_digest: string; status: string }
 export function createResultSubmissionPort(db: Kysely<DatabaseSchema>,serverUuid: string,authorize: TargetAuthority,gateway: ProposalPlanGateway,
   options: { afterCanonicalCommit?: () => Promise<void> } = {}): ResultSubmissionPort & { guard(tx: DatabaseTransaction,planId: string): Promise<void> } {
   const proposal = async (tx: Kysely<DatabaseSchema>,jobId: string) => (await sql<PinnedProposal>`SELECT * FROM automation_proposals WHERE job_id=${jobId}`.execute(tx)).rows[0];
-  const currentInputs = (tx: DatabaseTransaction,actor: WorkPrincipal,jobId: string) => currentWorkInputs(tx,actor,jobId,serverUuid,authorize);
+  const currentInputs = (tx: DatabaseTransaction,actor: WorkPrincipal,jobId: string,allowPaused = false) => currentWorkInputs(tx,actor,jobId,serverUuid,authorize,allowPaused);
   return {
     task: (actor,id) => db.transaction().execute(async tx => {
-      await lockWorkJob(tx,actor,id,authorize);
+      await lockWorkJob(tx,actor,id,authorize,true);
       const row = (await sql<{ task_json: TaskSpec | null; input_json: TaskInput[] | null }>`SELECT task_json,input_json
         FROM automation_jobs WHERE id=${id}`.execute(tx)).rows[0];
       if (!row?.task_json || !row.input_json) throw new AutomationError('automation_claim_conflict','Job has no ready input pins to submit against.');
       return { task: row.task_json,sourceReferences: row.input_json.map(input => input.sourceEventId) };
     }),
     prepare: (actor,id,input,digest) => db.transaction().execute(async tx => {
-      const job = await lockWorkJob(tx,actor,id,authorize);
+      const job = await lockWorkJob(tx,actor,id,authorize,true);
       const existing = (await sql<ResultRow>`SELECT * FROM automation_results WHERE job_id=${id}`.execute(tx)).rows[0];
       if (existing) {
         const attempt = (await sql<{ claim_token_hash: string; principal_binding: string }>`SELECT claim_token_hash,principal_binding FROM automation_job_attempts
@@ -40,8 +40,18 @@ export function createResultSubmissionPort(db: Kysely<DatabaseSchema>,serverUuid
         return;
       }
       await requireJobLease(tx,actor,job,input);
-      const { pin,node } = await currentInputs(tx,actor,id);
       if (input.inputDigest !== job.input_digest) throw new AutomationError('automation_stale_input','Input digest changed.');
+      let current: Awaited<ReturnType<typeof currentInputs>>;
+      try { current = await currentInputs(tx,actor,id,true); }
+      catch (error) {
+        const rejected = rejectedInput(error);
+        if (!rejected) throw error;
+        const pin = (await sql<{ authority_digest: string }>`SELECT authority_digest FROM automation_jobs WHERE id=${id}`.execute(tx)).rows[0]!;
+        await storeTypedResult(tx,job,input,digest,pin.authority_digest,rejected.state,rejected.reason);
+        await advanceRunTasks(tx,actor,serverUuid,job.run_id);
+        return;
+      }
+      const { pin,node } = current;
       let allowed = pin.allowed_folders;
       if (input.output.kind === 'placement' && input.output.destination) {
         if (pin.execution_context_json.placementAllowed === false) throw new AutomationError('automation_stale_input','Explicit placement intent is preserved.');
@@ -49,18 +59,14 @@ export function createResultSubmissionPort(db: Kysely<DatabaseSchema>,serverUuid
         const destination = await createBindingReadPort(tx,serverUuid).readFolder(actor,input.output.destination);
         if (destination.status === 'valid' && pin.allowed_folders.some(root => [destination.snapshot.folder,...destination.snapshot.ancestors].some(f => f.serverUuid===root.serverUuid && f.collectionId===root.collectionId && f.nodeId===root.nodeId))) allowed=[...allowed,input.output.destination];
       }
-      const kind = assessTypedEffect(input.output,allowed), resultId = randomUUID();
+      const kind = assessTypedEffect(input.output,allowed);
       const policy = (await sql<{ configuration_json: { allowAutomaticWrites: boolean } }>`SELECT p.configuration_json FROM automation_runs r
         JOIN automation_rule_revisions v ON v.id=r.rule_revision_id
         JOIN automation_execution_policy_revisions p ON p.policy_id=v.execution_policy_id AND p.revision::text=r.policy_revision
         WHERE r.id=${job.run_id}`.execute(tx)).rows[0];
       if (!policy) throw new AutomationError('automation_unsupported_capability','Pinned execution policy is unavailable.');
       const state = kind === 'review' ? 'review' : kind === 'none' ? 'succeeded' : 'committing';
-      await sql`INSERT INTO automation_results(id,job_id,generation,owner_id,input_digest,contract_id,authority_digest,output_json,proposal_digest,status)
-        VALUES(${resultId},${id},${input.generation},${actor.accountId},${input.inputDigest},${input.outputContract},${pin.authority_digest},${JSON.stringify(input.output)}::jsonb,${digest},${state==='succeeded' ? 'accepted' : 'proposed'})`.execute(tx);
-      await sql`UPDATE automation_jobs SET state=${state},result_id=${resultId},revision=revision+1 WHERE id=${id}`.execute(tx);
-      await sql`UPDATE automation_job_attempts SET outcome='submitted',provider_request_ref=${input.providerRequestId ?? null} WHERE job_id=${id} AND generation=${input.generation}`.execute(tx);
-      if (input.usageCostMicros !== undefined) await recordReportedCost(tx,id,input.generation,input.usageCostMicros);
+      const resultId = await storeTypedResult(tx,job,input,digest,pin.authority_digest,state);
       if (kind === 'none' || kind === 'review') return;
       if (!actor.resourceAudience || !actor.securityEpoch) throw new AutomationError('insufficient_permission','Verified credential binding is required.');
       const planId = `automation-${id}`, commandId = randomUUID(), operationId = `automation-op-${id}`;
@@ -106,23 +112,47 @@ export function createResultSubmissionPort(db: Kysely<DatabaseSchema>,serverUuid
       // Authorization is checked before attempting new effects; a committed plan is only linked, never reexecuted.
       const p = await proposal(db,id);
       let advanced: Awaited<ReturnType<ProposalPlanGateway['advance']>> | undefined;
+      let rejected: { state: 'stale' | 'review'; reason: string } | undefined;
       if (p) {
         const consumed = (await sql<{ status: string }>`SELECT status FROM mcp_change_plans WHERE plan_id=${p.plan_id}`.execute(db)).rows[0]?.status === 'consumed';
-        if (!consumed) await db.transaction().execute(tx => currentInputs(tx,actor,id));
-        advanced = consumed ? 'committed' : await gateway.advance(actor,p);
+        if (consumed) advanced = 'committed';
+        else try {
+          const mayCommit = await db.transaction().execute(async tx => {
+            const job = await lockWorkJob(tx,actor,id,authorize,true);
+            if (!['committing','awaitingApproval'].includes(job.state)) return false;
+            const paused = await tx.selectFrom('automation_settings').select('paused').where('owner_id','=',actor.accountId).executeTakeFirst();
+            if (paused?.paused) return false;
+            await currentInputs(tx,actor,id);
+            return true;
+          });
+          if (mayCommit) advanced = await gateway.advance(actor,p);
+        } catch (error) {
+          rejected = rejectedInput(error);
+          // Pause can win the race at the commit guard after the preflight. Keep the proposal.
+          if (!rejected && !(error instanceof AutomationError && error.code === 'automation_paused')) throw error;
+        }
         if (advanced === 'committed') await options.afterCanonicalCommit?.();
       }
       return db.transaction().execute(async tx => {
-        const job = await lockWorkJob(tx,actor,id,authorize), result = (await sql<ResultRow>`SELECT * FROM automation_results WHERE job_id=${id}`.execute(tx)).rows[0];
+        const job = await lockWorkJob(tx,actor,id,authorize,true), result = (await sql<ResultRow>`SELECT * FROM automation_results WHERE job_id=${id}`.execute(tx)).rows[0];
         if (!result) throw new AutomationError('resource_not_found','Result is unavailable.');
-        if (p && advanced === 'committed') {
-          if (!await reconcileCommittedPlanEffect(tx,actor,id,serverUuid))
-            throw new AutomationError('automation_stale_input','Committed plan is not yet reconcilable.');
-        } else if (advanced) await sql`UPDATE automation_jobs SET state=${advanced === 'review' ? 'review' : advanced},revision=revision+1 WHERE id=${id} AND state<>${advanced}`.execute(tx);
+        // A concurrent reconciler may have committed before our failure was recorded.
+        const committed = p && await reconcileCommittedPlanEffect(tx,actor,id,serverUuid);
+        if (!committed) {
+          if (advanced === 'committed') throw new AutomationError('feature_temporarily_unavailable','Committed plan is not yet reconcilable.');
+          if (rejected) await sql`UPDATE automation_jobs SET state=${rejected.state},explanation=${rejected.reason},revision=revision+1
+            WHERE id=${id} AND state IN ('committing','awaitingApproval')`.execute(tx);
+          else if (advanced) await sql`UPDATE automation_jobs SET state=${advanced},revision=revision+1,
+            explanation=${advanced === 'review' ? 'The original plan expired or was cancelled; the proposal is retained for review.'
+              : advanced === 'awaitingApproval' ? 'Waiting for Owner approval of the exact proposal.' : 'The original plan is still committing.'}
+            WHERE id=${id} AND state IN ('committing','awaitingApproval') AND state<>${advanced}`.execute(tx);
+        }
         await advanceRunTasks(tx,actor,serverUuid,job.run_id);
-        const row = (await sql<{ state: SubmissionResult['status'] }>`SELECT state FROM automation_jobs WHERE id=${id}`.execute(tx)).rows[0]!;
+        const row = (await sql<{ state: SubmissionResult['status']; explanation: string | null }>`SELECT state,explanation FROM automation_jobs WHERE id=${id}`.execute(tx)).rows[0]!;
         const effects = (await sql<{ id: string }>`SELECT id FROM automation_effect_receipts WHERE job_id=${id}`.execute(tx)).rows;
-        return { jobId: id,resultId: result.id,proposalDigest: result.proposal_digest,status: row.state,effectReceiptIds: effects.map(e => e.id),diagnostics: [] };
+        return { jobId: id,resultId: result.id,proposalDigest: result.proposal_digest,status: row.state,effectReceiptIds: effects.map(e => e.id),
+          diagnostics: ['stale','review'].includes(row.state) && row.explanation
+            ? [{ code: row.state === 'stale' ? 'automation_stale_input' : 'reviewRequired',severity: 'warning' as const,location: '/output',message: row.explanation }] : [] };
       });
     },
     async guard(tx,planId) {
@@ -131,7 +161,9 @@ export function createResultSubmissionPort(db: Kysely<DatabaseSchema>,serverUuid
       const account = await tx.selectFrom('accounts').select('subject_id').where('id','=',p.binding_json.principalId).executeTakeFirstOrThrow();
       const actor: WorkPrincipal = { accountId: p.binding_json.principalId,subjectId: account.subject_id,clientId: p.binding_json.clientId,
         credentialBindingId: p.binding_json.credentialBindingId,scopes: ['automation:work'],resourceAudience: p.binding_json.resourceAudience,securityEpoch: p.binding_json.securityEpoch };
-      const { pin } = await currentInputs(tx,actor,p.job_id);
+      const { pin,job } = await currentInputs(tx,actor,p.job_id);
+      if (!['committing','awaitingApproval'].includes(job.state))
+        throw new AutomationError('automation_stale_input','The proposal is no longer eligible for canonical effects.');
       const operation = p.operations_json[0];
       if (operation?.type === 'move_node' && operation.parentId) {
         const { createBindingReadPort } = await import('./bindings.js');

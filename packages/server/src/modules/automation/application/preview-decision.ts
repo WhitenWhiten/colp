@@ -1,9 +1,14 @@
-import type { PreviewDecision } from '@know-n/colp/automation';
+import type { PreviewDecision, TaskSpec } from '@know-n/colp/automation';
 import type { RuleEventPlan } from './rule-evaluation.js';
+import { plansRun } from './rule-evaluation.js';
 
 /** Keep the reviewed wire contract, including its broad conflict group, out of lifecycle policy. */
-export function previewDecision(eventId: string, plan: RuleEventPlan): PreviewDecision {
-  const base = { eventId, satisfiedTasks: [], pendingTasks: [] };
+export function previewDecision(eventId: string, plan: RuleEventPlan, tasks: readonly TaskSpec[] = []): PreviewDecision {
+  const satisfied = plan.kind === 'placed' ? plan.satisfiedTasks : [];
+  const pendingTasks = plansRun(plan, tasks.length > 0)
+    ? tasks.filter(task => !satisfied.includes(task.type)
+      && !(plan.kind === 'preserved' && task.type.startsWith('classify.'))).map(task => task.type) : [];
+  const base = { eventId, satisfiedTasks: [], pendingTasks };
   switch (plan.kind) {
     case 'notMatched':
     case 'missingInput':

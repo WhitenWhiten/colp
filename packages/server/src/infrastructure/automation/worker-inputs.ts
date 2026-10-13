@@ -9,8 +9,8 @@ import { createBindingReadPort } from './bindings.js';
 export interface InputPins { task_json: TaskSpec; input_json: TaskInput[]; allowed_folders: FolderRef[]; authority_digest: string;
   input_revisions_json: Record<string,string>; definition_json: RuleDefinition; values_json: RoleBindings; execution_context_json: { placementAllowed?: boolean } }
 /** Read, claim, submit and the canonical commit guard share the same current input authority. */
-export async function currentWorkInputs(tx: DatabaseTransaction,actor: WorkPrincipal,jobId: string,serverUuid: string,authorize: TargetAuthority) {
-  const job = await lockWorkJob(tx,actor,jobId,authorize);
+export async function currentWorkInputs(tx: DatabaseTransaction,actor: WorkPrincipal,jobId: string,serverUuid: string,authorize: TargetAuthority,allowPaused = false) {
+  const job = await lockWorkJob(tx,actor,jobId,authorize,allowPaused);
   const pin = (await sql<InputPins>`SELECT j.*,v.definition_json,b.values_json FROM automation_jobs j JOIN automation_runs r ON r.id=j.run_id
     JOIN automation_rule_revisions v ON v.id=r.rule_revision_id JOIN automation_binding_revisions b ON b.binding_set_id=r.binding_set_id AND b.revision=r.binding_revision
     WHERE j.id=${jobId}`.execute(tx)).rows[0]!;

@@ -94,3 +94,67 @@ reservation 唯一约束，不删除历史记录。若已有同一 job 多日记
 MCP 十五工具的现有验证仍是 application facade + PostgreSQL，不能代替 AW-64 的完整网络
 与 worker 重启验收。动态授权、审批/Undo、崩溃恢复的结论限定在上述真实执行测试范围内。
 所有本次启动的 app/临时 PostgreSQL 由 fixture/wrapper 回收；不保留后台服务。
+
+## AW-32/55/64 后独立复审与修复
+
+基线 `1db76fe`，工作树 `feat/colp-automation`。本轮首先独立验证已有 gate：
+BE-01 API / BE-02 M1 后端 36 项、AW-64 / usage read model 11 项、参考 worker
+传输 7 项通过。随后六个真实 PostgreSQL 反例全部失败，确认下列缺陷，不用原有
+happy-path gate 通过替代状态收敛验证。
+
+| 原问题 | 修复行为 |
+| --- | --- |
+| 明确选择目录的匹配事件预览为 0 run，实际产生摘要任务；pendingTasks 永远为空 | 预览与 admission 共用可执行 run 判断，保留目录时仍列出 enrichment，返回 worker 不可用诊断 |
+| 日额度耗尽与永久 maxCalls 共用 terminal blocked，跨日后无法领取 | 显式区分 daily/calls，持久保存 UTC 恢复时间；轮询恢复原始输入、重新核对源与当日额度，等待期间保留后继 pending |
+| 已领取任务提交旧输入返回 409，却留在 leased，之后被误记 unknownOutcome | 验证真实 lease/digest 后保留 typed output/attempt，返回契约已有的 stale 状态和诊断，收敛 run；不创建 Plan/effect |
+| 审批后 collection revision 变化导致 500 和永远等待 | 转为持久 stale；过期/取消的原 Plan 转 review；未知提交失败保留同一 Plan，返回可重试错误，不重新规划 |
+| Owner 拒绝最后一个 proposal 后 run 仍 running | 拒绝事务内收敛任务/run，不依赖原 worker 再提交 |
+| 全局暂停拒绝运行中任务的 heartbeat/result，无法保留已生成输出 | 允许当前已领取任务续租和保存输出；效果仍受 pause commit guard 约束，恢复后只推进同一 proposal |
+
+`202610301700_automation_budget_holds.ts` 追加于现有迁移之后。迁移根据已记录的
+attempt 数量和 pinned maxCalls 区分旧预算阻塞；恢复不改变 immutable pins，不复活
+cancelled/held run。预算读模型使用结构化原因，不再依赖英文 explanation 字符串。
+
+原临时反例转为 `submission-lifecycle`、`daily-budget-recovery`、`worker-preview`
+三个正式集成套件。AW-64 手动编辑案例改为实际参考 worker 完成调用，断言 stale
+状态、无效果和 journal 清理；仅断言错误码不再算状态收敛证据。补充暂停保存后的
+lease 到期/恢复、原 command 重放、过期审批、每日恢复不重置 maxCalls、等待期间
+人工编辑及后继任务保留。HTTP 200/stale 表示保存了未采用结果，不表示效果成功。
+
+实际验证环境：Node `v24.14.0`，PostgreSQL `16.4-alpine`；所有集成测试经 xvfb 启动。
+
+```sh
+xvfb-run -a npm --prefix packages/server run test:integration:file -- \
+  tests/integration/automation/submission-lifecycle.integration.test.ts \
+  tests/integration/automation/daily-budget-recovery.integration.test.ts \
+  tests/integration/automation/worker-preview.integration.test.ts \
+  tests/integration/automation/end-to-end.integration.test.ts \
+  tests/integration/automation/worker-pipeline.integration.test.ts \
+  tests/integration/automation/usage-read-model.integration.test.ts \
+  tests/integration/automation/execution-policy.integration.test.ts \
+  tests/integration/automation/typed-results.integration.test.ts \
+  tests/integration/automation/job-leases.integration.test.ts \
+  tests/integration/automation/approval-undo.integration.test.ts
+```
+
+本轮 54 项通过、1 项测试夹具失败：新增过期案例直接改不可变 Plan expiry，被数据库
+正确拒绝。修正为在真实 prepare/reconcile 边界老化尚未生成 Plan 的 proposal；同命令
+仅选择 `submission-lifecycle.integration.test.ts -t 'expired staged proposal'` 后 1 项
+通过、4 项过滤跳过。保留不可变 Plan 约束，没有为测试关闭 trigger。
+
+追加的升级和 BE-01/02 定向回归：
+
+```sh
+xvfb-run -a npm --prefix packages/server run test:integration:file -- \
+  tests/integration/automation/budget-hold-migration.integration.test.ts \
+  tests/integration/automation/api.integration.test.ts \
+  tests/integration/automation/m1-backend.integration.test.ts \
+  -t 'upgrade releases|placement satisfies|priority .* reports|node.created preview|preview creates no|authorized configuration'
+```
+
+9 项通过、28 项按名称过滤跳过。升级案例分别恢复旧日额度阻塞和保留已耗尽
+maxCalls，验证输入摘要与历史 attempts 没有丢失。本轮共 64 个不同集成案例最终通过，
+不累计修复前基线和重复运行。相关 unit 四文件 12 项、参考 worker transport 7 项通过。
+server build（含 TypeScript 和迁移编译）、修改文件 ESLint、check:imports、
+check:migrations against `1db76fe`、git diff --check 均通过。复用已发布字段与枚举，
+未变更 wire schema、vendor 包或无关前端。测试临时服务全部回收。

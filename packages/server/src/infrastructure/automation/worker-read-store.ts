@@ -7,6 +7,7 @@ import { lockWorkJob,requireWorkRunning } from './work-authority.js';
 import { currentWorkInputs,expireOwnerLeases } from './worker-inputs.js';
 import { reconcileRunPlanEffects } from './reconcile-plan-effect.js';
 import { advanceRunTasks } from './task-scheduler.js';
+import { resumeDailyBudgetJobs } from './budget-holds.js';
 import type { TargetWorkerService } from './target-worker.js';
 
 interface JobRow { id: string; revision: string; run_id: string; task_json: TaskSpec; state: Job['status']; input_digest: string;
@@ -28,13 +29,14 @@ export function createWorkerReadStore(db: Kysely<DatabaseSchema>,serverUuid: str
       const targetId = query.targetId ?? (targets.length === 1 ? targets[0]!.id : undefined);
       if (!targetId) throw new AutomationError('invalid_request','Choose one targetId when a profile has multiple targets.');
       await worker.authorize(tx,actor,targetId);await requireWorkRunning(tx,actor.accountId);await expireOwnerLeases(tx,actor.accountId);
+      await resumeDailyBudgetJobs(tx,actor,targetId);
       const pending = (await sql<{ run_id: string }>`SELECT DISTINCT j.run_id FROM automation_jobs j JOIN automation_runs r ON r.id=j.run_id
         JOIN collections c ON c.id=r.explanation_json->>'collectionId' AND c.owner_subject_id=${actor.subjectId} AND c.deleted_at IS NULL
         WHERE r.owner_id=${actor.accountId} AND j.target_partition=${targetId} AND NOT r.held AND r.state<>'cancelled' AND j.state IN ('pending','committing','awaitingApproval')
           AND (j.state='pending' OR EXISTS (SELECT 1 FROM automation_proposals p JOIN mcp_change_plans m ON m.plan_id=p.plan_id
             WHERE p.job_id=j.id AND m.status='consumed' AND NOT EXISTS (SELECT 1 FROM automation_effect_receipts e WHERE e.job_id=j.id)))
           AND NOT EXISTS (SELECT 1 FROM automation_jobs busy WHERE busy.run_id=r.id AND
-            (busy.state IN ('ready','leased','uncertain') OR (busy.state IN ('committing','awaitingApproval') AND NOT EXISTS (
+            (busy.state IN ('ready','leased','uncertain') OR (busy.state='blocked' AND busy.budget_block_reason='daily') OR (busy.state IN ('committing','awaitingApproval') AND NOT EXISTS (
               SELECT 1 FROM automation_proposals bp JOIN mcp_change_plans bm ON bm.plan_id=bp.plan_id WHERE bp.job_id=busy.id AND bm.status='consumed'))))
         ORDER BY j.run_id LIMIT 100`.execute(tx)).rows;
       for (const run of pending) { await reconcileRunPlanEffects(tx,actor,run.run_id,serverUuid);await advanceRunTasks(tx,actor,serverUuid,run.run_id); }

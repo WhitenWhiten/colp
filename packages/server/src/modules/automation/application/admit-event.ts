@@ -1,5 +1,5 @@
 import type { EventFacts } from '@know-n/colp/automation';
-import { evaluateRuleEvents, type PreparedRule, type RuleEventPlan } from './rule-evaluation.js';
+import { evaluateRuleEvents, plansRun, type PreparedRule, type RuleEventPlan } from './rule-evaluation.js';
 
 export interface AdmissionCandidate extends PreparedRule { revisionId: string; afterOrdinal: string; epoch: string }
 export interface AdmissionDecision { candidate: AdmissionCandidate; plan: RuleEventPlan; createRun: boolean }
@@ -10,7 +10,8 @@ export function admitEvent(candidates: readonly AdmissionCandidate[], event: Eve
   const plans = evaluateRuleEvents(eligible, event);
   return eligible.map((candidate, index) => {
     const plan = plans[index]!;
-    return { candidate, plan, createRun: plan.kind !== 'notMatched' && (plan.kind !== 'preserved' || (workerEnabled && candidate.definition.tasks.length > 0)) };
+    return { candidate, plan, createRun: plansRun(plan, workerEnabled && candidate.definition.tasks.length > 0)
+      || ['missingInput','blocked','conflict','overridden'].includes(plan.kind) };
   });
 }
 

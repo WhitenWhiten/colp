@@ -44,8 +44,13 @@ export function createJobLeaseStore(db: Kysely<DatabaseSchema>, authorize: Targe
       if (!current || current.resource_revision !== job.input_revision) throw new AutomationError('automation_stale_input','Canonical input changed before claim.');
       const usage = { ownerId: actor.accountId,ruleId: job.rule_id,runId: job.run_id,jobId: id,targetId: job.target_id };
       const attempts = (await sql<{ count: number }>`SELECT count(*)::int AS count FROM automation_job_attempts WHERE job_id=${id}`.execute(tx)).rows[0]!.count;
-      if (attempts >= job.max_calls || !await reserveOptionalWork(tx,usage,serverDailyCap,job.rule_daily_cap)) {
-        await sql`UPDATE automation_jobs SET state='blocked',revision=revision+1,explanation='Optional execution budget exhausted.' WHERE id=${id}`.execute(tx);
+      const callsExhausted = attempts >= job.max_calls;
+      if (callsExhausted || !await reserveOptionalWork(tx,usage,serverDailyCap,job.rule_daily_cap)) {
+        await sql`UPDATE automation_jobs SET state='blocked',revision=revision+1,
+          budget_block_reason=${callsExhausted ? 'calls' : 'daily'},
+          budget_retry_after=${callsExhausted ? sql`NULL` : sql`((CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date+1)::timestamp AT TIME ZONE 'UTC'`},
+          explanation=${callsExhausted ? 'Pinned optional call limit exhausted.' : 'Daily optional budget exhausted; original work will be reconsidered on the next UTC day.'}
+          WHERE id=${id}`.execute(tx);
         return { kind: 'budget' as const };
       }
       const token = randomBytes(32).toString('base64url'), generation = Number(job.active_generation) + 1;
@@ -57,7 +62,7 @@ export function createJobLeaseStore(db: Kysely<DatabaseSchema>, authorize: Targe
       return { kind: 'claimed' as const,lease: lease(job,token,generation,row.lease_until) };
     }),
     heartbeat: (actor,id,input) => execute(async tx => {
-      const job = await lockWorkJob(tx,actor,id,authorize);
+      const job = await lockWorkJob(tx,actor,id,authorize,true);
       await requireJobLease(tx,actor,job,input);
       const row = (await sql<{ lease_until: Date }>`UPDATE automation_job_attempts SET lease_until=clock_timestamp()+${Math.min(input.extendSeconds,120)}*interval '1 second'
         WHERE job_id=${id} AND generation=${input.generation} RETURNING lease_until`.execute(tx)).rows[0]!;
@@ -70,6 +75,6 @@ export function createJobLeaseStore(db: Kysely<DatabaseSchema>, authorize: Targe
       const state = input.kind === 'unknownOutcome' ? 'uncertain' : input.kind === 'permanent' ? 'failed' : 'ready';
       await sql`UPDATE automation_jobs SET state=${state},revision=revision+1,explanation=${input.message.slice(0,1000)} WHERE id=${id}`.execute(tx);
     }),
-    verify: (actor,id,proof) => execute(async tx => { const job = await lockWorkJob(tx,actor,id,authorize); await requireJobLease(tx,actor,job,proof); }),
+    verify: (actor,id,proof) => execute(async tx => { const job = await lockWorkJob(tx,actor,id,authorize,true); await requireJobLease(tx,actor,job,proof); }),
   };
 }

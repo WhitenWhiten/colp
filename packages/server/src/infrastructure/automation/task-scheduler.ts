@@ -11,7 +11,7 @@ import { prepareTaskInput } from './task-inputs.js';
 interface RunPin { id: string; rule_id: string; definition_json: RuleDefinition; values_json: RoleBindings; execution_policy_id: string | null;
   policy_revision: string | null; state: string; member_ids: string[]; explanation_json: { collectionId: string; nodeId: string; sourceRevision: string; plan: { kind: string; satisfiedTasks?: string[] } } }
 interface TaskContext { executorId: string | null; placementAllowed: boolean; intakeSatisfied: boolean }
-interface PendingJob { id: string; task_json: TaskSpec; state: Job['status']; input_revision: string | null; execution_context_json: TaskContext; target_id: string | null }
+interface PendingJob { id: string; task_json: TaskSpec; state: Job['status']; input_revision: string | null; execution_context_json: TaskContext; target_id: string | null; budget_block_reason: 'daily' | 'calls' | null }
 const selectPins = sql`SELECT r.*,v.rule_id,v.definition_json,v.execution_policy_id,b.values_json FROM automation_runs r
   JOIN automation_rule_revisions v ON v.id=r.rule_revision_id JOIN automation_binding_revisions b ON b.binding_set_id=r.binding_set_id AND b.revision=r.binding_revision`;
 
@@ -46,11 +46,11 @@ export async function advanceRunTasks(tx: DatabaseTransaction,actor: AutomationA
       AND r.state<>'cancelled' AND NOT r.held FOR UPDATE OF r`.execute(tx)).rows[0];
   if (!run?.definition_json.tasks.length || run.state === 'waiting') return;
   const paused = await tx.selectFrom('automation_settings').select('paused').where('owner_id','=',actor.accountId).executeTakeFirst();
-  if (paused?.paused) return;
   // Every iteration consumes a pending task or returns. The declared task count bounds this loop.
   for (;;) {
     const jobs = (await sql<PendingJob>`SELECT * FROM automation_jobs WHERE run_id=${runId} ORDER BY created_at,id FOR UPDATE`.execute(tx)).rows;
-    if (jobs.some(j => ['ready','leased','committing','awaitingApproval','uncertain'].includes(j.state))) return;
+    if (jobs.some(j => ['ready','leased','committing','awaitingApproval','uncertain'].includes(j.state)
+      || (j.state === 'blocked' && j.budget_block_reason === 'daily'))) return;
     const byTask = new Map(jobs.map(job => [job.task_json.id,job]));
     const chosen = run.definition_json.tasks.map(task => byTask.get(task.id))
       .find(job => job?.state === 'pending' && job.task_json.after.every(id => byTask.get(id)?.state === 'succeeded'));
@@ -68,6 +68,7 @@ export async function advanceRunTasks(tx: DatabaseTransaction,actor: AutomationA
       await updateRun(state);
       return;
     }
+    if (paused?.paused) return;
     const hold = async (state: 'stale' | 'blocked',reason: string) => {
       await sql`UPDATE automation_jobs SET state=${state},explanation=${reason},revision=revision+1 WHERE id=${chosen.id}`.execute(tx);
     };

@@ -6,6 +6,7 @@ import type { DatabaseTransaction } from '../database/unit-of-work.js';
 import { workerJobView } from './worker-read-store.js';
 import { expireOwnerLeases } from './worker-inputs.js';
 import { reconcileCommittedPlanEffect } from './reconcile-plan-effect.js';
+import { advanceRunTasks } from './task-scheduler.js';
 
 export function createOwnerJobStore(tx: DatabaseTransaction,actor: AutomationActor,serverUuid: string): OwnerJobStore {
   const approval = createPhase4bMcpWriteApprovalApi(createPostgresMcpWriteApprovalPorts(tx));
@@ -41,6 +42,7 @@ export function createOwnerJobStore(tx: DatabaseTransaction,actor: AutomationAct
       if (rejected) {
         await sql`UPDATE automation_results SET status='rejected' WHERE id=${row.result_id}`.execute(tx);
         await sql`UPDATE automation_jobs SET state='review',revision=revision+1,explanation='Owner rejected the exact proposal.' WHERE id=${id}`.execute(tx);
+        await advanceRunTasks(tx,actor,serverUuid,row.run_id);
       }
       return { jobId: id,resultId: row.result_id!,proposalDigest: row.proposal_digest!,status: rejected ? 'review' : 'awaitingApproval',effectReceiptIds: [],diagnostics: [] };
     },

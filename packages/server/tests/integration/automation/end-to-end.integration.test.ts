@@ -283,13 +283,17 @@ describeWithPostgres('AW-64 authenticated loopback polling and process recovery 
   test('a later manual source edit rejects the original typed output before any optional plan/effect', async () => {
     await setup('aw64_stale'); const origin = await f.app.listen({ host: '127.0.0.1',port: 0 }); const request = transport(origin);
     const job = (await queue(request)).items[0]!;
-    const lease = await request('POST',`/jobs/${job.id}/claim`,{ deliveryHandle: job.deliveryHandle },randomUUID());
-    const inputs = await request('GET',`/jobs/${job.id}/inputs?deliveryHandle=${job.deliveryHandle}`);
-    const generated = await summaryAdapter.generate({ inputs: inputs.items });
-    const original = await ledger(); await f.rename('fresh-paper','New manual title');
-    await expect(request('POST',`/jobs/${job.id}/results`,{ claimToken: lease.claimToken,generation: lease.generation,inputDigest: lease.inputDigest,
-      outputContract: job.task.outputContract,...generated },randomUUID())).rejects.toMatchObject({ status: 409,code: 'automation_stale_input' });
+    const original = await ledger(),journal = createFileJournal(join(directory,'journal.json'));
+    const result = await runPollingCycle({ request,targetId: f.target.id,journal,adapter: {
+      supports: summaryAdapter.supports,
+      async generate(args: Parameters<typeof summaryAdapter.generate>[0]) {
+        await f.rename('fresh-paper','New manual title'); return summaryAdapter.generate(args);
+      },
+    } });
+    expect(result).toMatchObject([{ jobId: job.id,status: 'stale',effectReceiptIds: [] }]);
+    expect(await journal.load()).toBeNull();
     const state = await ledger(); expect(state.plans).toEqual([]); expect(state.notes).toEqual([]); expect(state.effects).toEqual(original.effects);
+    expect(state.jobs[0]!.state).toBe('stale');
     expect((await f.db.selectFrom('nodes').select('title').where('id','=','fresh-paper').executeTakeFirstOrThrow()).title).toBe('New manual title');
   });
 });

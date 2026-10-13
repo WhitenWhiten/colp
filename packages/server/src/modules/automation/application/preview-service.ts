@@ -57,13 +57,16 @@ export async function previewRule(ports: AutomationPorts, actor: AutomationActor
   const input: PreviewInput = { ...parsed, rule: normalizeRuleInput(parsed.rule) };
   const snapshot = await previewSnapshot(ports, actor, input);
   const plans = snapshot.events.map((event) => evaluateRuleEvent(snapshot.proposed, snapshot.alternatives, event));
-  const decisions = plans.map((plan, index) => ({ ...previewDecision(snapshot.events[index]!.eventId, plan),
+  const decisions = plans.map((plan, index) => ({ ...previewDecision(snapshot.events[index]!.eventId, plan, input.rule.definition.tasks),
     ...(snapshot.events[index]!.origin === 'import' ? { explanation: 'Imports are excluded from automatic intake. Use an explicit run-once preview when that capability is available.' } : {}) }));
   const result: PreviewResult = { previewId: ports.id(), sideEffects: false, decisions,
     diagnostics: [{ code: input.mode === 'currentState' ? 'currentStateSnapshot' : 'suppliedFacts', severity: 'info', location: '/mode',
       message: input.mode === 'currentState' ? 'Current authorized rows only; these are not historical intake facts. Unknown intent preserves placement.' : 'Hypothetical supplied facts; no canonical business effects.' },
-    previewPlanDiagnostics(plans), ...intakePolicyDiagnostics(input.rule.definition.policy, '/rule/definition/policy')],
-    plannedRunCount: plans.filter(plansRun).length, remainderCount: 0, completeHistory: false, truncated: snapshot.truncated };
+    previewPlanDiagnostics(plans), ...intakePolicyDiagnostics(input.rule.definition.policy, '/rule/definition/policy'),
+    ...(snapshot.worker?.tasks.filter(task => !task.available).map(task => ({ code: 'workerUnavailable', severity: 'warning' as const,
+      location: `/tasks/${task.taskId}`, message: task.reason })) ?? [])],
+    plannedRunCount: plans.filter(plan => plansRun(plan, input.rule.definition.tasks.length > 0)).length,
+    remainderCount: 0, completeHistory: false, truncated: snapshot.truncated };
   if (!snapshot.collection.currentOwner) result.diagnostics.push({ code: 'ownerRequired', severity: 'warning', location: '/rule/definition/scope',
     message: 'M1 execution requires the current collection Owner; this preview does not grant runtime authority.' });
   await ports.previews.save(actor.accountId, { id: result.previewId, input, result, configDigest: snapshot.configDigest,

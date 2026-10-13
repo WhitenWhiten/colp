@@ -22,7 +22,7 @@ export function createAutomationWorkerService(db: Kysely<DatabaseSchema>,serverU
       const complete = (tx: DatabaseTransaction,value: unknown) => createPostgresProductCommandReceiptPort(tx).complete(binding,fingerprint,{ status: 200,
         body: new TextEncoder().encode(JSON.stringify(value)),mediaType: 'application/json',contractVersion: '0.2.1-design',stableHeaders: { 'cache-control': 'private, no-store' } });
       const initial = await db.transaction().execute(async tx => {
-        const job = await lockWorkJob(tx,actor,id,worker.authorize,operation === 'fail');
+        const job = await lockWorkJob(tx,actor,id,worker.authorize,operation !== 'claim');
         const claim = await createPostgresProductCommandReceiptPort(tx).claim(binding,fingerprint);
         if (claim.kind === 'replay') {
           if (command.operation === 'claim') throw new AutomationError('automation_claim_conflict','The one-time lease response cannot be reissued. Read the job and reconcile; the claim token is never stored in receipts.');
@@ -54,7 +54,7 @@ export function createAutomationWorkerService(db: Kysely<DatabaseSchema>,serverU
       // Only submit is resumable: its durable proposal and stable plan/command IDs prevent duplicate effects.
       const value = await submitResult(results,actor,id,input);
       return db.transaction().execute(async tx => {
-        await lockWorkJob(tx,actor,id,worker.authorize);
+        await lockWorkJob(tx,actor,id,worker.authorize,true);
         const claim = await createPostgresProductCommandReceiptPort(tx).claim(binding,fingerprint);
         if (claim.kind === 'replay') return decode(claim,command);
         if (claim.kind !== 'in_progress' && claim.kind !== 'claimed') throw commandError(claim);

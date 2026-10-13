@@ -77,4 +77,5 @@ export function evaluateRuleEvent(rule: PreparedRule, competitors: readonly Prep
 }
 
 export const blocksActivation = (plan: RuleEventPlan): boolean => plan.kind === 'blocked' || plan.kind === 'conflict';
-export const plansRun = (plan: RuleEventPlan): boolean => plan.kind === 'matched' || plan.kind === 'placed';
+export const plansRun = (plan: RuleEventPlan, hasWorkerTasks = false): boolean =>
+  plan.kind === 'matched' || plan.kind === 'placed' || (hasWorkerTasks && plan.kind === 'preserved');

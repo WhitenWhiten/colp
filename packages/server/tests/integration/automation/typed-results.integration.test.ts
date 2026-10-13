@@ -77,7 +77,7 @@ describeWithPostgres('AW-24 typed proposal and real plan recovery', () => {
     await expect(submitResult(f.results,f.actor,f.jobId,{ ...body,outputContract: 'review.sourced.v1' })).rejects.toMatchObject({ code: 'invalid_request' });
     await expect(submitResult(f.results,f.actor,f.jobId,{ ...body,output: { ...body.output,evidence: [{ ...evidence()[0],reference: 'foreign' }] } })).rejects.toMatchObject({ code: 'invalid_request' });
     await f.rename('job-paper','User edit');
-    await expect(submitResult(f.results,f.actor,f.jobId,body)).rejects.toMatchObject({ code: 'automation_stale_input' });
+    expect(await submitResult(f.results,f.actor,f.jobId,body)).toMatchObject({ status: 'stale',effectReceiptIds: [] });
     expect((await f.db.selectFrom('mcp_change_plans').select('plan_id').execute())).toHaveLength(0);
   });
 });

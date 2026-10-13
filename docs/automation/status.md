@@ -23,3 +23,6 @@ AW-64 的最终 Node 22 + xvfb gate 为 8 项通过，参考 worker 传输测试
 单任务、三任务和 M1 receipt/Sync 分别验证，实际范围与 AW-35 交接见
 [release evidence](release-evidence.md)。这不代表完整 M2 产品、真实浏览器或 hosted Events 验收完成。
 历史审查记录中的未执行范围保留为当时结论。
+
+基于 `1db76fe` 的独立复审复现并修复六处预览、日预算恢复、提交状态和暂停/审批
+收敛问题；详见 [本轮修复与反例](evidence/be3-review.md#aw-325564-后独立复审与修复)。

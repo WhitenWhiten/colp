@@ -25,7 +25,7 @@ export async function readAutomationUsage(db: Kysely<DatabaseSchema>, actor: Aut
     count(*) FILTER(WHERE is_held AND effective_state IN ('pending','ready','leased','committing','awaitingApproval','uncertain'))::int AS held,
     count(*) FILTER(WHERE effective_state='pending')::int AS pending,count(*) FILTER(WHERE effective_state='leased')::int AS leased,
     count(*) FILTER(WHERE effective_state='committing')::int AS committing,count(*) FILTER(WHERE effective_state='blocked')::int AS blocked,
-    count(*) FILTER(WHERE effective_state='blocked' AND explanation='Optional execution budget exhausted.')::int AS budget_blocked,
+    count(*) FILTER(WHERE effective_state='blocked' AND budget_block_reason IS NOT NULL)::int AS budget_blocked,
     count(*) FILTER(WHERE effective_state='awaitingApproval')::int AS approval,count(*) FILTER(WHERE effective_state='uncertain')::int AS uncertain,
     (SELECT count(*)::int FROM attempts) AS calls,
     (SELECT count(*)::int FROM attempts WHERE reported_cost_micros IS NULL) AS unknown,
