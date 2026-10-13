@@ -8,21 +8,24 @@ import { describeWithPostgres } from '../../support/postgres-test-runtime.js';
 
 describeWithPostgres('canonical folder bindings and reverse dependencies', () => {
   let fixture: Awaited<ReturnType<typeof automationFixture>>;
-  beforeAll(async () => { fixture = await automationFixture('automation_bindings'); }, 180_000);
+  beforeAll(async () => {
+    fixture = await automationFixture('automation_bindings');
+    const { db, owner, values } = fixture;
+    await db.transaction().execute(async (tx) => createBindingStore(tx).save(owner.accountId, {
+      id: 'bindings', revision: '1', name: 'Academic', values, updatedAt: new Date().toISOString(),
+    }));
+    await fixture.createNode('replacement', 'parent', 'Academic');
+  }, 180_000);
   afterAll(async () => fixture?.isolated.close());
   test('rename preserves identity and binding semantic revision; same-name folder never rebinds', async () => {
     const { db, owner, rule, values, folder } = fixture;
     const reads = createBindingReadPort(db, 'server');
     const initial = await resolveBindings(reads, owner, rule, values);
     expect(initial.academicRoot?.status).toBe('valid');
-    await db.transaction().execute(async (tx) => createBindingStore(tx).save(owner.accountId, {
-      id: 'bindings', revision: '1', name: 'Academic', values, updatedAt: new Date().toISOString(),
-    }));
     await fixture.rename('academic', 'Renamed');
     const renamed = await reads.readFolder(owner, folder);
     expect(renamed).toMatchObject({ status: 'valid', snapshot: { title: 'Renamed', folder } });
     expect((await createBindingStore(db).load(owner.accountId, 'bindings'))?.revision).toBe('1');
-    await fixture.createNode('replacement', 'parent', 'Academic');
     await db.updateTable('nodes').set({ deleted_at: new Date() }).where('id', '=', 'academic').execute();
     expect(await reads.readFolder(owner, folder)).toMatchObject({ status: 'blocked', code: 'bindingDeleted' });
     await db.updateTable('nodes').set({ deleted_at: null }).where('id', '=', 'academic').execute();
