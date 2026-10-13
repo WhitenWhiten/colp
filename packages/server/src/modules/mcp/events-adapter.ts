@@ -22,8 +22,20 @@ export function createMcpEventsAdapter(service: AutomationEventsService): McpEve
       if (method === 'events/subscribe') return await service.subscribe(actor, input!);
       await service.unsubscribe(actor, input!); return {};
     } catch (error) {
-      if (error instanceof AutomationError) throw new McpEventsError(-32602, 'Current target authority is unavailable.');
+      if (error instanceof AutomationError) throw eventsError(error);
       throw error;
     }
   } };
+}
+
+/** Invalid params only for what the caller can fix; transient server conditions stay retryable. */
+function eventsError(error: AutomationError): McpEventsError {
+  switch (error.code) {
+    case 'rate_limited': case 'feature_temporarily_unavailable': case 'automation_paused':
+      return new McpEventsError(-32603, 'Subscriptions are temporarily unavailable; retry later.');
+    case 'invalid_request': case 'payload_too_large':
+      return new McpEventsError(-32602, 'The subscription request is invalid.');
+    default:
+      return new McpEventsError(-32602, 'Current target authority is unavailable.');
+  }
 }

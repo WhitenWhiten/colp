@@ -1,7 +1,7 @@
 /** Pinned OpenAI webhook profile; deliberately excludes draft poll/stream methods. */
 export const MCP_AUTOMATION_EVENT = 'colp.automation.triggered' as const;
 export class McpEventsError extends Error {
-  constructor(readonly code: -32601 | -32602 | -32015, message: string) { super(message); }
+  constructor(readonly code: -32601 | -32602 | -32603 | -32015, message: string) { super(message); }
 }
 export interface McpEventSubscription {
   name: typeof MCP_AUTOMATION_EVENT;
