@@ -10,12 +10,16 @@ import type { DatabaseSchema } from '../database/runtime.js';
 import { createPostgresAccessPolicyFactsPort } from '../access-policy/repositories.js';
 import { editorNodeIdKey, editorParentKey, editorPositionKey } from './editor-query.js';
 
+type BatchOwnedReadPort = Phase4bMcpOwnedCollectionReadPort & {
+  readNodes(request: { collectionId: string; actorSubjectId: string; nodeIds: readonly string[] }): Promise<Phase4bMcpOwnedNodeRecord[]>;
+};
+
 export function createPostgresMcpOwnedCollectionReadPort(input: {
   readonly db: Kysely<DatabaseSchema>;
   readonly accessPolicy: AccessPolicyFactsPort;
-}): Phase4bMcpOwnedCollectionReadPort {
+}): BatchOwnedReadPort {
   const { db, accessPolicy } = input;
-  const port: Phase4bMcpOwnedCollectionReadPort = {
+  const port: BatchOwnedReadPort = {
     async readCollection(request) {
       if (!(await actorCanReadOwned(accessPolicy, request.collectionId, request.actorSubjectId))) {
         return null;
@@ -47,6 +51,15 @@ export function createPostgresMcpOwnedCollectionReadPort(input: {
         return Object.freeze({ collection, root, nodes: Object.freeze(nodes), hasMore, nextAfter,
           consistency: 'version-fenced' as const });
       });
+    },
+    async readNodes(request) {
+      if (request.nodeIds.length > 1001) throw new RangeError('Owned node batch exceeds 1001 identities');
+      if (!request.nodeIds.length || !(await actorCanReadOwned(accessPolicy, request.collectionId, request.actorSubjectId))) return [];
+      const rows = await db.selectFrom('nodes').select(['id','collection_id','parent_id','kind','is_root','title','url',
+        'description','visibility','position_token','resource_revision','children_revision','created_at','updated_at'])
+        .where('collection_id','=',request.collectionId).where('id','in',[...request.nodeIds])
+        .where('deleted_at','is',null).where('kind','in',['folder','bookmark']).execute();
+      return rows.filter(row => row.title !== null).map(row => mapNode(row,row.is_root));
     },
     async readNode(request) {
       if (!(await actorCanReadOwned(accessPolicy, request.collectionId, request.actorSubjectId))) {

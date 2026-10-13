@@ -32,10 +32,21 @@ export async function readCurrentSample(db: Kysely<DatabaseSchema>, reads: Bindi
     ORDER BY created_at DESC,id DESC LIMIT ${limit+1}
   `.execute(db);
   const canonical = createPostgresMcpOwnedCollectionReadPort({ db, accessPolicy: createPostgresAccessPolicyFactsPort(db) });
+  const chosen = selected.rows.slice(0,limit);
+  const batch = (nodeIds: readonly string[]) => canonical.readNodes({actorSubjectId:actor.subjectId,collectionId,nodeIds});
+  const nodes = new Map((await batch(chosen.map(n=>n.id))).map(node=>[node.id,node]));
+  let frontier = [...new Set([...nodes.values()].flatMap(node=>node.parentId ? [node.parentId] : []))];
+  for(let depth=0;frontier.length && depth<128;depth++) {
+    const missing = frontier.filter(id=>!nodes.has(id));
+    if(!missing.length)break;
+    const parents = await batch(missing);
+    for(const parent of parents)nodes.set(parent.id,parent);
+    frontier=[...new Set(parents.flatMap(parent=>parent.parentId ? [parent.parentId] : []))];
+  }
   const urls: Record<string,string> = {};
   const events: EventFacts[] = [], revisions: Record<string, string> = { collectionPolicy: collection.policyRevision };
-  for (const selectedNode of selected.rows.slice(0, limit)) {
-    const node = await canonical.readNode({ actorSubjectId: actor.subjectId, collectionId, nodeId: selectedNode.id });
+  for (const selectedNode of chosen) {
+    const node = nodes.get(selectedNode.id);
     if (!node || node.kind !== 'bookmark') throw new AutomationError('automation_stale_input', 'A sampled bookmark became unavailable.');
     const normalized = normalizeUrl(node.url ?? '');
     const ancestors = [];
@@ -45,7 +56,7 @@ export async function readCurrentSample(db: Kysely<DatabaseSchema>, reads: Bindi
       if (ancestors.length >= 128 || seen.has(parentId))
         throw new AutomationError('automation_binding_unavailable', 'Complete current ancestry exceeds the facts bound or contains a cycle.');
       seen.add(parentId);
-      const parent = await canonical.readNode({ actorSubjectId: actor.subjectId, collectionId, nodeId: parentId });
+      const parent = nodes.get(parentId);
       if (!parent || parent.kind !== 'folder')
         throw new AutomationError('automation_binding_unavailable', 'Complete current ancestry is unavailable.');
       ancestors.push({ serverUuid, collectionId, nodeId: parent.id }); parentId = parent.parentId;

@@ -34,9 +34,13 @@ export async function reconcileCommittedPlanEffect(tx: DatabaseTransaction,actor
   return true;
 }
 export async function reconcileRunPlanEffects(tx: DatabaseTransaction,actor: AutomationActor,runId: string,serverUuid: string): Promise<void> {
+  return reconcileRunsPlanEffects(tx,actor,[runId],serverUuid);
+}
+export async function reconcileRunsPlanEffects(tx: DatabaseTransaction,actor: AutomationActor,runIds: string[],serverUuid: string): Promise<void> {
+  if(!runIds.length)return;
   const jobs = (await sql<{ id: string }>`SELECT j.id FROM automation_jobs j JOIN automation_runs r ON r.id=j.run_id
     JOIN automation_proposals p ON p.job_id=j.id JOIN mcp_change_plans m ON m.plan_id=p.plan_id AND m.status='consumed'
-    WHERE r.id=${runId} AND r.owner_id=${actor.accountId} AND NOT EXISTS (SELECT 1 FROM automation_effect_receipts e WHERE e.job_id=j.id)
-    ORDER BY j.id LIMIT 8`.execute(tx)).rows;
+    WHERE r.id IN (${sql.join(runIds)}) AND r.owner_id=${actor.accountId} AND NOT EXISTS (SELECT 1 FROM automation_effect_receipts e WHERE e.job_id=j.id)
+    ORDER BY j.id LIMIT ${8*runIds.length}`.execute(tx)).rows;
   for (const job of jobs) await reconcileCommittedPlanEffect(tx,actor,job.id,serverUuid);
 }

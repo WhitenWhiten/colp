@@ -27,7 +27,7 @@ export function automationRunRoutes(cursorKey: string): AutomationRoute[] {
       const scope = JSON.stringify(['runs', query.collectionId ?? null, query.nodeId ?? null]);
       const now = await ports.now(), { limit, after } = page.read(query, actor.accountId, scope, now);
       const rows = await ports.runs.list(after, limit + 1, query.nodeId ? { collectionId: query.collectionId!, nodeId: query.nodeId } : undefined);
-      const items = await Promise.all(rows.slice(0, limit).map(row => getAutomationRun(ports.runs, row.view.id)));
+      const items = rows.slice(0, limit).map(row => row.view);
       const last = rows[limit - 1];
       return automationView({ items, nextCursor: rows.length > limit && last
         ? page.next(actor.accountId, scope, limit, { createdAt: last.sortCreatedAt, id: last.view.id }, now) : null });

@@ -5,6 +5,7 @@ import { requireEtag } from './rule-service.js';
 export interface StoredRun { view: Run; sortCreatedAt: string }
 export interface RunStore {
   load(id: string): Promise<StoredRun | null>;
+  /** Fully hydrated authorized page, including effects, usage and unread state. */
   list(after: PageAfter | null, limit: number, bookmark?: { collectionId: string; nodeId: string }): Promise<StoredRun[]>;
   cancel(id: string): Promise<void>;
   effects(id: string): Promise<EffectReceiptView[]>;
