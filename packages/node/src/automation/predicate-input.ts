@@ -25,7 +25,7 @@ export function preparePredicateInput(value: unknown, options: { factsVersion?: 
 }
 
 /** Internal lookup rejects forged handles and use with another source/version. */
-export function preparedPredicateInput(handle: PreparedPredicateInput, source: unknown, version = FACTS_VERSION): Snapshot | undefined {
+export function preparedPredicateInput(handle: PreparedPredicateInput, source: unknown, version: number = FACTS_VERSION): Snapshot | undefined {
   const snapshot = snapshots.get(handle);
-  return snapshot?.source === source && snapshot.version === version ? snapshot : undefined;
+  return snapshot && snapshot.source === source && snapshot.version === version ? snapshot : undefined;
 }
