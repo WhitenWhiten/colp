@@ -1,3 +1,4 @@
+import { retainAutomationHistory } from '../infrastructure/automation/retention-worker.js';
 import { createDeliveryWorker } from '../infrastructure/automation/delivery-worker.js';
 import { createWebhookVerifier } from '../infrastructure/automation/webhook-verifier.js';
 import { createTargetWorkerService } from '../infrastructure/automation/target-worker.js';
@@ -399,9 +400,14 @@ export function buildWorker(
       createWebhookVerifier(config.automationWebhookMasterKey)) : undefined;
   let deliveryTimer: ReturnType<typeof setInterval> | undefined;
   let deliveryTick: Promise<void> | undefined;
+  let retentionAfter = '';
   const pollDeliveries = () => {
     if (!deliveryWorker || deliveryTick) return;
-    deliveryTick = (async () => { for (let i=0;i<20;i++) if (!await deliveryWorker.tick()) break; })()
+    deliveryTick = (async () => { for (let i=0;i<20;i++) if (!await deliveryWorker.tick()) break;
+      if (database) {
+        const owner=await database.db.selectFrom('accounts').select('id').where('id','>',retentionAfter).orderBy('id').limit(1).executeTakeFirst();
+        if (owner) { await retainAutomationHistory(database.db,owner.id);retentionAfter=owner.id; } else retentionAfter='';
+      } })()
       .catch(() => { metrics.increment('automation.delivery.error'); }).finally(() => { deliveryTick=undefined; });
   };
   const baseProjectionSink = originalProjectionSink && automationHealth ? automationHealth.wrap(originalProjectionSink) : originalProjectionSink;

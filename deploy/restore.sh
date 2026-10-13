@@ -70,6 +70,19 @@ DO $$ BEGIN
       LEFT JOIN (SELECT owner_id,max(settings_revision) AS revision FROM automation_device_bundles GROUP BY owner_id) b ON b.owner_id=a.id
       ON CONFLICT (owner_id) DO UPDATE SET revision=greatest(automation_configuration_epochs.revision,excluded.revision)+1;
   END IF;
+  IF to_regclass('automation_job_attempts') IS NOT NULL THEN
+    UPDATE automation_job_attempts SET outcome='unknownOutcome' WHERE outcome='leased';
+    UPDATE automation_jobs SET state='uncertain',revision=revision+1,
+      explanation='Restored external attempt has unknown outcome; reconcile before an explicit retry.' WHERE state='leased';
+  END IF;
+  IF to_regclass('automation_event_subscriptions') IS NOT NULL THEN
+    UPDATE automation_event_subscriptions SET state='revalidation',generation=generation+1,
+      secret_ciphertext=NULL,previous_secret_ciphertext=NULL,previous_secret_until=NULL WHERE state IN ('active','verifying');
+  END IF;
+  IF to_regclass('automation_event_deliveries') IS NOT NULL THEN
+    UPDATE automation_event_deliveries SET state='cancelled',generation=generation+1,lease_until=NULL,next_attempt_at=NULL,
+      last_error_code='restore_revalidation' WHERE state IN ('pending','retrying','sending');
+  END IF;
 END $$;
 SQL
 
