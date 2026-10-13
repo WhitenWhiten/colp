@@ -26,7 +26,7 @@ export function createAutomationUnitOfWork(db: Kysely<DatabaseSchema>, serverUui
     if (!account || account.status !== 'active' || account.deleted_at || account.subject_id !== actor.subjectId)
       throw new AutomationError('resource_not_found', 'Active owner is unavailable.');
     const reads = createBindingReadPort(tx, serverUuid);
-    return work({ policies: createExecutionPolicyStore(tx, actor.accountId), runtimeEnabled: options.runtimeEnabled === true, placementUndo: createPlacementUndoPort(tx, actor), runs: createRunStore(tx, actor), health: createHealthStore(tx), receipts: createPostgresProductCommandReceiptPort(tx), rules: createRuleStore(tx, options.runtimeEnabled), bindings: createBindingStore(tx),
+    return work({ policies: createExecutionPolicyStore(tx, actor.accountId), runtimeEnabled: options.runtimeEnabled === true, placementUndo: createPlacementUndoPort(tx, actor), runs: createRunStore(tx, actor, serverUuid), health: createHealthStore(tx), receipts: createPostgresProductCommandReceiptPort(tx), rules: createRuleStore(tx, options.runtimeEnabled), bindings: createBindingStore(tx),
       reads, dependencies: createDependencyIndex(tx), id: randomUUID, now: () => databaseNow(tx),
       sample: (owner, rule, values) => readCurrentSample(tx, reads, serverUuid, owner, rule, values), export: (ownerId) => exportAutomations(tx, ownerId),
       settings: {

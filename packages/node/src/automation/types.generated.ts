@@ -788,6 +788,10 @@ export interface EffectReceiptView {
   planId?: OpaqueId;
   undoAvailable: boolean;
   undoReason: string;
+  /**
+   * Verified pre-commit collection version linked to the same plan; does not imply every field is undoable.
+   */
+  versionId?: string;
 }
 export interface Evidence {
   kind: "source" | "model" | "user" | "rule";

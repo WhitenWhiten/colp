@@ -19435,6 +19435,11 @@ components:
           type: string
           minLength: 1
           maxLength: 1000
+        versionId:
+          type: string
+          minLength: 1
+          maxLength: 128
+          description: Verified pre-commit collection version linked to the same plan; does not imply every field is undoable.
       required:
         - id
         - kind

@@ -1,3 +1,5 @@
+import { reconcileRunPlanEffects } from './reconcile-plan-effect.js';
+import { planEffectView } from './plan-effect-view.js';
 import { placementEffectView, type PlacementEffectRow } from './placement-history-store.js';
 import { sql } from 'kysely';
 import type { Run } from '@know-n/colp/automation';
@@ -8,7 +10,7 @@ interface RunRow {
   member_ids: string[]; state: Run['status']; created_at: Date; updated_at: Date; kind: Run['kind'];
   held: boolean; explanation_json: Parameters<typeof explainRun>[2] & { causationRoot?: string }; sort_created_at: string;
 }
-export function createRunStore(tx: DatabaseTransaction, actor: AutomationActor): RunStore {
+export function createRunStore(tx: DatabaseTransaction, actor: AutomationActor, serverUuid: string): RunStore {
   const select = sql`SELECT r.*, r.revision::text, v.rule_id, v.revision::text AS rule_revision,
     to_char(r.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS sort_created_at
     FROM automation_runs r JOIN automation_rule_revisions v ON v.id=r.rule_revision_id
@@ -22,7 +24,7 @@ export function createRunStore(tx: DatabaseTransaction, actor: AutomationActor):
     jobIds: [], causationRoot: row.explanation_json.causationRoot ?? row.id, kind: row.kind, effects: [], unread: false, outputCount: 0,
   } });
   return {
-    async load(id) { const row = (await sql<RunRow>`${select} AND r.id=${id}`.execute(tx)).rows[0]; return row ? map(row) : null; },
+    async load(id) { await reconcileRunPlanEffects(tx,actor,id,serverUuid); const row = (await sql<RunRow>`${select} AND r.id=${id}`.execute(tx)).rows[0]; return row ? map(row) : null; },
     async list(after, limit, bookmark) {
       const cursor = after ? sql`AND (r.created_at,r.id) < (${after.createdAt}::timestamptz,${after.id})` : sql``;
       const filter = bookmark ? sql`AND c.id=${bookmark.collectionId} AND r.explanation_json->>'nodeId'=${bookmark.nodeId}` : sql``;
@@ -34,7 +36,7 @@ export function createRunStore(tx: DatabaseTransaction, actor: AutomationActor):
       const rows = (await sql<PlacementEffectRow>`SELECT e.* FROM automation_effect_receipts e
         JOIN automation_runs r ON r.id=e.run_id WHERE r.id=${id} AND r.owner_id=${actor.accountId}
         ORDER BY e.created_at DESC,e.id DESC LIMIT 100`.execute(tx)).rows;
-      return Promise.all(rows.map(row => placementEffectView(tx, actor, row)));
+      return Promise.all(rows.map(row => row.plan_id ? planEffectView(tx,actor,row) : placementEffectView(tx, actor, row)));
     },
   };
 }

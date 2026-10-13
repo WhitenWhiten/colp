@@ -5074,6 +5074,8 @@ export interface components {
             planId?: components["schemas"]["AutomationOpaqueId"];
             undoAvailable: boolean;
             undoReason: string;
+            /** @description Verified pre-commit collection version linked to the same plan; does not imply every field is undoable. */
+            versionId?: string;
         };
         AutomationOpaqueId: string;
         AutomationOperationReceipt: {

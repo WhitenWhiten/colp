@@ -23,3 +23,5 @@ export * from './application/result-reuse.js';
 export * from './application/claim-job.js';
 export * from './application/submit-result.js';
 export * from './application/effect-gateway.js';
+export * from './application/approval-service.js';
+export * from './application/undo-service.js';

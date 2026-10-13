@@ -1,3 +1,4 @@
+import { reconcileCommittedPlanEffect } from './reconcile-plan-effect.js';
 import { randomUUID } from 'node:crypto';
 import { sql, type Kysely } from 'kysely';
 import { type TaskSpec, type TaskInput, type FolderRef, type SubmissionResult } from '@know-n/colp/automation';
@@ -116,19 +117,8 @@ export function createResultSubmissionPort(db: Kysely<DatabaseSchema>,serverUuid
         const job = await lockWorkJob(tx,actor,id,authorize), result = (await sql<ResultRow>`SELECT * FROM automation_results WHERE job_id=${id}`.execute(tx)).rows[0];
         if (!result) throw new AutomationError('resource_not_found','Result is unavailable.');
         if (p && advanced === 'committed') {
-          const op = p.operations_json[0]!;
-          const committed = await tx.selectFrom('operations').select('operation_id').where('operation_id','=',op.operationId).executeTakeFirst();
-          if (!committed) throw new AutomationError('automation_stale_input','Committed canonical operation is not yet reconcilable.');
-          const facts = await tx.selectFrom('resource_revisions as r').innerJoin('operations as o', join => join.onRef('r.collection_id','=','o.collection_id').onRef('r.ordinal','=','o.commit_ordinal'))
-            .select('r.revision').where('o.operation_id','=',op.operationId).where('r.resource_id','=',op.annotationId ?? op.nodeId).executeTakeFirst();
-          const version = (await sql<{ version_id: string; content_revision: string }>`SELECT v.version_id,c.content_revision FROM mcp_plan_policy_receipts v
-            JOIN mcp_plan_commit_revisions c ON c.plan_id=v.plan_id AND c.collection_id=v.collection_id WHERE v.plan_id=${p.plan_id}`.execute(tx)).rows[0];
-          if (!facts || !version) throw new AutomationError('automation_stale_input','Plan history linkage is not yet reconcilable.');
-          await sql`INSERT INTO automation_effect_receipts(id,run_id,job_id,step_id,target_partition,plan_id,operation_id,before_revision,after_revision,effect_digest,collection_id,node_id,after_content_revision,version_id)
-            VALUES(${randomUUID()},${job.run_id},${id},${id},${job.target_id},${p.plan_id},${op.operationId},${job.input_revision},${facts.revision},${result.proposal_digest},${job.collection_id},${job.node_id},${version.content_revision},${version.version_id})
-            ON CONFLICT(run_id,step_id,target_partition) DO NOTHING`.execute(tx);
-          await sql`UPDATE automation_results SET status='accepted' WHERE id=${result.id}`.execute(tx);
-          await sql`UPDATE automation_jobs SET state='succeeded',revision=revision+1 WHERE id=${id} AND state<>'succeeded'`.execute(tx);
+          if (!await reconcileCommittedPlanEffect(tx,actor,id,serverUuid))
+            throw new AutomationError('automation_stale_input','Committed plan is not yet reconcilable.');
         } else if (advanced) await sql`UPDATE automation_jobs SET state=${advanced === 'review' ? 'review' : advanced},revision=revision+1 WHERE id=${id} AND state<>${advanced}`.execute(tx);
         const row = (await sql<{ state: SubmissionResult['status'] }>`SELECT state FROM automation_jobs WHERE id=${id}`.execute(tx)).rows[0]!;
         const effects = (await sql<{ id: string }>`SELECT id FROM automation_effect_receipts WHERE job_id=${id}`.execute(tx)).rows;
