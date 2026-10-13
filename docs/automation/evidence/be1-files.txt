@@ -86,6 +86,7 @@ docs/automation/evidence/aw-09.md
 docs/automation/evidence/aw-10.md
 docs/automation/evidence/aw-11.md
 docs/automation/evidence/be1-files.txt
+docs/automation/evidence/self-review.md
 packages/node/docs/API.md
 packages/node/docs/AUTOMATION_BROWSER_PROFILE.md
 packages/node/package.json
@@ -117,6 +118,7 @@ packages/server/generated/openapi/product-v1.routes.ts
 packages/server/generated/openapi/product-v1.ts
 packages/server/migrations/202610300100_automation_configuration.ts
 packages/server/migrations/202610300200_automation_runtime.ts
+packages/server/migrations/202610300300_automation_revision_delete_guard.ts
 packages/server/openapi/README.md
 packages/server/openapi/automation-operations.json
 packages/server/openapi/baselines/product-v1.1.94.0.yaml
@@ -154,6 +156,7 @@ packages/server/src/modules/automation/application/lifecycle-service.ts
 packages/server/src/modules/automation/application/ports.ts
 packages/server/src/modules/automation/application/preview-service.ts
 packages/server/src/modules/automation/application/resolve-bindings.ts
+packages/server/src/modules/automation/application/rule-eligibility.ts
 packages/server/src/modules/automation/application/rule-service.ts
 packages/server/src/modules/automation/domain/bindings.ts
 packages/server/src/modules/automation/domain/errors.ts

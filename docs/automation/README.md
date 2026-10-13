@@ -85,3 +85,10 @@ The vendored local package is refreshed with
 shared source, updates both locks and keeps Docker's dependency stages reproducible.
 Public npm publication, real Chrome/MV3 CSP/store acceptance, real deployed restore and
 BE-2 effect/admission/Undo evidence are separate future gates.
+
+## Self-review correction
+
+The [self-review report](evidence/self-review.md) supersedes the original unconditional
+completion statement: it records eight reproduced and fixed defects, targeted regression
+evidence, contract drift and remaining validation limits. New installations and existing
+BE-1 installations apply the forward-only 202610300300 revision-delete guard migration.
