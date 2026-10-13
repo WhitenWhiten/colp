@@ -38,6 +38,9 @@ export function normalizeEventFacts(value: unknown, version: number = FACTS_VERS
   if (version !== FACTS_VERSION) return { status: 'missingInput', reason: 'unsupportedFactsVersion' };
   if (!validateAutomation('EventFacts', value).valid) return { status: 'missingInput', reason: 'invalidFacts' };
   const facts = structuredClone(value) as EventFacts;
+  // An empty host marks a bookmark without an http(s) URL (javascript:, file:, chrome:). Only its URL
+  // facts are missing; title, tags and event facts still evaluate.
+  if (facts.bookmark.url.host === '' && facts.bookmark.url.path === undefined) return { status: 'available', facts: normalizeText(facts) };
   const host = normalizeHost(facts.bookmark.url.host);
   if (!host) return { status: 'missingInput', reason: 'invalidUrl' };
   const path = facts.bookmark.url.path;
@@ -46,7 +49,11 @@ export function normalizeEventFacts(value: unknown, version: number = FACTS_VERS
   const normalizedPath = path === undefined ? undefined : normalizeUrl(`https://${host}${path}`);
   if (normalizedPath?.status === 'missingInput') return { status: 'missingInput', reason: 'invalidPath' };
   facts.bookmark.url = { host, ...(normalizedPath?.status === 'available' ? { path: normalizedPath.path } : {}) };
+  return { status: 'available', facts: normalizeText(facts) };
+}
+
+function normalizeText(facts: EventFacts): EventFacts {
   facts.bookmark.tags = [...new Set(facts.bookmark.tags.map((tag) => tag.normalize('NFC')))];
   facts.bookmark.title = facts.bookmark.title.normalize('NFC');
-  return { status: 'available', facts };
+  return facts;
 }

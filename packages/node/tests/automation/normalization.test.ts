@@ -64,3 +64,13 @@ test('review: rule path and host values share the bookmark URL normalizer', () =
   expect(normalizePathText('/a b/日', true)).toBe('/a%20b/%E6%97%A5');
   expect(normalizePathText('a\\b#c', false)).toBe('a/b%23c');
 });
+
+test('review: a bookmark without an http URL only misses its URL facts', () => {
+  const bookmarklet = { ...facts, bookmark: { ...facts.bookmark, url: { host: '' }, title: 'Bookmarklet' } };
+  expect(normalizeEventFacts(bookmarklet).status).toBe('available');
+  const evaluate = (match: unknown) => { const compiled = compilePredicate(match); return compiled.valid ? compiled.evaluate(bookmarklet).outcome : 'invalid'; };
+  expect(evaluate({ kind: 'field', field: 'bookmark.title', op: 'contains', value: 'Bookmarklet' })).toBe('matched');
+  expect(evaluate({ kind: 'field', field: 'bookmark.url.host', op: 'hostSuffix', value: 'arxiv.org' })).toBe('missingInput');
+  expect(evaluate({ kind: 'field', field: 'bookmark.url.path', op: 'startsWith', value: '/' })).toBe('missingInput');
+  expect(normalizeEventFacts({ ...bookmarklet, bookmark: { ...bookmarklet.bookmark, url: { host: '', path: '/x' } } }).status).toBe('missingInput');
+});

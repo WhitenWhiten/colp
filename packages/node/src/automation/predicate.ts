@@ -7,7 +7,7 @@ export type PredicateDecision = { outcome: 'matched' | 'notMatched' | 'missingIn
 export interface EvaluationOptions { now?: () => number; budgetMs?: number; factsVersion?: number; inputSnapshot?: PreparedPredicateInput }
 function readField(facts: EventFacts, field: FieldPredicate['field']): string | string[] | undefined {
   switch (field) {
-    case 'bookmark.url.host': return facts.bookmark.url.host;
+    case 'bookmark.url.host': return facts.bookmark.url.host || undefined;
     case 'bookmark.url.path': return facts.bookmark.url.path;
     case 'bookmark.title': return facts.bookmark.title;
     case 'bookmark.tags': return facts.bookmark.tags;
