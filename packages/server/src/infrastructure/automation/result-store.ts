@@ -1,3 +1,4 @@
+import { assertValidNodeTags, CollectionsError, ANNOTATION_MAX_VALUE_BYTES } from '../../modules/collections/index.js';
 import { advanceRunTasks } from './task-scheduler.js';
 import { currentWorkInputs } from './worker-inputs.js';
 import { reconcileCommittedPlanEffect } from './reconcile-plan-effect.js';
@@ -65,9 +66,13 @@ export function createResultSubmissionPort(db: Kysely<DatabaseSchema>,serverUuid
         JOIN automation_execution_policy_revisions p ON p.policy_id=v.execution_policy_id AND p.revision::text=r.policy_revision
         WHERE r.id=${job.run_id}`.execute(tx)).rows[0];
       if (!policy) throw new AutomationError('automation_unsupported_capability','Pinned execution policy is unavailable.');
-      const state = kind === 'review' ? 'review' : kind === 'none' ? 'succeeded' : 'committing';
-      const resultId = await storeTypedResult(tx,job,input,digest,pin.authority_digest,state);
-      if (kind === 'none' || kind === 'review') return;
+      const retainForReview = async (reason: string) => {
+        await storeTypedResult(tx,job,input,digest,pin.authority_digest,'review',reason);
+      };
+      if (kind === 'none' || kind === 'review') {
+        await storeTypedResult(tx,job,input,digest,pin.authority_digest,kind === 'none' ? 'succeeded' : 'review');
+        return;
+      }
       if (!actor.resourceAudience || !actor.securityEpoch) throw new AutomationError('insufficient_permission','Verified credential binding is required.');
       const planId = `automation-${id}`, commandId = randomUUID(), operationId = `automation-op-${id}`;
       const binding: McpAuthenticatedAuthorizationBinding = { kind: 'authenticated',principalId: actor.accountId,clientId: actor.clientId,
@@ -79,6 +84,11 @@ export function createResultSubmissionPort(db: Kysely<DatabaseSchema>,serverUuid
       if (input.output.kind === 'tags') {
         const rejected = new Set((await sql<{ tag_key: string }>`SELECT tag_key FROM automation_tag_rejections WHERE owner_id=${actor.accountId} AND rule_id=${job.rule_id}`.execute(tx)).rows.map(r => r.tag_key));
         operation.tags = [...new Set([...(node.payload_json?.tags as string[] ?? []),...input.output.add.map(tag => tag.key.normalize('NFC')).filter(tag => !rejected.has(tag))])];
+        try { assertValidNodeTags(operation.tags); }
+        catch (error) {
+          if (!(error instanceof CollectionsError)) throw error;
+          return retainForReview('The proposed tag union exceeds canonical tag constraints; review the retained output.');
+        }
       }
       if (input.output.kind === 'placement' && input.output.destination) {
         operation.parentId = input.output.destination.nodeId; operation.sourceParentId = node.parent_id!;
@@ -94,17 +104,20 @@ export function createResultSubmissionPort(db: Kysely<DatabaseSchema>,serverUuid
           .where('collection_id','=',job.collection_id).where('subject_id','=',job.node_id).where('subject_type','=','node')
           .where('creator_principal_id','=',actor.accountId).where('visibility','=','private').where('deleted_at','is',null)
           .where(sql<string>`payload_json->>'type'`,'=','note').orderBy('id').limit(2).execute();
-        if (existingNote.length > 1) throw new AutomationError('automation_unsupported_capability','Multiple notes require explicit review; no arbitrary note is selected.');
+        if (existingNote.length > 1) return retainForReview('Multiple notes require explicit review; no arbitrary note is selected.');
         if (existingNote[0]) {
           const note = existingNote[0], payload = note.payload_json;
           if (typeof payload.value !== 'string' || !['plain','markdown'].includes(String(payload.format)))
-            throw new AutomationError('automation_unsupported_capability','This note format cannot be safely appended.');
+            return retainForReview('This note format cannot be safely appended.');
           operation.type='update_annotation';operation.annotationId=note.id;operation.annotationRevision=note.resource_revision;
           operation.text=payload.value+'\n\n'+operation.text;
-          if (Buffer.byteLength(operation.text,'utf8')>65_536) throw new AutomationError('payload_too_large','Appended note exceeds the canonical note size bound.');
+
         }
+        if (Buffer.byteLength(operation.text,'utf8')>ANNOTATION_MAX_VALUE_BYTES)
+          return retainForReview('The attributed note exceeds the canonical byte limit; review the retained output.');
         operation.creator = { id: `urn:colp:account:${actor.accountId}`,name: 'Automation' };
       }
+      const resultId = await storeTypedResult(tx,job,input,digest,pin.authority_digest,'committing');
       await sql`INSERT INTO automation_proposals(job_id,result_id,plan_id,command_id,binding_json,operations_json,base_revisions_json,allow_automatic_writes)
         VALUES(${id},${resultId},${planId},${commandId},${JSON.stringify(binding)}::jsonb,${JSON.stringify([operation])}::jsonb,${JSON.stringify(revisions)}::jsonb,${policy.configuration_json.allowAutomaticWrites})`.execute(tx);
     }),

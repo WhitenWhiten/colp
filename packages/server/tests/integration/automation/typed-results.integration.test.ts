@@ -80,4 +80,18 @@ describeWithPostgres('AW-24 typed proposal and real plan recovery', () => {
     expect(await submitResult(f.results,f.actor,f.jobId,body)).toMatchObject({ status: 'stale',effectReceiptIds: [] });
     expect((await f.db.selectFrom('mcp_change_plans').select('plan_id').execute())).toHaveLength(0);
   });
+  test.each(['tags','summary'] as const)('canonical %s constraints retain review instead of an uncommittable plan',async kind=>{
+    f=await automationJobFixture('canonical_output_'+kind,kind);
+    await writeAgentPolicy(f.db,f.owner.accountId,'client','trusted');
+    const lease=await claimJob(f.leases,f.actor,f.jobId,{deliveryHandle:'handle'});
+    const output=kind==='tags'
+      ? {kind:'tags',mergeMode:'unionPreserveUser',add:[{key:'x'.repeat(65),label:'Long tag',evidence:evidence()}]}
+      : {kind:'text',textType:'summary',text:'界'.repeat(22000),language:'en',evidence:evidence()};
+    const body={claimToken:lease.claimToken,generation:lease.generation,inputDigest:lease.inputDigest,outputContract:f.task.outputContract,output};
+    const result=await submitResult(f.results,f.actor,f.jobId,body);expect(result.status).toBe('review');
+    expect((await submitResult(f.results,f.actor,f.jobId,body)).resultId).toBe(result.resultId);
+    expect((await sql`SELECT * FROM automation_proposals WHERE job_id=${f.jobId}`.execute(f.db)).rows).toHaveLength(0);
+    expect((await sql`SELECT * FROM automation_job_attempts WHERE job_id=${f.jobId}`.execute(f.db)).rows).toHaveLength(1);
+  });
+
 });
