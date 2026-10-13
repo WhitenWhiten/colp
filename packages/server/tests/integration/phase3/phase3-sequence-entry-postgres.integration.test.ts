@@ -28,9 +28,8 @@ import {
   phase3SequenceCanonicalMutation,
 } from '../../fixtures/phase3/sequence-entry.js';
 
-// COLP Server: one committed node update writes only the canonical outbox
-// event; Know-N also writes the feed and public-activity rows (tests/EXTRACTION.md).
-const COMMITTED_OUTBOX_EVENTS = 1;
+// One committed node update writes the canonical event and one automation wake.
+const COMMITTED_OUTBOX_EVENTS = 2;
 
 async function verifiedSessionFor(sessionId = FIXTURE.sessionId) {
   return await verifyFixtureSyncSessionRecord({

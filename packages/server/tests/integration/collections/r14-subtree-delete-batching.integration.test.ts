@@ -557,7 +557,9 @@ describeWithPostgres('R14 batched subtree delete authority and sidecars', () => 
       [operationId],
     );
     const total = rows.rows.reduce((sum: number, row) => sum + row.count, 0);
-    assert.equal(total, expectedTotal, `expected ${expectedTotal} outbox events, got ${total}`);
+    const automation = rows.rows.find((row) => row.event_type === 'automation.source.committed');
+    assert.equal(automation?.count, 1, 'one automation wake per canonical operation');
+    assert.equal(total, expectedTotal + 1, `expected ${expectedTotal} domain events plus one automation wake, got ${total}`);
     const nodeDeleted = rows.rows.find((row) => row.event_type === 'node.deleted');
     assert.ok(nodeDeleted, 'node.deleted summary event must exist');
     assert.equal(nodeDeleted.count, 1, 'the main node.deleted domain event count must be independent of N');

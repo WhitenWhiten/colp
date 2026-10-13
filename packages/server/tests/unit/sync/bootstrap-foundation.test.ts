@@ -65,8 +65,11 @@ test('COLP is consumed through the public workspace package dependency', () => {
   };
   const colp = Object.entries(dependencies).find(([name]) => name === '@know-n/colp');
   assert.ok(colp, 'a COLP public package dependency is required');
-  // Exact pin, and the same version the release reports in /health.
-  assert.equal(colp[1], version.colp);
+  // Exact registry or vendored artifact pin; inspect the installed public package too.
+  assert.ok([version.colp, `file:vendor/know-n-colp-${version.colp}.tgz`].includes(colp[1]));
+  const installed = readJson<{ name: string; version: string }>('node_modules/@know-n/colp/package.json');
+  assert.equal(installed.name, '@know-n/colp');
+  assert.equal(installed.version, version.colp);
 
   const sourceFiles = [
     ...['src', 'worker'].flatMap((directory) => {

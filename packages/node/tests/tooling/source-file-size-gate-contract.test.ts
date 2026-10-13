@@ -19,9 +19,9 @@ const baseline = JSON.parse(
 ) as { maximumNewFileLines: number; excludeFileNames?: readonly string[] };
 
 describe('COLP source-size ratchet [SYNC-Q-018]', () => {
-  it('rejects a 601-line new production file and excludes generated.ts', () => {
+  it('rejects a 601-line new production file and excludes generated contracts', () => {
     expect(baseline.maximumNewFileLines).toBe(600);
-    expect(baseline.excludeFileNames).toEqual(['generated.ts']);
+    expect(baseline.excludeFileNames).toEqual(['generated.ts', 'types.generated.ts', 'schema.generated.ts']);
     expect(
       evaluateSourceFileSizes({ 'src/new-module.ts': 601 }, { maximumNewFileLines: 600, grandfathered: {} }),
     ).toEqual(['src/new-module.ts: 601 lines exceeds the new-file limit 600']);
