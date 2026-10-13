@@ -1,3 +1,4 @@
+import { principalObservation } from './principal-observation.js';
 import type { AutomationProfileAccess } from '../../modules/mcp/index.js';
 import { randomUUID,timingSafeEqual } from 'node:crypto';
 import { sql,type Kysely } from 'kysely';
@@ -84,9 +85,7 @@ export function createTargetWorkerService(db: Kysely<DatabaseSchema>,verifyBindi
         await sql`UPDATE automation_pairings SET consumed_at=clock_timestamp() WHERE id=${input.pairingId}`.execute(tx);
         await sql`UPDATE automation_targets SET paired=true,dedicated_binding=${binding.dedicated},last_seen_at=clock_timestamp(),revision=revision+1 WHERE id=${grant.target_id}`.execute(tx);
         // Whitelist token-free identity fields. Never serialize an arbitrary actor object or request.
-        const observation = { accountId: actor.accountId,subjectId: actor.subjectId,clientId: actor.clientId,credentialBindingId: actor.credentialBindingId,
-          resourceAudience: actor.resourceAudience ?? null,securityEpoch: actor.securityEpoch ?? null,scopes: [...actor.scopes],
-          credentialDigest: actor.credentialDigest ?? null,expiresAt: actor.expiresAt ?? null,issuedAtSeconds: actor.issuedAtSeconds ?? null,accountSecurityEpoch: actor.accountSecurityEpoch ?? null };
+        const observation = principalObservation(actor);
         await sql`UPDATE automation_connection_profiles SET observation_json=${JSON.stringify(observation)}::jsonb WHERE id=${current.id}`.execute(tx);
         const target = (await createTargetStore(tx,actor.accountId,verifyBinding).targets.load(grant.target_id))!;
         await receipts.complete(command,fingerprint,{ status: 200,body: new TextEncoder().encode(JSON.stringify(target)),mediaType: 'application/json',

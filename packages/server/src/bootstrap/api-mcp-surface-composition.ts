@@ -353,11 +353,11 @@ export async function composeApiMcpSurface(input: {
     const verifyTargetBinding=createAutomationBindingVerifier(config,createMcpSecurityEpochReader(config,mcpOauthRevocationStore));
     mcpApplicationFacade=withAutomationCatalog(mcpApplicationFacade,createAutomationToolPort({
       access: async context => context.principal.kind === 'anonymous' ? Promise.resolve(null) : automationTargetWorker.access(automationWorkPrincipal(context)).then(access => access ? { ...access,workAvailable: !!automationWorker } : null),
-      configurations: createAutomationUnitOfWork(database.db,config.publication.serverUuid,{ runtimeEnabled: true,workerEnabled: !!automationWorker,verifyTargetBinding }),
+      configurations: createAutomationUnitOfWork(database.db,config.publication.serverUuid,{ eventsEnabled:config.mcpEventsEnabled === true && !!automationWorker,runtimeEnabled: true,workerEnabled: !!automationWorker,verifyTargetBinding }),
       worker: automationWorker,pairing: automationTargetWorker,cursorKey: config.productEditorCursor.current.key,
     }));
   }
-  if (config.mcpEventsEnabled && mcpApplicationFacade && automationTargetWorker) {
+  if (config.mcpEventsEnabled && mcpApplicationFacade && automationTargetWorker && automationWorker) {
     mcpApplicationFacade = { ...mcpApplicationFacade, events: createMcpEventsAdapter(createSubscriptionStore(database.db, automationTargetWorker, config.automationWebhookMasterKey ? createWebhookVerifier(config.automationWebhookMasterKey) : undefined)) };
   }
   return {

@@ -5407,10 +5407,10 @@ export interface components {
             reportedCostMicros?: string;
             /** Format: date */
             budgetDay?: string;
-            /** @constant */
-            deliveryCapability?: "unavailable";
-            /** @description Unavailable until the Events delivery adapter exists; never a fabricated zero. */
-            acceptedDeliveries?: null;
+            /** @enum {string} */
+            deliveryCapability?: "unavailable" | "available";
+            /** @description Observed accepted callbacks only; never a count of completed jobs. Null when Events delivery is not enabled. */
+            acceptedDeliveries?: number | null;
         };
         AutomationChangeInput: {
             definition: components["schemas"]["AutomationRuleDefinition"];

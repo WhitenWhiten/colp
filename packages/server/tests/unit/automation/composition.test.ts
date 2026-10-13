@@ -1,3 +1,4 @@
+import { automationCapabilities } from '../../../src/modules/automation/index.js';
 import { afterEach, test, expect, vi } from 'vitest';
 import { loadConfig } from '../../support/test-config.js';
 import { buildApiApp } from '../../../src/transport/app.js';
@@ -53,4 +54,19 @@ test('configuration-only composition cannot distribute an active device bundle',
     });
     expect(app.hasRoute({ method: 'GET', url: '/api/v1/automation-device/bundle' })).toBe(enabled);
   }
+});
+
+test('Events requires explicit flag and a canonical 32-byte encryption key',()=>{
+  expect(loadConfig(env).mcpEventsEnabled).toBe(false);
+  expect(()=>loadConfig({...env,KNOWN_FEATURE_MCP_EVENTS:'true'})).toThrow('AUTOMATION_WEBHOOK_MASTER_KEY');
+  expect(()=>loadConfig({...env,KNOWN_FEATURE_MCP_EVENTS:'true',AUTOMATION_WEBHOOK_MASTER_KEY:Buffer.alloc(24).toString('base64')})).toThrow('AUTOMATION_WEBHOOK_MASTER_KEY');
+  const config=loadConfig({...env,KNOWN_FEATURE_MCP_EVENTS:'true',AUTOMATION_WEBHOOK_MASTER_KEY:Buffer.alloc(32,7).toString('base64')});
+  expect(config.mcpEventsEnabled).toBe(true);expect(config.automationWebhookMasterKey).toHaveLength(32);
+});
+
+test('Events capability requires installed runtime, worker and explicit Events composition',()=>{
+  expect(automationCapabilities({runtimeEnabled:true,workerEnabled:true,eventsEnabled:true}).eventsEnabled).toBe(true);
+  expect(automationCapabilities({runtimeEnabled:true,workerEnabled:true,eventsEnabled:false}).eventsEnabled).toBe(false);
+  expect(automationCapabilities({runtimeEnabled:false,workerEnabled:true,eventsEnabled:true}).eventsEnabled).toBe(false);
+  expect(automationCapabilities({runtimeEnabled:true,workerEnabled:false,eventsEnabled:true}).eventsEnabled).toBe(false);
 });

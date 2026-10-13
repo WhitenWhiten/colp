@@ -20,7 +20,7 @@ export function deliveryRetryDelay(attempt: number,retryAfter: string | null,now
 }
 /** A bounded one-occurrence tick. Network I/O never holds database locks. */
 export function createDeliveryWorker(db: Kysely<DatabaseSchema>,authorize: TargetAuthority,transport: DeliveryTransport) {
-  async function destination(tx: DatabaseTransaction,d: Delivery): Promise<Destination | null> {
+  async function destination(tx: DatabaseTransaction,d: Delivery,completion = false): Promise<Destination | null> {
     const row = (await sql<Destination>`SELECT s.callback_url,s.secret_ciphertext,s.previous_secret_ciphertext,s.previous_secret_until,p.observation_json
       FROM automation_event_subscriptions s JOIN automation_targets t ON t.id=s.target_id JOIN automation_connection_profiles p ON p.id=s.profile_id
       WHERE s.id=${d.subscription_id} AND s.generation=${String(d.subscription_generation)}::bigint AND s.state='active'
@@ -30,7 +30,7 @@ export function createDeliveryWorker(db: Kysely<DatabaseSchema>,authorize: Targe
     if (!row) return null;
     try {
       const job = await lockWorkJob(tx,row.observation_json,d.job_id,authorize);
-      return job.state === 'ready' && job.target_id === d.target_id ? row : null;
+      return (completion || job.state === 'ready') && job.target_id === d.target_id ? row : null;
     } catch (error) { if (error instanceof AutomationError && error.code !== 'automation_paused') return null;throw error; }
   }
   async function cancel(tx: DatabaseTransaction,d: Delivery) {
@@ -71,7 +71,7 @@ export function createDeliveryWorker(db: Kysely<DatabaseSchema>,authorize: Targe
       const current=(await sql`SELECT id FROM automation_event_deliveries WHERE id=${d.id} AND generation=${String(d.generation)}::bigint AND state='sending' FOR UPDATE`.execute(tx)).rows[0];
       if (!current) return;
       let live: Destination | null;
-      try { live=await destination(tx,d); } catch (error) {
+      try { live=await destination(tx,d,true); } catch (error) {
         if (!(error instanceof AutomationError) || error.code!=='automation_paused') throw error;
         // A paused completion is uncertain; no automatic resend until resume and lease expiry.
         return;

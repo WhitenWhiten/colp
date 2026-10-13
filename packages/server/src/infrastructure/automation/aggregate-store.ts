@@ -1,3 +1,4 @@
+import { completedIntakeSources } from './completed-intake-sources.js';
 import { admitCountMember } from './count-batch-store.js';
 import { initializeRunTasks } from './task-scheduler.js';
 import { createReceiptReconciler } from './reconcile-receipts.js';
@@ -43,21 +44,28 @@ export function createAutomationAdmission(serverUuid: string,workerEnabled = fal
         definition: row.definition_json, resolutions, bindings: assessIntakeBindings(row.definition_json, resolutions), predicate });
     }
     const pins = new Map(rows.map(row => [row.revision_id, row]));
-    for (const source of sources) {
+    const completions=workerEnabled ? await completedIntakeSources(tx,owner.accountId,collectionId) : [];
+    const completedIds=new Set(completions.slice(0,10).map(source=>source.operation_id));
+    const merged=[...new Map([...sources,...completions.slice(0,10)].map(source=>[source.operation_id,source])).values()]
+      .sort((a,b)=>BigInt(a.commit_ordinal)<BigInt(b.commit_ordinal)?-1:BigInt(a.commit_ordinal)>BigInt(b.commit_ordinal)?1:0);
+    for (const source of merged) {
       const event = sourceEvent(source, serverUuid, collectionId, collection.rootNodeId);
       if (!event) continue;
-      const effectiveEvent=event.origin==='automation' && event.stageId==='intake' && event.type==='node.moved' ? {...event,type:'intake.completed'} : event;
-      for (const decision of admitEvent(prepared, effectiveEvent,workerEnabled)) {
+      const effectiveEvent=completedIds.has(source.operation_id) || event.origin==='automation' && event.stageId==='intake' && event.type==='node.moved' ? {...event,type:'intake.completed'} : event;
+      const decisions=[...admitEvent(prepared.filter(rule=>rule.definition.on!=='intake.completed'),event,workerEnabled),
+        ...admitEvent(prepared.filter(rule=>rule.definition.on==='intake.completed'),effectiveEvent,workerEnabled)];
+      for (const decision of decisions) {
         const { candidate, plan } = decision;
+        const stage=candidate.definition.on==='intake.completed'?'intake.completed':'intake';
         const inserted = await sql`INSERT INTO automation_admission_receipts (rule_revision_id, source_event_id, stage, decision, run_id)
-          VALUES (${candidate.revisionId}, ${event.eventId}, 'intake', ${plan.kind}, NULL)
+          VALUES (${candidate.revisionId}, ${event.eventId}, ${stage}, ${plan.kind}, NULL)
           ON CONFLICT DO NOTHING RETURNING rule_revision_id`.execute(tx);
         if (!inserted.rows.length || !decision.createRun) continue;
         const pin = pins.get(candidate.revisionId)!;
         if(pin.definition_json.trigger.mode==='countBatch'){
           if(!source.facts_json?.after?.resourceRevision)continue;
           if(['matched','placed','preserved'].includes(plan.kind))await admitCountMember(tx,owner,serverUuid,{revisionId:candidate.revisionId,ruleId:candidate.ruleId,epoch:candidate.epoch,
-            bindingSetId:pin.binding_set_id,bindingRevision:pin.binding_revision,policyRevision:pin.policy_revision,definition:pin.definition_json},effectiveEvent,
+            bindingSetId:pin.binding_set_id,bindingRevision:pin.binding_revision,policyRevision:pin.policy_revision,definition:pin.definition_json},candidate.definition.on==='intake.completed'?effectiveEvent:event,
             source.facts_json!.after!.resourceRevision,source.facts_json!.after!.url ?? '');
           continue;
         }
@@ -79,9 +87,9 @@ export function createAutomationAdmission(serverUuid: string,workerEnabled = fal
           collectionId, maxRunsPerDay: candidate.definition.policy.maxRunsPerDay });
         if (workerEnabled && pin.definition_json.tasks.length && admission.runnable) await initializeRunTasks(tx,owner,runId);
         await sql`UPDATE automation_admission_receipts SET run_id=${runId}
-          WHERE rule_revision_id=${candidate.revisionId} AND source_event_id=${event.eventId} AND stage='intake'`.execute(tx);
+          WHERE rule_revision_id=${candidate.revisionId} AND source_event_id=${event.eventId} AND stage=${stage}`.execute(tx);
       }
     }
-    return moreReceipts;
+    return moreReceipts || completions.length>10;
   };
 }

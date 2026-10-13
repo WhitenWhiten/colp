@@ -1,7 +1,7 @@
 import { createHmac } from 'node:crypto';
 import { expect, test, vi } from 'vitest';
 import { createWebhookCipher, signWebhook, webhookSecret } from '../../../src/infrastructure/automation/webhook-signer.js';
-import { createWebhookVerifier } from '../../../src/infrastructure/automation/webhook-verifier.js';
+import { createWebhookVerifier,createWebhookTransport } from '../../../src/infrastructure/automation/webhook-verifier.js';
 const secret = 'whsec_'+Buffer.alloc(32,3).toString('base64'),old = 'whsec_'+Buffer.alloc(32,4).toString('base64');
 test('exact bytes and stable event id, fresh timestamp, bounded dual signing', () => {
   const input = { id: 'evt',subscriptionId: 'sub',body: '{"x":"é"}',secret,previous: { secret: old,until: new Date(200_000) } };
@@ -41,4 +41,10 @@ test('mixed/private DNS and redirects are blocked; challenge mismatch and oversi
     const call=vi.fn(async () => response),v=createWebhookVerifier(Buffer.alloc(32),{ resolve: async () => ['8.8.8.8'],connect: call });
     await expect(v.verify({ id: 'sub',url: 'https://receiver.example',secret })).rejects.toThrow();expect(call).toHaveBeenCalledTimes(1);
   }
+});
+
+test.each([200,410,413])('occurrence status %s remains authoritative without reading receiver content',async status=>{
+  const cancel=vi.fn(),send=createWebhookTransport({resolve:async()=>['8.8.8.8'],connect:async()=>new Response(new ReadableStream({start(controller){controller.enqueue(new Uint8Array(9000));},cancel}),{status})});
+  const response=await send('https://receiver.example','{}',signWebhook({id:'event',subscriptionId:'sub',body:'{}',secret}));
+  expect(response.status).toBe(status);expect(response.body).toBe('');expect(cancel).toHaveBeenCalledOnce();
 });

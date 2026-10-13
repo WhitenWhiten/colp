@@ -1,6 +1,7 @@
 import type { Rule } from '@know-n/colp/automation';
 
 export interface AutomationObservation {
+  accepted_deliveries?: number | null;
   period_start: Date; period_end: Date; budget_day: string; admitted: number;
   ready: number; succeeded: number; held: number; pending: number; leased: number;
   committing: number; blocked: number; budget_blocked: number; approval: number; uncertain: number;
@@ -18,6 +19,6 @@ export function automationUsageView(row: AutomationObservation): NonNullable<Rul
     costDisplay: row.unknown ? 'External cost is unknown for one or more calls; reported amounts are unverified observations.'
       : row.calls ? 'All calls have worker-reported cost observations; provider billing is unverified.' : 'No optional external calls observed.',
     budgetDay: row.budget_day,dailyRunLimit: row.daily_limit,reservedRuns: row.reserved,remainingRuns: Math.max(0,row.daily_limit-row.reserved),
-    deliveryCapability: 'unavailable',acceptedDeliveries: null,
+    deliveryCapability: row.accepted_deliveries == null ? 'unavailable' : 'available',acceptedDeliveries: row.accepted_deliveries ?? null,
   };
 }

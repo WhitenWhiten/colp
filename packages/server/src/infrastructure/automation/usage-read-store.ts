@@ -5,7 +5,7 @@ import type { AutomationActor } from '../../modules/automation/index.js';
 import { automationUsageView, type AutomationObservation } from '../telemetry/automation-metrics.js';
 
 /** Fixed-size, Owner/current-collection-authorized aggregates. No private ledger rows escape. */
-export async function readAutomationUsage(db: Kysely<DatabaseSchema>, actor: AutomationActor, ruleId: string, runId?: string): Promise<NonNullable<Rule['usage']>> {
+export async function readAutomationUsage(db: Kysely<DatabaseSchema>, actor: AutomationActor, ruleId: string, runId?: string,eventsEnabled = false): Promise<NonNullable<Rule['usage']>> {
   const runFilter = runId ? sql`AND r.id=${runId}` : sql``;
   const row = (await sql<AutomationObservation>`WITH visible_runs AS (
     SELECT r.*,v.definition_json FROM automation_runs r JOIN automation_rule_revisions v ON v.id=r.rule_revision_id
@@ -19,6 +19,7 @@ export async function readAutomationUsage(db: Kysely<DatabaseSchema>, actor: Aut
     SELECT a.* FROM automation_job_attempts a JOIN jobs j ON j.id=a.job_id
   ) SELECT
     coalesce((SELECT min(created_at) FROM visible_runs),date_trunc('day',CURRENT_TIMESTAMP AT TIME ZONE 'UTC') AT TIME ZONE 'UTC') AS period_start,
+    ${eventsEnabled ? sql`(SELECT count(*)::int FROM automation_event_deliveries d JOIN visible_runs r ON r.id=d.run_id WHERE d.state='accepted')` : sql`NULL`} AS accepted_deliveries,
     CURRENT_TIMESTAMP AS period_end,to_char(CURRENT_TIMESTAMP AT TIME ZONE 'UTC','YYYY-MM-DD') AS budget_day,
     (SELECT count(*)::int FROM visible_runs) AS admitted,
     count(*) FILTER(WHERE effective_state='ready')::int AS ready,count(*) FILTER(WHERE effective_state='succeeded')::int AS succeeded,

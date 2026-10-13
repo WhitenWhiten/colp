@@ -11,7 +11,7 @@ interface RunRow {
   member_ids: string[]; state: Run['status']; created_at: Date; updated_at: Date; kind: Run['kind'];
   held: boolean; explanation_json: Parameters<typeof explainRun>[2] & { causationRoot?: string }; sort_created_at: string;
 }
-export function createRunStore(tx: DatabaseTransaction, actor: AutomationActor, serverUuid: string): RunStore {
+export function createRunStore(tx: DatabaseTransaction, actor: AutomationActor, serverUuid: string,eventsEnabled = false): RunStore {
   const select = sql`SELECT r.*, r.revision::text, v.rule_id, v.revision::text AS rule_revision,
     to_char(r.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS sort_created_at
     FROM automation_runs r JOIN automation_rule_revisions v ON v.id=r.rule_revision_id
@@ -44,7 +44,7 @@ export function createRunStore(tx: DatabaseTransaction, actor: AutomationActor, 
       const outputs=(await sql<{n:number;unread:boolean}>`SELECT count(*)::int AS n,coalesce(bool_or(rd.run_id IS NULL OR (o.created_at,o.id)>(rd.through_created_at,rd.through_output_id)),false) AS unread
         FROM automation_run_outputs o LEFT JOIN automation_run_reads rd ON rd.run_id=o.run_id AND rd.owner_id=${actor.accountId} WHERE o.run_id=${id}`.execute(tx)).rows[0]!;
       stored.view.outputCount=outputs.n;stored.view.unread=outputs.unread;
-      stored.view.usage = await readAutomationUsage(tx,actor,row.rule_id,id);
+      stored.view.usage = await readAutomationUsage(tx,actor,row.rule_id,id,eventsEnabled);
       return stored;
     },
     async list(after, limit, bookmark) {

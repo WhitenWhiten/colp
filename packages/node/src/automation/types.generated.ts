@@ -429,11 +429,11 @@ export interface RuleUsageView {
    */
   reportedCostMicros?: string;
   budgetDay?: string;
-  deliveryCapability?: "unavailable";
+  deliveryCapability?: "unavailable" | "available";
   /**
-   * Unavailable until the Events delivery adapter exists; never a fabricated zero.
+   * Observed accepted callbacks only; never a count of completed jobs. Null when Events delivery is not enabled.
    */
-  acceptedDeliveries?: null;
+  acceptedDeliveries?: number | null;
 }
 export interface Diagnostic {
   code: string;
@@ -851,11 +851,11 @@ export interface RuleUsageView1 {
    */
   reportedCostMicros?: string;
   budgetDay?: string;
-  deliveryCapability?: "unavailable";
+  deliveryCapability?: "unavailable" | "available";
   /**
-   * Unavailable until the Events delivery adapter exists; never a fabricated zero.
+   * Observed accepted callbacks only; never a count of completed jobs. Null when Events delivery is not enabled.
    */
-  acceptedDeliveries?: null;
+  acceptedDeliveries?: number | null;
 }
 export interface Evidence {
   kind: "source" | "model" | "user" | "rule";

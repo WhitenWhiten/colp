@@ -302,3 +302,35 @@ call; nothing keeps working elsewhere.
 | `COLP_HTTP_PORT` | no | `8080` | Port the `http` profile publishes on 127.0.0.1 |
 
 Advanced: any `KNOWN_*` variable set in `.env` overrides the derived value.
+
+### Optional Automation Events and batch/manual backends
+
+The local Automation backend includes explicit run-once previews, exact count batches
+and durable digest/review outputs. Owner APIs require the existing session, CSRF,
+Origin and command-ID contract. No frontend or browser runtime is installed by these
+backend packets.
+
+To opt into Events, enable Automation configuration/runtime and the existing MCP
+worker/write composition, then set `KNOWN_FEATURE_MCP_EVENTS=true` and
+`AUTOMATION_WEBHOOK_MASTER_KEY` to canonical base64 for **32 random bytes** in your
+private deployment environment. Keep this encryption key with private backup secrets.
+Do not commit it or send it to a callback. Missing/invalid key configuration fails
+startup. Existing profiles must explicitly allow `automationWorker`; pair a target
+with its intended credential, set `wakeMode=events`, and subscribe through the same
+MCP endpoint. The hosted client must reconcile `automation.jobs.list` at setup and
+every reconnect. Callback receipt is not job success.
+
+Public HTTPS client→MCP reachability and server→callback HTTPS egress are independent
+requirements. Callbacks must resolve entirely to public addresses, retain TLS hostname
+verification and must not redirect. A local polling worker can use the authenticated
+queue without Events. Local protocol fixtures do not establish any account's actual
+dot lifecycle/identity behavior; see `docs/automation/evidence/aw-46.md` for that gate.
+
+Upgrade applies five additive migrations after `202610301700`: subscriptions,
+deliveries, immutable manual previews, batch membership and run outputs/read watermarks.
+`deploy/restore.sh` pauses Automation before restart, marks leased external attempts
+uncertain and requires subscription revalidation. Resuming does not resend cancelled
+wakes or replay history. Ready jobs remain discoverable. Do not delete unfinished
+members, inputs or dedup identities to reduce database size; the installed maintenance
+only expires bounded ephemeral records and turns seven-day wakes into terminal
+records with diagnostics.

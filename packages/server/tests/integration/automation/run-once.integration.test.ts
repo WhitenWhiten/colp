@@ -23,6 +23,11 @@ describeWithPostgres('AW-41 immutable manual selection',()=>{
     expect((await f.db.selectFrom('nodes').select('parent_id').where('id','=','chosen').executeTakeFirstOrThrow()).parent_id).toBe('parent');
     expect((await f.db.selectFrom('nodes').select('parent_id').where('id','=','paper').executeTakeFirstOrThrow()).parent_id).toBe('academic');
     const replay=await f.ownerPost(`/rules/${f.rule.id}/run-once`,body);expect(replay.statusCode,replay.body).toBe(201);expect(replay.json().id).toBe(started.json().id);
+    await f.db.transaction().execute(async tx=>{
+      await sql`UPDATE collections SET deleted_at=clock_timestamp() WHERE id='collection'`.execute(tx);
+      await sql`UPDATE nodes SET deleted_at=clock_timestamp() WHERE collection_id='collection'`.execute(tx);
+    });
+    expect((await start()).statusCode).toBe(404);
   });
   test('unpreviewed, changed options/digest, stale members and foreign Owner fail before effects',async()=>{
     f=await automationPollingFixture('aw41_stale');
@@ -41,6 +46,7 @@ describeWithPostgres('AW-41 immutable manual selection',()=>{
     f=await automationPollingFixture('aw41_atomic');
     const p=await f.ownerPost(`/rules/${f.rule.id}/run-once/preview`,{...options,tasks:'all'});expect(p.statusCode,p.body).toBe(200);
     const input={previewId:p.json().id,previewDigest:p.json().previewDigest};
+    await expect(f.uow.execute(f.owner,async ports=>{ports.runtimeEnabled=false;return ports.runOnce!.start(f.rule.id,input);})).rejects.toMatchObject({code:'automation_unsupported_capability'});
     await expect(f.uow.execute(f.owner,async ports=>{await ports.runOnce!.start(f.rule.id,input);throw new Error('crash before commit');})).rejects.toThrow('crash before commit');
     expect((await sql`SELECT id FROM automation_runs WHERE kind='manual'`.execute(f.db)).rows).toEqual([]);
     expect((await f.db.selectFrom('nodes').select('parent_id').where('id','=','paper').executeTakeFirstOrThrow()).parent_id).toBe('root');

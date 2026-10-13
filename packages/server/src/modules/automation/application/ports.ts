@@ -21,6 +21,7 @@ export interface AutomationPorts {
   targets: import('./target-service.js').TargetStore;
   policies: import('./executor-policy.js').ExecutionPolicyStore;
   runtimeEnabled: boolean;
+  eventsEnabled?: boolean;
   workerEnabled?: boolean;
   ownerJobs?: import('./owner-jobs.js').OwnerJobStore;
   placementUndo: import('./placement-undo.js').PlacementUndoPort;

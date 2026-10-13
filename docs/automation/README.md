@@ -1,4 +1,4 @@
-# Automation BE-1
+# Automation backend
 
 Reviewed specification: [design/13-backend-first.md](design/13-backend-first.md),
 [execution contract](design/11-execution-contract.md), [review findings](design/14-review-findings.md).
@@ -35,7 +35,7 @@ The original checkout's CI edits and untracked extension are untouched.
 
 ## Scope and evidence
 
-BE-1 configuration and BE-2 durable M1 backend are implemented. No UI, native browser runtime, Events, models or M2 jobs are included.
+BE-1 through BE-5 local backend packets are implemented, including polling, Events protocol fixtures, immutable manual previews, count batches and run outputs. UI/native browser runtime and real dot production acceptance remain separate gates.
 Each [evidence record](evidence/) lists executed checks and limitations.
 
 ## Running the configuration slice

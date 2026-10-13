@@ -31,7 +31,7 @@ export async function admitCountMember(tx:DatabaseTransaction,actor:AutomationAc
       ${JSON.stringify({collectionId:event.collectionId,nodeId:first.nodeId,sourceRevision:first.revision,plan:{kind:'matched'},epoch:pin.epoch,sequence:String(sequence),partition,memberSources:batch,causationRoot:id})}::jsonb)`.execute(tx);
     await sql`UPDATE automation_batch_members SET run_id=${id} WHERE rule_revision_id=${pin.revisionId} AND epoch=${pin.epoch}::bigint
       AND partition_key=${partition} AND source_event_id IN (${sql.join(batch.map(m=>sql`${m.eventId}`))}) AND run_id IS NULL`.execute(tx);
-    await sql`UPDATE automation_admission_receipts SET run_id=${id} WHERE rule_revision_id=${pin.revisionId} AND source_event_id IN (${sql.join(batch.map(m=>sql`${m.eventId}`))}) AND stage='intake'`.execute(tx);
+    await sql`UPDATE automation_admission_receipts SET run_id=${id} WHERE rule_revision_id=${pin.revisionId} AND source_event_id IN (${sql.join(batch.map(m=>sql`${m.eventId}`))}) AND stage=${pin.definition.on==='intake.completed'?'intake.completed':'intake'}`.execute(tx);
     await initializeRunTasks(tx,actor,id);await advanceRunTasks(tx,actor,serverUuid,id);
   }
   await sql`UPDATE automation_aggregate_state SET sequence=${String(sequence)}::bigint,remainder_json=${JSON.stringify(remainder)}::jsonb

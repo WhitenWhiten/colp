@@ -1,3 +1,4 @@
+import { principalObservation } from './principal-observation.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { sql, type Kysely } from 'kysely';
 import { McpEventsError, type McpEventSubscription } from '@know-n/colp/mcp';
@@ -33,7 +34,10 @@ export function createSubscriptionStore(db: Kysely<DatabaseSchema>, targets: Tar
     },
     async subscribe(actor,input) {
       if (!verifier) throw new McpEventsError(-32015, 'Callback verification unavailable.');
-      const ttl = Math.max(60_000, Math.min(input.ttlMs ?? 3_600_000, 86_400_000));
+      const requestedTtl = Math.max(60_000, Math.min(input.ttlMs ?? 3_600_000, 86_400_000));
+      const credentialTtl = actor.expiresAt ? Date.parse(actor.expiresAt)-Date.now() : requestedTtl;
+      const ttl = Math.min(requestedTtl,credentialTtl);
+      if(!Number.isFinite(ttl) || ttl<60_000)throw new McpEventsError(-32602,'Refresh the credential before subscribing.');
       const pending = await db.transaction().execute(async tx => {
         const { profile,target } = await authority(tx,actor,input.arguments.targetId);
         const count = (await sql<{ n: number }>`SELECT count(*)::int AS n FROM automation_event_subscriptions WHERE owner_id=${actor.accountId}`.execute(tx)).rows[0]!.n;
@@ -41,7 +45,7 @@ export function createSubscriptionStore(db: Kysely<DatabaseSchema>, targets: Tar
         if (!existing && count >= 100) throw new AutomationError('payload_too_large', 'Subscription limit reached.');
         return (await sql<SubscriptionRow>`INSERT INTO automation_event_subscriptions
           (id,owner_id,target_id,profile_id,identity_digest,callback_url,profile_revision,pairing_generation,state,refresh_before)
-          VALUES(${randomUUID()},${actor.accountId},${target.id},${profile.id},${identity(actor,input)},${input.delivery.url},${String(profile.revision)}::bigint,${String(target.pairing_generation)}::bigint,'verifying',clock_timestamp()+${ttl}*interval '1 millisecond')
+          VALUES(${randomUUID()},${actor.accountId},${target.id},${profile.id},${identity(actor,input)},${input.delivery.url},${String(profile.revision)}::bigint,${String(target.pairing_generation)}::bigint,'verifying',least(clock_timestamp()+${requestedTtl}*interval '1 millisecond',${actor.expiresAt ?? null}::timestamptz))
           ON CONFLICT(identity_digest) DO UPDATE SET generation=automation_event_subscriptions.generation+1,state='verifying',
             profile_revision=EXCLUDED.profile_revision,pairing_generation=EXCLUDED.pairing_generation,refresh_before=EXCLUDED.refresh_before
           RETURNING id,generation::text,refresh_before,secret_ciphertext`.execute(tx)).rows[0]!;
@@ -59,6 +63,7 @@ export function createSubscriptionStore(db: Kysely<DatabaseSchema>, targets: Tar
           WHERE id=${pending.id} AND generation=${pending.generation}::bigint AND state='verifying' AND refresh_before>clock_timestamp()
           AND profile_revision=${String(profile.revision)}::bigint AND pairing_generation=${String(target.pairing_generation)}::bigint RETURNING id`.execute(tx)).rows;
         if (!rows.length) throw new McpEventsError(-32015, 'Subscription changed during verification.');
+        await sql`UPDATE automation_connection_profiles SET observation_json=${JSON.stringify(principalObservation(actor))}::jsonb WHERE id=${profile.id}`.execute(tx);
         return { id: pending.id,refreshBefore: pending.refresh_before.toISOString(),cursor: null,truncated: false as const };
       });
     },

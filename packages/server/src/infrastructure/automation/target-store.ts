@@ -22,7 +22,7 @@ export function targetView(row: TargetRow,profileEnabled: boolean,credentialCurr
       : !profileEnabled ? 'Automation worker catalog is disabled on the connection profile.' : !credentialCurrent ? 'Current credential authority is unavailable; reconnect or re-pair.' : restricted ? 'Restricted work requires a verified dedicated credential binding.'
       : wakeMode === 'poll' ? 'The paired worker may poll the durable queue; the server does not schedule the worker.' : 'A verified current subscription is required; reconcile the durable queue on reconnect.' };
 }
-export function createTargetStore(tx: DatabaseTransaction,ownerId: string,verifyBinding?: CurrentBindingVerifier): TargetStore {
+export function createTargetStore(tx: DatabaseTransaction,ownerId: string,verifyBinding?: CurrentBindingVerifier,eventsEnabled?: boolean): TargetStore {
   const profiles = resource<ConnectionProfile,ConnectionProfileInput>('automation_connection_profiles',row => ({ id: row.id,revision: String(row.revision),configuration: row.configuration_json as ConnectionProfileInput,eventsSupport: 'unknown' }));
   const targets = resource<Target,TargetInput>('automation_targets',async row => {
     const target = row as unknown as TargetRow;
@@ -38,6 +38,7 @@ export function createTargetStore(tx: DatabaseTransaction,ownerId: string,verify
       } catch (error) { if (!(error instanceof AutomationError)) throw error; credentialCurrent=false; }
     }
     const view=targetView(target,!!profile?.configuration_json.automationEnabled && profile.configuration_json.catalogs.includes('automationWorker'),credentialCurrent);
+    if(view.wakeMode==='events' && eventsEnabled===false && view.wakeReadiness==='waitingForSubscription')return {...view,wakeReadiness:'blocked',wakeReason:'Events delivery is disabled on this server.'};
     if (view.wakeMode==='events' && view.wakeReadiness==='waitingForSubscription' && profile) {
       const count=(await sql<{ n:number }>`SELECT count(*)::int AS n FROM automation_event_subscriptions
         WHERE target_id=${target.id} AND state='active' AND refresh_before>clock_timestamp()

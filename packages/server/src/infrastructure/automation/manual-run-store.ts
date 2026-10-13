@@ -10,11 +10,16 @@ import { recordPlacementHistory } from './placement-history-store.js';
 import { initializeRunTasks,advanceRunTasks } from './task-scheduler.js';
 import { reserveIntakeAdmission } from './intake-capacity.js';
 import { createPostgresCollectionVersionStore } from '../collections/index.js';
-import { captureCollectionTreeVersion } from '../../modules/collections/index.js';
+import { captureCollectionTreeVersion,CollectionVersionNodeLimitError } from '../../modules/collections/index.js';
 interface PreviewRow { id:string;digest:string;snapshot_json:ManualSnapshot;result_json:RunOncePreview;expires_at:Date;run_id:string|null }
 const stale=()=>new AutomationError('automation_stale_input','Run-once preview changed or expired; refresh the preview.');
 export function createManualRunStore(tx:DatabaseTransaction,ports:AutomationPorts,actor:AutomationActor,serverUuid:string):RunOnceService {
-  return {preview:(id,input)=>previewManualRun(tx,ports,actor,serverUuid,id,input),async start(ruleId,body){
+  return {async authorizePreview(previewId){
+    const row=(await sql<{snapshot_json:ManualSnapshot}>`SELECT snapshot_json FROM automation_manual_previews WHERE id=${previewId} AND owner_id=${actor.accountId}`.execute(tx)).rows[0];
+    const collection=row ? await ports.reads.readCollection(actor,row.snapshot_json.collectionId) : null;
+    if(!collection?.currentOwner)throw new AutomationError('resource_not_found','Preview is unavailable under current Owner authority.');
+  },preview:(id,input)=>previewManualRun(tx,ports,actor,serverUuid,id,input),async start(ruleId,body){
+    if(!ports.runtimeEnabled)throw new AutomationError('automation_unsupported_capability','Execution runtime unavailable.');
     const input=parseContract('RunOnceStartInput',body);
     const row=(await sql<PreviewRow>`SELECT * FROM automation_manual_previews WHERE id=${input.previewId} AND owner_id=${actor.accountId} AND rule_id=${ruleId} FOR UPDATE`.execute(tx)).rows[0];
     if(!row || row.digest!==input.previewDigest) throw stale();
@@ -36,7 +41,12 @@ export function createManualRunStore(tx:DatabaseTransaction,ports:AutomationPort
     if(selected.some(m=>m.plan.kind==='placed')){
       const versions=createPostgresCollectionVersionStore(tx),before=await versions.getOwnedLive(snapshot.collectionId,actor.subjectId);
       if(!before)throw stale();
-      await captureCollectionTreeVersion({versions,clock:{now:()=>new Date()}},{accountId:actor.accountId,collection:before,kind:'pre_mutation',cause:`automation:${ruleId}`,label:'Before explicit run-once placement'});
+      try {
+        await captureCollectionTreeVersion({versions,clock:{now:()=>new Date()}},{accountId:actor.accountId,collection:before,kind:'pre_mutation',cause:`automation:${ruleId}`,label:'Before explicit run-once placement'});
+      } catch(error) {
+        if(error instanceof CollectionVersionNodeLimitError)throw new AutomationError('payload_too_large','Collection history capacity prevents this manual placement.');
+        throw error;
+      }
     }
     for(const member of selected){
       const id=randomUUID();

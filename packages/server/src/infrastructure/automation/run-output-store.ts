@@ -17,12 +17,12 @@ export function createRunOutputStore(tx:DatabaseTransaction,actor:AutomationActo
     if(missing.length)throw new AutomationError('resource_not_found','Source content is unavailable; output text is withheld.');
     return run;
   }
-  return {async list(runId,after,limit){
+  return {authorize:async id=>{await authorize(id);},async list(runId,after,limit){
     await authorize(runId);
     const rows=(await sql<Row>`SELECT *,to_char(created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS sort_created_at
       FROM automation_run_outputs WHERE run_id=${runId} ${after?sql`AND (created_at,id)>(${after.createdAt}::timestamptz,${after.id})`:sql``}
       ORDER BY created_at,id LIMIT ${limit}`.execute(tx)).rows;
-    return rows.map(row=>({createdAt:row.sort_created_at,view:{id:row.id,jobId:row.job_id,targetId:row.target_id,output:row.output_json,createdAt:row.created_at.toISOString()}}));
+    return rows.map(row=>({createdAt:row.sort_created_at,view:{id:row.id,jobId:row.job_id,targetId:row.target_id,output:row.output_json,createdAt:row.sort_created_at}}));
   },async markRead(runId,body,ifMatch){
     const input=parseContract('MarkRunReadInput',body),run=await authorize(runId);requireEtag(run.revision,ifMatch);
     const output=(await sql<{created_at:Date;sort_created_at:string}>`SELECT created_at,to_char(created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS sort_created_at

@@ -95,9 +95,10 @@ and status, and errors omit response bodies/provider details.
 
 ## Hosted Events handoff
 
-Events requires the separately implemented/verified AW-27–29 and AW-46 host path;
-this polling reference does not assert callback availability or delivery success.
-Dots are a documented candidate in the design, not a verified COLP integration.
+The production Events adapter and local protocol gate are implemented by AW-27–29
+and AW-46. The polling reference still makes no callback-availability or hosted
+execution claim. Actual dot acceptance remains separate from local protocol evidence;
+see [AW-46](evidence/aw-46.md) and [installation](../../deploy/INSTALL.md).
 An Events-capable hosted integration must reconcile through `automation.jobs.list`
 at setup and reconnect, drain pagination, and process multiple durable jobs in one
 host run. Duplicate, missing or reordered wake events must not cause duplicate

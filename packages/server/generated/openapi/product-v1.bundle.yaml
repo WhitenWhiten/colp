@@ -20810,10 +20810,16 @@ components:
           type: string
           format: date
         deliveryCapability:
-          const: unavailable
+          type: string
+          enum:
+            - unavailable
+            - available
         acceptedDeliveries:
-          type: 'null'
-          description: Unavailable until the Events delivery adapter exists; never a fabricated zero.
+          type:
+            - integer
+            - 'null'
+          minimum: 0
+          description: Observed accepted callbacks only; never a count of completed jobs. Null when Events delivery is not enabled.
       required:
         - periodStart
         - periodEnd

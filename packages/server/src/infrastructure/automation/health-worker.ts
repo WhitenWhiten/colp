@@ -9,7 +9,7 @@ import type { CurrentBindingVerifier } from './target-worker.js';
 
 /** Health-only consumer on the existing durable outbox. No admission, jobs, timer, models or effects. */
 export function createAutomationHealthMonitor(db: Kysely<DatabaseSchema>, serverUuid: string, metrics?: Metrics, runtimeEnabled = false,
-  workerOptions: { workerEnabled?: boolean; verifyTargetBinding?: CurrentBindingVerifier } = {}) {
+  workerOptions: { eventsEnabled?: boolean; workerEnabled?: boolean; verifyTargetBinding?: CurrentBindingVerifier } = {}) {
   const unitOfWork = createAutomationUnitOfWork(db, serverUuid, { ...workerOptions, runtimeEnabled });
   const revalidate = async (ownerId: string, ruleId: string) => {
     const owner = await db.selectFrom('accounts').select(['id', 'subject_id', 'status']).where('id', '=', ownerId).executeTakeFirst();

@@ -16,6 +16,10 @@ export async function issueDeviceBundle(tx: DatabaseTransaction, actor: Automati
   const all = await createRuleStore(tx).list(actor.accountId, null, 501);
   if (all.length > 500) throw new AutomationError('payload_too_large', 'Rule count exceeds the complete snapshot bound.');
   if (!settings?.paused) for (const rule of all.filter(row => row.view.desiredState === 'enabled')) {
+    // Known server-only aggregation has no browser intake contribution. This is profile
+    // selection, not dropping an unsupported deterministic placement from a partial bundle.
+    if(rule.view.definition.trigger.mode==='countBatch' && !rule.view.definition.intake
+      && rule.view.definition.tasks.every(task=>['digest.generate','review.generate'].includes(task.type)))continue;
     const binding = await bindings.load(actor.accountId, rule.view.bindingSetId);
     if (!binding) throw new AutomationError('automation_binding_unavailable', 'Complete bundle requires all live bindings.');
     const collectionId = scopeCollectionId(rule.view.definition, binding.values);

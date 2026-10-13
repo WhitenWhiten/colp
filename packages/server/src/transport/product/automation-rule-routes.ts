@@ -29,6 +29,7 @@ export interface AutomationRouteContext { ports: AutomationPorts; actor: Automat
 export interface AutomationResponse { body?: unknown; receiptBody?: unknown; status?: number; etag?: string }
 export interface AutomationRoute {
   method: 'GET' | 'POST' | 'PUT' | 'DELETE'; path: string; ifMatch?: boolean; query?: readonly string[]; noBody?: boolean;
+  authorizeReplay?(context: AutomationRouteContext,body: Uint8Array): Promise<void>;
   action(context: AutomationRouteContext): Promise<AutomationResponse>;
 }
 const BASE = '/api/v1/me/automations';
@@ -102,7 +103,10 @@ function registerAutomationRoute(app: FastifyInstance, deps: AutomationRoutesDep
             mediaType: mutation && !route.noBody ? 'application/json' : '', body: request.body ?? null, query: request.query, conditions: { ifMatch } });
           if (mutation) {
             const claim = await ports.receipts.claim(binding, fingerprint);
-            if (claim.kind !== 'claimed') return { claim };
+            if (claim.kind !== 'claimed') {
+              if(claim.kind==='replay')await route.authorizeReplay?.({ports,actor,request,ifMatch},claim.result.body);
+              return {claim};
+            }
           }
           const response = await route.action({ ports, actor, request, ifMatch });
           if (mutation) await ports.receipts.complete(binding, fingerprint, { status: response.status ?? 200,

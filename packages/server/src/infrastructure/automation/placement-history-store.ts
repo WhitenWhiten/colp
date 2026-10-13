@@ -1,3 +1,4 @@
+import { appendAutomationResume } from '../outbox/automation-ingest.js';
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { automationDigest, type EffectReceiptView, type FolderRef } from '@know-n/colp/automation';
@@ -29,7 +30,13 @@ export async function recordPlacementHistory(tx: DatabaseTransaction, actor: Aut
     VALUES (${randomUUID()},${runId},NULL,'intake','__m1__',NULL,${operationId},${beforeFolder ? JSON.stringify(beforeFolder) : null}::jsonb,
       ${before?.resourceRevision ?? null},${after.resourceRevision!},${digest},${facts.collection_id},${facts.node_id},${after.parentId},
       ${content?.revision ?? null},${facts.occurred_at}) ON CONFLICT (run_id,step_id,target_partition) DO NOTHING RETURNING id`.execute(tx);
-  if (rows.rows[0]) return { id: rows.rows[0].id, inserted: true };
+  if (rows.rows[0]) {
+    const waiting=(await sql`SELECT r.id FROM automation_rules r JOIN automation_rule_revisions v ON v.id=r.current_revision_id
+      WHERE r.owner_id=${actor.accountId} AND r.desired_state='enabled' AND v.definition_json->>'on'='intake.completed'
+      AND v.definition_json#>>'{trigger,mode}'='countBatch' LIMIT 1`.execute(tx)).rows;
+    if(waiting.length)await appendAutomationResume(tx,facts.collection_id);
+    return {id:rows.rows[0].id,inserted:true};
+  }
   return { id: (await sql<{ id: string }>`SELECT id FROM automation_effect_receipts WHERE run_id=${runId} AND step_id='intake' AND target_partition='__m1__'`.execute(tx)).rows[0]!.id, inserted: false };
 }
 export async function placementEffectView(tx: DatabaseTransaction, actor: AutomationActor, row: PlacementEffectRow): Promise<EffectReceiptView> {

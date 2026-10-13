@@ -34,9 +34,9 @@ export async function automationPollingFixture(prefix: string, options: {
     const ruleInput = { definition,bindingSetId: bindings.json().id,...(savedPolicy ? { executionPolicyId: savedPolicy.json().id } : {}) };
     const rule = check(await f.ownerPost('/rules',ruleInput));
     const preview = check(await f.ownerPost('/rules/preview',{ rule: ruleInput,mode: 'currentState' }),200);
-    check(await f.ownerPost(`/rules/${rule.json().id}/lifecycle`,{ state: 'enabled',pendingRuns: 'hold',reason: 'Activate exact backend gate preview',activationPreviewId: preview.json().previewId },String(rule.headers.etag)),200);
+    const enabled=check(await f.ownerPost(`/rules/${rule.json().id}/lifecycle`,{ state: 'enabled',pendingRuns: 'hold',reason: 'Activate exact backend gate preview',activationPreviewId: preview.json().previewId },String(rule.headers.etag)),200);
     if (options.trusted !== false) await writeAgentPolicy(f.db,f.owner.accountId,f.actor.clientId,'trusted');
     await f.createNode('fresh-paper','root','Private paper title','https://arxiv.org/abs/new'); await f.inspect();
-    return { ...f,target: setup.target,rule: rule.json(),ruleInput };
+    return { ...f,target: setup.target,rule: enabled.json(),ruleInput };
   } catch (error) { await f.close(); throw error; }
 }

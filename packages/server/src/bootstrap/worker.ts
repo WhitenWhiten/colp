@@ -391,19 +391,20 @@ export function buildWorker(
   });
   const automationHealth = config.automationConfigurationEnabled && database
     ? createAutomationHealthMonitor(database.db, config.publication.serverUuid, metrics, config.automationRuntimeEnabled, {
-      workerEnabled: config.automationRuntimeEnabled && config.mcpWriteEnabled,
+      eventsEnabled:config.mcpEventsEnabled === true && config.automationRuntimeEnabled === true && config.mcpWriteEnabled === true,workerEnabled: config.automationRuntimeEnabled && config.mcpWriteEnabled,
       verifyTargetBinding: createAutomationBindingVerifier(config,createMcpSecurityEpochReader(config,createPostgresMcpOauthRevocationStore({ db: database.db }))),
     }) : undefined;
-  const deliveryWorker = config.mcpEventsEnabled && config.automationRuntimeEnabled && database && config.automationWebhookMasterKey
+  const deliveryWorker = config.mcpEventsEnabled && config.mcpWriteEnabled && config.automationRuntimeEnabled && database && config.automationWebhookMasterKey
     ? createDeliveryWorker(database.db,createTargetWorkerService(database.db,
       createAutomationBindingVerifier(config,createMcpSecurityEpochReader(config,createPostgresMcpOauthRevocationStore({ db: database.db }))),async () => {}).authorize,
       createWebhookVerifier(config.automationWebhookMasterKey)) : undefined;
   let deliveryTimer: ReturnType<typeof setInterval> | undefined;
   let deliveryTick: Promise<void> | undefined;
   let retentionAfter = '';
+  let deliveryStopping = false;
   const pollDeliveries = () => {
-    if (!deliveryWorker || deliveryTick) return;
-    deliveryTick = (async () => { for (let i=0;i<20;i++) if (!await deliveryWorker.tick()) break;
+    if (!deliveryWorker || deliveryStopping || deliveryTick) return;
+    deliveryTick = (async () => { for (let i=0;i<20 && !deliveryStopping;i++) if (!await deliveryWorker.tick()) break;
       if (database) {
         const owner=await database.db.selectFrom('accounts').select('id').where('id','>',retentionAfter).orderBy('id').limit(1).executeTakeFirst();
         if (owner) { await retainAutomationHistory(database.db,owner.id);retentionAfter=owner.id; } else retentionAfter='';
@@ -787,7 +788,7 @@ export function buildWorker(
       // Validate the scheduler dependency before any worker loop is started;
       // otherwise an enabled-but-unwired connector would leave outbox/email
       // timers running after start() rejects.
-      if (deliveryWorker) { deliveryTimer=setInterval(pollDeliveries,1000);deliveryTimer.unref();pollDeliveries(); }
+      if (deliveryWorker) { deliveryStopping=false;deliveryTimer=setInterval(pollDeliveries,1000);deliveryTimer.unref();pollDeliveries(); }
       outbox?.start();
       linkHealthRuntime?.loop.start();
       linkPreviewRuntime?.loop.start();
@@ -866,6 +867,7 @@ export function buildWorker(
     },
     async stop() {
       const failures: WorkerStopFailure[] = [];
+      deliveryStopping=true;
       if (deliveryTimer) clearInterval(deliveryTimer);
       deliveryTimer=undefined;
       await deliveryTick;

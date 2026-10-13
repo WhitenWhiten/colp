@@ -29,7 +29,8 @@ describeWithPostgres('AW-58 durable run outputs and read watermarks',()=>{
     expect((await get(`/runs/${first.runId}`)).json()).toMatchObject({unread:true,outputCount:1});
     const second=(await f.work!.list(f.actor,{targetId:f.target.id})).items[0]!;expect(second.task.type).toBe('review.generate');await submit(second,'Later review.');
     const run=await get(`/runs/${first.runId}`);expect(run.json()).toMatchObject({unread:true,outputCount:2});
-    const read=await f.ownerPost(`/runs/${first.runId}/read`,{throughOutputId:oldOutput.id},String(run.headers.etag));expect(read.statusCode,read.body).toBe(200);
+    const readCommand=randomUUID(),mark=()=>f.app.inject({method:'POST',url:`/api/v1/me/automations/runs/${first.runId}/read`,headers:f.ownerHeaders(readCommand,String(run.headers.etag)),payload:{throughOutputId:oldOutput.id}});
+    const read=await mark();expect(read.statusCode,read.body).toBe(200);
     expect((await get(`/runs/${first.runId}`)).json()).toMatchObject({unread:true,outputCount:2});
     const paged=await get(`/runs/${first.runId}/outputs?limit=1`);expect(paged.json().items[0].id).toBe(oldOutput.id);expect(paged.json().nextCursor).toBeTruthy();
     const later=await get(`/runs/${first.runId}/outputs?limit=1&cursor=${encodeURIComponent(paged.json().nextCursor)}`);expect(later.json().items).toHaveLength(1);expect(later.json().items[0].output.text).toBe('Later review.');
@@ -38,6 +39,10 @@ describeWithPostgres('AW-58 durable run outputs and read watermarks',()=>{
     expect((await get(`/runs/${first.runId}`)).json().unread).toBe(false);
     expect((await sql`SELECT * FROM automation_proposals`.execute(f.db)).rows).toEqual([]);expect((await sql`SELECT * FROM automation_effect_receipts`.execute(f.db)).rows).toEqual([]);
     expect((await sql`SELECT * FROM automation_run_outputs`.execute(f.db)).rows).toHaveLength(2);
+    await f.db.transaction().execute(async tx=>{
+      await sql`UPDATE collections SET deleted_at=clock_timestamp() WHERE id='collection'`.execute(tx);
+      await sql`UPDATE nodes SET deleted_at=clock_timestamp() WHERE collection_id='collection'`.execute(tx);
+    });expect((await mark()).statusCode).toBe(404);
   });
   test('foreign Owner, output IDs from another run and unavailable source cannot expose or mark text read',async()=>{
     await setup();const job=(await f.work!.list(f.actor,{targetId:f.target.id})).items[0]!;await submit(job,'Private accepted output.');
