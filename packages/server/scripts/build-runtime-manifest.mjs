@@ -15,6 +15,8 @@
  * `npm install --package-lock-only --omit=dev --omit=peer`. Pruning keeps every
  * retained version identical to the dev lockfile, so the runtime lock is an
  * exact subset and never resolves anything new.
+ * Generate with Node 22's bundled npm 10 (see the repository .nvmrc), matching
+ * CI. npm 11 prunes optional peers differently and produces a different lock.
  *
  *   node scripts/build-runtime-manifest.mjs          regenerate runtime/
  *   node scripts/build-runtime-manifest.mjs --check  fail when runtime/ drifts
@@ -52,6 +54,10 @@ export function runtimeManifestFrom(devManifest) {
 }
 
 function generate(targetDir) {
+  const npmVersion = spawnSync('npm', ['--version'], { encoding: 'utf8' });
+  if (npmVersion.status !== 0 || !npmVersion.stdout.trim().startsWith('10.')) {
+    throw new Error('Runtime manifest generation requires npm 10 to match CI; use Node 22 with its bundled npm (see .nvmrc)');
+  }
   mkdirSync(targetDir, { recursive: true });
   const devManifest = readJson(resolve(packageRoot, 'package.json'));
   writeFileSync(resolve(targetDir, 'package.json'), `${JSON.stringify(runtimeManifestFrom(devManifest), null, 2)}\n`);
