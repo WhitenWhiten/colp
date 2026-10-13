@@ -2,13 +2,10 @@
 
 Reviewed specification: [design/13-backend-first.md](design/13-backend-first.md),
 [execution contract](design/11-execution-contract.md), [review findings](design/14-review-findings.md).
-Imported unchanged from ~/ref/colp-automation-design, contract 0.2.1-design.
-The reviewed date (2026-10-13) is one day after this environment's date; this is
-specification provenance, not an assertion of execution date.
+Imported unchanged from ~/ref/colp-automation-design, contract 0.2.1-design (reviewed 2026-10-13).
 
-Baseline: e72b8912887c78e44018bfe4a8a8d29a826f993b, branch feat/automation-be1.
-This worktree was explicitly authorized by the user's clarification; commits are per AW task.
-The original checkout's CI edits and untracked extension are untouched.
+Branch `feat/colp-automation`, based on `main` at f5817fa. The BE batches were originally
+developed from e72b891 and merged; commits are per AW task, followed by review fixes R1–R16.
 
 ## Verified integration facts
 
@@ -18,8 +15,11 @@ The original checkout's CI edits and untracked extension are untouched.
   Cookie writes use the existing mutation actor, Origin policy and x-csrf-token.
 * Known-Command-Id is a lowercase UUID v4 (stricter than the design's generic string).
   Reuse host command receipts, scope/fingerprint, current owner authority and strong If-Match.
-* Authoritative OpenAPI source is openapi/product-v1.yaml (1.93.0), not a fragments pipeline.
-  Generated bundle/routes/types are producer artifacts. No frontend client generation in BE-1.
+* Authoritative OpenAPI source is openapi/product-v1.yaml (Product 1.96.0 on this branch; main
+  is 1.93.0). `scripts/sync-automation-openapi.mjs` mirrors the design's
+  `design/api/automation.openapi.yaml` into `openapi/fragments/automations.yaml` and the owned
+  inline blocks of product-v1.yaml (`npm run openapi:automation` checks it); the remaining
+  bundle/routes/types are producer artifacts. No frontend client generation in BE-1.
 * ProductErrorCode is frozen under ADR-0015. Add automation codes to the centralized
   drifted union and its status/recovery maps; use an automation-specific error schema
   for new routes without widening existing endpoints' error enum.
