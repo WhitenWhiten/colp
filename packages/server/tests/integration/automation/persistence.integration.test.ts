@@ -38,7 +38,9 @@ describeWithPostgres('BE-1 migrations, immutable persistence and recovery', () =
     });
   }, 180_000);
   afterAll(async () => isolated?.close());
-  test('fresh install and the actual baseline upgrade apply the same complete migration sequence', async () => {
+  // Covers the upgrade from main's head only. Interleaving with other branches is the G9 prefix rule's job
+  // (unit/automation/migration-order.test.ts and check:migrations), which this test cannot observe.
+  test('fresh install and the upgrade from main apply the same complete migration sequence', async () => {
     const fresh = await createIsolatedPostgresRuntime('automation_fresh');
     try {
       await runMigrations(fresh.runtime.db, 'latest');
