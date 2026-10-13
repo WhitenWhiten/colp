@@ -20,17 +20,14 @@ export async function openExtensionOptions(
   page.on('dialog', (dialog) => { void dialog.accept(); });
   if (existing) await page.waitForLoadState('domcontentloaded'); else await gotoOptions(page, '', extensionId);
   await expect(page.locator('#login-form')).toBeAttached();
-  /* A fresh install steers a hash-less options page to the Bookmarks welcome after the
-     install flag is cleared. One Account click can lose that race. Keep choosing Account
-     until that pane stays visible. A hash-less open is what resumes an unfinished first run. */
+  // Let the install-opened document consume the welcome flag before replacing it.
   await expect.poll(() => page.evaluate(async () => (await chrome.storage.local.get('known.onboarding.installed.v1'))['known.onboarding.installed.v1'] ?? 'gone'))
     .toBe('gone');
-  /* The welcome redirect is decided during initialize(), which can finish after the
-     flag is already gone. A later load with an explicit #account does not take that path. */
+  // A hash-only navigation retains the first document's async onboarding redirect.
+  // That redirect can also win between goto() and reload(), reloading Bookmarks.
+  // Dispose of the old document first so Account is explicit from module startup.
+  await page.goto('about:blank', { waitUntil: 'domcontentloaded' });
   await gotoOptions(page, '#account', extensionId);
-  // Changing only the hash keeps the original document and its hash-less
-  // startup redirect alive. Reload so initialization sees the explicit route.
-  await page.reload({ waitUntil: 'domcontentloaded' });
   const accountCard = page.locator('#account-card');
   await expect(accountCard).toBeVisible();
   await expect.poll(() => page.evaluate(() => document.body.dataset.pane ?? '')).toBe('account');
