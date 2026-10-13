@@ -3623,6 +3623,13 @@ components:
         outputCount:
           type: integer
           minimum: 0
+        held:
+          type: boolean
+          description: Explicit per-run hold; global pause is reported separately by PauseState.
+        explanation:
+          type: string
+          maxLength: 1000
+          description: Bounded explanation of the pinned admission decision or latest execution outcome.
       required:
         - id
         - revision

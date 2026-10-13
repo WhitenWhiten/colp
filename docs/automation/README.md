@@ -136,3 +136,9 @@ ETag. Rule, binding and pause mutations advance that sequence; migration and res
 past previously issued snapshots. Device bundles and receipts require the installed runtime flag.
 The [BE-2 independent review](evidence/be2-review.md) records reproduced lifecycle/receipt defects,
 their fixes, test-quality corrections and the final validation limits.
+
+The [combined BE-1/BE-2 foundation review](evidence/foundation-review.md) checks the configuration
+and runtime together. Reasserting an existing pause/enable state preserves the admission interval.
+Editor configuration and preview remain available, but M1 activation, execution health and device
+bundles require the current collection Owner. Run reads expose bounded explanations and explicit
+holds; newly verified late effects advance the Run ETag without reviving cancelled work.

@@ -59,6 +59,8 @@ export async function previewRule(ports: AutomationPorts, actor: AutomationActor
     diagnostics: [{ code: input.mode === 'currentState' ? 'currentStateSnapshot' : 'suppliedFacts', severity: 'info', location: '/mode',
       message: input.mode === 'currentState' ? 'Current authorized rows only; these are not historical intake facts. Unknown intent preserves placement.' : 'Hypothetical supplied facts; no canonical business effects.' }],
     plannedRunCount: plans.filter(plansRun).length, remainderCount: 0, completeHistory: false, truncated: snapshot.truncated };
+  if (!snapshot.collection.currentOwner) result.diagnostics.push({ code: 'ownerRequired', severity: 'warning', location: '/rule/definition/scope',
+    message: 'M1 execution requires the current collection Owner; this preview does not grant runtime authority.' });
   await ports.previews.save(actor.accountId, { id: result.previewId, input, result, configDigest: snapshot.configDigest,
     expiresAt: new Date((await ports.now()).getTime() + 10 * 60_000) }); return result;
 }

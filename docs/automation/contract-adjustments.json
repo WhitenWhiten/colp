@@ -4,6 +4,20 @@
       "executionPolicyId"
     ]
   },
+  "Run": {
+    "removeRequired": [],
+    "addProperties": {
+      "held": {
+        "type": "boolean",
+        "description": "Explicit per-run hold; global pause is reported separately by PauseState."
+      },
+      "explanation": {
+        "type": "string",
+        "maxLength": 1000,
+        "description": "Bounded explanation of the pinned admission decision or latest execution outcome."
+      }
+    }
+  },
   "CompiledRule": {
     "removeRequired": [],
     "addProperties": {

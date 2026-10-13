@@ -22,8 +22,9 @@ export async function issueDeviceBundle(tx: DatabaseTransaction, actor: Automati
     const replica = await tx.selectFrom('sync_replicas').select('replica_id').where('account_id', '=', actor.accountId)
       .where('device_id', '=', actor.deviceId).where('collection_id', '=', collectionId ?? '')
       .where('status', 'in', ['active','recovery_required']).where('lease_expires_at', '>', sql<Date>`clock_timestamp()`).executeTakeFirst();
-    if (!replica || !collectionId || !await reads.readCollection(actor, collectionId))
-      throw new AutomationError('automation_binding_unavailable', 'A rule is outside the current authenticated device sync range; no partial snapshot was issued.');
+    const collection = collectionId ? await reads.readCollection(actor, collectionId) : null;
+    if (!replica || !collection?.currentOwner)
+      throw new AutomationError('automation_binding_unavailable', 'A rule lacks current Owner authority or device sync scope; no partial snapshot was issued.');
     const resolutions = await resolveBindings(reads, actor, rule.view.definition, binding.values);
     if (!assessIntakeBindings(rule.view.definition, resolutions).available)
       throw new AutomationError('automation_binding_unavailable', 'A required destination is unavailable; no partial snapshot was issued.');

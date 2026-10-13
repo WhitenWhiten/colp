@@ -15,11 +15,14 @@ export async function recordDevicePlacementRun(tx: DatabaseTransaction, actor: A
   const receipt = (await sql<{ run_id: string | null }>`SELECT run_id FROM automation_admission_receipts
     WHERE rule_revision_id=${revision.id} AND source_event_id=${fact.source_event_id} AND stage='intake' FOR UPDATE`.execute(tx)).rows[0]!;
   if (receipt.run_id) {
-    await sql`UPDATE automation_runs SET state='completed', revision=revision+1, updated_at=clock_timestamp(),
+    const effect = await recordPlacementHistory(tx, actor, input.committedNode.serverUuid, receipt.run_id, input.placementOperationId ?? input.operationId);
+    if (!effect.inserted) return;
+    // New historical evidence changes the read resource even when work was already cancelled.
+    await sql`UPDATE automation_runs SET state=CASE WHEN state='waiting' THEN 'completed' ELSE state END,
+      held=CASE WHEN state='waiting' THEN false ELSE held END, revision=revision+1, updated_at=clock_timestamp(),
       explanation_json=explanation_json || ${JSON.stringify({ devicePlacementOperationId: input.placementOperationId ?? input.operationId,
         verifiedDevicePlacement: true, inputDigest: input.inputDigest })}::jsonb
-      WHERE id=${receipt.run_id} AND state='waiting'`.execute(tx);
-    await recordPlacementHistory(tx, actor, input.committedNode.serverUuid, receipt.run_id, input.placementOperationId ?? input.operationId);
+      WHERE id=${receipt.run_id}`.execute(tx);
     return; // Late evidence cannot recreate completed or cancelled work.
   }
   const id = randomUUID();

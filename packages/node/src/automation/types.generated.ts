@@ -770,6 +770,14 @@ export interface Run {
    */
   unread: boolean;
   outputCount: number;
+  /**
+   * Explicit per-run hold; global pause is reported separately by PauseState.
+   */
+  held?: boolean;
+  /**
+   * Bounded explanation of the pinned admission decision or latest execution outcome.
+   */
+  explanation?: string;
 }
 export interface EffectReceiptView {
   id: OpaqueId;

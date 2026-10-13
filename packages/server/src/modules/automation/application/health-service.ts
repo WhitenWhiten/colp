@@ -34,8 +34,11 @@ async function inspectRuleHealth(ports: AutomationPorts, actor: AutomationActor,
       incident('bindingMoved', role.key, 'info', 'Folder ancestry changed; current subtree authority has been revalidated.', resolution.snapshot.revision, []);
   }
   const collectionId = binding ? scopeCollectionId(rule.definition, binding.values) : undefined;
-  if (!collectionId || !await ports.reads.readCollection(actor, collectionId))
+  const collection = collectionId ? await ports.reads.readCollection(actor, collectionId) : null;
+  if (!collection)
     incident('permissionRevoked', undefined, 'error', 'Current scope/write authority is unavailable; choose an authorized scope.', binding?.revision ?? 'missing', ['intake']);
+  else if (ports.runtimeEnabled && !collection.currentOwner)
+    incident('permissionRevoked', undefined, 'error', 'M1 execution requires the current collection Owner; an editor grant is not runtime authority.', collection.policyRevision, ['intake']);
   if (!ports.runtimeEnabled) incident('runtimeUnsupported', undefined, 'error', 'Configuration is saved. Durable M1 execution is not installed; no bookmark effects or model tasks can run.', 'be1', ['intake']);
   const incidents = await ports.health.synchronize(actor.accountId, ruleId, expected);
   if (binding) await ports.dependencies.replace(stored.definitionRevisionId, resolutions, binding.values);

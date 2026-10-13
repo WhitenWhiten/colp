@@ -22,9 +22,9 @@ export function createBindingReadPort(db: Kysely<DatabaseSchema>, serverUuid: st
       if (!await authorized(actor, collectionId)) return null;
       const collection = await canonical.readCollection({ actorSubjectId: actor.subjectId, collectionId });
       if (!collection) return null;
-      const row = await db.selectFrom('collections').select('commit_ordinal').where('id', '=', collectionId).executeTakeFirstOrThrow();
+      const row = await db.selectFrom('collections').select(['commit_ordinal', 'owner_subject_id']).where('id', '=', collectionId).executeTakeFirstOrThrow();
       return { id: collection.id, rootNodeId: collection.rootNodeId, contentRevision: collection.contentRevision,
-        policyRevision: collection.policyRevision, commitOrdinal: String(row.commit_ordinal) };
+        policyRevision: collection.policyRevision, commitOrdinal: String(row.commit_ordinal), currentOwner: row.owner_subject_id === actor.subjectId };
     },
     async readFolder(actor, folder) {
       if (folder.serverUuid !== serverUuid) return { status: 'blocked', code: 'scopeChanged', message: 'Folder belongs to another server.' };

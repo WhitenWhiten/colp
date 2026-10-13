@@ -9,7 +9,7 @@ export interface PlacementEffectRow {
   collection_id: string | null; node_id: string | null; before_folder: FolderRef | null;
   after_revision: string; after_content_revision: string | null; after_parent_id: string | null; undone_operation_id: string | null;
 }
-export async function recordPlacementHistory(tx: DatabaseTransaction, actor: AutomationActor, serverUuid: string, runId: string, operationId: string): Promise<string> {
+export async function recordPlacementHistory(tx: DatabaseTransaction, actor: AutomationActor, serverUuid: string, runId: string, operationId: string): Promise<{ id: string; inserted: boolean }> {
   const facts = (await sql<{ facts_json: PlannedAutomationFacts & { action: string }; collection_id: string; node_id: string;
     commit_ordinal: string; occurred_at: Date; rule_revision_id: string }>`SELECT f.*,r.rule_revision_id FROM automation_event_facts f
     JOIN automation_runs r ON r.id=${runId} AND r.owner_id=${actor.accountId}
@@ -29,8 +29,8 @@ export async function recordPlacementHistory(tx: DatabaseTransaction, actor: Aut
     VALUES (${randomUUID()},${runId},NULL,'intake','__m1__',NULL,${operationId},${beforeFolder ? JSON.stringify(beforeFolder) : null}::jsonb,
       ${before?.resourceRevision ?? null},${after.resourceRevision!},${digest},${facts.collection_id},${facts.node_id},${after.parentId},
       ${content?.revision ?? null},${facts.occurred_at}) ON CONFLICT (run_id,step_id,target_partition) DO NOTHING RETURNING id`.execute(tx);
-  if (rows.rows[0]) return rows.rows[0].id;
-  return (await sql<{ id: string }>`SELECT id FROM automation_effect_receipts WHERE run_id=${runId} AND step_id='intake' AND target_partition='__m1__'`.execute(tx)).rows[0]!.id;
+  if (rows.rows[0]) return { id: rows.rows[0].id, inserted: true };
+  return { id: (await sql<{ id: string }>`SELECT id FROM automation_effect_receipts WHERE run_id=${runId} AND step_id='intake' AND target_partition='__m1__'`.execute(tx)).rows[0]!.id, inserted: false };
 }
 export async function placementEffectView(tx: DatabaseTransaction, actor: AutomationActor, row: PlacementEffectRow): Promise<EffectReceiptView> {
   const collection = row.collection_id ? await tx.selectFrom('collections').select(['owner_subject_id','content_revision','deleted_at'])

@@ -11,7 +11,7 @@ export type FolderResolution = { status: 'valid'; snapshot: FolderSnapshot }
   | { status: 'blocked'; code: 'bindingDeleted' | 'permissionRevoked' | 'scopeChanged'; message: string;
       /** Live identity/ancestry for monitoring only; a blocked snapshot grants no authority. */
       snapshot?: FolderSnapshot };
-export interface CollectionSnapshot { id: string; rootNodeId: string; contentRevision: string; policyRevision: string; commitOrdinal: string }
+export interface CollectionSnapshot { id: string; rootNodeId: string; contentRevision: string; policyRevision: string; commitOrdinal: string; currentOwner: boolean }
 export interface BindingReadPort {
   readFolder(actor: AutomationActor, folder: FolderRef): Promise<FolderResolution>;
   readCollection(actor: AutomationActor, collectionId: string): Promise<CollectionSnapshot | null>;

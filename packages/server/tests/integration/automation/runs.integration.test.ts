@@ -1,5 +1,5 @@
 import Fastify from 'fastify';
-import { afterAll, beforeAll, expect, test } from 'vitest';
+import { afterEach, beforeEach, expect, test } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { validateAutomation } from '@know-n/colp/automation';
 import { automationRuntimeFixture } from '../../support/automation-runtime-fixture.js';
@@ -11,7 +11,7 @@ import { ProductHttpError, sendProductError } from '../../../src/transport/produ
 const BASE = '/api/v1/me/automations';
 describeWithPostgres('M1 run history API', () => {
   let f: Awaited<ReturnType<typeof automationRuntimeFixture>>, app: ReturnType<typeof Fastify>;
-  beforeAll(async () => {
+  beforeEach(async () => {
     f = await automationRuntimeFixture('aw16');
     app = Fastify({ exposeHeadRoutes: false, routerOptions: { querystringParser: parseStrictQuery } }); installProductAdmission(app);
     app.setErrorHandler((error, request, reply) => sendProductError(request, reply, error instanceof ProductHttpError ? error
@@ -21,12 +21,14 @@ describeWithPostgres('M1 run history API', () => {
     await f.createNode('run-second', 'root', 'Second', 'https://arxiv.org/second');
     await f.inspect();
   });
-  afterAll(async () => { await app?.close(); await f?.isolated.close(); });
+  afterEach(async () => { await app?.close(); await f?.isolated.close(); });
   const get = (path: string, cookie?: string) => app.inject({ method: 'GET', url: BASE + path, headers: { cookie: cookie ?? f.owner.cookie } });
   test('reads pinned M1 runs newest first, scopes history and cursor, and hides foreign ownership', async () => {
     const first = await get('/runs?limit=1'); expect(first.statusCode, first.body).toBe(200);
     expect(validateAutomation('RunPage', first.json()).valid).toBe(true);
     const run = first.json().items[0]; expect(run).toMatchObject({ ruleRevision: '1', bindingRevision: '1', executionPolicyRevision: null, kind: 'intake', jobIds: [] });
+    expect(run).toMatchObject({ held: false, explanation: expect.stringContaining('pinned rule') });
+    expect(run).not.toHaveProperty('explanation_json');
     const second = await get(`/runs?limit=1&cursor=${encodeURIComponent(first.json().nextCursor)}`);
     expect(second.json().items).toHaveLength(1); expect(second.json().items[0].id).not.toBe(run.id);
     const filtered = await get('/runs?collectionId=collection&nodeId=run-first'); expect(filtered.json().items).toHaveLength(1);
@@ -41,6 +43,7 @@ describeWithPostgres('M1 run history API', () => {
       headers: { cookie: f.owner.cookie, origin: 'https://automation.example.test', 'x-csrf-token': f.owner.csrfToken,
         'known-command-id': randomUUID(), 'if-match': `"${run.revision}"` } };
     const response = await app.inject(request); expect(response.statusCode, response.body).toBe(200); expect(response.json().status).toBe('cancelled');
+    expect(response.json().explanation).toContain('Cancelled by the Owner');
     expect((await app.inject(request)).body).toBe(response.body);
     expect((await app.inject({ ...request, headers: { ...request.headers, 'known-command-id': randomUUID() } })).statusCode).toBe(412);
   });

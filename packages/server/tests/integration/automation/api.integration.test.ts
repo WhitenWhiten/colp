@@ -1,5 +1,5 @@
 import Fastify from 'fastify';
-import { beforeAll, afterAll, beforeEach, test, expect } from 'vitest';
+import { beforeEach, afterEach, test, expect } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { sql } from 'kysely';
@@ -17,7 +17,7 @@ const BASE = '/api/v1/me/automations', ORIGIN = 'https://automation.example.test
 
 describeWithPostgres('BE-1 authenticated configuration and preview loop', () => {
   let f: Awaited<ReturnType<typeof automationFixture>>, app: ReturnType<typeof Fastify>;
-  beforeAll(async () => {
+  beforeEach(async () => {
     f = await automationFixture('automation_api');
     app = Fastify({ exposeHeadRoutes: false, routerOptions: { querystringParser: parseStrictQuery } });
     installProductRouteManifestChecks(app, { requireComplete: false }); installProductAdmission(app);
@@ -28,8 +28,7 @@ describeWithPostgres('BE-1 authenticated configuration and preview loop', () => 
     registerAutomationRoutes(app, { identityUnitOfWork: f.identity, unitOfWork: createAutomationUnitOfWork(f.db, 'server'), allowedOrigins: [ORIGIN], cursorKey: 'automation-cursor-secret-for-test' });
     await app.ready();
   }, 180_000);
-  beforeEach(async () => { await sql`truncate automation_rules, automation_binding_sets, automation_settings, automation_preview_records cascade`.execute(f.db); });
-  afterAll(async () => { await app?.close(); await f?.isolated.close(); });
+  afterEach(async () => { await app?.close(); await f?.isolated.close(); });
   const headers = (commandId = randomUUID(), ifMatch?: string) => ({ cookie: f.owner.cookie, origin: ORIGIN, 'x-csrf-token': f.owner.csrfToken,
     'known-command-id': commandId, ...(ifMatch ? { 'if-match': ifMatch } : {}) });
   const get = (path: string, cookie?: string) => app.inject({ method: 'GET', url: BASE + path, headers: { cookie: cookie ?? f.owner.cookie } });

@@ -11,7 +11,7 @@ export function previewDecision(eventId: string, plan: RuleEventPlan): PreviewDe
     case 'matched': return { ...base, outcome: 'matched', explanation: 'matched' };
     case 'preserved': return { ...base, outcome: 'matched', explanation: `${plan.reason}; original location preserved.` };
     case 'placed': return { ...base, outcome: 'matched', satisfiedTasks: plan.satisfiedTasks,
-      explanation: `Would place in canonical folder ${plan.folder.nodeId}; runtime unavailable; no effect.` };
+      explanation: `Would place in canonical folder ${plan.folder.nodeId}; preview only; no effect.` };
     case 'overridden': return { ...base, outcome: 'conflict', explanation:
       `Higher-priority rules ${describeRules(plan.ruleIds)} select canonical folder ${plan.folder.nodeId}; proposed placement would not run; no effect.` };
     case 'conflict': return { ...base, outcome: 'conflict', explanation:

@@ -45,6 +45,8 @@ export async function validateRule(ports: AutomationPorts, actor: AutomationActo
   if (input.executionPolicyId) issues.push({ path: '/executionPolicyId', code: 'unsupportedCapability', message: 'Execution policies are unavailable in M1.' });
   const diagnostics: Diagnostic[] = issues.map((issue) => ({ code: issue.code, severity: 'error', location: issue.path, message: issue.message }));
   const inspected = await inspectInput(ports, actor, input);
+  if (!inspected.collection.currentOwner) diagnostics.push({ code: 'ownerRequired', severity: ports.runtimeEnabled ? 'error' : 'warning',
+    location: '/definition/scope', message: 'M1 execution requires the current collection Owner; editor configuration and preview do not enable execution.' });
   for (const { role, resolution, severity } of inspected.bindingAssessment.issues)
     diagnostics.push({ code: resolution.code, severity, location: `/bindings/${role}`, role, message: resolution.message });
   return { valid: !diagnostics.some((diagnostic) => diagnostic.severity === 'error'), normalizedDefinition: input.definition, semanticDigest: ruleSemanticDigest(input.definition),

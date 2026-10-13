@@ -1,12 +1,12 @@
 import { placementEffectView, type PlacementEffectRow } from './placement-history-store.js';
 import { sql } from 'kysely';
 import type { Run } from '@know-n/colp/automation';
-import type { RunStore, StoredRun, AutomationActor } from '../../modules/automation/index.js';
+import { explainRun, type RunStore, type StoredRun, type AutomationActor } from '../../modules/automation/index.js';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
 interface RunRow {
   id: string; revision: string; rule_id: string; rule_revision: string; binding_revision: string; policy_revision: string | null;
   member_ids: string[]; state: Run['status']; created_at: Date; updated_at: Date; kind: Run['kind'];
-  explanation_json: { causationRoot?: string }; sort_created_at: string;
+  held: boolean; explanation_json: Parameters<typeof explainRun>[2] & { causationRoot?: string }; sort_created_at: string;
 }
 export function createRunStore(tx: DatabaseTransaction, actor: AutomationActor): RunStore {
   const select = sql`SELECT r.*, r.revision::text, v.rule_id, v.revision::text AS rule_revision,
@@ -17,6 +17,7 @@ export function createRunStore(tx: DatabaseTransaction, actor: AutomationActor):
   const map = (row: RunRow): StoredRun => ({ sortCreatedAt: row.sort_created_at, view: {
     id: row.id, revision: String(row.revision), ruleId: row.rule_id, ruleRevision: String(row.rule_revision),
     bindingRevision: String(row.binding_revision), executionPolicyRevision: row.policy_revision, status: row.state,
+    held: row.held, explanation: explainRun(row.state, row.held, row.explanation_json),
     memberEventIds: row.member_ids, recipientTargetIds: [], createdAt: row.created_at.toISOString(), updatedAt: row.updated_at.toISOString(),
     jobIds: [], causationRoot: row.explanation_json.causationRoot ?? row.id, kind: row.kind, effects: [], unread: false, outputCount: 0,
   } });

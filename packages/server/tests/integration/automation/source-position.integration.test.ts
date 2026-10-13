@@ -49,4 +49,18 @@ describeWithPostgres('ordered automation source positions', () => {
     await inspect(context);
     expect((await sql<{ count: string }>`SELECT count(*) FROM inspected_test_operations`.execute(f.db)).rows[0]!.count).toBe('5');
   });
+  test('lease replacement during a consumer transaction rolls back admission and cursor together', async () => {
+    const context = await delivery();
+    const inspect = createAutomationSourceInspector(f.db, async (tx, _owner, _collection, rows) => {
+      for (const row of rows) await sql`INSERT INTO inspected_test_operations VALUES (${row.operation_id})`.execute(tx);
+      // A different connection replaces the lease after consumer writes, before the commit fence.
+      await f.db.updateTable('outbox_events').set({ lease_generation: 2n })
+        .where('outbox_id', '=', context.attempt!.outboxId).execute();
+    });
+    await expect(inspect(context)).rejects.toThrow('lease lost');
+    expect((await sql`SELECT * FROM inspected_test_operations`.execute(f.db)).rows).toEqual([]);
+    expect(await f.db.selectFrom('automation_source_positions').selectAll().execute()).toEqual([]);
+    const current = await f.db.selectFrom('outbox_events').select('lease_generation').where('outbox_id', '=', context.attempt!.outboxId).executeTakeFirstOrThrow();
+    expect(String(current.lease_generation)).toBe('2');
+  });
 });

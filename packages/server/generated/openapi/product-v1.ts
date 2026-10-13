@@ -4973,6 +4973,10 @@ export interface components {
             /** @description Owner read state for accepted run-level outputs; false before M3. */
             unread: boolean;
             outputCount: number;
+            /** @description Explicit per-run hold; global pause is reported separately by PauseState. */
+            held?: boolean;
+            /** @description Bounded explanation of the pinned admission decision or latest execution outcome. */
+            explanation?: string;
         };
         AutomationRevision: string;
         AutomationEffectReceiptView: {

@@ -16,12 +16,16 @@ export async function setLifecycle(ports: AutomationPorts, actor: AutomationActo
       || automationDigest(normalizeRuleInput(preview.input.rule)) !== automationDigest(normalizeRuleInput(ruleInput(stored.view))))
       throw new AutomationError('automation_stale_input', 'Enable requires the exact unexpired preview of this configuration.');
     const current = await previewSnapshot(ports, actor, preview.input);
+    if (ports.runtimeEnabled && !current.collection.currentOwner)
+      throw new AutomationError('insufficient_permission', 'M1 execution requires the current collection Owner; an editor grant only permits configuration and preview.');
     if (preview.configDigest !== current.configDigest) throw new AutomationError('automation_stale_input', 'Bindings, settings, permissions or sampled inputs changed. Preview again.');
     if (!current.bindingAssessment.available) throw new AutomationError('automation_binding_unavailable', 'Repair the required folder binding.');
     if (current.events.some((event) => blocksActivation(evaluateRuleEvent(current.proposed, current.alternatives, event))))
       throw new AutomationError('automation_rule_conflict', 'Resolve blocked or conflicting preview decisions before enable.');
-    await ports.activation(stored, { kind: 'disable' });
-    await ports.activation(stored, { kind: 'enable', collectionId: current.collection.id, afterOrdinal: current.collection.commitOrdinal });
+    if (stored.view.desiredState !== 'enabled') {
+      await ports.activation(stored, { kind: 'disable' });
+      await ports.activation(stored, { kind: 'enable', collectionId: current.collection.id, afterOrdinal: current.collection.commitOrdinal });
+    }
   } else {
     // Fence private activation metadata even after resource permission loss.
     await ports.activation(stored, { kind: 'disable' });
@@ -35,6 +39,8 @@ export async function setLifecycle(ports: AutomationPorts, actor: AutomationActo
 export async function setPause(ports: AutomationPorts, actor: AutomationActor, body: unknown, ifMatch: string) {
   const input = parseContract('PauseInput', body), previous = await ports.settings.get(actor.accountId);
   requireEtag(previous.revision, ifMatch);
+  // Reasserting state must not open a new skipped interval or invalidate device snapshots.
+  if (input.paused === previous.paused) return previous;
   const now = (await ports.now()).toISOString();
   const settings = { ...previous, revision: nextRevision(previous.revision), paused: input.paused, pausedAt: input.paused ? now : null,
     pausedBy: input.paused ? 'owner' as const : null };

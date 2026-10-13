@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, expect, test } from 'vitest';
+import { afterEach, beforeEach, expect, test } from 'vitest';
 import { sql } from 'kysely';
 import { automationDigest, compilePredicate, validateAutomation } from '@know-n/colp/automation';
 import { automationDeviceFixture, AUTOMATION_DEVICE_ORIGIN } from '../../support/automation-device-fixture.js';
@@ -7,8 +7,8 @@ import { createAutomationDeviceUnitOfWork } from '../../../src/infrastructure/au
 import { setPause } from '../../../src/modules/automation/index.js';
 describeWithPostgres('authenticated full M1 bundles', () => {
   let f: Awaited<ReturnType<typeof automationDeviceFixture>>;
-  beforeAll(async () => { f = await automationDeviceFixture('aw18'); });
-  afterAll(async () => { await f?.isolated.close(); });
+  beforeEach(async () => { f = await automationDeviceFixture('aw18'); });
+  afterEach(async () => { await f?.isolated.close(); });
   const request = () => ({ credential: f.http.credential, sessionId: f.sessionId, origin: AUTOMATION_DEVICE_ORIGIN });
   const uow = () => createAutomationDeviceUnitOfWork(f.db, 'server');
   test('full snapshot preserves the finite rule and digest, with bounded expiry and unsupported profiles rejected atomically', async () => {
