@@ -400,7 +400,7 @@ export function buildWorker(
   const deliveryWorker = config.mcpEventsEnabled && database && config.automationWebhookMasterKey
     ? createDeliveryWorker(database.db,createTargetWorkerService(database.db,
       createAutomationBindingVerifier(config,createMcpSecurityEpochReader(config,createPostgresMcpOauthRevocationStore({ db: database.db }))),async () => {}).authorize,
-      createWebhookVerifier(config.automationWebhookMasterKey)) : undefined;
+      createWebhookVerifier(config.automationWebhookMasterKey,{ ...(config.automationWebhookPreviousMasterKey ? { previousMasterKey: config.automationWebhookPreviousMasterKey } : {}) })) : undefined;
   const automationApprovals = database ? createWorkerApprovalApplier(config, database.db, metrics) : undefined;
   let retentionAfter = '';
   // Capture alone (shadow mode) still needs the facts retention sweep.

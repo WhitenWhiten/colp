@@ -12,6 +12,14 @@ test('exact bytes and stable event id, fresh timestamp, bounded dual signing', (
   expect(retry['webhook-signature']?.split(' ')).toHaveLength(1);
   expect(first['webhook-id']).toBe(retry['webhook-id']);expect(first['webhook-signature']).not.toBe(retry['webhook-signature']);
 });
+test('a previous master key only decrypts during rotation; new ciphertext uses the current key', () => {
+  const old=createWebhookCipher(Buffer.alloc(32,8)).encrypt(secret,'sub');
+  const rotating=createWebhookCipher(Buffer.alloc(32,9),Buffer.alloc(32,8));
+  expect(rotating.decrypt(old,'sub')).toBe(secret);
+  const fresh=rotating.encrypt(secret,'sub');
+  expect(createWebhookCipher(Buffer.alloc(32,9)).decrypt(fresh,'sub')).toBe(secret);
+  expect(() => createWebhookCipher(Buffer.alloc(32,8)).decrypt(fresh,'sub')).toThrow('Webhook secret is unavailable.');
+});
 test('authenticated encrypted secrets resist tampering and cross-subscription substitution', () => {
   const cipher=createWebhookCipher(Buffer.alloc(32,8)),stored=cipher.encrypt(secret,'sub');
   expect(stored).not.toContain(secret);expect(cipher.decrypt(stored,'sub')).toBe(secret);

@@ -74,6 +74,10 @@ test('Events requires explicit flag and a canonical 32-byte encryption key',()=>
   expect(()=>loadConfig({...env,...work,KNOWN_FEATURE_MCP_EVENTS:'true',AUTOMATION_WEBHOOK_MASTER_KEY:Buffer.alloc(24).toString('base64')})).toThrow('AUTOMATION_WEBHOOK_MASTER_KEY');
   const config=loadConfig({...env,...work,KNOWN_FEATURE_MCP_EVENTS:'true',AUTOMATION_WEBHOOK_MASTER_KEY:Buffer.alloc(32,7).toString('base64')});
   expect(config.mcpEventsEnabled).toBe(true);expect(config.automationWebhookMasterKey).toHaveLength(32);
+  expect(config.automationWebhookPreviousMasterKey).toBeUndefined();
+  const keys={...env,...work,KNOWN_FEATURE_MCP_EVENTS:'true',AUTOMATION_WEBHOOK_MASTER_KEY:Buffer.alloc(32,7).toString('base64')};
+  expect(loadConfig({...keys,AUTOMATION_WEBHOOK_PREVIOUS_MASTER_KEY:Buffer.alloc(32,6).toString('base64')}).automationWebhookPreviousMasterKey).toHaveLength(32);
+  expect(()=>loadConfig({...keys,AUTOMATION_WEBHOOK_PREVIOUS_MASTER_KEY:'short'})).toThrow('AUTOMATION_WEBHOOK_PREVIOUS_MASTER_KEY');
 });
 
 test('Events capability requires installed runtime, worker and explicit Events composition',()=>{

@@ -363,7 +363,7 @@ export async function composeApiMcpSurface(input: {
     }));
   }
   if (config.mcpEventsEnabled && mcpApplicationFacade && automationTargetWorker && automationWorker) {
-    mcpApplicationFacade = { ...mcpApplicationFacade, events: createMcpEventsAdapter(createSubscriptionStore(database.db, automationTargetWorker, config.automationWebhookMasterKey ? createWebhookVerifier(config.automationWebhookMasterKey) : undefined)) };
+    mcpApplicationFacade = { ...mcpApplicationFacade, events: createMcpEventsAdapter(createSubscriptionStore(database.db, automationTargetWorker, config.automationWebhookMasterKey ? createWebhookVerifier(config.automationWebhookMasterKey,{ ...(config.automationWebhookPreviousMasterKey ? { previousMasterKey: config.automationWebhookPreviousMasterKey } : {}) }) : undefined)) };
   }
   return {
     ...(automationWorker ? { automationWorker } : {}),

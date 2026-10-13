@@ -22,8 +22,8 @@ export function createWebhookTransport(options: Pick<HardenedEgressFetchOptions,
     finally { clearTimeout(timer);controller.abort();await reader?.cancel().catch(() => {}); }
   };
 }
-export function createWebhookVerifier(masterKey: Buffer,options: Pick<HardenedEgressFetchOptions,'resolve' | 'connect'> = {}) {
-  const cipher = createWebhookCipher(masterKey),send = createWebhookTransport(options);
+export function createWebhookVerifier(masterKey: Buffer,options: Pick<HardenedEgressFetchOptions,'resolve' | 'connect'> & { previousMasterKey?: Buffer } = {}) {
+  const cipher = createWebhookCipher(masterKey,options.previousMasterKey),send = createWebhookTransport(options);
   return { ...cipher,send,async verify(input: { id: string; url: string; secret: string }) {
     const challenge = randomBytes(32).toString('base64url'),body = JSON.stringify({ type: 'verification',challenge });
     const headers = signWebhook({ id: randomUUID(),subscriptionId: input.id,body,secret: input.secret });

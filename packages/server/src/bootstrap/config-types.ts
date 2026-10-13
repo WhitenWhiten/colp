@@ -638,6 +638,7 @@ export interface AppConfig {
   /** KNOWN_FEATURE_MCP_EVENTS: Events wake-up for worker targets; requires WORK. */
   readonly mcpEventsEnabled?: boolean;
   readonly automationWebhookMasterKey?: Buffer;
+  readonly automationWebhookPreviousMasterKey?: Buffer;
   readonly automationServerDailyRunCap?: number;
   readonly bookmarkSubscriptions?: { readonly enabled: boolean; readonly protocolReady: boolean };
   readonly nodeEnv: string;

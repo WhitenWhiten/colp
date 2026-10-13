@@ -315,7 +315,9 @@ To opt into Events, enable the Automation flags in order (`KNOWN_FEATURE_AUTOMAT
 `AUTOMATION_WEBHOOK_MASTER_KEY` to canonical base64 for **32 random bytes** in your
 private deployment environment. Keep this encryption key with private backup secrets.
 Do not commit it or send it to a callback. Missing/invalid key configuration fails
-startup. Existing profiles must explicitly allow `automationWorker`; pair a target
+startup. To rotate it, set the new key and move the old one to
+`AUTOMATION_WEBHOOK_PREVIOUS_MASTER_KEY` (decrypt only); remove the previous key once every
+subscription has refreshed, since a refresh stores its secret under the current key. Existing profiles must explicitly allow `automationWorker`; pair a target
 with its intended credential, set `wakeMode=events`, and subscribe through the same
 MCP endpoint. The hosted client must reconcile `automation.jobs.list` at setup and
 every reconnect. Callback receipt is not job success.
