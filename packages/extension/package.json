@@ -87,7 +87,7 @@
     "fake-indexeddb": "6.2.2",
     "happy-dom": "20.14.0",
     "typescript": "5.7.3",
-    "vitest": "3.2.7"
+    "vitest": "5.0.3"
   },
   "overrides": {
     "brace-expansion": "5.0.12",
