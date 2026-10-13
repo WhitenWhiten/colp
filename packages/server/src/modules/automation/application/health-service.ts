@@ -3,6 +3,7 @@ import type { AutomationActor, FolderResolution } from '../domain/bindings.js';
 import { scopeCollectionId } from '../domain/bindings.js';
 import { AutomationError } from '../domain/errors.js';
 import { resolveBindings } from './resolve-bindings.js';
+import { intakeDependencyRoles } from './rule-eligibility.js';
 import { requireRule } from './rule-service.js';
 import type { AutomationPorts } from './ports.js';
 
@@ -16,14 +17,16 @@ export async function revalidateRule(ports: AutomationPorts, actor: AutomationAc
     expected.push({ id: ports.id(), ruleId, code, ...(role ? { role } : {}), severity, state: 'open', blockingStages,
       message, dependencyRevision: revision, firstSeenAt: now, lastSeenAt: now });
   };
+  const usedRoles = intakeDependencyRoles(rule.definition);
   for (const role of rule.definition.roles) {
+    const blockingStages = usedRoles.has(role.key) ? ['intake'] : [];
     const resolution = resolutions[role.key];
     if (!resolution) {
-      if (role.required) incident('bindingDeleted', role.key, 'error', 'Choose a live authorized folder for the missing role.', binding?.revision ?? 'missing', ['intake']);
+      if (role.required) incident('bindingDeleted', role.key, 'error', 'Choose a live authorized folder for the missing role.', binding?.revision ?? 'missing', blockingStages);
       continue;
     }
     if (resolution.status === 'blocked') {
-      incident(resolution.code, role.key, 'error', resolution.message, binding?.revision ?? 'missing', ['intake']); continue;
+      incident(resolution.code, role.key, blockingStages.length || role.required ? 'error' : 'warning', resolution.message, binding?.revision ?? 'missing', blockingStages); continue;
     }
     const old = previous.find((dependency) => dependency.role === role.key && dependency.kind === 'folder');
     if (old && typeof old.snapshot.title === 'string' && old.snapshot.title !== resolution.snapshot.title)
