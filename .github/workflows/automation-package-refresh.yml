@@ -1,0 +1,101 @@
+name: automation-package-refresh
+
+# PR-88 delivery aid: validate the actual shared source and refresh only its
+# locally vendored npm package/locks. Remove after the reviewed package is pinned.
+# This never publishes npm or exports a repository workspace or dependencies.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'packages/node/src/automation/**'
+      - 'packages/node/tests/automation/**'
+      - '.github/workflows/automation-package-refresh.yml'
+permissions:
+  contents: read
+concurrency:
+  group: automation-package-refresh-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    if: github.event.pull_request.number == 88 && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'feat/automation'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 22
+      - name: Install frozen dependencies and build tools
+        run: |
+          npm ci --prefix packages/node
+          npm ci --prefix packages/server
+          npm rebuild esbuild --ignore-scripts=false --prefix packages/node
+          npm rebuild esbuild --ignore-scripts=false --prefix packages/server
+      - name: Shared contract, types and focused regression tests
+        run: |
+          npm --prefix packages/node run check:automation
+          npm --prefix packages/node run typecheck
+          npm --prefix packages/node test -- tests/automation
+      - name: Build the real vendored package and both runtime locks
+        run: node packages/server/scripts/refresh-automation-package.mjs
+      - name: Validate the consumer using the newly built package
+        run: |
+          npm --prefix packages/server run typecheck
+          npm --prefix packages/server run check:imports
+          npm --prefix packages/server run runtime:manifest:check
+          npm --prefix packages/server run test:unit -- tests/unit/automation
+          xvfb-run -a npm --prefix packages/server run test:integration:file -- tests/integration/automation
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: automation-package-${{ github.event.pull_request.head.sha }}
+          path: |
+            packages/server/vendor/know-n-colp-0.1.3.tgz
+            packages/server/package.json
+            packages/server/package-lock.json
+            packages/server/runtime/package.json
+            packages/server/runtime/package-lock.json
+          retention-days: 1
+          if-no-files-found: error
+  pin-generated-package:
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      # No repository build script runs in this write-capable job. Only five
+      # explicitly named generated package files may enter the commit.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: automation-package-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/automation-package
+      - name: Fast-forward only the verified generated package
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          GENERATED: ${{ runner.temp }}/automation-package
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config core.hooksPath /dev/null
+          git fetch origin refs/heads/feat/automation
+          if [[ "$(git rev-parse FETCH_HEAD)" != "$EXPECTED_HEAD" ]]; then
+            echo 'Branch advanced; leaving the newer work untouched.'
+            exit 0
+          fi
+          for path in vendor/know-n-colp-0.1.3.tgz package.json package-lock.json runtime/package.json runtime/package-lock.json; do
+            test -f "$GENERATED/$path" && test ! -L "$GENERATED/$path"
+            cp -- "$GENERATED/$path" "packages/server/$path"
+            git add -- "packages/server/$path"
+          done
+          if git diff --cached --quiet; then
+            echo 'Vendored package already matches the tested source.'
+            exit 0
+          fi
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'build(automation): pin verified shared package and runtime locks'
+          git push origin HEAD:refs/heads/feat/automation

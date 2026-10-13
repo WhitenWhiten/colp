@@ -9,7 +9,16 @@ export const FACTS_VERSION = 1 as const;
 export interface ContractIssue { path: string; code: string; message: string }
 export type ContractValidation = { valid: true; issues: [] } | { valid: false; issues: ContractIssue[] };
 export type AutomationSchemaName = keyof typeof automationSchema.$defs;
-const ajv = new Ajv2020({ strict: false, allErrors: true, validateFormats: true });
+
+// Dispatch the recursive union by its required, unique kind. Without this,
+// all/any oneOf branches can repeatedly validate the same subtree. This is a
+// validator compilation optimization, not a third stored/wire rule schema.
+// type: object is essential: discriminator must not bypass the object check.
+const definitions = {
+  ...automationSchema.$defs,
+  Predicate: { ...automationSchema.$defs.Predicate, type: 'object', discriminator: { propertyName: 'kind' } },
+};
+const ajv = new Ajv2020({ strict: false, allErrors: false, validateFormats: true, discriminator: true });
 const addFormats = addFormatsImport as unknown as FormatsPlugin;
 addFormats(ajv);
 const validators = new Map<AutomationSchemaName, ValidateFunction>();
@@ -37,7 +46,7 @@ export function validateAutomation(name: AutomationSchemaName, value: unknown): 
   if (!boundedJson(value)) return { valid: false, issues: [{ path: '', code: 'invalid_json', message: 'Expected bounded acyclic JSON.' }] };
   let validate = validators.get(name);
   if (!validate) {
-    validate = ajv.compile({ $schema: automationSchema.$schema, $ref: `#/$defs/${name}`, $defs: automationSchema.$defs });
+    validate = ajv.compile({ $schema: automationSchema.$schema, $ref: `#/$defs/${name}`, $defs: definitions });
     validators.set(name, validate);
   }
   if (validate(value)) return { valid: true, issues: [] };

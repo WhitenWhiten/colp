@@ -17,11 +17,14 @@ function readField(facts: EventFacts, field: FieldPredicate['field']): string | 
 }
 
 export function evaluatePredicate(predicate: Predicate, value: unknown, options: EvaluationOptions = {}): PredicateDecision {
-  const normalized = normalizeEventFacts(value, options.factsVersion);
-  if (normalized.status !== 'available') return { outcome: 'missingInput' };
   const now = options.now ?? (() => performance.now());
   const started = now();
   const budget = Math.min(options.budgetMs ?? 50, 50);
+  const normalized = normalizeEventFacts(value, options.factsVersion);
+  // Validation/normalization is bounded too and consumes this invocation's
+  // deadline; missing data is not a way to avoid the budget check.
+  if (now() - started > budget) return { outcome: 'error', code: 'evaluationBudgetExceeded' };
+  if (normalized.status !== 'available') return { outcome: 'missingInput' };
   let visited = 0;
   const visit = (node: Predicate, depth: number): PredicateDecision => {
     if (++visited > 128 || depth > 16 || now() - started > budget) return { outcome: 'error', code: 'evaluationBudgetExceeded' };
