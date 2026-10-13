@@ -1036,6 +1036,7 @@ async function resolveAuthorization(
     accountSubjectId: result.accountSubjectId,
     ...(isMcpOauthVerificationResult(result) && result.scopes.some(scope => scope.startsWith('automation:')) ? { automationCredential: {
       credentialDigest: result.credentialDigest,expiresAt: result.expiresAt.toISOString(),
+      ...(result.automationConnectionId === undefined ? {} : { connectionId: result.automationConnectionId }),
       ...(result.issuedAtSeconds === undefined ? {} : { issuedAtSeconds: result.issuedAtSeconds }),
       ...(result.accountSecurityEpoch === undefined ? {} : { accountSecurityEpoch: result.accountSecurityEpoch }),
     } } : {}),

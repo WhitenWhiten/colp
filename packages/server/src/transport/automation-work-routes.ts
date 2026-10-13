@@ -23,7 +23,8 @@ export async function requireAutomationWorkerActor(request: FastifyRequest,deps:
   }
   if (!isMcpOauthVerificationResult(verified)) throw new ProductHttpError({ statusCode: 401,code: 'authentication_required',message: 'Verified worker evidence is required.' });
   return { accountId: verified.binding.principalId,subjectId: verified.accountSubjectId,clientId: verified.binding.clientId,
-    credentialBindingId: verified.binding.credentialBindingId,resourceAudience: verified.binding.resourceAudience,securityEpoch: verified.binding.securityEpoch,
+    // Targets pair with the stable worker connection, not the token-specific MCP binding.
+    credentialBindingId: verified.automationConnectionId ?? verified.binding.credentialBindingId,resourceAudience: verified.binding.resourceAudience,securityEpoch: verified.binding.securityEpoch,
     scopes: verified.scopes,credentialDigest: verified.credentialDigest,expiresAt: verified.expiresAt.toISOString(),issuedAtSeconds: verified.issuedAtSeconds,accountSecurityEpoch: verified.accountSecurityEpoch };
 }
 export function automationWorkError(error: unknown): never {

@@ -8,7 +8,7 @@ export function automationWorkPrincipal(context: McpApplicationContext): WorkPri
   const p = context.principal;
   const observation = context.authorization.automationCredential as Readonly<Record<string,unknown>> | undefined;
   return { accountId: p.principalId,subjectId: requireMcpAccountSubjectId(context.authorization),clientId: p.clientId,
-    credentialBindingId: p.credentialBindingId,resourceAudience: p.resourceAudience,securityEpoch: p.securityEpoch,scopes: context.scopes,
+    credentialBindingId: typeof observation?.connectionId === 'string' ? observation.connectionId : p.credentialBindingId,resourceAudience: p.resourceAudience,securityEpoch: p.securityEpoch,scopes: context.scopes,
     ...(typeof observation?.credentialDigest === 'string' ? { credentialDigest: observation.credentialDigest } : {}),
     ...(typeof observation?.expiresAt === 'string' ? { expiresAt: observation.expiresAt } : {}),
     ...(typeof observation?.issuedAtSeconds === 'number' ? { issuedAtSeconds: observation.issuedAtSeconds } : {}),

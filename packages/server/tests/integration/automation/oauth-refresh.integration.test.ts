@@ -18,7 +18,9 @@ describeWithPostgres('Automation OAuth connection refresh', () => {
     expect((await list(f.token)).statusCode).toBe(200);
     const token = await f.mint();
     const verified = await f.verifier.verify({ authorization: `Bearer ${token}`, requiredScopes: ['automation:work'] });
-    expect(verified.binding.credentialBindingId).toBe(f.actor.credentialBindingId);
+    // The worker connection is stable across refresh; the MCP binding stays token-specific.
+    expect(verified.automationConnectionId).toBe(f.actor.credentialBindingId);
+    expect(verified.binding.credentialBindingId).not.toBe(f.actor.credentialBindingId);
     await sql`UPDATE automation_connection_profiles SET observation_json=jsonb_set(observation_json,
       '{expiresAt}',to_jsonb('2000-01-01T00:00:00Z'::text))`.execute(f.db);
     expect((await list(token)).statusCode).toBe(200);

@@ -152,6 +152,12 @@ export interface McpOauthVerificationResult {
   readonly scopes: readonly string[];
   readonly issuedAtSeconds?: number;
   readonly accountSecurityEpoch?: string;
+  /**
+   * Stable identity of an Automation worker connection (present when any `automation:*` scope is granted).
+   * Automation pairs targets with this, so a refreshed token keeps its pairing; MCP plan, session and
+   * rate-limit identity keep using the token-specific `binding.credentialBindingId`.
+   */
+  readonly automationConnectionId?: string;
 }
 
 export interface McpOauthVerifier {
@@ -298,16 +304,16 @@ export function createMcpOauthVerifier(options: McpOauthVerifierOptions): McpOau
       if (machineBound.kind === 'disallowed_algorithm' || machineBound.kind === 'invalid_token') {
         throw new McpOauthVerificationError(machineBound.kind);
       }
-      // Automation OAuth profiles represent a verified shared connection, not one
-      // short-lived access token. Scope/subject/audience/epoch changes still fence
-      // the connection; every request separately verifies its token and revocation.
-      // Ordinary MCP credentials retain their existing token-specific identity.
-      const automationConnection = scopes.some(scope => scope.startsWith('automation:'));
       const credentialBindingId = machineBound.kind === 'bound' ? machineBound.credentialBindingId
-        : automationConnection
-          ? sha256Base64Url(JSON.stringify(['automation-oauth-connection/v1', options.issuer,
-            subject, clientId, resourceAudience, securityEpoch, account.securityEpoch ?? null, [...scopes].sort()]))
-          : sha256Base64Url(`oauth\0${options.issuer}\0${tokenId}`);
+        : sha256Base64Url(`oauth\0${options.issuer}\0${tokenId}`);
+      // Automation OAuth profiles represent a verified shared connection, not one short-lived access
+      // token. Scope/subject/audience/epoch changes still fence the connection, and every request still
+      // verifies its own token and revocation. This identity is separate so the MCP binding semantics
+      // (plans, sessions, rate limits) stay token-specific for every client.
+      const automationConnectionId = !scopes.some(scope => scope.startsWith('automation:')) ? undefined
+        : machineBound.kind === 'bound' ? machineBound.credentialBindingId
+          : sha256Base64Url(JSON.stringify(['automation-oauth-connection/v1', options.issuer,
+            subject, clientId, resourceAudience, securityEpoch, account.securityEpoch ?? null, [...scopes].sort()]));
       const evidence: McpOAuthCredentialEvidence = Object.freeze({
         credentialKind: 'oauth',
         principalId: account.id,
@@ -323,6 +329,7 @@ export function createMcpOauthVerifier(options: McpOauthVerifierOptions): McpOau
         binding,
         accountSubjectId: account.subjectId,
         credentialDigest,issuedAtSeconds: issuedAtValue,accountSecurityEpoch: account.securityEpoch,
+        ...(automationConnectionId === undefined ? {} : { automationConnectionId }),
         verifiedAt: new Date(now.getTime()),
         expiresAt: new Date(expiresAtValue * 1_000),
         scopes: Object.freeze([...scopes]),

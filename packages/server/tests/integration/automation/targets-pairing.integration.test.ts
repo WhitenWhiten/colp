@@ -65,6 +65,7 @@ describeWithPostgres('AW-26 authenticated worker bootstrap and pairing',() => {
     expect(paired.json()).toMatchObject({ isolation: 'dedicatedCredential',wakeReadiness: 'active' });
     const fresh = await f.mint(),verified = await f.verifier.verify({ authorization: 'Bearer '+fresh });
     expect(verified.binding.credentialBindingId).toBe(f.actor.credentialBindingId);
+    expect(verified.automationConnectionId).toBe(f.actor.credentialBindingId);
     expect((await f.pair(setup.grant,command,fresh)).statusCode).toBe(200);
     await f.revokeWorker();expect((await f.pair(setup.grant,command,fresh)).statusCode).toBe(401);
     await expect(f.db.transaction().execute(tx => f.worker.authorize(tx,f.actor,setup.target.id))).rejects.toMatchObject({ code: 'resource_not_found' });

@@ -60,7 +60,7 @@ export async function automationWorkerFixture(prefix: string,maxPairRequests = 1
   };
   const token = await mint(),verified = await verifier.verify({ authorization: 'Bearer '+token,requiredScopes: ['automation:work'] });
   const actor: WorkPrincipal = { accountId: verified.binding.principalId,subjectId: verified.accountSubjectId,clientId: verified.binding.clientId,
-    credentialBindingId: verified.binding.credentialBindingId,resourceAudience: verified.binding.resourceAudience,securityEpoch: verified.binding.securityEpoch,
+    credentialBindingId: verified.automationConnectionId ?? verified.binding.credentialBindingId,resourceAudience: verified.binding.resourceAudience,securityEpoch: verified.binding.securityEpoch,
     scopes: verified.scopes,credentialDigest: verified.credentialDigest,expiresAt: verified.expiresAt.toISOString(),issuedAtSeconds: verified.issuedAtSeconds,accountSecurityEpoch: verified.accountSecurityEpoch };
   const limiter = createMemoryMcpRateLimiter({ request: { maxRequests: maxPairRequests,windowMs: 60_000 } });
   const worker = createTargetWorkerService(f.db,createAutomationBindingVerifier(config,async () => MCP_OAUTH_DEFAULT_SECURITY_EPOCH),async a => {
