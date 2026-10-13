@@ -7,3 +7,6 @@ export * from './application/rule-service.js';
 export * from './application/preview-service.js';
 export * from './application/lifecycle-service.js';
 export * from './application/health-service.js';
+
+export * from './application/admit-event.js';
+export { assessIntakeBindings } from './application/rule-eligibility.js';

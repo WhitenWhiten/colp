@@ -1,5 +1,5 @@
 import { createAutomationIngestRoute, automationIngestRegistration } from '../infrastructure/outbox/index.js';
-import { createAutomationSourceInspector } from '../infrastructure/automation/index.js';
+import { createAutomationSourceInspector, createAutomationAdmission } from '../infrastructure/automation/index.js';
 import { createAutomationHealthMonitor } from '../infrastructure/automation/index.js';
 import { createDatabaseFaviconStore } from '../infrastructure/collections/index.js';
 import { loadSharedFaviconConfig } from './config-favicon-shared.js';
@@ -481,8 +481,7 @@ export function buildWorker(
   const routes = Object.freeze([
     ...projectionRoutes, ...syncConflictRoutes,
     ...(database ? [createAutomationIngestRoute(createAutomationSourceInspector(database.db,
-      // AW-14 installs durable inspection; admission is attached by AW-15.
-      async () => {}))] : []),
+      config.automationConfigurationEnabled ? createAutomationAdmission(config.publication.serverUuid) : async () => {}))] : []),
     ...publicationCachePurgeRoutes,
     ...collectionInviteEmailRoutes,
   ]);

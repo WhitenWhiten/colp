@@ -67,6 +67,7 @@ export async function replaceRule(ports: AutomationPorts, actor: AutomationActor
   assertM1Input(ruleInput); const inspected = await inspectInput(ports, actor, ruleInput);
   // Editing an enabled revision requires fresh preview/activation. It never silently activates new logic.
   const desiredState = previous.view.desiredState === 'enabled' ? 'paused' : previous.view.desiredState;
+  await ports.pendingRuns(previous.definitionRevisionId, input.pendingRuns);
   await ports.activation(previous, { kind: 'disable' });
   const rule: StoredRule = { sortCreatedAt: previous.sortCreatedAt, definitionRevisionId: ports.id(), definitionRevision: nextRevision(previous.definitionRevision),
     view: { ...previous.view, ...ruleInput, revision: nextRevision(previous.view.revision), desiredState, effectiveState: desiredState,
@@ -92,6 +93,7 @@ export async function saveBinding(ports: AutomationPorts, actor: AutomationActor
   await ports.bindings.save(actor.accountId, view);
   for (const rule of await ports.rules.list(actor.accountId, null, 500)) if (rule.view.bindingSetId === view.id) {
     if (rule.view.desiredState === 'enabled' && previous && bindingSemanticDigest(previous.values) !== bindingSemanticDigest(view.values)) {
+      await ports.pendingRuns(rule.definitionRevisionId, 'hold');
       await ports.activation(rule, { kind: 'disable' });
       rule.view = { ...rule.view, desiredState: 'paused', effectiveState: 'paused', revision: nextRevision(rule.view.revision), updatedAt: view.updatedAt };
       await ports.rules.setState(actor.accountId, rule);

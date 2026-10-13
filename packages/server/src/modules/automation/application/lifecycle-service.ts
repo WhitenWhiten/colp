@@ -26,6 +26,7 @@ export async function setLifecycle(ports: AutomationPorts, actor: AutomationActo
     // Fence private activation metadata even after resource permission loss.
     await ports.activation(stored, { kind: 'disable' });
   }
+  await ports.pendingRuns(stored.definitionRevisionId, input.pendingRuns);
   const paused = (await ports.settings.get(actor.accountId)).paused;
   stored.view = { ...stored.view, desiredState: input.state, effectiveState: input.state === 'enabled' ? (paused ? 'paused' : 'blocked') : input.state,
     revision: nextRevision(stored.view.revision), updatedAt: (await ports.now()).toISOString() };
@@ -39,6 +40,7 @@ export async function setPause(ports: AutomationPorts, actor: AutomationActor, b
     pausedBy: input.paused ? 'owner' as const : null };
   for (const rule of await ports.rules.list(actor.accountId, null, 500)) {
     if (rule.view.desiredState !== 'enabled') continue;
+    await ports.pendingRuns(rule.definitionRevisionId, input.paused ? 'hold' : 'continuePinned');
     await ports.activation(rule, { kind: 'disable' });
     // This captures only the pinned source's ordinal, never grants read/effect authority.
     if (!input.paused) await ports.activation(rule, { kind: 'resume' });

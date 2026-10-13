@@ -53,6 +53,12 @@ export function createAutomationUnitOfWork(db: Kysely<DatabaseSchema>, serverUui
             snapshot_json: { input: preview.input }, result_json: preview.result, expires_at: preview.expiresAt }).execute();
         },
       },
+      async pendingRuns(revisionId, policy) {
+        await sql`UPDATE automation_runs SET held=${policy === 'hold'},
+          state=CASE WHEN ${policy}='cancel' THEN 'cancelled' ELSE state END,
+          revision=revision+1, updated_at=clock_timestamp()
+          WHERE owner_id=${actor.accountId} AND rule_revision_id=${revisionId} AND state IN ('waiting','running')`.execute(tx);
+      },
       async activation(rule, transition) {
         if (transition.kind === 'disable') {
           const active = await tx.selectFrom('automation_activations').selectAll().where('rule_revision_id', '=', rule.definitionRevisionId)
