@@ -82,7 +82,8 @@ export function createAutomationUnitOfWork(db: Kysely<DatabaseSchema>, serverUui
       },
       async wakePendingRuns() {
         const rows = (await sql<{ collection_id: string }>`SELECT DISTINCT explanation_json->>'collectionId' AS collection_id
-          FROM automation_runs WHERE owner_id=${actor.accountId} AND state='waiting' AND NOT held
+          FROM automation_runs r WHERE owner_id=${actor.accountId} AND NOT held
+          AND (state='waiting' OR EXISTS(SELECT 1 FROM automation_jobs j WHERE j.run_id=r.id AND j.budget_block_reason='daily' AND r.state<>'cancelled'))
           ORDER BY collection_id`.execute(tx)).rows;
         for (const row of rows) await appendAutomationResume(tx, row.collection_id);
       },

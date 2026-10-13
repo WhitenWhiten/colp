@@ -1,3 +1,4 @@
+import { scheduleBudgetWake } from './budget-wakes.js';
 import { randomBytes, createHash, timingSafeEqual } from 'node:crypto';
 import { sql, type Kysely } from 'kysely';
 import type { Lease, LeaseProof } from '@know-n/colp/automation';
@@ -51,6 +52,7 @@ export function createJobLeaseStore(db: Kysely<DatabaseSchema>, authorize: Targe
           budget_retry_after=${callsExhausted ? sql`NULL` : sql`((CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date+1)::timestamp AT TIME ZONE 'UTC'`},
           explanation=${callsExhausted ? 'Pinned optional call limit exhausted.' : 'Daily optional budget exhausted; original work will be reconsidered on the next UTC day.'}
           WHERE id=${id}`.execute(tx);
+        if (!callsExhausted) await scheduleBudgetWake(tx,actor.accountId,job.collection_id);
         return { kind: 'budget' as const };
       }
       const token = randomBytes(32).toString('base64url'), generation = Number(job.active_generation) + 1;

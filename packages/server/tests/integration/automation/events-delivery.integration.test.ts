@@ -1,3 +1,4 @@
+import { createAutomationWorkerService } from '../../../src/infrastructure/automation/worker-service.js';
 import { retainAutomationHistory } from '../../../src/infrastructure/automation/retention-worker.js';
 import { readAutomationUsage } from '../../../src/infrastructure/automation/usage-read-store.js';
 import { randomUUID } from 'node:crypto';
@@ -102,6 +103,20 @@ describeWithPostgres('AW-29 durable ready wake delivery',() => {
     await worker.tick();expect((await rows()).map(r=>r.state)).toEqual(['accepted','accepted']);
     expect(new Set((await rows()).map(r=>JSON.parse(r.body).eventId)).size).toBe(2);
     expect(await worker.tick()).toBe(false);
+  });
+
+  test('durable budget resume emits a wake without a jobs.list request',async()=>{
+    await setup();
+    const delivery=createDeliveryWorker(f.db,f.worker.authorize,{...cipher,send:async()=>({status:204,retryAfter:null})});
+    await delivery.tick();
+    const job=(await f.work!.list(f.actor,{targetId:f.target.id})).items[0]!;
+    const capped=createAutomationWorkerService(f.db,'server',f.worker,f.results!,'events-budget-test-cursor-at-least-32',0);
+    await expect(capped.mutate(f.actor,job.id,'claim',{deliveryHandle:job.deliveryHandle},randomUUID())).rejects.toMatchObject({code:'automation_budget_exceeded'});
+    expect((await sql`SELECT outbox_id FROM outbox_events WHERE event_type='automation.intake.resume' AND available_at>clock_timestamp()`.execute(f.db)).rows.length).toBeGreaterThan(0);
+    await sql`UPDATE automation_jobs SET budget_retry_after=clock_timestamp()-interval '1 second' WHERE id=${job.id}`.execute(f.db);
+    await f.inspect(); // Production durable consumer; deliberately do not poll the job queue.
+    expect((await rows()).map(r=>r.state)).toEqual(['accepted','pending']);
+    await delivery.tick();expect((await rows()).at(-1)!.state).toBe('accepted');
   });
 
 });
