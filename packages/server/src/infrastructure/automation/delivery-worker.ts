@@ -6,7 +6,7 @@ import { AutomationError,type WorkPrincipal } from '../../modules/automation/ind
 import type { TargetAuthority } from './work-authority.js';
 import { lockWorkJob } from './work-authority.js';
 import { signWebhook } from './webhook-signer.js';
-interface Delivery { id: string; owner_id: string; job_id: string; target_id: string; subscription_id: string;
+interface Delivery { ready_generation: string; id: string; owner_id: string; job_id: string; target_id: string; subscription_id: string;
   subscription_generation: string; generation: string; body: string; attempt_count: number }
 interface Destination { callback_url: string; secret_ciphertext: string; previous_secret_ciphertext: string | null;
   previous_secret_until: Date | null; observation_json: WorkPrincipal }
@@ -30,7 +30,8 @@ export function createDeliveryWorker(db: Kysely<DatabaseSchema>,authorize: Targe
     if (!row) return null;
     try {
       const job = await lockWorkJob(tx,row.observation_json,d.job_id,authorize);
-      return (completion || job.state === 'ready') && job.target_id === d.target_id ? row : null;
+      return String(job.ready_generation) === String(d.ready_generation)
+        && (completion || job.state === 'ready') && job.target_id === d.target_id ? row : null;
     } catch (error) { if (error instanceof AutomationError && error.code !== 'automation_paused') return null;throw error; }
   }
   async function cancel(tx: DatabaseTransaction,d: Delivery) {

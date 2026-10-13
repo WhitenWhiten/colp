@@ -13,8 +13,8 @@ const secret='whsec_'+Buffer.alloc(32,9).toString('base64'),cipher=createWebhook
 describeWithPostgres('AW-29 durable ready wake delivery',() => {
   let f:Awaited<ReturnType<typeof automationPollingFixture>>;
   afterEach(async()=>{await f?.close();});
-  async function setup() {
-    f=await automationPollingFixture('aw29_delivery',{ wakeMode:'events',pair:async (base,grant)=>{
+  async function setup(maxCalls=1) {
+    f=await automationPollingFixture('aw29_delivery',{ maxCalls,wakeMode:'events',pair:async (base,grant)=>{
       expect((await base.pair(grant)).statusCode).toBe(200);
       await createSubscriptionStore(base.db,base.worker,{ ...cipher,verify:async()=>{} }).subscribe(base.actor,{
         name:'colp.automation.triggered',arguments:{targetId:grant.targetId},delivery:{mode:'webhook',url:'https://receiver.example',secret} });
@@ -89,6 +89,19 @@ describeWithPostgres('AW-29 durable ready wake delivery',() => {
     await f.createNode('after-renewal','root','Renewal','https://arxiv.org/renewal');await f.inspect();
     await worker.tick();expect(sent).toBe(2);
     expect((await sql<{state:string}>`SELECT state FROM automation_event_subscriptions`.execute(f.db)).rows[0]!.state).toBe('active');
+  });
+
+  test('a safe worker retry creates a new wake while HTTP retries retain one occurrence',async()=>{
+    await setup(2);
+    const worker=createDeliveryWorker(f.db,f.worker.authorize,{...cipher,send:async()=>({status:204,retryAfter:null})});
+    await worker.tick();
+    const job=(await f.work!.list(f.actor,{targetId:f.target.id})).items[0]!;
+    const lease=await f.work!.mutate(f.actor,job.id,'claim',{deliveryHandle:job.deliveryHandle},randomUUID()) as import('@know-n/colp/automation').Lease;
+    await f.work!.mutate(f.actor,job.id,'fail',{claimToken:lease.claimToken,generation:lease.generation,kind:'knownRetryable',code:'temporary',message:'Safe retry'},randomUUID());
+    expect((await rows()).map(r=>r.state)).toEqual(['accepted','pending']);
+    await worker.tick();expect((await rows()).map(r=>r.state)).toEqual(['accepted','accepted']);
+    expect(new Set((await rows()).map(r=>JSON.parse(r.body).eventId)).size).toBe(2);
+    expect(await worker.tick()).toBe(false);
   });
 
 });

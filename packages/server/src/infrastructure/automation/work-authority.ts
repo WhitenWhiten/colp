@@ -3,7 +3,7 @@ import { AutomationError, type WorkPrincipal } from '../../modules/automation/in
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
 
 export interface WorkJob {
-  id: string; run_id: string; owner_id: string; rule_id: string; target_id: string; state: string; active_generation: string;
+  ready_generation: string; id: string; run_id: string; owner_id: string; rule_id: string; target_id: string; state: string; active_generation: string;
   input_digest: string; input_revision: string; delivery_handle: string; max_calls: number; collection_id: string; node_id: string; rule_daily_cap: number; policy_privacy: 'standard' | 'restricted';
 }
 export type TargetAuthority = (tx: DatabaseTransaction, actor: WorkPrincipal, targetId: string,privacy?: 'standard' | 'restricted') => Promise<void>;
