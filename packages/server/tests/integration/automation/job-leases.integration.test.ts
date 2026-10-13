@@ -53,6 +53,8 @@ describeWithPostgres('AW-23 lease generation and uncertainty', () => {
     const lease = await claim();
     const pause = async (paused: boolean) => {
       const current = await f.app.inject({ url: '/api/v1/me/automations/pause',headers: { cookie: f.owner.cookie } });
+      // Held jobs overlay the pause: none while running, the leased job once paused.
+      expect(current.json().heldJobs).toBe(paused ? 0 : 1);
       const changed = await f.ownerPost('/pause',{ paused },String(current.headers.etag));expect(changed.statusCode,changed.body).toBe(200);
     };
     await pause(true);

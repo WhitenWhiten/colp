@@ -54,10 +54,12 @@ export function createAutomationUnitOfWork(db: Kysely<DatabaseSchema>, serverUui
       sample: (owner, rule, values) => readCurrentSample(tx, reads, serverUuid, owner, rule, values), export: (ownerId) => exportAutomations(tx, ownerId),
       settings: {
         async get(ownerId): Promise<PauseState> {
-          const held = await sql<{ count: string }>`select count(*)::text as count from automation_jobs j join automation_runs r on r.id=j.run_id
-            where r.owner_id=${ownerId} and j.state in ('pending','ready','leased','committing','awaitingApproval')`.execute(tx);
-          const heldJobs = Number(held.rows[0]?.count ?? 0);
           const row = await tx.selectFrom('automation_settings').selectAll().where('owner_id', '=', ownerId).executeTakeFirst();
+          // Same overlay as usage: active jobs under a run hold, or every active job under the global pause.
+          const held = await sql<{ count: string }>`select count(*)::text as count from automation_jobs j join automation_runs r on r.id=j.run_id
+            where r.owner_id=${ownerId} and (r.held or ${row?.paused === true})
+            and j.state in ('pending','ready','leased','committing','awaitingApproval','uncertain')`.execute(tx);
+          const heldJobs = Number(held.rows[0]?.count ?? 0);
           return row ? { paused: row.paused, pausedAt: row.paused_at?.toISOString() ?? null, pausedBy: row.paused_by, revision: String(row.revision), heldJobs }
             : { paused: false, pausedAt: null, pausedBy: null, revision: '0', heldJobs };
         },
