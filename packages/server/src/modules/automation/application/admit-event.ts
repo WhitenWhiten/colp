@@ -10,7 +10,7 @@ export function admitEvent(candidates: readonly AdmissionCandidate[], event: Eve
   const plans = evaluateRuleEvents(eligible, event);
   return eligible.map((candidate, index) => {
     const plan = plans[index]!;
-    return { candidate, plan, createRun: ['placed', 'matched', 'conflict', 'blocked', 'overridden'].includes(plan.kind) };
+    return { candidate, plan, createRun: plan.kind !== 'notMatched' && plan.kind !== 'preserved' };
   });
 }
 

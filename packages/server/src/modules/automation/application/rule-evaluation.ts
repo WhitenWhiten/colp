@@ -1,4 +1,4 @@
-import { arbitratePlacement, type CompiledPredicate, type EventFacts, type FolderRef, type PlacementCandidate, type RuleDefinition } from '@know-n/colp/automation';
+import { arbitratePlacement, preparePredicateInput, type PreparedPredicateInput, type CompiledPredicate, type EventFacts, type FolderRef, type PlacementCandidate, type RuleDefinition } from '@know-n/colp/automation';
 import { sameFolder, type FolderResolution } from '../domain/bindings.js';
 import { eventEligible, type BindingAssessment } from './rule-eligibility.js';
 
@@ -22,12 +22,12 @@ type AssessedRule =
   | { kind: 'terminal'; plan: RuleEventPlan }
   | { kind: 'placement'; candidate: PlacementCandidate; satisfiedTasks: string[] };
 
-function assessRule(rule: PreparedRule, event: EventFacts): AssessedRule {
+function assessRule(rule: PreparedRule, event: EventFacts, inputSnapshot: PreparedPredicateInput): AssessedRule {
   const terminal = (plan: RuleEventPlan): AssessedRule => ({ kind: 'terminal', plan });
   if (!eventEligible(rule.definition, rule.resolutions, event)) {
     return terminal({ kind: 'notMatched', reason: 'Outside rule scope, source policy, trigger or hop bound.' });
   }
-  const predicate = rule.predicate.evaluate(event);
+  const predicate = rule.predicate.evaluate(event, { inputSnapshot });
   if (predicate.outcome === 'error') return terminal({ kind: 'blocked', reason: predicate.code });
   if (predicate.outcome !== 'matched') return terminal({ kind: predicate.outcome, reason: predicate.outcome });
   if (!rule.bindings.available) {
@@ -46,12 +46,14 @@ function assessRule(rule: PreparedRule, event: EventFacts): AssessedRule {
 }
 
 /**
- * One immutable event, one predicate invocation per eligible rule, one arbitration.
- * Return plans in input order. Compatible rules can share an effect, but a blocked
- * rule never borrows a sibling's authority or loses its own diagnostic.
+ * One input normalization, one predicate invocation per eligible rule and one
+ * arbitration. Return plans in input order. Compatible rules can share an
+ * effect, but a blocked rule never borrows a sibling's authority or diagnostic.
  */
 export function evaluateRuleEvents(rules: readonly PreparedRule[], event: EventFacts): RuleEventPlan[] {
-  const assessments = rules.map(rule => assessRule(rule, event));
+  if (!rules.length) return [];
+  const inputSnapshot = preparePredicateInput(event);
+  const assessments = rules.map(rule => assessRule(rule, event, inputSnapshot));
   const candidates = assessments.flatMap(assessment => assessment.kind === 'placement' ? [assessment.candidate] : []);
   const placement = arbitratePlacement(candidates, event.intakeDisposition ?? 'unknown');
   return assessments.map(assessment => {

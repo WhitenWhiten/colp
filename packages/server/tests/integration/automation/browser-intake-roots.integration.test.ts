@@ -9,7 +9,7 @@ import { acceptIntakeReceipt, placementInputDigest, placementResultDigest } from
 
 describeWithPostgres('canonical browser intake roots', () => {
   let f: Awaited<ReturnType<typeof automationDeviceFixture>>;
-  beforeEach(async () => { f = await automationDeviceFixture('intake-roots'); });
+  beforeEach(async () => { f = await automationDeviceFixture('intake_roots'); });
   afterEach(async () => { await f?.isolated.close(); });
 
   async function verify(parentId: string) {

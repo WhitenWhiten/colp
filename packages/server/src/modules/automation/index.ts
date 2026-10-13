@@ -10,6 +10,7 @@ export * from './application/lifecycle-service.js';
 export * from './application/health-service.js';
 
 export * from './application/admit-event.js';
+export * from './application/intake-admission-policy.js';
 export { assessIntakeBindings } from './application/rule-eligibility.js';
 export * from './application/run-service.js';
 export * from './application/accept-intake-receipt.js';

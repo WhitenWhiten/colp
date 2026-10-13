@@ -9,7 +9,7 @@ import { acceptIntakeReceipt, placementInputDigest, placementResultDigest } from
 
 describeWithPostgres('bounded durable receipt queue', () => {
   let f: Awaited<ReturnType<typeof automationDeviceFixture>>;
-  beforeEach(async () => { f = await automationDeviceFixture('receipt-queue'); });
+  beforeEach(async () => { f = await automationDeviceFixture('receipt_queue'); });
   afterEach(async () => { await f?.isolated.close(); });
 
   const device = () => createAutomationDeviceUnitOfWork(f.db, 'server');

@@ -1,8 +1,9 @@
 import { createReceiptReconciler } from './reconcile-receipts.js';
+import { reserveIntakeAdmission } from './intake-capacity.js';
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { compilePredicate, type RoleBindings, type RuleDefinition } from '@know-n/colp/automation';
-import { admitEvent, resolveBindings, assessIntakeBindings, type AdmissionCandidate } from '../../modules/automation/index.js';
+import { admitEvent, intakeAdmissionState, resolveBindings, assessIntakeBindings, type AdmissionCandidate } from '../../modules/automation/index.js';
 import { createBindingReadPort } from './bindings.js';
 import { sourceEvent } from './source-facts.js';
 import type { InspectAutomationSource } from './source-position-store.js';
@@ -15,8 +16,6 @@ interface ActiveRule {
 export function createAutomationAdmission(serverUuid: string): InspectAutomationSource {
   const reconcile = createReceiptReconciler(serverUuid);
   return async (tx, owner, collectionId, sources) => {
-    // Retire unavailable evidence even while paused; the reconciler itself never
-    // accepts effects during pause. Completed proof need not reappear in sources.
     const moreReceipts = await reconcile(tx, owner, collectionId, sources) === true;
     const settings = await tx.selectFrom('automation_settings').select('paused').where('owner_id', '=', owner.accountId).executeTakeFirst();
     if (settings?.paused) return moreReceipts;
@@ -57,12 +56,16 @@ export function createAutomationAdmission(serverUuid: string): InspectAutomation
           ON CONFLICT (rule_revision_id, epoch, partition_key) DO UPDATE SET sequence=automation_aggregate_state.sequence+1
           RETURNING sequence::text`.execute(tx)).rows[0]!.sequence;
         const runId = randomUUID();
+        const admission = intakeAdmissionState(plan, candidate.definition.policy);
         await sql`INSERT INTO automation_runs
           (id, owner_id, kind, rule_revision_id, binding_set_id, binding_revision, policy_revision, member_ids, state, explanation_json)
           VALUES (${runId}, ${owner.accountId}, 'intake', ${candidate.revisionId}, ${pin.binding_set_id}, ${pin.binding_revision}::bigint,
-            NULL, ${JSON.stringify([event.eventId])}::jsonb, ${plan.kind === 'placed' ? 'waiting' : plan.kind === 'matched' ? 'completed' : 'review'},
+            NULL, ${JSON.stringify([event.eventId])}::jsonb, ${admission.state},
             ${JSON.stringify({ plan, epoch: candidate.epoch, sequence, operationId: event.operationId, nodeId: event.nodeId,
-              collectionId, sourceRevision: source.facts_json!.after!.resourceRevision, causationRoot: event.rootRunId ?? runId })}::jsonb)`.execute(tx);
+              collectionId, sourceRevision: source.facts_json!.after!.resourceRevision, causationRoot: event.rootRunId ?? runId,
+              ...(admission.explanation ? { explanation: admission.explanation } : {}) })}::jsonb)`.execute(tx);
+        if (admission.runnable) await reserveIntakeAdmission(tx, { runId, ownerId: owner.accountId, ruleId: candidate.ruleId,
+          collectionId, maxRunsPerDay: candidate.definition.policy.maxRunsPerDay });
         await sql`UPDATE automation_admission_receipts SET run_id=${runId}
           WHERE rule_revision_id=${candidate.revisionId} AND source_event_id=${event.eventId} AND stage='intake'`.execute(tx);
       }
