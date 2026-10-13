@@ -76,6 +76,11 @@ export const PRODUCT_ROUTE_MANIFEST = [
     "operationId": "startOidcAuthorization"
   },
   {
+    "method": "POST",
+    "path": "/api/v1/automation-device/intake-receipts",
+    "operationId": "ingestAutomationIntakeReceipt"
+  },
+  {
     "method": "GET",
     "path": "/api/v1/avatar/{avatarId}",
     "operationId": "getAvatar"

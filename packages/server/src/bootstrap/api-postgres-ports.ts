@@ -1,4 +1,4 @@
-import { createAutomationUnitOfWork, createAutomationHealthMonitor } from '../infrastructure/automation/index.js';
+import { createAutomationDeviceUnitOfWork, createAutomationUnitOfWork, createAutomationHealthMonitor } from '../infrastructure/automation/index.js';
 import { createPostgresBookmarkSubscriptionUnitOfWork } from '../infrastructure/bookmark-subscriptions/unit-of-work.js';
 import { loadConfig } from './config.js';
 import {
@@ -302,6 +302,7 @@ export function createApiPostgresAppDependencies(input: {
       ),
     } : {}),
     ...(config.automationConfigurationEnabled ? { automationUnitOfWork: createAutomationUnitOfWork(database.db, config.publication.serverUuid),
+      automationDeviceUnitOfWork: createAutomationDeviceUnitOfWork(database.db, config.publication.serverUuid),
       automationHealthStartup: () => createAutomationHealthMonitor(database.db, config.publication.serverUuid, metrics).revalidateAll() } : {}),
     linkHealthEnqueue: createPostgresLinkHealthEnqueueUnitOfWork(database.db),
     collectionExportReads: createPostgresCollectionExportReadPort(database.db),

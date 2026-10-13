@@ -4378,6 +4378,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/automation-device/intake-receipts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Join a local receipt to an authoritative sync operation
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         */
+        post: operations["ingestAutomationIntakeReceipt"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/automations/pause": {
         parameters: {
             query?: never;
@@ -4908,6 +4928,35 @@ export interface components {
             undoReason: string;
         };
         AutomationOpaqueId: string;
+        AutomationReceiptIngestResult: {
+            receiptId: string;
+            /** @enum {string} */
+            state: "waitingForSync" | "accepted" | "review" | "rejected";
+            satisfiedTaskTypes: ("classify.root" | "classify.refine" | "tags.generate" | "summary.generate" | "metadata.resolve" | "review.generate" | "digest.generate")[];
+            diagnostics: components["schemas"]["AutomationDiagnostic"][];
+        };
+        /** @description Device-authenticated canonical evidence, not an authorization grant. Native ID mapping and native observation generation remain inside the extension. Both canonical operations must be joined before accepting an observed-create receipt. */
+        AutomationLocalReceiptInput: {
+            deviceId: string;
+            replicaGeneration: number;
+            localReceiptId: string;
+            /** @description Canonical Sync create operation ID, not chrome.bookmarks operation or native node identity. */
+            operationId: string;
+            ruleId: string;
+            ruleRevision: string;
+            bindingRevision: string;
+            bundleRevision: string;
+            inputDigest: string;
+            /** @description Advisory intake satisfaction. Server verifies committed placement and pinned rule; never trusts this to discharge enrichment tasks. */
+            satisfiedTaskTypes: "classify.root"[];
+            /** @description Canonical resource identity (serverUuid, collectionId, nodeId); FolderRef is reused structurally, but the node is a bookmark and must be checked as such. */
+            committedNode: components["schemas"]["AutomationFolderRef"];
+            resultDigests: string[];
+            /** @description Canonical move operation ID for an observed-create correction. Required semantically for that path; omitted for pre-save placement. */
+            placementOperationId?: components["schemas"]["AutomationOpaqueId"];
+            /** @description Canonical original/default destination observed before rule placement. Advisory until checked against canonical operations; never invented to offer Undo. */
+            beforeFolder?: components["schemas"]["AutomationFolderRef"];
+        };
         AutomationPauseState: {
             paused: boolean;
             /** Format: date-time */
@@ -22871,6 +22920,50 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AutomationRun"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    ingestAutomationIntakeReceipt: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Stable command identity. Scope: authenticated principal + operation + addressed resource. Same identity/different canonical body returns 409. */
+                "Known-Command-Id": components["parameters"]["AutomationCommandId"];
+                "Known-Sync-Session": string;
+                /** @description Validate against existing host trusted-origin policy for cookie-authenticated mutations. */
+                Origin: components["parameters"]["AutomationOrigin"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AutomationLocalReceiptInput"];
+            };
+        };
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            202: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationReceiptIngestResult"];
                 };
             };
             400: components["responses"]["Automation400"];

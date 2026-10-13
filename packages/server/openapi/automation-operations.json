@@ -20,5 +20,6 @@
   "acknowledgeAutomationIncident",
   "listAutomationRuns",
   "getAutomationRun",
-  "cancelAutomationRun"
+  "cancelAutomationRun",
+  "ingestAutomationIntakeReceipt"
 ]

@@ -15573,6 +15573,75 @@ paths:
       x-known-feature-gate: automation_configuration
       security:
         - cookieAuth: []
+  /api/v1/automation-device/intake-receipts:
+    post:
+      operationId: ingestAutomationIntakeReceipt
+      tags:
+        - Automation
+      summary: Join a local receipt to an authoritative sync operation
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+      x-delivery-phase: M1
+      parameters:
+        - $ref: '#/components/parameters/AutomationCommandId'
+        - in: header
+          name: Known-Sync-Session
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 256
+        - $ref: '#/components/parameters/AutomationOrigin'
+      responses:
+        '202':
+          description: Successful response; inspect the returned state, not merely the HTTP status.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+            X-Request-Id:
+              schema:
+                type: string
+                maxLength: 128
+                minLength: 1
+                pattern: ^[A-Za-z0-9._~-]+$
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutomationReceiptIngestResult'
+        '400':
+          $ref: '#/components/responses/Automation400'
+        '401':
+          $ref: '#/components/responses/Automation401'
+        '403':
+          $ref: '#/components/responses/Automation403'
+        '404':
+          $ref: '#/components/responses/Automation404'
+        '409':
+          $ref: '#/components/responses/Automation409'
+        '412':
+          $ref: '#/components/responses/Automation412'
+        '413':
+          $ref: '#/components/responses/Automation413'
+        '422':
+          $ref: '#/components/responses/Automation422'
+        '428':
+          $ref: '#/components/responses/Automation428'
+        '429':
+          $ref: '#/components/responses/Automation429'
+        '500':
+          $ref: '#/components/responses/Automation500'
+        '503':
+          $ref: '#/components/responses/Automation503'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AutomationLocalReceiptInput'
+      security:
+        - DeviceBearer: []
+      x-known-feature-gate: automation_configuration
   /api/v1/me/automations/pause:
     post:
       operationId: setAutomationPause
@@ -15756,6 +15825,10 @@ paths:
         - cookieAuth: []
 components:
   securitySchemes:
+    DeviceBearer:
+      type: http
+      scheme: bearer
+      description: Host-authenticated device or registered internal executor bearer, with operation-specific automation scopes. MCP worker tools use MCP OAuth instead; this is not an extra login system.
     cookieAuth:
       type: apiKey
       in: cookie
@@ -18730,6 +18803,126 @@ components:
       maxLength: 128
       minLength: 1
       pattern: ^[A-Za-z0-9._~-]+$
+    AutomationReceiptIngestResult:
+      type: object
+      properties:
+        receiptId:
+          type: string
+          maxLength: 128
+          minLength: 1
+          pattern: ^[A-Za-z0-9._~-]+$
+        state:
+          type: string
+          enum:
+            - waitingForSync
+            - accepted
+            - review
+            - rejected
+        satisfiedTaskTypes:
+          type: array
+          items:
+            type: string
+            enum:
+              - classify.root
+              - classify.refine
+              - tags.generate
+              - summary.generate
+              - metadata.resolve
+              - review.generate
+              - digest.generate
+          maxItems: 16
+        diagnostics:
+          type: array
+          items:
+            $ref: '#/components/schemas/AutomationDiagnostic'
+          maxItems: 100
+      required:
+        - receiptId
+        - state
+        - satisfiedTaskTypes
+        - diagnostics
+      additionalProperties: false
+    AutomationLocalReceiptInput:
+      type: object
+      properties:
+        deviceId:
+          type: string
+          maxLength: 128
+          minLength: 1
+          pattern: ^[A-Za-z0-9._~-]+$
+        replicaGeneration:
+          type: integer
+          minimum: 1
+        localReceiptId:
+          type: string
+          maxLength: 128
+          minLength: 1
+          pattern: ^[A-Za-z0-9._~-]+$
+        operationId:
+          type: string
+          maxLength: 128
+          minLength: 1
+          pattern: ^[A-Za-z0-9._~-]+$
+          description: Canonical Sync create operation ID, not chrome.bookmarks operation or native node identity.
+        ruleId:
+          type: string
+          maxLength: 128
+          minLength: 1
+          pattern: ^[A-Za-z0-9._~-]+$
+        ruleRevision:
+          type: string
+          maxLength: 128
+          minLength: 1
+        bindingRevision:
+          type: string
+          maxLength: 128
+          minLength: 1
+        bundleRevision:
+          type: string
+          maxLength: 128
+          minLength: 1
+        inputDigest:
+          type: string
+          maxLength: 64
+          pattern: ^[a-f0-9]{64}$
+        satisfiedTaskTypes:
+          type: array
+          items:
+            const: classify.root
+          maxItems: 1
+          uniqueItems: true
+          description: Advisory intake satisfaction. Server verifies committed placement and pinned rule; never trusts this to discharge enrichment tasks.
+        committedNode:
+          $ref: '#/components/schemas/AutomationFolderRef'
+          description: Canonical resource identity (serverUuid, collectionId, nodeId); FolderRef is reused structurally, but the node is a bookmark and must be checked as such.
+        resultDigests:
+          type: array
+          items:
+            type: string
+            maxLength: 64
+            pattern: ^[a-f0-9]{64}$
+          maxItems: 1
+        placementOperationId:
+          $ref: '#/components/schemas/AutomationOpaqueId'
+          description: Canonical move operation ID for an observed-create correction. Required semantically for that path; omitted for pre-save placement.
+        beforeFolder:
+          $ref: '#/components/schemas/AutomationFolderRef'
+          description: Canonical original/default destination observed before rule placement. Advisory until checked against canonical operations; never invented to offer Undo.
+      required:
+        - deviceId
+        - replicaGeneration
+        - localReceiptId
+        - operationId
+        - ruleId
+        - ruleRevision
+        - bindingRevision
+        - bundleRevision
+        - inputDigest
+        - satisfiedTaskTypes
+        - resultDigests
+        - committedNode
+      additionalProperties: false
+      description: Device-authenticated canonical evidence, not an authorization grant. Native ID mapping and native observation generation remain inside the extension. Both canonical operations must be joined before accepting an observed-create receipt.
     AutomationPauseState:
       type: object
       properties:

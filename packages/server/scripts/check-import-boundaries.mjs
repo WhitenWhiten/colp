@@ -147,7 +147,7 @@ function layerOf(path) {
 }
 
 const moduleEdges = {
-  automation: new Set(['commands']),
+  automation: new Set(['commands', 'identity']),
   // Known-Command-Id idempotency: the identity avatar upload path consumes the
   // commands facade receipt port (same pattern as notifications/reading-progress).
   identity: new Set(['commands']),
@@ -302,7 +302,7 @@ const infrastructureEdges = {
 // facades only; allowing a layer category here would let a new deep import
 // bypass the public contract without a graph review.
 const infrastructureModuleEdges = {
-  automation: new Set(['module:automation:facade', 'module:commands:facade', 'module:access-policy:facade']),
+  automation: new Set(['module:identity:facade', 'module:automation:facade', 'module:commands:facade', 'module:access-policy:facade']),
   'bookmark-subscriptions': new Set(['module:bookmark-subscriptions:facade','module:commands:facade','module:collections:facade','module:reports:facade']),
   'access-policy': new Set(['module:access-policy:facade']),
   // F1 (legacy quarantine): the legacy OIDC boundary may re-export only the
@@ -607,6 +607,7 @@ const transportTargets = new Set([
   'transport/product/automation-pagination.ts',
   'transport/product/automation-health-routes.ts',
   'transport/product/automation-run-routes.ts',
+  'transport/automation-device-routes.ts',
   'modules/bookmark-subscriptions/index.ts',
   'transport/product/bookmark-subscription-routes.ts',
   'transport/product/subscription-exit-header.ts',

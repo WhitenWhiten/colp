@@ -1,3 +1,4 @@
+import { createReceiptReconciler } from './reconcile-receipts.js';
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { compilePredicate, type RoleBindings, type RuleDefinition } from '@know-n/colp/automation';
@@ -15,6 +16,7 @@ export function createAutomationAdmission(serverUuid: string): InspectAutomation
   return async (tx, owner, collectionId, sources) => {
     const settings = await tx.selectFrom('automation_settings').select('paused').where('owner_id', '=', owner.accountId).executeTakeFirst();
     if (settings?.paused) return; // Inspector still advances the durable skipped interval.
+    await createReceiptReconciler(serverUuid)(tx, owner, collectionId, sources);
     const reads = createBindingReadPort(tx, serverUuid);
     const collection = await reads.readCollection(owner, collectionId);
     if (!collection) return;
