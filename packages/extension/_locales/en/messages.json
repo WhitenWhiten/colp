@@ -119,6 +119,9 @@
   "backup_downloadReady": {
     "message": "Download started. Keep this file to restore your data later."
   },
+  "backup_downloadSkippedUrls": {
+    "message": "Download started. Skipped $1 bookmarks and $2 history entries with unsupported URLs. Export HTML as well to keep the skipped bookmarks."
+  },
   "backup_existingMetadata": {
     "message": "Restore metadata to existing bookmarks"
   },

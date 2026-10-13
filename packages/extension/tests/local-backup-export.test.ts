@@ -97,3 +97,35 @@ test('permission and owner failures still block export', async () => {
   vi.mocked(assertCaptureOwner).mockRejectedValueOnce(new Error('stale_owner'));
   await expect(exportJson()).rejects.toThrow('stale_owner');
 });
+
+test('JSON skips an unsupported leaf and remaps later parent indexes while HTML preserves it', async () => {
+  const tree = await chrome.bookmarks.getTree();
+  tree[0]!.children![0]!.children!.unshift({ id: 'bookmarklet', title: 'Bookmarklet', url: 'javascript:void(0)' });
+  tree[0]!.children!.push({ id: '2', title: 'Other bookmarks', children: [
+    { id: 'later', title: 'Later', url: 'https://example.test/later' },
+  ] });
+  chrome.bookmarks.getTree = async () => tree;
+  const result = await exportLocalBackup({ kind: 'known.localBackup.export', format: 'json' });
+  expect(result).toMatchObject({ ok: true, skippedBookmarks: 1, skippedHistory: 0 });
+  const data = decodeLocalBackup(new TextEncoder().encode(result.content));
+  expect(data.nodes.map(node => [node.sourceId, node.parentIndex])).toEqual([
+    ['1', null], ['b', 0], ['2', null], ['later', 2],
+  ]);
+  expect(data.history).toHaveLength(1);
+  expect(data.preferences.bookmarkInsertPosition).toBe('top');
+  const html = await exportLocalBackup({ kind: 'known.localBackup.export', format: 'html' });
+  expect(html.content).toContain('javascript:void(0)');
+  expect(html.skippedBookmarks).toBe(0);
+});
+
+test('unsupported history URLs are reported without blocking settings or supported history', async () => {
+  const { captureStore } = await import('../src/sw/capture.js');
+  vi.spyOn(captureStore, 'listForOwner').mockResolvedValue([
+    { ...task, captureId: 'unsupported', url: 'data:text/plain,hello' }, task,
+  ]);
+  const result = await exportLocalBackup({ kind: 'known.localBackup.export', format: 'json' });
+  const data = decodeLocalBackup(new TextEncoder().encode(result.content));
+  expect(result).toMatchObject({ skippedBookmarks: 0, skippedHistory: 1 });
+  expect(data.history.map(item => item.sourceId)).toEqual([task.captureId]);
+  expect(data.preferences.bookmarkInsertPosition).toBe('top');
+});

@@ -339,11 +339,12 @@ test('re-saving with the key left blank keeps the stored key, but only for the s
   expect(localValues[LOCAL_CLASSIFICATION_KEY]).toBe(before);
 });
 
-test('switching to server classification keeps the saved key, and switching back reuses it', async () => {
+test.each([false, true])('switching AI keeps the saved key and shared server permission=%s', async sharedServer => {
   mountOptionsDom();
   const stored: LocalClassificationCredential = { version: 3, generation: 'credential-4', presetId: 'typesafe',
     endpoint: 'https://api.typesafe.ai/v1/systemone', model: 'jev-1.13.0', secret: 'kept-key', disclosed: true };
   const localValues: Record<string, unknown> = { [LOCAL_CLASSIFICATION_ENABLED]: true, [LOCAL_CLASSIFICATION_KEY]: stored };
+  if (sharedServer) localValues.runtimeServerOrigin = 'https://api.typesafe.ai';
   const granted = new Set<string>(['https://api.typesafe.ai/*']);
   vi.stubGlobal('__KNOWN_EXTENSION_CLASSIFICATION_LOCAL__', true);
   vi.stubGlobal('chrome', {
@@ -372,7 +373,7 @@ test('switching to server classification keeps the saved key, and switching back
   await clicks.get('classification-local-disable')!({ isTrusted: true });
   expect(localValues[LOCAL_CLASSIFICATION_ENABLED]).toBeUndefined();
   expect(localValues[LOCAL_CLASSIFICATION_KEY]).toEqual(stored);
-  expect(granted.has('https://api.typesafe.ai/*')).toBe(false);
+  expect(granted.has('https://api.typesafe.ai/*')).toBe(sharedServer);
   expect((document.getElementById('classification-local-secret') as HTMLInputElement).placeholder).toContain('Saved on this browser');
 
   (document.getElementById('classification-local-disclosure') as HTMLInputElement).checked = true;

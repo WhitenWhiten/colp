@@ -25,9 +25,10 @@ async function setup() {
   const missing = new Set<string>();
   const events = { ...state.api,
     get: async (id: string) => { if (missing.has(id)) throw new Error(CHROME_BOOKMARK_NOT_FOUND); return state.api.get(id); },
-    getChildren: async (id: string) => (await state.api.getChildren(id)).filter(node => !missing.has(node.id)),
+    getChildren: async (id: string) => (await state.api.getChildren(id)).filter(node => !missing.has(node.id)).sort((a, b) => (a.index ?? 0) - (b.index ?? 0)),
     onCreated: eventPort<Parameters<BookmarkEventsApi['onCreated']['addListener']>[0]>(),
     onChanged: changed,
+    onChildrenReordered: eventPort<(id: string, info: { childIds: string[] }) => void>(),
     onMoved: eventPort<Parameters<BookmarkEventsApi['onMoved']['addListener']>[0]>(),
     onRemoved: eventPort<Parameters<BookmarkEventsApi['onRemoved']['addListener']>[0]>(),
   };
@@ -168,3 +169,75 @@ test('a frozen change callback survives overwrite before capture and store resta
     assert.ok((await f.store.listQueue(scope)).some(row => JSON.stringify(row.payload).includes(savedUrl)));
   } finally { f.store.close(); }
 });
+
+for (const kind of ['move', 'reorder'] as const) {
+  test(`frozen ${kind} survives worker restart and uploads exactly once`, async () => {
+    const f = await setup();
+    try {
+      await mapping(f.store, 'mapped', 'mapped-colp', 'root-selected', 'server-revision-7',
+        { title: 'Server before', url: 'https://example.test/before' }, 'root-selected');
+      await f.transition('recovery', true);
+      f.api.put({ ...f.api.node('folder-parent'), index: 1 });
+      f.api.put({ ...f.api.node('mapped'), index: 0 });
+      if (kind === 'move') for (const listener of f.events.onMoved.listeners) listener('mapped', {
+        parentId: 'root-selected', oldParentId: 'root-selected', oldIndex: 1, index: 0 });
+      else for (const listener of f.events.onChildrenReordered.listeners) listener('root-selected', {
+        childIds: ['mapped', 'folder-parent'] });
+      await f.worker.bookmarkListenerLifecycle.settled();
+      assert.deepEqual(f.failures, []);
+      assert.equal((await f.store.listQueue(scope)).length, 0);
+      f.store.close();
+      await f.transition('sleeping', false);
+      await f.worker.recoverBookmarkEventsAfterEngineSettles('alarm');
+      const rows = await f.store.listQueue(scope);
+      assert.equal(rows.length, 1);
+      assert.equal(rows[0]!.payload.type, 'move_node');
+      await f.worker.recoverBookmarkEventsAfterEngineSettles('alarm');
+      assert.equal((await f.store.listQueue(scope)).length, 1);
+    } finally { f.store.close(); }
+  });
+}
+
+test('frozen snapshot creates and moves of unmapped nodes do not become uploads', async () => {
+  const f = await setup();
+  try {
+    await f.transition('recovery', true);
+    const node = bookmark('snapshot-child', 'root-selected', 2, 'Remote', 'https://example.test/remote');
+    f.api.put(node);
+    for (const listener of f.events.onCreated.listeners) listener(node.id, node);
+    for (const listener of f.events.onMoved.listeners) listener(node.id, {
+      parentId: 'root-selected', oldParentId: 'root-selected', oldIndex: 0, index: 2 });
+    await f.worker.bookmarkListenerLifecycle.settled();
+    assert.deepEqual(f.failures, []);
+    assert.equal((await f.store.listBookmarkEventsByStatus(scope, 'pending')).length, 0);
+    assert.equal((await f.store.listQueue(scope)).length, 0);
+  } finally { f.store.close(); }
+});
+
+for (const kind of ['move', 'reorder'] as const) {
+  test(`frozen snapshot ${kind} echoes of mapped nodes are suppressed`, async () => {
+    const f = await setup();
+    try {
+      await f.transition('recovery', true);
+      await f.store.replaceProjectionIntents(scope, [
+        { intentId: 'move:mapped-colp', kind: 'move', colpId: 'mapped-colp', nativeId: 'mapped',
+          parentNativeId: 'root-selected', index: 0, order: 1, suppression: 'recovery:move:mapped-colp',
+          generation: scope.generation, state: 'executing' },
+        { intentId: 'move:folder-colp', kind: 'move', colpId: 'folder-colp', nativeId: 'folder-parent',
+          parentNativeId: 'root-selected', index: 1, order: 2, suppression: 'recovery:move:folder-colp',
+          generation: scope.generation, state: 'executing' },
+      ]);
+      f.api.put({ ...f.api.node('mapped'), index: 0 });
+      f.api.put({ ...f.api.node('folder-parent'), index: 1 });
+      if (kind === 'move') for (const listener of f.events.onMoved.listeners) listener('mapped', {
+        parentId: 'root-selected', oldParentId: 'root-selected', oldIndex: 1, index: 0 });
+      else for (const listener of f.events.onChildrenReordered.listeners) listener('root-selected', {
+        childIds: ['mapped', 'folder-parent'] });
+      await f.worker.bookmarkListenerLifecycle.settled();
+      assert.deepEqual(f.failures, []);
+      assert.equal((await f.store.listBookmarkEventsByStatus(scope, 'pending')).length, 0);
+      assert.equal((await f.store.listPendingReorders(scope)).length, 0);
+      assert.equal((await f.store.listQueue(scope)).length, 0);
+    } finally { f.store.close(); }
+  });
+}

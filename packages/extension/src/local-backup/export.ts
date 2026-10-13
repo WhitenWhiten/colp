@@ -13,6 +13,8 @@ import { captureStore } from '../sw/capture.js';
 import { backupHistoryStore } from '../sw/capture-history.js';
 import { readEffectiveBookmarkPreferences } from '../sw/bookmark-preferences.js';
 import { hasBookmarkPermission } from '../sw/runtime.js';
+import { bookmarkUrl } from '../generated/import-preview-validators.js';
+import { supportedBackupNodes } from './export-supported.js';
 import { backupHistory, backupNativeNodes, bookmarkHtml, MAX_BACKUP_BYTES, parseBackupAiConfig, parseLocalBackup, type BackupAiConfig, type BackupHistory } from './codec.js';
 
 /** Optional connection settings must never leak URL credentials or prevent a data backup. */
@@ -44,7 +46,10 @@ export async function exportLocalBackup(request: BackupExportRequest) {
   const tree = supportedBookmarkTree(await chrome.bookmarks.getTree()), descriptions = await readNativeFolderDescriptions(tree);
   const annotations = await readNativeBookmarkAnnotations(tree);
   const excluded = await exclusionIds();
-  const nodes = backupNativeNodes(tree[0]?.children ?? [], descriptions, excluded, annotations);
+  const nativeNodes = backupNativeNodes(tree[0]?.children ?? [], descriptions, excluded, annotations);
+  const nodes = request.format === 'json' ? supportedBackupNodes(nativeNodes) : nativeNodes;
+  const skippedBookmarks = nativeNodes.length - nodes.length;
+  let skippedHistory = 0;
   let content: string;
   if (request.format === 'html') content = bookmarkHtml(nodes);
   else {
@@ -61,9 +66,12 @@ export async function exportLocalBackup(request: BackupExportRequest) {
       readEffectiveBookmarkPreferences(), readUiLanguage(), readDefaultFolder(), readBackupAiConfig(),
     ]);
     await assertCaptureOwner(scope);
-    content = JSON.stringify(parseLocalBackup({ format: 'known-browser-backup', version: 1, exportedAt: Date.now(), nodes, history,
+    const supportedHistory = history.filter(item => bookmarkUrl(item.url));
+    skippedHistory = history.length - supportedHistory.length;
+    content = JSON.stringify(parseLocalBackup({ format: 'known-browser-backup', version: 1, exportedAt: Date.now(), nodes, history: supportedHistory,
       preferences: devicePreferencePatch(preferences), language, defaultFolderSourceId: nodes.some(node => node.sourceId === folder?.folderNativeId) ? folder!.folderNativeId : null, aiConfig }), null, 2);
   }
   if (new TextEncoder().encode(content).byteLength > MAX_BACKUP_BYTES) throw new Error('input_too_large');
-  return { ok: true, content, filename: `known-bookmarks-${new Date().toISOString().slice(0, 10)}.${request.format}`, mime: request.format === 'html' ? 'text/html' : 'application/json' };
+  return { ok: true, content, skippedBookmarks, skippedHistory,
+    filename: `known-bookmarks-${new Date().toISOString().slice(0, 10)}.${request.format}`, mime: request.format === 'html' ? 'text/html' : 'application/json' };
 }

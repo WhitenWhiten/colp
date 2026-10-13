@@ -1,3 +1,4 @@
+import { placementDomainKeys } from './bookmark-event-placement-domain.js';
 import { createBookmarkContentCapture } from './bookmark-content-capture.js';
 import { kns09Paused, recordKns09PausedDrop } from './kns-09-release.js';
 import { decideIngressPrivacy, isManagedBookmarkNode, recordIngressDiagnostic,
@@ -38,31 +39,6 @@ const POISON_CODES = new Set(['operation_schema_invalid', 'operation_byte_budget
 /** Parked reasons that can still commit when dependency evidence changes. Rejected and poison do not pin. */
 const PINNED_PARK_CODES = new Set(['children_fence_missing', 'dependency_pending', 'dependency_missing',
   'content_unavailable']);
-function recordFields(value: unknown): Readonly<Record<string, unknown>> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
-}
-/**
- * N-3 placement domain: target parent, source parent, sibling anchor, same-parent
- * reorder. The node's own id is an anchor so a later placement cannot pass the
- * event that affects it. Content edits are not members, and targetId alone is not a key.
- */
-function placementDomainKeys(event: BookmarkEventRecord): readonly string[] {
-  const draft = recordFields(event.details.draft);
-  const type = typeof draft.type === 'string' ? draft.type : '';
-  if (type !== 'create_node' && type !== 'move_node' && type !== 'delete_node' && type !== 'delete_subtree'
-    && event.kind !== 'create' && event.kind !== 'move' && event.kind !== 'remove') return [];
-  const context = recordFields(event.details.context);
-  const payload = recordFields(draft.payload);
-  const keys = new Set<string>();
-  const add = (prefix: string, value: unknown) => {
-    if (typeof value === 'string' && value.length > 0) keys.add(`${prefix}:${value}`);
-  };
-  for (const id of [context.parentNativeId, context.targetParentNativeId, context.sourceParentNativeId]) add('parent', id);
-  for (const id of [context.afterNativeId, context.beforeNativeId, payload.afterId, payload.beforeId,
-    event.nativeId]) add('anchor', id);
-  if (context.sourceParentNativeId === context.targetParentNativeId) add('reorder', context.sourceParentNativeId);
-  return [...keys];
-}
 function placementPinsDomain(state: string | undefined, code: string | undefined): boolean {
   return state !== 'parked' || (code !== undefined && PINNED_PARK_CODES.has(code));
 }
@@ -96,7 +72,9 @@ export function createBookmarkEventQueue(options: QueueOptions) {
       observed ? isManagedBookmarkNode(observed) : false)).allowOperationCandidate });
   const reorderUplink = createReorderUplink({ store: options.store, scope: options.scope, uuid, identityFor,
     listPendingEvents, stageMove: (nativeId, details, eventId) => stage('move', nativeId, details, eventId, undefined, false),
-    hasApplyIntent: (nativeId, details) => hasApplyIntent('move', nativeId, details),
+    hasApplyIntent: async (nativeId, details) => await hasApplyIntent('move', nativeId, details)
+      || await reservedByProjection('move', nativeId, `recovery:move:${(await identityFor(nativeId))?.colpId}`, undefined,
+        { parentNativeId: String(details.parentId), index: Number(details.index) }),
     // Capture-only queues leave reorder draining to explicit flush/recover.
     scheduleFlush: () => options.autoFlush === false ? undefined : reorderFlushTimer(
       () => flush().catch(() => { options.onReorderFlushFailed?.(); }), options.scheduleReorderFlush, options.reorderDebounceMs) });
@@ -145,6 +123,8 @@ export function createBookmarkEventQueue(options: QueueOptions) {
     const identity = await identityFor(nativeId); const sourcePrivacy = await privacyFor(nativeId, false, identity);
     const targetPrivacy = await privacyFor(move.parentId, true);
     if (!identity || !sourcePrivacy.allowOperationCandidate) {
+      // Snapshot moves of not-yet-mapped natives must not become local creates.
+      if ((await options.store.getEngineState(options.scope))?.recoveryFrozen) return { outcome: 'filtered' };
       if (!targetPrivacy.allowOperationCandidate) return { outcome: 'filtered' };
       const nodes = await options.api.get(nativeId); return nodes[0] ? created(nativeId, nodes[0]) : { outcome: 'filtered' };
     }

@@ -6,6 +6,7 @@ import { t } from './i18n.js';
 import { showToast, type ToastTone } from './toast.js';
 import { readClassificationProbeJson } from './classification-probe-response.js';
 import { bindLocalClassificationDisclosure } from './classification-local-disclosure.js';
+import { releaseClassificationOrigin, sharesHostPermission } from './classification-origin-permission.js';
 
 export interface ProbeConnectionInput {
   presetId: LocalClassificationPresetId;
@@ -313,7 +314,7 @@ export function bindLocalClassificationOptions(){
         notify(t('classification_connectionTestFailed', 'Connection test failed. Check the address, model and key, then try again.'),'error');
       }finally{
         // Release only the probe-only grant; never the origin the credential uses.
-        if(origin!==activeOrigin){try{await chrome.permissions.remove({origins:[origin]});}catch{}}
+        if(!sharesHostPermission(origin,activeOrigin)){try{await releaseClassificationOrigin(origin);}catch{}}
         testBtn.disabled=false;
       }
     });
@@ -327,7 +328,7 @@ export function bindLocalClassificationOptions(){
     // mode flag, cached collection context and the host grant are dropped.
     await chrome.storage.local.remove(LOCAL_CLASSIFICATION_ENABLED);await clearLocalClassificationContext();
     const endpoint=endpointInput?.value.trim()??'';
-    try{if(endpoint)await chrome.permissions.remove({origins:[localClassificationOriginPattern(endpoint)]});}catch{}
+    try{if(endpoint)await releaseClassificationOrigin(localClassificationOriginPattern(endpoint));}catch{}
     await releaseStaleClassificationOrigin('');
     showMode(false);
     notify(t('classification_serverClassificationSelectedKeyKept', 'Know-N suggestions selected. Your key stays saved for when you switch back.'),'ok');

@@ -66,8 +66,8 @@ async function captureBookmarkEvent(event: BookmarkCaptureEvent): Promise<Bookma
     return scheduleBookmarkEvent((queue) => queue.created(event.nativeId, event.node));
   }
   if (event.kind === 'changed') return scheduleBookmarkEvent((queue) => queue.changed(event.nativeId, event.changes, 'callback'), true);
-  if (event.kind === 'moved') return scheduleBookmarkEvent((queue) => queue.moved(event.nativeId, event.move));
-  if (event.kind === 'reordered') return scheduleBookmarkEvent((queue) => queue.reordered(event.nativeId, event.childIds));
+  if (event.kind === 'moved') return scheduleBookmarkEvent((queue) => queue.moved(event.nativeId, event.move), true);
+  if (event.kind === 'reordered') return scheduleBookmarkEvent((queue) => queue.reordered(event.nativeId, event.childIds), true);
   return scheduleBookmarkEvent((queue) => queue.removed(event.nativeId, event.removal), true);
 }
 
@@ -78,7 +78,7 @@ async function captureBookmarkEvent(event: BookmarkCaptureEvent): Promise<Bookma
  * gates permission, scope, freeze and mount activity like every other capture.
  */
 async function projectReordered(event: Extract<BookmarkCaptureEvent, { kind: 'children_reordered' }>): Promise<BookmarkCaptureDisposition> {
-  return scheduleBookmarkEvent((queue) => queue.reordered(event.nativeId, event.childIds));
+  return scheduleBookmarkEvent((queue) => queue.reordered(event.nativeId, event.childIds), true);
 }
 
 function scheduleBookmarkEvent(work: (queue: ReturnType<typeof createBookmarkEventQueue>) => Promise<{ readonly outcome: string }>,
@@ -89,10 +89,9 @@ function scheduleBookmarkEvent(work: (queue: ReturnType<typeof createBookmarkEve
     try { scope = (__KNOWN_EXTENSION_EVIDENCE__ ? sw.eventEvidenceScope : undefined) ?? await currentSyncScope({ allowStopped: true }); }
     catch { return 'not_connected'; }
     const frozen = (await syncState.getEngineState(scope))?.recoveryFrozen === true;
-    // A frozen scope may be projecting a Snapshot, so its creates, moves and
-    // reorders can be the projection's own Chrome writes; capturing them would
-    // upload remote nodes again. The tree reconcile after the freeze repairs
-    // real user edits. Removals and content changes stay durable meanwhile.
+    // Snapshot creates have no settled identity yet. Mapped moves and reorders
+    // remain durable; the queue filters projection echoes before staging them.
+    // A tree scan cannot recover a same-parent reorder after its callback is lost.
     if (frozen && !captureWhileFrozen) return 'recovery_frozen';
     const paused = configuredPersonalSyncPolicy() && !await configuredPersonalSyncPolicy()!.allowed(scope);
     if (!await syncState.hasActiveMounts(scope)) return 'filtered';

@@ -65,3 +65,17 @@ test('General › Your data opens the same dialog with the Know-N backup chosen'
   const inputs = Array.from(document.querySelectorAll<HTMLInputElement>('dialog#local-backup-dialog input[name="export-format"]'));
   expect(inputs.map((input) => [input.value, input.checked])).toEqual([['html', false], ['json', true]]);
 });
+
+test('a partial JSON export keeps the skipped counts and HTML fallback visible', async () => {
+  vi.stubGlobal('chrome', { runtime: { sendMessage: async () => ({ ok: true,
+    content: '{}', skippedBookmarks: 1, skippedHistory: 2 }) } });
+  vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: () => 'blob:test', revokeObjectURL: vi.fn() }));
+  mount(); document.getElementById('manager-export')!.click();
+  const dialog = document.querySelector<HTMLDialogElement>('#local-backup-dialog')!;
+  dialog.querySelector<HTMLInputElement>('input[value="json"]')!.checked = true;
+  dialog.querySelector<HTMLButtonElement>('#local-backup-export')!.click();
+  await vi.waitFor(() => expect(dialog.querySelector('.mgr-status')?.textContent).toContain('Skipped 1 bookmarks and 2 history entries'));
+  expect(dialog.isConnected).toBe(true);
+  expect(dialog.textContent).toContain('Export HTML as well');
+  expect(dialog.querySelector<HTMLButtonElement>('#local-backup-export')!.disabled).toBe(false);
+});

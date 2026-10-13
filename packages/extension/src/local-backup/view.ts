@@ -13,15 +13,16 @@ export function backupErrorCopy(code: string): string {
   return t('backup_failed', 'The backup operation could not finish. Your existing bookmarks are kept. Try again.');
 }
 
-async function download(format: 'html' | 'json'): Promise<void> {
+async function download(format: 'html' | 'json'): Promise<{ skippedBookmarks: number; skippedHistory: number }> {
   const result = await chrome.runtime.sendMessage({ kind: 'known.localBackup.export', format }) as {
-    ok: boolean; error?: string; content?: string; filename?: string; mime?: string;
+    ok: boolean; error?: string; content?: string; filename?: string; mime?: string; skippedBookmarks?: number; skippedHistory?: number;
   };
   if (!result?.ok || typeof result.content !== 'string') throw new Error(result?.error ?? 'backup_failed');
   const objectUrl = URL.createObjectURL(new Blob([result.content], { type: result.mime }));
   const link = document.createElement('a'); link.href = objectUrl; link.download = result.filename ?? 'known-backup.json';
   document.body.append(link); link.click(); link.remove();
   setTimeout(() => URL.revokeObjectURL(objectUrl), 30_000);
+  return { skippedBookmarks: result.skippedBookmarks ?? 0, skippedHistory: result.skippedHistory ?? 0 };
 }
 
 function formatChoice(value: 'html' | 'json', title: string, hint: string, checked: boolean): HTMLLabelElement {
@@ -54,7 +55,13 @@ export function bindBackupView(host: HTMLElement): void {
       const format = choices.querySelector<HTMLInputElement>('input:checked')?.value === 'json' ? 'json' : 'html';
       exportButton.disabled = true; feedback.textContent = t('backup_preparing', 'Preparing your download…');
       try {
-        await download(format);
+        const skipped = await download(format);
+        if (skipped.skippedBookmarks || skipped.skippedHistory) {
+          feedback.textContent = t('backup_downloadSkippedUrls', 'Download started. Skipped $1 bookmarks and $2 history entries with unsupported URLs. Export HTML as well to keep the skipped bookmarks.', String(skipped.skippedBookmarks), String(skipped.skippedHistory));
+          exportButton.disabled = false;
+          cancel.textContent = t('common_close', 'Close');
+          return;
+        }
         dialog.close();
         showToast(t('backup_downloadReady', 'Download started. Keep this file to restore your data later.'), 'ok');
       } catch (error) {

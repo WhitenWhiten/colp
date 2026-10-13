@@ -151,6 +151,10 @@
     "message": "下载已开始。请保存此文件，以便以后恢复数据。",
     "description": "Download started. Keep this file to restore your data later."
   },
+  "backup_downloadSkippedUrls": {
+    "message": "下载已开始。已跳过 $1 个书签和 $2 条历史记录，因为其网址不受支持。请另外导出 HTML 以保留跳过的书签。",
+    "description": "Download started. Skipped $1 bookmarks and $2 history entries with unsupported URLs. Export HTML as well to keep the skipped bookmarks."
+  },
   "backup_existingMetadata": {
     "message": "将元数据恢复到已有书签",
     "description": "Restore metadata to existing bookmarks"

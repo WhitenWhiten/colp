@@ -1,4 +1,5 @@
 import {classificationEndpointAllowed,classificationEndpointIsLoopback,localClassificationPreset,type LocalClassificationPresetId} from './classification-local-presets.js';
+import { releaseClassificationOrigin, sharesHostPermission } from './classification-origin-permission.js';
 export type {LocalClassificationPresetId} from './classification-local-presets.js';
 export const LOCAL_CLASSIFICATION_ENABLED='known.classification.local-enabled.v1';
 export const localClassificationAvailable=()=>typeof __KNOWN_EXTENSION_CLASSIFICATION_LOCAL__!=='undefined'&&__KNOWN_EXTENSION_CLASSIFICATION_LOCAL__;
@@ -21,16 +22,6 @@ export const LOCAL_CLASSIFICATION_ORIGIN='https://api.cloudflare.com/*';
 export const LOCAL_CLASSIFICATION_GRANTED_ORIGIN='known.classification.local-origin.v1';
 
 /**
- * Releases one host grant. Returns true when the origin is no longer granted; if
- * the release could not be confirmed the caller must keep the tracking record so
- * a later switch can retry instead of leaking the permission forever.
- */
-async function releaseOriginGrant(pattern:string):Promise<boolean>{
-  try{return await chrome.permissions.remove({origins:[pattern]})!==false;}
-  catch{return !(await chrome.permissions.contains({origins:[pattern]}).catch(()=>true));}
-}
-
-/**
  * Host permissions are granted per origin, so switching endpoints would otherwise
  * accumulate access. Call the request first (it needs the user gesture), then this.
  * A release that fails keeps the previous tracking value rather than forgetting it.
@@ -38,14 +29,14 @@ async function releaseOriginGrant(pattern:string):Promise<boolean>{
 export async function releaseStaleClassificationOrigin(activePattern:string):Promise<void>{
   const stored=(await chrome.storage.local.get(LOCAL_CLASSIFICATION_GRANTED_ORIGIN))[LOCAL_CLASSIFICATION_GRANTED_ORIGIN];
   let released=true;
-  if(typeof stored==='string'&&stored&&stored!==activePattern){
-    released=await releaseOriginGrant(stored);
+  if(typeof stored==='string'&&stored&&!sharesHostPermission(stored,activePattern)){
+    released=await releaseClassificationOrigin(stored);
   }
   if(released){
     if(activePattern)await chrome.storage.local.set({[LOCAL_CLASSIFICATION_GRANTED_ORIGIN]:activePattern});
     else await chrome.storage.local.remove(LOCAL_CLASSIFICATION_GRANTED_ORIGIN);
   }
-  if(activePattern!==LOCAL_CLASSIFICATION_ORIGIN)await releaseOriginGrant(LOCAL_CLASSIFICATION_ORIGIN);
+  if(!sharesHostPermission(LOCAL_CLASSIFICATION_ORIGIN,activePattern))await releaseClassificationOrigin(LOCAL_CLASSIFICATION_ORIGIN);
 }
 
 export function localClassificationOriginPattern(endpoint: string): string {

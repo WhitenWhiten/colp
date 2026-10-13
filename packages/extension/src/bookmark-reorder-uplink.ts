@@ -181,8 +181,8 @@ export function createReorderUplink(input: ReorderUplinkHost) {
     for (const move of plan.moves) {
       const index = fullIndex.get(move.nativeId) ?? move.index;
       const prior = previousIndex.get(move.nativeId);
-      if (prior !== undefined && await input.hasApplyIntent(move.nativeId, { parentId: parentNativeId,
-        index, oldParentId: parentNativeId, oldIndex: prior })) {
+      if (await input.hasApplyIntent(move.nativeId, { parentId: parentNativeId,
+        index, oldParentId: parentNativeId, ...(prior === undefined ? {} : { oldIndex: prior }) })) {
         reserved.push(move.nativeId); continue;
       }
       stagedable.add(move.nativeId);
