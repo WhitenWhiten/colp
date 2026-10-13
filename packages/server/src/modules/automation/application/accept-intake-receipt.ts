@@ -22,7 +22,7 @@ export async function acceptIntakeReceipt(ports: AutomationDevicePorts, body: un
 /** Canonical identity and relevant rule/input pins; parent changes do not disguise a stale URL/title/tag input. */
 export function placementInputDigest(input: Pick<LocalReceiptInput, 'committedNode' | 'ruleRevision' | 'bindingRevision'>,
   fields: { url: string | null; title: string | null; tags: readonly string[] }): string {
-  return taskInputDigest({ ...input.committedNode, taskId: 'classify.root', outputContract: 'placement.v1',
+  return taskInputDigest({ ...input.committedNode, taskId: 'intake', outputContract: 'placement.subtree.v1',
     revisions: { rule: input.ruleRevision, binding: input.bindingRevision }, inputFields: ['url', 'title', 'tags'], acceptedPredecessors: {} }, fields);
 }
 export const placementResultDigest = (destination: LocalReceiptInput['committedNode']) => automationDigest({ kind: 'placement', destination });

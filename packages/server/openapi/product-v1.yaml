@@ -25214,6 +25214,10 @@ components:
       type: object
       additionalProperties: false
       properties:
+        intakeDisposition:
+          type: string
+          enum: [userDefault, userSelected]
+          description: Authenticated command intent. Omission is unknown and preserves placement, even at a root.
         parentId: { $ref: '#/components/schemas/OpaqueId' }
         afterId:
           oneOf:

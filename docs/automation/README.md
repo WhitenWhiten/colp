@@ -107,9 +107,9 @@ for intent/satisfaction semantics, versioned preview fingerprints and executed c
 ## BE-2 runtime boundary
 
 Canonical commits capture private event-time facts. The durable automation Outbox route waits
-five seconds for device evidence, inspects committed operations in order and admits pinned M1
-runs. Eligible Web/MCP/Sync root creates are placed through canonical moves; explicit folders,
-imports, restores, projection delivery and newer manual edits do not cause automatic reparenting.
+ten seconds for device evidence, inspects committed operations in order and admits pinned M1
+runs. Proven-default Web/MCP root creates are placed through canonical moves; explicit folders,
+imports, restores, unknown Sync intent, projection delivery and newer manual edits do not cause automatic reparenting.
 The existing collection-version capacity (2,000 live members) applies: larger histories block
 placement with an explanation rather than bypassing the history prerequisite. Worker model
 budgets do not throttle deterministic placement.
@@ -119,3 +119,12 @@ single-effect Undo. Device routes reuse bearer + Origin + Known-Sync-Session, an
 Known-Command-Id. Bundles carry complete finite definitions; host/tag hints are not semantic authority.
 Pause skips admission intervals; resume uses fresh fences and durably wakes held pinned work.
 Restored backups start paused. See per-task evidence for actual tests and remaining product gates.
+
+
+The final BE-2 gate enforces the reviewed manual-intent rule: Product create accepts optional
+`intakeDisposition: userDefault | userSelected`; omission is unknown and preserves even a root.
+MCP create derives default only when parentId was omitted. Ordinary Sync creates have unknown
+intent and are preserved; verified canonical device receipts still establish placement satisfaction.
+This explicitly supersedes the root-only heuristic described in the initial AW-33 evidence.
+Reviewed defaults are 10-second receipt grace and 7-day bundle expiry (clients should refresh every
+5 minutes); offline pause exposure is bounded by that expiry, not instantaneous revocation.

@@ -8,7 +8,7 @@ import type { PlannedAutomationFacts } from './fact-capture.js';
 export interface AutomationSource {
   operation_id: string; commit_ordinal: string; source_event_id: string | null; node_id: string | null;
   occurred_at: Date | null; origin: string | null; facts_version: number | null;
-  facts_json: (PlannedAutomationFacts & { action: string; actorPrincipalId: string; rootRunId: string | null; stageId: string | null; hopCount: number }) | null;
+  facts_json: (PlannedAutomationFacts & { action: string; intakeDisposition?: 'userDefault' | 'userSelected' | 'unknown'; actorPrincipalId: string; rootRunId: string | null; stageId: string | null; hopCount: number }) | null;
 }
 export type InspectAutomationSource = (tx: DatabaseTransaction, owner: { accountId: string; subjectId: string },
   collectionId: string, sources: readonly AutomationSource[]) => Promise<void | boolean>;

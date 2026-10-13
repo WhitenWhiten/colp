@@ -27,7 +27,7 @@ describeWithPostgres('M1 conservative single placement Undo', () => {
     if (observed) await f.syncMove('undo-paper', 'undo-move');
     const pins = { committedNode: { serverUuid: 'server', collectionId: 'collection', nodeId: 'undo-paper' }, ruleRevision: '1', bindingRevision: '1' };
     await createAutomationDeviceUnitOfWork(f.db, 'server').execute({ credential: f.http.credential, sessionId: f.sessionId, origin: AUTOMATION_DEVICE_ORIGIN },
-      p => p.accept({ ...pins, operationId: 'undo-create', ...(observed ? { placementOperationId: 'undo-move', beforeFolder: { ...f.folder, nodeId: 'root' } } : {}),
+      p => p.accept({ ...pins, operationId: 'undo-create', beforeFolder: { ...f.folder, nodeId: 'root' }, ...(observed ? { placementOperationId: 'undo-move' } : {}),
         deviceId: f.replica.deviceId, replicaGeneration: Number(f.replica.leaseGeneration), localReceiptId: randomUUID(), ruleId: f.rule.id, bundleRevision: '1',
         inputDigest: placementInputDigest(pins, { url: 'https://arxiv.org/sync', title: 'Sync paper', tags: [] }), resultDigests: [placementResultDigest(f.folder)], satisfiedTaskTypes: ['classify.root'] }));
     const id = (await sql<{ id: string }>`SELECT id FROM automation_runs WHERE explanation_json->>'nodeId'='undo-paper'`.execute(f.db)).rows[0]!.id;

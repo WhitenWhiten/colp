@@ -20,15 +20,16 @@ export async function appendAutomationIngest(tx: DatabaseTransaction, event: {
   domainEventId: string; operationId: string; collectionId: string; commitOrdinal: bigint;
 }, eventType = AUTOMATION_INGEST_EVENT): Promise<void> {
   const id = randomUUID();
-  await tx.insertInto('resource_id_ledger').values({ resource_id: id, resource_type: 'outbox' }).execute();
-  await tx.insertInto('outbox_events').values({ outbox_id: id, domain_event_id: event.domainEventId,
-    event_type: eventType, event_version: 1, handler_name: AUTOMATION_INGEST_HANDLER,
-    handler_mode: 'delivery_each_event', aggregate_type: 'collection', aggregate_id: event.collectionId,
-    aggregate_scope: event.collectionId, aggregate_revision: null, commit_ordinal: event.commitOrdinal,
-    payload_json: { collectionId: event.collectionId, operationId: event.operationId }, state: 'pending', attempt_count: 0,
-    // Allow the canonical Sync receipt to arrive before server fallback intake.
-    available_at: sql<Date>`clock_timestamp() + interval '5 seconds'`, occurred_at: sql<Date>`clock_timestamp()`,
-    locked_until: null, lease_generation: 0n, completed_at: null, last_error: null, dead_lettered_at: null }).execute();
+  // Reserve identity and enqueue in one round trip, still in the canonical transaction.
+  await sql`WITH reserved AS (
+    INSERT INTO resource_id_ledger(resource_id,resource_type) VALUES (${id},'outbox') RETURNING resource_id
+  ) INSERT INTO outbox_events(outbox_id,domain_event_id,event_type,event_version,handler_name,handler_mode,
+    aggregate_type,aggregate_id,aggregate_scope,aggregate_revision,commit_ordinal,payload_json,state,attempt_count,
+    available_at,occurred_at,locked_until,lease_generation,completed_at,last_error,dead_lettered_at)
+  SELECT resource_id,${event.domainEventId},${eventType},1,${AUTOMATION_INGEST_HANDLER},'delivery_each_event',
+    'collection',${event.collectionId},${event.collectionId},NULL,${event.commitOrdinal},
+    ${JSON.stringify({ collectionId: event.collectionId, operationId: event.operationId })}::jsonb,'pending',0,
+    clock_timestamp()+interval '10 seconds',clock_timestamp(),NULL,0,NULL,NULL,NULL FROM reserved`.execute(tx);
 }
 export function createAutomationIngestRoute(inspect: (context: OutboxHandlerContext) => Promise<boolean>, eventType = AUTOMATION_INGEST_EVENT): OutboxRoute {
   return { handlerName: AUTOMATION_INGEST_HANDLER, handlerMode: 'delivery_each_event', eventType,

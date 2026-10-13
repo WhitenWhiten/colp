@@ -541,7 +541,7 @@ describeWithPostgres('PostgreSQL canonical mutation adapters', () => {
     assert.equal(row.commit_ordinal, '2');
     assert.deepEqual(
       [row.resource_revisions, row.operations, row.audit, row.outbox, row.receipt],
-      [1, 1, 1, 1, 1],
+      [1, 1, 1, 2, 1],
     );
     assert.equal(row.operation_actor, PRINCIPAL_ID);
     assert.equal(row.audit_actor, PRINCIPAL_ID);
@@ -566,7 +566,7 @@ describeWithPostgres('PostgreSQL canonical mutation adapters', () => {
       `select (select count(*)::int from operations) operations,
               (select count(*)::int from outbox_events) outbox`,
     );
-    assert.deepEqual(counts.rows[0], { operations: 1, outbox: 1 });
+    assert.deepEqual(counts.rows[0], { operations: 1, outbox: 2 });
   });
 
   test('binds a distinct Product command to one canonical operation and its resource target', async () => {
@@ -691,7 +691,7 @@ describeWithPostgres('PostgreSQL canonical mutation adapters', () => {
       [COLLECTION_ID],
     );
     assert.deepEqual(replayState.rows[0], {
-      title: 'Canonical', ordinal: '2', receipts: 1, operations: 1, outbox: 1,
+      title: 'Canonical', ordinal: '2', receipts: 1, operations: 1, outbox: 2,
     });
     // Eight command cycles already take about 32s on an idle host.
   }, 90_000);
@@ -814,7 +814,7 @@ describeWithPostgres('PostgreSQL canonical mutation adapters', () => {
     assert.equal(row.policy_revision, result.allocation.policyRevision);
     assert.notEqual(row.policy_revision, 'policy-r1');
     assert.equal(row.commit_ordinal, '2');
-    assert.deepEqual([row.policy_evidence, row.outbox], [1, 2]);
+    assert.deepEqual([row.policy_evidence, row.outbox], [1, 3]);
     const routes = await runtime.pool.query(
       `select event_type, handler_name, handler_mode
        from outbox_events e join operations o
@@ -823,6 +823,7 @@ describeWithPostgres('PostgreSQL canonical mutation adapters', () => {
       [operationId],
     );
     assert.deepEqual(routes.rows, [
+      { event_type: 'automation.source.committed', handler_name: 'automation_ingest', handler_mode: 'delivery_each_event' },
       {
         event_type: COLLECTION_UPDATED_EVENT_TYPE,
         handler_name: COLLECTION_UPDATED_HANDLER_NAME,
@@ -1327,7 +1328,7 @@ describeWithPostgres('PostgreSQL canonical mutation adapters', () => {
         node_history: testCase.nodeCount,
         operations: 1,
         audit: 1,
-        outbox: 1,
+        outbox: 2,
         affected_ids: evidence.rows[0].affected_ids,
         affected_count: testCase.nodeCount,
         delete_scope: 'subtree',
@@ -1477,7 +1478,7 @@ describeWithPostgres('PostgreSQL canonical mutation adapters', () => {
       [COLLECTION_ID, operationId],
     );
     assert.deepEqual(evidence.rows[0], {
-      ordinal: '2', children_evidence: 2, content_evidence: 1, operations: 1, audit: 1, outbox: 1,
+      ordinal: '2', children_evidence: 2, content_evidence: 1, operations: 1, audit: 1, outbox: 2,
     });
     await assertRoutableOutbox([operationId]);
   });
@@ -1537,7 +1538,8 @@ describeWithPostgres('PostgreSQL canonical mutation adapters', () => {
       countedDb,
       { metrics, positionRebalanceWindow: 4 },
     );
-    assert.ok(queryCount <= 75, `bounded rebalance used ${queryCount} database round trips`);
+    // Private ancestry snapshot, facts insert, and reserved durable wake add at most three fixed round trips.
+    assert.ok(queryCount <= 75 + 3, `bounded rebalance used ${queryCount} database round trips`);
     assert.equal(result.allocation.rebalancedSiblings?.length, 4);
     assert.equal(metrics.get('position.rebalance.bounded_total'), 1);
     assert.deepEqual(metrics.observations('position.rebalance.rewritten_siblings'), [4]);
@@ -1793,7 +1795,7 @@ describeWithPostgres('PostgreSQL canonical mutation adapters', () => {
       [operationId],
     );
     assert.deepEqual(evidence.rows[0], {
-      revisions: crossParent ? 5 : 4, operations: 1, audit: 1, outbox: 1, receipt: 1,
+      revisions: crossParent ? 5 : 4, operations: 1, audit: 1, outbox: 2, receipt: 1,
     });
     await assertRoutableOutbox([operationId]);
   });
@@ -2118,7 +2120,7 @@ describeWithPostgres('PostgreSQL canonical mutation adapters', () => {
       [COLLECTION_ID],
     );
     assert.deepEqual(state.rows[0], {
-      title: 'Concurrent A', summary: 'Concurrent B', ordinal: '3', operations: 2, resource_revisions: 2, outbox: 2,
+      title: 'Concurrent A', summary: 'Concurrent B', ordinal: '3', operations: 2, resource_revisions: 2, outbox: 4,
     });
   }, 30_000);
 

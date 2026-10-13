@@ -2,7 +2,7 @@
   "profile": "browser-bounded-v1",
   "definitionAuthority": "CompiledRule.definition (complete normalized finite DSL)",
   "cases": [
-    {"name":"active","request":{"profile":"browser-bounded-v1"},"expect":{"paused":false,"completeRules":true,"ttlSeconds":600}},
+    {"name":"active","request":{"profile":"browser-bounded-v1"},"expect":{"paused":false,"completeRules":true,"ttlSeconds":604800}},
     {"name":"paused","expect":{"paused":true,"rules":[],"removedRuleIds":"all previously active rule IDs","settingsRevision":"increases after pause"}},
     {"name":"expired","action":"ack expired revision","expect":{"code":"automation_stale_input","partialSnapshot":false}},
     {"name":"oversized","inputRuleCount":1001,"expect":{"code":"payload_too_large","partialSnapshot":false}},

@@ -8432,6 +8432,11 @@ export interface components {
         };
         NodeCreate: components["schemas"]["FolderCreate"] | components["schemas"]["BookmarkCreate"];
         CreateNodeRequest: {
+            /**
+             * @description Authenticated command intent. Omission is unknown and preserves placement, even at a root.
+             * @enum {string}
+             */
+            intakeDisposition?: "userDefault" | "userSelected";
             parentId: components["schemas"]["OpaqueId"];
             afterId: components["schemas"]["OpaqueId"] | null;
             beforeId: components["schemas"]["OpaqueId"] | null;

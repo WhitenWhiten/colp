@@ -19,7 +19,7 @@ export function compileBundle(input: { revision: string; settingsRevision: numbe
   const active = new Set(rules.map(rule => rule.ruleId));
   const content = { revision: input.revision, profile: 'browser-bounded-v1' as const, rules,
     paused: input.paused, settingsRevision: input.settingsRevision, issuedAt: input.now.toISOString(),
-    expiresAt: new Date(input.now.getTime() + 10 * 60_000).toISOString(), removedRuleIds: input.previousRuleIds.filter(id => !active.has(id)) };
+    expiresAt: new Date(input.now.getTime() + 7 * 24 * 60 * 60_000).toISOString(), removedRuleIds: input.previousRuleIds.filter(id => !active.has(id)) };
   if (new TextEncoder().encode(JSON.stringify(content)).byteLength > 1_048_576) throw new AutomationError('payload_too_large', 'Full bundle exceeds 1 MiB; no partial snapshot was issued.');
   let digest: string;
   try { digest = automationDigest(content); }

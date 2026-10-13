@@ -10,8 +10,9 @@ import type { AutomationSource } from './source-position-store.js';
 
 export async function verifyIntakeReceipt(tx: DatabaseTransaction, actor: AutomationDeviceActor, serverUuid: string,
   input: LocalReceiptInput, receiptId: string): Promise<ReceiptIngestResult> {
+  let rootSatisfied = false;
   const result = (state: ReceiptIngestResult['state'], message: string): ReceiptIngestResult => ({ receiptId, state,
-    satisfiedTaskTypes: state === 'accepted' ? [...input.satisfiedTaskTypes] : [],
+    satisfiedTaskTypes: state === 'accepted' && rootSatisfied ? ['classify.root'] : [],
     diagnostics: [{ code: state, severity: state === 'accepted' ? 'info' : 'warning', location: '/', message }] });
   if (input.deviceId !== actor.deviceId || String(input.replicaGeneration) !== actor.replicaGeneration
     || input.committedNode.serverUuid !== serverUuid || input.committedNode.collectionId !== actor.collectionId)
@@ -31,7 +32,8 @@ export async function verifyIntakeReceipt(tx: DatabaseTransaction, actor: Automa
     .select(['v.id', 'v.definition_json', 'v.binding_set_id', 'r.desired_state', 'r.current_revision_id'])
     .where('v.rule_id', '=', input.ruleId).where('v.revision', '=', input.ruleRevision).where('r.owner_id', '=', actor.accountId).executeTakeFirst();
   if (!rule || rule.desired_state !== 'enabled' || rule.current_revision_id !== rule.id) return result('review', 'Pinned rule is no longer active.');
-  if (input.satisfiedTaskTypes.length && !rule.definition_json.intake?.satisfies.includes('classify.root'))
+  rootSatisfied = rule.definition_json.intake?.satisfies.includes('classify.root') === true;
+  if (input.satisfiedTaskTypes.length && !rootSatisfied)
     return result('rejected', 'Rule does not declare root satisfaction.');
   const binding = await tx.selectFrom('automation_binding_revisions as v').innerJoin('automation_binding_sets as b', 'b.id', 'v.binding_set_id')
     .select(['v.values_json', 'b.current_revision']).where('v.binding_set_id', '=', rule.binding_set_id)
@@ -73,7 +75,7 @@ export async function verifyIntakeReceipt(tx: DatabaseTransaction, actor: Automa
     .where('id', '=', input.committedNode.nodeId).where('collection_id', '=', actor.collectionId).executeTakeFirst();
   if (!current || current.deleted_at || current.kind !== 'bookmark' || current.resource_revision !== after.resourceRevision
     || current.parent_id !== after.parentId) return result('review', 'A newer canonical change prevents receipt satisfaction.');
-  if (input.beforeFolder && (!input.placementOperationId || input.beforeFolder.serverUuid !== serverUuid
+  if (input.beforeFolder && input.placementOperationId && (input.beforeFolder.serverUuid !== serverUuid
     || input.beforeFolder.collectionId !== actor.collectionId || input.beforeFolder.nodeId !== placed.facts_json!.before?.parentId))
     return result('rejected', 'Original destination is not proven by the canonical move.');
   return result('accepted', 'Canonical placement verified; only classify.root is satisfied.');

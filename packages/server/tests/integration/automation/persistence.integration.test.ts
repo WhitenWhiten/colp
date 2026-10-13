@@ -42,7 +42,7 @@ describeWithPostgres('BE-1 migrations, immutable persistence and recovery', () =
     try {
       await runMigrations(fresh.runtime.db, 'latest');
       expect((await sql<{ name: string }>`select name from kysely_migration order by name desc limit 1`.execute(fresh.runtime.db)).rows[0]?.name)
-        .toBe('202610300300_automation_revision_delete_guard');
+        .toBe('202610300800_automation_version_cause');
     } finally { await fresh.close(); }
   }, 180_000);
   test('configuration has immutable revisions, owner FKs and atomic deferred-current links', async () => {

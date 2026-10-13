@@ -15,7 +15,7 @@ describeWithPostgres('server M1 intake', () => {
   async function create(id: string, origin: 'web' | 'mcp' | 'import', parentId = 'root') {
     const uow = createPostgresCanonicalMutationUnitOfWork(f.db, { automationOrigin: origin });
     return uow.execute(p => createCollectionNode(p, { actor: f.actor, command: f.command(), collectionId: 'collection', parentId,
-      nodeId: id, afterId: null, beforeId: null, node: { kind: 'bookmark', title: id, url: 'https://arxiv.org/fixture',
+      nodeId: id, intakeDisposition: 'userDefault', afterId: null, beforeId: null, node: { kind: 'bookmark', title: id, url: 'https://arxiv.org/fixture',
         description: null, tags: [], visibility: 'inherit' } }));
   }
   test('web and MCP default-root creates move once, explicit folders/imports and projection retries do not intake', async () => {

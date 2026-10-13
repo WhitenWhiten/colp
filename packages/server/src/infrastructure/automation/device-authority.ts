@@ -16,18 +16,19 @@ export async function authorizeAutomationDevice(tx: DatabaseTransaction,
     || session.credential_issuer !== credential.issuer || session.credential_id !== credential.credentialId
     || session.oauth_client_id !== credential.clientId) return deny();
   const account = await tx.selectFrom('accounts').selectAll().where('id', '=', session.account_id).forUpdate().executeTakeFirst();
-  if (!account || account.status !== 'active' || account.deleted_at || BigInt(account.security_epoch) !== BigInt(session.account_security_epoch)) return deny();
+  if (!account || account.subject_id !== session.principal_subject_id || account.status !== 'active' || account.deleted_at || BigInt(account.security_epoch) !== BigInt(session.account_security_epoch)) return deny();
   const proof = await tx.selectFrom('sync_extension_credentials').selectAll().where('issuer', '=', credential.issuer)
     .where('credential_id', '=', credential.credentialId).forUpdate().executeTakeFirst();
   if (!proof || proof.account_id !== account.id || proof.revoked_at || proof.subject !== credential.subject
     || proof.client_id !== credential.clientId || proof.credential_digest !== credential.credentialDigest
+    || !Array.isArray(proof.scopes_json) || !proof.scopes_json.includes('known.sync')
     || proof.credential_expires_at <= now || BigInt(proof.security_epoch) !== BigInt(account.security_epoch)) return deny();
   const scope = await tx.selectFrom('sync_session_scopes').select('scope').where('session_id', '=', session.session_id)
     .where('scope', '=', 'sync:push').executeTakeFirst();
   if (!scope) return deny();
   await lockSyncReplicaBeforeCollection(tx, session.replica_id);
   const replica = await tx.selectFrom('sync_replicas').selectAll().where('replica_id', '=', session.replica_id).executeTakeFirstOrThrow();
-  if (!['active', 'recovery_required'].includes(replica.status) || replica.account_id !== account.id || replica.collection_id !== session.collection_id
+  if (replica.capabilities_json.write !== true || !['active', 'recovery_required'].includes(replica.status) || replica.account_id !== account.id || replica.collection_id !== session.collection_id
     || replica.lease_expires_at <= now || BigInt(replica.lease_generation) !== BigInt(session.lease_generation) || replica.lease_id !== session.lease_id) return deny();
   const collection = await tx.selectFrom('collections').select(['owner_subject_id', 'deleted_at']).where('id', '=', session.collection_id).forShare().executeTakeFirst();
   if (!collection || collection.deleted_at || collection.owner_subject_id !== account.subject_id) return deny();

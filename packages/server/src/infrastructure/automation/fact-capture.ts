@@ -57,6 +57,7 @@ export async function captureAutomationFacts(tx: DatabaseTransaction, event: Can
   const context = input.automationContext ?? { origin: input.operationSyncWire ? 'sync' : 'system' };
   const origin = input.mutation.action === 'restore' ? 'restore' : context.origin;
   const facts = { ...planned, after: planned.after ? { ...planned.after, resourceRevision: allocation.resourceRevision! } : null,
+    intakeDisposition: input.intakeDisposition ?? 'unknown',
     action: input.mutation.action, actorPrincipalId: input.actor.principalId,
     rootRunId: context.rootRunId ?? null, stageId: context.stageId ?? null, hopCount: context.hopCount ?? 0 };
   await sql`INSERT INTO automation_event_facts

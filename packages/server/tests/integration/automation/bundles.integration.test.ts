@@ -16,7 +16,7 @@ describeWithPostgres('authenticated full M1 bundles', () => {
     expect(validateAutomation('RuleBundle', bundle).valid).toBe(true);
     expect(bundle.rules[0]!.definition).toEqual(f.rule.definition);
     const { digest, ...content } = bundle; expect(digest).toBe(automationDigest(content));
-    expect(Date.parse(bundle.expiresAt) - Date.parse(bundle.issuedAt)).toBe(600000);
+    expect(Date.parse(bundle.expiresAt) - Date.parse(bundle.issuedAt)).toBe(604800000);
     expect(compilePredicate(bundle.rules[0]!.definition.match).valid).toBe(true);
     await expect(uow().execute(request(), p => p.bundle('javascript'))).rejects.toMatchObject({ code: 'automation_unsupported_capability' });
     expect((await sql<{ count: string }>`SELECT count(*) FROM automation_device_bundles`.execute(f.db)).rows[0]!.count).toBe('2');

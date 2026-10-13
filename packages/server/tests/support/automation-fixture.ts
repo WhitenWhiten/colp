@@ -30,7 +30,7 @@ export async function automationFixture(prefix: string) {
     const node = url ? { kind: 'bookmark' as const, title, url, description: null, tags: [], visibility: 'inherit' as const }
       : { kind: 'folder' as const, title, description: null, tags: [], visibility: 'inherit' as const };
     const result = await canonical.execute((ports) => createCollectionNode(ports, { actor, command: command(), collectionId: 'collection',
-      parentId, nodeId: id, afterId: null, beforeId: null, node }));
+      parentId, intakeDisposition: 'userDefault', nodeId: id, afterId: null, beforeId: null, node }));
     if (result.kind !== 'created') throw new Error('Fixture node not created'); return result;
   };
   await createNode('parent', 'root', 'Research'); await createNode('academic', 'parent', 'Academic');
