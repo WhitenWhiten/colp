@@ -1,3 +1,4 @@
+import { materializeClosedMcpToolSchema } from '../../src/mcp/schema-ref.js';
 import { expect, test } from 'vitest';
 import { parseMcpEventsParams, MCP_AUTOMATION_EVENT } from '../../src/mcp/2026-07-28/events.js';
 import { createMcp20260728DiscoverResult } from '../../src/mcp/2026-07-28/discovery.js';
@@ -19,4 +20,11 @@ test('OpenAI profile rejects replay, drafts, malformed secrets and credentials i
   expect(() => parseMcpEventsParams('events/list',{ cursor: 'history' })).toThrow();
   expect(() => parseMcpEventsParams('events/unsubscribe',params)).toThrow();
   expect(parseMcpEventsParams('events/unsubscribe',{ ...params, delivery: { mode: 'webhook',url: params.delivery.url } })).toMatchObject({ arguments: params.arguments });
+});
+
+test('closed host extension definitions remain local across repeated wire materialization',()=>{
+  const schema={type:'object',properties:{job:{$ref:'#/$defs/HostJob'}},$defs:{HostJob:{type:'object',properties:{id:{type:'string'}},additionalProperties:false}}};
+  expect(materializeClosedMcpToolSchema(schema)).toEqual(schema);
+  expect(materializeClosedMcpToolSchema(materializeClosedMcpToolSchema(schema))).toEqual(schema);
+  expect(()=>materializeClosedMcpToolSchema({type:'object',properties:{job:{$ref:'#/$defs/NoSuchHostDefinition'}}})).toThrow();
 });
