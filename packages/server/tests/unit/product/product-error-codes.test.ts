@@ -31,6 +31,7 @@ import { ProductHttpError } from '../../../src/transport/product-error.js';
 const EXPECTED_CODES = [
   'automation_binding_unavailable', 'automation_rule_conflict', 'automation_unsupported_capability',
   'automation_invalid_graph', 'automation_stale_input', 'automation_command_conflict',
+  'automation_budget_exceeded', 'automation_claim_conflict', 'automation_lease_lost', 'automation_paused',
   'account_link_required',
   'authentication_required',
   'command_id_reused',
@@ -93,6 +94,7 @@ describe('R19 central ProductErrorCode table', () => {
     const expected: Readonly<Record<ProductErrorCode, number>> = {
       automation_binding_unavailable: 409, automation_rule_conflict: 409, automation_unsupported_capability: 422,
       automation_invalid_graph: 422, automation_stale_input: 409, automation_command_conflict: 409,
+      automation_budget_exceeded: 409, automation_claim_conflict: 409, automation_lease_lost: 409, automation_paused: 503,
       invalid_request: 400,
       invalid_json: 400,
       invalid_query: 400,

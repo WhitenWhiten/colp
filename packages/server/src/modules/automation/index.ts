@@ -20,3 +20,4 @@ export { evaluateRuleEvent, type PreparedRule } from './application/rule-evaluat
 export { explainRun } from './application/run-explanation.js';
 export * from './application/executor-policy.js';
 export * from './application/result-reuse.js';
+export * from './application/claim-job.js';
