@@ -83,7 +83,7 @@ test('LAN HTTP and malformed origins cannot reach the permission or save steps',
 });
 
 test('declining loopback HTTP confirmation keeps the previous address', async () => {
-  const fixture = await setup(); vi.spyOn(window, 'confirm').mockReturnValue(false);
+  const fixture = await setup(); vi.stubGlobal('confirm', vi.fn(() => false));
   fixture.change('http://127.0.0.1:8080'); await fixture.controller.ready();
   expect(fixture.input.value).toBe('https://old.test');
   expect(fixture.request).not.toHaveBeenCalled(); expect(fixture.ports.disconnect).not.toHaveBeenCalled();

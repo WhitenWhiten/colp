@@ -9,8 +9,8 @@ import { cleanup, mountTree } from '../test/render'
  * happy-dom does not compute stacking — assert stack order, not z-index.
  */
 describe('Modal stack', () => {
-  let onBottomClose: ReturnType<typeof vi.fn>
-  let onTopClose: ReturnType<typeof vi.fn>
+  let onBottomClose: ReturnType<typeof vi.fn<() => void>>
+  let onTopClose: ReturnType<typeof vi.fn<() => void>>
 
   beforeEach(() => {
     vi.useFakeTimers()

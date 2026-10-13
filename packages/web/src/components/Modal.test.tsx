@@ -10,7 +10,7 @@ import { cleanup, mountTree } from '../test/render'
  * assertions run after flushing pending timers.
  */
 describe('Modal', () => {
-  let onClose: ReturnType<typeof vi.fn>
+  let onClose: ReturnType<typeof vi.fn<() => void>>
   let trigger: HTMLButtonElement
 
   beforeEach(() => {

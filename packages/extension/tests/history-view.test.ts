@@ -10,7 +10,7 @@ const at = new Date(2026, 5, 15, 12).getTime();
 const entry = (n: number, over: Record<string, unknown> = {}) => ({ ...base, captureId: `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`, title: `Page ${n}`, url: `https://site${n}.example.org/a`,
   save: 'local-saved', classification: 'none', sync: 'local-only', createdAt: at - n * 3_600_000, nativeId: `b${n}`, localLocation: { path: ['Bookmarks bar', 'Research'] }, ...over });
 let items: unknown[];
-let history: ReturnType<typeof vi.fn>;
+let history: ReturnType<typeof vi.fn<(message: { kind: string }) => Promise<unknown>>>;
 const messages: Array<{ kind: string; [key: string]: unknown }> = [];
 
 beforeEach(() => {

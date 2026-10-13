@@ -286,6 +286,19 @@ describe('CollectionEditor component', () => {
     expect(document.querySelector('[data-testid="where"]')?.textContent).toBe('/library/col-1?collection=edit')
   })
 
+  it('redirects an editor route without a collection id to the library', () => {
+    mountTree(
+      <MemoryRouter initialEntries={['/edit']}>
+        <Routes>
+          <Route path="/edit" element={<CollectionEditor />} />
+          <Route path="/library" element={<p>Library destination</p>} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    expect(document.body.textContent).toContain('Library destination')
+    expect(mocks.loadEditorSnapshot).not.toHaveBeenCalled()
+  })
+
   it('keeps mutation controls busy and applies a successful metadata response', async () => {
     // The collection read is a steady state: every read — StrictMode mounts
     // the load effect twice — serves the same snapshot.

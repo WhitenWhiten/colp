@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { createTagInput, type TagInput } from '../src/popup-tags.js';
 import { byId, mountPopupShell } from './fixtures/popup-shell.js';
 
-let onChange: ReturnType<typeof vi.fn>;
+let onChange: ReturnType<typeof vi.fn<() => void>>;
 let tags: TagInput;
 const input = () => byId<HTMLInputElement>('tag-text');
 const chips = () => Array.from(byId('tag-field').querySelectorAll<HTMLElement>('.chip')).map((chip) => chip.dataset.tag);

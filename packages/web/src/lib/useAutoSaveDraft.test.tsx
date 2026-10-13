@@ -8,11 +8,13 @@ function Probe() {
   const [partition, setPartition] = useState('account-a')
   const [title, setTitle] = useState('seed')
   const values = useMemo(() => ({ title }), [title])
-  useAutoSaveDraft('note', values, partition, 800)
+  const { restoreDraft } = useAutoSaveDraft('note', values, partition, 800)
   return (
     <>
       <button type="button" onClick={() => setTitle('late')}>Edit</button>
       <button type="button" onClick={() => setPartition('account-b')}>Switch</button>
+      <button type="button" onClick={() => setTitle(restoreDraft()?.title ?? 'empty')}>Restore</button>
+      <output>{title}</output>
     </>
   )
 }
@@ -42,5 +44,19 @@ describe('useAutoSaveDraft partitions', () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(800) })
     expect(readAutoSaveDraft('note', 'account-a')).toEqual({ title: 'late' })
     expect(readAutoSaveDraft('note', 'account-b')).toBeNull()
+  })
+
+  it('restores only the current account draft after switching partitions', () => {
+    localStorage.setItem('known.draft.note.account-a', JSON.stringify({ title: 'draft-a' }))
+    localStorage.setItem('known.draft.note.account-b', JSON.stringify({ title: 'draft-b' }))
+    mountTree(<Probe />)
+    const click = (label: string) => act(() => {
+      [...document.querySelectorAll('button')].find((button) => button.textContent === label)?.click()
+    })
+    click('Restore')
+    expect(document.querySelector('output')?.textContent).toBe('draft-a')
+    click('Switch')
+    click('Restore')
+    expect(document.querySelector('output')?.textContent).toBe('draft-b')
   })
 })

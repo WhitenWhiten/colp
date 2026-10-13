@@ -116,13 +116,16 @@
     "@fastify/ajv-compiler": {
       "fast-uri": "3.1.8"
     },
-    "brace-expansion": "5.0.9",
+    "brace-expansion": "5.0.12",
     "fast-json-stringify": {
       "fast-uri": "4.1.5"
     },
     "fflate": "0.7.5",
     "js-yaml": "4.3.2",
     "minimatch": "10.2.5",
-    "source-map-js": "1.2.2"
+    "source-map-js": "1.2.2",
+    "undici": "8.10.2",
+    "@grpc/grpc-js": "1.14.5",
+    "hono": "4.13.7"
   }
 }

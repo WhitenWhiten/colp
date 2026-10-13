@@ -17,7 +17,7 @@ vi.mock('../src/bookmark-subscriptions/guards.js', () => ({ exclusionIds: mocks.
 
 type Node = chrome.bookmarks.BookmarkTreeNode;
 let nodes: Map<string, Node>;
-let move: ReturnType<typeof vi.fn>;
+let move: ReturnType<typeof vi.fn<(id: string, destination: { parentId: string; index: number }) => Promise<Node>>>;
 const ids = (id: string) => nodes.get(id)!.children!.map(node => node.id);
 const apply = (nativeIds: string[]) => handleOrganizeRequest({ kind: 'known.bookmarks.organize.apply', userGesture: true, nativeIds });
 

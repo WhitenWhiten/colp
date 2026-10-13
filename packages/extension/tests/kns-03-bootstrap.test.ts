@@ -21,6 +21,15 @@ import {
 installKns03IndexedDb();
 
 describe('KNS-03 empty Collection bootstrap', () => {
+  test('resuming without an in-flight run does not create work', async () => {
+    const { store, coordinator } = await setup();
+    try {
+      assert.equal(await coordinator.resume(baseConfirm({})), null);
+      assert.deepEqual(await store.listBootstrapRuns(scope), []);
+      assert.deepEqual(await store.listQueue(scope), []);
+    } finally { store.close(); }
+  });
+
   test('plans mount resolve-or-create then parent-first creates; Collection root gets no bookmark children', async () => {
     const { store, coordinator } = await setup();
     const view = await coordinator.confirm(baseConfirm({
