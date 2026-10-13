@@ -1,4 +1,4 @@
-import { createAutomationMaintenanceLoop, resumeOwnerBudgets } from '../infrastructure/automation/index.js';
+import { convergeOwnerWork, createAutomationMaintenanceLoop, resumeOwnerBudgets } from '../infrastructure/automation/index.js';
 import { retainAutomationHistory } from '../infrastructure/automation/index.js';
 import { createDeliveryWorker } from '../infrastructure/automation/index.js';
 import { createWebhookVerifier } from '../infrastructure/automation/index.js';
@@ -413,7 +413,11 @@ export function buildWorker(
         // A failed Owner is retried on the next sweep, without starving others.
         retentionAfter=owner.id;
         await retainAutomationHistory(database.db,owner.id,config.mcpWriteEnabled === true);
-        if(config.automationWorkEnabled)await resumeOwnerBudgets(database.db,owner.id);
+        if(config.automationWorkEnabled){
+          await resumeOwnerBudgets(database.db,owner.id);
+          // Owner and run reads only report; leases and committed plans converge here.
+          await convergeOwnerWork(database.db,owner.id,config.publication.serverUuid);
+        }
         // Decided, expired or cancelled proposals converge without the worker that produced them.
         await automationApprovals?.sweep(owner.id);
       },

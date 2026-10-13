@@ -8,11 +8,17 @@ import { requireRule } from './rule-service.js';
 import { inspectWorkerConfiguration } from './worker-configuration.js';
 import type { AutomationPorts } from './ports.js';
 
+/** Revalidates and records incidents and dependency snapshots. Commands and the health monitor only. */
 export async function revalidateRule(ports: AutomationPorts, actor: AutomationActor, ruleId: string): Promise<HealthReport> {
-  return (await inspectRuleHealth(ports, actor, ruleId)).report;
+  return (await inspectRuleHealth(ports, actor, ruleId, true)).report;
 }
 
-async function inspectRuleHealth(ports: AutomationPorts, actor: AutomationActor, ruleId: string) {
+/** The same report for reads: computed from current state, nothing written. */
+export async function assessRuleHealth(ports: AutomationPorts, actor: AutomationActor, ruleId: string): Promise<HealthReport> {
+  return (await inspectRuleHealth(ports, actor, ruleId, false)).report;
+}
+
+async function inspectRuleHealth(ports: AutomationPorts, actor: AutomationActor, ruleId: string, persist: boolean) {
   const stored = await requireRule(ports, actor, ruleId), rule = stored.view;
   const binding = await ports.bindings.load(actor.accountId, rule.bindingSetId);
   const previous = await ports.health.dependencies(stored.definitionRevisionId);
@@ -48,8 +54,8 @@ async function inspectRuleHealth(ports: AutomationPorts, actor: AutomationActor,
     incident('executorUnavailable', spec.executorRole, 'warning', task.reason,
       automationDigest({ taskId: task.taskId, policy: worker?.policy, executor: task.executor, target: task.target, reason: task.reason }), [task.taskId]);
   }
-  const incidents = await ports.health.synchronize(actor.accountId, ruleId, expected);
-  if (binding) await ports.dependencies.replace(stored.definitionRevisionId, resolutions, binding.values);
+  const incidents = persist ? await ports.health.synchronize(actor.accountId, ruleId, expected) : await ports.health.preview(actor.accountId, ruleId, expected);
+  if (persist && binding) await ports.dependencies.replace(stored.definitionRevisionId, resolutions, binding.values);
   const paused = (await ports.settings.get(actor.accountId)).paused;
   const intakeBlocked = expected.some(item => item.blockingStages.includes('intake'));
   const workerBlocked = worker?.tasks.some(task => !task.available) === true;
@@ -62,7 +68,7 @@ async function inspectRuleHealth(ports: AutomationPorts, actor: AutomationActor,
   return { report, stored, resolutions };
 }
 export async function ruleDependencies(ports: AutomationPorts, actor: AutomationActor, ruleId: string): Promise<DependencyReport> {
-  const { stored, resolutions } = await inspectRuleHealth(ports, actor, ruleId);
+  const { stored, resolutions } = await inspectRuleHealth(ports, actor, ruleId, false);
   const dependencies = await ports.health.dependencies(stored.definitionRevisionId);
   if (dependencies.length >= 1000) throw new AutomationError('payload_too_large', 'Dependency report exceeds its 1000-entry bound. Reduce role count or ancestry depth.');
   return { ruleId, dependencies: [...dependencies.map((dependency) => ({ kind: dependency.kind, role: dependency.role, resourceId: dependency.resourceId,
@@ -77,6 +83,8 @@ export interface StageDependency { role: string; kind: 'folder' | 'ancestor'; re
 export interface HealthStore {
   dependencies(revisionId: string): Promise<StageDependency[]>;
   synchronize(ownerId: string, ruleId: string, expected: HealthIncident[]): Promise<HealthIncident[]>;
+  /** What synchronize would report, without writing. */
+  preview(ownerId: string, ruleId: string, expected: HealthIncident[]): Promise<HealthIncident[]>;
   acknowledge(ownerId: string, id: string): Promise<HealthIncident | null>;
   list(ownerId: string, after: { createdAt: string; id: string } | null, limit: number): Promise<HealthIncident[]>;
 }

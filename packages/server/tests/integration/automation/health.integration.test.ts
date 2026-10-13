@@ -66,6 +66,20 @@ describeWithPostgres('BE-1 dependency monitoring and incident lifecycle', () => 
     expect(validateAutomation('DependencyReport', dependencies).valid).toBe(true);
     expect(dependencies.dependencies.some((dependency: { resourceId: string; kind: string }) => dependency.resourceId === 'parent' && dependency.kind === 'ancestor')).toBe(true);
   });
+  test('rule and health reads report current health without writing incidents or dependencies', async () => {
+    await createAutomationHealthMonitor(f.db, 'server', metrics).revalidateAll();
+    const state = async () => ({ incidents: (await sql`SELECT id,state,last_seen,incident_json FROM automation_incidents ORDER BY id`.execute(f.db)).rows,
+      dependencies: (await sql`SELECT * FROM automation_dependencies ORDER BY role,resource_kind,resource_id`.execute(f.db)).rows });
+    await f.rename('academic', 'Renamed before reads');
+    const before = await state();
+    const health = await get(`/rules/${rule.id}/health`); expect(health.statusCode, health.body).toBe(200);
+    expect(health.json().incidents.map((incident: { code: string }) => incident.code)).toContain('bindingRenamed');
+    for (const path of [`/rules/${rule.id}`, '/rules', `/rules/${rule.id}/dependencies`]) expect((await get(path)).statusCode).toBe(200);
+    expect(await state()).toEqual(before);
+    const revalidated = await post(`/rules/${rule.id}/revalidate`, { reason: 'Record current health' }, `"${rule.revision}"`);
+    expect(revalidated.statusCode, revalidated.body).toBe(200);
+    expect(await state()).not.toEqual(before);
+  });
   test('a rule that cannot be revalidated fails neither startup nor the core projection it rides on', async () => {
     // Fault injection: every revalidation fails while the incident table is unavailable.
     await f.rename('academic', 'Renamed while unhealthy');
@@ -244,7 +258,8 @@ describeWithPostgres('BE-1 dependency monitoring and incident lifecycle', () => 
     const created = await post('/rules', input); expect(created.statusCode, created.body).toBe(201);
     const ruleId = created.json().id;
     await f.db.updateTable('nodes').set({ deleted_at: new Date() }).where('id', '=', 'optional_live').execute();
-    const health = (await get(`/rules/${ruleId}/health`)).json<HealthReport>();
+    // The raw delete emits no outbox event, so record health with the explicit command; reads only report it.
+    const health = (await post(`/rules/${ruleId}/revalidate`, { reason: 'Record deletion' }, `"${created.json().revision}"`)).json<HealthReport>();
     const incident = health.incidents.find((value) => value.role === 'optionalFolder')!;
     expect(incident).toMatchObject({ code: 'bindingDeleted', severity: 'warning', blockingStages: [] });
     const dependencies = async () => {

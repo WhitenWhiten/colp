@@ -1,11 +1,11 @@
-import { revalidateRule, ruleDependencies, acknowledgeIncident, parseContract, requireRule, requireEtag } from '../../modules/automation/index.js';
+import { assessRuleHealth, revalidateRule, ruleDependencies, acknowledgeIncident, parseContract, requireRule, requireEtag } from '../../modules/automation/index.js';
 import { automationView, type AutomationRoute } from './automation-rule-routes.js';
 import { createAutomationPagination } from './automation-pagination.js';
 export function automationHealthRoutes(cursorKey: string): AutomationRoute[] {
   const page = createAutomationPagination(cursorKey);
   const ruleId = (params: unknown) => (params as { ruleId: string }).ruleId;
   return [
-    { method: 'GET', path: '/rules/:ruleId/health', noBody: true, action: async ({ ports, actor, request }) => automationView(await revalidateRule(ports, actor, ruleId(request.params))) },
+    { method: 'GET', path: '/rules/:ruleId/health', noBody: true, action: async ({ ports, actor, request }) => automationView(await assessRuleHealth(ports, actor, ruleId(request.params))) },
     { method: 'GET', path: '/rules/:ruleId/dependencies', noBody: true, action: async ({ ports, actor, request }) => automationView(await ruleDependencies(ports, actor, ruleId(request.params))) },
     { method: 'POST', path: '/rules/:ruleId/revalidate', ifMatch: true, action: async ({ ports, actor, request, ifMatch }) => {
       parseContract('CommandReason', request.body);

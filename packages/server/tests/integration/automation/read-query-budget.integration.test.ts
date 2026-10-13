@@ -26,7 +26,7 @@ describeWithPostgres('Automation bounded read query budgets', () => {
     expect(sample.events).toHaveLength(27);
     expect(queries).toBeLessThan(30);
     queries = 0;
-    const runs = await counted.transaction().execute(tx => createRunStore(tx,f.owner,'server').list(null,100));
+    const runs = await counted.transaction().execute(tx => createRunStore(tx,f.owner).list(null,100));
     expect(runs.length).toBeGreaterThan(20);
     expect(runs.every(run => run.view.jobIds.length > 0 && run.view.usage !== undefined)).toBe(true);
     expect(queries).toBeLessThan(15);

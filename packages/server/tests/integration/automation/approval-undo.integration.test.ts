@@ -4,6 +4,7 @@ import { automationJobFixture } from '../../support/automation-job-fixture.js';
 import { describeWithPostgres } from '../../support/postgres-test-runtime.js';
 import { claimJob, submitResult, getAutomationRun, undoAutomationRun } from '../../../src/modules/automation/index.js';
 import { writeAgentPolicy } from '../../../src/infrastructure/collections/index.js';
+import { convergeOwnerWork } from '../../../src/infrastructure/automation/index.js';
 
 describeWithPostgres('AW-25 plan history and conservative single-effect Undo', () => {
   let f: Awaited<ReturnType<typeof automationJobFixture>>;
@@ -41,10 +42,13 @@ describeWithPostgres('AW-25 plan history and conservative single-effect Undo', (
     await expect(f.uow.execute(f.owner,p => undoAutomationRun(p,f.runId,{ effectReceiptId: effect.id,expectedEffectDigest: effect.effectDigest,reason: 'Unsafe' },`"${current.revision}"`))).rejects.toMatchObject({ code: 'automation_stale_input' });
     expect((await f.db.selectFrom('nodes').select('title').where('id','=','paper').executeTakeFirstOrThrow()).title).toBe('New user title');
   });
-  test('Owner history recovers a committed effect after cancellation without executing again', async () => {
+  test('the maintenance sweep recovers a committed effect after cancellation without executing again', async () => {
     await finish('summary',true);
     await sql`UPDATE automation_runs SET state='cancelled',revision=revision+1 WHERE id=${f.runId}`.execute(f.db);
     const before = (await sql<{ revision: string }>`SELECT revision::text FROM automation_runs WHERE id=${f.runId}`.execute(f.db)).rows[0]!.revision;
+    // Reads only report; the worker maintenance sweep converges the lost completion.
+    expect((await run()).effects).toHaveLength(0);
+    await convergeOwnerWork(f.db,f.owner.accountId,'server');
     const current = await run(); expect(current.status).toBe('cancelled'); expect(current.effects).toHaveLength(1);
     expect(BigInt(current.revision)).toBe(BigInt(before)+1n);
     expect((await run()).revision).toBe(current.revision);

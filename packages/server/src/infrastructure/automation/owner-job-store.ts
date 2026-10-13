@@ -6,7 +6,6 @@ import { createPostgresMcpWriteApprovalPorts } from '../database/mcp-write-appro
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
 import { workerJobView } from './worker-read-store.js';
 import { expireOwnerLeases } from './worker-inputs.js';
-import { reconcileCommittedPlanEffect } from './reconcile-plan-effect.js';
 import { advanceRunTasks } from './task-scheduler.js';
 
 export function createOwnerJobStore(tx: DatabaseTransaction,actor: AutomationActor,serverUuid: string): OwnerJobStore {
@@ -19,7 +18,7 @@ export function createOwnerJobStore(tx: DatabaseTransaction,actor: AutomationAct
     if (!row) throw new AutomationError('resource_not_found','Job is unavailable under current Owner authority.');return row;
   };
   const get: OwnerJobStore['get'] = async id => {
-    await expireOwnerLeases(tx,actor.accountId);await reconcileCommittedPlanEffect(tx,actor,id,serverUuid);
+    // Reads report state; expired leases and committed plans converge in the worker maintenance sweep.
     const row = await inspect(id);
     return { ...workerJobView(row,false),...(row.proposal_digest ? { proposalDigest: row.proposal_digest,resultId: row.result_id!,...(row.plan_id ? { planId: row.plan_id } : {}) } : {}) };
   };

@@ -45,7 +45,7 @@ export function createAutomationUnitOfWork(db: Kysely<DatabaseSchema>, serverUui
       targets: createTargetStore(tx, actor.accountId, options.verifyTargetBinding, options.eventsEnabled),
       policies: createExecutionPolicyStore(tx, actor.accountId),
       placementUndo: createPlacementUndoPort(tx, actor),
-      runs: createRunStore(tx, actor, serverUuid, options.eventsEnabled),
+      runs: createRunStore(tx, actor, options.eventsEnabled),
       health: createHealthStore(tx),
       receipts: createPostgresProductCommandReceiptPort(tx),
       rules: createRuleStore(tx, options.runtimeEnabled),

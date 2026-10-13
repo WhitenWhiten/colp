@@ -64,7 +64,6 @@ export function createWorkerReadStore(db: Kysely<DatabaseSchema>,serverUuid: str
     }),
     get: (actor,id,handle) => db.transaction().execute(async tx => {
       await tx.selectFrom('accounts').select('id').where('id','=',actor.accountId).forUpdate().executeTakeFirstOrThrow();
-      await expireOwnerLeases(tx,actor.accountId);
       const job = await lockWorkJob(tx,actor,id,worker.authorize,true);
       if (job.delivery_handle !== handle) throw new AutomationError('resource_not_found','Job handle is unavailable.');
       return workerJobView(await row(tx,id));

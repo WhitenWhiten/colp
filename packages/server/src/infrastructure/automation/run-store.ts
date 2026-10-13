@@ -1,4 +1,3 @@
-import { reconcileRunPlanEffects, reconcileRunsPlanEffects } from './reconcile-plan-effect.js';
 import { readRunUsageBatch } from './run-usage-batch.js';
 import { readRunEffectsBatch } from './run-effects-batch.js';
 import { OUTPUT_SOURCE_AVAILABLE } from './run-output-store.js';
@@ -25,7 +24,7 @@ interface RunRow {
   };
   sort_created_at: string;
 }
-export function createRunStore(tx: DatabaseTransaction, actor: AutomationActor, serverUuid: string, eventsEnabled = false): RunStore {
+export function createRunStore(tx: DatabaseTransaction, actor: AutomationActor, eventsEnabled = false): RunStore {
   const select = sql`SELECT r.*, r.revision::text, v.rule_id, v.revision::text AS rule_revision,
   to_char(r.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS sort_created_at
   FROM automation_runs r JOIN automation_rule_revisions v ON v.id=r.rule_revision_id
@@ -40,7 +39,6 @@ export function createRunStore(tx: DatabaseTransaction, actor: AutomationActor, 
     } });
   return {
     async load(id) {
-      await reconcileRunPlanEffects(tx, actor, id, serverUuid);
       const row = (await sql<RunRow>`${select} AND r.id=${id}`.execute(tx)).rows[0];
       if (!row)
         return null;
@@ -54,10 +52,7 @@ export function createRunStore(tx: DatabaseTransaction, actor: AutomationActor, 
       const rows = (await sql<RunRow>`${select} ${cursor} ${filter} ORDER BY r.created_at DESC,r.id DESC LIMIT ${limit}`.execute(tx)).rows;
       if (!rows.length)
         return [];
-      const ids = rows.map(row => row.id);
-      await reconcileRunsPlanEffects(tx, actor, ids, serverUuid);
-      const current = (await sql<RunRow>`${select} AND r.id IN (${sql.join(ids)}) ORDER BY r.created_at DESC,r.id DESC`.execute(tx)).rows;
-      return hydrate(current);
+      return hydrate(rows);
     },
     async cancel(id) {
       await sql`UPDATE automation_runs SET state='cancelled', held=false, revision=revision+1, updated_at=clock_timestamp()

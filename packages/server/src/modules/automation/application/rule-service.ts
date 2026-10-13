@@ -7,6 +7,7 @@ import { resolveBindings } from './resolve-bindings.js';
 import { assertSupportedRule,supportedRuleIssues,inspectWorkerConfiguration } from './worker-configuration.js';
 import { intakePolicyDiagnostics } from './policy-diagnostics.js';
 import { MAX_RULES_PER_OWNER } from './capabilities.js';
+import { revalidateRule } from './health-service.js';
 import { etag, nextRevision, type AutomationPorts, type StoredRule } from './ports.js';
 
 export function parseContract<Name extends AutomationSchemaName>(name: Name, value: unknown): AutomationContracts[Name] {
@@ -69,6 +70,8 @@ export async function createRule(ports: AutomationPorts, actor: AutomationActor,
     desiredState: 'draft', effectiveState: 'draft', createdAt: now, updatedAt: now } };
   await ports.rules.save(actor.accountId, rule);
   await ports.dependencies.replace(rule.definitionRevisionId, inspected.resolutions, inspected.binding.values);
+  // Record health with the command; reads only report it.
+  await revalidateRule(ports, actor, rule.view.id);
   return rule.view;
 }
 export async function replaceRule(ports: AutomationPorts, actor: AutomationActor, id: string, body: unknown, ifMatch: string) {
@@ -89,6 +92,8 @@ export async function replaceRule(ports: AutomationPorts, actor: AutomationActor
       updatedAt: (await ports.now()).toISOString() } };
   await ports.rules.save(actor.accountId, rule);
   await ports.dependencies.replace(rule.definitionRevisionId, inspected.resolutions, inspected.binding.values);
+  // Record health with the command; reads only report it.
+  await revalidateRule(ports, actor, rule.view.id);
   return rule.view;
 }
 export async function saveBinding(ports: AutomationPorts, actor: AutomationActor, body: unknown, id?: string, ifMatch?: string) {
