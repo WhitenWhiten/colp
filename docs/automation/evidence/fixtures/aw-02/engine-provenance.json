@@ -1,0 +1,74 @@
+{
+  "commit": "6e103801fa809c27454703f12009066dc3d05b8f",
+  "files": [
+    {
+      "path": "packages/node/src/automation/compile.ts",
+      "sha256": "5fdbd028f4571a3ab42def89ab5b2873c8c13dd7eb48a9b9cc834762c9e798c3"
+    },
+    {
+      "path": "packages/node/src/automation/schema.ts",
+      "sha256": "47081bb523b89c23fe1d0de1dc4bfa9360134185cd13b2d7bdf7dc22037050af"
+    },
+    {
+      "path": "packages/node/src/automation/normalize.ts",
+      "sha256": "dd3f05a3a30cd98df3283ce80b589e3fef2439045e5cd6a6fdf813292f07ec4a"
+    },
+    {
+      "path": "packages/node/src/automation/role-graph.ts",
+      "sha256": "118261c1899983e0006992eba6bb811b86f03b8d28c198f24000b317addd2e48"
+    },
+    {
+      "path": "packages/node/src/automation/arbitrate.ts",
+      "sha256": "693a2c277342a7e3724c7f4991348a4d5eb216b93af55c577a3cc51e923b18f9"
+    },
+    {
+      "path": "packages/node/src/automation/validate-graph.ts",
+      "sha256": "5f5f472fad85c363947bbc0e77df6404cbaa704714cf6005635924a79b4b4147"
+    },
+    {
+      "path": "packages/node/src/automation/schema.generated.ts",
+      "sha256": "44e7a0863cfd6d99512c861e6847c84b40be33503861926f7cb76afe366b574a"
+    },
+    {
+      "path": "packages/node/src/automation/index.ts",
+      "sha256": "2f495585a56412cbcef5662aee916312cfc6f936d2b186c9b0fcfe3716084fc4"
+    },
+    {
+      "path": "packages/node/src/automation/predicate.ts",
+      "sha256": "88904e46e54c058e3ccee65c1743ae418d902a7bf477438f68d603a7d51ff959"
+    },
+    {
+      "path": "packages/node/src/automation/fingerprint.ts",
+      "sha256": "bba3d8bd19b2e871dae71346202f97f7cc0519d5cfd6976f29b9de9751a16486"
+    },
+    {
+      "path": "packages/node/src/automation/task-contracts.ts",
+      "sha256": "a51c4ac97dcd62251e070e4e9522559a5e034193b5d8916059e731bbcf3fcfca"
+    },
+    {
+      "path": "packages/node/src/automation/types.generated.ts",
+      "sha256": "e547e63605b20b447c0f68d07a6cd34237adad7735219c974c5219e1480c7079"
+    },
+    {
+      "path": "packages/node/tests/fixtures/automation/m1-placement.json",
+      "sha256": "41d89596f70ff9105b33b0b38646ddc1aaf6b4dc965138eb3d44a98764aab709"
+    },
+    {
+      "path": "packages/node/tests/fixtures/automation/event-facts.json",
+      "sha256": "89d1265a9428305bf8e087936e1726152e79f915b68af0be23d0a4241394240d"
+    },
+    {
+      "path": "packages/server/src/modules/automation/domain/bindings.ts",
+      "sha256": "02031611103c195568a3f7bb441d3b51c093b25c35cc3f2f5aba5ce47703d2f1"
+    },
+    {
+      "path": "packages/server/src/modules/automation/application/rule-eligibility.ts",
+      "sha256": "0e169c0057c97fa02873c5fe218f508f711c5dcbe218cd43603d991aa25994af"
+    },
+    {
+      "path": "packages/server/src/modules/automation/application/rule-evaluation.ts",
+      "sha256": "3c2f3070dcf8f428cd7180676f98090d94038d8e22aa23cf1feee9f86befe4c4"
+    }
+  ],
+  "bundleSha256": "163568eb2febeff932ca7cb8c48048aad10b4601b0097c9d0e2eaada4883d21c"
+}

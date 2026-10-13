@@ -81,7 +81,7 @@
       "Protocol fixture is executable without any M1/M2 production tasks or frontend.",
       "Actual host proof is either linked with redacted evidence or explicitly blocked; there is no simulated-as-real result."
     ],
-    "status": "planned",
+    "status": "completed",
     "lane": "backend",
     "contractInputs": [
       "api/automation.openapi.yaml",

@@ -1,0 +1,100 @@
+{
+  "discover": {
+    "result": {
+      "supportedVersions": [
+        "2026-07-28"
+      ],
+      "capabilities": {
+        "events": {},
+        "tools": {}
+      },
+      "resultType": "complete",
+      "ttlMs": 0,
+      "cacheScope": "private",
+      "_meta": {
+        "io.modelcontextprotocol/serverInfo": {
+          "name": "COLP AW-02 Events Spike",
+          "version": "0.1.0"
+        }
+      }
+    },
+    "jsonrpc": "2.0",
+    "id": 1
+  },
+  "eventList": {
+    "result": {
+      "events": [
+        {
+          "name": "colp.automation.triggered",
+          "delivery": [
+            "webhook"
+          ],
+          "description": "Synthetic AW-02 readiness event for pre-paired test target aw02-test. Contains no real COLP data.",
+          "inputSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+              "targetId": {
+                "type": "string",
+                "const": "aw02-test"
+              }
+            },
+            "required": [
+              "targetId"
+            ],
+            "additionalProperties": false
+          },
+          "payloadSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+              "runId": {
+                "type": "string"
+              },
+              "jobId": {
+                "type": "string"
+              },
+              "ruleId": {
+                "type": "string"
+              },
+              "ruleRevision": {
+                "type": "string"
+              },
+              "targetId": {
+                "type": "string",
+                "const": "aw02-test"
+              },
+              "matchedCount": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000
+              },
+              "deliveryHandle": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "runId",
+              "jobId",
+              "ruleId",
+              "ruleRevision",
+              "targetId",
+              "matchedCount",
+              "deliveryHandle"
+            ],
+            "additionalProperties": false
+          }
+        }
+      ],
+      "resultType": "complete",
+      "_meta": {
+        "io.modelcontextprotocol/serverInfo": {
+          "name": "COLP AW-02 Events Spike",
+          "version": "0.1.0"
+        }
+      }
+    },
+    "jsonrpc": "2.0",
+    "id": 1
+  }
+}
