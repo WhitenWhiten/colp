@@ -61,7 +61,7 @@ describeWithPostgres('BE-1 dependency monitoring and incident lifecycle', () => 
     expect(validateAutomation('HealthReport', result.json()).valid).toBe(true);
     expect(result.json()).toMatchObject({ effectiveState: 'blocked' });
     expect(result.json().incidents.map((incident: { code: string }) => incident.code)).toEqual(['runtimeUnsupported']);
-    expect(metrics.get('automation.runtime.ready')).toBe(0); expect(metrics.get('automation.health.revalidated')).toBeGreaterThan(0);
+    expect(metrics.get('automation.runtime.ready')).toBe(0); expect(metrics.get('automation.health.revalidated')).toBe(1);
     const dependencies = (await get(`/rules/${rule.id}/dependencies`)).json();
     expect(validateAutomation('DependencyReport', dependencies).valid).toBe(true);
     expect(dependencies.dependencies.some((dependency: { resourceId: string; kind: string }) => dependency.resourceId === 'parent' && dependency.kind === 'ancestor')).toBe(true);

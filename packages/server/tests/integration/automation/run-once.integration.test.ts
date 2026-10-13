@@ -49,7 +49,7 @@ describeWithPostgres('AW-41 immutable manual selection',()=>{
     expect(enabled.statusCode,enabled.body).toBe(200);
     await f.createNode('later','root','Later paper','https://arxiv.org/abs/later');
     const contested=await preview();expect(contested.statusCode,contested.body).toBe(200);
-    expect(contested.json()).toMatchObject({canStart:false});expect(contested.json().blockedCount).toBeGreaterThan(0);
+    expect(contested.json()).toMatchObject({canStart:false});expect(contested.json().blockedCount).toBe(1);
   });
   test('task runs count against the daily limit; run-once never overspends it',async()=>{
     f=await automationPollingFixture('aw41_cap',{dailyLimit:3});
