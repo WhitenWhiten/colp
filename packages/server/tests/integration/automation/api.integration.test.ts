@@ -6,6 +6,7 @@ import { sql } from 'kysely';
 import { validateAutomation } from '@know-n/colp/automation';
 import { automationFixture } from '../../support/automation-fixture.js';
 import { describeWithPostgres } from '../../support/postgres-test-runtime.js';
+import { revalidateRule } from '../../../src/modules/automation/index.js';
 import { createAutomationUnitOfWork } from '../../../src/infrastructure/automation/unit-of-work.js';
 import { registerAutomationRoutes } from '../../../src/transport/product/automation-rule-routes.js';
 import { installProductAdmission, parseStrictQuery } from '../../../src/transport/product-admission.js';
@@ -179,6 +180,91 @@ describeWithPostgres('BE-1 authenticated configuration and preview loop', () => 
     for (let i = 0; i < 200; i++) await f.createNode(`sample_${i}`, 'root', `Paper ${i}`, `https://arxiv.org/abs/sample_${i}`);
     const result = await preview(d.input, 'currentState');
     expect(result.decisions).toHaveLength(200); expect(result.truncated).toBe(true); expect(result.completeHistory).toBe(false);
+  });
+  test.each(['folder scope', 'import policy', 'trigger', 'hop bound'])('review: competitors must honor their own %s', async (scenario) => {
+    const d = await draft();
+    const binding = await post('/binding-sets', { name: 'Scoped competitor', values: { academicRoot: { ...f.values.academicRoot, folder: { ...f.folder, nodeId: 'parent' } } } });
+    const definition = structuredClone(f.rule);
+    if (scenario === 'folder scope') definition.scope = { collectionId: 'collection', folderRole: 'academicRoot', includeDescendants: true };
+    if (scenario === 'trigger') { definition.on = 'node.created'; delete definition.intake; }
+    if (scenario === 'hop bound') definition.policy.maxHops = 1;
+    const competitorInput = { definition, bindingSetId: binding.json().id };
+    const competitor = await post('/rules', competitorInput); expect(competitor.statusCode, competitor.body).toBe(201);
+    const checked = await preview(competitorInput);
+    expect((await lifecycle(competitor.json().id, String(competitor.headers.etag), 'enabled', checked.previewId)).statusCode).toBe(200);
+    const event = facts();
+    if (scenario === 'import policy') { d.input.definition.policy.imports = 'include'; event.origin = 'import'; }
+    if (scenario === 'trigger') event.type = 'bookmark.intake';
+    if (scenario === 'hop bound') event.hopCount = 1;
+    const result = await post('/rules/preview', { rule: d.input, mode: 'supplied', events: [event] });
+    expect(result.statusCode, result.body).toBe(200); expect(result.json().decisions[0].outcome).toBe('matched');
+  });
+  test('review: restoring a competing destination invalidates a formerly conflict-free preview', async () => {
+    const d = await draft();
+    await f.createNode('review_competitor', 'root', 'Competing destination');
+    const binding = await post('/binding-sets', { name: 'Restored competitor', values: { academicRoot: { ...f.values.academicRoot, folder: { ...f.folder, nodeId: 'review_competitor' } } } });
+    const input = { definition: f.rule, bindingSetId: binding.json().id };
+    const competitor = await post('/rules', input), checked = await preview(input);
+    expect((await lifecycle(competitor.json().id, String(competitor.headers.etag), 'enabled', checked.previewId)).statusCode).toBe(200);
+    await f.db.updateTable('nodes').set({ deleted_at: new Date() }).where('id', '=', 'review_competitor').execute();
+    const prior = await preview(d.input); expect(prior.decisions[0].outcome).toBe('matched');
+    await f.db.updateTable('nodes').set({ deleted_at: null }).where('id', '=', 'review_competitor').execute();
+    const enabled = await lifecycle(d.rule.id, d.etag, 'enabled', prior.previewId);
+    expect(enabled.statusCode, enabled.body).toBe(409); expect(enabled.json().error.code).toBe('automation_stale_input');
+    expect((await preview(d.input)).decisions[0].outcome).toBe('conflict');
+  });
+  test('review: an unavailable scope role never widens current-state sampling to the collection', async () => {
+    const binding = await post('/binding-sets', { name: 'Missing scope', values: {} });
+    const definition = { ...f.rule, scope: { collectionId: 'collection', folderRole: 'academicRoot' } };
+    const input = { definition, bindingSetId: binding.json().id };
+    expect((await post('/rules', input)).statusCode).toBe(201);
+    const result = await post('/rules/preview', { rule: input, mode: 'currentState' });
+    expect(result.statusCode).toBe(409); expect(result.json().error.code).toBe('automation_binding_unavailable');
+  });
+  test('review: current-state ancestry must never be silently truncated', async () => {
+    const d = await draft();
+    // Use canonical writes so the ancestry fixture obeys the real tree constraints.
+    for (let depth = 1; depth <= 129; depth++)
+      await f.createNode(`review_deep_${depth}`, depth === 1 ? 'root' : `review_deep_${depth - 1}`, `Depth ${depth}`);
+    await f.createNode('review_deep_paper', 'review_deep_129', 'Deep paper', 'https://arxiv.org/abs/deep');
+    try {
+      const result = await post('/rules/preview', { rule: d.input, mode: 'currentState' });
+      expect(result.statusCode, result.body).toBe(409); expect(result.json().error.code).toBe('automation_binding_unavailable');
+    } finally {
+      await f.db.updateTable('nodes').set({ deleted_at: new Date() }).where('id', '=', 'review_deep_paper').execute();
+    }
+  });
+  test('review: an unused optional folder cannot block the intake stage', async () => {
+    await f.createNode('review_optional', 'root', 'Optional unused');
+    const values = { ...f.values, optionalFolder: { ...f.values.academicRoot, folder: { ...f.folder, nodeId: 'review_optional' } } };
+    const binding = await post('/binding-sets', { name: 'Optional role', values });
+    const input = { definition: { ...f.rule, roles: [...f.rule.roles, { key: 'optionalFolder', kind: 'folder', required: false, description: 'Unused by intake' }] }, bindingSetId: binding.json().id };
+    const created = await post('/rules', input); expect(created.statusCode).toBe(201);
+    await f.db.updateTable('nodes').set({ deleted_at: new Date() }).where('id', '=', 'review_optional').execute();
+    const checked = await preview(input); expect(checked.decisions[0].outcome).toBe('matched');
+    expect(checked.decisions[0].satisfiedTasks).toEqual(['classify.root']);
+    const validated = await post('/rules/validate', input); expect(validated.json().valid).toBe(true);
+    expect(validated.json().diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({ role: 'optionalFolder', severity: 'warning' })]));
+    const enabled = await lifecycle(created.json().id, String(created.headers.etag), 'enabled', checked.previewId);
+    expect(enabled.statusCode, enabled.body).toBe(200);
+    const report = await createAutomationUnitOfWork(f.db, 'server').execute(f.owner, (ports) => revalidateRule(ports, f.owner, created.json().id));
+    const incident = report.incidents.find((value) => value.role === 'optionalFolder');
+    expect(incident?.blockingStages).toEqual([]);
+  });
+  test('review: normalized validation and semantic digests agree on equivalent host predicates', async () => {
+    const d = await draft(), lower = await post('/rules/validate', d.input);
+    const input = { ...d.input, definition: { ...d.input.definition, match: { kind: 'field', field: 'bookmark.url.host', op: 'eq', value: 'ARXIV.ORG.' } } };
+    const upper = await post('/rules/validate', input);
+    expect(upper.statusCode).toBe(200); expect(upper.json().normalizedDefinition.match.value).toBe('arxiv.org');
+    expect(upper.json().semanticDigest).toBe(lower.json().semanticDigest);
+    const created = await post('/rules', input); expect(created.statusCode).toBe(201);
+    const checked = await preview(input);
+    expect((await lifecycle(created.json().id, String(created.headers.etag), 'enabled', checked.previewId)).statusCode).toBe(200);
+  });
+  test('review: a schema-valid finite membership predicate larger than 4096 bytes is accepted', async () => {
+    const d = await draft();
+    const input = { ...d.input, definition: { ...d.input.definition, match: { kind: 'field', field: 'bookmark.title', op: 'in', value: Array(30).fill('x'.repeat(200)) } } };
+    const result = await post('/rules/validate', input); expect(result.statusCode).toBe(200); expect(result.json().valid).toBe(true);
   });
   test('two equal priority placements report a conflict and never run an effect', async () => {
     const first = await draft(), p = await preview(first.input);

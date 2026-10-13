@@ -1,14 +1,18 @@
-import { validateAutomation, validateM1Rule, ruleSemanticDigest, bindingSemanticDigest, type RuleInput, type ChangeInput, type BindingSetInput,
+import { validateAutomation, validateM1Rule, normalizeRuleDefinition, ruleSemanticDigest, bindingSemanticDigest, type RuleInput, type AutomationContracts,
   type ValidationResult, type Diagnostic, type AutomationSchemaName } from '@know-n/colp/automation';
 import { AutomationError } from '../domain/errors.js';
 import { scopeCollectionId, type AutomationActor } from '../domain/bindings.js';
+import { intakeDependencyRoles } from './rule-eligibility.js';
 import { resolveBindings } from './resolve-bindings.js';
 import { etag, nextRevision, type AutomationPorts, type StoredRule } from './ports.js';
 
-export function parseContract<T>(name: AutomationSchemaName, value: unknown): T {
+export function parseContract<Name extends AutomationSchemaName>(name: Name, value: unknown): AutomationContracts[Name] {
   const shape = validateAutomation(name, value);
   if (!shape.valid) throw new AutomationError('invalid_request', 'Input violates the closed Automation schema.', shape.issues);
-  return value as T;
+  return value as AutomationContracts[Name];
+}
+export function normalizeRuleInput(input: RuleInput): RuleInput {
+  return { ...input, definition: normalizeRuleDefinition(input.definition) };
 }
 export function requireEtag(actual: string, supplied: string): void {
   if (supplied !== etag(actual)) throw new AutomationError('precondition_failed', 'Configuration changed. Read the current resource and retry.', [], etag(actual));
@@ -36,18 +40,19 @@ export async function inspectInput(ports: AutomationPorts, actor: AutomationActo
   return { binding, collection, resolutions };
 }
 export async function validateRule(ports: AutomationPorts, actor: AutomationActor, body: unknown): Promise<ValidationResult> {
-  const input = parseContract<RuleInput>('RuleInput', body);
+  const input = normalizeRuleInput(parseContract('RuleInput', body));
   const issues = validateM1Rule(input.definition);
   if (input.executionPolicyId) issues.push({ path: '/executionPolicyId', code: 'unsupportedCapability', message: 'Execution policies are unavailable in M1.' });
   const diagnostics: Diagnostic[] = issues.map((issue) => ({ code: issue.code, severity: 'error', location: issue.path, message: issue.message }));
   const inspected = await inspectInput(ports, actor, input);
+  const usedRoles = intakeDependencyRoles(input.definition);
   for (const [role, resolution] of Object.entries(inspected.resolutions)) if (resolution.status === 'blocked')
-    diagnostics.push({ code: resolution.code, severity: 'error', location: `/bindings/${role}`, role, message: resolution.message });
-  return { valid: diagnostics.length === 0, normalizedDefinition: input.definition, semanticDigest: ruleSemanticDigest(input.definition),
+    diagnostics.push({ code: resolution.code, severity: usedRoles.has(role) || input.definition.roles.some((entry) => entry.key === role && entry.required) ? 'error' : 'warning', location: `/bindings/${role}`, role, message: resolution.message });
+  return { valid: !diagnostics.some((diagnostic) => diagnostic.severity === 'error'), normalizedDefinition: input.definition, semanticDigest: ruleSemanticDigest(input.definition),
     diagnostics: diagnostics.slice(0, 100), supportedHosts: issues.length ? [] : ['browser', 'server'] };
 }
 export async function createRule(ports: AutomationPorts, actor: AutomationActor, body: unknown) {
-  const input = parseContract<RuleInput>('RuleInput', body); assertM1Input(input);
+  const input = normalizeRuleInput(parseContract('RuleInput', body)); assertM1Input(input);
   if ((await ports.rules.list(actor.accountId, null, 500)).length >= 500) throw new AutomationError('invalid_request', 'Maximum 500 rules per owner.');
   const inspected = await inspectInput(ports, actor, input), now = (await ports.now()).toISOString();
   const rule: StoredRule = { definitionRevisionId: ports.id(), definitionRevision: '1', sortCreatedAt: now, view: { ...input, id: ports.id(), revision: '1',
@@ -57,9 +62,9 @@ export async function createRule(ports: AutomationPorts, actor: AutomationActor,
 export async function replaceRule(ports: AutomationPorts, actor: AutomationActor, id: string, body: unknown, ifMatch: string) {
   const previous = await requireRule(ports, actor, id); requireEtag(previous.view.revision, ifMatch);
   if (previous.view.desiredState === 'archived') throw new AutomationError('automation_rule_conflict', 'Archived rules are immutable.');
-  const input = parseContract<ChangeInput>('ChangeInput', body);
-  const ruleInput: RuleInput = { definition: input.definition, bindingSetId: input.bindingSetId,
-    ...(input.executionPolicyId ? { executionPolicyId: input.executionPolicyId } : {}), ...(previous.view.templateRef ? { templateRef: previous.view.templateRef } : {}) };
+  const input = parseContract('ChangeInput', body);
+  const ruleInput: RuleInput = normalizeRuleInput({ definition: input.definition, bindingSetId: input.bindingSetId,
+    ...(input.executionPolicyId ? { executionPolicyId: input.executionPolicyId } : {}), ...(previous.view.templateRef ? { templateRef: previous.view.templateRef } : {}) });
   assertM1Input(ruleInput); const inspected = await inspectInput(ports, actor, ruleInput);
   // Editing an enabled revision requires fresh preview/activation. It never silently activates new logic.
   const desiredState = previous.view.desiredState === 'enabled' ? 'paused' : previous.view.desiredState;
@@ -70,7 +75,7 @@ export async function replaceRule(ports: AutomationPorts, actor: AutomationActor
   await ports.rules.save(actor.accountId, rule); await ports.dependencies.replace(rule.definitionRevisionId, inspected.resolutions, inspected.binding.values); return rule.view;
 }
 export async function saveBinding(ports: AutomationPorts, actor: AutomationActor, body: unknown, id?: string, ifMatch?: string) {
-  const input = parseContract<BindingSetInput>('BindingSetInput', body);
+  const input = parseContract('BindingSetInput', body);
   const previous = id ? await requireBinding(ports, actor, id) : null;
   if (previous) requireEtag(previous.revision, ifMatch ?? '');
   for (const binding of Object.values(input.values).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)))) {

@@ -43,7 +43,7 @@ export function registerAutomationRoutes(app: FastifyInstance, deps: AutomationR
   const pagination = createAutomationPagination(deps.cursorKey);
   const routes: AutomationRoute[] = [
     { method: 'GET', path: '/capabilities', action: async () => automationView({ contractVersion: '0.2.1-design', ruleApiVersions: ['colp.automation/v1'],
-      runtimeProfiles: [], triggerModes: [], taskTypes: [], eventsEnabled: false, limits: { maxRules: 500, maxExpressionBytes: 4096, maxTasksPerRule: 8 } }) },
+      runtimeProfiles: [], triggerModes: [], taskTypes: [], eventsEnabled: false, limits: { maxRules: 500, maxExpressionBytes: 4_194_304, maxTasksPerRule: 8 } }) },
     { method: 'POST', path: '/rules/validate', action: async ({ ports, actor, request }) => automationView(await validateRule(ports, actor, request.body)) },
     { method: 'POST', path: '/rules/preview', action: async ({ ports, actor, request }) => automationView(await previewRule(ports, actor, request.body)) },
     { method: 'POST', path: '/rules', action: async ({ ports, actor, request }) => automationView(await createRule(ports, actor, request.body), 201) },

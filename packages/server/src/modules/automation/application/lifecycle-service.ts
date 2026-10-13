@@ -1,22 +1,23 @@
-import { automationDigest, type LifecycleInput, type PauseInput } from '@know-n/colp/automation';
+import { automationDigest } from '@know-n/colp/automation';
 import { AutomationError } from '../domain/errors.js';
 import type { AutomationActor } from '../domain/bindings.js';
 import { nextRevision, ruleInput, type AutomationPorts } from './ports.js';
-import { requireRule, requireEtag, parseContract } from './rule-service.js';
+import { requireRule, requireEtag, parseContract, normalizeRuleInput } from './rule-service.js';
+import { intakeBindingsAvailable } from './rule-eligibility.js';
 import { previewSnapshot } from './preview-service.js';
 
 export async function setLifecycle(ports: AutomationPorts, actor: AutomationActor, id: string, body: unknown, ifMatch: string) {
-  const input = parseContract<LifecycleInput>('LifecycleInput', body), stored = await requireRule(ports, actor, id);
+  const input = parseContract('LifecycleInput', body), stored = await requireRule(ports, actor, id);
   requireEtag(stored.view.revision, ifMatch);
   if (stored.view.desiredState === 'archived') throw new AutomationError('automation_rule_conflict', 'Archived rules cannot be reactivated.');
   if (input.state === 'enabled') {
     const preview = input.activationPreviewId ? await ports.previews.load(actor.accountId, input.activationPreviewId) : null;
     if (!preview || preview.expiresAt.getTime() <= (await ports.now()).getTime()
-      || automationDigest(preview.input.rule) !== automationDigest(ruleInput(stored.view)))
+      || automationDigest(normalizeRuleInput(preview.input.rule)) !== automationDigest(normalizeRuleInput(ruleInput(stored.view))))
       throw new AutomationError('automation_stale_input', 'Enable requires the exact unexpired preview of this configuration.');
     const current = await previewSnapshot(ports, actor, preview.input);
     if (preview.configDigest !== current.configDigest) throw new AutomationError('automation_stale_input', 'Bindings, settings, permissions or sampled inputs changed. Preview again.');
-    if (Object.values(current.resolutions).some((result) => result.status !== 'valid')) throw new AutomationError('automation_binding_unavailable', 'Repair the required folder binding.');
+    if (!intakeBindingsAvailable(stored.view.definition, current.resolutions)) throw new AutomationError('automation_binding_unavailable', 'Repair the required folder binding.');
     if (preview.result.decisions.some((decision) => decision.outcome === 'conflict' || decision.outcome === 'blocked'))
       throw new AutomationError('automation_rule_conflict', 'Resolve blocked or conflicting preview decisions before enable.');
     await ports.activation(stored, { kind: 'disable' });
@@ -31,7 +32,7 @@ export async function setLifecycle(ports: AutomationPorts, actor: AutomationActo
   await ports.rules.setState(actor.accountId, stored); return stored.view;
 }
 export async function setPause(ports: AutomationPorts, actor: AutomationActor, body: unknown, ifMatch: string) {
-  const input = parseContract<PauseInput>('PauseInput', body), previous = await ports.settings.get(actor.accountId);
+  const input = parseContract('PauseInput', body), previous = await ports.settings.get(actor.accountId);
   requireEtag(previous.revision, ifMatch);
   const now = (await ports.now()).toISOString();
   const settings = { ...previous, revision: nextRevision(previous.revision), paused: input.paused, pausedAt: input.paused ? now : null,

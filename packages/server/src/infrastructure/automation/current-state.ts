@@ -39,12 +39,17 @@ export async function readCurrentSample(db: Kysely<DatabaseSchema>, reads: Bindi
     const ancestors = [];
     let parentId = node.parentId;
     const seen = new Set<string>();
-    while (parentId && ancestors.length < 128 && !seen.has(parentId)) {
+    while (parentId) {
+      if (ancestors.length >= 128 || seen.has(parentId))
+        throw new AutomationError('automation_binding_unavailable', 'Complete current ancestry exceeds the facts bound or contains a cycle.');
       seen.add(parentId);
       const parent = await canonical.readNode({ actorSubjectId: actor.subjectId, collectionId, nodeId: parentId });
-      if (!parent) break;
+      if (!parent || parent.kind !== 'folder')
+        throw new AutomationError('automation_binding_unavailable', 'Complete current ancestry is unavailable.');
       ancestors.push({ serverUuid, collectionId, nodeId: parent.id }); parentId = parent.parentId;
     }
+    if (ancestors.at(-1)?.nodeId !== collection.rootNodeId)
+      throw new AutomationError('automation_binding_unavailable', 'Current ancestry does not reach the canonical root.');
     events.push({ eventId: `current_${node.id}`, operationId: `current_${node.id}`, type: 'node.created', collectionId, nodeId: node.id,
       commitOrdinal: collection.commitOrdinal, occurredAt: node.createdAt.toISOString(), origin: 'user', changedFields: ['create'], hopCount: 0,
       intakeDisposition: 'unknown', bookmark: { kind: 'bookmark', url: normalized.status === 'available' ? { host: normalized.host, path: normalized.path } : { host: '' },
