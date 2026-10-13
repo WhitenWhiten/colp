@@ -552,6 +552,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
 
   return {
     automationServerDailyRunCap: parsePositiveInt(env.AUTOMATION_SERVER_DAILY_RUN_CAP,1000,'AUTOMATION_SERVER_DAILY_RUN_CAP',{ min: 1,max: 100000 }),
+    automationWebhookMasterKey: loadAutomationWebhookKey(env),
     mcpEventsEnabled: parseCacheBooleanEnv(env, 'KNOWN_FEATURE_MCP_EVENTS', false),
     automationRuntimeEnabled: parseCacheBooleanEnv(env, 'KNOWN_FEATURE_AUTOMATION_RUNTIME', false),
     automationConfigurationEnabled: parseCacheBooleanEnv(env, 'KNOWN_FEATURE_AUTOMATION_CONFIGURATION', false),
@@ -613,4 +614,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     ...(mcpWrite ? { mcpWrite } : {}),
     accountCredentials: loadAccountCredentialsFeatureConfig(env),
   };
+}
+
+function loadAutomationWebhookKey(env: NodeJS.ProcessEnv): Buffer | undefined {
+  if (!parseCacheBooleanEnv(env, 'KNOWN_FEATURE_MCP_EVENTS', false)) return undefined;
+  const encoded = env.AUTOMATION_WEBHOOK_MASTER_KEY ?? '', key = Buffer.from(encoded, 'base64');
+  if (key.length !== 32 || key.toString('base64') !== encoded) throw new Error('AUTOMATION_WEBHOOK_MASTER_KEY must be canonical base64 encoding of 32 bytes when Events is enabled.');
+  return key;
 }

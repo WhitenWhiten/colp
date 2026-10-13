@@ -1,3 +1,4 @@
+import { createWebhookVerifier } from '../infrastructure/automation/webhook-verifier.js';
 import { createSubscriptionStore } from '../infrastructure/automation/subscription-store.js';
 import { createMcpEventsAdapter } from '../modules/mcp/events-adapter.js';
 import { createAutomationUnitOfWork,createAutomationWorkerService,createResultSubmissionPort,createProposalPlanGateway,createTargetWorkerService } from '../infrastructure/automation/index.js';
@@ -357,7 +358,7 @@ export async function composeApiMcpSurface(input: {
     }));
   }
   if (config.mcpEventsEnabled && mcpApplicationFacade && automationTargetWorker) {
-    mcpApplicationFacade = { ...mcpApplicationFacade, events: createMcpEventsAdapter(createSubscriptionStore(database.db, automationTargetWorker)) };
+    mcpApplicationFacade = { ...mcpApplicationFacade, events: createMcpEventsAdapter(createSubscriptionStore(database.db, automationTargetWorker, config.automationWebhookMasterKey ? createWebhookVerifier(config.automationWebhookMasterKey) : undefined)) };
   }
   return {
     ...(automationWorker ? { automationWorker } : {}),

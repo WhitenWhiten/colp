@@ -630,6 +630,7 @@ export interface AppConfig {
   readonly automationConfigurationEnabled?: boolean;
   readonly automationRuntimeEnabled?: boolean;
   readonly mcpEventsEnabled?: boolean;
+  readonly automationWebhookMasterKey?: Buffer;
   readonly automationServerDailyRunCap?: number;
   readonly bookmarkSubscriptions?: { readonly enabled: boolean; readonly protocolReady: boolean };
   readonly nodeEnv: string;
