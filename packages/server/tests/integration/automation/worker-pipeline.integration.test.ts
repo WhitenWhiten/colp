@@ -209,7 +209,7 @@ describeWithPostgres('AW-31 authenticated polling and typed canonical orchestrat
     const verified = await f.verifier.verify({ authorization: 'Bearer '+await f.mint({ scopes: ['automation:work','automation:read','automation:manage'] }) });
     const context = createMcpApplicationContext({ principal: verified.binding,scopes: verified.scopes,abortSignal: new AbortController().signal,
       budgets: { maxDepth: 16,maxNodes: 1000,maxBytes: 100000,maxOperations: 100 },correlationId: randomUUID(),
-      authorization: { accountSubjectId: verified.accountSubjectId,automationCredential: { credentialDigest: verified.credentialDigest,
+      authorization: { accountSubjectId: verified.accountSubjectId,automationCredential: { credentialDigest: verified.credentialDigest,connectionId: verified.automationConnectionId,
         expiresAt: verified.expiresAt.toISOString(),issuedAtSeconds: verified.issuedAtSeconds,accountSecurityEpoch: verified.accountSecurityEpoch } } });
     const base: McpApplicationFacade = { listTools: async () => ({ tools: [] }),callTool: async () => { throw new Error('Unexpected standard tool'); },
       listResources: async () => ({ resources: [] }),listResourceTemplates: async () => ({ resourceTemplates: [] }),readResource: async () => ({ contents: [] }) };

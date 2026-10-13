@@ -25,7 +25,7 @@ describeWithPostgres('AW-30 current conditional Automation catalogs',() => {
     if (b.kind !== 'authenticated') throw new Error('Expected real authenticated fixture');
     return createMcpApplicationContext({ principal: b,scopes: verified.scopes,abortSignal: new AbortController().signal,
       budgets: { maxDepth: 16,maxNodes: 1000,maxBytes: 100000,maxOperations: 100 },correlationId: randomUUID(),
-      authorization: { accountSubjectId: verified.accountSubjectId,automationCredential: { credentialDigest: verified.credentialDigest,
+      authorization: { accountSubjectId: verified.accountSubjectId,automationCredential: { credentialDigest: verified.credentialDigest,connectionId: verified.automationConnectionId,
         expiresAt: verified.expiresAt.toISOString(),issuedAtSeconds: verified.issuedAtSeconds,accountSecurityEpoch: verified.accountSecurityEpoch } } });
   }
   function facade() { return withAutomationCatalog(base,{
