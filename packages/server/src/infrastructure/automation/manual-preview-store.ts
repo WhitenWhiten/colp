@@ -2,7 +2,7 @@ import { boundManualSnapshot } from './manual-snapshot.js';
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { automationDigest, compilePredicate, type EventFacts, type RunOnceInput, type RunOncePreview, type RuleDefinition } from '@know-n/colp/automation';
-import { AutomationError, parseContract, requireRule, inspectInput, evaluateRuleEvent, ruleInput, bindingResolutionSignature, type AutomationActor, type AutomationPorts } from '../../modules/automation/index.js';
+import { AutomationError, parseContract, requireRule, inspectInput, evaluateRuleEvent, ruleInput, bindingResolutionSignature, competingRules, type AutomationActor, type AutomationPorts } from '../../modules/automation/index.js';
 import type { RuleEventPlan } from '../../modules/automation/index.js';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
 import { readCurrentSample } from './current-state.js';
@@ -29,22 +29,25 @@ export async function manualConfiguration(ports: AutomationPorts, actor: Automat
     const folder = await ports.reads.readFolder(actor, input.folder);
     if (folder.status !== 'valid')
         throw new AutomationError('automation_binding_unavailable', 'Selection folder is unavailable.');
+    // Competing rules arbitrate run-once placement exactly as they do event-time intake.
+    const { competition, alternatives } = await competingRules(ports, actor, inspected.collection.id, { ruleId });
     const digest = automationDigest({ rule: rule.view, binding: inspected.binding, bindings: bindingResolutionSignature(inspected.resolutions), worker: inspected.worker,
-        folder: folder.snapshot, input });
-    return { rule, inspected, digest };
+        folder: folder.snapshot, input, competition });
+    return { rule, inspected, digest, alternatives };
 }
 export async function previewManualRun(tx: DatabaseTransaction, ports: AutomationPorts, actor: AutomationActor, serverUuid: string, ruleId: string, body: unknown): Promise<RunOncePreview> {
-    const input = parseContract('RunOnceInput', body), { rule, inspected, digest } = await manualConfiguration(ports, actor, ruleId, input);
+    const input = parseContract('RunOnceInput', body), { rule, inspected, digest, alternatives } = await manualConfiguration(ports, actor, ruleId, input);
     if (!ports.runtimeEnabled)
         throw new AutomationError('automation_unsupported_capability', 'Execution runtime unavailable.');
     const sample = await readCurrentSample(tx, ports.reads, serverUuid, actor, rule.view.definition, inspected.binding.values, { folderId: input.folder.nodeId, includeDescendants: input.includeDescendants, limit: 1000 });
     const predicate = compilePredicate(rule.view.definition.match);
     if (!predicate.valid)
         throw new AutomationError('automation_invalid_graph', 'Predicate unavailable.');
+    const intakeRoots = new Set(sample.intakeRootIds ?? []);
     const members = sample.events.map(event => {
         // Explicit one-time action reuses current-state predicates/scope, not event-trigger admission.
-        const manual = { ...event, type: rule.view.definition.on, intakeDisposition: input.moveFolderedBookmarks || event.bookmark.parent?.nodeId === inspected.collection.rootNodeId ? 'userDefault' as const : 'userSelected' as const };
-        const plan = evaluateRuleEvent({ ruleId, definition: rule.view.definition, resolutions: inspected.resolutions, bindings: inspected.bindingAssessment, predicate }, [], manual);
+        const manual = { ...event, type: rule.view.definition.on, intakeDisposition: input.moveFolderedBookmarks || intakeRoots.has(event.bookmark.parent?.nodeId ?? '') ? 'userDefault' as const : 'userSelected' as const };
+        const plan = evaluateRuleEvent({ ruleId, definition: rule.view.definition, resolutions: inspected.resolutions, bindings: inspected.bindingAssessment, predicate }, alternatives, manual);
         return { event: manual, revision: sample.revisions[event.nodeId]!, plan };
     });
     const snapshot: ManualSnapshot = { input, configurationDigest: digest, collectionId: inspected.collection.id, collectionRevision: inspected.collection.contentRevision,

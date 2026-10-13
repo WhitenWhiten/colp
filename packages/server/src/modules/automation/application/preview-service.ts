@@ -27,27 +27,7 @@ export async function previewSnapshot(ports: AutomationPorts, actor: AutomationA
   if (!evaluator.valid) throw new AutomationError('automation_invalid_graph', 'Predicate cannot compile.', evaluator.issues);
   const proposed: PreparedRule = { ruleId: 'preview', definition: input.rule.definition, resolutions: inspected.resolutions,
     bindings: inspected.bindingAssessment, predicate: evaluator };
-  const competition: string[] = [], alternatives: PreparedRule[] = [];
-  const proposedDigest = automationDigest(input.rule);
-  for (const candidate of await ports.rules.list(actor.accountId, null, 500)) {
-    if (candidate.view.desiredState !== 'enabled') continue;
-    const candidateInput = normalizeRuleInput(ruleInput(candidate.view));
-    if (automationDigest(candidateInput) === proposedDigest) continue;
-    const binding = await ports.bindings.load(actor.accountId, candidate.view.bindingSetId);
-    let signature: unknown = null;
-    try {
-      const other = await inspectInput(ports, actor, candidateInput);
-      signature = bindingResolutionSignature(other.resolutions);
-      const evaluator = compilePredicate(candidateInput.definition.match);
-      if (other.collection.id === inspected.collection.id && evaluator.valid)
-        alternatives.push({ ruleId: candidate.view.id, definition: candidateInput.definition, resolutions: other.resolutions,
-          bindings: other.bindingAssessment, predicate: evaluator });
-    } catch (error) {
-      if (!(error instanceof AutomationError)) throw error;
-      signature = { unavailable: error.code };
-    }
-    competition.push(automationDigest({ id: candidate.view.id, revision: candidate.view.revision, input: candidateInput, binding: binding ?? null, resolutions: signature }));
-  }
+  const { competition, alternatives } = await competingRules(ports, actor, inspected.collection.id, { digest: automationDigest(input.rule) });
   const configDigest = automationDigest({ version: 'preview-snapshot/v2', competition, rule: input.rule, bindingRevision: inspected.binding.revision, bindings,worker: inspected.worker, settingsRevision: settings.revision,
     mode: input.mode, from: input.from ?? null, to: input.to ?? null, sampleRevisions: sample.revisions,
     facts: sample.events.map(({ commitOrdinal: _ordinal, occurredAt: _time, operationId: _operation, ...facts }) => automationDigest(facts)) });
@@ -80,4 +60,33 @@ export async function previewRule(ports: AutomationPorts, actor: AutomationActor
   await ports.previews.save(actor.accountId, { id: result.previewId, input, result, configDigest: snapshot.configDigest,
     expiresAt: new Date((await ports.now()).getTime() + 10 * 60_000) });
   return result;
+}
+
+/**
+ * Every other enabled rule, prepared for arbitration in the same collection, plus a digest entry per
+ * rule so a changed competitor makes a stored preview stale. Unavailable rules still change the digest.
+ */
+export async function competingRules(ports: AutomationPorts, actor: AutomationActor, collectionId: string,
+  exclude: { ruleId?: string; digest?: string }): Promise<{ competition: string[]; alternatives: PreparedRule[] }> {
+  const competition: string[] = [], alternatives: PreparedRule[] = [];
+  for (const candidate of await ports.rules.list(actor.accountId, null, 500)) {
+    if (candidate.view.desiredState !== 'enabled' || candidate.view.id === exclude.ruleId) continue;
+    const candidateInput = normalizeRuleInput(ruleInput(candidate.view));
+    if (automationDigest(candidateInput) === exclude.digest) continue;
+    const binding = await ports.bindings.load(actor.accountId, candidate.view.bindingSetId);
+    let signature: unknown = null;
+    try {
+      const other = await inspectInput(ports, actor, candidateInput);
+      signature = bindingResolutionSignature(other.resolutions);
+      const evaluator = compilePredicate(candidateInput.definition.match);
+      if (other.collection.id === collectionId && evaluator.valid)
+        alternatives.push({ ruleId: candidate.view.id, definition: candidateInput.definition, resolutions: other.resolutions,
+          bindings: other.bindingAssessment, predicate: evaluator });
+    } catch (error) {
+      if (!(error instanceof AutomationError)) throw error;
+      signature = { unavailable: error.code };
+    }
+    competition.push(automationDigest({ id: candidate.view.id, revision: candidate.view.revision, input: candidateInput, binding: binding ?? null, resolutions: signature }));
+  }
+  return { competition, alternatives };
 }

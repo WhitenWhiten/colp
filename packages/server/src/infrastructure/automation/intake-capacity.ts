@@ -50,6 +50,23 @@ export async function reserveIntakeAdmission(tx: DatabaseTransaction, input: Int
 }
 
 /**
+ * Run-once is all or nothing: it charges its own run and every member run that starts worker tasks
+ * against the rule's daily limit up front, or starts nothing. Caller holds the Owner account lock.
+ */
+export async function reserveManualCapacity(tx: DatabaseTransaction, input: {
+  ownerId: string; ruleId: string; runIds: readonly string[]; maxRunsPerDay: number;
+}): Promise<boolean> {
+  const used = Number((await sql<{ count: string }>`SELECT count(*) FROM automation_intake_reservations
+    WHERE owner_id=${input.ownerId} AND rule_id=${input.ruleId}
+      AND admission_day=(clock_timestamp() AT TIME ZONE 'UTC')::date`.execute(tx)).rows[0]!.count);
+  if (used + input.runIds.length > input.maxRunsPerDay) return false;
+  await sql`INSERT INTO automation_intake_reservations(run_id,owner_id,rule_id,admission_day)
+    SELECT run_id,${input.ownerId},${input.ruleId},(clock_timestamp() AT TIME ZONE 'UTC')::date
+    FROM unnest(${[...input.runIds]}::text[]) AS run_id`.execute(tx);
+  return true;
+}
+
+/**
  * A verified receipt records an already-committed device effect, not a new server
  * effect request. Keep real history above capacity and count the unique run
  * against later server admissions. Offline effects cannot be retroactively capped.

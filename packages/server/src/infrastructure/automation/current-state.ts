@@ -4,7 +4,7 @@ import type { EventFacts, RuleDefinition, RoleBindings } from '@know-n/colp/auto
 import { automationDigest, normalizeUrl } from '@know-n/colp/automation';
 import type { DatabaseSchema } from '../database/runtime.js';
 import type { AutomationActor, BindingReadPort } from '../../modules/automation/index.js';
-import { scopeCollectionId } from '../../modules/automation/index.js';
+import { isIntakeRootFolder, scopeCollectionId } from '../../modules/automation/index.js';
 import { AutomationError } from '../../modules/automation/index.js';
 import { createPostgresAccessPolicyFactsPort } from '../access-policy/index.js';
 import { createPostgresMcpOwnedCollectionReadPort } from '../collections/index.js';
@@ -43,6 +43,11 @@ export async function readCurrentSample(db: Kysely<DatabaseSchema>, reads: Bindi
     for(const parent of parents)nodes.set(parent.id,parent);
     frontier=[...new Set(parents.flatMap(parent=>parent.parentId ? [parent.parentId] : []))];
   }
+  // Intake roots use the shared rule (root and browser root roles), never the collection root alone.
+  const parentIds = [...new Set(chosen.flatMap(n => nodes.get(n.id)?.parentId ?? []))];
+  const parents = parentIds.length ? await db.selectFrom('nodes').select(['id', 'is_root', sql<string | null>`payload_json->>'folderRole'`.as('folder_role')])
+    .where('collection_id', '=', collectionId).where('id', 'in', parentIds).where('deleted_at', 'is', null).execute() : [];
+  const intakeRootIds = parents.filter(parent => isIntakeRootFolder({ isRoot: parent.is_root, folderRole: parent.folder_role })).map(parent => parent.id);
   const urls: Record<string,string> = {};
   const events: EventFacts[] = [], revisions: Record<string, string> = { collectionPolicy: collection.policyRevision };
   for (const selectedNode of chosen) {
@@ -73,5 +78,5 @@ export async function readCurrentSample(db: Kysely<DatabaseSchema>, reads: Bindi
     revisions[node.id] = node.resourceRevision;
     if (node.url) urls[node.id] = node.url;
   }
-  return { events, truncated: selected.rows.length > limit, revisions, urls };
+  return { events, truncated: selected.rows.length > limit, revisions, urls, intakeRootIds };
 }

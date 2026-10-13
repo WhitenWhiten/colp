@@ -11,7 +11,7 @@ export interface RuleStore {
   setState(ownerId: string, rule: StoredRule): Promise<void>;
 }
 export interface StoredPreview { id: string; configDigest: string; input: PreviewInput; result: PreviewResult; expiresAt: Date }
-export interface CurrentSample { urls?: Record<string, string>; events: EventFacts[]; truncated: boolean; revisions: Record<string, string> }
+export interface CurrentSample { urls?: Record<string, string>; events: EventFacts[]; truncated: boolean; revisions: Record<string, string>; intakeRootIds?: string[] }
 export type ActivationTransition = { kind: 'disable'; resetAggregation?: boolean } | { kind: 'resume' } | { kind: 'enable'; collectionId: string; afterOrdinal: string };
 export interface AutomationPorts {
   tagPreferences?: { set(ruleId: string, tag: string, rejected: boolean): Promise<boolean> };

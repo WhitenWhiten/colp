@@ -8,7 +8,7 @@ import { manualConfiguration, previewManualRun, type ManualSnapshot } from './ma
 import { lockPlacementCollection, canonicalPlacementMove } from './canonical-placement.js';
 import { recordPlacementHistory } from './placement-history-store.js';
 import { initializeRunTasks, advanceRunTasks } from './task-scheduler.js';
-import { reserveIntakeAdmission } from './intake-capacity.js';
+import { reserveManualCapacity } from './intake-capacity.js';
 import { createPostgresCollectionVersionStore } from '../collections/index.js';
 import { captureCollectionTreeVersion, CollectionVersionNodeLimitError } from '../../modules/collections/index.js';
 interface PreviewRow {
@@ -58,10 +58,16 @@ export function createManualRunStore(tx: DatabaseTransaction, ports: AutomationP
                     throw stale();
             }
             const selected = snapshot.members.filter(m => ['matched', 'placed', 'preserved'].includes(m.plan.kind));
-            const parentId = randomUUID();
+            const parentId = randomUUID(), runTasks = snapshot.input.tasks === 'all' && snapshot.definition.tasks.length > 0;
+            const children = selected.map(member => ({ member, id: randomUUID() }));
             await insert(parentId, snapshot, selected.map(m => m.event.eventId), { collectionId: snapshot.collectionId, manualSelection: true, plan: { kind: 'matched' }, causationRoot: parentId });
-            if (!await reserveIntakeAdmission(tx, { runId: parentId, ownerId: actor.accountId, ruleId, collectionId: snapshot.collectionId, maxRunsPerDay: snapshot.definition.policy.maxRunsPerDay }))
-                throw new AutomationError('automation_command_conflict', 'Daily run capacity reached; start again with a current preview after capacity is available.');
+            for (const { member, id } of children)
+                await insert(id, snapshot, [member.event.eventId], { collectionId: snapshot.collectionId, nodeId: member.event.nodeId, sourceRevision: member.revision,
+                    parentRunId: parentId, causationRoot: parentId, plan: member.plan });
+            // Every member that starts worker tasks is a run against the daily limit, not just the parent.
+            const charged = [parentId, ...(runTasks ? children.map(child => child.id) : [])];
+            if (!await reserveManualCapacity(tx, { ownerId: actor.accountId, ruleId, runIds: charged, maxRunsPerDay: snapshot.definition.policy.maxRunsPerDay }))
+                throw new AutomationError('automation_command_conflict', `Daily run capacity cannot cover this run-once (${charged.length} runs); start again with a current preview after capacity is available.`);
             if (selected.some(m => m.plan.kind === 'placed')) {
                 const versions = createPostgresCollectionVersionStore(tx), before = await versions.getOwnedLive(snapshot.collectionId, actor.subjectId);
                 if (!before)
@@ -75,10 +81,7 @@ export function createManualRunStore(tx: DatabaseTransaction, ports: AutomationP
                     throw error;
                 }
             }
-            for (const member of selected) {
-                const id = randomUUID();
-                await insert(id, snapshot, [member.event.eventId], { collectionId: snapshot.collectionId, nodeId: member.event.nodeId, sourceRevision: member.revision,
-                    parentRunId: parentId, causationRoot: parentId, plan: member.plan });
+            for (const { member, id } of children) {
                 if (member.plan.kind === 'placed') {
                     const current = await tx.selectFrom('nodes').select('parent_id').where('id', '=', member.event.nodeId).where('collection_id', '=', snapshot.collectionId).executeTakeFirstOrThrow();
                     if (current.parent_id !== member.plan.folder.nodeId) {
@@ -86,7 +89,7 @@ export function createManualRunStore(tx: DatabaseTransaction, ports: AutomationP
                         await recordPlacementHistory(tx, actor, serverUuid, id, moved.operationId);
                     }
                 }
-                if (snapshot.input.tasks === 'all' && snapshot.definition.tasks.length) {
+                if (runTasks) {
                     await initializeRunTasks(tx, actor, id);
                     await advanceRunTasks(tx, actor, serverUuid, id);
                 }

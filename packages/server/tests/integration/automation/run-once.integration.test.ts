@@ -30,6 +30,37 @@ describeWithPostgres('AW-41 immutable manual selection',()=>{
     });
     expect((await start()).statusCode).toBe(404);
   });
+  test('browser root folders are intake roots and competing rules arbitrate run-once placement',async()=>{
+    f=await automationPollingFixture('aw41_roots');
+    await f.createNode('bar','root','Bookmarks bar');
+    // Sync creates role folders; the fixture marks one directly because the Product API cannot.
+    await sql`UPDATE nodes SET payload_json=payload_json||'{"folderRole":"bookmarks-bar"}'::jsonb WHERE id='bar'`.execute(f.db);
+    await f.createNode('barred','bar','Bar paper','https://arxiv.org/abs/barred');
+    const p=await preview();expect(p.statusCode,p.body).toBe(200);expect(p.json().canStart).toBe(true);
+    const started=await f.ownerPost(`/rules/${f.rule.id}/run-once`,{previewId:p.json().id,previewDigest:p.json().previewDigest});expect(started.statusCode,started.body).toBe(201);
+    expect((await f.db.selectFrom('nodes').select('parent_id').where('id','=','barred').executeTakeFirstOrThrow()).parent_id).toBe('academic');
+    const executor=(await f.app.inject({url:'/api/v1/me/automations/executors',headers:{cookie:f.owner.cookie}})).json().items[0];
+    const bindings=await f.ownerPost('/binding-sets',{name:'Competing bindings',values:{researchEnricher:{kind:'executor',executorId:executor.id},
+      academicRoot:{...f.values.academicRoot,folder:{...f.folder,nodeId:'parent'}}}});expect(bindings.statusCode,bindings.body).toBe(201);
+    const competitor={...f.ruleInput,bindingSetId:bindings.json().id,definition:{...f.ruleInput.definition,name:'Competing intake',priority:f.ruleInput.definition.priority+1}};
+    const created=await f.ownerPost('/rules',competitor);expect(created.statusCode,created.body).toBe(201);
+    const activation=await f.ownerPost('/rules/preview',{rule:competitor,mode:'currentState'});expect(activation.statusCode,activation.body).toBe(200);
+    const enabled=await f.ownerPost(`/rules/${created.json().id}/lifecycle`,{state:'enabled',pendingRuns:'hold',reason:'Competing rule',activationPreviewId:activation.json().previewId},String(created.headers.etag));
+    expect(enabled.statusCode,enabled.body).toBe(200);
+    await f.createNode('later','root','Later paper','https://arxiv.org/abs/later');
+    const contested=await preview();expect(contested.statusCode,contested.body).toBe(200);
+    expect(contested.json()).toMatchObject({canStart:false});expect(contested.json().blockedCount).toBeGreaterThan(0);
+  });
+  test('task runs count against the daily limit; run-once never overspends it',async()=>{
+    f=await automationPollingFixture('aw41_cap',{dailyLimit:3});
+    const p=await f.ownerPost(`/rules/${f.rule.id}/run-once/preview`,{...options,tasks:'all'});expect(p.statusCode,p.body).toBe(200);expect(p.json().canStart).toBe(true);
+    const over=await f.ownerPost(`/rules/${f.rule.id}/run-once`,{previewId:p.json().id,previewDigest:p.json().previewDigest});
+    expect(over.statusCode,over.body).toBe(409);expect(over.json().error.code).toBe('automation_command_conflict');
+    expect((await sql`SELECT id FROM automation_runs WHERE kind='manual'`.execute(f.db)).rows).toEqual([]);
+    const placement=await preview();expect(placement.statusCode,placement.body).toBe(200);
+    const started=await f.ownerPost(`/rules/${f.rule.id}/run-once`,{previewId:placement.json().id,previewDigest:placement.json().previewDigest});
+    expect(started.statusCode,started.body).toBe(201);
+  });
   test('unpreviewed, changed options/digest, stale members and foreign Owner fail before effects',async()=>{
     f=await automationPollingFixture('aw41_stale');
     expect((await f.ownerPost(`/rules/${f.rule.id}/run-once`,{})).statusCode).toBe(400);
