@@ -30,6 +30,13 @@ export function createRunStore(tx: DatabaseTransaction, actor: AutomationActor, 
       const row = (await sql<RunRow>`${select} AND r.id=${id}`.execute(tx)).rows[0];
       if (!row) return null;
       const stored = map(row);
+      const children=(await sql<{id:string;state:Run['status']}>`SELECT id,state FROM automation_runs
+        WHERE owner_id=${actor.accountId} AND explanation_json->>'parentRunId'=${id} ORDER BY created_at,id LIMIT 1001`.execute(tx)).rows;
+      if(children.length){
+        stored.view.childRunIds=children.map(child=>child.id);
+        stored.view.status=children.some(c=>c.state==='running'||c.state==='waiting')?'running':children.every(c=>c.state==='completed')?'completed'
+          :children.every(c=>c.state==='cancelled')?'cancelled':children.some(c=>c.state==='completed')?'partial':'review';
+      }
       const jobs = (await sql<{ id: string; target_id: string | null }>`SELECT id,target_id FROM automation_jobs
         WHERE run_id=${id} ORDER BY created_at,id LIMIT 1600`.execute(tx)).rows;
       stored.view.jobIds = jobs.map(job => job.id);
@@ -43,7 +50,7 @@ export function createRunStore(tx: DatabaseTransaction, actor: AutomationActor, 
       return (await sql<RunRow>`${select} ${cursor} ${filter} ORDER BY r.created_at DESC,r.id DESC LIMIT ${limit}`.execute(tx)).rows.map(map);
     },
     async cancel(id) { await sql`UPDATE automation_runs SET state='cancelled', held=false, revision=revision+1, updated_at=clock_timestamp()
-      WHERE id=${id} AND owner_id=${actor.accountId} AND state IN ('waiting','running','blocked','review')`.execute(tx); },
+      WHERE (id=${id} OR explanation_json->>'parentRunId'=${id}) AND owner_id=${actor.accountId} AND (state IN ('waiting','running','blocked','review') OR explanation_json->>'manualSelection'='true')`.execute(tx); },
     async effects(id) {
       const rows = (await sql<PlacementEffectRow>`SELECT e.* FROM automation_effect_receipts e
         JOIN automation_runs r ON r.id=e.run_id WHERE r.id=${id} AND r.owner_id=${actor.accountId}

@@ -12,27 +12,28 @@ import type { CurrentSample } from '../../modules/automation/index.js';
 
 /** Bounded selection, then the existing canonical node reader. This is never event-time history. */
 export async function readCurrentSample(db: Kysely<DatabaseSchema>, reads: BindingReadPort, serverUuid: string,
-  actor: AutomationActor, definition: RuleDefinition, values: RoleBindings): Promise<CurrentSample> {
+  actor: AutomationActor, definition: RuleDefinition, values: RoleBindings, selection?: { folderId: string; includeDescendants: boolean; limit: number }): Promise<CurrentSample> {
   const collectionId = scopeCollectionId(definition, values);
   const collection = collectionId ? await reads.readCollection(actor, collectionId) : null;
   if (!collection || !collectionId) throw new AutomationError('resource_not_found', 'Authorized rule scope is unavailable.');
   const binding = values[definition.scope.folderRole ?? ''];
-  const folderId = binding?.kind === 'folder' ? binding.folder.nodeId : null;
+  const folderId = selection?.folderId ?? (binding?.kind === 'folder' ? binding.folder.nodeId : null);
+  const limit=selection?.limit ?? 200;
   // Recursive selection is bounded by the canonical collection's tree capacity. Materialize only 201 IDs.
   const selected = await sql<{ id: string; resource_revision: string; tags: unknown }>`
     WITH RECURSIVE subtree AS (
       SELECT id FROM nodes WHERE collection_id=${collectionId} AND id=${folderId} AND deleted_at IS NULL
       UNION
       SELECT n.id FROM nodes n JOIN subtree s ON n.parent_id=s.id
-        WHERE n.collection_id=${collectionId} AND n.deleted_at IS NULL AND ${definition.scope.includeDescendants === true}
+        WHERE n.collection_id=${collectionId} AND n.deleted_at IS NULL AND ${selection?.includeDescendants ?? definition.scope.includeDescendants === true}
     )
     SELECT id,resource_revision,tags FROM nodes WHERE collection_id=${collectionId} AND kind='bookmark' AND deleted_at IS NULL
       AND (${folderId}::text IS NULL OR parent_id IN (SELECT id FROM subtree))
-    ORDER BY created_at DESC,id DESC LIMIT 201
+    ORDER BY created_at DESC,id DESC LIMIT ${limit+1}
   `.execute(db);
   const canonical = createPostgresMcpOwnedCollectionReadPort({ db, accessPolicy: createPostgresAccessPolicyFactsPort(db) });
   const events: EventFacts[] = [], revisions: Record<string, string> = { collectionPolicy: collection.policyRevision };
-  for (const selectedNode of selected.rows.slice(0, 200)) {
+  for (const selectedNode of selected.rows.slice(0, limit)) {
     const node = await canonical.readNode({ actorSubjectId: actor.subjectId, collectionId, nodeId: selectedNode.id });
     if (!node || node.kind !== 'bookmark') throw new AutomationError('automation_stale_input', 'A sampled bookmark became unavailable.');
     const normalized = normalizeUrl(node.url ?? '');
@@ -59,5 +60,5 @@ export async function readCurrentSample(db: Kysely<DatabaseSchema>, reads: Bindi
         nodeId: node.id, ...(node.parentId ? { parent: { serverUuid, collectionId, nodeId: node.parentId } } : {}), ancestors } });
     revisions[node.id] = node.resourceRevision;
   }
-  return { events, truncated: selected.rows.length > 200, revisions };
+  return { events, truncated: selected.rows.length > limit, revisions };
 }

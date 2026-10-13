@@ -804,6 +804,12 @@ export interface Run {
    */
   explanation?: string;
   usage?: RuleUsageView1;
+  /**
+   * Manual selection children, each with independent canonical effects and pinned task DAG.
+   *
+   * @maxItems 1000
+   */
+  childRunIds?: string[];
 }
 export interface EffectReceiptView {
   id: OpaqueId;

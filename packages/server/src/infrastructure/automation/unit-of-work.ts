@@ -1,3 +1,4 @@
+import { createManualRunStore } from './manual-run-store.js';
 import { createOwnerDeliveryStore } from './delivery-store.js';
 import { createOwnerJobStore } from './owner-job-store.js';
 import { readAutomationUsage } from './usage-read-store.js';
@@ -30,7 +31,7 @@ export function createAutomationUnitOfWork(db: Kysely<DatabaseSchema>, serverUui
     if (!account || account.status !== 'active' || account.deleted_at || account.subject_id !== actor.subjectId)
       throw new AutomationError('resource_not_found', 'Active owner is unavailable.');
     const reads = createBindingReadPort(tx, serverUuid);
-    return work({ deliveries: createOwnerDeliveryStore(tx,actor),usage: { rule: id => readAutomationUsage(tx,actor,id) },...(options.workerEnabled ? { ownerJobs: createOwnerJobStore(tx,actor,serverUuid) } : {}),workerEnabled: options.workerEnabled === true, targets: createTargetStore(tx,actor.accountId,options.verifyTargetBinding), policies: createExecutionPolicyStore(tx, actor.accountId), runtimeEnabled: options.runtimeEnabled === true, placementUndo: createPlacementUndoPort(tx, actor), runs: createRunStore(tx, actor, serverUuid), health: createHealthStore(tx), receipts: createPostgresProductCommandReceiptPort(tx), rules: createRuleStore(tx, options.runtimeEnabled), bindings: createBindingStore(tx),
+    const ports: import('../../modules/automation/index.js').AutomationPorts = { deliveries: createOwnerDeliveryStore(tx,actor),usage: { rule: id => readAutomationUsage(tx,actor,id) },...(options.workerEnabled ? { ownerJobs: createOwnerJobStore(tx,actor,serverUuid) } : {}),workerEnabled: options.workerEnabled === true, targets: createTargetStore(tx,actor.accountId,options.verifyTargetBinding), policies: createExecutionPolicyStore(tx, actor.accountId), runtimeEnabled: options.runtimeEnabled === true, placementUndo: createPlacementUndoPort(tx, actor), runs: createRunStore(tx, actor, serverUuid), health: createHealthStore(tx), receipts: createPostgresProductCommandReceiptPort(tx), rules: createRuleStore(tx, options.runtimeEnabled), bindings: createBindingStore(tx),
       reads, dependencies: createDependencyIndex(tx), id: randomUUID, now: () => databaseNow(tx),
       sample: (owner, rule, values) => readCurrentSample(tx, reads, serverUuid, owner, rule, values), export: (ownerId) => exportAutomations(tx, ownerId),
       settings: {
@@ -107,6 +108,8 @@ export function createAutomationUnitOfWork(db: Kysely<DatabaseSchema>, serverUui
         await tx.insertInto('automation_activations').values({ rule_revision_id: rule.definitionRevisionId, collection_id: collectionId, generation,
           after_ordinal: afterOrdinal, disabled_after_ordinal: null, aggregate_epoch: generation }).execute();
       },
-    });
+    };
+    ports.runOnce=createManualRunStore(tx,ports,actor,serverUuid);
+    return work(ports);
   }) };
 }

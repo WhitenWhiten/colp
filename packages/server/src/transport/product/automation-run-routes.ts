@@ -5,6 +5,14 @@ export function automationRunRoutes(cursorKey: string): AutomationRoute[] {
   const page = createAutomationPagination(cursorKey);
   const runId = (params: unknown) => (params as { runId: string }).runId;
   return [
+    { method:'POST',path:'/rules/:ruleId/run-once/preview',action:async({ports,request})=>{
+      if(!ports.runOnce)throw new AutomationError('automation_unsupported_capability','Run-once unavailable.');
+      return automationView(await ports.runOnce.preview((request.params as {ruleId:string}).ruleId,request.body));
+    }},
+    { method:'POST',path:'/rules/:ruleId/run-once',action:async({ports,request})=>{
+      if(!ports.runOnce)throw new AutomationError('automation_unsupported_capability','Run-once unavailable.');
+      return automationView(await ports.runOnce.start((request.params as {ruleId:string}).ruleId,request.body),201);
+    }},
     { method: 'POST', path: '/runs/:runId/undo', ifMatch: true, action: async ({ ports, request, ifMatch }) =>
       automationView(await undoAutomationRun(ports, runId(request.params), request.body, ifMatch)) },
     { method: 'GET', path: '/runs', query: ['cursor', 'limit', 'collectionId', 'nodeId'], action: async ({ ports, actor, request }) => {

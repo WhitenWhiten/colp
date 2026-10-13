@@ -776,6 +776,16 @@ export const PRODUCT_ROUTE_MANIFEST = [
     "operationId": "revalidateAutomationRule"
   },
   {
+    "method": "POST",
+    "path": "/api/v1/me/automations/rules/{ruleId}/run-once",
+    "operationId": "startAutomationRunOnce"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/automations/rules/{ruleId}/run-once/preview",
+    "operationId": "previewAutomationRunOnce"
+  },
+  {
     "method": "GET",
     "path": "/api/v1/me/automations/runs",
     "operationId": "listAutomationRuns"

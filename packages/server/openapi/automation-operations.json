@@ -54,5 +54,7 @@
   "getAutomationJobForOwner",
   "decideAutomationJob",
   "listAutomationDeliveries",
-  "retryAutomationDelivery"
+  "retryAutomationDelivery",
+  "previewAutomationRunOnce",
+  "startAutomationRunOnce"
 ]

@@ -16101,6 +16101,152 @@ paths:
       x-known-feature-gate: automation_configuration
       security:
         - cookieAuth: []
+  /api/v1/me/automations/rules/{ruleId}/run-once/preview:
+    post:
+      operationId: previewAutomationRunOnce
+      tags:
+        - Automation
+      summary: Preview a one-time run over existing bookmarks under a folder
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded.
+        Side-effect free; stores only an expiring preview record. Backend surface; runtime availability is reported by
+        capabilities. Historical preview has no fallback.
+      x-delivery-phase: M3
+      parameters:
+        - in: path
+          name: ruleId
+          required: true
+          schema:
+            $ref: "#/components/schemas/AutomationOpaqueId"
+        - $ref: "#/components/parameters/AutomationCommandId"
+        - $ref: "#/components/parameters/AutomationCsrf"
+        - $ref: "#/components/parameters/AutomationOrigin"
+      responses:
+        "200":
+          description: Successful response; inspect the returned state, not merely the HTTP status.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+            X-Request-Id:
+              schema:
+                type: string
+                maxLength: 128
+                minLength: 1
+                pattern: ^[A-Za-z0-9._~-]+$
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutomationRunOncePreview"
+        "400":
+          $ref: "#/components/responses/Automation400"
+        "401":
+          $ref: "#/components/responses/Automation401"
+        "403":
+          $ref: "#/components/responses/Automation403"
+        "404":
+          $ref: "#/components/responses/Automation404"
+        "409":
+          $ref: "#/components/responses/Automation409"
+        "412":
+          $ref: "#/components/responses/Automation412"
+        "413":
+          $ref: "#/components/responses/Automation413"
+        "422":
+          $ref: "#/components/responses/Automation422"
+        "428":
+          $ref: "#/components/responses/Automation428"
+        "429":
+          $ref: "#/components/responses/Automation429"
+        "500":
+          $ref: "#/components/responses/Automation500"
+        "503":
+          $ref: "#/components/responses/Automation503"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AutomationRunOnceInput"
+      x-known-feature-gate: automation_configuration
+      security:
+        - cookieAuth: []
+  /api/v1/me/automations/rules/{ruleId}/run-once:
+    post:
+      operationId: startAutomationRunOnce
+      tags:
+        - Automation
+      summary: Start one manual run with pinned members; never repeats
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded.
+        Requires an unexpired preview of the same input; at most 1,000 members per run. Backend surface; runtime
+        availability is reported by capabilities. Historical preview has no fallback.
+      x-delivery-phase: M3
+      parameters:
+        - in: path
+          name: ruleId
+          required: true
+          schema:
+            $ref: "#/components/schemas/AutomationOpaqueId"
+        - $ref: "#/components/parameters/AutomationCommandId"
+        - $ref: "#/components/parameters/AutomationCsrf"
+        - $ref: "#/components/parameters/AutomationOrigin"
+        - $ref: "#/components/parameters/AutomationIfMatch"
+      responses:
+        "200":
+          description: Successful response; inspect the returned state, not merely the HTTP status.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+            X-Request-Id:
+              schema:
+                type: string
+                maxLength: 128
+                minLength: 1
+                pattern: ^[A-Za-z0-9._~-]+$
+            ETag:
+              schema:
+                type: string
+                maxLength: 160
+              description: Strong ETag for this automation resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutomationRun"
+        "400":
+          $ref: "#/components/responses/Automation400"
+        "401":
+          $ref: "#/components/responses/Automation401"
+        "403":
+          $ref: "#/components/responses/Automation403"
+        "404":
+          $ref: "#/components/responses/Automation404"
+        "409":
+          $ref: "#/components/responses/Automation409"
+        "412":
+          $ref: "#/components/responses/Automation412"
+        "413":
+          $ref: "#/components/responses/Automation413"
+        "422":
+          $ref: "#/components/responses/Automation422"
+        "428":
+          $ref: "#/components/responses/Automation428"
+        "429":
+          $ref: "#/components/responses/Automation429"
+        "500":
+          $ref: "#/components/responses/Automation500"
+        "503":
+          $ref: "#/components/responses/Automation503"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AutomationRunOnceStartInput"
+      x-known-feature-gate: automation_configuration
+      security:
+        - cookieAuth: []
   /api/v1/automation-work/pairings/claim:
     post:
       operationId: claimAutomationTargetPairing
@@ -19641,6 +19787,13 @@ components:
           description: Bounded explanation of the pinned admission decision or latest execution outcome.
         usage:
           $ref: "#/components/schemas/AutomationRuleUsageView"
+        childRunIds:
+          type: array
+          items:
+            type: string
+            maxLength: 128
+          maxItems: 1000
+          description: Manual selection children, each with independent canonical effects and pinned task DAG.
       required:
         - id
         - revision
@@ -20882,6 +21035,112 @@ components:
         - mode
         - execution
       additionalProperties: false
+    AutomationRunOncePreview:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/AutomationOpaqueId"
+        matchedCount:
+          type: integer
+          minimum: 0
+        blockedCount:
+          type: integer
+          minimum: 0
+        explicitChoiceCount:
+          type: integer
+          minimum: 0
+        maxMembers:
+          type: integer
+          minimum: 1
+          maximum: 1000
+        sample:
+          type: array
+          items:
+            $ref: "#/components/schemas/AutomationRunOnceSampleItem"
+          maxItems: 20
+        expiresAt:
+          type: string
+          format: date-time
+        sideEffects:
+          const: false
+        previewDigest:
+          type: string
+          minLength: 1
+          maxLength: 64
+        canStart:
+          type: boolean
+      required:
+        - id
+        - matchedCount
+        - blockedCount
+        - explicitChoiceCount
+        - maxMembers
+        - sample
+        - expiresAt
+        - sideEffects
+        - previewDigest
+        - canStart
+      additionalProperties: false
+    AutomationRunOnceSampleItem:
+      type: object
+      properties:
+        nodeId:
+          $ref: "#/components/schemas/AutomationOpaqueId"
+        title:
+          type: string
+          maxLength: 500
+        decision:
+          type: string
+          enum:
+            - matched
+            - blocked
+            - explicitChoice
+            - notMatched
+        reason:
+          type: string
+          maxLength: 500
+      required:
+        - nodeId
+        - title
+        - decision
+      additionalProperties: false
+    AutomationRunOnceInput:
+      type: object
+      properties:
+        folder:
+          $ref: "#/components/schemas/AutomationFolderRef"
+        includeDescendants:
+          type: boolean
+        moveFolderedBookmarks:
+          type: boolean
+          description: "Also move bookmarks that already sit in a non-root folder. Default false: those count as the Owner's choice."
+        tasks:
+          type: string
+          enum:
+            - none
+            - all
+      required:
+        - folder
+        - includeDescendants
+        - moveFolderedBookmarks
+        - tasks
+      additionalProperties: false
+    AutomationRunOnceStartInput:
+      type: object
+      properties:
+        previewId:
+          $ref: "#/components/schemas/AutomationOpaqueId"
+        previewDigest:
+          type: string
+          minLength: 1
+          maxLength: 64
+      required:
+        - previewId
+        - previewDigest
+      additionalProperties: false
+      description: Start exactly the unexpired persisted preview snapshot, bound to owner, rule, bindings, policy, member
+        IDs/revisions and options. Request command ID supplies idempotency. Changed inputs require a fresh preview, never
+        silent re-query.
     AutomationPairingClaimInput:
       type: object
       properties:

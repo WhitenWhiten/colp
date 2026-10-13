@@ -1,0 +1,11 @@
+{
+  "contractVersion": "0.2.1-design",
+  "previewRequest": {"folder":{"serverUuid":"server","collectionId":"collection","nodeId":"root"},"includeDescendants":true,"moveFolderedBookmarks":false,"tasks":"none"},
+  "previewResponse": {"id":"preview_fixture","matchedCount":3,"blockedCount":0,"explicitChoiceCount":2,"maxMembers":1000,"sample":[{"nodeId":"paper","title":"Paper","decision":"matched"},{"nodeId":"chosen","title":"Explicit","decision":"explicitChoice"}],"expiresAt":"2026-10-13T09:00:00.000Z","sideEffects":false,"previewDigest":"fixture-digest","canStart":true},
+  "overLimitResponse": {"id":"preview_over_limit","matchedCount":1000,"blockedCount":0,"explicitChoiceCount":0,"maxMembers":1000,"sample":[],"expiresAt":"2026-10-13T09:00:00.000Z","sideEffects":false,"previewDigest":"over-limit-digest","canStart":false},
+  "startRequest": {"previewId":"preview_fixture","previewDigest":"fixture-digest"},
+  "stale": {"status":409,"code":"automation_stale_input","action":"refresh preview"},
+  "denied": {"status":409,"code":"automation_stale_input","reason":"Owner-private preview identity is concealed"},
+  "started": {"status":201,"kind":"manual","childRunIds":["member_run_1","member_run_2","member_run_3"],"semantics":"Read the returned Run. Each child owns its own canonical effects and pinned task DAG; repeat the same Known-Command-Id and body after a lost response."},
+  "evidence": "Synthetic consumer examples; executable assertions: run-once.integration.test.ts. These identifiers are not live resources."
+}

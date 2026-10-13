@@ -4954,6 +4954,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/automations/rules/{ruleId}/run-once/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview a one-time run over existing bookmarks under a folder
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Side-effect free; stores only an expiring preview record. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         */
+        post: operations["previewAutomationRunOnce"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/automations/rules/{ruleId}/run-once": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start one manual run with pinned members; never repeats
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Requires an unexpired preview of the same input; at most 1,000 members per run. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         */
+        post: operations["startAutomationRunOnce"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/automation-work/pairings/claim": {
         parameters: {
             query?: never;
@@ -5617,6 +5657,8 @@ export interface components {
             /** @description Bounded explanation of the pinned admission decision or latest execution outcome. */
             explanation?: string;
             usage?: components["schemas"]["AutomationRuleUsageView"];
+            /** @description Manual selection children, each with independent canonical effects and pinned task DAG. */
+            childRunIds?: string[];
         };
         AutomationRevision: string;
         AutomationEffectReceiptView: {
@@ -5958,6 +6000,40 @@ export interface components {
             /** @enum {string} */
             execution: "single" | "firstClaim" | "perTarget";
             targetSlots?: string[];
+        };
+        AutomationRunOncePreview: {
+            id: components["schemas"]["AutomationOpaqueId"];
+            matchedCount: number;
+            blockedCount: number;
+            explicitChoiceCount: number;
+            maxMembers: number;
+            sample: components["schemas"]["AutomationRunOnceSampleItem"][];
+            /** Format: date-time */
+            expiresAt: string;
+            /** @constant */
+            sideEffects: false;
+            previewDigest: string;
+            canStart: boolean;
+        };
+        AutomationRunOnceSampleItem: {
+            nodeId: components["schemas"]["AutomationOpaqueId"];
+            title: string;
+            /** @enum {string} */
+            decision: "matched" | "blocked" | "explicitChoice" | "notMatched";
+            reason?: string;
+        };
+        AutomationRunOnceInput: {
+            folder: components["schemas"]["AutomationFolderRef"];
+            includeDescendants: boolean;
+            /** @description Also move bookmarks that already sit in a non-root folder. Default false: those count as the Owner's choice. */
+            moveFolderedBookmarks: boolean;
+            /** @enum {string} */
+            tasks: "none" | "all";
+        };
+        /** @description Start exactly the unexpired persisted preview snapshot, bound to owner, rule, bindings, policy, member IDs/revisions and options. Request command ID supplies idempotency. Changed inputs require a fresh preview, never silent re-query. */
+        AutomationRunOnceStartInput: {
+            previewId: components["schemas"]["AutomationOpaqueId"];
+            previewDigest: string;
         };
         AutomationPairingClaimInput: {
             pairingId: string;
@@ -25429,6 +25505,104 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AutomationAutomationExport"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    previewAutomationRunOnce: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Stable command identity. Scope: authenticated principal + operation + addressed resource. Same identity/different canonical body returns 409. */
+                "Known-Command-Id": components["parameters"]["AutomationCommandId"];
+                /** @description Verified host CSRF header (evidence R23): the server reads `x-csrf-token` together with the Origin allowlist on cookie-authenticated writes. Re-checked at AW-01. Never introduce a second CSRF scheme. */
+                "X-CSRF-Token": components["parameters"]["AutomationCsrf"];
+                /** @description Validate against existing host trusted-origin policy for cookie-authenticated mutations. */
+                Origin: components["parameters"]["AutomationOrigin"];
+            };
+            path: {
+                ruleId: components["schemas"]["AutomationOpaqueId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AutomationRunOnceInput"];
+            };
+        };
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationRunOncePreview"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    startAutomationRunOnce: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Stable command identity. Scope: authenticated principal + operation + addressed resource. Same identity/different canonical body returns 409. */
+                "Known-Command-Id": components["parameters"]["AutomationCommandId"];
+                /** @description Verified host CSRF header (evidence R23): the server reads `x-csrf-token` together with the Origin allowlist on cookie-authenticated writes. Re-checked at AW-01. Never introduce a second CSRF scheme. */
+                "X-CSRF-Token": components["parameters"]["AutomationCsrf"];
+                /** @description Validate against existing host trusted-origin policy for cookie-authenticated mutations. */
+                Origin: components["parameters"]["AutomationOrigin"];
+                /** @description Strong ETag from the addressed automation resource, never a node publication revision. */
+                "If-Match": components["parameters"]["AutomationIfMatch"];
+            };
+            path: {
+                ruleId: components["schemas"]["AutomationOpaqueId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AutomationRunOnceStartInput"];
+            };
+        };
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    /** @description Strong ETag for this automation resource. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationRun"];
                 };
             };
             400: components["responses"]["Automation400"];

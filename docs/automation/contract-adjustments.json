@@ -18,6 +18,15 @@
       },
       "usage": {
         "$ref": "#/$defs/RuleUsageView"
+      },
+      "childRunIds": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "maxItems": 1000,
+        "description": "Manual selection children, each with independent canonical effects and pinned task DAG."
       }
     }
   },
