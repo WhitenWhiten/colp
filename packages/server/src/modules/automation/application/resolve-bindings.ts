@@ -21,7 +21,8 @@ export async function resolveBindings(reads: BindingReadPort, actor: AutomationA
       const ancestor = await reads.readFolder(actor, allowedAncestor);
       if (ancestor.status !== 'valid' || (!sameFolder(result.snapshot.folder, allowedAncestor)
         && !result.snapshot.ancestors.some((ref) => sameFolder(ref, allowedAncestor))))
-        results[role.key] = { status: 'blocked', code: 'scopeChanged', message: 'Folder is outside its allowed ancestor. Choose another folder or restore its location.' };
+        results[role.key] = { status: 'blocked', code: 'scopeChanged', snapshot: result.snapshot,
+          message: 'Folder is outside its allowed ancestor. Choose another folder or restore its location.' };
     }
   }
   for (const role of definition.roles) {
@@ -29,7 +30,7 @@ export async function resolveBindings(reads: BindingReadPort, actor: AutomationA
     const child = results[role.key], parent = results[role.mustBeWithinRole];
     if (child?.status === 'valid' && (parent?.status !== 'valid' || (!sameFolder(child.snapshot.folder, parent.snapshot.folder)
       && !child.snapshot.ancestors.some((ref) => sameFolder(ref, parent.snapshot.folder)))))
-      results[role.key] = { status: 'blocked', code: 'scopeChanged', message: 'Folder is outside the required role subtree.' };
+      results[role.key] = { status: 'blocked', code: 'scopeChanged', snapshot: child.snapshot, message: 'Folder is outside the required role subtree.' };
   }
   return results;
 }

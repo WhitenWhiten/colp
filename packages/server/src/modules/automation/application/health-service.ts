@@ -1,5 +1,5 @@
 import { automationDigest, type HealthIncident, type HealthReport, type DependencyReport } from '@know-n/colp/automation';
-import type { AutomationActor, FolderResolution } from '../domain/bindings.js';
+import type { AutomationActor } from '../domain/bindings.js';
 import { scopeCollectionId } from '../domain/bindings.js';
 import { AutomationError } from '../domain/errors.js';
 import { resolveBindings } from './resolve-bindings.js';
@@ -8,6 +8,10 @@ import { requireRule } from './rule-service.js';
 import type { AutomationPorts } from './ports.js';
 
 export async function revalidateRule(ports: AutomationPorts, actor: AutomationActor, ruleId: string): Promise<HealthReport> {
+  return (await inspectRuleHealth(ports, actor, ruleId)).report;
+}
+
+async function inspectRuleHealth(ports: AutomationPorts, actor: AutomationActor, ruleId: string) {
   const stored = await requireRule(ports, actor, ruleId), rule = stored.view;
   const binding = await ports.bindings.load(actor.accountId, rule.bindingSetId);
   const previous = await ports.health.dependencies(stored.definitionRevisionId);
@@ -43,15 +47,16 @@ export async function revalidateRule(ports: AutomationPorts, actor: AutomationAc
   if (binding) await ports.dependencies.replace(stored.definitionRevisionId, resolutions, binding.values);
   const paused = (await ports.settings.get(actor.accountId)).paused;
   const effectiveState = rule.desiredState === 'enabled' ? (paused ? 'paused' : 'blocked') : rule.desiredState;
-  return { ruleId, checkedAt: now, effectiveState, incidents: incidents.slice(0, 100) };
+  const report: HealthReport = { ruleId, checkedAt: now, effectiveState, incidents: incidents.slice(0, 100) };
+  return { report, stored, resolutions };
 }
 export async function ruleDependencies(ports: AutomationPorts, actor: AutomationActor, ruleId: string): Promise<DependencyReport> {
-  const health = await revalidateRule(ports, actor, ruleId), stored = await requireRule(ports, actor, ruleId);
+  const { stored, resolutions } = await inspectRuleHealth(ports, actor, ruleId);
   const dependencies = await ports.health.dependencies(stored.definitionRevisionId);
   if (dependencies.length >= 1000) throw new AutomationError('payload_too_large', 'Dependency report exceeds its 1000-entry bound. Reduce role count or ancestry depth.');
   return { ruleId, dependencies: [...dependencies.map((dependency) => ({ kind: dependency.kind, role: dependency.role, resourceId: dependency.resourceId,
-    revision: dependency.revision, status: health.incidents.some((incident) => incident.role === dependency.role && incident.blockingStages.length)
-      ? 'blocked' as const : 'valid' as const })), { kind: 'runtime' as const, role: 'intake', resourceId: 'automation-m1', revision: 'be1', status: 'blocked' as const }] };
+    revision: dependency.revision, status: resolutions[dependency.role]?.status === 'valid' ? 'valid' as const : 'blocked' as const })),
+    { kind: 'runtime' as const, role: 'intake', resourceId: 'automation-m1', revision: 'be1', status: 'blocked' as const }] };
 }
 export async function acknowledgeIncident(ports: AutomationPorts, actor: AutomationActor, id: string) {
   const incident = await ports.health.acknowledge(actor.accountId, id);

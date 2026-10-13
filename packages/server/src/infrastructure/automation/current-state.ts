@@ -1,7 +1,7 @@
 import type { Kysely } from 'kysely';
 import { sql } from 'kysely';
 import type { EventFacts, RuleDefinition, RoleBindings } from '@know-n/colp/automation';
-import { normalizeUrl } from '@know-n/colp/automation';
+import { automationDigest, normalizeUrl } from '@know-n/colp/automation';
 import type { DatabaseSchema } from '../database/runtime.js';
 import type { AutomationActor, BindingReadPort } from '../../modules/automation/index.js';
 import { scopeCollectionId } from '../../modules/automation/index.js';
@@ -50,7 +50,9 @@ export async function readCurrentSample(db: Kysely<DatabaseSchema>, reads: Bindi
     }
     if (ancestors.at(-1)?.nodeId !== collection.rootNodeId)
       throw new AutomationError('automation_binding_unavailable', 'Current ancestry does not reach the canonical root.');
-    events.push({ eventId: `current_${node.id}`, operationId: `current_${node.id}`, type: 'node.created', collectionId, nodeId: node.id,
+    // Canonical IDs may already occupy all 128 characters of the facts ID bound.
+    const snapshotId = `current_${automationDigest({ serverUuid, collectionId, nodeId: node.id })}`;
+    events.push({ eventId: snapshotId, operationId: snapshotId, type: 'node.created', collectionId, nodeId: node.id,
       commitOrdinal: collection.commitOrdinal, occurredAt: node.createdAt.toISOString(), origin: 'user', changedFields: ['create'], hopCount: 0,
       intakeDisposition: 'unknown', bookmark: { kind: 'bookmark', url: normalized.status === 'available' ? { host: normalized.host, path: normalized.path } : { host: '' },
         title: node.title, tags: Array.isArray(selectedNode.tags) ? selectedNode.tags.filter((tag): tag is string => typeof tag === 'string') : [],

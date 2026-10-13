@@ -112,3 +112,35 @@ AW-09 `dd0106a`、AW-08 `13fcd0c`、AW-11 `327ae7d`、AW-10 `fae1edc`。
 本记录与完整文件清单单独作为 AW-01 审查证据提交；没有 push。
 完整 BE-1 文件清单见 [be1-files.txt](be1-files.txt)，本轮修改可比较 `07ce22d..HEAD`。
 测试容器由 with-postgres 包装器回收，没有启动或保留本任务的 dev server。
+
+## 独立复审后的六项修正（基于 60fe77f）
+
+独立复审以 `~/ref/colp-automation-design` 为依据，确认它与仓库内设计快照一致。
+原有相关测试通过，但七个临时复现用例暴露六项 P2 问题（祖先索引分别以查询和真实
+canonical move / Outbox 验证）。本次按用户要求统一修复并提交；以下证据补充前文，
+不把此前的“未发现已复现问题”视为当前代码正确性的保证。
+
+| 问题 | 修正及回归 |
+| --- | --- |
+| 长 canonical 节点 ID 加前缀后超出 facts/response 的 128 字符限制 | current-state 以 server/collection/node 身份摘要生成稳定合成 ID。验证两个仅末字符不同的 128 字符 ID、响应和持久化结果 Schema、重复预演及激活。 |
+| 初始 scopeChanged 绑定不索引真实祖先，无法靠祖先事件恢复 | 阻塞结果可携带已授权读取的实时快照，索引持续更新其物理祖先；快照仅用于监控，状态仍 blocked。用真实移动先移往另一个不允许的目录，再移回允许子树，验证无需手动健康查询即可消除阻塞。 |
+| 更高优先级的不同目标胜出仍被计为当前规则命中 | 当前规则预演报告 conflict、胜出规则和目标，不声明 root satisfaction、不计入 plannedRunCount。验证较低优先级竞争者、同目标兼容、冲突激活拒绝。共享仲裁器仍按优先级选择赢家。 |
+| node.created 无条件排除所有 automation 来源 | BE-1 intake 阶段拒绝来自同一 intake 阶段的 automation 重入，允许其他阶段的创建事件；继续检查 trigger、restore/import 策略和 hop 上限。此为 supplied-facts 预演，不宣称已实现 BE-2 因果生产或 admission。 |
+| 改名/移动通知被普通重验自动清除 | 未确认的变更通知保留到确认或同角色、同类别的新通知替代；重复 Outbox 投递、health/dependencies 查询不清除通知。阻塞告警仍须通过实时重验才能恢复，确认不修复失效依赖。 |
+| 未使用的可选依赖已删除仍返回 valid | 依赖接口直接使用本次绑定解析结果，不再从 blockingStages 推导资源有效性。验证删除、确认、恢复；可选依赖保持 warning 且 blockingStages=[]，规则验证继续有效。 |
+
+移除了竞争者参数化测试中无法隔离 trigger 的场景（其同时删除 intake，即使触发过滤失效
+也不会参与 placement）。替换用例直接检查 node.created 预演的正反结果，并覆盖不同
+automation 阶段、同阶段重入和 hop 边界。API 预演公共 helper 现在校验完整 PreviewResult，
+避免仅看 outcome 而漏掉响应 Schema 违规。
+
+本次修正后的实际验证（cwd 为 `packages/server`）：
+
+* `npm run test:integration:file -- tests/integration/automation/api.integration.test.ts tests/integration/automation/health.integration.test.ts tests/integration/automation/bindings.integration.test.ts`：真实 PostgreSQL，3 文件、36 测试全部通过。
+* `npm run typecheck`：通过。
+* `npm exec eslint -- src/modules/automation src/infrastructure/automation tests/integration/automation`：通过。
+* `npm run check:imports` 与 `npm run build`：通过。
+* 根目录 `git diff --check`：通过。
+
+未修改公共 Schema、共享包、迁移、Web 或 Extension；因此未重跑无关测试及发行检查。
+原有浏览器、负载、故障注入和完整部署恢复的证据限制仍然成立。测试容器由包装器回收。

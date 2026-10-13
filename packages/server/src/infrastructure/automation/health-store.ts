@@ -3,6 +3,7 @@ import type { HealthIncident } from '@know-n/colp/automation';
 import type { DatabaseSchema } from '../database/runtime.js';
 import type { HealthStore } from '../../modules/automation/index.js';
 const key = (incident: HealthIncident) => JSON.stringify([incident.role ?? 'runtime', incident.code, incident.dependencyRevision]);
+const isFolderNotice = (incident: HealthIncident) => incident.code === 'bindingRenamed' || incident.code === 'bindingMoved';
 export function createHealthStore(db: Kysely<DatabaseSchema>): HealthStore {
   return {
     async dependencies(revisionId) {
@@ -25,8 +26,18 @@ export function createHealthStore(db: Kysely<DatabaseSchema>): HealthStore {
         result.push(view);
       }
       const retained = new Set(expected.map(key));
-      for (const old of existing) if (!retained.has(key(old.incident_json))) await db.updateTable('automation_incidents').set({ state: 'resolved',
-        incident_json: { ...old.incident_json, state: 'resolved' } }).where('id', '=', old.id).execute();
+      for (const old of existing) {
+        if (retained.has(key(old.incident_json))) continue;
+        // Change notices describe an event, not a fault repaired by refreshing its snapshot.
+        // Keep the latest unseen notice per role/category until acknowledgment or replacement.
+        const superseded = expected.some((incident) => incident.role === old.incident_json.role && incident.code === old.code);
+        if (old.state === 'open' && isFolderNotice(old.incident_json) && !superseded) {
+          result.push(old.incident_json);
+          continue;
+        }
+        await db.updateTable('automation_incidents').set({ state: 'resolved',
+          incident_json: { ...old.incident_json, state: 'resolved' } }).where('id', '=', old.id).execute();
+      }
       return result;
     },
     async acknowledge(ownerId, id) {

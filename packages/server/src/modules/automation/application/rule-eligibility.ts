@@ -15,7 +15,8 @@ export function intakeBindingsAvailable(definition: RuleDefinition, resolutions:
 }
 /** Apply the same admission checks to the proposed rule and every competitor. No I/O. */
 export function eventEligible(definition: RuleDefinition, resolutions: Record<string, FolderResolution>, event: EventFacts): boolean {
-  if (event.origin === 'restore' || event.origin === 'automation'
+  // BE-1 previews the intake stage. Other automation stages may continue into it.
+  if (event.origin === 'restore' || (event.origin === 'automation' && event.stageId === 'intake')
     || (event.origin === 'import' && definition.policy.imports === 'exclude') || event.hopCount >= definition.policy.maxHops) return false;
   if (definition.on === 'node.created' && event.type !== 'node.created') return false;
   if (definition.on === 'bookmark.intake' && !['node.created', 'bookmark.intake'].includes(event.type)) return false;
@@ -28,6 +29,11 @@ export function eventEligible(definition: RuleDefinition, resolutions: Record<st
 }
 /** Labels/content revisions do not change placement authority; ancestry and policy do. */
 export function bindingResolutionSignature(resolutions: Record<string, FolderResolution>) {
-  return Object.fromEntries(Object.entries(resolutions).map(([role, resolution]) => [role, resolution.status === 'valid'
-    ? { folder: resolution.snapshot.folder, ancestors: resolution.snapshot.ancestors, policy: resolution.snapshot.policyRevision } : resolution]));
+  return Object.fromEntries(Object.entries(resolutions).map(([role, resolution]) => {
+    const snapshot = resolution.snapshot;
+    const signature = snapshot
+      ? { folder: snapshot.folder, ancestors: snapshot.ancestors, policy: snapshot.policyRevision } : undefined;
+    return [role, resolution.status === 'valid' ? signature
+      : { status: resolution.status, code: resolution.code, message: resolution.message, ...(signature ? { snapshot: signature } : {}) }];
+  }));
 }

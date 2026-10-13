@@ -3,7 +3,7 @@ import { beforeAll, afterAll, beforeEach, test, expect } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { sql } from 'kysely';
-import { validateAutomation } from '@know-n/colp/automation';
+import { validateAutomation, type EventFacts, type PreviewResult } from '@know-n/colp/automation';
 import { automationFixture } from '../../support/automation-fixture.js';
 import { describeWithPostgres } from '../../support/postgres-test-runtime.js';
 import { revalidateRule } from '../../../src/modules/automation/index.js';
@@ -39,14 +39,16 @@ describeWithPostgres('BE-1 authenticated configuration and preview loop', () => 
     const r = await post('/rules', input); expect(r.statusCode, r.body).toBe(201);
     return { binding: b.json(), rule: r.json(), input, etag: String(r.headers.etag) };
   }
-  function facts() {
+  function facts(): EventFacts {
     const event = JSON.parse(readFileSync('../node/tests/fixtures/automation/event-facts.json', 'utf8'));
     return { ...event, collectionId: 'collection', nodeId: 'paper', intakeDisposition: 'userDefault',
       bookmark: { ...event.bookmark, nodeId: 'paper', parent: { serverUuid: 'server', collectionId: 'collection', nodeId: 'root' }, ancestors: [{ serverUuid: 'server', collectionId: 'collection', nodeId: 'root' }] } };
   }
-  async function preview(input: unknown, mode: string = 'supplied') {
+  async function preview(input: unknown, mode: string = 'supplied'): Promise<PreviewResult> {
     const result = await post('/rules/preview', { rule: input, mode, ...(mode === 'supplied' ? { events: [facts()] } : {}) });
-    expect(result.statusCode, result.body).toBe(200); return result.json();
+    expect(result.statusCode, result.body).toBe(200);
+    expect(validateAutomation('PreviewResult', result.json()).valid).toBe(true);
+    return result.json();
   }
   const lifecycle = (id: string, etag: string, state: string, previewId?: string) => post(`/rules/${id}/lifecycle`, {
     state, pendingRuns: 'hold', reason: 'Fixture lifecycle', ...(previewId ? { activationPreviewId: previewId } : {}),
@@ -181,12 +183,11 @@ describeWithPostgres('BE-1 authenticated configuration and preview loop', () => 
     const result = await preview(d.input, 'currentState');
     expect(result.decisions).toHaveLength(200); expect(result.truncated).toBe(true); expect(result.completeHistory).toBe(false);
   });
-  test.each(['folder scope', 'import policy', 'trigger', 'hop bound'])('review: competitors must honor their own %s', async (scenario) => {
+  test.each(['folder scope', 'import policy', 'hop bound'])('review: competitors must honor their own %s', async (scenario) => {
     const d = await draft();
     const binding = await post('/binding-sets', { name: 'Scoped competitor', values: { academicRoot: { ...f.values.academicRoot, folder: { ...f.folder, nodeId: 'parent' } } } });
     const definition = structuredClone(f.rule);
     if (scenario === 'folder scope') definition.scope = { collectionId: 'collection', folderRole: 'academicRoot', includeDescendants: true };
-    if (scenario === 'trigger') { definition.on = 'node.created'; delete definition.intake; }
     if (scenario === 'hop bound') definition.policy.maxHops = 1;
     const competitorInput = { definition, bindingSetId: binding.json().id };
     const competitor = await post('/rules', competitorInput); expect(competitor.statusCode, competitor.body).toBe(201);
@@ -194,7 +195,6 @@ describeWithPostgres('BE-1 authenticated configuration and preview loop', () => 
     expect((await lifecycle(competitor.json().id, String(competitor.headers.etag), 'enabled', checked.previewId)).statusCode).toBe(200);
     const event = facts();
     if (scenario === 'import policy') { d.input.definition.policy.imports = 'include'; event.origin = 'import'; }
-    if (scenario === 'trigger') event.type = 'bookmark.intake';
     if (scenario === 'hop bound') event.hopCount = 1;
     const result = await post('/rules/preview', { rule: d.input, mode: 'supplied', events: [event] });
     expect(result.statusCode, result.body).toBe(200); expect(result.json().decisions[0].outcome).toBe('matched');
@@ -274,4 +274,70 @@ describeWithPostgres('BE-1 authenticated configuration and preview loop', () => 
     const input = { ...first.input, bindingSetId: binding.json().id };
     const conflict = await preview(input); expect(conflict.decisions[0].outcome).toBe('conflict'); expect(conflict.decisions[0].explanation).toContain(first.rule.id);
   });
+  test('current-state IDs stay bounded, distinct and stable for maximum-length canonical identities', async () => {
+    const d = await draft();
+    const prefix = 'long_'.padEnd(127, 'a');
+    const ids = [prefix + 'a', prefix + 'b'];
+    for (const nodeId of ids) await f.createNode(nodeId, 'root', 'Long ID', 'https://arxiv.org/abs/long');
+    const first = await preview(d.input, 'currentState');
+    const stored = await f.db.selectFrom('automation_preview_records').select('result_json')
+      .where('id', '=', first.previewId).executeTakeFirstOrThrow();
+    expect(validateAutomation('PreviewResult', stored.result_json).valid).toBe(true);
+    const repeated = await preview(d.input, 'currentState');
+    expect(repeated.decisions).toEqual(first.decisions);
+    expect(new Set(first.decisions.map((decision) => decision.eventId)).size).toBe(first.decisions.length);
+    // The two new nodes are newest; both must reach the predicate and preserve unknown intent.
+    expect(first.decisions.slice(0, 2)).toEqual([0, 1].map(() => expect.objectContaining({ outcome: 'matched', satisfiedTasks: [] })));
+    expect((await lifecycle(d.rule.id, d.etag, 'enabled', first.previewId)).statusCode).toBe(200);
+  });
+  test.each([
+    { priority: 101, target: 'parent', outcome: 'conflict' },
+    { priority: 99, target: 'parent', outcome: 'matched' },
+    { priority: 101, target: 'academic', outcome: 'matched' },
+  ])('priority $priority to $target reports $outcome for the proposed placement', async ({ priority, target, outcome }) => {
+    const d = await draft();
+    const binding = await post('/binding-sets', { name: 'Priority competitor', values: {
+      academicRoot: { ...f.values.academicRoot, folder: { ...f.folder, nodeId: target } },
+    } });
+    expect(binding.statusCode, binding.body).toBe(201);
+    const input = { definition: { ...f.rule, priority }, bindingSetId: binding.json().id };
+    const competitor = await post('/rules', input), checked = await preview(input);
+    expect((await lifecycle(competitor.json().id, String(competitor.headers.etag), 'enabled', checked.previewId)).statusCode).toBe(200);
+    const result = await preview(d.input);
+    expect(result.decisions[0]?.outcome).toBe(outcome);
+    expect(result.plannedRunCount).toBe(outcome === 'conflict' ? 0 : 1);
+    expect(result.decisions[0]?.satisfiedTasks).toEqual(outcome === 'conflict' ? [] : ['classify.root']);
+    if (outcome === 'conflict') {
+      expect(result.decisions[0]?.explanation).toContain(competitor.json().id);
+      expect(result.decisions[0]?.explanation).toContain('higher-priority');
+      const enabled = await lifecycle(d.rule.id, d.etag, 'enabled', result.previewId);
+      expect(enabled.statusCode).toBe(409);
+      expect(enabled.json().error.code).toBe('automation_rule_conflict');
+    }
+  });
+  test('node.created preview honors its trigger and allows other automation stages while refusing reentry', async () => {
+    const d = await draft();
+    d.input.definition.on = 'node.created';
+    delete d.input.definition.intake;
+    const baseline = facts();
+    const events: EventFacts[] = [
+      baseline,
+      { ...baseline, type: 'bookmark.intake' },
+      { ...baseline, type: 'node.updated' },
+      { ...baseline, origin: 'automation', stageId: 'otherStage', rootRunId: 'priorRun', hopCount: 1 },
+      { ...baseline, origin: 'automation', stageId: 'intake', rootRunId: 'priorRun', hopCount: 1 },
+      { ...baseline, origin: 'automation', stageId: 'otherStage', hopCount: d.input.definition.policy.maxHops },
+      { ...baseline, origin: 'restore' },
+    ].map((event, index) => ({ ...event, eventId: `trigger_${index}` }));
+    const response = await post('/rules/preview', { rule: d.input, mode: 'supplied', events });
+    expect(response.statusCode, response.body).toBe(200);
+    const result = response.json<PreviewResult>();
+    expect(validateAutomation('PreviewResult', result).valid).toBe(true);
+    expect(result.decisions.map((decision) => decision.outcome)).toEqual([
+      'matched', 'notMatched', 'notMatched', 'matched', 'notMatched', 'notMatched', 'notMatched',
+    ]);
+    expect(result.decisions.every((decision) => decision.satisfiedTasks.length === 0)).toBe(true);
+    expect(result.plannedRunCount).toBe(2);
+  });
+
 });

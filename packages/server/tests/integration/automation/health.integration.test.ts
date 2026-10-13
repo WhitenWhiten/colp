@@ -1,7 +1,7 @@
 import Fastify from 'fastify';
 import { beforeAll, afterAll, test, expect } from 'vitest';
 import { randomUUID } from 'node:crypto';
-import { validateAutomation } from '@know-n/colp/automation';
+import { validateAutomation, type HealthReport, type DependencyReport, type HealthIncident } from '@know-n/colp/automation';
 import { automationFixture } from '../../support/automation-fixture.js';
 import { describeWithPostgres } from '../../support/postgres-test-runtime.js';
 import { createAutomationUnitOfWork, createAutomationHealthMonitor } from '../../../src/infrastructure/automation/index.js';
@@ -43,11 +43,11 @@ describeWithPostgres('BE-1 dependency monitoring and incident lifecycle', () => 
       idempotencyKey: row.domain_event_id, aggregateId: row.aggregate_id, aggregateScope: row.aggregate_scope, commitOrdinal: row.commit_ordinal?.toString() ?? null,
       payload: row.payload_json, aggregateRevision: row.aggregate_revision, occurredAt: row.occurred_at.toISOString() };
   }
-  async function move(parentId: string) {
-    const node = await f.db.selectFrom('nodes').select(['resource_revision', 'parent_id']).where('id', '=', 'academic').executeTakeFirstOrThrow();
+  async function move(parentId: string, nodeId = 'academic') {
+    const node = await f.db.selectFrom('nodes').select(['resource_revision', 'parent_id']).where('id', '=', nodeId).executeTakeFirstOrThrow();
     const source = await f.db.selectFrom('nodes').select('children_revision').where('id', '=', node.parent_id!).executeTakeFirstOrThrow();
     const target = await f.db.selectFrom('nodes').select('children_revision').where('id', '=', parentId).executeTakeFirstOrThrow();
-    const moved = await f.canonical.execute((ports) => moveCollectionNode(ports, { actor: f.actor, command: f.command(), collectionId: 'collection', nodeId: 'academic',
+    const moved = await f.canonical.execute((ports) => moveCollectionNode(ports, { actor: f.actor, command: f.command(), collectionId: 'collection', nodeId,
       ifMatch: `"${node.resource_revision}"`, newParentId: parentId, afterId: null, beforeId: null,
       baseSourceParentRevision: source.children_revision, baseTargetParentRevision: target.children_revision }));
     expect(moved.kind).toBe('moved');
@@ -144,4 +144,114 @@ describeWithPostgres('BE-1 dependency monitoring and incident lifecycle', () => 
     expect(paused.statusCode, paused.body).toBe(200); expect(paused.json().desiredState).toBe('paused');
     expect((await get(`/binding-sets/${bindingId}`)).json().values.academicRoot.folder.nodeId).toBe('academic');
   });
+  test('unseen rename/move notices survive repeated delivery and reads, and newer notices supersede them', async () => {
+    await f.createNode('notice_folder', 'root', 'Original');
+    const binding = await post('/binding-sets', { name: 'Notices', values: {
+      academicRoot: { ...f.values.academicRoot, folder: { ...f.folder, nodeId: 'notice_folder' } },
+    } });
+    const created = await post('/rules', { definition: f.rule, bindingSetId: binding.json().id });
+    expect(created.statusCode, created.body).toBe(201);
+    const ruleId = created.json().id;
+    const notices = async () => (await get('/incidents?limit=100')).json<{ items: HealthIncident[] }>().items
+      .filter((incident) => incident.ruleId === ruleId && ['bindingRenamed', 'bindingMoved'].includes(incident.code));
+    const sink = createAutomationHealthMonitor(f.db, 'server').wrap(new PostgresCollectionMutationProjectionSink(f.isolated.runtime.pool));
+    await f.rename('notice_folder', 'First rename');
+    const event = await delivery('node.updated');
+    await sink.apply(event);
+    const first = await notices();
+    expect(first).toHaveLength(1);
+    await sink.apply(event);
+    const report = (await get(`/rules/${ruleId}/health`)).json<HealthReport>();
+    expect(report.incidents).toEqual(expect.arrayContaining([first[0]]));
+    await get(`/rules/${ruleId}/dependencies`);
+    expect(await notices()).toEqual(first);
+    await f.rename('notice_folder', 'Second rename');
+    await sink.apply(await delivery('node.updated'));
+    const second = await notices();
+    expect(second).toHaveLength(1);
+    expect(second[0]?.id).not.toBe(first[0]?.id);
+    expect((await f.db.selectFrom('automation_incidents').select('state').where('id', '=', first[0]!.id).executeTakeFirstOrThrow()).state).toBe('resolved');
+    await move('parent', 'notice_folder');
+    await get(`/rules/${ruleId}/health`);
+    const latest = await notices();
+    expect(latest.map((incident) => incident.code).sort()).toEqual(['bindingMoved', 'bindingRenamed']);
+    for (const incident of latest) expect((await post(`/incidents/${incident.id}/acknowledge`, { reason: 'Seen' })).statusCode).toBe(200);
+    await get(`/rules/${ruleId}/health`);
+    await sink.apply(await delivery('node.moved'));
+    expect(await notices()).toEqual([]);
+  });
+  test('initially blocked bindings follow ancestor moves and recover through the actual outbox event', async () => {
+    await f.createNode('outside', 'root', 'Outside');
+    await f.createNode('other_outside', 'root', 'Other outside');
+    await f.createNode('container', 'outside', 'Container');
+    await f.createNode('destination', 'container', 'Destination');
+    await f.createNode('allowed', 'root', 'Allowed');
+    await f.createNode('inside', 'allowed', 'Inside');
+    const binding = await post('/binding-sets', { name: 'Initially blocked', values: {
+      academicRoot: { ...f.values.academicRoot, folder: { ...f.folder, nodeId: 'destination' } },
+      requiredRoot: { ...f.values.academicRoot, folder: { ...f.folder, nodeId: 'allowed' } },
+    } });
+    const definition = { ...f.rule, roles: [{ ...f.rule.roles[0], mustBeWithinRole: 'requiredRoot' },
+      { key: 'requiredRoot', kind: 'folder', required: true, description: 'Allowed subtree' }] };
+    const created = await post('/rules', { definition, bindingSetId: binding.json().id });
+    expect(created.statusCode, created.body).toBe(201);
+    const ruleId = created.json().id;
+    const report = (await get(`/rules/${ruleId}/dependencies`)).json<DependencyReport>();
+    expect(report.dependencies).toEqual(expect.arrayContaining([
+      expect.objectContaining({ role: 'academicRoot', kind: 'ancestor', resourceId: 'container', status: 'blocked' }),
+    ]));
+    const active = () => f.db.selectFrom('automation_incidents').select('id').where('rule_id', '=', ruleId)
+      .where('code', '=', 'scopeChanged').where('state', '=', 'open').execute();
+    const initial = await active();
+    expect(initial).toHaveLength(1);
+    await move('other_outside', 'container');
+    expect(await active()).toEqual(initial);
+    const ancestors = await f.db.selectFrom('automation_dependencies as d')
+      .innerJoin('automation_rules as r', 'r.current_revision_id', 'd.rule_revision_id').select('d.resource_id')
+      .where('r.id', '=', ruleId).where('d.role', '=', 'academicRoot').where('d.resource_kind', '=', 'ancestor').execute();
+    expect(ancestors.map((row) => row.resource_id)).toContain('other_outside');
+    expect(ancestors.map((row) => row.resource_id)).not.toContain('outside');
+    await move('inside', 'container');
+    // Read persistence before invoking any API that itself revalidates the rule.
+    expect(await active()).toEqual([]);
+    expect((await get(`/rules/${ruleId}/dependencies`)).json<DependencyReport>().dependencies).toEqual(expect.arrayContaining([
+      expect.objectContaining({ role: 'academicRoot', resourceId: 'destination', status: 'valid' }),
+    ]));
+  });
+  test('optional dependency availability is independent of stage blocking and acknowledgment', async () => {
+    await f.createNode('optional_live', 'root', 'Optional');
+    const binding = await post('/binding-sets', { name: 'Optional dependency', values: {
+      academicRoot: { ...f.values.academicRoot, folder: { ...f.folder, nodeId: 'parent' } },
+      optionalFolder: { ...f.values.academicRoot, folder: { ...f.folder, nodeId: 'optional_live' } },
+    } });
+    const definition = { ...f.rule, roles: [...f.rule.roles,
+      { key: 'optionalFolder', kind: 'folder', required: false, description: 'Unused optional folder' }] };
+    const input = { definition, bindingSetId: binding.json().id };
+    const created = await post('/rules', input); expect(created.statusCode, created.body).toBe(201);
+    const ruleId = created.json().id;
+    await f.db.updateTable('nodes').set({ deleted_at: new Date() }).where('id', '=', 'optional_live').execute();
+    const health = (await get(`/rules/${ruleId}/health`)).json<HealthReport>();
+    const incident = health.incidents.find((value) => value.role === 'optionalFolder')!;
+    expect(incident).toMatchObject({ code: 'bindingDeleted', severity: 'warning', blockingStages: [] });
+    const dependencies = async () => {
+      const response = await get(`/rules/${ruleId}/dependencies`);
+      expect(response.statusCode, response.body).toBe(200);
+      expect(validateAutomation('DependencyReport', response.json()).valid).toBe(true);
+      return response.json<DependencyReport>().dependencies;
+    };
+    expect(await dependencies()).toEqual(expect.arrayContaining([
+      expect.objectContaining({ role: 'optionalFolder', resourceId: 'optional_live', status: 'blocked' }),
+      expect.objectContaining({ role: 'academicRoot', resourceId: 'parent', status: 'valid' }),
+    ]));
+    expect((await post('/rules/validate', input)).json().valid).toBe(true);
+    await post(`/incidents/${incident.id}/acknowledge`, { reason: 'Seen' });
+    expect(await dependencies()).toEqual(expect.arrayContaining([
+      expect.objectContaining({ role: 'optionalFolder', resourceId: 'optional_live', status: 'blocked' }),
+    ]));
+    await f.db.updateTable('nodes').set({ deleted_at: null }).where('id', '=', 'optional_live').execute();
+    expect(await dependencies()).toEqual(expect.arrayContaining([
+      expect.objectContaining({ role: 'optionalFolder', resourceId: 'optional_live', status: 'valid' }),
+    ]));
+  });
+
 });

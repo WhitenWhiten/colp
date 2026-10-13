@@ -92,3 +92,7 @@ The [self-review report](evidence/self-review.md) supersedes the original uncond
 completion statement: it records eight reproduced and fixed defects, targeted regression
 evidence, contract drift and remaining validation limits. New installations and existing
 BE-1 installations apply the forward-only 202610300300 revision-delete guard migration.
+
+The same report records the independent follow-up against 60fe77f: six additional
+preview/dependency-health defects were reproduced and corrected with PostgreSQL
+regressions. Configuration readiness still does not imply an installed effect runtime.

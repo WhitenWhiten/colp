@@ -8,7 +8,8 @@ export function createDependencyIndex(db: Kysely<DatabaseSchema>) {
       const previous = await db.selectFrom('automation_dependencies').selectAll().where('rule_revision_id', '=', ruleRevisionId).execute();
       await db.deleteFrom('automation_dependencies').where('rule_revision_id', '=', ruleRevisionId).execute();
       for (const [role, resolution] of Object.entries(resolutions)) {
-        if (resolution.status !== 'valid') {
+        const { snapshot } = resolution;
+        if (!snapshot) {
           const binding = values?.[role];
           const oldFolder = previous.find((row) => row.role === role && row.resource_kind === 'folder');
           if (binding?.kind === 'folder') {
@@ -19,7 +20,7 @@ export function createDependencyIndex(db: Kysely<DatabaseSchema>) {
           }
           continue;
         }
-        const { snapshot } = resolution;
+        // A live folder outside its allowed subtree still needs ancestor events to recover.
         for (const ref of [snapshot.folder, ...snapshot.ancestors]) {
           await db.insertInto('automation_dependencies').values({ rule_revision_id: ruleRevisionId, role,
             resource_kind: ref.nodeId === snapshot.folder.nodeId ? 'folder' : 'ancestor', resource_id: ref.nodeId,

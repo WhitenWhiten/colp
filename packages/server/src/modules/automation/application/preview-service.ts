@@ -1,6 +1,6 @@
 import { automationDigest, compilePredicate, arbitratePlacement, type PreviewInput, type PreviewResult, type PreviewDecision } from '@know-n/colp/automation';
 import { AutomationError } from '../domain/errors.js';
-import type { AutomationActor } from '../domain/bindings.js';
+import { sameFolder, type AutomationActor } from '../domain/bindings.js';
 import { assertM1Input, inspectInput, normalizeRuleInput, parseContract } from './rule-service.js';
 import { bindingResolutionSignature, eventEligible, intakeBindingsAvailable } from './rule-eligibility.js';
 import { ruleInput, type AutomationPorts } from './ports.js';
@@ -69,10 +69,15 @@ export async function previewRule(ports: AutomationPorts, actor: AutomationActor
         }
         const placement = arbitratePlacement(candidates, { explicitSelection: event.intakeDisposition === 'userSelected',
           intentKnown: event.intakeDisposition === 'userDefault' || event.intakeDisposition === 'rulePlacement' });
-        if (placement.kind === 'conflict') decision.outcome = 'conflict';
-        decision.satisfiedTasks = placement.satisfiedTasks;
-        decision.explanation = placement.kind === 'place' ? `Would place in canonical folder ${placement.folder.nodeId}; runtime unavailable; no effect.`
-          : `${placement.kind}: ${placement.reason}; rules ${placement.ruleIds.join(', ')}; original location preserved.`;
+        if (placement.kind === 'place' && !sameFolder(placement.folder, resolution.snapshot.folder)) {
+          decision.outcome = 'conflict';
+          decision.explanation = `conflict: higher-priority rules ${placement.ruleIds.join(', ')} select canonical folder ${placement.folder.nodeId}; proposed placement would not run; no effect.`;
+        } else {
+          if (placement.kind === 'conflict') decision.outcome = 'conflict';
+          decision.satisfiedTasks = placement.satisfiedTasks;
+          decision.explanation = placement.kind === 'place' ? `Would place in canonical folder ${placement.folder.nodeId}; runtime unavailable; no effect.`
+            : `${placement.kind}: ${placement.reason}; rules ${placement.ruleIds.join(', ')}; original location preserved.`;
+        }
       }
     }
     decisions.push(decision);
