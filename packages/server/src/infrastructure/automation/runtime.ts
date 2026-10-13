@@ -5,7 +5,8 @@ import type { InspectAutomationSource } from './source-position-store.js';
 export function createAutomationRuntime(serverUuid: string): InspectAutomationSource {
   const admit = createAutomationAdmission(serverUuid);
   return async (tx, actor, collectionId, sources) => {
-    await admit(tx, actor, collectionId, sources);
-    return executePendingIntake(tx, actor, collectionId, serverUuid);
+    const moreReceipts = await admit(tx, actor, collectionId, sources);
+    const morePlacements = await executePendingIntake(tx, actor, collectionId, serverUuid);
+    return moreReceipts === true || morePlacements;
   };
 }

@@ -13,13 +13,16 @@ interface ActiveRule {
 }
 /** Receipts, sequence, pinned run and source cursor share the inspector transaction. */
 export function createAutomationAdmission(serverUuid: string): InspectAutomationSource {
+  const reconcile = createReceiptReconciler(serverUuid);
   return async (tx, owner, collectionId, sources) => {
+    // Retire unavailable evidence even while paused; the reconciler itself never
+    // accepts effects during pause. Completed proof need not reappear in sources.
+    const moreReceipts = await reconcile(tx, owner, collectionId, sources) === true;
     const settings = await tx.selectFrom('automation_settings').select('paused').where('owner_id', '=', owner.accountId).executeTakeFirst();
-    if (settings?.paused) return; // Inspector still advances the durable skipped interval.
-    await createReceiptReconciler(serverUuid)(tx, owner, collectionId, sources);
+    if (settings?.paused) return moreReceipts;
     const reads = createBindingReadPort(tx, serverUuid);
     const collection = await reads.readCollection(owner, collectionId);
-    if (!collection) return;
+    if (!collection) return moreReceipts;
     const rows = (await sql<ActiveRule>`SELECT r.id, v.id AS revision_id, v.definition_json, v.binding_set_id,
       b.current_revision::text AS binding_revision, br.values_json, a.after_ordinal::text, a.aggregate_epoch::text
       FROM automation_rules r JOIN automation_rule_revisions v ON v.id=r.current_revision_id
@@ -37,6 +40,7 @@ export function createAutomationAdmission(serverUuid: string): InspectAutomation
       prepared.push({ ruleId: row.id, revisionId: row.revision_id, afterOrdinal: row.after_ordinal, epoch: row.aggregate_epoch,
         definition: row.definition_json, resolutions, bindings: assessIntakeBindings(row.definition_json, resolutions), predicate });
     }
+    const pins = new Map(rows.map(row => [row.revision_id, row]));
     for (const source of sources) {
       const event = sourceEvent(source, serverUuid, collectionId, collection.rootNodeId);
       if (!event) continue;
@@ -46,7 +50,7 @@ export function createAutomationAdmission(serverUuid: string): InspectAutomation
           VALUES (${candidate.revisionId}, ${event.eventId}, 'intake', ${plan.kind}, NULL)
           ON CONFLICT DO NOTHING RETURNING rule_revision_id`.execute(tx);
         if (!inserted.rows.length || !decision.createRun) continue;
-        const pin = rows.find(row => row.revision_id === candidate.revisionId)!;
+        const pin = pins.get(candidate.revisionId)!;
         const sequence = (await sql<{ sequence: string }>`INSERT INTO automation_aggregate_state
           (rule_revision_id, epoch, partition_key, sequence, remainder_json)
           VALUES (${candidate.revisionId}, ${candidate.epoch}::bigint, ${collectionId}, 1, '[]'::jsonb)
@@ -63,5 +67,6 @@ export function createAutomationAdmission(serverUuid: string): InspectAutomation
           WHERE rule_revision_id=${candidate.revisionId} AND source_event_id=${event.eventId} AND stage='intake'`.execute(tx);
       }
     }
+    return moreReceipts;
   };
 }
