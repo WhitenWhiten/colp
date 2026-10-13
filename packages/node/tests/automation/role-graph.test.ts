@@ -26,3 +26,12 @@ test('self cycles, multi-role cycles and missing ancestors are rejected before a
   }
   expect(analyzeRoleGraph([{ ...roles[0]!, mustBeWithinRole: 'a' }]).valid).toBe(false);
 });
+
+test('review: role graph issues point at the role by array index', () => {
+  const cyclic: RuleDefinition['roles'] = [roles[2]!, { ...roles[0]!, mustBeWithinRole: 'b' }, { ...roles[1]!, mustBeWithinRole: 'a' }];
+  const result = analyzeRoleGraph(cyclic);
+  expect(result.valid).toBe(false);
+  if (!result.valid) for (const issue of result.issues) expect(issue.path).toMatch(/^\/roles\/[12]\/mustBeWithinRole$/u);
+  const duplicate = analyzeRoleGraph([roles[2]!, roles[2]!]);
+  expect(duplicate.valid ? [] : duplicate.issues.map((issue) => issue.path)).toEqual(['/roles']);
+});

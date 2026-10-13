@@ -8,15 +8,17 @@ export function analyzeRoleGraph(declarations: readonly RoleDeclaration[]): Role
   const roles = new Map(declarations.map((role) => [role.key, role]));
   const issues: ContractIssue[] = [], order: RoleDeclaration[] = [];
   const visited = new Set<string>(), visiting = new Set<string>();
-  const fail = (key: string, message: string) => issues.push({ path: `/roles/${key}/mustBeWithinRole`, code: 'invalidGraph', message });
-  if (roles.size !== declarations.length) fail('', 'Role keys must be unique.');
+  // `roles` is an array, so issue paths are JSON Pointers by index, never by key.
+  const index = new Map(declarations.map((role, position) => [role, position]));
+  const fail = (role: RoleDeclaration, message: string) => issues.push({ path: `/roles/${index.get(role)}/mustBeWithinRole`, code: 'invalidGraph', message });
+  if (roles.size !== declarations.length) issues.push({ path: '/roles', code: 'invalidGraph', message: 'Role keys must be unique.' });
   const visit = (role: RoleDeclaration): void => {
     if (visited.has(role.key)) return;
-    if (visiting.has(role.key)) { fail(role.key, 'Role constraints contain a cycle.'); return; }
+    if (visiting.has(role.key)) { fail(role, 'Role constraints contain a cycle.'); return; }
     visiting.add(role.key);
     if (role.mustBeWithinRole !== undefined) {
       const parent = roles.get(role.mustBeWithinRole);
-      if (role.kind !== 'folder' || parent?.kind !== 'folder') fail(role.key, 'Subtree constraints require two declared folder roles.');
+      if (role.kind !== 'folder' || parent?.kind !== 'folder') fail(role, 'Subtree constraints require two declared folder roles.');
       else visit(parent);
     }
     visiting.delete(role.key);
