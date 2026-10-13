@@ -667,6 +667,11 @@ export const PRODUCT_ROUTE_MANIFEST = [
   },
   {
     "method": "POST",
+    "path": "/api/v1/me/automations/runs/{runId}/undo",
+    "operationId": "undoAutomationRun"
+  },
+  {
+    "method": "POST",
     "path": "/api/v1/me/avatar",
     "operationId": "uploadMyAvatar"
   },

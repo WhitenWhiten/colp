@@ -4378,6 +4378,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/automations/runs/{runId}/undo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Undo one verified placement (M1) or linked plan effect (M2) without overwriting newer changes
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         */
+        post: operations["undoAutomationRun"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/automation-device/bundle": {
         parameters: {
             query?: never;
@@ -4968,6 +4988,19 @@ export interface components {
             undoReason: string;
         };
         AutomationOpaqueId: string;
+        AutomationOperationReceipt: {
+            id: string;
+            /** @enum {string} */
+            status: "accepted" | "completed" | "blocked" | "cancelled";
+            resourceId: string;
+            diagnostics: components["schemas"]["AutomationDiagnostic"][];
+        };
+        /** @description Select exactly one recorded effect. M1 compensates a verified placement only; M2 links an existing plan/version. Reject stale collection/content fences. Never delete the saved bookmark to undo its placement or restore a broad snapshot over unrelated work. */
+        AutomationUndoInput: {
+            reason: string;
+            expectedEffectDigest: string;
+            effectReceiptId: components["schemas"]["AutomationOpaqueId"];
+        };
         /** @description Full authenticated snapshot. No model credentials or subscription secrets; device mappings remain device-local. */
         AutomationRuleBundle: {
             revision: string;
@@ -5000,13 +5033,6 @@ export interface components {
             nativeBindingHints: components["schemas"]["AutomationRoleBindings"];
             semanticDigest: string;
             definition: components["schemas"]["AutomationRuleDefinition"];
-        };
-        AutomationOperationReceipt: {
-            id: string;
-            /** @enum {string} */
-            status: "accepted" | "completed" | "blocked" | "cancelled";
-            resourceId: string;
-            diagnostics: components["schemas"]["AutomationDiagnostic"][];
         };
         AutomationBundleAckInput: {
             deviceId: string;
@@ -23007,6 +23033,57 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AutomationRun"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    undoAutomationRun: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Stable command identity. Scope: authenticated principal + operation + addressed resource. Same identity/different canonical body returns 409. */
+                "Known-Command-Id": components["parameters"]["AutomationCommandId"];
+                /** @description Verified host CSRF header (evidence R23): the server reads `x-csrf-token` together with the Origin allowlist on cookie-authenticated writes. Re-checked at AW-01. Never introduce a second CSRF scheme. */
+                "X-CSRF-Token": components["parameters"]["AutomationCsrf"];
+                /** @description Validate against existing host trusted-origin policy for cookie-authenticated mutations. */
+                Origin: components["parameters"]["AutomationOrigin"];
+                /** @description Strong ETag from the addressed automation resource, never a node publication revision. */
+                "If-Match": components["parameters"]["AutomationIfMatch"];
+            };
+            path: {
+                runId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AutomationUndoInput"];
+            };
+        };
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    /** @description Strong ETag for this automation resource. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationOperationReceipt"];
                 };
             };
             400: components["responses"]["Automation400"];

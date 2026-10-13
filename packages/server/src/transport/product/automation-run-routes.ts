@@ -1,10 +1,12 @@
-import { cancelAutomationRun, getAutomationRun, parseContract, AutomationError } from '../../modules/automation/index.js';
+import { cancelAutomationRun, undoAutomationRun, getAutomationRun, parseContract, AutomationError } from '../../modules/automation/index.js';
 import { automationView, type AutomationRoute } from './automation-rule-routes.js';
 import { createAutomationPagination } from './automation-pagination.js';
 export function automationRunRoutes(cursorKey: string): AutomationRoute[] {
   const page = createAutomationPagination(cursorKey);
   const runId = (params: unknown) => (params as { runId: string }).runId;
   return [
+    { method: 'POST', path: '/runs/:runId/undo', ifMatch: true, action: async ({ ports, request, ifMatch }) =>
+      automationView(await undoAutomationRun(ports, runId(request.params), request.body, ifMatch)) },
     { method: 'GET', path: '/runs', query: ['cursor', 'limit', 'collectionId', 'nodeId'], action: async ({ ports, actor, request }) => {
       const query = request.query as Record<string,string>;
       for (const value of [query.collectionId, query.nodeId]) if (value !== undefined && !/^[A-Za-z0-9._~-]{1,128}$/.test(value))

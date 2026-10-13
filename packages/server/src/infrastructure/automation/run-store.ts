@@ -1,5 +1,6 @@
+import { placementEffectView, type PlacementEffectRow } from './placement-history-store.js';
 import { sql } from 'kysely';
-import type { Run, EffectReceiptView } from '@know-n/colp/automation';
+import type { Run } from '@know-n/colp/automation';
 import type { RunStore, StoredRun, AutomationActor } from '../../modules/automation/index.js';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
 interface RunRow {
@@ -29,13 +30,10 @@ export function createRunStore(tx: DatabaseTransaction, actor: AutomationActor):
     async cancel(id) { await sql`UPDATE automation_runs SET state='cancelled', held=false, revision=revision+1, updated_at=clock_timestamp()
       WHERE id=${id} AND owner_id=${actor.accountId} AND state IN ('waiting','running','blocked','review')`.execute(tx); },
     async effects(id) {
-      const rows = (await sql<{ id: string; effect_digest: string; operation_id: string; plan_id: string | null }>`
-        SELECT e.id,e.effect_digest,e.operation_id,e.plan_id FROM automation_effect_receipts e
+      const rows = (await sql<PlacementEffectRow>`SELECT e.* FROM automation_effect_receipts e
         JOIN automation_runs r ON r.id=e.run_id WHERE r.id=${id} AND r.owner_id=${actor.accountId}
-        ORDER BY e.id LIMIT 100`.execute(tx)).rows;
-      return rows.map((row): EffectReceiptView => ({ id: row.id, kind: row.plan_id ? 'plan' : 'placement', status: 'committed',
-        effectDigest: row.effect_digest, operationId: row.operation_id, ...(row.plan_id ? { planId: row.plan_id } : {}),
-        undoAvailable: false, undoReason: 'Placement fences must be verified before compensation.' }));
+        ORDER BY e.created_at DESC,e.id DESC LIMIT 100`.execute(tx)).rows;
+      return Promise.all(rows.map(row => placementEffectView(tx, actor, row)));
     },
   };
 }

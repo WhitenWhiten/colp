@@ -1,3 +1,4 @@
+import { recordPlacementHistory } from './placement-history-store.js';
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import type { LocalReceiptInput } from '@know-n/colp/automation';
@@ -18,6 +19,7 @@ export async function recordDevicePlacementRun(tx: DatabaseTransaction, actor: A
       explanation_json=explanation_json || ${JSON.stringify({ devicePlacementOperationId: input.placementOperationId ?? input.operationId,
         verifiedDevicePlacement: true, inputDigest: input.inputDigest })}::jsonb
       WHERE id=${receipt.run_id} AND state='waiting'`.execute(tx);
+    await recordPlacementHistory(tx, actor, input.committedNode.serverUuid, receipt.run_id, input.placementOperationId ?? input.operationId);
     return; // Late evidence cannot recreate completed or cancelled work.
   }
   const id = randomUUID();
@@ -28,4 +30,5 @@ export async function recordDevicePlacementRun(tx: DatabaseTransaction, actor: A
         verifiedDevicePlacement: true, inputDigest: input.inputDigest })}::jsonb)`.execute(tx);
   await sql`UPDATE automation_admission_receipts SET run_id=${id},decision='verifiedDevicePlacement'
     WHERE rule_revision_id=${revision.id} AND source_event_id=${fact.source_event_id} AND stage='intake'`.execute(tx);
+  await recordPlacementHistory(tx, actor, input.committedNode.serverUuid, id, input.placementOperationId ?? input.operationId);
 }

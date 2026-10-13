@@ -23,5 +23,6 @@
   "cancelAutomationRun",
   "ingestAutomationIntakeReceipt",
   "getAutomationDeviceBundle",
-  "acknowledgeAutomationDeviceBundle"
+  "acknowledgeAutomationDeviceBundle",
+  "undoAutomationRun"
 ]
