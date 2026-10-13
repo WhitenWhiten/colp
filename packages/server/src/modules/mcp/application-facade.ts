@@ -51,6 +51,7 @@ import {
 } from './scope-requirements.js';
 
 export interface McpApplicationFacade {
+  readonly events?: import('./events-adapter.js').McpEventsAdapter;
   readonly getTool?: McpApplicationReadPort['getTool'];
   readonly listTools: (
     context: McpApplicationContext,

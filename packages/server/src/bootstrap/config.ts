@@ -552,6 +552,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
 
   return {
     automationServerDailyRunCap: parsePositiveInt(env.AUTOMATION_SERVER_DAILY_RUN_CAP,1000,'AUTOMATION_SERVER_DAILY_RUN_CAP',{ min: 1,max: 100000 }),
+    mcpEventsEnabled: parseCacheBooleanEnv(env, 'KNOWN_FEATURE_MCP_EVENTS', false),
     automationRuntimeEnabled: parseCacheBooleanEnv(env, 'KNOWN_FEATURE_AUTOMATION_RUNTIME', false),
     automationConfigurationEnabled: parseCacheBooleanEnv(env, 'KNOWN_FEATURE_AUTOMATION_CONFIGURATION', false),
     nodeEnv,

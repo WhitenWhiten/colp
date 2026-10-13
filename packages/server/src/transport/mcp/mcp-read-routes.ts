@@ -89,11 +89,13 @@ import {
   createMemoryMcpRateLimiter,
   type McpRateLimiter,
 } from '../../infrastructure/rate-limit/index.js';
+import { McpEventsError } from '@know-n/colp/mcp';
 import { mapMcpOauthChallengeToProductError } from './mcp-protected-resource-routes.js';
 import { ProductHttpError, productErrorEnvelope } from '../product-error.js';
 import {
   createPhase4bMcpApplicationFacadeFromColpAdapters,
   dispatchStrictToolCall,
+  toMcpApplicationContextFromStrict,
   listStrictApplicationResourceTemplates,
   listStrictApplicationTools,
   readCatalogCursor,
@@ -1142,7 +1144,19 @@ async function dispatch(
       if (!validation.ok) {
         throw new Mcp20260728RequestError('invalid_request', validation.issue);
       }
-      return { kind: 'result', result: createPhase4bMcpDiscoverResult(writeEnabled) };
+      return { kind: 'result', result: createPhase4bMcpDiscoverResult(writeEnabled, await applicationFacade.events?.available(toMcpApplicationContextFromStrict(context)) ?? false) };
+    }
+    case 'events/list':
+    case 'events/subscribe':
+    case 'events/unsubscribe': {
+      if (!applicationFacade.events) return { kind: 'error', error: { code: -32601, message: 'Method not found.' } };
+      try {
+        const result = await applicationFacade.events.call(toMcpApplicationContextFromStrict(context), method, body.params);
+        return { kind: 'result', result: result as Mcp20260728Result };
+      } catch (error) {
+        if (error instanceof McpEventsError) return { kind: 'error', error: { code: error.code, message: error.message } };
+        throw error;
+      }
     }
     case 'resources/list':
       return {

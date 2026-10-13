@@ -1,3 +1,5 @@
+import { createSubscriptionStore } from '../infrastructure/automation/subscription-store.js';
+import { createMcpEventsAdapter } from '../modules/mcp/events-adapter.js';
 import { createAutomationUnitOfWork,createAutomationWorkerService,createResultSubmissionPort,createProposalPlanGateway,createTargetWorkerService } from '../infrastructure/automation/index.js';
 import { createAutomationBindingVerifier } from './automation-binding-verifier.js';
 import { AutomationError } from '../modules/automation/index.js';
@@ -353,6 +355,9 @@ export async function composeApiMcpSurface(input: {
       configurations: createAutomationUnitOfWork(database.db,config.publication.serverUuid,{ runtimeEnabled: true,workerEnabled: !!automationWorker,verifyTargetBinding }),
       worker: automationWorker,pairing: automationTargetWorker,cursorKey: config.productEditorCursor.current.key,
     }));
+  }
+  if (config.mcpEventsEnabled && mcpApplicationFacade && automationTargetWorker) {
+    mcpApplicationFacade = { ...mcpApplicationFacade, events: createMcpEventsAdapter(createSubscriptionStore(database.db, automationTargetWorker)) };
   }
   return {
     ...(automationWorker ? { automationWorker } : {}),

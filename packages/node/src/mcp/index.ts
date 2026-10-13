@@ -406,3 +406,5 @@ export {
   type OAuthTokenExchangeIssuerDenialReason,
   type OAuthTokenExchangeIssuerInput,
 } from '../security/mcp-oauth-client.js';
+
+export * from './2026-07-28/events.js';
