@@ -13,26 +13,31 @@ export interface AutomationSource {
 export type InspectAutomationSource = (tx: DatabaseTransaction, owner: { accountId: string; subjectId: string },
   collectionId: string, sources: readonly AutomationSource[]) => Promise<void | boolean>;
 
-/** Account -> position -> admission partitions -> lease. All effects and the cursor commit together. */
-export function createAutomationSourceInspector(db: Kysely<DatabaseSchema>, inspect: InspectAutomationSource) {
+/**
+ * Account -> position -> admission partitions -> lease. All effects and the cursor commit together.
+ * A null consumer is shadow capture (admission off): it only advances the cursor, so later admission
+ * never replays shadow history, and it takes neither the account lock nor the Sync replica gate.
+ */
+export function createAutomationSourceInspector(db: Kysely<DatabaseSchema>, inspect: InspectAutomationSource | null) {
   return async (context: OutboxHandlerContext): Promise<boolean> => db.transaction().execute(async tx => {
     if (!context.attempt || !context.envelope.commit_ordinal || context.signal.aborted) throw new Error('Source lease required');
     const collectionId = context.envelope.payload.collectionId as string;
-    const owner = await tx.selectFrom('collections as c').innerJoin('accounts as a', 'a.subject_id', 'c.owner_subject_id')
-      .select(['a.id', 'a.subject_id', 'a.status', 'a.deleted_at']).where('c.id', '=', collectionId).forUpdate('a').executeTakeFirst();
+    const ownerQuery = tx.selectFrom('collections as c').innerJoin('accounts as a', 'a.subject_id', 'c.owner_subject_id')
+      .select(['a.id', 'a.subject_id', 'a.status', 'a.deleted_at']).where('c.id', '=', collectionId);
+    const owner = await (inspect ? ownerQuery.forUpdate('a') : ownerQuery).executeTakeFirst();
     if (!owner) throw new Error('Source owner unavailable');
     await sql`INSERT INTO automation_source_positions (owner_id, collection_id, last_inspected_ordinal)
       VALUES (${owner.id}, ${collectionId}, 0) ON CONFLICT DO NOTHING`.execute(tx);
     const position = (await sql<{ last_inspected_ordinal: string }>`SELECT last_inspected_ordinal::text FROM automation_source_positions
       WHERE owner_id=${owner.id} AND collection_id=${collectionId} FOR UPDATE`.execute(tx)).rows[0]!;
     const high = BigInt(context.envelope.commit_ordinal);
-    const rows = (await sql<AutomationSource>`SELECT o.operation_id, o.commit_ordinal::text, f.source_event_id, f.node_id,
+    const rows = !inspect ? [] : (await sql<AutomationSource>`SELECT o.operation_id, o.commit_ordinal::text, f.source_event_id, f.node_id,
       f.occurred_at, f.origin, f.facts_version, f.facts_json FROM operations o
       LEFT JOIN automation_event_facts f ON f.operation_id=o.operation_id
       WHERE o.collection_id=${collectionId} AND o.commit_ordinal > ${position.last_inspected_ordinal}::bigint
         AND o.commit_ordinal <= ${high} ORDER BY o.commit_ordinal LIMIT 10`.execute(tx)).rows;
     let moreWork = false;
-    if (owner.status === 'active' && !owner.deleted_at) {
+    if (inspect && owner.status === 'active' && !owner.deleted_at) {
       // Canonical moves invalidate replicas. Acquire their gate before any consumer collection read.
       await lockActiveSyncReplicasForCollection(tx, collectionId);
       moreWork = await inspect(tx, { accountId: owner.id, subjectId: owner.subject_id }, collectionId, rows) === true;

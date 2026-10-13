@@ -97,8 +97,8 @@ describeWithPostgres('P2B-10 PostgreSQL Relation canonical create', () => {
         where operation.operation_id=$2) outbox,
       (select count(*)::int from product_command_receipts where command_id=$3 and completed_at is not null) receipt`,
     [value.relationId, value.operationId, value.command.commandId])).rows[0];
-    assert.deepEqual(counts, { ledger: 6, resource_revision: 1, content_revision: 1,
-      operation: 1, audit: 1, outbox: 3, receipt: 1 });
+    assert.deepEqual(counts, { ledger: 5, resource_revision: 1, content_revision: 1,
+      operation: 1, audit: 1, outbox: 2, receipt: 1 });
     assert.deepEqual(await treeRevisionSnapshot(), before);
     const event = (await isolated.runtime.pool.query(`select event.* from outbox_events event
       join operations operation on operation.collection_id=event.aggregate_scope
@@ -204,7 +204,7 @@ describeWithPostgres('P2B-10 PostgreSQL Relation canonical create', () => {
         where operation.operation_id=$2) outbox,
       (select count(*)::int from product_command_receipts where command_id=$3 and completed_at is not null) receipt`,
     [value.relationId, value.operationId, commandId])).rows[0], {
-      relation: 1, relation_ledger: 1, operation: 1, outbox: 3, receipt: 1,
+      relation: 1, relation_ledger: 1, operation: 1, outbox: 2, receipt: 1,
     });
     assert.deepEqual(await execute(command({ commandId, fingerprint: 'different',
       relationId: 'relation-reuse-command' })), { kind: 'reused' });

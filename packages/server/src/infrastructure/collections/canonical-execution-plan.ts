@@ -41,7 +41,7 @@ interface CascadeFacts {
 /** The complete, immutable transaction execution plan, selected once by the planner. */
 export type PostgresCanonicalPlanFacts = CascadeFacts & (
   | { readonly resourceKind: 'collection'; readonly action: 'update' }
-  | { readonly resourceKind: 'node'; readonly action: CanonicalMutationAction; readonly restoredPositionToken?: string; readonly consumedDeleteOperationId?: string; readonly automation: PlannedAutomationFacts }
+  | { readonly resourceKind: 'node'; readonly action: CanonicalMutationAction; readonly restoredPositionToken?: string; readonly consumedDeleteOperationId?: string; readonly automation: PlannedAutomationFacts | null }
   | { readonly resourceKind: 'annotation' | 'relation'; readonly action: 'create' | 'update' | 'delete'; readonly updateFacts?: SidecarUpdateFacts }
 );
 

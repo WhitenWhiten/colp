@@ -6,10 +6,13 @@ import { createSession, ensureAccountFromOidcIdentity } from '../../src/modules/
 import { createOwnedCollectionCanonical, createCollectionNode, updateCollectionNode } from '../../src/modules/collections/index.js';
 import { createPostgresCanonicalMutationUnitOfWork } from '../../src/infrastructure/collections/index.js';
 import { runMigrations } from '../../src/infrastructure/database/index.js';
+import { setAutomationCaptureEnabled } from '../../src/infrastructure/automation/index.js';
 import { createIsolatedPostgresRuntime } from './postgres-test-runtime.js';
 import { SESSION_COOKIE_NAME } from '../../src/transport/session-cookie.js';
 
 export async function automationFixture(prefix: string) {
+  // Equivalent of KNOWN_FEATURE_AUTOMATION_CAPTURE=true for this test process.
+  setAutomationCaptureEnabled(true);
   const isolated = await createIsolatedPostgresRuntime(prefix);
   await runMigrations(isolated.runtime.db, 'latest');
   const db = isolated.runtime.db;

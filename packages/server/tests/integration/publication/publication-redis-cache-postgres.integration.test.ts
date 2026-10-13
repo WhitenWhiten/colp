@@ -283,7 +283,7 @@ describeWithPostgres('publication Redis cache end-to-end against real PostgreSQL
         50,
       );
       await drainOutbox(worker.worker);
-      await waitForOutboxSettled(runtime.pool, fixture.collectionId, worker.worker);
+      await waitForOutboxSettled(runtime.pool, fixture.collectionId);
 
       const completed = await runtime.pool.query<{ state: string; attempt_count: number; receipt_count: number }>(
         `select o.state, o.attempt_count,
@@ -343,7 +343,7 @@ describeWithPostgres('publication Redis cache end-to-end against real PostgreSQL
       );
       const epochBeforeReceiptGuard = await readEpoch(scope, fixture.collectionId, worker.store);
       await drainOutbox(worker.worker);
-      await waitForOutboxSettled(runtime.pool, fixture.collectionId, worker.worker);
+      await waitForOutboxSettled(runtime.pool, fixture.collectionId);
       const guarded = await runtime.pool.query<{ state: string }>(
         `select state from outbox_events
           where aggregate_scope = $1 and handler_name = $2`,
@@ -375,7 +375,7 @@ describeWithPostgres('publication Redis cache end-to-end against real PostgreSQL
         [fixture.collectionId, PUBLICATION_CACHE_PURGE_HANDLER_NAME],
       );
       await drainOutbox(worker.worker);
-      await waitForOutboxSettled(runtime.pool, fixture.collectionId, worker.worker);
+      await waitForOutboxSettled(runtime.pool, fixture.collectionId);
       const redelivered = await runtime.pool.query<{ state: string; receipt_count: number }>(
         `select o.state,
            (select count(*)::int from outbox_delivery_receipts r
@@ -558,7 +558,7 @@ describeWithPostgres('publication Redis cache end-to-end against real PostgreSQL
         50,
       );
       await drainOutbox(worker.worker);
-      await waitForOutboxSettled(runtime.pool, fixture.collectionId, worker.worker);
+      await waitForOutboxSettled(runtime.pool, fixture.collectionId);
 
       // The old cursor must now produce snapshot_expired on both serve and off:
       // the cache never masks the error and never serves a stale continuation.

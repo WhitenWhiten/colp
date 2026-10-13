@@ -4,7 +4,7 @@ import { createDeliveryWorker } from '../infrastructure/automation/index.js';
 import { createWebhookVerifier } from '../infrastructure/automation/index.js';
 import { createTargetWorkerService } from '../infrastructure/automation/index.js';
 import { createAutomationIngestRoute, automationIngestRegistration, automationResumeRegistration, AUTOMATION_RESUME_EVENT } from '../infrastructure/outbox/index.js';
-import { createAutomationSourceInspector, createAutomationRuntime } from '../infrastructure/automation/index.js';
+import { createAutomationSourceInspector, createAutomationRuntime, setAutomationCaptureEnabled } from '../infrastructure/automation/index.js';
 import { createAutomationHealthMonitor } from '../infrastructure/automation/index.js';
 import { createAutomationBindingVerifier } from './automation-binding-verifier.js';
 import { createMcpSecurityEpochReader } from './api-mcp-oauth-composition.js';
@@ -367,6 +367,7 @@ export function buildWorker(
   options: BuildWorkerOptions = {},
 ): WorkerRuntime {
   const logger: ReturnType<typeof createLogger> = options.logger ?? createLogger(config.logLevel);
+  setAutomationCaptureEnabled(config.automationCaptureEnabled === true);
   const capacity = sanitizedRuntimeCapacity(config);
   if (config.syncTombstonePurge.enabled && !database) {
     throw new Error('worker composition refused: Sync Tombstone purge requires PostgreSQL');
@@ -400,7 +401,8 @@ export function buildWorker(
       createAutomationBindingVerifier(config,createMcpSecurityEpochReader(config,createPostgresMcpOauthRevocationStore({ db: database.db }))),async () => {}).authorize,
       createWebhookVerifier(config.automationWebhookMasterKey)) : undefined;
   let retentionAfter = '';
-  const automationMaintenance = config.automationRulesEnabled && database
+  // Capture alone (shadow mode) still needs the facts retention sweep.
+  const automationMaintenance = (config.automationRulesEnabled || config.automationCaptureEnabled) && database
     ? createAutomationMaintenanceLoop({
       delivery: deliveryWorker,
       async maintain() {
@@ -510,7 +512,8 @@ export function buildWorker(
   const routes = Object.freeze([
     ...projectionRoutes, ...syncConflictRoutes,
     ...(database ? [undefined, AUTOMATION_RESUME_EVENT].map(eventType => createAutomationIngestRoute(createAutomationSourceInspector(database.db,
-      config.automationAdmissionEnabled ? createAutomationRuntime(config.publication.serverUuid,config.automationWorkEnabled === true) : async () => {}), eventType)) : []),
+      // Shadow capture (admission off) only advances the source cursor: no account or Sync locks.
+      config.automationAdmissionEnabled ? createAutomationRuntime(config.publication.serverUuid,config.automationWorkEnabled === true) : null), eventType)) : []),
     ...publicationCachePurgeRoutes,
     ...collectionInviteEmailRoutes,
   ]);

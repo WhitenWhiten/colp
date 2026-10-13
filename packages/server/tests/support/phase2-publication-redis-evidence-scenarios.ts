@@ -473,7 +473,7 @@ export async function runOutboxInvalidationScenario(
     assert.equal(patched.statusCode, 200, `PATCH must succeed: ${patched.statusCode} ${patched.body}`);
     const committedAtMs = performance.now();
     await drainOutbox(worker.worker);
-    await waitForOutboxSettled(runtime.pool, fixtureA.collectionId, worker.worker);
+    await waitForOutboxSettled(runtime.pool, fixtureA.collectionId);
     const rotatedAtMs = await waitForEpochRotation(
       scope,
       fixtureA.collectionId,

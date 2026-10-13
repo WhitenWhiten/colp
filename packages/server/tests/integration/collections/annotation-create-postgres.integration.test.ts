@@ -89,13 +89,9 @@ describeWithPostgres('P2B-04 PostgreSQL Annotation canonical create', () => {
     assert.equal(result.kind, 'created');
     const state = await sideEffectState(input.annotationId!, input.operationId!, input.command.commandId);
     assert.deepEqual(state.counts, {
-      annotation: 1, ledger: 6, resourceRevision: 1, contentRevision: 1,
-      operation: 1, audit: 1, outbox: 3, receipt: 1,
+      annotation: 1, ledger: 5, resourceRevision: 1, contentRevision: 1,
+      operation: 1, audit: 1, outbox: 2, receipt: 1,
     });
-    const wake = (await isolated.runtime.pool.query(`select event.handler_name,event.event_type,event.payload_json from outbox_events event
-      join operations operation on operation.collection_id=event.aggregate_scope and operation.commit_ordinal=event.commit_ordinal
-      where operation.operation_id=$1 and event.handler_name='automation_ingest'`,[input.operationId])).rows;
-    assert.deepEqual(wake,[{ handler_name: 'automation_ingest',event_type: 'automation.source.committed',payload_json: { collectionId: COLLECTION_ID,operationId: input.operationId } }]);
     assert.equal(state.row.creator_principal_id, input.actor.principalId);
     assert.equal(state.row.collection_id, COLLECTION_ID);
     assert.equal(state.row.subject_type, 'node');
@@ -267,7 +263,7 @@ describeWithPostgres('P2B-04 PostgreSQL Annotation canonical create', () => {
       (select count(*)::int from product_command_receipts where command_id in ($1,$2) and completed_at is not null) receipt`,
     [firstInput.command.commandId, secondInput.command.commandId]);
     assert.deepEqual(counts.rows[0], {
-      annotation: 1, resource_revision: 1, operation: 1, audit: 1, outbox: 3, receipt: 1,
+      annotation: 1, resource_revision: 1, operation: 1, audit: 1, outbox: 2, receipt: 1,
     });
   });
 

@@ -1,5 +1,5 @@
 import { appendAutomationIngest } from '../outbox/automation-ingest.js';
-import { planAutomationFacts, captureAutomationFacts } from '../automation/fact-capture.js';
+import { planAutomationFacts, captureAutomationFacts, automationCaptureEnabled } from '../automation/fact-capture.js';
 import { resourceKind, type ResourceKind, postgresPlanFacts, type PostgresCanonicalPlanFacts, type CascadedAnnotationRow, type CascadedRelationRow, type CascadedAnnotationPlan, type CascadedRelationPlan } from './canonical-execution-plan.js';
 import { withCanonicalTreeCapacity, type CanonicalTreeCapacityAdmission } from './canonical-tree-capacity.js';
 import { appendCanonicalSecondaryOutbox } from './canonical-secondary-outbox.js';
@@ -299,6 +299,8 @@ export interface PostgresCanonicalMutationPortOptions {
   /** Non-Sync writers have no COLP Replica/Sequence identity, so force Snapshot recovery. */
   readonly invalidateSyncReplicasOnNodeMutation?: boolean;
   readonly socialRouteFaultInjector?: SocialCollectionChangeRouteFaultInjector;
+  /** Overrides the host KNOWN_FEATURE_AUTOMATION_CAPTURE switch (tests and explicit compositions). */
+  readonly automationCapture?: boolean;
   /** Sync pre-validates placement once and passes the bounded read through to allocation. */
   readonly preresolvedPlacement?: PreresolvedSiblingPlacement; readonly reportSourceInvalidation?: ReportSourceInvalidationOutboxPort;
 }
@@ -693,6 +695,7 @@ export function createPostgresCanonicalMutationPorts(
   options: PostgresCanonicalMutationPortOptions = {},
 ): CanonicalMutationPorts<DatabaseTransaction, PostgresCanonicalPlanFacts> {
   const deleteSubtreeLimits = resolveDeleteSubtreeLimits();
+  const captureAutomation = options.automationCapture ?? automationCaptureEnabled();
   const positionRebalanceWindow = resolvePositionRebalanceWindow(
     options.positionRebalanceWindow === undefined
       ? process.env.KNOW_N_POSITION_REBALANCE_WINDOW
@@ -1494,8 +1497,8 @@ export function createPostgresCanonicalMutationPorts(
           : {};
         const afterFields = input.mutation.action === 'delete' ? null
           : readNodeFields((authoritativeFields.fields ?? input.mutation.fields)!.kindFields, current);
-        const automation = await planAutomationFacts(tx, input, current ?? null, afterFields,
-          input.mutation.action === 'update' || input.mutation.action === 'delete' ? current!.parent_id : targetParent);
+        const automation = captureAutomation ? await planAutomationFacts(tx, input, current ?? null, afterFields,
+          input.mutation.action === 'update' || input.mutation.action === 'delete' ? current!.parent_id : targetParent) : null;
         return {
           facts: Object.freeze({ resourceKind: 'node', action: input.mutation.action, annotations, relations, restoredPositionToken, consumedDeleteOperationId, automation }),
           operationId: input.operationId,
@@ -1687,7 +1690,7 @@ export function createPostgresCanonicalMutationPorts(
     facts: {
       async capture(tx, event, input, allocation) {
         const facts = postgresPlanFacts(event.plan);
-        if (facts.resourceKind === 'node') await captureAutomationFacts(tx, event, input, allocation, facts.automation);
+        if (facts.resourceKind === 'node' && facts.automation) await captureAutomationFacts(tx, event, input, allocation, facts.automation);
         await options.faultInjector?.afterPhase?.({ phase: 'facts', transaction: tx });
       },
     },
@@ -1695,7 +1698,7 @@ export function createPostgresCanonicalMutationPorts(
       async appendDomainEvents(tx, events) {
         for (const event of events) {
           await eventWriters[postgresPlanFacts(event.plan).resourceKind](tx, event);
-          await appendAutomationIngest(tx, event);
+          if (captureAutomation) await appendAutomationIngest(tx, event);
         }
         await options.faultInjector?.afterPhase?.({ phase: 'outbox' });
       },

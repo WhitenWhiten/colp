@@ -1,7 +1,7 @@
 import { createAutomationBindingVerifier } from './automation-binding-verifier.js';
 import { createMcpSecurityEpochReader } from './api-mcp-oauth-composition.js';
 import { createPostgresMcpOauthRevocationStore } from '../infrastructure/database/index.js';
-import { createAutomationDeviceUnitOfWork, createAutomationUnitOfWork, createAutomationHealthMonitor } from '../infrastructure/automation/index.js';
+import { createAutomationDeviceUnitOfWork, createAutomationUnitOfWork, createAutomationHealthMonitor, setAutomationCaptureEnabled } from '../infrastructure/automation/index.js';
 import { createPostgresBookmarkSubscriptionUnitOfWork } from '../infrastructure/bookmark-subscriptions/unit-of-work.js';
 import { loadConfig } from './config.js';
 import {
@@ -148,6 +148,7 @@ export function createApiPostgresPorts(input: {
   readonly metricsLogger: ReturnType<typeof createLogger>;
 }): ApiPostgresPorts {
   const { database, config, metrics, metricsLogger } = input;
+  setAutomationCaptureEnabled(config.automationCaptureEnabled === true);
   const reportSourceInvalidation = undefined;
   const identityUnitOfWork = createPostgresIdentityUnitOfWork(database.db, {
     // F2: Better Auth mode omits legacy transaction secrets; legacy mode keeps

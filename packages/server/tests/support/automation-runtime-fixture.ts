@@ -23,7 +23,7 @@ export async function automationRuntimeFixture(prefix: string, runtimeEnabled = 
   return { ...f, ...configuration, uow, inspect };
 }
 
-export async function inspectAutomationOutbox(db: Awaited<ReturnType<typeof automationFixture>>['db'],consumer: InspectAutomationSource) {
+export async function inspectAutomationOutbox(db: Awaited<ReturnType<typeof automationFixture>>['db'],consumer: InspectAutomationSource | null) {
     const row = await db.selectFrom('outbox_events').selectAll().where('handler_name', '=', 'automation_ingest')
       .orderBy('commit_ordinal', 'desc').executeTakeFirstOrThrow();
     await db.updateTable('outbox_events').set({ state: 'leased', lease_generation: 1n,

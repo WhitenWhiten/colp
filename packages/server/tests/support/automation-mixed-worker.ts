@@ -1,7 +1,7 @@
 import type { Pool } from 'pg';
 import type { Kysely } from 'kysely';
 import type { DatabaseSchema } from '../../src/infrastructure/database/runtime.js';
-import { createAutomationRuntime, createAutomationSourceInspector, createAutomationHealthMonitor } from '../../src/infrastructure/automation/index.js';
+import { createAutomationRuntime, createAutomationSourceInspector, createAutomationHealthMonitor, setAutomationCaptureEnabled } from '../../src/infrastructure/automation/index.js';
 import { PostgresOutboxRepository, VersionedOutboxWorker, OutboxRouter, EventEnvelopeRegistry,
   createAutomationIngestRoute, automationIngestRegistration, automationResumeRegistration, AUTOMATION_RESUME_EVENT,
   PostgresCollectionMutationProjectionSink, createCollectionMutationOutboxRoutes, createCollectionMutationEnvelopeRegistrations,
@@ -11,6 +11,7 @@ import { PostgresOutboxRepository, VersionedOutboxWorker, OutboxRouter, EventEnv
 export function automationMixedWorker(db: Kysely<DatabaseSchema>, pool: Pool, options: {
   repository?: OutboxRepository; onSlice?: (elapsedMs: number) => void;
 } = {}) {
+  setAutomationCaptureEnabled(true);
   const runtime = createAutomationRuntime('server');
   const inspect = createAutomationSourceInspector(db, runtime);
   const measured: typeof inspect = async context => {

@@ -2,7 +2,7 @@ import Fastify from 'fastify';
 import type { JWK } from 'jose';
 import type { AppConfig } from '../../src/bootstrap/config.js';
 import { createDatabaseRuntime } from '../../src/infrastructure/database/index.js';
-import { createTargetWorkerService, createResultSubmissionPort, createProposalPlanGateway, createAutomationWorkerService } from '../../src/infrastructure/automation/index.js';
+import { createTargetWorkerService, createResultSubmissionPort, createProposalPlanGateway, createAutomationWorkerService, setAutomationCaptureEnabled } from '../../src/infrastructure/automation/index.js';
 import { createAutomationBindingVerifier } from '../../src/bootstrap/automation-binding-verifier.js';
 import { createPhase4bMcpWriteComposition, createMcpChangePlanRateLimitPort } from '../../src/bootstrap/mcp-write-composition.js';
 import { MCP_OAUTH_DEFAULT_SECURITY_EPOCH } from '../../src/modules/mcp/index.js';
@@ -13,6 +13,7 @@ import { automationWorkerVerifier } from './automation-worker-verifier.js';
 
 if (!process.send) throw new Error('IPC test process required');
 process.once('message', async (message: { databaseUrl: string; config: AppConfig; jwk: JWK; origin: string; crash?: 'before' | 'after' }) => {
+  setAutomationCaptureEnabled(true);
   const runtime = createDatabaseRuntime(message.databaseUrl,{ maxConnections: 6 });
   const db = runtime.db;
   const { verifier } = automationWorkerVerifier(db,message.jwk,message.origin,true);

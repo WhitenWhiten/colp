@@ -22,6 +22,15 @@ type NodeFields = { kind: string; title: string | null; url: string | null; tags
 type BeforeNode = NodeFields & { parent_id: string | null; resource_revision: string };
 const MAX_ANCESTORS = 128;
 
+let captureEnabled = false;
+/**
+ * Host switch for KNOWN_FEATURE_AUTOMATION_CAPTURE (design 07 §7, 09 §9). API and worker
+ * install it once from validated config; while off, canonical mutations plan no ancestry,
+ * write no facts and enqueue no automation Outbox rows.
+ */
+export function setAutomationCaptureEnabled(enabled: boolean): void { captureEnabled = enabled; }
+export function automationCaptureEnabled(): boolean { return captureEnabled; }
+
 /** Runs only during locked planning. No post-mutation reads can contaminate before-state. */
 export async function planAutomationFacts(tx: DatabaseTransaction, input: CanonicalMutationInput,
   before: BeforeNode | null, after: NodeFields | null, afterParent: string | null): Promise<PlannedAutomationFacts> {
