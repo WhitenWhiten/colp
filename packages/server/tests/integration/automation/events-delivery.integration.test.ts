@@ -77,4 +77,18 @@ describeWithPostgres('AW-29 durable ready wake delivery',() => {
     await sql`UPDATE automation_settings SET paused=false WHERE owner_id=${f.owner.accountId}`.execute(f.db);
     await worker.tick();expect(sent).toBe(1);expect((await rows())[0]?.state).toBe('cancelled');
   });
+  test('renewal preserves queued wakes and verification failure keeps the active path',async()=>{
+    await setup();
+    const input={name:'colp.automation.triggered' as const,arguments:{targetId:f.target.id},delivery:{mode:'webhook' as const,url:'https://receiver.example',secret}};
+    const store=createSubscriptionStore(f.db,f.worker,{...cipher,verify:async()=>{}});
+    await store.subscribe(f.actor,input);
+    let sent=0;
+    const worker=createDeliveryWorker(f.db,f.worker.authorize,{...cipher,send:async()=>{sent++;return {status:204,retryAfter:null};}});
+    await worker.tick();expect(sent).toBe(1);expect((await rows())[0]!.state).toBe('accepted');
+    await expect(createSubscriptionStore(f.db,f.worker,{...cipher,verify:async()=>{throw new Error('challenge unavailable');}}).subscribe(f.actor,input)).rejects.toMatchObject({code:-32015});
+    await f.createNode('after-renewal','root','Renewal','https://arxiv.org/renewal');await f.inspect();
+    await worker.tick();expect(sent).toBe(2);
+    expect((await sql<{state:string}>`SELECT state FROM automation_event_subscriptions`.execute(f.db)).rows[0]!.state).toBe('active');
+  });
+
 });

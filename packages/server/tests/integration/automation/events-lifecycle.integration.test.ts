@@ -43,10 +43,10 @@ describeWithPostgres('AW-46 production MCP Events envelope lifecycle (simulated 
     const anonymousDiscovery=await postJson(server,'server/discover',1);expect((await anonymousDiscovery.json()).result.capabilities.events).toBeUndefined();
     expect((await rpc('events/subscribe',{...input!,cursor:'replay'})).error.code).toBe(-32602);
     expect((await rpc('events/subscribe',input!)).result.id).toBe(subscription!.id);
-    // Refresh fences queued older-generation wakes. Reconcile ready work even when no usable wake remains.
-    const worker=createDeliveryWorker(f.db,f.worker.authorize,verifier);await worker.tick();expect(delivered).toHaveLength(0);
+    // Renewal preserves queued occurrences; host reconciliation still tolerates missed/duplicate wakes.
+    const worker=createDeliveryWorker(f.db,f.worker.authorize,verifier);await worker.tick();expect(delivered).toHaveLength(1);
     await f.createNode('second-paper','root','Second','https://arxiv.org/abs/second');
-    await f.createNode('third-paper','root','Third','https://arxiv.org/abs/third');await f.inspect();await worker.tick();await worker.tick();expect(delivered).toHaveLength(2);
+    await f.createNode('third-paper','root','Third','https://arxiv.org/abs/third');await f.inspect();await worker.tick();await worker.tick();expect(delivered).toHaveLength(3);
     delivered.reverse(); // Simulated host processes the burst out of order and may repeat any wake.
     const call=async(name:string,args:Record<string,unknown>)=>{
       const result=await rpc('tools/call',{name,arguments:args});expect(result.error,JSON.stringify(result)).toBeUndefined();
