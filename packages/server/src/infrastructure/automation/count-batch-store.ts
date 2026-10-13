@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { automationDigest,bindingSemanticDigest,type RoleBindings,type EventFacts,type RuleDefinition } from '@know-n/colp/automation';
-import type { AutomationActor } from '../../modules/automation/index.js';
+import { countPartition, countDistinctKey, type AutomationActor } from '../../modules/automation/index.js';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
 import { initializeRunTasks,advanceRunTasks } from './task-scheduler.js';
 export interface BatchMember {eventId:string;nodeId:string;revision:string;ordinal:string}
@@ -13,16 +13,13 @@ export async function admitCountMember(tx:DatabaseTransaction,actor:AutomationAc
     FROM automation_aggregation_spaces s JOIN automation_binding_revisions b ON b.binding_set_id=${pin.bindingSetId}
       AND b.revision=${pin.bindingRevision}::bigint WHERE s.revision_id=${pin.revisionId}`.execute(tx)).rows[0]!;
   const space=configuration.space_id;
-  const identity=automationDigest({kind:trigger.partition,key:trigger.partition==='folder'?event.bookmark.parent?.nodeId ?? '':trigger.partition==='collection'?event.collectionId:pin.ruleId,
+  const identity=automationDigest({...countPartition(trigger,event,pin.ruleId),
     binding:bindingSemanticDigest(configuration.values_json)});
   const legacy=(await sql<{partition_key:string}>`SELECT partition_key FROM automation_aggregate_state
     WHERE rule_revision_id=${space} AND epoch=${pin.epoch}::bigint AND partition_identity=${identity}
     ORDER BY (jsonb_array_length(remainder_json)>0) DESC,partition_key LIMIT 1 FOR UPDATE`.execute(tx)).rows[0];
   const partition=legacy?.partition_key ?? identity;
-  let distinctKey=event.nodeId;
-  if(trigger.distinctBy==='normalizedUrl'){
-    const normalized=new URL(url);normalized.hash='';normalized.hostname=normalized.hostname.toLowerCase().replace(/\.+$/,'');distinctKey=automationDigest({normalizer:'batch-url/v1',url:normalized.href});
-  }
+  const distinctKey=countDistinctKey(trigger,event,url);
   const member:BatchMember={eventId:event.eventId,nodeId:event.nodeId,revision,ordinal:event.commitOrdinal};
   await sql`INSERT INTO automation_aggregate_state(rule_revision_id,epoch,partition_key,sequence,remainder_json,partition_identity)
     VALUES(${space},${pin.epoch}::bigint,${partition},0,'[]',${identity}) ON CONFLICT DO NOTHING`.execute(tx);

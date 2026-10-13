@@ -32,6 +32,7 @@ export async function readCurrentSample(db: Kysely<DatabaseSchema>, reads: Bindi
     ORDER BY created_at DESC,id DESC LIMIT ${limit+1}
   `.execute(db);
   const canonical = createPostgresMcpOwnedCollectionReadPort({ db, accessPolicy: createPostgresAccessPolicyFactsPort(db) });
+  const urls: Record<string,string> = {};
   const events: EventFacts[] = [], revisions: Record<string, string> = { collectionPolicy: collection.policyRevision };
   for (const selectedNode of selected.rows.slice(0, limit)) {
     const node = await canonical.readNode({ actorSubjectId: actor.subjectId, collectionId, nodeId: selectedNode.id });
@@ -59,6 +60,7 @@ export async function readCurrentSample(db: Kysely<DatabaseSchema>, reads: Bindi
         title: node.title, tags: Array.isArray(selectedNode.tags) ? selectedNode.tags.filter((tag): tag is string => typeof tag === 'string') : [],
         nodeId: node.id, ...(node.parentId ? { parent: { serverUuid, collectionId, nodeId: node.parentId } } : {}), ancestors } });
     revisions[node.id] = node.resourceRevision;
+    if (node.url) urls[node.id] = node.url;
   }
-  return { events, truncated: selected.rows.length > limit, revisions };
+  return { events, truncated: selected.rows.length > limit, revisions, urls };
 }

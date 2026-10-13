@@ -39,3 +39,5 @@ export * from './application/capabilities.js';
 export * from './application/delivery-service.js';
 export * from './application/run-once-service.js';
 export * from './application/run-output-service.js';
+
+export { countPartition, countDistinctKey, estimateCountMembers } from './application/count-members.js';

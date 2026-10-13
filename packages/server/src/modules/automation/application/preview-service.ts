@@ -1,3 +1,4 @@
+import { estimateCountMembers } from './count-members.js';
 import { automationDigest, compilePredicate, type PreviewInput, type PreviewResult } from '@know-n/colp/automation';
 import { AutomationError } from '../domain/errors.js';
 import type { AutomationActor } from '../domain/bindings.js';
@@ -18,7 +19,7 @@ export async function previewSnapshot(ports: AutomationPorts, actor: AutomationA
   if (input.mode === 'currentState' && scopeRole && inspected.resolutions[scopeRole]?.status !== 'valid')
     throw new AutomationError('automation_binding_unavailable', 'Current-state scope is unavailable; sampling cannot widen to the collection.');
   const sample = input.mode === 'currentState' ? await ports.sample(actor, input.rule.definition, inspected.binding.values)
-    : { events: input.events!, truncated: false, revisions: {} };
+    : { events: input.events!, truncated: false, revisions: {}, urls: undefined };
   if (sample.events.some((event) => event.collectionId !== inspected.collection.id)) throw new AutomationError('invalid_request', 'Supplied facts must belong to the explicit rule scope.');
   const settings = await ports.settings.get(actor.accountId);
   const bindings = bindingResolutionSignature(inspected.resolutions);
@@ -70,8 +71,8 @@ export async function previewRule(ports: AutomationPorts, actor: AutomationActor
     plannedRunCount: plans.filter(plan => plansRun(plan, input.rule.definition.tasks.length > 0)).length,
     remainderCount: 0, completeHistory: false, truncated: snapshot.truncated };
   if(input.rule.definition.trigger.mode==='countBatch'){
-    const matched=result.plannedRunCount,count=input.rule.definition.trigger.count;
-    result.plannedRunCount=Math.floor(matched/count);result.remainderCount=matched%count;
+    const members=snapshot.events.filter((_,i)=>plansRun(plans[i]!,input.rule.definition.tasks.length>0));
+    Object.assign(result,estimateCountMembers(input.rule.definition.trigger,members.map(event=>({event,url:snapshot.urls?.[event.nodeId]}))));
     result.diagnostics.push({code:'batchSnapshotOnly',severity:'info',location:'/rule/definition/trigger',message:'Batch estimate over supplied/current members only; persisted live remainder is never recounted or consumed by preview.'});
   }
   if (!snapshot.collection.currentOwner) result.diagnostics.push({ code: 'ownerRequired', severity: 'warning', location: '/rule/definition/scope',

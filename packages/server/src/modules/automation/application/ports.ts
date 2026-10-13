@@ -11,9 +11,8 @@ export interface RuleStore {
   setState(ownerId: string, rule: StoredRule): Promise<void>;
 }
 export interface StoredPreview { id: string; configDigest: string; input: PreviewInput; result: PreviewResult; expiresAt: Date }
-export interface CurrentSample { events: EventFacts[]; truncated: boolean; revisions: Record<string, string> }
+export interface CurrentSample { urls?: Record<string, string>; events: EventFacts[]; truncated: boolean; revisions: Record<string, string> }
 export type ActivationTransition = { kind: 'disable'; resetAggregation?: boolean } | { kind: 'resume' } | { kind: 'enable'; collectionId: string; afterOrdinal: string };
-
 export interface AutomationPorts {
   outputs?: import('./run-output-service.js').RunOutputStore;
   runOnce?: import('./run-once-service.js').RunOnceService;
