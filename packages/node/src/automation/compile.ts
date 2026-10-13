@@ -1,14 +1,13 @@
 import { validateAutomation, type ContractIssue } from './schema.js';
 import { normalizeHost } from './normalize.js';
 import { evaluatePredicate, type PredicateDecision, type EvaluationOptions } from './predicate.js';
-import type { Predicate } from './types.generated.js';
+import type { Predicate, RuleDefinition } from './types.generated.js';
 
-export type CompiledPredicate = { valid: true; dependencies: string[]; evaluate: (facts: unknown, options?: EvaluationOptions) => PredicateDecision }
+export type CompiledPredicate = { valid: true; normalizedPredicate: Predicate; dependencies: string[]; evaluate: (facts: unknown, options?: EvaluationOptions) => PredicateDecision }
   | { valid: false; issues: ContractIssue[] };
 export function compilePredicate(value: unknown): CompiledPredicate {
   const shape = validateAutomation('Predicate', value);
   if (!shape.valid) return shape;
-  if (new TextEncoder().encode(JSON.stringify(value)).byteLength > 4096) return { valid: false, issues: [{ path: '/match', code: 'predicateLimit', message: 'Expression exceeds the 4096-byte finite profile limit.' }] };
   const predicate = structuredClone(value) as Predicate;
   const issues: ContractIssue[] = [];
   const dependencies = new Set<string>();
@@ -39,5 +38,13 @@ export function compilePredicate(value: unknown): CompiledPredicate {
   };
   walk(predicate, 1, '/match');
   if (issues.length) return { valid: false, issues: issues.slice(0, 100) };
-  return { valid: true, dependencies: [...dependencies].sort(), evaluate: (facts, options) => evaluatePredicate(predicate, facts, options) };
+  return { valid: true, normalizedPredicate: structuredClone(predicate), dependencies: [...dependencies].sort(), evaluate: (facts, options) => evaluatePredicate(predicate, facts, options) };
+}
+
+/** Uses exactly the evaluator's normalization; never mutates the caller's definition. */
+export function normalizeRuleDefinition(definition: RuleDefinition): RuleDefinition {
+  const normalized = structuredClone(definition);
+  const compiled = compilePredicate(normalized.match);
+  if (compiled.valid) normalized.match = compiled.normalizedPredicate;
+  return normalized;
 }

@@ -32,8 +32,8 @@ test('typed operators and boolean profile are bounded', () => {
   const branch = { kind: 'all', items: Array.from({ length: 32 }, () => field('bookmark.kind', 'eq', 'bookmark')) };
   expect(compilePredicate({ kind: 'all', items: Array.from({ length: 4 }, () => branch) }).valid).toBe(false);
 });
-test('encoded expression size is enforced as advertised', () => {
-  expect(compilePredicate(field('bookmark.title', 'in', Array(30).fill('x'.repeat(200)))).valid).toBe(false);
+test('review: finite predicates permitted by the reviewed schema are not given an extra byte cap', () => {
+  expect(compilePredicate(field('bookmark.title', 'in', Array(30).fill('x'.repeat(200)))).valid).toBe(true);
 });
 test('boolean decisions and CPU exhaustion isolate one invocation', () => {
   const compiled = compilePredicate({ kind: 'all', items: [field('bookmark.kind', 'eq', 'bookmark'), field('event.origin', 'in', ['user'])] });
@@ -44,4 +44,14 @@ test('boolean decisions and CPU exhaustion isolate one invocation', () => {
   expect(compiled.evaluate(facts).outcome).toBe('matched');
   expect(decision({ kind: 'not', item: field('bookmark.url.path', 'eq', '/') }, { ...facts, bookmark: { ...facts.bookmark, url: { host: 'e.org' } } })).toBe('missingInput');
   for (let i = 0; i < 10; i++) expect(compiled.evaluate(facts).outcome).toBe('matched');
+});
+
+test('review: compiler snapshots input and keeps its normalized export isolated from evaluation', () => {
+  const input = { kind: 'field' as const, field: 'bookmark.url.host' as const, op: 'eq' as const, value: 'ARXIV.ORG.' };
+  const compiled = compilePredicate(input);
+  expect(compiled.valid).toBe(true); if (!compiled.valid) return;
+  expect(compiled.normalizedPredicate).toMatchObject({ value: 'arxiv.org' });
+  input.value = 'evil.example';
+  if (compiled.normalizedPredicate.kind === 'field') compiled.normalizedPredicate.value = 'evil.example';
+  expect(compiled.evaluate(facts).outcome).toBe('matched');
 });
