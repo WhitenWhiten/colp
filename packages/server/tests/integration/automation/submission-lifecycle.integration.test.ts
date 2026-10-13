@@ -67,13 +67,15 @@ describeWithPostgres('worker submission settlement and pause recovery', () => {
     expect((await sql`SELECT job_id FROM automation_job_attempts WHERE job_id=${job.id} AND outcome='submitted'`.execute(f.db)).rows).toHaveLength(1);
     expect((await sql`SELECT plan_id FROM automation_proposals WHERE job_id=${job.id}`.execute(f.db)).rows).toHaveLength(0);
   });
-  test('unrelated collection edit after approval returns a domain conflict rather than 500', async () => {
+  test('a collection edit before the approved plan commits settles stale rather than 500', async () => {
     f = await automationPollingFixture('review_drift', { trusted: false }); const { job, body } = await claimed();
     const submitted = await work(`/jobs/${job.id}/results`, body); expect(submitted.json().status).toBe('awaitingApproval');
+    // The server applies an approval immediately, so the drift must land between proposal and approval.
+    await f.createNode('unrelated', 'root', 'Unrelated folder');
     const current = await read('/jobs/'+job.id);
     const approved = await f.ownerPost(`/jobs/${job.id}/decision`, { decision: 'approve', proposalDigest: submitted.json().proposalDigest, reason: 'Approve exact proposal' }, String(current.headers.etag));
     expect(approved.statusCode, approved.body).toBe(200);
-    await f.createNode('unrelated', 'root', 'Unrelated folder');
+    expect((await read('/jobs/'+job.id)).json().status).toBe('stale');
     const response = await work(`/jobs/${job.id}/results`, body);
     expect(response.statusCode,response.body).toBe(200); expect(response.json()).toMatchObject({ status: 'stale',effectReceiptIds: [] });
     expect((await work(`/jobs/${job.id}/results`, body)).json()).toEqual(response.json());

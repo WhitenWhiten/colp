@@ -405,6 +405,7 @@ const rootEntryTargets = new Set([
 // Bootstrap composes the process from these concrete public surfaces. This
 // deliberately includes the module aggregate only at its actual entrypoint.
 const bootstrapTargets = new Set([
+  'bootstrap/automation-approval-composition.ts',
   'bootstrap/automation-binding-verifier.ts',
   'modules/automation/index.ts',
   'infrastructure/automation/index.ts',

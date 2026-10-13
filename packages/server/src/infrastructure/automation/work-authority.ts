@@ -6,7 +6,8 @@ export interface WorkJob {
   ready_generation: string; id: string; run_id: string; owner_id: string; rule_id: string; target_id: string; state: string; active_generation: string;
   input_digest: string; input_revision: string; delivery_handle: string; max_calls: number; collection_id: string; node_id: string; rule_daily_cap: number; policy_privacy: 'standard' | 'restricted';
 }
-export type TargetAuthority = (tx: DatabaseTransaction, actor: WorkPrincipal, targetId: string,privacy?: 'standard' | 'restricted') => Promise<void>;
+export type TargetAuthority = (tx: DatabaseTransaction, actor: WorkPrincipal, targetId: string,privacy?: 'standard' | 'restricted',
+  options?: import('./target-worker.js').BindingCheckOptions) => Promise<void>;
 export async function lockWorkJob(tx: DatabaseTransaction, actor: WorkPrincipal, jobId: string, authorize: TargetAuthority, allowPaused = false): Promise<WorkJob> {
   const account = await tx.selectFrom('accounts').select(['subject_id','status','deleted_at']).where('id','=',actor.accountId).forUpdate().executeTakeFirst();
   if (!account || account.subject_id !== actor.subjectId || account.status !== 'active' || account.deleted_at || !actor.scopes.includes('automation:work'))

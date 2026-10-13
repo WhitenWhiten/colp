@@ -136,8 +136,40 @@ describeWithPostgres('AW-31 authenticated polling and typed canonical orchestrat
     expect(stale.statusCode,stale.body).toBe(409);
     const approved = await f.ownerPost(`/jobs/${job.id}/decision`,decision,String(ownerJob.headers.etag));
     expect(approved.statusCode,approved.body).toBe(200);
+    // The server applies the approved proposal itself; the worker never has to resubmit.
+    const applied = await f.app.inject({ url: `/api/v1/me/automations/jobs/${job.id}`,headers: { cookie: f.owner.cookie } });
+    expect(applied.json().status).toBe('succeeded');
+    expect((await sql`SELECT id FROM automation_effect_receipts WHERE job_id=${job.id}`.execute(f.db)).rows).toHaveLength(1);
     const accepted = await post(`/jobs/${job.id}/results`,body);expect(accepted.statusCode,accepted.body).toBe(200);expect(accepted.json().status).toBe('succeeded');
     expect(await f.db.selectFrom('mcp_change_plans').select('plan_id').execute()).toHaveLength(1);
+    expect((await sql`SELECT id FROM automation_effect_receipts WHERE job_id=${job.id}`.execute(f.db)).rows).toHaveLength(1);
+  });
+  async function awaitingApproval(prefix: string) {
+    await setup(prefix);await writeAgentPolicy(f.db,f.owner.accountId,f.actor.clientId,'manual');
+    const job = (await read('/jobs')).json().items[0],inputs = (await read(`/jobs/${job.id}/inputs?deliveryHandle=${job.deliveryHandle}`)).json().items;
+    const lease = (await post(`/jobs/${job.id}/claim`,{ deliveryHandle: job.deliveryHandle })).json();
+    const submitted = await post(`/jobs/${job.id}/results`,{ claimToken: lease.claimToken,generation: lease.generation,inputDigest: lease.inputDigest,outputContract: job.task.outputContract,
+      output: { kind: 'text',textType: 'summary',text: 'Converging summary',language: 'en',evidence: [{ kind: 'source',reference: inputs[0].sourceEventId,observedAt: new Date().toISOString() }] } });
+    expect(submitted.json().status).toBe('awaitingApproval');
+    const owner = (path: string) => f.app.inject({ url: '/api/v1/me/automations'+path,headers: { cookie: f.owner.cookie } });
+    return { job,submitted: submitted.json(),owner };
+  }
+  test('an approval for a revoked worker is retained for review instead of stranding the run',async () => {
+    const { job,submitted,owner } = await awaitingApproval('aw31_revoked_approval');
+    expect((await f.revokeWorker()).kind).toBe('succeeded');
+    const current = await owner('/jobs/'+job.id);
+    const approved = await f.ownerPost(`/jobs/${job.id}/decision`,{ decision: 'approve',proposalDigest: submitted.proposalDigest,reason: 'Approve after revocation' },String(current.headers.etag));
+    expect(approved.statusCode,approved.body).toBe(200);
+    expect((await owner('/jobs/'+job.id)).json().status).toBe('review');
+    expect((await owner('/runs/'+job.runId)).json().status).not.toBe('running');
+    expect((await sql`SELECT id FROM automation_effect_receipts WHERE job_id=${job.id}`.execute(f.db)).rows).toEqual([]);
+  });
+  test('the maintenance sweep settles an expired plan without the original worker',async () => {
+    const { job,owner } = await awaitingApproval('aw31_expired_sweep');
+    await sql`UPDATE mcp_change_plans SET status='expired' WHERE plan_id=(SELECT plan_id FROM automation_proposals WHERE job_id=${job.id})`.execute(f.db);
+    expect(await f.approvals!.sweep(f.owner.accountId)).toBe(1);
+    expect((await owner('/jobs/'+job.id)).json().status).toBe('review');
+    expect(await f.approvals!.sweep(f.owner.accountId)).toBe(0);
   });
   test('expired leases stay uncertain until Owner retry and retain original pins, cost and generation fencing',async () => {
     await setup('aw31_retry',{ maxCalls: 2 });

@@ -1,7 +1,7 @@
 import { createWebhookVerifier } from '../infrastructure/automation/index.js';
 import { createSubscriptionStore } from '../infrastructure/automation/index.js';
 import { createMcpEventsAdapter } from '../modules/mcp/index.js';
-import { createAutomationUnitOfWork,createAutomationWorkerService,createResultSubmissionPort,createProposalPlanGateway,createTargetWorkerService } from '../infrastructure/automation/index.js';
+import { createAutomationUnitOfWork,createAutomationWorkerService,createResultSubmissionPort,createProposalPlanGateway,createTargetWorkerService,createApprovedProposalApplier } from '../infrastructure/automation/index.js';
 import { createAutomationBindingVerifier } from './automation-binding-verifier.js';
 import { AutomationError } from '../modules/automation/index.js';
 import { createLocalIssuerJwks } from '../infrastructure/auth/local-issuer-jwks.js';
@@ -57,6 +57,7 @@ import { settleBestEffort } from '../infrastructure/async/best-effort.js';
 
 export interface ApiMcpSurfaceComposition {
   readonly automationWorker?: import('../modules/automation/index.js').AutomationWorkerService;
+  readonly automationApprovals?: import('../modules/automation/index.js').ApprovedProposalApplier;
   readonly automationTargetWorker?: ReturnType<typeof createTargetWorkerService>;
   readonly mcpCollectionResourceCursorKeys: ReturnType<typeof createPhase4bMcpCollectionResourceCursorKeyring> | undefined;
   readonly mcpChangeSignalSource: ReturnType<typeof createPostgresMcpChangeSignalSource> | undefined;
@@ -362,6 +363,7 @@ export async function composeApiMcpSurface(input: {
   }
   return {
     ...(automationWorker ? { automationWorker } : {}),
+    ...(automationResults ? { automationApprovals: createApprovedProposalApplier(database.db,config.publication.serverUuid,automationResults) } : {}),
     mcpCollectionResourceCursorKeys,
     mcpChangeSignalSource,
     mcpReadResourceProjection,

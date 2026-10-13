@@ -25,7 +25,9 @@ export function createResultSubmissionPort(db: Kysely<DatabaseSchema>, serverUui
     guard(tx: DatabaseTransaction, planId: string): Promise<void>;
 } {
     const proposal = async (tx: Kysely<DatabaseSchema>, jobId: string) => (await sql<PinnedProposal> `SELECT * FROM automation_proposals WHERE job_id=${jobId}`.execute(tx)).rows[0];
-    const currentInputs = (tx: DatabaseTransaction, actor: WorkPrincipal, jobId: string, allowPaused = false) => currentWorkInputs(tx, actor, jobId, serverUuid, authorize, allowPaused);
+    // A pinned proposal only needs an unrevoked worker binding, not a live token (commit guard and server-applied approvals).
+    const pinnedAuthorize: TargetAuthority = (tx, actor, targetId, privacy) => authorize(tx, actor, targetId, privacy, { allowExpiredObservation: true });
+    const currentInputs = (tx: DatabaseTransaction, actor: WorkPrincipal, jobId: string, allowPaused = false, authority: TargetAuthority = authorize) => currentWorkInputs(tx, actor, jobId, serverUuid, authority, allowPaused);
     return {
         task: (actor, id) => db.transaction().execute(async (tx) => {
             await lockWorkJob(tx, actor, id, authorize, true);
@@ -162,7 +164,8 @@ export function createResultSubmissionPort(db: Kysely<DatabaseSchema>, serverUui
             await sql `INSERT INTO automation_proposals(job_id,result_id,plan_id,command_id,binding_json,operations_json,base_revisions_json,allow_automatic_writes)
         VALUES(${id},${resultId},${planId},${commandId},${JSON.stringify(binding)}::jsonb,${JSON.stringify([operation])}::jsonb,${JSON.stringify(revisions)}::jsonb,${policy.configuration_json.allowAutomaticWrites})`.execute(tx);
         }),
-        async reconcile(actor, id) {
+        async reconcile(actor, id, reconcileOptions = {}) {
+            const authority = reconcileOptions.serverApply ? pinnedAuthorize : authorize;
             // Authorization is checked before attempting new effects; a committed plan is only linked, never reexecuted.
             const p = await proposal(db, id);
             let advanced: Awaited<ReturnType<ProposalPlanGateway['advance']>> | undefined;
@@ -179,13 +182,13 @@ export function createResultSubmissionPort(db: Kysely<DatabaseSchema>, serverUui
                 else
                     try {
                         const mayCommit = await db.transaction().execute(async (tx) => {
-                            const job = await lockWorkJob(tx, actor, id, authorize, true);
+                            const job = await lockWorkJob(tx, actor, id, authority, true);
                             if (!['committing', 'awaitingApproval'].includes(job.state))
                                 return false;
                             const paused = await tx.selectFrom('automation_settings').select('paused').where('owner_id', '=', actor.accountId).executeTakeFirst();
                             if (paused?.paused)
                                 return false;
-                            await currentInputs(tx, actor, id);
+                            await currentInputs(tx, actor, id, false, authority);
                             return true;
                         });
                         if (mayCommit)
@@ -201,7 +204,7 @@ export function createResultSubmissionPort(db: Kysely<DatabaseSchema>, serverUui
                     await options.afterCanonicalCommit?.();
             }
             return db.transaction().execute(async (tx) => {
-                const job = await lockWorkJob(tx, actor, id, authorize, true), result = (await sql<ResultRow> `SELECT * FROM automation_results WHERE job_id=${id}`.execute(tx)).rows[0];
+                const job = await lockWorkJob(tx, actor, id, authority, true), result = (await sql<ResultRow> `SELECT * FROM automation_results WHERE job_id=${id}`.execute(tx)).rows[0];
                 if (!result)
                     throw new AutomationError('resource_not_found', 'Result is unavailable.');
                 // A concurrent reconciler may have committed before our failure was recorded.
@@ -238,7 +241,7 @@ export function createResultSubmissionPort(db: Kysely<DatabaseSchema>, serverUui
             const account = await tx.selectFrom('accounts').select('subject_id').where('id', '=', p.binding_json.principalId).executeTakeFirstOrThrow();
             const actor: WorkPrincipal = { accountId: p.binding_json.principalId, subjectId: account.subject_id, clientId: p.binding_json.clientId,
                 credentialBindingId: p.binding_json.credentialBindingId, scopes: ['automation:work'], resourceAudience: p.binding_json.resourceAudience, securityEpoch: p.binding_json.securityEpoch };
-            const { pin, job } = await currentInputs(tx, actor, p.job_id);
+            const { pin, job } = await currentInputs(tx, actor, p.job_id, false, pinnedAuthorize);
             if (!['committing', 'awaitingApproval'].includes(job.state))
                 throw new AutomationError('automation_stale_input', 'The proposal is no longer eligible for canonical effects.');
             const operation = p.operations_json[0];

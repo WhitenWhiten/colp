@@ -7,28 +7,34 @@ import { AutomationError,parseContract,type WorkPrincipal } from '../../modules/
 import { canonicalCommandFingerprint,type ProductCommandClaim } from '../../modules/commands/index.js';
 import type { DatabaseSchema } from '../database/runtime.js';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
+import type { TargetAuthority } from './work-authority.js';
 import { createPostgresProductCommandReceiptPort } from '../database/product-command-receipt.js';
 import { claimTokenHash } from './lease-store.js';
 import { createTargetStore,type ProfileRow,type TargetRow } from './target-store.js';
 
-export type CurrentBindingVerifier = (tx: DatabaseTransaction,actor: WorkPrincipal) => Promise<{ dedicated: boolean }>;
+/**
+ * allowExpiredObservation: the pinned-proposal path (guard, server-applied approvals) only needs the worker to be
+ * unrevoked, not online; revocation, epochs and profile binding are still checked.
+ */
+export interface BindingCheckOptions { allowExpiredObservation?: boolean }
+export type CurrentBindingVerifier = (tx: DatabaseTransaction,actor: WorkPrincipal,options?: BindingCheckOptions) => Promise<{ dedicated: boolean }>;
 export type PairingCommandOutcome = { kind: 'succeeded'; target: Target } | Exclude<ProductCommandClaim,{ kind: 'claimed' }>;
 export interface TargetWorkerService {
   access(actor: WorkPrincipal): Promise<AutomationProfileAccess | null>;
   profile(tx: DatabaseTransaction,actor: WorkPrincipal): Promise<ProfileRow>;
-  authorize(tx: DatabaseTransaction,actor: WorkPrincipal,targetId: string,privacy?: 'standard' | 'restricted'): Promise<void>;
+  authorize: TargetAuthority;
   pair(actor: WorkPrincipal,body: unknown,commandId?: string): Promise<PairingCommandOutcome>;
 }
 export function createTargetWorkerService(db: Kysely<DatabaseSchema>,verifyBinding: CurrentBindingVerifier,
   admitPairing: (actor: WorkPrincipal) => Promise<void>): TargetWorkerService {
-  const profile = async (tx: DatabaseTransaction,actor: WorkPrincipal): Promise<ProfileRow> => {
+  const profile = async (tx: DatabaseTransaction,actor: WorkPrincipal,options: BindingCheckOptions = {}): Promise<ProfileRow> => {
     if (!actor.scopes.includes('automation:work')) throw unavailable();
     const row = (await sql<ProfileRow>`SELECT p.* FROM automation_connection_profiles p JOIN accounts a ON a.id=p.owner_id
       WHERE p.owner_id=${actor.accountId} AND a.subject_id=${actor.subjectId} AND a.status='active' AND a.deleted_at IS NULL
       AND p.configuration_json->>'authorizedClientId'=${actor.clientId} AND p.configuration_json->>'credentialBindingId'=${actor.credentialBindingId}
       AND p.configuration_json->>'automationEnabled'='true' AND p.configuration_json->'catalogs' ? 'automationWorker'`.execute(tx)).rows[0];
     if (!row) throw unavailable();
-    await verifyBinding(tx,actor);
+    await verifyBinding(tx,actor,options);
     // Refresh token-free observations only after the current credential passed all
     // checks. Background health/delivery must not keep using the pairing token.
     if (actor.credentialDigest && actor.expiresAt) {
@@ -38,13 +44,13 @@ export function createTargetWorkerService(db: Kysely<DatabaseSchema>,verifyBindi
     }
     return row;
   };
-  const authorize = async (tx: DatabaseTransaction,actor: WorkPrincipal,targetId: string,privacy?: 'standard' | 'restricted'): Promise<void> => {
-    const current = await profile(tx,actor);
+  const authorize = async (tx: DatabaseTransaction,actor: WorkPrincipal,targetId: string,privacy?: 'standard' | 'restricted',options: BindingCheckOptions = {}): Promise<void> => {
+    const current = await profile(tx,actor,options);
     const target = (await sql<TargetRow>`SELECT * FROM automation_targets WHERE id=${targetId} AND owner_id=${actor.accountId}
       AND profile_id=${current.id} AND paired AND NOT revoked`.execute(tx)).rows[0];
     if (!target) throw unavailable();
     if (target.configuration_json.privacy === 'restricted' || privacy === 'restricted') {
-      const binding = await verifyBinding(tx,actor);
+      const binding = await verifyBinding(tx,actor,options);
       const count = (await sql<{ count: number }>`SELECT count(*)::int AS count FROM automation_targets WHERE owner_id=${actor.accountId} AND profile_id=${current.id} AND NOT revoked`.execute(tx)).rows[0]!.count;
       if (!binding.dedicated || !target.dedicated_binding || count !== 1) throw unavailable();
     }

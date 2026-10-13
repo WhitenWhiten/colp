@@ -10,7 +10,7 @@ import type { AppConfig } from './config.js';
 /** Reuses the credential authority/epoch machinery. No bearer or new authentication class. */
 export function createAutomationBindingVerifier(config: AppConfig,securityEpoch: () => Promise<string>): CurrentBindingVerifier {
   const machine = config.accountCredentials.enabled ? createGrantMachineBindingPort(config,securityEpoch) : null;
-  return async (tx,actor) => {
+  return async (tx,actor,options = {}) => {
     const currentEpoch = await securityEpoch();
     if (actor.securityEpoch !== currentEpoch || !actor.resourceAudience) throw unavailable();
     const credential = await tx.selectFrom('account_credentials').select('id').where('mcp_client_id','=',actor.clientId).executeTakeFirst();
@@ -33,7 +33,7 @@ export function createAutomationBindingVerifier(config: AppConfig,securityEpoch:
     const digest = actor.credentialDigest ?? stored?.credentialDigest,expiresAt = actor.expiresAt ?? stored?.expiresAt,issued = actor.issuedAtSeconds ?? stored?.issuedAtSeconds;
     if (typeof digest !== 'string' || typeof expiresAt !== 'string' || typeof issued !== 'number' || !Number.isSafeInteger(issued)) throw unavailable();
     const verdict = (await sql<{ revoked: boolean }>`SELECT (
-      ${expiresAt}::timestamptz<=clock_timestamp()
+      ${options.allowExpiredObservation ? sql`false` : sql`${expiresAt}::timestamptz<=clock_timestamp()`}
       OR EXISTS(SELECT 1 FROM mcp_oauth_revocations WHERE credential_digest=${digest})
       OR EXISTS(SELECT 1 FROM mcp_oauth_client_revocations WHERE client_id_digest=${digestMcpOauthRevocationField(actor.clientId)})
       OR EXISTS(SELECT 1 FROM mcp_oauth_subject_revocations WHERE client_id_digest=${digestMcpOauthRevocationField(actor.clientId)}

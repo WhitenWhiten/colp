@@ -32,6 +32,8 @@ export interface AutomationRoute {
   method: 'GET' | 'POST' | 'PUT' | 'DELETE'; path: string; ifMatch?: boolean; query?: readonly string[]; noBody?: boolean;
   authorizeReplay?(context: AutomationRouteContext,body: Uint8Array): Promise<void>;
   action(context: AutomationRouteContext): Promise<AutomationResponse>;
+  /** Runs after the command transaction committed (never on replay); failures are logged, the command result stands. */
+  afterCommit?(context: { actor: AutomationActor; request: FastifyRequest }, response: AutomationResponse): Promise<void>;
 }
 const BASE = '/api/v1/me/automations';
 const id = (request: FastifyRequest, name: string): string => {
@@ -126,6 +128,8 @@ function registerAutomationRoute(app: FastifyInstance, deps: AutomationRoutesDep
         });
         if ('claim' in result) return replay(reply, result.claim!);
         const response = result.response!;
+        if (route.afterCommit) await route.afterCommit({ actor, request }, response).catch((error: unknown) =>
+          request.log.warn({ err: error, route: url }, 'automation post-commit step failed; the maintenance sweep retries it'));
         if (response.etag) reply.header('etag', response.etag);
         return reply.code(response.status ?? 200).header('cache-control', 'private, no-store').send(response.body);
       } catch (error) {

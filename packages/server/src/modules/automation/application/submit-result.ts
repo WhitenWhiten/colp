@@ -6,7 +6,8 @@ import type { WorkPrincipal } from './claim-job.js';
 export interface ResultSubmissionPort {
   task(actor: WorkPrincipal,jobId: string): Promise<{ task: TaskSpec; sourceReferences: string[] }>;
   prepare(actor: WorkPrincipal,jobId: string,input: SubmitResultInput,proposalDigest: string): Promise<void>;
-  reconcile(actor: WorkPrincipal,jobId: string): Promise<SubmissionResult>;
+  /** serverApply: the server applies an Owner-approved pinned proposal; the worker need not be online. */
+  reconcile(actor: WorkPrincipal,jobId: string,options?: { serverApply?: boolean }): Promise<SubmissionResult>;
 }
 /** Validate the closed output and each evidence group before persisting a proposal or effect. */
 export async function submitResult(port: ResultSubmissionPort,actor: WorkPrincipal,jobId: string,body: unknown): Promise<SubmissionResult> {

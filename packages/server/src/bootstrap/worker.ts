@@ -7,6 +7,7 @@ import { createAutomationIngestRoute, automationIngestRegistration, automationRe
 import { createAutomationSourceInspector, createAutomationRuntime, setAutomationCaptureEnabled } from '../infrastructure/automation/index.js';
 import { createAutomationHealthMonitor } from '../infrastructure/automation/index.js';
 import { createAutomationBindingVerifier } from './automation-binding-verifier.js';
+import { createWorkerApprovalApplier } from './automation-approval-composition.js';
 import { createMcpSecurityEpochReader } from './api-mcp-oauth-composition.js';
 import { createPostgresMcpOauthRevocationStore } from '../infrastructure/database/index.js';
 import { createDatabaseFaviconStore } from '../infrastructure/collections/index.js';
@@ -400,6 +401,7 @@ export function buildWorker(
     ? createDeliveryWorker(database.db,createTargetWorkerService(database.db,
       createAutomationBindingVerifier(config,createMcpSecurityEpochReader(config,createPostgresMcpOauthRevocationStore({ db: database.db }))),async () => {}).authorize,
       createWebhookVerifier(config.automationWebhookMasterKey)) : undefined;
+  const automationApprovals = database ? createWorkerApprovalApplier(config, database.db, metrics) : undefined;
   let retentionAfter = '';
   // Capture alone (shadow mode) still needs the facts retention sweep.
   const automationMaintenance = (config.automationRulesEnabled || config.automationCaptureEnabled) && database
@@ -412,6 +414,8 @@ export function buildWorker(
         retentionAfter=owner.id;
         await retainAutomationHistory(database.db,owner.id,config.mcpWriteEnabled === true);
         if(config.automationWorkEnabled)await resumeOwnerBudgets(database.db,owner.id);
+        // Decided, expired or cancelled proposals converge without the worker that produced them.
+        await automationApprovals?.sweep(owner.id);
       },
       onError(kind) {metrics.increment(`automation.${kind}.error`);},
     }) : undefined;
