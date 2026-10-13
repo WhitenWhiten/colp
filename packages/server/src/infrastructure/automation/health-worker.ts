@@ -19,6 +19,11 @@ export function createAutomationHealthMonitor(db: Kysely<DatabaseSchema>, server
     for (const reason of new Set(report.incidents.map((incident) => incident.code))) metrics?.increment(`automation.health.reason.${reason}`);
     metrics?.gauge('automation.runtime.ready', runtimeEnabled ? 1 : 0);
   };
+  // Health is advisory: one rule that cannot be revalidated must not stop the others, startup or the
+  // core projection it rides on. Its health is recomputed on the next relevant mutation or start.
+  const revalidateIsolated = async (ownerId: string, ruleId: string) => {
+    try { await revalidate(ownerId, ruleId); } catch { metrics?.increment('automation.health.error'); }
+  };
   const onCollectionMutation = async (delivery: CollectionMutationDelivery) => {
     const payload = delivery.payload && typeof delivery.payload === 'object' ? delivery.payload as Record<string, unknown> : {};
     const ids = [delivery.aggregateId, payload.nodeId, payload.parentId, payload.oldParentId, payload.newParentId].filter((id): id is string => typeof id === 'string');
@@ -33,7 +38,7 @@ export function createAutomationHealthMonitor(db: Kysely<DatabaseSchema>, server
       affected.push(...rows.map((row) => ({ ownerId: row.owner_id, ruleId: row.id })));
     }
     const unique = new Map(affected.map((rule) => [rule.ruleId, rule]));
-    for (const rule of unique.values()) await revalidate(rule.ownerId, rule.ruleId);
+    for (const rule of unique.values()) await revalidateIsolated(rule.ownerId, rule.ruleId);
   };
   return {
     async revalidateAll() {
@@ -42,14 +47,18 @@ export function createAutomationHealthMonitor(db: Kysely<DatabaseSchema>, server
         let query = db.selectFrom('automation_rules').select(['id', 'owner_id']).orderBy('id').limit(100);
         if (after !== null) query = query.where('id', '>', after);
         const rows = await query.execute();
-        for (const row of rows) await revalidate(row.owner_id, row.id);
+        for (const row of rows) await revalidateIsolated(row.owner_id, row.id);
         if (rows.length < 100) break;
         after = rows.at(-1)!.id;
       }
     },
     onCollectionMutation,
     wrap(sink: CollectionMutationProjectionSink): CollectionMutationProjectionSink {
-      return { durability: sink.durability, async apply(delivery) { await sink.apply(delivery); await onCollectionMutation(delivery); } };
+      return { durability: sink.durability, async apply(delivery) {
+        await sink.apply(delivery);
+        // A failure here would make the outbox retry the core projection that already succeeded.
+        try { await onCollectionMutation(delivery); } catch { metrics?.increment('automation.health.error'); }
+      } };
     },
   };
 }

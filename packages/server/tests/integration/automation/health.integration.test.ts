@@ -1,6 +1,7 @@
 import Fastify from 'fastify';
 import { beforeEach, afterEach, test, expect } from 'vitest';
 import { randomUUID } from 'node:crypto';
+import { sql } from 'kysely';
 import { validateAutomation, type HealthReport, type DependencyReport, type HealthIncident } from '@know-n/colp/automation';
 import { automationFixture } from '../../support/automation-fixture.js';
 import { describeWithPostgres } from '../../support/postgres-test-runtime.js';
@@ -64,6 +65,18 @@ describeWithPostgres('BE-1 dependency monitoring and incident lifecycle', () => 
     const dependencies = (await get(`/rules/${rule.id}/dependencies`)).json();
     expect(validateAutomation('DependencyReport', dependencies).valid).toBe(true);
     expect(dependencies.dependencies.some((dependency: { resourceId: string; kind: string }) => dependency.resourceId === 'parent' && dependency.kind === 'ancestor')).toBe(true);
+  });
+  test('a rule that cannot be revalidated fails neither startup nor the core projection it rides on', async () => {
+    // Fault injection: every revalidation fails while the incident table is unavailable.
+    await f.rename('academic', 'Renamed while unhealthy');
+    await sql`ALTER TABLE automation_incidents RENAME TO automation_incidents_hidden`.execute(f.db);
+    try {
+      const monitor = createAutomationHealthMonitor(f.db, 'server', metrics);
+      await expect(monitor.revalidateAll()).resolves.toBeUndefined();
+      expect(metrics.get('automation.health.error')).toBe(1);
+      await expect(monitor.wrap(new PostgresCollectionMutationProjectionSink(f.isolated.runtime.pool)).apply(await delivery('node.updated'))).resolves.toBeUndefined();
+      expect(metrics.get('automation.health.error')).toBe(2);
+    } finally { await sql`ALTER TABLE automation_incidents_hidden RENAME TO automation_incidents`.execute(f.db); }
   });
   test('canonical rename delivery refreshes label without rebinding or changing semantic revision', async () => {
     await f.rename('academic', 'Renamed Academic');
