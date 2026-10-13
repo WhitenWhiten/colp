@@ -40,7 +40,7 @@ export async function inspectWorkerConfiguration(ports: AutomationPorts,actor: A
       && (config.destinationScope !== 'explicit' || config.allowedDestinations.includes(executor.id));
     tasks.push({ taskId: task.id,available: !!ports.workerEnabled && allowed && target?.wakeReadiness === 'active',
       reason: !ports.workerEnabled ? 'Worker execution is not installed on this host.' : !assignment.available ? assignment.reason : !allowed ? 'An explicit authorized executor/target destination is required.'
-        : target?.wakeReadiness !== 'active' ? 'The current polling target is unavailable.' : 'Explicit worker assignment is available.',
+        : target?.wakeReadiness !== 'active' ? 'The assigned worker target is not ready: it is unpaired, revoked or still waiting for its Events subscription.' : 'Explicit worker assignment is available.',
       executor: executor ? { id: executor.id,configuration: executor.configuration } : null,
       target: target ? { id: target.id,configuration: target.configuration,revision: target.revision,wakeReadiness: target.wakeReadiness } : null });
   }

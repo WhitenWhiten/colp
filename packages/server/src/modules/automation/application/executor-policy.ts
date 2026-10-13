@@ -14,7 +14,7 @@ export async function saveExecutionPolicy(store: ExecutionPolicyStore, body: unk
     'Monetary limits are unavailable: use zero for observation-only cost fields. Call and daily-run caps remain enforced.');
   if (new Set(input.assignments.map(a => a.taskType)).size !== input.assignments.length)
     throw new AutomationError('invalid_request', 'A task type must have exactly one primary assignment.');
-  // This batch installs polling targets only; explicit fallback would otherwise be silently ignored.
+  // Fallback across executors is not implemented; reject it instead of silently ignoring it.
   if (input.assignments.some(a => a.fallbackRoles.length || a.fallbackOn.length))
     throw new AutomationError('automation_unsupported_capability', 'Automatic fallback is unavailable; assign one explicit executor.');
   if (id) {
