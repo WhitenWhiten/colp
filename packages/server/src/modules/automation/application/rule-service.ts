@@ -114,9 +114,9 @@ export async function saveBinding(ports: AutomationPorts, actor: AutomationActor
   await ports.bindings.save(actor.accountId, view);
   for (const rule of await ports.rules.list(actor.accountId, null, 500)) {
     if (rule.view.bindingSetId !== view.id) continue;
+    if (semanticChange) await ports.activation(rule, { kind: 'disable', resetAggregation: true });
     if (rule.view.desiredState === 'enabled' && semanticChange) {
       await ports.pendingRuns(rule.definitionRevisionId, 'hold');
-      await ports.activation(rule, { kind: 'disable' });
       rule.view = { ...rule.view, desiredState: 'paused', effectiveState: 'paused', revision: nextRevision(rule.view.revision), updatedAt: view.updatedAt };
       await ports.rules.setState(actor.accountId, rule);
     }

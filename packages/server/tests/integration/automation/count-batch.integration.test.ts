@@ -1,3 +1,5 @@
+import { up as upgradeAggregation, down as removeAggregationMetadata } from '../../../migrations/202610310000_automation_aggregation_spaces.js';
+import { automationDigest } from '@know-n/colp/automation';
 import { afterEach,expect,test } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { sql } from 'kysely';
@@ -81,4 +83,67 @@ describeWithPostgres('AW-57 exact durable count batches',()=>{
     expect((await sql<{state:string}>`SELECT state FROM automation_jobs`.execute(f.db)).rows[0]?.state).toBe('stale');
     await expect(sql`UPDATE automation_batch_members SET member_json='{}' WHERE run_id IS NOT NULL`.execute(f.db)).rejects.toThrow('immutable');
   });
+  test.each(['label','budget'] as const)('%s edits preserve the unfinished semantic batch',async kind=>{
+    await setup();await add(2,9);
+    if(kind==='budget'){
+      const id=f.ruleInput.executionPolicyId!;
+      const policy=await f.app.inject({url:`/api/v1/me/automations/execution-policies/${id}`,headers:{cookie:f.owner.cookie}});
+      const configuration=policy.json().configuration;configuration.assignments[2].maxCalls=2;
+      const edited=await f.app.inject({method:'PUT',url:`/api/v1/me/automations/execution-policies/${id}`,
+        headers:f.ownerHeaders(undefined,String(policy.headers.etag)),payload:configuration});
+      expect(edited.statusCode,edited.body).toBe(200);
+    }else{
+      const current=await f.app.inject({url:`/api/v1/me/automations/rules/${f.rule.id}`,headers:{cookie:f.owner.cookie}});
+      const input={...f.ruleInput,definition:{...f.ruleInput.definition,name:'Label only'}};
+      const edited=await f.app.inject({method:'PUT',url:`/api/v1/me/automations/rules/${f.rule.id}`,
+        headers:f.ownerHeaders(undefined,String(current.headers.etag)),payload:{...input,pendingRuns:'continuePinned',counterPolicy:'resetOnSemanticChange'}});
+      expect(edited.statusCode,edited.body).toBe(200);
+      const p=await f.ownerPost('/rules/preview',{rule:input,mode:'currentState'});
+      expect((await f.ownerPost(`/rules/${f.rule.id}/lifecycle`,{state:'enabled',pendingRuns:'continuePinned',reason:'Label refresh',activationPreviewId:p.json().previewId},String(edited.headers.etag))).statusCode).toBe(200);
+    }
+    await add(10,10);expect(await runs()).toHaveLength(1);expect(await remainder()).toHaveLength(0);
+    expect((await runs())[0]!.member_ids).toHaveLength(10);
+  });
+
+  test('upgrade recognizes an unfinished legacy numeric-revision partition without replacing its members',async()=>{
+    await setup();await add(2,9);
+    const state=(await sql<{rule_revision_id:string;epoch:string;partition_key:string}>`SELECT rule_revision_id,epoch::text,partition_key FROM automation_aggregate_state`.execute(f.db)).rows[0]!;
+    const legacy=automationDigest({kind:'rule',key:f.rule.id,binding:'1',policy:'1'});
+    // Storage-version fixture: retain exact canonical events and member payloads;
+    // only construct the pre-upgrade partition namespace before running real DDL.
+    await f.db.transaction().execute(async tx=>{
+      const members=(await sql<{distinct_key:string;source_event_id:string;member_json:unknown;created_at:Date}>`DELETE FROM automation_batch_members WHERE rule_revision_id=${state.rule_revision_id} RETURNING *`.execute(tx)).rows;
+      await sql`UPDATE automation_aggregate_state SET partition_key=${legacy} WHERE rule_revision_id=${state.rule_revision_id}`.execute(tx);
+      for(const member of members)await sql`INSERT INTO automation_batch_members(rule_revision_id,epoch,partition_key,distinct_key,source_event_id,member_json,created_at)
+        VALUES(${state.rule_revision_id},${state.epoch}::bigint,${legacy},${member.distinct_key},${member.source_event_id},${JSON.stringify(member.member_json)}::jsonb,${member.created_at})`.execute(tx);
+    });
+    await removeAggregationMetadata(f.db);await upgradeAggregation(f.db);
+    expect(await remainder()).toHaveLength(9);
+    await add(10,10);expect(await runs()).toHaveLength(1);expect(await remainder()).toHaveLength(0);
+    expect((await sql<{partition_key:string}>`SELECT DISTINCT partition_key FROM automation_batch_members`.execute(f.db)).rows).toEqual([{partition_key:legacy}]);
+  });
+
+  test('semantic binding round trips cannot resurrect an abandoned remainder',async()=>{
+    f=await automationPollingFixture('batch_binding_epoch',{configure:(d,p)=>{
+      delete d.intake;d.on='node.created';d.scope={folderRole:'academicRoot',includeDescendants:true};
+      d.trigger={mode:'countBatch',count:2,distinctBy:'node',partition:'rule'};
+      d.tasks[0]!.type='digest.generate';d.tasks[0]!.outputContract='digest.sourced.v1';p.assignments[2]!.taskType='digest.generate';
+    }});
+    await f.createNode('old-member','academic','Old','https://arxiv.org/old');await f.inspect();
+    for(const destination of ['parent','academic']){
+      const binding=await f.app.inject({url:`/api/v1/me/automations/binding-sets/${f.ruleInput.bindingSetId}`,headers:{cookie:f.owner.cookie}});
+      const values=binding.json().values;values.academicRoot.folder.nodeId=destination;
+      const saved=await f.app.inject({method:'PUT',url:`/api/v1/me/automations/binding-sets/${f.ruleInput.bindingSetId}`,
+        headers:f.ownerHeaders(undefined,String(binding.headers.etag)),payload:{name:'Bound folders',values}});
+      expect(saved.statusCode,saved.body).toBe(200);
+      const rule=await f.app.inject({url:`/api/v1/me/automations/rules/${f.rule.id}`,headers:{cookie:f.owner.cookie}});
+      const preview=await f.ownerPost('/rules/preview',{rule:f.ruleInput,mode:'currentState'});
+      expect((await f.ownerPost(`/rules/${f.rule.id}/lifecycle`,{state:'enabled',pendingRuns:'hold',reason:'Changed scope',activationPreviewId:preview.json().previewId},String(rule.headers.etag))).statusCode).toBe(200);
+    }
+    await f.createNode('new-one','academic','One','https://arxiv.org/one');await f.inspect();expect(await runs()).toHaveLength(0);
+    await f.createNode('new-two','academic','Two','https://arxiv.org/two');await f.inspect();expect(await runs()).toHaveLength(1);
+    const members=(await sql<{node_id:string}>`SELECT f.node_id FROM automation_batch_members m JOIN automation_event_facts f ON f.source_event_id=m.source_event_id WHERE m.run_id IS NOT NULL`.execute(f.db)).rows;
+    expect(members.map(m=>m.node_id).sort()).toEqual(['new-one','new-two']);
+  });
+
 });

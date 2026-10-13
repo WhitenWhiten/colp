@@ -100,6 +100,12 @@ export function createAutomationUnitOfWork(db: Kysely<DatabaseSchema>, serverUui
       },
       async activation(rule, transition) {
         if (transition.kind === 'disable') {
+          if (transition.resetAggregation && rule.view.definition.trigger.mode==='countBatch') {
+            await sql`UPDATE automation_aggregation_spaces s SET epoch_floor=greatest(s.epoch_floor,
+              coalesce((SELECT max(a.aggregate_epoch) FROM automation_activations a JOIN automation_aggregation_spaces other
+                ON other.revision_id=a.rule_revision_id WHERE other.space_id=s.space_id),0))+1
+              WHERE s.revision_id=${rule.definitionRevisionId}`.execute(tx);
+          }
           const active = await tx.selectFrom('automation_activations').selectAll().where('rule_revision_id', '=', rule.definitionRevisionId)
             .where('disabled_after_ordinal', 'is', null).orderBy('collection_id').execute();
           for (const pin of active) {
@@ -121,8 +127,10 @@ export function createAutomationUnitOfWork(db: Kysely<DatabaseSchema>, serverUui
         const generations = await tx.selectFrom('automation_activations').select(sql<string>`coalesce(max(generation),0)::text`.as('generation'))
           .where('rule_revision_id', '=', rule.definitionRevisionId).executeTakeFirstOrThrow();
         const generation = (BigInt(generations.generation) + 1n).toString();
-        const priorEpoch=rule.view.definition.trigger.mode==='countBatch' ? await tx.selectFrom('automation_activations').select('aggregate_epoch')
-          .where('rule_revision_id','=',rule.definitionRevisionId).orderBy('generation','desc').executeTakeFirst() : undefined;
+        const priorEpoch=rule.view.definition.trigger.mode==='countBatch' ? (await sql<{aggregate_epoch:string}>`
+          SELECT greatest(s.epoch_floor,coalesce((SELECT max(a.aggregate_epoch) FROM automation_activations a
+            JOIN automation_aggregation_spaces other ON other.revision_id=a.rule_revision_id WHERE other.space_id=s.space_id),0))::text AS aggregate_epoch
+          FROM automation_aggregation_spaces s WHERE s.revision_id=${rule.definitionRevisionId}`.execute(tx)).rows[0] : undefined;
         await tx.insertInto('automation_activations').values({ rule_revision_id: rule.definitionRevisionId, collection_id: collectionId, generation,
           after_ordinal: afterOrdinal, disabled_after_ordinal: null, aggregate_epoch: priorEpoch?.aggregate_epoch ?? generation }).execute();
       },

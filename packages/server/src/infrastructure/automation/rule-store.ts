@@ -1,3 +1,4 @@
+import { aggregationSemanticDigest } from './aggregation-semantics.js';
 import { touchAutomationConfiguration } from './configuration-epoch.js';
 import { sql, type Kysely } from 'kysely';
 import { ruleSemanticDigest, type Rule } from '@know-n/colp/automation';
@@ -26,9 +27,16 @@ export function createRuleStore(db: Kysely<DatabaseSchema>, runtimeEnabled = fal
       const { view } = rule;
       if (view.revision === '1') await db.insertInto('automation_rules').values({ id: view.id, owner_id: ownerId, current_revision_id: null,
         desired_state: view.desiredState, created_at: new Date(view.createdAt), updated_at: new Date(view.updatedAt) }).execute();
+      const previous = await this.load(ownerId, view.id);
+      const sameAggregation = previous && previous.view.bindingSetId === view.bindingSetId
+        && aggregationSemanticDigest(previous.view.definition) === aggregationSemanticDigest(view.definition);
+      const priorSpace = sameAggregation ? (await sql<{space_id:string;epoch_floor:string}>`SELECT space_id,epoch_floor::text FROM automation_aggregation_spaces
+        WHERE revision_id=${previous.definitionRevisionId}`.execute(db)).rows[0] : undefined;
+      const space = priorSpace?.space_id ?? (sameAggregation ? previous.definitionRevisionId : rule.definitionRevisionId);
       await db.insertInto('automation_rule_revisions').values({ id: rule.definitionRevisionId, rule_id: view.id, owner_id: ownerId,
         revision: rule.definitionRevision, definition_json: view.definition, binding_set_id: view.bindingSetId,
         execution_policy_id: view.executionPolicyId ?? null, template_ref: view.templateRef ?? null, semantic_digest: ruleSemanticDigest(view.definition) }).execute();
+      await sql`INSERT INTO automation_aggregation_spaces(revision_id,space_id,epoch_floor) VALUES(${rule.definitionRevisionId},${space},${priorSpace?.epoch_floor ?? '1'}::bigint)`.execute(db);
       await db.updateTable('automation_rules').set({ current_revision_id: rule.definitionRevisionId, state_revision: view.revision,
         desired_state: view.desiredState, updated_at: new Date(view.updatedAt) }).where('id', '=', view.id).where('owner_id', '=', ownerId).execute();
       await touchAutomationConfiguration(db, ownerId);
