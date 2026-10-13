@@ -18142,6 +18142,152 @@ paths:
       x-known-feature-gate: automation_configuration
       security:
         - cookieAuth: []
+  /api/v1/me/automations/runs/{runId}/outputs:
+    get:
+      operationId: listAutomationRunOutputs
+      tags:
+        - Automation
+      summary: Read accepted run-level text outputs in stable cursor order
+      description: Read accepted run-level text outputs in stable cursor order; apply the existing authentication, authorization, idempotency and no-store rules. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+      x-delivery-phase: M3
+      parameters:
+        - in: path
+          name: runId
+          required: true
+          schema:
+            type: string
+            maxLength: 128
+            minLength: 1
+            pattern: ^[A-Za-z0-9._~-]+$
+        - $ref: '#/components/parameters/AutomationCursor'
+        - $ref: '#/components/parameters/AutomationLimit'
+      responses:
+        '200':
+          description: Successful response; inspect the returned state, not merely the HTTP status.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+            X-Request-Id:
+              schema:
+                type: string
+                maxLength: 128
+                minLength: 1
+                pattern: ^[A-Za-z0-9._~-]+$
+            ETag:
+              schema:
+                type: string
+                maxLength: 160
+              description: Strong ETag for this automation resource.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutomationRunOutputPage'
+        '400':
+          $ref: '#/components/responses/Automation400'
+        '401':
+          $ref: '#/components/responses/Automation401'
+        '403':
+          $ref: '#/components/responses/Automation403'
+        '404':
+          $ref: '#/components/responses/Automation404'
+        '409':
+          $ref: '#/components/responses/Automation409'
+        '412':
+          $ref: '#/components/responses/Automation412'
+        '413':
+          $ref: '#/components/responses/Automation413'
+        '422':
+          $ref: '#/components/responses/Automation422'
+        '428':
+          $ref: '#/components/responses/Automation428'
+        '429':
+          $ref: '#/components/responses/Automation429'
+        '500':
+          $ref: '#/components/responses/Automation500'
+        '503':
+          $ref: '#/components/responses/Automation503'
+      x-known-feature-gate: automation_configuration
+      security:
+        - cookieAuth: []
+  /api/v1/me/automations/runs/{runId}/read:
+    post:
+      operationId: markAutomationRunRead
+      tags:
+        - Automation
+      summary: Mark outputs through a selected ID read without hiding concurrent new output
+      description: Mark outputs through a selected ID read without hiding concurrent new output; apply the existing authentication, authorization, idempotency and no-store rules. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+      x-delivery-phase: M3
+      parameters:
+        - in: path
+          name: runId
+          required: true
+          schema:
+            type: string
+            maxLength: 128
+            minLength: 1
+            pattern: ^[A-Za-z0-9._~-]+$
+        - $ref: '#/components/parameters/AutomationCommandId'
+        - $ref: '#/components/parameters/AutomationCsrf'
+        - $ref: '#/components/parameters/AutomationOrigin'
+        - $ref: '#/components/parameters/AutomationIfMatch'
+      responses:
+        '200':
+          description: Successful response; inspect the returned state, not merely the HTTP status.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+            X-Request-Id:
+              schema:
+                type: string
+                maxLength: 128
+                minLength: 1
+                pattern: ^[A-Za-z0-9._~-]+$
+            ETag:
+              schema:
+                type: string
+                maxLength: 160
+              description: Strong ETag for this automation resource.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutomationOperationReceipt'
+        '400':
+          $ref: '#/components/responses/Automation400'
+        '401':
+          $ref: '#/components/responses/Automation401'
+        '403':
+          $ref: '#/components/responses/Automation403'
+        '404':
+          $ref: '#/components/responses/Automation404'
+        '409':
+          $ref: '#/components/responses/Automation409'
+        '412':
+          $ref: '#/components/responses/Automation412'
+        '413':
+          $ref: '#/components/responses/Automation413'
+        '422':
+          $ref: '#/components/responses/Automation422'
+        '428':
+          $ref: '#/components/responses/Automation428'
+        '429':
+          $ref: '#/components/responses/Automation429'
+        '500':
+          $ref: '#/components/responses/Automation500'
+        '503':
+          $ref: '#/components/responses/Automation503'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AutomationMarkRunReadInput'
+      x-known-feature-gate: automation_configuration
+      security:
+        - cookieAuth: []
   /api/v1/automation-work/pairings/claim:
     post:
       operationId: claimAutomationTargetPairing
@@ -23083,6 +23229,54 @@ components:
         - previewDigest
       additionalProperties: false
       description: Start exactly the unexpired persisted preview snapshot, bound to owner, rule, bindings, policy, member IDs/revisions and options. Request command ID supplies idempotency. Changed inputs require a fresh preview, never silent re-query.
+    AutomationRunOutputPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AutomationRunOutputView'
+          maxItems: 100
+        nextCursor:
+          anyOf:
+            - type: string
+              minLength: 1
+              maxLength: 2048
+            - type: 'null'
+      required:
+        - items
+        - nextCursor
+      additionalProperties: false
+    AutomationRunOutputView:
+      type: object
+      properties:
+        id:
+          $ref: '#/components/schemas/AutomationOpaqueId'
+        jobId:
+          $ref: '#/components/schemas/AutomationOpaqueId'
+        targetId:
+          $ref: '#/components/schemas/AutomationOpaqueId'
+        output:
+          $ref: '#/components/schemas/AutomationTextOutput'
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - jobId
+        - targetId
+        - output
+        - createdAt
+      additionalProperties: false
+    AutomationMarkRunReadInput:
+      type: object
+      properties:
+        throughOutputId:
+          $ref: '#/components/schemas/AutomationOpaqueId'
+      required:
+        - throughOutputId
+      additionalProperties: false
+      description: Marks only this run output and earlier visible outputs read, so a concurrent later output stays unread.
     AutomationPairingClaimInput:
       type: object
       properties:

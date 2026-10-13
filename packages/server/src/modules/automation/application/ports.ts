@@ -14,6 +14,7 @@ export interface StoredPreview { id: string; configDigest: string; input: Previe
 export interface CurrentSample { events: EventFacts[]; truncated: boolean; revisions: Record<string, string> }
 export type ActivationTransition = { kind: 'disable' } | { kind: 'resume' } | { kind: 'enable'; collectionId: string; afterOrdinal: string };
 export interface AutomationPorts {
+  outputs?: import('./run-output-service.js').RunOutputStore;
   runOnce?: import('./run-once-service.js').RunOnceService;
   deliveries?: import('./delivery-service.js').OwnerDeliveryStore;
   usage?: { rule(id: string): Promise<NonNullable<Rule['usage']>> };

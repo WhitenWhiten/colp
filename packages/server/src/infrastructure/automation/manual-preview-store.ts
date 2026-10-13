@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { automationDigest,compilePredicate,type EventFacts,type RunOnceInput,type RunOncePreview,type RuleDefinition } from '@know-n/colp/automation';
 import { AutomationError,parseContract,requireRule,inspectInput,evaluateRuleEvent,ruleInput,bindingResolutionSignature,type AutomationActor,type AutomationPorts } from '../../modules/automation/index.js';
-import type { RuleEventPlan } from '../../modules/automation/application/rule-evaluation.js';
+import type { RuleEventPlan } from '../../modules/automation/index.js';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
 import { readCurrentSample } from './current-state.js';
 export interface ManualSnapshot { input:RunOnceInput; configurationDigest:string; collectionId:string; collectionRevision:string;

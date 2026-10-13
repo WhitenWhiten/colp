@@ -68,3 +68,5 @@ export * from './automation-plan-operations.js';
 export * from './automation-catalog.js';
 export { automationWorkPrincipal } from './automation-context.js';
 export { createAutomationToolPort } from './automation-tools.js';
+
+export * from './events-adapter.js';

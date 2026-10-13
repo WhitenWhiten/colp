@@ -1,7 +1,7 @@
 import { sql } from 'kysely';
 import type { DeliveryView } from '@know-n/colp/automation';
 import { AutomationError,type AutomationActor } from '../../modules/automation/index.js';
-import type { OwnerDeliveryStore } from '../../modules/automation/application/delivery-service.js';
+import type { OwnerDeliveryStore } from '../../modules/automation/index.js';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
 interface Row { id: string; run_id: string; job_id: string; target_id: string; subscription_id: string; state: DeliveryView['state'];
   attempt_count: number; next_attempt_at: Date | null; last_error_code: string | null; sort_created_at: string }

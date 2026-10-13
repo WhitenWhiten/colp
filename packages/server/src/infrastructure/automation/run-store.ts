@@ -41,6 +41,9 @@ export function createRunStore(tx: DatabaseTransaction, actor: AutomationActor, 
         WHERE run_id=${id} ORDER BY created_at,id LIMIT 1600`.execute(tx)).rows;
       stored.view.jobIds = jobs.map(job => job.id);
       stored.view.recipientTargetIds = [...new Set(jobs.flatMap(job => job.target_id ? [job.target_id] : []))].slice(0,100);
+      const outputs=(await sql<{n:number;unread:boolean}>`SELECT count(*)::int AS n,coalesce(bool_or(rd.run_id IS NULL OR (o.created_at,o.id)>(rd.through_created_at,rd.through_output_id)),false) AS unread
+        FROM automation_run_outputs o LEFT JOIN automation_run_reads rd ON rd.run_id=o.run_id AND rd.owner_id=${actor.accountId} WHERE o.run_id=${id}`.execute(tx)).rows[0]!;
+      stored.view.outputCount=outputs.n;stored.view.unread=outputs.unread;
       stored.view.usage = await readAutomationUsage(tx,actor,row.rule_id,id);
       return stored;
     },

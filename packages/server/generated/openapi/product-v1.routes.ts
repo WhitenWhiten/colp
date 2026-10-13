@@ -801,6 +801,16 @@ export const PRODUCT_ROUTE_MANIFEST = [
     "operationId": "cancelAutomationRun"
   },
   {
+    "method": "GET",
+    "path": "/api/v1/me/automations/runs/{runId}/outputs",
+    "operationId": "listAutomationRunOutputs"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/automations/runs/{runId}/read",
+    "operationId": "markAutomationRunRead"
+  },
+  {
     "method": "POST",
     "path": "/api/v1/me/automations/runs/{runId}/undo",
     "operationId": "undoAutomationRun"

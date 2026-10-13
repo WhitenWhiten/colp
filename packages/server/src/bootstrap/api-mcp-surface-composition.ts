@@ -1,6 +1,6 @@
-import { createWebhookVerifier } from '../infrastructure/automation/webhook-verifier.js';
-import { createSubscriptionStore } from '../infrastructure/automation/subscription-store.js';
-import { createMcpEventsAdapter } from '../modules/mcp/events-adapter.js';
+import { createWebhookVerifier } from '../infrastructure/automation/index.js';
+import { createSubscriptionStore } from '../infrastructure/automation/index.js';
+import { createMcpEventsAdapter } from '../modules/mcp/index.js';
 import { createAutomationUnitOfWork,createAutomationWorkerService,createResultSubmissionPort,createProposalPlanGateway,createTargetWorkerService } from '../infrastructure/automation/index.js';
 import { createAutomationBindingVerifier } from './automation-binding-verifier.js';
 import { AutomationError } from '../modules/automation/index.js';

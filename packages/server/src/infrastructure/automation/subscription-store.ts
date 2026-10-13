@@ -4,7 +4,7 @@ import { McpEventsError, type McpEventSubscription } from '@know-n/colp/mcp';
 import type { DatabaseSchema } from '../database/runtime.js';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
 import { AutomationError, type WorkPrincipal } from '../../modules/automation/index.js';
-import type { AutomationEventsService } from '../../modules/mcp/events-adapter.js';
+import type { AutomationEventsService } from '../../modules/mcp/index.js';
 import type { TargetWorkerService } from './target-worker.js';
 import type { TargetRow } from './target-store.js';
 export interface SubscriptionVerifier {

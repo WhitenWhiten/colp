@@ -4994,6 +4994,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/automations/runs/{runId}/outputs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read accepted run-level text outputs in stable cursor order
+         * @description Read accepted run-level text outputs in stable cursor order; apply the existing authentication, authorization, idempotency and no-store rules. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         */
+        get: operations["listAutomationRunOutputs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/automations/runs/{runId}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark outputs through a selected ID read without hiding concurrent new output
+         * @description Mark outputs through a selected ID read without hiding concurrent new output; apply the existing authentication, authorization, idempotency and no-store rules. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         */
+        post: operations["markAutomationRunRead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/automation-work/pairings/claim": {
         parameters: {
             query?: never;
@@ -6034,6 +6074,22 @@ export interface components {
         AutomationRunOnceStartInput: {
             previewId: components["schemas"]["AutomationOpaqueId"];
             previewDigest: string;
+        };
+        AutomationRunOutputPage: {
+            items: components["schemas"]["AutomationRunOutputView"][];
+            nextCursor: string | null;
+        };
+        AutomationRunOutputView: {
+            id: components["schemas"]["AutomationOpaqueId"];
+            jobId: components["schemas"]["AutomationOpaqueId"];
+            targetId: components["schemas"]["AutomationOpaqueId"];
+            output: components["schemas"]["AutomationTextOutput"];
+            /** Format: date-time */
+            createdAt: string;
+        };
+        /** @description Marks only this run output and earlier visible outputs read, so a concurrent later output stays unread. */
+        AutomationMarkRunReadInput: {
+            throughOutputId: components["schemas"]["AutomationOpaqueId"];
         };
         AutomationPairingClaimInput: {
             pairingId: string;
@@ -25603,6 +25659,98 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AutomationRun"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    listAutomationRunOutputs: {
+        parameters: {
+            query?: {
+                cursor?: components["parameters"]["AutomationCursor"];
+                limit?: components["parameters"]["AutomationLimit"];
+            };
+            header?: never;
+            path: {
+                runId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    /** @description Strong ETag for this automation resource. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationRunOutputPage"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    markAutomationRunRead: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Stable command identity. Scope: authenticated principal + operation + addressed resource. Same identity/different canonical body returns 409. */
+                "Known-Command-Id": components["parameters"]["AutomationCommandId"];
+                /** @description Verified host CSRF header (evidence R23): the server reads `x-csrf-token` together with the Origin allowlist on cookie-authenticated writes. Re-checked at AW-01. Never introduce a second CSRF scheme. */
+                "X-CSRF-Token": components["parameters"]["AutomationCsrf"];
+                /** @description Validate against existing host trusted-origin policy for cookie-authenticated mutations. */
+                Origin: components["parameters"]["AutomationOrigin"];
+                /** @description Strong ETag from the addressed automation resource, never a node publication revision. */
+                "If-Match": components["parameters"]["AutomationIfMatch"];
+            };
+            path: {
+                runId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AutomationMarkRunReadInput"];
+            };
+        };
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    /** @description Strong ETag for this automation resource. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationOperationReceipt"];
                 };
             };
             400: components["responses"]["Automation400"];

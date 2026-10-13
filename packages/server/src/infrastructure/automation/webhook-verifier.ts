@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
-import { createHardenedEgressFetch, type HardenedEgressFetchOptions } from '../egress/hardened-egress.js';
+import { createHardenedEgressFetch, type HardenedEgressFetchOptions } from '../egress/index.js';
 import { createWebhookCipher, signWebhook } from './webhook-signer.js';
 /** Used for both challenges and occurrences: bounded response, no inherited credentials or redirects. */
 export function createWebhookTransport(options: Pick<HardenedEgressFetchOptions,'resolve' | 'connect'> = {}) {

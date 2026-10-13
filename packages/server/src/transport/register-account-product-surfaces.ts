@@ -1,3 +1,4 @@
+import { automationOutputRoutes } from './product/automation-output-routes.js';
 import { automationDeliveryRoutes } from './product/automation-delivery-routes.js';
 import { automationJobRoutes } from './product/automation-job-routes.js';
 import { registerAutomationWorkRoutes } from './automation-work-routes.js';
@@ -17,7 +18,7 @@ import { registerBookmarkPreferencesRoutes } from './product/bookmark-preference
 export function registerAccountProductSurfaces(app: FastifyInstance, deps: AppDependencies): void {
   const { config, identityUnitOfWork, bookmarkPreferencesUnitOfWork, bookmarkPreferencesQuery } = deps;
   if (identityUnitOfWork && deps.automationUnitOfWork) registerAutomationRoutes(app, { identityUnitOfWork, unitOfWork: deps.automationUnitOfWork,
-    allowedOrigins: config.allowedOrigins, cursorKey: config.productEditorCursor.current.key }, [...automationDeliveryRoutes(config.productEditorCursor.current.key),...automationJobRoutes(),...automationTargetRoutes(config.productEditorCursor.current.key), ...automationPolicyRoutes(config.productEditorCursor.current.key), ...automationHealthRoutes(config.productEditorCursor.current.key), ...automationRunRoutes(config.productEditorCursor.current.key)]);
+    allowedOrigins: config.allowedOrigins, cursorKey: config.productEditorCursor.current.key }, [...automationOutputRoutes(config.productEditorCursor.current.key),...automationDeliveryRoutes(config.productEditorCursor.current.key),...automationJobRoutes(),...automationTargetRoutes(config.productEditorCursor.current.key), ...automationPolicyRoutes(config.productEditorCursor.current.key), ...automationHealthRoutes(config.productEditorCursor.current.key), ...automationRunRoutes(config.productEditorCursor.current.key)]);
   if (config.automationRuntimeEnabled && deps.automationDeviceUnitOfWork && deps.syncSessionRoutes) registerAutomationDeviceRoutes(app, {
     unitOfWork: deps.automationDeviceUnitOfWork, credentialVerifier: deps.syncSessionRoutes.credentialVerifier,
     allowedOrigins: deps.syncSessionRoutes.allowedOrigins, allowInsecureLoopback: deps.syncSessionRoutes.allowInsecureLoopback,

@@ -142,3 +142,17 @@ and runtime together. Reasserting an existing pause/enable state preserves the a
 Editor configuration and preview remain available, but M1 activation, execution health and device
 bundles require the current collection Owner. Run reads expose bounded explanations and explicit
 holds; newly verified late effects advance the Run ETag without reviving cancelled work.
+
+## Run-level output consumer contract (AW-58)
+
+`GET /api/v1/me/automations/runs/{runId}/outputs` returns accepted digest/review
+text with job and target provenance. `output.text` is **untrusted plain text**:
+render with a text node / escaped text binding, never as HTML or executable Markdown.
+The API returns JSON and does not rewrite evidence or the persisted model result.
+If current Owner/source access is unavailable, output reads fail closed rather than
+returning retained private text. Output pagination is stable by `(createdAt,id)`.
+
+Read the current Run ETag, then POST `/runs/{runId}/read` with
+`{ "throughOutputId": "the-last-output-actually-viewed" }`, `If-Match`, CSRF and
+`Known-Command-Id`. A later output remains unread. Output rows and read watermarks
+persist across process restart; digest discovery does not depend on callbacks.

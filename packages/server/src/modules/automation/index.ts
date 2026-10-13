@@ -18,7 +18,7 @@ export * from './application/compile-bundle.js';
 export * from './application/placement-history.js';
 export * from './application/placement-undo.js';
 export * from './application/server-intake.js';
-export { evaluateRuleEvent, evaluateRuleEvents, type PreparedRule } from './application/rule-evaluation.js';
+export { evaluateRuleEvent, evaluateRuleEvents, type PreparedRule, type RuleEventPlan } from './application/rule-evaluation.js';
 export { explainRun } from './application/run-explanation.js';
 export * from './application/executor-policy.js';
 export * from './application/result-reuse.js';
@@ -35,3 +35,7 @@ export { createAutomationPagination } from './application/pagination.js';
 export { bindingResolutionSignature } from './application/rule-eligibility.js';
 
 export * from './application/capabilities.js';
+
+export * from './application/delivery-service.js';
+export * from './application/run-once-service.js';
+export * from './application/run-output-service.js';

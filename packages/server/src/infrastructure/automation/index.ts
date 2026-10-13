@@ -14,3 +14,8 @@ export type { CurrentBindingVerifier, TargetWorkerService } from './target-worke
 export { createAutomationWorkerService } from './worker-service.js';
 export { createResultSubmissionPort } from './result-store.js';
 export { createProposalPlanGateway } from './proposal-plan-gateway.js';
+
+export { createWebhookVerifier } from './webhook-verifier.js';
+export { createSubscriptionStore } from './subscription-store.js';
+export { createDeliveryWorker } from './delivery-worker.js';
+export { retainAutomationHistory } from './retention-worker.js';

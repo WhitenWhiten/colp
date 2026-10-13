@@ -1,3 +1,4 @@
+import { persistReusedRunOutput } from './reused-run-output.js';
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { automationDigest,taskInputDigest,type RuleDefinition,type RoleBindings,type TaskSpec,type Job,type Run } from '@know-n/colp/automation';
@@ -129,6 +130,7 @@ export async function advanceRunTasks(tx: DatabaseTransaction,actor: AutomationA
     await sql`UPDATE automation_jobs SET input_json=${JSON.stringify(inputs)}::jsonb,input_revision=${node.resource_revision},input_digest=${digest},authority_digest=${authority},
       member_revisions_json=${JSON.stringify(memberRevisions)}::jsonb,input_revisions_json=${JSON.stringify(revisions)}::jsonb,allowed_folders=${JSON.stringify(allowedFolders)}::jsonb,state=${accepted ? 'succeeded' : 'ready'},reused_result_id=${accepted ? reuse!.id : null},revision=revision+1,
       explanation=${accepted ? 'Reused a compatible accepted typed result; no new provider call or effect.' : 'Ready with immutable allowlisted input pins.'} WHERE id=${chosen.id}`.execute(tx);
+    if(accepted)await persistReusedRunOutput(tx,reuse!.id,chosen.id);
     if (!accepted) {
       await updateRun('running');
       return;

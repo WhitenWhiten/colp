@@ -1,7 +1,7 @@
-import { retainAutomationHistory } from '../infrastructure/automation/retention-worker.js';
-import { createDeliveryWorker } from '../infrastructure/automation/delivery-worker.js';
-import { createWebhookVerifier } from '../infrastructure/automation/webhook-verifier.js';
-import { createTargetWorkerService } from '../infrastructure/automation/target-worker.js';
+import { retainAutomationHistory } from '../infrastructure/automation/index.js';
+import { createDeliveryWorker } from '../infrastructure/automation/index.js';
+import { createWebhookVerifier } from '../infrastructure/automation/index.js';
+import { createTargetWorkerService } from '../infrastructure/automation/index.js';
 import { createAutomationIngestRoute, automationIngestRegistration, automationResumeRegistration, AUTOMATION_RESUME_EVENT } from '../infrastructure/outbox/index.js';
 import { createAutomationSourceInspector, createAutomationRuntime } from '../infrastructure/automation/index.js';
 import { createAutomationHealthMonitor } from '../infrastructure/automation/index.js';

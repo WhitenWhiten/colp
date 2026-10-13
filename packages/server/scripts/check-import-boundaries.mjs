@@ -198,7 +198,7 @@ const moduleEdges = {
   governance: new Set(['commands', 'collections', 'reports', 'publication', 'access-policy']),
 };
 const infrastructureEdges = {
-  automation: new Set(['database', 'collections', 'access-policy', 'telemetry', 'outbox']),
+  automation: new Set(['database', 'collections', 'access-policy', 'telemetry', 'outbox', 'egress']),
   // Transaction composition for browser projections and atomic follow exit.
   'bookmark-subscriptions': new Set(['database','collections','reports','identity','telemetry']),
   'access-policy': new Set(['database']),
@@ -612,6 +612,8 @@ const transportTargets = new Set([
   'transport/product/automation-job-routes.ts',
   'transport/product/automation-target-routes.ts',
   'transport/product/automation-run-routes.ts',
+  'transport/product/automation-delivery-routes.ts',
+  'transport/product/automation-output-routes.ts',
   'transport/automation-device-routes.ts',
   'transport/automation-work-routes.ts',
   'modules/bookmark-subscriptions/index.ts',

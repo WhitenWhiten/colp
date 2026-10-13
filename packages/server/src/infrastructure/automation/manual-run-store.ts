@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import type { RunOncePreview } from '@know-n/colp/automation';
 import { AutomationError,parseContract,type AutomationActor,type AutomationPorts } from '../../modules/automation/index.js';
-import type { RunOnceService } from '../../modules/automation/application/run-once-service.js';
+import type { RunOnceService } from '../../modules/automation/index.js';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
 import { manualConfiguration,previewManualRun,type ManualSnapshot } from './manual-preview-store.js';
 import { lockPlacementCollection,canonicalPlacementMove } from './canonical-placement.js';
