@@ -1,3 +1,4 @@
+import { seedAutomationTarget } from '../../support/automation-target-fixture.js';
 import Fastify from 'fastify';
 import { randomUUID } from 'node:crypto';
 import { afterEach, beforeEach, expect, test } from 'vitest';
@@ -20,6 +21,7 @@ describeWithPostgres('AW-22 explicit policy and optional-work accounting', () =>
   const input = (): ExecutionPolicyInput => JSON.parse(readFileSync('../../docs/automation/design/examples/execution-policy.json', 'utf8'));
   beforeEach(async () => {
     f = await automationRuntimeFixture('aw22', true);
+    await seedAutomationTarget(f.uow,f.owner);
     app = Fastify(); installProductAdmission(app);
     app.setErrorHandler((error, request, reply) => sendProductError(request, reply, error instanceof ProductHttpError ? error
       : new ProductHttpError({ statusCode: 500, code: 'internal_error', message: String(error) })));

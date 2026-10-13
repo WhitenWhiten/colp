@@ -4326,6 +4326,190 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/automations/executors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List executors
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         */
+        get: operations["listAutomationExecutors"];
+        put?: never;
+        /**
+         * Create Executor
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         */
+        post: operations["createAutomationExecutor"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/automations/executors/{executorId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Executor
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         */
+        get: operations["getAutomationExecutor"];
+        /**
+         * Replace Executor configuration
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         */
+        put: operations["replaceAutomationExecutor"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/automations/targets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List targets
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         */
+        get: operations["listAutomationTargets"];
+        put?: never;
+        /**
+         * Create Target
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         */
+        post: operations["createAutomationTarget"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/automations/targets/{targetId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Target
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         */
+        get: operations["getAutomationTarget"];
+        /**
+         * Replace Target configuration
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         */
+        put: operations["replaceAutomationTarget"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/automations/connection-profiles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List connection-profiles
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         */
+        get: operations["listAutomationConnectionProfiles"];
+        put?: never;
+        /**
+         * Create ConnectionProfile
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         */
+        post: operations["createAutomationConnectionProfile"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/automations/connection-profiles/{profileId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read ConnectionProfile
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         */
+        get: operations["getAutomationConnectionProfile"];
+        /**
+         * Replace ConnectionProfile configuration
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         */
+        put: operations["replaceAutomationConnectionProfile"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/automations/targets/{targetId}/pairings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Issue an owner-confirmed target pairing
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         */
+        post: operations["createAutomationTargetPairing"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/automations/targets/{targetId}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke target and block queued target work
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         */
+        post: operations["revokeAutomationTarget"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/automations/incidents": {
         parameters: {
             query?: never;
@@ -4544,6 +4728,26 @@ export interface paths {
         get: operations["exportAutomations"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/automation-work/pairings/claim": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Redeem the Owner-issued pairing grant as the authenticated opted-in worker
+         * @description Only pre-pair work endpoint. Does not require a bound target or manager scope; DOES require authenticated automationWorker opt-in, automation:work scope and atomic one-use grant bound to the Owner, target and expected credential/client binding. Rate limit invalid codes; successful retries of the same command return the original result. Uses the existing MCP OAuth verifier and resource audience, including machine account-key tokens; no additional issuer. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         */
+        post: operations["claimAutomationTargetPairing"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5025,6 +5229,97 @@ export interface components {
             /** @enum {string} */
             onInsufficientResult: "review" | "explicitUpgradeOnly";
         };
+        AutomationExecutorPage: {
+            items: components["schemas"]["AutomationExecutor"][];
+            nextCursor: string | null;
+        };
+        AutomationExecutor: {
+            id: string;
+            revision: string;
+            configuration: components["schemas"]["AutomationExecutorInput"];
+            /** @enum {string} */
+            status: "unconfigured" | "available" | "offline" | "revoked" | "unsupported";
+            verifiedCapabilities: ("classify.root" | "classify.refine" | "tags.generate" | "summary.generate" | "metadata.resolve" | "review.generate" | "digest.generate")[];
+        };
+        AutomationExecutorInput: {
+            name: string;
+            /** @enum {string} */
+            kind: "browser" | "serverModel" | "mcpEventsBot";
+            /** @enum {string} */
+            dataLocation: "device" | "selfHosted" | "thirdParty";
+            providerLabel: string;
+            capabilities: ("classify.root" | "classify.refine" | "tags.generate" | "summary.generate" | "metadata.resolve" | "review.generate" | "digest.generate")[];
+            credentialRef?: string;
+            targetId?: string;
+        };
+        AutomationTargetPage: {
+            items: components["schemas"]["AutomationTarget"][];
+            nextCursor: string | null;
+        };
+        AutomationTarget: {
+            id: string;
+            revision: string;
+            configuration: components["schemas"]["AutomationTargetInput"];
+            /** @enum {string} */
+            status: "unpaired" | "awaitingSubscription" | "active" | "expired" | "revoked" | "error";
+            subscriptionCount: number;
+            /** @enum {string} */
+            isolation: "sharedCredential" | "dedicatedCredential";
+            /**
+             * @description Selected transport: events (preferred after verified host subscription/reachability) or poll (worker scheduled). Selection is not proof of readiness; only the server computes wakeReadiness.
+             * @enum {string}
+             */
+            wakeMode: "events" | "poll";
+            /** @description The agent's own polling interval in minutes, entered by the Owner so the rule page can state freshness. Informational; the server does not poll. */
+            pollIntervalMinutes?: number;
+            /** @enum {string} */
+            wakeReadiness: "waitingForPairing" | "waitingForSubscription" | "active" | "blocked" | "disabled";
+            wakeReason: string;
+        };
+        AutomationTargetInput: {
+            name: string;
+            providerLabel: string;
+            broadcastOptIn: boolean;
+            /** @enum {string} */
+            privacy: "standard" | "restricted";
+            connectionProfileId: string;
+            /**
+             * @description Selected transport: events (preferred after verified host subscription/reachability) or poll (worker scheduled). Selection is not proof of readiness; only the server computes wakeReadiness.
+             * @enum {string}
+             */
+            wakeMode?: "events" | "poll";
+            /** @description The agent's own polling interval in minutes, entered by the Owner so the rule page can state freshness. Informational; the server does not poll. */
+            pollIntervalMinutes?: number;
+        };
+        AutomationConnectionProfilePage: {
+            items: components["schemas"]["AutomationConnectionProfile"][];
+            nextCursor: string | null;
+        };
+        AutomationConnectionProfile: {
+            id: string;
+            revision: string;
+            configuration: components["schemas"]["AutomationConnectionProfileInput"];
+            /** @enum {string} */
+            eventsSupport: "unknown" | "adapterVerified";
+            capabilityEvidenceRef?: string;
+        };
+        AutomationConnectionProfileInput: {
+            name: string;
+            automationEnabled: boolean;
+            authorizedClientId: string;
+            credentialBindingId: string;
+            /** @description Explicit composable catalog membership. Each automation catalog requires Owner opt-in and its own scopes. Standard never implicitly enables automation. */
+            catalogs: ("standard" | "automationManager" | "automationWorker")[];
+        };
+        /** @description Code is returned once, stored hashed, and must not be embedded in a template. */
+        AutomationPairingGrant: {
+            pairingId: string;
+            targetId: string;
+            /** @description Returned once. Idempotent command replay returns null, matching existing credential issuance; issue a fresh grant if the initial response was lost. */
+            code: string | null;
+            /** Format: date-time */
+            expiresAt: string;
+        };
         AutomationHealthIncidentPage: {
             items: components["schemas"]["AutomationHealthIncident"][];
             nextCursor: string | null;
@@ -5223,6 +5518,10 @@ export interface components {
             /** @enum {string} */
             execution: "single" | "firstClaim" | "perTarget";
             targetSlots?: string[];
+        };
+        AutomationPairingClaimInput: {
+            pairingId: string;
+            code: string;
         };
         ClassificationProfileId: string;
         CreateClassificationProviderProfileRequest: {
@@ -23105,6 +23404,633 @@ export interface operations {
             503: components["responses"]["Automation503"];
         };
     };
+    listAutomationExecutors: {
+        parameters: {
+            query?: {
+                cursor?: components["parameters"]["AutomationCursor"];
+                limit?: components["parameters"]["AutomationLimit"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationExecutorPage"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    createAutomationExecutor: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Stable command identity. Scope: authenticated principal + operation + addressed resource. Same identity/different canonical body returns 409. */
+                "Known-Command-Id": components["parameters"]["AutomationCommandId"];
+                /** @description Verified host CSRF header (evidence R23): the server reads `x-csrf-token` together with the Origin allowlist on cookie-authenticated writes. Re-checked at AW-01. Never introduce a second CSRF scheme. */
+                "X-CSRF-Token": components["parameters"]["AutomationCsrf"];
+                /** @description Validate against existing host trusted-origin policy for cookie-authenticated mutations. */
+                Origin: components["parameters"]["AutomationOrigin"];
+                /** @description Strong ETag from the addressed automation resource, never a node publication revision. */
+                "If-Match": components["parameters"]["AutomationIfMatch"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AutomationExecutorInput"];
+            };
+        };
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            201: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    /** @description Strong ETag for this automation resource. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationExecutor"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    getAutomationExecutor: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                executorId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    /** @description Strong ETag for this automation resource. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationExecutor"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    replaceAutomationExecutor: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Stable command identity. Scope: authenticated principal + operation + addressed resource. Same identity/different canonical body returns 409. */
+                "Known-Command-Id": components["parameters"]["AutomationCommandId"];
+                /** @description Verified host CSRF header (evidence R23): the server reads `x-csrf-token` together with the Origin allowlist on cookie-authenticated writes. Re-checked at AW-01. Never introduce a second CSRF scheme. */
+                "X-CSRF-Token": components["parameters"]["AutomationCsrf"];
+                /** @description Validate against existing host trusted-origin policy for cookie-authenticated mutations. */
+                Origin: components["parameters"]["AutomationOrigin"];
+                /** @description Strong ETag from the addressed automation resource, never a node publication revision. */
+                "If-Match": components["parameters"]["AutomationIfMatch"];
+            };
+            path: {
+                executorId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AutomationExecutorInput"];
+            };
+        };
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    /** @description Strong ETag for this automation resource. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationExecutor"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    listAutomationTargets: {
+        parameters: {
+            query?: {
+                cursor?: components["parameters"]["AutomationCursor"];
+                limit?: components["parameters"]["AutomationLimit"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationTargetPage"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    createAutomationTarget: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Stable command identity. Scope: authenticated principal + operation + addressed resource. Same identity/different canonical body returns 409. */
+                "Known-Command-Id": components["parameters"]["AutomationCommandId"];
+                /** @description Verified host CSRF header (evidence R23): the server reads `x-csrf-token` together with the Origin allowlist on cookie-authenticated writes. Re-checked at AW-01. Never introduce a second CSRF scheme. */
+                "X-CSRF-Token": components["parameters"]["AutomationCsrf"];
+                /** @description Validate against existing host trusted-origin policy for cookie-authenticated mutations. */
+                Origin: components["parameters"]["AutomationOrigin"];
+                /** @description Strong ETag from the addressed automation resource, never a node publication revision. */
+                "If-Match": components["parameters"]["AutomationIfMatch"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AutomationTargetInput"];
+            };
+        };
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            201: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    /** @description Strong ETag for this automation resource. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationTarget"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    getAutomationTarget: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                targetId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    /** @description Strong ETag for this automation resource. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationTarget"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    replaceAutomationTarget: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Stable command identity. Scope: authenticated principal + operation + addressed resource. Same identity/different canonical body returns 409. */
+                "Known-Command-Id": components["parameters"]["AutomationCommandId"];
+                /** @description Verified host CSRF header (evidence R23): the server reads `x-csrf-token` together with the Origin allowlist on cookie-authenticated writes. Re-checked at AW-01. Never introduce a second CSRF scheme. */
+                "X-CSRF-Token": components["parameters"]["AutomationCsrf"];
+                /** @description Validate against existing host trusted-origin policy for cookie-authenticated mutations. */
+                Origin: components["parameters"]["AutomationOrigin"];
+                /** @description Strong ETag from the addressed automation resource, never a node publication revision. */
+                "If-Match": components["parameters"]["AutomationIfMatch"];
+            };
+            path: {
+                targetId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AutomationTargetInput"];
+            };
+        };
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    /** @description Strong ETag for this automation resource. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationTarget"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    listAutomationConnectionProfiles: {
+        parameters: {
+            query?: {
+                cursor?: components["parameters"]["AutomationCursor"];
+                limit?: components["parameters"]["AutomationLimit"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationConnectionProfilePage"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    createAutomationConnectionProfile: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Stable command identity. Scope: authenticated principal + operation + addressed resource. Same identity/different canonical body returns 409. */
+                "Known-Command-Id": components["parameters"]["AutomationCommandId"];
+                /** @description Verified host CSRF header (evidence R23): the server reads `x-csrf-token` together with the Origin allowlist on cookie-authenticated writes. Re-checked at AW-01. Never introduce a second CSRF scheme. */
+                "X-CSRF-Token": components["parameters"]["AutomationCsrf"];
+                /** @description Validate against existing host trusted-origin policy for cookie-authenticated mutations. */
+                Origin: components["parameters"]["AutomationOrigin"];
+                /** @description Strong ETag from the addressed automation resource, never a node publication revision. */
+                "If-Match": components["parameters"]["AutomationIfMatch"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AutomationConnectionProfileInput"];
+            };
+        };
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            201: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    /** @description Strong ETag for this automation resource. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationConnectionProfile"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    getAutomationConnectionProfile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                profileId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    /** @description Strong ETag for this automation resource. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationConnectionProfile"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    replaceAutomationConnectionProfile: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Stable command identity. Scope: authenticated principal + operation + addressed resource. Same identity/different canonical body returns 409. */
+                "Known-Command-Id": components["parameters"]["AutomationCommandId"];
+                /** @description Verified host CSRF header (evidence R23): the server reads `x-csrf-token` together with the Origin allowlist on cookie-authenticated writes. Re-checked at AW-01. Never introduce a second CSRF scheme. */
+                "X-CSRF-Token": components["parameters"]["AutomationCsrf"];
+                /** @description Validate against existing host trusted-origin policy for cookie-authenticated mutations. */
+                Origin: components["parameters"]["AutomationOrigin"];
+                /** @description Strong ETag from the addressed automation resource, never a node publication revision. */
+                "If-Match": components["parameters"]["AutomationIfMatch"];
+            };
+            path: {
+                profileId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AutomationConnectionProfileInput"];
+            };
+        };
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    /** @description Strong ETag for this automation resource. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationConnectionProfile"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    createAutomationTargetPairing: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Stable command identity. Scope: authenticated principal + operation + addressed resource. Same identity/different canonical body returns 409. */
+                "Known-Command-Id": components["parameters"]["AutomationCommandId"];
+                /** @description Verified host CSRF header (evidence R23): the server reads `x-csrf-token` together with the Origin allowlist on cookie-authenticated writes. Re-checked at AW-01. Never introduce a second CSRF scheme. */
+                "X-CSRF-Token": components["parameters"]["AutomationCsrf"];
+                /** @description Validate against existing host trusted-origin policy for cookie-authenticated mutations. */
+                Origin: components["parameters"]["AutomationOrigin"];
+                /** @description Strong ETag from the addressed automation resource, never a node publication revision. */
+                "If-Match": components["parameters"]["AutomationIfMatch"];
+            };
+            path: {
+                targetId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AutomationCommandReason"];
+            };
+        };
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            201: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    /** @description Strong ETag for this automation resource. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationPairingGrant"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    revokeAutomationTarget: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Stable command identity. Scope: authenticated principal + operation + addressed resource. Same identity/different canonical body returns 409. */
+                "Known-Command-Id": components["parameters"]["AutomationCommandId"];
+                /** @description Verified host CSRF header (evidence R23): the server reads `x-csrf-token` together with the Origin allowlist on cookie-authenticated writes. Re-checked at AW-01. Never introduce a second CSRF scheme. */
+                "X-CSRF-Token": components["parameters"]["AutomationCsrf"];
+                /** @description Validate against existing host trusted-origin policy for cookie-authenticated mutations. */
+                Origin: components["parameters"]["AutomationOrigin"];
+                /** @description Strong ETag from the addressed automation resource, never a node publication revision. */
+                "If-Match": components["parameters"]["AutomationIfMatch"];
+            };
+            path: {
+                targetId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AutomationCommandReason"];
+            };
+        };
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    /** @description Strong ETag for this automation resource. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationTarget"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
     listAutomationIncidents: {
         parameters: {
             query?: {
@@ -23604,6 +24530,47 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AutomationAutomationExport"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    claimAutomationTargetPairing: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Stable command identity. Scope: authenticated principal + operation + addressed resource. Same identity/different canonical body returns 409. */
+                "Known-Command-Id": components["parameters"]["AutomationCommandId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AutomationPairingClaimInput"];
+            };
+        };
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationTarget"];
                 };
             };
             400: components["responses"]["Automation400"];

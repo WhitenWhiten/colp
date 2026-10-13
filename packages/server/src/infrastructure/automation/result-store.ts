@@ -130,7 +130,7 @@ export function createResultSubmissionPort(db: Kysely<DatabaseSchema>,serverUuid
       if (!p) return;
       const account = await tx.selectFrom('accounts').select('subject_id').where('id','=',p.binding_json.principalId).executeTakeFirstOrThrow();
       const actor: WorkPrincipal = { accountId: p.binding_json.principalId,subjectId: account.subject_id,clientId: p.binding_json.clientId,
-        credentialBindingId: p.binding_json.credentialBindingId,scopes: ['automation:work'] };
+        credentialBindingId: p.binding_json.credentialBindingId,scopes: ['automation:work'],resourceAudience: p.binding_json.resourceAudience,securityEpoch: p.binding_json.securityEpoch };
       await currentInputs(tx,actor,p.job_id);
     },
   };

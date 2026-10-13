@@ -1,3 +1,4 @@
+import { seedAutomationTarget } from '../../support/automation-target-fixture.js';
 import { randomUUID } from 'node:crypto';
 import { afterEach, beforeEach, expect, test } from 'vitest';
 import { sql } from 'kysely';
@@ -10,6 +11,7 @@ describeWithPostgres('AW-23 lease generation and uncertainty', () => {
   let f: Awaited<ReturnType<typeof automationRuntimeFixture>>, store: ReturnType<typeof createJobLeaseStore>, actor: WorkPrincipal, jobId: string;
   beforeEach(async () => {
     f = await automationRuntimeFixture('aw23', true);
+    await seedAutomationTarget(f.uow,f.owner);
     await f.createNode('lease-paper','root','Lease','https://arxiv.org/abs/lease'); await f.inspect();
     const run = (await sql<{ id: string }>`SELECT id FROM automation_runs`.execute(f.db)).rows[0]!;
     actor = { ...f.owner,clientId: 'client',credentialBindingId: 'credential',scopes: ['automation:work'] };

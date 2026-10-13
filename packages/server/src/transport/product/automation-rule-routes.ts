@@ -26,7 +26,7 @@ export interface AutomationRoutesDeps {
   cursorKey: string;
 }
 export interface AutomationRouteContext { ports: AutomationPorts; actor: AutomationActor; request: FastifyRequest; ifMatch: string }
-export interface AutomationResponse { body?: unknown; status?: number; etag?: string }
+export interface AutomationResponse { body?: unknown; receiptBody?: unknown; status?: number; etag?: string }
 export interface AutomationRoute {
   method: 'GET' | 'POST' | 'PUT' | 'DELETE'; path: string; ifMatch?: boolean; query?: readonly string[]; noBody?: boolean;
   action(context: AutomationRouteContext): Promise<AutomationResponse>;
@@ -105,7 +105,7 @@ function registerAutomationRoute(app: FastifyInstance, deps: AutomationRoutesDep
           }
           const response = await route.action({ ports, actor, request, ifMatch });
           if (mutation) await ports.receipts.complete(binding, fingerprint, { status: response.status ?? 200,
-            body: new TextEncoder().encode(response.body === undefined ? '' : JSON.stringify(response.body)), mediaType: 'application/json',
+            body: new TextEncoder().encode(response.body === undefined ? '' : JSON.stringify(response.receiptBody ?? response.body)), mediaType: 'application/json',
             contractVersion: '1.95.0', stableHeaders: { 'cache-control': 'private, no-store', ...(response.etag ? { etag: response.etag } : {}) } });
           return { response };
         });

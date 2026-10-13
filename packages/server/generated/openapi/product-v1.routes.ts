@@ -91,6 +91,11 @@ export const PRODUCT_ROUTE_MANIFEST = [
     "operationId": "ingestAutomationIntakeReceipt"
   },
   {
+    "method": "POST",
+    "path": "/api/v1/automation-work/pairings/claim",
+    "operationId": "claimAutomationTargetPairing"
+  },
+  {
     "method": "GET",
     "path": "/api/v1/avatar/{avatarId}",
     "operationId": "getAvatar"
@@ -572,6 +577,26 @@ export const PRODUCT_ROUTE_MANIFEST = [
   },
   {
     "method": "GET",
+    "path": "/api/v1/me/automations/connection-profiles",
+    "operationId": "listAutomationConnectionProfiles"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/automations/connection-profiles",
+    "operationId": "createAutomationConnectionProfile"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/automations/connection-profiles/{profileId}",
+    "operationId": "getAutomationConnectionProfile"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/me/automations/connection-profiles/{profileId}",
+    "operationId": "replaceAutomationConnectionProfile"
+  },
+  {
+    "method": "GET",
     "path": "/api/v1/me/automations/execution-policies",
     "operationId": "listAutomationExecutionPolicies"
   },
@@ -589,6 +614,26 @@ export const PRODUCT_ROUTE_MANIFEST = [
     "method": "PUT",
     "path": "/api/v1/me/automations/execution-policies/{policyId}",
     "operationId": "replaceAutomationExecutionPolicy"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/automations/executors",
+    "operationId": "listAutomationExecutors"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/automations/executors",
+    "operationId": "createAutomationExecutor"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/automations/executors/{executorId}",
+    "operationId": "getAutomationExecutor"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/me/automations/executors/{executorId}",
+    "operationId": "replaceAutomationExecutor"
   },
   {
     "method": "GET",
@@ -689,6 +734,36 @@ export const PRODUCT_ROUTE_MANIFEST = [
     "method": "POST",
     "path": "/api/v1/me/automations/runs/{runId}/undo",
     "operationId": "undoAutomationRun"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/automations/targets",
+    "operationId": "listAutomationTargets"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/automations/targets",
+    "operationId": "createAutomationTarget"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/automations/targets/{targetId}",
+    "operationId": "getAutomationTarget"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/me/automations/targets/{targetId}",
+    "operationId": "replaceAutomationTarget"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/automations/targets/{targetId}/pairings",
+    "operationId": "createAutomationTargetPairing"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/automations/targets/{targetId}/revoke",
+    "operationId": "revokeAutomationTarget"
   },
   {
     "method": "POST",

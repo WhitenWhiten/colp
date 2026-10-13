@@ -1,3 +1,4 @@
+import { createTargetStore } from './target-store.js';
 import { createExecutionPolicyStore } from './execution-policy-store.js';
 import { touchAutomationConfiguration } from './configuration-epoch.js';
 import { appendAutomationResume } from '../outbox/automation-ingest.js';
@@ -19,14 +20,14 @@ import { exportAutomations } from './export.js';
 import { AutomationError } from '../../modules/automation/index.js';
 import type { AutomationUnitOfWork } from '../../modules/automation/index.js';
 
-export function createAutomationUnitOfWork(db: Kysely<DatabaseSchema>, serverUuid: string, options: { runtimeEnabled?: boolean } = {}): AutomationUnitOfWork {
+export function createAutomationUnitOfWork(db: Kysely<DatabaseSchema>, serverUuid: string, options: { runtimeEnabled?: boolean; verifyTargetBinding?: import('./target-worker.js').CurrentBindingVerifier } = {}): AutomationUnitOfWork {
   return { execute: (actor, work) => createUnitOfWork(db).execute(async ({ transaction: tx }) => {
     // Existing lock order: active Account -> receipts -> private configuration -> canonical reads.
     const account = await tx.selectFrom('accounts').select(['subject_id', 'status', 'deleted_at']).where('id', '=', actor.accountId).forUpdate().executeTakeFirst();
     if (!account || account.status !== 'active' || account.deleted_at || account.subject_id !== actor.subjectId)
       throw new AutomationError('resource_not_found', 'Active owner is unavailable.');
     const reads = createBindingReadPort(tx, serverUuid);
-    return work({ policies: createExecutionPolicyStore(tx, actor.accountId), runtimeEnabled: options.runtimeEnabled === true, placementUndo: createPlacementUndoPort(tx, actor), runs: createRunStore(tx, actor, serverUuid), health: createHealthStore(tx), receipts: createPostgresProductCommandReceiptPort(tx), rules: createRuleStore(tx, options.runtimeEnabled), bindings: createBindingStore(tx),
+    return work({ targets: createTargetStore(tx,actor.accountId,options.verifyTargetBinding), policies: createExecutionPolicyStore(tx, actor.accountId), runtimeEnabled: options.runtimeEnabled === true, placementUndo: createPlacementUndoPort(tx, actor), runs: createRunStore(tx, actor, serverUuid), health: createHealthStore(tx), receipts: createPostgresProductCommandReceiptPort(tx), rules: createRuleStore(tx, options.runtimeEnabled), bindings: createBindingStore(tx),
       reads, dependencies: createDependencyIndex(tx), id: randomUUID, now: () => databaseNow(tx),
       sample: (owner, rule, values) => readCurrentSample(tx, reads, serverUuid, owner, rule, values), export: (ownerId) => exportAutomations(tx, ownerId),
       settings: {

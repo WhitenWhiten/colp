@@ -13546,6 +13546,975 @@ paths:
       x-known-feature-gate: automation_configuration
       security:
         - cookieAuth: []
+  /api/v1/me/automations/executors:
+    get:
+      operationId: listAutomationExecutors
+      tags:
+        - Automation
+      summary: List executors
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1
+        backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+      x-delivery-phase: M2
+      parameters:
+        - $ref: "#/components/parameters/AutomationCursor"
+        - $ref: "#/components/parameters/AutomationLimit"
+      responses:
+        "200":
+          description: Successful response; inspect the returned state, not merely the HTTP status.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+            X-Request-Id:
+              schema:
+                type: string
+                maxLength: 128
+                minLength: 1
+                pattern: ^[A-Za-z0-9._~-]+$
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutomationExecutorPage"
+        "400":
+          $ref: "#/components/responses/Automation400"
+        "401":
+          $ref: "#/components/responses/Automation401"
+        "403":
+          $ref: "#/components/responses/Automation403"
+        "404":
+          $ref: "#/components/responses/Automation404"
+        "409":
+          $ref: "#/components/responses/Automation409"
+        "412":
+          $ref: "#/components/responses/Automation412"
+        "413":
+          $ref: "#/components/responses/Automation413"
+        "422":
+          $ref: "#/components/responses/Automation422"
+        "428":
+          $ref: "#/components/responses/Automation428"
+        "429":
+          $ref: "#/components/responses/Automation429"
+        "500":
+          $ref: "#/components/responses/Automation500"
+        "503":
+          $ref: "#/components/responses/Automation503"
+      x-known-feature-gate: automation_configuration
+      security:
+        - cookieAuth: []
+    post:
+      operationId: createAutomationExecutor
+      tags:
+        - Automation
+      summary: Create Executor
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1
+        backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+      x-delivery-phase: Later
+      parameters:
+        - $ref: "#/components/parameters/AutomationCommandId"
+        - $ref: "#/components/parameters/AutomationCsrf"
+        - $ref: "#/components/parameters/AutomationOrigin"
+        - $ref: "#/components/parameters/AutomationIfMatch"
+      responses:
+        "201":
+          description: Successful response; inspect the returned state, not merely the HTTP status.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+            X-Request-Id:
+              schema:
+                type: string
+                maxLength: 128
+                minLength: 1
+                pattern: ^[A-Za-z0-9._~-]+$
+            ETag:
+              schema:
+                type: string
+                maxLength: 160
+              description: Strong ETag for this automation resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutomationExecutor"
+        "400":
+          $ref: "#/components/responses/Automation400"
+        "401":
+          $ref: "#/components/responses/Automation401"
+        "403":
+          $ref: "#/components/responses/Automation403"
+        "404":
+          $ref: "#/components/responses/Automation404"
+        "409":
+          $ref: "#/components/responses/Automation409"
+        "412":
+          $ref: "#/components/responses/Automation412"
+        "413":
+          $ref: "#/components/responses/Automation413"
+        "422":
+          $ref: "#/components/responses/Automation422"
+        "428":
+          $ref: "#/components/responses/Automation428"
+        "429":
+          $ref: "#/components/responses/Automation429"
+        "500":
+          $ref: "#/components/responses/Automation500"
+        "503":
+          $ref: "#/components/responses/Automation503"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AutomationExecutorInput"
+      x-known-feature-gate: automation_configuration
+      security:
+        - cookieAuth: []
+  /api/v1/me/automations/executors/{executorId}:
+    get:
+      operationId: getAutomationExecutor
+      tags:
+        - Automation
+      summary: Read Executor
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1
+        backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+      x-delivery-phase: M2
+      parameters:
+        - in: path
+          name: executorId
+          required: true
+          schema:
+            type: string
+            maxLength: 128
+            minLength: 1
+            pattern: ^[A-Za-z0-9._~-]+$
+      responses:
+        "200":
+          description: Successful response; inspect the returned state, not merely the HTTP status.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+            X-Request-Id:
+              schema:
+                type: string
+                maxLength: 128
+                minLength: 1
+                pattern: ^[A-Za-z0-9._~-]+$
+            ETag:
+              schema:
+                type: string
+                maxLength: 160
+              description: Strong ETag for this automation resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutomationExecutor"
+        "400":
+          $ref: "#/components/responses/Automation400"
+        "401":
+          $ref: "#/components/responses/Automation401"
+        "403":
+          $ref: "#/components/responses/Automation403"
+        "404":
+          $ref: "#/components/responses/Automation404"
+        "409":
+          $ref: "#/components/responses/Automation409"
+        "412":
+          $ref: "#/components/responses/Automation412"
+        "413":
+          $ref: "#/components/responses/Automation413"
+        "422":
+          $ref: "#/components/responses/Automation422"
+        "428":
+          $ref: "#/components/responses/Automation428"
+        "429":
+          $ref: "#/components/responses/Automation429"
+        "500":
+          $ref: "#/components/responses/Automation500"
+        "503":
+          $ref: "#/components/responses/Automation503"
+      x-known-feature-gate: automation_configuration
+      security:
+        - cookieAuth: []
+    put:
+      operationId: replaceAutomationExecutor
+      tags:
+        - Automation
+      summary: Replace Executor configuration
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1
+        backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+      x-delivery-phase: Later
+      parameters:
+        - in: path
+          name: executorId
+          required: true
+          schema:
+            type: string
+            maxLength: 128
+            minLength: 1
+            pattern: ^[A-Za-z0-9._~-]+$
+        - $ref: "#/components/parameters/AutomationCommandId"
+        - $ref: "#/components/parameters/AutomationCsrf"
+        - $ref: "#/components/parameters/AutomationOrigin"
+        - $ref: "#/components/parameters/AutomationIfMatch"
+      responses:
+        "200":
+          description: Successful response; inspect the returned state, not merely the HTTP status.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+            X-Request-Id:
+              schema:
+                type: string
+                maxLength: 128
+                minLength: 1
+                pattern: ^[A-Za-z0-9._~-]+$
+            ETag:
+              schema:
+                type: string
+                maxLength: 160
+              description: Strong ETag for this automation resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutomationExecutor"
+        "400":
+          $ref: "#/components/responses/Automation400"
+        "401":
+          $ref: "#/components/responses/Automation401"
+        "403":
+          $ref: "#/components/responses/Automation403"
+        "404":
+          $ref: "#/components/responses/Automation404"
+        "409":
+          $ref: "#/components/responses/Automation409"
+        "412":
+          $ref: "#/components/responses/Automation412"
+        "413":
+          $ref: "#/components/responses/Automation413"
+        "422":
+          $ref: "#/components/responses/Automation422"
+        "428":
+          $ref: "#/components/responses/Automation428"
+        "429":
+          $ref: "#/components/responses/Automation429"
+        "500":
+          $ref: "#/components/responses/Automation500"
+        "503":
+          $ref: "#/components/responses/Automation503"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AutomationExecutorInput"
+      x-known-feature-gate: automation_configuration
+      security:
+        - cookieAuth: []
+  /api/v1/me/automations/targets:
+    get:
+      operationId: listAutomationTargets
+      tags:
+        - Automation
+      summary: List targets
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1
+        backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+      x-delivery-phase: M2
+      parameters:
+        - $ref: "#/components/parameters/AutomationCursor"
+        - $ref: "#/components/parameters/AutomationLimit"
+      responses:
+        "200":
+          description: Successful response; inspect the returned state, not merely the HTTP status.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+            X-Request-Id:
+              schema:
+                type: string
+                maxLength: 128
+                minLength: 1
+                pattern: ^[A-Za-z0-9._~-]+$
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutomationTargetPage"
+        "400":
+          $ref: "#/components/responses/Automation400"
+        "401":
+          $ref: "#/components/responses/Automation401"
+        "403":
+          $ref: "#/components/responses/Automation403"
+        "404":
+          $ref: "#/components/responses/Automation404"
+        "409":
+          $ref: "#/components/responses/Automation409"
+        "412":
+          $ref: "#/components/responses/Automation412"
+        "413":
+          $ref: "#/components/responses/Automation413"
+        "422":
+          $ref: "#/components/responses/Automation422"
+        "428":
+          $ref: "#/components/responses/Automation428"
+        "429":
+          $ref: "#/components/responses/Automation429"
+        "500":
+          $ref: "#/components/responses/Automation500"
+        "503":
+          $ref: "#/components/responses/Automation503"
+      x-known-feature-gate: automation_configuration
+      security:
+        - cookieAuth: []
+    post:
+      operationId: createAutomationTarget
+      tags:
+        - Automation
+      summary: Create Target
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1
+        backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+      x-delivery-phase: M2
+      parameters:
+        - $ref: "#/components/parameters/AutomationCommandId"
+        - $ref: "#/components/parameters/AutomationCsrf"
+        - $ref: "#/components/parameters/AutomationOrigin"
+        - $ref: "#/components/parameters/AutomationIfMatch"
+      responses:
+        "201":
+          description: Successful response; inspect the returned state, not merely the HTTP status.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+            X-Request-Id:
+              schema:
+                type: string
+                maxLength: 128
+                minLength: 1
+                pattern: ^[A-Za-z0-9._~-]+$
+            ETag:
+              schema:
+                type: string
+                maxLength: 160
+              description: Strong ETag for this automation resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutomationTarget"
+        "400":
+          $ref: "#/components/responses/Automation400"
+        "401":
+          $ref: "#/components/responses/Automation401"
+        "403":
+          $ref: "#/components/responses/Automation403"
+        "404":
+          $ref: "#/components/responses/Automation404"
+        "409":
+          $ref: "#/components/responses/Automation409"
+        "412":
+          $ref: "#/components/responses/Automation412"
+        "413":
+          $ref: "#/components/responses/Automation413"
+        "422":
+          $ref: "#/components/responses/Automation422"
+        "428":
+          $ref: "#/components/responses/Automation428"
+        "429":
+          $ref: "#/components/responses/Automation429"
+        "500":
+          $ref: "#/components/responses/Automation500"
+        "503":
+          $ref: "#/components/responses/Automation503"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AutomationTargetInput"
+      x-known-feature-gate: automation_configuration
+      security:
+        - cookieAuth: []
+  /api/v1/me/automations/targets/{targetId}:
+    get:
+      operationId: getAutomationTarget
+      tags:
+        - Automation
+      summary: Read Target
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1
+        backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+      x-delivery-phase: M2
+      parameters:
+        - in: path
+          name: targetId
+          required: true
+          schema:
+            type: string
+            maxLength: 128
+            minLength: 1
+            pattern: ^[A-Za-z0-9._~-]+$
+      responses:
+        "200":
+          description: Successful response; inspect the returned state, not merely the HTTP status.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+            X-Request-Id:
+              schema:
+                type: string
+                maxLength: 128
+                minLength: 1
+                pattern: ^[A-Za-z0-9._~-]+$
+            ETag:
+              schema:
+                type: string
+                maxLength: 160
+              description: Strong ETag for this automation resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutomationTarget"
+        "400":
+          $ref: "#/components/responses/Automation400"
+        "401":
+          $ref: "#/components/responses/Automation401"
+        "403":
+          $ref: "#/components/responses/Automation403"
+        "404":
+          $ref: "#/components/responses/Automation404"
+        "409":
+          $ref: "#/components/responses/Automation409"
+        "412":
+          $ref: "#/components/responses/Automation412"
+        "413":
+          $ref: "#/components/responses/Automation413"
+        "422":
+          $ref: "#/components/responses/Automation422"
+        "428":
+          $ref: "#/components/responses/Automation428"
+        "429":
+          $ref: "#/components/responses/Automation429"
+        "500":
+          $ref: "#/components/responses/Automation500"
+        "503":
+          $ref: "#/components/responses/Automation503"
+      x-known-feature-gate: automation_configuration
+      security:
+        - cookieAuth: []
+    put:
+      operationId: replaceAutomationTarget
+      tags:
+        - Automation
+      summary: Replace Target configuration
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1
+        backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+      x-delivery-phase: M2
+      parameters:
+        - in: path
+          name: targetId
+          required: true
+          schema:
+            type: string
+            maxLength: 128
+            minLength: 1
+            pattern: ^[A-Za-z0-9._~-]+$
+        - $ref: "#/components/parameters/AutomationCommandId"
+        - $ref: "#/components/parameters/AutomationCsrf"
+        - $ref: "#/components/parameters/AutomationOrigin"
+        - $ref: "#/components/parameters/AutomationIfMatch"
+      responses:
+        "200":
+          description: Successful response; inspect the returned state, not merely the HTTP status.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+            X-Request-Id:
+              schema:
+                type: string
+                maxLength: 128
+                minLength: 1
+                pattern: ^[A-Za-z0-9._~-]+$
+            ETag:
+              schema:
+                type: string
+                maxLength: 160
+              description: Strong ETag for this automation resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutomationTarget"
+        "400":
+          $ref: "#/components/responses/Automation400"
+        "401":
+          $ref: "#/components/responses/Automation401"
+        "403":
+          $ref: "#/components/responses/Automation403"
+        "404":
+          $ref: "#/components/responses/Automation404"
+        "409":
+          $ref: "#/components/responses/Automation409"
+        "412":
+          $ref: "#/components/responses/Automation412"
+        "413":
+          $ref: "#/components/responses/Automation413"
+        "422":
+          $ref: "#/components/responses/Automation422"
+        "428":
+          $ref: "#/components/responses/Automation428"
+        "429":
+          $ref: "#/components/responses/Automation429"
+        "500":
+          $ref: "#/components/responses/Automation500"
+        "503":
+          $ref: "#/components/responses/Automation503"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AutomationTargetInput"
+      x-known-feature-gate: automation_configuration
+      security:
+        - cookieAuth: []
+  /api/v1/me/automations/connection-profiles:
+    get:
+      operationId: listAutomationConnectionProfiles
+      tags:
+        - Automation
+      summary: List connection-profiles
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1
+        backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+      x-delivery-phase: M2
+      parameters:
+        - $ref: "#/components/parameters/AutomationCursor"
+        - $ref: "#/components/parameters/AutomationLimit"
+      responses:
+        "200":
+          description: Successful response; inspect the returned state, not merely the HTTP status.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+            X-Request-Id:
+              schema:
+                type: string
+                maxLength: 128
+                minLength: 1
+                pattern: ^[A-Za-z0-9._~-]+$
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutomationConnectionProfilePage"
+        "400":
+          $ref: "#/components/responses/Automation400"
+        "401":
+          $ref: "#/components/responses/Automation401"
+        "403":
+          $ref: "#/components/responses/Automation403"
+        "404":
+          $ref: "#/components/responses/Automation404"
+        "409":
+          $ref: "#/components/responses/Automation409"
+        "412":
+          $ref: "#/components/responses/Automation412"
+        "413":
+          $ref: "#/components/responses/Automation413"
+        "422":
+          $ref: "#/components/responses/Automation422"
+        "428":
+          $ref: "#/components/responses/Automation428"
+        "429":
+          $ref: "#/components/responses/Automation429"
+        "500":
+          $ref: "#/components/responses/Automation500"
+        "503":
+          $ref: "#/components/responses/Automation503"
+      x-known-feature-gate: automation_configuration
+      security:
+        - cookieAuth: []
+    post:
+      operationId: createAutomationConnectionProfile
+      tags:
+        - Automation
+      summary: Create ConnectionProfile
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1
+        backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+      x-delivery-phase: M2
+      parameters:
+        - $ref: "#/components/parameters/AutomationCommandId"
+        - $ref: "#/components/parameters/AutomationCsrf"
+        - $ref: "#/components/parameters/AutomationOrigin"
+        - $ref: "#/components/parameters/AutomationIfMatch"
+      responses:
+        "201":
+          description: Successful response; inspect the returned state, not merely the HTTP status.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+            X-Request-Id:
+              schema:
+                type: string
+                maxLength: 128
+                minLength: 1
+                pattern: ^[A-Za-z0-9._~-]+$
+            ETag:
+              schema:
+                type: string
+                maxLength: 160
+              description: Strong ETag for this automation resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutomationConnectionProfile"
+        "400":
+          $ref: "#/components/responses/Automation400"
+        "401":
+          $ref: "#/components/responses/Automation401"
+        "403":
+          $ref: "#/components/responses/Automation403"
+        "404":
+          $ref: "#/components/responses/Automation404"
+        "409":
+          $ref: "#/components/responses/Automation409"
+        "412":
+          $ref: "#/components/responses/Automation412"
+        "413":
+          $ref: "#/components/responses/Automation413"
+        "422":
+          $ref: "#/components/responses/Automation422"
+        "428":
+          $ref: "#/components/responses/Automation428"
+        "429":
+          $ref: "#/components/responses/Automation429"
+        "500":
+          $ref: "#/components/responses/Automation500"
+        "503":
+          $ref: "#/components/responses/Automation503"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AutomationConnectionProfileInput"
+      x-known-feature-gate: automation_configuration
+      security:
+        - cookieAuth: []
+  /api/v1/me/automations/connection-profiles/{profileId}:
+    get:
+      operationId: getAutomationConnectionProfile
+      tags:
+        - Automation
+      summary: Read ConnectionProfile
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1
+        backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+      x-delivery-phase: M2
+      parameters:
+        - in: path
+          name: profileId
+          required: true
+          schema:
+            type: string
+            maxLength: 128
+            minLength: 1
+            pattern: ^[A-Za-z0-9._~-]+$
+      responses:
+        "200":
+          description: Successful response; inspect the returned state, not merely the HTTP status.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+            X-Request-Id:
+              schema:
+                type: string
+                maxLength: 128
+                minLength: 1
+                pattern: ^[A-Za-z0-9._~-]+$
+            ETag:
+              schema:
+                type: string
+                maxLength: 160
+              description: Strong ETag for this automation resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutomationConnectionProfile"
+        "400":
+          $ref: "#/components/responses/Automation400"
+        "401":
+          $ref: "#/components/responses/Automation401"
+        "403":
+          $ref: "#/components/responses/Automation403"
+        "404":
+          $ref: "#/components/responses/Automation404"
+        "409":
+          $ref: "#/components/responses/Automation409"
+        "412":
+          $ref: "#/components/responses/Automation412"
+        "413":
+          $ref: "#/components/responses/Automation413"
+        "422":
+          $ref: "#/components/responses/Automation422"
+        "428":
+          $ref: "#/components/responses/Automation428"
+        "429":
+          $ref: "#/components/responses/Automation429"
+        "500":
+          $ref: "#/components/responses/Automation500"
+        "503":
+          $ref: "#/components/responses/Automation503"
+      x-known-feature-gate: automation_configuration
+      security:
+        - cookieAuth: []
+    put:
+      operationId: replaceAutomationConnectionProfile
+      tags:
+        - Automation
+      summary: Replace ConnectionProfile configuration
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1
+        backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+      x-delivery-phase: M2
+      parameters:
+        - in: path
+          name: profileId
+          required: true
+          schema:
+            type: string
+            maxLength: 128
+            minLength: 1
+            pattern: ^[A-Za-z0-9._~-]+$
+        - $ref: "#/components/parameters/AutomationCommandId"
+        - $ref: "#/components/parameters/AutomationCsrf"
+        - $ref: "#/components/parameters/AutomationOrigin"
+        - $ref: "#/components/parameters/AutomationIfMatch"
+      responses:
+        "200":
+          description: Successful response; inspect the returned state, not merely the HTTP status.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+            X-Request-Id:
+              schema:
+                type: string
+                maxLength: 128
+                minLength: 1
+                pattern: ^[A-Za-z0-9._~-]+$
+            ETag:
+              schema:
+                type: string
+                maxLength: 160
+              description: Strong ETag for this automation resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutomationConnectionProfile"
+        "400":
+          $ref: "#/components/responses/Automation400"
+        "401":
+          $ref: "#/components/responses/Automation401"
+        "403":
+          $ref: "#/components/responses/Automation403"
+        "404":
+          $ref: "#/components/responses/Automation404"
+        "409":
+          $ref: "#/components/responses/Automation409"
+        "412":
+          $ref: "#/components/responses/Automation412"
+        "413":
+          $ref: "#/components/responses/Automation413"
+        "422":
+          $ref: "#/components/responses/Automation422"
+        "428":
+          $ref: "#/components/responses/Automation428"
+        "429":
+          $ref: "#/components/responses/Automation429"
+        "500":
+          $ref: "#/components/responses/Automation500"
+        "503":
+          $ref: "#/components/responses/Automation503"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AutomationConnectionProfileInput"
+      x-known-feature-gate: automation_configuration
+      security:
+        - cookieAuth: []
+  /api/v1/me/automations/targets/{targetId}/pairings:
+    post:
+      operationId: createAutomationTargetPairing
+      tags:
+        - Automation
+      summary: Issue an owner-confirmed target pairing
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1
+        backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+      x-delivery-phase: M2
+      parameters:
+        - in: path
+          name: targetId
+          required: true
+          schema:
+            type: string
+            maxLength: 128
+            minLength: 1
+            pattern: ^[A-Za-z0-9._~-]+$
+        - $ref: "#/components/parameters/AutomationCommandId"
+        - $ref: "#/components/parameters/AutomationCsrf"
+        - $ref: "#/components/parameters/AutomationOrigin"
+        - $ref: "#/components/parameters/AutomationIfMatch"
+      responses:
+        "201":
+          description: Successful response; inspect the returned state, not merely the HTTP status.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+            X-Request-Id:
+              schema:
+                type: string
+                maxLength: 128
+                minLength: 1
+                pattern: ^[A-Za-z0-9._~-]+$
+            ETag:
+              schema:
+                type: string
+                maxLength: 160
+              description: Strong ETag for this automation resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutomationPairingGrant"
+        "400":
+          $ref: "#/components/responses/Automation400"
+        "401":
+          $ref: "#/components/responses/Automation401"
+        "403":
+          $ref: "#/components/responses/Automation403"
+        "404":
+          $ref: "#/components/responses/Automation404"
+        "409":
+          $ref: "#/components/responses/Automation409"
+        "412":
+          $ref: "#/components/responses/Automation412"
+        "413":
+          $ref: "#/components/responses/Automation413"
+        "422":
+          $ref: "#/components/responses/Automation422"
+        "428":
+          $ref: "#/components/responses/Automation428"
+        "429":
+          $ref: "#/components/responses/Automation429"
+        "500":
+          $ref: "#/components/responses/Automation500"
+        "503":
+          $ref: "#/components/responses/Automation503"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AutomationCommandReason"
+      x-known-feature-gate: automation_configuration
+      security:
+        - cookieAuth: []
+  /api/v1/me/automations/targets/{targetId}/revoke:
+    post:
+      operationId: revokeAutomationTarget
+      tags:
+        - Automation
+      summary: Revoke target and block queued target work
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1
+        backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+      x-delivery-phase: M2
+      parameters:
+        - in: path
+          name: targetId
+          required: true
+          schema:
+            type: string
+            maxLength: 128
+            minLength: 1
+            pattern: ^[A-Za-z0-9._~-]+$
+        - $ref: "#/components/parameters/AutomationCommandId"
+        - $ref: "#/components/parameters/AutomationCsrf"
+        - $ref: "#/components/parameters/AutomationOrigin"
+        - $ref: "#/components/parameters/AutomationIfMatch"
+      responses:
+        "200":
+          description: Successful response; inspect the returned state, not merely the HTTP status.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+            X-Request-Id:
+              schema:
+                type: string
+                maxLength: 128
+                minLength: 1
+                pattern: ^[A-Za-z0-9._~-]+$
+            ETag:
+              schema:
+                type: string
+                maxLength: 160
+              description: Strong ETag for this automation resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutomationTarget"
+        "400":
+          $ref: "#/components/responses/Automation400"
+        "401":
+          $ref: "#/components/responses/Automation401"
+        "403":
+          $ref: "#/components/responses/Automation403"
+        "404":
+          $ref: "#/components/responses/Automation404"
+        "409":
+          $ref: "#/components/responses/Automation409"
+        "412":
+          $ref: "#/components/responses/Automation412"
+        "413":
+          $ref: "#/components/responses/Automation413"
+        "422":
+          $ref: "#/components/responses/Automation422"
+        "428":
+          $ref: "#/components/responses/Automation428"
+        "429":
+          $ref: "#/components/responses/Automation429"
+        "500":
+          $ref: "#/components/responses/Automation500"
+        "503":
+          $ref: "#/components/responses/Automation503"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AutomationCommandReason"
+      x-known-feature-gate: automation_configuration
+      security:
+        - cookieAuth: []
   /api/v1/me/automations/incidents:
     get:
       operationId: listAutomationIncidents
@@ -14376,6 +15345,72 @@ paths:
       x-known-feature-gate: automation_configuration
       security:
         - cookieAuth: []
+  /api/v1/automation-work/pairings/claim:
+    post:
+      operationId: claimAutomationTargetPairing
+      tags:
+        - Automation
+      summary: Redeem the Owner-issued pairing grant as the authenticated opted-in worker
+      description: Only pre-pair work endpoint. Does not require a bound target or manager scope; DOES require authenticated
+        automationWorker opt-in, automation:work scope and atomic one-use grant bound to the Owner, target and expected
+        credential/client binding. Rate limit invalid codes; successful retries of the same command return the original
+        result. Uses the existing MCP OAuth verifier and resource audience, including machine account-key tokens; no
+        additional issuer. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no
+        fallback.
+      x-delivery-phase: M2
+      parameters:
+        - $ref: "#/components/parameters/AutomationCommandId"
+      responses:
+        "200":
+          description: Successful response; inspect the returned state, not merely the HTTP status.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+            X-Request-Id:
+              schema:
+                type: string
+                maxLength: 128
+                minLength: 1
+                pattern: ^[A-Za-z0-9._~-]+$
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutomationTarget"
+        "400":
+          $ref: "#/components/responses/Automation400"
+        "401":
+          $ref: "#/components/responses/Automation401"
+        "403":
+          $ref: "#/components/responses/Automation403"
+        "404":
+          $ref: "#/components/responses/Automation404"
+        "409":
+          $ref: "#/components/responses/Automation409"
+        "412":
+          $ref: "#/components/responses/Automation412"
+        "413":
+          $ref: "#/components/responses/Automation413"
+        "422":
+          $ref: "#/components/responses/Automation422"
+        "428":
+          $ref: "#/components/responses/Automation428"
+        "429":
+          $ref: "#/components/responses/Automation429"
+        "500":
+          $ref: "#/components/responses/Automation500"
+        "503":
+          $ref: "#/components/responses/Automation503"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AutomationPairingClaimInput"
+      security:
+        - DeviceBearer: []
+      x-known-feature-gate: automation_runtime
 # END AUTOMATION PATHS
 
 components:
@@ -17239,6 +18274,354 @@ components:
         - onUnknownOutcome
         - onInsufficientResult
       additionalProperties: false
+    AutomationExecutorPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AutomationExecutor"
+          maxItems: 100
+        nextCursor:
+          anyOf:
+            - type: string
+              maxLength: 2048
+            - type: "null"
+      required:
+        - items
+        - nextCursor
+      additionalProperties: false
+    AutomationExecutor:
+      type: object
+      properties:
+        id:
+          type: string
+          maxLength: 128
+          minLength: 1
+          pattern: ^[A-Za-z0-9._~-]+$
+        revision:
+          type: string
+          maxLength: 128
+          minLength: 1
+        configuration:
+          $ref: "#/components/schemas/AutomationExecutorInput"
+        status:
+          type: string
+          enum:
+            - unconfigured
+            - available
+            - offline
+            - revoked
+            - unsupported
+        verifiedCapabilities:
+          type: array
+          items:
+            type: string
+            enum:
+              - classify.root
+              - classify.refine
+              - tags.generate
+              - summary.generate
+              - metadata.resolve
+              - review.generate
+              - digest.generate
+          maxItems: 16
+      required:
+        - id
+        - revision
+        - configuration
+        - status
+        - verifiedCapabilities
+      additionalProperties: false
+    AutomationExecutorInput:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 200
+        kind:
+          type: string
+          enum:
+            - browser
+            - serverModel
+            - mcpEventsBot
+        dataLocation:
+          type: string
+          enum:
+            - device
+            - selfHosted
+            - thirdParty
+        providerLabel:
+          type: string
+          maxLength: 200
+        capabilities:
+          type: array
+          items:
+            type: string
+            enum:
+              - classify.root
+              - classify.refine
+              - tags.generate
+              - summary.generate
+              - metadata.resolve
+              - review.generate
+              - digest.generate
+          maxItems: 16
+        credentialRef:
+          type: string
+          maxLength: 128
+          minLength: 1
+          pattern: ^[A-Za-z0-9._~-]+$
+        targetId:
+          type: string
+          maxLength: 128
+          minLength: 1
+          pattern: ^[A-Za-z0-9._~-]+$
+      required:
+        - name
+        - kind
+        - dataLocation
+        - providerLabel
+        - capabilities
+      additionalProperties: false
+    AutomationTargetPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AutomationTarget"
+          maxItems: 100
+        nextCursor:
+          anyOf:
+            - type: string
+              maxLength: 2048
+            - type: "null"
+      required:
+        - items
+        - nextCursor
+      additionalProperties: false
+    AutomationTarget:
+      type: object
+      properties:
+        id:
+          type: string
+          maxLength: 128
+          minLength: 1
+          pattern: ^[A-Za-z0-9._~-]+$
+        revision:
+          type: string
+          maxLength: 128
+          minLength: 1
+        configuration:
+          $ref: "#/components/schemas/AutomationTargetInput"
+        status:
+          type: string
+          enum:
+            - unpaired
+            - awaitingSubscription
+            - active
+            - expired
+            - revoked
+            - error
+        subscriptionCount:
+          type: integer
+          minimum: 0
+        isolation:
+          type: string
+          enum:
+            - sharedCredential
+            - dedicatedCredential
+        wakeMode:
+          type: string
+          enum:
+            - events
+            - poll
+          description: "Selected transport: events (preferred after verified host subscription/reachability) or poll (worker
+            scheduled). Selection is not proof of readiness; only the server computes wakeReadiness."
+        pollIntervalMinutes:
+          type: integer
+          minimum: 1
+          maximum: 1440
+          description: The agent's own polling interval in minutes, entered by the Owner so the rule page can state freshness.
+            Informational; the server does not poll.
+        wakeReadiness:
+          type: string
+          enum:
+            - waitingForPairing
+            - waitingForSubscription
+            - active
+            - blocked
+            - disabled
+        wakeReason:
+          type: string
+          minLength: 1
+          maxLength: 1000
+      required:
+        - id
+        - revision
+        - configuration
+        - status
+        - subscriptionCount
+        - isolation
+        - wakeMode
+        - wakeReadiness
+        - wakeReason
+      additionalProperties: false
+    AutomationTargetInput:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 200
+        providerLabel:
+          type: string
+          maxLength: 100
+        broadcastOptIn:
+          type: boolean
+        privacy:
+          type: string
+          enum:
+            - standard
+            - restricted
+        connectionProfileId:
+          type: string
+          maxLength: 128
+          minLength: 1
+          pattern: ^[A-Za-z0-9._~-]+$
+        wakeMode:
+          type: string
+          enum:
+            - events
+            - poll
+          description: "Selected transport: events (preferred after verified host subscription/reachability) or poll (worker
+            scheduled). Selection is not proof of readiness; only the server computes wakeReadiness."
+        pollIntervalMinutes:
+          type: integer
+          minimum: 1
+          maximum: 1440
+          description: The agent's own polling interval in minutes, entered by the Owner so the rule page can state freshness.
+            Informational; the server does not poll.
+      required:
+        - name
+        - providerLabel
+        - broadcastOptIn
+        - privacy
+        - connectionProfileId
+      additionalProperties: false
+    AutomationConnectionProfilePage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AutomationConnectionProfile"
+          maxItems: 100
+        nextCursor:
+          anyOf:
+            - type: string
+              maxLength: 2048
+            - type: "null"
+      required:
+        - items
+        - nextCursor
+      additionalProperties: false
+    AutomationConnectionProfile:
+      type: object
+      properties:
+        id:
+          type: string
+          maxLength: 128
+          minLength: 1
+          pattern: ^[A-Za-z0-9._~-]+$
+        revision:
+          type: string
+          maxLength: 128
+          minLength: 1
+        configuration:
+          $ref: "#/components/schemas/AutomationConnectionProfileInput"
+        eventsSupport:
+          type: string
+          enum:
+            - unknown
+            - adapterVerified
+        capabilityEvidenceRef:
+          type: string
+          maxLength: 256
+      required:
+        - id
+        - revision
+        - configuration
+        - eventsSupport
+      additionalProperties: false
+    AutomationConnectionProfileInput:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 200
+        automationEnabled:
+          type: boolean
+        authorizedClientId:
+          type: string
+          maxLength: 128
+          minLength: 1
+          pattern: ^[A-Za-z0-9._~-]+$
+        credentialBindingId:
+          type: string
+          maxLength: 128
+          minLength: 1
+          pattern: ^[A-Za-z0-9._~-]+$
+        catalogs:
+          type: array
+          items:
+            type: string
+            enum:
+              - standard
+              - automationManager
+              - automationWorker
+          minItems: 1
+          maxItems: 3
+          uniqueItems: true
+          description: Explicit composable catalog membership. Each automation catalog requires Owner opt-in and its own scopes.
+            Standard never implicitly enables automation.
+      required:
+        - name
+        - automationEnabled
+        - catalogs
+        - authorizedClientId
+        - credentialBindingId
+      additionalProperties: false
+    AutomationPairingGrant:
+      type: object
+      properties:
+        pairingId:
+          type: string
+          maxLength: 128
+          minLength: 1
+          pattern: ^[A-Za-z0-9._~-]+$
+        targetId:
+          type: string
+          maxLength: 128
+          minLength: 1
+          pattern: ^[A-Za-z0-9._~-]+$
+        code:
+          anyOf:
+            - type: string
+              maxLength: 128
+            - type: "null"
+          description: Returned once. Idempotent command replay returns null, matching existing credential issuance; issue a fresh
+            grant if the initial response was lost.
+        expiresAt:
+          type: string
+          format: date-time
+      required:
+        - pairingId
+        - targetId
+        - code
+        - expiresAt
+      additionalProperties: false
+      description: Code is returned once, stored hashed, and must not be embedded in a template.
     AutomationHealthIncidentPage:
       type: object
       properties:
@@ -17947,6 +19330,21 @@ components:
       required:
         - mode
         - execution
+      additionalProperties: false
+    AutomationPairingClaimInput:
+      type: object
+      properties:
+        pairingId:
+          type: string
+          maxLength: 128
+          minLength: 1
+          pattern: ^[A-Za-z0-9._~-]+$
+        code:
+          type: string
+          maxLength: 128
+      required:
+        - pairingId
+        - code
       additionalProperties: false
 # END AUTOMATION schemas
     ClassificationProfileId:

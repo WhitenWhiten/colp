@@ -1,3 +1,6 @@
+import { createAutomationBindingVerifier } from './automation-binding-verifier.js';
+import { createMcpSecurityEpochReader } from './api-mcp-oauth-composition.js';
+import { createPostgresMcpOauthRevocationStore } from '../infrastructure/database/index.js';
 import { createAutomationDeviceUnitOfWork, createAutomationUnitOfWork, createAutomationHealthMonitor } from '../infrastructure/automation/index.js';
 import { createPostgresBookmarkSubscriptionUnitOfWork } from '../infrastructure/bookmark-subscriptions/unit-of-work.js';
 import { loadConfig } from './config.js';
@@ -301,7 +304,7 @@ export function createApiPostgresAppDependencies(input: {
         database.db, config.syncSession.conflictPayloadKeyring,
       ),
     } : {}),
-    ...(config.automationConfigurationEnabled ? { automationUnitOfWork: createAutomationUnitOfWork(database.db, config.publication.serverUuid, { runtimeEnabled: config.automationRuntimeEnabled }),
+    ...(config.automationConfigurationEnabled ? { automationUnitOfWork: createAutomationUnitOfWork(database.db, config.publication.serverUuid, { runtimeEnabled: config.automationRuntimeEnabled,verifyTargetBinding: createAutomationBindingVerifier(config,createMcpSecurityEpochReader(config,createPostgresMcpOauthRevocationStore({ db: database.db }))) }),
       automationDeviceUnitOfWork: createAutomationDeviceUnitOfWork(database.db, config.publication.serverUuid),
       automationHealthStartup: () => createAutomationHealthMonitor(database.db, config.publication.serverUuid, metrics, config.automationRuntimeEnabled).revalidateAll() } : {}),
     linkHealthEnqueue: createPostgresLinkHealthEnqueueUnitOfWork(database.db),

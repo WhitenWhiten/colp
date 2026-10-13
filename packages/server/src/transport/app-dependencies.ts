@@ -74,6 +74,7 @@ import type { McpReadTransportDependencies } from './mcp/mcp-read-routes.js';
 import type { McpWriteApprovalRoutesDependencies } from './mcp/mcp-write-approval-routes.js';
 
 export interface AppDependencies {
+  readonly automationPairing?: import('../modules/automation/index.js').WorkerPairingPort;
   readonly automationDeviceUnitOfWork?: import('../modules/automation/index.js').AutomationDeviceUnitOfWork;
   readonly automationHealthStartup?: () => Promise<void>;
   readonly automationUnitOfWork?: import('../modules/automation/index.js').AutomationUnitOfWork;

@@ -405,6 +405,8 @@ const rootEntryTargets = new Set([
 // Bootstrap composes the process from these concrete public surfaces. This
 // deliberately includes the module aggregate only at its actual entrypoint.
 const bootstrapTargets = new Set([
+  'bootstrap/automation-binding-verifier.ts',
+  'modules/automation/index.ts',
   'infrastructure/automation/index.ts',
   'infrastructure/bookmark-subscriptions/unit-of-work.ts',
   'bootstrap/config-ledger-archive.ts',
@@ -607,8 +609,10 @@ const transportTargets = new Set([
   'transport/product/automation-pagination.ts',
   'transport/product/automation-health-routes.ts',
   'transport/product/automation-policy-routes.ts',
+  'transport/product/automation-target-routes.ts',
   'transport/product/automation-run-routes.ts',
   'transport/automation-device-routes.ts',
+  'transport/automation-work-routes.ts',
   'modules/bookmark-subscriptions/index.ts',
   'transport/product/bookmark-subscription-routes.ts',
   'transport/product/subscription-exit-header.ts',

@@ -16,6 +16,11 @@ for (const [path, item] of Object.entries(design.paths)) {
     paths[path][method].tags = ['Automation'];
     paths[path][method]['x-known-feature-gate'] = 'automation_configuration';
     paths[path][method].security = [{ cookieAuth: [] }];
+    if (path.startsWith('/api/v1/automation-work/')) {
+      paths[path][method].security = [{ DeviceBearer: [] }];
+      paths[path][method]['x-known-feature-gate'] = 'automation_runtime';
+      paths[path][method].description += ' Uses the existing MCP OAuth verifier and resource audience, including machine account-key tokens; no additional issuer.';
+    }
     if (path.startsWith('/api/v1/automation-device/')) {
       // Existing authenticated Sync session is the device/generation proof.
       paths[path][method].security = [{ DeviceBearer: [] }];

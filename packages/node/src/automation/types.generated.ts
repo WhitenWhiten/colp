@@ -644,7 +644,10 @@ export interface Target {
 export interface PairingGrant {
   pairingId: string;
   targetId: string;
-  code: string;
+  /**
+   * Returned once. Idempotent command replay returns null, matching existing credential issuance; issue a fresh grant if the initial response was lost.
+   */
+  code: string | null;
   expiresAt: string;
 }
 export interface PairingClaimInput {

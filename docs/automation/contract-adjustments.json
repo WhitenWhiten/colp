@@ -39,5 +39,22 @@
         "description": "Verified pre-commit collection version linked to the same plan; does not imply every field is undoable."
       }
     }
+  },
+  "PairingGrant": {
+    "removeRequired": [],
+    "addProperties": {
+      "code": {
+        "anyOf": [
+          {
+            "type": "string",
+            "maxLength": 128
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Returned once. Idempotent command replay returns null, matching existing credential issuance; issue a fresh grant if the initial response was lost."
+      }
+    }
   }
 }

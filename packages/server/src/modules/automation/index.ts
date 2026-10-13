@@ -25,3 +25,4 @@ export * from './application/submit-result.js';
 export * from './application/effect-gateway.js';
 export * from './application/approval-service.js';
 export * from './application/undo-service.js';
+export * from './application/target-service.js';

@@ -150,6 +150,8 @@ export interface McpOauthVerificationResult {
   readonly expiresAt: Date;
   /** Token scopes after support-set and operation-subset checks. */
   readonly scopes: readonly string[];
+  readonly issuedAtSeconds?: number;
+  readonly accountSecurityEpoch?: string;
 }
 
 export interface McpOauthVerifier {
@@ -312,7 +314,7 @@ export function createMcpOauthVerifier(options: McpOauthVerifierOptions): McpOau
         evidence,
         binding,
         accountSubjectId: account.subjectId,
-        credentialDigest,
+        credentialDigest,issuedAtSeconds: issuedAtValue,accountSecurityEpoch: account.securityEpoch,
         verifiedAt: new Date(now.getTime()),
         expiresAt: new Date(expiresAtValue * 1_000),
         scopes: Object.freeze([...scopes]),

@@ -162,3 +162,4 @@ export {
   tokenRateLimited,
 } from './oauth-error.js';
 export type { AccountKeyOAuthErrorCode } from './oauth-error.js';
+export { currentMachineBinding, storedBindingMatches } from './grant-plan.js';

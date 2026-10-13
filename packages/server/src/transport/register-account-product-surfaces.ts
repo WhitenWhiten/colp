@@ -1,3 +1,5 @@
+import { registerAutomationWorkRoutes } from './automation-work-routes.js';
+import { automationTargetRoutes } from './product/automation-target-routes.js';
 import { automationPolicyRoutes } from './product/automation-policy-routes.js';
 import { registerAutomationDeviceRoutes } from './automation-device-routes.js';
 import { automationRunRoutes } from './product/automation-run-routes.js';
@@ -13,12 +15,13 @@ import { registerBookmarkPreferencesRoutes } from './product/bookmark-preference
 export function registerAccountProductSurfaces(app: FastifyInstance, deps: AppDependencies): void {
   const { config, identityUnitOfWork, bookmarkPreferencesUnitOfWork, bookmarkPreferencesQuery } = deps;
   if (identityUnitOfWork && deps.automationUnitOfWork) registerAutomationRoutes(app, { identityUnitOfWork, unitOfWork: deps.automationUnitOfWork,
-    allowedOrigins: config.allowedOrigins, cursorKey: config.productEditorCursor.current.key }, [...automationPolicyRoutes(config.productEditorCursor.current.key), ...automationHealthRoutes(config.productEditorCursor.current.key), ...automationRunRoutes(config.productEditorCursor.current.key)]);
+    allowedOrigins: config.allowedOrigins, cursorKey: config.productEditorCursor.current.key }, [...automationTargetRoutes(config.productEditorCursor.current.key), ...automationPolicyRoutes(config.productEditorCursor.current.key), ...automationHealthRoutes(config.productEditorCursor.current.key), ...automationRunRoutes(config.productEditorCursor.current.key)]);
   if (config.automationRuntimeEnabled && deps.automationDeviceUnitOfWork && deps.syncSessionRoutes) registerAutomationDeviceRoutes(app, {
     unitOfWork: deps.automationDeviceUnitOfWork, credentialVerifier: deps.syncSessionRoutes.credentialVerifier,
     allowedOrigins: deps.syncSessionRoutes.allowedOrigins, allowInsecureLoopback: deps.syncSessionRoutes.allowInsecureLoopback,
     trustedIngress: deps.syncSessionRoutes.trustedIngress, admission: deps.syncAdmissionPolicy,
   });
+  if (config.automationRuntimeEnabled && deps.automationPairing && deps.mcpReadTransport?.oauthVerifier) registerAutomationWorkRoutes(app,{ pairing: deps.automationPairing,oauthVerifier: deps.mcpReadTransport.oauthVerifier,allowedOrigins: config.allowedOrigins });
   if (deps.automationHealthStartup) app.addHook('onReady', deps.automationHealthStartup);
   const subscriptions = { identityUnitOfWork, unitOfWork: deps.bookmarkSubscriptionUnitOfWork, allowedOrigins: extensionProductAllowedOrigins(config), enabled: () => config.bookmarkSubscriptions?.enabled === true, protocolReady: () => config.bookmarkSubscriptions?.protocolReady === true, cursorKey: config.community.cursorHmacKey, rateLimiter: deps.reportsRateLimiter };
   registerBookmarkSubscriptionRoutes(app, subscriptions);

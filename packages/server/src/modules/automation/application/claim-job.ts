@@ -3,7 +3,7 @@ import type { AutomationActor } from '../domain/bindings.js';
 import { AutomationError } from '../domain/errors.js';
 import { parseContract } from './rule-service.js';
 
-export interface WorkPrincipal extends AutomationActor { clientId: string; credentialBindingId: string; scopes: readonly string[]; resourceAudience?: string; securityEpoch?: string }
+export interface WorkPrincipal extends AutomationActor { clientId: string; credentialBindingId: string; scopes: readonly string[]; resourceAudience?: string; securityEpoch?: string; credentialDigest?: string; expiresAt?: string; issuedAtSeconds?: number; accountSecurityEpoch?: string }
 export type ClaimOutcome = { kind: 'claimed'; lease: Lease } | { kind: 'conflict' | 'uncertain' | 'budget' };
 export interface JobLeaseStore {
   claim(actor: WorkPrincipal, jobId: string, input: ClaimInput): Promise<ClaimOutcome>;

@@ -28,5 +28,20 @@
   "listAutomationExecutionPolicies",
   "createAutomationExecutionPolicy",
   "getAutomationExecutionPolicy",
-  "replaceAutomationExecutionPolicy"
+  "replaceAutomationExecutionPolicy",
+  "listAutomationConnectionProfiles",
+  "createAutomationConnectionProfile",
+  "getAutomationConnectionProfile",
+  "replaceAutomationConnectionProfile",
+  "listAutomationTargets",
+  "createAutomationTarget",
+  "getAutomationTarget",
+  "replaceAutomationTarget",
+  "listAutomationExecutors",
+  "createAutomationExecutor",
+  "getAutomationExecutor",
+  "replaceAutomationExecutor",
+  "createAutomationTargetPairing",
+  "revokeAutomationTarget",
+  "claimAutomationTargetPairing"
 ]

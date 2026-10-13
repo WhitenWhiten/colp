@@ -1,3 +1,4 @@
+import { seedAutomationTarget } from './automation-target-fixture.js';
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { sql } from 'kysely';
@@ -12,6 +13,7 @@ import { createPhase4bMcpWriteComposition, createMcpChangePlanRateLimitPort } fr
 /** AW-24 service fixture: real canonical source/run; explicit M2 pins, before AW-31 admission is mounted. */
 export async function automationJobFixture(prefix: string,kind: 'summary' | 'tags' | 'move' = 'summary',options: { afterCanonicalCommit?: () => Promise<void>; beforeCanonicalCommit?: () => Promise<void> } = {}) {
   const f = await automationRuntimeFixture(prefix,true);
+  await seedAutomationTarget(f.uow,f.owner);
   await f.createNode('job-paper','root','Job paper','https://arxiv.org/abs/job'); await f.inspect();
   const run = (await sql<{ id: string; rule_revision_id: string; member_ids: string[] }>`SELECT * FROM automation_runs`.execute(f.db)).rows[0]!;
   const definition = JSON.parse(readFileSync('../../docs/automation/design/examples/academic-summary-only.json','utf8')) as RuleDefinition;

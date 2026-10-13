@@ -193,7 +193,7 @@ export async function startApi(options: StartApiOptions = {}): Promise<StartedAp
     mcpRateLimiter,
     mcpWriteComposition,
     mcpApplicationFacade,
-    accountCredentialGrantRuntime,
+    accountCredentialGrantRuntime,automationTargetWorker,
   } = mcp;
   const cacheComposition = createApiCacheComposition({
     config: config.cache,
@@ -466,6 +466,7 @@ export async function startApi(options: StartApiOptions = {}): Promise<StartedAp
       : { publicationMetadataCacheReader: cacheComposition.metadataReader }),
     cacheReadiness: () => cacheComposition.readiness(),
     cacheCapabilityReadiness: () => cacheComposition.capabilityReadiness(),
+    ...(automationTargetWorker ? { automationPairing: automationTargetWorker } : {}),
     ...(mcpReadResourceProjection === undefined ? {} : { mcpReadResourceProjection }),
     ...(mcpNodeResourceProjection === undefined ? {} : { mcpNodeResourceProjection }),
     ...(mcpSnapshotResourceProjection === undefined ? {} : { mcpSnapshotResourceProjection }),

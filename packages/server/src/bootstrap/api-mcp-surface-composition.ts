@@ -1,3 +1,6 @@
+import { createTargetWorkerService } from '../infrastructure/automation/index.js';
+import { createAutomationBindingVerifier } from './automation-binding-verifier.js';
+import { AutomationError } from '../modules/automation/index.js';
 import { createLocalIssuerJwks } from '../infrastructure/auth/local-issuer-jwks.js';
 import { createPostgresNodesSearchPorts } from '../infrastructure/search/index.js';
 import { createSearchCursorSigner } from '../modules/search/index.js';
@@ -49,6 +52,7 @@ import { createPhase4bMcpApplicationFacadeFromColpAdapters } from '../transport/
 import { settleBestEffort } from '../infrastructure/async/best-effort.js';
 
 export interface ApiMcpSurfaceComposition {
+  readonly automationTargetWorker?: ReturnType<typeof createTargetWorkerService>;
   readonly mcpCollectionResourceCursorKeys: ReturnType<typeof createPhase4bMcpCollectionResourceCursorKeyring> | undefined;
   readonly mcpChangeSignalSource: ReturnType<typeof createPostgresMcpChangeSignalSource> | undefined;
   readonly mcpReadResourceProjection: ReturnType<typeof createPhase4bMcpCollectionResourceProjection> | undefined;
@@ -268,6 +272,11 @@ export async function composeApiMcpSurface(input: {
     }
   }
   let mcpWriteComposition: ReturnType<typeof createPhase4bMcpWriteComposition> | undefined;
+  const automationTargetWorker = config.automationConfigurationEnabled && config.automationRuntimeEnabled && mcpReadOAuthDependencies.oauthVerifier && mcpRateLimiter
+    ? createTargetWorkerService(database.db,createAutomationBindingVerifier(config,createMcpSecurityEpochReader(config,mcpOauthRevocationStore)),async actor => {
+      const verdict = await mcpRateLimiter!.consume({ policy: 'request',facts: JSON.stringify(['automation-pair',actor.accountId,actor.clientId,actor.credentialBindingId]) });
+      if (verdict.kind !== 'allowed') throw new AutomationError(verdict.kind === 'denied' ? 'rate_limited' : 'feature_temporarily_unavailable','Pairing admission is unavailable.',[],null,verdict.kind === 'denied' ? verdict.decision.retryAfterSeconds : 30);
+    }) : undefined;
   const grantMcp = composeCredentialGrantMcp({
     config,
     securityEpoch: createMcpSecurityEpochReader(config, mcpOauthRevocationStore),
@@ -337,6 +346,7 @@ export async function composeApiMcpSurface(input: {
     mcpReadToolAdapter,
     mcpOauthRevocationStore,
     mcpReadOAuthDependencies,
+    ...(automationTargetWorker ? { automationTargetWorker } : {}),
     mcpRateLimiter,
     mcpWriteComposition,
     mcpApplicationFacade,
