@@ -59,4 +59,20 @@ describeWithPostgres('AW-27 durable Events subscriptions', () => {
     expect(await store.available(f.actor)).toBe(false);
     await expect(store.subscribe(f.actor,input)).rejects.toMatchObject({ code: 'resource_not_found' });
   });
+  test('expired and revoked identities do not consume live slots; revival still respects the active cap',async()=>{
+    const input=await setup(),store=createSubscriptionStore(f.db,f.worker,verifier);
+    const original=await store.subscribe(f.actor,input);
+    await sql`INSERT INTO automation_event_subscriptions(id,owner_id,target_id,profile_id,identity_digest,callback_url,profile_revision,pairing_generation,state,refresh_before)
+      SELECT 'retained-'||n,owner_id,target_id,profile_id,'retained-digest-'||n,callback_url,profile_revision,pairing_generation,
+        'expired',clock_timestamp()-interval '1 day' FROM automation_event_subscriptions CROSS JOIN generate_series(1,100) n WHERE id=${original.id}`.execute(f.db);
+    const other=await store.subscribe(f.actor,{...input,delivery:{...input.delivery,url:'https://receiver.example/other'}});
+    expect(other.id).not.toBe(original.id);
+    await sql`UPDATE automation_event_subscriptions SET state='active',refresh_before=clock_timestamp()+interval '1 hour'
+      WHERE id IN (SELECT id FROM automation_event_subscriptions WHERE id LIKE 'retained-%' ORDER BY id LIMIT 98)`.execute(f.db);
+    await expect(store.subscribe(f.actor,{...input,delivery:{...input.delivery,url:'https://receiver.example/full'}})).rejects.toMatchObject({code:'payload_too_large'});
+    expect((await store.subscribe(f.actor,input)).id).toBe(original.id);
+    await store.unsubscribe(f.actor,input);
+    expect((await store.subscribe(f.actor,input)).id).toBe(original.id);
+  });
+
 });

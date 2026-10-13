@@ -12,7 +12,7 @@ export interface SubscriptionVerifier {
   verify(input: { id: string; url: string; secret: string }): Promise<void>;
   encrypt(secret: string, id: string): string;
 }
-interface SubscriptionRow { id: string; generation: string; verification_generation: string; refresh_before: Date; secret_ciphertext: string | null }
+interface SubscriptionRow { occupies_slot?: boolean; id: string; generation: string; verification_generation: string; refresh_before: Date; secret_ciphertext: string | null }
 /** Reserve a generation, verify outside the transaction, then recheck authority and generation. */
 export function createSubscriptionStore(db: Kysely<DatabaseSchema>, targets: TargetWorkerService, verifier?: SubscriptionVerifier): AutomationEventsService {
   async function authority(tx: DatabaseTransaction, actor: WorkPrincipal, targetId: string) {
@@ -40,9 +40,11 @@ export function createSubscriptionStore(db: Kysely<DatabaseSchema>, targets: Tar
       if(!Number.isFinite(ttl) || ttl<60_000)throw new McpEventsError(-32602,'Refresh the credential before subscribing.');
       const pending = await db.transaction().execute(async tx => {
         const { profile,target } = await authority(tx,actor,input.arguments.targetId);
-        const count = (await sql<{ n: number }>`SELECT count(*)::int AS n FROM automation_event_subscriptions WHERE owner_id=${actor.accountId}`.execute(tx)).rows[0]!.n;
-        const existing = (await sql<SubscriptionRow>`SELECT * FROM automation_event_subscriptions WHERE identity_digest=${identity(actor,input)}`.execute(tx)).rows[0];
-        if (!existing && count >= 100) throw new AutomationError('payload_too_large', 'Subscription limit reached.');
+        const count = (await sql<{ n: number }>`SELECT count(*)::int AS n FROM automation_event_subscriptions WHERE owner_id=${actor.accountId}
+          AND state IN ('active','verifying') AND refresh_before>clock_timestamp()`.execute(tx)).rows[0]!.n;
+        const existing = (await sql<SubscriptionRow>`SELECT *,state IN ('active','verifying') AND refresh_before>clock_timestamp() AS occupies_slot
+          FROM automation_event_subscriptions WHERE identity_digest=${identity(actor,input)}`.execute(tx)).rows[0];
+        if (!existing?.occupies_slot && count >= 100) throw new AutomationError('payload_too_large', 'Subscription limit reached.');
         // Renewal verification has its own fence. A live subscription continues
         // delivering and receiving queued wakes until the new key is verified.
         const live = sql`automation_event_subscriptions.state='active'
