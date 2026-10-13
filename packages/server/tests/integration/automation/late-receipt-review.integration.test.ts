@@ -42,7 +42,9 @@ describeWithPostgres('late canonical evidence and cancelled run concurrency', ()
       expect(updated.status).toBe('cancelled'); expect(updated.effects).toHaveLength(1);
       expect(BigInt(updated.revision)).toBeGreaterThan(BigInt(cancelled.revision));
       await device.execute(auth, p => p.accept({ ...input, localReceiptId: randomUUID() }));
-      expect(await f.uow.execute(f.owner, p => getAutomationRun(p.runs, row.id))).toEqual(updated);
+      // The usage window ends at read time; everything else must be byte-identical after a duplicate receipt.
+      const stable = (run: unknown) => JSON.parse(JSON.stringify(run, (key, value: unknown) => key === 'periodEnd' ? undefined : value));
+      expect(stable(await f.uow.execute(f.owner, p => getAutomationRun(p.runs, row.id)))).toEqual(stable(updated));
     } finally { await f.isolated.close(); }
   });
 });
