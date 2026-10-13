@@ -64,7 +64,8 @@
     "test:acceptance:profiles": "node scripts/with-postgres.mjs --isolated-owner -- node node_modules/vitest/vitest.mjs run --project postgres --fileParallelism=false tests/integration/phase2/phase2-profile-conformance.integration.test.ts",
     "check:migrations": "node scripts/check-migration-order.mjs",
     "openapi:automation": "node scripts/sync-automation-openapi.mjs --check && npm run check:automation-tools",
-    "check:automation-tools": "node scripts/generate-automation-tools.mjs --check"
+    "check:automation-tools": "node scripts/generate-automation-tools.mjs --check",
+    "test:automation:polling": "xvfb-run -a npm run test:integration:file -- tests/integration/automation/end-to-end.integration.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1095.0",

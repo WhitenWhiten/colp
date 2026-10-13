@@ -72,6 +72,23 @@ test('provider interruption and restart in claimed phase report unknownOutcome w
   assert.equal(f.calls.filter(call => call.path.endsWith('/failures')).length, 2);
 });
 
+test('Manual pending response retains the same typed proposal until approval without rerunning the adapter', async () => {
+  const f = fixture(); let submissions = 0, generations = 0;
+  const request = async (...args) => {
+    if (args[1].startsWith('/jobs?') && submissions) return { items: [], nextCursor: null };
+    const value = await f.request(...args);
+    if (args[1].endsWith('/results') && ++submissions === 1) return { ...value, status: 'awaitingApproval' };
+    return value;
+  };
+  const options = { ...f.options, request, adapter: { ...adapter, generate: async args => { generations++; return adapter.generate(args); } } };
+  assert.equal((await runPollingCycle(options))[0].status, 'awaitingApproval');
+  const pending = await f.journal.load(), first = f.calls.find(call => call.path.endsWith('/results'));
+  assert.notEqual(pending.commandId, first.command);
+  assert.deepEqual(pending.body, first.body);
+  assert.equal((await runPollingCycle(options))[0].status, 'succeeded');
+  assert.equal(generations, 1); assert.equal(await f.journal.load(), null);
+});
+
 test('claim conflict is skipped; lost heartbeat never submits a late result', async () => {
   const f = fixture();
   assert.deepEqual(await runPollingCycle({ ...f.options, request: async (...args) => { if (args[1].endsWith('/claim')) throw new WorkerHttpError(409, 'automation_claim_conflict'); return f.request(...args); } }), []);

@@ -64,7 +64,12 @@ async function flush(request, journal, pending) {
     await journal.save(pending);
   }
   const result = await request('POST', `/jobs/${encodeURIComponent(pending.jobId)}/${pending.phase}`, pending.body, pending.commandId);
-  await journal.clear();
+  if (pending.phase === 'results' && ['awaitingApproval', 'committing'].includes(result.status)) {
+    // A completed HTTP command replays its original pending response forever. Reconcile the
+    // same proposal with a fresh transport command after a KNOWN pending response, preserving
+    // the typed body and server-owned plan identity. Lost responses still replay the old command.
+    await journal.save({ ...pending, commandId: randomUUID() });
+  } else await journal.clear();
   return result;
 }
 
@@ -94,6 +99,7 @@ export async function runPollingCycle({ request, targetId, adapter, journal, pai
   if (pending) {
     if (pending.targetId !== targetId) throw new Error('Journal belongs to another target.');
     results.push(await flush(request, journal, pending));
+    if (await journal.load()) return results;
   }
   if (pairing) await request('POST', '/pairings/claim', { pairingId: pairing.pairingId, code: pairing.code }, pairing.commandId);
   const jobs = await readPages(request, '/jobs', { targetId });
@@ -126,6 +132,7 @@ export async function runPollingCycle({ request, targetId, adapter, journal, pai
     await journal.save(submission);
     // A lost submit response is recovered using these exact bytes/command, never a new model call.
     results.push(await flush(request, journal, submission));
+    if (await journal.load()) return results;
   }
   return results;
 }

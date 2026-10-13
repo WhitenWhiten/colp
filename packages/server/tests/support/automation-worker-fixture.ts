@@ -6,7 +6,7 @@ import { automationPolicyRoutes } from '../../src/transport/product/automation-p
 import { inspectAutomationOutbox } from './automation-runtime-fixture.js';
 import { insertTestParentCredential } from './account-credential-db-fixture.js';
 import { createPostgresAccountCredentialUnitOfWork } from '../../src/infrastructure/auth/account-credentials-postgres.js';
-import { createChildCredential,exchangeAccountKey,loadCredentialAuthority,resolveMachineMcpBinding,revokeCredential } from '../../src/modules/auth/index.js';
+import { createChildCredential,exchangeAccountKey,revokeCredential } from '../../src/modules/auth/index.js';
 import Fastify from 'fastify';
 import { randomUUID } from 'node:crypto';
 import { generateKeyPair,exportJWK,SignJWT } from 'jose';
@@ -15,8 +15,8 @@ import { loadConfig } from './test-config.js';
 import { createAutomationUnitOfWork } from '../../src/infrastructure/automation/index.js';
 import { createTargetWorkerService } from '../../src/infrastructure/automation/target-worker.js';
 import { createAutomationBindingVerifier } from '../../src/bootstrap/automation-binding-verifier.js';
-import { createMcpOauthVerifier,MCP_OAUTH_DEFAULT_SECURITY_EPOCH } from '../../src/modules/mcp/index.js';
-import { createPostgresMcpOauthRevocationStore } from '../../src/infrastructure/database/index.js';
+import { MCP_OAUTH_DEFAULT_SECURITY_EPOCH } from '../../src/modules/mcp/index.js';
+import { automationWorkerVerifier } from './automation-worker-verifier.js';
 import { createMemoryMcpRateLimiter } from '../../src/infrastructure/rate-limit/index.js';
 import { AutomationError,type WorkPrincipal } from '../../src/modules/automation/index.js';
 import { registerAutomationRoutes } from '../../src/transport/product/automation-rule-routes.js';
@@ -43,16 +43,7 @@ export async function automationWorkerFixture(prefix: string,maxPairRequests = 1
     if (issued.kind !== 'succeeded' || !issued.body.secret) throw new Error('Worker credential issuance failed');
     child = { id: issued.body.credential.id,secret: issued.body.secret };
   }
-  const revocations = createPostgresMcpOauthRevocationStore({ db: f.db });
-  const verifier = createMcpOauthVerifier({ issuer,audience,allowedScopes: ['automation:work','automation:read','automation:manage','mcp:read:own'],
-    jwks: { getKeySet: async () => ({ keys: [jwk] }) },securityEpoch: async () => MCP_OAUTH_DEFAULT_SECURITY_EPOCH,
-    isRevoked: input => revocations.isRevoked(input),requireAccountEpoch: true,clockToleranceSeconds: 0,
-    ...(machineMode ? { machine: { kids: new Set(['aw-worker']),bind: (input: Parameters<typeof resolveMachineMcpBinding>[0]) => resolveMachineMcpBinding({ ...input,load: id => credentials.execute(p => loadCredentialAuthority(p,id)) }) } } : {}),
-    resolveAccountBySubject: async sub => { const a = await f.db.selectFrom('accounts').selectAll().where('subject_id','=',sub).executeTakeFirst();
-      return a ? { id: a.id,subjectId: a.subject_id,status: a.status,securityEpoch: String(a.security_epoch) } : null; },
-    readAccountSecurityBoundary: async id => { const a = await f.db.selectFrom('accounts').selectAll().where('id','=',id).executeTakeFirst();
-      return a ? { status: a.status,securityEpoch: String(a.security_epoch),bumpedAt: a.security_epoch_bumped_at } : null; },
-  });
+  const { verifier,revocations } = automationWorkerVerifier(f.db,jwk,origin,machineMode);
   const mint = async (options: { subjectId?: string; clientId?: string; scopes?: string[] } = {}) => {
     if (machineMode) {
       if (!child || options.subjectId || options.clientId) throw new Error('Machine fixture cannot change its verified identity');
@@ -98,7 +89,7 @@ export async function automationWorkerFixture(prefix: string,maxPairRequests = 1
     if (g.statusCode !== 201) throw new Error(g.body);
     return { profile: p.json(),target: t.json(),grant: g.json(),grantEtag: String(g.headers.etag) };
   }
-  return { ...f,config,uow,app,worker,work,results,composition,inspect: () => inspectAutomationOutbox(f.db,createAutomationRuntime('server',enableJobs)),actor,token,mint,verifier,revocations,limiter,ownerHeaders,ownerPost,pair,setup,
+  return { ...f,config,publicJwk: jwk,uow,app,worker,work,results,composition,inspect: () => inspectAutomationOutbox(f.db,createAutomationRuntime('server',enableJobs)),actor,token,mint,verifier,revocations,limiter,ownerHeaders,ownerPost,pair,setup,
     revokeWorker: async () => {
       if (!child) throw new Error('No machine credential');
       return credentials.execute(p => revokeCredential(p,{ managerAccountId: f.owner.accountId,credentialId: child!.id,commandId: randomUUID(),ifMatch: `"${child!.id}:1"`,body: { reason: 'Revoke dedicated test worker' } }));
