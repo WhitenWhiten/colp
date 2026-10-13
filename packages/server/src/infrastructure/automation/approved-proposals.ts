@@ -52,9 +52,11 @@ export function createApprovedProposalApplier(db: Kysely<DatabaseSchema>, server
     async sweep(ownerId) {
       const due = (await sql<{ job_id: string }>`SELECT p.job_id FROM automation_proposals p
         JOIN automation_jobs j ON j.id=p.job_id JOIN automation_runs r ON r.id=j.run_id
-        JOIN mcp_change_plans m ON m.plan_id=p.plan_id
+        LEFT JOIN mcp_change_plans m ON m.plan_id=p.plan_id
         WHERE r.owner_id=${ownerId} AND j.state IN ('committing','awaitingApproval')
-          AND (m.status IN ('approved','committing','consumed','cancelled','expired') OR m.expires_at<=clock_timestamp())
+          AND (m.status IN ('approved','committing','consumed','cancelled','expired') OR m.expires_at<=clock_timestamp()
+            -- A proposal whose plan was never created (an interrupted submission or re-proposal).
+            OR (m.plan_id IS NULL AND p.created_at<clock_timestamp()-interval '1 minute'))
         ORDER BY p.created_at,p.job_id LIMIT 20`.execute(db)).rows;
       for (const { job_id } of due) await apply(ownerId, job_id);
       return due.length;

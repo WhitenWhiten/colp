@@ -171,6 +171,34 @@ describeWithPostgres('AW-31 authenticated polling and typed canonical orchestrat
     expect((await owner('/jobs/'+job.id)).json().status).toBe('review');
     expect(await f.approvals!.sweep(f.owner.accountId)).toBe(0);
   });
+  test('an Owner retry proposes the retained output again after its plan expired, and approval commits it',async () => {
+    const { job,submitted,owner } = await awaitingApproval('aw31_repropose');
+    const first = (await sql<{ plan_id: string }>`SELECT plan_id FROM automation_proposals WHERE job_id=${job.id}`.execute(f.db)).rows[0]!.plan_id;
+    await sql`UPDATE mcp_change_plans SET status='expired' WHERE plan_id=${first}`.execute(f.db);
+    expect(await f.approvals!.sweep(f.owner.accountId)).toBe(1);
+    const reviewed = await owner('/jobs/'+job.id);expect(reviewed.json().status).toBe('review');
+    expect((await owner('/runs/'+job.runId)).json().status).not.toBe('running');
+    const retried = await f.ownerPost(`/jobs/${job.id}/retry`,{ reason: 'Propose the retained summary again' },String(reviewed.headers.etag));
+    expect(retried.statusCode,retried.body).toBe(200);
+    const reproposed = await owner('/jobs/'+job.id);
+    expect(reproposed.json()).toMatchObject({ status: 'awaitingApproval',proposalDigest: submitted.proposalDigest });
+    expect(reproposed.json().planId).not.toBe(first);
+    expect((await owner('/runs/'+job.runId)).json().status).toBe('running');
+    const approved = await f.ownerPost(`/jobs/${job.id}/decision`,{ decision: 'approve',proposalDigest: submitted.proposalDigest,reason: 'Approve the new plan' },String(reproposed.headers.etag));
+    expect(approved.statusCode,approved.body).toBe(200);
+    expect((await owner('/jobs/'+job.id)).json().status).toBe('succeeded');
+    expect((await sql`SELECT id FROM automation_effect_receipts WHERE job_id=${job.id}`.execute(f.db)).rows).toHaveLength(1);
+    expect((await sql`SELECT count(*)::int AS n FROM automation_job_attempts WHERE job_id=${job.id}`.execute(f.db)).rows).toEqual([{ n: 1 }]);
+  });
+  test('an Owner rejection is final; retry cannot propose a rejected output again',async () => {
+    const { job,submitted,owner } = await awaitingApproval('aw31_rejected_final');
+    const current = await owner('/jobs/'+job.id);
+    const rejected = await f.ownerPost(`/jobs/${job.id}/decision`,{ decision: 'reject',proposalDigest: submitted.proposalDigest,reason: 'Not this summary' },String(current.headers.etag));
+    expect(rejected.statusCode,rejected.body).toBe(200);
+    const reviewed = await owner('/jobs/'+job.id);expect(reviewed.json().status).toBe('review');
+    const retried = await f.ownerPost(`/jobs/${job.id}/retry`,{ reason: 'Try again' },String(reviewed.headers.etag));
+    expect(retried.statusCode,retried.body).toBe(409);
+  });
   test('expired leases stay uncertain until Owner retry and retain original pins, cost and generation fencing',async () => {
     await setup('aw31_retry',{ maxCalls: 2 });
     const job = (await read('/jobs')).json().items[0];

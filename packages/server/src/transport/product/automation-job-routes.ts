@@ -13,6 +13,10 @@ export function automationJobRoutes(approvals?: import('../../modules/automation
       afterCommit: async ({ actor,request },response) => {
         if ((response.body as { status?: string } | undefined)?.status === 'awaitingApproval') await approvals?.apply(actor.accountId,id(request));
       } },
-    { method: 'POST',path: '/jobs/:jobId/retry',ifMatch: true,action: async ({ ports,request,ifMatch }) => automationView(await store(ports).retry(id(request),request.body,ifMatch)) },
+    { method: 'POST',path: '/jobs/:jobId/retry',ifMatch: true,action: async ({ ports,request,ifMatch }) => automationView(await store(ports).retry(id(request),request.body,ifMatch)),
+      // A re-proposed output gets its new plan (and Trusted commit) without waiting for the worker.
+      afterCommit: async ({ actor,request },response) => {
+        if ((response.body as { status?: string } | undefined)?.status === 'committing') await approvals?.apply(actor.accountId,id(request));
+      } },
   ];
 }
