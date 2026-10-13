@@ -4,7 +4,7 @@ import { recordDevicePlacementRun } from './device-placement-run.js';
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { automationDigest, compilePredicate, type LocalReceiptInput, type ReceiptIngestResult, type RuleBundle } from '@know-n/colp/automation';
-import { AutomationError, placementInputDigest, placementResultDigest, resolveBindings, type AutomationDeviceActor } from '../../modules/automation/index.js';
+import { AutomationError, isIntakeRootSnapshot, placementInputDigest, placementResultDigest, resolveBindings, type AutomationDeviceActor } from '../../modules/automation/index.js';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
 import { createBindingReadPort } from './bindings.js';
 import { sourceEvent } from './source-facts.js';
@@ -72,7 +72,7 @@ export async function verifyIntakeReceipt(tx: DatabaseTransaction, actor: Automa
   if (!after || after.parentId !== destination.snapshot.folder.nodeId || placementInputDigest(input, created.facts_json!.after!) !== input.inputDigest
     || (input.resultDigests.length > 0 && input.resultDigests[0] !== placementResultDigest(destination.snapshot.folder)))
     return result('rejected', 'Placement or input/result digest mismatch.');
-  if (input.placementOperationId && (created.facts_json!.after!.parentId !== collection.rootNodeId
+  if (input.placementOperationId && (!isIntakeRootSnapshot(created.facts_json!.after, collection.rootNodeId)
     || placed.facts_json!.before?.resourceRevision !== created.facts_json!.after!.resourceRevision))
     return result('review', 'Observed correction crossed a later edit or a selected folder.');
   const current = await tx.selectFrom('nodes').select(['resource_revision', 'parent_id', 'kind', 'deleted_at'])

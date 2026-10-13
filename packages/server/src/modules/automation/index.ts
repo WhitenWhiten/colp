@@ -1,6 +1,7 @@
 export * from './domain/bindings.js';
 export * from './domain/errors.js';
 export * from './domain/export.js';
+export * from './domain/intake-root.js';
 export * from './application/ports.js';
 export * from './application/resolve-bindings.js';
 export * from './application/rule-service.js';
@@ -16,5 +17,5 @@ export * from './application/compile-bundle.js';
 export * from './application/placement-history.js';
 export * from './application/placement-undo.js';
 export * from './application/server-intake.js';
-export { evaluateRuleEvent, type PreparedRule } from './application/rule-evaluation.js';
+export { evaluateRuleEvent, evaluateRuleEvents, type PreparedRule } from './application/rule-evaluation.js';
 export { explainRun } from './application/run-explanation.js';

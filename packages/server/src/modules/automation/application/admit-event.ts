@@ -1,5 +1,5 @@
 import type { EventFacts } from '@know-n/colp/automation';
-import { evaluateRuleEvent, type PreparedRule, type RuleEventPlan } from './rule-evaluation.js';
+import { evaluateRuleEvents, type PreparedRule, type RuleEventPlan } from './rule-evaluation.js';
 
 export interface AdmissionCandidate extends PreparedRule { revisionId: string; afterOrdinal: string; epoch: string }
 export interface AdmissionDecision { candidate: AdmissionCandidate; plan: RuleEventPlan; createRun: boolean }
@@ -7,8 +7,9 @@ export interface AdmissionDecision { candidate: AdmissionCandidate; plan: RuleEv
 export function admitEvent(candidates: readonly AdmissionCandidate[], event: EventFacts): AdmissionDecision[] {
   const eligible = candidates.filter(rule => BigInt(event.commitOrdinal) > BigInt(rule.afterOrdinal)
     && rule.definition.trigger.mode === 'each' && rule.definition.tasks.length === 0);
-  return eligible.map(candidate => {
-    const plan = evaluateRuleEvent(candidate, eligible.filter(other => other.ruleId !== candidate.ruleId), event);
+  const plans = evaluateRuleEvents(eligible, event);
+  return eligible.map((candidate, index) => {
+    const plan = plans[index]!;
     return { candidate, plan, createRun: ['placed', 'matched', 'conflict', 'blocked', 'overridden'].includes(plan.kind) };
   });
 }

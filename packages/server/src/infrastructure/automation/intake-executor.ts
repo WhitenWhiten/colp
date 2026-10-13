@@ -1,6 +1,6 @@
 import { sql } from 'kysely';
 import type { RuleDefinition, RoleBindings } from '@know-n/colp/automation';
-import { serverIntakeBlock, resolveBindings, assessIntakeBindings, type AutomationActor } from '../../modules/automation/index.js';
+import { serverIntakeBlock, isIntakeRootSnapshot, resolveBindings, assessIntakeBindings, type AutomationActor } from '../../modules/automation/index.js';
 import { captureCollectionTreeVersion, CollectionVersionNodeLimitError, COLLECTION_TREE_VERSION_MAX_NODES } from '../../modules/collections/index.js';
 import { createPostgresCollectionVersionStore } from '../collections/index.js';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
@@ -45,7 +45,7 @@ export async function executePendingIntake(tx: DatabaseTransaction, actor: Autom
     const ancestryCurrent = currentParent?.status === 'valid' && source?.ancestryComplete
       && JSON.stringify([current!.parent_id, ...currentParent.snapshot.ancestors.map(folder => folder.nodeId)]) === JSON.stringify(source.ancestorIds);
     const reason = serverIntakeBlock({ intakeDisposition: run.facts_json.intakeDisposition, origin: run.origin, action: run.facts_json.action,
-      defaultRoot: !!source && (source.parentId === collection.root_node_id || source.parentIsIntakeRoot === true),
+      defaultRoot: isIntakeRootSnapshot(source, collection.root_node_id),
       currentRevision: current && !current.deleted_at ? current.resource_revision : null, sourceRevision: source?.resourceRevision ?? null,
       sourceParent: source?.parentId ?? null, currentParent: current?.parent_id ?? null,
       bindingAvailable: !!ancestryCurrent && destination?.status === 'valid' && assessIntakeBindings(run.definition_json, resolutions).available });

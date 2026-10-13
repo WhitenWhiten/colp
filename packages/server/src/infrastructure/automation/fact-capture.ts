@@ -1,4 +1,5 @@
 import { sql } from 'kysely';
+import { isIntakeRootFolder } from '../../modules/automation/index.js';
 import type { CanonicalDomainEvent, CanonicalMutationInput, AllocatedMutationState } from '../../modules/collections/index.js';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
 
@@ -38,8 +39,9 @@ export async function planAutomationFacts(tx: DatabaseTransaction, input: Canoni
           WHERE n.collection_id = ${input.collectionId} AND n.deleted_at IS NULL
             AND a.depth < ${MAX_ANCESTORS} AND NOT a.cycle
         ) SELECT id, parent_id, depth, cycle, is_root, folder_role FROM ancestors ORDER BY depth`.execute(tx);
-      path = { ids: result.rows.map(row => row.id), intakeRoot: result.rows[0]?.is_root === true
-        || ['bookmarks-bar','other-bookmarks','mobile-bookmarks'].includes(result.rows[0]?.folder_role ?? ''), complete: result.rows.length > 0
+      const parent = result.rows[0];
+      path = { ids: result.rows.map(row => row.id), intakeRoot: isIntakeRootFolder(parent
+        ? { isRoot: parent.is_root, folderRole: parent.folder_role } : undefined), complete: result.rows.length > 0
         && result.rows.at(-1)!.parent_id === null && !result.rows.some(row => row.cycle) };
       paths.set(parentId!, path);
     }
