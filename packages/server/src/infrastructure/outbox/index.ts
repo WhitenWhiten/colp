@@ -203,3 +203,5 @@ export {
 export type {
   AppendCollectionInviteCreatedOutboxInput,
 } from './collection-invite-email.js';
+
+export { createAutomationIngestRoute, automationIngestRegistration } from './automation-ingest.js';

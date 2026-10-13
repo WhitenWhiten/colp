@@ -1,3 +1,4 @@
+import { appendAutomationIngest } from '../outbox/automation-ingest.js';
 import { planAutomationFacts, captureAutomationFacts } from '../automation/fact-capture.js';
 import { resourceKind, type ResourceKind, postgresPlanFacts, type PostgresCanonicalPlanFacts, type CascadedAnnotationRow, type CascadedRelationRow, type CascadedAnnotationPlan, type CascadedRelationPlan } from './canonical-execution-plan.js';
 import { withCanonicalTreeCapacity, type CanonicalTreeCapacityAdmission } from './canonical-tree-capacity.js';
@@ -1692,7 +1693,10 @@ export function createPostgresCanonicalMutationPorts(
     },
     outbox: {
       async appendDomainEvents(tx, events) {
-        for (const event of events) await eventWriters[postgresPlanFacts(event.plan).resourceKind](tx, event);
+        for (const event of events) {
+          await eventWriters[postgresPlanFacts(event.plan).resourceKind](tx, event);
+          await appendAutomationIngest(tx, event);
+        }
         await options.faultInjector?.afterPhase?.({ phase: 'outbox' });
       },
     },

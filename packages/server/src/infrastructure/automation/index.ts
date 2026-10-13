@@ -3,3 +3,5 @@ export { exportAutomations } from './export.js';
 export { createBindingReadPort, createBindingStore } from './bindings.js';
 export { createDependencyIndex } from './dependency-index.js';
 export { createAutomationHealthMonitor } from './health-worker.js';
+
+export { createAutomationSourceInspector } from './source-position-store.js';
