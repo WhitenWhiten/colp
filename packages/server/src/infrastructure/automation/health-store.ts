@@ -32,7 +32,7 @@ export function createHealthStore(db: Kysely<DatabaseSchema>): HealthStore {
         // Change notices describe an event, not a fault repaired by refreshing its snapshot.
         // Keep the latest unseen notice per role/category until acknowledgment or replacement.
         const superseded = expected.some((incident) => incident.role === old.incident_json.role && incident.code === old.code);
-        if (old.state === 'open' && isFolderNotice(old.incident_json) && !superseded) {
+        if (old.state === 'open' && (isFolderNotice(old.incident_json) || old.incident_json.role === 'delivery') && !superseded) {
           result.push(old.incident_json);
           continue;
         }

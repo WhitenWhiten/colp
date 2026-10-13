@@ -632,6 +632,16 @@ export const PRODUCT_ROUTE_MANIFEST = [
   },
   {
     "method": "GET",
+    "path": "/api/v1/me/automations/deliveries",
+    "operationId": "listAutomationDeliveries"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/automations/deliveries/{deliveryId}/retry",
+    "operationId": "retryAutomationDelivery"
+  },
+  {
+    "method": "GET",
     "path": "/api/v1/me/automations/execution-policies",
     "operationId": "listAutomationExecutionPolicies"
   },

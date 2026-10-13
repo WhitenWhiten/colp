@@ -5,6 +5,7 @@ import { writeAgentPolicy } from '../../src/infrastructure/collections/index.js'
 
 /** Real machine credentials, Owner configuration, canonical intake and durable work. */
 export async function automationPollingFixture(prefix: string, options: {
+  wakeMode?: 'events' | 'poll';
   three?: boolean; trusted?: boolean; policyEnabled?: boolean; maxCalls?: number; dailyLimit?: number;
   pair?: (fixture: Awaited<ReturnType<typeof automationWorkerFixture>>, grant: PairingGrant) => Promise<void>;
 } = {}) {
@@ -14,7 +15,7 @@ export async function automationPollingFixture(prefix: string, options: {
       if (response.statusCode !== status) throw new Error(`Polling fixture ${response.statusCode}: ${response.body}`);
       return response;
     };
-    const setup = await f.setup();
+    const setup = await f.setup({ wakeMode: options.wakeMode ?? 'poll' });
     if (options.pair) await options.pair(f,setup.grant);
     else check(await f.pair(setup.grant),200);
     const executors = check(await f.app.inject({ url: '/api/v1/me/automations/executors',headers: { cookie: f.owner.cookie } }),200).json();

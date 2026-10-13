@@ -20,7 +20,7 @@ export function targetView(row: TargetRow,profileEnabled: boolean,credentialCurr
     wakeReadiness: row.revoked ? 'disabled' : !row.paired ? 'waitingForPairing' : blocked ? 'blocked' : wakeMode === 'poll' ? 'active' : 'waitingForSubscription',
     wakeReason: row.revoked ? 'Target authorization was revoked.' : !row.paired ? 'Redeem a short-lived Owner pairing grant.'
       : !profileEnabled ? 'Automation worker catalog is disabled on the connection profile.' : !credentialCurrent ? 'Current credential authority is unavailable; reconnect or re-pair.' : restricted ? 'Restricted work requires a verified dedicated credential binding.'
-      : wakeMode === 'poll' ? 'The paired worker may poll the durable queue; the server does not schedule the worker.' : 'Production Events delivery is unavailable until BE-4; use polling.' };
+      : wakeMode === 'poll' ? 'The paired worker may poll the durable queue; the server does not schedule the worker.' : 'A verified current subscription is required; reconcile the durable queue on reconnect.' };
 }
 export function createTargetStore(tx: DatabaseTransaction,ownerId: string,verifyBinding?: CurrentBindingVerifier): TargetStore {
   const profiles = resource<ConnectionProfile,ConnectionProfileInput>('automation_connection_profiles',row => ({ id: row.id,revision: String(row.revision),configuration: row.configuration_json as ConnectionProfileInput,eventsSupport: 'unknown' }));
@@ -37,7 +37,14 @@ export function createTargetStore(tx: DatabaseTransaction,ownerId: string,verify
         credentialCurrent = target.configuration_json.privacy !== 'restricted' || (current.dedicated && count === 1);
       } catch (error) { if (!(error instanceof AutomationError)) throw error; credentialCurrent=false; }
     }
-    return targetView(target,!!profile?.configuration_json.automationEnabled && profile.configuration_json.catalogs.includes('automationWorker'),credentialCurrent);
+    const view=targetView(target,!!profile?.configuration_json.automationEnabled && profile.configuration_json.catalogs.includes('automationWorker'),credentialCurrent);
+    if (view.wakeMode==='events' && view.wakeReadiness==='waitingForSubscription' && profile) {
+      const count=(await sql<{ n:number }>`SELECT count(*)::int AS n FROM automation_event_subscriptions
+        WHERE target_id=${target.id} AND state='active' AND refresh_before>clock_timestamp()
+        AND profile_revision=${String(profile.revision)}::bigint AND pairing_generation=${String(target.pairing_generation)}::bigint`.execute(tx)).rows[0]!.n;
+      if (count) return { ...view,status:'active',wakeReadiness:'active',subscriptionCount:count,wakeReason:'Verified subscription available; receipt and job execution are separate.' };
+    }
+    return view;
   });
   const executors = resource<Executor,ExecutorInput>('automation_executors',async row => {
     const configuration = row.configuration_json as ExecutorInput,target = configuration.targetId ? await targets.load(configuration.targetId) : null;

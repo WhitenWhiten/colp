@@ -52,5 +52,7 @@
   "submitAutomationWorkResult",
   "reportAutomationWorkFailure",
   "getAutomationJobForOwner",
-  "decideAutomationJob"
+  "decideAutomationJob",
+  "listAutomationDeliveries",
+  "retryAutomationDelivery"
 ]

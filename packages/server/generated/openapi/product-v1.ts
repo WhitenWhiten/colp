@@ -4670,6 +4670,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/automations/deliveries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List per-target delivery attempts
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         */
+        get: operations["listAutomationDeliveries"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/automations/deliveries/{deliveryId}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retry the same event identity after authority recheck
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         */
+        post: operations["retryAutomationDelivery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/automation-device/bundle": {
         parameters: {
             query?: never;
@@ -5725,6 +5765,22 @@ export interface components {
             decision: "approve" | "reject";
             proposalDigest: string;
             reason: string;
+        };
+        AutomationDeliveryViewPage: {
+            items: components["schemas"]["AutomationDeliveryView"][];
+            nextCursor: string | null;
+        };
+        AutomationDeliveryView: {
+            id: string;
+            runId: string;
+            jobId: string;
+            targetId: string;
+            subscriptionId: string;
+            /** @enum {string} */
+            state: "pending" | "sending" | "accepted" | "retrying" | "deadLetter" | "cancelled" | "awaitingSubscription";
+            attemptCount: number;
+            nextAttemptAt: string | null;
+            lastErrorCode: string | null;
         };
         /** @description Full authenticated snapshot. No model credentials or subscription secrets; device mappings remain device-local. */
         AutomationRuleBundle: {
@@ -24753,6 +24809,90 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AutomationSubmissionResult"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    listAutomationDeliveries: {
+        parameters: {
+            query?: {
+                cursor?: components["parameters"]["AutomationCursor"];
+                limit?: components["parameters"]["AutomationLimit"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationDeliveryViewPage"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    retryAutomationDelivery: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Stable command identity. Scope: authenticated principal + operation + addressed resource. Same identity/different canonical body returns 409. */
+                "Known-Command-Id": components["parameters"]["AutomationCommandId"];
+                /** @description Verified host CSRF header (evidence R23): the server reads `x-csrf-token` together with the Origin allowlist on cookie-authenticated writes. Re-checked at AW-01. Never introduce a second CSRF scheme. */
+                "X-CSRF-Token": components["parameters"]["AutomationCsrf"];
+                /** @description Validate against existing host trusted-origin policy for cookie-authenticated mutations. */
+                Origin: components["parameters"]["AutomationOrigin"];
+            };
+            path: {
+                deliveryId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AutomationCommandReason"];
+            };
+        };
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationDeliveryView"];
                 };
             };
             400: components["responses"]["Automation400"];

@@ -1,3 +1,6 @@
+import { createDeliveryWorker } from '../infrastructure/automation/delivery-worker.js';
+import { createWebhookVerifier } from '../infrastructure/automation/webhook-verifier.js';
+import { createTargetWorkerService } from '../infrastructure/automation/target-worker.js';
 import { createAutomationIngestRoute, automationIngestRegistration, automationResumeRegistration, AUTOMATION_RESUME_EVENT } from '../infrastructure/outbox/index.js';
 import { createAutomationSourceInspector, createAutomationRuntime } from '../infrastructure/automation/index.js';
 import { createAutomationHealthMonitor } from '../infrastructure/automation/index.js';
@@ -390,6 +393,17 @@ export function buildWorker(
       workerEnabled: config.automationRuntimeEnabled && config.mcpWriteEnabled,
       verifyTargetBinding: createAutomationBindingVerifier(config,createMcpSecurityEpochReader(config,createPostgresMcpOauthRevocationStore({ db: database.db }))),
     }) : undefined;
+  const deliveryWorker = config.mcpEventsEnabled && config.automationRuntimeEnabled && database && config.automationWebhookMasterKey
+    ? createDeliveryWorker(database.db,createTargetWorkerService(database.db,
+      createAutomationBindingVerifier(config,createMcpSecurityEpochReader(config,createPostgresMcpOauthRevocationStore({ db: database.db }))),async () => {}).authorize,
+      createWebhookVerifier(config.automationWebhookMasterKey)) : undefined;
+  let deliveryTimer: ReturnType<typeof setInterval> | undefined;
+  let deliveryTick: Promise<void> | undefined;
+  const pollDeliveries = () => {
+    if (!deliveryWorker || deliveryTick) return;
+    deliveryTick = (async () => { for (let i=0;i<20;i++) if (!await deliveryWorker.tick()) break; })()
+      .catch(() => { metrics.increment('automation.delivery.error'); }).finally(() => { deliveryTick=undefined; });
+  };
   const baseProjectionSink = originalProjectionSink && automationHealth ? automationHealth.wrap(originalProjectionSink) : originalProjectionSink;
   if (config.mcp && options.mcpReadChangeSignalSource === undefined) {
     throw new Error(
@@ -767,6 +781,7 @@ export function buildWorker(
       // Validate the scheduler dependency before any worker loop is started;
       // otherwise an enabled-but-unwired connector would leave outbox/email
       // timers running after start() rejects.
+      if (deliveryWorker) { deliveryTimer=setInterval(pollDeliveries,1000);deliveryTimer.unref();pollDeliveries(); }
       outbox?.start();
       linkHealthRuntime?.loop.start();
       linkPreviewRuntime?.loop.start();
@@ -845,6 +860,9 @@ export function buildWorker(
     },
     async stop() {
       const failures: WorkerStopFailure[] = [];
+      if (deliveryTimer) clearInterval(deliveryTimer);
+      deliveryTimer=undefined;
+      await deliveryTick;
       if (notificationOperationsTimer) clearInterval(notificationOperationsTimer);
       notificationOperationsTimer = undefined;
       if (syncOperationsTimer) clearInterval(syncOperationsTimer);
