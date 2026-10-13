@@ -32,7 +32,8 @@ describeWithPostgres('AW-27 durable Events subscriptions', () => {
   test('authenticated refresh replaces expiring token observations and bounds the advertised lifetime',async()=>{
     const input=await setup(),store=createSubscriptionStore(f.db,f.worker,verifier),first=await store.subscribe(f.actor,input);
     const verified=await f.verifier.verify({authorization:'Bearer '+await f.mint(),requiredScopes:['automation:work']});
-    const actor={...f.actor,credentialDigest:verified.credentialDigest,expiresAt:verified.expiresAt.toISOString(),issuedAtSeconds:verified.issuedAtSeconds,accountSecurityEpoch:verified.accountSecurityEpoch};
+    expect(verified.binding.credentialBindingId).toBe(f.actor.credentialBindingId);
+    const actor={...f.actor,...verified.binding,credentialBindingId:verified.binding.credentialBindingId,credentialDigest:verified.credentialDigest,expiresAt:verified.expiresAt.toISOString(),issuedAtSeconds:verified.issuedAtSeconds,accountSecurityEpoch:verified.accountSecurityEpoch};
     const refreshed=await store.subscribe(actor,input);expect(refreshed.id).toBe(first.id);expect(Date.parse(refreshed.refreshBefore)).toBeLessThanOrEqual(verified.expiresAt.getTime());
     const observation=(await sql<{observation_json:{credentialDigest:string}}>`SELECT observation_json FROM automation_connection_profiles`.execute(f.db)).rows[0]!.observation_json;
     expect(observation.credentialDigest).toBe(verified.credentialDigest);expect(observation.credentialDigest).not.toBe(f.actor.credentialDigest);

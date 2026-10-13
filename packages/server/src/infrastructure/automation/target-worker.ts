@@ -29,6 +29,13 @@ export function createTargetWorkerService(db: Kysely<DatabaseSchema>,verifyBindi
       AND p.configuration_json->>'automationEnabled'='true' AND p.configuration_json->'catalogs' ? 'automationWorker'`.execute(tx)).rows[0];
     if (!row) throw unavailable();
     await verifyBinding(tx,actor);
+    // Refresh token-free observations only after the current credential passed all
+    // checks. Background health/delivery must not keep using the pairing token.
+    if (actor.credentialDigest && actor.expiresAt) {
+      await sql`UPDATE automation_connection_profiles SET observation_json=${JSON.stringify(principalObservation(actor))}::jsonb
+        WHERE id=${row.id} AND (observation_json IS NULL OR observation_json->>'credentialDigest' IS DISTINCT FROM ${actor.credentialDigest})
+        AND (observation_json IS NULL OR (observation_json->>'issuedAtSeconds')::bigint <= ${actor.issuedAtSeconds ?? 0})`.execute(tx);
+    }
     return row;
   };
   const authorize = async (tx: DatabaseTransaction,actor: WorkPrincipal,targetId: string,privacy?: 'standard' | 'restricted'): Promise<void> => {

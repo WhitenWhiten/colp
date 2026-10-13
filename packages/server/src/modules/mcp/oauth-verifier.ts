@@ -298,8 +298,16 @@ export function createMcpOauthVerifier(options: McpOauthVerifierOptions): McpOau
       if (machineBound.kind === 'disallowed_algorithm' || machineBound.kind === 'invalid_token') {
         throw new McpOauthVerificationError(machineBound.kind);
       }
+      // Automation OAuth profiles represent a verified shared connection, not one
+      // short-lived access token. Scope/subject/audience/epoch changes still fence
+      // the connection; every request separately verifies its token and revocation.
+      // Ordinary MCP credentials retain their existing token-specific identity.
+      const automationConnection = scopes.some(scope => scope.startsWith('automation:'));
       const credentialBindingId = machineBound.kind === 'bound' ? machineBound.credentialBindingId
-        : sha256Base64Url(`oauth\0${options.issuer}\0${tokenId}`);
+        : automationConnection
+          ? sha256Base64Url(JSON.stringify(['automation-oauth-connection/v1', options.issuer,
+            subject, clientId, resourceAudience, securityEpoch, account.securityEpoch ?? null, [...scopes].sort()]))
+          : sha256Base64Url(`oauth\0${options.issuer}\0${tokenId}`);
       const evidence: McpOAuthCredentialEvidence = Object.freeze({
         credentialKind: 'oauth',
         principalId: account.id,
