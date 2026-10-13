@@ -22,7 +22,7 @@ export function deliveryRetryDelay(attempt: number,retryAfter: string | null,now
 /** A bounded one-occurrence tick. Network I/O never holds database locks. */
 export function createDeliveryWorker(db: Kysely<DatabaseSchema>,authorize: TargetAuthority,transport: DeliveryTransport) {
   async function destination(tx: DatabaseTransaction,d: Delivery,completion = false): Promise<Destination | null> {
-    const row = (await sql<Destination>`SELECT s.callback_url,s.secret_ciphertext,s.previous_secret_ciphertext,s.previous_secret_until,p.observation_json
+    const row = (await sql<Destination>`SELECT s.callback_url,s.secret_ciphertext,CASE WHEN s.previous_secret_until>clock_timestamp() THEN s.previous_secret_ciphertext END AS previous_secret_ciphertext,s.previous_secret_until,p.observation_json
       FROM automation_event_subscriptions s JOIN automation_targets t ON t.id=s.target_id JOIN automation_connection_profiles p ON p.id=s.profile_id
       WHERE s.id=${d.subscription_id} AND s.generation=${String(d.subscription_generation)}::bigint AND s.state='active'
       AND s.refresh_before>clock_timestamp() AND s.secret_ciphertext IS NOT NULL AND p.observation_json IS NOT NULL
@@ -79,7 +79,8 @@ export function createDeliveryWorker(db: Kysely<DatabaseSchema>,authorize: Targe
     let status = 0,retryAfter: string | null = null;
     try {
       const secret=transport.decrypt(target.secret_ciphertext,d.subscription_id);
-      const previous=target.previous_secret_ciphertext && target.previous_secret_until && target.previous_secret_until>new Date()
+      // The query returns the previous secret only inside its database-clock grace window.
+      const previous=target.previous_secret_ciphertext && target.previous_secret_until
         ? { secret: transport.decrypt(target.previous_secret_ciphertext,d.subscription_id),until: target.previous_secret_until } : undefined;
       const response=await transport.send(target.callback_url,d.body,signWebhook({ id: d.id,subscriptionId: d.subscription_id,body: d.body,secret,previous }));
       status=response.status;retryAfter=response.retryAfter;
@@ -100,7 +101,7 @@ export function createDeliveryWorker(db: Kysely<DatabaseSchema>,authorize: Targe
       const code=accepted ? null : status===413 ? 'payload_too_large' : status===410 ? 'subscription_gone' : status ? 'callback_http_error' : 'callback_unavailable';
       const delay=deliveryRetryDelay(d.attempt_count,retryAfter);
       await sql`UPDATE automation_event_deliveries SET state=${state},lease_until=NULL,last_error_code=${code},
-        next_attempt_at=${state==='retrying' ? new Date(Date.now()+delay) : null} WHERE id=${d.id}`.execute(tx);
+        next_attempt_at=${state==='retrying' ? sql`clock_timestamp()+make_interval(secs => ${Math.round(delay)/1000})` : null} WHERE id=${d.id}`.execute(tx);
       if (terminal && !accepted) {
         const rule=(await sql<{ rule_id:string }>`SELECT v.rule_id FROM automation_runs r JOIN automation_rule_revisions v ON v.id=r.rule_revision_id WHERE r.id=(SELECT run_id FROM automation_jobs WHERE id=${d.job_id})`.execute(tx)).rows[0]!;
         const now=new Date().toISOString(),id=randomUUID();

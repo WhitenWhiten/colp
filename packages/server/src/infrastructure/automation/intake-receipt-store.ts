@@ -22,7 +22,7 @@ export async function verifyIntakeReceipt(tx: DatabaseTransaction, actor: Automa
     return result('rejected', 'Receipt device, generation or canonical identity does not match authenticated scope.');
   const settings = await tx.selectFrom('automation_settings').select(['paused', 'revision']).where('owner_id', '=', actor.accountId).executeTakeFirst();
   if (settings?.paused) return result('review', 'Automation is paused.');
-  const bundle = (await sql<{ digest: string; snapshot_json: RuleBundle | null; expires_at: Date; paused: boolean; settings_revision: string }>`SELECT digest,snapshot_json,expires_at,paused,settings_revision::text
+  const bundle = (await sql<{ digest: string; snapshot_json: RuleBundle | null; expired: boolean; paused: boolean; settings_revision: string }>`SELECT digest,snapshot_json,expires_at<=clock_timestamp() AS expired,paused,settings_revision::text
     FROM automation_device_bundles WHERE owner_id=${actor.accountId} AND device_id=${actor.deviceId}
       AND revision=${input.bundleRevision}::bigint`.execute(tx)).rows[0];
   if (bundle?.snapshot_json) {
@@ -30,7 +30,7 @@ export async function verifyIntakeReceipt(tx: DatabaseTransaction, actor: Automa
     if (digest !== bundle.digest || automationDigest(content) !== digest) return result('rejected', 'Bundle integrity check failed.');
   }
   const pinned = bundle?.snapshot_json?.rules.find(rule => rule.ruleId === input.ruleId && rule.ruleRevision === input.ruleRevision && rule.bindingRevision === input.bindingRevision);
-  if (!pinned || bundle!.paused || bundle!.expires_at <= new Date() || String(bundle!.settings_revision) !== await automationConfigurationEpoch(tx, actor.accountId)) return result('review', 'Pinned authenticated bundle is unavailable, paused, expired or superseded by configuration changes.');
+  if (!pinned || bundle!.paused || bundle!.expired || String(bundle!.settings_revision) !== await automationConfigurationEpoch(tx, actor.accountId)) return result('review', 'Pinned authenticated bundle is unavailable, paused, expired or superseded by configuration changes.');
   const rule = await tx.selectFrom('automation_rule_revisions as v').innerJoin('automation_rules as r', 'r.id', 'v.rule_id')
     .select(['v.id', 'v.definition_json', 'v.binding_set_id', 'r.desired_state', 'r.current_revision_id'])
     .where('v.rule_id', '=', input.ruleId).where('v.revision', '=', input.ruleRevision).where('r.owner_id', '=', actor.accountId).executeTakeFirst();
