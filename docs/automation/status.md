@@ -51,3 +51,10 @@ AW-02 uses the evidence already on the branch, does not repeat remote operations
 
 The final cross-check and regression results are in the [BE-4/5 close-out record](evidence/be45-review.md).
 Web, extension, model-provider calls, the real dot lifecycle and remote publishing are outside this round's delivery.
+
+## Post-review fixes (2026-10-13)
+
+A review of BE-1..BE-5 found high, medium, code, test, documentation and low-severity issues;
+each fix is a separate commit. The [post-review record](evidence/post-review-fixes.md) maps every
+finding to its commit, lists the earlier R1–R16 round, and gives the reasons for the findings
+left unchanged.

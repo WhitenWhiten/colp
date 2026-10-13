@@ -37,6 +37,8 @@ developed from e72b891 and merged; commits are per AW task, followed by review f
 
 BE-1 through BE-5 local backend packets are implemented, including polling, Events protocol fixtures, immutable manual previews, count batches and run outputs. UI/native browser runtime and real dot production acceptance remain separate gates.
 Each [evidence record](evidence/) lists executed checks and limitations.
+The [post-review fixes](evidence/post-review-fixes.md) list every review finding with its
+commit, and the findings deliberately left unchanged.
 
 ## Running the configuration slice
 
@@ -154,8 +156,10 @@ holds; newly verified late effects advance the Run ETag without reviving cancell
 text with job and target provenance. `output.text` is **untrusted plain text**:
 render with a text node / escaped text binding, never as HTML or executable Markdown.
 The API returns JSON and does not rewrite evidence or the persisted model result.
-If current Owner/source access is unavailable, output reads fail closed rather than
-returning retained private text. Output pagination is stable by `(createdAt,id)`.
+If current Owner/collection access is unavailable, output reads fail closed rather than
+returning retained private text. When a bookmark a job read is deleted, only that job's
+outputs are withheld; other outputs of the run stay readable. Output pagination is stable
+by `(createdAt,id)`.
 
 Read the current Run ETag, then POST `/runs/{runId}/read` with
 `{ "throughOutputId": "the-last-output-actually-viewed" }`, `If-Match`, CSRF and
