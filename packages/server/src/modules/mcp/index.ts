@@ -70,3 +70,5 @@ export { automationWorkPrincipal } from './automation-context.js';
 export { createAutomationToolPort } from './automation-tools.js';
 
 export * from './events-adapter.js';
+
+export { buildAutomationStoredPlan } from './automation-plan-builder.js';

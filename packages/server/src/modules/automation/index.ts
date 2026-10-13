@@ -43,3 +43,5 @@ export * from './application/run-output-service.js';
 export { countPartition, countDistinctKey, estimateCountMembers } from './application/count-members.js';
 
 export { authorizeTagPreference, setTagPreference } from './application/tag-preferences.js';
+
+export { PREDECESSOR_FAILED, taskBlocksSuccessors, terminalTaskRunState } from './application/task-state.js';

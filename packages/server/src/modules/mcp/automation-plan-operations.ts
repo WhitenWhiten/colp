@@ -11,9 +11,20 @@ export interface AutomationPlanOperation {
   parentId?: string; sourceParentId?: string; tags?: string[]; text?: string; annotationRevision?: string; format?: 'plain' | 'markdown'; annotationId?: string; creator?: { id: string; name: string };
 }
 export function isAutomationPlanOperation(value: unknown): value is AutomationPlanOperation {
-  const v = value as Partial<AutomationPlanOperation> | null;
-  return !!v && ['update_node','create_annotation','update_annotation','move_node'].includes(v.type ?? '') && typeof v.jobId === 'string'
-    && typeof v.commandId === 'string' && typeof v.operationId === 'string' && typeof v.runId === 'string';
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const v = value as Partial<AutomationPlanOperation>;
+  if (!['collectionId','nodeId','commandId','operationId','ruleId','jobId','runId'].every(key => {
+    const item=Reflect.get(v,key);return typeof item==='string' && item.length>0;
+  })) return false;
+  switch(v.type) {
+    case 'move_node': return typeof v.parentId==='string' && !!v.parentId && typeof v.sourceParentId==='string' && !!v.sourceParentId;
+    case 'update_node': return Array.isArray(v.tags) && v.tags.every(tag=>typeof tag==='string');
+    case 'update_annotation':
+    case 'create_annotation': return typeof v.text==='string' && !!v.text && typeof v.annotationId==='string'
+      && typeof v.creator?.id==='string' && typeof v.creator.name==='string'
+      && (v.type==='create_annotation' || typeof v.annotationRevision==='string');
+    default: return false;
+  }
 }
 export async function executeAutomationPlanOperation(operation: AutomationPlanOperation, plan: McpStoredPlan,
   binding: McpAuthenticatedAuthorizationBinding, ports: ProductCollectionCanonicalPorts, annotations: AnnotationMutationPorts): Promise<OperationResult> {
