@@ -1,3 +1,4 @@
+import { isMcpOauthVerificationResult } from '../../modules/mcp/index.js';
 /**
  * P4B-R06 production MCP Streamable HTTP transport.
  *
@@ -607,6 +608,7 @@ export function registerMcpReadRoutes(
             : {
               requestId,
               [MCP_ACCOUNT_SUBJECT_ID_AUTHORIZATION_KEY]: trusted.accountSubjectId,
+              ...(trusted.automationCredential ? { automationCredential: trusted.automationCredential } : {}),
             },
           origin,
           ...(body.method === 'tools/call' ? {} : { paramDeclarations: NO_PARAM_DECLARATIONS }),
@@ -1003,6 +1005,7 @@ async function resolveAuthorization(
   readonly binding: McpAuthorizationBinding;
   readonly scope: readonly string[];
   readonly accountSubjectId?: string;
+  readonly automationCredential?: Readonly<Record<string,unknown>>;
 }> {
   if (authorization === undefined) {
     const securityEpoch = await withAbort(resolveAnonymousSecurityEpoch(dependencies), signal);
@@ -1029,6 +1032,11 @@ async function resolveAuthorization(
     binding: result.binding,
     scope: [...(result.scopes ?? [])],
     accountSubjectId: result.accountSubjectId,
+    ...(isMcpOauthVerificationResult(result) && result.scopes.some(scope => scope.startsWith('automation:')) ? { automationCredential: {
+      credentialDigest: result.credentialDigest,expiresAt: result.expiresAt.toISOString(),
+      ...(result.issuedAtSeconds === undefined ? {} : { issuedAtSeconds: result.issuedAtSeconds }),
+      ...(result.accountSecurityEpoch === undefined ? {} : { accountSecurityEpoch: result.accountSecurityEpoch }),
+    } } : {}),
   };
 }
 

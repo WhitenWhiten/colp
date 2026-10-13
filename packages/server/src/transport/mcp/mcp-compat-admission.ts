@@ -1,3 +1,4 @@
+import { isMcpOauthVerificationResult } from '../../modules/mcp/index.js';
 /**
  * T-03 MCP compatibility admission adapter.
  *
@@ -188,6 +189,7 @@ async function resolveAuthorization(
   readonly binding: McpAuthorizationBinding;
   readonly scope: readonly string[];
   readonly accountSubjectId?: string;
+  readonly automationCredential?: Readonly<Record<string,unknown>>;
   readonly expiresAt?: Date;
 }> {
   if (authorization === undefined) {
@@ -215,6 +217,11 @@ async function resolveAuthorization(
     binding: result.binding,
     scope: [...(result.scopes ?? [])],
     accountSubjectId: result.accountSubjectId,
+    ...(isMcpOauthVerificationResult(result) && result.scopes.some(scope => scope.startsWith('automation:')) ? { automationCredential: {
+      credentialDigest: result.credentialDigest,expiresAt: result.expiresAt.toISOString(),
+      ...(result.issuedAtSeconds === undefined ? {} : { issuedAtSeconds: result.issuedAtSeconds }),
+      ...(result.accountSecurityEpoch === undefined ? {} : { accountSecurityEpoch: result.accountSecurityEpoch }),
+    } } : {}),
     expiresAt: result.expiresAt,
   };
 }
@@ -391,6 +398,7 @@ export async function admitMcpCompatPost(
         : {
           requestId,
           [MCP_ACCOUNT_SUBJECT_ID_AUTHORIZATION_KEY]: trusted.accountSubjectId,
+              ...(trusted.automationCredential ? { automationCredential: trusted.automationCredential } : {}),
         },
     });
     const authInfo = mapMcpCompatAuthInfo({

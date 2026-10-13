@@ -1,3 +1,4 @@
+import type { AutomationProfileAccess } from '../../modules/mcp/index.js';
 import { randomUUID,timingSafeEqual } from 'node:crypto';
 import { sql,type Kysely } from 'kysely';
 import type { Target } from '@know-n/colp/automation';
@@ -12,6 +13,7 @@ import { createTargetStore,type ProfileRow,type TargetRow } from './target-store
 export type CurrentBindingVerifier = (tx: DatabaseTransaction,actor: WorkPrincipal) => Promise<{ dedicated: boolean }>;
 export type PairingCommandOutcome = { kind: 'succeeded'; target: Target } | Exclude<ProductCommandClaim,{ kind: 'claimed' }>;
 export interface TargetWorkerService {
+  access(actor: WorkPrincipal): Promise<AutomationProfileAccess | null>;
   profile(tx: DatabaseTransaction,actor: WorkPrincipal): Promise<ProfileRow>;
   authorize(tx: DatabaseTransaction,actor: WorkPrincipal,targetId: string,privacy?: 'standard' | 'restricted'): Promise<void>;
   pair(actor: WorkPrincipal,body: unknown,commandId?: string): Promise<PairingCommandOutcome>;
@@ -40,6 +42,19 @@ export function createTargetWorkerService(db: Kysely<DatabaseSchema>,verifyBindi
     }
   };
   return { profile,authorize,
+    access: actor => db.transaction().execute(async tx => {
+      const row = (await sql<ProfileRow>`SELECT p.* FROM automation_connection_profiles p JOIN accounts a ON a.id=p.owner_id
+        WHERE p.owner_id=${actor.accountId} AND a.subject_id=${actor.subjectId} AND a.status='active' AND a.deleted_at IS NULL
+          AND p.configuration_json->>'authorizedClientId'=${actor.clientId} AND p.configuration_json->>'credentialBindingId'=${actor.credentialBindingId}`.execute(tx)).rows[0];
+      if (!row) return null;
+      const access = { id: row.id,revision: String(row.revision),automationEnabled: row.configuration_json.automationEnabled,catalogs: row.configuration_json.catalogs,pairedTargets: [] as { id: string; generation: string }[] };
+      try { await verifyBinding(tx,actor); }
+      catch (error) { if (!(error instanceof AutomationError)) throw error; return { ...access,automationEnabled: false,catalogs: [] }; }
+      const targets = (await sql<{ id: string; generation: string }>`SELECT id,pairing_generation::text AS generation FROM automation_targets
+        WHERE owner_id=${actor.accountId} AND profile_id=${row.id} AND paired AND NOT revoked ORDER BY id LIMIT 501`.execute(tx)).rows;
+      if (targets.length>500) throw new AutomationError('payload_too_large','Profile target bound exceeded.');
+      return { ...access,pairedTargets: targets };
+    }),
     async pair(actor,body,commandId = randomUUID()) {
       const input = parseContract('PairingClaimInput',body);
       await admitPairing(actor);

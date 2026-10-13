@@ -202,11 +202,12 @@ function closedWireTool(
 export function encodeStrictToolList(
   tools: ReturnType<typeof wireToolFromDescriptor>[],
   writeEnabled: boolean,
+  dynamicCatalog = false,
 ): Mcp20260728Result {
   return createPhase4bMcpResult({
     method: 'tools/list',
     fields: { tools },
-    cache: { ttlMs: PHASE4B_MCP_TOOL_CATALOG_CACHE_TTL_MS, cacheScope: 'private' },
+    cache: { ttlMs: dynamicCatalog ? 0 : PHASE4B_MCP_TOOL_CATALOG_CACHE_TTL_MS, cacheScope: 'private' },
   }, writeEnabled);
 }
 
@@ -240,7 +241,7 @@ export async function listStrictApplicationTools(
       // CG-02 tools are registered only on the compat host.
       .filter((tool) => !tool.name.startsWith('known.moderation.'))
       .map((tool) => closedWireTool(wireToolFromDescriptor(tool))),
-    writeEnabled,
+    writeEnabled,listed.cacheKey !== undefined,
   );
 }
 
