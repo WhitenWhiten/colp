@@ -5,6 +5,7 @@ import type { LocalReceiptInput } from '@know-n/colp/automation';
 import { automationDeviceFixture, AUTOMATION_DEVICE_ORIGIN } from '../../support/automation-device-fixture.js';
 import { describeWithPostgres } from '../../support/postgres-test-runtime.js';
 import { createAutomationDeviceUnitOfWork, createAutomationRuntime } from '../../../src/infrastructure/automation/index.js';
+import { createPostgresReplicaLifecycleService } from '../../../src/infrastructure/sync/index.js';
 import { acceptIntakeReceipt, placementInputDigest, placementResultDigest } from '../../../src/modules/automation/index.js';
 
 describeWithPostgres('bounded durable receipt queue', () => {
@@ -82,10 +83,17 @@ describeWithPostgres('bounded durable receipt queue', () => {
     expect((await sql<{ count: string }>`SELECT count(*) FROM automation_intake_receipts WHERE state='review'`.execute(f.db)).rows[0]!.count).toBe('1000');
   });
 
-  test('lease replacement retires waiting evidence even when none of its operations arrives', async () => {
+  test('retiring a replica releases its waiting evidence without any missing operation arriving', async () => {
     const input = receipt('never-created', 'never-committed');
     const result = await accept(input);
-    await sql`UPDATE sync_replicas SET lease_generation=lease_generation+1 WHERE replica_id=${f.replica.replicaId}`.execute(f.db);
+    const current = await f.db.selectFrom('sync_replicas').select(['lease_generation', 'lifecycle_revision'])
+      .where('replica_id', '=', f.replica.replicaId).executeTakeFirstOrThrow();
+    const retired = await createPostgresReplicaLifecycleService(f.db, { auditPrincipalId: f.owner.accountId }).retire({
+      scope: { accountId: f.owner.accountId, collectionId: 'collection', replicaId: f.replica.replicaId,
+        expectedLeaseGeneration: String(current.lease_generation), expectedLifecycleRevision: String(current.lifecycle_revision) },
+      outcome: 'authorized_success',
+    });
+    expect(retired.state).toBe('committed');
     await f.inspect();
     expect(await waitingCount()).toBe(0);
     const row = (await sql<{ state: string; input: unknown; code: string }>`SELECT state,receipt_json->'input' AS input,
