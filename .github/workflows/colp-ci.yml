@@ -1,7 +1,8 @@
 name: colp-ci
 
 # No trigger-level path filters: ci-gate is a required status check, so it must
-# report on every pull request. The changes job decides which jobs actually run.
+# report on every pull request. Dependabot runs skip all jobs; otherwise the
+# changes job decides which jobs actually run.
 on:
   pull_request:
   push:
@@ -19,6 +20,8 @@ concurrency:
 
 jobs:
   changes:
+    # Check the PR author too, so human-triggered Dependabot PR runs stay skipped.
+    if: github.actor != 'dependabot[bot]' && github.event.pull_request.user.login != 'dependabot[bot]'
     permissions:
       contents: read
       pull-requests: read
@@ -615,7 +618,7 @@ jobs:
         working-directory: packages/extension
 
   ci-gate:
-    if: always()
+    if: always() && github.actor != 'dependabot[bot]' && github.event.pull_request.user.login != 'dependabot[bot]'
     needs:
       - changes
       - static
