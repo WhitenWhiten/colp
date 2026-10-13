@@ -27,6 +27,9 @@ describeWithPostgres('AW-58 durable run outputs and read watermarks',()=>{
     const page1=await get(`/runs/${first.runId}/outputs?limit=1`);expect(page1.statusCode,page1.body).toBe(200);expect(validateAutomation('RunOutputPage',page1.json()).valid).toBe(true);
     const oldOutput=page1.json().items[0];expect(oldOutput.output.text).toContain('<script>');
     expect((await get(`/runs/${first.runId}`)).json()).toMatchObject({unread:true,outputCount:1});
+    // A batch run is in every member's history, not only its first bookmark's.
+    for(const nodeId of ['fresh-paper','batch-second'])
+      expect((await get(`/runs?collectionId=collection&nodeId=${nodeId}`)).json().items.map((r:{id:string})=>r.id)).toContain(first.runId);
     const second=(await f.work!.list(f.actor,{targetId:f.target.id})).items[0]!;expect(second.task.type).toBe('review.generate');await submit(second,'Later review.');
     const run=await get(`/runs/${first.runId}`);expect(run.json()).toMatchObject({unread:true,outputCount:2});
     const readCommand=randomUUID(),mark=()=>f.app.inject({method:'POST',url:`/api/v1/me/automations/runs/${first.runId}/read`,headers:f.ownerHeaders(readCommand,String(run.headers.etag)),payload:{throughOutputId:oldOutput.id}});
@@ -50,7 +53,10 @@ describeWithPostgres('AW-58 durable run outputs and read watermarks',()=>{
     const denied=await f.app.inject({url:`/api/v1/me/automations/runs/${job.runId}/outputs`,headers:{cookie:foreign.cookie}});expect(denied.statusCode).toBe(404);
     const run=await get(`/runs/${job.runId}`);expect((await f.ownerPost(`/runs/${job.runId}/read`,{throughOutputId:'foreign-output'},String(run.headers.etag))).statusCode).toBe(404);
     await sql`UPDATE nodes SET deleted_at=clock_timestamp() WHERE id='fresh-paper'`.execute(f.db);
-    const unavailable=await get(`/runs/${job.runId}/outputs`);expect(unavailable.statusCode,unavailable.body).toBe(404);expect(unavailable.body).not.toContain('Private accepted output.');
+    // Only outputs derived from the deleted bookmark are withheld; the run itself stays readable.
+    const unavailable=await get(`/runs/${job.runId}/outputs`);expect(unavailable.statusCode,unavailable.body).toBe(200);
+    expect(unavailable.json().items).toEqual([]);expect(unavailable.body).not.toContain('Private accepted output.');
+    expect((await get(`/runs/${job.runId}`)).json()).toMatchObject({outputCount:0,unread:false});
     expect((await sql`SELECT * FROM automation_run_outputs`.execute(f.db)).rows).toHaveLength(1);
   });
 });

@@ -1,6 +1,7 @@
 import { reconcileRunPlanEffects, reconcileRunsPlanEffects } from './reconcile-plan-effect.js';
 import { readRunUsageBatch } from './run-usage-batch.js';
 import { readRunEffectsBatch } from './run-effects-batch.js';
+import { OUTPUT_SOURCE_AVAILABLE } from './run-output-store.js';
 import { sql } from 'kysely';
 import type { Run } from '@know-n/colp/automation';
 import { explainRun, type RunStore, type StoredRun, type AutomationActor } from '../../modules/automation/index.js';
@@ -47,7 +48,9 @@ export function createRunStore(tx: DatabaseTransaction, actor: AutomationActor, 
         },
         async list(after, limit, bookmark) {
             const cursor = after ? sql `AND (r.created_at,r.id) < (${after.createdAt}::timestamptz,${after.id})` : sql ``;
-            const filter = bookmark ? sql `AND c.id=${bookmark.collectionId} AND r.explanation_json->>'nodeId'=${bookmark.nodeId}` : sql ``;
+            // A batch run belongs to every member's history, not only its first bookmark.
+            const filter = bookmark ? sql `AND c.id=${bookmark.collectionId} AND (r.explanation_json->>'nodeId'=${bookmark.nodeId}
+        OR r.explanation_json->'memberSources' @> ${JSON.stringify([{ nodeId: bookmark.nodeId }])}::jsonb)` : sql ``;
             const rows = (await sql<RunRow> `${select} ${cursor} ${filter} ORDER BY r.created_at DESC,r.id DESC LIMIT ${limit}`.execute(tx)).rows;
             if (!rows.length)
                 return [];
@@ -87,8 +90,9 @@ export function createRunStore(tx: DatabaseTransaction, actor: AutomationActor, 
             unread: boolean;
         }> `SELECT o.run_id,count(*)::int AS n,
       coalesce(bool_or(rd.run_id IS NULL OR (o.created_at,o.id)>(rd.through_created_at,rd.through_output_id)),false) AS unread
-      FROM automation_run_outputs o LEFT JOIN automation_run_reads rd ON rd.run_id=o.run_id AND rd.owner_id=${actor.accountId}
-      WHERE o.run_id IN (${sql.join(ids)}) GROUP BY o.run_id`.execute(tx)).rows;
+      FROM automation_run_outputs o JOIN automation_runs r ON r.id=o.run_id
+      LEFT JOIN automation_run_reads rd ON rd.run_id=o.run_id AND rd.owner_id=${actor.accountId}
+      WHERE o.run_id IN (${sql.join(ids)}) AND ${OUTPUT_SOURCE_AVAILABLE} GROUP BY o.run_id`.execute(tx)).rows;
         const usage = await readRunUsageBatch(tx, actor, ids, eventsEnabled), effects = await readRunEffectsBatch(tx, actor, ids);
         return rows.map(row => {
             const stored = map(row), members = children.filter(child => child.parent_id === row.id), runJobs = jobs.filter(job => job.run_id === row.id);
