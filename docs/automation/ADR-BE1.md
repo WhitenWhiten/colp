@@ -15,3 +15,26 @@ Product 1.95.0 adds the five health/revalidation/incident operations without cha
 1.94.0's shapes. Semantic binding edits pause affected enabled rules; new activation
 requires a fresh preview. Pause/resume fences are private ledger transitions, including
 when a previously approved source is currently permission-blocked; they grant no authority.
+
+## Evaluation and activation semantics
+
+The reviewed PreviewDecision `conflict` group includes both a higher-priority winner
+and equal-priority incompatible destinations (AU-02). These have different activation
+semantics: a resolved winner does not prohibit enabling the lower-priority rule;
+an unresolved tie does. Application evaluation therefore retains typed internal plans
+(`matched`, `placed`, `preserved`, `overridden`, `blocked`, `conflict`, `notMatched`,
+`missingInput`). Preview maps plans to the existing wire shape; activation evaluates
+the same pinned snapshot and checks blocking plans, never presentation labels.
+Planned run counts exclude preserved locations and overridden placements.
+
+One binding assessment supplies validation diagnostics, preview/activation readiness
+and health incidents. Required-but-unused roles warn; only consuming stages block.
+Role constraints form an acyclic dependency graph, including for transitive resolution.
+Older invalid graphs remain readable and blocked so configuration can be repaired.
+
+Private preview fingerprints use `preview-snapshot/v2`: individual facts and competitor
+snapshots are hashed before aggregation. This supports the composed 200-bookmark /
+128-ancestor bounds without weakening the shared untrusted-JSON guard. Earlier preview
+records fail the exact-snapshot check and require a new preview; no database migration or
+public wire-schema change is needed. Maximum 500 rules, 32 roles, 200 current bookmarks
+and 128 ancestors continue to bound the constituent work; this is not load-test evidence.

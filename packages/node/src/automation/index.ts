@@ -8,3 +8,4 @@ export * from './compile.js';
 export * from './task-contracts.js';
 export * from './validate-graph.js';
 export * from './arbitrate.js';
+export * from './role-graph.js';

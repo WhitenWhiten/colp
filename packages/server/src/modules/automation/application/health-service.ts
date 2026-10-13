@@ -3,7 +3,7 @@ import type { AutomationActor } from '../domain/bindings.js';
 import { scopeCollectionId } from '../domain/bindings.js';
 import { AutomationError } from '../domain/errors.js';
 import { resolveBindings } from './resolve-bindings.js';
-import { intakeDependencyRoles } from './rule-eligibility.js';
+import { assessIntakeBindings } from './rule-eligibility.js';
 import { requireRule } from './rule-service.js';
 import type { AutomationPorts } from './ports.js';
 
@@ -21,17 +21,12 @@ async function inspectRuleHealth(ports: AutomationPorts, actor: AutomationActor,
     expected.push({ id: ports.id(), ruleId, code, ...(role ? { role } : {}), severity, state: 'open', blockingStages,
       message, dependencyRevision: revision, firstSeenAt: now, lastSeenAt: now });
   };
-  const usedRoles = intakeDependencyRoles(rule.definition);
+  const assessment = assessIntakeBindings(rule.definition, resolutions);
+  for (const { role, resolution, severity, blockingStages } of assessment.issues)
+    incident(resolution.code, role, severity, resolution.message, binding?.revision ?? 'missing', blockingStages);
   for (const role of rule.definition.roles) {
-    const blockingStages = usedRoles.has(role.key) ? ['intake'] : [];
     const resolution = resolutions[role.key];
-    if (!resolution) {
-      if (role.required) incident('bindingDeleted', role.key, 'error', 'Choose a live authorized folder for the missing role.', binding?.revision ?? 'missing', blockingStages);
-      continue;
-    }
-    if (resolution.status === 'blocked') {
-      incident(resolution.code, role.key, blockingStages.length || role.required ? 'error' : 'warning', resolution.message, binding?.revision ?? 'missing', blockingStages); continue;
-    }
+    if (resolution?.status !== 'valid') continue;
     const old = previous.find((dependency) => dependency.role === role.key && dependency.kind === 'folder');
     if (old && typeof old.snapshot.title === 'string' && old.snapshot.title !== resolution.snapshot.title)
       incident('bindingRenamed', role.key, 'info', 'Folder label refreshed; canonical identity and binding revision are unchanged.', resolution.snapshot.revision, []);

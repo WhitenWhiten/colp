@@ -19,7 +19,8 @@ export function createHealthStore(db: Kysely<DatabaseSchema>): HealthStore {
       for (const incident of expected) {
         const old = active.get(key(incident));
         const view = old ? { ...incident, id: old.id, state: old.state, firstSeenAt: old.first_seen.toISOString() } : incident;
-        if (old) await db.updateTable('automation_incidents').set({ last_seen: new Date(view.lastSeenAt), incident_json: view }).where('id', '=', old.id).execute();
+        if (old) await db.updateTable('automation_incidents').set({ severity: view.severity,
+          last_seen: new Date(view.lastSeenAt), incident_json: view }).where('id', '=', old.id).execute();
         else await db.insertInto('automation_incidents').values({ id: view.id, owner_id: ownerId, rule_id: ruleId, dependency_key: view.role ?? 'runtime',
           code: view.code, revision: view.dependencyRevision, severity: view.severity, state: view.state, incident_json: view,
           first_seen: new Date(view.firstSeenAt), last_seen: new Date(view.lastSeenAt) }).execute();

@@ -26,6 +26,20 @@ integer [-1000,1000]; equal conflicting destinations go to review. Explicit sele
 and privacy override priority. Root satisfaction suppresses only folder classification.
 Task graph: unique IDs, known predecessors/contracts, acyclic, role-kind checks, ≤8 tasks.
 
+`arbitratePlacement(candidates, intent)` requires an explicit `PlacementIntent` from
+the event's intake disposition. Only `userDefault` and `rulePlacement` permit a
+placement decision; `userSelected` preserves the parent, and unknown, missing or
+unverified intent yields review. The decision describes placement only. The host
+uses the evaluated rule's `intake.satisfies` declaration after a successful placement;
+an empty declaration produces no satisfaction marker. This replaces the initial
+experimental optional-boolean argument and implicit root-satisfaction result.
+
+`analyzeRoleGraph` orders `mustBeWithinRole` dependencies before their consumers,
+independently of declaration order. Unknown/wrong-kind ancestors, duplicate role
+keys, self references and cycles are invalid. `intakeRoleKeys` includes scope,
+intake and transitive role constraints. Required roles are required by their consuming
+stage; unavailable unused roles are warnings and cannot block intake.
+
 Positive fixtures: tests/fixtures/automation/m1-placement.json and event-facts.json
 copied from the reviewed pack. Negative acceptance: unknown key/version; malformed URL;
 spoofed host; non-prefix path; wrong field/operator; depth 17; node count 129; ninth task;

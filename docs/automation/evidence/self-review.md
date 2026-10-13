@@ -144,3 +144,48 @@ automation 阶段、同阶段重入和 hop 边界。API 预演公共 helper 现�
 
 未修改公共 Schema、共享包、迁移、Web 或 Extension；因此未重跑无关测试及发行检查。
 原有浏览器、负载、故障注入和完整部署恢复的证据限制仍然成立。测试容器由包装器回收。
+
+## 基础语义复审修正（基于 39e15f4）
+
+第二轮复审发现六项实现/契约问题及健康测试的顺序依赖。尤其是上一轮将高优先级覆盖
+映射为 wire conflict 后，沿用了“所有 conflict 均禁止激活”的判断，导致启用顺序影响
+相同规则集合能否共存；原回归测试错误地把这个 409 固定为预期。本节及 ADR-BE1 的
+评估语义说明取代上一节关于高优先级覆盖会拒绝激活的描述。
+
+本次统一完成：
+
+* 提取纯规则评估与 wire 映射。内部区分确定的高优先级覆盖和未决平级冲突；预演与激活
+  消费同一份配置/事实快照和评估语义。高优先级覆盖不阻塞激活，平级不同目标仍拒绝。
+* 共享仲裁要求显式 PlacementIntent；缺参的 JavaScript 调用同样进入 review。仲裁结果
+  只描述 placement，不再自动声明 root satisfaction；成功放置按 intake.satisfies 声明
+  生成标记，空声明保留为空，保留原位置不会产生标记或 planned run。
+* 统一 BindingAssessment，向 validate、preview、enable 和 health 提供同一套阶段依赖
+  判断。未使用的 required 角色缺失是 warning；被消费的角色及其传递约束才阻塞 intake。
+  角色消费关系变化时，数据库 severity 列与 incident JSON 同步更新。
+* 共享角色图按依赖顺序解析，拒绝自环、多角色循环及不存在/类型错误的祖先；六种三角色
+  声明排列得到相同结果。历史无效图保持可读取、可修复，健康解析返回 blocked。
+* 预演使用有版本的逐成员摘要再聚合，保留共享 JSON 防护。端口夹具验证 200 条各含
+  128 个祖先的事实、499 个深层竞争规则，以及末成员/末祖先/末竞争者变化均改变摘要。
+  这些用例验证组合容量与固定输入，不替代真实深树负载测试。
+* 健康测试改用每例独立 PostgreSQL schema、账户、canonical 树、规则和 metrics，
+  完整生命周期留在单个测试内；同名替代夹具不再依赖另一测试先执行改名。
+
+已执行验证：
+
+| 命令 | cwd | 结果 |
+| --- | --- | --- |
+| `npm test -- tests/automation` | packages/node | 6 文件、22 测试通过。 |
+| `npm run typecheck && npm run check:source-size` | packages/node | 通过，272 源文件检查。 |
+| `node packages/server/scripts/refresh-automation-package.mjs` | 根目录 | 共享包构建/打包、本地安装及两个锁文件刷新通过，包含最终文档。 |
+| `npm run pack:consumer-smoke` | packages/node | 20 ESM/CJS 入口及 9 个打包文档示例通过。 |
+| `npm run test:unit -- tests/unit/automation` | packages/server | 3 文件、5 测试通过。 |
+| `npm run test:integration:file -- tests/integration/automation` | packages/server | 主修正回归 4 文件、49 测试通过。 |
+| `npm run test:integration:file -- tests/integration/automation/api.integration.test.ts -t 'maximum competitor\|cyclic role'` | packages/server | 后补 2 项边界测试通过，33 项因名称过滤未执行。 |
+| `npm run test:integration:file -- tests/integration/automation/health.integration.test.ts --sequence.shuffle.tests --sequence.seed=7` | packages/server | 9 测试全部通过；与复审时 4 失败/5 通过使用同一随机种子，包含最终 severity 同步断言。 |
+| `npm run typecheck` 与针对 automation 源码/测试的 ESLint | packages/server | 最终代码通过。 |
+| `npm run check:imports`、`npm run build`、`npm run openapi:ci` | packages/server | 通过。 |
+| `npm run runtime:manifest:check` | packages/server | 最终生产 manifest/lock 校验通过。 |
+
+公共 JSON Schema 保持原有形状；共享包的实验性函数签名和返回类型已同步到包文档与
+本地消费包。原始设计快照没有改写；语义说明集中记录于 ADR-BE1。BE-2 执行、真实浏览器、
+部署恢复和负载验证仍是独立门槛。

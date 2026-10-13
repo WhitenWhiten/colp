@@ -1,10 +1,14 @@
-import type { RuleDefinition, RoleBindings } from '@know-n/colp/automation';
+import { analyzeRoleGraph, type RuleDefinition, type RoleBindings } from '@know-n/colp/automation';
 import { sameFolder, scopeCollectionId, type AutomationActor, type BindingReadPort, type FolderResolution } from '../domain/bindings.js';
 
 export async function resolveBindings(reads: BindingReadPort, actor: AutomationActor, definition: RuleDefinition, values: RoleBindings): Promise<Record<string, FolderResolution>> {
   const results: Record<string, FolderResolution> = {};
+  const graph = analyzeRoleGraph(definition.roles);
+  if (!graph.valid) return Object.fromEntries(definition.roles.map((role) => [role.key, {
+    status: 'blocked', code: 'scopeChanged', message: 'Role constraints must be an acyclic graph of declared folder roles.',
+  }]));
   const scope = scopeCollectionId(definition, values);
-  for (const role of definition.roles) {
+  for (const role of graph.order) {
     const binding = values[role.key];
     if (!binding) {
       if (role.required || definition.intake?.folderRole === role.key || definition.scope.folderRole === role.key)
@@ -25,7 +29,7 @@ export async function resolveBindings(reads: BindingReadPort, actor: AutomationA
           message: 'Folder is outside its allowed ancestor. Choose another folder or restore its location.' };
     }
   }
-  for (const role of definition.roles) {
+  for (const role of graph.order) {
     if (!role.mustBeWithinRole) continue;
     const child = results[role.key], parent = results[role.mustBeWithinRole];
     if (child?.status === 'valid' && (parent?.status !== 'valid' || (!sameFolder(child.snapshot.folder, parent.snapshot.folder)

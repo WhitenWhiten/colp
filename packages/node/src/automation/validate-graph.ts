@@ -2,18 +2,19 @@ import type { RuleDefinition } from './types.generated.js';
 import { TASK_OUTPUT_CONTRACTS } from './task-contracts.js';
 import { validateAutomation, type ContractIssue } from './schema.js';
 import { compilePredicate } from './compile.js';
+import { analyzeRoleGraph } from './role-graph.js';
 
 export function validateTaskGraph(definition: RuleDefinition): ContractIssue[] {
   const issues: ContractIssue[] = [];
   const fail = (path: string, message: string) => issues.push({ path, code: 'invalidGraph', message });
   const roles = new Map(definition.roles.map((role) => [role.key, role]));
   const tasks = new Map(definition.tasks.map((task) => [task.id, task]));
-  if (roles.size !== definition.roles.length) fail('/roles', 'Role keys must be unique.');
+  const roleGraph = analyzeRoleGraph(definition.roles);
+  if (!roleGraph.valid) issues.push(...roleGraph.issues);
   if (tasks.size !== definition.tasks.length || tasks.size > 8) fail('/tasks', 'Task IDs must be unique; maximum eight tasks.');
   const requireRole = (key: string | undefined, kind: string, path: string) => {
     if (key !== undefined && roles.get(key)?.kind !== kind) fail(path, `Expected declared ${kind} role.`);
   };
-  for (const role of definition.roles) requireRole(role.mustBeWithinRole, 'folder', `/roles/${role.key}/mustBeWithinRole`);
   requireRole(definition.scope.folderRole, 'folder', '/scope/folderRole');
   if (definition.intake) {
     requireRole(definition.intake.folderRole, 'folder', '/intake/folderRole');

@@ -3,7 +3,7 @@ import { AutomationError } from '../domain/errors.js';
 import type { AutomationActor } from '../domain/bindings.js';
 import { nextRevision, ruleInput, type AutomationPorts } from './ports.js';
 import { requireRule, requireEtag, parseContract, normalizeRuleInput } from './rule-service.js';
-import { intakeBindingsAvailable } from './rule-eligibility.js';
+import { blocksActivation, evaluateRuleEvent } from './rule-evaluation.js';
 import { previewSnapshot } from './preview-service.js';
 
 export async function setLifecycle(ports: AutomationPorts, actor: AutomationActor, id: string, body: unknown, ifMatch: string) {
@@ -17,8 +17,8 @@ export async function setLifecycle(ports: AutomationPorts, actor: AutomationActo
       throw new AutomationError('automation_stale_input', 'Enable requires the exact unexpired preview of this configuration.');
     const current = await previewSnapshot(ports, actor, preview.input);
     if (preview.configDigest !== current.configDigest) throw new AutomationError('automation_stale_input', 'Bindings, settings, permissions or sampled inputs changed. Preview again.');
-    if (!intakeBindingsAvailable(stored.view.definition, current.resolutions)) throw new AutomationError('automation_binding_unavailable', 'Repair the required folder binding.');
-    if (preview.result.decisions.some((decision) => decision.outcome === 'conflict' || decision.outcome === 'blocked'))
+    if (!current.bindingAssessment.available) throw new AutomationError('automation_binding_unavailable', 'Repair the required folder binding.');
+    if (current.events.some((event) => blocksActivation(evaluateRuleEvent(current.proposed, current.alternatives, event))))
       throw new AutomationError('automation_rule_conflict', 'Resolve blocked or conflicting preview decisions before enable.');
     await ports.activation(stored, { kind: 'disable' });
     await ports.activation(stored, { kind: 'enable', collectionId: current.collection.id, afterOrdinal: current.collection.commitOrdinal });

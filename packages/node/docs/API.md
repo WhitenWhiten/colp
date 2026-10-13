@@ -203,3 +203,8 @@ Experimental entry points behave as tested, but no host has shaped their APIs ye
 ## Optional Automation module
 
 `@know-n/colp/automation` exports the reviewed closed data contracts and pure bounded rules. It is outside protocol MUST/conformance traceability. See [finite profile](AUTOMATION_BROWSER_PROFILE.md). No host adapters or side effects are included.
+
+Placement arbitration requires explicit intent and returns a placement decision;
+task satisfaction comes from the evaluated rule declaration. Role constraints are
+validated and ordered by `analyzeRoleGraph`, with `intakeRoleKeys` identifying the
+stage's transitive dependencies.

@@ -96,3 +96,8 @@ BE-1 installations apply the forward-only 202610300300 revision-delete guard mig
 The same report records the independent follow-up against 60fe77f: six additional
 preview/dependency-health defects were reproduced and corrected with PostgreSQL
 regressions. Configuration readiness still does not imply an installed effect runtime.
+
+The foundation follow-up to 39e15f4 unifies stage binding assessment, separates typed
+evaluation from preview presentation and activation policy, validates role dependency
+graphs, and isolates health test fixtures. See ADR-BE1 and the final evidence section
+for intent/satisfaction semantics, versioned preview fingerprints and executed checks.

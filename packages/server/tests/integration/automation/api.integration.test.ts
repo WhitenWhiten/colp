@@ -3,9 +3,10 @@ import { beforeAll, afterAll, beforeEach, test, expect } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { sql } from 'kysely';
-import { validateAutomation, type EventFacts, type PreviewResult } from '@know-n/colp/automation';
+import { validateAutomation, type EventFacts, type PreviewResult, type HealthReport } from '@know-n/colp/automation';
 import { automationFixture } from '../../support/automation-fixture.js';
 import { describeWithPostgres } from '../../support/postgres-test-runtime.js';
+import { previewSnapshot, previewRule } from '../../../src/modules/automation/application/preview-service.js';
 import { revalidateRule } from '../../../src/modules/automation/index.js';
 import { createAutomationUnitOfWork } from '../../../src/infrastructure/automation/unit-of-work.js';
 import { registerAutomationRoutes } from '../../../src/transport/product/automation-rule-routes.js';
@@ -309,10 +310,10 @@ describeWithPostgres('BE-1 authenticated configuration and preview loop', () => 
     expect(result.decisions[0]?.satisfiedTasks).toEqual(outcome === 'conflict' ? [] : ['classify.root']);
     if (outcome === 'conflict') {
       expect(result.decisions[0]?.explanation).toContain(competitor.json().id);
-      expect(result.decisions[0]?.explanation).toContain('higher-priority');
+      expect(result.decisions[0]?.explanation).toContain('Higher-priority');
       const enabled = await lifecycle(d.rule.id, d.etag, 'enabled', result.previewId);
-      expect(enabled.statusCode).toBe(409);
-      expect(enabled.json().error.code).toBe('automation_rule_conflict');
+      expect(enabled.statusCode, enabled.body).toBe(200);
+      expect(enabled.json().desiredState).toBe('enabled');
     }
   });
   test('node.created preview honors its trigger and allows other automation stages while refusing reentry', async () => {
@@ -338,6 +339,121 @@ describeWithPostgres('BE-1 authenticated configuration and preview loop', () => 
     ]);
     expect(result.decisions.every((decision) => decision.satisfiedTasks.length === 0)).toBe(true);
     expect(result.plannedRunCount).toBe(2);
+  });
+
+  test.each([true, false])('priority-resolved rules can both enable, high first=$0', async (highFirst) => {
+    const low = await draft();
+    const binding = await post('/binding-sets', { name: 'High priority', values: {
+      academicRoot: { ...f.values.academicRoot, folder: { ...f.folder, nodeId: 'parent' } },
+    } });
+    const input = { definition: { ...f.rule, priority: 200 }, bindingSetId: binding.json().id };
+    const created = await post('/rules', input);
+    const high = { rule: created.json(), etag: String(created.headers.etag), input };
+    for (const candidate of highFirst ? [high, low] : [low, high]) {
+      const checked = await preview(candidate.input);
+      const enabled = await lifecycle(candidate.rule.id, candidate.etag, 'enabled', checked.previewId);
+      expect(enabled.statusCode, enabled.body).toBe(200);
+    }
+    expect((await get('/rules')).json().items.every((rule: { desiredState: string }) => rule.desiredState === 'enabled')).toBe(true);
+    expect((await preview(low.input)).decisions[0]?.outcome).toBe('conflict');
+    expect((await preview(high.input)).decisions[0]?.outcome).toBe('matched');
+  });
+  test.each([true, false])('unused required=$0 binding agrees across validation, preview, activation and health', async (required) => {
+    const d = await draft();
+    d.input.definition.roles.push({ key: 'unused', kind: 'folder', required, description: 'No consumer in this stage' });
+    const created = await post('/rules', d.input);
+    expect(created.statusCode, created.body).toBe(201);
+    const validated = await post('/rules/validate', d.input);
+    expect(validated.json().valid).toBe(true);
+    if (required) expect(validated.json().diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ role: 'unused', severity: 'warning' }),
+    ]));
+    const checked = await preview(d.input);
+    expect(checked.decisions[0]?.outcome).toBe('matched');
+    expect((await lifecycle(created.json().id, String(created.headers.etag), 'enabled', checked.previewId)).statusCode).toBe(200);
+    const report: HealthReport = await createAutomationUnitOfWork(f.db, 'server').execute(f.owner,
+      (ports) => revalidateRule(ports, f.owner, created.json().id));
+    expect(report.incidents.filter((incident) => incident.role === 'unused').every((incident) =>
+      incident.severity === 'warning' && incident.blockingStages.length === 0)).toBe(true);
+  });
+  test.each<{ satisfies: Array<'classify.root'> }>([{ satisfies: [] }, { satisfies: ['classify.root'] }])('placement satisfies only the declaration $satisfies', async ({ satisfies }) => {
+    const d = await draft(); d.input.definition.intake!.satisfies = satisfies;
+    expect((await post('/rules/validate', d.input)).json().valid).toBe(true);
+    const checked = await preview(d.input);
+    expect(checked.decisions[0]).toMatchObject({ outcome: 'matched', satisfiedTasks: satisfies });
+    expect(checked.plannedRunCount).toBe(1);
+    const preserved = await post('/rules/preview', { rule: d.input, mode: 'supplied', events: [{ ...facts(), intakeDisposition: 'unknown' }] });
+    expect(preserved.json().decisions[0].satisfiedTasks).toEqual([]);
+    expect(preserved.json().plannedRunCount).toBe(0);
+  });
+  test('equal-priority incompatible destinations still block activation', async () => {
+    const first = await draft(), checked = await preview(first.input);
+    expect((await lifecycle(first.rule.id, first.etag, 'enabled', checked.previewId)).statusCode).toBe(200);
+    const binding = await post('/binding-sets', { name: 'Tied', values: {
+      academicRoot: { ...f.values.academicRoot, folder: { ...f.folder, nodeId: 'parent' } },
+    } });
+    const input = { definition: f.rule, bindingSetId: binding.json().id };
+    const created = await post('/rules', input), tied = await preview(input);
+    const enabled = await lifecycle(created.json().id, String(created.headers.etag), 'enabled', tied.previewId);
+    expect(enabled.statusCode).toBe(409);
+    expect(enabled.json().error.code).toBe('automation_rule_conflict');
+  });
+  test('200 full-depth current-state facts remain digestible and every member stays pinned', async () => {
+    const d = await draft(), original = facts();
+    original.bookmark.ancestors = Array.from({ length: 128 }, (_, index) => ({ serverUuid: 'server', collectionId: 'collection', nodeId: `depth_${index}` }));
+    expect(validateAutomation('EventFacts', original).valid).toBe(true);
+    const events = Array.from({ length: 200 }, (_, index) => ({ ...structuredClone(original), eventId: `sample_${index}` }));
+    const uow = createAutomationUnitOfWork(f.db, 'server');
+    // Port fixture exercises aggregate bounds independently of canonical tree read cost.
+    const digest = () => uow.execute(f.owner, (ports) => previewSnapshot({ ...ports,
+      sample: async () => ({ events, truncated: false, revisions: {} }) }, f.owner, { mode: 'currentState', rule: d.input }));
+    const result = await uow.execute(f.owner, (ports) => previewRule({ ...ports,
+      sample: async () => ({ events, truncated: false, revisions: {} }) }, f.owner, { mode: 'currentState', rule: d.input }));
+    expect(result.decisions).toHaveLength(200);
+    expect(validateAutomation('PreviewResult', result).valid).toBe(true);
+    const initial = (await digest()).configDigest;
+    expect((await digest()).configDigest).toBe(initial);
+    events[199]!.bookmark.title = 'Changed last member';
+    expect((await digest()).configDigest).not.toBe(initial);
+    events[199]!.bookmark.title = original.bookmark.title;
+    events[199]!.bookmark.ancestors![127]!.nodeId = 'changedAncestor';
+    expect((await digest()).configDigest).not.toBe(initial);
+  });
+
+  test('maximum competitor snapshots are individually bounded and the last competitor stays pinned', async () => {
+    const d = await draft();
+    await createAutomationUnitOfWork(f.db, 'server').execute(f.owner, async (ports) => {
+      const original = (await ports.rules.load(f.owner.accountId, d.rule.id))!;
+      const binding = (await ports.bindings.load(f.owner.accountId, d.binding.id))!;
+      const collection = (await ports.reads.readCollection(f.owner, 'collection'))!;
+      const folder = await ports.reads.readFolder(f.owner, f.folder);
+      if (folder.status !== 'valid') throw new Error('Fixture folder unavailable');
+      const resolution = { ...folder, snapshot: { ...folder.snapshot,
+        ancestors: Array.from({ length: 128 }, (_, index) => ({ ...f.folder, nodeId: `ancestor_${index}` })) } };
+      const competitors = Array.from({ length: 499 }, (_, index) => ({ ...original, view: { ...original.view,
+        id: `competitor_${index}`, desiredState: 'enabled' as const,
+        definition: { ...original.view.definition, name: `Competitor ${index}` },
+      } }));
+      const prepared = { ...ports, rules: { ...ports.rules, list: async () => competitors },
+        bindings: { ...ports.bindings, load: async () => binding },
+        reads: { readCollection: async () => collection, readFolder: async () => resolution } };
+      const input = { mode: 'supplied' as const, rule: d.input, events: [facts()] };
+      const first = await previewSnapshot(prepared, f.owner, input);
+      expect(first.alternatives).toHaveLength(499);
+      competitors[498]!.view.definition.priority += 1;
+      expect((await previewSnapshot(prepared, f.owner, input)).configDigest).not.toBe(first.configDigest);
+    });
+  });
+  test('cyclic role constraints are rejected consistently by validate and create', async () => {
+    const d = await draft();
+    d.input.definition.roles[0]!.mustBeWithinRole = 'academicRoot';
+    const validated = await post('/rules/validate', d.input);
+    expect(validated.statusCode).toBe(200);
+    expect(validated.json().valid).toBe(false);
+    expect(validated.json().diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({ code: 'invalidGraph' })]));
+    const created = await post('/rules', d.input);
+    expect(created.statusCode).toBe(422);
+    expect(created.json().error.code).toBe('automation_invalid_graph');
   });
 
 });

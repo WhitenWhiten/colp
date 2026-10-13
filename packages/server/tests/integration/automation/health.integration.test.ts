@@ -1,5 +1,5 @@
 import Fastify from 'fastify';
-import { beforeAll, afterAll, test, expect } from 'vitest';
+import { beforeEach, afterEach, test, expect } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { validateAutomation, type HealthReport, type DependencyReport, type HealthIncident } from '@know-n/colp/automation';
 import { automationFixture } from '../../support/automation-fixture.js';
@@ -16,11 +16,12 @@ const BASE = '/api/v1/me/automations', ORIGIN = 'https://automation.example.test
 
 describeWithPostgres('BE-1 dependency monitoring and incident lifecycle', () => {
   let f: Awaited<ReturnType<typeof automationFixture>>, app: ReturnType<typeof Fastify>, rule: { id: string; revision: string }, bindingId: string;
-  const metrics = new InMemoryMetrics();
+  let metrics: InMemoryMetrics;
   const headers = () => ({ cookie: f.owner.cookie, origin: ORIGIN, 'x-csrf-token': f.owner.csrfToken, 'known-command-id': randomUUID() });
   const get = (path: string, cookie?: string) => app.inject({ method: 'GET', url: BASE + path, headers: { cookie: cookie ?? f.owner.cookie } });
   const post = (path: string, payload: unknown, etag?: string) => app.inject({ method: 'POST', url: BASE + path, payload, headers: { ...headers(), ...(etag ? { 'if-match': etag } : {}) } });
-  beforeAll(async () => {
+  beforeEach(async () => {
+    metrics = new InMemoryMetrics();
     f = await automationFixture('automation_health');
     app = Fastify({ exposeHeadRoutes: false, routerOptions: { querystringParser: parseStrictQuery } }); installProductAdmission(app);
     app.setErrorHandler((error, request, reply) => {
@@ -36,7 +37,7 @@ describeWithPostgres('BE-1 dependency monitoring and incident lifecycle', () => 
     const enabled = await post(`/rules/${rule.id}/lifecycle`, { state: 'enabled', pendingRuns: 'hold', reason: 'Enable config', activationPreviewId: preview.json().previewId }, `"${rule.revision}"`);
     expect(enabled.statusCode, enabled.body).toBe(200); rule = enabled.json();
   }, 180_000);
-  afterAll(async () => { await app?.close(); await f?.isolated.close(); });
+  afterEach(async () => { await app?.close(); await f?.isolated.close(); });
   async function delivery(eventType: string): Promise<CollectionMutationDelivery> {
     const row = await f.db.selectFrom('outbox_events').selectAll().where('event_type', '=', eventType).orderBy('commit_ordinal', 'desc').executeTakeFirstOrThrow();
     return { eventId: row.domain_event_id, eventType: row.event_type, eventVersion: row.event_version, handlerName: row.handler_name,
@@ -133,10 +134,10 @@ describeWithPostgres('BE-1 dependency monitoring and incident lifecycle', () => 
     expect((await get(`/rules/${id}/health`)).json().incidents.map((value: { code: string }) => value.code)).toEqual(['runtimeUnsupported']);
   });
   test('deleted canonical folder blocks despite a same-name replacement; revalidation/pause remain available', async () => {
-    const node = await f.db.selectFrom('nodes').select('resource_revision').where('id', '=', 'academic').executeTakeFirstOrThrow();
+    const node = await f.db.selectFrom('nodes').select(['resource_revision', 'title']).where('id', '=', 'academic').executeTakeFirstOrThrow();
     const removed = await f.canonical.execute((ports) => deleteCollectionNode(ports, { actor: f.actor, command: f.command(), collectionId: 'collection', nodeId: 'academic',
       ifMatch: `"${node.resource_revision}"`, recursive: false })); expect(removed.kind).toBe('deleted');
-    await f.createNode('same_name', 'parent', 'Renamed Academic');
+    await f.createNode('same_name', 'parent', node.title);
     await createAutomationHealthMonitor(f.db, 'server', metrics).onCollectionMutation(await delivery('node.deleted'));
     const health = await post(`/rules/${rule.id}/revalidate`, { reason: 'Check dependency' }, `"${rule.revision}"`);
     expect(health.statusCode, health.body).toBe(200); expect(health.json().incidents.some((value: { code: string }) => value.code === 'bindingDeleted')).toBe(true);
@@ -248,6 +249,16 @@ describeWithPostgres('BE-1 dependency monitoring and incident lifecycle', () => 
     expect(await dependencies()).toEqual(expect.arrayContaining([
       expect.objectContaining({ role: 'optionalFolder', resourceId: 'optional_live', status: 'blocked' }),
     ]));
+    // When this role gains a consumer, the same dependency incident becomes blocking.
+    const changed = await app.inject({ method: 'PUT', url: `${BASE}/rules/${ruleId}`,
+      headers: { ...headers(), 'if-match': String(created.headers.etag) }, payload: {
+        ...input, definition: { ...definition, intake: { ...definition.intake, folderRole: 'optionalFolder' } },
+        pendingRuns: 'hold', counterPolicy: 'resetOnSemanticChange',
+      } });
+    expect(changed.statusCode, changed.body).toBe(200);
+    const blocking = (await get(`/rules/${ruleId}/health`)).json<HealthReport>().incidents.find((value) => value.role === 'optionalFolder');
+    expect(blocking).toMatchObject({ id: incident.id, severity: 'error', state: 'acknowledged', blockingStages: ['intake'] });
+    expect((await f.db.selectFrom('automation_incidents').select('severity').where('id', '=', incident.id).executeTakeFirstOrThrow()).severity).toBe('error');
     await f.db.updateTable('nodes').set({ deleted_at: null }).where('id', '=', 'optional_live').execute();
     expect(await dependencies()).toEqual(expect.arrayContaining([
       expect.objectContaining({ role: 'optionalFolder', resourceId: 'optional_live', status: 'valid' }),

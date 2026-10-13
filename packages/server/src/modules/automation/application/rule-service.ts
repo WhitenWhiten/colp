@@ -2,7 +2,7 @@ import { validateAutomation, validateM1Rule, normalizeRuleDefinition, ruleSemant
   type ValidationResult, type Diagnostic, type AutomationSchemaName } from '@know-n/colp/automation';
 import { AutomationError } from '../domain/errors.js';
 import { scopeCollectionId, type AutomationActor } from '../domain/bindings.js';
-import { intakeDependencyRoles } from './rule-eligibility.js';
+import { assessIntakeBindings } from './rule-eligibility.js';
 import { resolveBindings } from './resolve-bindings.js';
 import { etag, nextRevision, type AutomationPorts, type StoredRule } from './ports.js';
 
@@ -37,7 +37,7 @@ export async function inspectInput(ports: AutomationPorts, actor: AutomationActo
   const collection = collectionId ? await ports.reads.readCollection(actor, collectionId) : null;
   if (!collection) throw new AutomationError('resource_not_found', 'Explicit authorized collection scope is required.');
   const resolutions = await resolveBindings(ports.reads, actor, input.definition, binding.values);
-  return { binding, collection, resolutions };
+  return { binding, collection, resolutions, bindingAssessment: assessIntakeBindings(input.definition, resolutions) };
 }
 export async function validateRule(ports: AutomationPorts, actor: AutomationActor, body: unknown): Promise<ValidationResult> {
   const input = normalizeRuleInput(parseContract('RuleInput', body));
@@ -45,9 +45,8 @@ export async function validateRule(ports: AutomationPorts, actor: AutomationActo
   if (input.executionPolicyId) issues.push({ path: '/executionPolicyId', code: 'unsupportedCapability', message: 'Execution policies are unavailable in M1.' });
   const diagnostics: Diagnostic[] = issues.map((issue) => ({ code: issue.code, severity: 'error', location: issue.path, message: issue.message }));
   const inspected = await inspectInput(ports, actor, input);
-  const usedRoles = intakeDependencyRoles(input.definition);
-  for (const [role, resolution] of Object.entries(inspected.resolutions)) if (resolution.status === 'blocked')
-    diagnostics.push({ code: resolution.code, severity: usedRoles.has(role) || input.definition.roles.some((entry) => entry.key === role && entry.required) ? 'error' : 'warning', location: `/bindings/${role}`, role, message: resolution.message });
+  for (const { role, resolution, severity } of inspected.bindingAssessment.issues)
+    diagnostics.push({ code: resolution.code, severity, location: `/bindings/${role}`, role, message: resolution.message });
   return { valid: !diagnostics.some((diagnostic) => diagnostic.severity === 'error'), normalizedDefinition: input.definition, semanticDigest: ruleSemanticDigest(input.definition),
     diagnostics: diagnostics.slice(0, 100), supportedHosts: issues.length ? [] : ['browser', 'server'] };
 }

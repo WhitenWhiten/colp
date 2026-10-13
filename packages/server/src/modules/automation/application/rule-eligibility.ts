@@ -1,17 +1,27 @@
-import type { EventFacts, RuleDefinition } from '@know-n/colp/automation';
+import { intakeRoleKeys, type EventFacts, type RuleDefinition } from '@know-n/colp/automation';
 import { sameFolder, type FolderResolution } from '../domain/bindings.js';
 
-/** Only dependencies used by this stage may block it, including ancestor constraints. */
-export function intakeDependencyRoles(definition: RuleDefinition): Set<string> {
-  const used = new Set([definition.scope.folderRole, definition.intake?.folderRole].filter((role): role is string => !!role));
-  for (const key of used) {
-    const ancestor = definition.roles.find((role) => role.key === key)?.mustBeWithinRole;
-    if (ancestor) used.add(ancestor);
-  }
-  return used;
+export interface BindingIssue {
+  role: string;
+  resolution: Extract<FolderResolution, { status: 'blocked' }>;
+  severity: 'error' | 'warning';
+  blockingStages: string[];
 }
-export function intakeBindingsAvailable(definition: RuleDefinition, resolutions: Record<string, FolderResolution>): boolean {
-  return [...intakeDependencyRoles(definition)].every((role) => resolutions[role]?.status === 'valid');
+export interface BindingAssessment { available: boolean; issues: BindingIssue[] }
+
+/** A required role is required by its consumers; an unused role cannot block this stage. */
+export function assessIntakeBindings(definition: RuleDefinition, resolutions: Record<string, FolderResolution>): BindingAssessment {
+  const used = intakeRoleKeys(definition);
+  const issues: BindingIssue[] = [];
+  for (const role of definition.roles) {
+    const resolution = resolutions[role.key];
+    if (resolution?.status === 'valid' || (!resolution && !role.required && !used.has(role.key))) continue;
+    const blocking = used.has(role.key);
+    issues.push({ role: role.key, resolution: resolution ?? {
+      status: 'blocked', code: 'bindingDeleted', message: 'Choose a live authorized folder for this role.',
+    }, severity: blocking ? 'error' : 'warning', blockingStages: blocking ? ['intake'] : [] });
+  }
+  return { available: !issues.some((issue) => issue.blockingStages.length > 0), issues };
 }
 /** Apply the same admission checks to the proposed rule and every competitor. No I/O. */
 export function eventEligible(definition: RuleDefinition, resolutions: Record<string, FolderResolution>, event: EventFacts): boolean {

@@ -97,6 +97,7 @@ packages/node/src/automation/fingerprint.ts
 packages/node/src/automation/index.ts
 packages/node/src/automation/normalize.ts
 packages/node/src/automation/predicate.ts
+packages/node/src/automation/role-graph.ts
 packages/node/src/automation/schema.generated.ts
 packages/node/src/automation/schema.ts
 packages/node/src/automation/task-contracts.ts
@@ -106,6 +107,7 @@ packages/node/tests/automation/graph-arbitration.test.ts
 packages/node/tests/automation/normalization.test.ts
 packages/node/tests/automation/portable-build.test.ts
 packages/node/tests/automation/predicate.test.ts
+packages/node/tests/automation/role-graph.test.ts
 packages/node/tests/automation/schema.test.ts
 packages/node/tests/fixtures/automation/event-facts.json
 packages/node/tests/fixtures/automation/m1-placement.json
@@ -154,9 +156,11 @@ packages/server/src/infrastructure/database/runtime.ts
 packages/server/src/modules/automation/application/health-service.ts
 packages/server/src/modules/automation/application/lifecycle-service.ts
 packages/server/src/modules/automation/application/ports.ts
+packages/server/src/modules/automation/application/preview-decision.ts
 packages/server/src/modules/automation/application/preview-service.ts
 packages/server/src/modules/automation/application/resolve-bindings.ts
 packages/server/src/modules/automation/application/rule-eligibility.ts
+packages/server/src/modules/automation/application/rule-evaluation.ts
 packages/server/src/modules/automation/application/rule-service.ts
 packages/server/src/modules/automation/domain/bindings.ts
 packages/server/src/modules/automation/domain/errors.ts
@@ -176,6 +180,7 @@ packages/server/tests/integration/automation/bindings.integration.test.ts
 packages/server/tests/integration/automation/health.integration.test.ts
 packages/server/tests/integration/automation/persistence.integration.test.ts
 packages/server/tests/support/automation-fixture.ts
+packages/server/tests/unit/automation/binding-semantics.test.ts
 packages/server/tests/unit/automation/composition.test.ts
 packages/server/tests/unit/automation/migration-order.test.ts
 packages/server/tests/unit/ci/import-dependency-graph.test.ts
