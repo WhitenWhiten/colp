@@ -2,12 +2,20 @@ import { readFile,writeFile } from 'node:fs/promises';
 const root = new URL('../',import.meta.url);
 const catalog = JSON.parse(await readFile(new URL('../../docs/automation/design/api/mcp-tool-catalog.json',root),'utf8'));
 const patches = JSON.parse(await readFile(new URL('../../docs/automation/contract-adjustments.json',root),'utf8'));
+const canonical = JSON.parse(await readFile(new URL('../../docs/automation/design/schemas/rule-input.schema.json',root),'utf8'));
 for (const [name,patch] of Object.entries(patches)) {
-  const schema = catalog.$defs[name];
-  if (!schema) throw new Error(`Missing catalog definition ${name}`);
-  schema.required = [...schema.required.filter(key => !patch.removeRequired.includes(key)),...(patch.addRequired ?? [])];
-  Object.assign(schema.properties,patch.addProperties ?? {});
+  for (const defs of [catalog.$defs,canonical.$defs]) {
+    const schema = defs[name];
+    if (!schema) throw new Error(`Missing catalog definition ${name}`);
+    schema.required = [...schema.required.filter(key => !patch.removeRequired.includes(key)),...(patch.addRequired ?? [])];
+    Object.assign(schema.properties,patch.addProperties ?? {});
+  }
 }
+// The catalog repeats canonical definitions; a local copy must never silently shadow the canonical one.
+const stable = value => JSON.stringify(value,(_key,item) => item && typeof item === 'object' && !Array.isArray(item)
+  ? Object.fromEntries(Object.keys(item).sort().map(key => [key,item[key]])) : item);
+const shadowed = Object.keys(catalog.$defs).filter(name => Object.hasOwn(canonical.$defs,name) && stable(catalog.$defs[name]) !== stable(canonical.$defs[name]));
+if (shadowed.length) throw new Error(`MCP catalog definitions differ from the canonical rule schema: ${shadowed.join(', ')}`);
 catalog.$defs.HostCommandId = { type: 'string',minLength: 36,maxLength: 36,pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$' };
 function adaptCommands(value) {
   if (!value || typeof value !== 'object') return;
