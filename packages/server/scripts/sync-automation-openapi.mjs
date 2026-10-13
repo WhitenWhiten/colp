@@ -4,7 +4,10 @@ const root = new URL('../', import.meta.url);
 const design = parse(await readFile(new URL('../../docs/automation/design/api/automation.openapi.yaml', root), 'utf8'));
 const ids = new Set(JSON.parse(await readFile(new URL('openapi/automation-operations.json', root), 'utf8')));
 const adjustments = JSON.parse(await readFile(new URL('../../docs/automation/contract-adjustments.json', root), 'utf8'));
-for (const [name, patch] of Object.entries(adjustments)) design.components.schemas[name].required = design.components.schemas[name].required.filter((key) => !patch.removeRequired.includes(key));
+for (const [name, patch] of Object.entries(adjustments)) {
+  design.components.schemas[name].required = [...design.components.schemas[name].required.filter((key) => !patch.removeRequired.includes(key)), ...(patch.addRequired ?? [])];
+  Object.assign(design.components.schemas[name].properties, JSON.parse(JSON.stringify(patch.addProperties ?? {}).replaceAll('#/$defs/', '#/components/schemas/')));
+}
 const paths = {};
 for (const [path, item] of Object.entries(design.paths)) {
   for (const [method, operation] of Object.entries(item)) if (ids.has(operation.operationId)) {
@@ -30,6 +33,10 @@ if (paths['/api/v1/me/automations/runs']) {
     schema: { type: 'string', minLength: 1, maxLength: 128, pattern: '^[A-Za-z0-9._~-]+$' },
   });
 }
+if (paths['/api/v1/automation-device/bundle']) paths['/api/v1/automation-device/bundle'].get.parameters.push({
+  in: 'query', name: 'profile', required: false, schema: { type: 'string', maxLength: 80 },
+  description: 'Requested finite profile; unsupported profiles fail without a partial snapshot.',
+});
 // Narrow additions requested by BE-1 CRUD and required revision discovery.
 const rulePath = '/api/v1/me/automations/rules/{ruleId}', bindingPath = '/api/v1/me/automations/binding-sets/{bindingSetId}';
 paths[rulePath].delete = { ...structuredClone(paths[rulePath].get), operationId: 'deleteAutomationRule', summary: 'Archive a rule without deleting immutable history',

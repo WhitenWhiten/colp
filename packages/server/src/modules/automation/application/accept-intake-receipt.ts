@@ -9,6 +9,8 @@ export interface AutomationDeviceActor {
 export interface AutomationDevicePorts {
   actor: AutomationDeviceActor;
   receipts: ProductCommandReceiptPort;
+  bundle(profile: string): Promise<import('@know-n/colp/automation').RuleBundle>;
+  acknowledge(input: import('@know-n/colp/automation').BundleAckInput): Promise<import('@know-n/colp/automation').OperationReceipt>;
   accept(input: LocalReceiptInput): Promise<ReceiptIngestResult>;
 }
 export interface AutomationDeviceUnitOfWork {

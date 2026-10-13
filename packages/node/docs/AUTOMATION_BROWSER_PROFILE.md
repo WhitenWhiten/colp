@@ -50,3 +50,10 @@ Store review and actual browser lifecycle remain release gates, not preapproved 
 
 BE-1 validates browser-target bundle execution with trusted fixtures. Actual MV3 CSP/store
 installation remains AW-49; no Chrome lifecycle or store approval is claimed.
+
+BE-2 bundle correction: each CompiledRule carries the complete normalized `definition`.
+`programId` and `parameters` are optimization hints only; consumers evaluate `definition`
+with this shared core, including priority, scope, policy and literal path prefixes.
+A consumer that does not support that definition must reject the complete bundle.
+It must never infer omitted semantics from host/tag hints. The adjustment is versioned
+in docs/automation/contract-adjustments.json and shared by schema/type/OpenAPI generators.

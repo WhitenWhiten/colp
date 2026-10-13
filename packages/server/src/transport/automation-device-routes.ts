@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { ExtensionCredentialEvidencePort } from '../modules/identity/index.js';
-import { acceptIntakeReceipt, AutomationError, type AutomationDeviceUnitOfWork } from '../modules/automation/index.js';
+import { acceptIntakeReceipt, parseContract, AutomationError, type AutomationDeviceUnitOfWork } from '../modules/automation/index.js';
 import { canonicalCommandFingerprint } from '../modules/commands/index.js';
 import { createMemorySyncAdmissionPolicy, syncAdmissionSubjectKey, type SyncAdmissionPolicy } from '../infrastructure/rate-limit/index.js';
 import { createSyncTransportSecurity } from './colp-sync/sync-transport-security.js';
@@ -26,10 +26,11 @@ export function registerAutomationDeviceRoutes(app: FastifyInstance, deps: Autom
   const security = createSyncTransportSecurity({ allowInsecureLoopback: deps.allowInsecureLoopback === true, trustedIngress: deps.trustedIngress });
   const admission = deps.admission ?? createMemorySyncAdmissionPolicy({ budgets: { push: { maxRequests: 120, windowMs: 60_000 } } });
   if (!deps.admission) app.addHook('onClose', async () => admission.close());
-  app.post(BASE + '/intake-receipts', { exposeHeadRoute: false,
-    config: { ...productRouteMetadata('POST', BASE + '/intake-receipts'), productTransport: {
-      allowedQuery: [], acceptedMediaTypes: ['application/json'], bodyLimitBytes: 32_768, cacheControl: 'private-no-store' } } },
-  async (request, reply) => {
+  for (const [method, path] of [['POST','/intake-receipts'], ['GET','/bundle'], ['POST','/bundle-acks']] as const) app.route({
+    method, url: BASE + path, exposeHeadRoute: false,
+    config: { ...productRouteMetadata(method, BASE + path), productTransport: {
+      allowedQuery: method === 'GET' ? ['profile'] : [], acceptedMediaTypes: ['application/json'], rejectRequestBody: method === 'GET', bodyLimitBytes: 32_768, cacheControl: 'private-no-store' } },
+  handler: async (request, reply) => {
     if (!security.isSecure(request)) throw new ProductHttpError({ statusCode: 401, code: 'authentication_required', message: 'Secure transport required.' });
     const origin = header(request, 'origin');
     if (!deps.allowedOrigins.includes(origin)) throw new ProductHttpError({ statusCode: 403, code: 'insufficient_permission', message: 'Origin is not allowed.' });
@@ -42,15 +43,17 @@ export function registerAutomationDeviceRoutes(app: FastifyInstance, deps: Autom
     const allowed = await admission.admitSubject({ purpose: 'push', subjectKey: syncAdmissionSubjectKey({ credential }) });
     if (allowed.kind !== 'allowed') throw new ProductHttpError({ statusCode: allowed.kind === 'denied' ? 429 : 503,
       code: allowed.kind === 'denied' ? 'rate_limited' : 'feature_temporarily_unavailable', message: 'Device admission is unavailable.' });
-    const sessionId = header(request, 'known-sync-session'), commandId = readKnownCommandId(request);
+    const sessionId = header(request, 'known-sync-session'), commandId = method === 'GET' ? '' : readKnownCommandId(request);
     try {
       const result = await deps.unitOfWork.execute({ credential, sessionId, origin }, async ports => {
-        const binding = { principalId: ports.actor.accountId, commandScope: `${BASE}/intake-receipts:${ports.actor.deviceId}`, commandId };
-        const fingerprint = canonicalCommandFingerprint({ method: 'POST', route: BASE + '/intake-receipts', mediaType: 'application/json', body: request.body, conditions: { sessionId } });
+        if (method === 'GET') return { body: await ports.bundle((request.query as { profile?: string }).profile ?? 'browser-bounded-v1') };
+        const binding = { principalId: ports.actor.accountId, commandScope: `${BASE}${path}:${ports.actor.deviceId}`, commandId };
+        const fingerprint = canonicalCommandFingerprint({ method: 'POST', route: BASE + path, mediaType: 'application/json', body: request.body, conditions: { sessionId } });
         const claim = await ports.receipts.claim(binding, fingerprint);
         if (claim.kind !== 'claimed') return { claim };
-        const body = await acceptIntakeReceipt(ports, request.body);
-        await ports.receipts.complete(binding, fingerprint, { status: 202, body: new TextEncoder().encode(JSON.stringify(body)),
+        const body = path === '/intake-receipts' ? await acceptIntakeReceipt(ports, request.body)
+          : await ports.acknowledge(parseContract('BundleAckInput', request.body));
+        await ports.receipts.complete(binding, fingerprint, { status: path === '/intake-receipts' ? 202 : 200, body: new TextEncoder().encode(JSON.stringify(body)),
           mediaType: 'application/json', contractVersion: '0.2.1-design', stableHeaders: { 'cache-control': 'private, no-store' } });
         return { body };
       });
@@ -59,10 +62,11 @@ export function registerAutomationDeviceRoutes(app: FastifyInstance, deps: Autom
         if (claim.kind === 'reused') throw new AutomationError('automation_command_conflict', 'Command identity reused.');
         return sendProductCommandReceiptOutcome(reply, claim.kind === 'replay' ? { kind: 'replay', ...claim.result } : claim);
       }
-      return reply.code(202).header('cache-control', 'private, no-store').send(result.body);
+      if (result.body && 'revision' in result.body) reply.header('etag', `"${result.body.revision}"`);
+      return reply.code(path === '/intake-receipts' ? 202 : 200).header('cache-control', 'private, no-store').send(result.body);
     } catch (error) {
       if (error instanceof AutomationError) throw new ProductHttpError({ statusCode: productErrorStatus(error.code), code: error.code, message: error.message });
       throw error;
     }
-  });
+  } });
 }

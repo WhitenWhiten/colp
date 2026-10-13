@@ -12,3 +12,4 @@ export * from './application/admit-event.js';
 export { assessIntakeBindings } from './application/rule-eligibility.js';
 export * from './application/run-service.js';
 export * from './application/accept-intake-receipt.js';
+export * from './application/compile-bundle.js';

@@ -13625,6 +13625,151 @@ paths:
       x-known-feature-gate: automation_configuration
       security:
         - cookieAuth: []
+  /api/v1/automation-device/bundle:
+    get:
+      operationId: getAutomationDeviceBundle
+      tags:
+        - Automation
+      summary: Read a full browser-bounded rule bundle
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1
+        backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+      x-delivery-phase: M1
+      parameters:
+        - in: header
+          name: Known-Sync-Session
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 256
+        - $ref: "#/components/parameters/AutomationOrigin"
+        - in: query
+          name: profile
+          required: false
+          schema:
+            type: string
+            maxLength: 80
+          description: Requested finite profile; unsupported profiles fail without a partial snapshot.
+      responses:
+        "200":
+          description: Successful response; inspect the returned state, not merely the HTTP status.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+            X-Request-Id:
+              schema:
+                type: string
+                maxLength: 128
+                minLength: 1
+                pattern: ^[A-Za-z0-9._~-]+$
+            ETag:
+              schema:
+                type: string
+                maxLength: 160
+              description: Strong ETag for this automation resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutomationRuleBundle"
+        "400":
+          $ref: "#/components/responses/Automation400"
+        "401":
+          $ref: "#/components/responses/Automation401"
+        "403":
+          $ref: "#/components/responses/Automation403"
+        "404":
+          $ref: "#/components/responses/Automation404"
+        "409":
+          $ref: "#/components/responses/Automation409"
+        "412":
+          $ref: "#/components/responses/Automation412"
+        "413":
+          $ref: "#/components/responses/Automation413"
+        "422":
+          $ref: "#/components/responses/Automation422"
+        "428":
+          $ref: "#/components/responses/Automation428"
+        "429":
+          $ref: "#/components/responses/Automation429"
+        "500":
+          $ref: "#/components/responses/Automation500"
+        "503":
+          $ref: "#/components/responses/Automation503"
+      security:
+        - DeviceBearer: []
+      x-known-feature-gate: automation_configuration
+  /api/v1/automation-device/bundle-acks:
+    post:
+      operationId: acknowledgeAutomationDeviceBundle
+      tags:
+        - Automation
+      summary: Report device bundle activation
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1
+        backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+      x-delivery-phase: M1
+      parameters:
+        - $ref: "#/components/parameters/AutomationCommandId"
+        - in: header
+          name: Known-Sync-Session
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 256
+        - $ref: "#/components/parameters/AutomationOrigin"
+      responses:
+        "200":
+          description: Successful response; inspect the returned state, not merely the HTTP status.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+            X-Request-Id:
+              schema:
+                type: string
+                maxLength: 128
+                minLength: 1
+                pattern: ^[A-Za-z0-9._~-]+$
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutomationOperationReceipt"
+        "400":
+          $ref: "#/components/responses/Automation400"
+        "401":
+          $ref: "#/components/responses/Automation401"
+        "403":
+          $ref: "#/components/responses/Automation403"
+        "404":
+          $ref: "#/components/responses/Automation404"
+        "409":
+          $ref: "#/components/responses/Automation409"
+        "412":
+          $ref: "#/components/responses/Automation412"
+        "413":
+          $ref: "#/components/responses/Automation413"
+        "422":
+          $ref: "#/components/responses/Automation422"
+        "428":
+          $ref: "#/components/responses/Automation428"
+        "429":
+          $ref: "#/components/responses/Automation429"
+        "500":
+          $ref: "#/components/responses/Automation500"
+        "503":
+          $ref: "#/components/responses/Automation503"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AutomationBundleAckInput"
+      security:
+        - DeviceBearer: []
+      x-known-feature-gate: automation_configuration
   /api/v1/automation-device/intake-receipts:
     post:
       operationId: ingestAutomationIntakeReceipt
@@ -16787,6 +16932,174 @@ components:
       maxLength: 128
       minLength: 1
       pattern: ^[A-Za-z0-9._~-]+$
+    AutomationRuleBundle:
+      type: object
+      properties:
+        revision:
+          type: string
+          maxLength: 128
+          minLength: 1
+        profile:
+          const: browser-bounded-v1
+        rules:
+          type: array
+          items:
+            $ref: "#/components/schemas/AutomationCompiledRule"
+          maxItems: 1000
+        issuedAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        digest:
+          type: string
+          maxLength: 64
+          pattern: ^[a-f0-9]{64}$
+        removedRuleIds:
+          type: array
+          items:
+            type: string
+            maxLength: 128
+            minLength: 1
+            pattern: ^[A-Za-z0-9._~-]+$
+          maxItems: 1000
+        paused:
+          type: boolean
+        settingsRevision:
+          type: integer
+          minimum: 0
+          description: Monotonically increasing owner settings sequence; never compare opaque bundle revisions lexically.
+      required:
+        - revision
+        - profile
+        - rules
+        - issuedAt
+        - expiresAt
+        - digest
+        - removedRuleIds
+        - paused
+        - settingsRevision
+      additionalProperties: false
+      description: Full authenticated snapshot. No model credentials or subscription secrets; device mappings remain device-local.
+    AutomationCompiledRule:
+      type: object
+      properties:
+        ruleId:
+          type: string
+          maxLength: 128
+          minLength: 1
+          pattern: ^[A-Za-z0-9._~-]+$
+        ruleRevision:
+          type: string
+          maxLength: 128
+          minLength: 1
+        bindingRevision:
+          type: string
+          maxLength: 128
+          minLength: 1
+        programId:
+          type: string
+          enum:
+            - hostRoute
+            - fieldFilter
+            - tagTransition
+        parameters:
+          type: object
+          properties:
+            host:
+              type: string
+              maxLength: 253
+            folderRole:
+              type: string
+              maxLength: 80
+            includeSubdomains:
+              type: boolean
+            tag:
+              type: string
+              maxLength: 100
+          required: []
+          additionalProperties: false
+        nativeBindingHints:
+          $ref: "#/components/schemas/AutomationRoleBindings"
+        semanticDigest:
+          type: string
+          maxLength: 64
+          pattern: ^[a-f0-9]{64}$
+        definition:
+          $ref: "#/components/schemas/AutomationRuleDefinition"
+      required:
+        - ruleId
+        - ruleRevision
+        - bindingRevision
+        - programId
+        - parameters
+        - nativeBindingHints
+        - semanticDigest
+        - definition
+      additionalProperties: false
+      description: Finite packaged-program parameters, not a remotely fetched script. Profile eligibility is checked before
+        installation.
+    AutomationOperationReceipt:
+      type: object
+      properties:
+        id:
+          type: string
+          maxLength: 128
+          minLength: 1
+          pattern: ^[A-Za-z0-9._~-]+$
+        status:
+          type: string
+          enum:
+            - accepted
+            - completed
+            - blocked
+            - cancelled
+        resourceId:
+          type: string
+          maxLength: 128
+          minLength: 1
+          pattern: ^[A-Za-z0-9._~-]+$
+        diagnostics:
+          type: array
+          items:
+            $ref: "#/components/schemas/AutomationDiagnostic"
+          maxItems: 100
+      required:
+        - id
+        - status
+        - resourceId
+        - diagnostics
+      additionalProperties: false
+    AutomationBundleAckInput:
+      type: object
+      properties:
+        deviceId:
+          type: string
+          maxLength: 128
+          minLength: 1
+          pattern: ^[A-Za-z0-9._~-]+$
+        bundleRevision:
+          type: string
+          maxLength: 128
+          minLength: 1
+        status:
+          type: string
+          enum:
+            - applied
+            - partiallyApplied
+            - rejected
+        diagnostics:
+          type: array
+          items:
+            $ref: "#/components/schemas/AutomationDiagnostic"
+          maxItems: 100
+      required:
+        - deviceId
+        - bundleRevision
+        - status
+        - diagnostics
+      additionalProperties: false
     AutomationReceiptIngestResult:
       type: object
       properties:

@@ -1110,6 +1110,7 @@ export interface CompiledRule {
   };
   nativeBindingHints: RoleBindings;
   semanticDigest: string;
+  definition: RuleDefinition;
 }
 /**
  * Full authenticated snapshot. No model credentials or subscription secrets; device mappings remain device-local.

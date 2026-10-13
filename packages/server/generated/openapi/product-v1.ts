@@ -4378,6 +4378,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/automation-device/bundle": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read a full browser-bounded rule bundle
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         */
+        get: operations["getAutomationDeviceBundle"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/automation-device/bundle-acks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Report device bundle activation
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. M1 backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         */
+        post: operations["acknowledgeAutomationDeviceBundle"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/automation-device/intake-receipts": {
         parameters: {
             query?: never;
@@ -4928,6 +4968,53 @@ export interface components {
             undoReason: string;
         };
         AutomationOpaqueId: string;
+        /** @description Full authenticated snapshot. No model credentials or subscription secrets; device mappings remain device-local. */
+        AutomationRuleBundle: {
+            revision: string;
+            /** @constant */
+            profile: "browser-bounded-v1";
+            rules: components["schemas"]["AutomationCompiledRule"][];
+            /** Format: date-time */
+            issuedAt: string;
+            /** Format: date-time */
+            expiresAt: string;
+            digest: string;
+            removedRuleIds: string[];
+            paused: boolean;
+            /** @description Monotonically increasing owner settings sequence; never compare opaque bundle revisions lexically. */
+            settingsRevision: number;
+        };
+        /** @description Finite packaged-program parameters, not a remotely fetched script. Profile eligibility is checked before installation. */
+        AutomationCompiledRule: {
+            ruleId: string;
+            ruleRevision: string;
+            bindingRevision: string;
+            /** @enum {string} */
+            programId: "hostRoute" | "fieldFilter" | "tagTransition";
+            parameters: {
+                host?: string;
+                folderRole?: string;
+                includeSubdomains?: boolean;
+                tag?: string;
+            };
+            nativeBindingHints: components["schemas"]["AutomationRoleBindings"];
+            semanticDigest: string;
+            definition: components["schemas"]["AutomationRuleDefinition"];
+        };
+        AutomationOperationReceipt: {
+            id: string;
+            /** @enum {string} */
+            status: "accepted" | "completed" | "blocked" | "cancelled";
+            resourceId: string;
+            diagnostics: components["schemas"]["AutomationDiagnostic"][];
+        };
+        AutomationBundleAckInput: {
+            deviceId: string;
+            bundleRevision: string;
+            /** @enum {string} */
+            status: "applied" | "partiallyApplied" | "rejected";
+            diagnostics: components["schemas"]["AutomationDiagnostic"][];
+        };
         AutomationReceiptIngestResult: {
             receiptId: string;
             /** @enum {string} */
@@ -22920,6 +23007,93 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AutomationRun"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    getAutomationDeviceBundle: {
+        parameters: {
+            query?: {
+                /** @description Requested finite profile; unsupported profiles fail without a partial snapshot. */
+                profile?: string;
+            };
+            header: {
+                "Known-Sync-Session": string;
+                /** @description Validate against existing host trusted-origin policy for cookie-authenticated mutations. */
+                Origin: components["parameters"]["AutomationOrigin"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    /** @description Strong ETag for this automation resource. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationRuleBundle"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    acknowledgeAutomationDeviceBundle: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Stable command identity. Scope: authenticated principal + operation + addressed resource. Same identity/different canonical body returns 409. */
+                "Known-Command-Id": components["parameters"]["AutomationCommandId"];
+                "Known-Sync-Session": string;
+                /** @description Validate against existing host trusted-origin policy for cookie-authenticated mutations. */
+                Origin: components["parameters"]["AutomationOrigin"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AutomationBundleAckInput"];
+            };
+        };
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationOperationReceipt"];
                 };
             };
             400: components["responses"]["Automation400"];

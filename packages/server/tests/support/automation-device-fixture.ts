@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { sql } from 'kysely';
-import { automationDigest, ruleSemanticDigest } from '@know-n/colp/automation';
+import { createAutomationDeviceUnitOfWork } from '../../src/infrastructure/automation/index.js';
 import { createPostgresReplicaStore, createPostgresSyncSessionIssuer, createPostgresSyncPushApplication } from '../../src/infrastructure/sync/index.js';
 import { mintExtensionCredentialHttpFixture } from './extension-credential.js';
 import { automationRuntimeFixture } from './automation-runtime-fixture.js';
@@ -26,14 +25,7 @@ export async function automationDeviceFixture(prefix: string) {
     expectedLifecycleRevision: replica.lifecycleRevision, binding: replica.binding, requestedScopes: ['sync:push','sync:pull'],
     protocolVersion: '0.1', origin: AUTOMATION_DEVICE_ORIGIN });
   const sessionId = issued.session.sessionId;
-  // AW-17 frozen consumer fixture; AW-18 supplies this snapshot through the authenticated bundle producer.
-  const bundle = { revision: '1', profile: 'browser-bounded-v1', rules: [{ ruleId: f.rule.id, ruleRevision: '1', bindingRevision: '1',
-    programId: 'hostRoute', parameters: { host: 'arxiv.org', folderRole: 'academicRoot' }, nativeBindingHints: f.values,
-    semanticDigest: ruleSemanticDigest(f.rule.definition) }], issuedAt: new Date().toISOString(), expiresAt: new Date(Date.now()+600000).toISOString(),
-    removedRuleIds: [], paused: false, settingsRevision: 0 };
-  const snapshot = { ...bundle, digest: automationDigest(bundle) };
-  await sql`INSERT INTO automation_device_bundles(owner_id,device_id,revision,profile,digest,issued_at,expires_at,paused,settings_revision,status,snapshot_json)
-    VALUES (${f.owner.accountId},${replica.deviceId},1,'browser-bounded-v1',${snapshot.digest},${new Date(bundle.issuedAt)},${new Date(bundle.expiresAt)},false,0,'issued',${JSON.stringify(snapshot)}::jsonb)`.execute(f.db);
+  await createAutomationDeviceUnitOfWork(f.db, 'server').execute({ credential: http.credential, sessionId, origin: AUTOMATION_DEVICE_ORIGIN }, p => p.bundle('browser-bounded-v1'));
   let sequence = 0;
   async function syncCreate(nodeId: string, operationId: string, parentId = 'academic') {
     const application = createPostgresSyncPushApplication(f.db, issuer, { nodeId: () => nodeId });

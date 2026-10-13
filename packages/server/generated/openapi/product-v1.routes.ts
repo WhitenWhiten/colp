@@ -76,6 +76,16 @@ export const PRODUCT_ROUTE_MANIFEST = [
     "operationId": "startOidcAuthorization"
   },
   {
+    "method": "GET",
+    "path": "/api/v1/automation-device/bundle",
+    "operationId": "getAutomationDeviceBundle"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/automation-device/bundle-acks",
+    "operationId": "acknowledgeAutomationDeviceBundle"
+  },
+  {
     "method": "POST",
     "path": "/api/v1/automation-device/intake-receipts",
     "operationId": "ingestAutomationIntakeReceipt"

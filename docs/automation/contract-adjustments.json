@@ -1,3 +1,18 @@
 {
-  "ChangeInput": {"removeRequired": ["executionPolicyId"]}
+  "ChangeInput": {
+    "removeRequired": [
+      "executionPolicyId"
+    ]
+  },
+  "CompiledRule": {
+    "removeRequired": [],
+    "addProperties": {
+      "definition": {
+        "$ref": "#/$defs/RuleDefinition"
+      }
+    },
+    "addRequired": [
+      "definition"
+    ]
+  }
 }
