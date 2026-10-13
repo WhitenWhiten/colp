@@ -1,7 +1,7 @@
 import { automationOutputRoutes } from './product/automation-output-routes.js';
 import { automationDeliveryRoutes } from './product/automation-delivery-routes.js';
 import { automationJobRoutes } from './product/automation-job-routes.js';
-import { registerAutomationWorkRoutes } from './automation-work-routes.js';
+import { registerAutomationWorkRoutes, type AutomationWorkRouteDeps } from './automation-work-routes.js';
 import { automationTargetRoutes } from './product/automation-target-routes.js';
 import { automationPolicyRoutes } from './product/automation-policy-routes.js';
 import { registerAutomationDeviceRoutes } from './automation-device-routes.js';
@@ -24,8 +24,8 @@ export function registerAccountProductSurfaces(app: FastifyInstance, deps: AppDe
     allowedOrigins: deps.syncSessionRoutes.allowedOrigins, allowInsecureLoopback: deps.syncSessionRoutes.allowInsecureLoopback,
     trustedIngress: deps.syncSessionRoutes.trustedIngress, admission: deps.syncAdmissionPolicy,
   });
-  if (config.automationWorkEnabled && deps.automationPairing && deps.mcpReadTransport?.oauthVerifier) registerAutomationWorkRoutes(app,{ pairing: deps.automationPairing,worker: deps.automationWorker,oauthVerifier: deps.mcpReadTransport.oauthVerifier,allowedOrigins: config.allowedOrigins,
-    ...(deps.automationWorkAdmit ? { admit: deps.automationWorkAdmit } : {}) });
+  const work = automationWorkRouteDeps(deps);
+  if (work) registerAutomationWorkRoutes(app, work);
   if (deps.automationHealthStartup) app.addHook('onReady', deps.automationHealthStartup);
   const subscriptions = { identityUnitOfWork, unitOfWork: deps.bookmarkSubscriptionUnitOfWork, allowedOrigins: extensionProductAllowedOrigins(config), enabled: () => config.bookmarkSubscriptions?.enabled === true, protocolReady: () => config.bookmarkSubscriptions?.protocolReady === true, cursorKey: config.community.cursorHmacKey, rateLimiter: deps.reportsRateLimiter };
   registerBookmarkSubscriptionRoutes(app, subscriptions);
@@ -37,4 +37,11 @@ export function registerAccountProductSurfaces(app: FastifyInstance, deps: AppDe
       queryStore: bookmarkPreferencesQuery,
     });
   }
+}
+
+/** Worker HTTP routes exist only with the WORK flag, and always go through the worker admission budget. */
+export function automationWorkRouteDeps(deps: AppDependencies): AutomationWorkRouteDeps | undefined {
+  if (!deps.config.automationWorkEnabled || !deps.automationPairing || !deps.mcpReadTransport?.oauthVerifier) return undefined;
+  return { pairing: deps.automationPairing, worker: deps.automationWorker, oauthVerifier: deps.mcpReadTransport.oauthVerifier,
+    allowedOrigins: deps.config.allowedOrigins, ...(deps.automationWorkAdmit ? { admit: deps.automationWorkAdmit } : {}) };
 }
