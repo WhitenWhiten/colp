@@ -19,6 +19,7 @@ import { productErrorStatus } from '../product-codes.js';
 import { sendProductCommandReceiptOutcome, mapProductDatabaseError } from '../product-command-mapping.js';
 import { DatabaseOperationError } from '../../infrastructure/database/errors.js';
 import { createAutomationPagination } from './automation-pagination.js';
+import { AUTOMATION_CONTRACT_VERSION } from '@know-n/colp/automation';
 
 export interface AutomationRoutesDeps {
   identityUnitOfWork: IdentityUnitOfWork;
@@ -123,7 +124,7 @@ function registerAutomationRoute(app: FastifyInstance, deps: AutomationRoutesDep
           const response = await route.action({ ports, actor, request, ifMatch });
           if (mutation) await ports.receipts.complete(binding, fingerprint, { status: response.status ?? 200,
             body: new TextEncoder().encode(response.body === undefined ? '' : JSON.stringify(response.receiptBody ?? response.body)), mediaType: 'application/json',
-            contractVersion: '1.95.0', stableHeaders: { 'cache-control': 'private, no-store', ...(response.etag ? { etag: response.etag } : {}) } });
+            contractVersion: AUTOMATION_CONTRACT_VERSION, stableHeaders: { 'cache-control': 'private, no-store', ...(response.etag ? { etag: response.etag } : {}) } });
           return { response };
         });
         if ('claim' in result) return replay(reply, result.claim!);

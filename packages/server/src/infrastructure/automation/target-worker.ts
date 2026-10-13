@@ -11,6 +11,7 @@ import type { TargetAuthority } from './work-authority.js';
 import { createPostgresProductCommandReceiptPort } from '../database/product-command-receipt.js';
 import { claimTokenHash } from './lease-store.js';
 import { createTargetStore,type ProfileRow,type TargetRow } from './target-store.js';
+import { AUTOMATION_CONTRACT_VERSION } from '@know-n/colp/automation';
 
 /**
  * allowExpiredObservation: the pinned-proposal path (guard, server-applied approvals) only needs the worker to be
@@ -102,7 +103,7 @@ export function createTargetWorkerService(db: Kysely<DatabaseSchema>,verifyBindi
         await sql`UPDATE automation_connection_profiles SET observation_json=${JSON.stringify(observation)}::jsonb WHERE id=${current.id}`.execute(tx);
         const target = (await createTargetStore(tx,actor.accountId,verifyBinding).targets.load(grant.target_id))!;
         await receipts.complete(command,fingerprint,{ status: 200,body: new TextEncoder().encode(JSON.stringify(target)),mediaType: 'application/json',
-          contractVersion: '0.2.1-design',stableHeaders: { 'cache-control': 'private, no-store' } });
+          contractVersion: AUTOMATION_CONTRACT_VERSION,stableHeaders: { 'cache-control': 'private, no-store' } });
         return { kind: 'succeeded' as const,target };
       });
     },

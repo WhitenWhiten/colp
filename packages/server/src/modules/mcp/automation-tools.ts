@@ -5,6 +5,7 @@ import { canonicalCommandFingerprint } from '../commands/index.js';
 import type { AutomationCatalogPort } from './automation-catalog.js';
 import { automationWorkPrincipal } from './automation-context.js';
 import type { McpApplicationContext } from './application-context.js';
+import { AUTOMATION_CONTRACT_VERSION } from '@know-n/colp/automation';
 
 export function createAutomationToolPort(options: { access: AutomationCatalogPort['access']; configurations: AutomationUnitOfWork;
   worker?: AutomationWorkerService; pairing: WorkerPairingPort; cursorKey: string }): AutomationCatalogPort {
@@ -62,7 +63,7 @@ export function createAutomationToolPort(options: { access: AutomationCatalogPor
         }
         default: throw new AutomationError('automation_unsupported_capability','Tool is unavailable.');
       }
-      if (mutation) await ports.receipts.complete(binding,fingerprint,{ status: 200,body: new TextEncoder().encode(JSON.stringify(value)),mediaType: 'application/json',contractVersion: '0.2.1-design',stableHeaders: { 'cache-control': 'private, no-store' } });
+      if (mutation) await ports.receipts.complete(binding,fingerprint,{ status: 200,body: new TextEncoder().encode(JSON.stringify(value)),mediaType: 'application/json',contractVersion: AUTOMATION_CONTRACT_VERSION,stableHeaders: { 'cache-control': 'private, no-store' } });
       return value;
     });
   }

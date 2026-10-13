@@ -9,6 +9,7 @@ import { ProductHttpError } from './product-error.js';
 import { productErrorStatus } from './product-codes.js';
 import { readKnownCommandId } from './product/collection-route-helpers.js';
 import { sendProductCommandReceiptOutcome } from './product-command-mapping.js';
+import { AUTOMATION_CONTRACT_VERSION } from '@know-n/colp/automation';
 export interface AutomationDeviceRouteDeps {
   credentialVerifier: ExtensionCredentialEvidencePort; unitOfWork: AutomationDeviceUnitOfWork;
   allowedOrigins: readonly string[]; allowInsecureLoopback?: boolean; trustedIngress?: readonly string[]; admission?: SyncAdmissionPolicy;
@@ -54,7 +55,7 @@ export function registerAutomationDeviceRoutes(app: FastifyInstance, deps: Autom
         const body = path === '/intake-receipts' ? await acceptIntakeReceipt(ports, request.body)
           : await ports.acknowledge(parseContract('BundleAckInput', request.body));
         await ports.receipts.complete(binding, fingerprint, { status: path === '/intake-receipts' ? 202 : 200, body: new TextEncoder().encode(JSON.stringify(body)),
-          mediaType: 'application/json', contractVersion: '0.2.1-design', stableHeaders: { 'cache-control': 'private, no-store',
+          mediaType: 'application/json', contractVersion: AUTOMATION_CONTRACT_VERSION, stableHeaders: { 'cache-control': 'private, no-store',
             ...('revision' in body ? { etag: `"${body.revision}"` } : {}) } });
         return { body };
       });

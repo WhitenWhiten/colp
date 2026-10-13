@@ -9,6 +9,7 @@ import { createJobLeaseStore } from './lease-store.js';
 import { advanceRunTasks } from './task-scheduler.js';
 import { lockWorkJob } from './work-authority.js';
 import type { TargetWorkerService } from './target-worker.js';
+import { AUTOMATION_CONTRACT_VERSION } from '@know-n/colp/automation';
 
 /** Shared HTTP/MCP commands; the Plan coordinator always runs outside the short job transaction. */
 export function createAutomationWorkerService(db: Kysely<DatabaseSchema>,serverUuid: string,worker: TargetWorkerService,
@@ -20,7 +21,7 @@ export function createAutomationWorkerService(db: Kysely<DatabaseSchema>,serverU
       const binding = { principalId: actor.accountId,commandScope: JSON.stringify(['automation-work',actor.clientId,actor.credentialBindingId,id,operation]),commandId };
       const fingerprint = canonicalCommandFingerprint({ method: 'POST',route: `automation.jobs.${operation}`,resource: id,mediaType: 'application/json',body: input });
       const complete = (tx: DatabaseTransaction,value: unknown) => createPostgresProductCommandReceiptPort(tx).complete(binding,fingerprint,{ status: 200,
-        body: new TextEncoder().encode(JSON.stringify(value)),mediaType: 'application/json',contractVersion: '0.2.1-design',stableHeaders: { 'cache-control': 'private, no-store' } });
+        body: new TextEncoder().encode(JSON.stringify(value)),mediaType: 'application/json',contractVersion: AUTOMATION_CONTRACT_VERSION,stableHeaders: { 'cache-control': 'private, no-store' } });
       const initial = await db.transaction().execute(async tx => {
         const job = await lockWorkJob(tx,actor,id,worker.authorize,operation !== 'claim');
         const claim = await createPostgresProductCommandReceiptPort(tx).claim(binding,fingerprint);
