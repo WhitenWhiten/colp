@@ -6,6 +6,7 @@ import { assessIntakeBindings } from './rule-eligibility.js';
 import { resolveBindings } from './resolve-bindings.js';
 import { assertSupportedRule,supportedRuleIssues,inspectWorkerConfiguration } from './worker-configuration.js';
 import { intakePolicyDiagnostics } from './policy-diagnostics.js';
+import { MAX_RULES_PER_OWNER } from './capabilities.js';
 import { etag, nextRevision, type AutomationPorts, type StoredRule } from './ports.js';
 
 export function parseContract<Name extends AutomationSchemaName>(name: Name, value: unknown): AutomationContracts[Name] {
@@ -61,7 +62,8 @@ export async function validateRule(ports: AutomationPorts, actor: AutomationActo
 }
 export async function createRule(ports: AutomationPorts, actor: AutomationActor, body: unknown) {
   const input = normalizeRuleInput(parseContract('RuleInput', body)); assertSupportedRule(input,ports.workerEnabled);
-  if ((await ports.rules.list(actor.accountId, null, 500)).length >= 500) throw new AutomationError('invalid_request', 'Maximum 500 rules per owner.');
+  if (await ports.rules.count(actor.accountId) >= MAX_RULES_PER_OWNER) throw new AutomationError('automation_rule_conflict',
+    `The Owner already keeps the maximum of ${MAX_RULES_PER_OWNER} rules; delete one before creating another.`, [{ path: '', code: 'maxRules', message: 'Rule limit reached.' }]);
   const inspected = await inspectInput(ports, actor, input), now = (await ports.now()).toISOString();
   const rule: StoredRule = { definitionRevisionId: ports.id(), definitionRevision: '1', sortCreatedAt: now, view: { ...input, id: ports.id(), revision: '1',
     desiredState: 'draft', effectiveState: 'draft', createdAt: now, updatedAt: now } };
