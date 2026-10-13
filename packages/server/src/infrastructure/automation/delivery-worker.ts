@@ -38,12 +38,23 @@ export function createDeliveryWorker(db: Kysely<DatabaseSchema>,authorize: Targe
     await sql`UPDATE automation_event_deliveries SET state='cancelled',generation=generation+1,lease_until=NULL,next_attempt_at=NULL
       WHERE id=${d.id} AND generation=${String(d.generation)}::bigint`.execute(tx);
   }
-  return { async tick(): Promise<boolean> {
+  return {
+    async nextRecipient(excludedOwners: readonly string[],after: string): Promise<{ownerId:string;targetId:string}|null> {
+      const row=(await sql<{owner_id:string;target_id:string}>`SELECT d.owner_id,d.target_id FROM automation_event_deliveries d
+        LEFT JOIN automation_settings a ON a.owner_id=d.owner_id
+        WHERE NOT coalesce(a.paused,false) AND ((d.state IN ('pending','retrying') AND d.next_attempt_at<=clock_timestamp())
+          OR (d.state='sending' AND d.lease_until<clock_timestamp()))
+        ${excludedOwners.length ? sql`AND d.owner_id NOT IN (${sql.join(excludedOwners)})` : sql``}
+        ORDER BY (d.owner_id||':'||d.target_id<=${after}),d.owner_id,d.target_id,d.next_attempt_at,d.id LIMIT 1`.execute(db)).rows[0];
+      return row ? {ownerId:row.owner_id,targetId:row.target_id} : null;
+    },
+    async tick(targetId?: string): Promise<boolean> {
     // Candidate selection is optimistic; account lock precedes delivery/job locks consistently.
     const candidate = (await sql<Delivery>`SELECT d.* FROM automation_event_deliveries d
       LEFT JOIN automation_settings a ON a.owner_id=d.owner_id
       WHERE NOT coalesce(a.paused,false) AND ((d.state IN ('pending','retrying') AND d.next_attempt_at<=clock_timestamp())
-        OR (d.state='sending' AND d.lease_until<clock_timestamp())) ORDER BY d.next_attempt_at,d.id LIMIT 1`.execute(db)).rows[0];
+        OR (d.state='sending' AND d.lease_until<clock_timestamp()))
+        ${targetId ? sql`AND d.target_id=${targetId}` : sql``} ORDER BY d.next_attempt_at,d.id LIMIT 1`.execute(db)).rows[0];
     if (!candidate) return false;
     const claimed = await db.transaction().execute(async tx => {
       await tx.selectFrom('accounts').select('id').where('id','=',candidate.owner_id).forUpdate().executeTakeFirst();

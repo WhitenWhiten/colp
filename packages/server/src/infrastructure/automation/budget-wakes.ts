@@ -1,4 +1,5 @@
-import { sql } from 'kysely';
+import type { DatabaseSchema } from '../database/runtime.js';
+import { sql, type Kysely } from 'kysely';
 import type { AutomationActor } from '../../modules/automation/index.js';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
 import { appendAutomationResume } from '../outbox/automation-ingest.js';
@@ -25,4 +26,18 @@ export async function resumeCollectionBudgets(tx: DatabaseTransaction, actor: Au
   await sql`DELETE FROM automation_budget_wakes WHERE owner_id=${actor.accountId} AND collection_id=${collectionId}
     AND available_at<=CURRENT_TIMESTAMP`.execute(tx);
   return more;
+}
+
+
+/** Recovery for pre-upgrade holds and paused wake deliveries already acknowledged. */
+export async function resumeOwnerBudgets(db: Kysely<DatabaseSchema>, ownerId: string): Promise<void> {
+  await db.transaction().execute(async tx => {
+    const owner=await tx.selectFrom('accounts').select(['id','subject_id','status','deleted_at']).where('id','=',ownerId).forUpdate().executeTakeFirst();
+    if(!owner || owner.status!=='active' || owner.deleted_at)return;
+    const collections=(await sql<{collection_id:string}>`SELECT DISTINCT r.explanation_json->>'collectionId' AS collection_id
+      FROM automation_runs r JOIN automation_jobs j ON j.run_id=r.id WHERE r.owner_id=${ownerId}
+      AND NOT r.held AND r.state<>'cancelled' AND j.state='blocked' AND j.budget_block_reason='daily'
+      AND j.budget_retry_after<=CURRENT_TIMESTAMP ORDER BY collection_id LIMIT 25`.execute(tx)).rows;
+    for(const collection of collections)await resumeCollectionBudgets(tx,{accountId:owner.id,subjectId:owner.subject_id},collection.collection_id);
+  });
 }

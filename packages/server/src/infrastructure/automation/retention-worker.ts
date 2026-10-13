@@ -2,11 +2,12 @@ import { randomUUID } from 'node:crypto';
 import { sql,type Kysely } from 'kysely';
 import type { DatabaseSchema } from '../database/runtime.js';
 /** Bounded housekeeping. Source members, job inputs, result/effect and dedup identities are never purged here. */
-export async function retainAutomationHistory(db: Kysely<DatabaseSchema>,ownerId: string): Promise<number> {
+export async function retainAutomationHistory(db: Kysely<DatabaseSchema>,ownerId: string, workerHistory = true): Promise<number> {
   return db.transaction().execute(async tx => {
     await tx.selectFrom('accounts').select('id').where('id','=',ownerId).forUpdate().executeTakeFirstOrThrow();
     await sql`DELETE FROM automation_preview_records WHERE id IN (SELECT id FROM automation_preview_records
       WHERE owner_id=${ownerId} AND expires_at<clock_timestamp() ORDER BY expires_at LIMIT 100)`.execute(tx);
+    if (!workerHistory) return 0;
     await sql`DELETE FROM automation_pairings WHERE id IN (SELECT id FROM automation_pairings
       WHERE owner_id=${ownerId} AND expires_at<clock_timestamp() ORDER BY expires_at LIMIT 100)`.execute(tx);
     await sql`UPDATE automation_event_subscriptions SET previous_secret_ciphertext=NULL,previous_secret_until=NULL

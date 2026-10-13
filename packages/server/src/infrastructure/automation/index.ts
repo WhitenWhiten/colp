@@ -19,3 +19,6 @@ export { createWebhookVerifier } from './webhook-verifier.js';
 export { createSubscriptionStore } from './subscription-store.js';
 export { createDeliveryWorker } from './delivery-worker.js';
 export { retainAutomationHistory } from './retention-worker.js';
+
+export { createAutomationMaintenanceLoop } from './maintenance-loop.js';
+export { resumeOwnerBudgets } from './budget-wakes.js';

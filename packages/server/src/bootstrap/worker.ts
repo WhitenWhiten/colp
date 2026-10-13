@@ -1,3 +1,4 @@
+import { createAutomationMaintenanceLoop, resumeOwnerBudgets } from '../infrastructure/automation/index.js';
 import { retainAutomationHistory } from '../infrastructure/automation/index.js';
 import { createDeliveryWorker } from '../infrastructure/automation/index.js';
 import { createWebhookVerifier } from '../infrastructure/automation/index.js';
@@ -398,19 +399,20 @@ export function buildWorker(
     ? createDeliveryWorker(database.db,createTargetWorkerService(database.db,
       createAutomationBindingVerifier(config,createMcpSecurityEpochReader(config,createPostgresMcpOauthRevocationStore({ db: database.db }))),async () => {}).authorize,
       createWebhookVerifier(config.automationWebhookMasterKey)) : undefined;
-  let deliveryTimer: ReturnType<typeof setInterval> | undefined;
-  let deliveryTick: Promise<void> | undefined;
   let retentionAfter = '';
-  let deliveryStopping = false;
-  const pollDeliveries = () => {
-    if (!deliveryWorker || deliveryStopping || deliveryTick) return;
-    deliveryTick = (async () => { for (let i=0;i<20 && !deliveryStopping;i++) if (!await deliveryWorker.tick()) break;
-      if (database) {
+  const automationMaintenance = config.automationConfigurationEnabled && database
+    ? createAutomationMaintenanceLoop({
+      delivery: deliveryWorker,
+      async maintain() {
         const owner=await database.db.selectFrom('accounts').select('id').where('id','>',retentionAfter).orderBy('id').limit(1).executeTakeFirst();
-        if (owner) { await retainAutomationHistory(database.db,owner.id);retentionAfter=owner.id; } else retentionAfter='';
-      } })()
-      .catch(() => { metrics.increment('automation.delivery.error'); }).finally(() => { deliveryTick=undefined; });
-  };
+        if(!owner){retentionAfter='';return;}
+        // A failed Owner is retried on the next sweep, without starving others.
+        retentionAfter=owner.id;
+        await retainAutomationHistory(database.db,owner.id,config.mcpWriteEnabled === true);
+        if(config.automationRuntimeEnabled && config.mcpWriteEnabled)await resumeOwnerBudgets(database.db,owner.id);
+      },
+      onError(kind) {metrics.increment(`automation.${kind}.error`);},
+    }) : undefined;
   const baseProjectionSink = originalProjectionSink && automationHealth ? automationHealth.wrap(originalProjectionSink) : originalProjectionSink;
   if (config.mcp && options.mcpReadChangeSignalSource === undefined) {
     throw new Error(
@@ -788,7 +790,7 @@ export function buildWorker(
       // Validate the scheduler dependency before any worker loop is started;
       // otherwise an enabled-but-unwired connector would leave outbox/email
       // timers running after start() rejects.
-      if (deliveryWorker) { deliveryStopping=false;deliveryTimer=setInterval(pollDeliveries,1000);deliveryTimer.unref();pollDeliveries(); }
+      automationMaintenance?.start();
       outbox?.start();
       linkHealthRuntime?.loop.start();
       linkPreviewRuntime?.loop.start();
@@ -867,10 +869,7 @@ export function buildWorker(
     },
     async stop() {
       const failures: WorkerStopFailure[] = [];
-      deliveryStopping=true;
-      if (deliveryTimer) clearInterval(deliveryTimer);
-      deliveryTimer=undefined;
-      await deliveryTick;
+      await attemptWorkerStop(failures, 'automationMaintenance', () => automationMaintenance?.stop());
       if (notificationOperationsTimer) clearInterval(notificationOperationsTimer);
       notificationOperationsTimer = undefined;
       if (syncOperationsTimer) clearInterval(syncOperationsTimer);

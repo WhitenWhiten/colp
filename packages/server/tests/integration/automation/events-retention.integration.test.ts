@@ -1,6 +1,6 @@
 import { afterEach,expect,test } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { sql } from 'kysely';
+import { sql, type KyselyPlugin } from 'kysely';
 import { automationPollingFixture } from '../../support/automation-polling-fixture.js';
 import { describeWithPostgres } from '../../support/postgres-test-runtime.js';
 import { retainAutomationHistory } from '../../../src/infrastructure/automation/retention-worker.js';
@@ -46,4 +46,12 @@ describeWithPostgres('AW-44 retention and restore',()=>{
     expect((await sql<{state:string}>`SELECT state FROM automation_event_subscriptions`.execute(f.db)).rows[0]?.state).toBe('revalidation');
     let sends=0;expect(await createDeliveryWorker(f.db,f.worker.authorize,{...cipher,send:async()=>{sends++;return {status:200,retryAfter:null};}}).tick()).toBe(false);expect(sends).toBe(0);
   });
+  test('M1 housekeeping never queries optional worker or Events tables',async()=>{
+    await setup();const queries:string[]=[];
+    const plugin:KyselyPlugin={transformQuery:({node})=>{queries.push(JSON.stringify(node));return node;},transformResult:async({result})=>result};
+    await retainAutomationHistory(f.db.withPlugin(plugin),f.owner.accountId,false);
+    expect(queries.join(' ')).toContain('automation_preview_records');
+    expect(queries.join(' ')).not.toMatch(/automation_pairings|automation_event_subscriptions|automation_event_deliveries/);
+  });
+
 });
