@@ -27,9 +27,9 @@ validation and the separately gated real provider/host/Events evidence. In
 particular, this packet does not turn the M1-only browser bundle into an M2 browser
 integration or turn an injected summary into provider execution evidence.
 
-## BE-4 / BE-5 本地后端 gate
+## BE-4 / BE-5 local backend gate
 
-AW-27/28/29/44/46/41/57/58 已逐项提交，并完成跨任务权限、恢复和传输检查。
-[执行状态](status.md) 列出逐项提交；[收尾证据](evidence/be45-review.md) 记录实际成功／失败／
-定向复测，区分真实 PostgreSQL/Sync/MCP 证据、模拟 host 和仍未执行的真实 dot gate。
-新增部署开关与密钥约束见 [安装文档](../../deploy/INSTALL.md)。本轮没有进行生产部署。
+AW-27/28/29/44/46/41/57/58 are committed item by item, and the cross-task authority, recovery and transport checks are done.
+The [execution status](status.md) lists each commit; the [close-out evidence](evidence/be45-review.md) records the actual successes/failures/
+targeted re-tests, distinguishing real PostgreSQL/Sync/MCP evidence, simulated hosts and the real dot gate still not executed.
+The new deployment flags and key constraints are in the [install guide](../../deploy/INSTALL.md). No production deployment was done in this round.

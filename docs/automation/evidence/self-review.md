@@ -1,191 +1,196 @@
-# BE-1 自审与修正
+# BE-1 self-review and corrections
 
-审查起点：`07ce22d`，工作树 `feat/automation-be1`。依据仍为审校包
-`0.2.1-design` 与真实仓库实现。本记录纠正 AW-11 交付记录中“没有已知未完成实现项”
-的过强结论；原记录保留为当时执行证据，不能据此推断不存在缺陷。
+Review starting point: `07ce22d`, worktree `feat/automation-be1`. The basis is still the reviewed pack
+`0.2.1-design` and the actual repository implementation. This record corrects the overly strong conclusion
+"no known unfinished implementation items" in the AW-11 delivery record; the original record is kept as the
+execution evidence of that time and must not be read as proof that no defects exist.
 
-## 发现及处理
+## Findings and handling
 
-| 编号 | 级别 | 原问题与影响 | 修正位置 / 回归证据 |
+| ID | Level | Original problem and impact | Fix location / regression evidence |
 | --- | --- | --- | --- |
-| R1 | P1 | 竞争规则只求值谓词，未应用其自己的目录范围、导入策略和 hop 上限，产生假冲突或错误优先级结果。 | `application/rule-eligibility.ts` 统一准入检查；`preview-service.ts` 主规则与竞争规则共用。API 参数化测试中三个场景修复前失败；另保留触发类型场景。 |
-| R2 | P1 | 竞争目录不可用时预演无冲突，目录恢复后旧预演仍能启用；摘要未固定竞争者的实时依赖状态。 | 一次准备竞争规则、解析状态和求值器，摘要固定目录身份、祖先与权限版本；恢复后旧预演 409，重新预演得到 conflict。 |
-| R3 | P1 | 指定的 scope role 没有绑定时，currentState 使用空 folderId 抽样，范围扩大到整个显式集合。 | 抽样前检查 scope resolution；返回 `automation_binding_unavailable`，不扩大范围。修复前 API 返回 200。 |
-| R4 | P2 | 所有角色失效一律阻塞 intake，包含没有被阶段使用的可选目录。 | 阶段依赖包含 scope/intake 及 mustBeWithinRole 传递约束；未使用的可选依赖仅告警，blockingStages=[]。验证、预演、启用、健康检查共用语义。 |
-| R5 | P2 | 求值器归一化 host，但 normalizedDefinition 和 semanticDigest 使用原始值；等价规则摘要不同。 | 编译器导出隔离的 normalizedPredicate；规范化、摘要、新建/替换/预演/启用使用一致逻辑。覆盖大小写、尾点、IDNA、调用方修改、显示标签及真实语义变化。 |
-| R6 | P2 / 契约漂移 | 对有限 DSL 自行添加整体 4096 字节限制，拒绝审校 Schema 合法表达式；旧测试只是固定了自行添加的行为。 | 移除总量限制，保留深度 16、节点 128 和字段 Schema 限制；HTTP 请求仍受 4 MiB 上界约束，capabilities 同步。CEL 的独立 4096 字符 Schema 未改变，CEL 在本机仍不可用。 |
-| R7 | P2 | “不可变修订”只禁止 UPDATE，旧修订可直接 DELETE，破坏历史留存约束。 | 新增 `202610300300_automation_revision_delete_guard.ts`，保留已提交迁移；验证旧修订删除失败、未引用绑定集删除及账户级联清理成功。 |
-| R8 | P2 | currentState 静默截断超过 128 层的祖先链，并以 truncated=false 返回成功，可能误判子树范围。 | 对超界、循环、不完整祖先链明确返回 409；通过真实 canonical 写入构造 129 层目录。修复前该场景返回 200。 |
+| R1 | P1 | Competing rules only evaluated the predicate, without applying their own folder scope, import policy and hop limit, producing false conflicts or wrong priority results. | `application/rule-eligibility.ts` unifies the eligibility check; `preview-service.ts` shares it between the main and competing rules. Three scenarios in the parameterized API test failed before the fix; a trigger-type scenario is also kept. |
+| R2 | P1 | When a competitor's folder was unavailable the preview showed no conflict, and after the folder recovered the old preview could still enable; the digest did not pin the competitors' live dependency state. | Competing rules, resolution state and evaluators are prepared once; the digest pins folder identity, ancestry and permission revisions. After recovery the old preview returns 409 and a fresh preview reports conflict. |
+| R3 | P1 | When the specified scope role had no binding, currentState sampled with an empty folderId, widening the scope to the whole explicit collection. | Scope resolution is checked before sampling; returns `automation_binding_unavailable` without widening. Before the fix the API returned 200. |
+| R4 | P2 | Any role failure blocked intake, including optional folders no stage used. | Stage dependencies include scope/intake and transitive mustBeWithinRole constraints; unused optional dependencies only warn, blockingStages=[]. Validation, preview, enable and health share the semantics. |
+| R5 | P2 | The evaluator normalized the host, but normalizedDefinition and semanticDigest used the raw value; equivalent rules had different digests. | The compiler exports an isolated normalizedPredicate; normalization, digest, create/replace/preview/enable use one logic. Covers case, trailing dot, IDNA, caller mutation, display labels and real semantic changes. |
+| R6 | P2 / contract drift | A self-imposed overall 4096-byte limit on the finite DSL rejected expressions valid under the reviewed Schema; the old test merely pinned the self-imposed behaviour. | Removed the overall limit, kept depth 16, 128 nodes and field Schema limits; HTTP requests remain bounded by 4 MiB, capabilities synced. CEL's separate 4096-character Schema is unchanged; CEL remains unavailable on this host. |
+| R7 | P2 | "Immutable revisions" only forbade UPDATE; old revisions could be DELETEd directly, breaking history retention. | Added `202610300300_automation_revision_delete_guard.ts`, keeping committed migrations; verified that deleting old revisions fails while deleting unreferenced binding sets and account cascade succeed. |
+| R8 | P2 | currentState silently truncated ancestor chains deeper than 128 levels and returned success with truncated=false, possibly misjudging subtree scope. | Over-limit, cyclic and incomplete ancestor chains explicitly return 409; a 129-level folder chain is built through real canonical writes. Before the fix the scenario returned 200. |
 
-R1–R8 的已复现问题均已修复。预演摘要还补齐 hopCount、changedFields、before 等事实字段，
-避免检查使用的字段与摘要固定的字段不同；排除与事实内容无关的当前集合 ordinal、
-合成 operationId 和时间字段，避免目录仅改名造成无关失效。
+All reproduced R1–R8 problems are fixed. The preview digest also adds the fact fields hopCount, changedFields and before,
+so the fields checked and the fields pinned by the digest no longer differ; it excludes the current collection ordinal,
+synthetic operationId and time fields unrelated to fact content, so a folder rename alone does not cause unrelated invalidation.
 
-## 代码质量
+## Code quality
 
-* 去掉主规则与竞争规则两套准入逻辑，避免今后增加策略时只修其中一处。
-* `parseContract` 使用生成的 `AutomationContracts[Name]` 返回类型，不再让调用方任意指定
-  与 Schema 无关的泛型类型。
-* 原始 evaluator 改为包内部实现；公开求值入口为 compilePredicate 成功结果的 evaluate。
-  防止调用方绕过 Schema、算子及深度/节点校验。此前该可选子路径尚未公开发布，仓库内
-  无直接 raw evaluator 消费者；公开入口说明和本地消费包同步更新。
-* 归一化副本与 evaluator 闭包相互隔离，调用方修改输入或 normalizedPredicate 不改变求值结果。
-* 持久化约束用追加迁移修正，没有改写已提交迁移或历史 JSON 修订。
-* 文件规模没有超过既有预算；模块、基础设施、transport 的依赖边界检查通过。
-* 仍有可维护性代价：部分文件一行执行多步，生成的 OpenAPI/Schema 与审校包镜像体积较大。
-  本次仅抽取确有重复的准入逻辑，未开展整仓格式化或框架替换。
+* Removed the two separate eligibility logics for main and competing rules, so a future policy change cannot fix only one of them.
+* `parseContract` uses the generated `AutomationContracts[Name]` return type instead of letting callers pick an
+  arbitrary generic type unrelated to the Schema.
+* The raw evaluator became package-internal; the public evaluation entry is `evaluate` on a successful compilePredicate result.
+  This prevents callers from bypassing Schema, operator and depth/node checks. The optional subpath had not been published,
+  and nothing in the repository consumed the raw evaluator directly; the public entry docs and the local consumer package were updated.
+* The normalized copy and the evaluator closure are isolated; mutating the input or normalizedPredicate does not change evaluation.
+* Persistence constraints were corrected by an additional migration, without rewriting committed migrations or historical JSON revisions.
+* File sizes stay within existing budgets; module, infrastructure and transport dependency-boundary checks pass.
+* Maintainability costs remain: some files execute several steps per line, and the generated OpenAPI/Schema and reviewed-pack mirrors are large.
+  This round only extracted genuinely duplicated eligibility logic; no repository-wide formatting or framework replacement.
 
-## 测试质量
+## Test quality
 
-新增测试先复现问题，再用于修正验证。最初核心 byte-cap 测试失败，API 首轮 8 个失败；
-随后独立复现旧修订删除成功、深层祖先链被静默截断。没有把这些失败隐藏为“全部通过”。
+New tests first reproduced the problems and were then used to verify the fixes. Initially the core byte-cap test failed and the
+first API run had 8 failures; then deletion of old revisions succeeding and silent truncation of deep ancestor chains were reproduced
+independently. These failures were not hidden as "all passing".
 
-新增 API 断言覆盖外部可观察的 outcome、状态码、错误码、归一化输出、摘要与生命周期，
-不是仅比对内部 helper。目录深度场景使用真实 canonical 写入；目录恢复场景中的 SQL
-软删/恢复仅用于隔离测试夹具，不宣称实现 canonical Restore 或 BE-2 Undo。
+New API assertions cover externally observable outcomes, status codes, error codes, normalized output, digests and lifecycle,
+not just internal helpers. The folder-depth scenario uses real canonical writes; the SQL soft-delete/restore in the folder-recovery
+scenario only isolates the test fixture and does not claim to implement canonical Restore or BE-2 Undo.
 
-修订删除测试独立创建自己的配置；持久化和绑定测试的公共先决数据移至 beforeAll，
-减少按测试名筛选时依赖前一个测试执行的情况。健康检查文件仍以共享夹具串联生命周期
-场景；这不是随机顺序隔离测试。备份测试的池连接读取只证明 SQL 状态保留，已纠正
-“模拟进程重启”的注释；没有真实启动/重启完整部署栈。
+The revision-deletion test creates its own configuration; shared prerequisite data for the persistence and binding tests moved to
+beforeAll, reducing dependence on a previous test when filtering by test name. The health test file still chains lifecycle scenarios
+through a shared fixture; it is not randomized-order isolated. The pool-connection read in the backup test only proves the SQL state is
+retained; the comment "simulated process restart" was corrected; no full deployment stack was actually started or restarted.
 
-两次新测试编写中发生夹具错误：筛选 revision 测试遗漏先决配置，以及复制节点包含 generated
-列。均先修正夹具再复现真实缺陷；这些夹具失败不计为产品缺陷证据。
+Two fixture errors occurred while writing the new tests: the filtered revision test missed prerequisite configuration, and a copied
+node included a generated column. Both fixtures were fixed before reproducing the real defect; these fixture failures do not count as
+product-defect evidence.
 
-## 实际最终验证
+## Final verification actually run
 
-根目录为工作树；下面注明包目录的命令从对应 cwd 运行。未运行的检查不计为通过。
+The root is the worktree; commands with a package directory were run from that cwd. Checks not run do not count as passed.
 
-| 命令 | cwd | 结果 |
+| Command | cwd | Result |
 | --- | --- | --- |
-| `npm run check:automation && npm run typecheck && npm run check:source-size && npm test -- tests/automation` | packages/node | 通过；5 文件 19 测试，271 源文件预算通过。 |
-| `node packages/server/scripts/refresh-automation-package.mjs` | 根目录 | 通过；build/npm pack、本地依赖安装、两个锁文件与 runtime manifest 更新。 |
-| `npm run pack:consumer-smoke` | packages/node | 通过；20 ESM/CJS 子路径、JSON Schema、9 文档示例及隔离消费者编译执行。 |
-| `npm run test:integration:file -- tests/integration/automation` | packages/server | 通过；4 文件 34 测试，真实 PostgreSQL；含 fresh、旧基线到 BE-1 迁移头再追加修正迁移、约束、导出和 pg_dump/pg_restore。 |
-| `npm run test:unit -- tests/unit/automation tests/unit/product/product-error-codes.test.ts tests/unit/product/product-route-manifest.test.ts` | packages/server | 通过；4 文件 17 测试。 |
-| `npm run test:system:inner -- tests/unit/ci/import-dependency-graph.test.ts` | packages/server | 通过；23 测试。 |
-| `npm run typecheck && npm run build` | packages/server | 通过；生产 TypeScript 与所有迁移构建。 |
-| `npm exec eslint -- src/modules/automation src/infrastructure/automation src/transport/product/automation-rule-routes.ts migrations/202610300300_automation_revision_delete_guard.ts tests/integration/automation` | packages/server | 通过。 |
-| `npm run openapi:ci` | packages/server | 通过；镜像、lint、catalog、examples、生成漂移、1.95.0 baseline 兼容性。 |
-| `npm run check:imports` | packages/server | 通过。 |
-| `npm run check:migrations -- 07ce22d` | packages/server | 通过；修正迁移排在原 BE-1 迁移头之后。 |
-| `npm run runtime:manifest:check` | packages/server | 通过。 |
-| `npm ci --omit=dev --omit=peer --ignore-scripts --no-audit --no-fund --prefix runtime` | packages/server | 通过；174 生产包；实际导入 runtime 中本地包并检查 normalizedPredicate=arxiv.org 通过。 |
-| `git diff --check` | 根目录 | 通过。 |
+| `npm run check:automation && npm run typecheck && npm run check:source-size && npm test -- tests/automation` | packages/node | Passed; 5 files, 19 tests, 271 source files within budget. |
+| `node packages/server/scripts/refresh-automation-package.mjs` | root | Passed; build/npm pack, local dependency install, both lockfiles and runtime manifest updated. |
+| `npm run pack:consumer-smoke` | packages/node | Passed; 20 ESM/CJS subpaths, JSON Schema, 9 doc examples and isolated consumer compile/run. |
+| `npm run test:integration:file -- tests/integration/automation` | packages/server | Passed; 4 files, 34 tests on real PostgreSQL, including fresh install, old baseline to the BE-1 migration head plus the corrective migration, constraints, export and pg_dump/pg_restore. |
+| `npm run test:unit -- tests/unit/automation tests/unit/product/product-error-codes.test.ts tests/unit/product/product-route-manifest.test.ts` | packages/server | Passed; 4 files, 17 tests. |
+| `npm run test:system:inner -- tests/unit/ci/import-dependency-graph.test.ts` | packages/server | Passed; 23 tests. |
+| `npm run typecheck && npm run build` | packages/server | Passed; production TypeScript and all migrations build. |
+| `npm exec eslint -- src/modules/automation src/infrastructure/automation src/transport/product/automation-rule-routes.ts migrations/202610300300_automation_revision_delete_guard.ts tests/integration/automation` | packages/server | Passed. |
+| `npm run openapi:ci` | packages/server | Passed; mirror, lint, catalog, examples, generation drift, 1.95.0 baseline compatibility. |
+| `npm run check:imports` | packages/server | Passed. |
+| `npm run check:migrations -- 07ce22d` | packages/server | Passed; the corrective migration sorts after the original BE-1 migration head. |
+| `npm run runtime:manifest:check` | packages/server | Passed. |
+| `npm ci --omit=dev --omit=peer --ignore-scripts --no-audit --no-fund --prefix runtime` | packages/server | Passed; 174 production packages; importing the local package from runtime and checking normalizedPredicate=arxiv.org passed. |
+| `git diff --check` | root | Passed. |
 
-最终修正后运行的是适用检查，不是全仓 npm check、全仓覆盖率、mutation test 或线上验证。
-浏览器目标 bundle 在 Node 中执行的测试只证明可打包与黄金结果一致，不能证明真实
-Chrome/MV3 CSP 兼容；Ajv 运行时编译涉及动态代码生成，AW-49 消费前需要解决并验证。
+After the final fix the applicable checks were run, not a repository-wide npm check, repository-wide coverage, mutation tests or online verification.
+The test that executes the browser-target bundle in Node only proves it bundles and matches golden results; it does not prove real
+Chrome/MV3 CSP compatibility. Ajv runtime compilation involves dynamic code generation and must be resolved and verified before AW-49 consumes it.
 
-## 范围漂移审查
+## Scope-drift review
 
-* 已确认且修正的契约漂移：有限 DSL 的额外 4096 字节总量限制。
-* 原有 additive API（GET pause、归档 DELETE、删除未被引用的绑定集）是 BE-1 配置闭环
-  所需补充，已在 ADR/README 说明；不属于 UI 或业务执行。
-* runtime 相关表、激活栅栏、既有 Outbox 上的健康复查属于 AW-09/AW-10/AW-11 的
-  持久化及扩展契约。没有安装 facts 生产器、业务 admission、任务 claim、执行/提交、效果回执生产器。
-* worker.ts 的变更仅挂接健康复查，不是 BE-3 polling worker。审校目录中的 MCP/未来
-  批次文件是原样参考文档，不是已实现能力。
-* 相对 e72b891，packages/web 与 packages/extension 没有改动；没有 UI E2E、模型调用、
-  真实归档、Undo、Webhook/dot/Work 或 MCP Events 实现。没有扩张到 BE-2/3/4。
+* Confirmed and corrected contract drift: the extra 4096-byte overall limit on the finite DSL.
+* The existing additive APIs (GET pause, archive DELETE, deleting unreferenced binding sets) are supplements required to close the BE-1
+  configuration loop and are explained in the ADR/README; they are not UI or business execution.
+* Runtime tables, activation fences and the health recheck on the existing Outbox belong to the AW-09/AW-10/AW-11 persistence and extension
+  contracts. No facts producer, business admission, task claim, execution/commit or effect-receipt producer was installed.
+* The worker.ts change only hooks up the health recheck; it is not the BE-3 polling worker. MCP/future-batch files in the reviewed directory are
+  verbatim reference documents, not implemented capability.
+* Relative to e72b891, packages/web and packages/extension are unchanged; no UI E2E, model calls, real archiving, Undo, Webhook/dot/Work or MCP
+  Events implementation. Nothing extended into BE-2/3/4.
 
-## 剩余风险与结论
+## Remaining risk and conclusion
 
-未发现尚未修复的已复现 P1/P2 功能缺陷；这不等于没有缺陷。以下证据仍缺失：
+No unfixed reproduced P1/P2 functional defect was found; that does not mean there are no defects. The following evidence is still missing:
 
-1. 账户级 FOR UPDATE 将同一用户的配置查询/预演串行化；抽样祖先链、竞争规则解析存在
-   多次查询。已有数量上界，没有做多用户或深树负载测试，不宣称性能目标通过。
-2. 健康复查包装既有 durable projection sink，异常会影响该投影的重试完成；没有故障注入
-   验证 commit-before-reply、数据库异常、启动部分失败和规则间故障隔离。
-3. 真实浏览器/MV3 CSP、真实部署恢复与进程重启均未执行。前者为 AW-49 发行门槛，后两者
-   需要部署验收；隔离 schema 恢复及 SQL 持久化证据不能替代它们。
-4. 本次不是独立第三方审计，也未测量新增代码覆盖率或 mutation score。
+1. The account-level FOR UPDATE serializes one user's configuration queries/previews; sampling ancestor chains and resolving competing rules take
+   several queries. Quantity bounds exist, but no multi-user or deep-tree load test was done; no performance target is claimed.
+2. The health recheck wraps the existing durable projection sink, so its exceptions affect that projection's retry completion; no fault injection
+   verified commit-before-reply, database exceptions, partial start-up failure or fault isolation between rules.
+3. Real browser/MV3 CSP, real deployment recovery and process restart were not executed. The first is the AW-49 release gate; the other two need
+   deployment acceptance; isolated-schema recovery and SQL persistence evidence cannot replace them.
+4. This is not an independent third-party audit, and neither new-code coverage nor mutation score was measured.
 
-BE-1 无界面闭环及本次受影响契约已通过真实回归，具备继续 BE-2 的代码与数据基础。
-此前“全部验收、无已知问题”应改为有上述明确边界的结论；真实执行上线前应增加故障注入、
-负载与部署恢复验证。执行器仍缺失是本批次约定状态，不能把 enabled 配置解释为自动化正在运行。
+The BE-1 headless loop and the contracts affected here pass real regression, providing the code and data foundation to continue with BE-2.
+The earlier "fully accepted, no known problems" should be read as the conclusion with the explicit boundaries above; fault injection, load and
+deployment-recovery verification should be added before real execution ships. The missing executor is the agreed state of this batch; an enabled
+configuration must not be read as automation actually running.
 
-## 修正提交与工作树
+## Correction commits and worktree
 
-按原有授权分别提交：AW-06 `bb571f0`、AW-05 `e08da1e`、AW-04 `0e28700`、
-AW-09 `dd0106a`、AW-08 `13fcd0c`、AW-11 `327ae7d`、AW-10 `fae1edc`。
-本记录与完整文件清单单独作为 AW-01 审查证据提交；没有 push。
-完整 BE-1 文件清单见 [be1-files.txt](be1-files.txt)，本轮修改可比较 `07ce22d..HEAD`。
-测试容器由 with-postgres 包装器回收，没有启动或保留本任务的 dev server。
+Committed separately under the original authorization: AW-06 `bb571f0`, AW-05 `e08da1e`, AW-04 `0e28700`,
+AW-09 `dd0106a`, AW-08 `13fcd0c`, AW-11 `327ae7d`, AW-10 `fae1edc`.
+This record and the complete file list are committed separately as AW-01 review evidence; nothing was pushed.
+The complete BE-1 file list is in [be1-files.txt](be1-files.txt); this round's changes can be compared with `07ce22d..HEAD`.
+Test containers are reclaimed by the with-postgres wrapper; no dev server was started or left running for this task.
 
-## 独立复审后的六项修正（基于 60fe77f）
+## Six corrections after the independent re-review (based on 60fe77f)
 
-独立复审以 `~/ref/colp-automation-design` 为依据，确认它与仓库内设计快照一致。
-原有相关测试通过，但七个临时复现用例暴露六项 P2 问题（祖先索引分别以查询和真实
-canonical move / Outbox 验证）。本次按用户要求统一修复并提交；以下证据补充前文，
-不把此前的“未发现已复现问题”视为当前代码正确性的保证。
+The independent re-review used `~/ref/colp-automation-design` as its basis and confirmed it matches the design snapshot in the repository.
+The existing related tests passed, but seven temporary reproduction cases exposed six P2 problems (the ancestor index was verified both by query
+and by a real canonical move / Outbox). They were fixed together and committed; the evidence below supplements the text above, and
+the earlier "no reproduced problems found" is not treated as a guarantee of current correctness.
 
-| 问题 | 修正及回归 |
+| Problem | Fix and regression |
 | --- | --- |
-| 长 canonical 节点 ID 加前缀后超出 facts/response 的 128 字符限制 | current-state 以 server/collection/node 身份摘要生成稳定合成 ID。验证两个仅末字符不同的 128 字符 ID、响应和持久化结果 Schema、重复预演及激活。 |
-| 初始 scopeChanged 绑定不索引真实祖先，无法靠祖先事件恢复 | 阻塞结果可携带已授权读取的实时快照，索引持续更新其物理祖先；快照仅用于监控，状态仍 blocked。用真实移动先移往另一个不允许的目录，再移回允许子树，验证无需手动健康查询即可消除阻塞。 |
-| 更高优先级的不同目标胜出仍被计为当前规则命中 | 当前规则预演报告 conflict、胜出规则和目标，不声明 root satisfaction、不计入 plannedRunCount。验证较低优先级竞争者、同目标兼容、冲突激活拒绝。共享仲裁器仍按优先级选择赢家。 |
-| node.created 无条件排除所有 automation 来源 | BE-1 intake 阶段拒绝来自同一 intake 阶段的 automation 重入，允许其他阶段的创建事件；继续检查 trigger、restore/import 策略和 hop 上限。此为 supplied-facts 预演，不宣称已实现 BE-2 因果生产或 admission。 |
-| 改名/移动通知被普通重验自动清除 | 未确认的变更通知保留到确认或同角色、同类别的新通知替代；重复 Outbox 投递、health/dependencies 查询不清除通知。阻塞告警仍须通过实时重验才能恢复，确认不修复失效依赖。 |
-| 未使用的可选依赖已删除仍返回 valid | 依赖接口直接使用本次绑定解析结果，不再从 blockingStages 推导资源有效性。验证删除、确认、恢复；可选依赖保持 warning 且 blockingStages=[]，规则验证继续有效。 |
+| Long canonical node IDs exceeded the 128-character facts/response limit once prefixed | current-state generates a stable synthetic ID from a digest of the server/collection/node identity. Verified with two 128-character IDs differing only in the last character, response and persisted-result Schema, repeated preview and activation. |
+| The initial scopeChanged binding did not index the real ancestors, so it could not recover through ancestor events | A blocked result can carry a live snapshot from an authorized read, and the index keeps updating its physical ancestors; the snapshot is only for monitoring and the state stays blocked. A real move first to another disallowed folder and then back into the allowed subtree verifies the block clears without a manual health query. |
+| A higher-priority rule with a different destination winning was still counted as a hit for the current rule | The current rule's preview reports conflict, the winning rule and destination, does not claim root satisfaction and is not counted in plannedRunCount. Verified lower-priority competitors, same-destination compatibility and rejection of conflicting activation. The shared arbiter still picks the winner by priority. |
+| node.created unconditionally excluded every automation origin | BE-1's intake stage rejects automation re-entry from the same intake stage and allows creation events from other stages; trigger, restore/import policy and hop limit are still checked. This is a supplied-facts preview and does not claim BE-2 causation production or admission. |
+| Rename/move notifications were cleared automatically by an ordinary revalidation | Unacknowledged change notifications persist until acknowledged or replaced by a new notification of the same role and category; duplicate Outbox deliveries and health/dependencies queries do not clear them. Blocking warnings still need a live revalidation to recover; acknowledging does not repair a failed dependency. |
+| A deleted unused optional dependency still returned valid | The dependency interface uses this binding resolution directly instead of deriving resource validity from blockingStages. Verified deletion, acknowledgement and recovery; the optional dependency stays a warning with blockingStages=[], and rule validation stays valid. |
 
-移除了竞争者参数化测试中无法隔离 trigger 的场景（其同时删除 intake，即使触发过滤失效
-也不会参与 placement）。替换用例直接检查 node.created 预演的正反结果，并覆盖不同
-automation 阶段、同阶段重入和 hop 边界。API 预演公共 helper 现在校验完整 PreviewResult，
-避免仅看 outcome 而漏掉响应 Schema 违规。
+The scenario in the parameterized competitor test that could not isolate the trigger was removed (it also deleted intake, so it would not
+participate in placement even if trigger filtering failed). The replacement case checks the positive and negative node.created preview results
+directly and covers different automation stages, same-stage re-entry and the hop boundary. The shared API preview helper now validates the complete
+PreviewResult, so a response Schema violation is not missed by looking only at the outcome.
 
-本次修正后的实际验证（cwd 为 `packages/server`）：
+Verification actually run after these fixes (cwd `packages/server`):
 
-* `npm run test:integration:file -- tests/integration/automation/api.integration.test.ts tests/integration/automation/health.integration.test.ts tests/integration/automation/bindings.integration.test.ts`：真实 PostgreSQL，3 文件、36 测试全部通过。
-* `npm run typecheck`：通过。
-* `npm exec eslint -- src/modules/automation src/infrastructure/automation tests/integration/automation`：通过。
-* `npm run check:imports` 与 `npm run build`：通过。
-* 根目录 `git diff --check`：通过。
+* `npm run test:integration:file -- tests/integration/automation/api.integration.test.ts tests/integration/automation/health.integration.test.ts tests/integration/automation/bindings.integration.test.ts`: real PostgreSQL, 3 files, 36 tests all passed.
+* `npm run typecheck`: passed.
+* `npm exec eslint -- src/modules/automation src/infrastructure/automation tests/integration/automation`: passed.
+* `npm run check:imports` and `npm run build`: passed.
+* `git diff --check` at the root: passed.
 
-未修改公共 Schema、共享包、迁移、Web 或 Extension；因此未重跑无关测试及发行检查。
-原有浏览器、负载、故障注入和完整部署恢复的证据限制仍然成立。测试容器由包装器回收。
+Public Schema, the shared package, migrations, Web and Extension were not changed, so unrelated tests and release checks were not re-run.
+The existing evidence limits for browser, load, fault injection and full deployment recovery still apply. Test containers were reclaimed by the wrapper.
 
-## 基础语义复审修正（基于 39e15f4）
+## Foundation semantics re-review corrections (based on 39e15f4)
 
-第二轮复审发现六项实现/契约问题及健康测试的顺序依赖。尤其是上一轮将高优先级覆盖
-映射为 wire conflict 后，沿用了“所有 conflict 均禁止激活”的判断，导致启用顺序影响
-相同规则集合能否共存；原回归测试错误地把这个 409 固定为预期。本节及 ADR-BE1 的
-评估语义说明取代上一节关于高优先级覆盖会拒绝激活的描述。
+The second re-review found six implementation/contract problems and an ordering dependence in the health tests. In particular, after the previous
+round mapped a higher-priority override to a wire conflict, it kept the rule "every conflict forbids activation", so enable order decided whether
+the same rule set could coexist; the original regression test wrongly pinned this 409 as expected. This section and the evaluation-semantics notes in
+ADR-BE1 supersede the previous section's statement that a higher-priority override rejects activation.
 
-本次统一完成：
+Completed together:
 
-* 提取纯规则评估与 wire 映射。内部区分确定的高优先级覆盖和未决平级冲突；预演与激活
-  消费同一份配置/事实快照和评估语义。高优先级覆盖不阻塞激活，平级不同目标仍拒绝。
-* 共享仲裁要求显式 PlacementIntent；缺参的 JavaScript 调用同样进入 review。仲裁结果
-  只描述 placement，不再自动声明 root satisfaction；成功放置按 intake.satisfies 声明
-  生成标记，空声明保留为空，保留原位置不会产生标记或 planned run。
-* 统一 BindingAssessment，向 validate、preview、enable 和 health 提供同一套阶段依赖
-  判断。未使用的 required 角色缺失是 warning；被消费的角色及其传递约束才阻塞 intake。
-  角色消费关系变化时，数据库 severity 列与 incident JSON 同步更新。
-* 共享角色图按依赖顺序解析，拒绝自环、多角色循环及不存在/类型错误的祖先；六种三角色
-  声明排列得到相同结果。历史无效图保持可读取、可修复，健康解析返回 blocked。
-* 预演使用有版本的逐成员摘要再聚合，保留共享 JSON 防护。端口夹具验证 200 条各含
-  128 个祖先的事实、499 个深层竞争规则，以及末成员/末祖先/末竞争者变化均改变摘要。
-  这些用例验证组合容量与固定输入，不替代真实深树负载测试。
-* 健康测试改用每例独立 PostgreSQL schema、账户、canonical 树、规则和 metrics，
-  完整生命周期留在单个测试内；同名替代夹具不再依赖另一测试先执行改名。
+* Extracted pure rule evaluation and wire mapping. Internally a definite higher-priority override is distinguished from an unresolved equal-priority
+  conflict; preview and activation consume the same configuration/fact snapshot and evaluation semantics. A higher-priority override does not block
+  activation; equal priority with different destinations is still rejected.
+* Shared arbitration requires an explicit PlacementIntent; JavaScript calls that omit it also go to review. The arbitration result only describes
+  placement and no longer claims root satisfaction automatically; a successful placement generates markers from the intake.satisfies declaration,
+  an empty declaration stays empty, and keeping the original location produces neither markers nor a planned run.
+* A unified BindingAssessment gives validate, preview, enable and health the same stage-dependency judgement. A missing unused required role is a
+  warning; only consumed roles and their transitive constraints block intake. When role consumption changes, the database severity column and the
+  incident JSON are updated together.
+* The shared role graph resolves in dependency order and rejects self-cycles, multi-role cycles and missing/wrong-type ancestors; all six declaration
+  orders of three roles give the same result. Historically invalid graphs stay readable and repairable, and health resolution returns blocked.
+* Preview uses versioned per-member digests that are then aggregated, keeping the shared JSON guards. A port fixture verifies 200 facts each with
+  128 ancestors, 499 deep competing rules, and that changing the last member/ancestor/competitor changes the digest. These cases verify composition
+  capacity and fixed inputs; they do not replace a real deep-tree load test.
+* The health tests use an independent PostgreSQL schema, account, canonical tree, rules and metrics per case, keeping the full lifecycle within one
+  test; the same-named replacement fixture no longer depends on another test renaming first.
 
-已执行验证：
+Verification run:
 
-| 命令 | cwd | 结果 |
+| Command | cwd | Result |
 | --- | --- | --- |
-| `npm test -- tests/automation` | packages/node | 6 文件、22 测试通过。 |
-| `npm run typecheck && npm run check:source-size` | packages/node | 通过，272 源文件检查。 |
-| `node packages/server/scripts/refresh-automation-package.mjs` | 根目录 | 共享包构建/打包、本地安装及两个锁文件刷新通过，包含最终文档。 |
-| `npm run pack:consumer-smoke` | packages/node | 20 ESM/CJS 入口及 9 个打包文档示例通过。 |
-| `npm run test:unit -- tests/unit/automation` | packages/server | 3 文件、5 测试通过。 |
-| `npm run test:integration:file -- tests/integration/automation` | packages/server | 主修正回归 4 文件、49 测试通过。 |
-| `npm run test:integration:file -- tests/integration/automation/api.integration.test.ts -t 'maximum competitor\|cyclic role'` | packages/server | 后补 2 项边界测试通过，33 项因名称过滤未执行。 |
-| `npm run test:integration:file -- tests/integration/automation/health.integration.test.ts --sequence.shuffle.tests --sequence.seed=7` | packages/server | 9 测试全部通过；与复审时 4 失败/5 通过使用同一随机种子，包含最终 severity 同步断言。 |
-| `npm run typecheck` 与针对 automation 源码/测试的 ESLint | packages/server | 最终代码通过。 |
-| `npm run check:imports`、`npm run build`、`npm run openapi:ci` | packages/server | 通过。 |
-| `npm run runtime:manifest:check` | packages/server | 最终生产 manifest/lock 校验通过。 |
+| `npm test -- tests/automation` | packages/node | 6 files, 22 tests passed. |
+| `npm run typecheck && npm run check:source-size` | packages/node | Passed, 272 source files checked. |
+| `node packages/server/scripts/refresh-automation-package.mjs` | root | Shared package build/pack, local install and both lockfiles refreshed, including final docs. |
+| `npm run pack:consumer-smoke` | packages/node | 20 ESM/CJS entries and 9 packed doc examples passed. |
+| `npm run test:unit -- tests/unit/automation` | packages/server | 3 files, 5 tests passed. |
+| `npm run test:integration:file -- tests/integration/automation` | packages/server | Main fix regression: 4 files, 49 tests passed. |
+| `npm run test:integration:file -- tests/integration/automation/api.integration.test.ts -t 'maximum competitor\|cyclic role'` | packages/server | The 2 boundary tests added afterwards passed; 33 were not run due to the name filter. |
+| `npm run test:integration:file -- tests/integration/automation/health.integration.test.ts --sequence.shuffle.tests --sequence.seed=7` | packages/server | All 9 tests passed; same random seed as the re-review's 4 failed / 5 passed, including the final severity-sync assertion. |
+| `npm run typecheck` and ESLint over automation source/tests | packages/server | Final code passed. |
+| `npm run check:imports`, `npm run build`, `npm run openapi:ci` | packages/server | Passed. |
+| `npm run runtime:manifest:check` | packages/server | Final production manifest/lock check passed. |
 
-公共 JSON Schema 保持原有形状；共享包的实验性函数签名和返回类型已同步到包文档与
-本地消费包。原始设计快照没有改写；语义说明集中记录于 ADR-BE1。BE-2 执行、真实浏览器、
-部署恢复和负载验证仍是独立门槛。
+The public JSON Schema keeps its shape; the experimental function signatures and return types of the shared package are synced to the package docs
+and the local consumer package. The original design snapshot was not rewritten; semantic notes are collected in ADR-BE1. BE-2 execution, a real
+browser, deployment recovery and load verification remain separate gates.

@@ -1,51 +1,51 @@
 # BE-2 independent implementation, test and semantic review
 
-审查基线 `6cc7d8a`，覆盖 BE-2 九项任务和对应设计的 M1 边界。不是只复跑已有测试：
-重新检查 lifecycle、receipt authority、bundle ordering、恢复和测试 oracle，先复现缺陷再修复。
+Review baseline `6cc7d8a`, covering the nine BE-2 tasks and the M1 boundary of the corresponding design. This is not just a re-run of existing tests:
+lifecycle, receipt authority, bundle ordering, recovery and test oracles were re-examined, and defects were reproduced before being fixed.
 
 ## Findings and fixes
 
-| 问题 | 影响 | 修复与证据 |
+| Problem | Impact | Fix and evidence |
 | --- | --- | --- |
-| Global resume 清除显式 run hold | 未获明确 continuePinned 的工作可能执行 | 全局 pause 仅通过 settings 阻断效果；resume 只唤醒未 hold 的 waiting runs。server-intake 回归验证显式 hold 不丢失。 |
-| 当前规则已 paused 的旧 pinned 工作没有 resume wake | 已明确 continuePinned 的工作可能永久等待 | 全局 resume 对 owner 的所有合格 waiting runs 发 durable wake，不以当前 desiredState 过滤。 |
-| continuePinned 仅修改当前规则修订 | edit 前的旧修订 hold 无法恢复 | pendingRuns 按 owner 和逻辑 rule 涵盖所有不可变修订；执行仍固定原 definition/binding。新增旧修订测试先失败后通过。 |
-| Receipt 未验证 source scope 与竞争规则 | 匹配 URL 的越界、同优先级冲突 placement 可能被接受 | 复用 preview/server 的 scope、binding、priority arbitration；结合当前 activation ordinal 和 bundle pins，仅 placed 判定可满足 intake。两个负向测试先失败后通过。 |
-| settingsRevision 只跟随 Pause ETag | 重排的规则快照不能可靠判新旧 | 独立 owner configuration epoch 涵盖规则、binding、pause；receipt 拒绝过期配置序号。Pause API ETag 不变。 |
-| configuration-only composition 暴露 device runtime | 未安装 runtime 仍可能发 active bundle | device routes 与 manifest exclusion 同时受 runtime flag 控制；composition 测试覆盖配置开启、runtime 关闭。 |
-| 部分测试依赖前一测试状态；digest 两端共享 oracle | 单独执行不可靠，共同漂移难以发现 | admission/source-position/device negative case 使用独立 fixture；M1 连续旅程明确为单个测试；增加按公开 contract 固定的 digest golden。 |
+| Global resume cleared explicit run holds | Work without an explicit continuePinned could execute | Global pause blocks effects only through settings; resume only wakes waiting runs that are not held. A server-intake regression verifies explicit holds are kept. |
+| Old pinned work whose current rule was paused got no resume wake | Work explicitly marked continuePinned could wait forever | Global resume sends a durable wake to all of the owner's eligible waiting runs, without filtering by the current desiredState. |
+| continuePinned only changed the current rule revision | Holds on revisions from before an edit could not be resumed | pendingRuns covers all immutable revisions by owner and logical rule; execution still pins the original definition/binding. A new old-revision test failed first, then passed. |
+| Receipts did not verify source scope and competing rules | An out-of-scope or equal-priority conflicting placement matching the URL could be accepted | Reuses the preview/server scope, binding and priority arbitration; together with the current activation ordinal and bundle pins, only placed can satisfy intake. Two negative tests failed first, then passed. |
+| settingsRevision only followed the Pause ETag | Reordered rule snapshots could not be ordered reliably | A separate owner configuration epoch covers rules, bindings and pause; receipts reject stale configuration sequence numbers. The Pause API ETag is unchanged. |
+| Configuration-only composition exposed the device runtime | An active bundle could be issued without the runtime installed | Device routes and the manifest exclusion are both controlled by the runtime flag (now `KNOWN_FEATURE_AUTOMATION_ADMISSION`); a composition test covers configuration on, runtime off. |
+| Some tests depended on the previous test's state; both sides of the digest shared an oracle | Unreliable when run alone; common drift hard to detect | admission/source-position/device negative cases use separate fixtures; the M1 continuous journey is explicitly a single test; added a digest golden pinned by the public contract. |
 
-configuration epoch 使用 forward-only `202610300900_automation_configuration_epoch.ts`，
-在此前五个 BE-2 迁移之后。升级从旧 settings 和已发 bundle 序号最大值之上开始；
-实际 deploy restore 暂停 SQL 也推进序号，旧 schema 通过存在性检查兼容。
+The configuration epoch uses forward-only `202610300900_automation_configuration_epoch.ts`,
+after the five earlier BE-2 migrations. The upgrade starts above the maximum of the old settings and already-issued bundle sequence numbers;
+the actual deploy restore pause SQL also advances the sequence, and old schemas stay compatible through an existence check.
 
 ## Executed validation
 
-所有 PostgreSQL integration 命令均以 `xvfb-run -a npm --prefix packages/server run
-test:integration:file -- …` 执行，使用实际 Testcontainers PostgreSQL；没有把未发现的测试算通过。
+All PostgreSQL integration commands ran as `xvfb-run -a npm --prefix packages/server run
+test:integration:file -- …` on actual Testcontainers PostgreSQL; undiscovered tests are not counted as passing.
 
-- 首轮新增 receipt-semantics/server-intake 反例：5 项失败，3 项因筛选跳过。
-  修复后两文件 8 项通过。追加 configuration epoch upgrade、restore 案例后，receipt-semantics
-  单文件 5 项通过。旧修订 continuePinned 追加反例先 1 项失败、5 项筛选跳过；修复后
-  server-intake 单文件 6 项全部通过。
-- M1 backend gate、device receipts、placement Undo、admission、source position、bundles、
-  persistence 七个相关 integration 文件：18 项通过。M1 gate 包含实际 pg_dump/pg_restore、
-  提交前回滚、提交后未 ack 重放、真实 API/canonical Outbox worker 和 Undo。
-- automation/MCP unit 六文件 13 项通过；最后新增独立 digest golden 与 composition gate 后，
-  两文件 6 项通过。各次为针对变更的验证，计数不相加冒充不同案例数。
-- server typecheck、修改源文件 ESLint、check:imports、build、openapi:ci、
-  runtime:manifest:check、check:migrations（相对 `6cc7d8a`）、shell syntax 与 git diff whitespace 通过。
-- 原任务更广的 canonical/shared-core 回归见 [AW-66](aw-66.md)；本次未重复无关测试。
+- First round of new receipt-semantics/server-intake counterexamples: 5 failed, 3 skipped by the filter.
+  After the fixes both files passed 8. After adding the configuration-epoch upgrade and restore cases, receipt-semantics
+  alone passed 5. The added old-revision continuePinned counterexample first failed 1 with 5 filtered; after the fix
+  server-intake alone passed all 6.
+- Seven related integration files (M1 backend gate, device receipts, placement Undo, admission, source position, bundles,
+  persistence): 18 passed. The M1 gate includes real pg_dump/pg_restore,
+  rollback before commit, replay after commit without ack, the real API/canonical Outbox worker and Undo.
+- Automation/MCP unit, six files: 13 passed; after finally adding the independent digest golden and the composition gate,
+  the two files passed 6. Each run verifies the change; counts are not added up to pose as distinct cases.
+- server typecheck, ESLint on changed source files, check:imports, build, openapi:ci,
+  runtime:manifest:check, check:migrations (relative to `6cc7d8a`), shell syntax and git diff whitespace passed.
+- The original task's broader canonical/shared-core regression is in [AW-66](aw-66.md); unrelated tests were not repeated this time.
 
-测试资源通过 wrapper、fixture 和 app.close 回收，不保留本任务启动的服务。
+Test resources are reclaimed through the wrapper, fixtures and app.close; no service started by this task is kept.
 
 ## Semantic boundary
 
-没有扩大到 M2 jobs/targets/model/Events 或 Web、Extension、native 实现；本报告不声称浏览器商店、
-真实设备离线执行或线上部署验证。未知 Sync/default intent 仍保留当前位置；显式选择、imports、
-restores 不发明自动归类授权。Receipt 的 rulePlacement 判定只描述已经验证的 canonical placement，
-不授权另一轮移动；presave advisory beforeFolder 仍不能产生 Undo。历史快照保留 2,000-member 上限。
+Nothing was extended to M2 jobs/targets/model/Events or the Web, Extension or native implementation; this report does not claim browser-store,
+real offline device execution or online deployment verification. Unknown Sync/default intent still keeps the current location; explicit choices, imports
+and restores do not invent automatic classification authority. The receipt's rulePlacement decision only describes an already verified canonical placement
+and does not authorize another move; the pre-save advisory beforeFolder still cannot produce an Undo. Historical snapshots keep the 2,000-member limit.
 
-离线设备看到暂停的时间仍受 bundle 7 天有效期约束；5 分钟刷新是建议，不是即时吊销保证。
-本次审查发现的实现与测试缺陷均已修复；没有用放宽 scope、替换 pin、推断 intent 或新增 M2
-语义来绕过失败。BE-2 的完成范围仍是本仓库可执行、可恢复的 M1 backend gate。
+When an offline device sees a pause is still bounded by the 7-day bundle validity; the 5-minute refresh is a recommendation, not an instant revocation guarantee.
+All implementation and test defects found in this review were fixed; no failure was worked around by widening scope, replacing pins, inferring intent or adding M2
+semantics. BE-2's completed scope remains this repository's executable, recoverable M1 backend gate.
