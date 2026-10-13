@@ -4,7 +4,11 @@ import { automationDigest, compilePredicate, validateAutomation } from '@know-n/
 import { automationDeviceFixture, AUTOMATION_DEVICE_ORIGIN } from '../../support/automation-device-fixture.js';
 import { describeWithPostgres } from '../../support/postgres-test-runtime.js';
 import { createAutomationDeviceUnitOfWork } from '../../../src/infrastructure/automation/index.js';
-import { setPause } from '../../../src/modules/automation/index.js';
+import { readFileSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
+import type { RuleDefinition } from '@know-n/colp/automation';
+import { setPause, createRule, saveBinding, previewRule, setLifecycle } from '../../../src/modules/automation/index.js';
+import { createOwnedCollectionCanonical, createCollectionNode } from '../../../src/modules/collections/index.js';
 describeWithPostgres('authenticated full M1 bundles', () => {
   let f: Awaited<ReturnType<typeof automationDeviceFixture>>;
   beforeEach(async () => { f = await automationDeviceFixture('aw18'); });
@@ -33,5 +37,32 @@ describeWithPostgres('authenticated full M1 bundles', () => {
     const active = await uow().execute(request(), p => p.bundle('browser-bounded-v1'));
     expect(paused.settingsRevision).toBeGreaterThan(previous.settingsRevision);
     expect(active.settingsRevision).toBeGreaterThan(paused.settingsRevision); expect(active.rules).toHaveLength(1); expect(BigInt(active.revision)).toBeGreaterThan(BigInt(paused.revision));
+  });
+  test('an unsynced collection never blocks the bundle, and a worker intake rule delegates only its own collection', async () => {
+    await f.canonical.execute(ports => createOwnedCollectionCanonical(ports, { actor: f.actor, command: f.command(), title: 'Other', summary: null,
+      kind: 'bookmarks', collectionId: 'other', rootNodeId: 'other-root', operationId: 'other_operation' }));
+    await f.canonical.execute(ports => createCollectionNode(ports, { actor: f.actor, command: f.command(), collectionId: 'other', parentId: 'other-root',
+      intakeDisposition: 'userDefault', nodeId: 'other-folder', afterId: null, beforeId: null,
+      node: { kind: 'folder', title: 'Other folder', description: null, tags: [], visibility: 'inherit' } }));
+    const other = structuredClone(f.rule.definition); other.scope.collectionId = 'other';
+    await f.uow.execute(f.owner, async ports => {
+      const binding = await saveBinding(ports, f.owner, { name: 'Other folders', values: { academicRoot: { ...f.values.academicRoot,
+        folder: { serverUuid: 'server', collectionId: 'other', nodeId: 'other-folder' } } } });
+      const input = { definition: other, bindingSetId: binding.id };
+      const rule = await createRule(ports, f.owner, input);
+      const preview = await previewRule(ports, f.owner, { rule: input, mode: 'currentState' });
+      await setLifecycle(ports, f.owner, rule.id, { state: 'enabled', pendingRuns: 'hold', reason: 'Unsynced collection', activationPreviewId: preview.previewId }, `"${rule.revision}"`);
+    });
+    const synced = await uow().execute(request(), p => p.bundle('browser-bounded-v1'));
+    expect(synced.rules.map(rule => rule.ruleId)).toEqual([f.rule.id]);
+    // A worker intake rule needs server tasks after placement; the browser cannot run it exactly.
+    const worker = JSON.parse(readFileSync(new URL('../../../../../docs/automation/design/examples/academic-summary-only.json', import.meta.url), 'utf8')) as RuleDefinition;
+    await f.uow.execute(f.owner, async p => {
+      const previous = (await p.rules.load(f.owner.accountId, f.rule.id))!;
+      await p.rules.save(f.owner.accountId, { ...previous, definitionRevisionId: randomUUID(), definitionRevision: '2', view: { ...previous.view, revision: '3',
+        definition: { ...previous.view.definition, roles: worker.roles, tasks: worker.tasks.slice(0, 1) } } });
+    });
+    const delegated = await uow().execute(request(), p => p.bundle('browser-bounded-v1'));
+    expect(delegated).toMatchObject({ paused: false, rules: [], removedRuleIds: [f.rule.id] });
   });
 });
