@@ -20,9 +20,11 @@ process.env.COLP_MULTI_USER = 'true';
 const output = process.env.AC39_OUTPUT;
 const rounds = Number(process.env.AC39_ROUNDS ?? 3);
 const burstCount = Number(process.env.AC39_SAVE_COUNT ?? 20);
+const ruleSizes = (process.env.AC39_RULE_SIZES ?? '1,50,200,500').split(',').map(Number);
 const stage = process.env.AC39_STAGE ?? 'manual';
 assert.ok(Number.isInteger(rounds) && rounds >= 1 && rounds <= 10, 'AC39_ROUNDS must be 1..10');
 assert.ok(Number.isInteger(burstCount) && burstCount >= 1 && burstCount <= 100, 'AC39_SAVE_COUNT must be 1..100');
+assert.ok(ruleSizes.every((n, i) => Number.isInteger(n) && n >= 1 && n <= 500 && (!i || n > ruleSizes[i - 1]!)), 'AC39_RULE_SIZES must increase in 1..500');
 const failures: string[] = [];
 function record(value: Record<string, unknown>) {
   const line = JSON.stringify({ at: new Date().toISOString(), stage, ...value });
@@ -151,7 +153,7 @@ async function rules() {
     const plugin: KyselyPlugin = { transformQuery: ({ node }) => { queries++; return node; }, transformResult: async ({ result }) => result };
     const uow = createAutomationUnitOfWork(f.db.withPlugin(plugin), 'server', { runtimeEnabled: true });
     let existing = 1;
-    for (const count of [1, 50, 200, 500]) {
+    for (const count of ruleSizes) {
       // Seed via production create; enable fixture state directly to avoid measuring N activation previews.
       for (; existing < count; existing++) await f.uow.execute(f.owner, async ports => {
         const created = await createRule(ports, f.owner, { definition: { ...f.rule.definition, name: `Capacity ${existing}` }, bindingSetId: f.binding.id });
@@ -241,7 +243,7 @@ function evaluator() {
 }
 const eventLoop = monitorEventLoopDelay({ resolution: 20 }); eventLoop.enable();
 record({ kind: 'start', node: process.version, thresholds: { saveP95Ms: 1000, saveMaxMs: 2000, runOnceMs: 10000 },
-  rounds, burstCount, canonicalSeed: process.env.AC39_CANONICAL_SEED === '1' });
+  rounds, burstCount, ruleSizes, canonicalSeed: process.env.AC39_CANONICAL_SEED === '1' });
 try {
   if (stage === 'manual') for (const count of (process.env.AC39_SIZES ?? '100,500,1000,1001').split(',').map(Number)) {
     assert.ok(Number.isInteger(count) && count >= 1 && count <= 1001, 'AC39_SIZES must contain integers in 1..1001');

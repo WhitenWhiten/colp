@@ -6,10 +6,11 @@ import type { RunOnceService } from '../../modules/automation/index.js';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
 import { manualConfiguration, previewManualRun, type ManualSnapshot } from './manual-preview-store.js';
 import { lockPlacementCollection, canonicalPlacementMove } from './canonical-placement.js';
-import { recordPlacementHistory } from './placement-history-store.js';
+import { recordPlacementHistory, recordPlacementHistories } from './placement-history-store.js';
+import { validateManualMembers, insertManualRuns } from './manual-run-members.js';
 import { initializeRunTasks, advanceRunTasks } from './task-scheduler.js';
 import { reserveManualCapacity } from './intake-capacity.js';
-import { createPostgresCollectionVersionStore } from '../collections/index.js';
+import { createPostgresCollectionVersionStore, withCanonicalTreeCapacityBatch } from '../collections/index.js';
 import { captureCollectionTreeVersion, CollectionVersionNodeLimitError } from '../../modules/collections/index.js';
 interface PreviewRow {
   id: string;
@@ -52,18 +53,11 @@ export function createManualRunStore(tx: DatabaseTransaction, ports: AutomationP
         throw new AutomationError('automation_paused', 'Resume before starting the preview.');
       if (collection.content_revision !== snapshot.collectionRevision)
         throw stale();
-      for (const member of snapshot.members) {
-        const node = await tx.selectFrom('nodes').select(['resource_revision', 'deleted_at']).where('collection_id', '=', snapshot.collectionId).where('id', '=', member.event.nodeId).executeTakeFirst();
-        if (!node || node.deleted_at || node.resource_revision !== member.revision)
-          throw stale();
-      }
+      const nodes = await validateManualMembers(tx, snapshot);
       const selected = snapshot.members.filter(m => ['matched', 'placed', 'preserved'].includes(m.plan.kind));
       const parentId = randomUUID(), runTasks = snapshot.input.tasks === 'all' && snapshot.definition.tasks.length > 0;
       const children = selected.map(member => ({ member, id: randomUUID() }));
-      await insert(parentId, snapshot, selected.map(m => m.event.eventId), { collectionId: snapshot.collectionId, manualSelection: true, plan: { kind: 'matched' }, causationRoot: parentId });
-      for (const { member, id } of children)
-        await insert(id, snapshot, [member.event.eventId], { collectionId: snapshot.collectionId, nodeId: member.event.nodeId, sourceRevision: member.revision,
-          parentRunId: parentId, causationRoot: parentId, plan: member.plan });
+      await insertManualRuns(tx, actor, parentId, snapshot, children);
       // Every member that starts worker tasks is a run against the daily limit, not just the parent.
       const charged = [parentId, ...(runTasks ? children.map(child => child.id) : [])];
       if (!await reserveManualCapacity(tx, { ownerId: actor.accountId, ruleId, runIds: charged, maxRunsPerDay: snapshot.definition.policy.maxRunsPerDay }))
@@ -81,24 +75,23 @@ export function createManualRunStore(tx: DatabaseTransaction, ports: AutomationP
           throw error;
         }
       }
-      for (const { member, id } of children) {
-        if (member.plan.kind === 'placed') {
-          const current = await tx.selectFrom('nodes').select('parent_id').where('id', '=', member.event.nodeId).where('collection_id', '=', snapshot.collectionId).executeTakeFirstOrThrow();
-          if (current.parent_id !== member.plan.folder.nodeId) {
-            const moved = await canonicalPlacementMove(tx, actor, { collectionId: snapshot.collectionId, nodeId: member.event.nodeId, parentId: member.plan.folder.nodeId, expectedRevision: member.revision, runId: id, stage: 'intake' });
-            await recordPlacementHistory(tx, actor, serverUuid, id, moved.operationId);
+      await withCanonicalTreeCapacityBatch(tx, snapshot.collectionId, async admission => {
+        const placements: { runId: string; operationId: string }[] = [];
+        for (const { member, id } of children) {
+          if (member.plan.kind === 'placed' && nodes.get(member.event.nodeId)!.parent_id !== member.plan.folder.nodeId) {
+            const moved = await canonicalPlacementMove(tx, actor, { collectionId: snapshot.collectionId, nodeId: member.event.nodeId, parentId: member.plan.folder.nodeId, expectedRevision: member.revision, runId: id, stage: 'intake' }, admission);
+            // Successors must see their receipt before their immutable inputs are pinned.
+            if (runTasks) await recordPlacementHistory(tx, actor, serverUuid, id, moved.operationId);
+            else placements.push({ runId: id, operationId: moved.operationId });
+          }
+          if (runTasks) {
+            await initializeRunTasks(tx, actor, id);
+            await advanceRunTasks(tx, actor, serverUuid, id);
           }
         }
-        if (runTasks) {
-          await initializeRunTasks(tx, actor, id);
-          await advanceRunTasks(tx, actor, serverUuid, id);
-        }
-      }
+        await recordPlacementHistories(tx, actor, serverUuid, placements);
+      });
       await sql`UPDATE automation_manual_previews SET run_id=${parentId} WHERE id=${row.id}`.execute(tx);
       return (await ports.runs.load(parentId))!.view;
     } };
-  async function insert(id: string, s: ManualSnapshot, members: string[], explanation: Record<string, unknown>) {
-    await sql`INSERT INTO automation_runs(id,owner_id,kind,rule_revision_id,binding_set_id,binding_revision,policy_revision,member_ids,state,explanation_json)
-   VALUES(${id},${actor.accountId},'manual',${s.ruleRevisionId},${s.bindingSetId},${s.bindingRevision}::bigint,${s.policyRevision},${JSON.stringify(members)}::jsonb,'completed',${JSON.stringify(explanation)}::jsonb)`.execute(tx);
-  }
 }

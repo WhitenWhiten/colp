@@ -6,7 +6,7 @@ import { reserveIntakeAdmission } from './intake-capacity.js';
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { compilePredicate, type RoleBindings, type RuleDefinition } from '@know-n/colp/automation';
-import { admitEvent, intakeAdmissionState, resolveBindings, assessIntakeBindings, type AdmissionCandidate } from '../../modules/automation/index.js';
+import { admitEvent, intakeAdmissionState, resolveBindings, assessIntakeBindings, inspectionBindingReads, type AdmissionCandidate } from '../../modules/automation/index.js';
 import { createBindingReadPort } from './bindings.js';
 import { sourceEvent } from './source-facts.js';
 import type { InspectAutomationSource } from './source-position-store.js';
@@ -22,7 +22,7 @@ export function createAutomationAdmission(serverUuid: string,workerEnabled = fal
     const moreReceipts = await reconcile(tx, owner, collectionId, sources) === true;
     const settings = await tx.selectFrom('automation_settings').select('paused').where('owner_id', '=', owner.accountId).executeTakeFirst();
     if (settings?.paused) return moreReceipts;
-    const reads = createBindingReadPort(tx, serverUuid);
+    const reads = inspectionBindingReads(createBindingReadPort(tx, serverUuid));
     const collection = await reads.readCollection(owner, collectionId);
     if (!collection) return moreReceipts;
     const rows = (await sql<ActiveRule>`SELECT r.id, v.id AS revision_id, v.definition_json, v.binding_set_id,v.execution_policy_id,

@@ -65,3 +65,8 @@ The s2 load experiment **failed saving availability** at 100 run-once members.
 See [AC-39 evidence](evidence/ac-39.md) for the environment, raw measurements,
 concurrency controls and unexecuted scope. This does not extend the backend
 delivery claims into release acceptance or authorize larger capacity defaults.
+
+The subsequent [local small-workload optimization](evidence/ac-39-local-optimization.md)
+records before/after measurements and passing rollback, authority and worker
+regressions. It reduces repeated rule reads and manual batch overhead; s2 has not
+been revalidated against the optimized commit, so AC-39 remains failed/pending re-test.

@@ -9,6 +9,7 @@ import { evaluateRuleEvent, plansRun, type PreparedRule } from './rule-evaluatio
 import { previewDecision } from './preview-decision.js';
 import { intakePolicyDiagnostics, previewPlanDiagnostics } from './policy-diagnostics.js';
 import { ruleInput, type AutomationPorts } from './ports.js';
+import { inspectionReads } from './inspection-reads.js';
 
 export async function previewSnapshot(ports: AutomationPorts, actor: AutomationActor, input: PreviewInput) {
   input = { ...input, rule: normalizeRuleInput(input.rule) };
@@ -68,6 +69,7 @@ export async function previewRule(ports: AutomationPorts, actor: AutomationActor
  */
 export async function competingRules(ports: AutomationPorts, actor: AutomationActor, collectionId: string,
   exclude: { ruleId?: string; digest?: string }): Promise<{ competition: string[]; alternatives: PreparedRule[] }> {
+  ports = inspectionReads(ports);
   const competition: string[] = [], alternatives: PreparedRule[] = [];
   for (const candidate of await ports.rules.list(actor.accountId, null, 500)) {
     if (candidate.view.desiredState !== 'enabled' || candidate.view.id === exclude.ruleId) continue;

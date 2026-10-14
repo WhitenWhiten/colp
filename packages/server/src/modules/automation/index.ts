@@ -4,6 +4,7 @@ export * from './domain/export.js';
 export * from './domain/intake-root.js';
 export * from './application/ports.js';
 export * from './application/resolve-bindings.js';
+export { inspectionBindingReads } from './application/inspection-reads.js';
 export * from './application/rule-service.js';
 export * from './application/preview-service.js';
 export * from './application/lifecycle-service.js';

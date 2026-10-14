@@ -1,0 +1,23 @@
+{
+  "productionBaseline": "f6beff6da08aa56d7980dd8ffc59ab9a46130021",
+  "evidenceBaseline": "e310f74",
+  "node": "22.23.2",
+  "postgres": "16.15",
+  "cpu": "AMD Ryzen 5 9600X, 6 visible logical CPUs (virtualized)",
+  "memoryMiB": 11962,
+  "poolConnections": 6,
+  "postgresMaxConnections": 40,
+  "postgresSharedBuffers": "128MB",
+  "rounds": 3,
+  "manualMembers": 20,
+  "concurrentSavesPerGroup": 1,
+  "canonicalSeed": true,
+  "ruleSizes": [
+    1,
+    10,
+    30
+  ],
+  "arrivalIntervalMs": 200,
+  "comparison": "sequential on the same isolated PostgreSQL container; no concurrent tests during measurements",
+  "runnerSha256": "14a3830a641f6a9bf2af62bb52ba563c6b36a208361aad0369f3521d78becd80"
+}

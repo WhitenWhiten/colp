@@ -219,3 +219,4 @@ export {
   linkPreviewEgressFromEnv,
   type LinkPreviewEgressInjection,
 } from './link-preview-egress-fixture.js';
+export { withCanonicalTreeCapacityBatch, type CanonicalTreeCapacityAdmission } from './canonical-tree-capacity.js';

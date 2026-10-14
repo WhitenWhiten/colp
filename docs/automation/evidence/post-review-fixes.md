@@ -103,6 +103,9 @@ see [the measurements and evidence boundaries](ac-39.md). A 100-bookmark run-onc
 already held the Sync replica gate for over 19 seconds and caused concurrent saves
 to fail. Larger manual loads were stopped. M10 and M13 remain release concerns;
 the documented upper bounds are not validated deployment capacity.
+The [local optimization follow-up](ac-39-local-optimization.md) addresses repeated
+inspection reads and manual batch overhead with a measured small-workload baseline;
+it does not close the remaining s2 release gate.
 
 ## Verification
 
