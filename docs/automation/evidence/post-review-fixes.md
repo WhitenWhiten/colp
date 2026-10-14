@@ -104,8 +104,9 @@ already held the Sync replica gate for over 19 seconds and caused concurrent sav
 to fail. Larger manual loads were stopped. M10 and M13 remain release concerns;
 the documented upper bounds are not validated deployment capacity.
 The [local optimization follow-up](ac-39-local-optimization.md) addresses repeated
-inspection reads and manual batch overhead with a measured small-workload baseline;
-it does not close the remaining s2 release gate.
+inspection reads and manual batch overhead with a measured small-workload baseline.
+The [s2 re-verification](ac-39-s2-reverification.md) confirms the rule-read improvement,
+but manual saving still times out and the release gate remains open.
 
 ## Verification
 

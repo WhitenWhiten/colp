@@ -117,7 +117,9 @@ xvfb-run -a node node_modules/vitest/vitest.mjs run --project postgres \
 ```
 
 This is a small local comparison, **not a new s2 AC-39 pass**. The original
-[s2 failure](ac-39.md) remains the deployment evidence until that host is retested.
+[s2 failure](ac-39.md) was subsequently rechecked against `75d921c`; the
+[re-verification](ac-39-s2-reverification.md) still failed manual saving availability,
+despite passing rule scaling and finite queue recovery.
 Large manual batches still execute their canonical moves in one transaction;
 less work under the lock does not prove that 100 or 1,000 members meet s2's save
 availability requirement. Large-batch and sustained-load limits remain unvalidated.

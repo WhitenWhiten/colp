@@ -68,5 +68,7 @@ delivery claims into release acceptance or authorize larger capacity defaults.
 
 The subsequent [local small-workload optimization](evidence/ac-39-local-optimization.md)
 records before/after measurements and passing rollback, authority and worker
-regressions. It reduces repeated rule reads and manual batch overhead; s2 has not
-been revalidated against the optimized commit, so AC-39 remains failed/pending re-test.
+regressions. The [s2 re-verification of `75d921c`](evidence/ac-39-s2-reverification.md)
+passed rule scaling and finite queue recovery, but both 100-member manual saving
+scenarios still failed. AC-39 remains failed; the reduced manual query count has
+not resolved the long collection-lock hold.
