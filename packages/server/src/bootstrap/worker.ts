@@ -3,8 +3,8 @@ import { retainAutomationHistory } from '../infrastructure/automation/index.js';
 import { createDeliveryWorker } from '../infrastructure/automation/index.js';
 import { createWebhookVerifier } from '../infrastructure/automation/index.js';
 import { createTargetWorkerService } from '../infrastructure/automation/index.js';
-import { createAutomationIngestRoute, automationIngestRegistration, automationResumeRegistration, AUTOMATION_RESUME_EVENT } from '../infrastructure/outbox/index.js';
-import { createAutomationSourceInspector, createAutomationRuntime, setAutomationCaptureEnabled } from '../infrastructure/automation/index.js';
+import { createAutomationIngestRoute, createAutomationManualRoute, automationManualRegistration, automationIngestRegistration, automationResumeRegistration, AUTOMATION_RESUME_EVENT } from '../infrastructure/outbox/index.js';
+import { createAutomationSourceInspector, createManualRunConsumer, createAutomationRuntime, setAutomationCaptureEnabled } from '../infrastructure/automation/index.js';
 import { createAutomationHealthMonitor } from '../infrastructure/automation/index.js';
 import { createAutomationBindingVerifier } from './automation-binding-verifier.js';
 import { createWorkerApprovalApplier } from './automation-approval-composition.js';
@@ -522,6 +522,8 @@ export function buildWorker(
     ...(database ? [undefined, AUTOMATION_RESUME_EVENT].map(eventType => createAutomationIngestRoute(createAutomationSourceInspector(database.db,
       // Shadow capture (admission off) only advances the source cursor: no account or Sync locks.
       config.automationAdmissionEnabled ? createAutomationRuntime(config.publication.serverUuid,config.automationWorkEnabled === true) : null), eventType)) : []),
+    ...(database ? [createAutomationManualRoute(createManualRunConsumer(database.db, config.publication.serverUuid,
+      { runtimeEnabled: config.automationAdmissionEnabled === true, workerEnabled: config.automationWorkEnabled === true }))] : []),
     ...publicationCachePurgeRoutes,
     ...collectionInviteEmailRoutes,
   ]);
@@ -579,6 +581,7 @@ export function buildWorker(
       syncConflictEnvelopeRegistration,
       automationIngestRegistration,
       automationResumeRegistration,
+      automationManualRegistration,
       collectionInviteCreatedEnvelopeRegistration,
     ]),
     logger,

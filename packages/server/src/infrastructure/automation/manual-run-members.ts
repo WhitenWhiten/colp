@@ -24,15 +24,17 @@ export async function validateManualMembers(tx: DatabaseTransaction, snapshot: M
 }
 
 export async function insertManualRuns(tx: DatabaseTransaction, actor: AutomationActor,
-  parentId: string, snapshot: ManualSnapshot, children: readonly ManualChild[]) {
+  parentId: string, snapshot: ManualSnapshot, children: readonly ManualChild[], pending = false, runTasks = false) {
   const rows = [{ id: parentId, member_ids: children.map(c => c.member.event.eventId),
-    explanation: { collectionId: snapshot.collectionId, manualSelection: true, plan: { kind: 'matched' }, causationRoot: parentId } },
-  ...children.map(({ id, member }) => ({ id, member_ids: [member.event.eventId],
+    explanation: { collectionId: snapshot.collectionId, manualSelection: true, plan: { kind: 'matched' }, causationRoot: parentId,
+      ...(pending ? { manualPending: true, manualTasks: runTasks, explanation: 'Queued fixed members; completed batches are retained if this run is interrupted.' } : {}) } },
+  ...children.map(({ id, member }, index) => ({ id, member_ids: [member.event.eventId],
     explanation: { collectionId: snapshot.collectionId, nodeId: member.event.nodeId, sourceRevision: member.revision,
-      parentRunId: parentId, causationRoot: parentId, plan: member.plan } }))];
+      parentRunId: parentId, causationRoot: parentId, plan: member.plan,
+      ...(pending ? { manualPending: true, manualIndex: index } : {}) } }))];
   await sql`INSERT INTO automation_runs
     (id,owner_id,kind,rule_revision_id,binding_set_id,binding_revision,policy_revision,member_ids,state,explanation_json)
     SELECT id,${actor.accountId},'manual',${snapshot.ruleRevisionId},${snapshot.bindingSetId},${snapshot.bindingRevision}::bigint,
-      ${snapshot.policyRevision},member_ids,'completed',explanation
+      ${snapshot.policyRevision},member_ids,${pending ? 'waiting' : 'completed'},explanation
     FROM jsonb_to_recordset(${JSON.stringify(rows)}::jsonb) AS i(id text,member_ids jsonb,explanation jsonb)`.execute(tx);
 }

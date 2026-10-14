@@ -93,7 +93,7 @@ export function createRunStore(tx: DatabaseTransaction, actor: AutomationActor, 
       const stored = map(row), members = children.filter(child => child.parent_id === row.id), runJobs = jobs.filter(job => job.run_id === row.id);
       if (members.length) {
         stored.view.childRunIds = members.map(child => child.id);
-        stored.view.status = members.some(c => c.state === 'running' || c.state === 'waiting') ? 'running' : members.every(c => c.state === 'completed') ? 'completed'
+        stored.view.status = row.state === 'cancelled' ? 'cancelled' : members.some(c => c.state === 'running' || c.state === 'waiting') ? 'running' : members.every(c => c.state === 'completed') ? 'completed'
           : members.every(c => c.state === 'cancelled') ? 'cancelled' : members.some(c => c.state === 'completed') ? 'partial' : 'review';
       }
       stored.view.jobIds = runJobs.map(job => job.id).slice(0, 1600);

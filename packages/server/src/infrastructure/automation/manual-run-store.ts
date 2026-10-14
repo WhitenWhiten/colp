@@ -1,3 +1,4 @@
+import { appendManualWake } from '../outbox/automation-manual.js';
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import type { RunOncePreview } from '@know-n/colp/automation';
@@ -40,13 +41,16 @@ export function createManualRunStore(tx: DatabaseTransaction, ports: AutomationP
       // The replica gate must precede every collection read, including the SHARE
       // locks hidden inside configuration/binding authorization.
       const collection = await lockPlacementCollection(tx, actor, snapshot.collectionId);
-      const { digest } = await manualConfiguration(ports, actor, ruleId, snapshot.input);
       if (row.run_id) {
         const previous = await ports.runs.load(row.run_id);
         if (!previous)
           throw stale();
+        const pending = (await sql`SELECT id FROM automation_runs WHERE id=${row.run_id}
+          AND state IN ('waiting','running') AND explanation_json->>'manualPending'='true'`.execute(tx)).rows.length;
+        if (pending) await appendManualWake(tx, actor.accountId, snapshot.collectionId, row.run_id);
         return previous.view;
       }
+      const { digest } = await manualConfiguration(ports, actor, ruleId, snapshot.input);
       if (!row.result_json.canStart || row.expires_at <= await ports.now() || digest !== snapshot.configurationDigest)
         throw stale();
       if ((await ports.settings.get(actor.accountId)).paused)
@@ -57,7 +61,8 @@ export function createManualRunStore(tx: DatabaseTransaction, ports: AutomationP
       const selected = snapshot.members.filter(m => ['matched', 'placed', 'preserved'].includes(m.plan.kind));
       const parentId = randomUUID(), runTasks = snapshot.input.tasks === 'all' && snapshot.definition.tasks.length > 0;
       const children = selected.map(member => ({ member, id: randomUUID() }));
-      await insertManualRuns(tx, actor, parentId, snapshot, children);
+      const pending = children.length > (runTasks ? 1 : 20);
+      await insertManualRuns(tx, actor, parentId, snapshot, children, pending, runTasks);
       // Every member that starts worker tasks is a run against the daily limit, not just the parent.
       const charged = [parentId, ...(runTasks ? children.map(child => child.id) : [])];
       if (!await reserveManualCapacity(tx, { ownerId: actor.accountId, ruleId, runIds: charged, maxRunsPerDay: snapshot.definition.policy.maxRunsPerDay }))
@@ -74,6 +79,11 @@ export function createManualRunStore(tx: DatabaseTransaction, ports: AutomationP
             throw new AutomationError('payload_too_large', 'Collection history capacity prevents this manual placement.');
           throw error;
         }
+      }
+      if (pending) {
+        await sql`UPDATE automation_manual_previews SET run_id=${parentId} WHERE id=${row.id}`.execute(tx);
+        await appendManualWake(tx, actor.accountId, snapshot.collectionId, parentId);
+        return (await ports.runs.load(parentId))!.view;
       }
       await withCanonicalTreeCapacityBatch(tx, snapshot.collectionId, async admission => {
         const placements: { runId: string; operationId: string }[] = [];

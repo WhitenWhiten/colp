@@ -1,3 +1,4 @@
+import { drainManualRuns } from '../../support/manual-run-delivery.js';
 import { lockCollectionReplicaGate } from '../../../src/infrastructure/database/lock-order.js';
 import { afterEach,expect,test } from 'vitest';
 import { randomUUID } from 'node:crypto';
@@ -83,6 +84,7 @@ describeWithPostgres('AW-41 immutable manual selection',()=>{
     expect((await sql`SELECT id FROM automation_runs WHERE kind='manual'`.execute(f.db)).rows).toEqual([]);
     expect((await f.db.selectFrom('nodes').select('parent_id').where('id','=','paper').executeTakeFirstOrThrow()).parent_id).toBe('root');
     const started=await f.ownerPost(`/rules/${f.rule.id}/run-once`,input);expect(started.statusCode,started.body).toBe(201);expect(started.json().status).toBe('running');
+    await drainManualRuns(f.db);
     expect((await sql`SELECT j.id FROM automation_jobs j JOIN automation_runs r ON r.id=j.run_id WHERE r.kind='manual' AND j.state='ready'`.execute(f.db)).rows).toHaveLength(2);
     const expired=await f.uow.execute(f.owner,async ports=>{ports.now=async()=>new Date(Date.now()-3600_000);return ports.runOnce!.preview(f.rule.id,options);});
     expect((await f.ownerPost(`/rules/${f.rule.id}/run-once`,{previewId:expired.id,previewDigest:expired.previewDigest})).statusCode).toBe(409);

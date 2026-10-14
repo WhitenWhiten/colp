@@ -1,3 +1,4 @@
+import { drainManualRuns } from './manual-run-delivery.js';
 /** Opt-in capacity evidence, never part of the routine integration suite.
  * Uses production transactions with isolated fixture identities; not an HTTP SLA test.
  */
@@ -120,9 +121,14 @@ async function manual(count: number, round: number) {
     assert.equal(preview.canStart, true);
     queries = 0; timings.length = 0;
     const start = performance.now();
+    let startMs = 0, startQueries = 0, slices = 0;
     let finished = false, firstGate: number | undefined, lastGate: number | undefined, maxWaiters = 0;
     const run = uow.execute(f.owner, ports => ports.runOnce!.start(f.rule.id, { previewId: preview.id, previewDigest: preview.previewDigest }))
-      .finally(() => { finished = true; });
+      .then(async result => {
+        startMs = performance.now() - start; startQueries = queries;
+        slices = await drainManualRuns(f.db.withPlugin(plugin), true);
+        return result;
+      }).finally(() => { finished = true; });
     // Observe the real gate before starting writers, avoiding a stale-preview race.
     while (!finished && firstGate === undefined) {
       const locks = await observer.query("SELECT granted FROM pg_locks WHERE locktype='advisory' AND classid=1263675657 AND objid=hashtext('collection')::oid");
@@ -155,11 +161,12 @@ async function manual(count: number, round: number) {
     for (const [name, value] of Object.entries({ sameCollection, sameOwner, foreignOwner })) {
       gate(`manual/${count}/${round}/${name}`, !value.errors.length && value.latencyMs.p95 <= 1000 && value.latencyMs.max <= 2000);
     }
-    gate(`manual/${count}/${round}/run`, runMs <= 10000);
-    record({ count, round, disabledBaseline, baseline, previewMs, previewQueries, runMs, runQueries, placed,
-      gateObservedMsLowerBound: firstGate !== undefined && lastGate !== undefined ? lastGate - firstGate : null,
+    gate(`manual/${count}/${round}/start`, startMs <= 10000);
+    gate(`manual/${count}/${round}/completion`, runMs <= 120000);
+    record({ count, round, disabledBaseline, baseline, previewMs, previewQueries, startMs, startQueries, slices, runMs, runQueries, placed,
+      gateObservationSpanMs: firstGate !== undefined && lastGate !== undefined ? lastGate - firstGate : null,
       maxGateWaiters: maxWaiters, sameCollection, sameOwner, foreignOwner, rssBytes: process.memoryUsage().rss });
-    if (runMs > 30000) throw new Error('Safety stop: run-once exceeds 30 seconds');
+    if (runMs > 120000) throw new Error('Safety stop: manual completion exceeds 120 seconds');
     if ([sameCollection, sameOwner, foreignOwner].some(value => value.errors.length))
       throw new Error('Safety stop: saving failed; do not increase load');
   } finally { await observer.end(); await f.isolated.close(); }
@@ -260,7 +267,7 @@ function evaluator() {
   }
 }
 const eventLoop = monitorEventLoopDelay({ resolution: 20 }); eventLoop.enable();
-record({ kind: 'start', node: process.version, thresholds: { saveP95Ms: 1000, saveMaxMs: 2000, runOnceMs: 10000 },
+record({ kind: 'start', node: process.version, thresholds: { saveP95Ms: 1000, saveMaxMs: 2000, runOnceStartMs: 10000, manualCompletionMs: 120000 },
   rounds, burstCount, ruleSizes, canonicalSeed: process.env.AC39_CANONICAL_SEED === '1' });
 try {
   if (stage === 'manual') for (const count of (process.env.AC39_SIZES ?? '100,500,1000,1001').split(',').map(Number)) {
