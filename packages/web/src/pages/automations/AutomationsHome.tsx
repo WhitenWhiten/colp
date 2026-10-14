@@ -3,22 +3,24 @@ import { Link } from 'react-router-dom'
 import type { AutomationHealthIncident, AutomationPauseState, AutomationRule } from '../../api/automationTypes'
 import { useToast } from '../../components/AppToast'
 import { EmptyState } from '../../components/EmptyState'
+import { FilterRail } from '../../components/FilterRail'
 import { Icon, type IconName } from '../../components/Icon'
 import { LoadMoreButton } from '../../components/LoadMoreButton'
 import { PageHead } from '../../components/PageHead'
 import { PageShell } from '../../components/PageShell'
 import { RouteState } from '../../components/RouteState'
-import { StatusBadge } from '../../components/StatusBadge'
 import { classifyRouteError } from '../../lib/classifyRouteError'
 import { formatDate, formatDateTime } from '../../lib/formatDate'
 import { plural } from '../../lib/plural'
 import { isAutomationUnavailableError, publishAutomationPause, publishAutomationUnavailable } from '../../lib/automationStatus'
 import { decisionGroups, NeedsAttention } from './NeedsAttention'
 import { ruleEditPath, rulePath, runPath } from './paths'
+import { RecentActivity } from './RecentActivity'
 import { RuleSentence } from './RuleSentence'
 import { errorMessage, isStale, RuleStateBadge, useAutomationDeps, useLoad } from './shared'
 import { useAutomationNames, type AutomationNames } from './useAutomationNames'
 
+/* The promises rules keep, shown where they matter: before the first rule. */
 const HOW_IT_WORKS: ReadonlyArray<{ icon: IconName; title: string; body: string }> = [
   {
     icon: 'check',
@@ -42,6 +44,31 @@ const HOW_IT_WORKS: ReadonlyArray<{ icon: IconName; title: string; body: string 
   },
 ]
 
+type RuleFilter = 'all' | 'on' | 'off'
+
+const RULE_FILTERS: ReadonlyArray<{ value: RuleFilter; label: string }> = [
+  { value: 'all', label: 'All' },
+  { value: 'on', label: 'On' },
+  { value: 'off', label: 'Off' },
+]
+
+function ruleIsOn(rule: AutomationRule): boolean {
+  return rule.effectiveState === 'active' || rule.effectiveState === 'degraded'
+}
+
+/** "2 rules on · 1 blocked · 1 draft": the server's states, counted. */
+function ruleTally(rules: readonly AutomationRule[]): string {
+  const count = (state: AutomationRule['effectiveState']) => rules.filter((rule) => rule.effectiveState === state).length
+  const on = rules.filter(ruleIsOn).length
+  const parts = [
+    on > 0 ? `${plural(on, 'rule')} on` : 'No rule is on yet',
+    count('blocked') > 0 ? `${count('blocked')} blocked` : null,
+    count('paused') > 0 ? `${count('paused')} paused` : null,
+    count('draft') > 0 ? plural(count('draft'), 'draft') : null,
+  ]
+  return parts.filter(Boolean).join(' · ')
+}
+
 function pausedLine(pause: AutomationPauseState): string {
   const when = pause.pausedAt ? ` on ${formatDate(pause.pausedAt)}` : ''
   const who = pause.pausedBy === 'restore'
@@ -63,7 +90,7 @@ function downloadJson(value: unknown, filename: string) {
   URL.revokeObjectURL(url)
 }
 
-function RuleCard({
+function RuleRow({
   rule,
   names,
   busy,
@@ -79,36 +106,115 @@ function RuleCard({
   const editHref = ruleEditPath(rule.id)
   const canPause = rule.desiredState === 'enabled'
   return (
-    <article className="automation-rule" data-rule-id={rule.id} aria-labelledby={`automation-rule-${rule.id}`}>
-      <header className="automation-rule-head">
-        <h3 id={`automation-rule-${rule.id}`}>
+    <article className="automation-rule" data-rule-id={rule.id} data-state={rule.effectiveState} aria-labelledby={`automation-rule-${rule.id}`}>
+      <div className="automation-rule-main">
+        <h3 className="automation-rule-name" id={`automation-rule-${rule.id}`}>
           <Link to={rulePath(rule.id)}>{rule.definition.name}</Link>
         </h3>
-        <RuleStateBadge state={rule.effectiveState} />
-      </header>
-      <RuleSentence
-        rule={rule}
-        collectionTitle={collection ?? null}
-        folder={folder}
-      />
-      <footer className="automation-rule-foot">
+        <RuleSentence
+          rule={rule}
+          collectionTitle={collection ?? null}
+          folder={folder}
+          className="automation-rule-sentence"
+        />
         <p className="automation-meta">
-          Updated <time dateTime={rule.updatedAt} title={formatDateTime(rule.updatedAt)}>{formatDate(rule.updatedAt)}</time>
-          {rule.usage ? <> · {plural(rule.usage.admittedRuns, 'run')} since {formatDate(rule.usage.periodStart)}</> : null}
+          {rule.usage
+            ? <>{plural(rule.usage.admittedRuns, 'run')} since {formatDate(rule.usage.periodStart)}</>
+            : <>Updated <time dateTime={rule.updatedAt} title={formatDateTime(rule.updatedAt)}>{formatDate(rule.updatedAt)}</time></>}
           {rule.definition.priority !== 100 ? <> · Priority {rule.definition.priority}</> : null}
         </p>
-        <div className="automation-rule-actions">
-          {canPause ? (
-            <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={() => onPause(rule)}>
-              Pause
-            </button>
-          ) : rule.desiredState !== 'archived' ? (
-            <Link className="btn btn-ghost btn-sm" to={`${editHref}#preview`}>Preview and turn on</Link>
-          ) : null}
-          <Link className="btn btn-secondary btn-sm" to={editHref}>Edit</Link>
-        </div>
-      </footer>
+      </div>
+      <div className="automation-rule-state">
+        <RuleStateBadge state={rule.effectiveState} />
+      </div>
+      <div className="automation-rule-actions">
+        {canPause ? (
+          <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={() => onPause(rule)}>
+            Pause
+          </button>
+        ) : rule.desiredState !== 'archived' ? (
+          <Link className="btn btn-ghost btn-sm" to={`${editHref}#preview`}>Preview and turn on</Link>
+        ) : null}
+        <Link className="btn btn-secondary btn-sm" to={editHref}>Edit</Link>
+      </div>
     </article>
+  )
+}
+
+/** The whole account's switch, with what it means right now. */
+function StatusBar({
+  pause,
+  rules,
+  busy,
+  onToggle,
+}: {
+  pause: AutomationPauseState | null
+  rules: readonly AutomationRule[] | null
+  busy: boolean
+  onToggle: () => void
+}) {
+  const paused = pause?.paused ?? false
+  return (
+    <section
+      className="automations-status"
+      data-state={pause ? (paused ? 'paused' : 'running') : 'loading'}
+      aria-labelledby="automations-status-title"
+    >
+      <span className="automations-status-mark" aria-hidden><Icon name={paused ? 'lock' : 'bolt'} /></span>
+      <div className="automations-status-copy">
+        <h2 className="automations-status-title" id="automations-status-title">
+          {!pause ? 'Checking automations…' : paused ? 'All automations are paused' : 'Automations are on'}
+        </h2>
+        {pause && paused && (
+          <p className="automations-status-text" role="status" data-testid="automations-paused">{pausedLine(pause)}</p>
+        )}
+        {pause && !paused && rules && (
+          <p className="automations-status-text">
+            {rules.length === 0 ? 'Make a rule to start filing bookmarks as you save them.' : `${ruleTally(rules)}.`}
+          </p>
+        )}
+      </div>
+      <button
+        type="button"
+        className={paused ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm'}
+        data-testid="automations-pause-all"
+        disabled={!pause || busy}
+        aria-pressed={paused}
+        onClick={onToggle}
+      >
+        {paused ? 'Resume all' : 'Pause all'}
+      </button>
+    </section>
+  )
+}
+
+/** First visit: the two ways to make a rule, and the promises every rule keeps. */
+function FirstRule() {
+  return (
+    <div className="automations-onboarding">
+      <EmptyState
+        icon="bolt"
+        className="automations-empty"
+        data-testid="automations-empty"
+        title="No rules yet"
+        description="A rule files bookmarks for you, such as “pages from arxiv.org go to Academic”. Start here, or choose Automate… on a folder in your library."
+        action={(
+          <>
+            <Link className="btn btn-primary btn-sm" to="/automations/new">New rule</Link>
+            <Link className="btn btn-secondary btn-sm" to="/library">Open library</Link>
+          </>
+        )}
+      />
+      <ul className="automations-promises" aria-label="How rules work">
+        {HOW_IT_WORKS.map((item) => (
+          <li key={item.title}>
+            <span className="automations-promise-icon" aria-hidden><Icon name={item.icon} /></span>
+            <h3>{item.title}</h3>
+            <p>{item.body}</p>
+          </li>
+        ))}
+      </ul>
+    </div>
   )
 }
 
@@ -133,6 +239,7 @@ export function AutomationsHome() {
   const [pausing, setPausing] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
+  const [filter, setFilter] = useState<RuleFilter>('all')
 
   const ruleList = rules.state.status === 'ready' ? [...rules.state.data.items, ...(moreRules?.items ?? [])] : null
   const visibleRules = ruleList?.filter((rule) => rule.desiredState !== 'archived') ?? null
@@ -252,125 +359,110 @@ export function AutomationsHome() {
     : []
   const decisions = runs.state.status === 'ready' ? decisionGroups(runs.state.data.items) : []
 
+  const filtered = visibleRules?.filter((rule) => filter === 'all' || (filter === 'on') === ruleIsOn(rule)) ?? null
+  const onCount = visibleRules?.filter(ruleIsOn).length ?? 0
+  const filterCounts: Record<RuleFilter, number> = {
+    all: visibleRules?.length ?? 0,
+    on: onCount,
+    off: (visibleRules?.length ?? 0) - onCount,
+  }
+  const firstVisit = visibleRules !== null && visibleRules.length === 0 && !nextCursor
+
   return (
     <PageShell data-testid="automations-page">
       <PageHead
         as="header"
         layout="split"
         variant="workbench"
-        eyebrow="Library"
         title="Automations"
         documentTitle="Automations"
-        lede="Rules that file new bookmarks into the right folder as you save them. Nothing runs until you preview a rule and turn it on."
+        lede="Rules file the bookmarks you save into the right folder. Nothing runs until you preview a rule and turn it on."
         actions={(
-          <>
-            {pauseState?.paused && <StatusBadge tone="warning">Paused</StatusBadge>}
-            <button
-              type="button"
-              className="btn btn-secondary"
-              data-testid="automations-pause-all"
-              disabled={!pauseState || pausing}
-              aria-pressed={pauseState?.paused ?? false}
-              onClick={() => void togglePauseAll()}
-            >
-              {pauseState?.paused ? 'Resume all' : 'Pause all'}
-            </button>
-            <Link className="btn btn-ghost" to="/automations/digests">Digests</Link>
-            <Link className="btn btn-primary" to="/automations/new">New rule</Link>
-          </>
+          <Link className="btn btn-primary" to="/automations/new">
+            <Icon name="plus" />
+            New rule
+          </Link>
         )}
       />
 
-      <div className="automations-layout">
-        <div className="automations-main">
-          {pauseState?.paused && (
-            <p className="automations-paused" role="status" data-testid="automations-paused">
-              <Icon name="info" />
-              <span>{pausedLine(pauseState)}</span>
-            </p>
-          )}
+      <StatusBar pause={pauseState} rules={visibleRules} busy={pausing} onToggle={() => void togglePauseAll()} />
 
-          <NeedsAttention
-            incidents={openIncidents}
-            decisions={decisions}
-            ruleName={ruleName}
-            busyId={busyId}
-            runHref={runPath}
-            onAcknowledge={(incident) => void acknowledge(incident)}
-            onRevalidate={(incident) => void revalidate(incident)}
-          />
+      {firstVisit ? <FirstRule /> : (
+        <div className="automations-layout">
+          <div className="automations-main">
+            <NeedsAttention
+              incidents={openIncidents}
+              decisions={decisions}
+              ruleName={ruleName}
+              busyId={busyId}
+              runHref={runPath}
+              onAcknowledge={(incident) => void acknowledge(incident)}
+              onRevalidate={(incident) => void revalidate(incident)}
+            />
 
-          <section className="automations-section" aria-labelledby="automations-rules-heading">
-            <div className="automations-section-head">
-              <h2 id="automations-rules-heading">Rules</h2>
-              {visibleRules && visibleRules.length > 0 && <span className="automations-count">{visibleRules.length}</span>}
-              {visibleRules && visibleRules.length > 0 && (
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-sm automations-section-action"
-                  disabled={exporting}
-                  onClick={() => void exportRules()}
-                >
-                  <Icon name="download" />
-                  Export rules
-                </button>
-              )}
-            </div>
-            {rules.state.status === 'loading' && <RouteState kind="loading" loadingLabel="Loading rules…" />}
-            {rules.state.status === 'error' && (
-              <RouteState
-                kind={classifyRouteError(rules.state.error)}
-                icon="alert"
-                title="Couldn't load your rules"
-                description={errorMessage(rules.state.error, 'Check your connection and try again.')}
-                onRetry={rules.reload}
-              />
-            )}
-            {visibleRules && visibleRules.length === 0 && (
-              <EmptyState
-                icon="sparkle"
-                className="automations-empty"
-                data-testid="automations-empty"
-                title="No rules yet"
-                description="A rule files bookmarks for you, such as “pages from arxiv.org go to Academic”. Start here, or choose Automate… on a folder in your library."
-                action={(
+            <section className="automations-section" aria-labelledby="automations-rules-heading">
+              <div className="automations-section-head">
+                <h2 id="automations-rules-heading">Rules</h2>
+                {visibleRules && visibleRules.length > 0 && (
                   <>
-                    <Link className="btn btn-primary btn-sm" to="/automations/new">New rule</Link>
-                    <Link className="btn btn-secondary btn-sm" to="/library">Open library</Link>
+                    <FilterRail<RuleFilter>
+                      variant="segments"
+                      className="view-switch"
+                      label="Show rules"
+                      value={filter}
+                      options={RULE_FILTERS.map((option) => ({
+                        value: option.value,
+                        label: <>{option.label} <span className="automations-filter-count">{filterCounts[option.value]}</span></>,
+                      }))}
+                      onChange={setFilter}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm automations-section-action"
+                      disabled={exporting}
+                      onClick={() => void exportRules()}
+                    >
+                      <Icon name="download" />
+                      Export
+                    </button>
                   </>
                 )}
-              />
-            )}
-            {visibleRules && visibleRules.length > 0 && (
-              <ul className="automation-rules">
-                {visibleRules.map((rule) => (
-                  <li key={rule.id}>
-                    <RuleCard rule={rule} names={names} busy={busyId === rule.id} onPause={(item) => void pauseRule(item)} />
-                  </li>
-                ))}
-              </ul>
-            )}
-            {nextCursor && (
-              <LoadMoreButton loading={loadingMore} onClick={() => void loadMore()}>Load more rules</LoadMoreButton>
-            )}
-          </section>
-        </div>
+              </div>
+              {rules.state.status === 'loading' && <RouteState kind="loading" loadingLabel="Loading rules…" />}
+              {rules.state.status === 'error' && (
+                <RouteState
+                  kind={classifyRouteError(rules.state.error)}
+                  icon="alert"
+                  title="Couldn't load your rules"
+                  description={errorMessage(rules.state.error, 'Check your connection and try again.')}
+                  onRetry={rules.reload}
+                />
+              )}
+              {filtered && filtered.length > 0 && (
+                <ul className="automation-rules">
+                  {filtered.map((rule) => (
+                    <li key={rule.id}>
+                      <RuleRow rule={rule} names={names} busy={busyId === rule.id} onPause={(item) => void pauseRule(item)} />
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {filtered && filtered.length === 0 && visibleRules && visibleRules.length > 0 && (
+                <p className="automation-empty-line">
+                  {filter === 'on' ? 'No rule is on. Preview a rule and turn it on to start filing.' : 'Every rule is on.'}
+                </p>
+              )}
+              {nextCursor && (
+                <LoadMoreButton loading={loadingMore} onClick={() => void loadMore()}>Load more rules</LoadMoreButton>
+              )}
+            </section>
+          </div>
 
-        <aside className="automations-aside" aria-labelledby="automations-how">
-          <h2 id="automations-how">How rules work</h2>
-          <ul className="automations-rules-of-thumb">
-            {HOW_IT_WORKS.map((item) => (
-              <li key={item.title}>
-                <span className="automations-thumb-icon" aria-hidden><Icon name={item.icon} /></span>
-                <div>
-                  <h3>{item.title}</h3>
-                  <p>{item.body}</p>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </aside>
-      </div>
+          <aside className="automations-aside" aria-label="Recent activity">
+            <RecentActivity runs={runs.state} ruleName={ruleName} onRetry={runs.reload} />
+          </aside>
+        </div>
+      )}
     </PageShell>
   )
 }

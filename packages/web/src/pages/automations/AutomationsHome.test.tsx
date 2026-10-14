@@ -116,6 +116,40 @@ describe('Automations home', () => {
     expect(buttonNamed('Pause all')).toBeUndefined()
   })
 
+  it('narrows the list to rules that are on or off, with counts', async () => {
+    const api = fakeApi()
+    api.listRules.mockResolvedValue({ items: [
+      rule('rule-on', 'On rule'),
+      rule('rule-draft', 'Draft rule', { desiredState: 'draft', effectiveState: 'draft' }),
+      rule('rule-blocked', 'Blocked rule', { effectiveState: 'blocked' }),
+    ], nextCursor: null })
+    mount(api)
+    await waitForDom(() => Boolean(document.querySelector('[data-rule-id="rule-on"]')))
+    expect(text('.automations-status-text')).toBe('1 rule on · 1 blocked · 1 draft.')
+    const option = (name: string) => [...document.querySelectorAll<HTMLButtonElement>('[role="radio"]')].find((item) => item.textContent?.startsWith(name))
+    expect(option('Off')?.textContent).toBe('Off 2')
+    click(option('Off'))
+    await waitForDom(() => !document.querySelector('[data-rule-id="rule-on"]'))
+    expect([...document.querySelectorAll('[data-rule-id]')].map((item) => item.getAttribute('data-rule-id'))).toEqual(['rule-draft', 'rule-blocked'])
+  })
+
+  it('lists recent runs beside the rules, each opening its run', async () => {
+    const api = fakeApi()
+    api.listRules.mockResolvedValue({ items: [rule('rule-a', 'Papers to Academic')], nextCursor: null })
+    api.listRuns.mockResolvedValue({ items: [
+      run('run-1', 'rule-a', { explanation: 'Matched the pinned rule and moved from the default root to its verified canonical destination.' }),
+      run('run-2', 'rule-a', { status: 'failed', unread: true, outputCount: 1 }),
+    ], nextCursor: null })
+    mount(api)
+    await waitForDom(() => text('[data-testid="automations-activity"]').includes('Papers to Academic'))
+    const first = document.querySelector('[data-run-id="run-1"]')
+    expect(first?.querySelector('a')?.getAttribute('href')).toBe('/automations/runs/run-1')
+    expect(first?.textContent).toContain('Moved into the rule’s folder.')
+    expect(first?.textContent).not.toContain('Done')
+    expect(text('[data-run-id="run-2"] .automation-meta')).toContain('Failed')
+    expect(text('.automation-activity-more')).toBe('Digests1')
+  })
+
   it('starts empty with the two ways to make a rule', async () => {
     mount()
     await waitForDom(() => text('[data-testid="automations-empty"]').includes('No rules yet'))

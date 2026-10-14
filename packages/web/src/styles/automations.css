@@ -1,9 +1,11 @@
 /* ——— Automations ———
    Route-owned by pages/Automations.tsx; the bookmark page's Automation
-   section (ResourceDetail.tsx) shares it. Same anatomy as Agents: the work
-   in the main column, a quiet reference column beside it from 1100 px.
-   Know-N colours only; state colour lives in the shared StatusBadge tones
-   and in the glyph of a notice, never in a filled band. */
+   section (ResourceDetail.tsx) shares it. Every page has one anatomy: the
+   head, one status bar for the switch that matters there, the work in the
+   main column, and a live column beside it from 1100 px. Lists are one
+   bordered surface with hairline rows, never a stack of cards. Know-N
+   colours only; state colour lives in StatusBadge tones, dots and glyphs,
+   never in a filled band. */
 
 @layer pages {
 .automations-layout {
@@ -14,11 +16,11 @@
 
 @media (min-width: 1100px) {
   .automations-layout {
-    grid-template-columns: minmax(0, 1fr) 19rem;
-    gap: var(--space-10);
+    grid-template-columns: minmax(0, 1fr) 20rem;
+    gap: var(--space-8);
   }
 
-  /* Only the short reference column follows the reader. The rule and run
+  /* Only the short live column follows the reader. The rule and run
      pages' side column (.automation-side) is often taller than the window,
      and a sticky column that tall hides its end until the page ends. */
   .automations-aside {
@@ -35,14 +37,16 @@
 
 .automations-section {
   display: grid;
-  gap: var(--space-4);
+  gap: var(--space-3);
   min-width: 0;
 }
 
 .automations-section-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-2) var(--space-3);
+  min-height: 2rem;
   min-width: 0;
 }
 
@@ -67,15 +71,24 @@
   font-variant-numeric: tabular-nums;
 }
 
+.automations-count[data-tone='accent'] {
+  background: var(--accent-ink);
+  color: var(--surface);
+}
+
 .automations-section-action {
   margin-left: auto;
 }
 
-.automations-empty {
-  width: 100%;
-  padding-block: var(--space-6);
-  border: 1px dashed var(--line-strong);
-  border-radius: var(--radius-lg);
+.automations-section-action svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.automations-filter-count {
+  margin-left: var(--hair-30);
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
 }
 
 .automation-meta {
@@ -86,32 +99,105 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* The page state when everything is paused: quiet, inside the page, with
-   the one consequence that matters. */
-.automations-paused {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-3);
-  margin: 0;
-  padding: var(--space-3) var(--space-4);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
+/* A run's or a rule's state as a dot; the words beside it stay ink. */
+.automation-dot {
+  flex-shrink: 0;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--faint);
+}
+
+.automation-dot[data-tone='success'] { background: var(--success); }
+.automation-dot[data-tone='warning'] { background: var(--warning); }
+.automation-dot[data-tone='danger'] { background: var(--danger); }
+.automation-dot[data-tone='accent'] { background: var(--accent); }
+
+.automation-dot[data-tone='muted'] {
+  border: 1px solid var(--line-control);
+  background: transparent;
+}
+
+/* ——— Status bar ———
+   The one switch that stops everything, with what the account is doing
+   right now. Paper surface; the glyph carries the state. */
+.automations-status {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-8);
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-xs);
+}
+
+.automations-status > .btn {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+
+@media (min-width: 640px) {
+  .automations-status {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .automations-status > .btn {
+    grid-column: auto;
+  }
+}
+
+.automations-status-mark {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
   background: var(--surface-sunken);
+  color: var(--success);
+}
+
+.automations-status-mark svg {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+.automations-status[data-state='paused'] .automations-status-mark {
+  color: var(--warning);
+}
+
+.automations-status[data-state='loading'] .automations-status-mark {
+  color: var(--faint);
+}
+
+.automations-status-copy {
+  display: grid;
+  gap: var(--hair-30);
+  min-width: 0;
+}
+
+.automations-status-title {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+  line-height: var(--leading-snug);
+}
+
+.automations-status-text {
+  max-width: var(--measure);
+  margin: 0;
   color: var(--ink-2);
   font-size: var(--text-sm);
   line-height: var(--leading-copy);
 }
 
-.automations-paused svg {
-  flex-shrink: 0;
-  width: 1.1rem;
-  height: 1.1rem;
-  margin-top: var(--hair-15);
-  color: var(--warning);
-}
-
 /* ——— The rule sentence ———
-   The owner's own values read as filled slots in the sentence. */
+   The owner's own values carry the weight; the connecting words stay
+   quiet. No chips: a sentence reads as a sentence. */
 .automation-sentence {
   margin: 0;
   color: var(--ink-2);
@@ -121,80 +207,117 @@
 }
 
 .automation-term {
-  padding: 0 var(--hair-20);
-  border-radius: var(--radius-xs);
-  background: var(--surface-sunken);
   color: var(--ink);
   font-weight: var(--weight-semibold);
-  box-decoration-break: clone;
 }
 
-/* ——— Rules ——— */
+/* ——— Rules ———
+   One surface; each rule a row: what it is and says, its state in a
+   column of its own, and the two things you do to it. */
 .automation-rules {
   display: grid;
-  gap: var(--space-3);
   margin: 0;
   padding: 0;
-  list-style: none;
-}
-
-.automation-rule {
-  display: grid;
-  gap: var(--space-3);
-  padding: var(--space-4) var(--space-5);
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-lg);
   background: var(--surface);
   box-shadow: var(--shadow-xs);
+  list-style: none;
 }
 
-.automation-rule-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2) var(--space-3);
+.automation-rules > li + li {
+  border-top: 1px solid var(--line);
+}
+
+.automation-rule {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'main state'
+    'actions actions';
+  align-items: start;
+  gap: var(--space-3) var(--space-4);
+  padding: var(--space-4) var(--space-5);
+}
+
+@media (min-width: 900px) {
+  /* Fixed state and action columns keep every row's badge in one line. */
+  .automation-rule {
+    grid-template-columns: minmax(0, 1fr) 7.5rem 12rem;
+    grid-template-areas: 'main state actions';
+    align-items: center;
+  }
+}
+
+.automation-rule-main {
+  grid-area: main;
+  display: grid;
+  gap: var(--hair-40);
   min-width: 0;
 }
 
-.automation-rule-head h3 {
+.automation-rule-name {
   margin: 0;
   min-width: 0;
   font-size: var(--text-md);
   font-weight: var(--weight-semibold);
   letter-spacing: var(--tracking-tight);
+  line-height: var(--leading-snug);
   overflow-wrap: anywhere;
 }
 
-.automation-rule-head h3 a {
+.automation-rule-name a {
   color: inherit;
   text-decoration: none;
 }
 
-.automation-rule-head h3 a:hover {
+.automation-rule-name a:hover {
   text-decoration: underline;
   text-underline-offset: 0.15em;
 }
 
-.automation-rule-foot {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2) var(--space-3);
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--line);
+.automation-rule .automation-rule-sentence {
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+}
+
+.automation-rule .automation-rule-sentence .automation-term {
+  color: var(--ink-2);
+  font-weight: var(--weight-medium);
+}
+
+.automation-rule .automation-meta {
+  font-size: var(--text-xs);
+}
+
+.automation-rule-state {
+  grid-area: state;
 }
 
 .automation-rule-actions {
+  grid-area: actions;
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
 }
 
+@media (min-width: 900px) {
+  .automation-rule-actions {
+    justify-content: flex-end;
+  }
+}
+
+/* A stopped rule steps back; its state badge still says why. */
+.automation-rule[data-state='draft'] .automation-rule-name,
+.automation-rule[data-state='paused'] .automation-rule-name {
+  color: var(--ink-2);
+}
+
 /* ——— Needs attention ———
    One bordered list; each notice is glyph, what happened, and its repair
-   actions. The glyph carries the tone; the surface stays paper. */
+   actions under it. The glyph carries the tone; the
+   surface stays paper. */
 .automation-notices {
   display: grid;
   margin: 0;
@@ -202,6 +325,7 @@
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-lg);
   background: var(--surface);
+  box-shadow: var(--shadow-xs);
   list-style: none;
 }
 
@@ -254,11 +378,6 @@
   overflow-wrap: anywhere;
 }
 
-.automation-notice-title .automation-term {
-  background: none;
-  padding: 0;
-}
-
 .automation-notice-text {
   margin: 0;
   color: var(--ink-2);
@@ -267,12 +386,15 @@
   overflow-wrap: anywhere;
 }
 
+.automation-notice .automation-meta {
+  font-size: var(--text-xs);
+}
+
 .automation-notice-actions {
   grid-column: 1 / -1;
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
-  padding-top: var(--space-1);
 }
 
 @media (min-width: 640px) {
@@ -281,57 +403,185 @@
   }
 }
 
-/* ——— How rules work ——— */
-.automations-aside {
+/* ——— Recent activity ———
+   The live column: the latest runs, a dot for each state, words only when
+   a run is not simply done. */
+.automation-activity {
   display: grid;
-  gap: var(--space-4);
-  padding: var(--space-5);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
+  gap: var(--space-3);
+  min-width: 0;
 }
 
-.automations-aside h2 {
+.automation-activity-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: 2rem;
+}
+
+.automation-activity-head h2 {
   margin: 0;
-  font-size: var(--text-md);
+  font-size: var(--text-lg);
   font-weight: var(--weight-semibold);
   letter-spacing: var(--tracking-tight);
 }
 
-.automations-rules-of-thumb {
+.automation-activity-more {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  text-decoration: none;
+}
+
+.automation-activity-more:hover {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.automation-activity-list {
   display: grid;
-  gap: var(--space-4);
+  margin: 0;
+  padding: var(--space-1) var(--space-4);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  list-style: none;
+}
+
+.automation-activity-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-3);
+  padding-block: var(--space-3);
+}
+
+.automation-activity-item + .automation-activity-item {
+  border-top: 1px solid var(--line);
+}
+
+.automation-activity-item .automation-dot {
+  margin-top: var(--hair-45);
+}
+
+.automation-activity-body {
+  display: grid;
+  gap: var(--hair-20);
+  min-width: 0;
+}
+
+.automation-activity-title {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-snug);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.automation-activity-title:hover {
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.automation-activity .automation-meta {
+  font-size: var(--text-xs);
+}
+
+.automation-activity-state[data-tone='warning'] { color: var(--warning); }
+.automation-activity-state[data-tone='danger'] { color: var(--danger); }
+.automation-activity-state[data-tone='accent'] { color: var(--accent-ink); }
+
+.automation-activity-skeleton {
+  height: 2.5rem;
+  margin-block: var(--space-2);
+  border-radius: var(--radius);
+  background: var(--surface-sunken);
+}
+
+.automation-activity-empty {
+  margin: 0;
+  padding: var(--space-4);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-lg);
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-copy);
+}
+
+/* ——— First rule ———
+   The empty page introduces the feature: the two ways in, then the four
+   promises every rule keeps. */
+.automations-onboarding {
+  display: grid;
+  gap: var(--space-6);
+}
+
+.automations-empty {
+  width: 100%;
+  padding-block: var(--space-8);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-lg);
+}
+
+.automations-promises {
+  display: grid;
+  gap: var(--space-5);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.automations-rules-of-thumb li {
-  display: grid;
-  grid-template-columns: 1.1rem minmax(0, 1fr);
-  align-items: start;
-  gap: var(--space-3);
+@media (min-width: 640px) {
+  .automations-promises {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
-.automations-thumb-icon {
+@media (min-width: 1100px) {
+  .automations-promises {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.automations-promises li {
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+}
+
+.automations-promise-icon {
   display: grid;
   place-items: center;
-  height: 1.2rem;
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--radius);
+  background: var(--surface-sunken);
   color: var(--ink-2);
 }
 
-.automations-thumb-icon svg {
+.automations-promise-icon svg {
   width: 1.05rem;
   height: 1.05rem;
 }
 
-.automations-rules-of-thumb h3 {
-  margin: 0 0 var(--hair-20);
+.automations-promises h3 {
+  margin: 0;
   font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
   line-height: var(--leading-snug);
 }
 
-.automations-rules-of-thumb p {
+.automations-promises p {
   margin: 0;
   color: var(--muted);
   font-size: var(--text-sm);
