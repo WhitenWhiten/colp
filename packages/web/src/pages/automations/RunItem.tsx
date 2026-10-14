@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import type { AutomationRun } from '../../api/automationTypes'
-import { Icon } from '../../components/Icon'
 import { StatusBadge } from '../../components/StatusBadge'
 import { formatDateTime, formatRelative } from '../../lib/formatDate'
 import { RUN_KIND, RUN_STATUS, runExplanation } from './copy'
@@ -21,7 +20,7 @@ export function RunItem({
   const tone = RUN_STATUS[run.status]
   return (
     <li className="automation-history-item" data-run-id={run.id} data-status={run.status}>
-      <span className="automation-history-icon" aria-hidden><Icon name="bolt" /></span>
+      <span className="automation-dot" data-tone={tone.tone} aria-hidden />
       <div className="automation-history-body">
         <p className="automation-history-title">
           <Link to={runPath(run.id)}>{runExplanation(run.explanation) ?? RUN_KIND[run.kind]}</Link>
@@ -30,11 +29,12 @@ export function RunItem({
           {ruleName !== undefined && <>{ruleName ? <>Rule “{ruleName}”</> : 'A rule'}{' · '}</>}
           <time dateTime={run.createdAt} title={formatDateTime(run.createdAt)}>{formatRelative(run.createdAt)}</time>
           {run.kind !== 'intake' ? <> · {RUN_KIND[run.kind]}</> : null}
-          {' '}
-          <StatusBadge tone={tone.tone}>{tone.label}</StatusBadge>
-          {run.held ? <>{' '}<StatusBadge tone="warning">On hold</StatusBadge></> : null}
         </p>
         {children}
+      </div>
+      <div className="automation-history-state">
+        <StatusBadge tone={tone.tone}>{tone.label}</StatusBadge>
+        {run.held ? <StatusBadge tone="warning">On hold</StatusBadge> : null}
       </div>
     </li>
   )

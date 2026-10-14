@@ -7,7 +7,6 @@ import { LoadMoreButton } from '../../components/LoadMoreButton'
 import { PageHead } from '../../components/PageHead'
 import { PageShell } from '../../components/PageShell'
 import { RouteState } from '../../components/RouteState'
-import { StatusBadge } from '../../components/StatusBadge'
 import { classifyRouteError } from '../../lib/classifyRouteError'
 import { formatDate, formatDateTime } from '../../lib/formatDate'
 import { DEPENDENCY_STATUS, dependencyLabel, RULE_STATE_DETAIL } from './copy'
@@ -187,10 +186,17 @@ export function RuleDetail() {
         breadcrumb={<Breadcrumb items={[{ label: 'Automations', to: '/automations' }, { label: shown.definition.name }]} />}
         title={shown.definition.name}
         documentTitle={shown.definition.name}
-        lede={RULE_STATE_DETAIL[shown.effectiveState]}
+        afterTitle={(
+          <span className="automation-head-state">
+            <RuleStateBadge state={shown.effectiveState} />
+            <span>{RULE_STATE_DETAIL[shown.effectiveState]}</span>
+          </span>
+        )}
         actions={(
           <>
-            <RuleStateBadge state={shown.effectiveState} />
+            {shown.desiredState !== 'archived' && (
+              <Link className="btn btn-secondary" to={runOncePath(shown.id)} data-testid="automation-run-once-link">Run once</Link>
+            )}
             {shown.desiredState === 'enabled' ? (
               <button type="button" className="btn btn-secondary" disabled={busy !== null} onClick={() => void pause()}>
                 Pause
@@ -198,24 +204,20 @@ export function RuleDetail() {
             ) : shown.desiredState !== 'archived' ? (
               <Link className="btn btn-secondary" to={`${editHref}#preview`}>Preview and turn on</Link>
             ) : null}
-            {shown.desiredState !== 'archived' && (
-              <Link className="btn btn-secondary" to={runOncePath(shown.id)} data-testid="automation-run-once-link">Run once</Link>
-            )}
             {shown.desiredState !== 'archived' && <Link className="btn btn-primary" to={editHref}>Edit</Link>}
           </>
         )}
-      />
+      >
+        <RuleSentence
+          rule={shown}
+          collectionTitle={collection ?? null}
+          folder={folder}
+          className="automation-head-sentence"
+        />
+      </PageHead>
 
       <div className="automations-layout">
         <div className="automations-main">
-          <section className="automation-summary" aria-label="What this rule does">
-            <RuleSentence
-              rule={shown}
-              collectionTitle={collection ?? null}
-              folder={folder}
-            />
-          </section>
-
           <NeedsAttention
             incidents={openIncidents}
             decisions={[]}
@@ -260,10 +262,15 @@ export function RuleDetail() {
         </div>
 
         <div className="automation-side">
-          <UsagePanel usage={shown.usage} title="Work and allowance" headingId="automation-rule-usage" scope="rule" />
-
-          <section className="automation-panel" aria-labelledby="automation-rule-checks">
-            <h2 id="automation-rule-checks" className="automation-panel-title">What it relies on</h2>
+          <section className="automation-panel" aria-labelledby="automation-rule-about">
+            <h2 id="automation-rule-about" className="automation-panel-title">About this rule</h2>
+            <dl className="automation-facts">
+              <div><dt>Created</dt><dd><time dateTime={shown.createdAt} title={formatDateTime(shown.createdAt)}>{formatDate(shown.createdAt)}</time></dd></div>
+              <div><dt>Last changed</dt><dd><time dateTime={shown.updatedAt} title={formatDateTime(shown.updatedAt)}>{formatDate(shown.updatedAt)}</time></dd></div>
+              <div><dt>Priority</dt><dd>{shown.definition.priority}</dd></div>
+              <div><dt>Most runs a day</dt><dd>{shown.definition.policy.maxRunsPerDay}</dd></div>
+            </dl>
+            <h3 id="automation-rule-checks" className="automation-panel-subtitle">What it relies on</h3>
             {dependencies.state.status === 'loading' && <p className="automation-meta" role="status">Checking…</p>}
             {dependencies.state.status === 'error' && (
               <div className="automation-inline-error" role="alert">
@@ -272,18 +279,19 @@ export function RuleDetail() {
               </div>
             )}
             {dependencies.state.status === 'ready' && (
-              <ul className="automation-checks">
+              <ul className="automation-checks" aria-labelledby="automation-rule-checks">
                 {dependencyGroups(dependencies.state.data.dependencies).map((group) => {
                   const status = DEPENDENCY_STATUS[groupStatus(group)]
                   const named = group.kind === 'folder' && folder && group.items.some((item) => item.resourceId === destinationNode)
                   return (
                     <li key={group.key} data-kind={group.kind} data-status={groupStatus(group)}>
+                      <span className="automation-dot" data-tone={status.tone} aria-hidden />
                       <span className="automation-check-label">
                         {dependencyLabel(group.kind)}
                         {named ? <span className="automation-check-detail">{folder.path}</span> : null}
                         {group.items.length > 1 ? <span className="automation-check-detail">{group.items.length} checked</span> : null}
                       </span>
-                      <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
+                      <span className="automation-check-status" data-tone={status.tone}>{status.label}</span>
                     </li>
                   )
                 })}
@@ -291,12 +299,7 @@ export function RuleDetail() {
             )}
           </section>
 
-          <dl className="automation-facts" aria-label="About this rule">
-            <div><dt>Created</dt><dd><time dateTime={shown.createdAt} title={formatDateTime(shown.createdAt)}>{formatDate(shown.createdAt)}</time></dd></div>
-            <div><dt>Last changed</dt><dd><time dateTime={shown.updatedAt} title={formatDateTime(shown.updatedAt)}>{formatDate(shown.updatedAt)}</time></dd></div>
-            <div><dt>Priority</dt><dd>{shown.definition.priority}</dd></div>
-            <div><dt>Most runs a day</dt><dd>{shown.definition.policy.maxRunsPerDay}</dd></div>
-          </dl>
+          <UsagePanel usage={shown.usage} title="Work and allowance" headingId="automation-rule-usage" scope="rule" />
         </div>
       </div>
     </PageShell>

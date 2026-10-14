@@ -198,27 +198,30 @@ export function RunDetail() {
         eyebrow={`${RUN_KIND[shown.kind]} · ${formatDate(shown.createdAt)}`}
         title={RUN_HEADLINE[shown.status]}
         documentTitle={`Run of ${ruleName ?? 'a rule'}`}
-        lede={`${RUN_STATUS_DETAIL[shown.status]}${shown.held ? ' It is on hold and does not go on by itself.' : ''}`}
-        actions={(
-          <>
+        afterTitle={(
+          <span className="automation-head-state">
             <StatusBadge tone={status.tone} data-testid="automation-run-status">{status.label}</StatusBadge>
             {shown.held && <StatusBadge tone="warning">On hold</StatusBadge>}
-            {!finished && (
-              <button type="button" className="btn btn-secondary" disabled={busy !== null} onClick={() => void cancel()}>
-                Cancel remaining work
-              </button>
-            )}
-          </>
+            <span>{`${RUN_STATUS_DETAIL[shown.status]}${shown.held ? ' It is on hold and does not go on by itself.' : ''}`}</span>
+          </span>
         )}
+        actions={!finished ? (
+          <button type="button" className="btn btn-secondary" disabled={busy !== null} onClick={() => void cancel()}>
+            Cancel remaining work
+          </button>
+        ) : undefined}
       />
 
       <div className="automations-layout">
         <div className="automations-main">
           {explanation && (
-            <p className="automation-run-state" data-tone={status.tone} data-testid="automation-run-explanation">
-              <Icon name={STATE_ICON[status.tone]} />
-              <span>{explanation}</span>
-            </p>
+            <div className="automation-run-state" data-tone={status.tone}>
+              <span className="automation-run-state-icon" aria-hidden><Icon name={STATE_ICON[status.tone]} /></span>
+              <div>
+                <h2 className="automation-panel-title">What happened</h2>
+                <p data-testid="automation-run-explanation">{explanation}</p>
+              </div>
+            </div>
           )}
 
           {shown.outputCount > 0 && <RunOutputs run={shown} onRunChanged={run.reload} />}
@@ -275,19 +278,23 @@ export function RunDetail() {
         </div>
 
         <div className="automation-side">
+          <section className="automation-panel" aria-labelledby="automation-run-about">
+            <h2 id="automation-run-about" className="automation-panel-title">About this run</h2>
+            <dl className="automation-facts">
+              <div><dt>Rule</dt><dd><Link to={rulePath(shown.ruleId)}>{ruleName ?? 'Open rule'}</Link></dd></div>
+              <div><dt>Kind</dt><dd>{RUN_KIND[shown.kind]}</dd></div>
+              <div><dt>Started</dt><dd><time dateTime={shown.createdAt} title={formatDateTime(shown.createdAt)}>{formatDateTime(shown.createdAt)}</time></dd></div>
+              <div><dt>Last change</dt><dd><time dateTime={shown.updatedAt} title={formatDateTime(shown.updatedAt)}>{formatRelative(shown.updatedAt)}</time></dd></div>
+              <div><dt>Rule version</dt><dd>{shown.ruleRevision}</dd></div>
+            </dl>
+            <p className="automation-meta">
+              A run keeps the rule as it was when it started, so later edits don’t change it.
+            </p>
+          </section>
           {/* Without the server's counts there is nothing true to say here; the steps are listed beside it. */}
           {shown.usage && (
             <UsagePanel usage={shown.usage} title="This run’s work" headingId="automation-run-usage" scope="run" />
           )}
-          <dl className="automation-facts" aria-label="About this run">
-            <div><dt>Rule</dt><dd><Link to={rulePath(shown.ruleId)}>{ruleName ?? 'Open rule'}</Link></dd></div>
-            <div><dt>Started</dt><dd><time dateTime={shown.createdAt} title={formatDateTime(shown.createdAt)}>{formatDateTime(shown.createdAt)}</time></dd></div>
-            <div><dt>Last change</dt><dd><time dateTime={shown.updatedAt} title={formatDateTime(shown.updatedAt)}>{formatRelative(shown.updatedAt)}</time></dd></div>
-            <div><dt>Rule version</dt><dd>{shown.ruleRevision}</dd></div>
-          </dl>
-          <p className="automation-meta">
-            A run keeps the rule as it was when it started, so later edits don’t change it.
-          </p>
         </div>
       </div>
     </PageShell>
