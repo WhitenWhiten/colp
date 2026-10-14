@@ -58,6 +58,9 @@ export function installStub(messages) {
       'known.sync.save-context.v1': signedOut ? undefined : { collectionId: 'col-reading', parentNativeId: longPath ? 'f-long2' : 'f-seo' },
       'known.sync.folder.v1': signedOut ? { collectionId: 'device', folderNativeId: 'f-seo' } : undefined,
       'known.save.folder.recent.v1': { ids: ['f-seo', 'f-prog'] },
+      // A rule filed a page starred with the browser's star button (AW-20); the popup shows it once opened.
+      ...(has('observed') ? { 'known.save.feedback.v1': { code: 'saved', entry: 'page', nativeId: 'n-9', updatedAt: now,
+        message: 'Moved “Attention Is All You Need” to Academic by rule “arXiv papers”.' } } : {}),
     } : {}),
   };
   const sessionStore = signedOut ? {} : { 'known.auth.credential.v1': { subject: 'subject-example' } };
@@ -68,6 +71,10 @@ export function installStub(messages) {
     return Object.fromEntries(Object.entries(key).map(([k, d]) => [k, store[k] === undefined ? d : store[k]]));
   };
   const bag = () => ({ addListener() {}, removeListener() {}, hasListener: () => false });
+  // Messages the worker would broadcast (a rule's notice): shots fire them through window.__workerMessage.
+  const listeners = new Set();
+  const workerMessages = { addListener: (fn) => listeners.add(fn), removeListener: (fn) => listeners.delete(fn), hasListener: (fn) => listeners.has(fn) };
+  window.__workerMessage = (message) => { for (const fn of listeners) fn(message, { id: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' }, () => {}); };
   const area = (store) => ({
     get: async (k) => pick(store, k),
     set: async (o) => { Object.assign(store, o); },
@@ -420,7 +427,7 @@ export function installStub(messages) {
   window.chrome = {
     runtime: { id: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', getURL: (p) => `chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/${p}`,
       getManifest: () => ({ version: '0.1.0', name: 'Know-N' }),
-      sendMessage: (m) => respond(m), onMessage: bag(), onInstalled: bag(), onStartup: bag(),
+      sendMessage: (m) => respond(m), onMessage: workerMessages, onInstalled: bag(), onStartup: bag(),
       openOptionsPage: async () => {}, lastError: null },
     storage: { local: area(localStore), session: area(sessionStore), sync: area({}), managed: area({}), onChanged: bag() },
     permissions: { contains: async () => !has('perm', 'noperm'), request: async () => true, remove: async () => true, onAdded: bag(), onRemoved: bag() },

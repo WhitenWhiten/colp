@@ -72,6 +72,9 @@ const STATES = [
   ['manual-saving', 'options.html?shot=manual#saving'],
   ...['paused', 'expired', 'none', 'off', 'rejected', 'missing', 'empty'].map((name) => [`automations-${name}`, `options.html?shot=auto-${name}#automations`]),
   ['manual-ai', 'options.html?shot=manual#ai'],
+  // A rule filed a page starred in the browser while Know-N was in front (AW-20).
+  ['automations-notice', 'options.html#automations', (p) => p.evaluate(() => window.__workerMessage({ kind: 'known.automation.notice',
+    text: 'Moved “Attention Is All You Need” to Academic by rule “arXiv papers”.', attention: false }))],
 ];
 
 // ---- library pages: Bookmarks, History, Subscriptions, Sync, their dialogs and wizard steps -----------------------------
@@ -301,6 +304,7 @@ for (const width of widths) {
   await popup('rule-blocked-saved', 'manual,ruleblocked', saveNow);
   await popup('auto-rule', 'autorule');
   await popup('auto-rule-blocked', 'autoruleblocked');
+  await popup('rule-observed', 'manual,observed');
   await popup('stuck', 'manual,stuck');
   // Automatic capture result card
   await popup('auto', 'auto');

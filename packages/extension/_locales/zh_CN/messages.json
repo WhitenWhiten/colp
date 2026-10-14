@@ -167,6 +167,10 @@
     "message": "无法读取此浏览器中的自动化。请重新加载页面后再试。",
     "description": "Couldn’t read automations in this browser. Reload the page to try again."
   },
+  "automation_movedByRule": {
+    "message": "已按规则“$3”将“$1”移到 $2。",
+    "description": "Moved “$1” to $2 by rule “$3”."
+  },
   "automation_noRulesHint": {
     "message": "在网页上打开一个文件夹并选择“自动化…”，即可把某个网站的页面自动放到那里。",
     "description": "On the web, open a folder and choose Automate… to file pages from a site there."

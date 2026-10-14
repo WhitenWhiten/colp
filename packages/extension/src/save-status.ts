@@ -73,6 +73,13 @@ export function automationSaveLine(automation: CaptureAutomation | undefined): {
   }
 }
 
+/** The notice for a bookmark created outside Know-N (star button): a placement is a move, so it says so. */
+export function observedSaveLine(automation: CaptureAutomation, title: string): { readonly text: string; readonly attention: boolean } | null {
+  if (automation.outcome !== 'placed') return automationSaveLine(automation);
+  const short = title.length > 60 ? `${title.slice(0, 59).trimEnd()}…` : title;
+  return { attention: false, text: t('automation_movedByRule', 'Moved “$1” to $2 by rule “$3”.', short, automation.folderTitle ?? '', automation.rule.name) };
+}
+
 export function mappingLooksAuthoritative(mapping: {
   readonly colpId: string; readonly projection: { readonly revision: string };
 } | null | undefined): boolean {

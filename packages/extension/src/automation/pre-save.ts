@@ -1,4 +1,4 @@
-import { normalizeUrl, type EventFacts, type PlacementIntent } from '@know-n/colp/automation';
+import { normalizeUrl, type EventFacts, type FolderRef, type PlacementIntent } from '@know-n/colp/automation';
 import type { CaptureAutomation } from '../capture/contracts.js';
 import { canonicalLocation, projectRule, type CanonicalLocation, type ProjectionDeps } from './binding-projector.js';
 import { bundleState, type BundleRecord } from './bundle-store.js';
@@ -29,6 +29,8 @@ export interface PreSaveDecision {
   readonly automation: CaptureAutomation;
   /** The rule's folder in this browser; only a placement has one. */
   readonly targetNativeId: string | null;
+  /** The canonical folder the save would otherwise be in, when it belongs to the collection. */
+  readonly parent?: FolderRef;
 }
 
 export function preSaveFacts(page: Pick<PreSaveInput, 'url' | 'title'>, collectionId: string, location: CanonicalLocation,
@@ -72,7 +74,8 @@ export async function decidePreSave(context: { readonly record: BundleRecord; re
     ...(placement.kind === 'place' ? { destination: { ...placement.folder.folder }, folderTitle: placement.folder.title } : {}),
     fromNativeId: input.parentNativeId, collectionId: scope.collectionId, replicaId: scope.replicaId, generation: scope.generation,
   };
-  return { automation, targetNativeId: outcome === 'placed' && placement.kind === 'place' ? placement.folder.nativeId : null };
+  return { automation, targetNativeId: outcome === 'placed' && placement.kind === 'place' ? placement.folder.nativeId : null,
+    ...(location.parent ? { parent: location.parent } : {}) };
 }
 
 /** A placement that could not use the rule's folder after all (it turned out unavailable for saving) is blocked. */

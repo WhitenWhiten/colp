@@ -131,6 +131,9 @@
   "automation_loadFailed": {
     "message": "Couldn’t read automations in this browser. Reload the page to try again."
   },
+  "automation_movedByRule": {
+    "message": "Moved “$1” to $2 by rule “$3”."
+  },
   "automation_noRulesHint": {
     "message": "On the web, open a folder and choose Automate… to file pages from a site there."
   },

@@ -18,6 +18,7 @@ import { currentSyncScope } from './scope.js';
 import { createBookmarkCreatePlacementStore } from '../bookmark-create-placement.js';
 import { configuredPersonalSyncPolicy } from '../personal-sync-fetch.js';
 import { collectAnnotationGarbage, retainRemovedAnnotations, restoreCreatedAnnotations } from './bookmark-annotations.js';
+import { observeCreatedBookmark, observeRemovedBookmark } from './automation-observed.js';
 
 export const bookmarkListenerLifecycle = createBookmarkListenerLifecycle({
   bookmarks: () => typeof chrome.bookmarks === 'undefined' ? undefined : chrome.bookmarks,
@@ -45,7 +46,10 @@ function scheduleBookmarkRecovery(): void {
 
 async function captureBookmarkEvent(event: BookmarkCaptureEvent): Promise<BookmarkCaptureDisposition> {
   // Notes and tags are profile-local, so they follow the bookmark whether or not it is synced or mounted.
-  if (event.kind === 'removed') await retainRemovedAnnotations(event).catch(() => undefined);
+  if (event.kind === 'removed') {
+    await retainRemovedAnnotations(event).catch(() => undefined);
+    await observeRemovedBookmark(event.removal).catch(() => undefined);
+  }
   if (await subscriptionEvent(event)) return 'filtered';
   if (event.kind === 'created') await restoreCreatedAnnotations(event.node).catch(() => undefined);
   const advancedCaptured = await workCoordinator.run('bookmark', async () => {
@@ -63,7 +67,10 @@ async function captureBookmarkEvent(event: BookmarkCaptureEvent): Promise<Bookma
       sw.bookmarkEventQueue = undefined;
       return Promise.reject(new Error('fault_injected'));
     }
-    return scheduleBookmarkEvent((queue) => queue.created(event.nativeId, event.node));
+    const outcome = await scheduleBookmarkEvent((queue) => queue.created(event.nativeId, event.node));
+    // Rules may file a bookmark created outside Know-N (the star button) once it settles.
+    void observeCreatedBookmark(event.nativeId, event.node).catch(() => undefined);
+    return outcome;
   }
   if (event.kind === 'changed') return scheduleBookmarkEvent((queue) => queue.changed(event.nativeId, event.changes, 'callback'), true);
   if (event.kind === 'moved') return scheduleBookmarkEvent((queue) => queue.moved(event.nativeId, event.move), true);

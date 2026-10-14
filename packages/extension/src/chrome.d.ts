@@ -83,6 +83,9 @@ declare namespace chrome {
         node?: BookmarkTreeNode }) => void): boolean };
     const onChildrenReordered: { addListener(callback: (id: string, reorderInfo: { childIds: string[] }) => void): void;
       hasListener(callback: (id: string, reorderInfo: { childIds: string[] }) => void): boolean };
+    /** The browser's own bookmark import (absent on some platforms). */
+    const onImportBegan: { addListener(callback: () => void): void } | undefined;
+    const onImportEnded: { addListener(callback: () => void): void } | undefined;
   }
   namespace permissions {
     function contains(permissions: { permissions?: string[]; origins?: string[] }): Promise<boolean>;

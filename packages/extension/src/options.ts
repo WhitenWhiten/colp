@@ -71,6 +71,14 @@ const panes: Record<HubPane, HTMLElement> = {
 };
 bindCaptureSyncNavigation(panes.sync);
 const automations = bindAutomationsPane(panes.automations);
+// A rule filed a bookmark starred in the browser: this page says so while it is in front.
+chrome.runtime.onMessage.addListener((message: unknown) => {
+  const notice = message as { readonly kind?: unknown; readonly text?: unknown; readonly attention?: unknown } | null;
+  if (notice?.kind === 'known.automation.notice' && typeof notice.text === 'string' && document.visibilityState === 'visible') {
+    showToast(notice.text, notice.attention === true ? 'info' : 'ok', { announce: true });
+  }
+  return false;
+});
 const captureShell = createCaptureShell(document.querySelector<HTMLElement>('.main')!);
 const subscriptionsShell = createSubscriptionsShell(document.querySelector<HTMLElement>('.main')!, hash => navigation.navigate(hash));
 const navigation = createOptionsRouter(panes, route => {

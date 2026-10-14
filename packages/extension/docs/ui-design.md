@@ -92,6 +92,9 @@ footer   quiet ghost actions left · one primary right
 - **Rule line:** after a save, one line says what the rules did. A placement shows "Rule “…”" as
   the status meta in the manual popup, or a calm note in the automatic result. A rule that matched
   but could not act (folder missing here, out of date, rules disagree) uses the warning alert.
+- **Star-button notice:** a page starred in the browser and filed by a rule gets one notice: the
+  toolbar tooltip and the popup's note line the next time it opens. An open Know-N page also shows
+  the web-style toast. The text is: Moved “…” to Academic by rule “…”.
 - **Footer by state:**
 
   | State | Left | Right |
