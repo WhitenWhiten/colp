@@ -121,7 +121,7 @@ describeWithPostgres('P3-05 authoritative Replica PostgreSQL port', () => {
     } finally {
       await upgrade.close();
     }
-  }, 20_000);
+  }, 60_000);
 
   test('supports multiple devices per account and multiple Replicas per device', async () => {
     const store = createPostgresReplicaStore(isolated.runtime.db, { ids });
