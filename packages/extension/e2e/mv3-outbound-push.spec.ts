@@ -143,19 +143,22 @@ test('real concurrent authority update yields durable Conflict and blocks later 
     expect(conflict.receipts[0].result.results[0]).toMatchObject({ status: 'conflicted' });
     expect(conflict.queue[0]).toMatchObject({ status: 'blocked', recovery: { code: 'conflict_pending' } });
     const requestCount = ((await stack.observations() as any).pushRequests as unknown[]).length;
-    // The second native update must be captured as exactly one new pending change.
-    // Two things are filtered out: events that were merely in flight when this
-    // snapshot was taken (the conflicted one is still transitioning), and the
-    // `native-barrier:` rows, which are the barrier lane's own record of native
-    // content observed while a pull applied (src/pull-native-content-barrier.ts).
+    // The second native update must be captured as new pending work for this
+    // bookmark. Events merely in flight when this snapshot was taken (the
+    // conflicted one is still transitioning) are filtered out. The capture can
+    // land in either lane: the listener's own row, or a `native-barrier:` row
+    // when a pull applies first (src/pull-native-content-barrier.ts), which
+    // moves the projection so the listener then sees no change. Both may exist.
     const pendingBefore = new Set((await evidence<any>(page, 'exportOutboundPushEvidence')).bookmarkEvents
       .filter((event: any) => event.status === 'pending').map((event: any) => event.eventId));
     await page.evaluate((id) => chrome.bookmarks.update(id, { title: 'Must remain behind conflict' }), bookmark.id);
-    await expect.poll(async () => (await evidence<any>(page, 'exportOutboundPushEvidence')).bookmarkEvents
-      .filter((event: any) => event.status === 'pending'
-        && !String(event.eventId).startsWith('native-barrier:')
-        && !pendingBefore.has(event.eventId))
-      .map((event: any) => event.nativeId), { timeout: 15_000 }).toEqual([bookmark.id]);
+    await expect.poll(async () => {
+      const added = (await evidence<any>(page, 'exportOutboundPushEvidence')).bookmarkEvents
+        .filter((event: any) => event.status === 'pending' && !pendingBefore.has(event.eventId));
+      return { nativeIds: [...new Set(added.map((event: any) => event.nativeId))],
+        listenerRows: added.filter((event: any) => !String(event.eventId).startsWith('native-barrier:')).length <= 1,
+        captured: added.some((event: any) => event.details?.draft?.payload?.value?.title === 'Must remain behind conflict') };
+    }, { timeout: 15_000 }).toEqual({ nativeIds: [bookmark.id], listenerRows: true, captured: true });
     await Promise.all([evidence(page, 'duplicateAlarm'), evidence(page, 'wakeOutboundPushEvidence')]);
     const barrier = await evidence<any>(page, 'exportOutboundPushEvidence');
     const observed = await stack.observations() as any;
