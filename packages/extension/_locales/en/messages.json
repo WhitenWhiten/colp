@@ -122,6 +122,30 @@
   "automation_checking": {
     "message": "Checking…"
   },
+  "automation_condAnd": {
+    "message": " and "
+  },
+  "automation_condAny": {
+    "message": "Matches its conditions"
+  },
+  "automation_condHasTag": {
+    "message": "Tagged $1"
+  },
+  "automation_condOr": {
+    "message": " or "
+  },
+  "automation_condPathStartsWith": {
+    "message": "Path starts with $1"
+  },
+  "automation_condSiteEndsWith": {
+    "message": "From $1 or a subdomain"
+  },
+  "automation_condSiteIs": {
+    "message": "From $1"
+  },
+  "automation_condTitleContains": {
+    "message": "Title has “$1”"
+  },
   "automation_digestAsOf": {
     "message": "as of $1"
   },
@@ -224,6 +248,15 @@
   "automation_newResults_other": {
     "message": "$1 new results from your automations"
   },
+  "automation_newRule": {
+    "message": "New rule"
+  },
+  "automation_noPlacementsHint": {
+    "message": "When a rule files a bookmark you save in this browser, it shows up here."
+  },
+  "automation_noPlacementsTitle": {
+    "message": "Nothing filed here yet"
+  },
   "automation_noRulesHint": {
     "message": "On the web, open a folder and choose Automate… to file pages from a site there."
   },
@@ -242,20 +275,23 @@
   "automation_noticeRejected": {
     "message": "The server sent rules this browser can’t use. The previous rules stay in force."
   },
-  "automation_onServer": {
-    "message": "On your server"
-  },
   "automation_onServerLede": {
     "message": "Work your server does after a bookmark syncs. Filing in this browser never waits for it."
-  },
-  "automation_onThisBrowser": {
-    "message": "On this browser"
   },
   "automation_openWeb": {
     "message": "Open Automations"
   },
   "automation_pane": {
     "message": "Automations"
+  },
+  "automation_pauseAll": {
+    "message": "Pause all automations"
+  },
+  "automation_pauseHint": {
+    "message": "You pause and resume on the web. This browser follows at its next check, within 5 minutes."
+  },
+  "automation_pauseOnWeb": {
+    "message": "Pause on the web"
   },
   "automation_pausedByYouOn": {
     "message": "Paused by you on $1. Bookmarks keep the folder you save them to."
@@ -284,11 +320,17 @@
   "automation_placementWaiting": {
     "message": "Waiting for sync"
   },
-  "automation_recentPlacements": {
-    "message": "Recent placements"
+  "automation_recentActivity": {
+    "message": "Recent activity"
   },
   "automation_recentPlacementsLede": {
     "message": "Filed in this browser. The server confirms each one after it syncs."
+  },
+  "automation_resumeAll": {
+    "message": "Resume automations"
+  },
+  "automation_resumeOnWeb": {
+    "message": "Resume on the web"
   },
   "automation_ruleArchived": {
     "message": "Archived"
@@ -302,11 +344,11 @@
   "automation_ruleDraft": {
     "message": "Draft"
   },
-  "automation_ruleFilesTo": {
-    "message": "Files into $1"
-  },
   "automation_ruleFolderMissing": {
     "message": "Its folder isn’t in this browser’s synced folders, so the rule waits."
+  },
+  "automation_ruleFolderNotHere": {
+    "message": "a folder not synced here"
   },
   "automation_ruleFolderUnavailable": {
     "message": "Rule “$1” matched, but its folder isn’t in this browser, so the page stayed where you saved it."
@@ -335,14 +377,14 @@
   "automation_ruleNotChecked": {
     "message": "Rule “$1” couldn’t be checked, so the page stayed where you saved it."
   },
+  "automation_ruleOpenWeb": {
+    "message": "Open this rule on the web to change it"
+  },
   "automation_rulePaused": {
     "message": "Paused"
   },
   "automation_ruleServerOnly": {
     "message": "Works on your server; nothing to file here."
-  },
-  "automation_ruleUpdates": {
-    "message": "Rule updates"
   },
   "automation_ruleWaiting": {
     "message": "Waiting"
@@ -353,8 +395,8 @@
   "automation_rulesDisagree": {
     "message": "Rules chose different folders for this page, so it stayed where you saved it."
   },
-  "automation_rulesLede": {
-    "message": "A folder you pick yourself always wins over a rule."
+  "automation_rulesLedeOpen": {
+    "message": "A folder you pick yourself always wins over a rule. Open a rule to change it on the web."
   },
   "automation_rulesOutOfDateSaved": {
     "message": "Rules are out of date; connect to refresh. The page stayed where you saved it."
@@ -452,41 +494,44 @@
   "automation_signInTitle": {
     "message": "Sign in to use automations"
   },
-  "automation_status": {
-    "message": "Status"
-  },
   "automation_statusNoneHint": {
     "message": "No rules have reached this browser yet."
   },
-  "automation_statusNotSetUp": {
-    "message": "Not set up"
+  "automation_statusNotSetUpTitle": {
+    "message": "No rules here yet"
   },
-  "automation_statusOn": {
-    "message": "On"
-  },
-  "automation_statusOnHint": {
-    "message": "Bookmarks you save go straight to the folder a rule picks, even offline."
+  "automation_statusOffTitle": {
+    "message": "Automations are off on this server"
   },
   "automation_statusOnNoRulesHint": {
     "message": "None of your rules file bookmarks in this browser yet."
   },
-  "automation_statusOnRules_one": {
-    "message": "On · $1 rule"
+  "automation_statusOnRulesHint_one": {
+    "message": "$1 rule files bookmarks you save in this browser, even offline."
   },
-  "automation_statusOnRules_other": {
-    "message": "On · $1 rules"
+  "automation_statusOnRulesHint_other": {
+    "message": "$1 rules file bookmarks you save in this browser, even offline."
   },
-  "automation_statusOutOfDate": {
-    "message": "Out of date"
+  "automation_statusOnTitle": {
+    "message": "Automations are on"
   },
   "automation_statusOutOfDateHint": {
     "message": "Rules are out of date; connect to refresh. Saving still works, at the folder you choose."
   },
-  "automation_statusPaused": {
-    "message": "Paused"
+  "automation_statusOutOfDateTitle": {
+    "message": "Rules are out of date"
+  },
+  "automation_statusPausedTitle": {
+    "message": "All automations are paused"
   },
   "automation_statusUnavailableHint": {
     "message": "Automations aren’t turned on for this server."
+  },
+  "automation_tabBrowser": {
+    "message": "This browser"
+  },
+  "automation_tabServer": {
+    "message": "Your server"
   },
   "automation_updatedAt": {
     "message": "Updated $1."

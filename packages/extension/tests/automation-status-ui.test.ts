@@ -87,8 +87,10 @@ describe('freshness', () => {
 
 describe('Options › Automations with the server’s status', () => {
   const view = (over: Partial<AutomationStateView> = {}): AutomationStateView => ({ account: 'signedIn', state: 'active', webUrl: 'https://colp.example/automations',
-    rules: [{ id: 'rule-arxiv', name: 'arXiv papers', folder: 'Academic', resolved: true }],
-    placements: [{ id: 'p1', title: 'A paper', host: 'arxiv.org', ruleName: 'arXiv papers', folder: 'Academic', at: NOW - 60_000, path: 'preSave', state: 'confirmed' }],
+    rules: [{ id: 'rule-arxiv', name: 'arXiv papers', folder: 'Academic', resolved: true,
+      match: { combinator: 'all', conditions: [{ kind: 'siteIs', value: 'arxiv.org' }] } }],
+    placements: [{ id: 'p1', title: 'A paper', host: 'arxiv.org', url: 'https://arxiv.org/abs/1', ruleName: 'arXiv papers', folder: 'Academic',
+      at: NOW - 60_000, path: 'preSave', state: 'confirmed' }],
     pausedAt: null, pausedBy: null, expiresAt: NOW + 86_400_000, lastRefreshAt: NOW - 60_000, problem: null,
     server: server({ rules: [{ id: 'rule-arxiv', name: 'arXiv papers', state: 'degraded', inBrowser: true, waiting: 3, held: null, approvals: null, cost: null },
       { id: 'rule-digest', name: 'Weekly digest', state: 'active', inBrowser: false, waiting: 0, held: 0, approvals: 0, cost: 'Billed by your agent' },
@@ -97,7 +99,7 @@ describe('Options › Automations with the server’s status', () => {
 
   async function render(state: AutomationStateView): Promise<HTMLElement> {
     document.body.innerHTML = '<section><a data-automations-web hidden></a><div data-automations-body></div></section>';
-    vi.stubGlobal('chrome', { runtime: { sendMessage: vi.fn(async () => ({ ok: true, state })) },
+    vi.stubGlobal('chrome', { runtime: { sendMessage: vi.fn(async () => ({ ok: true, state })), getURL: (path: string) => `chrome-extension://known${path}` },
       storage: { onChanged: { addListener: vi.fn() } } });
     bindAutomationsPane(document.querySelector('section')!).activate();
     await vi.waitFor(() => expect(document.querySelector('[data-automations-body]')!.children.length).toBeGreaterThan(0));
@@ -115,11 +117,52 @@ describe('Options › Automations with the server’s status', () => {
     expect(text(runs.querySelector('.automation-freshness'))).toBe('Updated 1 minute ago.');
   });
 
-  it('adds the server’s view of each rule, and rules that only work on the server', async () => {
+  it('says each rule in the web’s words and opens it on the web, with rules that only work on the server', async () => {
     const rules = (await render(view())).querySelector('[aria-labelledby="automation-rules-heading"]')!;
-    const rows = Array.from(rules.querySelectorAll('.list-row')).map(text);
-    expect(rows).toEqual(['arXiv papers Files into Academic 3 jobs waiting for an agent On, with problems',
-      'Weekly digest Works on your server; nothing to file here. Billed by your agent']);
+    const rows = Array.from(rules.querySelectorAll<HTMLAnchorElement>('a.list-row'));
+    expect(rows.map((row) => row.href)).toEqual(['https://colp.example/automations/rules/rule-arxiv', 'https://colp.example/automations/rules/rule-digest']);
+    expect(rows.map((row) => row.target)).toEqual(['_blank', '_blank']);
+    expect(Array.from(rows[0]!.querySelectorAll('.automation-recipe span')).map((part) => part.textContent)).toEqual(['From arxiv.org', 'Academic']);
+    expect(text(rows[0]!.querySelector('.list-row-meta + .list-row-meta'))).toBe('3 jobs waiting for an agent');
+    expect(text(rows[0]!.querySelector('.badge'))).toBe('On, with problems');
+    expect(text(rows[1]!)).toBe('Weekly digest Works on your server; nothing to file here. Billed by your agent');
+  });
+
+  it('joins a rule’s conditions the way the rule does, and says so when they have no short form', async () => {
+    const recipe = async (match: AutomationStateView['rules'][number]['match']) => {
+      const body = await render(view({ rules: [{ ...view().rules[0]!, match }] }));
+      return body.querySelector('.automation-recipe span')!.textContent;
+    };
+    expect(await recipe({ combinator: 'any', conditions: [{ kind: 'siteEndsWith', value: 'github.com' }, { kind: 'hasTag', value: 'code' }] }))
+      .toBe('From github.com or a subdomain or tagged code');
+    expect(await recipe({ combinator: 'all', conditions: [{ kind: 'titleContains', value: 'Paper' }, { kind: 'pathStartsWith', value: '/abs/' }] }))
+      .toBe('Title has “Paper” and path starts with /abs/');
+    expect(await recipe(null)).toBe('Matches its conditions');
+  });
+
+  it('sends the account-wide pause to the web, where the server takes it', async () => {
+    const on = await render(view());
+    const pause = on.querySelector('.automation-status .set-row')!;
+    expect(text(pause.querySelector('.set-row-title'))).toBe('Pause all automations');
+    expect(pause.querySelector<HTMLAnchorElement>('a.btn')!.href).toBe('https://colp.example/automations');
+    const paused = await render(view({ state: 'paused', rules: [], pausedAt: NOW - 86_400_000, pausedBy: 'owner' }));
+    expect(text(paused.querySelector('.automation-status-title'))).toBe('All automations are paused');
+    expect(text(paused.querySelector('.automation-status .set-row a.btn'))).toBe('Resume on the web');
+    // A server without automations has nothing to pause.
+    const off = await render(view({ state: 'none', rules: [], problem: 'unavailable', server: null }));
+    expect(off.querySelector('.automation-status .set-row')).toBeNull();
+  });
+
+  it('switches recent activity between this browser and the server, one panel at a time', async () => {
+    const body = await render(view());
+    const tabs = Array.from(body.querySelectorAll<HTMLButtonElement>('[role="tab"]'));
+    expect(tabs.map((tab) => [text(tab), tab.getAttribute('aria-selected')])).toEqual([['This browser1', 'true'], ['Your server2', 'false']]);
+    const panel = (id: string) => body.querySelector<HTMLElement>(`[role="tabpanel"][aria-labelledby="${id}"]`)!;
+    expect([panel('automation-placements-heading').hidden, panel('automation-server-heading').hidden]).toEqual([false, true]);
+    tabs[1]!.click();
+    const next = document.querySelector('[data-automations-body]')!;
+    expect(next.querySelector('#automation-server-heading')!.getAttribute('aria-selected')).toBe('true');
+    expect(next.querySelector<HTMLElement>('[role="tabpanel"][aria-labelledby="automation-server-heading"]')!.hidden).toBe(false);
   });
 
   it('asks for a web sign-in when the server can’t be read with one, and leaves the rest of the page as it is', async () => {
@@ -139,9 +182,11 @@ describe('Options › Automations with the server’s status', () => {
 
   it('says plainly when no rule files bookmarks here, and has no offline copy to promise before the first bundle', async () => {
     const on = await render(view({ rules: [] }));
-    expect(text(on.querySelector('.set-row'))).toBe('Status None of your rules file bookmarks in this browser yet. On');
+    expect(text(on.querySelector('.automation-status-title'))).toBe('Automations are on');
+    expect(text(on.querySelector('.automation-status-hint'))).toBe('None of your rules file bookmarks in this browser yet.');
     const none = await render(view({ state: 'none', rules: [], expiresAt: null, lastRefreshAt: null }));
-    expect(text(none.querySelectorAll('.set-row')[1]!)).toBe('Rule updates This browser checks for rules every 5 minutes. Check now');
+    expect(text(none.querySelector('.automation-status-fresh'))).toBe('This browser checks for rules every 5 minutes.');
+    expect(text(none.querySelector('.automation-status-main > .btn'))).toBe('Check now');
   });
 
   it('keeps showing the last runs with their age while the server is unreachable, and hides the section without server automations', async () => {

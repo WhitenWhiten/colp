@@ -5,6 +5,7 @@ import { projectRule, type ProjectionDeps } from '../automation/binding-projecto
 import { automationOwnerKey, bundleState, createBundleStore, refreshDue, type AutomationOwner, type BundleRecord,
   type RefreshProblem } from '../automation/bundle-store.js';
 import { ruleCollectionId } from '../automation/runtime-profile.js';
+import { ruleMatchView } from '../automation/rule-match.js';
 import { createReceiptStore, newPlacementReceipt, settled, syncReceipts, type PlacementReceipt } from '../automation/receipt-sync.js';
 import { syncReceiptEvidence } from '../automation/receipt-evidence.js';
 import { decidePreSave, type PreSaveDecision, type PreSaveInput } from '../automation/pre-save.js';
@@ -227,7 +228,7 @@ async function ruleViews(record: BundleRecord): Promise<AutomationRuleView[]> {
     const local = deps && scope && ruleCollectionId(rule) === scope.collectionId ? await projectRule(rule, scope.collectionId, deps) : null;
     const destination = local?.folders[intake];
     views.push({ id: rule.ruleId, name: rule.definition.name, resolved: destination?.status === 'resolved',
-      folder: destination?.status === 'resolved' ? destination.title : null });
+      folder: destination?.status === 'resolved' ? destination.title : null, match: ruleMatchView(rule.definition.match) });
   }
   return views;
 }
@@ -240,7 +241,7 @@ async function placementViews(ownerKey: string): Promise<AutomationPlacementView
   return receipts.map((receipt) => {
     let host = '';
     try { host = new URL(receipt.page.url).hostname; } catch { /* the title stands alone */ }
-    return { id: receipt.localReceiptId, title: receipt.page.title, host, ruleName: receipt.rule.name, folder: receipt.destinationTitle,
+    return { id: receipt.localReceiptId, title: receipt.page.title, host, url: receipt.page.url, ruleName: receipt.rule.name, folder: receipt.destinationTitle,
       at: receipt.createdAt, path: receipt.path, state: PLACEMENT_STATE[receipt.state] };
   });
 }

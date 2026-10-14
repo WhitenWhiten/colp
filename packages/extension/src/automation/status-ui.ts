@@ -1,4 +1,4 @@
-import { createIcon } from '../icons.js';
+import { createIcon, type IconName } from '../icons.js';
 import { el } from '../library-dom.js';
 import { t, tn } from '../i18n.js';
 import { when } from '../subscriptions-ui/dom.js';
@@ -97,13 +97,27 @@ export function runTitle(run: Pick<AutomationRunView, 'explanation' | 'kind'>): 
   return text;
 }
 
+/** The glyph for a run's state; the tile colours only problems, like the badge. */
+const RUN_GLYPH: Record<AutomationRunView['status'], [IconName, Tone]> = {
+  waiting: ['clock', undefined],
+  running: ['play', undefined],
+  review: ['alert', 'warning'],
+  completed: ['check', undefined],
+  partial: ['alert', 'warning'],
+  blocked: ['alert', 'danger'],
+  cancelled: ['cross', undefined],
+  failed: ['alert', 'danger'],
+};
+
 /** A run as one row: what it did, which rule and when, its state; the row opens the run on the web. */
 export function runRow(run: AutomationRunView): HTMLElement {
   const item = el('li');
   const link = el('a', undefined, 'list-row automation-run');
   link.href = run.url; link.target = '_blank'; link.rel = 'noreferrer';
   link.dataset.runId = run.id; link.dataset.status = run.status;
-  const tile = el('span', undefined, 'favicon-tile'); tile.append(createIcon('play', 16));
+  const [glyph, tone] = RUN_GLYPH[run.status];
+  const tile = el('span', undefined, 'favicon-tile automation-run-glyph'); tile.append(createIcon(glyph, 16));
+  if (tone) tile.dataset.tone = tone;
   const main = el('div', undefined, 'list-row-main');
   const title = el('p', runTitle(run), 'list-row-title'); title.title = run.explanation ?? title.textContent ?? '';
   const meta = el('p', undefined, 'list-row-meta');

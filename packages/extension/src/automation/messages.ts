@@ -1,4 +1,5 @@
 import type { DigestIndicator } from './digest-indicator.js';
+import type { RuleMatchView } from './rule-match.js';
 
 /**
  * Page ↔ worker messages for automations: the Options page's state and refresh,
@@ -49,6 +50,8 @@ export interface AutomationRuleView {
   /** The destination's title in this browser, when it is mapped here. */
   readonly folder: string | null;
   readonly resolved: boolean;
+  /** Its conditions in the web editor's shapes; null when they have no short form. */
+  readonly match: RuleMatchView | null;
 }
 
 /** A receipt as the page shows it: placement happened here; the server's answer is the rest. */
@@ -56,6 +59,8 @@ export interface AutomationPlacementView {
   readonly id: string;
   readonly title: string;
   readonly host: string;
+  /** The saved page, for its favicon. */
+  readonly url: string;
   readonly ruleName: string;
   readonly folder: string;
   readonly at: number;

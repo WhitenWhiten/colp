@@ -409,11 +409,12 @@ export function installStub(messages) {
       case 'known.automation.state': case 'known.automation.refresh': {
         const state = has('auto-paused') ? 'paused' : has('auto-expired') ? 'expired' : has('auto-none', 'auto-off') ? 'none' : 'active';
         const rules = state !== 'active' || has('auto-empty') ? [] : [
-          { id: 'r1', name: 'arXiv papers', folder: 'Academic', resolved: true },
-          { id: 'r2', name: 'GitHub repositories to Programming', folder: 'Programming', resolved: true },
-          { id: 'r3', name: 'Recipes from my favourite food sites', folder: null, resolved: !has('auto-missing') }];
+          { id: 'r1', name: 'arXiv papers', folder: 'Academic', resolved: true, match: { combinator: 'all', conditions: [{ kind: 'siteIs', value: 'arxiv.org' }] } },
+          { id: 'r2', name: 'GitHub repositories to Programming', folder: 'Programming', resolved: true, match: { combinator: 'all', conditions: [{ kind: 'siteEndsWith', value: 'github.com' }] } },
+          { id: 'r3', name: 'Recipes from my favourite food sites', folder: null, resolved: !has('auto-missing'),
+            match: { combinator: 'any', conditions: [{ kind: 'siteIs', value: 'bbcgoodfood.com' }, { kind: 'hasTag', value: 'recipe' }] } }];
         if (rules[2] && rules[2].resolved) rules[2].folder = 'Cooking';
-        const placement = (id, title, url, ruleName, folder, ago, placementState, path = 'preSave') => ({ id, title, host: new URL(url).hostname, ruleName, folder, at: now - ago, path, state: placementState });
+        const placement = (id, title, url, ruleName, folder, ago, placementState, path = 'preSave') => ({ id, title, host: new URL(url).hostname, url, ruleName, folder, at: now - ago, path, state: placementState });
         const placements = has('auto-none', 'auto-off', 'auto-empty') || signedOut ? [] : [
           placement('p1', 'Attention Is All You Need', 'https://arxiv.org/abs/1706.03762', 'arXiv papers', 'Academic', 40e3, 'waitingForSync'),
           placement('p2', 'facebook/react: The library for web and native user interfaces', 'https://github.com/facebook/react', 'GitHub repositories to Programming', 'Programming', 25 * 60e3, 'confirmed', 'observed'),
