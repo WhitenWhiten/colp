@@ -270,7 +270,7 @@ function WorkerCard({
   }
 
   return (
-    <article className="agent-card" data-target-id={target.id} data-readiness={target.wakeReadiness} aria-labelledby={`worker-${target.id}`}>
+    <article className="agent-card agents-worker" data-target-id={target.id} data-readiness={target.wakeReadiness} aria-labelledby={`worker-${target.id}`}>
       <header className="agent-card-head">
         <span className="agent-card-icon" aria-hidden><Icon name="bolt" /></span>
         <div className="agent-card-title">
@@ -280,7 +280,14 @@ function WorkerCard({
             {profileName ? <> · through {profileName}</> : null}
           </p>
         </div>
-        <StatusBadge tone={readiness.tone} className="agents-worker-badge" data-testid="worker-readiness">{readiness.label}</StatusBadge>
+        <div className="agents-worker-head-end">
+          <StatusBadge tone={readiness.tone} data-testid="worker-readiness">{readiness.label}</StatusBadge>
+          {!revoked && (
+            <button type="button" className="btn btn-danger-ghost btn-sm" disabled={busy} onClick={() => void revoke()}>
+              Revoke
+            </button>
+          )}
+        </div>
       </header>
 
       <p className="agents-worker-reason" data-testid="worker-reason">{readinessReason(target.wakeReason)}</p>
@@ -307,7 +314,7 @@ function WorkerCard({
         />
       )}
 
-      {!revoked && (
+      {!revoked && ((unpaired && !grant) || target.wakeReadiness === 'blocked' || target.wakeMode === 'events' || workers.data.eventsEnabled) && (
         <div className="agent-card-foot agents-worker-actions">
           {unpaired && !grant && (
             <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={() => void pair(false)}>
@@ -329,9 +336,6 @@ function WorkerCard({
               {target.wakeMode === 'poll' ? 'Use events instead' : 'Check for work instead'}
             </button>
           )}
-          <button type="button" className="btn btn-danger-ghost btn-sm" disabled={busy} onClick={() => void revoke()}>
-            Revoke
-          </button>
         </div>
       )}
     </article>
@@ -549,7 +553,7 @@ export function AutomationWorkersSection({
       )}
 
       {active.length > 0 && (
-        <ul className="agents-list">
+        <ul className="agents-list agents-worker-list">
           {active.map((target) => (
             <li key={target.id}>
               <WorkerCard
