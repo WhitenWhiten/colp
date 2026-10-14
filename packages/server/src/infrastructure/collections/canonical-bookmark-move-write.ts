@@ -5,7 +5,7 @@ import { appendOperationsWithPayload } from '../database/operation-payload-store
 import { appendAuditEvents } from '../database/audit-event-payload.js';
 import { assertNodeWriteResult, assertCollectionReadBack } from './canonical-mutation-postgres-ports.js';
 import type { BookmarkMovePlan, PlannedBookmarkMove } from './canonical-bookmark-move-plan.js';
-import { bookmarkMoveOutbox } from './canonical-bookmark-move-outbox.js';
+import { bookmarkMoveOutbox, appendBookmarkMoveOutbox } from './canonical-bookmark-move-outbox.js';
 
 export type BookmarkBatchFactWriter = (tx: DatabaseTransaction, moves: readonly PlannedBookmarkMove[]) => Promise<void>;
 
@@ -15,7 +15,9 @@ export async function writeBookmarkMoves(tx: DatabaseTransaction, plan: Bookmark
   const ids = [...moves.flatMap(m => [{ resource_id: m.input.operationId, resource_type: 'operation' },
     { resource_id: m.event.domainEventId, resource_type: 'domain-event' }]),
   ...outbox.map(row => ({ resource_id: row.outbox_id as string, resource_type: 'outbox' }))];
-  await tx.insertInto('resource_id_ledger').values(ids).execute();
+  await sql`INSERT INTO resource_id_ledger(resource_id,resource_type)
+    SELECT resource_id,resource_type FROM jsonb_to_recordset(${JSON.stringify(ids)}::jsonb)
+      AS i(resource_id text,resource_type text)`.execute(tx);
   const changed = plan.changed.map(row => ({ id: row.id, parent_id: row.parent_id, position_token: row.position_token,
     resource_revision: row.resource_revision, children_revision: row.children_revision, payload_json: row.payload_json }));
   const updated = await sql<{ id: string }>`UPDATE nodes n SET parent_id=i.parent_id, position_token=i.position_token,
@@ -31,12 +33,22 @@ export async function writeBookmarkMoves(tx: DatabaseTransaction, plan: Bookmark
   if (collectionWrite.numUpdatedRows !== 1n)
     throw new CanonicalMutationInvariantError('resource_field_authority_violation', 'bookmark batch lost its collection');
 
-  await tx.insertInto('resource_revisions').values(moves.map(m => ({ collection_id: c.id, resource_id: m.after.id,
-    revision: m.after.resource_revision, ordinal: m.result.allocation.commitOrdinal, created_at: now }))).execute();
-  await tx.insertInto('content_revisions').values(moves.map(m => ({ collection_id: c.id,
-    revision: m.result.allocation.contentRevision!, ordinal: m.result.allocation.commitOrdinal, created_at: now }))).execute();
-  await tx.insertInto('children_revisions').values(moves.flatMap(m => Object.entries(m.result.allocation.childrenRevisions)
-    .map(([id, revision]) => ({ collection_id: c.id, parent_id: id, revision, ordinal: m.result.allocation.commitOrdinal })))).execute();
+  const revisions = moves.map(m => ({ id: m.after.id, resource_revision: m.after.resource_revision,
+    content_revision: m.result.allocation.contentRevision!, ordinal: m.result.allocation.commitOrdinal.toString() }));
+  const parents = moves.flatMap(m => Object.entries(m.result.allocation.childrenRevisions)
+    .map(([id, revision]) => ({ id, revision, ordinal: m.result.allocation.commitOrdinal.toString() })));
+  await sql`WITH supplied AS (
+      SELECT * FROM jsonb_to_recordset(${JSON.stringify(revisions)}::jsonb)
+        AS i(id text,resource_revision text,content_revision text,ordinal bigint)
+    ), resources AS (
+      INSERT INTO resource_revisions(collection_id,resource_id,revision,ordinal,created_at)
+      SELECT ${c.id},id,resource_revision,ordinal,${now} FROM supplied
+    ), content AS (
+      INSERT INTO content_revisions(collection_id,revision,ordinal,created_at)
+      SELECT ${c.id},content_revision,ordinal,${now} FROM supplied
+    ) INSERT INTO children_revisions(collection_id,parent_id,revision,ordinal)
+      SELECT ${c.id},id,revision,ordinal FROM jsonb_to_recordset(${JSON.stringify(parents)}::jsonb)
+        AS i(id text,revision text,ordinal bigint)`.execute(tx);
   // Read actual rows after all resource/revision writes, including triggers, and
   // validate before producing any immutable history, facts or delivery evidence.
   const readBack = await tx.selectFrom('nodes').selectAll().where('collection_id', '=', c.id)
@@ -48,10 +60,13 @@ export async function writeBookmarkMoves(tx: DatabaseTransaction, plan: Bookmark
     assertNodeWriteResult(stored, row.payload_json as JsonObject, row);
   }
   await assertCollectionReadBack(tx, c.id, c.payload_json as JsonObject, c);
-  await tx.insertInto('sync_node_revision_history').values(moves.map(m => ({ collection_id: c.id,
-    resource_id: m.after.id, revision: m.after.resource_revision, kind: m.after.kind,
-    payload_json: actual.get(m.after.id)!.payload_json!, commit_ordinal: m.result.allocation.commitOrdinal,
-    operation_id: m.input.operationId, recorded_at: now }))).execute();
+  const history = moves.map(m => ({ id: m.after.id, revision: m.after.resource_revision, kind: m.after.kind,
+    payload: actual.get(m.after.id)!.payload_json!, ordinal: m.result.allocation.commitOrdinal.toString(), operation_id: m.input.operationId }));
+  await sql`INSERT INTO sync_node_revision_history
+    (collection_id,resource_id,revision,kind,payload_json,commit_ordinal,operation_id,recorded_at)
+    SELECT ${c.id},id,revision,kind,payload,ordinal,operation_id,${now}
+    FROM jsonb_to_recordset(${JSON.stringify(history)}::jsonb)
+      AS i(id text,revision text,kind text,payload jsonb,ordinal bigint,operation_id text)`.execute(tx);
   await appendOperationsWithPayload(tx, moves.map(m => ({ operationId: m.input.operationId, collectionId: c.id,
     commitOrdinal: m.result.allocation.commitOrdinal, operationType: m.operation.operationType,
     payloadJson: m.operation.canonicalPayload, actorPrincipalId: m.input.actor.principalId, createdAt: now })));
@@ -61,6 +76,5 @@ export async function writeBookmarkMoves(tx: DatabaseTransaction, plan: Bookmark
   await appendAuditEvents(tx, moves.map(m => ({ operationId: m.input.operationId, collectionId: c.id,
     principalId: m.input.actor.principalId, eventType: m.operation.operationType, details: m.operation.canonicalPayload, createdAt: now })));
   await captureFacts?.(tx, moves);
-  for (let offset = 0; offset < outbox.length; offset += 512)
-    await tx.insertInto('outbox_events').values(outbox.slice(offset, offset + 512)).execute();
+  await appendBookmarkMoveOutbox(tx, outbox);
 }
