@@ -1,3 +1,4 @@
+import { jsonArrayFrom, jsonObjectFrom } from 'kysely/helpers/postgres';
 import {
   CanonicalMutationInvariantError,
   COLLECTION_UPDATED_EVENT_TYPE,
@@ -44,19 +45,6 @@ function invariant(message: string): never {
   throw new CanonicalMutationInvariantError('invalid_canonical_mutation', message);
 }
 
-async function revisionForParent(
-  tx: DatabaseTransaction,
-  collectionId: string,
-  parentId: string,
-  ordinal: bigint,
-): Promise<string> {
-  const row = await tx.selectFrom('children_revisions').select('revision')
-    .where('collection_id', '=', collectionId).where('parent_id', '=', parentId)
-    .where('ordinal', '=', ordinal).executeTakeFirst();
-  if (!row) invariant(`children revision evidence is missing for parent ${parentId}`);
-  return row.revision;
-}
-
 export async function routeCanonicalDomainEvent(
   tx: DatabaseTransaction,
   event: {
@@ -69,7 +57,19 @@ export async function routeCanonicalDomainEvent(
 ): Promise<RoutedCanonicalEvent> {
   const action = event.payload.action;
   const resourceKind = event.payload.resourceKind;
-  const collection = await tx.selectFrom('collections').selectAll()
+  const childrenOf = (event.payload.revisionEffects as JsonObject | undefined)?.childrenOf;
+  const parentIds = Array.isArray(childrenOf) ? childrenOf.filter((id): id is string => typeof id === 'string') : [];
+  const collection = await tx.selectFrom('collections').select([
+    'id', 'published_at', 'publication_slug', 'visibility', 'content_revision',
+    'policy_revision', 'resource_revision', 'summary', 'title',
+  ])
+    .select(eb => [
+      jsonObjectFrom(eb.selectFrom('nodes').select(['id', 'kind', 'parent_id', 'resource_revision'])
+        .where('collection_id', '=', event.collectionId).where('id', '=', event.aggregateId)).as('node'),
+      jsonArrayFrom(eb.selectFrom('children_revisions').select(['parent_id', 'revision'])
+        .where('collection_id', '=', event.collectionId).where('ordinal', '=', event.commitOrdinal)
+        .$if(parentIds.length > 0, query => query.where('parent_id', 'in', parentIds))).as('parents'),
+    ])
     .where('id', '=', event.collectionId).executeTakeFirst();
   if (!collection) invariant('collection disappeared before outbox append');
   const publicationPurge = collection.published_at !== null && collection.publication_slug !== null
@@ -101,9 +101,12 @@ export async function routeCanonicalDomainEvent(
   if (resourceKind !== 'node' || !['create', 'update', 'move', 'delete', 'restore'].includes(String(action))) {
     invariant(`canonical outbox has no production route for ${String(resourceKind)}.${String(action)}`);
   }
-  const node = await tx.selectFrom('nodes').selectAll()
-    .where('collection_id', '=', event.collectionId).where('id', '=', event.aggregateId)
-    .executeTakeFirst();
+  const node = collection.node;
+  const revisionForParent = (parentId: string): string => {
+    const row = collection.parents.find(row => row.parent_id === parentId);
+    if (!row) invariant(`children revision evidence is missing for parent ${parentId}`);
+    return row.revision;
+  };
   if (!node) invariant('node disappeared before outbox append');
   const common = {
     collectionId: event.collectionId,
@@ -123,7 +126,7 @@ export async function routeCanonicalDomainEvent(
       publicationPurge,
       payload: {
         ...common,
-        parentChildrenRevision: await revisionForParent(tx, event.collectionId, node.parent_id, event.commitOrdinal),
+        parentChildrenRevision: revisionForParent(node.parent_id),
         parentId: node.parent_id,
         resourceRevision: node.resource_revision,
       },
@@ -155,9 +158,9 @@ export async function routeCanonicalDomainEvent(
       payload: {
         ...common,
         resourceRevision: node.resource_revision,
-        sourceChildrenRevision: await revisionForParent(tx, event.collectionId, sourceParentId, event.commitOrdinal),
+        sourceChildrenRevision: revisionForParent(sourceParentId),
         sourceParentId,
-        targetChildrenRevision: await revisionForParent(tx, event.collectionId, node.parent_id, event.commitOrdinal),
+        targetChildrenRevision: revisionForParent(node.parent_id),
         targetParentId: node.parent_id,
       },
     };
@@ -191,7 +194,7 @@ export async function routeCanonicalDomainEvent(
     payload: {
       affectedCount: affectedResourceIds.length,
       ...common,
-      parentChildrenRevision: await revisionForParent(tx, event.collectionId, node.parent_id, event.commitOrdinal),
+      parentChildrenRevision: revisionForParent(node.parent_id),
       parentId: node.parent_id,
       scope,
     },

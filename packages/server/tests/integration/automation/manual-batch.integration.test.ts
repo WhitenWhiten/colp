@@ -22,7 +22,7 @@ describeWithPostgres('Atomic manual placement batches', () => {
     const uow = createAutomationUnitOfWork(f.db.withPlugin(plugin), 'server', { runtimeEnabled: true });
     const started = await uow.execute(f.owner, ports => ports.runOnce!.start(f.rule.id, { previewId: p.id, previewDigest: p.previewDigest }));
     expect(started.childRunIds).toHaveLength(20);
-    expect(queries).toBeLessThan(950); // Baseline: 1,197, including per-member capacity admission.
+    expect(queries).toBeLessThan(800); // Previous batch adapter: 928; retain every operation's evidence.
     expect(await f.db.selectFrom('nodes').select('id').where('parent_id', '=', 'academic').execute()).toHaveLength(20);
     await f.db.transaction().execute(async tx => {
       expect((await sql`SELECT node_id FROM canonical_tree_capacity_dirty WHERE collection_id='collection'`.execute(tx)).rows).toEqual([]);
@@ -34,6 +34,20 @@ describeWithPostgres('Atomic manual placement batches', () => {
       expect(replayed).toEqual(effects.map(e => ({ id: e.id, inserted: false })));
       expect((await sql`SELECT id,run_id,operation_id,effect_digest FROM automation_effect_receipts ORDER BY id`.execute(tx)).rows).toEqual(effects);
     });
+  });
+
+  test('a suppressed parent write rolls back the complete manual move', async () => {
+    f = await automationRuntimeFixture('manual_parent_rollback', true);
+    const p = await preview();
+    const before = await f.db.selectFrom('nodes').selectAll().orderBy('id').execute();
+    await sql`CREATE FUNCTION suppress_batch_parent() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN IF NEW.id='academic' THEN RETURN NULL; END IF; RETURN NEW; END $$`.execute(f.db);
+    await sql`CREATE TRIGGER suppress_batch_parent BEFORE UPDATE ON nodes FOR EACH ROW EXECUTE FUNCTION suppress_batch_parent()`.execute(f.db);
+    await expect(f.uow.execute(f.owner, ports => ports.runOnce!.start(f.rule.id, { previewId: p.id, previewDigest: p.previewDigest })))
+      .rejects.toMatchObject({ code: 'resource_field_authority_violation' });
+    expect(await f.db.selectFrom('nodes').selectAll().orderBy('id').execute()).toEqual(before);
+    expect((await sql`SELECT id FROM automation_runs`.execute(f.db)).rows).toEqual([]);
+    expect((await sql`SELECT id FROM automation_effect_receipts`.execute(f.db)).rows).toEqual([]);
   });
 
   test('a failed receipt insert rolls back every move, run, reservation and outbox event', async () => {

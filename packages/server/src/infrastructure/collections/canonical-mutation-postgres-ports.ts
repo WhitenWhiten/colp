@@ -1,3 +1,4 @@
+import { appendRevisions } from './canonical-revisions.js';
 import { appendAutomationIngest } from '../outbox/automation-ingest.js';
 import { planAutomationFacts, captureAutomationFacts, automationCaptureEnabled } from '../automation/fact-capture.js';
 import { resourceKind, type ResourceKind, postgresPlanFacts, type PostgresCanonicalPlanFacts, type CascadedAnnotationRow, type CascadedRelationRow, type CascadedAnnotationPlan, type CascadedRelationPlan } from './canonical-execution-plan.js';
@@ -1020,30 +1021,31 @@ export function createPostgresCanonicalMutationPorts(
             payload_authority_status: 'backfilled',
           });
         }
-        for (const [parentId, revision] of Object.entries(allocation.childrenRevisions)) {
-          const parent = await loadNode(tx, mutation.target.collectionId, parentId);
+        const parentIds = Object.keys(allocation.childrenRevisions);
+        const parents = parentIds.length ? await tx.selectFrom('nodes').selectAll()
+          .where('collection_id', '=', mutation.target.collectionId).where('id', 'in', parentIds).execute() : [];
+        const parentWrites = parentIds.map(parentId => {
+          const parent = parents.find(row => row.id === parentId);
           if (!parent || parent.deleted_at !== null) invariant('parent disappeared while collection was locked');
-          const intendedParent: NodeRow = {
-            ...parent,
-            children_revision: revision,
-            updated_at: now,
-            payload_schema_version: RESOURCE_PAYLOAD_SCHEMA_VERSION,
-            payload_authority_status: 'backfilled',
+          const intended: NodeRow = {
+            ...parent, children_revision: allocation.childrenRevisions[parentId]!, updated_at: now,
+            payload_schema_version: RESOURCE_PAYLOAD_SCHEMA_VERSION, payload_authority_status: 'backfilled',
           };
-          const parentPayload = assertMaterialized('node', parent.id,
-            materializeNodePayload(nodeProjection(intendedParent)), existingExtensions(parent.payload_json),
+          const payload = assertMaterialized('node', parent.id,
+            materializeNodePayload(nodeProjection(intended)), existingExtensions(parent.payload_json),
             existingNodePayloadFields(parent.payload_json));
-          const result = await tx.updateTable('nodes').set({
-            children_revision: revision,
-            updated_at: now,
-            payload_json: parentPayload as Record<string, unknown>,
-            payload_schema_version: RESOURCE_PAYLOAD_SCHEMA_VERSION,
-            payload_authority_status: 'backfilled',
-          })
-            .where('collection_id', '=', mutation.target.collectionId).where('id', '=', parent.id)
-            .where('deleted_at', 'is', null).executeTakeFirst();
-          assertExactlyOneUpdated(result, `canonical parent revision write for ${parent.id}`);
-          await assertNodeReadBack(tx, parent.id, parentPayload, intendedParent);
+          return { intended, payload };
+        });
+        if (parentWrites.length) {
+          const result = await sql<{ id: string }>`UPDATE nodes n SET
+            children_revision=p.children_revision, updated_at=${now}, payload_json=p.payload_json,
+            payload_schema_version=${RESOURCE_PAYLOAD_SCHEMA_VERSION}, payload_authority_status='backfilled'
+            FROM jsonb_to_recordset(${JSON.stringify(parentWrites.map(({ intended, payload }) => ({
+              id: intended.id, children_revision: intended.children_revision, payload_json: payload,
+            })))}::jsonb) AS p(id text, children_revision text, payload_json jsonb)
+            WHERE n.collection_id=${mutation.target.collectionId} AND n.id=p.id AND n.deleted_at IS NULL
+            RETURNING n.id`.execute(tx);
+          if (result.rows.length !== parentWrites.length) invariant('canonical parent revision write lost a row', true);
         }
         const collection = await loadCollection(tx, mutation.target.collectionId);
         if (!collection) invariant('collection disappeared while locked');
@@ -1076,7 +1078,15 @@ export function createPostgresCanonicalMutationPorts(
             ? nodePayloadFields(mutation.fields!.kindFields)
             : nodePayloadFields(effectiveKindFields ?? mutation.fields?.kindFields, current?.payload_json),
         );
-        await assertNodeReadBack(tx, updated.id, expected, updated);
+        // Read after all writes, including AFTER triggers; RETURNING alone is not
+        // sufficient authority evidence. Validate every parent and the target.
+        const readBack = await tx.selectFrom('nodes').selectAll()
+          .where('collection_id', '=', mutation.target.collectionId).where('id', 'in', [updated.id, ...parentIds]).execute();
+        for (const { intended, payload } of [...parentWrites, { intended: updated, payload: expected }]) {
+          const row = readBack.find(row => row.id === intended.id);
+          if (!row) invariant('node read-back failed', true);
+          assertNodeWriteResult(row, payload, intended);
+        }
         if (!mutation.deletePlan) {
           await options.faultInjector?.afterPhase?.({ phase: 'resource', resourceId: updated.id });
         }
@@ -1456,8 +1466,10 @@ export function createPostgresCanonicalMutationPorts(
           relations = Object.freeze(relationSidecars.map(row => Object.freeze({ ...row, revision: generateRevisionToken(), deletedAt: (row as CascadedRelationRow & { planned_deleted_at: Date }).planned_deleted_at })));
           if (current?.parent_id) children.add(current.parent_id);
         }
+        const parentRows = children.size ? await tx.selectFrom('nodes').selectAll()
+          .where('collection_id', '=', input.collectionId).where('id', 'in', [...children]).execute() : [];
         for (const parentId of children) {
-          const parent = await loadNode(tx, input.collectionId, parentId);
+          const parent = parentRows.find(row => row.id === parentId);
           if (!parent || parent.deleted_at !== null || parent.kind !== 'folder') {
             invariant(`affected parent ${parentId} is missing or invalid`);
           }
@@ -1710,36 +1722,6 @@ export function createPostgresCanonicalMutationPorts(
       : (options.treeCapacityAdmission?.execute ?? withCanonicalTreeCapacity)(tx, write.mutation.target.collectionId, () => ports.resources.applyCanonicalMutation(tx, write)),
   } };
 
-}
-
-async function appendRevisions(
-  tx: DatabaseTransaction,
-  collectionId: string,
-  resourceId: string,
-  allocation: { resourceRevision?: string; createdNodeChildrenRevision?: string; contentRevision?: string; policyRevision?: string; childrenRevisions: Readonly<Record<string, string>>; commitOrdinal: bigint },
-  now: Date,
-  recordCreatedNodeChildrenRevision = false,
-  skipResourceRevision = false,
-): Promise<void> {
-  if (allocation.resourceRevision && !skipResourceRevision) await tx.insertInto('resource_revisions').values({
-    collection_id: collectionId, resource_id: resourceId, revision: allocation.resourceRevision,
-    ordinal: allocation.commitOrdinal, created_at: now,
-  }).execute();
-  if (allocation.contentRevision) await tx.insertInto('content_revisions').values({
-    collection_id: collectionId, revision: allocation.contentRevision, ordinal: allocation.commitOrdinal, created_at: now,
-  }).execute();
-  if (allocation.policyRevision) await tx.insertInto('policy_revisions').values({
-    collection_id: collectionId, revision: allocation.policyRevision, ordinal: allocation.commitOrdinal, created_at: now,
-  }).execute();
-  if (recordCreatedNodeChildrenRevision && allocation.createdNodeChildrenRevision) await tx.insertInto('children_revisions').values({
-    collection_id: collectionId, parent_id: resourceId,
-    revision: allocation.createdNodeChildrenRevision, ordinal: allocation.commitOrdinal,
-  }).execute();
-  for (const [parentId, revision] of Object.entries(allocation.childrenRevisions)) {
-    await tx.insertInto('children_revisions').values({
-      collection_id: collectionId, parent_id: parentId, revision, ordinal: allocation.commitOrdinal,
-    }).execute();
-  }
 }
 
 async function assertCollectionReadBack(
