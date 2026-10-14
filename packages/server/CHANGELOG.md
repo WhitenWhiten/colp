@@ -89,6 +89,30 @@ Migration `202610290100_link_preview_object_bytes` adds the preview byte table. 
 
 Migration `202610260000_mcp_plan_receipt_owner_approval` widens a check constraint and runs at start. Rolling back past it deletes owner-approved Undo receipts (their saved versions stay in History). Scripts that treated a 404 from `/api/v1/auth/key-token` as "bad key" should also accept 401.
 
+## [0.1.0-rc.5]
+
+### Added
+
+- Automations file new bookmarks into folders by Owner rules. The web app has an Automations page, a rule editor with side-effect-free preview, Run once with an explicit start, rule and run pages showing waiting work and the remaining allowance, Digests with an Unread filter, and per-bookmark run history. Automation plans appear in Approvals with effect-specific Undo.
+- Agents can opt in as automation workers from the Agents page, pair with scoped targets and take jobs from an authenticated queue, either by polling or through MCP Events wake-ups delivered as signed HTTPS callbacks. Rules support explicit execution policies and optional daily work budgets.
+- The self-hosted preset turns Automation on (`KNOWN_FEATURE_AUTOMATION_RULES`, `_CAPTURE`, `_ADMISSION`, `_WORK`, `KNOWN_FEATURE_MCP_WRITE` and `KNOWN_FEATURE_MCP_EVENTS`). Set any of these to `false` in `.env` to turn that stage off; each later stage requires the earlier ones.
+
+### Changed
+
+- The server depends on the published `@know-n/colp` 0.2.0 and uses its approval interactions directly; the image no longer copies a vendored build.
+- Bulk canonical writes and large manual runs are batched and committed in resumable chunks.
+- Dependency security patches for the server runtime and web app; Vitest coverage is migrated.
+
+### Fixed
+
+- Navigating settings keeps pending approvals in view, and the OAuth consent page no longer issues settings queries.
+
+### Upgrade notes
+
+From 0.1.0-rc.4, update the checkout and `deploy/` files from the same revision (`.env.example`, `INSTALL.md` and `restore.sh` changed), set `COLP_IMAGE_TAG=0.1.0-rc.5`, and recreate the server. Additive Automation migrations `202610300100` through `202610310800` run at startup.
+
+With Events on and `AUTOMATION_WEBHOOK_MASTER_KEY` empty, the callback-signing key is derived from `COLP_SERVER_SECRET`; a set key must be canonical base64 of 32 bytes, or startup fails. `deploy/restore.sh` now pauses Automation after a restore, marks leased external attempts uncertain and requires event subscriptions to revalidate. The final 0.1.0 release has not been accepted.
+
 ## [0.1.0-rc.4]
 
 ### Added
