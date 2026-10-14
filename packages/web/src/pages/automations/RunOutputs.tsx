@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { AutomationEvidence, AutomationRun, AutomationRunOutput } from '../../api/automationTypes'
 import { ProductApiError } from '../../api/errors'
+import { Icon } from '../../components/Icon'
 import { LoadMoreButton } from '../../components/LoadMoreButton'
 import { RouteState } from '../../components/RouteState'
 import { StatusBadge } from '../../components/StatusBadge'
@@ -54,11 +55,14 @@ function OutputCard({ output, worker }: { output: AutomationRunOutput; worker: s
       <div className="automation-output-text" lang={language} data-testid="automation-output-text">{text}</div>
       {evidence.length > 0 && (
         <details className="automation-output-sources">
-          <summary>{evidence.length === 1 ? '1 source' : `${evidence.length} sources`}</summary>
+          <summary>
+            <Icon name="chevron-right" className="automation-disclosure-chevron" />
+            {evidence.length === 1 ? '1 source' : `${evidence.length} sources`}
+          </summary>
           <ul>
             {evidence.map((item, index) => (
               <li key={`${item.reference}-${index}`}>
-                <span>{EVIDENCE_KIND[item.kind]}</span>
+                <span className="automation-source-kind">{EVIDENCE_KIND[item.kind]}</span>
                 <code>{item.reference}</code>
                 <time dateTime={item.observedAt} title={formatDateTime(item.observedAt)}>seen {formatRelative(item.observedAt)}</time>
               </li>

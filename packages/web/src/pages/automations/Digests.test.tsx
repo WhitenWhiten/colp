@@ -171,6 +171,21 @@ describe('Digests', () => {
     expect(api.markRunRead).not.toHaveBeenCalled()
   })
 
+  it('narrows the list to unread results', async () => {
+    const api = fakeApi()
+    api.listRuns.mockResolvedValue({ items: [
+      batchRun(),
+      run('run-read', 'rule-digest', { kind: 'batch', outputCount: 1, unread: false }),
+    ], nextCursor: null })
+    mount(api, '/automations/digests')
+    await waitForDom(() => document.querySelectorAll('[data-run-id]').length === 2)
+    const unread = [...document.querySelectorAll<HTMLButtonElement>('[role="radio"]')].find((item) => item.textContent?.startsWith('Unread'))
+    expect(unread?.textContent).toBe('Unread 1')
+    click(unread)
+    await waitForDom(() => document.querySelectorAll('[data-run-id]').length === 1)
+    expect(document.querySelector('[data-run-id="run_batch"]')).not.toBeNull()
+  })
+
   it('starts empty with a way back to the rules', async () => {
     mount(fakeApi(), '/automations/digests')
     await waitForDom(() => document.body.textContent?.includes('No digests yet') === true)

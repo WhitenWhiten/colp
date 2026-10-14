@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import type { AutomationRun, AutomationRunOutput } from '../../api/automationTypes'
 import { Breadcrumb } from '../../components/Breadcrumb'
 import { EmptyState } from '../../components/EmptyState'
+import { FilterRail } from '../../components/FilterRail'
 import { LoadMoreButton } from '../../components/LoadMoreButton'
 import { PageHead } from '../../components/PageHead'
 import { PageShell } from '../../components/PageShell'
@@ -21,6 +22,14 @@ import { errorMessage, useAutomationDeps } from './shared'
 const RUN_PAGE = 100
 const PAGES_PER_LOOK = 5
 const SNIPPETS = 10
+
+type DigestFilter = 'all' | 'unread'
+
+const TEXT_TYPE: Record<AutomationRunOutput['output']['textType'], string> = {
+  digest: 'Digest',
+  review: 'Review',
+  summary: 'Summary',
+}
 
 type Listing = { runs: AutomationRun[]; cursor: string | null; status: 'loading' | 'ready' | 'error'; error?: unknown }
 
@@ -88,6 +97,9 @@ export function Digests() {
   const { state, more } = useWritingRuns()
   const snippets = useSnippets(state.runs)
   const [ruleNames, setRuleNames] = useState<ReadonlyMap<string, string>>(new Map())
+  const [filter, setFilter] = useState<DigestFilter>('all')
+  const unread = state.runs.filter((run) => run.unread).length
+  const shown = filter === 'unread' ? state.runs.filter((run) => run.unread) : state.runs
 
   useEffect(() => {
     const controller = new AbortController()
@@ -140,8 +152,24 @@ export function Digests() {
       )}
 
       {state.runs.length > 0 && (
+        <div className="automation-digests-head">
+          <FilterRail<DigestFilter>
+            variant="segments"
+            className="view-switch"
+            label="Show digests"
+            value={filter}
+            options={[
+              { value: 'all', label: <>All <span className="automations-filter-count">{state.runs.length}</span></> },
+              { value: 'unread', label: <>Unread <span className="automations-filter-count">{unread}</span></> },
+            ]}
+            onChange={setFilter}
+          />
+        </div>
+      )}
+
+      {shown.length > 0 && (
         <ol className="automation-digests">
-          {state.runs.map((run) => {
+          {shown.map((run) => {
             const snippet = snippets.get(run.id)
             return (
               <li key={run.id}>
@@ -151,6 +179,7 @@ export function Digests() {
                       <Link to={`${runPath(run.id)}#outputs`}>{ruleNames.get(run.ruleId) ?? 'A rule'}</Link>
                     </h2>
                     {run.unread && <StatusBadge tone="accent">New</StatusBadge>}
+                    <time className="automation-digest-date" dateTime={run.createdAt} title={formatDateTime(run.createdAt)}>{formatDate(run.createdAt)}</time>
                   </header>
                   {snippet && (
                     <p className="automation-digest-snippet" lang={snippet.output.language}>{snippet.output.text}</p>
@@ -159,8 +188,8 @@ export function Digests() {
                     <p className="automation-meta">Open it to read.</p>
                   )}
                   <p className="automation-meta">
-                    <time dateTime={run.createdAt} title={formatDateTime(run.createdAt)}>{formatDate(run.createdAt)}</time>
-                    {' · '}{RUN_KIND[run.kind]}
+                    {snippet ? <>{TEXT_TYPE[snippet.output.textType]} · </> : null}
+                    {RUN_KIND[run.kind]}
                     {' · '}{run.outputCount === 1 ? '1 text' : `${run.outputCount} texts`}
                   </p>
                 </article>
@@ -168,6 +197,9 @@ export function Digests() {
             )
           })}
         </ol>
+      )}
+      {filter === 'unread' && shown.length === 0 && state.runs.length > 0 && (
+        <p className="automation-empty-line automation-digests-empty">Nothing new. You have read everything here.</p>
       )}
 
       {state.status === 'error' && state.runs.length > 0 && (
