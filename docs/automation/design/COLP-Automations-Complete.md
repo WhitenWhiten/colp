@@ -783,7 +783,7 @@ Tasks: AW-05, AW-15, AW-16, AW-29, AW-34, AW-44, AW-45, AW-57, AW-58, AW-60. Tes
 
 ### AU-25 Run a rule once over bookmarks I already have — M3
 
-**Execution constraint:** Start submits previewId and previewDigest for the immutable selection; expiry, changed options/revisions or more than 1000 members require a fresh/smaller preview.
+**Execution constraint:** Start submits previewId and previewDigest for the immutable selection; expiry, changed options/revisions or more than 1000 members require a fresh/smaller preview. Large admitted runs commit in bounded chunks so saves can proceed between them. Cancellation or failure retains completed effects; recovery continues only the original pending members, rechecking their revisions and authority. Start may return a running parent before placement finishes; per-effect Undo remains available.
 **As the Owner**, I want to point a rule at a folder I already have (or at a fresh import) and run it once with a preview, so that years of unsorted bookmarks can be organized the same way new ones are.
 
 Acceptance:

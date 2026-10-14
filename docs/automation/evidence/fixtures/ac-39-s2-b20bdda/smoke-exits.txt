@@ -1,0 +1,2 @@
+control exit=0
+burst exit=1

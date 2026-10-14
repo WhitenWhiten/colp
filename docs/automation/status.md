@@ -78,3 +78,11 @@ The subsequent [canonical SQL optimization and s2 test](evidence/ac-39-canonical
 queries from 4368 to 3568. Same-collection saving still timed out, and burst saving
 still failed. Rule scaling passed; queue recovery completed all 51 jobs, but save
 p95 was 1.10 seconds and failed its 1-second limit. **AC-39 remains failed.**
+
+The [bounded manual continuation follow-up](evidence/ac-39-manual-continuation.md)
+(`f64a546`) commits large selections in resumable slices, as authorized by the Owner.
+Final s2 100-member verification completed all placements and all 60 concurrent
+saves without errors; same-collection save p95 was 3.366 seconds and still failed
+the latency gate. **AC-39 remains open.** Start returns before completion for large
+runs, and completed effects are retained on interruption. Larger final capacity
+and complete dispatcher acceptance remain unverified.
