@@ -1479,5 +1479,5 @@ button.tree-twisty:hover:not(:disabled) { color: var(--ink); }
 .automation-body > .inline-alert { margin-bottom: var(--space-5); }
 .automation-rules { margin: 0; padding: 0; list-style: none; }
 .automation-rules .list-row-meta svg { color: var(--faint); }
-.automation-body time { color: var(--ink-2); }
+.automation-body time { color: inherit; }
 .automation-body .set-group-head .detail { margin: 0; }

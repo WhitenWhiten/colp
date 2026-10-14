@@ -106,4 +106,5 @@ Each extension task is committed separately. The commit column is filled in by t
 
 | Task | Status | Commit / evidence |
 | --- | --- | --- |
-| AW-49 | Done locally (unit tests, xvfb screenshots with stubbed messages; no real server run) | [bundle installation and binding projection](evidence/aw-49.md) |
+| AW-49 | Done locally (unit tests, xvfb screenshots with stubbed messages; no real server run) | `921a7ef`, [bundle installation and binding projection](evidence/aw-49.md) |
+| AW-50 | Done locally (unit tests with server golden digests, xvfb screenshots; no real server run) | [canonical-only placement receipts](evidence/aw-50.md) |

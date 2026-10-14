@@ -2,7 +2,8 @@ import { createIcon } from '../icons.js';
 import { button, el, emptyBlock, inlineAlert } from '../library-dom.js';
 import { formatMoment, t, tn } from '../i18n.js';
 import { when } from '../subscriptions-ui/dom.js';
-import { AUTOMATION_BUNDLE_KEY, type AutomationResponse, type AutomationStateView } from './messages.js';
+import { AUTOMATION_BUNDLE_KEY, AUTOMATION_RECEIPTS_KEY, type AutomationPlacementView, type AutomationResponse,
+  type AutomationStateView } from './messages.js';
 
 /**
  * Options › Automations: what the server's rules do in this browser.
@@ -117,6 +118,39 @@ function rulesGroup(view: AutomationStateView): HTMLElement {
     t('automation_rulesLede', 'A folder you pick yourself always wins over a rule.'));
 }
 
+/** One badge per row, and only while something is pending or wrong; a confirmed placement needs none. */
+function placementBadge(state: AutomationPlacementView['state']): HTMLElement | null {
+  const [label, tone] = state === 'waitingForSync' ? [t('automation_placementWaiting', 'Waiting for sync'), undefined]
+    : state === 'review' ? [t('automation_placementReview', 'Needs review'), 'warning']
+      : state === 'rejected' ? [t('automation_placementRejected', 'Not accepted'), 'danger']
+        : state === 'attention' ? [t('automation_placementAttention', 'Couldn’t confirm'), 'warning'] : [undefined, undefined];
+  if (!label) return null;
+  const badge = el('span', label, 'badge');
+  if (tone) badge.dataset.tone = tone;
+  return badge;
+}
+
+function placementsGroup(view: AutomationStateView): HTMLElement | null {
+  if (!view.placements.length) return null;
+  const list = el('ul', undefined, 'list-card automation-rules');
+  for (const placement of view.placements) {
+    const item = el('li', undefined, 'list-row');
+    const tile = el('span', undefined, 'favicon-tile'); tile.append(createIcon('bookmark', 16));
+    const main = el('div', undefined, 'list-row-main');
+    const meta = el('p', undefined, 'list-row-meta');
+    meta.append(createIcon('folder', 12), el('span', placement.folder), el('span', undefined, 'sep'),
+      el('span', t('automation_placementRule', 'Rule “$1”', placement.ruleName), 'grow'), el('span', undefined, 'sep'), when(placement.at));
+    const title = el('p', placement.title || placement.host, 'list-row-title'); title.title = placement.host;
+    main.append(title, meta);
+    item.append(tile, main);
+    const badge = placementBadge(placement.state);
+    if (badge) { const tail = el('div', undefined, 'list-row-tail'); tail.append(badge); item.append(tail); }
+    list.append(item);
+  }
+  return group('automation-placements-heading', t('automation_recentPlacements', 'Recent placements'), list,
+    t('automation_recentPlacementsLede', 'Filed in this browser. The server confirms each one after it syncs.'));
+}
+
 export function bindAutomationsPane(pane: HTMLElement): AutomationsPane {
   const body = pane.querySelector<HTMLElement>('[data-automations-body]')!;
   const openWeb = pane.querySelector<HTMLAnchorElement>('[data-automations-web]')!;
@@ -151,10 +185,12 @@ export function bindAutomationsPane(pane: HTMLElement): AutomationsPane {
     if (alert) parts.push(alert);
     parts.push(statusGroup(view, refresh, busy));
     if (view.state === 'active' || view.state === 'paused' || (view.state === 'none' && view.problem !== 'unavailable')) parts.push(rulesGroup(view));
+    const placements = placementsGroup(view);
+    if (placements) parts.push(placements);
     body.replaceChildren(...parts);
   }
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (active && area === 'local' && AUTOMATION_BUNDLE_KEY in changes) void load('known.automation.state');
+    if (active && area === 'local' && (AUTOMATION_BUNDLE_KEY in changes || AUTOMATION_RECEIPTS_KEY in changes)) void load('known.automation.state');
   });
   return {
     activate() { active = true; void load('known.automation.state'); },

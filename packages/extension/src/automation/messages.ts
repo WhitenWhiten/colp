@@ -2,6 +2,8 @@
 
 /** chrome.storage.local key of the installed bundle record (bundle-store.ts); pages watch it to repaint. */
 export const AUTOMATION_BUNDLE_KEY = 'known.automation.bundle.v1';
+/** chrome.storage.local key of this browser's placement receipts (receipt-sync.ts). */
+export const AUTOMATION_RECEIPTS_KEY = 'known.automation.receipts.v1';
 
 export type AutomationRequest =
   | { readonly kind: 'known.automation.state' }
@@ -22,6 +24,19 @@ export interface AutomationRuleView {
   readonly resolved: boolean;
 }
 
+/** A receipt as the page shows it: placement happened here; the server's answer is the rest. */
+export interface AutomationPlacementView {
+  readonly id: string;
+  readonly title: string;
+  readonly host: string;
+  readonly ruleName: string;
+  readonly folder: string;
+  readonly at: number;
+  readonly path: 'preSave' | 'observed';
+  /** waitingForSync: not yet joined to its Sync operations; confirmed: the server accepted the placement. */
+  readonly state: 'waitingForSync' | 'confirmed' | 'review' | 'rejected' | 'attention';
+}
+
 export type AutomationProblem = 'offline' | 'signedOut' | 'unavailable' | 'rateLimited' | 'server' | 'rejected';
 
 export interface AutomationStateView {
@@ -29,6 +44,8 @@ export interface AutomationStateView {
   /** `none`: no bundle yet. `active`/`paused`: what the installed bundle says. `expired`: placement is off until a refresh. */
   readonly state: 'none' | 'active' | 'paused' | 'expired';
   readonly rules: readonly AutomationRuleView[];
+  /** This account's recent placements in this browser, newest first. */
+  readonly placements: readonly AutomationPlacementView[];
   readonly pausedAt: number | null;
   readonly pausedBy: 'owner' | 'restore' | 'capacity' | null;
   readonly expiresAt: number | null;

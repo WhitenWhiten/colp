@@ -381,7 +381,13 @@ export function installStub(messages) {
           { id: 'r2', name: 'GitHub repositories to Programming', folder: 'Programming', resolved: true },
           { id: 'r3', name: 'Recipes from my favourite food sites', folder: null, resolved: !has('auto-missing') }];
         if (rules[2] && rules[2].resolved) rules[2].folder = 'Cooking';
-        return { ok: true, state: { account: signedOut ? 'signedOut' : 'signedIn', state: signedOut ? 'none' : state, rules,
+        const placement = (id, title, url, ruleName, folder, ago, placementState, path = 'preSave') => ({ id, title, host: new URL(url).hostname, ruleName, folder, at: now - ago, path, state: placementState });
+        const placements = has('auto-none', 'auto-off', 'auto-empty') || signedOut ? [] : [
+          placement('p1', 'Attention Is All You Need', 'https://arxiv.org/abs/1706.03762', 'arXiv papers', 'Academic', 40e3, 'waitingForSync'),
+          placement('p2', 'facebook/react: The library for web and native user interfaces', 'https://github.com/facebook/react', 'GitHub repositories to Programming', 'Programming', 25 * 60e3, 'confirmed', 'observed'),
+          placement('p3', 'Scaling Laws for Neural Language Models', 'https://arxiv.org/abs/2001.08361', 'arXiv papers', 'Academic', 3 * 3600e3, has('auto-rejected') ? 'rejected' : 'review'),
+          placement('p4', 'Lemon tart', 'https://www.bbcgoodfood.com/recipes/lemon-tart', 'Recipes from my favourite food sites', 'Cooking', 26 * 3600e3, 'confirmed')];
+        return { ok: true, state: { account: signedOut ? 'signedOut' : 'signedIn', state: signedOut ? 'none' : state, rules, placements,
           pausedAt: state === 'paused' ? now - 2 * 86400e3 : null, pausedBy: state === 'paused' ? 'owner' : null,
           expiresAt: state === 'expired' ? now - 3600e3 : now + 6 * 86400e3, lastRefreshAt: state === 'none' && !has('auto-off') ? null : now - (state === 'expired' ? 8 * 86400e3 : 120e3),
           problem: has('auto-rejected') ? 'rejected' : has('auto-off') ? 'unavailable' : state === 'expired' ? 'offline' : null, webUrl: 'https://known.example/automations' } };

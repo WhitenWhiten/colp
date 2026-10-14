@@ -161,6 +161,27 @@
   "automation_pausedRestore": {
     "message": "Paused after a server restore. Bookmarks keep the folder you save them to."
   },
+  "automation_placementAttention": {
+    "message": "Couldn’t confirm"
+  },
+  "automation_placementRejected": {
+    "message": "Not accepted"
+  },
+  "automation_placementReview": {
+    "message": "Needs review"
+  },
+  "automation_placementRule": {
+    "message": "Rule “$1”"
+  },
+  "automation_placementWaiting": {
+    "message": "Waiting for sync"
+  },
+  "automation_recentPlacements": {
+    "message": "Recent placements"
+  },
+  "automation_recentPlacementsLede": {
+    "message": "Filed in this browser. The server confirms each one after it syncs."
+  },
   "automation_ruleFilesTo": {
     "message": "Files into $1"
   },

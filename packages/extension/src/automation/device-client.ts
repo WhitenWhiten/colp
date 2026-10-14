@@ -1,4 +1,4 @@
-import type { BundleAckInput } from '@know-n/colp/automation';
+import type { BundleAckInput, LocalReceiptInput } from '@know-n/colp/automation';
 import { colpCredentialHeaders } from '../auth-client.js';
 import { readBoundedJson } from '../json-response.js';
 
@@ -64,4 +64,10 @@ export function fetchRuleBundle(authority: DeviceAuthority, fetcher: typeof fetc
 export function acknowledgeRuleBundle(authority: DeviceAuthority, input: BundleAckInput, commandId: string,
   fetcher: typeof fetch = fetch): Promise<DeviceResult> {
   return call(authority, '/bundle-acks', { method: 'POST', body: input, commandId }, fetcher);
+}
+
+/** A canonical-only receipt; `serializeReceipt` has already validated it against the contract. */
+export function postIntakeReceipt(authority: DeviceAuthority, input: LocalReceiptInput, commandId: string,
+  fetcher: typeof fetch = fetch): Promise<DeviceResult> {
+  return call(authority, '/intake-receipts', { method: 'POST', body: input, commandId }, fetcher);
 }

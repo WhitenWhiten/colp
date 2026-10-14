@@ -1,11 +1,13 @@
 import { validateAutomation, type BundleAckInput, type PauseState } from '@know-n/colp/automation';
-import { acknowledgeRuleBundle, fetchRuleBundle, type DeviceProblem } from '../automation/device-client.js';
+import { acknowledgeRuleBundle, fetchRuleBundle, postIntakeReceipt, type DeviceAuthority, type DeviceProblem } from '../automation/device-client.js';
 import { readReplicaDeviceId } from '../automation/device-identity.js';
 import { projectRule, type ProjectionDeps } from '../automation/binding-projector.js';
 import { automationOwnerKey, bundleState, chromeLocalArea, createBundleStore, type AutomationOwner, type BundleRecord,
   type RefreshProblem } from '../automation/bundle-store.js';
 import { ruleCollectionId } from '../automation/runtime-profile.js';
-import type { AutomationRequest, AutomationResponse, AutomationRuleView, AutomationStateView } from '../automation/messages.js';
+import { createReceiptStore, settled, syncReceipts, type PlacementReceipt } from '../automation/receipt-sync.js';
+import { syncReceiptEvidence } from '../automation/receipt-evidence.js';
+import type { AutomationPlacementView, AutomationRequest, AutomationResponse, AutomationRuleView, AutomationStateView } from '../automation/messages.js';
 import type { SyncScope } from '../sync-state-store.js';
 import { readBoundedJson } from '../json-response.js';
 import { ensurePeriodicAlarm } from './reconcile-alarm.js';
@@ -39,21 +41,29 @@ export function installAutomationRuntime(): void {
 }
 
 export function refreshAutomation(options: { readonly manual?: boolean } = {}): Promise<void> {
-  inFlight ??= refresh(options.manual === true).finally(() => { inFlight = undefined; });
+  inFlight ??= run(options.manual === true).finally(() => { inFlight = undefined; });
   return inFlight;
 }
 
-async function refresh(manual: boolean): Promise<void> {
+/** One worker pass: the bundle when its refresh is due, then any receipt whose retry is due. */
+async function run(manual: boolean): Promise<void> {
   const owner = await currentOwner();
   if (!owner) return;
-  const bundles = createBundleStore(chromeLocalArea(), owner), now = Date.now();
-  const record = await bundles.read();
-  if (!manual && record.lastAttemptAt !== null && now - record.lastAttemptAt < MIN_REFRESH_GAP_MS) return;
+  const bundles = createBundleStore(chromeLocalArea(), owner), receipts = createReceiptStore(chromeLocalArea()), now = Date.now();
+  const record = await bundles.read(), ownerKey = automationOwnerKey(owner);
+  const bundleDue = manual || record.lastAttemptAt === null || now - record.lastAttemptAt >= MIN_REFRESH_GAP_MS;
+  const receiptsDue = (await receipts.list()).some((receipt) => receipt.ownerKey === ownerKey && !settled(receipt.state) && receipt.nextAttemptAt <= now);
+  if (!bundleDue && !receiptsDue) return;
   let authority: Awaited<ReturnType<typeof pushSessionAuthority>>;
   try { authority = await pushSessionAuthority(); }
-  catch { await bundles.recordProblem(navigator.onLine === false ? 'offline' : 'signedOut', now); return; }
-  const device = { serverOrigin: owner.serverOrigin, accessToken: authority.credential.accessToken,
+  catch { if (bundleDue) await bundles.recordProblem(navigator.onLine === false ? 'offline' : 'signedOut', now); return; }
+  const device: DeviceAuthority = { serverOrigin: owner.serverOrigin, accessToken: authority.credential.accessToken,
     sessionId: authority.session.sessionId, origin: extensionOrigin() };
+  if (bundleDue) await refreshBundle(owner, bundles, device);
+  if (receiptsDue) await flushReceipts(owner, device, Number(authority.session.replicaLease.generation));
+}
+
+async function refreshBundle(owner: AutomationOwner, bundles: ReturnType<typeof createBundleStore>, device: DeviceAuthority): Promise<void> {
   const response = await fetchRuleBundle(device);
   if (!response.ok) { await bundles.recordProblem(refreshProblem(response.problem), Date.now()); return; }
   const outcome = await bundles.install(response.body, Date.now());
@@ -67,6 +77,24 @@ async function refresh(manual: boolean): Promise<void> {
       message: 'The browser kept its previous rule bundle.' }] : [] };
   // The acknowledgement is advisory; a lost one changes nothing locally.
   await acknowledgeRuleBundle(device, ack, crypto.randomUUID()).catch(() => undefined);
+}
+
+async function flushReceipts(owner: AutomationOwner, device: DeviceAuthority, replicaGeneration: number): Promise<void> {
+  const scope = await currentSyncScope().catch(() => null);
+  if (!scope || !Number.isSafeInteger(replicaGeneration)) return;
+  await syncReceipts(createReceiptStore(chromeLocalArea()), {
+    ownerKey: automationOwnerKey(owner), collectionId: scope.collectionId, replicaId: scope.replicaId, generation: scope.generation,
+    deviceId: await replicaDeviceId(owner, scope.replicaId), replicaGeneration, now: Date.now(),
+    evidence: syncReceiptEvidence(syncState, scope),
+    // Each attempt is a new command: the receipt id, not the command, makes a retry idempotent.
+    post: (input) => postIntakeReceipt(device, input, crypto.randomUUID()),
+  });
+}
+
+/** Persist a placement this browser just made; it is sent once its Sync operations exist. */
+export async function recordPlacementReceipt(receipt: PlacementReceipt): Promise<void> {
+  await createReceiptStore(chromeLocalArea()).add(receipt, Date.now());
+  void refreshAutomation().catch(() => undefined);
 }
 
 function refreshProblem(problem: DeviceProblem): Exclude<RefreshProblem, 'rejected'> {
@@ -132,12 +160,25 @@ async function ruleViews(record: BundleRecord): Promise<AutomationRuleView[]> {
   return views;
 }
 
+const PLACEMENT_STATE: Record<PlacementReceipt['state'], AutomationPlacementView['state']> = {
+  local: 'waitingForSync', waitingForSync: 'waitingForSync', accepted: 'confirmed', review: 'review', rejected: 'rejected', attention: 'attention' };
+
+async function placementViews(ownerKey: string): Promise<AutomationPlacementView[]> {
+  const receipts = (await createReceiptStore(chromeLocalArea()).list()).filter((receipt) => receipt.ownerKey === ownerKey).slice(0, 10);
+  return receipts.map((receipt) => {
+    let host = '';
+    try { host = new URL(receipt.page.url).hostname; } catch { /* the title stands alone */ }
+    return { id: receipt.localReceiptId, title: receipt.page.title, host, ruleName: receipt.rule.name, folder: receipt.destinationTitle,
+      at: receipt.createdAt, path: receipt.path, state: PLACEMENT_STATE[receipt.state] };
+  });
+}
+
 export async function automationStateView(): Promise<AutomationStateView> {
   const owner = await currentOwner();
   const config = await loadConfig().catch(() => null);
   const origin = owner?.serverOrigin ?? config?.serverOrigin ?? null;
   const webUrl = origin ? `${origin.replace(/\/$/u, '')}/automations` : null;
-  const blank = { rules: [], pausedAt: null, pausedBy: null, expiresAt: null, lastRefreshAt: null, problem: null, webUrl };
+  const blank = { rules: [], placements: [], pausedAt: null, pausedBy: null, expiresAt: null, lastRefreshAt: null, problem: null, webUrl };
   if (!owner) return { account: 'signedOut', state: 'none', ...blank };
   const record = await createBundleStore(chromeLocalArea(), owner).read();
   const now = Date.now(), current = bundleState(record, now);
@@ -146,6 +187,7 @@ export async function automationStateView(): Promise<AutomationStateView> {
   const pausedAt = pauseKnown && pause?.pausedAt ? Date.parse(pause.pausedAt) : current.state === 'paused' ? current.since : null;
   return { account: 'signedIn', state: current.state, webUrl,
     rules: current.state === 'active' ? await ruleViews(record) : [],
+    placements: await placementViews(automationOwnerKey(owner)),
     pausedAt: Number.isFinite(pausedAt) ? pausedAt : null, pausedBy: pauseKnown ? pause?.pausedBy ?? null : null,
     expiresAt: current.state === 'active' || current.state === 'paused' ? current.expiresAt : current.state === 'expired' ? current.expiredAt : null,
     lastRefreshAt: record.lastRefreshAt, problem: record.problem?.kind ?? null };

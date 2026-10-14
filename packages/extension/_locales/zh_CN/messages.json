@@ -207,6 +207,34 @@
     "message": "服务器恢复数据后已暂停。书签会留在你保存时选择的文件夹。",
     "description": "Paused after a server restore. Bookmarks keep the folder you save them to."
   },
+  "automation_placementAttention": {
+    "message": "无法确认",
+    "description": "Couldn’t confirm"
+  },
+  "automation_placementRejected": {
+    "message": "未被接受",
+    "description": "Not accepted"
+  },
+  "automation_placementReview": {
+    "message": "需要复核",
+    "description": "Needs review"
+  },
+  "automation_placementRule": {
+    "message": "规则“$1”",
+    "description": "Rule “$1”"
+  },
+  "automation_placementWaiting": {
+    "message": "等待同步",
+    "description": "Waiting for sync"
+  },
+  "automation_recentPlacements": {
+    "message": "最近归档",
+    "description": "Recent placements"
+  },
+  "automation_recentPlacementsLede": {
+    "message": "在此浏览器中归档。同步后由服务器逐条确认。",
+    "description": "Filed in this browser. The server confirms each one after it syncs."
+  },
   "automation_ruleFilesTo": {
     "message": "放入 $1",
     "description": "Files into $1"
