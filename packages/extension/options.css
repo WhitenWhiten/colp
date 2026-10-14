@@ -1481,3 +1481,11 @@ button.tree-twisty:hover:not(:disabled) { color: var(--ink); }
 .automation-rules .list-row-meta svg { color: var(--faint); }
 .automation-body time { color: inherit; }
 .automation-body .set-group-head .detail { margin: 0; }
+/* Server runs: each row opens the run on the web. */
+.automation-runs a.list-row { color: inherit; text-decoration: none; }
+.automation-runs a.list-row:focus-visible { outline-offset: -2px; }
+.automation-runs .list-row-tail > svg { width: 0.85rem; height: 0.85rem; color: var(--faint); }
+.automation-rules .list-row-main > .list-row-meta + .list-row-meta { color: var(--muted); }
+.automation-freshness { display: flex; align-items: center; gap: var(--hair-40); margin: var(--space-2) var(--hair-15) 0; color: var(--muted); font-size: var(--text-xs); line-height: var(--leading-body); }
+.automation-freshness svg { flex: none; width: 0.8rem; height: 0.8rem; }
+.automation-freshness[data-tone="warning"] svg { color: var(--warning); }

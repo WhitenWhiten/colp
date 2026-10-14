@@ -2,16 +2,19 @@ import { createIcon } from '../icons.js';
 import { button, el, emptyBlock, inlineAlert } from '../library-dom.js';
 import { formatMoment, t, tn } from '../i18n.js';
 import { when } from '../subscriptions-ui/dom.js';
-import { AUTOMATION_CHANGED_KEY, type AutomationPlacementView, type AutomationResponse,
+import { AUTOMATION_CHANGED_KEY, type AutomationResponse, type AutomationServerRuleView, type AutomationServerView,
   type AutomationStateView } from './messages.js';
+import { placementBadge, ruleServerBadge, ruleServerMeta, runRow, serverFreshness } from './status-ui.js';
 
 /**
  * Options › Automations: what the server's rules do in this browser.
  *
  * Rules are made and changed on the web; this page shows whether this browser
  * has a usable copy, how fresh it is, and where each rule files bookmarks.
- * Everything shown comes from the worker's installed bundle; nothing here
- * decides whether a rule runs.
+ * Below that, kept apart, is what the server says it did afterwards, with the
+ * age of that answer. Everything shown comes from the worker's installed bundle
+ * or the server's own status (status-ui.ts); nothing here decides whether a
+ * rule runs.
  */
 export interface AutomationsPane {
   activate(): void;
@@ -90,8 +93,24 @@ function statusGroup(view: AutomationStateView, refresh: () => void, busy: boole
   return group('automation-browser-heading', t('automation_onThisBrowser', 'On this browser'), card);
 }
 
+/** Server-side state of a rule: a badge when it isn't simply on, and the server's counts of waiting work. */
+function withServer(item: HTMLElement, main: HTMLElement, server: AutomationServerRuleView | undefined, tail: HTMLElement | null): void {
+  const meta = server ? ruleServerMeta(server) : null;
+  if (meta) main.append(meta);
+  const state = server ? ruleServerBadge(server.state) : null;
+  const shown = tail ?? (state ? badgeTail(state) : null);
+  if (shown) item.append(shown);
+}
+
+function badgeTail(badge: HTMLElement): HTMLElement {
+  const tail = el('div', undefined, 'list-row-tail'); tail.append(badge); return tail;
+}
+
 function rulesGroup(view: AutomationStateView): HTMLElement {
-  if (!view.rules.length) {
+  const server = new Map((view.server?.rules ?? []).map((rule) => [rule.id, rule]));
+  // Rules with no browser part (a digest, say) still belong here: their waiting work is the Owner's to see.
+  const serverOnly = (view.server?.rules ?? []).filter((rule) => !rule.inBrowser && rule.state !== 'archived' && rule.state !== 'draft');
+  if (!view.rules.length && !serverOnly.length) {
     const card = el('div', undefined, 'set-card');
     card.append(emptyBlock({ icon: 'fork', title: t('automation_noRulesTitle', 'No rules here yet'),
       hint: view.state === 'paused' ? t('automation_noRulesPausedHint', 'Rules come back here when you resume automations on the web.')
@@ -111,23 +130,24 @@ function rulesGroup(view: AutomationStateView): HTMLElement {
     }
     main.append(el('p', rule.name, 'list-row-title'), meta);
     item.append(tile, main);
-    if (!rule.resolved) { const tail = el('div', undefined, 'list-row-tail'); const badge = el('span', t('automation_ruleWaiting', 'Waiting'), 'badge'); badge.dataset.tone = 'warning'; tail.append(badge); item.append(tail); }
+    const waiting = rule.resolved ? null : el('span', t('automation_ruleWaiting', 'Waiting'), 'badge');
+    if (waiting) waiting.dataset.tone = 'warning';
+    withServer(item, main, server.get(rule.id), waiting ? badgeTail(waiting) : null);
+    list.append(item);
+  }
+  for (const rule of serverOnly) {
+    const item = el('li', undefined, 'list-row');
+    const tile = el('span', undefined, 'favicon-tile'); tile.append(createIcon('server', 16));
+    const main = el('div', undefined, 'list-row-main');
+    const meta = el('p', undefined, 'list-row-meta');
+    meta.append(el('span', t('automation_ruleServerOnly', 'Works on your server; nothing to file here.'), 'grow'));
+    main.append(el('p', rule.name, 'list-row-title'), meta);
+    item.append(tile, main);
+    withServer(item, main, rule, null);
     list.append(item);
   }
   return group('automation-rules-heading', t('automation_rules', 'Rules'), list,
     t('automation_rulesLede', 'A folder you pick yourself always wins over a rule.'));
-}
-
-/** One badge per row, and only while something is pending or wrong; a confirmed placement needs none. */
-function placementBadge(state: AutomationPlacementView['state']): HTMLElement | null {
-  const [label, tone] = state === 'waitingForSync' ? [t('automation_placementWaiting', 'Waiting for sync'), undefined]
-    : state === 'review' ? [t('automation_placementReview', 'Needs review'), 'warning']
-      : state === 'rejected' ? [t('automation_placementRejected', 'Not accepted'), 'danger']
-        : state === 'attention' ? [t('automation_placementAttention', 'Couldn’t confirm'), 'warning'] : [undefined, undefined];
-  if (!label) return null;
-  const badge = el('span', label, 'badge');
-  if (tone) badge.dataset.tone = tone;
-  return badge;
 }
 
 function placementsGroup(view: AutomationStateView): HTMLElement | null {
@@ -149,6 +169,39 @@ function placementsGroup(view: AutomationStateView): HTMLElement | null {
   }
   return group('automation-placements-heading', t('automation_recentPlacements', 'Recent placements'), list,
     t('automation_recentPlacementsLede', 'Filed in this browser. The server confirms each one after it syncs.'));
+}
+
+/** What the server did after bookmarks synced: its runs, newest first, and how old this answer is. */
+function serverGroup(server: AutomationServerView, webUrl: string | null): HTMLElement {
+  const lede = t('automation_onServerLede', 'Work your server does after a bookmark syncs. Filing in this browser never waits for it.');
+  const body = el('div', undefined, 'automation-server');
+  if (server.runs.length) {
+    const list = el('ul', undefined, 'list-card automation-rules automation-runs');
+    for (const run of server.runs.slice(0, 8)) list.append(runRow(run));
+    body.append(list, serverFreshness(server));
+  } else {
+    const card = el('div', undefined, 'set-card');
+    card.append(serverEmpty(server, webUrl));
+    body.append(card);
+    // Only an answer that was read has an age worth stating.
+    if (server.fetchedAt) body.append(serverFreshness(server));
+  }
+  return group('automation-server-heading', t('automation_onServer', 'On your server'), body, lede);
+}
+
+function serverEmpty(server: AutomationServerView, webUrl: string | null): HTMLElement {
+  if (server.problem === 'signedOut') {
+    const signIn = webUrl ? el('a', t('automation_openWeb', 'Open Automations'), 'btn btn-secondary btn-sm') : null;
+    if (signIn && webUrl) { signIn.href = webUrl; signIn.target = '_blank'; signIn.rel = 'noreferrer'; }
+    return emptyBlock({ icon: 'server', title: t('automation_serverSignInTitle', 'Sign in on the web to see runs'),
+      hint: t('automation_serverSignInHint', 'This page reads your server’s runs with your web sign-in in this browser.'), ...(signIn ? { action: signIn } : {}) });
+  }
+  if (server.fetchedAt) return emptyBlock({ icon: 'play', title: t('automation_noRunsTitle', 'Nothing has run yet'),
+    hint: t('automation_noRunsHint', 'Runs show up here after a rule acts on a synced bookmark.') });
+  if (server.problem) return emptyBlock({ icon: 'server', title: server.problem === 'invalid'
+    ? t('automation_serverInvalidTitle', 'Couldn’t read your server’s runs') : t('automation_serverUnreachableTitle', 'Couldn’t reach your server'),
+    hint: t('automation_serverRetryHint', 'Saving and filing in this browser don’t need it. This page tries again in a few minutes.') });
+  return emptyBlock({ icon: 'server', title: t('automation_serverChecking', 'Checking your server…') });
 }
 
 export function bindAutomationsPane(pane: HTMLElement): AutomationsPane {
@@ -187,6 +240,7 @@ export function bindAutomationsPane(pane: HTMLElement): AutomationsPane {
     if (view.state === 'active' || view.state === 'paused' || (view.state === 'none' && view.problem !== 'unavailable')) parts.push(rulesGroup(view));
     const placements = placementsGroup(view);
     if (placements) parts.push(placements);
+    if (view.server) parts.push(serverGroup(view.server, view.webUrl));
     body.replaceChildren(...parts);
   }
   chrome.storage.onChanged.addListener((changes, area) => {

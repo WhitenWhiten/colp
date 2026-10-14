@@ -70,7 +70,8 @@ const STATES = [
   ['sync-progress-paused', 'options.html?shot=syncrun,ps-paused#sync/center'],
   ['sync-progress-paused-prep', 'options.html?shot=syncprep,ps-paused#sync/folders'],
   ['manual-saving', 'options.html?shot=manual#saving'],
-  ...['paused', 'expired', 'none', 'off', 'rejected', 'missing', 'empty'].map((name) => [`automations-${name}`, `options.html?shot=auto-${name}#automations`]),
+  ...['paused', 'expired', 'none', 'off', 'rejected', 'missing', 'empty', 'server-offline', 'server-signin', 'server-empty']
+    .map((name) => [`automations-${name}`, `options.html?shot=auto-${name}#automations`]),
   ['manual-ai', 'options.html?shot=manual#ai'],
   // A rule filed a page starred in the browser while Know-N was in front (AW-20).
   ['automations-notice', 'options.html#automations', (p) => p.evaluate(() => window.__workerMessage({ kind: 'known.automation.notice',

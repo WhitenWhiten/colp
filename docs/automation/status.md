@@ -110,4 +110,5 @@ Each extension task is committed separately. The commit column is filled in by t
 | AW-50 | Done locally (unit tests with server golden digests, xvfb screenshots; no real server run) | `0cf80c3`, [canonical-only placement receipts](evidence/aw-50.md) |
 | AW-19 | Done locally (unit tests on every save path, xvfb screenshots with stubbed messages; AC-01/02/04 not run in a real browser) | `635ca19`, [pre-save rule path](evidence/aw-19.md) |
 | AW-20 | Done locally (unit tests, real Chromium under xvfb for AC-09/AC-49 and projection echo; server-side intake join not run) | `06c3ba9`, [observed creates and echo suppression](evidence/aw-20.md) |
-| AW-21 | Done locally (unit tests, local-first lifecycle suite, real Chromium under xvfb for AC-10 across worker kill and browser restart; server-side join not run) | [durable rule and receipt lifecycle](evidence/aw-21.md) |
+| AW-21 | Done locally (unit tests, local-first lifecycle suite, real Chromium under xvfb for AC-10 across worker kill and browser restart; server-side join not run) | `81abe4c`, [durable rule and receipt lifecycle](evidence/aw-21.md) |
+| AW-54 | Done locally (unit tests against contract-valid DTOs, happy-dom pane tests, xvfb screenshots in en and zh_CN; no live server read) | [server run status, apart from placement](evidence/aw-54.md) |

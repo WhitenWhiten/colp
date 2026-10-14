@@ -130,12 +130,32 @@ bar whose items wrap onto a second line, so every destination stays visible.
 | `#history` | Saved-page history grouped by day; one badge per row, problems only |
 | `#subscriptions` | Subscriptions; defaults as the last group |
 | `#sync/...` | Collection, folders, status, import (connect card when signed out) |
-| `#automations` | The server's rule bundle on this browser: status, freshness and offline expiry, each rule's folder here; rules are edited on the web |
+| `#automations` | The server's rule bundle on this browser: status, freshness and offline expiry, each rule's folder here; rules are edited on the web. Below, kept apart: recent placements (this browser's receipts), then **On your server**, the server's runs in the web's words with their age (see below) |
 | `#saving` | Toolbar mode, result panel, default folder, placement, shortcuts |
 | `#ai` | Provider choice, Know-N authorization, own AI service, correction memory |
 | `#general` | Language, permissions, export / backup / restore |
 | `#account`, `#account/credits` | Identity, credits summary, sign out; credit activity table |
 | `#help` | Diagnostics (the only place for internals) |
+
+**Automations › On your server.** What the server did after a bookmark synced, never mixed with
+what this browser did:
+
+- **Placements and runs stay apart.** A placement keeps its own receipt badge, and a confirmed one
+  has none, even if a run on that bookmark failed. A run never shows as done because the bookmark
+  was filed.
+- **Run rows.** Each run row uses the web's words and badges: Waiting, Running, Needs a decision,
+  Done, Partly done, Blocked, Cancelled, Failed, or On hold for an explicit hold. Tone appears only
+  for problems. The row opens the run on the web in a new tab.
+- **Server state on rules.** A rule row adds its server state when it isn't simply on ("On, with
+  problems", Blocked, Paused). It also adds the server's own counts (jobs waiting for an agent, held
+  by a limit, needing approval) and the server's cost wording. Rules with no browser part, such as
+  a digest, are listed too: "Works on your server; nothing to file here."
+- **Freshness.** One muted line under the runs: "Updated 2 minutes ago." A failed read keeps the
+  last runs and says so with a warning icon: "Couldn’t reach your server. Showing what it said
+  3 hours ago."
+- **Missing web sign-in.** The runs are read with the browser's web sign-in, so without one the
+  section asks for it ("Sign in on the web to see runs", Open Automations). A server without
+  automations hides the section.
 
 Old hashes redirect: `#saving/overview` and `#saving/history` go to `#history`;
 `#preferences?section=capture|bookmarks` goes to `#saving`;

@@ -116,6 +116,63 @@
   "automation_checking": {
     "message": "Checking…"
   },
+  "automation_explainAlreadyThere": {
+    "message": "Already in the rule’s folder, so nothing moved."
+  },
+  "automation_explainBindingUnavailable": {
+    "message": "The rule’s folder is unavailable, so the bookmark stayed where you saved it."
+  },
+  "automation_explainCancelled": {
+    "message": "Cancelled by you. Anything already done stays."
+  },
+  "automation_explainDeferred": {
+    "message": "Waiting: the bookmark was missing details this rule needs. Nothing was changed; you can cancel it."
+  },
+  "automation_explainDestinationUnavailable": {
+    "message": "Not moved: the rule’s folder is unavailable."
+  },
+  "automation_explainDevicePlacement": {
+    "message": "Placed by your browser, and confirmed by the server."
+  },
+  "automation_explainHigherPriority": {
+    "message": "A higher-priority rule chose another folder, so this one did not run."
+  },
+  "automation_explainIntakeUnavailable": {
+    "message": "The rule’s folder is unavailable."
+  },
+  "automation_explainMissingInput": {
+    "message": "The bookmark was missing details this rule needs, so nothing was changed."
+  },
+  "automation_explainMoved": {
+    "message": "Moved into the rule’s folder."
+  },
+  "automation_explainNoDetails": {
+    "message": "No details were kept for this run."
+  },
+  "automation_explainNothingToMove": {
+    "message": "Matched, and nothing needed to move."
+  },
+  "automation_explainOnHold": {
+    "message": "On hold until you decide to continue."
+  },
+  "automation_explainOtherRule": {
+    "message": "Another rule already put it there."
+  },
+  "automation_explainOutsideScope": {
+    "message": "Outside what this rule looks at."
+  },
+  "automation_explainOverHistory": {
+    "message": "Not moved: the collection is over the version-history limit."
+  },
+  "automation_explainOwnerOnly": {
+    "message": "Not moved: only the collection’s owner can run this rule."
+  },
+  "automation_explainRulesDisagree": {
+    "message": "Rules with the same priority chose different folders, so the bookmark stayed where you saved it."
+  },
+  "automation_explainWaitingToPlace": {
+    "message": "Waiting to move it into the rule’s folder."
+  },
   "automation_freshnessHint": {
     "message": "This browser checks every 5 minutes. Offline, it keeps using its copy until $1, and a pause you make on the web reaches it at the next check."
   },
@@ -143,8 +200,20 @@
   "automation_noRulesTitle": {
     "message": "No rules here yet"
   },
+  "automation_noRunsHint": {
+    "message": "Runs show up here after a rule acts on a synced bookmark."
+  },
+  "automation_noRunsTitle": {
+    "message": "Nothing has run yet"
+  },
   "automation_noticeRejected": {
     "message": "The server sent rules this browser can’t use. The previous rules stay in force."
+  },
+  "automation_onServer": {
+    "message": "On your server"
+  },
+  "automation_onServerLede": {
+    "message": "Work your server does after a bookmark syncs. Filing in this browser never waits for it."
   },
   "automation_onThisBrowser": {
     "message": "On this browser"
@@ -188,6 +257,18 @@
   "automation_recentPlacementsLede": {
     "message": "Filed in this browser. The server confirms each one after it syncs."
   },
+  "automation_ruleArchived": {
+    "message": "Archived"
+  },
+  "automation_ruleBlocked": {
+    "message": "Blocked"
+  },
+  "automation_ruleDegraded": {
+    "message": "On, with problems"
+  },
+  "automation_ruleDraft": {
+    "message": "Draft"
+  },
   "automation_ruleFilesTo": {
     "message": "Files into $1"
   },
@@ -197,11 +278,35 @@
   "automation_ruleFolderUnavailable": {
     "message": "Rule “$1” matched, but its folder isn’t in this browser, so the page stayed where you saved it."
   },
+  "automation_ruleJobsApproval_one": {
+    "message": "$1 needs your approval"
+  },
+  "automation_ruleJobsApproval_other": {
+    "message": "$1 need your approval"
+  },
+  "automation_ruleJobsHeld_one": {
+    "message": "$1 held by a limit"
+  },
+  "automation_ruleJobsHeld_other": {
+    "message": "$1 held by a limit"
+  },
+  "automation_ruleJobsWaiting_one": {
+    "message": "$1 job waiting for an agent"
+  },
+  "automation_ruleJobsWaiting_other": {
+    "message": "$1 jobs waiting for an agent"
+  },
   "automation_ruleNeedsReview": {
     "message": "Rule “$1” needs a review on the web, so the page stayed where you saved it."
   },
   "automation_ruleNotChecked": {
     "message": "Rule “$1” couldn’t be checked, so the page stayed where you saved it."
+  },
+  "automation_rulePaused": {
+    "message": "Paused"
+  },
+  "automation_ruleServerOnly": {
+    "message": "Works on your server; nothing to file here."
   },
   "automation_ruleUpdates": {
     "message": "Rule updates"
@@ -221,8 +326,86 @@
   "automation_rulesOutOfDateSaved": {
     "message": "Rules are out of date; connect to refresh. The page stayed where you saved it."
   },
+  "automation_runBlocked": {
+    "message": "Blocked"
+  },
+  "automation_runCancelled": {
+    "message": "Cancelled"
+  },
+  "automation_runDone": {
+    "message": "Done"
+  },
+  "automation_runFailed": {
+    "message": "Failed"
+  },
+  "automation_runHeld": {
+    "message": "On hold"
+  },
+  "automation_runKindBatch": {
+    "message": "Batch"
+  },
+  "automation_runKindIntake": {
+    "message": "New bookmark"
+  },
+  "automation_runKindManual": {
+    "message": "Run once"
+  },
+  "automation_runPartial": {
+    "message": "Partly done"
+  },
+  "automation_runReview": {
+    "message": "Needs a decision"
+  },
+  "automation_runRunning": {
+    "message": "Running"
+  },
+  "automation_runSomeRule": {
+    "message": "A rule"
+  },
+  "automation_runWaiting": {
+    "message": "Waiting"
+  },
   "automation_savedByRule": {
     "message": "Saved to $1 by rule “$2”."
+  },
+  "automation_serverChecking": {
+    "message": "Checking your server…"
+  },
+  "automation_serverInvalid": {
+    "message": "Your server sent something this browser couldn’t read."
+  },
+  "automation_serverInvalidAt": {
+    "message": "Your server sent something this browser couldn’t read. Showing what it said $1."
+  },
+  "automation_serverInvalidTitle": {
+    "message": "Couldn’t read your server’s runs"
+  },
+  "automation_serverRetryHint": {
+    "message": "Saving and filing in this browser don’t need it. This page tries again in a few minutes."
+  },
+  "automation_serverSignInHint": {
+    "message": "This page reads your server’s runs with your web sign-in in this browser."
+  },
+  "automation_serverSignInTitle": {
+    "message": "Sign in on the web to see runs"
+  },
+  "automation_serverSignedOut": {
+    "message": "Sign in on the web in this browser to see what your server is doing."
+  },
+  "automation_serverSignedOutAt": {
+    "message": "Sign in on the web in this browser to update this. Showing what your server said $1."
+  },
+  "automation_serverUnreachable": {
+    "message": "Couldn’t reach your server. Saving and filing here don’t need it."
+  },
+  "automation_serverUnreachableAt": {
+    "message": "Couldn’t reach your server. Showing what it said $1."
+  },
+  "automation_serverUnreachableTitle": {
+    "message": "Couldn’t reach your server"
+  },
+  "automation_serverUpdatedAt": {
+    "message": "Updated $1."
   },
   "automation_signInHint": {
     "message": "Rules live on your server and file bookmarks as you save them. Saving and organizing work without them."

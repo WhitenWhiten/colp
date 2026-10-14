@@ -10,4 +10,5 @@ export declare const LocalReceiptInput: StandaloneValidator;
 export declare const ReceiptIngestResult: StandaloneValidator;
 export declare const Run: StandaloneValidator;
 export declare const RunPage: StandaloneValidator;
+export declare const RulePage: StandaloneValidator;
 export declare const PauseState: StandaloneValidator;

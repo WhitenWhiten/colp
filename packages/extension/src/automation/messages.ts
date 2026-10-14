@@ -62,6 +62,46 @@ export interface AutomationPlacementView {
 
 export type AutomationProblem = 'offline' | 'signedOut' | 'unavailable' | 'rateLimited' | 'server' | 'rejected';
 
+/** A rule as the server reports it: its state and the server's own counts, nothing worked out here. */
+export interface AutomationServerRuleView {
+  readonly id: string;
+  readonly name: string;
+  readonly state: 'draft' | 'active' | 'degraded' | 'blocked' | 'paused' | 'archived';
+  /** In this browser's bundle (it files bookmarks here), or only on the server. */
+  readonly inBrowser: boolean;
+  /** Jobs ready for an agent, held by a cap, and waiting for the Owner's approval; null before the server reports usage. */
+  readonly waiting: number | null;
+  readonly held: number | null;
+  readonly approvals: number | null;
+  /** The server's own words for what the work costs ("billed by your agent"). */
+  readonly cost: string | null;
+}
+
+/** One server run, in its own state: never merged with a placement this browser made. */
+export interface AutomationRunView {
+  readonly id: string;
+  readonly ruleName: string | null;
+  readonly kind: 'intake' | 'batch' | 'manual';
+  readonly status: 'waiting' | 'running' | 'review' | 'completed' | 'partial' | 'blocked' | 'cancelled' | 'failed';
+  readonly held: boolean;
+  readonly explanation: string | null;
+  readonly at: number;
+  readonly unread: boolean;
+  readonly outputCount: number;
+  /** The run's page on the web. */
+  readonly url: string;
+}
+
+export interface AutomationServerView {
+  /** When the server was last read; null before the first good read. */
+  readonly fetchedAt: number | null;
+  /** Why the latest read failed, when it failed after that copy was read. */
+  readonly problem: 'offline' | 'signedOut' | 'rateLimited' | 'server' | 'invalid' | null;
+  readonly rules: readonly AutomationServerRuleView[];
+  /** Newest first. */
+  readonly runs: readonly AutomationRunView[];
+}
+
 export interface AutomationStateView {
   readonly account: 'signedOut' | 'signedIn';
   /** `none`: no bundle yet. `active`/`paused`: what the installed bundle says. `expired`: placement is off until a refresh. */
@@ -76,6 +116,8 @@ export interface AutomationStateView {
   readonly problem: AutomationProblem | null;
   /** The web Automations page on the connected server. */
   readonly webUrl: string | null;
+  /** What the server says it is doing; null when signed out or the server has no automations. */
+  readonly server: AutomationServerView | null;
 }
 
 export type AutomationResponse = { readonly ok: true; readonly state: AutomationStateView }

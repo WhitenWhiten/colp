@@ -18,7 +18,7 @@ const addFormats = coreRequire('ajv-formats');
 
 /** Every schema the core compiles internally, plus the device and Product DTOs the extension reads or sends. */
 export const AUTOMATION_VALIDATORS = ['EventFacts', 'Predicate', 'RuleDefinition', 'RuleBundle', 'BundleAckInput',
-  'OperationReceipt', 'LocalReceiptInput', 'ReceiptIngestResult', 'Run', 'RunPage', 'PauseState'];
+  'OperationReceipt', 'LocalReceiptInput', 'ReceiptIngestResult', 'Run', 'RunPage', 'RulePage', 'PauseState'];
 
 const captured = new Map();
 const compile = Object.getPrototypeOf(Ajv2020.prototype).compile;

@@ -8,7 +8,8 @@ import { ruleCollectionId } from '../automation/runtime-profile.js';
 import { createReceiptStore, newPlacementReceipt, settled, syncReceipts, type PlacementReceipt } from '../automation/receipt-sync.js';
 import { syncReceiptEvidence } from '../automation/receipt-evidence.js';
 import { decidePreSave, type PreSaveDecision, type PreSaveInput } from '../automation/pre-save.js';
-import type { AutomationMatchView, AutomationPlacementView, AutomationRequest, AutomationResponse, AutomationRuleView,
+import { createServerStatusStore, readServerStatus, serverStatusDue } from '../automation/server-status.js';
+import type { AutomationMatchView, AutomationPlacementView, AutomationRequest, AutomationResponse, AutomationRuleView, AutomationServerView,
   AutomationStateView } from '../automation/messages.js';
 import type { CaptureScope, CaptureTask } from '../capture/contracts.js';
 import { currentCaptureScope } from './capture-native.js';
@@ -52,14 +53,19 @@ export function refreshAutomation(options: { readonly manual?: boolean } = {}): 
   return inFlight;
 }
 
-/** One worker pass: the bundle when its refresh is due, then any receipt whose retry is due. */
+/** One worker pass: the server's status and the bundle when due, then any receipt whose retry is due. */
 async function run(manual: boolean): Promise<void> {
   const owner = await currentOwner();
   if (!owner) return;
   const bundles = createBundleStore(automationArea(), owner), receipts = createReceiptStore(automationArea()), now = Date.now();
   const record = await bundles.read(), ownerKey = automationOwnerKey(owner);
+  const status = createServerStatusStore(automationArea(), ownerKey);
   const bundleDue = manual || refreshDue(record, now);
+  const statusDue = record.problem?.kind !== 'unavailable' && (manual || serverStatusDue(await status.read(), now));
   const receiptsDue = (await receipts.list()).some((receipt) => receipt.ownerKey === ownerKey && !settled(receipt.state) && receipt.nextAttemptAt <= now);
+  if (!bundleDue && !receiptsDue && !statusDue) return;
+  // Read with the browser's web sign-in, apart from Sync's authority below.
+  if (statusDue) await status.apply(await readServerStatus(owner.serverOrigin), now);
   if (!bundleDue && !receiptsDue) return;
   let authority: Awaited<ReturnType<typeof pushSessionAuthority>>;
   try { authority = await pushSessionAuthority(); }
@@ -229,12 +235,30 @@ async function placementViews(ownerKey: string): Promise<AutomationPlacementView
   });
 }
 
+/** The server's last-read status, joined to rule names; null where the server has no automations. */
+async function serverView(owner: AutomationOwner, record: BundleRecord, origin: string): Promise<AutomationServerView | null> {
+  const status = await createServerStatusStore(automationArea(), automationOwnerKey(owner)).read();
+  if (record.problem?.kind === 'unavailable' || status.problem?.kind === 'unavailable') return null;
+  const local = record.bundle?.rules ?? [], inBrowser = new Set(local.map((rule) => rule.ruleId));
+  const names = new Map<string, string>([...local.map((rule) => [rule.ruleId, rule.definition.name] as const),
+    ...status.rules.map((rule) => [rule.id, rule.name] as const)]);
+  const problem = status.problem && (status.fetchedAt === null || status.problem.at >= status.fetchedAt) ? status.problem.kind : null;
+  return {
+    fetchedAt: status.fetchedAt, problem,
+    rules: status.rules.map((rule) => ({ id: rule.id, name: rule.name, state: rule.state, inBrowser: inBrowser.has(rule.id),
+      waiting: rule.usage?.waiting ?? null, held: rule.usage?.held ?? null, approvals: rule.usage?.approvals ?? null, cost: rule.usage?.cost || null })),
+    runs: status.runs.map((run) => ({ id: run.id, ruleName: names.get(run.ruleId) ?? null, kind: run.kind, status: run.status, held: run.held,
+      explanation: run.explanation, at: run.createdAt, unread: run.unread, outputCount: run.outputCount,
+      url: `${origin.replace(/\/$/u, '')}/automations/runs/${encodeURIComponent(run.id)}` })),
+  };
+}
+
 export async function automationStateView(): Promise<AutomationStateView> {
   const owner = await currentOwner();
   const config = await loadConfig().catch(() => null);
   const origin = owner?.serverOrigin ?? config?.serverOrigin ?? null;
   const webUrl = origin ? `${origin.replace(/\/$/u, '')}/automations` : null;
-  const blank = { rules: [], placements: [], pausedAt: null, pausedBy: null, expiresAt: null, lastRefreshAt: null, problem: null, webUrl };
+  const blank = { rules: [], placements: [], pausedAt: null, pausedBy: null, expiresAt: null, lastRefreshAt: null, problem: null, webUrl, server: null };
   if (!owner) return { account: 'signedOut', state: 'none', ...blank };
   const record = await createBundleStore(automationArea(), owner).read();
   const now = Date.now(), current = bundleState(record, now);
@@ -246,7 +270,7 @@ export async function automationStateView(): Promise<AutomationStateView> {
     placements: await placementViews(automationOwnerKey(owner)),
     pausedAt: Number.isFinite(pausedAt) ? pausedAt : null, pausedBy: pauseKnown ? pause?.pausedBy ?? null : null,
     expiresAt: current.state === 'active' || current.state === 'paused' ? current.expiresAt : current.state === 'expired' ? current.expiredAt : null,
-    lastRefreshAt: record.lastRefreshAt, problem: record.problem?.kind ?? null };
+    lastRefreshAt: record.lastRefreshAt, problem: record.problem?.kind ?? null, server: await serverView(owner, record, owner.serverOrigin) };
 }
 
 export async function handleAutomationRequest(request: AutomationRequest): Promise<AutomationResponse> {

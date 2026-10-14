@@ -27,7 +27,8 @@
 //     ingress     bookmarks are listed as not included in sync
 //     tabs-notabs, tabs-dupe, tabs-confirmed, tabs-long, tabs-many      Save tabs states (see the TABS block below)
 //   Automations page: auto-paused, auto-expired, auto-none, auto-off (server has no automations), auto-rejected,
-//     auto-missing (a rule's folder is not mapped here), auto-empty (signed in, active, no rules)
+//     auto-missing (a rule's folder is not mapped here), auto-empty (signed in, active, no rules),
+//     auto-server-offline (last runs read 3 h ago), auto-server-signin (no web sign-in), auto-server-empty (no runs yet)
 //   Popup only: existing, suggest, suggesting, retrying, local, longtitle, longfolder, nofavicon, perm, attention, stuck,
 //   autoline, autonoline, autoboot, autolocal, autoattention, autowaiting, autoexisting (auto* = automatic card).
 export function installStub(messages) {
@@ -414,7 +415,22 @@ export function installStub(messages) {
           placement('p2', 'facebook/react: The library for web and native user interfaces', 'https://github.com/facebook/react', 'GitHub repositories to Programming', 'Programming', 25 * 60e3, 'confirmed', 'observed'),
           placement('p3', 'Scaling Laws for Neural Language Models', 'https://arxiv.org/abs/2001.08361', 'arXiv papers', 'Academic', 3 * 3600e3, has('auto-rejected') ? 'rejected' : 'review'),
           placement('p4', 'Lemon tart', 'https://www.bbcgoodfood.com/recipes/lemon-tart', 'Recipes from my favourite food sites', 'Cooking', 26 * 3600e3, 'confirmed')];
-        return { ok: true, state: { account: signedOut ? 'signedOut' : 'signedIn', state: signedOut ? 'none' : state, rules, placements,
+        // What the server says it did (AW-54): its rules' state and counts, and its newest runs.
+        const serverRule = (id, name, ruleState, inBrowser, waiting = 0, cost = null) => ({ id, name, state: ruleState, inBrowser, waiting, held: 0, approvals: 0, cost });
+        const run = (id, ruleName, status, ago, extra = {}) => ({ id, ruleName, kind: 'intake', status, held: false, explanation: null, at: now - ago,
+          unread: false, outputCount: 0, url: `https://known.example/automations/runs/${id}`, ...extra });
+        const server = signedOut || has('auto-off') ? null : has('auto-server-signin') ? { fetchedAt: null, problem: 'signedOut', rules: [], runs: [] } : {
+          fetchedAt: now - (has('auto-server-offline') ? 3 * 3600e3 : 50e3), problem: has('auto-server-offline') ? 'offline' : null,
+          rules: [serverRule('r1', 'arXiv papers', 'active', true), serverRule('r2', 'GitHub repositories to Programming', 'degraded', true, 3),
+            serverRule('r3', 'Recipes from my favourite food sites', 'active', true),
+            serverRule('r4', 'Weekly reading digest', 'active', false, 2, 'Billed by your agent')],
+          runs: has('auto-server-empty') ? [] : [
+            run('run-1', 'arXiv papers', 'completed', 60e3, { explanation: 'Canonical device placement verified against the pinned rule and binding.' }),
+            run('run-2', 'GitHub repositories to Programming', 'waiting', 22 * 60e3),
+            run('run-3', 'Weekly reading digest', 'completed', 2 * 3600e3, { kind: 'batch', unread: true, outputCount: 1 }),
+            run('run-4', 'arXiv papers', 'waiting', 5 * 3600e3, { held: true, explanation: 'Explicit hold: awaiting an Owner decision to continue the original pinned work.' }),
+            run('run-5', 'Recipes from my favourite food sites', 'failed', 27 * 3600e3, { explanation: 'Destination unavailable.' })] };
+        return { ok: true, state: { account: signedOut ? 'signedOut' : 'signedIn', state: signedOut ? 'none' : state, rules, placements, server,
           pausedAt: state === 'paused' ? now - 2 * 86400e3 : null, pausedBy: state === 'paused' ? 'owner' : null,
           expiresAt: state === 'expired' ? now - 3600e3 : now + 6 * 86400e3, lastRefreshAt: state === 'none' && !has('auto-off') ? null : now - (state === 'expired' ? 8 * 86400e3 : 120e3),
           problem: has('auto-rejected') ? 'rejected' : has('auto-off') ? 'unavailable' : state === 'expired' ? 'offline' : null, webUrl: 'https://known.example/automations' } };

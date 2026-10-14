@@ -1,0 +1,83 @@
+import 'fake-indexeddb/auto';
+import { IDBFactory } from 'fake-indexeddb';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createBundleStore } from '../src/automation/bundle-store.js';
+import { MemoryStorageArea } from '../src/credential-store.js';
+import { NOW, compiledRule, ruleBundle, serverRule, serverRun } from './automation-fixture.js';
+
+/** AW-54 in the worker: the server's status is read on the existing refresh, with the web sign-in, and shown with its age. */
+const f = vi.hoisted(() => ({ fetch: undefined as unknown as ReturnType<typeof vi.fn> }));
+vi.mock('../src/sw/runtime.js', () => ({
+  hasBookmarkPermission: async () => false, extensionOrigin: () => 'chrome-extension://extension',
+  store: { loadCredential: async () => ({ subject: 'owner', serverOrigin: 'https://colp.example' }), loadBinding: async () => null },
+  syncState: {},
+}));
+vi.mock('../src/sw/scope.js', () => ({ currentSyncScope: async () => null, loadConfig: async () => ({ serverOrigin: 'https://colp.example' }),
+  // Sync's own authority is unavailable: the server status does not depend on it.
+  pushSessionAuthority: async () => { throw new Error('offline'); } }));
+vi.mock('../src/sw/capture-native.js', () => ({ currentCaptureScope: async () => null }));
+vi.mock('../src/sw/reconcile-alarm.js', () => ({ ensurePeriodicAlarm: async () => undefined }));
+
+import { automationArea, automationStateView, refreshAutomation } from '../src/sw/automation.js';
+
+const owner = { serverOrigin: 'https://colp.example', accountId: 'owner' };
+const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+let answers: Record<string, () => Response>;
+
+beforeEach(async () => {
+  vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(NOW);
+  vi.stubGlobal('indexedDB', new IDBFactory());
+  vi.stubGlobal('chrome', { storage: { local: new MemoryStorageArea() } });
+  answers = {
+    '/api/v1/me/automations/rules': () => json({ items: [serverRule({ name: 'arXiv papers', state: 'degraded' }),
+      serverRule({ id: 'rule-digest', name: 'Weekly digest' })], nextCursor: null }),
+    '/api/v1/me/automations/runs': () => json({ items: [serverRun({ id: 'run-1', status: 'waiting', held: true }),
+      serverRun({ id: 'run-2', ruleId: 'rule-digest', kind: 'batch', unread: true, outputCount: 1 }), serverRun({ id: 'run-3', ruleId: 'rule-gone' })], nextCursor: null }),
+  };
+  f.fetch = vi.fn(async (input: RequestInfo | URL) => {
+    const answer = answers[new URL(String(input)).pathname];
+    if (!answer) throw new TypeError('offline');
+    return answer();
+  });
+  vi.stubGlobal('fetch', f.fetch);
+  await createBundleStore(automationArea(), owner).install(ruleBundle([compiledRule()], { revision: 'b-1' }), NOW);
+});
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
+
+describe('the server’s status in the worker', () => {
+  it('reads it on a refresh with the web sign-in, even when Sync can’t reach the server', async () => {
+    await refreshAutomation({ manual: true });
+    expect(f.fetch.mock.calls.map(([url, init]) => [String(url), (init as RequestInit).credentials])).toEqual([
+      ['https://colp.example/api/v1/me/automations/rules?limit=100', 'include'], ['https://colp.example/api/v1/me/automations/runs?limit=20', 'include']]);
+    const { server, problem } = await automationStateView();
+    // The bundle refresh failed on its own (no Sync authority); the server's status still came through.
+    expect(problem).toBe('signedOut');
+    expect(server).toEqual({ fetchedAt: NOW, problem: null,
+      rules: [{ id: 'rule-arxiv', name: 'arXiv papers', state: 'degraded', inBrowser: true, waiting: null, held: null, approvals: null, cost: null },
+        { id: 'rule-digest', name: 'Weekly digest', state: 'active', inBrowser: false, waiting: null, held: null, approvals: null, cost: null }],
+      runs: [
+        { id: 'run-1', ruleName: 'arXiv papers', kind: 'intake', status: 'waiting', held: true, explanation: null, at: NOW, unread: false, outputCount: 0,
+          url: 'https://colp.example/automations/runs/run-1' },
+        expect.objectContaining({ id: 'run-2', ruleName: 'Weekly digest', kind: 'batch', unread: true, outputCount: 1 }),
+        expect.objectContaining({ id: 'run-3', ruleName: null })] });
+  });
+
+  it('keeps the last answer and its age when the server can’t be read, and waits before asking again', async () => {
+    await refreshAutomation({ manual: true });
+    vi.setSystemTime(NOW + 120_000);
+    answers['/api/v1/me/automations/runs'] = () => json({ error: { code: 'unauthorized' } }, 401);
+    await refreshAutomation({ manual: true });
+    expect((await automationStateView()).server).toMatchObject({ fetchedAt: NOW, problem: 'signedOut', runs: [{ id: 'run-1' }, { id: 'run-2' }, { id: 'run-3' }] });
+    // The alarm's pass right after a failure does not read again.
+    f.fetch.mockClear();
+    vi.setSystemTime(NOW + 150_000);
+    await refreshAutomation();
+    expect(f.fetch).not.toHaveBeenCalled();
+  });
+
+  it('shows nothing for a server without automations, and stops asking it', async () => {
+    answers['/api/v1/me/automations/rules'] = () => json({ error: { code: 'not_found' } }, 404);
+    await refreshAutomation({ manual: true });
+    expect((await automationStateView()).server).toBeNull();
+  });
+});

@@ -147,6 +147,82 @@
     "message": "正在检查…",
     "description": "Checking…"
   },
+  "automation_explainAlreadyThere": {
+    "message": "已在规则的文件夹中，未移动。",
+    "description": "Already in the rule’s folder, so nothing moved."
+  },
+  "automation_explainBindingUnavailable": {
+    "message": "规则的文件夹不可用，书签留在你保存的位置。",
+    "description": "The rule’s folder is unavailable, so the bookmark stayed where you saved it."
+  },
+  "automation_explainCancelled": {
+    "message": "已由你取消。已完成的部分保留。",
+    "description": "Cancelled by you. Anything already done stays."
+  },
+  "automation_explainDeferred": {
+    "message": "等待中：书签缺少此规则需要的信息。未做任何更改；你可以取消它。",
+    "description": "Waiting: the bookmark was missing details this rule needs. Nothing was changed; you can cancel it."
+  },
+  "automation_explainDestinationUnavailable": {
+    "message": "未移动：规则的文件夹不可用。",
+    "description": "Not moved: the rule’s folder is unavailable."
+  },
+  "automation_explainDevicePlacement": {
+    "message": "由你的浏览器放置，并已经服务器确认。",
+    "description": "Placed by your browser, and confirmed by the server."
+  },
+  "automation_explainHigherPriority": {
+    "message": "优先级更高的规则选择了其他文件夹，因此此规则未运行。",
+    "description": "A higher-priority rule chose another folder, so this one did not run."
+  },
+  "automation_explainIntakeUnavailable": {
+    "message": "规则的文件夹不可用。",
+    "description": "The rule’s folder is unavailable."
+  },
+  "automation_explainMissingInput": {
+    "message": "书签缺少此规则需要的信息，因此未做任何更改。",
+    "description": "The bookmark was missing details this rule needs, so nothing was changed."
+  },
+  "automation_explainMoved": {
+    "message": "已移入规则的文件夹。",
+    "description": "Moved into the rule’s folder."
+  },
+  "automation_explainNoDetails": {
+    "message": "此次运行未保留详细信息。",
+    "description": "No details were kept for this run."
+  },
+  "automation_explainNothingToMove": {
+    "message": "已匹配，无需移动。",
+    "description": "Matched, and nothing needed to move."
+  },
+  "automation_explainOnHold": {
+    "message": "已暂缓，等你决定是否继续。",
+    "description": "On hold until you decide to continue."
+  },
+  "automation_explainOtherRule": {
+    "message": "另一条规则已把它放在那里。",
+    "description": "Another rule already put it there."
+  },
+  "automation_explainOutsideScope": {
+    "message": "不在此规则的范围内。",
+    "description": "Outside what this rule looks at."
+  },
+  "automation_explainOverHistory": {
+    "message": "未移动：此收藏集已超出版本历史上限。",
+    "description": "Not moved: the collection is over the version-history limit."
+  },
+  "automation_explainOwnerOnly": {
+    "message": "未移动：只有收藏集的所有者才能运行此规则。",
+    "description": "Not moved: only the collection’s owner can run this rule."
+  },
+  "automation_explainRulesDisagree": {
+    "message": "优先级相同的规则选择了不同的文件夹，因此书签留在你保存的位置。",
+    "description": "Rules with the same priority chose different folders, so the bookmark stayed where you saved it."
+  },
+  "automation_explainWaitingToPlace": {
+    "message": "等待移入规则的文件夹。",
+    "description": "Waiting to move it into the rule’s folder."
+  },
   "automation_freshnessHint": {
     "message": "此浏览器每 5 分钟检查一次。离线时会一直使用本地副本，直到 $1；你在网页上暂停后，下次检查时这里就会生效。",
     "description": "This browser checks every 5 minutes. Offline, it keeps using its copy until $1, and a pause you make on the web reaches it at the next check."
@@ -183,9 +259,25 @@
     "message": "这里还没有规则",
     "description": "No rules here yet"
   },
+  "automation_noRunsHint": {
+    "message": "规则处理已同步的书签后，运行记录会显示在这里。",
+    "description": "Runs show up here after a rule acts on a synced bookmark."
+  },
+  "automation_noRunsTitle": {
+    "message": "还没有运行记录",
+    "description": "Nothing has run yet"
+  },
   "automation_noticeRejected": {
     "message": "服务器发来的规则无法在此浏览器使用，之前的规则继续有效。",
     "description": "The server sent rules this browser can’t use. The previous rules stay in force."
+  },
+  "automation_onServer": {
+    "message": "在你的服务器上",
+    "description": "On your server"
+  },
+  "automation_onServerLede": {
+    "message": "书签同步后由服务器完成的工作。此浏览器中的归档从不等待它。",
+    "description": "Work your server does after a bookmark syncs. Filing in this browser never waits for it."
   },
   "automation_onThisBrowser": {
     "message": "此浏览器",
@@ -243,6 +335,22 @@
     "message": "在此浏览器中归档。同步后由服务器逐条确认。",
     "description": "Filed in this browser. The server confirms each one after it syncs."
   },
+  "automation_ruleArchived": {
+    "message": "已归档",
+    "description": "Archived"
+  },
+  "automation_ruleBlocked": {
+    "message": "已阻止",
+    "description": "Blocked"
+  },
+  "automation_ruleDegraded": {
+    "message": "已开启，但有问题",
+    "description": "On, with problems"
+  },
+  "automation_ruleDraft": {
+    "message": "草稿",
+    "description": "Draft"
+  },
   "automation_ruleFilesTo": {
     "message": "放入 $1",
     "description": "Files into $1"
@@ -255,6 +363,30 @@
     "message": "规则“$1”已匹配，但它的文件夹不在此浏览器中，书签留在你保存的位置。",
     "description": "Rule “$1” matched, but its folder isn’t in this browser, so the page stayed where you saved it."
   },
+  "automation_ruleJobsApproval_one": {
+    "message": "$1 项需要你批准",
+    "description": "$1 needs your approval"
+  },
+  "automation_ruleJobsApproval_other": {
+    "message": "$1 项需要你批准",
+    "description": "$1 need your approval"
+  },
+  "automation_ruleJobsHeld_one": {
+    "message": "$1 项因限额暂缓",
+    "description": "$1 held by a limit"
+  },
+  "automation_ruleJobsHeld_other": {
+    "message": "$1 项因限额暂缓",
+    "description": "$1 held by a limit"
+  },
+  "automation_ruleJobsWaiting_one": {
+    "message": "$1 项任务等待代理处理",
+    "description": "$1 job waiting for an agent"
+  },
+  "automation_ruleJobsWaiting_other": {
+    "message": "$1 项任务等待代理处理",
+    "description": "$1 jobs waiting for an agent"
+  },
   "automation_ruleNeedsReview": {
     "message": "规则“$1”需要在网页上审核，书签留在你保存的位置。",
     "description": "Rule “$1” needs a review on the web, so the page stayed where you saved it."
@@ -262,6 +394,14 @@
   "automation_ruleNotChecked": {
     "message": "无法检查规则“$1”，书签留在你保存的位置。",
     "description": "Rule “$1” couldn’t be checked, so the page stayed where you saved it."
+  },
+  "automation_rulePaused": {
+    "message": "已暂停",
+    "description": "Paused"
+  },
+  "automation_ruleServerOnly": {
+    "message": "在你的服务器上运行；此处无需归档。",
+    "description": "Works on your server; nothing to file here."
   },
   "automation_ruleUpdates": {
     "message": "规则更新",
@@ -287,9 +427,113 @@
     "message": "规则已过期，请连接以刷新。书签留在你保存的位置。",
     "description": "Rules are out of date; connect to refresh. The page stayed where you saved it."
   },
+  "automation_runBlocked": {
+    "message": "已阻止",
+    "description": "Blocked"
+  },
+  "automation_runCancelled": {
+    "message": "已取消",
+    "description": "Cancelled"
+  },
+  "automation_runDone": {
+    "message": "已完成",
+    "description": "Done"
+  },
+  "automation_runFailed": {
+    "message": "失败",
+    "description": "Failed"
+  },
+  "automation_runHeld": {
+    "message": "已暂缓",
+    "description": "On hold"
+  },
+  "automation_runKindBatch": {
+    "message": "批次",
+    "description": "Batch"
+  },
+  "automation_runKindIntake": {
+    "message": "新书签",
+    "description": "New bookmark"
+  },
+  "automation_runKindManual": {
+    "message": "运行一次",
+    "description": "Run once"
+  },
+  "automation_runPartial": {
+    "message": "部分完成",
+    "description": "Partly done"
+  },
+  "automation_runReview": {
+    "message": "需要你决定",
+    "description": "Needs a decision"
+  },
+  "automation_runRunning": {
+    "message": "运行中",
+    "description": "Running"
+  },
+  "automation_runSomeRule": {
+    "message": "某条规则",
+    "description": "A rule"
+  },
+  "automation_runWaiting": {
+    "message": "等待中",
+    "description": "Waiting"
+  },
   "automation_savedByRule": {
     "message": "已按规则“$2”保存到 $1。",
     "description": "Saved to $1 by rule “$2”."
+  },
+  "automation_serverChecking": {
+    "message": "正在检查你的服务器…",
+    "description": "Checking your server…"
+  },
+  "automation_serverInvalid": {
+    "message": "你的服务器发送了此浏览器无法读取的内容。",
+    "description": "Your server sent something this browser couldn’t read."
+  },
+  "automation_serverInvalidAt": {
+    "message": "你的服务器发送了此浏览器无法读取的内容。显示的是它$1提供的信息。",
+    "description": "Your server sent something this browser couldn’t read. Showing what it said $1."
+  },
+  "automation_serverInvalidTitle": {
+    "message": "无法读取服务器的运行记录",
+    "description": "Couldn’t read your server’s runs"
+  },
+  "automation_serverRetryHint": {
+    "message": "此浏览器中的保存和归档不依赖它。此页面会在几分钟后重试。",
+    "description": "Saving and filing in this browser don’t need it. This page tries again in a few minutes."
+  },
+  "automation_serverSignInHint": {
+    "message": "此页面使用你在此浏览器中的网页登录读取服务器的运行记录。",
+    "description": "This page reads your server’s runs with your web sign-in in this browser."
+  },
+  "automation_serverSignInTitle": {
+    "message": "在网页上登录以查看运行记录",
+    "description": "Sign in on the web to see runs"
+  },
+  "automation_serverSignedOut": {
+    "message": "在此浏览器中登录网页，即可查看服务器正在做什么。",
+    "description": "Sign in on the web in this browser to see what your server is doing."
+  },
+  "automation_serverSignedOutAt": {
+    "message": "在此浏览器中登录网页即可更新。显示的是服务器$1提供的信息。",
+    "description": "Sign in on the web in this browser to update this. Showing what your server said $1."
+  },
+  "automation_serverUnreachable": {
+    "message": "无法连接到你的服务器。此处的保存和归档不依赖它。",
+    "description": "Couldn’t reach your server. Saving and filing here don’t need it."
+  },
+  "automation_serverUnreachableAt": {
+    "message": "无法连接到你的服务器。显示的是它$1提供的信息。",
+    "description": "Couldn’t reach your server. Showing what it said $1."
+  },
+  "automation_serverUnreachableTitle": {
+    "message": "无法连接到你的服务器",
+    "description": "Couldn’t reach your server"
+  },
+  "automation_serverUpdatedAt": {
+    "message": "$1更新。",
+    "description": "Updated $1."
   },
   "automation_signInHint": {
     "message": "规则保存在你的服务器上，会在你保存书签时自动归档。不使用规则也可以保存和整理书签。",
