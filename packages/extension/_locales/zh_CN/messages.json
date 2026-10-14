@@ -155,6 +155,10 @@
     "message": "此浏览器每 5 分钟检查一次。你在网页上暂停后，下次检查时这里就会生效。",
     "description": "This browser checks every 5 minutes. A pause you make on the web reaches it at the next check."
   },
+  "automation_keptYourFolder": {
+    "message": "已保留你选择的文件夹；规则“$1”没有移动它。",
+    "description": "Kept the folder you chose; rule “$1” didn’t move it."
+  },
   "automation_lede": {
     "message": "服务器上的规则会把你保存的书签放进合适的文件夹。规则在网页上创建和修改。",
     "description": "Rules on your server file the bookmarks you save into the right folder. You create and change them on the web."
@@ -243,6 +247,18 @@
     "message": "它的文件夹不在此浏览器的同步文件夹中，规则暂时等待。",
     "description": "Its folder isn’t in this browser’s synced folders, so the rule waits."
   },
+  "automation_ruleFolderUnavailable": {
+    "message": "规则“$1”已匹配，但它的文件夹不在此浏览器中，书签留在你保存的位置。",
+    "description": "Rule “$1” matched, but its folder isn’t in this browser, so the page stayed where you saved it."
+  },
+  "automation_ruleNeedsReview": {
+    "message": "规则“$1”需要在网页上审核，书签留在你保存的位置。",
+    "description": "Rule “$1” needs a review on the web, so the page stayed where you saved it."
+  },
+  "automation_ruleNotChecked": {
+    "message": "无法检查规则“$1”，书签留在你保存的位置。",
+    "description": "Rule “$1” couldn’t be checked, so the page stayed where you saved it."
+  },
   "automation_ruleUpdates": {
     "message": "规则更新",
     "description": "Rule updates"
@@ -255,9 +271,21 @@
     "message": "规则",
     "description": "Rules"
   },
+  "automation_rulesDisagree": {
+    "message": "多条规则为此页面选择了不同的文件夹，书签留在你保存的位置。",
+    "description": "Rules chose different folders for this page, so it stayed where you saved it."
+  },
   "automation_rulesLede": {
     "message": "你亲自选择的文件夹始终优先于规则。",
     "description": "A folder you pick yourself always wins over a rule."
+  },
+  "automation_rulesOutOfDateSaved": {
+    "message": "规则已过期，请连接以刷新。书签留在你保存的位置。",
+    "description": "Rules are out of date; connect to refresh. The page stayed where you saved it."
+  },
+  "automation_savedByRule": {
+    "message": "已按规则“$2”保存到 $1。",
+    "description": "Saved to $1 by rule “$2”."
   },
   "automation_signInHint": {
     "message": "规则保存在你的服务器上，会在你保存书签时自动归档。不使用规则也可以保存和整理书签。",
@@ -1294,6 +1322,10 @@
   "capture_somethingWentWrongTabs": {
     "message": "出现问题。已保存的标签页仍会保留，请继续以完成其余部分。",
     "description": "Something went wrong. Tabs that were already saved stay saved; resume to finish the rest."
+  },
+  "capture_suggestingTags": {
+    "message": "正在建议标签…",
+    "description": "Suggesting tags…"
   },
   "capture_suggestionApplied": {
     "message": "你已采用建议",
@@ -5019,6 +5051,14 @@
     "message": "书签已移除。五分钟内可在此处或书签库中撤销。",
     "description": "Bookmark removed. Undo is available here or in the library for five minutes."
   },
+  "popup_rulePick": {
+    "message": "按规则",
+    "description": "By rule"
+  },
+  "popup_rulePickTitle": {
+    "message": "规则“$1”选择了这个文件夹。选择其他文件夹即可保留你自己的选择。",
+    "description": "Rule “$1” chose this folder. Pick another to keep yours."
+  },
   "popup_savedTo": {
     "message": "已保存到 $1",
     "description": "Saved to $1"
@@ -5054,6 +5094,10 @@
   "popup_suggestAnotherFolder": {
     "message": "换一个文件夹建议",
     "description": "Suggest another folder"
+  },
+  "popup_suggestTags": {
+    "message": "建议标签",
+    "description": "Suggest tags"
   },
   "popup_suggestedFolder": {
     "message": "建议的文件夹",
@@ -7482,6 +7526,10 @@
   "tabs_resumeUnfinishedItems": {
     "message": "继续未完成的项目",
     "description": "Resume unfinished items"
+  },
+  "tabs_ruleDidNotApply": {
+    "message": "规则未生效",
+    "description": "Rule didn’t apply"
   },
   "tabs_saveOpenTabsWindow": {
     "message": "将此窗口中已打开的标签页作为书签保存到同一个文件夹中。在你确认之前不会保存任何内容，你的标签页会保持打开。",

@@ -1,4 +1,8 @@
-/** Options ↔ worker messages for the Automations page. Read-only except an explicit refresh. */
+/**
+ * Page ↔ worker messages for automations: the Options page's state and refresh,
+ * and the popup's "what would a rule do with this page". All read-only except
+ * an explicit refresh.
+ */
 
 /** chrome.storage.local key of the installed bundle record (bundle-store.ts); pages watch it to repaint. */
 export const AUTOMATION_BUNDLE_KEY = 'known.automation.bundle.v1';
@@ -7,13 +11,27 @@ export const AUTOMATION_RECEIPTS_KEY = 'known.automation.receipts.v1';
 
 export type AutomationRequest =
   | { readonly kind: 'known.automation.state' }
-  | { readonly kind: 'known.automation.refresh'; readonly userGesture: true };
+  | { readonly kind: 'known.automation.refresh'; readonly userGesture: true }
+  | { readonly kind: 'known.automation.match'; readonly url: string; readonly title: string; readonly parentNativeId: string };
 
 export function validAutomationRequest(value: unknown): value is AutomationRequest {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const raw = value as Record<string, unknown>;
   if (raw.kind === 'known.automation.state') return Object.keys(raw).length === 1;
+  if (raw.kind === 'known.automation.match') return Object.keys(raw).length === 4 && typeof raw.url === 'string'
+    && raw.url.length <= 8192 && typeof raw.title === 'string' && raw.title.length <= 4096
+    && typeof raw.parentNativeId === 'string' && /^[\w.-]{1,128}$/u.test(raw.parentNativeId);
   return raw.kind === 'known.automation.refresh' && raw.userGesture === true && Object.keys(raw).length === 2;
+}
+
+/** What the rules would do with a page saved to the popup's default folder. */
+export interface AutomationMatchView {
+  readonly outcome: 'placed' | 'kept' | 'blocked' | 'conflict' | 'review' | 'expired';
+  readonly ruleName: string;
+  readonly ruleCount: number;
+  /** The rule's folder in this browser; only a placement has one. */
+  readonly folderNativeId: string | null;
+  readonly folderTitle: string | null;
 }
 
 export interface AutomationRuleView {
@@ -55,4 +73,5 @@ export interface AutomationStateView {
   readonly webUrl: string | null;
 }
 
-export type AutomationResponse = { readonly ok: true; readonly state: AutomationStateView } | { readonly ok: false; readonly error: string };
+export type AutomationResponse = { readonly ok: true; readonly state: AutomationStateView }
+  | { readonly ok: true; readonly match: AutomationMatchView | null } | { readonly ok: false; readonly error: string };

@@ -1,6 +1,7 @@
 import { openCaptureBatch } from './capture-batch.js';
 import { startCapture, resumeCapture } from './capture.js';
 import { presentSaveFeedback } from '../save-feedback.js';
+import { automationSaveLine } from '../save-status.js';
 import { resolveIngressBoundary } from '../bookmark-event-ingress.js';
 import { parseSaveContextCache, SAVE_CONTEXT_CACHE } from '../save-context-cache.js';
 import { type NativeSavePage } from '../save-entry.js';
@@ -38,7 +39,7 @@ export function installNativeSaveEntries(): void {
           code: task.save === 'local-saved' || task.disposition === 'existing' ? 'saved' : 'busy', entry: 'page',
           message: task.disposition === 'existing' ? t('save_alreadySavedOpenCapture', 'Already saved. Open capture history to choose its location.')
             : task.save === 'unknown' ? t('save_checkingPreviousSaveResult', 'Checking the previous save result. Open capture history for details.')
-              : task.save === 'local-saved' ? t('save_savedBrowserPeriod', 'Saved to this browser.')
+              : task.save === 'local-saved' ? automationSaveLine(task.automation)?.text ?? t('save_savedBrowserPeriod', 'Saved to this browser.')
                 : t('save_couldNotSaveOpen', 'Could not save. Open capture history to review the task.'),
           ...(task.nativeId ? { nativeId: task.nativeId } : {}),
         })).catch(() => presentSaveFeedback({ code: 'permission_required', entry: 'page' }));

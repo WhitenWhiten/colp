@@ -15,23 +15,28 @@ function confirmedPopupNativeId(task: CaptureTask): string | undefined {
   return task.nativeId || undefined;
 }
 
-/** The worker owns native I/O and recovery, including when the popup disappears. */
+/**
+ * The worker owns native I/O and recovery, including when the popup disappears.
+ * Resolves with the saved bookmark and its task (where the rules put it, if they did).
+ * `folderChoice: 'explicit'` says the user picked the folder for this save, so no rule moves it.
+ */
 export async function savePopupNativePage(page: NativeSavePage, parentNativeId?: string, collectionId?: string,
-  insertPosition?: BookmarkInsertPosition, annotation?: BookmarkAnnotationInput) {
+  insertPosition?: BookmarkInsertPosition, annotation?: BookmarkAnnotationInput, folderChoice?: 'explicit' | 'default') {
   const checkbox = document.getElementById('capture-save-another') as HTMLInputElement | null;
   const copy = checkbox?.checked === true && checkbox.dataset.url === page.url;
-  const key = JSON.stringify([page.url, page.title, parentNativeId, copy, collectionId, insertPosition, annotation]);
+  const key = JSON.stringify([page.url, page.title, parentNativeId, copy, collectionId, insertPosition, annotation, folderChoice]);
   // Keep this id across a pre-call failure and an unknown result. A new id could create a second bookmark.
   if (command?.key !== key) command = { key, id: crypto.randomUUID() };
   let response = await chrome.runtime.sendMessage({ kind: 'known.capture.start', trigger: 'manual-popup', userGesture: true,
     commandId: command.id, url: page.url, title: page.title, ...(parentNativeId ? { parentNativeId } : {}),
-    ...(collectionId ? { collectionId } : {}), ...(insertPosition ? { insertPosition } : {}), ...(annotation ? { annotation } : {}), saveAnother: copy, allowUnverifiedCloud: true }) as { ok: boolean; task?: CaptureTask; error?: string };
+    ...(collectionId ? { collectionId } : {}), ...(insertPosition ? { insertPosition } : {}), ...(annotation ? { annotation } : {}),
+    ...(folderChoice ? { folderChoice } : {}), saveAnother: copy, allowUnverifiedCloud: true }) as { ok: boolean; task?: CaptureTask; error?: string };
   if (!response?.ok || !response.task) throw new Error(response?.error ?? 'capture_unavailable');
   const captureId = response.task.captureId;
   for (let count = 0; count < 40; count++) {
     const task = response.task!;
     const nativeId = confirmedPopupNativeId(task);
-    if (nativeId) return nativeId;
+    if (nativeId) return { nativeId, task };
     if (task.disposition === 'cancelled') throw new Error('capture_cancelled');
     if (task.save === 'failed') throw new Error(task.reason ?? 'capture_failed');
     if (task.disposition === 'existing') throw new Error('capture_existing_locations');

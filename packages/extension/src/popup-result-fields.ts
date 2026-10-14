@@ -83,14 +83,17 @@ export function bindResultFields(shell: { readonly folders: FolderPicker; readon
       const ready = (task.save === 'local-saved' || task.disposition === 'existing') && resultBookmarkId(task) !== null;
       setHidden(rows, !ready);
       if (!ready) return;
-      shell.fields.setAiPick((suggested || task.classification === 'applied' && !corrected) && !shell.folders.userPicked());
+      // A rule's placement is the rule's pick, even after the user's AI suggested tags for it.
+      const ruled = task.automation?.outcome === 'placed' && !corrected && !shell.folders.userPicked();
+      shell.fields.setAiPick(!ruled && (suggested || task.classification === 'applied' && !task.automation && !corrected) && !shell.folders.userPicked());
+      shell.fields.setRulePick(ruled ? task.automation!.rule.name : null);
       await followFolder(task);
       await loadAnnotationOnce(task);
       const offered = offeredTags(task), key = offered.join('\u0000');
       if (key !== offeredKey) { offeredKey = key; shell.fields.tags.setAiSuggestions(offered); }
     },
     /** A folder correction was sent: the pick is the user's now, not the AI's. */
-    markCorrected(): void { corrected = true; suggested = false; shell.fields.setAiPick(false); },
+    markCorrected(): void { corrected = true; suggested = false; shell.fields.setAiPick(false); shell.fields.setRulePick(null); },
     /** A confirmed alternative is still an AI pick, while Done must not rate the original decision positively. */
     markSuggested(): void { corrected = true; suggested = true; shell.fields.setAiPick(true); },
     wasCorrected: () => corrected,

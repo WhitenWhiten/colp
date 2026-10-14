@@ -41,6 +41,12 @@ export interface PopupClassificationHost {
   /** Saved results expose a request only after seeding an AI pick or an abstention with candidates. */
   readonly retryOnly?: boolean;
   readonly onRequest?: () => void;
+  /**
+   * True while one of the account's rules chooses the folder. The user's own AI
+   * is then asked for tags only (`folder: false`), or nothing when tags are off;
+   * a Know-N suggestion is not requested at all.
+   */
+  readonly ruleFolder?: () => boolean;
 }
 
 /** The Product contract's cap on turned-down folders per request. */
@@ -75,16 +81,20 @@ export function bindPopupClassification(host: PopupClassificationHost) {
 
   const selectedTags = () => tags.aiTags().slice(0, 3);
   const canAsk = () => enabled && !busy && !(managedBilling && !managedPrice);
+  const ruled = () => host.ruleFolder?.() === true;
+  /** With a rule's folder, only the user's own AI may run, and only for tags. */
+  const tagsOnlyBlocked = () => ruled() && (!local || !tagsEnabled);
   function paintChip(next: SuggestState): void {
     state = next;
     // A retry spins its own button instead of showing "Suggesting…".
-    chip.hidden = next === 'hidden' || (next === 'busy' && retrying) || (next === 'run' && host.retryOnly === true && !retryReady);
+    chip.hidden = next === 'hidden' || (next === 'busy' && retrying) || (next === 'run' && host.retryOnly === true && !retryReady)
+      || (next === 'run' && tagsOnlyBlocked());
     chip.disabled = next === 'busy' || (next === 'run' && !canAsk());
     if (next === 'busy') chip.setAttribute('aria-busy', 'true'); else chip.removeAttribute('aria-busy');
     chip.dataset.state = next;
     label.textContent = next === 'busy' ? t('popup_suggesting', 'Suggesting…')
       : next === 'apply' ? nativeFolder?.title ?? ''
-        : next === 'run' ? (reuse ? t('common_checkAgain', 'Check again') : requireCandidate
+        : next === 'run' ? (reuse ? t('common_checkAgain', 'Check again') : ruled() ? t('popup_suggestTags', 'Suggest tags') : requireCandidate
           ? t('popup_classifyAgain', 'Suggest again') : retryReady ? t('common_tryAgain', 'Try again') : t('popup_suggest', 'Suggest')) : '';
     chip.title = next === 'apply' ? t('popup_suggestedFolder', 'Suggested folder')
       : local && next !== 'hidden' ? t('popup_localModeSuggestionsCome', 'Suggestions are sent directly to your own AI service.') : '';
@@ -227,10 +237,11 @@ export function bindPopupClassification(host: PopupClassificationHost) {
 
   async function preview(automatic = false, another = false): Promise<void> {
     const input = host.input();
-    if (!enabled || busy || !input || (!local && input.collectionId !== collectionId)) return;
+    if (!enabled || busy || !input || (!local && input.collectionId !== collectionId) || tagsOnlyBlocked()) return;
+    const folder = !ruled();
     host.onRequest?.();
     const before = version, authorityAt = connectionVersion;
-    if (!local && !await host.inScope()) {
+    if (!local && folder && !await host.inScope()) {
       if (before === version) say(t('popup_chooseSyncedFolderBefore', 'Choose a synced folder before requesting suggestions.'));
       return;
     }
@@ -246,8 +257,8 @@ export function bindPopupClassification(host: PopupClassificationHost) {
       // The visible quote is the consent. Freeze the whole command, including
       // its billing cap, so checking an uncertain result cannot change intent.
       // Alternatives and retries after abstention leave the displayed tags alone.
-      const body = classificationDocument(input, { tags: tagsEnabled && !another && !requireCandidate && !host.retryOnly,
-        requireCandidate, rejectedFolderIds: rejected,
+      const body = classificationDocument(input, { tags: tagsEnabled && !another && !requireCandidate && !host.retryOnly, folder,
+        requireCandidate: folder && requireCandidate, rejectedFolderIds: folder ? rejected : [],
         ...(!local && managedBilling ? { billing: { priceVersion: managedPrice!.priceVersion, maxPoints: managedPrice!.unitPoints } } : {}),
       });
       const trigger = automatic ? { automatic: true as const } : { userGesture: true as const };
@@ -287,9 +298,10 @@ export function bindPopupClassification(host: PopupClassificationHost) {
       exhausted = result.folder?.decision === 'later' && result.candidateCoverage.l1Included === 0;
       requireCandidate = result.folder?.decision === 'later' && result.candidateCoverage.l1Included > 0;
       retryReady = requireCandidate;
-      nativeFolder = reply.nativeFolder ?? null;
+      nativeFolder = message.document.requested.folder ? reply.nativeFolder ?? null : null;
       const fillResult = 'automatic' in message;
-      if (result.folder?.decision === 'later') {
+      if (!message.document.requested.folder) { /* Tags only: the rule keeps the folder. */ }
+      else if (result.folder?.decision === 'later') {
         say(another ? t('popup_noOtherFolderFits', 'No other folder fits. Keep this one or pick another.')
           : t('popup_noFolderSuggestedKeep', 'No folder suggested. Keep your chosen folder or pick another.'));
       } else if (!nativeFolder) {
@@ -336,6 +348,8 @@ export function bindPopupClassification(host: PopupClassificationHost) {
   }
   return {
     refresh, reset: resetInput, selectedTags,
+    /** A rule started or stopped choosing the folder: the chip follows (it never cancels a request in flight). */
+    ruleChanged(): void { if (!busy) paintChip(state === 'apply' && ruled() ? 'hidden' : state === 'hidden' && enabled && !applied ? 'run' : state); },
     /** A saved result needs an explicit request; legacy abstentions may not retain their candidate count. */
     seedRetry(options: { readonly requireCandidate: boolean }): boolean {
       if (!enabled || busy) return false;

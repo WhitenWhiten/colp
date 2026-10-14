@@ -47,6 +47,12 @@ export function bindSaveFolderPicker(host: SaveFolderUiHost): {
   adopt(nativeId: string): Promise<void>;
   /** True once the user picked a folder in this popup; an adopted folder never overrides that. */
   userPicked(): boolean;
+  /**
+   * True when the chosen folder is the user's own choice for this save: picked in
+   * this popup, or picked earlier in this browser session and not yet saved to.
+   * Remembered, default and suggested folders are not explicit.
+   */
+  explicit(): boolean;
   commit(collectionId: string | undefined): Promise<void>;
   /** Shows the folder's parent title before its name (editing an existing bookmark). */
   setParentVisible(visible: boolean): void;
@@ -59,6 +65,8 @@ export function bindSaveFolderPicker(host: SaveFolderUiHost): {
   let mounts = new Set<string>();
   let collectionId: string | undefined;
   let picked = false;
+  /** The unsaved pick from an earlier opening of the popup, restored as the current folder. */
+  let restoredPick = '';
   let suggested = false, selectionVersion = 0;
   let parentVisible = false;
   let currentTitle = '';
@@ -121,7 +129,7 @@ export function bindSaveFolderPicker(host: SaveFolderUiHost): {
       host.folderCurrent.textContent = '';
       folderRootHint = '';
       chosenId = '';
-      picked = suggested = false;
+      picked = suggested = false; restoredPick = '';
       try {
         if (typeof chrome.bookmarks === 'undefined') return;
         try {
@@ -139,7 +147,7 @@ export function bindSaveFolderPicker(host: SaveFolderUiHost): {
             if (at !== selectionVersion) return;
             if (node?.parentId && node.url === undefined && !node.unmodifiable && !await isUnsupportedBookmarkFolder(id)) {
               if (at !== selectionVersion) return;
-              target = id; break;
+              target = id; if (id === once?.folderNativeId) restoredPick = id; break;
             }
           }
           if (!target && deviceScope) target = await resolveDefaultBookmarkParent(chrome.bookmarks).catch(() => '');
@@ -176,6 +184,7 @@ export function bindSaveFolderPicker(host: SaveFolderUiHost): {
       host.onChosen?.();
     },
     userPicked: () => picked,
+    explicit: () => picked || (restoredPick !== '' && chosenId === restoredPick),
     setParentVisible(visible) { parentVisible = visible; if (chosenId) void updateLabel(); else paintParent(''); },
     open: openPicker,
     close: closePicker,

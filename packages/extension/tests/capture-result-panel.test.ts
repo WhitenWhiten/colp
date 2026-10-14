@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
-import { afterEach, beforeEach, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { createCaptureResultPanel, resultStatus, type ResultPanelOptions } from '../src/capture/result-panel.js';
-import type { CaptureTask } from '../src/capture/contracts.js';
+import type { CaptureAutomation, CaptureTask } from '../src/capture/contracts.js';
 import { createPopupNote } from '../src/popup-note.js';
 import { byId, mountPopupShell } from './fixtures/popup-shell.js';
 import { location, task } from './fixtures/capture.js';
@@ -251,4 +251,39 @@ test('a failed Remove keeps the existing result available', async () => {
   expect(status()).toBe('Already saved');
   expect(panel.removed()).toBe(false);
   panel.dispose();
+});
+
+describe('what the rules did (AW-19)', () => {
+  const automation: CaptureAutomation = { outcome: 'placed', ruleIds: ['rule-arxiv'], bundleRevision: 'b-1', settingsRevision: 1,
+    satisfies: ['classify.root'], rule: { id: 'rule-arxiv', name: 'arXiv papers', revision: '1', bindingRevision: '1', semanticDigest: 'd' },
+    destination: { serverUuid: 's', collectionId: 'c', nodeId: 'academic' }, folderTitle: 'Academic', fromNativeId: 'inbox',
+    collectionId: 'c', replicaId: 'r', generation: 1 };
+  const ruled = (over: Partial<CaptureAutomation> = {}, task: Partial<CaptureTask> = {}): CaptureTask =>
+    ({ ...local, classification: 'none', local: undefined, automation: { ...automation, ...over }, ...task });
+
+  test('a placement names the folder and the rule in one calm line', () => {
+    const { panel, line } = mount();
+    panel.show(ruled());
+    expect(line.textContent).toBe('Saved to Academic by rule “arXiv papers”.');
+    expect(byId('capture-alert').hidden).toBe(true);
+    expect(document.body.dataset.complete).toBe('true');
+    panel.dispose();
+  });
+
+  test('while the user’s own AI suggests tags, the line says so instead of choosing a folder', () => {
+    const { panel, line } = mount();
+    panel.show(ruled({}, { classification: 'running', local: { commandId: 'c', state: 'running' } }));
+    expect(line.textContent).toBe('Suggesting tags…');
+    panel.dispose();
+  });
+
+  test('a rule that matched but could not act explains why, as an alert', () => {
+    const { panel } = mount();
+    panel.show(ruled({ outcome: 'blocked', reason: 'bindingUnavailable', satisfies: [] }));
+    expect(byId('capture-alert').hidden).toBe(false);
+    expect(byId('capture-alert-text').textContent).toBe('Rule “arXiv papers” matched, but its folder isn’t in this browser, so the page stayed where you saved it.');
+    panel.show(ruled({ outcome: 'expired', satisfies: [] }));
+    expect(byId('capture-alert-text').textContent).toBe('Rules are out of date; connect to refresh. The page stayed where you saved it.');
+    panel.dispose();
+  });
 });

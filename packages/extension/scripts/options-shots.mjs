@@ -166,7 +166,8 @@ const LIBRARY = [
   // Save tabs
   ['tabs-default', 'capture-tabs.html'], ['tabs-notabs', 'capture-tabs.html?shot=tabs-notabs'], ['tabs-nobookmarks', 'capture-tabs.html?shot=noperm,tabs-notabs'],
   ['tabs-dupe', 'capture-tabs.html?shot=tabs-dupe'], ['tabs-long', 'capture-tabs.html?shot=tabs-long'], ['tabs-many', 'capture-tabs.html?shot=tabs-many'],
-  ['tabs-confirmed', 'capture-tabs.html?batch=20000000-0000-4000-8000-000000000800&shot=tabs-confirmed'], ['tabs-hover', 'capture-tabs.html', async (p) => { await p.hover('.tabs-row >> nth=1'); }],
+  ['tabs-confirmed', 'capture-tabs.html?batch=20000000-0000-4000-8000-000000000800&shot=tabs-confirmed'],
+  ['tabs-rule', 'capture-tabs.html?batch=20000000-0000-4000-8000-000000000800&shot=tabs-confirmed,tabs-rule'], ['tabs-hover', 'capture-tabs.html', async (p) => { await p.hover('.tabs-row >> nth=1'); }],
   ['tabs-search', 'capture-tabs.html', async (p) => { await p.fill('#tabs-search', 'attention'); await p.waitForTimeout(300); }],
   ['tabs-none', 'capture-tabs.html', async (p) => { await p.click('#tabs-invert'); await p.waitForTimeout(200); }],
   ['tabs-folder', 'capture-tabs.html', async (p) => { await p.selectOption('#tabs-target', { index: 2 }); await p.waitForTimeout(200); }],
@@ -292,6 +293,14 @@ for (const width of widths) {
   await popup('boot', 'autoboot');
   await popup('longtitle', 'manual,longtitle,longfolder');
   await popup('nofavicon', 'manual,nofavicon');
+  // Pre-save rules: the rule's folder before Save, then what the save did
+  const saveNow = async (p) => { await p.click('#save'); await p.waitForTimeout(700); };
+  await popup('rule', 'manual,rule');
+  await popup('rule-saved', 'manual,rule', saveNow);
+  await popup('rule-picked', 'manual,rule', async (p) => { await pickerOpen(p); await p.click('#folder-tree [role="option"] >> nth=1'); await p.waitForTimeout(300); });
+  await popup('rule-blocked-saved', 'manual,ruleblocked', saveNow);
+  await popup('auto-rule', 'autorule');
+  await popup('auto-rule-blocked', 'autoruleblocked');
   await popup('stuck', 'manual,stuck');
   // Automatic capture result card
   await popup('auto', 'auto');

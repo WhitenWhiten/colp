@@ -82,13 +82,17 @@ async function classifyOnce(task: CaptureTask, ledger: CaptureStore, context: Au
   if (stop) return write({ reason: stop, ...(stop === 'offline' ? {} : { classification: 'manual' as const }),
     ...(stop === 'manually_edited' ? { manualFence: current.manualFence + 1 } : {}) });
   const commandId = crypto.randomUUID(), tagMode = await captureTagMode(true);
+  // A rule chose the folder before the save: the provider is asked for tags only, or not at all.
+  const tagsOnly = Boolean(current.automation);
+  if (tagsOnly && tagMode === 'off') return write({ classification: 'none', reason: null, local: { ...local, state: 'kept' } });
   await write({ classification: 'running', reason: null, local: { ...local, commandId, state: 'running', fromNativeId: current.targetNativeId } });
-  const document = classificationDocument(current, { tags: tagMode !== 'off' });
+  const document = classificationDocument(current, { tags: tagMode !== 'off', folder: !tagsOnly });
   const reply = await runLocalClassification({ document, commandId, generation: context.generation, signal: context.signal, excludeBookmarkId: current.nativeId! });
   current = await ledger.get(task.scope, task.captureId) ?? current;
   const running = current.local ?? local;
+  if (!reply.ok && tagsOnly && reply.error === 'local_no_tags') return write({ classification: 'applied', reason: null, local: { ...running, state: 'kept' } });
   if (!reply.ok) return write({ classification: 'manual', reason: reply.error, local: { ...running, state: 'unknown' } });
-  const folder = reply.nativeFolder;
+  const folder = tagsOnly ? { nativeId: current.targetNativeId, title: '' } : reply.nativeFolder;
   if (!folder || reply.result.folder?.decision === 'later') {
     const folderCandidateCount = reply.result.candidateCoverage.l1Included;
     return write({ classification: 'manual', reason: folderCandidateCount === 0 ? 'local_no_folders' : 'local_no_folder',
@@ -96,7 +100,7 @@ async function classifyOnce(task: CaptureTask, ledger: CaptureStore, context: Au
   }
   // The tags the model selected: Add writes them with the move, Suggest leaves them for the result panel.
   const selectedTags = reply.result.tags?.candidates.filter(candidate => candidate.selected !== false).map(candidate => candidate.tag).slice(0, 3) ?? [];
-  const suggestion = { folderNativeId: folder.nativeId, folderTitle: folder.title,
+  const suggestion = { ...tagsOnly ? {} : { folderNativeId: folder.nativeId, folderTitle: folder.title },
     ...tagMode === 'suggest' && selectedTags.length ? { suggestedTags: selectedTags } : {} };
   const late = current.manualFence ? 'manually_edited' : await stopReason(current);
   if (late) return write({ classification: 'manual', reason: late, local: { ...running, ...suggestion, state: 'unknown' } });

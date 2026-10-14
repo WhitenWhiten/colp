@@ -25,3 +25,20 @@ test('guests use local tags and overlapping cloud vocabulary is counted once', a
       document: expect.objectContaining({ requested: { folder: true, tags: true } }) }));
   } finally { store.close(); }
 });
+
+test('a rule’s placement asks for tags only, and sends nothing without a tag vocabulary', async () => {
+  vi.stubGlobal('indexedDB', new IDBFactory());
+  // No folders at all: a tags-only request does not need any.
+  vi.stubGlobal('chrome', { bookmarks: { getTree: async () => [{ id: '0', title: 'Root', children: [] }] } });
+  const document = { source: 'extension' as const, bookmark: { title: 'Paper', url: 'https://arxiv.org/abs/1', description: null }, requested: { folder: false, tags: true as const } };
+  const run = () => runLocalClassification({ document, commandId: 'cmd', generation: 1, signal: new AbortController().signal });
+  vi.mocked(previewLocalClassification).mockClear();
+  expect(await run()).toEqual({ ok: false, error: 'local_no_tags' });
+  expect(previewLocalClassification).not.toHaveBeenCalled();
+  const store = createBookmarkAnnotationStore();
+  try {
+    await store.save({ id: 'b' }, { tags: ['Papers'], note: null });
+    expect((await run()).ok).toBe(true);
+    expect(previewLocalClassification).toHaveBeenCalledWith(expect.objectContaining({ document: expect.objectContaining({ requested: { folder: false, tags: true } }) }));
+  } finally { store.close(); }
+});

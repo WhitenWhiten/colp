@@ -53,8 +53,9 @@ export function bindResultSuggestions(deps: {
       const failed = task.automaticIntent && ['manual', 'failed'].includes(task.classification)
         && RETRYABLE_REASONS.has(task.reason ?? '');
       const retry = !task.manualFence && (later || failed);
+      // A rule owns this folder: the result never offers a model's folder in its place.
       if (!binding || stopped || seeded || loading || task.disposition !== 'new' || task.classification !== 'applied' && !retry
-        || !task.nativeId || !task.local && task.sync !== 'confirmed' || deps.folders.userPicked()) return;
+        || !task.nativeId || !task.local && task.sync !== 'confirmed' || deps.folders.userPicked() || task.automation) return;
       loading = true;
       const at = epoch;
       try {

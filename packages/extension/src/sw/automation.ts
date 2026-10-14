@@ -5,9 +5,13 @@ import { projectRule, type ProjectionDeps } from '../automation/binding-projecto
 import { automationOwnerKey, bundleState, chromeLocalArea, createBundleStore, type AutomationOwner, type BundleRecord,
   type RefreshProblem } from '../automation/bundle-store.js';
 import { ruleCollectionId } from '../automation/runtime-profile.js';
-import { createReceiptStore, settled, syncReceipts, type PlacementReceipt } from '../automation/receipt-sync.js';
+import { createReceiptStore, newPlacementReceipt, settled, syncReceipts, type PlacementReceipt } from '../automation/receipt-sync.js';
 import { syncReceiptEvidence } from '../automation/receipt-evidence.js';
-import type { AutomationPlacementView, AutomationRequest, AutomationResponse, AutomationRuleView, AutomationStateView } from '../automation/messages.js';
+import { decidePreSave, type PreSaveDecision, type PreSaveInput } from '../automation/pre-save.js';
+import type { AutomationMatchView, AutomationPlacementView, AutomationRequest, AutomationResponse, AutomationRuleView,
+  AutomationStateView } from '../automation/messages.js';
+import type { CaptureScope, CaptureTask } from '../capture/contracts.js';
+import { currentCaptureScope } from './capture-native.js';
 import type { SyncScope } from '../sync-state-store.js';
 import { readBoundedJson } from '../json-response.js';
 import { ensurePeriodicAlarm } from './reconcile-alarm.js';
@@ -93,8 +97,44 @@ async function flushReceipts(owner: AutomationOwner, device: DeviceAuthority, re
 
 /** Persist a placement this browser just made; it is sent once its Sync operations exist. */
 export async function recordPlacementReceipt(receipt: PlacementReceipt): Promise<void> {
-  await createReceiptStore(chromeLocalArea()).add(receipt, Date.now());
-  void refreshAutomation().catch(() => undefined);
+  if (await createReceiptStore(chromeLocalArea()).add(receipt, Date.now())) void refreshAutomation().catch(() => undefined);
+}
+
+/** The installed rules' decision for a save about to happen; null when automations do not apply here. */
+export async function preSaveDecision(scope: CaptureScope, input: PreSaveInput): Promise<PreSaveDecision | null> {
+  if (!scope.accountId || !scope.collectionId || !await hasBookmarkPermission()) return null;
+  const record = await createBundleStore(chromeLocalArea(), { serverOrigin: scope.serverOrigin, accountId: scope.accountId }).read();
+  if (!record.bundle) return null;
+  // Rules place only while this browser syncs the collection they belong to.
+  const sync = await currentSyncScope().catch(() => null);
+  if (!sync || sync.accountId !== scope.accountId || sync.collectionId !== scope.collectionId) return null;
+  return decidePreSave({ record, now: Date.now(), scope: sync, deps: projectionDeps(sync) }, input);
+}
+
+/** A save the rules placed. The capture id is the receipt id, so acknowledging the save again adds nothing. */
+export async function recordPreSaveReceipt(task: CaptureTask): Promise<void> {
+  const automation = task.automation;
+  if (automation?.outcome !== 'placed' || !automation.destination || !task.nativeId || !task.scope.accountId
+    || task.save !== 'local-saved' || task.disposition !== 'new') return;
+  const { rule } = automation;
+  await recordPlacementReceipt(newPlacementReceipt({
+    ownerKey: automationOwnerKey({ serverOrigin: task.scope.serverOrigin, accountId: task.scope.accountId }),
+    collectionId: automation.collectionId, replicaId: automation.replicaId, generation: automation.generation, path: 'preSave',
+    rule: { id: rule.id, name: rule.name, revision: rule.revision, bindingRevision: rule.bindingRevision, bundleRevision: automation.bundleRevision },
+    destination: automation.destination, destinationTitle: automation.folderTitle ?? '', satisfies: [...automation.satisfies],
+    page: { title: task.title, url: task.url }, native: { nativeId: task.nativeId, destinationNativeId: task.targetNativeId },
+  }, task.savedAt ?? Date.now(), task.captureId));
+}
+
+/** What a save of this page would do, for the popup to show before Save. Never places anything. */
+async function matchView(request: Extract<AutomationRequest, { kind: 'known.automation.match' }>): Promise<AutomationMatchView | null> {
+  const scope = await currentCaptureScope().catch(() => null);
+  if (!scope) return null;
+  const decision = await preSaveDecision(scope, { url: request.url, title: request.title, parentNativeId: request.parentNativeId, explicit: false });
+  if (!decision) return null;
+  const { automation } = decision;
+  return { outcome: automation.outcome, ruleName: automation.rule.name, ruleCount: automation.ruleIds.length,
+    folderNativeId: decision.targetNativeId, folderTitle: automation.folderTitle ?? null };
 }
 
 function refreshProblem(problem: DeviceProblem): Exclude<RefreshProblem, 'rejected'> {
@@ -194,6 +234,7 @@ export async function automationStateView(): Promise<AutomationStateView> {
 }
 
 export async function handleAutomationRequest(request: AutomationRequest): Promise<AutomationResponse> {
+  if (request.kind === 'known.automation.match') return { ok: true, match: await matchView(request) };
   if (request.kind === 'known.automation.refresh') await refreshAutomation({ manual: true });
   // Opening the page also nudges a due refresh; its result re-renders through storage.onChanged.
   else void refreshAutomation().catch(() => undefined);

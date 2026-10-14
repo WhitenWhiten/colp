@@ -24,6 +24,9 @@ import { cancelRemovedCapture } from './capture-remove.js';
 import { persistCaptureAnnotation } from './capture-annotation.js';
 import { pinNode } from './bookmark-pins.js';
 import { annotationForCaptureStart, type BookmarkAnnotationInput } from '../bookmark-annotation-store.js';
+import { blockedPlacement } from '../automation/pre-save.js';
+import { preSaveDecision, recordPreSaveReceipt } from './automation.js';
+import { captureTagMode } from './capture-local.js';
 
 export const CAPTURE_ALARM = 'known-capture-recovery';
 export const captureStore = createCaptureStore(indexedDB, () => {
@@ -33,6 +36,8 @@ export const captureCoordinator = createCaptureCoordinator({ store: captureStore
   assertCurrent: assertCaptureScope, existence: captureExistence, create: createNativeCapture, receipt: recoverNativeCapture,
   acknowledge: async task => {
     if (task.nativeIntentId) await createBookmarkCreatePlacementStore().acknowledge(task.nativeIntentId);
+    // A rule's placement is receipted before anything is sent; a failure here must not undo the save.
+    await recordPreSaveReceipt(task).catch(() => undefined);
     return persistCaptureAnnotation(task, bookmark => pinNode(bookmark, true));
   } });
 
@@ -41,6 +46,8 @@ export async function startCapture(input: {
   readonly parentNativeId?: string; readonly collectionId?: string; readonly insertPosition?: 'top' | 'bottom'; readonly tabId?: number; readonly batchId?: string;
   readonly saveAnother?: boolean; readonly allowUnverifiedCloud?: boolean; readonly annotation?: BookmarkAnnotationInput;
   readonly resumeNativeIds?: readonly string[];
+  /** `explicit`: the user picked this folder for this save, and no rule overrides it. Remembered and default folders are not explicit. */
+  readonly folderChoice?: 'explicit' | 'default';
 }): Promise<CaptureTask> {
   if (!supportedCaptureUrl(input.url)) throw new Error('capture_url_unsupported');
   const annotation = annotationForCaptureStart(input.annotation, { preserveTags: true });
@@ -50,10 +57,18 @@ export async function startCapture(input: {
   const preferences = await readEffectiveBookmarkPreferences();
   const control = await readCaptureControl(scope);
   const automatic = input.source !== 'batch' && input.source !== 'manual-popup' && preferences.captureMode === 'automatic';
-  const { nativeId: targetNativeId, inRange } = await captureTarget(scope, input.parentNativeId);
+  const requested = await captureTarget(scope, input.parentNativeId);
+  // The account's rules decide before the native create, so a rule places the bookmark directly.
+  const decision = await preSaveDecision(scope, { url: input.url, title: input.title, parentNativeId: requested.nativeId,
+    explicit: input.folderChoice === 'explicit' }).catch(() => null);
+  const ruled = decision?.targetNativeId ? await captureTarget(scope, decision.targetNativeId).catch(() => null) : null;
+  const automation = decision && decision.targetNativeId && !ruled ? blockedPlacement(decision.automation) : decision?.automation;
+  const { nativeId: targetNativeId, inRange } = ruled ?? requested;
   // Local mode files into any browser folder, so it never needs the synced range, an account or credits.
   const local = automatic && await localClassificationEnabled();
-  const classify = automatic && (local || inRange && Boolean(control.consent));
+  // A matching rule owns the folder, whatever it decided: no model is asked for one. The user's own
+  // provider may still suggest tags (`folder: false`); the cloud path does nothing.
+  const classify = automatic && (automation ? local && await captureTagMode(true) !== 'off' : local || inRange && Boolean(control.consent));
   const tab = input.source === 'context-link' ? null : input.tabId !== undefined
     ? await chrome.tabs.get(input.tabId).catch(() => null) : (await chrome.tabs.query({ active: true, currentWindow: true }).catch(() => []))[0];
   const favIconUrl = tab?.url === input.url ? tab.favIconUrl : undefined;
@@ -66,7 +81,8 @@ export async function startCapture(input: {
     saveAnother: input.saveAnother ?? false, allowUnverifiedCloud: input.allowUnverifiedCloud ?? false,
     ...(input.resumeNativeIds ? { resumeNativeIds: [...input.resumeNativeIds] } : {}),
     createdAt: now, updatedAt: now, revision: 0, deviceId: await captureDeviceId(), policyVersion: 'capture-folder.v1', automaticIntent: automatic,
-    ...(local ? { local: { commandId: null, state: 'waiting' as const } } : { billingAuthorization: control.consent }),
+    ...(!local ? { billingAuthorization: control.consent } : classify ? { local: { commandId: null, state: 'waiting' as const } } : {}),
+    ...(automation ? { automation } : {}),
     disposition: 'new', save: 'unsubmitted', classification: classify ? 'waiting' : 'none', sync: inRange ? 'pending' : 'local-only', existence: null,
     nativeIntentId: null, nativeId: null, nodeId: null, executionId: null, decisionId: null,
     localLocation: null, cloudLocation: null, appliedRevision: null, manualFence: 0, controlGeneration: control.generation,

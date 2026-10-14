@@ -24,8 +24,8 @@ test('a saved capture returns its native id once', async () => {
     if (message.kind === 'known.capture.start' && message.commandId) ids.push(message.commandId);
     return { ok: true, task: task({ captureId: 'cap-saved', save: 'local-saved', disposition: 'new', nativeId: '55', commandId: message.commandId }) };
   }) } });
-  await expect(savePopupNativePage({ title: 'Saved', url: 'https://example.org/saved' }, '42')).resolves.toBe('55');
-  await expect(savePopupNativePage({ title: 'Saved', url: 'https://example.org/saved' }, '42')).resolves.toBe('55');
+  await expect(savePopupNativePage({ title: 'Saved', url: 'https://example.org/saved' }, '42')).resolves.toMatchObject({ nativeId: '55' });
+  await expect(savePopupNativePage({ title: 'Saved', url: 'https://example.org/saved' }, '42')).resolves.toMatchObject({ nativeId: '55' });
   expect(ids).toHaveLength(2);
   expect(ids[0]).toBe(ids[1]);
 });
@@ -43,7 +43,7 @@ test('an already saved page returns that bookmark and does not invent one when s
       existence: { exact } as unknown as CaptureTask['existence'],
     }) };
   }) } });
-  await expect(savePopupNativePage({ title: 'Existing', url: 'https://example.org/existing' }, '42')).resolves.toBe('12');
+  await expect(savePopupNativePage({ title: 'Existing', url: 'https://example.org/existing' }, '42')).resolves.toMatchObject({ nativeId: '12' });
   mode = 'many';
   await expect(savePopupNativePage({ title: 'Existing many', url: 'https://example.org/existing-many' }, '42')).rejects.toThrow('capture_existing_locations');
   expect(ids).toHaveLength(2);
@@ -60,7 +60,7 @@ test('a rejection before the worker accepts the command resumes the same id and 
     return { ok: true, task: task({ captureId: 'cap-pre', save: 'local-saved', disposition: 'new', nativeId: '77', commandId: message.commandId }) };
   }) } });
   await expect(savePopupNativePage({ title: 'Pre', url: 'https://example.org/pre' }, '42')).rejects.toThrow('permission_required');
-  await expect(savePopupNativePage({ title: 'Pre', url: 'https://example.org/pre' }, '42')).resolves.toBe('77');
+  await expect(savePopupNativePage({ title: 'Pre', url: 'https://example.org/pre' }, '42')).resolves.toMatchObject({ nativeId: '77' });
   expect(ids).toEqual([ids[0], ids[0]]);
 });
 
@@ -75,7 +75,7 @@ test('a dropped send is not a saved bookmark and keeps the command id', async ()
     return { ok: true, task: task({ captureId: 'cap-drop', save: 'local-saved', disposition: 'new', nativeId: '78', commandId: message.commandId }) };
   }) } });
   await expect(savePopupNativePage({ title: 'Drop', url: 'https://example.org/drop' }, '42')).rejects.toThrow('Receiving end does not exist');
-  await expect(savePopupNativePage({ title: 'Drop', url: 'https://example.org/drop' }, '42')).resolves.toBe('78');
+  await expect(savePopupNativePage({ title: 'Drop', url: 'https://example.org/drop' }, '42')).resolves.toMatchObject({ nativeId: '78' });
   expect(new Set(ids).size).toBe(1);
 });
 

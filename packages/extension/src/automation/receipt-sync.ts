@@ -113,9 +113,16 @@ export function createReceiptStore(area: AutomationStateArea) {
   };
   return {
     list: read,
-    /** Durable before any network work is scheduled. */
-    add(receipt: PlacementReceipt, now: number): Promise<void> {
-      return exclusive(async () => { const receipts = await read(); await write([receipt, ...receipts.filter((item) => item.localReceiptId !== receipt.localReceiptId)], now); });
+    /**
+     * Durable before any network work is scheduled. Add-if-absent: a placement is
+     * recorded once, so a repeated acknowledgement never resets a receipt in progress.
+     */
+    add(receipt: PlacementReceipt, now: number): Promise<boolean> {
+      return exclusive(async () => {
+        const receipts = await read();
+        if (receipts.some((item) => item.localReceiptId === receipt.localReceiptId)) return false;
+        await write([receipt, ...receipts], now); return true;
+      });
     },
     update(localReceiptId: string, change: (receipt: PlacementReceipt) => PlacementReceipt, now: number): Promise<PlacementReceipt | null> {
       return exclusive(async () => {

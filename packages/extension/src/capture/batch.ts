@@ -24,6 +24,8 @@ export interface CaptureBatch {
   readonly selectedIds: readonly string[];
   readonly saveAnotherIds: readonly string[];
   readonly targetNativeId: string | null;
+  /** `explicit`: the user changed the folder on the page, so no rule moves these saves. Older batches are explicit. */
+  readonly folderChoice?: 'explicit' | 'default';
   readonly items: readonly CaptureBatchItem[];
 }
 export function freezeCaptureTabs(tabs: readonly chrome.tabs.Tab[], uuid: () => string): CaptureBatchItem[] {
@@ -49,7 +51,8 @@ export type CaptureBatchRequest =
   | { readonly kind: 'known.capture.batch.preview'; readonly selection: 'all' | 'selected'; readonly windowId?: number }
   | { readonly kind: 'known.capture.batch.get' | 'known.capture.batch.resume'; readonly batchId: string }
   | { readonly kind: 'known.capture.batch.confirm'; readonly batchId: string; readonly selectedIds: readonly string[];
-      readonly saveAnotherIds: readonly string[]; readonly targetNativeId: string; readonly allowUnverifiedCloud: boolean; readonly userGesture: true };
+      readonly saveAnotherIds: readonly string[]; readonly targetNativeId: string; readonly allowUnverifiedCloud: boolean; readonly userGesture: true;
+      readonly folderChoice?: 'explicit' | 'default' };
 export function validCaptureBatchRequest(value: unknown): value is CaptureBatchRequest {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const raw = value as Record<string, unknown>;
@@ -64,5 +67,6 @@ export function validCaptureBatchRequest(value: unknown): value is CaptureBatchR
     && typeof raw.allowUnverifiedCloud === 'boolean'
     && Array.isArray(raw.selectedIds) && raw.selectedIds.length <= 1000 && raw.selectedIds.every(uuid)
     && Array.isArray(raw.saveAnotherIds) && raw.saveAnotherIds.length <= 1000 && raw.saveAnotherIds.every(uuid)
-    && Object.keys(raw).length === 7;
+    && (raw.folderChoice === undefined || raw.folderChoice === 'explicit' || raw.folderChoice === 'default')
+    && Object.keys(raw).length === (raw.folderChoice === undefined ? 7 : 8);
 }

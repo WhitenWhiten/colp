@@ -44,4 +44,17 @@ describe('batch capture', () => {
     expect(mocks.start.mock.calls[2]?.[0]).toMatchObject({ commandId: firstCommand, url: 'https://example.org/1', title: 'Original' });
     expect(mocks.start.mock.calls.filter(([input]) => input.commandId === secondCommand)).toHaveLength(1);
   });
+  it('lets rules place tabs saved to the default folder, but never a folder the user picked', async () => {
+    for (const folderChoice of ['default', 'explicit'] as const) {
+      mocks.start.mockClear();
+      const batch = await previewCaptureBatch('selected');
+      const request = { kind: 'known.capture.batch.confirm' as const, batchId: batch.batchId, selectedIds: [batch.items[0]!.itemId],
+        saveAnotherIds: [], targetNativeId: 'folder', folderChoice, allowUnverifiedCloud: true, userGesture: true as const };
+      expect(validCaptureBatchRequest(request)).toBe(true);
+      await handleCaptureBatch(request);
+      expect(mocks.start.mock.calls[0]?.[0]).toMatchObject({ source: 'batch', parentNativeId: 'folder', folderChoice });
+    }
+    expect(validCaptureBatchRequest({ kind: 'known.capture.batch.confirm', batchId: crypto.randomUUID(), selectedIds: [], saveAnotherIds: [],
+      targetNativeId: 'folder', folderChoice: 'rule', allowUnverifiedCloud: true, userGesture: true })).toBe(false);
+  });
 });

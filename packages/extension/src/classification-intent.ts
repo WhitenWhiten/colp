@@ -31,6 +31,8 @@ export function classificationTriggerReason(trigger: ClassificationTrigger) {
 
 export interface ClassificationDocumentOptions {
   readonly tags: boolean;
+  /** False when a rule already chose the folder: the request asks for tags only (callers send nothing when tags are off). */
+  readonly folder?: boolean;
   readonly billing?: { readonly priceVersion: string; readonly maxPoints: number };
   readonly rejectedFolderIds?: readonly string[];
   readonly requireCandidate?: boolean;
@@ -44,7 +46,7 @@ export function classificationDocument(
   return {
     source: 'extension',
     bookmark: { title: page.title, url: page.url, description: null },
-    requested: { folder: true, tags: options.tags },
+    requested: options.folder === false ? { folder: false, tags: true } : { folder: true, tags: options.tags },
     ...(options.billing ? { billing: { ...options.billing } } : {}),
     ...(options.requireCandidate ? { folderSelectionMode: 'require_candidate' as const } : {}),
     ...(options.rejectedFolderIds?.length ? { rejectedFolderIds: [...options.rejectedFolderIds] } : {}),

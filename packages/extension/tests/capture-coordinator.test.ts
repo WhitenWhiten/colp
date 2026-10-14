@@ -155,4 +155,13 @@ describe('capture admission', () => {
       expect(validCaptureRequest({ kind: 'known.capture.get', captureId: 'other-account', accountId: 'other' })).toBe(false);
     } finally { vi.unstubAllGlobals(); }
   });
+
+  it('accepts the popup’s folder choice for the rules, and nothing else in its place', () => {
+    const start = { kind: 'known.capture.start', trigger: 'manual-popup', userGesture: true, commandId: '12345678-1234-4123-8123-123456789abc',
+      url: 'https://arxiv.org/abs/1', title: 'A paper', parentNativeId: '21', saveAnother: false, allowUnverifiedCloud: true };
+    expect(validCaptureRequest(start)).toBe(true);
+    expect(validCaptureRequest({ ...start, folderChoice: 'explicit' })).toBe(true);
+    expect(validCaptureRequest({ ...start, folderChoice: 'default' })).toBe(true);
+    expect(validCaptureRequest({ ...start, folderChoice: 'rule' })).toBe(false);
+  });
 });

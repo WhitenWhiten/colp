@@ -7,9 +7,9 @@ import { setHidden } from './popup-dom.js';
  * the first non-empty source in this order. Each source owns its own text and
  * clears it independently, so none has to know about the others.
  */
-export type NoteSource = 'feedback' | 'classify' | 'status' | 'dest' | 'cost';
+export type NoteSource = 'feedback' | 'classify' | 'rule' | 'status' | 'dest' | 'cost';
 export type NoteTone = '' | 'error';
-const ORDER: readonly NoteSource[] = ['feedback', 'classify', 'status', 'dest', 'cost'];
+const ORDER: readonly NoteSource[] = ['feedback', 'classify', 'rule', 'status', 'dest', 'cost'];
 
 export interface PopupNote {
   /** Writes (or, with undefined/empty text, clears) one source and repaints the line. */

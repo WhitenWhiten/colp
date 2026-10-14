@@ -1,9 +1,9 @@
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
-import { afterEach, beforeEach, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { createCaptureStore, type CaptureStore } from '../src/capture/store.js';
 import { task } from './fixtures/capture.js';
-import type { CaptureTask } from '../src/capture/contracts.js';
+import type { CaptureAutomation, CaptureTask } from '../src/capture/contracts.js';
 import { createBookmarkAnnotationStore } from '../src/bookmark-annotation-store.js';
 import { MemoryStorageArea } from '../src/credential-store.js';
 import { LOCAL_CLASSIFICATION_KEY } from '../src/classification-local-session.js';
@@ -200,4 +200,42 @@ test('an unexpected failure leaves a readable reason instead of a save stuck wai
   const result = await classifyLocalCapture(created, f.ledger!);
   expect(result).toMatchObject({ classification: 'manual', reason: 'local_classification_failed', local: { state: 'unknown' } });
   expect(await f.ledger!.get(created.scope, created.captureId)).toMatchObject({ classification: 'manual', reason: 'local_classification_failed' });
+});
+
+describe('after a rule placed the save (AC-04)', () => {
+  const automation: CaptureAutomation = { outcome: 'placed', ruleIds: ['rule-arxiv'], bundleRevision: 'b-1', settingsRevision: 1,
+    satisfies: ['classify.root'], rule: { id: 'rule-arxiv', name: 'arXiv papers', revision: '1', bindingRevision: '1', semanticDigest: 'digest' },
+    destination: { serverUuid: 'server', collectionId: 'c', nodeId: 'academic' }, folderTitle: 'Inbox', fromNativeId: 'other',
+    collectionId: 'c', replicaId: 'replica', generation: 1 };
+  const tagsOnly = { ok: true, nativeFolder: null, result: { folder: null, candidateCoverage: { l1Included: 0 },
+    tags: { candidates: [{ tag: 'Papers', selected: true }, { tag: 'Physics', selected: true }] } } };
+  const fresh = () => seed({ captureId: crypto.randomUUID(), commandId: crypto.randomUUID(), automation });
+
+  test('Suggest and Add ask the user’s own AI for tags only and never move the bookmark', async () => {
+    vi.stubGlobal('indexedDB', new IDBFactory());
+    f.classify.mockResolvedValue(tagsOnly);
+    f.aiTagMode = 'suggest';
+    const suggested = await classifyLocalCapture(await f.ledger!.claim(fresh()), f.ledger!);
+    expect(f.classify.mock.calls[0]![0].document.requested).toEqual({ folder: false, tags: true });
+    expect(suggested).toMatchObject({ classification: 'applied', reason: null, targetNativeId: 'inbox',
+      local: { state: 'kept', suggestedTags: ['Papers', 'Physics'] } });
+    expect(suggested.local).not.toHaveProperty('folderNativeId');
+
+    f.aiTagMode = 'add';
+    const added = await classifyLocalCapture(await f.ledger!.claim(fresh()), f.ledger!);
+    expect(f.classify.mock.calls[1]![0].document.requested).toEqual({ folder: false, tags: true });
+    expect(added).toMatchObject({ classification: 'applied', local: { state: 'kept' } });
+    const annotations = createBookmarkAnnotationStore();
+    try { expect((await annotations.get({ id: 'saved' }))?.tags).toEqual(['Papers', 'Physics']); } finally { annotations.close(); }
+    expect(f.move).not.toHaveBeenCalled();
+  });
+
+  test('Off sends nothing, and no tag vocabulary yet ends quietly', async () => {
+    f.aiTagMode = 'off';
+    expect(await classifyLocalCapture(await f.ledger!.claim(fresh()), f.ledger!)).toMatchObject({ classification: 'none', reason: null });
+    expect(f.classify).not.toHaveBeenCalled();
+    f.aiTagMode = 'suggest';
+    f.classify.mockResolvedValue({ ok: false, error: 'local_no_tags' });
+    expect(await classifyLocalCapture(await f.ledger!.claim(fresh()), f.ledger!)).toMatchObject({ classification: 'applied', reason: null, local: { state: 'kept' } });
+  });
 });

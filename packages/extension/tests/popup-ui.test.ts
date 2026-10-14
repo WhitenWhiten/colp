@@ -207,7 +207,7 @@ describe('extension popup capture UI', () => {
     assert.match(source, /'device'/);
     // Signing in lives on the options page; the popup carries no sign-in form.
     assert.doesNotMatch(source, /signedOut|bindLoginForm|completeLogin/);
-    assert.match(source, /savePopupNativePage\([\s\S]*?,\s*frozenInsertPosition, annotation\)/);
+    assert.match(source, /savePopupNativePage\([\s\S]*?,\s*frozenInsertPosition, annotation[,)]/);
     assert.match(source, /put:\s*async\s*\(\)\s*=>\s*undefined/);
     const manifest = await readFile(new URL('../manifest.base.json', import.meta.url), 'utf8');
     assert.match(manifest, /"_execute_action"/);
@@ -229,7 +229,8 @@ describe('extension popup capture UI', () => {
     assert.doesNotMatch(source, /titleInput\.focus\(\)/);
     assert.match(source, /classList\.replace\('btn-primary', 'btn-secondary'\)/);
     assert.match(source, /setFooterMode\('saved'\)/);
-    assert.match(source, /window\.setTimeout\(\(\) => \{ window\.close\(\); \}, 1500\)/);
+    // A rule that matched but could not act leaves its line up a little longer (AW-19).
+    assert.match(source, /window\.setTimeout\(\(\) => \{ window\.close\(\); \}, ruleLine\?\.attention \? 5000 : 1500\)/);
     assert.match(source, /document\.addEventListener\('pointerdown', cancelClose/);
     assert.match(source, /document\.addEventListener\('focusin', cancelClose/);
     // Edit reopens the bookmark that was just saved, so the edit lands on it instead of a second copy.
@@ -360,7 +361,7 @@ describe('extension popup capture UI', () => {
     assert.match(native, /kind: 'known\.capture\.start'/);
     assert.match(source, /captureAnnotation\(\{ tags: fields\.tags\.tags\(\), note: fields\.noteField\.value \}\)/);
     // All tags share local persistence and the worker's eligible metadata sync lane.
-    assert.match(source, /savePopupNativePage\([\s\S]*?,\s*frozenInsertPosition, annotation\)/);
+    assert.match(source, /savePopupNativePage\([\s\S]*?,\s*frozenInsertPosition, annotation[,)]/);
     assert.doesNotMatch(source, /Saved without tags/);
   });
 });

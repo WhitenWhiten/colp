@@ -91,6 +91,9 @@ export function installStub(messages) {
   add('f-read', '1', 'Read later'); add('f-research', '1', 'Research');
   if (longPath) { add('f-long1', '1', 'Quarterly planning notes and reference material'); add('f-long2', 'f-long1', 'Engineering design reviews for the platform migration'); }
   add('f-misc', '2', 'Misc'); add('f-personal', '2', 'Personal');
+  // Pre-save rules (AW-19): an arXiv page, and the folder its rule files into.
+  const ruled = has('rule', 'ruleblocked', 'autorule', 'autoruleblocked');
+  if (ruled) add('f-academic', '1', 'Academic');
   if (!has('empty')) {
     for (const [id, title, url] of [
       ['b-gh', 'adeze/raindrop-mcp: Raindrop MCP Server', 'https://github.com/adeze/raindrop-mcp'],
@@ -113,11 +116,17 @@ export function installStub(messages) {
   const detach = (id) => { const n = nodes.get(id); kids.get(n.parentId).splice(kids.get(n.parentId).indexOf(id), 1); };
   const tree = [subtree('0')];
   const bookmarkNode = (id) => ({ id, title: 'adeze/raindrop-mcp: Raindrop MCP Server', url: 'https://github.com/adeze/raindrop-mcp',
-    parentId: longPath ? 'f-long2' : 'f-prog', dateAdded: Date.UTC(2026, 8, 28) });
+    parentId: has('autorule') ? 'f-academic' : has('autoruleblocked') ? 'f-seo' : longPath ? 'f-long2' : 'f-prog', dateAdded: Date.UTC(2026, 8, 28) });
   const longTitle = 'Understanding the long and winding road of browser rendering pipelines: from parsing and style recalculation through layout, paint and compositing, with notes on performance budgets';
-  const tabTitle = has('longtitle') ? longTitle : 'Instapaper Integrations | Connect Your Apps with Zapier';
-  const tabUrl = has('existing', 'autoexisting') ? 'https://github.com/adeze/raindrop-mcp' : 'https://zapier.com/apps/instapaper/integrations';
-  const capturedTitle = has('longtitle') ? longTitle : 'adeze/raindrop-mcp: Raindrop MCP Server';
+  const paper = { url: 'https://arxiv.org/abs/1706.03762', title: 'Attention Is All You Need' };
+  const tabTitle = has('longtitle') ? longTitle : ruled ? paper.title : 'Instapaper Integrations | Connect Your Apps with Zapier';
+  const tabUrl = has('existing', 'autoexisting') ? 'https://github.com/adeze/raindrop-mcp' : ruled ? paper.url : 'https://zapier.com/apps/instapaper/integrations';
+  const capturedTitle = has('longtitle') ? longTitle : ruled ? paper.title : 'adeze/raindrop-mcp: Raindrop MCP Server';
+  const automation = (outcome) => ({ outcome, ...(outcome === 'blocked' ? { reason: 'bindingUnavailable' } : {}), ruleIds: ['r1'], bundleRevision: 'b-1',
+    settingsRevision: 1, satisfies: outcome === 'placed' ? ['classify.root'] : [],
+    rule: { id: 'r1', name: 'arXiv papers', revision: '1', bindingRevision: '1', semanticDigest: 'digest' },
+    ...(outcome === 'placed' ? { destination: { serverUuid: 'server', collectionId: 'col-reading', nodeId: 'academic' }, folderTitle: 'Academic' } : {}),
+    fromNativeId: 'f-seo', collectionId: 'col-reading', replicaId: 'rep-1', generation: 1 });
 
   // ---- capture tasks -------------------------------------------------------------------------------------------
   const task = (over = {}) => ({
@@ -141,7 +150,12 @@ export function installStub(messages) {
     nativeId: `n-${id}`, localLocation: { nativeId: 'f-research', path: ['Know-N', 'Research'] },
     classification: ['applied', 'waiting', 'failed'][i % 3], sync: ['confirmed', 'pending', 'confirmed'][i % 3], ...over,
   });
-  const popupTask = () => has('autoattention') ? task({ classification: 'manual', decisionId: null, appliedRevision: null, automatic: undefined, reason: 'insufficient_credits' })
+  const ruledTask = (outcome) => task({ url: paper.url, title: paper.title, source: has('rule', 'ruleblocked') ? 'manual-popup' : 'action-popup',
+    automaticIntent: !has('rule', 'ruleblocked'), targetNativeId: outcome === 'placed' ? 'f-academic' : 'f-seo', classification: 'none', sync: 'pending',
+    decisionId: null, appliedRevision: null, automatic: undefined, automation: automation(outcome),
+    localLocation: { nativeId: 'n-1', path: ['Bookmarks bar', ...(outcome === 'placed' ? ['Academic'] : ['Marketing', 'SEO'])] } });
+  const popupTask = () => has('autorule', 'rule') ? ruledTask('placed') : has('autoruleblocked', 'ruleblocked') ? ruledTask('blocked')
+    : has('autoattention') ? task({ classification: 'manual', decisionId: null, appliedRevision: null, automatic: undefined, reason: 'insufficient_credits' })
     : has('autowaiting') ? task({ classification: 'running', decisionId: null, appliedRevision: null, automatic: undefined, sync: 'pending' })
       : has('autoexisting') ? task({ disposition: 'existing', save: 'unsubmitted', nativeId: null, classification: 'none', decisionId: null, appliedRevision: null, automatic: undefined,
         existence: { kind: 'local', exact: [exactOne()[0]], similar: [], coverage: { local: 'complete', cloud: 'not-checked', collectionIds: [], checkedAt: now, stale: false } } })
@@ -298,7 +312,10 @@ export function installStub(messages) {
           localOnly: false, mountNativeIds: ['1'], defaultFolderId: 'f-seo' };
       case 'known.favicon.save-context': return { ok: true, parentNativeId: 'f-seo' };
       case 'known.capture.batch.preview': case 'known.capture.batch.get': case 'known.capture.batch.resume': case 'known.capture.batch.confirm':
-        return { ok: true, batch: batch(), tasks: has('tabs-confirmed') ? historyItems().slice(0, 4).map((item, k) => ({ ...item, captureId: uuid(700 + k + 1) })) : [] };
+        return { ok: true, batch: batch(), tasks: has('tabs-confirmed') ? historyItems().slice(0, 4).map((item, k) => ({ ...item, captureId: uuid(700 + k + 1),
+          // Save tabs under rules: the first tab was placed by one, the fifth matched one whose folder is missing here.
+          ...(has('tabs-rule') && k === 0 ? { save: 'local-saved', disposition: 'new', automation: automation('placed'), localLocation: { nativeId: 'f-academic', path: ['Bookmarks bar', 'Academic'] } } : {}),
+          ...(has('tabs-rule') && k === 3 ? { save: 'local-saved', disposition: 'new', automation: automation('blocked') } : {}) })) : [] };
       // ---- Sync ----
       case 'known.sync.ingressDiagnostics.get':
         return { ok: true, diagnostics: has('ingress') ? [
@@ -374,6 +391,9 @@ export function installStub(messages) {
       case 'known.classification.folder': return { ok: true, nativeFolder: { folderId: msg.folderId, nativeId: msg.folderId, title: nodes.get(msg.folderId)?.title ?? '' } };
       case 'known.save.native': return { ok: true, previewOpened: true };
       case 'known.capture.context': return { ok: true, actionPopup: true };
+      case 'known.automation.match':
+        return { ok: true, match: has('rule') ? { outcome: 'placed', ruleName: 'arXiv papers', ruleCount: 1, folderNativeId: 'f-academic', folderTitle: 'Academic' }
+          : has('ruleblocked') ? { outcome: 'blocked', ruleName: 'arXiv papers', ruleCount: 1, folderNativeId: null, folderTitle: null } : null };
       case 'known.automation.state': case 'known.automation.refresh': {
         const state = has('auto-paused') ? 'paused' : has('auto-expired') ? 'expired' : has('auto-none', 'auto-off') ? 'none' : 'active';
         const rules = state !== 'active' || has('auto-empty') ? [] : [
@@ -414,7 +434,7 @@ export function installStub(messages) {
       remove: async (id) => { detach(id); nodes.delete(id); }, removeTree: async (id) => { detach(id); nodes.delete(id); },
       onCreated: bag(), onRemoved: bag(), onChanged: bag(), onMoved: bag(), onImportBegan: bag(), onImportEnded: bag() },
     action: { setBadgeText: async () => {}, setBadgeBackgroundColor: async () => {}, setTitle: async () => {}, getBadgeText: async () => '', onClicked: bag() },
-    tabs: { query: async () => [{ id: 1, url: tabUrl, title: tabTitle, favIconUrl: has('nofavicon') ? undefined : 'https://zapier.com/favicon.ico' }],
+    tabs: { query: async () => [{ id: 1, url: tabUrl, title: tabTitle, favIconUrl: has('nofavicon') || ruled ? undefined : 'https://zapier.com/favicon.ico' }],
       get: async () => ({}), create: async () => ({}), update: async () => ({}), remove: async () => {},
       onCreated: bag(), onRemoved: bag(), onUpdated: bag(), onActivated: bag() },
     commands: { getAll: async () => isPopup ? [] : [{ name: '_execute_action', shortcut: 'Alt+S', description: 'Save' }, { name: 'save-window-tabs', shortcut: '', description: 'Save tabs' }] },

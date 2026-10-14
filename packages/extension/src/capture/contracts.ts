@@ -83,6 +83,8 @@ export interface CaptureTask {
   readonly controlGeneration: number;
   readonly reason: string | null;
   readonly automatic?: import('./automatic.js').AutomaticIntent;
+  /** What the account's rules decided before the native create; absent when no rule matched. */
+  readonly automation?: CaptureAutomation;
   /** Automatic classification through the user's own provider (local-first; no account, credits or server decision). */
   readonly local?: LocalAutomatic;
   readonly billingAuthorization?: import('./control.js').CaptureControl['consent'];
@@ -108,6 +110,32 @@ export interface LocalAutomatic {
   readonly folderCandidateCount?: number;
   /** Tags the model selected under the Suggest tag mode: offered in the result panel, never written. */
   readonly suggestedTags?: readonly string[];
+}
+/**
+ * A pre-save rule decision, pinned as evaluated. `placed`: the bookmark was
+ * created in the rule's folder (`fromNativeId` is where it would have gone).
+ * `kept`: the folder was the user's own choice, so the rule stood aside.
+ * `blocked`/`conflict`/`review`: a rule matched but could not decide, and the
+ * save kept its own folder. `expired`: a rule matched an out-of-date copy, which
+ * never places. Only a placement is reported to the server.
+ */
+export interface CaptureAutomation {
+  readonly outcome: 'placed' | 'kept' | 'blocked' | 'conflict' | 'review' | 'expired';
+  readonly reason?: 'bindingUnavailable' | 'evaluation';
+  /** The placing rule, or the first matching one. */
+  readonly rule: { readonly id: string; readonly name: string; readonly revision: string; readonly bindingRevision: string;
+    readonly semanticDigest: string };
+  readonly ruleIds: readonly string[];
+  readonly bundleRevision: string;
+  readonly settingsRevision: number;
+  readonly satisfies: readonly 'classify.root'[];
+  readonly destination?: { readonly serverUuid: string; readonly collectionId: string; readonly nodeId: string };
+  readonly folderTitle?: string;
+  readonly fromNativeId: string;
+  /** The Sync replica the decision was made under; its receipt belongs to it. */
+  readonly collectionId: string;
+  readonly replicaId: string;
+  readonly generation: number;
 }
 export type FeedbackKind = 'explicit_positive' | 'explicit_negative' | 'correction_applied'
   | 'implicit_positive' | 'dismissed_unrated' | 'not_presented' | 'withdrawn';

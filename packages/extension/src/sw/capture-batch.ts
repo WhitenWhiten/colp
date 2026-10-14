@@ -40,7 +40,7 @@ async function execute(batch: CaptureBatch, allowUnverifiedCloud: boolean): Prom
     try {
     let task = original.captureId ? await captureStore.get(batch.scope, original.captureId) : null;
     if (!task) task = await startCapture({ commandId: original.commandId, source: 'batch', batchId: batch.batchId,
-      url: original.url, title: original.title, tabId: original.tabIds[0], parentNativeId: batch.targetNativeId!,
+      url: original.url, title: original.title, tabId: original.tabIds[0], parentNativeId: batch.targetNativeId!, folderChoice: batch.folderChoice ?? 'explicit',
       saveAnother: batch.saveAnotherIds.includes(original.itemId), allowUnverifiedCloud, resumeNativeIds: confirmedNativeIds });
     batch = { ...batch, items: batch.items.map(item => item.itemId === original.itemId ? { ...item, captureId: task!.captureId, error: undefined } : item) };
     await write(batch);
@@ -78,7 +78,7 @@ export function handleCaptureBatch(request: CaptureBatchRequest): Promise<unknow
       if (request.selectedIds.some(id => !batch.items.some(item => item.itemId === id && !item.reason))
         || request.saveAnotherIds.some(id => !request.selectedIds.includes(id))) throw new Error('capture_batch_selection_invalid');
       batch = { ...batch, confirmed: true, selectedIds: [...new Set(request.selectedIds)],
-        saveAnotherIds: [...new Set(request.saveAnotherIds)], targetNativeId: request.targetNativeId };
+        saveAnotherIds: [...new Set(request.saveAnotherIds)], targetNativeId: request.targetNativeId, folderChoice: request.folderChoice ?? 'explicit' };
       await chrome.storage.local.set({ [permissionKey]: request.allowUnverifiedCloud });
       await write(batch);
     }

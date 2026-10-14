@@ -64,10 +64,13 @@ export async function runLocalClassification(input:{readonly document:Classifica
     const descriptions=new Map<string,string|null>(synced?.descriptions??[]);
     for(const [id,description] of await readNativeFolderDescriptions(tree))descriptions.set(id,description);
     const folders=nativeClassificationFolders(tree,{excluded:await exclusionIds(),excludeBookmarkId:input.excludeBookmarkId,descriptions});
-    if(!folders.length)return {ok:false as const,error:'local_no_folders'};
-    const tagUsage:readonly ClassificationTagUsage[]=await localClassificationTags(synced?.tagUsage);
     const document=input.document;
-    const requested={folder:true,tags:document.requested.tags===true&&tagUsage.length>0} as typeof document.requested;
+    // A rule's placement asks for tags only (`folder:false`); nothing is sent when there are no tags to choose from.
+    const folder=!('folder' in document.requested)||document.requested.folder!==false;
+    if(folder&&!folders.length)return {ok:false as const,error:'local_no_folders'};
+    const tagUsage:readonly ClassificationTagUsage[]=await localClassificationTags(synced?.tagUsage);
+    const requested={folder,tags:document.requested.tags===true&&tagUsage.length>0} as typeof document.requested;
+    if(!requested.folder&&!requested.tags)return {ok:false as const,error:'local_no_tags'};
     const result=await previewLocalClassification({credential,
       taxonomy:{folders,tagUsage,title:synced?.title??'Browser bookmarks',summary:synced?.summary??null,
         revision:synced?.revision??'native',collectionId:synced?.collectionId??'local'},

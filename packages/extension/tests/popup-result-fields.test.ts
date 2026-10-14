@@ -101,3 +101,19 @@ test.each([
   expect(fields.tags.tags()).toEqual(['Cooking']);
   expect(result.editedAnnotation()?.annotation.tags).toEqual(['Cooking']);
 });
+
+test('a rule’s placement is marked as the rule’s pick, not the AI’s, until the user picks a folder', async () => {
+  const result = bind();
+  const automation = { outcome: 'placed' as const, ruleIds: ['r'], bundleRevision: '1', settingsRevision: 1, satisfies: ['classify.root' as const],
+    rule: { id: 'r', name: 'arXiv papers', revision: '1', bindingRevision: '1', semanticDigest: 'd' }, fromNativeId: 'inbox',
+    collectionId: 'c', replicaId: 'r', generation: 1 };
+  // The user's own AI suggested tags for it: the folder still belongs to the rule.
+  await result.sync(saved({ automation, local: { commandId: 'c', state: 'kept', suggestedTags: ['Papers'] } }));
+  const ruleMark = document.getElementById('rule-mark')!;
+  expect(ruleMark.hidden).toBe(false);
+  expect(ruleMark.title).toBe('Rule “arXiv papers” chose this folder. Pick another to keep yours.');
+  expect(document.getElementById('ai-mark')!.hidden).toBe(true);
+  picked = true;
+  await result.sync(saved({ automation, classification: 'manual' }));
+  expect(ruleMark.hidden).toBe(true);
+});

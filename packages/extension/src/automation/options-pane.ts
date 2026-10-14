@@ -161,7 +161,7 @@ export function bindAutomationsPane(pane: HTMLElement): AutomationsPane {
     const response = await chrome.runtime.sendMessage(kind === 'known.automation.refresh' ? { kind, userGesture: true } : { kind })
       .catch(() => null) as AutomationResponse | null;
     if (mine !== turn || !active) return;
-    if (!response?.ok) { body.replaceChildren(inlineAlert('warning', t('automation_loadFailed', 'Couldn’t read automations in this browser. Reload the page to try again.'))); return; }
+    if (!response?.ok || !('state' in response)) { body.replaceChildren(inlineAlert('warning', t('automation_loadFailed', 'Couldn’t read automations in this browser. Reload the page to try again.'))); return; }
     last = response.state; render(response.state);
   }
   function refresh(): void {

@@ -122,6 +122,9 @@
   "automation_freshnessHintShort": {
     "message": "This browser checks every 5 minutes. A pause you make on the web reaches it at the next check."
   },
+  "automation_keptYourFolder": {
+    "message": "Kept the folder you chose; rule “$1” didn’t move it."
+  },
   "automation_lede": {
     "message": "Rules on your server file the bookmarks you save into the right folder. You create and change them on the web."
   },
@@ -188,6 +191,15 @@
   "automation_ruleFolderMissing": {
     "message": "Its folder isn’t in this browser’s synced folders, so the rule waits."
   },
+  "automation_ruleFolderUnavailable": {
+    "message": "Rule “$1” matched, but its folder isn’t in this browser, so the page stayed where you saved it."
+  },
+  "automation_ruleNeedsReview": {
+    "message": "Rule “$1” needs a review on the web, so the page stayed where you saved it."
+  },
+  "automation_ruleNotChecked": {
+    "message": "Rule “$1” couldn’t be checked, so the page stayed where you saved it."
+  },
   "automation_ruleUpdates": {
     "message": "Rule updates"
   },
@@ -197,8 +209,17 @@
   "automation_rules": {
     "message": "Rules"
   },
+  "automation_rulesDisagree": {
+    "message": "Rules chose different folders for this page, so it stayed where you saved it."
+  },
   "automation_rulesLede": {
     "message": "A folder you pick yourself always wins over a rule."
+  },
+  "automation_rulesOutOfDateSaved": {
+    "message": "Rules are out of date; connect to refresh. The page stayed where you saved it."
+  },
+  "automation_savedByRule": {
+    "message": "Saved to $1 by rule “$2”."
   },
   "automation_signInHint": {
     "message": "Rules live on your server and file bookmarks as you save them. Saving and organizing work without them."
@@ -982,6 +1003,9 @@
   },
   "capture_somethingWentWrongTabs": {
     "message": "Something went wrong. Tabs that were already saved stay saved; resume to finish the rest."
+  },
+  "capture_suggestingTags": {
+    "message": "Suggesting tags…"
   },
   "capture_suggestionApplied": {
     "message": "Suggestion applied by you"
@@ -3830,6 +3854,12 @@
   "popup_removedUndo": {
     "message": "Bookmark removed. Undo is available here or in the library for five minutes."
   },
+  "popup_rulePick": {
+    "message": "By rule"
+  },
+  "popup_rulePickTitle": {
+    "message": "Rule “$1” chose this folder. Pick another to keep yours."
+  },
   "popup_savedTo": {
     "message": "Saved to $1"
   },
@@ -3856,6 +3886,9 @@
   },
   "popup_suggestAnotherFolder": {
     "message": "Suggest another folder"
+  },
+  "popup_suggestTags": {
+    "message": "Suggest tags"
   },
   "popup_suggestedFolder": {
     "message": "Suggested folder"
@@ -5719,6 +5752,9 @@
   },
   "tabs_resumeUnfinishedItems": {
     "message": "Resume unfinished items"
+  },
+  "tabs_ruleDidNotApply": {
+    "message": "Rule didn’t apply"
   },
   "tabs_saveOpenTabsWindow": {
     "message": "Save the open tabs in this window as bookmarks in one folder. Nothing is saved until you confirm, and your tabs stay open."

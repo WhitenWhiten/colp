@@ -7,6 +7,7 @@ import { t, tn } from '../i18n.js';
 import { bindPageLanguage } from '../page-language.js';
 import { hydrateIcons } from '../icons.js';
 import { folderChoices } from '../library-folder-picker.js';
+import { automationSaveLine } from '../save-status.js';
 
 hydrateIcons(document);
 void bindPageLanguage();
@@ -25,6 +26,8 @@ let batch: CaptureBatch | undefined;
 const selected = new Set<string>();
 const another = new Set<string>();
 let timer: ReturnType<typeof setTimeout> | undefined;
+/** The folder select starts at the default; only a change the user makes is their own choice, which no rule overrides. */
+let folderPicked = false;
 
 
 async function request(message: CaptureBatchRequest) {
@@ -74,7 +77,7 @@ function paint(tasks: readonly CaptureTask[] = []) {
     detail.textContent = item.error ? t('capture_itemCouldNotStart', 'This item could not start. Check its destination and resume unfinished items.')
       : item.reason === 'unreadable' ? t('capture_urlUnavailableAllowTab', 'URL unavailable. Allow tab access to include this tab.')
       : item.reason === 'unsupported' ? t('capture_browserPageCannotBookmarked', 'This browser page cannot be bookmarked here.')
-        : task ? `${task.disposition === 'existing' ? t('common_alreadySaved', 'Already saved') : CAPTURE_SAVE_COPY[task.save] ?? task.save} · ${CAPTURE_SYNC_COPY[task.sync] ?? task.sync}${path ? ` · ${path}` : ''}`
+        : task ? `${task.disposition === 'existing' ? t('common_alreadySaved', 'Already saved') : CAPTURE_SAVE_COPY[task.save] ?? task.save} · ${CAPTURE_SYNC_COPY[task.sync] ?? task.sync}${path ? ` · ${path}` : ''}${ruleMeta(task)}`
           : `${item.url ? hostOf(item.url) : ''}${item.tabIds.length > 1 ? ` · ${t('capture_duplicateTabsMerged', '$1 duplicate tabs merged', item.tabIds.length)}` : ''}${path ? ` · ${t('capture_alreadySavedAt', 'Already saved: $1', path)}` : ''}`;
     copy.append(name, detail);
     label.append(checkbox, item.url ? faviconTile(item.url) : blank, copy);
@@ -85,6 +88,11 @@ function paint(tasks: readonly CaptureTask[] = []) {
       input.addEventListener('change', () => { if (input.checked) { another.add(item.itemId); selected.add(item.itemId); }
         else { another.delete(item.itemId); selected.delete(item.itemId); } checkbox.checked = selected.has(item.itemId); updateCount(); });
       duplicate.append(input, document.createTextNode(` ${t('capture_saveAnotherCopy', 'Save another copy')}`)); extras.append(duplicate);
+    }
+    const rule = task?.save === 'local-saved' && task.disposition === 'new' ? automationSaveLine(task.automation) : null;
+    if (rule?.attention) {
+      const badge = document.createElement('span'); badge.className = 'badge'; badge.dataset.tone = 'warning';
+      badge.textContent = t('tabs_ruleDidNotApply', 'Rule didn’t apply'); badge.title = rule.text; extras.append(badge);
     }
     if (item.captureId) {
       const link = document.createElement('a'); link.href = `options.html#history?task=${encodeURIComponent(item.captureId)}`; link.textContent = t('common_viewDetails', 'View details'); extras.append(link);
@@ -98,6 +106,11 @@ function paint(tasks: readonly CaptureTask[] = []) {
   status.textContent = batchStatus(batch);
   delete status.dataset.tone;
   updateCount();
+}
+/** A rule that placed this tab says so after its folder. */
+function ruleMeta(task: CaptureTask): string {
+  return task.automation?.outcome === 'placed' && task.save === 'local-saved' && task.disposition === 'new'
+    ? ` · ${t('automation_placementRule', 'Rule “$1”', task.automation.rule.name)}` : '';
 }
 function updateCount() {
   count.textContent = t('capture_tabsSelected', '$1 of $2 tabs selected', selected.size, batch?.items.filter(item => !item.reason).length ?? 0);
@@ -146,12 +159,12 @@ document.getElementById('tabs-invert')!.addEventListener('click', () => {
   }
   paint();
 });
-query.addEventListener('input', () => paint()); target.addEventListener('change', updateCount);
+query.addEventListener('input', () => paint()); target.addEventListener('change', () => { folderPicked = true; updateCount(); });
 confirm.addEventListener('click', () => {
   if (!batch) return;
   confirm.disabled = true;
   void request({ kind: 'known.capture.batch.confirm', batchId: batch.batchId, selectedIds: [...selected], saveAnotherIds: [...another],
-    targetNativeId: target.value, allowUnverifiedCloud: true, userGesture: true }).then(async () => { await poll(); retry.focus(); }).catch(failure);
+    targetNativeId: target.value, folderChoice: folderPicked ? 'explicit' : 'default', allowUnverifiedCloud: true, userGesture: true }).then(async () => { await poll(); retry.focus(); }).catch(failure);
 });
 retry.addEventListener('click', () => {
   if (!batch) return;

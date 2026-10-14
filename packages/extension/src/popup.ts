@@ -16,8 +16,9 @@ import { SAVE_CONTEXT_CACHE, parseSaveContextCache } from './save-context-cache.
 import { readSaveFeedback, SAVE_FEEDBACK_PERMISSION, saveFeedbackIsError } from './save-feedback.js';
 import { readPopupDraft, writePopupDraft, clearPopupDraft, type PopupDraft } from './popup-draft.js';
 import { savePopupNativePage } from './popup-native-save.js';
+import { bindPopupRule } from './popup-rule.js';
 import { bindSaveFolderPicker } from './save-folder-ui.js';
-import { writeLastSave } from './save-status.js';
+import { automationSaveLine, writeLastSave } from './save-status.js';
 import { bindClearIconAction } from './clear-icon-ui.js';
 import { presentIconPolicyFeedback as iconPolicyFeedback } from './icon-policy-feedback.js';
 import { bindPopupCredits } from './popup-credits.js';
@@ -31,7 +32,7 @@ import { bindManualFooter } from './popup-footer.js';
 import { bindBookmarkPermission } from './popup-permission.js';
 import { captureAnnotation, closeAnnotationStore } from './popup-annotations.js';
 import { bindPopupPin } from './popup-pin.js';
-import { paintFavicon, paintStatusLine, setFooterMode } from './popup-shell.js';
+import { paintCaptureAlert, paintFavicon, paintStatusLine, setFooterMode } from './popup-shell.js';
 import { t } from './i18n.js';
 import { bindPageLanguage } from './page-language.js';
 
@@ -64,6 +65,8 @@ const feedbackUi = createPopupFeedbackUi({
 });
 const { setFeedback, paintStatus, reflectNativeWaitLink, reflectSavable } = feedbackUi;
 let savedCloseTimer: number | undefined;
+/** The saved state shows a rule's "could not act" line in the alert; Edit takes it down again. */
+let ruleAlert = false;
 let currentAuthState: PublicAuthState | undefined;
 const savePosition = bindPopupSavePosition();
 const fields = bindPopupFields(() => { handleEditAfterSave(); persistDraft(); });
@@ -83,8 +86,13 @@ const folders = bindSaveFolderPicker({
   folderParent: element('dest-parent'), folderTree: element('folder-tree'), folderNew: element('folder-new') as HTMLFormElement, folderNewName,
   folderNewOpen: element('folder-new-open') as HTMLButtonElement, folderNewLabel: element('folder-new-label'),
   folderCreate: element('folder-create'), destSearch: element('dest-search') as HTMLInputElement,
-  persistDraft, setFeedback, onChosen: () => { void paintDestNote(); void pin.refresh(); }, onPick: (id) => { fields.setAiPick(false); return pickHandler?.(id); },
+  persistDraft, setFeedback, onChosen: () => { void paintDestNote(); void pin.refresh(); },
+  onPick: (id) => { fields.setAiPick(false); rule.picked(); return pickHandler?.(id); },
 });
+/* A matching rule shows its folder before Save; the user's own pick always wins. */
+const rule = bindPopupRule({ folders, fields, onChange: () => classification?.ruleChanged(),
+  page: () => { const url = urlInput.value.trim() || tabUrl; return url ? { url, title: titleInput.value.trim() || tabTitle || url } : null; } });
+urlInput.addEventListener('change', () => { void rule.refresh(); });
 bindDestUi({ destToggle: element('dest-toggle') as HTMLButtonElement, destPanel: element('dest-panel'), destSearch: element('dest-search') as HTMLInputElement });
 const editExisting = bindEditExisting({ titleInput, tabTitle: () => tabTitle, save, remove: element('remove-bookmark') as HTMLButtonElement,
   folders, commitFolder: () => folders.commit(selectedCollection()?.id ?? DEVICE_FOLDER_SCOPE), setFeedback, annotation: fields.annotation, pin });
@@ -99,7 +107,7 @@ function manualClassification() {
     input: () => { const collection = document.body.dataset.state === 'connected' ? selectedCollection() : undefined, url = urlInput.value.trim() || tabUrl;
       return url ? { ...(collection ? { collectionId: collection.id } : {}), title: titleInput.value.trim() || tabTitle || t('common_untitledPage', 'Untitled page'), url } : null; },
     inScope: async () => !await folders.isOutOfRange(), chooseFolder: (id, anyFolder) => folders.chooseSuggestedFolder(id, anyFolder),
-    folderPicked: folders.userPicked,
+    folderPicked: folders.userPicked, ruleFolder: rule.decides,
     getManagedPrice: credits.readPrice,
     chip: element('folder-suggest') as HTMLButtonElement, chipLabel: element('folder-suggest-label'), note, tags: fields.tags,
     onApplied: () => fields.setAiPick(true), retry: element('folder-retry') as HTMLButtonElement,
@@ -240,6 +248,8 @@ async function initSaveTarget(collectionId: string | undefined): Promise<void> {
   }
   await folders.init(collectionId ?? DEVICE_FOLDER_SCOPE, lastMountNativeIds, saveContextId);
   await editExisting.reapply();
+  // The rule's folder first, so an automatic suggestion knows whether to ask for tags only.
+  await rule.refresh();
   void manualClassification().refresh(collectionId);
   if (status?.ok) paintStatus(status.status);
   else note.set('status', undefined);
@@ -393,20 +403,26 @@ async function submit(hasUserGesture: boolean): Promise<void> {
     const collectionId = collection?.id;
     const chosen = folders.chosenFolderId();
     // The picker and local cache are sufficient. Account/session renewal cannot precede native saving.
-    const parentNativeId = chosen || await cachedSaveParent(collectionId);
+    // With a rule's folder on the pill, the worker gets the folder the rule replaces and decides again.
+    const target = rule.target(chosen || await cachedSaveParent(collectionId));
+    const parentNativeId = target.parentNativeId;
     const localOnly = await folders.isOutOfRange();
     const live = await chrome.tabs.query({ active: true, currentWindow: true }).catch(() => []);
     const favIconUrl = typeof live[0]?.favIconUrl === 'string' ? live[0].favIconUrl : tabFavIcon;
-    let nativeId = '';
+    let nativeId = '', ruleLine: ReturnType<typeof automationSaveLine> = null;
     // Typed and accepted AI tags share the worker-owned local save and metadata sync lifecycle.
     const typed = captureAnnotation({ tags: fields.tags.tags(), note: fields.noteField.value });
     const annotation = pin.pinned() ? { ...(typed ?? { tags: [], note: null }), pinned: true as const } : typed;
-    nativeId=await savePopupNativePage({title,url,favIconUrl},parentNativeId,localOnly?undefined:collectionId,
-      frozenInsertPosition, annotation);
+    const saved = await savePopupNativePage({title,url,favIconUrl},parentNativeId,localOnly?undefined:collectionId,
+      frozenInsertPosition, annotation, target.folderChoice);
+    nativeId = saved.nativeId;
+    await rule.saved(saved.task);
+    ruleLine = saved.task.disposition === 'new' ? automationSaveLine(saved.task.automation) : null;
     if (parentNativeId) await folders.commit(collectionId ?? DEVICE_FOLDER_SCOPE);
     if (nativeId) {
+      const savedIn = folders.chosenFolderId() || parentNativeId;
       await writeLastSave({
-        nativeId, localOnly, ...(parentNativeId ? { parentNativeId } : {}),
+        nativeId, localOnly, ...(savedIn ? { parentNativeId: savedIn } : {}),
         ...(collectionId ? { collectionId } : {}),
       });
     }
@@ -416,15 +432,20 @@ async function submit(hasUserGesture: boolean): Promise<void> {
     save.textContent = t('common_edit', 'Edit'); save.disabled = false;
     save.classList.replace('btn-primary', 'btn-secondary');
     setFooterMode('saved');
-    paintStatusLine({ icon: 'check-circle', text: t('popup_savedTo', 'Saved to $1', destFolder.textContent?.trim() || t('common_thisBrowserLower', 'this browser')) });
+    paintStatusLine({ icon: 'check-circle', text: t('popup_savedTo', 'Saved to $1', destFolder.textContent?.trim() || t('common_thisBrowserLower', 'this browser')),
+      ...(saved.task.automation?.outcome === 'placed' ? { meta: t('automation_placementRule', 'Rule “$1”', saved.task.automation.rule.name) } : {}) });
     void clearPopupDraft();
     setFeedback('');
+    // A rule that stood aside says so; one that matched but could not act gets the alert, as in the
+    // automatic result, and the popup stays a little longer for it.
+    note.set('rule', ruleLine && !ruleLine.attention && saved.task.automation?.outcome !== 'placed' ? ruleLine.text : undefined);
+    if (ruleLine?.attention) { paintCaptureAlert(ruleLine.text); ruleAlert = true; }
     if (currentAuthState?.status === 'connected' || currentAuthState?.status === 'offline') iconPolicyFeedback((text, tone) => setFeedback(text, tone));
     if (nativeId) window.setTimeout(() => { void projectFollowUp(nativeId); }, 400);
     /* The saved state closes the popup after a beat — unless the user keeps
        interacting (then the Edit affordance stays in charge). */
     if (savedCloseTimer !== undefined) window.clearTimeout(savedCloseTimer);
-    savedCloseTimer = window.setTimeout(() => { window.close(); }, 1500);
+    savedCloseTimer = window.setTimeout(() => { window.close(); }, ruleLine?.attention ? 5000 : 1500);
     const cancelClose = () => {
       if (savedCloseTimer !== undefined) {
         window.clearTimeout(savedCloseTimer);
@@ -475,7 +496,8 @@ function restoreSave(): void {
   save.disabled = false;
   save.textContent = saveButtonLabel(currentAuthState);
   save.classList.replace('btn-secondary', 'btn-primary');
-  if (wasSaved) paintStatusLine(undefined);
+  if (wasSaved) { paintStatusLine(undefined); note.set('rule', undefined); }
+  if (ruleAlert) { paintCaptureAlert(undefined); ruleAlert = false; }
   setFooterMode('manual');
   // The page now has a bookmark: Edit reopens it for editing in place.
   if (wasSaved && tabUrl) void showManualCaptureExistence(tabUrl); else editExisting.paint();

@@ -86,6 +86,12 @@ footer   quiet ghost actions left · one primary right
   opens the inline `.folder-panel` and grows the popup instead of overlaying), Tags (`.tag-input`
   with suggestion chips below) and Note (`textarea.field-quiet`). The AI folder suggestion is a
   `.chip--suggest` beside the folder pill. A folder the AI chose shows a muted "AI pick" mark.
+  A folder one of the account's rules chose shows a muted "By rule" mark (fork icon, the rule named
+  in its tooltip). The suggestion chip then reads "Suggest tags" and never offers a folder. Picking
+  another folder removes the mark: the user's pick wins.
+- **Rule line:** after a save, one line says what the rules did. A placement shows "Rule “…”" as
+  the status meta in the manual popup, or a calm note in the automatic result. A rule that matched
+  but could not act (folder missing here, out of date, rules disagree) uses the warning alert.
 - **Footer by state:**
 
   | State | Left | Right |
