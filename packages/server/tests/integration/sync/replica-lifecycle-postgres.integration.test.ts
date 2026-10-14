@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { afterAll, beforeAll, test } from 'vitest';
-import { runMigrations } from '../../../src/infrastructure/database/index.js';
+import { createMigrator, runMigrations } from '../../../src/infrastructure/database/index.js';
 import {
   createPostgresReplicaLifecycleService,
   createPostgresReplicaStore,
@@ -187,12 +187,9 @@ describeWithPostgres('P3-06 authoritative Replica lifecycle', () => {
   test('upgrades exactly from P3-05 and preserves existing Replica rows', async () => {
     const upgrade = await createIsolatedPostgresRuntime('p3_replica_lifecycle_upgrade');
     try {
-      let latest = '';
-      while (latest !== '202607251200_sync_replica_facts') {
-        const result = await runMigrations(upgrade.runtime.db, 'up');
-        latest = result.results[0]?.migrationName ?? '';
-        assert.notEqual(latest, '');
-      }
+      const migrator = createMigrator(upgrade.runtime.db, 'migrations', upgrade.schema);
+      const previous = await migrator.migrateTo('202607251200_sync_replica_facts');
+      assert.equal(previous.error, undefined);
       assert.equal((await upgrade.runtime.pool.query(
         "select 1 from information_schema.columns where table_schema=current_schema() and table_name='sync_replicas' and column_name='lifecycle_revision'",
       )).rowCount, 0);

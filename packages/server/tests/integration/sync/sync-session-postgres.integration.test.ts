@@ -4,6 +4,7 @@ import { afterAll, beforeAll, test } from 'vitest';
 import { isVerifiedSyncSession } from '@know-n/colp/sync';
 import {
   appendOperationWithPayload,
+  createMigrator,
   createPostgresLedgerArchiveSegmentRepository,
   createPostgresSyncHistoryFloorRepository,
   runMigrations,
@@ -54,12 +55,9 @@ describeWithPostgres('P3-07 durable Sync Session issuance', () => {
     )).rows[0]?.name, 'sync_extension_credentials');
     const upgrade = await createIsolatedPostgresRuntime('p3_session_upgrade');
     try {
-      let latest = '';
-      while (latest !== '202607251300_sync_replica_lifecycle') {
-        const result = await runMigrations(upgrade.runtime.db, 'up');
-        latest = result.results[0]?.migrationName ?? '';
-        assert.notEqual(latest, '');
-      }
+      const migrator = createMigrator(upgrade.runtime.db, 'migrations', upgrade.schema);
+      const previous = await migrator.migrateTo('202607251300_sync_replica_lifecycle');
+      assert.equal(previous.error, undefined);
       const upgradeClient = await upgrade.runtime.pool.connect();
       try {
         await upgradeClient.query('begin');
