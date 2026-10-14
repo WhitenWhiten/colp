@@ -12,7 +12,7 @@ import { classifyRouteError } from '../../lib/classifyRouteError'
 import { formatDate, formatDateTime } from '../../lib/formatDate'
 import { DEPENDENCY_STATUS, dependencyLabel, RULE_STATE_DETAIL } from './copy'
 import { NeedsAttention } from './NeedsAttention'
-import { ruleEditPath } from './paths'
+import { ruleEditPath, runOncePath } from './paths'
 import { RunItem } from './RunItem'
 import { RuleSentence } from './RuleSentence'
 import { errorMessage, isStale, RuleStateBadge, useAutomationDeps, useLoad } from './shared'
@@ -198,6 +198,9 @@ export function RuleDetail() {
             ) : shown.desiredState !== 'archived' ? (
               <Link className="btn btn-secondary" to={`${editHref}#preview`}>Preview and turn on</Link>
             ) : null}
+            {shown.desiredState !== 'archived' && (
+              <Link className="btn btn-secondary" to={runOncePath(shown.id)} data-testid="automation-run-once-link">Run once</Link>
+            )}
             {shown.desiredState !== 'archived' && <Link className="btn btn-primary" to={editHref}>Edit</Link>}
           </>
         )}

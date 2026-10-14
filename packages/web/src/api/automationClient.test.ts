@@ -147,6 +147,34 @@ describe('automation client', () => {
     expect(JSON.parse(String(readInit.body))).toEqual({ throughOutputId: 'output-9' })
   })
 
+  it('starts a run-once by the preview’s id and digest alone, replaying it after an unknown outcome', async () => {
+    const responses = [json(200, { id: 'preview-1' }), json(200, { id: 'preview-2' }),
+      json(503, { error: { code: 'service_unavailable', message: 'Busy', recovery: 'same_request', sameRequestRetrySafe: true } }),
+      json(201, { id: 'run-1' })]
+    const fetchImpl = vi.fn(async () => responses.shift() ?? json(500, {}))
+    const api = createAutomationApi(fetchImpl)
+    const input = { folder: { serverUuid: 'server', collectionId: 'collection', nodeId: 'root' }, includeDescendants: true, moveFolderedBookmarks: false, tasks: 'none' as const }
+    await api.previewRunOnce('rule-1', input, 'attempt-1')
+    await api.previewRunOnce('rule-1', input, 'attempt-2')
+    const preview = { previewId: 'preview-2', previewDigest: 'digest-2' }
+    await expect(api.startRunOnce('rule-1', preview)).rejects.toMatchObject({ status: 503 })
+    await api.startRunOnce('rule-1', preview)
+    const calls = fetchImpl.mock.calls as unknown as [string, RequestInit][]
+    expect(calls.map(([url]) => url)).toEqual([
+      '/api/v1/me/automations/rules/rule-1/run-once/preview',
+      '/api/v1/me/automations/rules/rule-1/run-once/preview',
+      '/api/v1/me/automations/rules/rule-1/run-once',
+      '/api/v1/me/automations/rules/rule-1/run-once',
+    ])
+    expect(JSON.parse(String(calls[0]?.[1].body))).toEqual(input)
+    expect(JSON.parse(String(calls[2]?.[1].body))).toEqual(preview)
+    const ids = calls.map((call) => headersOf(call).get('Known-Command-Id'))
+    // Each preview is its own command; a start after no answer repeats the same one.
+    expect(ids[0]).not.toBe(ids[1])
+    expect(ids[2]).toMatch(UUID_V4)
+    expect(ids[3]).toBe(ids[2])
+  })
+
   it('reads a job, a rule’s dependencies and a sized run page', async () => {
     const fetchImpl = vi.fn(async () => json(200, { items: [], nextCursor: null }))
     const api = createAutomationApi(fetchImpl)

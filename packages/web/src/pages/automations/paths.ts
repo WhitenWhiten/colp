@@ -11,3 +11,7 @@ export function ruleEditPath(id: string): string {
 export function runPath(id: string): string {
   return `/automations/runs/${encodeURIComponent(id)}`
 }
+
+export function runOncePath(ruleId: string): string {
+  return `${rulePath(ruleId)}/run-once`
+}

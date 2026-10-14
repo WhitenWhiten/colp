@@ -26,6 +26,8 @@ import type {
   AutomationRule,
   AutomationRuleInput,
   AutomationRun,
+  AutomationRunOnceInput,
+  AutomationRunOncePreview,
   AutomationRunOutput,
   AutomationSubmissionResult,
   AutomationTarget,
@@ -81,6 +83,10 @@ export interface AutomationApi {
   listRuns(query?: RunQuery, signal?: AbortSignal): Promise<AutomationPage<AutomationRun>>
   getRun(id: string, signal?: AbortSignal): Promise<AutomationRun>
   undoRunEffect(runId: string, input: AutomationUndoInput, revision: string): Promise<AutomationRun>
+  /** Effect-free: the server stores this exact selection for a short while. `attempt` names one Preview press. */
+  previewRunOnce(ruleId: string, input: AutomationRunOnceInput, attempt: string): Promise<AutomationRunOncePreview>
+  /** Starts exactly the previewed selection; a lost response replays the same command. */
+  startRunOnce(ruleId: string, preview: { previewId: string; previewDigest: string }): Promise<AutomationRun>
   /** Text a run produced, oldest first; 404 when its source bookmarks are gone. */
   listRunOutputs(runId: string, page?: { cursor?: string | null; limit?: number }, signal?: AbortSignal): Promise<AutomationPage<AutomationRunOutput>>
   /** Marks outputs read up to and including this one; a later output stays unread. */
@@ -313,6 +319,14 @@ export function createAutomationApi(fetchImpl?: FetchLike): AutomationApi {
       body: input,
       revision,
       intent: `undo:${input.effectReceiptId}`,
+    }),
+    previewRunOnce: async (ruleId, input, attempt) => write('POST', `${BASE}/rules/${opaqueId(ruleId, 'rule')}/run-once/preview`, {
+      body: input,
+      intent: `run-once-preview:${attempt}`,
+    }),
+    startRunOnce: async (ruleId, preview) => write('POST', `${BASE}/rules/${opaqueId(ruleId, 'rule')}/run-once`, {
+      body: { previewId: preview.previewId, previewDigest: preview.previewDigest },
+      intent: `run-once-start:${preview.previewId}`,
     }),
     listRunOutputs: async (runId, outputPage = {}, signal) => page<AutomationRunOutput>(
       await read(`${BASE}/runs/${opaqueId(runId, 'run')}/outputs${query({

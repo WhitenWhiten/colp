@@ -729,6 +729,19 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Run once (RunOnce.tsx): a sample of the selection, one decision badge
+   per bookmark. The badge keeps its width; the title wraps beside it. */
+.automation-sample-title {
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+.automation-sample .badge {
+  flex-shrink: 0;
+  align-self: flex-start;
+}
+
 .automation-preview-warnings {
   display: grid;
   gap: var(--space-1);
