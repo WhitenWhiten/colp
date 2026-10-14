@@ -553,16 +553,16 @@ describeWithPostgres('R17 outbox and JSON serialization performance evidence', (
     const one = await measureMutation({ nodes: 1 });
     const many = await measureMutation({ nodes: 300 });
     const expected: StageCounts = {
-      route_lookup: 3,
+      route_lookup: 1,
       id_reserve: 2,
       primary_outbox: 1,
       social_outbox: 0,
       publication_purge: 0,
       sidecar_cascade: 0,
-      total: 6,
+      total: 4,
     };
-    assert.deepEqual(one.statements, expected, 'N=1 outbox slice must be exactly 6 statements');
-    assert.deepEqual(many.statements, expected, 'N=300 outbox slice must be exactly 6 statements');
+    assert.deepEqual(one.statements, expected, 'N=1 outbox slice must be exactly 4 statements');
+    assert.deepEqual(many.statements, expected, 'N=300 outbox slice must be exactly 4 statements');
     assert.deepEqual(many.statements, one.statements,
       'deleting 1 vs 300 sidecar-less nodes must yield identical outbox-phase statement counts');
     assert.equal(one.outboxRows.get(NODE_DELETED_EVENT_TYPE), 1);
@@ -581,14 +581,14 @@ describeWithPostgres('R17 outbox and JSON serialization performance evidence', (
     const measurements: OutboxPhaseMeasurement[] = [];
     for (const A of [1, 128, 300]) {
       const m = await measureMutation({ nodes: 301, annotations: A });
-      assert.equal(m.statements.route_lookup, 3, 'route stage must stay constant as A grows');
+      assert.equal(m.statements.route_lookup, 1, 'route stage must stay constant as A grows');
       assert.equal(m.statements.id_reserve, 2,
         'the primary ID reserve stays constant at 2; cascade ID reserves are attributed to the sidecar stage');
       assert.equal(m.statements.primary_outbox, 1, 'primary outbox stays a single insert');
       assert.equal(m.statements.social_outbox, 0, 'the removed social handlers append no statements');
       assert.equal(m.statements.publication_purge, 0);
       assert.equal(m.statements.sidecar_cascade, 3 * A, 'each annotation cascade is reserve + reserve + insert');
-      assert.equal(m.statements.total, 6 + 3 * A);
+      assert.equal(m.statements.total, 4 + 3 * A);
       assert.equal(m.outboxRows.get(ANNOTATION_DELETED_EVENT_TYPE), A);
       assert.equal(m.outboxRows.get(NODE_DELETED_EVENT_TYPE), 1);
       assert.equal(m.resourceBatches.annotation, Math.ceil(A / 128),
@@ -603,7 +603,7 @@ describeWithPostgres('R17 outbox and JSON serialization performance evidence', (
       'the primary ID reserve is N-independent; cascade ID reserves scale inside sidecar_cascade');
     assert.equal(a300.outboxRows.get(ANNOTATION_DELETED_EVENT_TYPE)! - a128.outboxRows.get(ANNOTATION_DELETED_EVENT_TYPE)!,
       300 - 128);
-    assert.equal(a1.statements.total, 6 + 3 * 1);
+    assert.equal(a1.statements.total, 4 + 3 * 1);
     void a1;
   }, 120_000);
 
@@ -611,14 +611,14 @@ describeWithPostgres('R17 outbox and JSON serialization performance evidence', (
     const measurements: OutboxPhaseMeasurement[] = [];
     for (const R of [1, 128, 300]) {
       const m = await measureMutation({ nodes: 301, relations: R });
-      assert.equal(m.statements.route_lookup, 3);
+      assert.equal(m.statements.route_lookup, 1);
       assert.equal(m.statements.id_reserve, 2,
         'the primary ID reserve stays constant at 2; cascade ID reserves are attributed to the sidecar stage');
       assert.equal(m.statements.primary_outbox, 1);
       assert.equal(m.statements.social_outbox, 0);
       assert.equal(m.statements.publication_purge, 0);
       assert.equal(m.statements.sidecar_cascade, 3 * R, 'each relation cascade is reserve + reserve + insert');
-      assert.equal(m.statements.total, 6 + 3 * R);
+      assert.equal(m.statements.total, 4 + 3 * R);
       assert.equal(m.outboxRows.get(RELATION_DELETED_EVENT_TYPE), R);
       assert.equal(m.outboxRows.get(NODE_DELETED_EVENT_TYPE), 1);
       assert.equal(m.resourceBatches.relation, Math.ceil(R / 128));
@@ -633,13 +633,13 @@ describeWithPostgres('R17 outbox and JSON serialization performance evidence', (
   test('published collection: publication purge stage appends exactly reserve + insert (2 statements)', async () => {
     const m = await measureMutation({ published: true, nodes: 2 });
     assert.deepEqual(m.statements, {
-      route_lookup: 3,
+      route_lookup: 1,
       id_reserve: 2,
       primary_outbox: 1,
       social_outbox: 0,
       publication_purge: 2,
       sidecar_cascade: 0,
-      total: 8,
+      total: 6,
     });
     assert.equal(m.outboxRows.get(NODE_DELETED_EVENT_TYPE), 1);
     assert.equal(m.outboxRows.get(SOCIAL_COLLECTION_CHANGE_EVENT_TYPE) ?? 0, 0);

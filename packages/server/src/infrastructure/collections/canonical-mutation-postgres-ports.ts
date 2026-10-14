@@ -1518,8 +1518,15 @@ export function createPostgresCanonicalMutationPorts(
           : readNodeFields((authoritativeFields.fields ?? input.mutation.fields)!.kindFields, current);
         const automation = captureAutomation ? await planAutomationFacts(tx, input, current ?? null, afterFields,
           input.mutation.action === 'update' || input.mutation.action === 'delete' ? current!.parent_id : targetParent) : null;
+        // Reuse this adapter's locked read only when it is the lock handed to this
+        // plan. Independently constructed stages (C-06) re-read under that lock.
+        const collectionRead = lockedRead?.id === locked.collectionId
+          && BigInt(lockedRead.commit_ordinal) === locked.currentCommitOrdinal ? lockedRead
+          : await tx.selectFrom('collections').selectAll().select(sql<Date>`current_timestamp`.as('transaction_now'))
+            .where('id', '=', locked.collectionId).executeTakeFirst();
+        if (!collectionRead) invariant('collection disappeared while locked');
         return {
-          facts: Object.freeze({ resourceKind: 'node', reads: { node: current ?? null, parents: parentRows, collection: lockedRead!, now: lockedRead!.transaction_now }, action: input.mutation.action, annotations, relations, restoredPositionToken, consumedDeleteOperationId, automation }),
+          facts: Object.freeze({ resourceKind: 'node', reads: { node: current ?? null, parents: parentRows, collection: collectionRead, now: collectionRead.transaction_now }, action: input.mutation.action, annotations, relations, restoredPositionToken, consumedDeleteOperationId, automation }),
           operationId: input.operationId,
           collectionId: input.collectionId,
           mutation: {

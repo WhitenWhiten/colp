@@ -992,8 +992,9 @@ describeWithPostgres('R14 batched subtree delete authority and sidecars', () => 
       entry.sql.includes('jsonb_to_recordset') && /update\s+annotations/i.test(entry.sql));
     const relationUpdateStatements = captured.filter((entry) =>
       entry.sql.includes('jsonb_to_recordset') && /update\s+relations/i.test(entry.sql));
+    // Only tombstones set deleted_at; the parent children-revision write is also a row set.
     const nodeUpdateStatements = captured.filter((entry) =>
-      entry.sql.includes('jsonb_to_recordset') && /update\s+nodes/i.test(entry.sql));
+      entry.sql.includes('jsonb_to_recordset') && /update\s+nodes/i.test(entry.sql) && /deleted_at\s*=/i.test(entry.sql));
     assert.equal(nodeUpdateStatements.length, Math.ceil(301 / 128),
       `node tombstones must be one batched UPDATE..RETURNING per chunk, got ${nodeUpdateStatements.length}`);
     assert.equal(annotationUpdateStatements.length, Math.ceil(300 / 128),

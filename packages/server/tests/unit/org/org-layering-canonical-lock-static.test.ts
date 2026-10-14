@@ -9,6 +9,9 @@ import { readSrc, rel, srcRoot, walk } from '../../support/org-layering-static.j
 
 const CANONICAL_LOCK_ALLOWLIST = [
   'src/infrastructure/collections/canonical-mutation-postgres-ports.ts',
+  // In-memory port: returns the collection row canonical-bookmark-move-batch.ts
+  // already locked FOR UPDATE; it takes no lock and issues no SQL.
+  'src/infrastructure/collections/canonical-bookmark-move-plan.ts',
 ] as const;
 
 test('Canonical lockForCanonicalMutation exists in exactly one collections infra file (CANON-P0-c)', () => {
